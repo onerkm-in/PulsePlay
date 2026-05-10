@@ -65,23 +65,23 @@ export function listVendors(): VendorInfo[] {
 export async function loadAdapter(vendor: string): Promise<BIAdapter> {
     switch (vendor) {
         case "powerbi": {
-            const mod = await import("../../../bi-adapters/powerbi/index.ts");
+            const mod = await import("../../../bi-adapters/powerbi/index");
             return new mod.PowerBIAdapter();
         }
         case "tableau": {
-            const mod = await import("../../../bi-adapters/tableau/index.ts");
+            const mod = await import("../../../bi-adapters/tableau/index");
             return new mod.TableauAdapter();
         }
         case "qlik": {
-            const mod = await import("../../../bi-adapters/qlik/index.ts");
+            const mod = await import("../../../bi-adapters/qlik/index");
             return new mod.QlikAdapter();
         }
         case "looker": {
-            const mod = await import("../../../bi-adapters/looker/index.ts");
+            const mod = await import("../../../bi-adapters/looker/index");
             return new mod.LookerAdapter();
         }
         case "generic-iframe": {
-            const mod = await import("../../../bi-adapters/generic-iframe/index.ts");
+            const mod = await import("../../../bi-adapters/generic-iframe/index");
             return new mod.GenericIframeAdapter();
         }
         default:

@@ -107,11 +107,22 @@ const PBI_EVENT_MAP: Record<BIEventType, string[]> = {
     error: ["error"],
 };
 
+/** Vendor-neutral shape of the event payload powerbi-client passes to
+ *  `report.on(name, handler)`. The SDK types this as `IEvent<TDetail>`
+ *  in service.d.ts but doesn't re-export it from `powerbi-client`'s
+ *  top-level — so we declare a minimal local interface and cast at
+ *  the boundary. The `detail` is whatever the SDK forwards (page info,
+ *  filter array, datapoints, etc.); each event-type handler narrows
+ *  it via `normalizeEventPayload()`. */
+interface PbiCustomEvent {
+    detail: unknown;
+}
+
 /** Tracks live event subscriptions so destroy() can detach them all. */
 interface SubscriptionRecord {
     eventType: BIEventType;
     pbiEventName: string;
-    pbiHandler: (event: pbiModels.IEvent<unknown> | undefined) => void;
+    pbiHandler: (event: PbiCustomEvent | undefined) => void;
 }
 
 export class PowerBIAdapter implements BIAdapter {
@@ -202,7 +213,7 @@ export class PowerBIAdapter implements BIAdapter {
         const alreadyBridged = this.subs.some(s => s.eventType === eventType);
         if (!alreadyBridged && this.report) {
             for (const pbiEventName of PBI_EVENT_MAP[eventType]) {
-                const pbiHandler = (event: pbiModels.IEvent<unknown> | undefined) => {
+                const pbiHandler = (event: PbiCustomEvent | undefined) => {
                     this.emit({
                         type: eventType,
                         payload: this.normalizeEventPayload(eventType, pbiEventName, event),
@@ -245,8 +256,8 @@ export class PowerBIAdapter implements BIAdapter {
                 // a target by field, so we read current filters, drop matching
                 // ones, and set the remainder.
                 const current = await this.report.getFilters();
-                const remaining = current.filter(f => {
-                    const target = (f as pbiModels.IFilter).target as pbiModels.IFilterColumnTarget | undefined;
+                const remaining = current.filter((f: pbiModels.IFilter) => {
+                    const target = f.target as pbiModels.IFilterColumnTarget | undefined;
                     return !target || target.column !== command.field;
                 });
                 await this.report.setFilters(remaining);
@@ -308,7 +319,7 @@ export class PowerBIAdapter implements BIAdapter {
     private normalizeEventPayload(
         eventType: BIEventType,
         pbiEventName: string,
-        event: pbiModels.IEvent<unknown> | undefined,
+        event: PbiCustomEvent | undefined,
     ): unknown {
         const raw = event?.detail;
         switch (eventType) {
