@@ -86,7 +86,13 @@ function renderRowsAsMarkdown(columns, rows) {
 }
 
 /** The full happy-path orchestration. Returns the Genie-shape response
- *  the visual already knows how to render. */
+ *  the visual already knows how to render.
+ *
+ *  Cycle C — accepts an OPTIONAL `packContext` string. When present, it is
+ *  appended to BOTH the SQL and narrative system prompts so the LLM uses the
+ *  sub-vertical-appropriate vocabulary in both passes. The orchestrator's
+ *  signature stays backward-compatible: existing callers that don't pass
+ *  `packContext` see no behaviour change. */
 async function orchestrateGroundedAnswer({
     profile,
     question,
@@ -95,14 +101,25 @@ async function orchestrateGroundedAnswer({
     databricksRequest, // shared helper from server.js
     convId,
     msgId,
+    packContext,       // Cycle C — optional pack-specific prompt context.
 }) {
     if (!schemaContext || !schemaContext.trim()) {
         throw new Error('Schema context is required for grounded answers. Set profile.schemaContext in config.json.');
     }
 
+    // Cycle C — fold the pack-context into the system prompts when provided.
+    // Defensive: ignore non-string / empty values rather than throwing.
+    const packCtx = (typeof packContext === 'string' && packContext.trim()) ? packContext.trim() : '';
+    const sqlSystemPrompt = packCtx
+        ? `${SQL_SYSTEM_PROMPT}\n\n${packCtx}`
+        : SQL_SYSTEM_PROMPT;
+    const narrativeSystemPrompt = packCtx
+        ? `${NARRATIVE_SYSTEM_PROMPT}\n\n${packCtx}`
+        : NARRATIVE_SYSTEM_PROMPT;
+
     // Step 1+2: get SQL from LLM.
     const sqlMessages = [
-        { role: 'system', content: SQL_SYSTEM_PROMPT },
+        { role: 'system', content: sqlSystemPrompt },
         { role: 'user', content: `Schema:\n${schemaContext}\n\nQuestion: ${question}` },
     ];
     const sqlResponse = await callLlm(sqlMessages);
@@ -160,7 +177,7 @@ async function orchestrateGroundedAnswer({
         execResult.totalRowCount
     );
     const narrativeMessages = [
-        { role: 'system', content: NARRATIVE_SYSTEM_PROMPT },
+        { role: 'system', content: narrativeSystemPrompt },
         { role: 'user', content: narrativePrompt },
     ];
     let narrative;
@@ -200,7 +217,7 @@ async function orchestrateGroundedAnswer({
                     firstFail.validation
                 );
                 const retryMessages = [
-                    { role: 'system', content: NARRATIVE_SYSTEM_PROMPT },
+                    { role: 'system', content: narrativeSystemPrompt },
                     { role: 'user', content: retryDirective },
                 ];
                 try {

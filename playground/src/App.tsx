@@ -128,6 +128,7 @@ export function App() {
                     activeVendor={activeVendor}
                     activeConnector={activeConnector}
                     recentEvents={recentEvents}
+                    packSelection={packSelection}
                 />
             </aside>
             <main className="pp-app__canvas">

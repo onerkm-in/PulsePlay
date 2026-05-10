@@ -1696,12 +1696,38 @@ app.post('/assistant/conversations/start', async (req, res) => {
     const resolved = resolveProfile(req.body, {}, req.headers, req);
     if (!resolved) return res.status(400).json({ error: 'No matching profile configured' });
 
-    const { spaceId, content, contextText } = req.body;
+    const { spaceId, content, contextText, pack, subVertical } = req.body;
     if (!content || !String(content).trim()) {
         return res.status(400).json({ error: 'Question content is required' });
     }
     const targetSpaceId = spaceId || resolved.profile.spaceId;
-    const fullContent = [contextText, content].filter(Boolean).join('\n\n');
+    const baseContent = [contextText, content].filter(Boolean).join('\n\n');
+
+    // Cycle C — pack-context injection. Genie has no system-prompt API, so
+    // we prepend the pack context as a fenced "Pack Context" header inside
+    // the first user message. Failures here are NEVER fatal: if the pack
+    // can't be resolved we send the question unchanged and audit-log a
+    // warning so the audit pipeline can surface misconfigured packs.
+    const packResolved = resolvePackContext({ pack, subVertical });
+    let fullContent = baseContent;
+    if (packResolved.resolved && packResolved.content) {
+        fullContent = wrapAsGenieUserMessage(
+            packResolved.content,
+            packResolved.pack,
+            packResolved.subVertical,
+            baseContent,
+        );
+    }
+    if (packResolved.requested) {
+        auditLog(req, {
+            profileName: resolved.name,
+            spaceId: targetSpaceId,
+            action: 'pack-context-inject',
+            status: packResolved.resolved ? 'OK' : 'WARN',
+            detail: JSON.stringify({ ...buildPackAuditDetail(packResolved), backend: 'genie' }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+    }
 
     try {
         await ensureWarehouseRunning(resolved.profile);
@@ -2057,6 +2083,13 @@ app.get('/assistant/conversations/:conversationId/messages/:messageId', async (r
 // `probeConnector()` so a hung backend can't tie up the proxy.
 const { probeConnector: _probeConnector } = require('./lib/connectorProbe');
 const { matchPacksAgainstProbe: _matchPacksAgainstProbe } = require('./lib/packMatcher');
+// Cycle C — pack-context injector (used by start-conversation routes for
+// Genie / OpenAI / Bedrock). Imported here so it's loaded once + cached.
+const {
+    resolvePackContext,
+    wrapAsGenieUserMessage,
+    buildAuditDetail: buildPackAuditDetail,
+} = require('./lib/packPromptInjector');
 
 app.post('/assistant/probe', async (req, res) => {
     const startedAt = Date.now();
@@ -3075,7 +3108,7 @@ app.get('/openai/health', (req, res) => {
 // IDEA-040 Phase 2 — shared analytics-mode entry point used by both the
 // OpenAI route and the Bedrock-direct route. Wraps the orchestrator with
 // retry-on-bad-SQL and auto-introspection-when-missing.
-async function runAnalyticsOrchestrator({ profile, content, callLlm, convId, msgId }) {
+async function runAnalyticsOrchestrator({ profile, content, callLlm, convId, msgId, packContext }) {
     const { orchestrateGroundedAnswer, withRetryOnBadSql } = require('./lib/llmOrchestrator');
 
     // Resolve schema context: explicit profile.schemaContext wins; otherwise
@@ -3096,6 +3129,9 @@ async function runAnalyticsOrchestrator({ profile, content, callLlm, convId, msg
     const orchestratorArgs = {
         profile, question: content, schemaContext,
         callLlm, databricksRequest, convId, msgId,
+        // Cycle C — forward optional pack-context to the LLM orchestrator so
+        // SQL + narrative system prompts both pick up sub-vertical vocabulary.
+        packContext,
     };
 
     // Retry-on-bad-SQL is opt-out: profile.disableSqlRetry === true skips it.
@@ -3110,8 +3146,23 @@ app.post('/openai/conversations/start', async (req, res) => {
     const resolved = resolveOpenAiProfile(req.body, req.headers);
     if (!resolved) return res.status(400).json({ error: 'No Azure OpenAI profile configured.' });
 
-    const { content } = req.body;
+    const { content, pack, subVertical } = req.body;
     const convId = `aoai-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    // Cycle C — pack-context resolution. Forwarded to BOTH the analytics
+    // orchestrator AND the chat-only path (where it's prepended as a
+    // system message). Audit-log every requested injection regardless of
+    // which path runs.
+    const packResolved = resolvePackContext({ pack, subVertical });
+    if (packResolved.requested) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'pack-context-inject',
+            status: packResolved.resolved ? 'OK' : 'WARN',
+            detail: JSON.stringify({ ...buildPackAuditDetail(packResolved), backend: 'openai' }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+    }
 
     // IDEA-040 Cycle 7 — analytics-grounding mode. When the profile has
     // `mode: "analytics"` (and either an explicit schemaContext or the
@@ -3132,6 +3183,7 @@ app.post('/openai/conversations/start', async (req, res) => {
             };
             const { result, retried, attempts } = await runAnalyticsOrchestrator({
                 profile: resolved.profile, content, callLlm, convId, msgId,
+                packContext: packResolved.resolved ? packResolved.content : null,
             });
             // Pack the COMPLETED response into message_id so the visual's
             // waitForMessageWithProgress() path returns immediately (matches
@@ -3151,8 +3203,13 @@ app.post('/openai/conversations/start', async (req, res) => {
         }
     }
 
-    // Chat-only path (unchanged).
-    const messages = [{ role: 'user', content }];
+    // Chat-only path. Cycle C — when pack-context is resolved, prepend it
+    // as a system message so the model adopts sub-vertical vocabulary. The
+    // existing conversation-history shape is preserved (system messages are
+    // valid in OpenAI Chat Completions).
+    const messages = packResolved.resolved && packResolved.content
+        ? [{ role: 'system', content: packResolved.content }, { role: 'user', content }]
+        : [{ role: 'user', content }];
     openAiConversationHistory.set(convId, { messages, storedAt: Date.now() });
 
     try {
@@ -3318,9 +3375,22 @@ app.post('/bedrock/conversations/start', async (req, res) => {
     const resolved = resolveBedrockProfile(req.body, req.headers);
     if (!resolved) return res.status(400).json({ error: 'No AWS Bedrock profile configured.' });
 
-    const { content } = req.body;
+    const { content, pack, subVertical } = req.body;
     const convId = `bedrock-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const engine = resolveEngine(resolved.profile) || 'bedrock-rag';
+
+    // Cycle C — pack-context resolution. Same audit shape as the Genie + OpenAI
+    // routes so a single grep correlates every injection site.
+    const packResolved = resolvePackContext({ pack, subVertical });
+    if (packResolved.requested) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'pack-context-inject',
+            status: packResolved.resolved ? 'OK' : 'WARN',
+            detail: JSON.stringify({ ...buildPackAuditDetail(packResolved), backend: 'bedrock', engine }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+    }
 
     // Phase 2 — bedrock-direct + analytics mode → orchestrator path.
     const hasAnalyticsContext =
@@ -3332,6 +3402,7 @@ app.post('/bedrock/conversations/start', async (req, res) => {
             const callLlm = (messages) => bedrockInvokeModelCall(resolved.profile, messages);
             const { result, retried, attempts } = await runAnalyticsOrchestrator({
                 profile: resolved.profile, content, callLlm, convId, msgId,
+                packContext: packResolved.resolved ? packResolved.content : null,
             });
             const responsePayload = {
                 conversation_id: convId,
@@ -3348,10 +3419,15 @@ app.post('/bedrock/conversations/start', async (req, res) => {
         }
     }
 
-    // Phase 2 — bedrock-direct chat-only (no analytics): plain InvokeModel
+    // Phase 2 — bedrock-direct chat-only (no analytics): plain InvokeModel.
+    // Cycle C — when pack-context is resolved, prepend it as a system message
+    // so the model adopts sub-vertical vocabulary. The Anthropic Messages
+    // payload wrapper (see lib/bedrock.js) accepts a leading system message.
     if (engine === 'bedrock-direct') {
         try {
-            const messages = [{ role: 'user', content }];
+            const messages = packResolved.resolved && packResolved.content
+                ? [{ role: 'system', content: packResolved.content }, { role: 'user', content }]
+                : [{ role: 'user', content }];
             const answer = await bedrockInvokeModelCall(resolved.profile, messages);
             const msgId = JSON.stringify({ id: convId, status: 'COMPLETED', content: answer });
             console.log(`[bedrock/direct/start] profile=${resolved.name} conv=${convId}`);
@@ -3362,9 +3438,14 @@ app.post('/bedrock/conversations/start', async (req, res) => {
         }
     }
 
-    // Existing RAG path (unchanged).
+    // Existing RAG path. Cycle C — pack-context is prepended to the user's
+    // input text as a header (Bedrock RetrieveAndGenerate has no system-prompt
+    // slot in the v1 KB-coupled API), mirroring the Genie shape.
+    const ragInput = packResolved.resolved && packResolved.content
+        ? wrapAsGenieUserMessage(packResolved.content, packResolved.pack, packResolved.subVertical, content)
+        : content;
     try {
-        const data = await bedrockRetrieveAndGenerate(resolved.profile, content, null);
+        const data = await bedrockRetrieveAndGenerate(resolved.profile, ragInput, null);
         const answer = data.output?.text ?? '';
         const sessionId = data.sessionId;
         if (sessionId) bedrockSessionMap.set(convId, { sessionId, storedAt: Date.now() });
