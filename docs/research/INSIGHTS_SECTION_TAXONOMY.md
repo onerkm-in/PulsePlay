@@ -1,6 +1,8 @@
 # AI Insights — Section Archetype Taxonomy
 
-> Research-backed catalog for the "Custom AI Insights Sections" preset library bundled in `genieChatVisual/src/insightsPresetLibrary.ts`. Establishes the canonical archetype library, surfaces hard-coded values that should become parameters, and gives a keep / rename / restructure recommendation for every shipped preset.
+> **Portability note (2026-05-10):** this file was inherited from the sister project `DwD_AI_Assistant_for_PBI` (Pulse). File references like `genieChatVisual/src/insightsPresetLibrary.ts` point at THAT codebase, not PulsePlay. The research content (archetype catalog, BLUF/Minto framing, vendor library comparisons) is portable to PulsePlay once the AI Insights pipeline is ported (planned v0.3+).
+>
+> Research-backed catalog for the "Custom AI Insights Sections" preset library bundled in `genieChatVisual/src/insightsPresetLibrary.ts` (DwD/Pulse). Establishes the canonical archetype library, surfaces hard-coded values that should become parameters, and gives a keep / rename / restructure recommendation for every shipped preset.
 
 ---
 

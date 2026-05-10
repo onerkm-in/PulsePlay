@@ -1,6 +1,6 @@
 # ADR-0007 — BackendAdapter abstraction (IDEA-023)
 
-**Status:** Spike landed (Session 53). Interface + stubs in place; full migration of GenieClient deferred.
+**Status:** Spike landed in Pulse (Session 53). Interface + stubs in place; full migration of GenieClient deferred. **Conceptual ancestor of PulsePlay's `BIAdapter`**: this ADR's `SingleSpaceBackend` / `SupervisorBackend` interfaces describe the **connector-side** (X-axis) abstraction, while PulsePlay's [`BIAdapter`](../../playground/src/biPanel/BIAdapter.ts) is the **BI-vendor-side** (Y-axis) mirror of the same pattern. PulsePlay applies the principle on both axes; Pulse only had it on one.
 
 **Date:** 2026-05-02
 

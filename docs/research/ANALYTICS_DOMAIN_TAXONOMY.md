@@ -1,7 +1,9 @@
 # Analytics Domain Taxonomy — Recommendation
 
+> **Portability note (2026-05-10):** this file was inherited from the sister project `DwD_AI_Assistant_for_PBI` (Pulse). File references like `genieChatVisual/src/setupStep5.tsx` point at THAT codebase, not PulsePlay. The research content (domain taxonomy, vendor template comparisons, gap analysis) is portable and will inform PulsePlay's analytics-domain pack design.
+>
 > Research-backed proposal for the canonical "Analytics Domain" preset list exposed by the AI Insights Section A picker.
-> Source of truth today: `genieChatVisual/src/setupStep5.tsx:46-59` (`DOMAIN_PRESETS`) and `genieChatVisual/src/insightsPresetLibrary.ts` (preset bundles).
+> Source of truth today: `genieChatVisual/src/setupStep5.tsx:46-59` (`DOMAIN_PRESETS`) and `genieChatVisual/src/insightsPresetLibrary.ts` (preset bundles) — both in DwD/Pulse.
 > Author: deep-research analyst pass, 2026-05-06.
 
 ## Executive summary
