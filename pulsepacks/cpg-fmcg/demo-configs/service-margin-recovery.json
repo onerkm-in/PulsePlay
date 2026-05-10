@@ -1,0 +1,51 @@
+{
+  "name": "service-margin-recovery",
+  "displayName": "Service-Level & Margin Recovery (CPG narrow vertical slice)",
+  "pack": "cpg-fmcg",
+  "subVertical": "supply-chain",
+  "crossVerticals": [
+    "commercial-retail",
+    "finance-fpa",
+    "client-management"
+  ],
+  "biPanel": {
+    "vendor": "powerbi",
+    "config": {
+      "embedType": "report",
+      "reportPlaceholderName": "Customer Service Cockpit",
+      "expectedPages": [
+        "Service Level by Customer / Region",
+        "OTIF & Fill Rate Trend",
+        "Margin Bridge",
+        "Trade Spend & Deduction Leakage"
+      ],
+      "notes": "This config is a placeholder. A real deployment binds to a customer's Power BI workspace + report ID via the embed-token issuance route in the proxy. Embed tokens are server-side; never embed credentials in the playground bundle."
+    }
+  },
+  "aiSidebar": {
+    "connector": "genie-supply-chain-mart",
+    "connectorNotes": "Replace with the connector profile name configured in the proxy. The expected backing source is a Genie space over the customer-service / OTIF / margin marts in the lakehouse. For production, this should be wrapped by a Mosaic Supervisor agent so cross-mart traversal works.",
+    "promptContextRef": "sub-verticals/supply-chain/prompt-context.md",
+    "suggestedQuestions": [
+      "Which lanes are at risk of missing OTIF this week?",
+      "Why did the East region's service level drop 4 points last month?",
+      "What is the margin-safe recovery plan to fix the East-region service shortfall by week-end?",
+      "Project our service level for next week assuming the current production schedule and known promo pulls.",
+      "Trade spend accrual is over-committed by 8%. Where is the leakage?"
+    ]
+  },
+  "metadata": {
+    "scenario": "The canonical 'narrow but deep vertical slice' for CPG: service-level and margin recovery for one region, one category, one customer cluster. Crosses supply chain, commercial, finance, and retail. The demo proves the value of an AI sidebar that reasons across systems on top of an existing Power BI report — not as a chat replacement for the report, but as the layer that explains why the numbers moved and what to do.",
+    "audiences": [
+      "exec",
+      "supply-chain-ops",
+      "commercial-finance"
+    ],
+    "estimatedSetupMinutes": 30,
+    "dependencies": [
+      "Power BI workspace + customer-service report",
+      "Genie space (or equivalent) over a customer-service / OTIF / margin mart",
+      "Optional: Mosaic Supervisor agent wrapping multiple Genie spaces for cross-mart traversal"
+    ]
+  }
+}

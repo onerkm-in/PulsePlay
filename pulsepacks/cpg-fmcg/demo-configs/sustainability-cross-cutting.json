@@ -1,0 +1,54 @@
+{
+  "name": "sustainability-cross-cutting",
+  "displayName": "Sustainability Cross-Cutting Overlay (Scope 3 supplier emissions)",
+  "pack": "cpg-fmcg",
+  "subVertical": "sustainability",
+  "crossVerticals": [
+    "procurement",
+    "vendor-management",
+    "supply-chain",
+    "manufacturing"
+  ],
+  "biPanel": {
+    "vendor": "tableau",
+    "config": {
+      "embedType": "viz",
+      "vizPlaceholderName": "Scope 3 Supplier Emissions Dashboard",
+      "expectedSheets": [
+        "Scope 3 Cat. 1 Top Suppliers",
+        "Tier-2 Dependency Map",
+        "Data Quality Heatmap (supplier-specific vs spend-based)",
+        "SBTi Trajectory vs Target"
+      ],
+      "notes": "Tableau is suggested here because Tableau's Embedding API v3 + cross-source correlation features land well for cross-cutting overlays. A Power BI version of the same demo is equally valid. The sustainability data is typically held in a dedicated platform (Sphera, Watershed, Persefoni, Microsoft Sustainability Manager) and surfaced into the BI tool via lakehouse staging."
+    }
+  },
+  "aiSidebar": {
+    "connector": "supervisor-cross-vertical",
+    "connectorNotes": "Replace with a Mosaic Supervisor agent profile that has tools wired into procurement spend, vendor-management supplier-disclosures, supply-chain transport-emissions, and manufacturing site-emissions. Single-source connectors will not work for this demo; the value is in the multi-source synthesis.",
+    "promptContextRef": "sub-verticals/sustainability/prompt-context.md",
+    "suggestedQuestions": [
+      "What is our Scope 3 emission breakdown by category (1-15)?",
+      "For our Scope 3 category-1 emissions, which suppliers contribute the top 80%?",
+      "What is our Scope 3 category-4 (Upstream transportation) emissions trend, and what mode-shift opportunities exist?",
+      "Which suppliers have not yet submitted a CDP disclosure?",
+      "Are we on track for our SBTi-aligned Scope 1+2 reduction commitment?"
+    ]
+  },
+  "metadata": {
+    "scenario": "Demonstrates the cross-cutting overlay pattern: a sustainability question (Scope 3 supplier emissions trajectory) that the agent answers by composing data from procurement, vendor management, supply chain, and manufacturing. Each component of the answer is anchored to its canonical framework (GHG Protocol Scope 3 Standard, supplier-specific vs spend-based calculation method, data-quality scoring per the standard's hierarchy). This demo proves that the AI sidebar can do what no single sub-vertical dashboard can: cite the framework, decompose into peer sub-verticals, surface uncertainty, and produce an auditable answer.",
+    "audiences": [
+      "sustainability",
+      "exec",
+      "procurement",
+      "investor-relations"
+    ],
+    "estimatedSetupMinutes": 60,
+    "dependencies": [
+      "Tableau workspace with Scope 3 dashboard",
+      "Mosaic Supervisor agent with multi-source tools (spend, supplier disclosures, transport emissions, site emissions)",
+      "Curated emission-factor library accessible to the agent",
+      "Reporting-boundary register accessible to the agent"
+    ]
+  }
+}
