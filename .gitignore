@@ -21,6 +21,9 @@ proxy/.env.local
 .dwd-session.state.json
 .pulseplay-session.state.json
 
+# Claude Code session cache (per-user, never committed)
+.claude/
+
 # Editor / OS
 .vscode/
 .idea/
