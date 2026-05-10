@@ -1,0 +1,49 @@
+# Node / npm
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json.bak
+
+# Vite
+playground/dist/
+playground/.vite/
+
+# Proxy runtime artifacts (never commit credentials or session-specific logs)
+proxy/config.json
+proxy/feedback.log
+proxy/proxy.out.log
+proxy/proxy.err.log
+proxy/.env
+proxy/.env.local
+
+# LLM session state (per-session, gitignored)
+.dwd-session.state.json
+.pulseplay-session.state.json
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# TypeScript build info
+*.tsbuildinfo
+playground/tsconfig*.tsbuildinfo
+
+# Test output
+coverage/
+playground/coverage/
+proxy/coverage/
+
+# Python venvs (if you use scripts/ locally)
+.venv/
+__pycache__/
+*.pyc
+
+# Misc temp
+.cache/
+.tmp/
+*.log

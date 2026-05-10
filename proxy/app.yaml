@@ -1,0 +1,28 @@
+command: ["npm", "run", "start"]
+env:
+  - name: APP_PREFIX
+    value: "test_SuperUser"
+  - name: ASSISTANT_PROFILE
+    value: "default"
+  - name: GENIE_SPACE_ID
+    value: "01f13d2bcd0a1be2a333d78bca0911b6"
+  - name: GENIE_SPACE_ID_HSE
+    value: "01f13d2bcd0a1be2a333d78bca0911b6"
+  - name: GENIE_SPACE_ID_SALES
+    value: "01f13fe275b515608abb4182d0a37373"
+  - name: GENIE_SPACE_ID_CUSTOMER
+    value: "01f13fe2c42f13c4a8f80254aab32c0f"
+  - name: GENIE_SPACE_ID_OPS
+    value: "01f13fe2ca67114cbe3d056765823125"
+  - name: SUPERVISOR_ENABLED
+    value: "true"
+  - name: SUPERVISOR_AGENT_NAME
+    value: "DwD Supervisor"
+  - name: SUPERVISOR_SPACES
+    value: "sales,customer,ops,hse"
+  - name: SUPERVISOR_SYNTHESIS_ENDPOINT
+    value: "databricks-gpt-5-4"
+  - name: WAREHOUSE_ID
+    value: "6510da50329f1e85"
+  - name: FEEDBACK_LOG
+    value: "feedback.log"

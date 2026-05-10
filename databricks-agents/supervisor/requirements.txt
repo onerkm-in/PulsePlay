@@ -1,0 +1,9 @@
+# Minimum-viable pin set. agent.py uses only the stable
+# `langgraph.graph` API (StateGraph, START, END, add_messages) and
+# `langchain_core.tools.@tool` — both unchanged across versions. So we
+# don't pin langgraph or langchain-core; let databricks-* pull whatever
+# it needs and accept the resulting transitive set. This avoids
+# ResolutionImpossible errors caused by tight cross-version pins.
+mlflow>=2.20
+databricks-langchain
+databricks-agents
