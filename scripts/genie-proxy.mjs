@@ -94,7 +94,10 @@ function isAllowedDatabricksHost(host) {
 function corsHeaders() {
     return {
         "Access-Control-Allow-Origin": corsOrigin,
-        "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Genie-Target-Host",
+        // Backward-compat: accept both PulsePlay (canonical) and Genie
+        // (legacy) target-host headers so the Pulse PBI sibling visual
+        // still works against this dev proxy.
+        "Access-Control-Allow-Headers": "Authorization, Content-Type, X-PulsePlay-Target-Host, X-Genie-Target-Host",
         "Access-Control-Allow-Methods": "GET, POST, OPTIONS"
     };
 }
@@ -129,7 +132,8 @@ async function readJsonBody(req) {
 }
 
 function getTargetHost(req) {
-    const headerHost = req.headers["x-genie-target-host"];
+    // Prefer canonical PulsePlay header; fall back to legacy Pulse name.
+    const headerHost = req.headers["x-pulseplay-target-host"] || req.headers["x-genie-target-host"];
     if (typeof headerHost === "string" && headerHost.trim()) {
         return headerHost.trim().replace(/\/$/, "");
     }

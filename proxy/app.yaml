@@ -17,7 +17,7 @@ env:
   - name: SUPERVISOR_ENABLED
     value: "true"
   - name: SUPERVISOR_AGENT_NAME
-    value: "DwD Supervisor"
+    value: "PulsePlay Supervisor"
   - name: SUPERVISOR_SPACES
     value: "sales,customer,ops,hse"
   - name: SUPERVISOR_SYNTHESIS_ENDPOINT

@@ -25,7 +25,10 @@ export async function probeConnector(profile: string): Promise<ConnectorProbeRes
     try {
         response = await fetch("/api/assistant/probe", {
             method: "POST",
-            // Agnostic on purpose — no X-Genie-Key, no provider-specific headers.
+            // Agnostic on purpose — no provider-specific headers (the proxy
+            // accepts X-PulsePlay-Key and the legacy X-Genie-Key alias when
+            // shared-key auth is configured; the deployer's wrapper or
+            // settings UI threads them through, not this client).
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ assistantProfile: profile }),
         });

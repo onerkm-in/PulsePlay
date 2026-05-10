@@ -52,8 +52,11 @@ The 7-item cycle that this docs consolidation is part of. Tracked here for visib
 - [ ] `/api/tableau/trusted-ticket` route
 - [ ] `/api/qlik/oauth-token` route
 - [ ] `/api/looker/signed-url` route
+- [x] Power BI adapter wires `powerbi-client` SDK (cycle A)
+- [x] Power BI event mapping + send() commands (cycle A)
+- [x] `/assistant/embed-token/{vendor}` proxy route (cycle A — Power BI implemented; Tableau/Qlik/Looker can mirror)
+- [x] **Naming sweep** (2026-05-10): package name `unibridge-ai-proxy` -> `pulseplay-proxy`; description updated; `X-Genie-Key` / `X-Genie-Target-Host` -> `X-PulsePlay-Key` / `X-PulsePlay-Target-Host` with backward-compat reads (Pulse PBI sibling visual still works); `dwd-supervisor-agent` -> `pulseplay-supervisor-agent` in `databricks-agents/supervisor/` and `proxy/config.example.json`; `.dwd-session.state.json` -> `.pulseplay-session.state.json` in `scripts/llm_*.py` (legacy file still read on resume); ADR-0003 file renamed to drop the now-stale `-800ms` suffix; `proxy/app.yaml` Supervisor name updated; CORS comment updated.
 - [ ] Smoke test adapted to PulsePlay (the inherited Pulse smoke is shaped wrong)
-- [ ] Naming sweep: package name `unibridge-ai-proxy` -> `pulseplay-proxy`; description update; header names (`X-Genie-*` -> `X-PulsePlay-*` with backward-compat aliases)
 
 ### Smart Connect & Connector Probe (NEW — agnostic-first)
 

@@ -2,7 +2,7 @@
 'use strict';
 
 /**
- * UniBridge AI Proxy — auth fan-out + CORS bypass between the Power BI
+ * PulsePlay Proxy — auth fan-out + connector-agnostic backbone for the
  * custom visual and Databricks Genie / supervisor / OpenAI / Bedrock.
  *
  * Type-checking is opt-in (`// @ts-check` at the top) so this file plays
@@ -122,7 +122,7 @@ function envConfig() {
             type: 'supervisor-local',
             host,
             token: profile.token,
-            agentName: process.env.SUPERVISOR_AGENT_NAME || 'UniBridge AI Supervisor',
+            agentName: process.env.SUPERVISOR_AGENT_NAME || 'PulsePlay Supervisor',
             synthesisEndpoint: process.env.SUPERVISOR_SYNTHESIS_ENDPOINT || 'databricks-gpt-5-4',
             spaces: explicitSpaces
                 ? explicitSpaces.split(',').map(s => s.trim()).filter(Boolean)
@@ -247,7 +247,7 @@ function mergeConfigWithEnvironment(config) {
             type: 'supervisor-local',
             host: process.env.DATABRICKS_HOST || fallbackProfile.host || '',
             token: process.env.DATABRICKS_TOKEN || process.env.DATABRICKS_PAT || fallbackProfile.token || '',
-            agentName: process.env.SUPERVISOR_AGENT_NAME || 'UniBridge AI Supervisor',
+            agentName: process.env.SUPERVISOR_AGENT_NAME || 'PulsePlay Supervisor',
             synthesisEndpoint: process.env.SUPERVISOR_SYNTHESIS_ENDPOINT || 'databricks-gpt-5-4',
             spaces: explicitSpaces
                 ? explicitSpaces.split(',').map(s => s.trim()).filter(Boolean)
@@ -598,7 +598,9 @@ function resolveProfile(body, query, headers, req) {
             return null;
         }
     } else {
-        const byHost = profileByHost(headers?.['x-genie-target-host']);
+        // Prefer canonical PulsePlay header; fall back to legacy Pulse name.
+        const targetHost = headers?.['x-pulseplay-target-host'] || headers?.['x-genie-target-host'];
+        const byHost = profileByHost(targetHost);
         base = byHost || profileByName('default');
     }
 
@@ -1070,22 +1072,31 @@ async function ensureWarehouseRunning(profile) {
 const app = express();
 app.use(express.json({ limit: '4mb' }));
 
-// CORS — Power BI Desktop WebView requires permissive headers.
-// Wave 28 cycle 4 — added `X-Request-Id` to Allow-Headers + Expose-Headers
-// list. Without it, the visual's POST to /assistant/conversations/start
-// triggered a preflight OPTIONS, the response said "X-Request-Id not
-// allowed", and the browser killed the request → xhr.status === 0 →
-// "Proxy Offline" false-positive even though /health (which doesn't
-// add X-Request-Id) succeeded simultaneously.
+// CORS — permissive by design. Both PulsePlay (browser host) and Pulse
+// (the sibling Power BI custom visual that uses this same proxy) make
+// cross-origin XHR/fetch calls; without these headers the browser's
+// preflight OPTIONS responds with "X-* not allowed" and silently kills
+// the real request.
+//
+// Backward-compat note: X-PulsePlay-* are the canonical PulsePlay header
+// names; X-Genie-* are kept in the Allow-Headers list so the Pulse PBI
+// custom visual (which still ships the X-Genie-Key/X-Genie-Target-Host
+// names) keeps working against this proxy. Both names are read by the
+// middleware below; emitted error messages reference X-PulsePlay-Key.
 app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    // Wave 31 — added X-Databricks-Host, X-Databricks-Token, X-Genie-Space-Id,
-    // X-Profile-Name for inline-credentials path. Without these in Allow-Headers,
-    // the preflight OPTIONS response would block the headers and the visual would
-    // silently fall through to the named-profile path even when the author
-    // intended to use inline creds.
-    res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, X-Genie-Target-Host, X-Genie-Key, X-Assistant-Profile, X-Request-Id, X-Databricks-Host, X-Databricks-Token, X-Genie-Space-Id, X-Profile-Name');
+    res.setHeader('Access-Control-Allow-Headers', [
+        'Authorization', 'Content-Type',
+        // PulsePlay canonical names
+        'X-PulsePlay-Key', 'X-PulsePlay-Target-Host',
+        // Pulse legacy aliases — keep until the sibling project switches
+        'X-Genie-Target-Host', 'X-Genie-Key', 'X-Genie-Space-Id',
+        // Backend-specific (not renamed — they ARE Databricks-specific)
+        'X-Databricks-Host', 'X-Databricks-Token',
+        // Generic
+        'X-Assistant-Profile', 'X-Request-Id', 'X-Profile-Name',
+    ].join(', '));
     res.setHeader('Access-Control-Expose-Headers', 'X-Request-Id');
     if (req.method === 'OPTIONS') return res.sendStatus(204);
     next();
@@ -1093,15 +1104,17 @@ app.use((req, res, next) => {
 
 // ── Shared-key auth ──────────────────────────────────────────────────────────
 // Opt-in protection: when config.json sets `sharedKey`, every /assistant/*,
-// /warehouse/*, and /feedback call must send the matching X-Genie-Key header.
+// /warehouse/*, and /feedback call must send the matching X-PulsePlay-Key
+// header (or the legacy X-Genie-Key alias for the Pulse PBI sibling).
 // Leaving `sharedKey` unset (the default for local dev) preserves existing
 // behaviour — localhost-only binding is still the primary defence.
 function sharedKeyMiddleware(req, res, next) {
     const required = cfg().sharedKey;
     if (!required || !String(required).trim()) return next();
-    const provided = req.headers['x-genie-key'];
-    // Wave 30 cycle 5 — constant-time comparison (see /admin/health-summary
-    // for rationale). Required > provided length never matches; same direct fail.
+    // Prefer the canonical PulsePlay header; fall back to the legacy
+    // Pulse name so existing PBI-custom-visual deployments keep working
+    // unchanged. Constant-time compare on whichever was supplied.
+    const provided = req.headers['x-pulseplay-key'] || req.headers['x-genie-key'];
     if (provided) {
         try {
             const cryptoMod = require('crypto');
@@ -1111,7 +1124,7 @@ function sharedKeyMiddleware(req, res, next) {
         } catch { /* fall through to 401 */ }
     }
     return res.status(401).json({
-        error: 'Missing or invalid X-Genie-Key header. Set the Proxy Shared Key in the visual format pane.'
+        error: 'Missing or invalid X-PulsePlay-Key header (legacy alias: X-Genie-Key). Set the Proxy Shared Key in your client.'
     });
 }
 
@@ -3687,7 +3700,7 @@ app.post('/foundation/section', async (req, res) => {
 //       "host": "https://dbc-xxx...",        // Databricks workspace
 //       "token": "dapi...",                  // PAT with CAN QUERY on the endpoint
 //       "endpoint": "/serving-endpoints/dwd-supervisor/invocations",
-//       "agentName": "DwD Supervisor"        // display label (optional)
+//       "agentName": "PulsePlay Supervisor"  // display label (optional)
 //   }
 
 function resolveSupervisorProfile(body, headers) {
@@ -3950,7 +3963,7 @@ async function synthesizeSupervisorAnswer(supervisorProfile, question, spaceResu
                     {
                         role: 'system',
                         content: [
-                            'You are UniBridge AI Supervisor, an enterprise BI supervisor agent.',
+                            'You are PulsePlay Supervisor, an enterprise BI supervisor agent.',
                             'You synthesize answers from multiple sources into one unified, accurate response.',
                             '',
                             'Rules:',
@@ -4724,7 +4737,7 @@ if (require.main === module) {
         const srv = http.createServer(app);
         activeServers.push(srv);
         srv.listen(port, '0.0.0.0', () => {
-            console.log(`UniBridge AI Proxy running for Databricks Apps on 0.0.0.0:${port}`);
+            console.log(`PulsePlay Proxy running for Databricks Apps on 0.0.0.0:${port}`);
             console.log(`Profiles → ${Object.keys(config.profiles ?? {}).join(', ')}`);
             console.log(`Config   → ${config.configSource || 'config.json'}`);
         });
@@ -4735,7 +4748,7 @@ if (require.main === module) {
         const srv4 = http.createServer(app);
         activeServers.push(srv4);
         srv4.listen(port, '127.0.0.1', () => {
-            console.log(`\nUniBridge AI Proxy  →  http://127.0.0.1:${port}`);
+            console.log(`\nPulsePlay Proxy  →  http://127.0.0.1:${port}`);
             console.log(`Profiles     →  ${Object.keys(config.profiles ?? {}).join(', ')}`);
             console.log(`Auth         →  ${azureIdentity ? 'PAT + Azure Identity fallback' : 'PAT only (install @azure/identity for managed identity)'}`);
             console.log(`Health check →  http://127.0.0.1:${port}/health`);

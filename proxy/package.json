@@ -1,7 +1,7 @@
 {
-    "name": "unibridge-ai-proxy",
-    "version": "1.0.0",
-    "description": "PulsePlay AI Proxy — connector-agnostic backbone routing to multiple AI brains (Genie / Supervisor / Azure OpenAI / Bedrock / Foundation Model / future MCP) for any BI surface. Inner-source v1; rename pending.",
+    "name": "pulseplay-proxy",
+    "version": "1.1.0",
+    "description": "PulsePlay AI Proxy — connector-agnostic backbone routing to multiple AI brains (Genie / Supervisor / Azure OpenAI / Bedrock / Foundation Model / future MCP) for any BI surface. Inner-source v1.",
     "main": "server.js",
     "scripts": {
         "start": "node server.js",

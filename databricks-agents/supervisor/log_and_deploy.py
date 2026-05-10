@@ -1,5 +1,5 @@
 """
-Log the DwD Supervisor Agent to MLflow + Unity Catalog and deploy it
+Log the PulsePlay Supervisor Agent to MLflow + Unity Catalog and deploy it
 as a Databricks Mosaic AI serving endpoint.
 
 RUN INSIDE A DATABRICKS NOTEBOOK attached to serverless or a single-user
@@ -10,8 +10,8 @@ in production; plain env vars are fine for dev):
 
     SALES_SPACE_ID, CUSTOMER_SPACE_ID, OPS_SPACE_ID, HSE_SPACE_ID
     UC_CATALOG, UC_SCHEMA       # where to register the model
-    AGENT_NAME                  # default: dwd_supervisor_agent
-    ENDPOINT_NAME               # default: dwd-supervisor-agent
+    AGENT_NAME                  # default: pulseplay_supervisor_agent
+    ENDPOINT_NAME               # default: pulseplay-supervisor-agent
     SUPERVISOR_LLM_ENDPOINT     # default: databricks-meta-llama-3.1-405b-instruct
 """
 import os
@@ -27,8 +27,8 @@ from agent import agent  # noqa: F401
 # ── Config ──────────────────────────────────────────────────────────────
 UC_CATALOG = os.environ["UC_CATALOG"]
 UC_SCHEMA  = os.environ["UC_SCHEMA"]
-AGENT_NAME = os.environ.get("AGENT_NAME", "dwd_supervisor_agent")
-ENDPOINT_NAME = os.environ.get("ENDPOINT_NAME", "dwd-supervisor-agent")
+AGENT_NAME = os.environ.get("AGENT_NAME", "pulseplay_supervisor_agent")
+ENDPOINT_NAME = os.environ.get("ENDPOINT_NAME", "pulseplay-supervisor-agent")
 
 UC_MODEL_NAME = f"{UC_CATALOG}.{UC_SCHEMA}.{AGENT_NAME}"
 
@@ -36,7 +36,7 @@ UC_MODEL_NAME = f"{UC_CATALOG}.{UC_SCHEMA}.{AGENT_NAME}"
 mlflow.set_registry_uri("databricks-uc")
 
 # ── Log the agent ───────────────────────────────────────────────────────
-with mlflow.start_run(run_name="dwd-supervisor-agent"):
+with mlflow.start_run(run_name="pulseplay-supervisor-agent"):
     logged_agent_info = mlflow.langchain.log_model(
         lc_model="agent.py",
         artifact_path="agent",
@@ -97,10 +97,10 @@ print(f'''  "supervisor": {{
     "type": "supervisor",
     "host": "<your-workspace-host>",
     "endpoint": "/serving-endpoints/{ENDPOINT_NAME}/invocations",
-    "agentName": "DwD Supervisor Agent",
+    "agentName": "PulsePlay Supervisor Agent",
     "token": "<PAT or service-principal token with CAN_USE on the endpoint>",
-    "displayName": "DwD Supervisor Agent",
+    "displayName": "PulsePlay Supervisor Agent",
     "dataDomain": "all helper data"
   }}''')
 print("---")
-print("Then restart the proxy and re-test in Power BI.")
+print("Then restart the proxy and re-test in PulsePlay or the Pulse PBI sibling.")
