@@ -21,6 +21,10 @@ import { AISidebar } from "./components/AISidebar";
 import { VendorPicker } from "./components/VendorPicker";
 import { ConnectorPicker } from "./components/ConnectorPicker";
 import { EmbedConfigForm } from "./components/EmbedConfigForm";
+import { TestConnectionPanel } from "./components/TestConnectionPanel";
+import { PackPicker, DEFAULT_AVAILABLE_PACKS } from "./components/PackPicker";
+import type { PackSelection } from "./components/PackPicker";
+import type { ConnectorProbeResult } from "./types/probe";
 
 export function App() {
     const vendors = useMemo(() => listVendors(), []);
@@ -32,6 +36,11 @@ export function App() {
     const [activeConnector, setActiveConnector] = useState<string>("");
     const [embedConfig, setEmbedConfig] = useState<BIEmbedConfig>({});
     const [recentEvents, setRecentEvents] = useState<BIEvent[]>([]);
+    // Smart Connect state — populated by TestConnectionPanel's probe and the
+    // user's pack confirmation (which may override the inferred suggestion).
+    // See docs/CONNECTOR_PROBE_AND_SMART_CONNECT.md for the design.
+    const [probeResult, setProbeResult] = useState<ConnectorProbeResult | null>(null);
+    const [packSelection, setPackSelection] = useState<PackSelection | null>(null);
 
     // Buffer the last ~20 BI events so the AI sidebar can include "what is
     // the user actually looking at right now?" in its prompt context. Same
@@ -44,7 +53,36 @@ export function App() {
         });
     }, []);
 
+    // Probe completion: persist the result and preselect the pack ONLY if
+    // the user hasn't already chosen one (author-final-say rule from
+    // CONNECTOR_PROBE_AND_SMART_CONNECT.md).
+    const handleProbeComplete = useCallback((result: ConnectorProbeResult) => {
+        setProbeResult(result);
+        const inferred = result.inference;
+        if (inferred?.suggestedPack) {
+            setPackSelection(prev => prev ?? {
+                pack: inferred.suggestedPack as string,
+                subVertical: inferred.suggestedSubVertical,
+            });
+        }
+    }, []);
+
+    // Switching connectors invalidates probe + pack selection so the next
+    // probe runs fresh against the new profile.
+    const handleConnectorChange = useCallback((next: string) => {
+        setActiveConnector(next);
+        setProbeResult(null);
+        setPackSelection(null);
+    }, []);
+
     const hasEmbedConfig = Object.keys(embedConfig).length > 0;
+    const probeSuggested: PackSelection | undefined =
+        probeResult?.inference?.suggestedPack
+            ? {
+                  pack: probeResult.inference.suggestedPack,
+                  subVertical: probeResult.inference.suggestedSubVertical,
+              }
+            : undefined;
 
     return (
         <div className="pp-app">
@@ -66,11 +104,26 @@ export function App() {
                     vendor={activeVendor}
                     value={embedConfig}
                     onChange={setEmbedConfig}
+                    assistantProfile={activeConnector}
                 />
                 <ConnectorPicker
                     activeConnector={activeConnector}
-                    onChange={setActiveConnector}
+                    onChange={handleConnectorChange}
                 />
+                {activeConnector && (
+                    <TestConnectionPanel
+                        profile={activeConnector}
+                        onProbeComplete={handleProbeComplete}
+                    />
+                )}
+                {activeConnector && (
+                    <PackPicker
+                        availablePacks={DEFAULT_AVAILABLE_PACKS}
+                        suggested={probeSuggested}
+                        value={packSelection}
+                        onChange={setPackSelection}
+                    />
+                )}
                 <AISidebar
                     activeVendor={activeVendor}
                     activeConnector={activeConnector}

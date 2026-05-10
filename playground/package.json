@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "powerbi-client": "^2.23.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
@@ -25,6 +26,7 @@
     "jsdom": "^25.0.0"
   },
   "comments": {
-    "_intentional_omission": "powerbi-client / tableau-api-js / qlik-embed are NOT root dependencies. Each lives in bi-adapters/<vendor>/ and gets installed only if/when that adapter is wired in. Keeps the playground core vendor-neutral and the bundle small for BI tools the deployer doesn't use."
+    "_intentional_inclusion_powerbi": "Cycle A — powerbi-client is now a root dep because the Power BI adapter (bi-adapters/powerbi/index.ts) imports it. Vite still code-splits per-vendor so deployers who don't pick Power BI in the vendor picker never download the SDK chunk.",
+    "_intentional_omission": "tableau-api-js / qlik-embed / @looker/embed-sdk are NOT root dependencies yet. Each will be added when its adapter graduates from the iframe stub to a real SDK. Keeps the playground core vendor-neutral and the bundle small for BI tools the deployer doesn't use."
   }
 }
