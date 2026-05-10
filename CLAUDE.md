@@ -4,6 +4,12 @@
 
 A React playground that hosts ANY BI tool (Power BI, Tableau, Qlik, Looker, generic iframe, …) as an embedded guest, with an AI assistant sidebar that reasons about whatever the user is currently looking at — connector-agnostic on the AI side, vendor-agnostic on the BI side.
 
+## Strategic direction
+
+**Path C — inner-source-first, public-OSS-later.** PulsePlay v1 is scoped as an internal-org enabler, NOT a public commercial platform. The org has separate teams that build LLMs, agents (Genie / Mosaic Supervisor / Foundation Model), and Unity Catalog data; the org has BI tools already deployed. PulsePlay is the thin pane of glass that orchestrates these — we don't build LLMs, we don't build agents, we orchestrate and provide the experience layer.
+
+Public-OSS readiness items (license decision, SBOM signing, conformance harness, public docs site, multi-tenant isolation, full ISO/EU AI Act compliance) are deferred to [docs/PUBLIC_OSS_AGENDA.md](docs/PUBLIC_OSS_AGENDA.md). Don't add them to the v0.x or v1.x scope without an explicit direction shift.
+
 ## How we work here (read this every session)
 
 This file inherits the collaboration patterns we built up across the sister project DwD_AI_Assistant_for_PBI cycles 1-47. Names and specifics differ; the working style is identical. All of these are LOAD-BEARING — please honor them.
@@ -57,16 +63,16 @@ Prints crash recovery context (if previous session didn't wrap up), the canonica
 python scripts/llm_wrapup.py --note "one-line summary of what shipped"
 ```
 
-State file `.dwd-session.state.json` (carried over name from sibling project; rename to `.pulseplay-session.state.json` when you next touch the script) is gitignored. `--force` to skip the doc-staleness check when knowingly skipping.
+State file `.dwd-session.state.json` (carried-over name from sibling project — **rename to `.pulseplay-session.state.json` is PENDING** in `scripts/llm_wrapup.py`; both names are gitignored already). `--force` to skip the doc-staleness check when knowingly skipping.
 
 ## The 2-axis abstraction (PulsePlay's defining design)
 
 | Axis | What varies | Where it lives |
 |---|---|---|
 | **Y: BI vendor** | What the user is LOOKING AT | `bi-adapters/<vendor>/` — frontend adapters implementing `BIAdapter` interface |
-| **X: AI connector** | What the AI brain IS | `proxy/` profile types — Genie, Azure OpenAI, Bedrock, Foundation Model, Supervisor |
+| **X: AI connector** | What the AI brain IS | `proxy/` profile types — Genie, Azure OpenAI, Bedrock, Foundation Model, Supervisor (8 backend paths total) |
 
-ANY combination of (vendor, connector) is valid. Switching either is independent. See [docs/MULTI_BI_ARCHITECTURE.md](docs/MULTI_BI_ARCHITECTURE.md) for the full architecture.
+ANY combination of (vendor, connector) is valid. Switching either is independent. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full architecture.
 
 ## Key directories
 
@@ -85,9 +91,19 @@ ANY combination of (vendor, connector) is valid. Switching either is independent
 | `databricks-agents/supervisor/` | Mosaic AI Supervisor Agent template (LangGraph + create_react_agent) |
 | `scripts/llm_onboard.py` / `llm_wrapup.py` | Universal LLM ritual |
 | `scripts/smoke-full.ps1` / `smoke-rls-ols.ps1` | Smoke helpers (need adaptation for PulsePlay's profiles) |
-| `docs/MULTI_BI_ARCHITECTURE.md` | THIS PROJECT's architectural lodestar |
-| `docs/ARCHITECTURE.md` | Inherited general architecture (proxy + Genie integration) |
-| `docs/SECURITY_REVIEW.md`, `ENTERPRISE_READINESS.md`, `API_AUTH_AND_LIMITATIONS.md` | Inherited security + ops posture |
+| `docs/ARCHITECTURE.md` | THIS PROJECT's architectural lodestar (replaced inherited PepPulse-titled doc; merged from former `MULTI_BI_ARCHITECTURE.md`) |
+| `docs/SECURITY.md` | Internal-scoped security guardrails (pruned from full enterprise doc) |
+| `docs/ROADMAP.md` | Sequenced plan v0.1 -> v1.2 |
+| `docs/AGENDA.md` | Open-work tracker |
+| `docs/PROXY_REFERENCE.md` | Proxy API surface, scopes, OAuth M2M setup |
+| `docs/QUALITY.md` | What we measure / don't / will (honest) |
+| `docs/PACKS.md` | Pack architecture overview |
+| `docs/PUBLIC_OSS_AGENDA.md` | Public-OSS path items, deferred from v1.x |
+| `docs/MIGRATION_NOTES.md` | 2026-05-10 doc consolidation summary |
+| `docs/research/CODEBASE_AUDIT.md` | Brutal-honest gap analysis at HEAD |
+| `docs/research/MARKET_AND_STANDARDS.md` | Market + standards research |
+| `docs/inherited/` | Pulse-heritage docs preserved verbatim for reference |
+| `docs/adr/` | Architecture Decision Records (some marked SUPERSEDED for PulsePlay) |
 
 ## Canonical run sequence
 
@@ -113,7 +129,7 @@ The Vite dev server proxies `/api/*` to `http://127.0.0.1:8787` (the proxy's bin
 ## Tripwires
 
 **No PBI Desktop sandbox here**
-DwD_AI_Assistant_for_PBI's biggest constraints (no `fetch`, no PNG/Excel exports, no streaming, no Web Workers, no Web Speech, no DuckDB-WASM lazy chunks) DO NOT APPLY in PulsePlay. The playground runs in a real browser. Use modern web APIs freely. See the "Gateway of madness" section in [docs/MULTI_BI_ARCHITECTURE.md](docs/MULTI_BI_ARCHITECTURE.md) for the unconstrained roadmap.
+DwD_AI_Assistant_for_PBI's biggest constraints (no `fetch`, no PNG/Excel exports, no streaming, no Web Workers, no Web Speech, no DuckDB-WASM lazy chunks) DO NOT APPLY in PulsePlay. The playground runs in a real browser. Use modern web APIs freely. See "The unconstrained roadmap" section in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 **Vendor adapter stubs are NOT production**
 Every adapter except `generic-iframe` currently extends `GenericIframeAdapter`. They render an iframe with the URL you give them — no event bridge, no command bridge, no vendor SDK. v1 wires real SDKs (powerbi-client, Tableau Embedding API v3, qlik-embed, @looker/embed-sdk). Don't claim "PowerBI integration" until that's done.
@@ -122,7 +138,13 @@ Every adapter except `generic-iframe` currently extends `GenericIframeAdapter`. 
 Carried over tripwire from DwD. Tests can't rely on in-memory mutations to `profileRegistry.get(name)` persisting. Configure profiles via `PROXY_PROFILE_*` env vars.
 
 **Genie Agent Mode is UI-only**
-Carried over from DwD's Session 76 tripwire. Verified definitively via 20+ probes — public REST API silently swallows the `force_deep_research_planning` flag. The Foundation Model serving endpoint path (proxy `/foundation/section`) is the workaround. See `docs/MULTI_BI_ARCHITECTURE.md` "Gateway of madness" for what to wire when you're ready.
+Carried over from DwD's Session 76 tripwire. Verified definitively via 20+ probes — public REST API silently swallows the `force_deep_research_planning` flag. The Foundation Model serving endpoint path (proxy `/foundation/section`) is the workaround. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) "Genie Agent Mode is UI-only" callout.
+
+**Eight backend paths, not six**
+Earlier docs (`MULTI_BI_ARCHITECTURE.md`, `README.md`) said the proxy supports six backends. The 2026-05-10 codebase audit confirmed eight. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) "Eight runtime backend paths" for the corrected table.
+
+**Supervisor stagger is 2000 ms, not 800 ms**
+[ADR-0003](docs/adr/0003-supervisor-stagger-800ms.md) title says 800 ms. Actual code at [proxy/server.js:3556](proxy/server.js#L3556) is 2000 ms. ADR title rename pending.
 
 **Cross-origin iframes need narrow sandbox**
 Default sandbox in `GenericIframeAdapter`: `allow-scripts allow-same-origin allow-forms allow-popups`. Each vendor adapter SHOULD narrow this to the minimum the vendor needs. Open-ended sandbox defeats the purpose.
@@ -141,4 +163,4 @@ Power BI embed tokens, Tableau trusted tickets, Qlik OAuth tokens, Looker signed
 
 PulsePlay is at v0.1.0 — scaffold complete, no real vendor SDKs wired yet, no tests written for the playground (proxy tests at 342/342 still apply since proxy was copied verbatim).
 
-When you come back, see `docs/MULTI_BI_ARCHITECTURE.md` "Where to start when you come back" for the recommended first cycle.
+When you come back, see [docs/AGENDA.md](docs/AGENDA.md) for the open-work tracker and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) "Where to start when you come back" for the recommended first cycle.

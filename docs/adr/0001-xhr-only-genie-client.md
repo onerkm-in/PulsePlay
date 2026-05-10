@@ -1,7 +1,10 @@
 # ADR-0001 — Genie REST client uses XHR, never `fetch`
 
-**Status:** Accepted (2025-11; reaffirmed every session)
-**Owners:** maintainer
+**Status:** SUPERSEDED — DwD/Pulse-legacy. PulsePlay runs in a real browser; the XHR-only constraint does not apply. The proxy uses native `fetch`/`https.request`. Adapters in PulsePlay can use `fetch` freely. This ADR is preserved for historical context only.
+
+**Original status:** Accepted (2025-11) in DwD_AI_Assistant_for_PBI / Pulse, where the Power BI Desktop iframe sandbox silently blocked `fetch`.
+
+**Owners:** Pulse maintainer (this ADR is no longer load-bearing in PulsePlay)
 
 ## Context
 

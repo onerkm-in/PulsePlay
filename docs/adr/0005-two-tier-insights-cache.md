@@ -1,6 +1,7 @@
 # ADR-0005 — AI Insights uses a two-tier (memory + localStorage) cache
 
-**Status:** Accepted (2026-03)
+**Status:** Accepted (2026-03 in Pulse); **applies to PulsePlay once the AI Insights pipeline is ported** (planned v0.3+). Today's PulsePlay sidebar is submit-only with no cache. When the multi-stage pipeline lands, PulsePlay should reuse this two-tier pattern; the persistence tier may upgrade from `localStorage` to **IndexedDB** since PulsePlay runs in a real browser without the Power BI sandbox quota constraints.
+
 **Owners:** maintainer
 
 ## Context

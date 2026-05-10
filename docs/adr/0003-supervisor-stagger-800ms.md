@@ -1,6 +1,7 @@
-# ADR-0003 — Supervisor stage stagger is 800 ms
+# ADR-0003 — Supervisor stage stagger
 
-**Status:** Accepted (2026-01)
+**Status:** Accepted (2026-01); **title and original 800 ms value are stale**. Verified at [proxy/server.js:3556](../../proxy/server.js#L3556) on 2026-05-10: actual default is **`STAGGER_MS = supervisorProfile.staggerMs ?? 2000`**. The stagger evolved 350 ms -> 800 ms -> 2000 ms per inline comments in earlier Pulse cycles. This ADR's title still says 800 ms; rename to `0003-supervisor-stagger.md` (or supersede with a fresh ADR documenting 2000 ms) on the next ADR cycle.
+
 **Owners:** maintainer
 
 ## Context

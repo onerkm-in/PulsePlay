@@ -1,6 +1,9 @@
 # ADR-0006 — Trend pills use a section allowlist + numeric anchor, not a free regex
 
-**Status:** Accepted (2026-04)
+**Status:** SUPERSEDED for PulsePlay v0.x — applies only when the Pulse insights renderer is ported. The trend-pill renderer is part of Pulse's `genieChatVisual/src/visual.tsx` and is not yet present in PulsePlay's `playground/`. When the AI Insights pipeline lands in v0.3+ and the renderer is ported, this ADR's section-allowlist + numeric-anchor logic should be carried over verbatim.
+
+**Original status:** Accepted (2026-04) in Pulse.
+
 **Owners:** maintainer
 
 ## Context
