@@ -15,7 +15,21 @@
         "noUnusedParameters": true,
         "noFallthroughCasesInSwitch": true,
         "esModuleInterop": true,
-        "resolveJsonModule": true
+        "resolveJsonModule": true,
+        "types": [],
+        "paths": {
+            "powerbi-client": ["./node_modules/powerbi-client/dist/powerbi-client.d.ts"]
+        }
     },
-    "include": ["src", "vite.config.ts"]
+    "include": [
+        "src",
+        "vite.config.ts",
+        "../bi-adapters/**/*.ts"
+    ],
+    "exclude": [
+        "../bi-adapters/**/__tests__/**",
+        "src/**/__tests__/**",
+        "**/*.test.ts",
+        "**/*.test.tsx"
+    ]
 }

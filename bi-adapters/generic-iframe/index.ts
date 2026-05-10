@@ -31,8 +31,11 @@ interface GenericConfig extends BIEmbedConfig {
 }
 
 export class GenericIframeAdapter implements BIAdapter {
-    readonly vendor = "generic-iframe";
-    readonly displayName = "Generic iframe";
+    // Typed as `string` (not literal "generic-iframe") so vendor-specific
+    // subclasses (LookerAdapter, QlikAdapter, TableauAdapter) can override
+    // these to their own labels without TS2416 errors.
+    readonly vendor: string = "generic-iframe";
+    readonly displayName: string = "Generic iframe";
     private iframe: HTMLIFrameElement | null = null;
     private listeners = new Map<BIEventType, Set<(e: BIEvent) => void>>();
 

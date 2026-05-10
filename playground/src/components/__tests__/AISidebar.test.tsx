@@ -29,11 +29,22 @@ function unmount(state: MountState) {
     state.container.remove();
 }
 
-/** Simulate user typing into the textarea + clicking Ask. */
+/** Simulate user typing into the textarea + clicking Ask.
+ *
+ * React 19's controlled-input value tracker hooks the prototype's `value`
+ * setter. Direct assignment (`textarea.value = text`) bypasses that hook,
+ * so React thinks nothing changed and `question` state stays empty — which
+ * leaves the Ask button disabled (`disabled={!question.trim()}`) and the
+ * click is a no-op. We invoke the prototype setter explicitly so the
+ * tracker fires. */
 async function ask(state: MountState, text: string) {
     const textarea = state.container.querySelector("textarea") as HTMLTextAreaElement;
+    const nativeSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLTextAreaElement.prototype,
+        "value",
+    )?.set;
     await act(async () => {
-        textarea.value = text;
+        nativeSetter?.call(textarea, text);
         textarea.dispatchEvent(new Event("input", { bubbles: true }));
     });
     const askBtn = state.container.querySelector(".pp-ai-sidebar__ask") as HTMLButtonElement;
