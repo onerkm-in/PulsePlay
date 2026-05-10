@@ -1,21 +1,23 @@
 #!/usr/bin/env python3
 """
-DwD AI Assistant for PBI — LLM session wrap-up script (session exit point).
+PulsePlay — LLM session wrap-up script (session exit point).
 
 Run this at the END of every LLM session. It:
-  1. Verifies HANDOVER.md was touched today (or warns if not).
-  2. Verifies docs/FEEDBACK_TRACKER.md was touched if the session modified
-     anything in src/proxy/genie code (heuristic).
-  3. Marks .dwd-session.state.json as 'complete' with ended_at timestamp,
-     so the next session's llm_onboard.py knows the previous one exited
-     cleanly.
+  1. Verifies docs/HANDOVER.md was touched today (or warns if not).
+  2. Verifies docs/AGENDA.md was touched if the session modified code
+     under playground/, bi-adapters/, proxy/, pulsepacks/, databricks-
+     agents/, or scripts/ (heuristic).
+  3. Marks .pulseplay-session.state.json as 'complete' with ended_at
+     timestamp, so the next session's llm_onboard.py knows the previous
+     one exited cleanly. Reads the legacy .dwd-session.state.json as a
+     fallback so a half-migrated repo keeps working.
   4. Prints a short diff summary so the user (and any reviewing LLM) can
      see what shipped.
 
 Usage:
     python scripts/llm_wrapup.py
     python scripts/llm_wrapup.py --force        # mark complete even if checks fail
-    python scripts/llm_wrapup.py --note "BUG-001 + BUG-006 bundled"
+    python scripts/llm_wrapup.py --note "cycle B + cycle A landed"
 
 Exit code:
     0 — clean wrap-up.
@@ -34,7 +36,11 @@ import sys
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-STATE_FILE = PROJECT_ROOT / ".dwd-session.state.json"
+STATE_FILE = PROJECT_ROOT / ".pulseplay-session.state.json"
+# Legacy state-file name from the Pulse-heritage tooling. Read as a
+# fallback so a session started under the old name still wraps up cleanly
+# after the rename. Writes always go to the canonical PulsePlay name.
+LEGACY_STATE_FILE = PROJECT_ROOT / ".dwd-session.state.json"
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -80,12 +86,18 @@ def file_modified_since(path: Path, since_iso: str) -> bool:
 
 
 def read_state() -> dict | None:
-    if not STATE_FILE.exists():
-        return None
-    try:
-        return json.loads(STATE_FILE.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
+    # Prefer the canonical PulsePlay state file; fall back to the legacy
+    # Pulse-heritage name if the canonical one is missing. Lets a session
+    # started under the old name wrap up after the rename without losing
+    # crash-recovery context.
+    for candidate in (STATE_FILE, LEGACY_STATE_FILE):
+        if not candidate.exists():
+            continue
+        try:
+            return json.loads(candidate.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+    return None
 
 
 def write_state(state: dict) -> None:
@@ -107,25 +119,43 @@ def check_handover_touched(session_start_iso: str) -> tuple[bool, str]:
 
 
 def check_tracker_touched(session_start_iso: str, code_touched: bool) -> tuple[bool, str]:
-    # Feedback tracker now lives as Part 1 of docs/CONTINUITY.md (May 2026 consolidation).
-    tracker = PROJECT_ROOT / "docs" / "CONTINUITY.md"
+    # PulsePlay tracks open work in docs/AGENDA.md (the consolidated
+    # Path-C agenda). Pulse-heritage callers may still rely on
+    # docs/CONTINUITY.md or docs/FEEDBACK_TRACKER.md — accept any of the
+    # three so a partially-migrated repo doesn't block on this check.
+    tracker_candidates = [
+        PROJECT_ROOT / "docs" / "AGENDA.md",
+        PROJECT_ROOT / "docs" / "CONTINUITY.md",
+        PROJECT_ROOT / "docs" / "FEEDBACK_TRACKER.md",
+    ]
     if not code_touched:
         return True, "No code changed; tracker update not required."
-    if not tracker.exists():
-        return False, "docs/CONTINUITY.md missing"
-    if not file_modified_since(tracker, session_start_iso):
-        return False, "Code changed but docs/CONTINUITY.md (feedback tracker, Part 1) was not updated — flip closed bugs and log new ones."
-    return True, "docs/CONTINUITY.md updated this session."
+    existing = [t for t in tracker_candidates if t.exists()]
+    if not existing:
+        return False, "No tracker doc found (looked for docs/AGENDA.md, docs/CONTINUITY.md, docs/FEEDBACK_TRACKER.md)."
+    touched = [t for t in existing if file_modified_since(t, session_start_iso)]
+    if not touched:
+        names = ", ".join(t.relative_to(PROJECT_ROOT).as_posix() for t in existing)
+        return False, f"Code changed but no tracker doc updated. Touch one of: {names}."
+    names = ", ".join(t.relative_to(PROJECT_ROOT).as_posix() for t in touched)
+    return True, f"Tracker doc(s) updated this session: {names}."
 
 
 def code_touched_during_session(head_at_start: str) -> bool:
-    """True if any source/test/proxy/visual files changed since session start."""
+    """True if any PulsePlay or inherited code path changed since session start."""
     if not head_at_start:
         return False
     diff = git("diff", "--name-only", head_at_start)
     if not diff:
         return False
-    code_globs = ("genieChatVisual/src/", "genieChatVisual/tests/", "proxy/", "supervisor/", "scripts/")
+    code_globs = (
+        # PulsePlay-native
+        "playground/", "bi-adapters/", "pulsepacks/",
+        # Inherited (still in repo)
+        "proxy/", "databricks-agents/", "scripts/",
+        # Pulse-heritage (left in for cross-project compatibility)
+        "genieChatVisual/src/", "genieChatVisual/tests/", "supervisor/",
+    )
     return any(any(line.startswith(g) for g in code_globs) for line in diff.splitlines())
 
 

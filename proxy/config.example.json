@@ -67,7 +67,7 @@
         },
         "supervisor": {
             "type": "supervisor-local",
-            "agentName": "UniBridge AI Supervisor",
+            "agentName": "PulsePlay Supervisor",
             "synthesisEndpoint": "databricks-meta-llama-3.1-405b-instruct",
             "spaces": [],
             "crossDomainNotes": [
@@ -78,10 +78,10 @@
             "_doc": "ALTERNATIVE: type='supervisor' points the proxy at a real Databricks Mosaic AI Supervisor Agent serving endpoint (built using databricks-agents/supervisor/). The agent owns routing + synthesis, so spaces[]/synthesisEndpoint are not used. See databricks-agents/supervisor/README.md for how to build and deploy one.",
             "type": "supervisor",
             "host": "https://dbc-...cloud.databricks.com",
-            "endpoint": "/serving-endpoints/dwd-supervisor-agent/invocations",
-            "agentName": "DwD Supervisor Agent",
+            "endpoint": "/serving-endpoints/pulseplay-supervisor-agent/invocations",
+            "agentName": "PulsePlay Supervisor Agent",
             "token": "<PAT or service-principal token with CAN_USE on the endpoint>",
-            "displayName": "DwD Supervisor Agent",
+            "displayName": "PulsePlay Supervisor Agent",
             "dataDomain": "all helper data"
         },
         "_doc_displayName": "Optional. Friendly label shown in the visual's progress text and source attributions (e.g. 'Sales helper'). If omitted, falls back to a title-cased profile key.",

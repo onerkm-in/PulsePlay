@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-DwD AI Assistant for PBI — LLM onboarding script (session entry point).
+PulsePlay — LLM onboarding script (session entry point).
 
 Run this at the START of every LLM session. It:
   1. Checks the project session state file for a stale "active" session
@@ -18,12 +18,12 @@ Usage:
     python scripts/llm_onboard.py --no-memory
     python scripts/llm_onboard.py --terse
     python scripts/llm_onboard.py --paths-only
-    python scripts/llm_onboard.py --goal "fix BUG-001 and BUG-006"
+    python scripts/llm_onboard.py --goal "naming sweep cycle"
     python scripts/llm_onboard.py --no-state-write   # read-only mode
 
 Exit code:
     0 — onboarding completed (with or without crash recovery banner)
-    1 — required canonical file (CLAUDE.md or HANDOVER.md) is missing
+    1 — required canonical file (CLAUDE.md or docs/AGENDA.md) is missing
 """
 
 from __future__ import annotations
@@ -40,20 +40,23 @@ from typing import Iterable
 # ── Configuration ────────────────────────────────────────────────────────────
 
 CANONICAL_DOCS: list[tuple[str, str]] = [
-    ("CLAUDE.md",                          "Project guide — directories, run sequence, tripwires"),
-    ("README.md",                          "Top-level project README — front door"),
-    ("docs/INDEX.md",                      "Master doc navigator — audience-routed, replaces DOCUMENT_MAP"),
-    ("docs/AUTHOR_GUIDE.md",               "Operational combined doc (10 parts): feature walkthrough, author guide, Section H, multi-space, Gateway, prompt library, brand voice, live-test checklist, Azure deployment, formatting reference"),
-    ("docs/ARCHITECTURE.md",               "Architecture combined doc — system topology + analytics knowledge base"),
-    ("docs/ROADMAP.md",                    "Roadmap combined doc — agenda + blueprint + wave specs + audits + cockpit refactor screening"),
-    ("docs/HANDOVER.md",                   "LIFO session log — newest sessions on top (relocated from root in May 2026 consolidation)"),
-    ("docs/RELEASE.md",                    "Release combined doc — checklist + cumulative release notes"),
-    ("docs/CONTINUITY.md",                 "Continuity combined doc — feedback tracker + stale-code + project memory + Copilot bootstrap + scratchpad"),
-    ("docs/MASTER_GUIDE.md",               "Forum-facing executive narrative — stitched snapshot artifact"),
-    ("docs/SECURITY_REVIEW.md",            "Standalone security audit — threat model, defense layers, compliance posture"),
-    ("docs/QUALITY_METHODOLOGY.md",        "Honest statement of what we measure today and what we don't"),
-    ("docs/ANALYTICS_DOMAIN_TAXONOMY.md",  "Research bibliography — 18-domain canonical taxonomy with citations"),
-    ("docs/INSIGHTS_SECTION_TAXONOMY.md",  "Research bibliography — 22-archetype canonical section library with citations"),
+    ("CLAUDE.md",                                         "Project guide — directories, run sequence, tripwires, Path C posture"),
+    ("README.md",                                         "Top-level README — front door"),
+    ("docs/ARCHITECTURE.md",                              "PulsePlay-native architecture — 2-axis design + 8 backend paths"),
+    ("docs/AGENDA.md",                                    "Open work tracker — beast-mode list, near-term, medium-term, blockers"),
+    ("docs/PUBLIC_OSS_AGENDA.md",                         "Parked items for the future public-OSS phase"),
+    ("docs/PACKS.md",                                     "Pack architecture overview — vertical preset packs"),
+    ("docs/PROXY_REFERENCE.md",                           "Proxy API surface — routes, profile shapes, response contract"),
+    ("docs/SECURITY.md",                                  "Internal-scoped security guardrails"),
+    ("docs/QUALITY.md",                                   "Honest statement of what we test today and what we don't"),
+    ("docs/CONNECTOR_PROBE_AND_SMART_CONNECT.md",         "Smart Connect spec — agnostic probe + pack inference"),
+    ("docs/MIGRATION_NOTES.md",                           "Doc consolidation record — what moved where"),
+    ("docs/ROADMAP.md",                                   "Versioned roadmap (v0.1 → v1.2)"),
+    ("pulsepacks/PACK_SPECIFICATION.md",                  "Pack manifest schema + content quality rules"),
+    ("docs/research/CODEBASE_AUDIT.md",                   "Comprehensive technical audit (snapshot)"),
+    ("docs/research/MARKET_AND_STANDARDS.md",             "Competitive landscape + enterprise standards reference"),
+    ("docs/research/ANALYTICS_DOMAIN_TAXONOMY.md",        "Research bibliography — 18-domain canonical taxonomy"),
+    ("docs/research/INSIGHTS_SECTION_TAXONOMY.md",        "Research bibliography — 22-archetype canonical section library"),
 ]
 
 # Log files surfaced in the onboarding sweep (tail mode). Useful for spotting
@@ -68,11 +71,15 @@ LOG_FILES: list[tuple[str, str]] = [
 LOG_TAIL_LINES = 40
 
 DEFAULT_MEMORY_DIR = Path(
-    r"C:\Users\rajes\.claude\projects\d--Working-Folder-Projects-DwD-AI-Assistant-for-PBI\memory"
+    r"C:\Users\rajes\.claude\projects\d--Working-Folder-Projects-PulsePlay\memory"
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-STATE_FILE = PROJECT_ROOT / ".dwd-session.state.json"
+STATE_FILE = PROJECT_ROOT / ".pulseplay-session.state.json"
+# Legacy state-file name from the Pulse-heritage tooling. Read as a
+# fallback so a session started under the old name is recognised on
+# resume; new state always writes to the canonical PulsePlay name.
+LEGACY_STATE_FILE = PROJECT_ROOT / ".dwd-session.state.json"
 STATE_VERSION = 1
 
 
@@ -173,12 +180,17 @@ def detect_agent_label() -> str:
 # ── Session state file ───────────────────────────────────────────────────────
 
 def read_state() -> dict | None:
-    if not STATE_FILE.exists():
-        return None
-    try:
-        return json.loads(STATE_FILE.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
+    # Prefer the canonical PulsePlay state file; fall back to the legacy
+    # Pulse-heritage name if the canonical one is missing. Lets a session
+    # started under the old name resume correctly after the rename.
+    for candidate in (STATE_FILE, LEGACY_STATE_FILE):
+        if not candidate.exists():
+            continue
+        try:
+            return json.loads(candidate.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+    return None
 
 
 def write_state(state: dict) -> None:
@@ -253,7 +265,7 @@ def main() -> int:
     parser.add_argument("--goal", type=str, default=None,
                         help="Optional goal recorded in the state file (helps the next session if this one crashes).")
     parser.add_argument("--no-state-write", action="store_true",
-                        help="Don't update .dwd-session.state.json (read-only mode).")
+                        help="Don't update .pulseplay-session.state.json (read-only mode).")
     parser.add_argument("--no-logs", action="store_true",
                         help="Skip the proxy log-tail section.")
     parser.add_argument("--no-git", action="store_true",
@@ -304,7 +316,7 @@ def main() -> int:
         write_state(new_state)
 
     # ── Onboarding output ──
-    banner("DwD AI Assistant for PBI - LLM onboarding")
+    banner("PulsePlay - LLM onboarding")
     print(textwrap_strip("""
         Read the docs below before any non-trivial code change. Tripwires and
         active in-flight context live in CLAUDE.md, HANDOVER.md (top entry =

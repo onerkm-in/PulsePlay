@@ -1,4 +1,4 @@
-# DwD Supervisor Agent for Databricks Mosaic AI
+# PulsePlay Supervisor Agent for Databricks Mosaic AI
 
 This directory contains the code to build, deploy, and operate a real
 **Databricks Mosaic AI Supervisor Agent** that replaces the Node proxy's
@@ -45,7 +45,7 @@ in JS. It works but has limitations:
 ```bash
 databricks workspace import-dir \
   databricks-agents/supervisor \
-  /Workspace/Users/<you>/dwd-supervisor-agent
+  /Workspace/Users/<you>/pulseplay-supervisor-agent
 ```
 
 Or drag-and-drop in the Databricks UI under Workspace → Users → you.
@@ -58,8 +58,8 @@ In the Databricks UI it'll open as a notebook. Set env vars at the top
 ### 3. What the deploy script does
 
 1. Logs `agent.py` as an MLflow LangChain model
-2. Registers it in Unity Catalog at `<UC_CATALOG>.<UC_SCHEMA>.dwd_supervisor_agent`
-3. Deploys that model version to a Mosaic AI serving endpoint (default name `dwd-supervisor-agent`)
+2. Registers it in Unity Catalog at `<UC_CATALOG>.<UC_SCHEMA>.pulseplay_supervisor_agent`
+3. Deploys that model version to a Mosaic AI serving endpoint (default name `pulseplay-supervisor-agent`)
 4. Prints the `proxy/config.json` snippet you need
 
 The endpoint takes ~5-10 minutes to become READY (MLflow build + container start).
@@ -72,10 +72,10 @@ Replace the existing `supervisor` profile with the snippet the deploy script pri
 "supervisor": {
   "type": "supervisor",
   "host": "https://dbc-...cloud.databricks.com",
-  "endpoint": "/serving-endpoints/dwd-supervisor-agent/invocations",
-  "agentName": "DwD Supervisor Agent",
+  "endpoint": "/serving-endpoints/pulseplay-supervisor-agent/invocations",
+  "agentName": "PulsePlay Supervisor Agent",
   "token": "<PAT or SP token with CAN_USE on the endpoint>",
-  "displayName": "DwD Supervisor Agent",
+  "displayName": "PulsePlay Supervisor Agent",
   "dataDomain": "all helper data"
 }
 ```
@@ -91,9 +91,9 @@ Fields that **disappear** vs `supervisor-local` (the agent owns these now):
 cd proxy ; node server.js
 ```
 
-Then in Power BI: switch the visual's connection mode to **Supervisor**,
-ask a cross-domain question (e.g. "How did sales, returns, and on-time
-rate move year-over-year?"), and watch:
+Then in PulsePlay (or the Pulse PBI sibling visual): switch the connector
+profile to **Supervisor**, ask a cross-domain question (e.g. "How did
+sales, returns, and on-time rate move year-over-year?"), and watch:
 
 - The MLflow trace UI in Databricks shows which agents got called and why
 - The proxy log shows a single supervisor call (no fan-out chatter)
