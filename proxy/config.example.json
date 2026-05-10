@@ -1,0 +1,96 @@
+{
+    "port": 8787,
+    "feedbackLog": "feedback.log",
+    "profiles": {
+        "default": {
+            "host": "https://adb-WORKSPACE_ID.REGION.azuredatabricks.net",
+            "token": "dapi_YOUR_PAT_TOKEN_HERE",
+            "spaceId": "YOUR_GENIE_SPACE_ID",
+            "warehouseId": "OPTIONAL_SQL_WAREHOUSE_ID",
+            "displayName": "Default helper",
+            "dataDomain": "the data"
+        },
+        "_oauth_m2m_example": {
+            "_doc": "TIER B (production) — Service Principal OAuth M2M auth. Replaces shared PAT with a rotatable, auditable, Unity Catalog-grantable identity. Requires creating a Databricks Service Principal + OAuth secret in workspace settings. Token is fetched from /oidc/v1/token via client_credentials grant on first request, cached per-(host, clientId), single-flight protected, and refreshed 5min before expiry. Falls back gracefully to PAT on any profile that omits authMode.",
+            "host": "https://adb-WORKSPACE_ID.REGION.azuredatabricks.net",
+            "authMode": "oauth-m2m",
+            "clientId": "YOUR_SERVICE_PRINCIPAL_CLIENT_ID",
+            "clientSecret": "YOUR_SERVICE_PRINCIPAL_CLIENT_SECRET",
+            "spaceId": "YOUR_GENIE_SPACE_ID",
+            "warehouseId": "YOUR_SQL_WAREHOUSE_ID",
+            "displayName": "Production SP profile",
+            "dataDomain": "production data"
+        },
+        "_openai_analytics_example": {
+            "_doc": "IDEA-040 Cycle 7 — Azure OpenAI as analytics-grade backend. When mode='analytics' AND schemaContext is present, proxy orchestrates LLM-for-SQL → Databricks SQL exec → LLM-for-narrative pipeline (mirrors what Genie does). Requires both Azure OpenAI creds AND Databricks PAT/SP for SQL execution. Without mode='analytics', the profile remains chat-only.",
+            "azureOpenAiEndpoint": "https://YOUR_AOAI.openai.azure.com",
+            "azureOpenAiKey": "YOUR_AZURE_OPENAI_KEY",
+            "azureOpenAiDeployment": "gpt-4o",
+            "azureOpenAiApiVersion": "2024-02-01",
+            "mode": "analytics",
+            "host": "https://adb-WORKSPACE_ID.REGION.azuredatabricks.net",
+            "token": "dapi_PAT_FOR_SQL_EXEC",
+            "warehouseId": "YOUR_SQL_WAREHOUSE_ID",
+            "schemaContext": "TABLE main.superstore.fct_orders (order_id STRING, order_date DATE, region STRING, segment STRING, category STRING, sales DOUBLE, profit DOUBLE, quantity INT)\nTABLE main.superstore.dim_customers (customer_id STRING, customer_name STRING, segment STRING)"
+        },
+        "_foundation_model_example": {
+            "_doc": "Cycle 47.6 — Foundation Model serving endpoint (Mosaic AI Model Serving). OpenAI-compatible chat-completions schema with optional JSON-schema structured output. Use for sections that need real reasoning + format guarantees (RECOMMENDED ACTIONS, RISKS, OPPORTUNITIES) where Genie Chat alone struggles. Genie Agent Mode (Deep Research) is UI-only during public preview, so this is the workaround that stays inside Databricks: Genie pulls the data, foundation model formats reasoning under your own system prompt.",
+            "type": "foundation-model",
+            "host": "https://adb-WORKSPACE_ID.REGION.azuredatabricks.net",
+            "token": "dapi_PAT_OR_USE_AUTHMODE_OAUTH_M2M",
+            "foundationModelEndpoint": "databricks-meta-llama-3-1-405b-instruct",
+            "displayName": "Foundation Model — Llama 3.1 405B"
+        },
+        "sales": {
+            "host": "https://adb-ANOTHER_WORKSPACE.REGION.azuredatabricks.net",
+            "token": "dapi_ANOTHER_TOKEN",
+            "spaceId": "SALES_SPACE_ID",
+            "warehouseId": "",
+            "displayName": "Sales helper",
+            "dataDomain": "sales data",
+            "suggestedQuestions": [
+                "What were the top 3 categories by profit margin last quarter?",
+                "Which region declined most in revenue year-over-year?",
+                "Show me top 5 customers by total revenue."
+            ],
+            "schemaContext": {
+                "domain": "Sales, profit, margin, category, product, customer, and regional performance",
+                "grain": "order line-item",
+                "salesColumn": "sales",
+                "profitColumn": "profit",
+                "keyColumns": ["order_id","order_date","region","segment","category","sales","profit","quantity","discount"]
+            },
+            "syntheticIndicators": {
+                "columns": [],
+                "message": "Some figures shown are synthetic estimates derived from patterns in the data, not recorded measurements."
+            }
+        },
+        "supervisor": {
+            "type": "supervisor-local",
+            "agentName": "UniBridge AI Supervisor",
+            "synthesisEndpoint": "databricks-meta-llama-3.1-405b-instruct",
+            "spaces": [],
+            "crossDomainNotes": [
+                "Optional free-form notes the supervisor passes to its synthesis prompt to help it reconcile data from multiple sources. Example: 'Numbers from the operations source are monthly aggregates rounded to 2 decimals, while the order source is line-level — small variances under 1% are normal.'"
+            ]
+        },
+        "_supervisor_real_example": {
+            "_doc": "ALTERNATIVE: type='supervisor' points the proxy at a real Databricks Mosaic AI Supervisor Agent serving endpoint (built using databricks-agents/supervisor/). The agent owns routing + synthesis, so spaces[]/synthesisEndpoint are not used. See databricks-agents/supervisor/README.md for how to build and deploy one.",
+            "type": "supervisor",
+            "host": "https://dbc-...cloud.databricks.com",
+            "endpoint": "/serving-endpoints/dwd-supervisor-agent/invocations",
+            "agentName": "DwD Supervisor Agent",
+            "token": "<PAT or service-principal token with CAN_USE on the endpoint>",
+            "displayName": "DwD Supervisor Agent",
+            "dataDomain": "all helper data"
+        },
+        "_doc_displayName": "Optional. Friendly label shown in the visual's progress text and source attributions (e.g. 'Sales helper'). If omitted, falls back to a title-cased profile key.",
+        "_doc_dataDomain":  "Optional. Short noun phrase for what this helper covers (e.g. 'sales data', 'customer & returns data'). Used in step text like 'Sales helper is checking sales data'. If omitted, falls back to 'the data'.",
+        "_doc_suggestedQuestions": "Optional. Per-profile starter questions surfaced as clickable chips on the visual's Welcome / Try-Asking strip (IDEA-006). Up to 8 strings. When present, replaces the generic static suggestions for this profile. Via env var: PROXY_PROFILE_<NAME>_SUGGESTED_QUESTIONS=comma,separated,list.",
+        "_doc_schemaContext": "Optional. Per-profile schema metadata fed to the supervisor's synthesis LLM so it knows each source's columns, grain, and metric naming. Without this, the supervisor still works but won't be able to flag cross-source metric mismatches. Fields: { domain (string), grain (string), salesColumn (string), profitColumn (string), keyColumns (string[]) }.",
+        "_doc_syntheticIndicators": "Optional. Per-profile list of column names whose values are derived/estimated rather than measured (e.g. churn-risk scores, predicted ratings). When the AI returns a result containing any of these columns, the confidence chip surfaces a 'synthetic data' caveat using the supplied message. Fields: { columns (string[]), message (string, optional) }.",
+        "_doc_supervisor_spaces": "Optional. List of profile names the supervisor fans out to. Leave empty/omit to default to every configured non-supervisor profile — supports any naming.",
+        "_doc_supervisor_crossDomainNotes": "Optional. Free-form notes (string or array) appended to the synthesis prompt to help the LLM reconcile cross-source numbers. Replaces any baked-in defaults — leave unset to use the bundled demo's ops-vs-orders note (only fires when profiles named 'ops' and any other are both present).",
+        "_doc_envProfiles": "IDEA-016 phase 2 — profiles can ALSO be layered via environment variables using the convention PROXY_PROFILE_<NAME>_<FIELD> (e.g. PROXY_PROFILE_SALES_HOST, PROXY_PROFILE_SALES_TOKEN, PROXY_PROFILE_SALES_SPACE_ID, PROXY_PROFILE_SALES_DISPLAY_NAME). Env vars MERGE per-field with config.json profiles of the same name (env wins) and append new profiles that don't exist in config.json. Useful for containerised / Databricks Apps deployments where committing config.json isn't possible. Field map: HOST, TOKEN, SPACE_ID, WAREHOUSE_ID, PROXY_KEY, DISPLAY_NAME, DATA_DOMAIN, AGENT_NAME, SYNTHESIS_ENDPOINT, SPACES (comma-separated), TYPE."
+    }
+}

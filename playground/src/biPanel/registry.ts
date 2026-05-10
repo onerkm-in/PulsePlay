@@ -1,0 +1,90 @@
+// playground/src/biPanel/registry.ts
+//
+// Lazy adapter registry. Adapters are loaded on-demand so a deployment
+// that only uses Power BI doesn't ship the Tableau / Qlik bundles.
+//
+// To add a new adapter:
+//   1. Implement BIAdapter in /bi-adapters/<vendor>/index.ts
+//   2. Add a case to `loadAdapter()` below pointing at it
+//   3. The host UI will pick it up via `listVendors()`
+
+import type { BIAdapter } from "./BIAdapter";
+
+export interface VendorInfo {
+    vendor: string;
+    displayName: string;
+    /** Stable identifier shown in URL params + AI sidebar context strings. */
+    description: string;
+    /** False until the user confirms credentials/embed-token in Setup;
+     *  helps the picker UI signal which vendors need configuration first. */
+    configured: boolean;
+}
+
+const REGISTERED: ReadonlyArray<VendorInfo> = [
+    {
+        vendor: "powerbi",
+        displayName: "Power BI",
+        description: "Microsoft Power BI reports/dashboards via powerbi-client + embed token.",
+        configured: false,
+    },
+    {
+        vendor: "tableau",
+        displayName: "Tableau",
+        description: "Tableau views via Tableau Embedding API v3 (web component).",
+        configured: false,
+    },
+    {
+        vendor: "qlik",
+        displayName: "Qlik Sense",
+        description: "Qlik Sense apps/sheets via qlik-embed web components or iframe Single Integration API.",
+        configured: false,
+    },
+    {
+        vendor: "looker",
+        displayName: "Looker",
+        description: "Looker dashboards/Looks via signed-URL iframe + JS embed events.",
+        configured: false,
+    },
+    {
+        vendor: "generic-iframe",
+        displayName: "Generic iframe",
+        description: "Any URL — bring-your-own-BI or escape hatch when no vendor adapter exists yet.",
+        configured: true, // No credentials needed; just requires a URL
+    },
+];
+
+export function listVendors(): VendorInfo[] {
+    return REGISTERED.slice();
+}
+
+/**
+ * Lazy-load an adapter implementation. The dynamic import lets Vite
+ * code-split per vendor — only the bundle for the active vendor lands
+ * in the user's browser. New adapters slot in by adding a case below.
+ */
+export async function loadAdapter(vendor: string): Promise<BIAdapter> {
+    switch (vendor) {
+        case "powerbi": {
+            const mod = await import("../../../bi-adapters/powerbi/index.ts");
+            return new mod.PowerBIAdapter();
+        }
+        case "tableau": {
+            const mod = await import("../../../bi-adapters/tableau/index.ts");
+            return new mod.TableauAdapter();
+        }
+        case "qlik": {
+            const mod = await import("../../../bi-adapters/qlik/index.ts");
+            return new mod.QlikAdapter();
+        }
+        case "looker": {
+            const mod = await import("../../../bi-adapters/looker/index.ts");
+            return new mod.LookerAdapter();
+        }
+        case "generic-iframe": {
+            const mod = await import("../../../bi-adapters/generic-iframe/index.ts");
+            return new mod.GenericIframeAdapter();
+        }
+        default:
+            throw new Error(`Unknown BI vendor: ${vendor}. Known: ${REGISTERED.map(v => v.vendor).join(", ")}.`);
+    }
+}

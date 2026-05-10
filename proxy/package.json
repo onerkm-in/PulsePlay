@@ -1,0 +1,21 @@
+{
+    "name": "unibridge-ai-proxy",
+    "version": "1.0.0",
+    "description": "UniBridge AI Proxy for routing Power BI questions to Databricks Genie, supervisor agents, Azure OpenAI, and AWS Bedrock",
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js",
+        "dev": "node --watch server.js",
+        "test": "jest"
+    },
+    "dependencies": {
+        "express": "^4.21.2"
+    },
+    "engines": {
+        "node": ">=18"
+    },
+    "devDependencies": {
+        "jest": "^30.3.0",
+        "supertest": "^7.2.2"
+    }
+}
