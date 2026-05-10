@@ -71,10 +71,21 @@ export function AISidebar(props: AISidebarProps) {
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
-            // The assistant endpoint returns conversation_id + message_id +
-            // an initial status. v1 will poll for completion via
-            // /api/assistant/conversations/:cid/messages/:mid like DwD does.
-            const answer = data.message?.content || "(message submitted; v1 will poll for completion)";
+            // Backend-agnostic response reading. Different backends return
+            // content under different field names (per docs/research/CODEBASE_AUDIT.md):
+            //   - orchestrator-wrapped (OpenAI/Bedrock/Foundation): data.content
+            //   - Genie native: data.message.content (and/or attachments[].text.content)
+            //   - Supervisor: data.content (synthesized) or data.synthesis
+            // v1 will poll /assistant/conversations/:cid/messages/:mid for IN_PROGRESS.
+            const attachmentText = Array.isArray(data?.message?.attachments)
+                ? data.message.attachments.find((a: { text?: { content?: string } }) => a?.text?.content)?.text?.content
+                : undefined;
+            const answer =
+                (typeof data?.content === "string" && data.content)
+                || (typeof data?.synthesis === "string" && data.synthesis)
+                || (typeof data?.message?.content === "string" && data.message.content)
+                || attachmentText
+                || (data?.status === "IN_PROGRESS" ? "(in progress; polling not yet implemented in v0)" : "(no content returned)");
             setHistory(prev => prev.map(h => h.id === entry.id ? { ...h, answer, pending: false } : h));
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);

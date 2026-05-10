@@ -21,6 +21,9 @@
  * @property {string} [agentName]       Supervisor display name.
  * @property {string} [synthesisEndpoint] Databricks model-serving endpoint used for supervisor synthesis.
  * @property {string[]} [spaces]        Helper space keys the supervisor can fan out to.
+ * @property {string} [powerBiClientId] Cycle A — Azure AD application (client) ID used to mint Power BI embed tokens (POST /assistant/embed-token/powerbi).
+ * @property {string} [powerBiClientSecret] Cycle A — Azure AD client secret. NEVER logged or returned to the browser.
+ * @property {string} [powerBiTenantId] Cycle A — Azure AD tenant ID for the client_credentials grant.
  *
  * @typedef {Object} ProxyConfig
  * @property {number} [port]
@@ -185,7 +188,16 @@ const ENV_PROFILE_FIELDS = {
     // deployment set the endpoint without committing config.json (e.g.
     // Databricks Apps where every config field comes from env vars).
     FOUNDATION_MODEL_ENDPOINT: 'foundationModelEndpoint',
-    FOUNDATIONMODELENDPOINT: 'foundationModelEndpoint'
+    FOUNDATIONMODELENDPOINT: 'foundationModelEndpoint',
+    // Cycle A — Power BI embed-token issuance. Set these to enable the
+    // /assistant/embed-token/powerbi route. Leaving any unset returns 503
+    // with a clear "not configured" message rather than silently failing.
+    POWER_BI_CLIENT_ID: 'powerBiClientId',
+    POWERBICLIENTID: 'powerBiClientId',
+    POWER_BI_CLIENT_SECRET: 'powerBiClientSecret',
+    POWERBICLIENTSECRET: 'powerBiClientSecret',
+    POWER_BI_TENANT_ID: 'powerBiTenantId',
+    POWERBITENANTID: 'powerBiTenantId'
 };
 
 function loadEnvProfiles(env = process.env) {
@@ -2029,6 +2041,422 @@ app.get('/assistant/conversations/:conversationId/messages/:messageId', async (r
         });
         const mapped = errorStatusFromDatabricks(err, 500);
         res.status(mapped.status).json({ error: mapped.error });
+    }
+});
+
+// ── Smart Connect probe ─────────────────────────────────────────────────────
+// Connector-agnostic probe + Pack Matcher. Mounted under /assistant so it
+// inherits the rate-limit + sharedKey middleware already configured above.
+// See [docs/CONNECTOR_PROBE_AND_SMART_CONNECT.md] for the contract.
+//
+// Body:    { assistantProfile: string }
+// Returns: ConnectorProbeResult with `inference` injected by the matcher.
+//
+// Probe failures NEVER throw — adapters return a "none" availability shell
+// with a `warnings[]` entry. The 8-second time budget is enforced inside
+// `probeConnector()` so a hung backend can't tie up the proxy.
+const { probeConnector: _probeConnector } = require('./lib/connectorProbe');
+const { matchPacksAgainstProbe: _matchPacksAgainstProbe } = require('./lib/packMatcher');
+
+app.post('/assistant/probe', async (req, res) => {
+    const startedAt = Date.now();
+    const resolved = resolveProfile(req.body, {}, req.headers, req);
+    if (!resolved) {
+        auditLog(req, {
+            profileName: req.body?.assistantProfile || null,
+            action: 'probe',
+            status: 400,
+            detail: 'no-matching-profile',
+        });
+        return res.status(400).json({ error: 'No matching profile configured' });
+    }
+
+    let probeResult;
+    try {
+        probeResult = await _probeConnector(resolved, { databricksRequest });
+    } catch (err) {
+        // Defensive: probeConnector contractually never throws, but if a future
+        // change breaks that guarantee, we still return a usable shell rather
+        // than a 500.
+        console.error('[probe]', err?.message || err);
+        probeResult = {
+            profile: resolved.name,
+            connectorType: 'generic',
+            metadataAvailability: 'none',
+            probeDurationMs: Date.now() - startedAt,
+            warnings: [`Probe handler error: ${String(err?.message || err).slice(0, 200)}`],
+        };
+    }
+
+    // Run the pack matcher. Failures here are non-fatal; we log + omit
+    // inference rather than fail the probe.
+    try {
+        const inference = _matchPacksAgainstProbe(probeResult);
+        if (inference) probeResult.inference = inference;
+    } catch (matcherErr) {
+        console.error('[probe/matcher]', matcherErr?.message || matcherErr);
+        if (Array.isArray(probeResult.warnings)) {
+            probeResult.warnings.push('Pack matcher failed; inference omitted');
+        }
+    }
+
+    auditLog(req, {
+        profileName: resolved.name,
+        action: 'probe',
+        status: 200,
+        detail: JSON.stringify({
+            durationMs: probeResult.probeDurationMs,
+            metadataAvailability: probeResult.metadataAvailability,
+            suggestedPack: probeResult.inference?.suggestedPack || null,
+            confidence: typeof probeResult.inference?.confidence === 'number'
+                ? Number(probeResult.inference.confidence.toFixed(3))
+                : null,
+        }),
+        spIdentityHash: spHashForProfile(resolved.profile),
+    });
+
+    res.json(probeResult);
+});
+
+// ── Power BI embed-token issuance (Cycle A) ─────────────────────────────────
+// POST /assistant/embed-token/powerbi
+//
+// Mints a short-lived Power BI embed token via the Azure AD service principal
+// flow so the browser never sees AAD credentials. The vendor-specific path
+// segment ("/powerbi") is by design — Tableau / Qlik / Looker will get
+// sibling routes (`/embed-token/tableau`, `/embed-token/qlik`, …) when
+// their adapters graduate, and this URL shape leaves room for that without
+// renaming.
+//
+// Security posture:
+//   • Client secret lives in proxy config (or env var) and NEVER appears
+//     in responses, audit logs, or the cache key — we hash the SP client
+//     ID for the audit line and use a non-secret cache key.
+//   • Embed tokens are cached per (profile|reportId|accessLevel) with TTL
+//     = expiry-minus-60s buffer so a refresh cycle starts before the
+//     client sees a 401.
+//   • Single-flight: 5 concurrent requests for the same key share one
+//     AAD round-trip + one GenerateToken round-trip.
+//   • If AAD/PBI returns 401/403, we propagate the status with a generic
+//     message. Detailed error text from Microsoft IS included (it doesn't
+//     contain the secret) but we run the standard token-redaction pass
+//     as a safety net.
+//   • Profile lacks creds → 503 with a precise "add powerBi* to profile"
+//     message rather than a confusing 500.
+
+const EMBED_TOKEN_BUFFER_MS = 60 * 1000;       // refresh 60s before expiry
+const _powerBiTokenCache = new Map();           // key → { embedToken, embedUrl, expiry, refreshPromise }
+const _powerBiTokenCacheMaxEntries = 500;
+
+function _powerBiCacheKey(profileName, reportId, accessLevel) {
+    return `${profileName}|${reportId}|${accessLevel}`;
+}
+
+function _powerBiEvictOldestIfFull() {
+    if (_powerBiTokenCache.size < _powerBiTokenCacheMaxEntries) return;
+    const oldest = _powerBiTokenCache.keys().next().value;
+    if (oldest !== undefined) _powerBiTokenCache.delete(oldest);
+}
+
+/**
+ * Strip secrets from any string before it lands in a log line / response.
+ * Reuses the established TOKEN_REDACT_RE pattern (declared further down
+ * the file) defensively, plus a Power BI-specific belt to catch secret
+ * patterns that don't look like dapi/JWT (raw client secret values are
+ * opaque so we can't pattern-match them — instead we never put them in
+ * the source string in the first place).
+ */
+function _redactForEmbedTokenLog(s) {
+    if (typeof s !== 'string') return s;
+    return s
+        .replace(/\b(dapi[a-f0-9]{16,}|eyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+)\b/g, '[REDACTED-TOKEN]');
+}
+
+/**
+ * Acquire an Azure AD access token for the Power BI REST API. Uses
+ * client_credentials grant against
+ * https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token with scope
+ * https://analysis.windows.net/powerbi/api/.default.
+ *
+ * Tests inject `fetchImpl` so they can drive the route without real
+ * Microsoft endpoints. Production path uses global fetch.
+ */
+async function acquireAadAccessTokenForPowerBI(profile, fetchImpl = fetch) {
+    const tokenUrl = `https://login.microsoftonline.com/${encodeURIComponent(profile.powerBiTenantId)}/oauth2/v2.0/token`;
+    const body = new URLSearchParams({
+        client_id: profile.powerBiClientId,
+        client_secret: profile.powerBiClientSecret,
+        grant_type: 'client_credentials',
+        scope: 'https://analysis.windows.net/powerbi/api/.default',
+    }).toString();
+    const resp = await fetchImpl(tokenUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+        signal: AbortSignal.timeout(10000),
+    });
+    if (!resp.ok) {
+        const detail = _redactForEmbedTokenLog(await resp.text());
+        const err = new Error(`Azure AD token request failed (${resp.status}): ${detail.slice(0, 300)}`);
+        err.statusCode = resp.status;
+        throw err;
+    }
+    const data = await resp.json();
+    if (!data?.access_token) {
+        throw new Error('Azure AD response missing access_token');
+    }
+    return {
+        accessToken: data.access_token,
+        expiresInSec: Number(data.expires_in || 3600),
+    };
+}
+
+/**
+ * Call Power BI's GenerateToken endpoint with a fresh AAD access token.
+ * Returns the embed token + computed expiry in epoch ms.
+ */
+async function generatePowerBIEmbedToken({
+    aadAccessToken, groupId, reportId, datasetId, accessLevel, identities, fetchImpl = fetch,
+}) {
+    const url = `https://api.powerbi.com/v1.0/myorg/groups/${encodeURIComponent(groupId)}/reports/${encodeURIComponent(reportId)}/GenerateToken`;
+    const body = {
+        accessLevel,                                     // "View" or "Edit"
+        ...(datasetId ? { datasetId } : {}),
+        ...(Array.isArray(identities) && identities.length > 0 ? { identities } : {}),
+    };
+    const resp = await fetchImpl(url, {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${aadAccessToken}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(10000),
+    });
+    if (!resp.ok) {
+        const detail = _redactForEmbedTokenLog(await resp.text());
+        const err = new Error(`Power BI GenerateToken failed (${resp.status}): ${detail.slice(0, 300)}`);
+        err.statusCode = resp.status;
+        throw err;
+    }
+    const data = await resp.json();
+    if (!data?.token) {
+        throw new Error('Power BI GenerateToken response missing token');
+    }
+    // PBI returns expiration as ISO-8601; fall back to 1h if absent.
+    const expiry = data.expiration ? new Date(data.expiration).getTime() : Date.now() + 60 * 60 * 1000;
+    return { embedToken: data.token, expiry, tokenId: data.tokenId };
+}
+
+/**
+ * Build the embed URL for a (groupId, reportId) pair. We can't pull this
+ * from the GenerateToken response (it doesn't include it), and the SDK
+ * accepts the canonical app.powerbi.com pattern.
+ */
+function buildPowerBIEmbedUrl(groupId, reportId) {
+    const params = new URLSearchParams({ reportId, groupId });
+    return `https://app.powerbi.com/reportEmbed?${params.toString()}`;
+}
+
+/**
+ * Test seam — exposed through module.exports below so tests can drive
+ * the issuance helper without hitting real Microsoft endpoints. The
+ * route's only fetch dependency is global fetch by default; tests stub
+ * via the `_powerBiFetchImpl` exported binding.
+ */
+let _powerBiFetchImpl = null;
+function _setPowerBiFetchImplForTests(impl) { _powerBiFetchImpl = impl; }
+function _resetPowerBiTokenCacheForTests() { _powerBiTokenCache.clear(); }
+
+app.post('/assistant/embed-token/:vendor', async (req, res) => {
+    const vendor = String(req.params.vendor || '').toLowerCase();
+    const startedAt = Date.now();
+
+    // v0 only handles Power BI. Future vendors slot in here.
+    if (vendor !== 'powerbi') {
+        auditLog(req, {
+            profileName: req.body?.assistantProfile || null,
+            action: 'embed-token',
+            status: 404,
+            detail: `vendor=${vendor} not supported`,
+        });
+        return res.status(404).json({ error: `Embed-token issuance not implemented for vendor "${vendor}".` });
+    }
+
+    const resolved = resolveProfile(req.body, {}, req.headers, req);
+    if (!resolved) {
+        auditLog(req, {
+            profileName: req.body?.assistantProfile || null,
+            action: 'embed-token',
+            status: 400,
+            detail: 'no-matching-profile',
+        });
+        return res.status(400).json({ error: 'No matching profile configured' });
+    }
+
+    const profile = resolved.profile;
+    const groupId = String(req.body?.groupId || '').trim();
+    const reportId = String(req.body?.reportId || '').trim();
+    const datasetId = req.body?.datasetId ? String(req.body.datasetId).trim() : '';
+    const requestedPerms = String(req.body?.permissions || 'View');
+    const accessLevel = requestedPerms === 'Edit' ? 'Edit' : 'View';
+    const identities = Array.isArray(req.body?.identities) ? req.body.identities : undefined;
+
+    if (!groupId || !reportId) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'embed-token',
+            status: 400,
+            detail: 'missing-groupId-or-reportId',
+        });
+        return res.status(400).json({ error: 'groupId and reportId are required.' });
+    }
+
+    if (!profile.powerBiClientId || !profile.powerBiClientSecret || !profile.powerBiTenantId) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'embed-token',
+            status: 503,
+            detail: 'powerbi-creds-not-configured',
+        });
+        return res.status(503).json({
+            error: 'Power BI embed-token issuance not configured. Add powerBiClientId / powerBiClientSecret / powerBiTenantId to the profile.',
+        });
+    }
+
+    // Cache key intentionally OMITS the client secret. Profile name +
+    // reportId + accessLevel is sufficient because each profile pins a
+    // single SP and rotating the SP secret means rotating the profile.
+    const cacheKey = _powerBiCacheKey(resolved.name, reportId, accessLevel);
+    const cached = _powerBiTokenCache.get(cacheKey);
+
+    // Hot path: still-valid cached token.
+    if (cached && cached.embedToken && cached.expiry > Date.now() + EMBED_TOKEN_BUFFER_MS) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'embed-token',
+            status: 200,
+            detail: JSON.stringify({
+                cache: 'hit',
+                reportId,
+                accessLevel,
+                spIdHash: hashServicePrincipalId(profile.powerBiClientId),
+                durationMs: Date.now() - startedAt,
+            }),
+        });
+        return res.json({
+            embedToken: cached.embedToken,
+            embedUrl: cached.embedUrl,
+            expiry: new Date(cached.expiry).toISOString(),
+            cached: true,
+        });
+    }
+
+    // Single-flight: if another request is already issuing for this key,
+    // await its result. Prevents N parallel AAD round-trips when N
+    // browser tabs / sub-components mount simultaneously.
+    if (cached && cached.refreshPromise) {
+        try {
+            const result = await cached.refreshPromise;
+            auditLog(req, {
+                profileName: resolved.name,
+                action: 'embed-token',
+                status: 200,
+                detail: JSON.stringify({
+                    cache: 'single-flight-await',
+                    reportId,
+                    accessLevel,
+                    spIdHash: hashServicePrincipalId(profile.powerBiClientId),
+                    durationMs: Date.now() - startedAt,
+                }),
+            });
+            return res.json({
+                embedToken: result.embedToken,
+                embedUrl: result.embedUrl,
+                expiry: new Date(result.expiry).toISOString(),
+                cached: false,
+            });
+        } catch (err) {
+            // Fall through and let this request retry on its own.
+            console.warn('[embed-token] single-flight await failed, retrying:', err?.message);
+        }
+    }
+
+    const fetchImpl = _powerBiFetchImpl || fetch;
+    const issuancePromise = (async () => {
+        const aad = await acquireAadAccessTokenForPowerBI(profile, fetchImpl);
+        const token = await generatePowerBIEmbedToken({
+            aadAccessToken: aad.accessToken,
+            groupId,
+            reportId,
+            datasetId: datasetId || undefined,
+            accessLevel,
+            identities,
+            fetchImpl,
+        });
+        const embedUrl = buildPowerBIEmbedUrl(groupId, reportId);
+        return { embedToken: token.embedToken, embedUrl, expiry: token.expiry };
+    })();
+
+    // Reserve the cache slot with the in-flight promise so concurrent
+    // callers see it.
+    _powerBiEvictOldestIfFull();
+    _powerBiTokenCache.set(cacheKey, { ...(cached || {}), refreshPromise: issuancePromise });
+
+    try {
+        const result = await issuancePromise;
+        _powerBiEvictOldestIfFull();
+        _powerBiTokenCache.set(cacheKey, {
+            embedToken: result.embedToken,
+            embedUrl: result.embedUrl,
+            expiry: result.expiry,
+            refreshPromise: null,
+        });
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'embed-token',
+            status: 200,
+            detail: JSON.stringify({
+                cache: 'miss',
+                reportId,
+                accessLevel,
+                spIdHash: hashServicePrincipalId(profile.powerBiClientId),
+                durationMs: Date.now() - startedAt,
+            }),
+        });
+        return res.json({
+            embedToken: result.embedToken,
+            embedUrl: result.embedUrl,
+            expiry: new Date(result.expiry).toISOString(),
+            cached: false,
+        });
+    } catch (err) {
+        // Drop the stub cache entry so the next call retries cleanly.
+        _powerBiTokenCache.delete(cacheKey);
+        const upstreamStatus = typeof err?.statusCode === 'number' ? err.statusCode : 500;
+        // Map AAD/PBI auth failures to a sensible client status. 401/403
+        // propagate as-is; everything else becomes 502 (we got an error
+        // talking to Microsoft).
+        const clientStatus = (upstreamStatus === 401 || upstreamStatus === 403)
+            ? upstreamStatus
+            : (upstreamStatus >= 400 && upstreamStatus < 500 ? 400 : 502);
+        const detail = _redactForEmbedTokenLog(err?.message || String(err));
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'embed-token',
+            status: clientStatus,
+            detail: JSON.stringify({
+                reportId,
+                accessLevel,
+                spIdHash: hashServicePrincipalId(profile.powerBiClientId),
+                error: detail.slice(0, 200),
+                durationMs: Date.now() - startedAt,
+            }),
+        });
+        return res.status(clientStatus).json({
+            error: 'Power BI embed-token issuance failed',
+            detail: detail.slice(0, 300),
+        });
     }
 });
 
@@ -4295,4 +4723,10 @@ module.exports = {
     // foundationModelEndpoint on env-loaded profiles (env var convention
     // doesn't currently include that field).
     profileRegistry,
+    // Cycle A — exported so the embed-token route tests can stub the
+    // global fetch (Microsoft AAD + Power BI REST) and reset the cache
+    // between tests without re-exercising every code path.
+    _setPowerBiFetchImplForTests,
+    _resetPowerBiTokenCacheForTests,
+    _powerBiTokenCache,
 };
