@@ -1,0 +1,161 @@
+{
+  "name": "cpg-fmcg",
+  "displayName": "CPG / FMCG",
+  "version": "0.1.0",
+  "description": "Consumer Packaged Goods / Fast-Moving Consumer Goods preset pack. Ten sub-verticals plus a sustainability cross-cutting overlay, anchored in industry-standard taxonomies (GS1, ISA-95, ISO 22400, GHG Protocol). Includes a curated reference set from Gartner, Deloitte, KPMG, WEF, NielsenIQ, and Circana research published 2025-2026.",
+  "industries": [
+    "food-beverage",
+    "personal-care",
+    "household",
+    "consumer-health",
+    "tobacco-alternatives",
+    "pet-care"
+  ],
+  "subVerticals": [
+    {
+      "name": "supply-chain",
+      "path": "sub-verticals/supply-chain",
+      "description": "Demand sensing, inventory health, OTIF, S&OP, control tower, logistics."
+    },
+    {
+      "name": "procurement",
+      "path": "sub-verticals/procurement",
+      "description": "Sourcing, supplier risk, contracts, commodity exposure, RFx orchestration."
+    },
+    {
+      "name": "manufacturing",
+      "path": "sub-verticals/manufacturing",
+      "description": "OEE, yield, downtime, predictive maintenance, quality, batch genealogy."
+    },
+    {
+      "name": "commercial-retail",
+      "path": "sub-verticals/commercial-retail",
+      "description": "Revenue growth management, trade promotion, retail execution, digital shelf, JBP."
+    },
+    {
+      "name": "finance-fpa",
+      "path": "sub-verticals/finance-fpa",
+      "description": "Margin bridge, working capital, FP&A, scenario modelling, close anomaly detection."
+    },
+    {
+      "name": "hr",
+      "path": "sub-verticals/hr",
+      "description": "Workforce planning, skills, frontline staffing, safety, learning, attrition."
+    },
+    {
+      "name": "it-admin",
+      "path": "sub-verticals/it-admin",
+      "description": "Service desk, infrastructure, application portfolio, AI governance ops, license utilisation."
+    },
+    {
+      "name": "vendor-management",
+      "path": "sub-verticals/vendor-management",
+      "description": "Supplier 360, contract intelligence, tier 2/3/4 dependency, ESG scorecards."
+    },
+    {
+      "name": "client-management",
+      "path": "sub-verticals/client-management",
+      "description": "Retail customer JBP, scorecards, deductions; warehousing-client SLAs and throughput."
+    },
+    {
+      "name": "sustainability",
+      "path": "sub-verticals/sustainability",
+      "description": "Cross-cutting overlay: Scope 1/2/3 emissions, water, waste, packaging, ESG reporting."
+    }
+  ],
+  "crossCutting": [
+    "sustainability"
+  ],
+  "aiCompatibility": [
+    "conversation",
+    "agent",
+    "mcp"
+  ],
+  "biCompatibility": [
+    "powerbi",
+    "tableau",
+    "qlik",
+    "qlikview",
+    "looker",
+    "generic-iframe"
+  ],
+  "knowledgeBase": {
+    "glossary": "knowledge-base/glossary.md",
+    "references": "knowledge-base/references.md",
+    "ontology": "knowledge-base/ontology.md"
+  },
+  "references": [
+    {
+      "label": "GS1 Digital Link",
+      "url": "https://www.gs1.org/standards/gs1-digital-link",
+      "scope": "product-identity"
+    },
+    {
+      "label": "GS1 General Specifications (GTIN, GLN, SSCC)",
+      "url": "https://www.gs1.org/standards/barcodes",
+      "scope": "product-identity"
+    },
+    {
+      "label": "ISA-95 / IEC 62264 Enterprise-Control System Integration",
+      "url": "https://www.isa.org/standards-and-publications/isa-standards/isa-95-standard",
+      "scope": "manufacturing-integration"
+    },
+    {
+      "label": "ISO 22400 Manufacturing operations management KPIs",
+      "url": "https://www.iso.org/standard/56847.html",
+      "scope": "manufacturing-kpis"
+    },
+    {
+      "label": "GHG Protocol Corporate Standard",
+      "url": "https://ghgprotocol.org/corporate-standard",
+      "scope": "sustainability"
+    },
+    {
+      "label": "GRI Standards",
+      "url": "https://www.globalreporting.org/standards/",
+      "scope": "sustainability-reporting"
+    },
+    {
+      "label": "SASB Standards (IFRS Foundation)",
+      "url": "https://sasb.ifrs.org/standards/",
+      "scope": "industry-materiality"
+    },
+    {
+      "label": "TCFD Recommendations",
+      "url": "https://www.fsb-tcfd.org/recommendations/",
+      "scope": "climate-disclosure"
+    },
+    {
+      "label": "EU CSRD (Corporate Sustainability Reporting Directive)",
+      "url": "https://finance.ec.europa.eu/capital-markets-union-and-financial-markets/company-reporting-and-auditing/company-reporting/corporate-sustainability-reporting_en",
+      "scope": "sustainability-reporting"
+    },
+    {
+      "label": "CDP (formerly Carbon Disclosure Project)",
+      "url": "https://www.cdp.net/",
+      "scope": "environmental-disclosure"
+    },
+    {
+      "label": "Science Based Targets initiative (SBTi)",
+      "url": "https://sciencebasedtargets.org/",
+      "scope": "emissions-targets"
+    },
+    {
+      "label": "Gartner: top supply chain technology trends 2025",
+      "url": "https://www.gartner.com/en/newsroom/press-releases/2025-03-18-gartner-identifies-top-supply-chain-technology-trends-for-2025",
+      "scope": "supply-chain-research"
+    },
+    {
+      "label": "Deloitte 2025 consumer products industry outlook",
+      "url": "https://www.deloitte.com/us/en/insights/industry/consumer-products/consumer-products-industry-outlook/2025.html",
+      "scope": "commercial-research"
+    },
+    {
+      "label": "WEF Future of Jobs Report 2025",
+      "url": "https://www.weforum.org/publications/the-future-of-jobs-report-2025/",
+      "scope": "hr-research"
+    }
+  ],
+  "maintainers": [],
+  "lastUpdated": "2026-05-10"
+}
