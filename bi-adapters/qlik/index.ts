@@ -19,4 +19,9 @@ import { GenericIframeAdapter } from "../generic-iframe/index";
 export class QlikAdapter extends GenericIframeAdapter {
     readonly vendor = "qlik";
     readonly displayName = "Qlik Sense";
+    // qlik-embed web components need scripts + same-origin. The OAuth M2M
+    // flow runs server-side through the proxy, so the iframe itself does
+    // NOT need `allow-popups`. Add popups only for deployments using the
+    // first-party OAuth code flow inside the iframe.
+    protected defaultSandbox = "allow-scripts allow-same-origin";
 }

@@ -17,4 +17,9 @@ import { GenericIframeAdapter } from "../generic-iframe/index";
 export class LookerAdapter extends GenericIframeAdapter {
     readonly vendor = "looker";
     readonly displayName = "Looker";
+    // Looker signed-URL embed needs scripts + same-origin. Dashboard
+    // drill-down / scheduled-delivery features sometimes open popups; if
+    // a deployment uses those, override via the per-mount `cfg.sandbox`
+    // to add `allow-popups`. Default stays tight.
+    protected defaultSandbox = "allow-scripts allow-same-origin";
 }

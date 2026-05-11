@@ -18,4 +18,9 @@ import { GenericIframeAdapter } from "../generic-iframe/index";
 export class TableauAdapter extends GenericIframeAdapter {
     readonly vendor = "tableau";
     readonly displayName = "Tableau";
+    // Tableau Embedding API v3 / Tableau Server iframe embeds need scripts +
+    // same-origin only. Forms and popups are NOT required for the read-only
+    // viewer; deployments that enable subscription / share / web-authoring
+    // can re-add `allow-popups` via the per-mount `cfg.sandbox` override.
+    protected defaultSandbox = "allow-scripts allow-same-origin";
 }
