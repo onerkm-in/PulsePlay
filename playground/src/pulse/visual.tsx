@@ -5119,25 +5119,19 @@ function App(props: AppProps) {
                                 <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 2h12v1H2V2zm0 3h12v1H2V5zm0 3h9v1H2V8zm0 3h10v1H2v-1z"/></svg>
                                 Session Log ({sessionLogRef.current.length})
                             </button>
-                            {/* Cycle 40 + PulsePlay — Genie Query Audit panel button.
+                            {/* Cycle 40 + PulsePlay — Genie SQL Trace panel button.
                                 Surfaces the raw SQL Genie ran on the Databricks
-                                workspace in the last N minutes. Visible for every
-                                connection mode that talks to a Databricks workspace
-                                (proxy/auto/direct/supervisor/foundation-model/gateway);
-                                hidden for Azure OpenAI / Bedrock which don't have
-                                Databricks SQL history. Also hidden when the user
-                                hasn't picked a mode yet (no settings). */}
+                                workspace in the last N minutes. Denylist gating:
+                                visible by default for every connection mode
+                                EXCEPT Azure OpenAI + Bedrock (which don't have
+                                Databricks SQL history — those backends never
+                                execute SQL on a workspace, just call LLM /
+                                knowledge-base APIs). Any future Genie-backed
+                                mode gets the tab automatically. */}
                             {(() => {
                                 const mode = props.settings.connectionMode || "auto";
-                                const databricksBacked = (
-                                    mode === "proxy" ||
-                                    mode === "auto" ||
-                                    mode === "direct" ||
-                                    mode === "supervisor" ||
-                                    mode === "foundation-model" ||
-                                    mode === "gateway"
-                                );
-                                if (!databricksBacked) return null;
+                                const noSqlHistory = mode === "azure-openai" || mode === "bedrock";
+                                if (noSqlHistory) return null;
                                 return (
                                     <button
                                         className={`gn-dev-btn${devPanel === "genieQueries" ? " gn-dev-btn--active" : ""}`}
