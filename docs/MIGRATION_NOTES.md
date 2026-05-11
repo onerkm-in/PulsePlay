@@ -140,7 +140,7 @@ These are flagged for a future cleanup cycle. None block today's work; tracked i
 - **HTTP headers** in proxy: `X-Genie-Key`, `X-Genie-Target-Host`, `X-Databricks-Host`, `X-Databricks-Token`, `X-Genie-Space-Id`. Five of six allowed CORS headers are Databricks-vocabulary; only `X-Profile-Name` is generic. Renaming requires a backward-compat alias plan.
 - **`errorStatusFromDatabricks`** is the only error-mapping helper; only Databricks-shaped errors route through it. Bedrock and OpenAI have separate paths.
 - **CORS comment** claims "Power BI Desktop WebView requires permissive headers" — not applicable in PulsePlay.
-- **`scripts/llm_wrapup.py` state file** is named `.dwd-session.state.json`. Both names (`.dwd-session.state.json` and `.pulseplay-session.state.json`) are gitignored already; the rename in the script is pending.
+- **`scripts/llm_wrapup.py` state file** is now `.pulseplay-session.state.json` (and `llm_onboard.py` matches). Legacy `.dwd-session.state.json` is still read as a fallback so a half-migrated repo keeps working; both names remain gitignored.
 - **ADR-0003 file name** `0003-supervisor-stagger-800ms.md` — title says 800 ms but code is 2000 ms. Either rename the file or supersede with a fresh ADR documenting 2000 ms.
 - **Smoke scripts** (`scripts/smoke-full.ps1`, `scripts/smoke-rls-ols.ps1`) are Pulse-shaped (test PBI custom visual paths). Need adaptation to PulsePlay's profile types.
 
