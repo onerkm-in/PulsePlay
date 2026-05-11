@@ -5584,7 +5584,7 @@ function App(props: AppProps) {
                                 "or Setup" affordance is hidden whenever Setup is hidden. */}
                             {(!devPanel || (devPanel === "setup" && !setupAccessGranted)) && (
                                 <p className="gn-modal-hint">
-                                    Select Diagnostics, Session Log{setupAccessGranted ? ", or Setup" : ""}, or Display above.
+                                    Select Diagnostics, Session Log, Display{setupAccessGranted ? ", or Setup" : ""} above.
                                 </p>
                             )}
                         </div>
