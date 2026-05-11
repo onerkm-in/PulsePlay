@@ -920,7 +920,7 @@ function App(props: AppProps) {
     const [home, setHome] = useState<AssistantHomePayload>(() => buildLocalHomeModel(props.context, roleMode));
     const [question, setQuestion] = useState("");
     const [busy, setBusy] = useState(false);
-    const [devPanel, setDevPanel] = useState<"" | "diagnostics" | "session" | "setup" | "genieQueries">("");
+    const [devPanel, setDevPanel] = useState<"" | "diagnostics" | "session" | "setup" | "genieQueries" | "display">("");
     // Cycle 40 — Genie Query Audit panel state. Fetched on-demand from
     // proxy /admin/query-history. Genie-mode only (connectionMode = proxy
     // or direct). Gives the author / dev a copy-pasteable list of recent
@@ -5067,6 +5067,22 @@ function App(props: AppProps) {
                                     Setup
                                 </button>
                             )}
+                            {/* PulsePlay cycle H — Display tab. Folds the App-
+                                level outer toggles (Pulse/v0, AI/BI/Both, layout
+                                position) into the same Developer Tools modal so
+                                the connection pill is the single global entry
+                                point. State persists via localStorage keys read
+                                by App.tsx; toggle clicks dispatch a custom event
+                                that App.tsx listens for to update React state. */}
+                            <button
+                                className={`gn-dev-btn${devPanel === "display" ? " gn-dev-btn--active" : ""}`}
+                                onClick={() => setDevPanel(prev => prev === "display" ? "" : "display")}
+                                title="PulsePlay app-level display options (UI mode, panels, layout)"
+                                aria-label="Open PulsePlay display settings"
+                            >
+                                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 3h12v8H2V3zm1 1v6h10V4H3zm-1 8h12v1H2v-1z"/></svg>
+                                Display
+                            </button>
                         </div>
                         <div className="gn-modal-body">
                             {devPanel === "diagnostics" && (
@@ -5561,17 +5577,115 @@ function App(props: AppProps) {
                                     }}
                                 />
                             )}
+                            {devPanel === "display" && (
+                                <PulsePlayDisplayPanel />
+                            )}
                             {/* Wave 38 Phase 1 — hint mirrors the layered Setup gate so the
                                 "or Setup" affordance is hidden whenever Setup is hidden. */}
                             {(!devPanel || (devPanel === "setup" && !setupAccessGranted)) && (
                                 <p className="gn-modal-hint">
-                                    Select Diagnostics, Session Log{setupAccessGranted ? ", or Setup" : ""} above.
+                                    Select Diagnostics, Session Log{setupAccessGranted ? ", or Setup" : ""}, or Display above.
                                 </p>
                             )}
                         </div>
                     </div>
                 </div>
             )}
+        </div>
+    );
+}
+
+// PulsePlay cycle H — Display panel.
+//
+// The three App.tsx-owned toggles (UI mode, enabled-components, layout)
+// used to live in a floating gear popover at the top-right of the
+// viewport. Cycle H folds them into Pulse's Developer Tools modal so the
+// connection pill is the single global settings entry point.
+//
+// State contract:
+//   - localStorage keys are owned by App.tsx ("pulseplay:ui-mode",
+//     "pulseplay:enabled-components", "pulseplay:layout-mode")
+//   - This panel reads them on each render (the modal isn't deep-rendered;
+//     re-reads on open are cheap) and writes back on toggle
+//   - After each write it dispatches a window `CustomEvent`
+//     "pulseplay:display-change" carrying { key, value }; App.tsx listens
+//     for that event and updates its React state
+//
+// Keep this lean — no validators, no animations. Three button strips.
+const PP_UI_MODE_KEY = "pulseplay:ui-mode";
+const PP_ENABLED_KEY = "pulseplay:enabled-components";
+const PP_LAYOUT_KEY = "pulseplay:layout-mode";
+
+function readDisplayPref<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
+    if (typeof window === "undefined") return fallback;
+    try {
+        const v = window.localStorage.getItem(key);
+        return (v && (allowed as readonly string[]).includes(v)) ? v as T : fallback;
+    } catch { return fallback; }
+}
+function writeDisplayPref(key: string, value: string): void {
+    if (typeof window === "undefined") return;
+    try { window.localStorage.setItem(key, value); } catch { /* swallow */ }
+    try {
+        window.dispatchEvent(new CustomEvent("pulseplay:display-change", { detail: { key, value } }));
+    } catch { /* swallow */ }
+}
+
+function PulsePlayDisplayPanel(): React.ReactElement {
+    const [uiMode, setUiMode] = React.useState<"pulse" | "v0">(
+        () => readDisplayPref(PP_UI_MODE_KEY, ["pulse", "v0"] as const, "pulse"),
+    );
+    const [enabled, setEnabled] = React.useState<"aiOnly" | "biOnly" | "both">(
+        () => readDisplayPref(PP_ENABLED_KEY, ["aiOnly", "biOnly", "both"] as const, "both"),
+    );
+    const [layout, setLayout] = React.useState<"ai-left" | "ai-right" | "ai-top" | "ai-bottom">(
+        () => readDisplayPref(PP_LAYOUT_KEY, ["ai-left", "ai-right", "ai-top", "ai-bottom"] as const, "ai-left"),
+    );
+
+    const applyUiMode = (next: "pulse" | "v0") => { setUiMode(next); writeDisplayPref(PP_UI_MODE_KEY, next); };
+    const applyEnabled = (next: "aiOnly" | "biOnly" | "both") => { setEnabled(next); writeDisplayPref(PP_ENABLED_KEY, next); };
+    const applyLayout = (next: "ai-left" | "ai-right" | "ai-top" | "ai-bottom") => { setLayout(next); writeDisplayPref(PP_LAYOUT_KEY, next); };
+
+    const btn = (active: boolean): React.CSSProperties => ({
+        padding: "6px 12px",
+        border: "1px solid",
+        borderColor: active ? "#0078d4" : "rgba(0,0,0,0.18)",
+        background: active ? "#0078d4" : "transparent",
+        color: active ? "#fff" : "inherit",
+        borderRadius: 4,
+        cursor: "pointer",
+        fontSize: 13,
+        fontWeight: active ? 600 : 400,
+    });
+    const row: React.CSSProperties = { display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6, marginBottom: 14 };
+    const label: React.CSSProperties = { fontSize: 12, fontWeight: 600, opacity: 0.75, textTransform: "uppercase", letterSpacing: 0.4 };
+    const hint: React.CSSProperties = { fontSize: 11, opacity: 0.6, margin: "0 0 18px" };
+
+    return (
+        <div style={{ padding: "8px 4px 4px" }}>
+            <div style={label}>UI Mode</div>
+            <div style={row}>
+                <button style={btn(uiMode === "pulse")} onClick={() => applyUiMode("pulse")}>Pulse (default)</button>
+                <button style={btn(uiMode === "v0")} onClick={() => applyUiMode("v0")}>v0 sidebar</button>
+            </div>
+            <p style={hint}>Pulse is the ported PBI-heritage UI. v0 is the lightweight cycle-C sidebar kept as an alternate.</p>
+
+            <div style={label}>Enabled Panels</div>
+            <div style={row}>
+                <button style={btn(enabled === "aiOnly")} onClick={() => applyEnabled("aiOnly")}>AI only</button>
+                <button style={btn(enabled === "biOnly")} onClick={() => applyEnabled("biOnly")}>BI only</button>
+                <button style={btn(enabled === "both")} onClick={() => applyEnabled("both")}>Both</button>
+            </div>
+            <p style={hint}>Which surfaces this PulsePlay instance shows.</p>
+
+            <div style={label}>Layout</div>
+            <div style={row}>
+                <button style={btn(layout === "ai-left")} onClick={() => applyLayout("ai-left")}>AI · Left</button>
+                <button style={btn(layout === "ai-right")} onClick={() => applyLayout("ai-right")}>AI · Right</button>
+                <button style={btn(layout === "ai-top")} onClick={() => applyLayout("ai-top")}>AI · Top</button>
+                <button style={btn(layout === "ai-bottom")} onClick={() => applyLayout("ai-bottom")}>AI · Bottom</button>
+            </div>
+            <p style={hint}>Where the AI pane sits relative to the BI pane. Only applies when both panels are enabled.</p>
         </div>
     );
 }
