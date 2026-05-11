@@ -13,7 +13,7 @@
 // the same proxy backend (Genie / Azure OpenAI / Bedrock / foundation
 // model) we proved out in DwD_AI_Assistant_for_PBI cycles 1-47.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
 import { BIPanel } from "./biPanel/BIPanel";
 import { listVendors } from "./biPanel/registry";
@@ -26,7 +26,13 @@ import { TestConnectionPanel } from "./components/TestConnectionPanel";
 import { PackPicker, DEFAULT_AVAILABLE_PACKS } from "./components/PackPicker";
 import type { PackSelection } from "./components/PackPicker";
 import type { ConnectorProbeResult } from "./types/probe";
-import { PulseShell } from "./components/PulseShell";
+// PERF — lazy-load PulseShell so the 642 KB pulse chunk isn't on the
+// first-paint critical path. The brand strip + top bar render
+// instantly while pulse fetches in parallel. v0 mode (which doesn't
+// import pulse at all) is unaffected.
+const PulseShell = lazy(() =>
+    import("./components/PulseShell").then(m => ({ default: m.PulseShell }))
+);
 
 /** UI mode toggle — "pulse" mounts the full ported Pulse experience in
  *  the left panel (Insights tab + Chat tab + SetupPanel + all the
@@ -263,12 +269,14 @@ export function App() {
                 aiContent={(
                     <aside className="pp-app__sidebar" style={panelInnerStyle()}>
                         {uiMode === "pulse" ? (
-                            <PulseShell
-                                renderToken={pulseRenderToken}
-                                onSettingsChange={() => setPulseRenderToken(t => t + 1)}
-                                biEvents={recentEvents}
-                                biVendor={activeVendor}
-                            />
+                            <Suspense fallback={<PulseLoadingState />}>
+                                <PulseShell
+                                    renderToken={pulseRenderToken}
+                                    onSettingsChange={() => setPulseRenderToken(t => t + 1)}
+                                    biEvents={recentEvents}
+                                    biVendor={activeVendor}
+                                />
+                            </Suspense>
                         ) : (
                             <>
                                 <VendorPicker
@@ -445,6 +453,26 @@ function SplitLayout(props: {
  *  content overflows. */
 function panelInnerStyle(): React.CSSProperties {
     return { width: "100%", height: "100%", minHeight: 0, overflow: "auto" };
+}
+
+/** Suspense fallback for the lazy-loaded Pulse bundle. Restrained — no
+ *  spinner-pageant, just a single line of text on the side. The actual
+ *  Pulse mount itself paints its full UI as soon as the chunk arrives. */
+function PulseLoadingState(): React.ReactElement {
+    return (
+        <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "100%",
+            height: "100%",
+            color: "rgba(0,0,0,0.55)",
+            fontSize: 13,
+            fontFamily: "system-ui, -apple-system, sans-serif",
+        }}>
+            Loading PulsePlay…
+        </div>
+    );
 }
 
 /** Cycle K.1 — multi-tile BI grid. `tileMode` = "1" renders a single
