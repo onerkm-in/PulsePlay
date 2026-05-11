@@ -36,6 +36,12 @@ export class GenericIframeAdapter implements BIAdapter {
     // these to their own labels without TS2416 errors.
     readonly vendor: string = "generic-iframe";
     readonly displayName: string = "Generic iframe";
+    /** Vendor-specific subclasses override this with the minimum sandbox
+     *  attribute their embed needs. `cfg.sandbox` (per-mount override) still
+     *  wins over this; this is just the default the adapter ships with so
+     *  deployers who don't tune per-mount get a vendor-tight default rather
+     *  than the loose-but-safe baseline. */
+    protected defaultSandbox: string = "allow-scripts allow-same-origin allow-forms allow-popups";
     private iframe: HTMLIFrameElement | null = null;
     private listeners = new Map<BIEventType, Set<(e: BIEvent) => void>>();
 
@@ -61,7 +67,7 @@ export class GenericIframeAdapter implements BIAdapter {
         const iframe = document.createElement("iframe");
         iframe.src = cfg.url;
         iframe.title = cfg.title || `Embedded view (${new URL(cfg.url).host})`;
-        iframe.setAttribute("sandbox", cfg.sandbox || "allow-scripts allow-same-origin allow-forms allow-popups");
+        iframe.setAttribute("sandbox", cfg.sandbox || this.defaultSandbox);
         iframe.setAttribute("loading", "lazy");
         iframe.style.width = "100%";
         iframe.style.height = "100%";
