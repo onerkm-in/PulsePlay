@@ -52,6 +52,14 @@ const ENABLED_COMPONENTS_STORAGE_KEY = "pulseplay:enabled-components";
 type LayoutMode = "ai-left" | "ai-right" | "ai-top" | "ai-bottom";
 const LAYOUT_MODE_STORAGE_KEY = "pulseplay:layout-mode";
 
+/** Cycle K — how many BI tiles render inside the BI pane. Authors who
+ *  want side-by-side comparison (same dashboard with different filters,
+ *  or two views from a chained drill-down) pick 2 or 4. v1 ships SHARED
+ *  embed config — all tiles render the same source. Per-tile content
+ *  (different URL per tile, mixing vendors per tile) is a future cycle. */
+type BiTileMode = "1" | "2" | "4";
+const BI_TILE_MODE_STORAGE_KEY = "pulseplay:bi-tile-mode";
+
 function readInitialUiMode(): UiMode {
     if (typeof window === "undefined") return "pulse";
     try {
@@ -81,6 +89,15 @@ function readInitialLayoutMode(): LayoutMode {
     return "ai-left";
 }
 
+function readInitialBiTileMode(): BiTileMode {
+    if (typeof window === "undefined") return "1";
+    try {
+        const stored = window.localStorage.getItem(BI_TILE_MODE_STORAGE_KEY);
+        if (stored === "1" || stored === "2" || stored === "4") return stored;
+    } catch { /* swallow */ }
+    return "1";
+}
+
 /** Cycle J — layoutMode now controls the PanelGroup direction + which
  *  panel sits first (see `renderSplitLayout` below). The flex-based
  *  layout helpers and hard sidebar caps are gone; the user drags the
@@ -104,6 +121,7 @@ export function App() {
         () => readInitialEnabledComponents(),
     );
     const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => readInitialLayoutMode());
+    const [biTileMode, setBiTileMode] = useState<BiTileMode>(() => readInitialBiTileMode());
     // Bumping renderToken nudges PulseShell to re-call visual.update(),
     // used after settings save events from PulseHostStub.persistProperties.
     const [pulseRenderToken, setPulseRenderToken] = useState(0);
@@ -135,6 +153,8 @@ export function App() {
                 setEnabledComponents(detail.value);
             } else if (detail.key === LAYOUT_MODE_STORAGE_KEY && (detail.value === "ai-left" || detail.value === "ai-right" || detail.value === "ai-top" || detail.value === "ai-bottom")) {
                 setLayoutMode(detail.value);
+            } else if (detail.key === BI_TILE_MODE_STORAGE_KEY && (detail.value === "1" || detail.value === "2" || detail.value === "4")) {
+                setBiTileMode(detail.value);
             }
         };
         window.addEventListener("pulseplay:display-change", handler as EventListener);
@@ -274,7 +294,8 @@ export function App() {
                 biContent={(
                     <main className="pp-app__canvas" style={panelInnerStyle()}>
                         {hasEmbedConfig ? (
-                            <BIPanel
+                            <BITileGrid
+                                tileMode={biTileMode}
                                 vendor={activeVendor}
                                 embedConfig={embedConfig}
                                 onEvent={handleBIEvent}
@@ -400,6 +421,65 @@ function SplitLayout(props: {
  *  content overflows. */
 function panelInnerStyle(): React.CSSProperties {
     return { width: "100%", height: "100%", minHeight: 0, overflow: "auto" };
+}
+
+/** Cycle K.1 — multi-tile BI grid. `tileMode` = "1" renders a single
+ *  BIPanel filling the canvas (the v0 behaviour, no extra DOM). "2"
+ *  renders two side-by-side; "4" renders a 2×2 grid. All tiles share
+ *  the same `embedConfig` in K.1 — the value of multi-tile in v1 is
+ *  side-by-side comparison of the same source under different
+ *  interactions (filter A vs filter B). K.2 will introduce per-tile
+ *  configs for genuinely different content per tile. */
+function BITileGrid(props: {
+    tileMode: BiTileMode;
+    vendor: string;
+    embedConfig: BIEmbedConfig;
+    onEvent: (e: BIEvent) => void;
+}): React.ReactElement {
+    const { tileMode, vendor, embedConfig, onEvent } = props;
+    if (tileMode === "1") {
+        return <BIPanel vendor={vendor} embedConfig={embedConfig} onEvent={onEvent} />;
+    }
+    const tileCount = tileMode === "2" ? 2 : 4;
+    const columns = tileMode === "2" ? 2 : 2;
+    const rows = tileMode === "2" ? 1 : 2;
+    const gridStyle: React.CSSProperties = {
+        display: "grid",
+        gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+        gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
+        gap: 8,
+        padding: 8,
+        width: "100%",
+        height: "100%",
+        boxSizing: "border-box",
+    };
+    const tileStyle: React.CSSProperties = {
+        minHeight: 0,
+        minWidth: 0,
+        position: "relative",
+        background: "rgba(0,0,0,0.02)",
+        border: "1px solid rgba(0,0,0,0.06)",
+        borderRadius: 4,
+        overflow: "hidden",
+    };
+    return (
+        <div style={gridStyle}>
+            {Array.from({ length: tileCount }, (_, i) => (
+                <div key={i} className="pp-bi-tile" style={tileStyle}>
+                    {/* Re-mounting each tile with its own key keeps adapters
+                     *  independent — a filter applied in one tile doesn't
+                     *  trigger a refetch in another, even though both speak
+                     *  to the same source. */}
+                    <BIPanel
+                        key={`tile-${i}`}
+                        vendor={vendor}
+                        embedConfig={embedConfig}
+                        onEvent={onEvent}
+                    />
+                </div>
+            ))}
+        </div>
+    );
 }
 
 /** Cycle F — AI panel position picker. Four split modes (left/right/
