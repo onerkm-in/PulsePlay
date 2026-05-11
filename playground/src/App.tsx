@@ -139,6 +139,27 @@ export function App() {
         try { window.localStorage.setItem(LAYOUT_MODE_STORAGE_KEY, next); } catch { /* swallow */ }
     }, []);
 
+    // Cycle H — the Display tab inside Pulse's Developer Tools modal writes
+    // the same three localStorage keys this component owns and dispatches a
+    // `pulseplay:display-change` window event. We listen and sync React
+    // state so toggles from the Display tab take effect immediately without
+    // a reload.
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const detail = (e as CustomEvent<{ key?: string; value?: string }>).detail;
+            if (!detail || typeof detail.value !== "string") return;
+            if (detail.key === UI_MODE_STORAGE_KEY && (detail.value === "pulse" || detail.value === "v0")) {
+                setUiMode(detail.value);
+            } else if (detail.key === ENABLED_COMPONENTS_STORAGE_KEY && (detail.value === "aiOnly" || detail.value === "biOnly" || detail.value === "both")) {
+                setEnabledComponents(detail.value);
+            } else if (detail.key === LAYOUT_MODE_STORAGE_KEY && (detail.value === "ai-left" || detail.value === "ai-right" || detail.value === "ai-top" || detail.value === "ai-bottom")) {
+                setLayoutMode(detail.value);
+            }
+        };
+        window.addEventListener("pulseplay:display-change", handler as EventListener);
+        return () => window.removeEventListener("pulseplay:display-change", handler as EventListener);
+    }, []);
+
     const aiVisible = enabledComponents === "aiOnly" || enabledComponents === "both";
     const biVisible = enabledComponents === "biOnly" || enabledComponents === "both";
     // Smart Connect state — populated by TestConnectionPanel's probe and the
@@ -191,19 +212,22 @@ export function App() {
 
     return (
         <div className="pp-app" style={{ display: "flex", flexDirection: appFlexDirection(layoutMode), width: "100%", height: "100vh" }}>
-            {/* Floating gear (top-right of viewport) opens the PulsePlay-level
-              * settings popover with the Pulse/v0 + AI/BI/Both toggles. These
-              * used to live in the sidebar header which crowded the Pulse
-              * brand row. A future cycle folds them inside Pulse's Setup tab
-              * as a new "Display" section. */}
-            <PulsePlaySettingsGear
-                uiMode={uiMode}
-                onUiModeChange={handleUiModeChange}
-                enabledComponents={enabledComponents}
-                onEnabledComponentsChange={handleEnabledComponentsChange}
-                layoutMode={layoutMode}
-                onLayoutModeChange={handleLayoutModeChange}
-            />
+            {/* Floating gear — kept ONLY in v0 mode. In Pulse mode the
+              * connection-status pill (top-right of the Pulse header) is the
+              * single global settings entry: it opens the Developer Tools
+              * modal whose Display tab carries the same three toggles
+              * (cycle H). In v0 mode the pill doesn't exist, so the gear
+              * remains the fallback. */}
+            {uiMode === "v0" && (
+                <PulsePlaySettingsGear
+                    uiMode={uiMode}
+                    onUiModeChange={handleUiModeChange}
+                    enabledComponents={enabledComponents}
+                    onEnabledComponentsChange={handleEnabledComponentsChange}
+                    layoutMode={layoutMode}
+                    onLayoutModeChange={handleLayoutModeChange}
+                />
+            )}
             {aiVisible && (
             <aside
                 className="pp-app__sidebar"
