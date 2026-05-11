@@ -25,13 +25,15 @@
     },
     "include": [
         "src",
-        "vite.config.ts",
         "../bi-adapters/**/*.ts"
     ],
     "exclude": [
         "../bi-adapters/**/__tests__/**",
         "src/**/__tests__/**",
         "**/*.test.ts",
-        "**/*.test.tsx"
+        "**/*.test.tsx",
+        "vite.config.ts",
+        "vitest.config.ts",
+        "vitest.setup.ts"
     ]
 }

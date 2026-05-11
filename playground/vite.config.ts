@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import path from "node:path";
 
 // PulsePlay playground — Vite config.
 // `/api/*` is proxied to the local PulsePlay AI proxy (same architecture as
@@ -16,17 +17,21 @@ export default defineConfig({
     // config mirrors this alias for tests. See tsconfig.json `paths` for
     // the matching tsc-side mapping. Vite resolves the relative path
     // against the project root (the directory containing this config).
+    // Absolute paths required — Vite dev's import-analysis doesn't follow
+    // relative-string aliases the way Rollup's build-time resolver does.
+    // (The previous relative-string form built cleanly but threw
+    // "Failed to resolve import" in the dev server's transform step.)
     resolve: {
         alias: {
-            "powerbi-client": "./node_modules/powerbi-client/dist/powerbi.js",
+            "powerbi-client": path.resolve(__dirname, "node_modules/powerbi-client"),
             // Cycle D — Pulse port stubs. The ported visual.tsx and helpers
             // `import powerbi from "powerbi-visuals-api"` and pull formatting
             // controls from "powerbi-visuals-utils-formattingmodel". These
             // aliases route both to our lightweight stubs so the bundle
             // doesn't need the real PBI SDK at runtime. tsconfig.json `paths`
             // mirrors these for tsc.
-            "powerbi-visuals-api": "./src/pulse/_adapter/powerbi-visuals-api.ts",
-            "powerbi-visuals-utils-formattingmodel": "./src/pulse/_adapter/powerbi-visuals-utils-formattingmodel.ts",
+            "powerbi-visuals-api": path.resolve(__dirname, "src/pulse/_adapter/powerbi-visuals-api.ts"),
+            "powerbi-visuals-utils-formattingmodel": path.resolve(__dirname, "src/pulse/_adapter/powerbi-visuals-utils-formattingmodel.ts"),
         },
     },
     server: {
