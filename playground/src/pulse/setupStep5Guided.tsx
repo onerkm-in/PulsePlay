@@ -214,7 +214,7 @@ export function SetupStep5Guided(props: SetupStep5GuidedProps) {
     // not relevant — Multi-space when the user picked "single", Trusted SQL
     // when connection mode is not backed by the Databricks Genie space flow.
     const skipPage5 = !draft.multiSpaceEnabled;
-    const skipPage6 = draft.connectionMode === "azure-openai" || draft.connectionMode === "bedrock";
+    const skipPage6 = draft.connectionMode === "azure-openai" || draft.connectionMode === "bedrock" || draft.connectionMode === "foundation-model";
 
     const total: number = 7;
 

@@ -15,7 +15,7 @@ import { ConnectionMode } from "./settings";
 
 export type Transport = "auto" | "direct" | "proxy" | "gateway";
 
-export type Backend = "genie-single" | "genie-supervisor" | "azure-openai" | "bedrock";
+export type Backend = "genie-single" | "genie-supervisor" | "azure-openai" | "bedrock" | "foundation-model";
 
 export interface PairView {
     transport: Transport;
@@ -46,12 +46,13 @@ export const BACKEND_LABELS: Record<Backend, { label: string; hint: string }> = 
     "genie-single":     { label: "Databricks Genie — single space",       hint: "One Genie space answers every question. Most common starting point." },
     "genie-supervisor": { label: "Genie Supervisor — multi-space fusion", hint: "Server-side orchestrator fans out to multiple Genie spaces and fuses one unified answer." },
     "azure-openai":     { label: "Azure OpenAI",                          hint: "Route questions through the proxy to an Azure OpenAI Chat Completions deployment." },
-    "bedrock":          { label: "AWS Bedrock Knowledge Base",            hint: "Route questions through the proxy to an AWS Bedrock Retrieve-and-Generate endpoint." }
+    "bedrock":          { label: "AWS Bedrock Knowledge Base",            hint: "Route questions through the proxy to an AWS Bedrock Retrieve-and-Generate endpoint." },
+    "foundation-model": { label: "Databricks Foundation Model",           hint: "Route questions through the proxy to a Databricks Mosaic AI model-serving endpoint. Workaround for Genie Agent Mode UI-only limitation." }
 };
 
 /** Read-only enumeration in declared display order. */
 export const TRANSPORTS: readonly Transport[] = ["proxy", "auto", "direct", "gateway"];
-export const BACKENDS:   readonly Backend[]   = ["genie-single", "genie-supervisor", "azure-openai", "bedrock"];
+export const BACKENDS:   readonly Backend[]   = ["genie-single", "genie-supervisor", "azure-openai", "bedrock", "foundation-model"];
 
 /**
  * Decode the on-disk `connectionMode` enum into the two-dimensional view the
@@ -65,8 +66,9 @@ export function decode(mode: ConnectionMode): PairView {
         case "direct":       return { transport: "direct",  backend: "genie-single" };
         case "gateway":      return { transport: "gateway", backend: "genie-single" };
         case "supervisor":   return { transport: "proxy",   backend: "genie-supervisor" };
-        case "azure-openai": return { transport: "proxy",   backend: "azure-openai" };
-        case "bedrock":      return { transport: "proxy",   backend: "bedrock" };
+        case "azure-openai":     return { transport: "proxy", backend: "azure-openai" };
+        case "bedrock":          return { transport: "proxy", backend: "bedrock" };
+        case "foundation-model": return { transport: "proxy", backend: "foundation-model" };
         default: {
             const _exhaustive: never = mode;
             return _exhaustive;
@@ -83,6 +85,7 @@ export function decode(mode: ConnectionMode): PairView {
 export function encode(transport: Transport, backend: Backend): ConnectionMode {
     if (backend === "azure-openai")     return "azure-openai";
     if (backend === "bedrock")          return "bedrock";
+    if (backend === "foundation-model") return "foundation-model";
     if (backend === "genie-supervisor") return "supervisor";
     // backend is "genie-single" — transport drives the enum.
     switch (transport) {
@@ -129,6 +132,12 @@ export function isSupported(transport: Transport, backend: Backend): PairSupport
         if (transport === "gateway") return { ok: false, reason: "Databricks AI Gateway routes Genie traffic only — AWS Bedrock is not a supported backend." };
     }
 
+    if (backend === "foundation-model") {
+        if (transport === "auto")    return { ok: false, reason: "Foundation Model requires Proxy explicitly — Auto might fall back to Direct, and the model-serving invocation runs server-side." };
+        if (transport === "direct")  return { ok: false, reason: "Browser cannot call the model-serving endpoint directly — auth + the /invocations route live behind the proxy." };
+        if (transport === "gateway") return { ok: false, reason: "Databricks AI Gateway routes Genie traffic only — Foundation Model endpoints are not a supported backend here." };
+    }
+
     return { ok: false, reason: "Unsupported combination." };
 }
 
@@ -161,7 +170,8 @@ export function requiredFields(transport: Transport, backend: Backend): FieldReq
             backend === "genie-single" ||
             backend === "genie-supervisor" ||
             backend === "azure-openai" ||
-            backend === "bedrock"
+            backend === "bedrock" ||
+            backend === "foundation-model"
         )) {
         fields.push({ name: "assistantProfile", required: backend !== "genie-single" });
     }

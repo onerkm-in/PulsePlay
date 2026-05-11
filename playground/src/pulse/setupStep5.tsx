@@ -480,7 +480,7 @@ const SECTION_E: FieldMeta[] = [
 
 const SECTION_F: FieldMeta[] = [
     { name: "devMode",            section: "F", label: "Developer mode",                       hint: "Shows the on-canvas diagnostics panel. Turn OFF before publishing.",               defaultValue: false },
-    { name: "showSql",            section: "F", label: "Show generated SQL",                   hint: "Display the SQL the AI generated. No effect for Azure OpenAI / Bedrock modes.",     noOp: ["azure-openai", "bedrock"], defaultValue: false },
+    { name: "showSql",            section: "F", label: "Show generated SQL",                   hint: "Display the SQL the AI generated. No effect for Azure OpenAI / Bedrock / Foundation Model modes (these answer from indexed knowledge bases / serving endpoints, no SQL).",     noOp: ["azure-openai", "bedrock", "foundation-model"], defaultValue: false },
     { name: "showTrace",          section: "F", label: "Show routing trace",                   hint: "Surface proxy routing details. Only meaningful in Proxy mode; ignored in Direct.", noOp: ["direct"], defaultValue: false },
     { name: "showGuidedFilters",  section: "F", label: "Show guided filter bar",               hint: "Filter selector below the chat area. Intended for authoring + testing.",            defaultValue: false },
     { name: "allowReportActions", section: "F", label: "Allow visual to apply report filters", hint: "When ON, guided filter selections can push to the surrounding BI report or dashboard.",                     defaultValue: true  },
@@ -2789,7 +2789,7 @@ export function SetupStep5(props: SetupStep5Props) {
     // PAT with explicit acknowledgement (via the confirm modal). Direct
     // mode requires a token. We surface the gate state in the toolbar.
     const pushAllowed = (() => {
-        if (draft.connectionMode === "azure-openai" || draft.connectionMode === "bedrock") return false;
+        if (draft.connectionMode === "azure-openai" || draft.connectionMode === "bedrock" || draft.connectionMode === "foundation-model") return false;
         if (!draft.spaceId.trim()) return false;
         return true;
     })();
@@ -4736,7 +4736,7 @@ WITH scoped AS (
                                     <>
                                         <p><strong>Where it appears:</strong> as a "SQL" tab on each answer card. Same content as the chart/table tabs, just rendered as the underlying query.</p>
                                         <p><strong>Useful for:</strong> auditing — confirming the AI picked the right joins, columns, and aggregations. Catches "the answer is plausible but the SQL is wrong" cases.</p>
-                                        <p><strong>No-op modes:</strong> <code>azure-openai</code>, <code>bedrock</code> — these backends don't generate SQL, they answer from indexed knowledge bases.</p>
+                                        <p><strong>No-op modes:</strong> <code>azure-openai</code>, <code>bedrock</code>, <code>foundation-model</code> — these backends don't generate SQL; they answer from indexed knowledge bases or model-serving endpoints.</p>
                                     </>
                                 }
                             >
