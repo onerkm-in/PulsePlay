@@ -1,25 +1,26 @@
 import { useEffect, useState } from "react";
 import type { BIEmbedConfig } from "../biPanel/BIAdapter";
+import { signInAndPrepareEmbed, signOutPbi } from "../lib/pbiAuth";
 
 // Vendor-aware embed-config form.
 //
-// Cycle A (Power BI graduation):
-//   • Generic / Tableau / Qlik / Looker — single URL field (the iframe
-//     fallback path; v1 wires real SDKs).
-//   • Power BI — full credential helper:
-//       Workspace ID + Report ID + Dataset ID
-//       Permissions (View | Edit)
-//       Embed-token mode (Backend-issued | Manual paste)
-//       Optional pasted token (dev only)
-//     "Backend-issued" mode posts to /api/assistant/embed-token/powerbi
-//     and the proxy returns { embedToken, embedUrl, expiry } using its
-//     Azure AD service principal. The browser never sees the AAD secret.
+// Power BI embed modes (in order of preference for production):
+//   1. SSO (AAD User-Owns-Data) — MSAL.js signs the viewer in with their
+//      AAD identity. Power BI applies the user's own RLS + dataset
+//      permissions. Seamless when the viewer already has an M365 session.
+//      Per https://learn.microsoft.com/en-us/power-bi/developer/embedded/embed-organization-app
+//   2. Backend-issued (Service Principal) — proxy mints an embed token
+//      via Azure AD client-credentials flow. Every viewer sees the SP's
+//      identity (no per-user RLS unless you pass `identities` for RLS
+//      impersonation). The browser never sees the SP secret.
+//   3. Manual paste — dev / lab only. Paste an embed token you minted
+//      via the Power BI portal or REST. Doesn't survive token expiry.
+//
+// Other vendors (generic / Tableau / Qlik / Looker) — single URL field
+// (the iframe fallback path; v1 wires real SDKs).
 //
 // The shape this form emits matches PowerBIEmbedConfig in
 // bi-adapters/powerbi/index.ts so the adapter can mount() it directly.
-//
-// All other vendors emit { url } shaped configs that GenericIframeAdapter
-// (and its subclasses) understand.
 
 interface EmbedConfigFormProps {
     vendor: string;
@@ -35,7 +36,7 @@ interface EmbedConfigFormProps {
     assistantProfile?: string;
 }
 
-type PowerBITokenMode = "backend" | "manual";
+type PowerBITokenMode = "sso" | "backend" | "manual";
 
 interface PowerBIFormState {
     groupId: string;
@@ -45,6 +46,34 @@ interface PowerBIFormState {
     tokenMode: PowerBITokenMode;
     manualEmbedUrl: string;
     manualAccessToken: string;
+    /** SSO: AAD app client ID. Persisted in localStorage so the author
+     *  enters it once per browser. */
+    aadClientId: string;
+    /** SSO: AAD tenant ID. Defaults to "organizations" (any work/school
+     *  account). Persisted alongside clientId. */
+    aadTenantId: string;
+}
+
+const PBI_SSO_STORAGE_KEY = "pulseplay:pbi-sso-config";
+
+interface PersistedSsoConfig {
+    aadClientId?: string;
+    aadTenantId?: string;
+}
+
+function readPersistedSso(): PersistedSsoConfig {
+    if (typeof window === "undefined") return {};
+    try {
+        const raw = window.localStorage.getItem(PBI_SSO_STORAGE_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === "object" ? parsed : {};
+    } catch { return {}; }
+}
+
+function writePersistedSso(value: PersistedSsoConfig): void {
+    if (typeof window === "undefined") return;
+    try { window.localStorage.setItem(PBI_SSO_STORAGE_KEY, JSON.stringify(value)); } catch { /* swallow */ }
 }
 
 const EMPTY_PBI: PowerBIFormState = {
@@ -52,9 +81,14 @@ const EMPTY_PBI: PowerBIFormState = {
     reportId: "",
     datasetId: "",
     permissions: "View",
-    tokenMode: "backend",
+    // Default mode is SSO — that's the seamless path when the org has
+    // an AAD app registered. Authors who haven't done that setup yet
+    // can pick `backend` (service principal via proxy) or `manual`.
+    tokenMode: "sso",
     manualEmbedUrl: "",
     manualAccessToken: "",
+    aadClientId: "",
+    aadTenantId: "",
 };
 
 export function EmbedConfigForm(props: EmbedConfigFormProps) {
@@ -115,9 +149,59 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
             return;
         }
 
+        // SSO mode — sign the viewer in with AAD via MSAL, acquire a
+        // Power BI access token, fetch the report metadata from the
+        // PBI REST API, then hand off to PowerBIAdapter with
+        // tokenType: "Aad". RLS applies per-user. Per
+        // https://learn.microsoft.com/en-us/power-bi/developer/embedded/embed-organization-app
+        if (state.tokenMode === "sso") {
+            if (!state.aadClientId.trim()) {
+                setError("AAD App Client ID is required. Register an SPA app in Azure AD with Power BI Service API permissions.");
+                return;
+            }
+            if (!state.groupId.trim()) {
+                setError("Workspace (group) ID is required.");
+                return;
+            }
+            // Persist AAD app config so the author enters it once per browser.
+            writePersistedSso({
+                aadClientId: state.aadClientId.trim(),
+                aadTenantId: state.aadTenantId.trim(),
+            });
+            setBusy(true);
+            try {
+                const handshake = await signInAndPrepareEmbed(
+                    {
+                        clientId: state.aadClientId.trim(),
+                        tenantId: state.aadTenantId.trim() || undefined,
+                    },
+                    state.groupId.trim(),
+                    state.reportId.trim(),
+                );
+                props.onChange({
+                    type: "report",
+                    tokenType: "Aad",
+                    id: handshake.reportId,
+                    groupId: state.groupId.trim(),
+                    datasetId: state.datasetId.trim() || handshake.datasetId,
+                    embedUrl: handshake.embedUrl,
+                    accessToken: handshake.accessToken,
+                    permissions: state.permissions,
+                });
+                setLastIssuedAt(Date.now());
+            } catch (err) {
+                setError(err instanceof Error ? err.message : String(err));
+            } finally {
+                setBusy(false);
+            }
+            return;
+        }
+
         // Backend-issued: POST to the proxy. The proxy resolves AAD service
         // principal credentials via the active profile and returns a short-
-        // lived embed token. The browser never sees the AAD secret.
+        // lived embed token. The browser never sees the AAD secret. Every
+        // viewer sees the SP's identity (no per-user RLS unless the proxy
+        // route also passes `identities` for RLS impersonation).
         if (!state.groupId.trim()) {
             setError("Workspace (group) ID is required for backend-issued tokens.");
             return;
@@ -160,6 +244,19 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
             setError(err instanceof Error ? err.message : String(err));
         } finally {
             setBusy(false);
+        }
+    };
+
+    const handleSignOut = async () => {
+        if (!state.aadClientId.trim()) return;
+        try {
+            await signOutPbi({
+                clientId: state.aadClientId.trim(),
+                tenantId: state.aadTenantId.trim() || undefined,
+            });
+            setLastIssuedAt(null);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : String(err));
         }
     };
 
@@ -207,16 +304,43 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
                 <option value="Edit">Edit</option>
             </select>
 
-            <label className="pp-embed-config__label" htmlFor="pp-pbi-mode">Embed token mode</label>
+            <label className="pp-embed-config__label" htmlFor="pp-pbi-mode">Embed mode</label>
             <select
                 id="pp-pbi-mode"
                 className="pp-embed-config__input"
                 value={state.tokenMode}
                 onChange={e => set("tokenMode", e.target.value as PowerBITokenMode)}
             >
-                <option value="backend">Backend-issued (recommended)</option>
+                <option value="sso">AAD SSO — Embed for your organization (seamless)</option>
+                <option value="backend">Service principal — Embed for your customers (proxy)</option>
                 <option value="manual">Manual paste (dev only)</option>
             </select>
+
+            {state.tokenMode === "sso" && (
+                <>
+                    <label className="pp-embed-config__label" htmlFor="pp-pbi-aad-client">AAD App Client ID</label>
+                    <input
+                        id="pp-pbi-aad-client"
+                        className="pp-embed-config__input"
+                        type="text"
+                        value={state.aadClientId}
+                        onChange={e => set("aadClientId", e.target.value)}
+                        placeholder="01234567-89ab-cdef-0123-456789abcdef"
+                    />
+                    <p className="pp-embed-config__hint" style={{ fontSize: 11, opacity: 0.7, margin: "4px 0 8px" }}>
+                        Register an <strong>SPA</strong> app in Azure AD with redirect URI <code>{typeof window !== "undefined" ? window.location.origin : ""}</code>. Grant delegated Power BI Service permissions (Report.Read.All at minimum).
+                    </p>
+                    <label className="pp-embed-config__label" htmlFor="pp-pbi-aad-tenant">AAD Tenant ID (optional)</label>
+                    <input
+                        id="pp-pbi-aad-tenant"
+                        className="pp-embed-config__input"
+                        type="text"
+                        value={state.aadTenantId}
+                        onChange={e => set("aadTenantId", e.target.value)}
+                        placeholder="leave blank for any work/school account"
+                    />
+                </>
+            )}
 
             {state.tokenMode === "manual" && (
                 <>
@@ -241,14 +365,28 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
                 </>
             )}
 
-            <button
-                type="button"
-                className="pp-embed-config__apply"
-                onClick={apply}
-                disabled={busy}
-            >
-                {busy ? "Issuing token…" : "Load report"}
-            </button>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <button
+                    type="button"
+                    className="pp-embed-config__apply"
+                    onClick={apply}
+                    disabled={busy}
+                >
+                    {busy ? (state.tokenMode === "sso" ? "Signing in…" : "Issuing token…")
+                          : (state.tokenMode === "sso" ? "Sign in & embed" : "Load report")}
+                </button>
+                {state.tokenMode === "sso" && lastIssuedAt && (
+                    <button
+                        type="button"
+                        className="pp-embed-config__apply"
+                        onClick={handleSignOut}
+                        disabled={busy}
+                        style={{ background: "transparent", color: "#0078d4", border: "1px solid #0078d4" }}
+                    >
+                        Sign out
+                    </button>
+                )}
+            </div>
 
             {error && (
                 <p className="pp-embed-config__error" role="alert">{error}</p>
@@ -270,15 +408,27 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
 
 function hydratePbiState(value: BIEmbedConfig): PowerBIFormState {
     // Best-effort rehydrate — useful when the parent persists embedConfig
-    // across re-renders (e.g. after a vendor switch and back).
+    // across re-renders (e.g. after a vendor switch and back). When no
+    // value is present we default to SSO mode (the seamless production
+    // path); we never auto-flip to "manual" since that's the dev-only
+    // escape hatch. Persisted AAD app config is read separately so it
+    // survives across sessions even after the embedConfig is reset.
+    const persistedSso = readPersistedSso();
+    const tokenType = (value.tokenType as string) || "";
+    const inferredMode: PowerBITokenMode =
+        tokenType === "Aad" ? "sso"
+            : value.accessToken ? "manual"
+            : "sso";
     return {
         groupId: (value.groupId as string) || "",
         reportId: (value.id as string) || "",
         datasetId: (value.datasetId as string) || "",
         permissions: (value.permissions as "View" | "Edit") || "View",
-        tokenMode: value.accessToken ? "manual" : "backend",
+        tokenMode: inferredMode,
         manualEmbedUrl: (value.embedUrl as string) || "",
         manualAccessToken: (value.accessToken as string) || "",
+        aadClientId: persistedSso.aadClientId || "",
+        aadTenantId: persistedSso.aadTenantId || "",
     };
 }
 
