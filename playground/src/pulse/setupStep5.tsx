@@ -3440,12 +3440,12 @@ export function SetupStep5(props: SetupStep5Props) {
                                 name={fGenieFields.name as string}
                                 label={fGenieFields.label}
                                 optional
-                                hint={<>Comma- or line-separated field names from your AI metric view. The visual checks Power BI bindings against this list and shows an amber badge if they diverge. Leave blank to skip validation.</>}
+                                hint={<>Comma- or line-separated field names from your AI metric view. PulsePlay checks bound fields from the active BI surface against this list and shows an amber badge if they diverge. Leave blank to skip validation.</>}
                                 example={fGenieFields.example}
                                 preview={fGenieFields.preview?.(draft)}
                                 helpBody={
                                     <>
-                                        <p><strong>What it does:</strong> declares the canonical field names of your AI workspace so the visual can warn when an author binds a Power BI measure that doesn't exist upstream.</p>
+                                        <p><strong>What it does:</strong> declares the canonical field names of your AI workspace so the visual can warn when a measure / dimension bound in your BI platform doesn't exist upstream.</p>
                                         <p><strong>Match logic:</strong> case-insensitive; aggregation prefixes like <code>Sum of</code> are stripped. So <code>Sum of Sales</code> matches <code>sales</code>.</p>
                                         <p><strong>Honoured by:</strong> all AI-backed connection modes that send context to the AI. No effect when <em>Send report context</em> is OFF.</p>
                                         <p><strong>Skip when:</strong> you trust report authors to bind correctly, or your space accepts free-form column names.</p>
@@ -3486,14 +3486,14 @@ export function SetupStep5(props: SetupStep5Props) {
 
                             <FieldRow
                                 name={fSendContext.name as string}
-                                label="Send Power BI report context to AI"
+                                label="Send BI context to AI"
                                 kind="toggle"
-                                hint={<>ON: dimensions, measures, and active filter values are included in every AI prompt, enabling scope-aware answers. OFF: only the typed question + your Domain Instructions are sent.</>}
+                                hint={<>ON: bound dimensions, measures, and active filter values from the active BI surface (Power BI, Tableau, Qlik, Looker, generic iframe) are included in every AI prompt — enables scope-aware answers. OFF: only the typed question + your Domain Instructions are sent.</>}
                                 helpBody={
                                     <>
-                                        <p><strong>Privacy lever:</strong> turning this OFF is the fastest way to keep the data inside the report. The visual will still send the typed question and your Domain Instructions, but no field values.</p>
+                                        <p><strong>Privacy lever:</strong> turning this OFF is the fastest way to keep the data inside the active BI surface. The visual will still send the typed question and your Domain Instructions, but no field values.</p>
                                         <p><strong>Tradeoff:</strong> OFF disables scope-aware answers. The AI won't know the user filtered to "West region 2025" unless you say so in the question.</p>
-                                        <p><strong>PII redaction:</strong> when ON, the visual auto-redacts emails / phone numbers in field values before sending. See <code>contextBuilder.ts</code>.</p>
+                                        <p><strong>PII redaction:</strong> when ON, the visual auto-redacts emails / phone numbers / SSN / IBAN / card-shaped values in field labels before sending. See <code>lib/piiRedact.ts</code>.</p>
                                     </>
                                 }
                             >
