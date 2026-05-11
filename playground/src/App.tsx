@@ -14,6 +14,7 @@
 // model) we proved out in DwD_AI_Assistant_for_PBI cycles 1-47.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
 import { BIPanel } from "./biPanel/BIPanel";
 import { listVendors } from "./biPanel/registry";
 import type { BIEvent, BIEmbedConfig } from "./biPanel/BIAdapter";
@@ -80,31 +81,11 @@ function readInitialLayoutMode(): LayoutMode {
     return "ai-left";
 }
 
-/** Computes flex-direction for the outer pp-app container so the AI
- *  sidebar and BI canvas land in the chosen positions. row-reverse and
- *  column-reverse keep DOM order stable while reversing visual order. */
-function appFlexDirection(layout: LayoutMode): React.CSSProperties["flexDirection"] {
-    switch (layout) {
-        case "ai-left":   return "row";
-        case "ai-right":  return "row-reverse";
-        case "ai-top":    return "column";
-        case "ai-bottom": return "column-reverse";
-    }
-}
-
-/** Sidebar sizing depends on whether the layout is row-oriented
- *  (width-constrained) or column-oriented (height-constrained), AND
- *  whether the BI canvas is also visible. AI-only takes full viewport. */
-function sidebarStyle(layout: LayoutMode, biVisible: boolean): React.CSSProperties {
-    if (!biVisible) {
-        return { width: "100%", height: "100%", maxWidth: "none", minWidth: 0, maxHeight: "none" };
-    }
-    const isRow = layout === "ai-left" || layout === "ai-right";
-    if (isRow) {
-        return { minWidth: 380, maxWidth: 560, width: "32%", height: "100%" };
-    }
-    return { width: "100%", minHeight: 280, maxHeight: 480, height: "40vh" };
-}
+/** Cycle J — layoutMode now controls the PanelGroup direction + which
+ *  panel sits first (see `renderSplitLayout` below). The flex-based
+ *  layout helpers and hard sidebar caps are gone; the user drags the
+ *  divider to size each pane, and the choice persists via PanelGroup's
+ *  `autoSaveId`. */
 
 export function App() {
     const vendors = useMemo(() => listVendors(), []);
@@ -211,7 +192,7 @@ export function App() {
             : undefined;
 
     return (
-        <div className="pp-app" style={{ display: "flex", flexDirection: appFlexDirection(layoutMode), width: "100%", height: "100vh" }}>
+        <div className="pp-app" style={{ position: "relative", width: "100%", height: "100vh", overflow: "hidden" }}>
             {/* Floating gear — kept ONLY in v0 mode. In Pulse mode the
               * connection-status pill (top-right of the Pulse header) is the
               * single global settings entry: it opens the Developer Tools
@@ -228,120 +209,197 @@ export function App() {
                     onLayoutModeChange={handleLayoutModeChange}
                 />
             )}
-            {aiVisible && (
-            <aside
-                className="pp-app__sidebar"
-                style={sidebarStyle(layoutMode, biVisible)}
-            >
-                <header className="pp-app__brand">
-                    <h1 style={{ margin: 0 }}>PulsePlay</h1>
-                    <p className="pp-app__brand-tag" style={{ margin: "2px 0 0", fontSize: 11, opacity: 0.7 }}>
-                        AI playground · multi-BI host
-                    </p>
-                </header>
-
-                {uiMode === "pulse" ? (
-                    <PulseShell
-                        renderToken={pulseRenderToken}
-                        onSettingsChange={() => setPulseRenderToken(t => t + 1)}
-                    />
-                ) : (
-                    <>
-                        <VendorPicker
-                            vendors={vendors}
-                            activeVendor={activeVendor}
-                            onChange={(v) => {
-                                setActiveVendor(v);
-                                setEmbedConfig({});
-                                setRecentEvents([]);
-                            }}
-                        />
-                        <EmbedConfigForm
-                            vendor={activeVendor}
-                            value={embedConfig}
-                            onChange={setEmbedConfig}
-                            assistantProfile={activeConnector}
-                        />
-                        <ConnectorPicker
-                            activeConnector={activeConnector}
-                            onChange={handleConnectorChange}
-                        />
-                        {activeConnector && (
-                            <TestConnectionPanel
-                                profile={activeConnector}
-                                onProbeComplete={handleProbeComplete}
+            <SplitLayout
+                aiVisible={aiVisible}
+                biVisible={biVisible}
+                layoutMode={layoutMode}
+                aiContent={(
+                    <aside className="pp-app__sidebar" style={panelInnerStyle()}>
+                        <header className="pp-app__brand">
+                            <h1 style={{ margin: 0 }}>PulsePlay</h1>
+                            <p className="pp-app__brand-tag" style={{ margin: "2px 0 0", fontSize: 11, opacity: 0.7 }}>
+                                AI playground · multi-BI host
+                            </p>
+                        </header>
+                        {uiMode === "pulse" ? (
+                            <PulseShell
+                                renderToken={pulseRenderToken}
+                                onSettingsChange={() => setPulseRenderToken(t => t + 1)}
                             />
-                        )}
-                        {activeConnector && (
-                            <PackPicker
-                                availablePacks={DEFAULT_AVAILABLE_PACKS}
-                                suggested={probeSuggested}
-                                value={packSelection}
-                                onChange={setPackSelection}
-                            />
-                        )}
-                        <AISidebar
-                            activeVendor={activeVendor}
-                            activeConnector={activeConnector}
-                            recentEvents={recentEvents}
-                            packSelection={packSelection}
-                        />
-                    </>
-                )}
-            </aside>
-            )}
-            {biVisible && (
-            <main className="pp-app__canvas" style={{ flex: 1, minWidth: 0, minHeight: 0, overflow: "auto" }}>
-                {hasEmbedConfig ? (
-                    <BIPanel
-                        vendor={activeVendor}
-                        embedConfig={embedConfig}
-                        onEvent={handleBIEvent}
-                    />
-                ) : (
-                    <div className="pp-app__empty">
-                        {aiVisible ? (
-                            <>
-                                <h2>Pick a BI tool and supply embed config</h2>
-                                <p>
-                                    PulsePlay can host {vendors.map(v => v.displayName).join(" · ")} as guests.
-                                    Choose a vendor on the left, fill in its embed config, and the AI
-                                    assistant will reason about whatever you load.
-                                </p>
-                                {uiMode === "pulse" && (
-                                    <p style={{ fontSize: 12, opacity: 0.7, marginTop: 12 }}>
-                                        Pulse UI is active in the left panel. Configure the connection
-                                        via its Setup tab; the embedded BI surface will appear here.
-                                    </p>
-                                )}
-                            </>
                         ) : (
                             <>
-                                <h2>BI-only mode</h2>
-                                <p>
-                                    AI components are hidden. Embed any BI URL below — PulsePlay is acting
-                                    as a thin multi-vendor BI host. Switch back to "Both" or "AI only" via
-                                    the top toggle to re-enable Pulse / v0.
-                                </p>
-                                <p style={{ marginTop: 12 }}>
-                                    Vendors: {vendors.map(v => v.displayName).join(" · ")}
-                                </p>
+                                <VendorPicker
+                                    vendors={vendors}
+                                    activeVendor={activeVendor}
+                                    onChange={(v) => {
+                                        setActiveVendor(v);
+                                        setEmbedConfig({});
+                                        setRecentEvents([]);
+                                    }}
+                                />
+                                <EmbedConfigForm
+                                    vendor={activeVendor}
+                                    value={embedConfig}
+                                    onChange={setEmbedConfig}
+                                    assistantProfile={activeConnector}
+                                />
+                                <ConnectorPicker
+                                    activeConnector={activeConnector}
+                                    onChange={handleConnectorChange}
+                                />
+                                {activeConnector && (
+                                    <TestConnectionPanel
+                                        profile={activeConnector}
+                                        onProbeComplete={handleProbeComplete}
+                                    />
+                                )}
+                                {activeConnector && (
+                                    <PackPicker
+                                        availablePacks={DEFAULT_AVAILABLE_PACKS}
+                                        suggested={probeSuggested}
+                                        value={packSelection}
+                                        onChange={setPackSelection}
+                                    />
+                                )}
+                                <AISidebar
+                                    activeVendor={activeVendor}
+                                    activeConnector={activeConnector}
+                                    recentEvents={recentEvents}
+                                    packSelection={packSelection}
+                                />
                             </>
                         )}
-                    </div>
+                    </aside>
                 )}
-            </main>
-            )}
-            {!aiVisible && !biVisible && (
-                <main className="pp-app__canvas">
-                    <div className="pp-app__empty">
-                        <h2>Both panels hidden</h2>
-                        <p>Re-enable AI or BI via the top toggle.</p>
-                    </div>
-                </main>
-            )}
+                biContent={(
+                    <main className="pp-app__canvas" style={panelInnerStyle()}>
+                        {hasEmbedConfig ? (
+                            <BIPanel
+                                vendor={activeVendor}
+                                embedConfig={embedConfig}
+                                onEvent={handleBIEvent}
+                            />
+                        ) : (
+                            <div className="pp-app__empty">
+                                {aiVisible ? (
+                                    <>
+                                        <h2>Pick a BI tool and supply embed config</h2>
+                                        <p>
+                                            PulsePlay can host {vendors.map(v => v.displayName).join(" · ")} as guests.
+                                            Choose a vendor on the left, fill in its embed config, and the AI
+                                            assistant will reason about whatever you load. Drag the divider to
+                                            resize either pane; multi-frame BI is coming next.
+                                        </p>
+                                        {uiMode === "pulse" && (
+                                            <p style={{ fontSize: 12, opacity: 0.7, marginTop: 12 }}>
+                                                Pulse UI is active in the AI pane. Configure the connection
+                                                via its Setup tab; the embedded BI surface will appear here.
+                                            </p>
+                                        )}
+                                    </>
+                                ) : (
+                                    <>
+                                        <h2>BI-only mode</h2>
+                                        <p>
+                                            AI components are hidden. Embed any BI URL below — PulsePlay is acting
+                                            as a thin multi-vendor BI host. Switch back to "Both" or "AI only" via
+                                            the Display tab to re-enable Pulse / v0.
+                                        </p>
+                                        <p style={{ marginTop: 12 }}>
+                                            Vendors: {vendors.map(v => v.displayName).join(" · ")}
+                                        </p>
+                                    </>
+                                )}
+                            </div>
+                        )}
+                    </main>
+                )}
+                emptyContent={(
+                    <main className="pp-app__canvas">
+                        <div className="pp-app__empty">
+                            <h2>Both panels hidden</h2>
+                            <p>Re-enable AI or BI via the Display tab (open via the connection pill).</p>
+                        </div>
+                    </main>
+                )}
+            />
         </div>
     );
+}
+
+// Cycle J — single resizable layout. When both panels are visible we
+// wrap them in a `Group` from `react-resizable-panels` so the author
+// can drag the divider to taste; layoutMode controls which side AI is
+// on (left/right/top/bottom). When only one panel is visible we render
+// it full-canvas without the group, since there's nothing to split.
+// `useDefaultLayout` persists the split ratio per orientation in
+// localStorage so the author's choice survives reloads.
+function SplitLayout(props: {
+    aiVisible: boolean;
+    biVisible: boolean;
+    layoutMode: LayoutMode;
+    aiContent: React.ReactNode;
+    biContent: React.ReactNode;
+    emptyContent: React.ReactNode;
+}): React.ReactElement {
+    const { aiVisible, biVisible, layoutMode, aiContent, biContent, emptyContent } = props;
+
+    const orientation: "horizontal" | "vertical" =
+        layoutMode === "ai-top" || layoutMode === "ai-bottom" ? "vertical" : "horizontal";
+    // Persist split ratio per orientation. Switching between row/column
+    // layouts gets independent saved sizes so each feels natural.
+    const { defaultLayout, onLayoutChanged } = useDefaultLayout({
+        id: `pulseplay:split:${orientation}`,
+        storage: typeof window !== "undefined" ? window.localStorage : undefined,
+    });
+
+    if (!aiVisible && !biVisible) return <>{emptyContent}</>;
+    if (aiVisible && !biVisible) return <>{aiContent}</>;
+    if (!aiVisible && biVisible) return <>{biContent}</>;
+
+    const aiFirst = layoutMode === "ai-left" || layoutMode === "ai-top";
+    const aiDefaultSize = orientation === "horizontal" ? 35 : 40;
+    const biDefaultSize = 100 - aiDefaultSize;
+
+    const sepStyle: React.CSSProperties = orientation === "horizontal"
+        ? { width: 6, background: "transparent", cursor: "col-resize", position: "relative", flexShrink: 0 }
+        : { height: 6, background: "transparent", cursor: "row-resize", position: "relative", flexShrink: 0 };
+    const sepInnerStyle: React.CSSProperties = orientation === "horizontal"
+        ? { position: "absolute", left: 2, top: 0, width: 2, height: "100%", background: "rgba(0,0,0,0.08)" }
+        : { position: "absolute", top: 2, left: 0, height: 2, width: "100%", background: "rgba(0,0,0,0.08)" };
+
+    const aiPanel = (
+        <Panel defaultSize={`${aiDefaultSize}%`} minSize="15%" id="ai">{aiContent}</Panel>
+    );
+    const biPanel = (
+        <Panel defaultSize={`${biDefaultSize}%`} minSize="15%" id="bi">{biContent}</Panel>
+    );
+    const separator = (
+        <Separator style={sepStyle}>
+            <div style={sepInnerStyle} />
+        </Separator>
+    );
+
+    return (
+        <Group
+            orientation={orientation}
+            defaultLayout={defaultLayout}
+            onLayoutChanged={onLayoutChanged}
+            style={{ width: "100%", height: "100%" }}
+        >
+            {aiFirst ? aiPanel : biPanel}
+            {separator}
+            {aiFirst ? biPanel : aiPanel}
+        </Group>
+    );
+}
+
+/** Inner styling for a panel's content. Removes the old hard width/height
+ *  caps from sidebarStyle since the surrounding Panel now governs size;
+ *  we only need the inner element to fill its panel and scroll when
+ *  content overflows. */
+function panelInnerStyle(): React.CSSProperties {
+    return { width: "100%", height: "100%", minHeight: 0, overflow: "auto" };
 }
 
 /** Cycle F — AI panel position picker. Four split modes (left/right/
