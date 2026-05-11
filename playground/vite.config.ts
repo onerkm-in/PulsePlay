@@ -36,6 +36,14 @@ export default defineConfig({
     },
     server: {
         port: 5173,
+        // Bind IPv4 explicitly. Vite 6's default literal "localhost" host
+        // binds whichever address Node's DNS prefers, which on Windows 11 +
+        // Node 24 is IPv6 (::1) only — so `http://127.0.0.1:5173` returns
+        // ERR_CONNECTION_REFUSED while `http://localhost:5173` works. The
+        // org standardised on 127.0.0.1 (see ADR-0002), so we bind IPv4
+        // here. localhost-via-IPv6 still works because most browsers retry
+        // IPv4 when IPv6 fails.
+        host: "127.0.0.1",
         proxy: {
             "/api": {
                 target: "http://127.0.0.1:8787",
