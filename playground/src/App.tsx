@@ -13,7 +13,7 @@
 // the same proxy backend (Genie / Azure OpenAI / Bedrock / foundation
 // model) we proved out in DwD_AI_Assistant_for_PBI cycles 1-47.
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BIPanel } from "./biPanel/BIPanel";
 import { listVendors } from "./biPanel/registry";
 import type { BIEvent, BIEmbedConfig } from "./biPanel/BIAdapter";
@@ -45,6 +45,12 @@ const UI_MODE_STORAGE_KEY = "pulseplay:ui-mode";
 type EnabledComponents = "aiOnly" | "biOnly" | "both";
 const ENABLED_COMPONENTS_STORAGE_KEY = "pulseplay:enabled-components";
 
+/** Cycle F — author-picked layout. Where the AI panel sits relative to
+ *  the BI canvas. Floating mode (drag-to-position) is a future iteration;
+ *  the four split modes cover most needs. */
+type LayoutMode = "ai-left" | "ai-right" | "ai-top" | "ai-bottom";
+const LAYOUT_MODE_STORAGE_KEY = "pulseplay:layout-mode";
+
 function readInitialUiMode(): UiMode {
     if (typeof window === "undefined") return "pulse";
     try {
@@ -63,6 +69,43 @@ function readInitialEnabledComponents(): EnabledComponents {
     return "both";
 }
 
+function readInitialLayoutMode(): LayoutMode {
+    if (typeof window === "undefined") return "ai-left";
+    try {
+        const stored = window.localStorage.getItem(LAYOUT_MODE_STORAGE_KEY);
+        if (stored === "ai-left" || stored === "ai-right" || stored === "ai-top" || stored === "ai-bottom") {
+            return stored;
+        }
+    } catch { /* swallow */ }
+    return "ai-left";
+}
+
+/** Computes flex-direction for the outer pp-app container so the AI
+ *  sidebar and BI canvas land in the chosen positions. row-reverse and
+ *  column-reverse keep DOM order stable while reversing visual order. */
+function appFlexDirection(layout: LayoutMode): React.CSSProperties["flexDirection"] {
+    switch (layout) {
+        case "ai-left":   return "row";
+        case "ai-right":  return "row-reverse";
+        case "ai-top":    return "column";
+        case "ai-bottom": return "column-reverse";
+    }
+}
+
+/** Sidebar sizing depends on whether the layout is row-oriented
+ *  (width-constrained) or column-oriented (height-constrained), AND
+ *  whether the BI canvas is also visible. AI-only takes full viewport. */
+function sidebarStyle(layout: LayoutMode, biVisible: boolean): React.CSSProperties {
+    if (!biVisible) {
+        return { width: "100%", height: "100%", maxWidth: "none", minWidth: 0, maxHeight: "none" };
+    }
+    const isRow = layout === "ai-left" || layout === "ai-right";
+    if (isRow) {
+        return { minWidth: 380, maxWidth: 560, width: "32%", height: "100%" };
+    }
+    return { width: "100%", minHeight: 280, maxHeight: 480, height: "40vh" };
+}
+
 export function App() {
     const vendors = useMemo(() => listVendors(), []);
     // PulsePlay's 2-axis abstraction:
@@ -79,6 +122,7 @@ export function App() {
     const [enabledComponents, setEnabledComponents] = useState<EnabledComponents>(
         () => readInitialEnabledComponents(),
     );
+    const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => readInitialLayoutMode());
     // Bumping renderToken nudges PulseShell to re-call visual.update(),
     // used after settings save events from PulseHostStub.persistProperties.
     const [pulseRenderToken, setPulseRenderToken] = useState(0);
@@ -89,6 +133,10 @@ export function App() {
     const handleEnabledComponentsChange = useCallback((next: EnabledComponents) => {
         setEnabledComponents(next);
         try { window.localStorage.setItem(ENABLED_COMPONENTS_STORAGE_KEY, next); } catch { /* swallow */ }
+    }, []);
+    const handleLayoutModeChange = useCallback((next: LayoutMode) => {
+        setLayoutMode(next);
+        try { window.localStorage.setItem(LAYOUT_MODE_STORAGE_KEY, next); } catch { /* swallow */ }
     }, []);
 
     const aiVisible = enabledComponents === "aiOnly" || enabledComponents === "both";
@@ -142,20 +190,30 @@ export function App() {
             : undefined;
 
     return (
-        <div className="pp-app">
+        <div className="pp-app" style={{ display: "flex", flexDirection: appFlexDirection(layoutMode), width: "100%", height: "100vh" }}>
+            {/* Floating gear (top-right of viewport) opens the PulsePlay-level
+              * settings popover with the Pulse/v0 + AI/BI/Both toggles. These
+              * used to live in the sidebar header which crowded the Pulse
+              * brand row. A future cycle folds them inside Pulse's Setup tab
+              * as a new "Display" section. */}
+            <PulsePlaySettingsGear
+                uiMode={uiMode}
+                onUiModeChange={handleUiModeChange}
+                enabledComponents={enabledComponents}
+                onEnabledComponentsChange={handleEnabledComponentsChange}
+                layoutMode={layoutMode}
+                onLayoutModeChange={handleLayoutModeChange}
+            />
             {aiVisible && (
-            <aside className="pp-app__sidebar" style={{ minWidth: 380, maxWidth: 560, width: biVisible ? "32%" : "100%" }}>
-                <header className="pp-app__brand" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    <div>
-                        <h1 style={{ margin: 0 }}>PulsePlay</h1>
-                        <p className="pp-app__brand-tag" style={{ margin: "2px 0 0", fontSize: 11, opacity: 0.7 }}>
-                            AI playground · multi-BI host
-                        </p>
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
-                        <UiModeToggle value={uiMode} onChange={handleUiModeChange} />
-                        <EnabledComponentsToggle value={enabledComponents} onChange={handleEnabledComponentsChange} />
-                    </div>
+            <aside
+                className="pp-app__sidebar"
+                style={sidebarStyle(layoutMode, biVisible)}
+            >
+                <header className="pp-app__brand">
+                    <h1 style={{ margin: 0 }}>PulsePlay</h1>
+                    <p className="pp-app__brand-tag" style={{ margin: "2px 0 0", fontSize: 11, opacity: 0.7 }}>
+                        AI playground · multi-BI host
+                    </p>
                 </header>
 
                 {uiMode === "pulse" ? (
@@ -209,7 +267,7 @@ export function App() {
             </aside>
             )}
             {biVisible && (
-            <main className="pp-app__canvas">
+            <main className="pp-app__canvas" style={{ flex: 1, minWidth: 0, minHeight: 0, overflow: "auto" }}>
                 {hasEmbedConfig ? (
                     <BIPanel
                         vendor={activeVendor}
@@ -258,6 +316,48 @@ export function App() {
                     </div>
                 </main>
             )}
+        </div>
+    );
+}
+
+/** Cycle F — AI panel position picker. Four split modes (left/right/
+ *  top/bottom). Floating + drag-to-reposition is a follow-up. */
+function LayoutModeToggle(props: { value: LayoutMode; onChange: (next: LayoutMode) => void }) {
+    const baseBtn: React.CSSProperties = {
+        padding: "3px 7px",
+        fontSize: 10,
+        border: "1px solid var(--pp-border, #ccc)",
+        background: "transparent",
+        cursor: "pointer",
+        borderRadius: 3,
+        minWidth: 36,
+    };
+    const activeBtn: React.CSSProperties = {
+        ...baseBtn,
+        background: "var(--pp-accent, #0078d4)",
+        color: "white",
+        borderColor: "var(--pp-accent, #0078d4)",
+    };
+    const modes: { value: LayoutMode; label: string; title: string }[] = [
+        { value: "ai-left",   label: "Left",   title: "AI on the left, BI on the right (default)" },
+        { value: "ai-right",  label: "Right",  title: "AI on the right, BI on the left" },
+        { value: "ai-top",    label: "Top",    title: "AI on top (full width), BI underneath" },
+        { value: "ai-bottom", label: "Bottom", title: "BI on top, AI on the bottom" },
+    ];
+    return (
+        <div role="group" aria-label="AI panel position" style={{ display: "inline-flex", flexWrap: "wrap", gap: 3 }}>
+            {modes.map(m => (
+                <button
+                    key={m.value}
+                    type="button"
+                    style={props.value === m.value ? activeBtn : baseBtn}
+                    onClick={() => props.onChange(m.value)}
+                    aria-pressed={props.value === m.value}
+                    title={m.title}
+                >
+                    {m.label}
+                </button>
+            ))}
         </div>
     );
 }
@@ -312,6 +412,116 @@ function EnabledComponentsToggle(props: { value: EnabledComponents; onChange: (n
             >
                 Both
             </button>
+        </div>
+    );
+}
+
+/** Floating gear in the viewport corner. Click to open a popover with
+ *  the PulsePlay-level toggles (Pulse/v0 + AI/BI/Both). Click-outside
+ *  or Escape closes it. Lives outside the sidebar so it stays visible
+ *  in every layout mode — including biOnly (no sidebar) and aiOnly
+ *  (full-width Pulse panel). */
+function PulsePlaySettingsGear(props: {
+    uiMode: UiMode;
+    onUiModeChange: (next: UiMode) => void;
+    enabledComponents: EnabledComponents;
+    onEnabledComponentsChange: (next: EnabledComponents) => void;
+    layoutMode: LayoutMode;
+    onLayoutModeChange: (next: LayoutMode) => void;
+}) {
+    const [open, setOpen] = useState(false);
+    const popoverRef = useRef<HTMLDivElement | null>(null);
+
+    // Click-outside + Escape to close.
+    useEffect(() => {
+        if (!open) return;
+        const onDown = (e: MouseEvent) => {
+            if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+                setOpen(false);
+            }
+        };
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "Escape") setOpen(false);
+        };
+        document.addEventListener("mousedown", onDown);
+        document.addEventListener("keydown", onKey);
+        return () => {
+            document.removeEventListener("mousedown", onDown);
+            document.removeEventListener("keydown", onKey);
+        };
+    }, [open]);
+
+    return (
+        <div
+            ref={popoverRef}
+            style={{
+                position: "fixed",
+                top: 12,
+                right: 12,
+                zIndex: 1000,
+            }}
+        >
+            <button
+                type="button"
+                aria-label="PulsePlay settings"
+                aria-expanded={open}
+                title="PulsePlay display settings"
+                onClick={() => setOpen(o => !o)}
+                style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: "50%",
+                    border: "1px solid var(--pp-border, #ccc)",
+                    background: open ? "var(--pp-accent, #0078d4)" : "rgba(255,255,255,0.92)",
+                    color: open ? "white" : "inherit",
+                    cursor: "pointer",
+                    boxShadow: "0 1px 4px rgba(0,0,0,0.12)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 16,
+                    padding: 0,
+                }}
+            >
+                ⚙
+            </button>
+            {open && (
+                <div
+                    role="dialog"
+                    aria-label="PulsePlay display settings"
+                    style={{
+                        position: "absolute",
+                        top: 40,
+                        right: 0,
+                        minWidth: 220,
+                        background: "white",
+                        border: "1px solid var(--pp-border, #ccc)",
+                        borderRadius: 6,
+                        boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+                        padding: 12,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 12,
+                        fontSize: 12,
+                    }}
+                >
+                    <div>
+                        <div style={{ fontWeight: 600, marginBottom: 4 }}>UI</div>
+                        <UiModeToggle value={props.uiMode} onChange={props.onUiModeChange} />
+                    </div>
+                    <div>
+                        <div style={{ fontWeight: 600, marginBottom: 4 }}>Panels visible</div>
+                        <EnabledComponentsToggle value={props.enabledComponents} onChange={props.onEnabledComponentsChange} />
+                    </div>
+                    <div>
+                        <div style={{ fontWeight: 600, marginBottom: 4 }}>AI position</div>
+                        <LayoutModeToggle value={props.layoutMode} onChange={props.onLayoutModeChange} />
+                    </div>
+                    <p style={{ margin: 0, fontSize: 10, opacity: 0.6, lineHeight: 1.4 }}>
+                        These outer-layout settings will move into Pulse's Setup tab in a future cycle.
+                    </p>
+                </div>
+            )}
         </div>
     );
 }

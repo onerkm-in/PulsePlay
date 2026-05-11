@@ -24,7 +24,7 @@
 
 import { useEffect, useRef } from "react";
 import { Visual } from "../pulse/visual";
-import { PulseHostStub, buildPersistedObjectsBag } from "../pulse/_adapter/PulseHostStub";
+import { PulseHostStub, buildPersistedObjectsBag, seedPulsePlayDefaults } from "../pulse/_adapter/PulseHostStub";
 import type powerbi from "../pulse/_adapter/powerbi-visuals-api";
 
 export interface PulseShellProps {
@@ -56,6 +56,12 @@ export function PulseShell(props: PulseShellProps) {
     useEffect(() => {
         const container = containerRef.current;
         if (!container) return;
+
+        // First-run seeding: writes PulsePlay-friendly defaults
+        // (currently `showSetupAccess: true` so authors actually reach
+        // Pulse's Setup tab without manual toggling). No-op when
+        // settings already exist in localStorage.
+        seedPulsePlayDefaults();
 
         const host = new PulseHostStub({
             onApplyFilter: props.onApplyFilter,
