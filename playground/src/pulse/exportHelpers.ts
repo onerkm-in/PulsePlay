@@ -1,0 +1,132 @@
+/**
+ * exportHelpers.ts
+ *
+ * IDEA-044 — Rich export. Phase 1 MVP: CSV export of Genie/AI response
+ * tables (the most-asked-for capability). Future phases will add Excel,
+ * PNG, PDF — see docs/IDEA-044_EXPORT_DESIGN.md for the full plan.
+ *
+ * Strict client-side: no proxy round-trip required, no new dependencies,
+ * no bundle bloat. Works inside the PBI Desktop sandbox via Blob +
+ * a.download (the standard HTML5 path is not blocked by the sandbox CSP).
+ */
+
+/** Convert a 2D array to RFC-4180-ish CSV. Quotes any field containing
+ *  comma / newline / double-quote; doubles internal double-quotes. */
+export function rowsToCsv(headers: string[], rows: (string | number | null | undefined)[][]): string {
+    const escape = (v: unknown): string => {
+        const s = v === null || v === undefined ? "" : String(v);
+        if (/[",\r\n]/.test(s)) {
+            return '"' + s.replace(/"/g, '""') + '"';
+        }
+        return s;
+    };
+    const headerLine = headers.map(escape).join(",");
+    const bodyLines = rows.map(r => r.map(escape).join(","));
+    // CRLF line endings per RFC 4180 — Excel + Sheets honour both, but
+    // CRLF is the safest cross-platform choice.
+    return [headerLine, ...bodyLines].join("\r\n") + "\r\n";
+}
+
+/** Extract a single pipe-table from markdown. Returns null if no table is
+ *  found at the start of the body. Used to grab the headline data table
+ *  out of an AI Insights section for CSV export. */
+export function extractFirstPipeTable(markdown: string): { headers: string[]; rows: string[][] } | null {
+    const lines = markdown.split(/\r?\n/);
+    let i = 0;
+    while (i < lines.length && !/^\s*\|.+\|\s*$/.test(lines[i])) i++;
+    if (i >= lines.length - 1) return null;
+    const headerLine = lines[i].trim();
+    const sepLine = (lines[i + 1] || "").trim();
+    if (!/^\|[\s:|-]+\|$/.test(sepLine)) return null;
+    const headers = headerLine.split("|").slice(1, -1).map(c => c.trim());
+    const rows: string[][] = [];
+    i += 2;
+    while (i < lines.length) {
+        const line = lines[i].trim();
+        if (!line) break;
+        if (!/^\|.+\|\s*$/.test(line)) break;
+        const cells = line.split("|").slice(1, -1).map(c => c.trim());
+        rows.push(cells);
+        i++;
+    }
+    if (rows.length === 0) return null;
+    return { headers, rows };
+}
+
+/** Trigger a browser download of `content` as a file named `filename`.
+ *  Uses Blob + URL.createObjectURL + a.download. Works in PBI Desktop
+ *  sandbox (sandbox CSP allows blob: URLs and synthetic anchor clicks). */
+export function downloadAs(filename: string, content: string, mimeType: string): void {
+    try {
+        // BOM prefix for CSV so Excel detects UTF-8 correctly when
+        // double-clicked. Only matters for spreadsheet apps; ignored
+        // by text editors and analysts using pandas / pl / R.
+        const isCsv = mimeType.includes("csv");
+        const data = isCsv ? "﻿" + content : content;
+        const blob = new Blob([data], { type: mimeType + ";charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        a.style.display = "none";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        // Defer revoke so the browser has time to read the blob.
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (e) {
+        // Sandbox might refuse a.click() in rare configurations; fail silently
+        // — the user should see no broken UI either way.
+        console.warn("[export] download failed:", e);
+    }
+}
+
+/** Build a safe filename from arbitrary user-facing text. Strips
+ *  filesystem-hostile chars, caps length, and appends a YYYYMMDD-HHMM
+ *  timestamp so repeat exports don't collide. */
+export function buildExportFilename(base: string, ext: string): string {
+    const now = new Date();
+    const yyyy = now.getFullYear().toString();
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const dd = String(now.getDate()).padStart(2, "0");
+    const hh = String(now.getHours()).padStart(2, "0");
+    const mi = String(now.getMinutes()).padStart(2, "0");
+    const stamp = `${yyyy}${mm}${dd}-${hh}${mi}`;
+    const safeBase = (base || "ai-export")
+        .replace(/[\\/:*?"<>|\x00-\x1F]/g, "")
+        .replace(/\s+/g, "-")
+        .slice(0, 60) || "ai-export";
+    return `${safeBase}-${stamp}.${ext}`;
+}
+
+/** Watermark/provenance footer line included as the last row of the CSV
+ *  (commented out with a leading `#` so analytical tools that respect
+ *  comment lines skip it). Future Phase 2 PDF/PNG exports will use the
+ *  same pattern as a footer. */
+export function buildExportFooterRow(opts: { sourceLabel?: string; sectionTitle?: string }): string {
+    const date = new Date().toISOString();
+    const parts = [
+        "# Generated by UniBridge AI for Power BI",
+        `Source: ${opts.sourceLabel || "default"}`,
+        opts.sectionTitle ? `Section: ${opts.sectionTitle}` : null,
+        `Exported: ${date}`,
+    ].filter(Boolean);
+    return parts.join(" · ");
+}
+
+/** High-level helper: extract the first pipe-table from a markdown body
+ *  and trigger a CSV download. Returns true on success, false if no
+ *  table was found (caller can then show a "no data to export" toast). */
+export function exportSectionAsCsv(
+    body: string,
+    opts: { sectionTitle?: string; sourceLabel?: string }
+): boolean {
+    const table = extractFirstPipeTable(body);
+    if (!table) return false;
+    const csvBody = rowsToCsv(table.headers, table.rows);
+    const footer = buildExportFooterRow({ sourceLabel: opts.sourceLabel, sectionTitle: opts.sectionTitle });
+    const csv = csvBody + footer + "\r\n";
+    const filename = buildExportFilename(opts.sectionTitle || "ai-insights-section", "csv");
+    downloadAs(filename, csv, "text/csv");
+    return true;
+}
