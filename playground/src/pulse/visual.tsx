@@ -177,6 +177,10 @@ import {
 // Wave 27 cycle 3 — subscription to sql-formatter lazy-load completion so
 // "View SQL" panels re-render with prettified SQL when the chunk lands.
 import { subscribeSqlFormatter, formatSqlForCopy } from "./visualHelpers";
+// PulsePlay — proper inline-SVG icons (replaces the PBI-heritage emoji
+// set: 📋 / ↻ / ⚙). The 350 KB pbiviz bundle cap that justified emojis
+// doesn't apply in the browser playground.
+import { Icon } from "./_adapter/Icon";
 import { createBackend } from "./backend/BackendFactory";
 import type { AnyBackend } from "./backend/BackendAdapter";
 // Wave 38 Phase 1 — Setup tab access allowlist (UX gate, not authorization).
@@ -3919,7 +3923,7 @@ function App(props: AppProps) {
                                         }
                                     }}
                                 >
-                                    {copiedFlash["insights"] ? "✓" : "📋"}
+                                    <Icon name={copiedFlash["insights"] ? "check" : "copy"} />
                                 </button>
                                 {/* Cycle 26 — global "Export ▾" dropdown removed
                                     along with the per-section kebab ⋮ menus.
@@ -3973,7 +3977,7 @@ function App(props: AppProps) {
                                             aria-label="Show or hide author-defined custom sections"
                                             onClick={() => setCustomizeOpen(v => !v)}
                                         >
-                                            <span aria-hidden="true">⚙</span>
+                                            <Icon name="settings" />
                                         </button>
                                         {customizeOpen && (
                                             <div
@@ -4062,7 +4066,7 @@ function App(props: AppProps) {
                                         runInsights();
                                     }}
                                 >
-                                    ↻
+                                    <Icon name="refresh" />
                                 </button>
                                 {/* Stop button — only visible mid-run. Cancels the
                                     in-flight pipeline and any partial XHRs. Completed

@@ -240,9 +240,14 @@ export function collectHighlights(dataView: DataView | undefined): PrimitiveValu
 export function validateUrl(value: string, label: string): string | null {
     const trimmed = (value || "").trim();
     if (!trimmed) return null; // empty handled by other checks
+    // PulsePlay — be lenient on protocol omission. `dbc-xxx.cloud.databricks.com`
+    // is the canonical Databricks workspace shape and is unambiguously
+    // an HTTPS URL; auto-prefix rather than reject. Users still get the
+    // error for genuine garbage like spaces or non-http: schemes.
+    const candidate = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
     let parsed: URL;
     try {
-        parsed = new URL(trimmed);
+        parsed = new URL(candidate);
     } catch {
         return `${label} is not a valid URL.`;
     }
@@ -276,9 +281,12 @@ export function getConfigIssues(settings: GenieVisualSettings): string[] {
         if (!settings.apiBaseUrl.trim()) {
             issues.push("Proxy mode requires an API Base URL (e.g. http://localhost:8787).");
         }
-        if (!settings.host.trim()) {
-            issues.push("Proxy mode still needs the Azure Databricks workspace URL so the proxy can route requests.");
-        }
+        // PulsePlay — `host` is optional in proxy mode. The proxy
+        // resolves the workspace from its own config.json (or env vars)
+        // by the assistant-profile name; the visual doesn't need a
+        // local copy to route requests. Pulse's original PBI flow used
+        // the host field as informational metadata; we honour the value
+        // if set but don't fail-closed when empty.
         if (!settings.assistantProfile.trim() && !settings.spaceId.trim()) {
             issues.push("Proxy mode needs an assistant profile or a fallback Genie space ID.");
         }
