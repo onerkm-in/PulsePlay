@@ -10,7 +10,8 @@
 import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
 import { PowerBIAdapter, __setPowerBIServiceForTests } from "../index";
 import type { PowerBIEmbedConfig } from "../index";
-import type { BIEvent } from "../../../playground/src/biPanel/BIAdapter";
+import type { BIEmbedConfig, BIEvent } from "../../../playground/src/biPanel/BIAdapter";
+import { runAdapterConformance } from "../../../playground/src/biPanel/__conformance__/adapterConformance";
 
 // ── Fakes ──────────────────────────────────────────────────────────────────
 
@@ -103,6 +104,21 @@ beforeEach(() => {
 afterEach(() => {
     __setPowerBIServiceForTests(null);
     if (containerEl.parentElement) containerEl.parentElement.removeChild(containerEl);
+});
+
+// ── Universal BIAdapter contract conformance ───────────────────────────────
+// Each test in the harness installs its own fake service through the
+// beforeMount hook so the conformance suite doesn't interfere with the
+// vendor-specific suite below (which uses the module-scoped `svc`).
+runAdapterConformance("PowerBIAdapter", {
+    factory: () => new PowerBIAdapter(),
+    validConfig: VALID_CONFIG as unknown as BIEmbedConfig,
+    beforeMount: () => {
+        __setPowerBIServiceForTests(makeFakeService() as unknown as Parameters<typeof __setPowerBIServiceForTests>[0]);
+    },
+    afterDestroy: () => {
+        __setPowerBIServiceForTests(null);
+    },
 });
 
 // ── Tests ──────────────────────────────────────────────────────────────────
