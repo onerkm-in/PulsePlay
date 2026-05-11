@@ -1113,12 +1113,20 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
             );
             return this.normalizeConversationResult(raw);
         }
+        // PulsePlay Smart Connect — forward the active pack selection (if
+        // any) so the proxy's cycle-C pack-context injection wraps the
+        // user message with the pack vocabulary. App.tsx writes this key
+        // when its auto-probe completes or the user picks via the
+        // PackPicker; absent key = no pack injection (proxy is permissive).
+        const packSelection = readPackSelectionFromStorage();
         const body = {
             ...base,
             intent: options?.intent,
             contextText: options?.contextText,
             assistantProfile: this.config.assistantProfile,
-            spaceId: this.config.spaceId
+            spaceId: this.config.spaceId,
+            ...(packSelection?.pack ? { pack: packSelection.pack } : {}),
+            ...(packSelection?.subVertical ? { subVertical: packSelection.subVertical } : {}),
         };
         const raw = await this.request<any>("POST", "/conversations/start", body);
         const normalized = this.normalizeConversationResult(raw);
@@ -1640,4 +1648,29 @@ export function parseInsightsConfigSuggestion(text: string): InsightsConfigSugge
         .filter(s => s.name && s.instruction);
     if (!domain && suggestedSections.length === 0) return null;
     return { domain, confidence, rationale, suggestedSections };
+}
+
+// PulsePlay — pack-selection bridge. App.tsx writes the active pack
+// (and sub-vertical) to this key when its Smart Connect auto-probe
+// completes or the user picks via the v0 PackPicker. genie.ts reads
+// it on each /conversations/start call and forwards pack+subVertical
+// in the body so the proxy's cycle-C pack-context injection wraps the
+// prompt with vertical vocabulary. Absent or malformed = no pack
+// injection (proxy treats missing keys as permissive).
+const PACK_SELECTION_KEY = "pulseplay:pack-selection";
+
+function readPackSelectionFromStorage(): { pack?: string; subVertical?: string } | null {
+    if (typeof window === "undefined") return null;
+    try {
+        const raw = window.localStorage.getItem(PACK_SELECTION_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== "object") return null;
+        const pack = typeof parsed.pack === "string" ? parsed.pack : undefined;
+        const subVertical = typeof parsed.subVertical === "string" ? parsed.subVertical : undefined;
+        if (!pack && !subVertical) return null;
+        return { pack, subVertical };
+    } catch {
+        return null;
+    }
 }

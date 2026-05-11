@@ -26,6 +26,7 @@ import { TestConnectionPanel } from "./components/TestConnectionPanel";
 import { PackPicker, DEFAULT_AVAILABLE_PACKS } from "./components/PackPicker";
 import type { PackSelection } from "./components/PackPicker";
 import type { ConnectorProbeResult } from "./types/probe";
+import { probeConnector } from "./lib/probeClient";
 // PERF — lazy-load PulseShell so the 642 KB pulse chunk isn't on the
 // first-paint critical path. The brand strip + top bar render
 // instantly while pulse fetches in parallel. v0 mode (which doesn't
@@ -199,6 +200,44 @@ export function App() {
             });
         }
     }, []);
+
+    // Smart Connect for Pulse mode — Pulse owns its own Setup wizard
+    // (no v0 ConnectorPicker / TestConnectionPanel in Pulse mode), so
+    // we auto-fire the probe whenever the persisted genieSettings.
+    // assistantProfile changes. Bumps pulseRenderToken signal that
+    // Pulse persisted settings; we also re-read on first mount.
+    useEffect(() => {
+        if (uiMode !== "pulse") return;
+        let cancelled = false;
+        try {
+            const raw = window.localStorage.getItem("pulseplay:visual-settings:genieSettings");
+            if (!raw) return;
+            const parsed = JSON.parse(raw);
+            const profile = (parsed?.assistantProfile || "").trim();
+            if (!profile) return;
+            // Skip if we already probed this profile (probeResult.profile holds the last probed key).
+            if (probeResult?.profile === profile) return;
+            void probeConnector(profile).then(result => {
+                if (cancelled) return;
+                handleProbeComplete(result);
+            }).catch(() => { /* probe failure is non-fatal — Smart Connect is best-effort */ });
+        } catch { /* swallow */ }
+        return () => { cancelled = true; };
+    }, [uiMode, pulseRenderToken, probeResult, handleProbeComplete]);
+
+    // Bridge — write the active pack selection to localStorage so Pulse's
+    // genie.ts can pick it up and forward to /assistant/conversations/start
+    // (the proxy's cycle-C pack-context injection then wraps the prompt
+    // with vertical vocabulary). Cleared on explicit null.
+    useEffect(() => {
+        try {
+            if (packSelection?.pack) {
+                window.localStorage.setItem("pulseplay:pack-selection", JSON.stringify(packSelection));
+            } else {
+                window.localStorage.removeItem("pulseplay:pack-selection");
+            }
+        } catch { /* swallow */ }
+    }, [packSelection]);
 
     // Switching connectors invalidates probe + pack selection so the next
     // probe runs fresh against the new profile.
