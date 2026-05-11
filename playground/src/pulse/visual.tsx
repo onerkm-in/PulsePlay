@@ -5631,6 +5631,7 @@ function App(props: AppProps) {
 const PP_UI_MODE_KEY = "pulseplay:ui-mode";
 const PP_ENABLED_KEY = "pulseplay:enabled-components";
 const PP_LAYOUT_KEY = "pulseplay:layout-mode";
+const PP_BI_TILE_KEY = "pulseplay:bi-tile-mode";
 
 function readDisplayPref<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
     if (typeof window === "undefined") return fallback;
@@ -5657,10 +5658,14 @@ function PulsePlayDisplayPanel(): React.ReactElement {
     const [layout, setLayout] = React.useState<"ai-left" | "ai-right" | "ai-top" | "ai-bottom">(
         () => readDisplayPref(PP_LAYOUT_KEY, ["ai-left", "ai-right", "ai-top", "ai-bottom"] as const, "ai-left"),
     );
+    const [biTile, setBiTile] = React.useState<"1" | "2" | "4">(
+        () => readDisplayPref(PP_BI_TILE_KEY, ["1", "2", "4"] as const, "1"),
+    );
 
     const applyUiMode = (next: "pulse" | "v0") => { setUiMode(next); writeDisplayPref(PP_UI_MODE_KEY, next); };
     const applyEnabled = (next: "aiOnly" | "biOnly" | "both") => { setEnabled(next); writeDisplayPref(PP_ENABLED_KEY, next); };
     const applyLayout = (next: "ai-left" | "ai-right" | "ai-top" | "ai-bottom") => { setLayout(next); writeDisplayPref(PP_LAYOUT_KEY, next); };
+    const applyBiTile = (next: "1" | "2" | "4") => { setBiTile(next); writeDisplayPref(PP_BI_TILE_KEY, next); };
 
     const btn = (active: boolean): React.CSSProperties => ({
         padding: "6px 12px",
@@ -5702,6 +5707,14 @@ function PulsePlayDisplayPanel(): React.ReactElement {
                 <button style={btn(layout === "ai-bottom")} onClick={() => applyLayout("ai-bottom")}>AI · Bottom</button>
             </div>
             <p style={hint}>Where the AI pane sits relative to the BI pane. Only applies when both panels are enabled.</p>
+
+            <div style={label}>BI Tiles</div>
+            <div style={row}>
+                <button style={btn(biTile === "1")} onClick={() => applyBiTile("1")}>Single frame</button>
+                <button style={btn(biTile === "2")} onClick={() => applyBiTile("2")}>2 side-by-side</button>
+                <button style={btn(biTile === "4")} onClick={() => applyBiTile("4")}>2 × 2 grid</button>
+            </div>
+            <p style={hint}>How many BI frames render in the BI pane. v1 shares one embed config across all tiles — useful for side-by-side comparison. Per-tile content is a future cycle.</p>
         </div>
     );
 }
