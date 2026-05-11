@@ -135,8 +135,8 @@ const SECTION_0: FieldMeta[] = [
 const SECTION_A: FieldMeta[] = [
     {
         name: "genieFields", section: "A",
-        label: "AI4PBI Fields",
-        hint: "Shared field allowlist used by BOTH AI Insights and Chat. Comma- or line-separated field names from your AI metric view. Visual checks PBI bindings against this list and surfaces missing-binding warnings.",
+        label: "AI metric fields",
+        hint: "Shared field allowlist used by BOTH AI Insights and Chat. Comma- or line-separated field names from your AI metric view. PulsePlay checks bound fields from the active BI surface against this list and surfaces missing-binding warnings.",
         example: "Country, Region, Sales, Profit, Quantity",
         defaultValue: "",
         preview: d => {
@@ -160,8 +160,8 @@ const SECTION_A: FieldMeta[] = [
     },
     {
         name: "sendContextToGenie", section: "A",
-        label: "Send report context to AI",
-        hint: "Applies to BOTH AI Insights stage prompts and Chat. ON: Power BI dimensions, measures, and active filters are appended to every prompt so the AI knows the bound scope. OFF: only the typed question + your instructions are sent.",
+        label: "Send BI context to AI",
+        hint: "Applies to BOTH AI Insights stage prompts and Chat. ON: bound dimensions, measures, and active filters from the active BI surface (Power BI, Tableau, Qlik, Looker, generic iframe) are appended to every prompt so the AI knows the current scope. OFF: only the typed question + your instructions are sent.",
         defaultValue: true,
     },
     {
@@ -306,7 +306,7 @@ const SECTION_A: FieldMeta[] = [
     {
         name: "insightsCacheTtlMinutes", section: "A",
         label: "AI Insights cache TTL",
-        hint: "How long a generated Insights run is cached so PBI page-switches don't re-trigger the 5-stage pipeline.",
+        hint: "How long a generated Insights run is cached so filter changes and navigation don't re-trigger the 5-stage pipeline.",
         example: "30 minutes (default), 0 = always re-run",
         defaultValue: 30,
         preview: d => d.insightsCacheTtlMinutes === 0
@@ -483,7 +483,7 @@ const SECTION_F: FieldMeta[] = [
     { name: "showSql",            section: "F", label: "Show generated SQL",                   hint: "Display the SQL the AI generated. No effect for Azure OpenAI / Bedrock modes.",     noOp: ["azure-openai", "bedrock"], defaultValue: false },
     { name: "showTrace",          section: "F", label: "Show routing trace",                   hint: "Surface proxy routing details. Only meaningful in Proxy mode; ignored in Direct.", noOp: ["direct"], defaultValue: false },
     { name: "showGuidedFilters",  section: "F", label: "Show guided filter bar",               hint: "Filter selector below the chat area. Intended for authoring + testing.",            defaultValue: false },
-    { name: "allowReportActions", section: "F", label: "Allow visual to apply report filters", hint: "When ON, guided filters can push to the surrounding PBI page.",                     defaultValue: true  },
+    { name: "allowReportActions", section: "F", label: "Allow visual to apply report filters", hint: "When ON, guided filter selections can push to the surrounding BI report or dashboard.",                     defaultValue: true  },
 ];
 
 const SECTION_G: FieldMeta[] = [
@@ -3813,7 +3813,7 @@ export function SetupStep5(props: SetupStep5Props) {
                             <FieldRow
                                 name={fCacheTtl.name as string}
                                 label={fCacheTtl.label}
-                                hint={<>How long a generated Insights run is cached in memory + localStorage so PBI page-switches don't re-trigger the 5-stage pipeline.</>}
+                                hint={<>How long a generated Insights run is cached in memory + localStorage so filter changes and navigation don't re-trigger the 5-stage pipeline.</>}
                                 example={fCacheTtl.example}
                                 preview={fCacheTtl.preview?.(draft)}
                                 helpBody={
@@ -4789,7 +4789,7 @@ WITH scoped AS (
                                 name={fActions.name as string}
                                 label="Allow visual to apply report filters"
                                 kind="toggle"
-                                hint={<>When ON, guided filters can push to the surrounding PBI page. When OFF, filters affect only the AI context.</>}
+                                hint={<>When ON, guided filter selections can push to the surrounding BI report or dashboard. When OFF, filters affect only the AI context.</>}
                                 helpBody={
                                     <>
                                         <p><strong>ON:</strong> the visual gains write access to the surrounding report's filter state. Selecting "Region=West" in the guided bar filters every other visual on the page too.</p>

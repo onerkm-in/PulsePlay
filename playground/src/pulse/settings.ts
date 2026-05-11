@@ -449,7 +449,7 @@ class SecurityGroup extends FormattingSettingsGroup {
     authMode = new formattingSettings.ItemDropdown({
         name: "authMode",
         displayName: "Authentication Model",
-        description: "Shared PAT: one Databricks identity serves all report viewers. Fastest to set up, suitable when all viewers should see the same data. — OAuth on-behalf-of: each request carries the viewer's Power BI identity; Unity Catalog row filters and column masks apply per user. Requires a proxy configured for token exchange (see Report Author Guide).",
+        description: "Shared PAT: one Databricks identity serves all report viewers. Fastest to set up, suitable when all viewers should see the same data. — OAuth on-behalf-of: each request carries the viewer's BI platform identity; Unity Catalog row filters and column masks apply per user. Requires a proxy configured for token exchange (see Report Author Guide).",
         items: [
             { value: "sharedPat", displayName: "Shared PAT  —  single service identity  (default)" },
             { value: "oauthObo",  displayName: "OAuth on-behalf-of  —  per-viewer identity  (proxy v2)" }
@@ -525,13 +525,13 @@ class SecurityGroup extends FormattingSettingsGroup {
 class InstructionsGroup extends FormattingSettingsGroup {
     name = "instructions";
     displayName = "📋 3 · AI Instructions";
-    description = "Control what the AI sees alongside each question: field schema hints, business rules, and whether Power BI filter context (dimensions, measures, active filters) is included in the prompt.";
+    description = "Control what the AI sees alongside each question: field schema hints, business rules, and whether active filter context from your BI platform (dimensions, measures, active filters) is included in the prompt.";
     visible = false;
 
     sendContextToGenie = new formattingSettings.ToggleSwitch({
         name: "sendContextToGenie",
-        displayName: "Send Report Context to AI",
-        description: "ON (default): Power BI dimensions, measures, and active filter values are included in every AI prompt — enables scope-aware answers. OFF: only the typed question and the Domain Instructions below are sent. Turn OFF for stricter data privacy or when context is not relevant.",
+        displayName: "Send BI Context to AI",
+        description: "ON (default): bound dimensions, measures, and active filter values from your BI platform (Power BI, Tableau, Qlik, Looker, generic iframe) are included in every AI prompt — enables scope-aware answers. OFF: only the typed question and the Domain Instructions below are sent. Turn OFF for stricter data privacy or when context is not relevant.",
         value: true
     });
 
@@ -1133,7 +1133,7 @@ class DeveloperGroup extends FormattingSettingsGroup {
     allowReportActions = new formattingSettings.ToggleSwitch({
         name: "allowReportActions",
         displayName: "Allow Visual to Apply Report Filters",
-        description: "When ON, guided filter selections inside the visual can push filters to the surrounding Power BI report page. When OFF, filters affect only the AI context — the report page stays unchanged.",
+        description: "When ON, guided filter selections inside the visual can push filters to the surrounding BI report or dashboard (Power BI, Tableau, Qlik, Looker). When OFF, filters affect only the AI context — the BI surface stays unchanged.",
         value: true
     });
 
