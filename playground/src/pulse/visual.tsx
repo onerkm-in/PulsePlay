@@ -1767,6 +1767,12 @@ function App(props: AppProps) {
         }
         if (!opSettings.apiBaseUrl.trim()) {
             setProxyHealth({ ok: false, mode: "proxy", error: "Proxy URL is not configured." });
+            // PulsePlay learning — the user-visible "Proxy offline / URL is
+            // not configured" banner used to render silently with no Session
+            // Log entry, so authors hit Check / Test, got an error, and
+            // had nothing to share when asking for help. Always emit a log
+            // when we render a user-visible error state.
+            logSession("WARN", "Proxy URL is not configured — set the Proxy API base URL in Setup → Connect.");
             return;
         }
         setProxyHealthProbing(true);
@@ -1786,6 +1792,36 @@ function App(props: AppProps) {
     useEffect(() => {
         void probeProxyHealth();
     }, [probeProxyHealth]);
+
+    // PulsePlay learning — catch uncaught exceptions + unhandled promise
+    // rejections at the window level and tee them into the Session Log so
+    // a future "I clicked X and nothing happened" report has a trail. The
+    // user-visible state-derived errors (proxy not configured, test-question
+    // rejections) are already logged at their call sites; this is the
+    // safety net for the long tail.
+    useEffect(() => {
+        const onError = (e: ErrorEvent) => {
+            try {
+                const where = e.filename ? ` (${e.filename}:${e.lineno})` : "";
+                logSession("ERROR", `Uncaught: ${e.message}${where}`);
+            } catch { /* never let logging itself throw */ }
+        };
+        const onRejection = (e: PromiseRejectionEvent) => {
+            try {
+                const reason = e.reason instanceof Error
+                    ? `${e.reason.name}: ${e.reason.message}`
+                    : (typeof e.reason === "string" ? e.reason : JSON.stringify(e.reason));
+                logSession("ERROR", `Unhandled promise rejection: ${reason}`);
+            } catch { /* same */ }
+        };
+        window.addEventListener("error", onError);
+        window.addEventListener("unhandledrejection", onRejection);
+        return () => {
+            window.removeEventListener("error", onError);
+            window.removeEventListener("unhandledrejection", onRejection);
+        };
+    }, [logSession]);
+
     const currentScope = describeScope(selectedFilters, guidedFilters);
     const promptContextPreview = useMemo(
         () => buildFullContext(
@@ -5524,6 +5560,7 @@ function App(props: AppProps) {
                                     proxyHealthProbing={proxyHealthProbing}
                                     onProbeProxyHealth={probeProxyHealth}
                                     boundUserId={viewerUserKey}
+                                    logSession={logSession}
                                     onSuggestInsightsConfig={async () => {
                                         // 49.20 / IDEA-037 phase 4 — feed bound bindings to the
                                         // active backend; let the LLM classify the domain and
@@ -5775,6 +5812,11 @@ function SetupPanel(props: {
      *  (props.context.dataUserId). Used by Setup Section H to render a live
      *  "Currently bound" preview chip next to the role-hint toggle. */
     boundUserId?: string;
+    /** PulsePlay — log session callback threaded down so Setup-page actions
+     *  (Check connection / Test Question / probe outcomes) write entries
+     *  visible in the Session Log tab. Without this, user-visible errors
+     *  rendered as banners with no diagnostic trail. */
+    logSession: (level: "INFO" | "ERROR" | "WARN", message: string) => void;
 }) {
     const { isEditing, setIsEditing, draft, setDraft } = props;
 
@@ -5865,16 +5907,32 @@ function SetupPanel(props: {
         : props.settings;
     const runConnectivityCheck = async () => {
         setHealthCheck({ kind: "running", label: "Checking connection..." });
-        const client = createBackend(targetConfig());
-        const res = await client.testConnection();
-        setHealthCheck({ kind: res.ok ? "ok" : "error", label: res.detail });
+        props.logSession("INFO", "Check connection — probing backend…");
+        try {
+            const client = createBackend(targetConfig());
+            const res = await client.testConnection();
+            setHealthCheck({ kind: res.ok ? "ok" : "error", label: res.detail });
+            props.logSession(res.ok ? "INFO" : "ERROR", `Check connection: ${res.detail}`);
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            setHealthCheck({ kind: "error", label: msg });
+            props.logSession("ERROR", `Check connection threw: ${msg}`);
+        }
     };
 
     const runTestQuestion = async () => {
         setTestQuestion({ kind: "running", label: "Running a lightweight validation question..." });
-        const client = createBackend(targetConfig());
-        const res = await client.testQuestion();
-        setTestQuestion({ kind: res.ok ? "ok" : "error", label: res.detail });
+        props.logSession("INFO", "Test question — submitting validation prompt…");
+        try {
+            const client = createBackend(targetConfig());
+            const res = await client.testQuestion();
+            setTestQuestion({ kind: res.ok ? "ok" : "error", label: res.detail });
+            props.logSession(res.ok ? "INFO" : "ERROR", `Test question: ${res.detail}`);
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            setTestQuestion({ kind: "error", label: msg });
+            props.logSession("ERROR", `Test question threw: ${msg}`);
+        }
     };
 
     if (isEditing) {
