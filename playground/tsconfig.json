@@ -11,14 +11,16 @@
         "noEmit": true,
         "jsx": "react-jsx",
         "strict": true,
-        "noUnusedLocals": true,
-        "noUnusedParameters": true,
+        "noUnusedLocals": false,
+        "noUnusedParameters": false,
         "noFallthroughCasesInSwitch": true,
         "esModuleInterop": true,
         "resolveJsonModule": true,
         "types": [],
         "paths": {
-            "powerbi-client": ["./node_modules/powerbi-client/dist/powerbi-client.d.ts"]
+            "powerbi-client": ["./node_modules/powerbi-client/dist/powerbi-client.d.ts"],
+            "powerbi-visuals-api": ["./src/pulse/_adapter/powerbi-visuals-api.ts"],
+            "powerbi-visuals-utils-formattingmodel": ["./src/pulse/_adapter/powerbi-visuals-utils-formattingmodel.ts"]
         }
     },
     "include": [
