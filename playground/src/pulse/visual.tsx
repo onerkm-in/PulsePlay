@@ -3688,8 +3688,15 @@ function App(props: AppProps) {
                                 onClick={() => setShowDevModal(true)}
                             >
                                 <span className="gn-status-dot" aria-hidden="true" />
-                                <span className="gn-status-label">{status.label}</span>
-                                <span className="gn-status-mode">{status.modeLabel}</span>
+                                {/* PulsePlay: the pill lives in the global top
+                                  * bar via `position: fixed`, so its compact
+                                  * decision shouldn't depend on Pulse's pane
+                                  * width. Force the labels visible — inline
+                                  * style wins over the `.gn-compact .gn-status-label
+                                  * { display: none }` rule that fires when the
+                                  * AI pane is narrow. */}
+                                <span className="gn-status-label" style={{ display: "inline-block" }}>{status.label}</span>
+                                <span className="gn-status-mode" style={{ display: "inline-block" }}>{status.modeLabel}</span>
                             </button>
                         );
                     })()}
