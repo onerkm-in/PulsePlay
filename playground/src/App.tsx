@@ -266,6 +266,8 @@ export function App() {
                             <PulseShell
                                 renderToken={pulseRenderToken}
                                 onSettingsChange={() => setPulseRenderToken(t => t + 1)}
+                                biEvents={recentEvents}
+                                biVendor={activeVendor}
                             />
                         ) : (
                             <>
