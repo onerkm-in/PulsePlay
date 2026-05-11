@@ -806,11 +806,16 @@ function App(props: AppProps) {
     const roleMode = normalizeUserMode(props.context.dataUserRole || "manager");
     const viewerUserKey = (props.context.dataUserId || "").trim().toLowerCase();
     const canViewAllHistory = /^(author|admin|administrator|owner|superuser|super-user|developer)$/i.test(roleMode);
-    // Compact header layout. The viewport breakpoint stays at 600 px for the
-    // historical "auto" behaviour; settings.compactMode lets a report author
-    // force-on (always compact) or force-off (never compact) regardless of width.
+    // Compact header layout. PulsePlay note: the original 600 px breakpoint
+    // matched a full-PBI-visual width; here Pulse runs inside a resizable
+    // split pane (cycle J) that's commonly ~35% of viewport — well under
+    // 600 px on a 1280 px screen. That triggered compact in normal use and
+    // turned the connection pill into a bare dot. Lowered to 380 px so
+    // compact only kicks in when the pane is genuinely squeezed (mobile-
+    // narrow or aggressively-resized). Authors can still force-on or
+    // force-off via settings.compactMode.
     const compactMode = paneSettings.compactMode || "auto";
-    const compact = compactMode === "on" || (compactMode !== "off" && props.viewport.width < 600);
+    const compact = compactMode === "on" || (compactMode !== "off" && props.viewport.width < 380);
     const canShowSql = opSettings.showSql || roleMode === "analyst";
     const canShowTrace = opSettings.showTrace || opSettings.devMode || roleMode === "analyst";
 
