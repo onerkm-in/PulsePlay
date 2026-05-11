@@ -1072,19 +1072,48 @@ async function ensureWarehouseRunning(profile) {
 const app = express();
 app.use(express.json({ limit: '4mb' }));
 
-// CORS — permissive by design. Both PulsePlay (browser host) and Pulse
-// (the sibling Power BI custom visual that uses this same proxy) make
-// cross-origin XHR/fetch calls; without these headers the browser's
-// preflight OPTIONS responds with "X-* not allowed" and silently kills
-// the real request.
+// CORS — permissive by default for development, pinned by env var for
+// production. Both PulsePlay (browser host) and Pulse (the sibling
+// Power BI custom visual that uses this same proxy) make cross-origin
+// XHR/fetch calls; without these headers the browser's preflight
+// OPTIONS responds with "X-* not allowed" and silently kills the real
+// request.
+//
+// Configuration
+//   PROXY_CORS_ORIGIN — comma-separated list of allowed origins. When
+//     unset, defaults to "*" (development convenience). When set, the
+//     proxy ONLY echoes back origins on the list; any other origin gets
+//     no Access-Control-Allow-Origin header (browser rejects the XHR).
+//     Required in production — paired with the production-mode check
+//     below that refuses "*" when NODE_ENV=production.
+//   NODE_ENV=production  — when production is detected AND
+//     PROXY_CORS_ORIGIN is unset or "*", the proxy refuses to start
+//     (security board ask: never ship "*" by default in prod).
 //
 // Backward-compat note: X-PulsePlay-* are the canonical PulsePlay header
 // names; X-Genie-* are kept in the Allow-Headers list so the Pulse PBI
 // custom visual (which still ships the X-Genie-Key/X-Genie-Target-Host
 // names) keeps working against this proxy. Both names are read by the
 // middleware below; emitted error messages reference X-PulsePlay-Key.
+const _corsOriginRaw = (process.env.PROXY_CORS_ORIGIN || '*').trim();
+const _corsAllowList = _corsOriginRaw === '*' ? null : _corsOriginRaw.split(',').map(s => s.trim()).filter(Boolean);
+if (process.env.NODE_ENV === 'production' && (_corsOriginRaw === '*' || !_corsAllowList || _corsAllowList.length === 0)) {
+    console.error('FATAL: PROXY_CORS_ORIGIN must be pinned to specific origin(s) in production (NODE_ENV=production). Refusing to start with permissive "*".');
+    process.exit(1);
+}
+function _corsOriginFor(req) {
+    if (_corsAllowList === null) return '*'; // dev wildcard
+    const reqOrigin = req.headers.origin;
+    if (typeof reqOrigin === 'string' && _corsAllowList.includes(reqOrigin)) return reqOrigin;
+    return null; // no header → browser rejects the cross-origin request
+}
 app.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    const allowed = _corsOriginFor(req);
+    if (allowed !== null) res.setHeader('Access-Control-Allow-Origin', allowed);
+    if (_corsAllowList !== null) {
+        // Vary on Origin so caches don't pin a wrong allow-list match across origins
+        res.setHeader('Vary', 'Origin');
+    }
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', [
         'Authorization', 'Content-Type',
@@ -1098,6 +1127,13 @@ app.use((req, res, next) => {
         'X-Assistant-Profile', 'X-Request-Id', 'X-Profile-Name',
     ].join(', '));
     res.setHeader('Access-Control-Expose-Headers', 'X-Request-Id');
+    // Defense-in-depth security headers — the proxy only serves JSON,
+    // so a strict CSP is appropriate. Express's 404 / 5xx default body
+    // is HTML; lock it down so a stray error page can't execute scripts.
+    res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('X-Frame-Options', 'DENY');
     if (req.method === 'OPTIONS') return res.sendStatus(204);
     next();
 });
