@@ -4944,7 +4944,14 @@ function App(props: AppProps) {
                 <div
                     className={`gn-modal-overlay gn-modal-overlay--drawer${setupPanelVisible ? " gn-modal-overlay--setup" : ""}`}
                     onClick={() => setShowDevModal(false)}
-                    style={devModalMaximized ? { alignItems: "stretch", justifyContent: "stretch" } : undefined}
+                    style={{
+                        // PulsePlay default — center the modal regardless of
+                        // Pulse's drawer-side alignment. Maximize state lets
+                        // the modal stretch edge-to-edge by switching to
+                        // `stretch` on both axes.
+                        alignItems: devModalMaximized ? "stretch" : "center",
+                        justifyContent: devModalMaximized ? "stretch" : "center",
+                    }}
                 >
                     <div
                         className={`gn-modal gn-modal--drawer${setupPanelVisible ? " gn-modal--setup" : ""}`}
@@ -4953,10 +4960,7 @@ function App(props: AppProps) {
                         aria-modal="true"
                         aria-labelledby="gn-modal-title"
                         style={devModalMaximized ? {
-                            // PulsePlay maximize override: claim the whole
-                            // viewport regardless of the drawer's default
-                            // right-side sizing. inset:0 + width/height 100%
-                            // wins over the .less file's percentage widths.
+                            // Maximize — claim the whole viewport.
                             position: "fixed",
                             inset: 0,
                             width: "100vw",
@@ -4964,7 +4968,20 @@ function App(props: AppProps) {
                             maxWidth: "none",
                             maxHeight: "none",
                             borderRadius: 0,
-                        } : undefined}
+                        } : {
+                            // PulsePlay default — large centered popup, not
+                            // the inherited narrow drawer. Authors mostly
+                            // open this to tweak Setup / Display / read
+                            // diagnostics, and the narrow drawer cropped
+                            // multi-column Setup forms.
+                            position: "relative",
+                            width: "88vw",
+                            height: "86vh",
+                            maxWidth: "none",
+                            maxHeight: "none",
+                            borderRadius: 8,
+                            boxShadow: "0 18px 50px rgba(0,0,0,0.28)",
+                        }}
                     >
                         <div className="gn-modal-header">
                             <span className="gn-modal-title" id="gn-modal-title">Developer Tools</span>
