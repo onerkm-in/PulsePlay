@@ -22,10 +22,11 @@
 //   - Hydrate Pulse's settings from localStorage on mount (Cycle E.4)
 //   - Provide a real palette from a theme service (Cycle E.4)
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Visual } from "../pulse/visual";
 import { PulseHostStub, buildPersistedObjectsBag, seedPulsePlayDefaults } from "../pulse/_adapter/PulseHostStub";
 import type powerbi from "../pulse/_adapter/powerbi-visuals-api";
+import type { BIEvent } from "../biPanel/BIAdapter";
 
 export interface PulseShellProps {
     /** Optional override of the container width/height in pixels. Defaults
@@ -46,11 +47,31 @@ export interface PulseShellProps {
     /** Optional callback when Pulse persists a settings change. Useful
      *  for surfacing "Settings saved" toasts in the surrounding shell. */
     onSettingsChange?: () => void;
+    /** Cycle L — recent canonical BI events emitted by the active vendor
+     *  adapter. PulseShell synthesises a `dataView.categorical` summary
+     *  from these so Pulse's `contextBuilder.buildContext()` populates
+     *  `props.context.measures` / `dimensions` / `availableFilters` /
+     *  `hasSelection` — making `sendContextToGenie` actually do work.
+     *  When this is undefined or empty, Pulse falls back to its current
+     *  empty-context behaviour. */
+    biEvents?: BIEvent[];
+    /** Vendor identifier used as the queryName prefix when synthesising
+     *  filter targets (e.g. `powerbi`, `tableau`). Default `bi`. */
+    biVendor?: string;
 }
 
 export function PulseShell(props: PulseShellProps) {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const visualRef = useRef<Visual | null>(null);
+
+    // Cycle L — derive a synthetic `categorical` block from the most recent
+    // BI vendor events so Pulse's `contextBuilder.buildContext()` populates
+    // dimensions / availableFilters / hasSelection. Memo so the effect-
+    // dependency stays stable when events haven't changed.
+    const biCategorical = useMemo(
+        () => buildCategoricalFromBIEvents(props.biEvents || [], props.biVendor || "bi"),
+        [props.biEvents, props.biVendor],
+    );
 
     // Mount: construct Visual + initial update. Tear down on unmount.
     useEffect(() => {
@@ -73,16 +94,12 @@ export function PulseShell(props: PulseShellProps) {
         const visual = new Visual({ element: container, host });
         visualRef.current = visual;
 
-        // Cycle E.4 — synthetic dataView carrying the persisted settings
-        // bag from localStorage. The FormattingSettingsService stub
-        // walks `metadata.objects` and applies values to the model so
-        // previously-saved Setup-tab choices reload across refreshes.
-        const persistedDataView = {
-            metadata: { objects: buildPersistedObjectsBag().objects },
-        };
+        // Cycle E.4 + Cycle L — synthetic dataView carrying the persisted
+        // settings bag (metadata.objects) AND the BI-derived categorical
+        // block when present. Pulse's update() pipeline reads both.
         visual.update({
             viewport: viewportFromContainer(container, props.viewport),
-            dataViews: [persistedDataView],
+            dataViews: [buildSyntheticDataView(biCategorical)],
         });
 
         // Resize observer: PBI re-emits update() on viewport changes; we
@@ -94,7 +111,7 @@ export function PulseShell(props: PulseShellProps) {
             ? new ResizeObserver(() => {
                 visual.update({
                     viewport: viewportFromContainer(container, props.viewport),
-                    dataViews: [{ metadata: { objects: buildPersistedObjectsBag().objects } }],
+                    dataViews: [buildSyntheticDataView(biCategorical)],
                 });
             })
             : null;
@@ -114,19 +131,18 @@ export function PulseShell(props: PulseShellProps) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Re-render on renderToken bump (e.g., after a settings save). We
-    // re-invoke update() with the same shape; Pulse's internal React
-    // state picks up the new settings from the formattingSettingsService
-    // (Cycle E.4 will wire that to localStorage).
+    // Re-render on renderToken bump OR when BI context changes. Pulse's
+    // internal React state picks up the new settings + dimensions from
+    // the dataView we hand it.
     useEffect(() => {
         const visual = visualRef.current;
         const container = containerRef.current;
         if (!visual || !container) return;
         visual.update({
             viewport: viewportFromContainer(container, props.viewport),
-            dataViews: [{ metadata: { objects: buildPersistedObjectsBag().objects } }],
+            dataViews: [buildSyntheticDataView(biCategorical)],
         });
-    }, [props.renderToken, props.viewport]);
+    }, [props.renderToken, props.viewport, biCategorical]);
 
     return (
         <div
@@ -141,6 +157,119 @@ export function PulseShell(props: PulseShellProps) {
             }}
         />
     );
+}
+
+// Cycle L — synthetic dataView builder. Merges:
+//   - metadata.objects from localStorage (settings hydration)
+//   - categorical (categories) derived from recent BI events
+// so Pulse's update() pipeline gets a single dataView per call.
+//
+// Pulse's `contextBuilder.buildContext(dataView)` returns the empty summary
+// when `dataView.categorical` is absent (line 76 of contextBuilder.ts), so
+// adding the block here is sufficient to populate dimensions /
+// availableFilters / hasSelection in `props.context.*`.
+function buildSyntheticDataView(categorical: SyntheticCategorical | null): powerbi.DataView {
+    const dv: powerbi.DataView = {
+        metadata: { objects: buildPersistedObjectsBag().objects },
+    };
+    if (categorical) {
+        // Cast at the boundary — our synthetic shape is a strict subset of
+        // the full PBI DataViewCategorical (no values/measures, no
+        // highlights). Pulse's buildContext() only reads the keys we
+        // populate, so the narrower shape is safe.
+        dv.categorical = categorical as unknown as powerbi.DataView["categorical"];
+    }
+    return dv;
+}
+
+interface SyntheticCategorical {
+    categories: Array<{
+        source: {
+            displayName: string;
+            queryName: string;
+            roles?: Record<string, boolean>;
+        };
+        values: Array<string | number>;
+    }>;
+}
+
+/**
+ * Distil the last batch of `BIEvent`s into a categorical block Pulse can
+ * read. We collapse all `filter-applied` events into a per-field union of
+ * applied values (most recent wins on duplicate fields) and tag the
+ * categories with vendor-prefixed queryNames so Pulse's filter targeting
+ * is unambiguous. Pages and selections are added as informational
+ * dimensions so the AI sees navigation context too.
+ *
+ * Returns `null` when there's nothing useful to emit — keeps the
+ * settings-only update path fast for the no-BI-mounted case.
+ */
+export function buildCategoricalFromBIEvents(
+    events: ReadonlyArray<BIEvent>,
+    vendor: string,
+): SyntheticCategorical | null {
+    if (!events.length) return null;
+    // Field name → set of values (insertion-order via Map).
+    const fieldValues = new Map<string, Set<string | number>>();
+    let activePage: string | null = null;
+    const selectedDataPoints: Array<string | number> = [];
+
+    for (const ev of events) {
+        if (ev.type === "filter-applied") {
+            const payload = ev.payload as { filters?: Array<{ target?: { column?: string; table?: string }; values?: unknown }> };
+            const filters = payload?.filters || [];
+            for (const f of filters) {
+                const column = String(f?.target?.column || "").trim();
+                if (!column) continue;
+                const raw = Array.isArray(f.values) ? f.values : (f.values != null ? [f.values] : []);
+                const valueSet = fieldValues.get(column) ?? new Set<string | number>();
+                for (const v of raw) {
+                    if (v == null) continue;
+                    if (typeof v === "string" || typeof v === "number") valueSet.add(v);
+                    else valueSet.add(String(v));
+                }
+                fieldValues.set(column, valueSet);
+            }
+        } else if (ev.type === "page-changed") {
+            const payload = ev.payload as { pageName?: string; pageId?: string };
+            activePage = payload?.pageName || payload?.pageId || activePage;
+        } else if (ev.type === "selection-made") {
+            const payload = ev.payload as { dataPoints?: Array<{ values?: unknown[] }> };
+            const points = payload?.dataPoints || [];
+            for (const p of points) {
+                for (const v of p.values || []) {
+                    if (v == null) continue;
+                    if (typeof v === "string" || typeof v === "number") selectedDataPoints.push(v);
+                }
+            }
+        }
+    }
+
+    if (fieldValues.size === 0 && !activePage && selectedDataPoints.length === 0) return null;
+
+    const categories: SyntheticCategorical["categories"] = [];
+    for (const [column, valueSet] of fieldValues.entries()) {
+        categories.push({
+            source: {
+                displayName: column,
+                queryName: `${vendor}.${column}`,
+            },
+            values: [...valueSet],
+        });
+    }
+    if (activePage) {
+        categories.push({
+            source: { displayName: "Active Page", queryName: `${vendor}.__page` },
+            values: [activePage],
+        });
+    }
+    if (selectedDataPoints.length > 0) {
+        categories.push({
+            source: { displayName: "Selection", queryName: `${vendor}.__selection` },
+            values: [...new Set(selectedDataPoints)],
+        });
+    }
+    return { categories };
 }
 
 function viewportFromContainer(
