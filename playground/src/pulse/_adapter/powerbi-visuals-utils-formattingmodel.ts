@@ -213,14 +213,25 @@ export class FormattingSettingsService {
         // .createLocalizationManager())` compiles unchanged.
     }
 
-    /** Construct a fresh instance of the supplied model class. The
-     *  PBI runtime would also populate it from `dataView.metadata.objects`;
-     *  PulsePlay's settings layer doesn't piggy-back on DataView. */
+    /** Construct a model instance and hydrate from the supplied
+     *  dataView's `metadata.objects` bag. PulsePlay's PulseShell passes
+     *  a synthetic dataView whose objects come from localStorage, so
+     *  this is how persisted settings load back across reloads.
+     *
+     *  Walk pattern matches PBI's: for each card (top-level cards
+     *  array), match by `card.name` against `objects[name]`, then walk
+     *  the card's groups[*].slices[*] and direct slices, setting
+     *  `slice.value` for each matching propertyName. */
     populateFormattingSettingsModel<T>(
         ModelCtor: new () => T,
-        _dataView?: unknown,
+        dataView?: unknown,
     ): T {
-        return new ModelCtor();
+        const model = new ModelCtor();
+        const objects = readObjectsBag(dataView);
+        if (objects) {
+            applyObjectsToModel(model, objects);
+        }
+        return model;
     }
 
     buildFormattingModel(_model: unknown): unknown {
@@ -228,5 +239,58 @@ export class FormattingSettingsService {
         // PulsePlay has no format pane — return an empty object so any
         // caller that ignores the result doesn't trip.
         return { cards: [] };
+    }
+}
+
+// ── Hydration helpers (cycle E.4) ────────────────────────────────────────
+
+/** Pull metadata.objects out of a PBI-shaped dataView, defensively. */
+function readObjectsBag(dataView: unknown): Record<string, Record<string, unknown>> | null {
+    if (!dataView || typeof dataView !== "object") return null;
+    const meta = (dataView as { metadata?: { objects?: unknown } }).metadata;
+    if (!meta || typeof meta !== "object") return null;
+    const objects = (meta as { objects?: unknown }).objects;
+    if (!objects || typeof objects !== "object") return null;
+    return objects as Record<string, Record<string, unknown>>;
+}
+
+/** Apply a PBI-shaped `objects` bag onto a freshly-constructed
+ *  formattingSettings.Model. Walks model.cards -> (groups -> slices |
+ *  slices) and copies `value` for every matching name pair. */
+function applyObjectsToModel(
+    model: unknown,
+    objects: Record<string, Record<string, unknown>>,
+): void {
+    const cards = (model as { cards?: unknown[] }).cards;
+    if (!Array.isArray(cards)) return;
+    for (const card of cards) {
+        const cardName = (card as { name?: string }).name;
+        if (!cardName) continue;
+        const cardObjects = objects[cardName];
+        if (!cardObjects || typeof cardObjects !== "object") continue;
+        // CompositeCard: card.groups[*].slices[*]
+        const groups = (card as { groups?: unknown[] }).groups;
+        if (Array.isArray(groups)) {
+            for (const group of groups) {
+                const slices = (group as { slices?: unknown[] }).slices;
+                if (Array.isArray(slices)) applySlicesFromObjects(slices, cardObjects);
+            }
+        }
+        // SimpleCard: card.slices[*]
+        const directSlices = (card as { slices?: unknown[] }).slices;
+        if (Array.isArray(directSlices)) applySlicesFromObjects(directSlices, cardObjects);
+    }
+}
+
+function applySlicesFromObjects(
+    slices: unknown[],
+    cardObjects: Record<string, unknown>,
+): void {
+    for (const slice of slices) {
+        const sliceName = (slice as { name?: string }).name;
+        if (!sliceName) continue;
+        if (sliceName in cardObjects) {
+            (slice as { value: unknown }).value = cardObjects[sliceName];
+        }
     }
 }

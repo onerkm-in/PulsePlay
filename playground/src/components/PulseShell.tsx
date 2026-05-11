@@ -24,7 +24,7 @@
 
 import { useEffect, useRef } from "react";
 import { Visual } from "../pulse/visual";
-import { PulseHostStub } from "../pulse/_adapter/PulseHostStub";
+import { PulseHostStub, buildPersistedObjectsBag } from "../pulse/_adapter/PulseHostStub";
 import type powerbi from "../pulse/_adapter/powerbi-visuals-api";
 
 export interface PulseShellProps {
@@ -67,22 +67,28 @@ export function PulseShell(props: PulseShellProps) {
         const visual = new Visual({ element: container, host });
         visualRef.current = visual;
 
-        // First render. Empty dataViews is intentional: PulsePlay isn't a
-        // PBI custom visual so there's no DataView. Pulse's update() path
-        // handles the no-dataView case by falling back to default settings.
+        // Cycle E.4 — synthetic dataView carrying the persisted settings
+        // bag from localStorage. The FormattingSettingsService stub
+        // walks `metadata.objects` and applies values to the model so
+        // previously-saved Setup-tab choices reload across refreshes.
+        const persistedDataView = {
+            metadata: { objects: buildPersistedObjectsBag().objects },
+        };
         visual.update({
             viewport: viewportFromContainer(container, props.viewport),
-            dataViews: [],
+            dataViews: [persistedDataView],
         });
 
         // Resize observer: PBI re-emits update() on viewport changes; we
         // mirror that by calling update() ourselves when the container
-        // changes size.
+        // changes size. Re-read the persisted dataView each time so any
+        // settings changes (via persistProperties) get picked up on the
+        // next render-tick.
         const ro = typeof ResizeObserver !== "undefined"
             ? new ResizeObserver(() => {
                 visual.update({
                     viewport: viewportFromContainer(container, props.viewport),
-                    dataViews: [],
+                    dataViews: [{ metadata: { objects: buildPersistedObjectsBag().objects } }],
                 });
             })
             : null;
@@ -112,7 +118,7 @@ export function PulseShell(props: PulseShellProps) {
         if (!visual || !container) return;
         visual.update({
             viewport: viewportFromContainer(container, props.viewport),
-            dataViews: [],
+            dataViews: [{ metadata: { objects: buildPersistedObjectsBag().objects } }],
         });
     }, [props.renderToken, props.viewport]);
 
