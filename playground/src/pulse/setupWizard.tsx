@@ -69,11 +69,12 @@ export interface BackendCard {
 }
 
 export const WIZARD_BACKENDS: BackendCard[] = [
-    { id: "proxy",        label: "Databricks Genie (proxy)", hint: "Recommended. Token stays server-side." },
-    { id: "direct",       label: "Databricks Genie (direct)", hint: "Browser → Databricks. PAT in-visual. Dev/lab only." },
-    { id: "supervisor",   label: "Supervisor agent",          hint: "Multi-source orchestrator (via proxy)." },
-    { id: "azure-openai", label: "Azure OpenAI",              hint: "Azure OpenAI deployment via proxy." },
-    { id: "bedrock",      label: "AWS Bedrock",               hint: "Bedrock knowledge base via proxy." }
+    { id: "proxy",            label: "Databricks Genie (proxy)",    hint: "Recommended. Token stays server-side." },
+    { id: "direct",           label: "Databricks Genie (direct)",   hint: "Browser → Databricks. PAT in-visual. Dev/lab only." },
+    { id: "supervisor",       label: "Supervisor agent",            hint: "Multi-source orchestrator (via proxy)." },
+    { id: "foundation-model", label: "Databricks Foundation Model", hint: "Mosaic AI model-serving endpoint via proxy. Workaround for Genie Agent Mode UI-only limitation." },
+    { id: "azure-openai",     label: "Azure OpenAI",                hint: "Azure OpenAI deployment via proxy." },
+    { id: "bedrock",          label: "AWS Bedrock",                 hint: "Bedrock knowledge base via proxy." }
 ];
 
 /** In-progress wizard draft. Phase 2 widens this to the full set of fields

@@ -18,7 +18,7 @@ export type AssistantIntent =
     | "summary";
 export type OutputMode = "narrative" | "chart" | "table" | "sql" | "trace";
 
-export type ConnectionMode = "auto" | "proxy" | "direct" | "gateway" | "azure-openai" | "bedrock" | "supervisor";
+export type ConnectionMode = "auto" | "proxy" | "direct" | "gateway" | "azure-openai" | "bedrock" | "supervisor" | "foundation-model";
 
 export interface AssistantProfileMetadata {
     /** Internal proxy profile key — never displayed to end users. */

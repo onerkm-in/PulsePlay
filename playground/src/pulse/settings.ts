@@ -32,7 +32,7 @@ const CONNECTOR_DROPDOWN_DEFAULT = CONNECTOR_DROPDOWN_ITEMS[0];
  *                    one unified answer out — the supervisor decides which spaces to
  *                    query and synthesises the result server-side.
  */
-export type ConnectionMode = "auto" | "proxy" | "direct" | "gateway" | "azure-openai" | "bedrock" | "supervisor";
+export type ConnectionMode = "auto" | "proxy" | "direct" | "gateway" | "azure-openai" | "bedrock" | "supervisor" | "foundation-model";
 
 /**
  * Authentication model for Databricks requests.
