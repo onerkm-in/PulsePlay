@@ -4,6 +4,14 @@
 >
 > Strategic direction is locked: **Path C — inner-source-first, public-OSS-later.** Items that only matter for the public-OSS path live in [PUBLIC_OSS_AGENDA.md](PUBLIC_OSS_AGENDA.md), not here.
 
+## Recently shipped (v0.1.2)
+
+- [x] **Per-vendor iframe sandbox narrowing** (commit `9f7faef`) — Tableau / Qlik / Looker stubs default to `allow-scripts allow-same-origin` only; `allow-forms` / `allow-popups` must now be explicit per-mount opt-ins. Lock-in tests per vendor.
+- [x] **Cycle I — BIAdapter conformance harness** (commit `190c579`) — `runAdapterConformance()` runs the universal BIAdapter contract against every adapter; already caught a `NOT_MOUNTED` vs `UNSUPPORTED_COMMAND` mis-routing in generic-iframe. Total tests went from 35 → 124.
+- [x] **Developer Tools modal maximize toggle** (commit `f1afc3e`) — 🗖 / 🗗 next to the close ✕ fills the viewport on demand; resets to drawer on close.
+- [x] **Cycle G — CPG/FMCG pack merged into Pulse preset library** (commit `98bdbcb`) — 10 sub-vertical CustomSectionPresets appended via additive merge; heritage Pulse presets untouched and id-first.
+- [x] **Cycle F — author-positioned layout + Setup-tab surfacing** (commit `a59613b`) — Left / Right / Top / Bottom layout modes; AI-only mode now fills the viewport; `showSetupAccess` seeded true on first run so the Setup tab is reachable without manual toggling.
+
 ## Strategic posture (locked 2026-05-10)
 
 **Two-phase delivery plan:**
@@ -41,8 +49,8 @@ The 7-item cycle that this docs consolidation is part of. Tracked here for visib
 - [ ] Tableau adapter wires Embedding API v3 (`<tableau-viz>` web component)
 - [ ] Qlik adapter wires `qlik-embed`
 - [ ] Looker adapter wires `@looker/embed-sdk`
-- [ ] Each adapter narrows its iframe sandbox attribute to vendor-minimum
-- [ ] BIAdapter conformance test suite (any adapter must pass)
+- [x] Each adapter narrows its iframe sandbox attribute to vendor-minimum (2026-05-11, commit `9f7faef`)
+- [x] BIAdapter conformance test suite (any adapter must pass) (2026-05-11, cycle I, commit `190c579`)
 
 ### Proxy / connectors
 
@@ -89,8 +97,8 @@ Spec: [CONNECTOR_PROBE_AND_SMART_CONNECT.md](CONNECTOR_PROBE_AND_SMART_CONNECT.m
 
 ### Tests / quality
 
-- [ ] First playground tests (Vitest already configured; zero tests today)
-- [ ] BIAdapter conformance harness (any adapter must pass it)
+- [x] First playground tests (Vitest already configured; zero tests today) — 124 tests live as of 2026-05-11 across BIAdapter conformance, generic-iframe, Power BI, Tableau / Qlik / Looker stubs, AISidebar, and the CPG/FMCG pack merge
+- [x] BIAdapter conformance harness (any adapter must pass it) (cycle I)
 - [ ] First end-to-end demo: load a PBI report, ask "what page am I on?" — answer correctly
 - [ ] Smoke against a live Databricks workspace through the proxy
 
@@ -99,7 +107,7 @@ Spec: [CONNECTOR_PROBE_AND_SMART_CONNECT.md](CONNECTOR_PROBE_AND_SMART_CONNECT.m
 - [x] Consolidate 26 docs to ~10 active (this cycle)
 - [ ] Update `scripts/llm_onboard.py` to reference the new doc structure
 - [ ] First HANDOVER.md entry that uses the new layout
-- [ ] Rename `.dwd-session.state.json` -> `.pulseplay-session.state.json` in `llm_wrapup.py`
+- [x] Rename `.dwd-session.state.json` -> `.pulseplay-session.state.json` in `llm_wrapup.py` (both scripts now write the new name; legacy still read as fallback for half-migrated repos)
 
 ## Medium-term (4-8 cycles)
 

@@ -63,7 +63,7 @@ Prints crash recovery context (if previous session didn't wrap up), the canonica
 python scripts/llm_wrapup.py --note "one-line summary of what shipped"
 ```
 
-State file `.dwd-session.state.json` (carried-over name from sibling project — **rename to `.pulseplay-session.state.json` is PENDING** in `scripts/llm_wrapup.py`; both names are gitignored already). `--force` to skip the doc-staleness check when knowingly skipping.
+State file is `.pulseplay-session.state.json` at the repo root. The legacy `.dwd-session.state.json` (from the sibling project's tooling) is still read as a fallback when present so a half-migrated repo keeps working; both names are gitignored. `--force` skips the doc-staleness check when knowingly skipping.
 
 ## The 2-axis abstraction (PulsePlay's defining design)
 
