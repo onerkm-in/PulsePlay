@@ -20,6 +20,9 @@ export default defineConfig({
     resolve: {
         alias: {
             "powerbi-client": path.resolve(__dirname, "node_modules/powerbi-client"),
+            // Cycle D — Pulse port stubs (mirror vite.config.ts aliases).
+            "powerbi-visuals-api": path.resolve(__dirname, "src/pulse/_adapter/powerbi-visuals-api.ts"),
+            "powerbi-visuals-utils-formattingmodel": path.resolve(__dirname, "src/pulse/_adapter/powerbi-visuals-utils-formattingmodel.ts"),
         },
     },
     // Allow Vite to read files above playground/ — the adapter tests live

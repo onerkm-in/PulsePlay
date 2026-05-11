@@ -5,7 +5,9 @@ import { startTransition, useCallback, useEffect, useMemo, useRef, useState } fr
 import { createRoot, Root } from "react-dom/client";
 import { FormattingSettingsService } from "powerbi-visuals-utils-formattingmodel";
 
-import "../style/visual.less";
+// Pulse's entire `gn-*` design system. Vite's built-in LESS pipeline
+// compiles this; requires `less` in devDependencies (added in cycle E.1).
+import "./style/visual.less";
 
 import { buildContext, buildGovernancePosture, ContextSummary, FilterDimension, safeContextText } from "./contextBuilder";
 import {
