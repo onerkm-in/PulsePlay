@@ -243,16 +243,18 @@ Probe reveals table names, column names, sample values to the browser via `/assi
 
 ## 8. Open Gaps (honest)
 
-| # | Severity | Gap | Mitigation |
-|---|---|---|---|
-| 8.1 | **HIGH** | No IdP session validation middleware in proxy — currently shared-key only | Plan: JWT or SAML validation middleware in proxy as v0.3 work |
-| 8.2 | MEDIUM | CORS `*` permissive | `PROXY_CORS_ORIGIN` pinning + production refuse-`*` check |
-| 8.3 | MEDIUM | No CSP headers | CSP middleware in proxy + playground with vendor-origin allowlist |
-| 8.4 | MEDIUM | `sendContextToGenie` doesn't sanitize PII in chart labels | `sanitizeContextPayload` regex strip |
-| 8.5 | MEDIUM | Per-user rate limit absent (per-IP only) | Add per-user limits once IdP middleware lands |
-| 8.6 | MEDIUM | Embed-token cache miss-rate not alerted | Add `embed_token_cache_hits/misses` metric |
-| 8.7 | LOW | No replay protection (nonces / timestamps) | Out of scope for v1 (idempotent requests) |
-| 8.8 | LOW | No CSRF protection | N/A — proxy is stateless and uses explicit headers, not cookies |
+Tracker — updated 2026-05-11 evening. **4 of 8 gaps closed this session.**
+
+| # | Severity | Status | Gap | Mitigation |
+|---|---|---|---|---|
+| 8.1 | ~~HIGH~~ | ✅ **CLOSED** (`9c9a160`) | No IdP session validation middleware in proxy | JWT verification via `jose` against `PROXY_IDP_JWKS_URL`. Fail-open in dev, fail-closed when `PROXY_IDP_REQUIRED=true` in production. `req.user` claims flow into the audit log automatically. Coexists with shared-key (either auth method satisfies). |
+| 8.2 | ~~MEDIUM~~ | ✅ **CLOSED** (`f15e16e`) | CORS `*` permissive | `PROXY_CORS_ORIGIN` comma-separated allowlist; production refuses to start with `*`. Vary:Origin so caches don't pin wrong matches. |
+| 8.3 | ~~MEDIUM~~ | ✅ **CLOSED** (`f15e16e`) | No CSP headers | Strict CSP on every proxy response (`default-src 'none'`, `frame-ancestors 'none'`). Playground `index.html` meta CSP with vendor-origin allowlist for `frame-src` (PBI / Tableau / Qlik / Looker) and `connect-src` (proxy + AAD + Graph + PBI REST). |
+| 8.4 | ~~MEDIUM~~ | ✅ **CLOSED** (`f15e16e`) | `sendContextToGenie` doesn't sanitize PII in chart labels | `lib/piiRedact.ts` regex pass over filter / dimension / selection values inside `buildCategoricalFromBIEvents`. Patterns: email, US SSN, IBAN, credit-card-shape, phone, API-key-shape. 14 unit tests lock the behaviour in. |
+| 8.5 | MEDIUM | OPEN | Per-user rate limit absent (per-IP only at 120/min) | Now unblocked since 8.1 closed — `req.user.sub` is the natural key. Queued. |
+| 8.6 | MEDIUM | OPEN | Embed-token cache miss-rate not alerted | Add `embed_token_cache_hits/misses` metric in `_powerBiTokenCache`. Separate ops cycle. |
+| 8.7 | LOW | OPEN | No replay protection (nonces / timestamps) | Out of scope for v1 (idempotent requests). |
+| 8.8 | LOW | OPEN | No CSRF protection | N/A — proxy is stateless and uses explicit headers, not cookies. |
 
 ---
 
