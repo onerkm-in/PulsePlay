@@ -212,14 +212,40 @@ export function App() {
             : undefined;
 
     return (
-        <div className="pp-app" style={{ position: "relative", width: "100%", height: "100vh", overflow: "hidden" }}>
-            {/* Floating gear — kept ONLY in v0 mode. In Pulse mode the
-              * connection-status pill (top-right of the Pulse header) is the
-              * single global settings entry: it opens the Developer Tools
-              * modal whose Display tab carries the same three toggles
-              * (cycle H). In v0 mode the pill doesn't exist, so the gear
-              * remains the fallback. */}
-            {uiMode === "v0" && (
+        <div className="pp-app" style={{ position: "relative", width: "100%", height: "100vh", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+            {/* PulsePlay top bar — full-width header strip. Branding on
+              * the left; the connection pill (rendered by Pulse via
+              * position: fixed) lands on the right inline with this
+              * branding. Replaces the in-AI-pane brand block so the
+              * header reads as a single horizontal row across the app. */}
+            <header
+                className="pp-top-bar"
+                style={{
+                    flex: "0 0 auto",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "10px 16px",
+                    borderBottom: "1px solid rgba(0,0,0,0.08)",
+                    background: "transparent",
+                }}
+            >
+                <div>
+                    <h1 style={{ margin: 0, fontSize: 22, lineHeight: 1.1 }}>PulsePlay</h1>
+                    <p style={{ margin: "2px 0 0", fontSize: 11, opacity: 0.7 }}>
+                        AI playground · multi-BI host
+                    </p>
+                </div>
+                {/* Right slot — the pill drops in here visually via
+                  *  `position: fixed` from inside Pulse. We leave the slot
+                  *  empty so when the pill ISN'T mounted (v0 mode, or
+                  *  biOnly without Pulse) the bar stays clean. */}
+                <div style={{ minWidth: 1 }} aria-hidden="true" />
+            </header>
+            {/* Floating gear — shown when the pill won't be available:
+              * v0 mode (no Pulse), or biOnly mode (Pulse not mounted).
+              * Otherwise the pill in the top bar is the single entry. */}
+            {(uiMode === "v0" || !aiVisible) && (
                 <PulsePlaySettingsGear
                     uiMode={uiMode}
                     onUiModeChange={handleUiModeChange}
@@ -229,18 +255,13 @@ export function App() {
                     onLayoutModeChange={handleLayoutModeChange}
                 />
             )}
+            <div style={{ flex: "1 1 auto", minHeight: 0, position: "relative" }}>
             <SplitLayout
                 aiVisible={aiVisible}
                 biVisible={biVisible}
                 layoutMode={layoutMode}
                 aiContent={(
                     <aside className="pp-app__sidebar" style={panelInnerStyle()}>
-                        <header className="pp-app__brand">
-                            <h1 style={{ margin: 0 }}>PulsePlay</h1>
-                            <p className="pp-app__brand-tag" style={{ margin: "2px 0 0", fontSize: 11, opacity: 0.7 }}>
-                                AI playground · multi-BI host
-                            </p>
-                        </header>
                         {uiMode === "pulse" ? (
                             <PulseShell
                                 renderToken={pulseRenderToken}
@@ -344,6 +365,7 @@ export function App() {
                     </main>
                 )}
             />
+            </div>
         </div>
     );
 }

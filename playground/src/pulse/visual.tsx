@@ -3648,18 +3648,17 @@ function App(props: AppProps) {
                 <div
                     className="gn-header-right"
                     style={{
-                        // PulsePlay cycle H+ — lift the connection-status pill
-                        // (and any sibling header-right elements) into the
-                        // top-right corner of the PulseShell container so it
-                        // sits inline with App.tsx's PulsePlay h1 instead of
-                        // landing below Pulse's own header strip. PulseShell's
-                        // container is position: relative, so absolute here
-                        // anchors to that — staying inside the sidebar in
-                        // Both mode rather than overlapping the BI panel.
-                        position: "absolute",
+                        // PulsePlay cycle K — pin the connection pill to the
+                        // viewport's top-right corner so it lands inside the
+                        // App.tsx top bar (which holds the PulsePlay brand
+                        // on the left). `fixed` rather than `absolute` makes
+                        // it independent of whichever pane Pulse mounts in:
+                        // in Both mode the pill stays at the viewport corner
+                        // instead of disappearing into the AI pane's corner.
+                        position: "fixed",
                         top: 14,
                         right: 16,
-                        zIndex: 5,
+                        zIndex: 60,
                     }}
                 >
                     {/* Scope-only / UC-enforced badge removed (49.10) — the
