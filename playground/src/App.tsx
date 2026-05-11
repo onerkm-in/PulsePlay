@@ -36,6 +36,15 @@ import { PulseShell } from "./components/PulseShell";
 type UiMode = "pulse" | "v0";
 const UI_MODE_STORAGE_KEY = "pulseplay:ui-mode";
 
+/** Cycle E.3 — analogous to Pulse's existing "Insights / Chat / Both"
+ *  enabled-features toggle, but at the OUTER playground level: which
+ *  panels render at all. "aiOnly" hides the BI canvas (handy for a
+ *  chat-only deployment); "biOnly" hides the AI side (handy when
+ *  embedding PulsePlay as a BI viewer in another shell); "both"
+ *  (default) keeps everything visible. Persists in localStorage. */
+type EnabledComponents = "aiOnly" | "biOnly" | "both";
+const ENABLED_COMPONENTS_STORAGE_KEY = "pulseplay:enabled-components";
+
 function readInitialUiMode(): UiMode {
     if (typeof window === "undefined") return "pulse";
     try {
@@ -43,6 +52,15 @@ function readInitialUiMode(): UiMode {
         if (stored === "pulse" || stored === "v0") return stored;
     } catch { /* swallow */ }
     return "pulse";
+}
+
+function readInitialEnabledComponents(): EnabledComponents {
+    if (typeof window === "undefined") return "both";
+    try {
+        const stored = window.localStorage.getItem(ENABLED_COMPONENTS_STORAGE_KEY);
+        if (stored === "aiOnly" || stored === "biOnly" || stored === "both") return stored;
+    } catch { /* swallow */ }
+    return "both";
 }
 
 export function App() {
@@ -58,6 +76,9 @@ export function App() {
     // UI mode persists across reloads. Pulse is default — that's the
     // user-confirmed direction (port carries forward).
     const [uiMode, setUiMode] = useState<UiMode>(() => readInitialUiMode());
+    const [enabledComponents, setEnabledComponents] = useState<EnabledComponents>(
+        () => readInitialEnabledComponents(),
+    );
     // Bumping renderToken nudges PulseShell to re-call visual.update(),
     // used after settings save events from PulseHostStub.persistProperties.
     const [pulseRenderToken, setPulseRenderToken] = useState(0);
@@ -65,6 +86,13 @@ export function App() {
         setUiMode(next);
         try { window.localStorage.setItem(UI_MODE_STORAGE_KEY, next); } catch { /* swallow */ }
     }, []);
+    const handleEnabledComponentsChange = useCallback((next: EnabledComponents) => {
+        setEnabledComponents(next);
+        try { window.localStorage.setItem(ENABLED_COMPONENTS_STORAGE_KEY, next); } catch { /* swallow */ }
+    }, []);
+
+    const aiVisible = enabledComponents === "aiOnly" || enabledComponents === "both";
+    const biVisible = enabledComponents === "biOnly" || enabledComponents === "both";
     // Smart Connect state — populated by TestConnectionPanel's probe and the
     // user's pack confirmation (which may override the inferred suggestion).
     // See docs/CONNECTOR_PROBE_AND_SMART_CONNECT.md for the design.
@@ -115,15 +143,19 @@ export function App() {
 
     return (
         <div className="pp-app">
-            <aside className="pp-app__sidebar" style={{ minWidth: 380, maxWidth: 560, width: "32%" }}>
-                <header className="pp-app__brand" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+            {aiVisible && (
+            <aside className="pp-app__sidebar" style={{ minWidth: 380, maxWidth: 560, width: biVisible ? "32%" : "100%" }}>
+                <header className="pp-app__brand" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                     <div>
                         <h1 style={{ margin: 0 }}>PulsePlay</h1>
                         <p className="pp-app__brand-tag" style={{ margin: "2px 0 0", fontSize: 11, opacity: 0.7 }}>
                             AI playground · multi-BI host
                         </p>
                     </div>
-                    <UiModeToggle value={uiMode} onChange={handleUiModeChange} />
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
+                        <UiModeToggle value={uiMode} onChange={handleUiModeChange} />
+                        <EnabledComponentsToggle value={enabledComponents} onChange={handleEnabledComponentsChange} />
+                    </div>
                 </header>
 
                 {uiMode === "pulse" ? (
@@ -175,6 +207,8 @@ export function App() {
                     </>
                 )}
             </aside>
+            )}
+            {biVisible && (
             <main className="pp-app__canvas">
                 {hasEmbedConfig ? (
                     <BIPanel
@@ -184,21 +218,100 @@ export function App() {
                     />
                 ) : (
                     <div className="pp-app__empty">
-                        <h2>Pick a BI tool and supply embed config</h2>
-                        <p>
-                            PulsePlay can host {vendors.map(v => v.displayName).join(" · ")} as guests.
-                            Choose a vendor on the left, fill in its embed config, and the AI
-                            assistant will reason about whatever you load.
-                        </p>
-                        {uiMode === "pulse" && (
-                            <p style={{ fontSize: 12, opacity: 0.7, marginTop: 12 }}>
-                                Pulse UI is active in the left panel. Configure the connection
-                                via its Setup tab; the embedded BI surface will appear here.
-                            </p>
+                        {aiVisible ? (
+                            <>
+                                <h2>Pick a BI tool and supply embed config</h2>
+                                <p>
+                                    PulsePlay can host {vendors.map(v => v.displayName).join(" · ")} as guests.
+                                    Choose a vendor on the left, fill in its embed config, and the AI
+                                    assistant will reason about whatever you load.
+                                </p>
+                                {uiMode === "pulse" && (
+                                    <p style={{ fontSize: 12, opacity: 0.7, marginTop: 12 }}>
+                                        Pulse UI is active in the left panel. Configure the connection
+                                        via its Setup tab; the embedded BI surface will appear here.
+                                    </p>
+                                )}
+                            </>
+                        ) : (
+                            <>
+                                <h2>BI-only mode</h2>
+                                <p>
+                                    AI components are hidden. Embed any BI URL below — PulsePlay is acting
+                                    as a thin multi-vendor BI host. Switch back to "Both" or "AI only" via
+                                    the top toggle to re-enable Pulse / v0.
+                                </p>
+                                <p style={{ marginTop: 12 }}>
+                                    Vendors: {vendors.map(v => v.displayName).join(" · ")}
+                                </p>
+                            </>
                         )}
                     </div>
                 )}
             </main>
+            )}
+            {!aiVisible && !biVisible && (
+                <main className="pp-app__canvas">
+                    <div className="pp-app__empty">
+                        <h2>Both panels hidden</h2>
+                        <p>Re-enable AI or BI via the top toggle.</p>
+                    </div>
+                </main>
+            )}
+        </div>
+    );
+}
+
+/** Cycle E.3 — outer-panel enabled-components toggle (AI / BI / Both).
+ *  Parallel to Pulse's existing "Insights / Chat / Both" feature toggle
+ *  but at a layer above: this hides the entire AI side or the entire
+ *  BI canvas. Persists in localStorage. Cycle F replaces this with a
+ *  positionable layout that subsumes the binary toggle. */
+function EnabledComponentsToggle(props: { value: EnabledComponents; onChange: (next: EnabledComponents) => void }) {
+    const baseBtn: React.CSSProperties = {
+        padding: "3px 7px",
+        fontSize: 10,
+        border: "1px solid var(--pp-border, #ccc)",
+        background: "transparent",
+        cursor: "pointer",
+        borderRadius: 3,
+    };
+    const activeBtn: React.CSSProperties = {
+        ...baseBtn,
+        background: "var(--pp-accent, #0078d4)",
+        color: "white",
+        borderColor: "var(--pp-accent, #0078d4)",
+    };
+    return (
+        <div role="group" aria-label="Enabled components" style={{ display: "inline-flex", gap: 3 }}>
+            <span style={{ fontSize: 10, opacity: 0.6, marginRight: 4, alignSelf: "center" }}>show:</span>
+            <button
+                type="button"
+                style={props.value === "aiOnly" ? activeBtn : baseBtn}
+                onClick={() => props.onChange("aiOnly")}
+                aria-pressed={props.value === "aiOnly"}
+                title="Show only the AI panel"
+            >
+                AI
+            </button>
+            <button
+                type="button"
+                style={props.value === "biOnly" ? activeBtn : baseBtn}
+                onClick={() => props.onChange("biOnly")}
+                aria-pressed={props.value === "biOnly"}
+                title="Show only the BI canvas"
+            >
+                BI
+            </button>
+            <button
+                type="button"
+                style={props.value === "both" ? activeBtn : baseBtn}
+                onClick={() => props.onChange("both")}
+                aria-pressed={props.value === "both"}
+                title="Show both AI and BI panels"
+            >
+                Both
+            </button>
         </div>
     );
 }
