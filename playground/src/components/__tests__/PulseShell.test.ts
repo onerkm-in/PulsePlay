@@ -119,4 +119,45 @@ describe("buildCategoricalFromBIEvents", () => {
         const country = cat!.categories.find(c => c.source.displayName === "Country");
         expect(new Set(country!.values)).toEqual(new Set(["IN", "US"]));
     });
+
+    it("redacts PII patterns from filter values before injecting them into Pulse context", () => {
+        // Defence-in-depth for sendContextToGenie. The audit at
+        // docs/SECURITY_ARCHITECTURE.md § 6.1 flagged that chart-label
+        // PII would otherwise flow upstream. This test locks in that
+        // the redaction is wired and visible at the synthesizer layer.
+        const events: BIEvent[] = [
+            {
+                type: "filter-applied",
+                payload: {
+                    filters: [
+                        { target: { column: "Owner" }, values: ["jane.doe@example.com", "alice@example.com"] },
+                        { target: { column: "Phone" }, values: ["+1 415-555-0142"] },
+                    ],
+                },
+            },
+        ];
+        const cat = buildCategoricalFromBIEvents(events, "powerbi");
+        const owner = cat!.categories.find(c => c.source.displayName === "Owner");
+        const phone = cat!.categories.find(c => c.source.displayName === "Phone");
+        for (const v of owner!.values) {
+            expect(String(v)).not.toContain("@example.com");
+        }
+        expect(owner!.values).toContain("[EMAIL]");
+        for (const v of phone!.values) {
+            expect(String(v)).not.toContain("415-555-0142");
+        }
+    });
+
+    it("redacts PII from selection data points", () => {
+        const events: BIEvent[] = [
+            {
+                type: "selection-made",
+                payload: { dataPoints: [{ values: ["customer@example.com", 42] }] },
+            },
+        ];
+        const cat = buildCategoricalFromBIEvents(events, "powerbi");
+        const sel = cat!.categories.find(c => c.source.displayName === "Selection");
+        expect(sel!.values).toContain("[EMAIL]");
+        expect(sel!.values).toContain(42);
+    });
 });

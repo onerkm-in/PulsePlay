@@ -3,6 +3,19 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <!--
+            Content-Security-Policy — defence-in-depth allowlist covering
+            every external origin PulsePlay legitimately reaches:
+              • PulsePlay proxy (127.0.0.1:8787 in dev; deployers override
+                via vite proxy config or a real production CSP)
+              • Microsoft AAD login (MSAL.js SSO flow)
+              • Power BI service (embed iframes + REST API)
+              • Tableau / Qlik / Looker default hosts (BI iframes)
+            `unsafe-eval` is required for Vite HMR in dev; production
+            builds can drop it. CSP `meta` cannot set frame-ancestors —
+            for clickjacking defence set X-Frame-Options at the edge.
+        -->
+        <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://login.microsoftonline.com https://*.msauth.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' http://127.0.0.1:8787 https://login.microsoftonline.com https://*.microsoftonline.com https://login.live.com https://graph.microsoft.com https://api.powerbi.com https://analysis.windows.net; frame-src 'self' https://app.powerbi.com https://*.powerbi.com https://login.microsoftonline.com https://*.tableau.com https://*.qlikcloud.com https://*.looker.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self';" />
         <title>PulsePlay — Multi-BI AI Playground</title>
     </head>
     <body>

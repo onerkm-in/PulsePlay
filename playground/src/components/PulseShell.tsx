@@ -27,6 +27,7 @@ import { Visual } from "../pulse/visual";
 import { PulseHostStub, buildPersistedObjectsBag, seedPulsePlayDefaults } from "../pulse/_adapter/PulseHostStub";
 import type powerbi from "../pulse/_adapter/powerbi-visuals-api";
 import type { BIEvent } from "../biPanel/BIAdapter";
+import { redactPiiFromString } from "../lib/piiRedact";
 
 export interface PulseShellProps {
     /** Optional override of the container width/height in pixels. Defaults
@@ -214,6 +215,17 @@ export function buildCategoricalFromBIEvents(
     let activePage: string | null = null;
     const selectedDataPoints: Array<string | number> = [];
 
+    // PII redaction helper — applied to any string value before it
+    // enters the synthetic dataView. Numbers pass through (a fee amount
+    // is not PII; a card-number-shaped digit run becomes a string at the
+    // String() boundary below and gets the full pass). Defence-in-depth
+    // for `sendContextToGenie` — see docs/SECURITY_ARCHITECTURE.md § 6.1.
+    const scrub = (v: string | number): string | number => {
+        if (typeof v === "number") return v;
+        const r = redactPiiFromString(v);
+        return r.value;
+    };
+
     for (const ev of events) {
         if (ev.type === "filter-applied") {
             const payload = ev.payload as { filters?: Array<{ target?: { column?: string; table?: string }; values?: unknown }> };
@@ -225,21 +237,22 @@ export function buildCategoricalFromBIEvents(
                 const valueSet = fieldValues.get(column) ?? new Set<string | number>();
                 for (const v of raw) {
                     if (v == null) continue;
-                    if (typeof v === "string" || typeof v === "number") valueSet.add(v);
-                    else valueSet.add(String(v));
+                    if (typeof v === "string" || typeof v === "number") valueSet.add(scrub(v));
+                    else valueSet.add(scrub(String(v)));
                 }
                 fieldValues.set(column, valueSet);
             }
         } else if (ev.type === "page-changed") {
             const payload = ev.payload as { pageName?: string; pageId?: string };
-            activePage = payload?.pageName || payload?.pageId || activePage;
+            const candidate = payload?.pageName || payload?.pageId || null;
+            if (candidate) activePage = redactPiiFromString(candidate).value;
         } else if (ev.type === "selection-made") {
             const payload = ev.payload as { dataPoints?: Array<{ values?: unknown[] }> };
             const points = payload?.dataPoints || [];
             for (const p of points) {
                 for (const v of p.values || []) {
                     if (v == null) continue;
-                    if (typeof v === "string" || typeof v === "number") selectedDataPoints.push(v);
+                    if (typeof v === "string" || typeof v === "number") selectedDataPoints.push(scrub(v));
                 }
             }
         }
