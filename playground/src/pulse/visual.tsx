@@ -942,6 +942,11 @@ function App(props: AppProps) {
     const [genieQueriesError, setGenieQueriesError] = useState<string>("");
     const [genieQueriesSinceMin, setGenieQueriesSinceMin] = useState<number>(60);
     const [showDevModal, setShowDevModal] = useState(false);
+    // PulsePlay — Developer Tools modal maximize toggle. The PBI-heritage
+    // drawer layout was sized for the Power BI custom-visual sandbox; in the
+    // browser playground authors often want the modal to fill the viewport
+    // so multi-step Setup forms breathe. Reset to false on each open.
+    const [devModalMaximized, setDevModalMaximized] = useState(false);
 
     // Wave 11 a11y — modal Esc + focus management + return-focus.
     // Records the trigger element on open, focuses the close button on
@@ -967,6 +972,10 @@ function App(props: AppProps) {
             window.removeEventListener("keydown", onKey);
             // Return focus to the trigger on close.
             devModalLastFocusRef.current?.focus?.();
+            // PulsePlay — clear the maximize override on close so the next
+            // open starts back at the drawer default. Persisting it would
+            // surprise an author who maximized once and forgot.
+            setDevModalMaximized(false);
         };
     }, [showDevModal]);
     // IDEA-022: when only one feature is enabled, force activeTab to that
@@ -4917,17 +4926,48 @@ function App(props: AppProps) {
             )}
 
             {showDevModal && (
-                <div className={`gn-modal-overlay gn-modal-overlay--drawer${setupPanelVisible ? " gn-modal-overlay--setup" : ""}`} onClick={() => setShowDevModal(false)}>
+                <div
+                    className={`gn-modal-overlay gn-modal-overlay--drawer${setupPanelVisible ? " gn-modal-overlay--setup" : ""}`}
+                    onClick={() => setShowDevModal(false)}
+                    style={devModalMaximized ? { alignItems: "stretch", justifyContent: "stretch" } : undefined}
+                >
                     <div
                         className={`gn-modal gn-modal--drawer${setupPanelVisible ? " gn-modal--setup" : ""}`}
                         onClick={e => e.stopPropagation()}
                         role="dialog"
                         aria-modal="true"
                         aria-labelledby="gn-modal-title"
+                        style={devModalMaximized ? {
+                            // PulsePlay maximize override: claim the whole
+                            // viewport regardless of the drawer's default
+                            // right-side sizing. inset:0 + width/height 100%
+                            // wins over the .less file's percentage widths.
+                            position: "fixed",
+                            inset: 0,
+                            width: "100vw",
+                            height: "100vh",
+                            maxWidth: "none",
+                            maxHeight: "none",
+                            borderRadius: 0,
+                        } : undefined}
                     >
                         <div className="gn-modal-header">
                             <span className="gn-modal-title" id="gn-modal-title">Developer Tools</span>
-                            <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                {/* PulsePlay — maximize / restore toggle. Sits
+                                    immediately left of the close ✕ so it doesn't
+                                    disturb the existing focus order (close stays
+                                    rightmost and a11y-default-focused on open). */}
+                                <button
+                                    type="button"
+                                    className="gn-modal-close"
+                                    onClick={() => setDevModalMaximized(m => !m)}
+                                    title={devModalMaximized ? "Restore default size" : "Maximize to full screen"}
+                                    aria-label={devModalMaximized ? "Restore Developer Tools to default size" : "Maximize Developer Tools to full screen"}
+                                    aria-pressed={devModalMaximized}
+                                >
+                                    <span aria-hidden="true">{devModalMaximized ? "🗗" : "🗖"}</span>
+                                </button>
                                 <button
                                     ref={devModalCloseRef}
                                     className="gn-modal-close"
