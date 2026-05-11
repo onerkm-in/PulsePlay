@@ -183,6 +183,45 @@ export function readGenieSettings(): Record<string, unknown> {
     return readStoredObject(STORAGE_KEY_PREFIX + "genieSettings");
 }
 
+/** First-run defaults seeder. Pulse ships some toggles defaulted to
+ *  `false` because in PBI those are "viewer-protected" (hide author-
+ *  only UI from report consumers). PulsePlay has no viewer/author
+ *  distinction — every user IS the author — so we pre-seed those
+ *  toggles to `true` the first time the app mounts. Only writes when
+ *  nothing has been persisted yet; never overrides a user's choice. */
+export function seedPulsePlayDefaults(): void {
+    if (typeof window === "undefined") return;
+    const key = STORAGE_KEY_PREFIX + "genieSettings";
+    try {
+        const existing = readStoredObject(key);
+        const defaults: Record<string, unknown> = {
+            // Surfaces the Setup tab inside Developer Tools so authors
+            // (= every PulsePlay user) can reach Pulse's full config UI
+            // without first toggling this manually. Pulse defaults this
+            // to false in settings.ts:982 (viewer-protected in PBI).
+            showSetupAccess: true,
+            // Other PulsePlay-friendly defaults can land here as we
+            // discover them. Keep the list short and well-justified.
+        };
+        // Only set keys that are NOT already present, so we never stomp
+        // a user's explicit choice. Granular merge lets existing-user
+        // sessions still pick up showSetupAccess: true without losing
+        // their other Setup-tab edits.
+        let changed = false;
+        for (const [k, v] of Object.entries(defaults)) {
+            if (!(k in existing)) {
+                existing[k] = v;
+                changed = true;
+            }
+        }
+        if (changed) {
+            window.localStorage.setItem(key, JSON.stringify(existing));
+        }
+    } catch {
+        /* swallow */
+    }
+}
+
 /** Build a synthetic DataView.metadata.objects bag from localStorage so
  *  Pulse's populateFormattingSettingsModel() can hydrate the model with
  *  previously-persisted values. */
