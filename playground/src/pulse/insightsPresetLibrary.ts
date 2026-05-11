@@ -67,7 +67,15 @@ export const METRIC_DIRECTION_PRESETS: MetricDirectionPreset[] = [
     }
 ];
 
-export const CUSTOM_SECTION_PRESETS: CustomSectionPreset[] = [
+// PulsePlay-side import: vertical pack presets land here so consumers
+// (setupStep5.tsx, etc.) see them in the same list without further wiring.
+// Heritage Pulse presets below stay first; pack presets appended at the
+// bottom of the array — see `_CORE_CUSTOM_SECTION_PRESETS` declaration plus
+// the `CUSTOM_SECTION_PRESETS` re-export at the foot of the heritage list.
+// eslint-disable-next-line import/first
+import { PACK_CUSTOM_SECTION_PRESETS } from "./_packs";
+
+const _CORE_CUSTOM_SECTION_PRESETS: CustomSectionPreset[] = [
     {
         id: "sales-performance",
         label: "Sales performance",
@@ -291,6 +299,14 @@ export const CUSTOM_SECTION_PRESETS: CustomSectionPreset[] = [
             { name: "CONTROL RECOMMENDATIONS", instruction: "Three numbered control actions targeting the most significant anomalies above. Each action should name a report owner, the affected metric/customer/region, the corrective action, and the monitoring cadence (weekly / monthly / quarterly)." }
         ]
     }
+];
+
+// PulsePlay merge — heritage Pulse presets first, then vertical-pack presets
+// appended. Single export keeps every existing consumer (setupStep5.tsx, etc.)
+// working unchanged.
+export const CUSTOM_SECTION_PRESETS: CustomSectionPreset[] = [
+    ..._CORE_CUSTOM_SECTION_PRESETS,
+    ...PACK_CUSTOM_SECTION_PRESETS,
 ];
 
 // ─── Wave 32.5 — interpolation engine ────────────────────────────────────────
