@@ -88,6 +88,10 @@ export default defineConfig({
                     if (id.includes("/sql-formatter/")) return "sql-formatter";
                     // Vendor BI SDK — only needed when Power BI adapter mounts.
                     if (id.includes("/powerbi-client/")) return "vendor-powerbi";
+                    // AAD SSO — only fetched when the user picks the SSO
+                    // mode in the Power BI Embed form. Lazy-imported in
+                    // src/lib/pbiAuth.ts via dynamic import().
+                    if (id.includes("/@azure/msal")) return "vendor-msal";
                     // Resizable panes ship lean; group with react for cache hits.
                     if (id.includes("/react-resizable-panels/") || id.includes("/react/") || id.includes("/react-dom/") || id.includes("/scheduler/")) {
                         return "vendor-react";
