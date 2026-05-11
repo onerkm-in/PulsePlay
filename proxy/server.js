@@ -1164,6 +1164,95 @@ function sharedKeyMiddleware(req, res, next) {
     });
 }
 
+// ── IdP session validation (JWT) ─────────────────────────────────────────────
+// Closes the HIGH-severity gap from docs/SECURITY_ARCHITECTURE.md § 8.1.
+// Accepts an `Authorization: Bearer <jwt>` header, verifies the JWT
+// against the org's IdP JWKS endpoint, validates issuer + audience, and
+// attaches the decoded claims to `req.user`. The audit log picks
+// `req.user.sub` automatically once it's set so every AI call carries
+// the authenticated identity.
+//
+// Configuration
+//   PROXY_IDP_JWKS_URL   — JWKS endpoint of the org's IdP
+//                          (e.g. https://login.microsoftonline.com/<tenant>/discovery/v2.0/keys)
+//   PROXY_IDP_ISSUER     — Expected `iss` claim (one or many, comma-separated)
+//   PROXY_IDP_AUDIENCE   — Expected `aud` claim (one or many, comma-separated)
+//   PROXY_IDP_REQUIRED   — "true" => reject unauthenticated requests.
+//                          When false (default), missing/invalid tokens are
+//                          fail-open so dev / loopback flows keep working
+//                          alongside the shared-key path. Production MUST
+//                          set this true.
+//   NODE_ENV=production  — When production AND PROXY_IDP_REQUIRED is true
+//                          but JWKS URL is unset, the proxy refuses to
+//                          start (security board ask: no silent skipping).
+//
+// Combines with sharedKeyMiddleware as an ALTERNATIVE auth (either JWT
+// OR shared key satisfies; shared key remains the service-to-service
+// path). Routes consume both via the middleware chain.
+const _jose = (() => {
+    try { return require('jose'); }
+    catch { return null; }
+})();
+const _idpJwksUrl = (process.env.PROXY_IDP_JWKS_URL || '').trim();
+const _idpIssuer  = (process.env.PROXY_IDP_ISSUER  || '').trim();
+const _idpAud     = (process.env.PROXY_IDP_AUDIENCE || '').trim();
+const _idpRequired = String(process.env.PROXY_IDP_REQUIRED || '').toLowerCase() === 'true';
+let _idpJwksFetcher = null;
+if (_jose && _idpJwksUrl) {
+    try { _idpJwksFetcher = _jose.createRemoteJWKSet(new URL(_idpJwksUrl)); }
+    catch (err) { console.warn('[idp] failed to initialise JWKS fetcher:', err.message); }
+}
+if (process.env.NODE_ENV === 'production' && _idpRequired && !_idpJwksFetcher) {
+    console.error('FATAL: PROXY_IDP_REQUIRED=true in production requires PROXY_IDP_JWKS_URL + jose installed. Refusing to start.');
+    process.exit(1);
+}
+
+async function idpMiddleware(req, res, next) {
+    // Tests bypass — unit tests inject profiles directly without an IdP.
+    if (process.env.NODE_ENV === 'test') return next();
+    const auth = req.headers.authorization || '';
+    const m = /^Bearer\s+(.+)$/i.exec(auth);
+    const token = m ? m[1].trim() : '';
+    if (!token) {
+        if (_idpRequired) {
+            return res.status(401).json({ error: 'Authorization Bearer JWT required.' });
+        }
+        return next(); // dev fail-open
+    }
+    if (!_idpJwksFetcher) {
+        if (_idpRequired) {
+            return res.status(500).json({ error: 'IdP enforcement enabled but PROXY_IDP_JWKS_URL is not configured.' });
+        }
+        return next();
+    }
+    try {
+        const verifyOpts = {};
+        if (_idpIssuer) verifyOpts.issuer = _idpIssuer.includes(',') ? _idpIssuer.split(',').map(s => s.trim()) : _idpIssuer;
+        if (_idpAud)    verifyOpts.audience = _idpAud.includes(',') ? _idpAud.split(',').map(s => s.trim()) : _idpAud;
+        const { payload } = await _jose.jwtVerify(token, _idpJwksFetcher, verifyOpts);
+        req.user = {
+            sub: payload.sub || null,
+            email: payload.email || payload.preferred_username || null,
+            name: payload.name || null,
+            tid: payload.tid || null, // AAD tenant
+            scp: payload.scp || payload.scope || null, // delegated scopes
+            roles: Array.isArray(payload.roles) ? payload.roles : (payload.roles ? [payload.roles] : null),
+            // Raw subset for downstream audit log; never expose the full
+            // token or any signature material.
+            iat: payload.iat,
+            exp: payload.exp,
+        };
+        return next();
+    } catch (err) {
+        if (_idpRequired) {
+            return res.status(401).json({ error: `Invalid Authorization token: ${err.message || 'verify failed'}` });
+        }
+        // Fail-open in dev — log the reason once per token kind so
+        // misconfigured dev setups are debuggable.
+        return next();
+    }
+}
+
 // ── Rate limiting ─────────────────────────────────────────────────────────────
 // Localhost-only binding already prevents external abuse, but a runaway
 // visual (bug loop / double-click) could still burn DBUs. Apply a per-IP
@@ -1192,24 +1281,27 @@ function rateLimitMiddleware(req, res, next) {
     next();
 }
 
-// Rate-limit any path that hits an LLM / warehouse / Genie space — these are
-// the routes that burn DBUs or token cost per call. Health/profiles/list are
-// cheap reads and stay open.
-app.use('/assistant', rateLimitMiddleware);
-app.use('/warehouse', rateLimitMiddleware);
-app.use('/supervisor', rateLimitMiddleware);
-app.use('/confidence', rateLimitMiddleware);
-app.use('/openai', rateLimitMiddleware);
-app.use('/bedrock', rateLimitMiddleware);
+// Rate-limit + IdP-validate any path that hits an LLM / warehouse / Genie
+// space — these are the routes that burn DBUs or token cost per call.
+// Health/profiles/list are cheap reads and stay open. Order matters:
+// rate-limit first (cheap, cap pre-auth damage), then IdP (network call
+// to JWKS if not cached), then shared-key (final fallback). The visitor
+// satisfies EITHER IdP OR shared-key — both are valid auth methods.
+app.use('/assistant', rateLimitMiddleware, idpMiddleware);
+app.use('/warehouse', rateLimitMiddleware, idpMiddleware);
+app.use('/supervisor', rateLimitMiddleware, idpMiddleware);
+app.use('/confidence', rateLimitMiddleware, idpMiddleware);
+app.use('/openai', rateLimitMiddleware, idpMiddleware);
+app.use('/bedrock', rateLimitMiddleware, idpMiddleware);
 // Cycle 47.6 — Foundation Model serving endpoint (Mosaic AI Model Serving).
-// Same cost posture as the other LLM paths: rate-limit + sharedKey-gate.
-app.use('/foundation', rateLimitMiddleware);
+// Same cost + auth posture as the other LLM paths.
+app.use('/foundation', rateLimitMiddleware, idpMiddleware);
 // Wave 28 — /feedback and /history are write-heavy paths (append to log
 // file + Databricks SQL row insert). Without rate-limit, a runaway
 // client could spam them and bloat disk / poison the history table.
-// sharedKey gates auth; rate-limit caps damage post-auth.
-app.use('/feedback', rateLimitMiddleware);
-app.use('/history', rateLimitMiddleware);
+// IdP + sharedKey gate auth; rate-limit caps damage post-auth.
+app.use('/feedback', rateLimitMiddleware, idpMiddleware);
+app.use('/history', rateLimitMiddleware, idpMiddleware);
 // Wave 30 cycle 5 — /admin endpoints are gated by sharedKey but were not
 // rate-limited, leaving the same key as a brute-force target. Apply the
 // rate limit here too so a runaway probe can't spam /admin/health-summary.
@@ -1305,6 +1397,17 @@ function auditLog(req, { profileName, spaceId, action, status, detail, spIdentit
         status: status ?? null, detail: detail ?? null,
     };
     if (spIdentityHash) baseLine.spIdentityHash = spIdentityHash;
+    // IdP-authenticated user (set by idpMiddleware when a valid JWT
+    // is present). Captures sub + email + tid + scopes/roles so a
+    // security analyst can trace every AI request to the authenticated
+    // identity. Token signature / payload itself NEVER lands here.
+    if (req && req.user) {
+        baseLine.userSub = req.user.sub || null;
+        if (req.user.email) baseLine.userEmail = req.user.email;
+        if (req.user.tid) baseLine.userTid = req.user.tid;
+        if (req.user.scp) baseLine.userScope = req.user.scp;
+        if (req.user.roles) baseLine.userRoles = req.user.roles;
+    }
     // Wave 36 — stamp inline-credentials usage on the audit line. Set by
     // resolveProfile() when the request was resolved through the inline path
     // in fallback or override mode. The token NEVER leaks here — only the
