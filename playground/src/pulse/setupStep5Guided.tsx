@@ -23,6 +23,13 @@
 import * as React from "react";
 import { ReactNode } from "react";
 import { SetupDraft } from "./setupDraft";
+// Circular import — setupStep5.tsx also imports SetupStep5Guided from
+// THIS file, so a top-level read of STEP5_FIELDS would race the partial-
+// module init and capture undefined. ESM's live binding makes this safe
+// AS LONG AS we only read STEP5_FIELDS inside a function body (i.e. at
+// render time, after both modules are fully loaded). The ReviewSummary
+// component below honours that contract.
+import { STEP5_FIELDS, type FieldMeta } from "./setupStep5";
 
 // ────────────────────────────────────────────────────────────────────────
 // Page navigation primitives
@@ -698,17 +705,13 @@ function ReviewSummary(props: {
     onJumpToSection?: (s: "0" | "A" | "B" | "C" | "D" | "E" | "F") => void;
     onSwitchToAdvanced: () => void;
 }) {
-    // Lazy import to avoid circular dependencies (setupStep5.tsx imports
-    // setupStep5Guided.tsx and STEP5_FIELDS lives in setupStep5.tsx).
-    // PulsePlay port note: PBI's webpack build provided CommonJS `require`
-    // here; Vite/ESM doesn't. Declare it ambient and let it resolve at
-    // runtime if available, otherwise fall back to an empty list. A
-    // proper non-circular split is a future cleanup.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const req: ((id: string) => any) | undefined = (globalThis as any).require;
-    const STEP5_FIELDS = (req ? req("./setupStep5").STEP5_FIELDS : []) as { name: keyof SetupDraft; section: "0" | "A" | "B" | "C" | "D" | "E" | "F"; label: string; defaultValue: unknown }[];
-
-    const customised = STEP5_FIELDS.filter((f: { defaultValue: unknown; name: keyof SetupDraft }) => props.draft[f.name] !== f.defaultValue);
+    // STEP5_FIELDS is imported at module top (see header). The read is
+    // SAFE here because we're inside a component body — by the time this
+    // runs, both modules are fully evaluated and the live binding points
+    // at the real array. A top-level read in this file would still race
+    // the partial module init.
+    const fields = STEP5_FIELDS as FieldMeta[];
+    const customised = fields.filter(f => (props.draft as unknown as Record<string, unknown>)[f.name as string] !== f.defaultValue);
     const bySection = customised.reduce((acc: Record<string, typeof customised>, f) => {
         (acc[f.section] = acc[f.section] || []).push(f);
         return acc;
