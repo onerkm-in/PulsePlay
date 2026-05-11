@@ -323,7 +323,9 @@ export function App() {
                     </aside>
                 )}
                 biContent={(
-                    <main className="pp-app__canvas" style={panelInnerStyle()}>
+                    <main className="pp-app__canvas" style={{ ...panelInnerStyle(), display: "flex", flexDirection: "column" }}>
+                        <BITileModeToolbar value={biTileMode} />
+                        <div style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
                         {hasEmbedConfig ? (
                             <BITileGrid
                                 tileMode={biTileMode}
@@ -364,6 +366,7 @@ export function App() {
                                 )}
                             </div>
                         )}
+                        </div>
                     </main>
                 )}
                 emptyContent={(
@@ -453,6 +456,55 @@ function SplitLayout(props: {
  *  content overflows. */
 function panelInnerStyle(): React.CSSProperties {
     return { width: "100%", height: "100%", minHeight: 0, overflow: "auto" };
+}
+
+/** Cycle K.1 toolbar — three buttons (1 / 2 / 4) at the top of the BI
+ *  canvas so authors can flip between single-frame, side-by-side, and
+ *  2×2 tile layouts without opening the Display tab. Writes the same
+ *  localStorage key + dispatches the same window event that Pulse's
+ *  Display tab uses, so toggling here propagates to that tab (and vice
+ *  versa) instantly via the cycle-H bridge. */
+function BITileModeToolbar(props: { value: BiTileMode }): React.ReactElement {
+    const apply = (next: BiTileMode) => {
+        try { window.localStorage.setItem(BI_TILE_MODE_STORAGE_KEY, next); } catch { /* swallow */ }
+        try {
+            window.dispatchEvent(new CustomEvent("pulseplay:display-change", {
+                detail: { key: BI_TILE_MODE_STORAGE_KEY, value: next },
+            }));
+        } catch { /* swallow */ }
+    };
+    const btn = (active: boolean): React.CSSProperties => ({
+        padding: "4px 10px",
+        border: "1px solid",
+        borderColor: active ? "#0078d4" : "rgba(0,0,0,0.16)",
+        background: active ? "#0078d4" : "transparent",
+        color: active ? "#fff" : "inherit",
+        borderRadius: 4,
+        cursor: "pointer",
+        fontSize: 12,
+        fontWeight: active ? 600 : 400,
+        lineHeight: 1.4,
+    });
+    return (
+        <div
+            role="group"
+            aria-label="BI tile layout"
+            style={{
+                display: "flex",
+                gap: 4,
+                alignItems: "center",
+                padding: "6px 12px",
+                borderBottom: "1px solid rgba(0,0,0,0.06)",
+                flex: "0 0 auto",
+                background: "transparent",
+            }}
+        >
+            <span style={{ fontSize: 11, opacity: 0.6, marginRight: 4 }}>BI tiles:</span>
+            <button type="button" style={btn(props.value === "1")} onClick={() => apply("1")} aria-pressed={props.value === "1"} title="Single frame">1</button>
+            <button type="button" style={btn(props.value === "2")} onClick={() => apply("2")} aria-pressed={props.value === "2"} title="Two side-by-side">2</button>
+            <button type="button" style={btn(props.value === "4")} onClick={() => apply("4")} aria-pressed={props.value === "4"} title="2 × 2 grid">4</button>
+        </div>
+    );
 }
 
 /** Suspense fallback for the lazy-loaded Pulse bundle. Restrained — no
