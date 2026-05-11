@@ -181,6 +181,7 @@ import { subscribeSqlFormatter, formatSqlForCopy } from "./visualHelpers";
 // set: 📋 / ↻ / ⚙). The 350 KB pbiviz bundle cap that justified emojis
 // doesn't apply in the browser playground.
 import { Icon } from "./_adapter/Icon";
+import { renderInsightsAsEmailHtml } from "./_adapter/exportInsightsAsHtml";
 import { createBackend } from "./backend/BackendFactory";
 import type { AnyBackend } from "./backend/BackendAdapter";
 // Wave 38 Phase 1 — Setup tab access allowlist (UX gate, not authorization).
@@ -3909,8 +3910,8 @@ function App(props: AppProps) {
                                     type="button"
                                     className={`gn-pill gn-pill--compact${copiedFlash["insights"] ? " gn-pill--copied" : ""}`}
                                     disabled={insightsBusy || !insightsResult?.content}
-                                    title="Copy insight text"
-                                    aria-label="Copy the current AI Insights output"
+                                    title="Copy as markdown"
+                                    aria-label="Copy the current AI Insights output as markdown"
                                     onClick={() => {
                                         if (insightsResult?.content) {
                                             // IDEA-039 — clean trailing prose before copying so
@@ -3919,11 +3920,81 @@ function App(props: AppProps) {
                                             // wrap-ups bleed through to the copied text even
                                             // though the renderer drops them.
                                             flashCopy("insights", cleanInsightsContent(insightsResult.content));
-                                            logSession("INFO", "AI Insights copied to clipboard.");
+                                            logSession("INFO", "AI Insights copied to clipboard as markdown.");
                                         }
                                     }}
                                 >
                                     <Icon name={copiedFlash["insights"] ? "check" : "copy"} />
+                                </button>
+                                {/* PulsePlay — Copy as rich HTML. Walks the
+                                  * rendered insights container's outerHTML and
+                                  * writes it to the clipboard via Clipboard API
+                                  * so a paste into Outlook / Slack / Notion
+                                  * keeps headings, tables, bold, lists.
+                                  * Falls back to plain markdown when the
+                                  * Clipboard API rejects (older browsers /
+                                  * permission denied). */}
+                                <button
+                                    type="button"
+                                    className={`gn-pill gn-pill--compact${copiedFlash["insights-html"] ? " gn-pill--copied" : ""}`}
+                                    disabled={insightsBusy || !insightsResult?.content}
+                                    title="Copy as rich HTML (paste into Outlook / Slack / Notion)"
+                                    aria-label="Copy as rich HTML"
+                                    onClick={async () => {
+                                        if (!insightsResult?.content) return;
+                                        try {
+                                            const containerEl = document.querySelector(".gn-insights-content")
+                                                || document.querySelector("[data-pp-insights-root]");
+                                            const html = renderInsightsAsEmailHtml(
+                                                cleanInsightsContent(insightsResult.content),
+                                                containerEl instanceof HTMLElement ? containerEl.innerHTML : undefined,
+                                            );
+                                            if (navigator.clipboard && typeof (window as unknown as { ClipboardItem?: unknown }).ClipboardItem === "function") {
+                                                const blob = new Blob([html], { type: "text/html" });
+                                                const text = new Blob([cleanInsightsContent(insightsResult.content)], { type: "text/plain" });
+                                                const ClipboardItemCtor = (window as unknown as { ClipboardItem: new (init: Record<string, Blob>) => unknown }).ClipboardItem;
+                                                await navigator.clipboard.write([new ClipboardItemCtor({ "text/html": blob, "text/plain": text }) as unknown as ClipboardItem]);
+                                                flashCopy("insights-html", "");
+                                                logSession("INFO", "AI Insights copied to clipboard as rich HTML.");
+                                            } else {
+                                                // Fallback — write plain text containing the HTML.
+                                                flashCopy("insights-html", html);
+                                                logSession("WARN", "Clipboard API unavailable — copied raw HTML as plain text.");
+                                            }
+                                        } catch (err) {
+                                            const msg = err instanceof Error ? err.message : String(err);
+                                            logSession("ERROR", `Copy as HTML failed: ${msg}`);
+                                            // Fallback to plain markdown so the click isn't wasted.
+                                            flashCopy("insights", cleanInsightsContent(insightsResult.content));
+                                        }
+                                    }}
+                                >
+                                    <Icon name={copiedFlash["insights-html"] ? "check" : "file-html"} />
+                                </button>
+                                {/* PulsePlay — Print to PDF. Triggers the browser's
+                                  * native print dialog with "Save as PDF" as a
+                                  * destination. Zero deps; cross-browser. Future
+                                  * cycle could add a print-specific stylesheet
+                                  * that strips the chrome and prints only the
+                                  * insights area; for now the user picks the
+                                  * "Selection" option in the print dialog. */}
+                                <button
+                                    type="button"
+                                    className="gn-pill gn-pill--compact"
+                                    disabled={insightsBusy || !insightsResult?.content}
+                                    title="Print or save as PDF"
+                                    aria-label="Open the print dialog to save as PDF"
+                                    onClick={() => {
+                                        try {
+                                            window.print();
+                                            logSession("INFO", "AI Insights print dialog opened (PDF target).");
+                                        } catch (err) {
+                                            const msg = err instanceof Error ? err.message : String(err);
+                                            logSession("ERROR", `Print dialog failed: ${msg}`);
+                                        }
+                                    }}
+                                >
+                                    <Icon name="printer" />
                                 </button>
                                 {/* Cycle 26 — global "Export ▾" dropdown removed
                                     along with the per-section kebab ⋮ menus.

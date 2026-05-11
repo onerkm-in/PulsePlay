@@ -16,7 +16,8 @@ import * as React from "react";
 
 export type IconName =
     | "copy" | "check" | "refresh" | "stop" | "code" | "settings"
-    | "external-link" | "download" | "search" | "filter" | "x";
+    | "external-link" | "download" | "search" | "filter" | "x"
+    | "file-html" | "printer";
 
 interface IconProps {
     name: IconName;
@@ -91,6 +92,24 @@ const PATHS: Record<IconName, React.ReactElement> = {
         <>
             <path d="M3.5 3.5l9 9" />
             <path d="M12.5 3.5l-9 9" />
+        </>
+    ),
+    // Document with HTML tag — rich-text export.
+    "file-html": (
+        <>
+            <path d="M3.5 2h6.5l3 3v8.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5z" />
+            <path d="M10 2v3h3" />
+            <path d="M5.5 11l-1-1.5 1-1.5" />
+            <path d="M10.5 11l1-1.5-1-1.5" />
+            <path d="M8.5 8l-1 3" />
+        </>
+    ),
+    // Printer — PDF export via browser print.
+    printer: (
+        <>
+            <path d="M4 6V2.5h8V6" />
+            <rect x="2.5" y="6" width="11" height="6" rx="1" />
+            <rect x="4.5" y="9.5" width="7" height="4" />
         </>
     ),
 };
