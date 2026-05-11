@@ -85,7 +85,13 @@ export class GenericIframeAdapter implements BIAdapter {
     }
 
     async send(command: BICommand): Promise<void> {
-        if (command.kind === "refresh" && this.iframe) {
+        // Contract gate (BIAdapter conformance) — commands issued before
+        // mount or after destroy must reject with NOT_MOUNTED, not
+        // UNSUPPORTED_COMMAND. Mount state is what's actually missing.
+        if (!this.iframe) {
+            throw new Error(`${BI_ERR.NOT_MOUNTED}: generic-iframe adapter not mounted`);
+        }
+        if (command.kind === "refresh") {
             // Force reload by reassigning src
             const src = this.iframe.src;
             this.iframe.src = "about:blank";
@@ -95,7 +101,7 @@ export class GenericIframeAdapter implements BIAdapter {
             return;
         }
         if (command.kind === "fullscreen") {
-            const target = this.iframe?.parentElement;
+            const target = this.iframe.parentElement;
             if (target) {
                 if (command.on && document.fullscreenEnabled) await target.requestFullscreen();
                 else if (!command.on && document.fullscreenElement) await document.exitFullscreen();
