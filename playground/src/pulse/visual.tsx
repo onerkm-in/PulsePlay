@@ -3645,7 +3645,23 @@ function App(props: AppProps) {
                         )}
                     </div>
                 )}
-                <div className="gn-header-right">
+                <div
+                    className="gn-header-right"
+                    style={{
+                        // PulsePlay cycle H+ — lift the connection-status pill
+                        // (and any sibling header-right elements) into the
+                        // top-right corner of the PulseShell container so it
+                        // sits inline with App.tsx's PulsePlay h1 instead of
+                        // landing below Pulse's own header strip. PulseShell's
+                        // container is position: relative, so absolute here
+                        // anchors to that — staying inside the sidebar in
+                        // Both mode rather than overlapping the BI panel.
+                        position: "absolute",
+                        top: 14,
+                        right: 16,
+                        zIndex: 5,
+                    }}
+                >
                     {/* Scope-only / UC-enforced badge removed (49.10) — the
                         security-posture detail is still reachable via the
                         Connected pill, which opens the same Developer Tools
