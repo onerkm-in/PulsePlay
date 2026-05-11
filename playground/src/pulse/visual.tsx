@@ -5151,7 +5151,7 @@ function App(props: AppProps) {
                                         title="Recent SQL Genie ran on this Databricks workspace — copy-pasteable for bug tracing"
                                     >
                                         <Icon name="code" />
-                                        Genie Queries
+                                        Genie SQL Trace
                                     </button>
                                 );
                             })()}
