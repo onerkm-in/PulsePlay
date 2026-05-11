@@ -25,6 +25,25 @@ import { TestConnectionPanel } from "./components/TestConnectionPanel";
 import { PackPicker, DEFAULT_AVAILABLE_PACKS } from "./components/PackPicker";
 import type { PackSelection } from "./components/PackPicker";
 import type { ConnectorProbeResult } from "./types/probe";
+import { PulseShell } from "./components/PulseShell";
+
+/** UI mode toggle — "pulse" mounts the full ported Pulse experience in
+ *  the left panel (Insights tab + Chat tab + SetupPanel + all the
+ *  iterated UX); "v0" mounts the Smart-Connect-flavoured v0 components
+ *  we built in cycles B + C. Both modes keep the BI canvas on the right
+ *  so the multi-BI host stays usable. Cycle F lets the panels be
+ *  positioned freely (left/right/top/bottom/floating). */
+type UiMode = "pulse" | "v0";
+const UI_MODE_STORAGE_KEY = "pulseplay:ui-mode";
+
+function readInitialUiMode(): UiMode {
+    if (typeof window === "undefined") return "pulse";
+    try {
+        const stored = window.localStorage.getItem(UI_MODE_STORAGE_KEY);
+        if (stored === "pulse" || stored === "v0") return stored;
+    } catch { /* swallow */ }
+    return "pulse";
+}
 
 export function App() {
     const vendors = useMemo(() => listVendors(), []);
@@ -36,6 +55,16 @@ export function App() {
     const [activeConnector, setActiveConnector] = useState<string>("");
     const [embedConfig, setEmbedConfig] = useState<BIEmbedConfig>({});
     const [recentEvents, setRecentEvents] = useState<BIEvent[]>([]);
+    // UI mode persists across reloads. Pulse is default — that's the
+    // user-confirmed direction (port carries forward).
+    const [uiMode, setUiMode] = useState<UiMode>(() => readInitialUiMode());
+    // Bumping renderToken nudges PulseShell to re-call visual.update(),
+    // used after settings save events from PulseHostStub.persistProperties.
+    const [pulseRenderToken, setPulseRenderToken] = useState(0);
+    const handleUiModeChange = useCallback((next: UiMode) => {
+        setUiMode(next);
+        try { window.localStorage.setItem(UI_MODE_STORAGE_KEY, next); } catch { /* swallow */ }
+    }, []);
     // Smart Connect state — populated by TestConnectionPanel's probe and the
     // user's pack confirmation (which may override the inferred suggestion).
     // See docs/CONNECTOR_PROBE_AND_SMART_CONNECT.md for the design.
@@ -86,50 +115,65 @@ export function App() {
 
     return (
         <div className="pp-app">
-            <aside className="pp-app__sidebar">
-                <header className="pp-app__brand">
-                    <h1>PulsePlay</h1>
-                    <p className="pp-app__brand-tag">AI playground · multi-BI host</p>
+            <aside className="pp-app__sidebar" style={{ minWidth: 380, maxWidth: 560, width: "32%" }}>
+                <header className="pp-app__brand" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                    <div>
+                        <h1 style={{ margin: 0 }}>PulsePlay</h1>
+                        <p className="pp-app__brand-tag" style={{ margin: "2px 0 0", fontSize: 11, opacity: 0.7 }}>
+                            AI playground · multi-BI host
+                        </p>
+                    </div>
+                    <UiModeToggle value={uiMode} onChange={handleUiModeChange} />
                 </header>
-                <VendorPicker
-                    vendors={vendors}
-                    activeVendor={activeVendor}
-                    onChange={(v) => {
-                        setActiveVendor(v);
-                        setEmbedConfig({}); // reset config when switching vendors
-                        setRecentEvents([]);
-                    }}
-                />
-                <EmbedConfigForm
-                    vendor={activeVendor}
-                    value={embedConfig}
-                    onChange={setEmbedConfig}
-                    assistantProfile={activeConnector}
-                />
-                <ConnectorPicker
-                    activeConnector={activeConnector}
-                    onChange={handleConnectorChange}
-                />
-                {activeConnector && (
-                    <TestConnectionPanel
-                        profile={activeConnector}
-                        onProbeComplete={handleProbeComplete}
+
+                {uiMode === "pulse" ? (
+                    <PulseShell
+                        renderToken={pulseRenderToken}
+                        onSettingsChange={() => setPulseRenderToken(t => t + 1)}
                     />
+                ) : (
+                    <>
+                        <VendorPicker
+                            vendors={vendors}
+                            activeVendor={activeVendor}
+                            onChange={(v) => {
+                                setActiveVendor(v);
+                                setEmbedConfig({});
+                                setRecentEvents([]);
+                            }}
+                        />
+                        <EmbedConfigForm
+                            vendor={activeVendor}
+                            value={embedConfig}
+                            onChange={setEmbedConfig}
+                            assistantProfile={activeConnector}
+                        />
+                        <ConnectorPicker
+                            activeConnector={activeConnector}
+                            onChange={handleConnectorChange}
+                        />
+                        {activeConnector && (
+                            <TestConnectionPanel
+                                profile={activeConnector}
+                                onProbeComplete={handleProbeComplete}
+                            />
+                        )}
+                        {activeConnector && (
+                            <PackPicker
+                                availablePacks={DEFAULT_AVAILABLE_PACKS}
+                                suggested={probeSuggested}
+                                value={packSelection}
+                                onChange={setPackSelection}
+                            />
+                        )}
+                        <AISidebar
+                            activeVendor={activeVendor}
+                            activeConnector={activeConnector}
+                            recentEvents={recentEvents}
+                            packSelection={packSelection}
+                        />
+                    </>
                 )}
-                {activeConnector && (
-                    <PackPicker
-                        availablePacks={DEFAULT_AVAILABLE_PACKS}
-                        suggested={probeSuggested}
-                        value={packSelection}
-                        onChange={setPackSelection}
-                    />
-                )}
-                <AISidebar
-                    activeVendor={activeVendor}
-                    activeConnector={activeConnector}
-                    recentEvents={recentEvents}
-                    packSelection={packSelection}
-                />
             </aside>
             <main className="pp-app__canvas">
                 {hasEmbedConfig ? (
@@ -146,9 +190,58 @@ export function App() {
                             Choose a vendor on the left, fill in its embed config, and the AI
                             assistant will reason about whatever you load.
                         </p>
+                        {uiMode === "pulse" && (
+                            <p style={{ fontSize: 12, opacity: 0.7, marginTop: 12 }}>
+                                Pulse UI is active in the left panel. Configure the connection
+                                via its Setup tab; the embedded BI surface will appear here.
+                            </p>
+                        )}
                     </div>
                 )}
             </main>
+        </div>
+    );
+}
+
+/** Small top-right toggle to flip between the ported Pulse UI and the
+ *  v0 Smart-Connect-flavoured components from cycles B + C. Persists
+ *  via UI_MODE_STORAGE_KEY in localStorage so the choice survives
+ *  reloads. Cycle F replaces this with a free-floating layout. */
+function UiModeToggle(props: { value: UiMode; onChange: (next: UiMode) => void }) {
+    const baseBtn: React.CSSProperties = {
+        padding: "4px 8px",
+        fontSize: 11,
+        border: "1px solid var(--pp-border, #ccc)",
+        background: "transparent",
+        cursor: "pointer",
+        borderRadius: 3,
+    };
+    const activeBtn: React.CSSProperties = {
+        ...baseBtn,
+        background: "var(--pp-accent, #0078d4)",
+        color: "white",
+        borderColor: "var(--pp-accent, #0078d4)",
+    };
+    return (
+        <div role="group" aria-label="UI mode" style={{ display: "inline-flex", gap: 4 }}>
+            <button
+                type="button"
+                style={props.value === "pulse" ? activeBtn : baseBtn}
+                onClick={() => props.onChange("pulse")}
+                aria-pressed={props.value === "pulse"}
+                title="Use the ported Pulse UI (Setup + Insights + Chat)"
+            >
+                Pulse
+            </button>
+            <button
+                type="button"
+                style={props.value === "v0" ? activeBtn : baseBtn}
+                onClick={() => props.onChange("v0")}
+                aria-pressed={props.value === "v0"}
+                title="Use the v0 Smart-Connect components from cycles B + C"
+            >
+                v0
+            </button>
         </div>
     );
 }

@@ -19,6 +19,14 @@ export default defineConfig({
     resolve: {
         alias: {
             "powerbi-client": "./node_modules/powerbi-client/dist/powerbi.js",
+            // Cycle D — Pulse port stubs. The ported visual.tsx and helpers
+            // `import powerbi from "powerbi-visuals-api"` and pull formatting
+            // controls from "powerbi-visuals-utils-formattingmodel". These
+            // aliases route both to our lightweight stubs so the bundle
+            // doesn't need the real PBI SDK at runtime. tsconfig.json `paths`
+            // mirrors these for tsc.
+            "powerbi-visuals-api": "./src/pulse/_adapter/powerbi-visuals-api.ts",
+            "powerbi-visuals-utils-formattingmodel": "./src/pulse/_adapter/powerbi-visuals-utils-formattingmodel.ts",
         },
     },
     server: {
