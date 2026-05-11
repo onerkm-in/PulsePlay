@@ -113,7 +113,7 @@ const F_HOST: ConnectorFieldSpec = {
     hint: "Databricks workspace URL (https://...). Required for direct & gateway modes.",
     kind: "url",
     required: true,
-    placeholder: "https://dbc-xxxx.cloud.databricks.com",
+    placeholder: "e.g. https://dbc-xxxx.cloud.databricks.com",
 };
 
 const F_API_BASE: ConnectorFieldSpec = {
@@ -122,7 +122,7 @@ const F_API_BASE: ConnectorFieldSpec = {
     hint: "Where the visual calls the UniBridge proxy. Use 127.0.0.1, never localhost.",
     kind: "url",
     required: true,
-    placeholder: "http" + "://127.0.0.1:8787",
+    placeholder: "e.g. " + "http" + "://127.0.0.1:8787",
 };
 
 const F_TOKEN: ConnectorFieldSpec = {

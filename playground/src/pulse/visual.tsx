@@ -6302,7 +6302,7 @@ function SetupEditFlow(props: {
                                 type="text"
                                 value={draft.apiBaseUrl}
                                 onChange={e => setField("apiBaseUrl", e.target.value)}
-                                placeholder={"http" + "://127.0.0.1:8787"}
+                                placeholder={"e.g. " + "http" + "://127.0.0.1:8787"}
                                 aria-required={req}
                             />
                             <span className="gn-setup-field-hint">Where the UniBridge AI Proxy is listening. Local default is <code>127.0.0.1:8787</code>.</span>
@@ -6320,7 +6320,7 @@ function SetupEditFlow(props: {
                                 type="text"
                                 value={draft.host}
                                 onChange={e => setField("host", e.target.value)}
-                                placeholder="https://adb-123.4.azuredatabricks.net"
+                                placeholder="e.g. https://adb-123.4.azuredatabricks.net"
                                 aria-required={req}
                             />
                             <span className="gn-setup-field-hint">Full HTTPS URL of your Databricks workspace, no trailing slash.</span>
