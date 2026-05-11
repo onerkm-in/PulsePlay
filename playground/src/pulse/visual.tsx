@@ -182,6 +182,10 @@ import { subscribeSqlFormatter, formatSqlForCopy } from "./visualHelpers";
 // doesn't apply in the browser playground.
 import { Icon } from "./_adapter/Icon";
 import { renderInsightsAsEmailHtml } from "./_adapter/exportInsightsAsHtml";
+// PulsePlay — ColorRulesBanner (module-level component) needs the preset
+// list available at top level; the file's other consumers import inside
+// the class component so this import IS additive.
+import { METRIC_DIRECTION_PRESETS as PP_METRIC_DIRECTION_PRESETS } from "./insightsPresetLibrary";
 import { createBackend } from "./backend/BackendFactory";
 import type { AnyBackend } from "./backend/BackendAdapter";
 // Wave 38 Phase 1 — Setup tab access allowlist (UX gate, not authorization).
@@ -4514,6 +4518,19 @@ function App(props: AppProps) {
                             ) : (
                                 <div className="gn-msg gn-msg--assistant">
                                     <div className="gn-bubble">
+                                        {/* PulsePlay — one-click color-rules banner.
+                                          * Renders when the briefing has content but no
+                                          * metric-direction rules are set, so the AI's
+                                          * KPI tables show numbers without 🟢/🟡/🔴 status
+                                          * indicators. Picking a preset persists via
+                                          * host.persistProperties → triggers a re-render;
+                                          * the next Refresh applies the colors. */}
+                                        {!props.settings.metricDirectionRules?.trim() && (insightsResult?.content || "").trim() && (
+                                            <ColorRulesBanner
+                                                host={props.host}
+                                                currentDomain={props.settings.insightsDomain || ""}
+                                            />
+                                        )}
                                         {/* Cycle 25 — the global floating "View SQL" pill that
                                             used to live at the top-right of this bubble was
                                             removed. It only ever surfaced ONE SQL string
@@ -5757,6 +5774,142 @@ function App(props: AppProps) {
                     </div>
                 </div>
             )}
+        </div>
+    );
+}
+
+// PulsePlay — one-click metric-direction preset banner shown above
+// the rendered insights when no color rules are configured. Apply
+// writes the preset's `rules` (and `domain` if blank) to genieSettings
+// via host.persistProperties. After apply the user clicks the refresh
+// pill to re-run the pipeline with the new rules — color status
+// emojis (🟢 / 🟡 / 🔴) then appear in KPI tables and pipe rows.
+//
+// Reuses METRIC_DIRECTION_PRESETS from insightsPresetLibrary so the
+// rule strings stay battle-tested. Apply → toast → fade out; user can
+// dismiss permanently via Setup if they don't want any preset.
+function ColorRulesBanner(props: {
+    host: IVisualHost;
+    currentDomain: string;
+}): React.ReactElement | null {
+    const [presetId, setPresetId] = React.useState("");
+    const [applied, setApplied] = React.useState(false);
+    const [dismissed, setDismissed] = React.useState(false);
+    if (dismissed) return null;
+    const selected = PP_METRIC_DIRECTION_PRESETS.find(p => p.id === presetId);
+    const apply = () => {
+        if (!selected) return;
+        const props_to_merge: Record<string, unknown> = {
+            metricDirectionRules: selected.rules,
+        };
+        // Only auto-seed the domain when the author hasn't already picked one —
+        // author-final-say rule (CONNECTOR_PROBE_AND_SMART_CONNECT.md).
+        if (!props.currentDomain.trim()) {
+            props_to_merge.insightsDomain = selected.domain;
+        }
+        try {
+            props.host.persistProperties({
+                merge: [{
+                    objectName: "genieSettings",
+                    selector: null,
+                    properties: props_to_merge,
+                }],
+            });
+            setApplied(true);
+        } catch {
+            setApplied(false);
+        }
+    };
+    if (applied) {
+        return (
+            <div style={{
+                margin: "0 0 12px",
+                padding: "10px 14px",
+                borderRadius: 6,
+                background: "rgba(34, 139, 89, 0.08)",
+                borderLeft: "3px solid #228b59",
+                fontSize: 12,
+                color: "#1a1a1a",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+            }}>
+                <span>
+                    <strong>Color rules applied</strong> — click <em>Refresh</em> above to re-run the briefing with status indicators.
+                </span>
+                <button
+                    type="button"
+                    onClick={() => setDismissed(true)}
+                    aria-label="Dismiss this notice"
+                    style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 16, lineHeight: 1, color: "#666" }}
+                >
+                    ×
+                </button>
+            </div>
+        );
+    }
+    return (
+        <div style={{
+            margin: "0 0 12px",
+            padding: "10px 14px",
+            borderRadius: 6,
+            background: "rgba(0, 120, 212, 0.06)",
+            borderLeft: "3px solid #0078d4",
+            fontSize: 12,
+            color: "#1a1a1a",
+            display: "flex",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 10,
+        }}>
+            <span style={{ flex: "1 1 auto", minWidth: 220 }}>
+                <strong>No status colors</strong> on this briefing. Pick a preset to add 🟢 / 🟡 / 🔴 indicators to KPI tables and pipe rows.
+            </span>
+            <select
+                value={presetId}
+                onChange={e => setPresetId(e.target.value)}
+                aria-label="Metric direction preset"
+                style={{
+                    padding: "4px 8px",
+                    fontSize: 12,
+                    border: "1px solid rgba(0,0,0,0.18)",
+                    borderRadius: 4,
+                    background: "white",
+                }}
+            >
+                <option value="">Choose preset…</option>
+                {PP_METRIC_DIRECTION_PRESETS.map(p => (
+                    <option key={p.id} value={p.id}>{p.label}</option>
+                ))}
+            </select>
+            <button
+                type="button"
+                disabled={!selected}
+                onClick={apply}
+                title={selected ? selected.description : "Pick a preset first"}
+                style={{
+                    padding: "4px 12px",
+                    fontSize: 12,
+                    border: "1px solid #0078d4",
+                    borderRadius: 4,
+                    background: selected ? "#0078d4" : "transparent",
+                    color: selected ? "#fff" : "rgba(0,0,0,0.4)",
+                    cursor: selected ? "pointer" : "not-allowed",
+                    fontWeight: 600,
+                }}
+            >
+                Apply
+            </button>
+            <button
+                type="button"
+                onClick={() => setDismissed(true)}
+                aria-label="Dismiss"
+                title="Don't show this banner again this session"
+                style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 16, lineHeight: 1, color: "#666" }}
+            >
+                ×
+            </button>
         </div>
     );
 }
