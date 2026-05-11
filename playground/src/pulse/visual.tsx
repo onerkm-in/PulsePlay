@@ -5119,26 +5119,42 @@ function App(props: AppProps) {
                                 <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 2h12v1H2V2zm0 3h12v1H2V5zm0 3h9v1H2V8zm0 3h10v1H2v-1z"/></svg>
                                 Session Log ({sessionLogRef.current.length})
                             </button>
-                            {/* Cycle 40 — Genie Query Audit panel button.
-                                Genie-mode only (proxy or direct). Hidden for
-                                Azure OpenAI / Bedrock / Gateway because those
-                                don't have Databricks SQL history. */}
-                            {(props.settings.connectionMode === "proxy" || props.settings.connectionMode === "direct") && (
-                                <button
-                                    className={`gn-dev-btn${devPanel === "genieQueries" ? " gn-dev-btn--active" : ""}`}
-                                    onClick={() => {
-                                        const next = devPanel === "genieQueries" ? "" : "genieQueries";
-                                        setDevPanel(next);
-                                        if (next === "genieQueries" && genieQueries.length === 0 && !genieQueriesLoading) {
-                                            void fetchGenieQueries(genieQueriesSinceMin);
-                                        }
-                                    }}
-                                    title="Recent SQL Genie ran on this workspace — copy-pasteable for bug tracing"
-                                >
-                                    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 3h12v2H2V3zm0 4h12v1H2V7zm0 3h12v1H2v-1zm0 3h8v1H2v-1z"/></svg>
-                                    Genie Queries
-                                </button>
-                            )}
+                            {/* Cycle 40 + PulsePlay — Genie Query Audit panel button.
+                                Surfaces the raw SQL Genie ran on the Databricks
+                                workspace in the last N minutes. Visible for every
+                                connection mode that talks to a Databricks workspace
+                                (proxy/auto/direct/supervisor/foundation-model/gateway);
+                                hidden for Azure OpenAI / Bedrock which don't have
+                                Databricks SQL history. Also hidden when the user
+                                hasn't picked a mode yet (no settings). */}
+                            {(() => {
+                                const mode = props.settings.connectionMode || "auto";
+                                const databricksBacked = (
+                                    mode === "proxy" ||
+                                    mode === "auto" ||
+                                    mode === "direct" ||
+                                    mode === "supervisor" ||
+                                    mode === "foundation-model" ||
+                                    mode === "gateway"
+                                );
+                                if (!databricksBacked) return null;
+                                return (
+                                    <button
+                                        className={`gn-dev-btn${devPanel === "genieQueries" ? " gn-dev-btn--active" : ""}`}
+                                        onClick={() => {
+                                            const next = devPanel === "genieQueries" ? "" : "genieQueries";
+                                            setDevPanel(next);
+                                            if (next === "genieQueries" && genieQueries.length === 0 && !genieQueriesLoading) {
+                                                void fetchGenieQueries(genieQueriesSinceMin);
+                                            }
+                                        }}
+                                        title="Recent SQL Genie ran on this Databricks workspace — copy-pasteable for bug tracing"
+                                    >
+                                        <Icon name="code" />
+                                        Genie Queries
+                                    </button>
+                                );
+                            })()}
                             {/* Wave 38 Phase 1 — Setup tab gated by layered allowlist + showSetupAccess. */}
                             {setupAccessGranted && (
                                 <button
