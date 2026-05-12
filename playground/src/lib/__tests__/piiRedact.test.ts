@@ -44,6 +44,8 @@ describe("redactPiiFromString", () => {
     });
 
     it("redacts API-key-ish long alphanumeric tokens", () => {
+        // Obvious-dummy token shape — never a real PAT. The redaction
+        // regex matches on length / charset, not on the actual value.
         const r = redactPiiFromString("Token: dapi00sdfENTER_YOUR_DATABRICKS_PAT_HERE");
         expect(r.value).toContain("[KEY]");
         expect(r.value).not.toContain("dapi00sdfENTER_YOUR_DATABRICKS_PAT_HERE");
