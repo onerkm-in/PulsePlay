@@ -6,7 +6,17 @@
 
 ## One sentence
 
-PulsePlay is a React playground that hosts ANY BI tool as an embedded guest, with an AI assistant sidebar that reasons about whatever the user is currently looking at — connector-agnostic on the AI side, vendor-agnostic on the BI side.
+PulsePlay is a React playground where BI and AI components come to play together: any supported BI surface can be embedded as a guest, any supported AI connector can reason over the current view, and both sides stay modular.
+
+## Playground principle
+
+The architecture exists to make "plug in and play here" real. A deployer should be able to bring a BI surface, an AI connector, and a vertical pack, then try that combination without rewriting the host.
+
+Genie + Power BI is the first production-grade product cell because it has the strongest inherited implementation and test history. It is not a special-case architecture. It must use the same contracts as every future cell: `BIAdapter` for BI surfaces, proxy profiles for AI connectors, `pulsepacks` for domain knowledge, canonical events for context, and canonical commands for actions.
+
+Other BI and AI combinations remain intentionally modular, but they are expansion paths, not equal first-build priorities. The architecture keeps the door open while the product effort concentrates on making Genie + Power BI robust first.
+
+The sister Power BI visual is treated as a proven asset bank, not a deprecated branch. The leverage rule is captured in [SUPERIOR_BUILD_LEVERAGE_PLAN.md](SUPERIOR_BUILD_LEVERAGE_PLAN.md): compare before rewriting, promote through contracts, port the valuable tests, and keep demo/smoke evidence attached to every migrated behavior.
 
 ## The 2-axis abstraction
 
@@ -47,7 +57,7 @@ interface BIAdapter {
 
 The host does not care HOW the adapter renders the BI tool. Three common patterns:
 
-1. **Iframe with URL** — generic-iframe, Looker (signed URL), Tableau (Embedding API can fall back), most BI tools' "embed link" feature. Adapter creates `<iframe src=...>`, sandboxes it, listens for `load` events.
+1. **Iframe with URL** — generic-iframe, Power BI secure embed preview, Looker (signed URL), Tableau (Embedding API can fall back), most BI tools' "embed link" feature. Adapter creates `<iframe src=...>`, sandboxes it, listens for `load` events.
 2. **Vendor JS SDK + DOM container** — Power BI (`powerbi-client.embed`), Looker (`@looker/embed-sdk`). Adapter loads the SDK, calls `embed(container, config)`, wires SDK events to canonical `BIEvent` types.
 3. **Web component** — Tableau Embedding API v3 (`<tableau-viz>`), Qlik Cloud (`<qlik-embed>`). Adapter loads the web-component script, creates the custom element, listens to its events.
 
@@ -55,7 +65,7 @@ The `BICapabilities` object lets each adapter advertise what it actually support
 
 ### Status today
 
-Every adapter except `generic-iframe` extends `GenericIframeAdapter` and just renders an iframe. No event bridge, no command bridge, no vendor SDK. v0.2 wires real SDKs (`powerbi-client`, Tableau Embedding API v3, `qlik-embed`, `@looker/embed-sdk`). Don't claim "Power BI integration" until that's done.
+Power BI has graduated to a real `powerbi-client` adapter with event and command mapping, plus a secure embed quick-preview iframe path for the portal link/iframe flow. `generic-iframe` remains the escape hatch. Tableau, Qlik, and Looker still extend `GenericIframeAdapter` and render iframe fallbacks until their SDK/web-component adapters graduate.
 
 ## Canonical event vocabulary
 
@@ -180,7 +190,7 @@ PulsePlay/
 │   ├── package.json / vite.config.ts / tsconfig.json
 │   └── index.html
 ├── bi-adapters/             # Y-axis: BI vendor adapters
-│   ├── powerbi/             # Stub today, powerbi-client SDK in v0.2
+│   ├── powerbi/             # Real powerbi-client adapter
 │   ├── tableau/             # Stub today, Tableau Embedding API v3 in v0.2
 │   ├── qlik/                # Stub today, qlik-embed in v0.2
 │   ├── looker/              # Stub today, @looker/embed-sdk in v0.2
@@ -188,7 +198,7 @@ PulsePlay/
 ├── proxy/                   # X-axis: AI connector backbone (4,298-line server.js + 8 lib modules)
 │   ├── server.js            # Express; routes for /assistant/*, /openai/*, /bedrock/*, /supervisor/*, /foundation/*
 │   ├── lib/                 # foundationModelClient, insightsValidator, llmOrchestrator, sqlExecutor, bedrock signer, ...
-│   └── tests/               # 342 jest tests
+│   └── tests/               # 418 jest tests in latest local validation
 ├── databricks-agents/       # Mosaic AI Supervisor Agent template
 │   └── supervisor/          # LangGraph agent definition + deploy notebook
 ├── pulsepacks/              # Vertical packs (CPG/FMCG, manufacturing, ...). Pack architecture lives here.
@@ -204,14 +214,14 @@ CSP headers when PulsePlay deploys to a hosted URL: set `frame-src` to the union
 
 ## Embed-token issuance
 
-Vendor-specific embed-token endpoints will live in the proxy:
+Vendor-specific embed-token endpoints live in the proxy:
 
-- Azure AD service principal flow for Power BI
-- Trusted-ticket for Tableau
-- OAuth M2M for Qlik Cloud
-- Signed-URL HMAC for Looker
+- Azure AD service principal flow for Power BI — implemented as `/assistant/embed-token/powerbi`
+- Trusted-ticket for Tableau — planned
+- OAuth M2M for Qlik Cloud — planned
+- Signed-URL HMAC for Looker — planned
 
-These are NOT in the proxy today. v0.2 work. Never put credentials in the browser bundle. Never embed an embed-token issuance secret in the React app.
+Never put credentials in the browser bundle. Never embed an embed-token issuance secret in the React app.
 
 ## Inherited security posture
 
@@ -228,20 +238,27 @@ The Pulse-origin proxy ships with these defense-in-depth layers (mostly applicab
 
 For the internal-org security baseline (SSO, SCIM, vault, audit, allowlists), see [SECURITY.md](SECURITY.md).
 
-## What's stubbed vs production-ready
+## What's implemented vs still stubbed
 
-**Production-ready (inherited from Pulse cycles 1-47):**
+**Implemented today:**
 - Whole proxy stack — keep-alive, OAuth M2M, OpenAI/Bedrock/Foundation routes, Genie integration, validator framework, query history audit
 - `databricks-agents/supervisor/` Mosaic AI agent template
-- 342 jest tests (all green)
+- Power BI `powerbi-client` adapter with event and command mapping
+- Power BI secure embed quick-preview path for portal links/iframes
+- Power BI Developer Tools panel for live adapter snapshots and command proving
+- Frontend `/health` single-flight cache to prevent setup/status loops from stampeding the proxy
+- `/assistant/embed-token/powerbi` service-principal embed-token path
+- BIAdapter conformance harness
+- 418 proxy tests and 161 playground/adapter tests in latest local validation
 
-**Stubbed (v0 today, v0.2+ next):**
-- All four vendor adapters (PowerBI/Tableau/Qlik/Looker) — currently inherit from `GenericIframeAdapter`; v0.2 wires real vendor SDKs
-- `EmbedConfigForm` — currently single URL field; v0.2 per-vendor credential helpers
+**Stubbed or partial:**
+- Tableau/Qlik/Looker adapters — currently iframe fallbacks; SDK/web-component adapters still need to graduate
+- Power BI export-to-file — intentionally rejected until the server-side export route is wired
+- Unified first-run setup and health strip for the Genie + Power BI first playable cell
 - `AISidebar` — submits + shows initial response; v0.2 polls for completion (see Pulse's runStage pattern), streams tokens, shows progress
-- Embed-token issuance routes in proxy (`/api/powerbi/embed-token`, `/api/tableau/trusted-ticket`, etc.)
-- AI Insights pipeline (multi-stage, validated, cached) — exists in Pulse, not yet ported
-- Playground tests — Vitest is configured; zero tests written
+- Tableau/Qlik/Looker token issuance routes
+- AI Insights pipeline parity — exists in Pulse, partially hosted through Pulse mode, not yet decomposed into a clean reusable browser-host pipeline
+- Old visual parity tests — 37 old visual test files remain to be ported or replaced
 
 ## The unconstrained roadmap (was: gateway of madness)
 

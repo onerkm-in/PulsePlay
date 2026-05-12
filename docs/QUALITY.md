@@ -6,10 +6,10 @@
 
 ## What we DO measure today
 
-### 1. Structural correctness (automated, inherited)
+### 1. Structural correctness (automated)
 
-- **342 jest tests in `proxy/`** covering: profile resolution, OAuth M2M flow, X-Request-Id correlation, rate limiting, PII redaction, DML keyword blocking, identifier sanitization, supervisor-local fan-out, validator framework, foundation model client, bedrock signing.
-- **All 342 currently green** at HEAD (`5e1036d`). The proxy was copied verbatim from Pulse and the test suite came with it.
+- **418 jest tests in `proxy/`** covering: profile resolution, OAuth M2M flow, X-Request-Id correlation, rate limiting, PII redaction, DML keyword blocking, identifier sanitization, supervisor-local fan-out, validator framework, foundation model client, bedrock signing, connector probe, pack prompt injection, Power BI embed-token flow, metadata-read rate-limit exemptions, and analytics paths.
+- **161 vitest tests in `playground/` + `bi-adapters/`** covering: BIAdapter conformance, generic iframe behavior, Power BI adapter behavior including secure embed preview and developer snapshots, Tableau/Qlik/Looker iframe stubs, PulseShell host behavior, health-probe single-flight caching, fast Insights briefing prompts, AI Insights output polish, card-style Insights rendering, raw-data Excel export helpers, AISidebar, pack preset merge, and PII redaction.
 
 These tests assert the code emits the right SHAPE of output (correct prompt structure, correct cache key, correct sanitization, correct API call). They do NOT assert that the AI's natural-language answer is factually correct on a given dataset.
 
@@ -22,15 +22,15 @@ These tests assert the code emits the right SHAPE of output (correct prompt stru
 
 ### 3. Live qualitative review
 
-This is currently zero — the playground has no test fixtures, no canonical demo dataset, no manual click-through QA. v0.2 work: stand up a demo dataset (the inherited Sales/Superstore from Pulse is a candidate) and run the same canonical 5-10 representative AI questions after each significant change.
+The playground has HTTP-level local smoke only today unless an org Power BI report and Databricks profile are connected. v0.2 work: promote the inherited Sales/Superstore PBIP and old live-test prompts into a credentialed PulsePlay reference fixture, then run the same canonical 5-10 representative AI questions after each significant change.
 
 ## What we DO NOT measure today
 
-### 1. Playground tests
+### 1. Inherited visual parity tests
 
-**Zero playground tests written.** Vitest is configured per [package.json:12](../playground/package.json#L12) (`"test": "vitest run"`) but there are no `*.test.ts*` files under `playground/`. The 2-axis abstraction (BIAdapter contract, BIPanel host, registry) has zero coverage of its own. The pickers and the AI sidebar have zero coverage.
+The old Power BI visual has **37 visual test files** under `genieChatVisual/tests`. They cover many pure behaviors that PulsePlay still depends on: context building, prompt redaction, setup validation, SQL sections, insights rendering, cache, metric rules, theme inheritance, and security.
 
-This is the single biggest quality gap. v0.2 priority.
+PulsePlay has new tests, but those 37 old tests are not yet ported. This is the single biggest parity gap because it means mature behavior exists without equivalent browser-host regression coverage.
 
 ### 2. Answer correctness (semantic)
 
@@ -49,7 +49,7 @@ We have not measured whether Genie, Azure OpenAI, AWS Bedrock, Foundation Model,
 
 ### 4. Per-vendor adapter compliance
 
-There is no conformance harness that exercises every adapter against the BIAdapter contract — every adapter except `generic-iframe` is a stub today, so there's nothing meaningful to test. v0.2 work: when the first vendor adapter graduates from stub, write a conformance suite that asserts every required event fires, every supported command executes, every BICapability advertised actually works.
+There is now a BIAdapter conformance harness, and Power BI has graduated to the real `powerbi-client` SDK. Tableau, Qlik, and Looker still use iframe fallbacks. v0.2 work: make the conformance suite deeper for real SDK adapters so every advertised capability is proven by a test or explicitly marked as unsupported.
 
 ### 5. Performance benchmarks
 
@@ -66,7 +66,8 @@ WCAG compliance is not formally tested. The playground UI is minimal today; a fo
 ### Near-term (v0.2)
 
 - **Playground tests v1** — vendor-agnostic BIAdapter contract test (every adapter must pass), BIPanel host test (mount/destroy lifecycle), registry test (lazy-loading), AISidebar test (submit + render path with mocked proxy responses). Target: 30-50 tests, all green.
-- **First vendor conformance suite** — when the first real vendor adapter lands (probably Power BI), write the conformance harness that any adapter must pass. Apply retroactively to generic-iframe.
+- **Inherited visual parity tests** — port highest-value old pure tests into `playground/src/pulse` or equivalent browser-host test folders.
+- **First vendor conformance suite expansion** — deepen the existing BIAdapter harness around real Power BI load/context/filter behavior. Apply the same expectations retroactively to generic-iframe where meaningful.
 - **Smoke test against a live Databricks workspace** — adapt `scripts/smoke-full.ps1` (Pulse-shaped) to PulsePlay's profiles. Verify proxy + Genie roundtrip, profile listing, error mapping.
 
 ### Medium-term (v0.3+)
@@ -85,9 +86,10 @@ WCAG compliance is not formally tested. The playground UI is minimal today; a fo
 
 **Do say:**
 
-- "The proxy has 342 inherited jest tests, all green."
-- "The playground has zero tests today; first batch lands in v0.2."
-- "The 2-axis abstraction is implemented as a contract; only generic-iframe is real."
+- "The proxy has 418 jest tests, all green in the latest local run."
+- "The playground and BI adapters have 161 vitest tests, all green in the latest local run."
+- "The 2-axis abstraction is implemented as a contract; Power BI is real, Tableau/Qlik/Looker are still iframe fallbacks."
+- "The old Power BI visual has a larger visual test bank; we are porting the most valuable pure tests."
 - "Eval suite is on the roadmap as a v0.3 candidate. We're not promising answer-quality numbers without measuring them."
 
 **Don't say:**
@@ -95,16 +97,16 @@ WCAG compliance is not formally tested. The playground UI is minimal today; a fo
 - "Output quality is 99%."
 - "We score every answer."
 - "PulsePlay outperforms [competitor] on accuracy."
-- "Power BI integration is production-ready" (it's a stub).
+- "Every BI integration is production-ready."
 
 **If asked "how do you know it works?":**
 
-*"For structural correctness — automated tests on the proxy, all green. For the playground — manual click-through. For answer quality — qualitative review only; the formal eval rig is the next investment. The 2-axis abstraction is a contract enforced by TypeScript and tested via the inherited proxy paths; the vendor side is mostly stubs awaiting real SDK wiring."*
+*"For structural correctness — automated tests on the proxy, playground, and BI adapters are green. For answer quality — qualitative review only; the formal eval rig is the next investment. The 2-axis abstraction is a contract enforced by TypeScript and conformance tests; Power BI is the first real SDK adapter, while other BI vendors remain iframe fallbacks until their SDK adapters graduate."*
 
 ## Why this honesty matters
 
-A sharp evaluator will ask "show me the test results" within 5 minutes. Better to say "342 proxy tests green; 0 playground tests; eval suite next investment" than to claim a measured number that doesn't exist. The proxy infrastructure (sanitization, OAuth, rate-limit, validator) is measurably solid today; the playground is a scaffold; the AI side is platform-team-owned. Lead with what's true; let the eval claim grow alongside the actual eval rig.
+A sharp evaluator will ask "show me the test results" within 5 minutes. Better to say "418 proxy tests green; 161 playground/adapter tests green; old visual parity tests still being ported; eval suite next investment" than to claim a measured answer-quality number that doesn't exist. The proxy infrastructure is measurably solid, Power BI is the first real BI adapter, and the playground architecture is becoming test-backed. Lead with what's true; let the eval claim grow alongside the actual eval rig.
 
 ---
 
-*Compiled 2026-05-10 during the docs consolidation cycle. Re-run when test counts change or when the eval rig lands. The historical Pulse-numbered version is archived at [inherited/PEPPULSE_BEAST_MODE_MEMORY.md](inherited/PEPPULSE_BEAST_MODE_MEMORY.md) and the original `QUALITY_METHODOLOGY.md` content this file pruned from.*
+*Compiled 2026-05-10 during the docs consolidation cycle. Updated 2026-05-11 after the Power BI adapter, BIAdapter conformance, Pulse shell, and proxy test expansion. Re-run when test counts change or when the eval rig lands. The historical Pulse-numbered version is archived at [inherited/PEPPULSE_BEAST_MODE_MEMORY.md](inherited/PEPPULSE_BEAST_MODE_MEMORY.md) and the original `QUALITY_METHODOLOGY.md` content this file pruned from.*

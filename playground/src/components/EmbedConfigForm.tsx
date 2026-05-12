@@ -5,6 +5,10 @@ import { signInAndPrepareEmbed, signOutPbi } from "../lib/pbiAuth";
 // Vendor-aware embed-config form.
 //
 // Power BI embed modes (in order of preference for production):
+//   0. Secure embed link - paste the Power BI portal's website/portal link
+//      or iframe for a quick authenticated preview. It is intentionally
+//      limited: the report renders, but SDK commands such as AI-applied
+//      filters and page navigation need SSO or backend-issued mode.
 //   1. SSO (AAD User-Owns-Data) — MSAL.js signs the viewer in with their
 //      AAD identity. Power BI applies the user's own RLS + dataset
 //      permissions. Seamless when the viewer already has an M365 session.
@@ -36,7 +40,7 @@ interface EmbedConfigFormProps {
     assistantProfile?: string;
 }
 
-type PowerBITokenMode = "sso" | "backend" | "manual";
+type PowerBITokenMode = "secure" | "sso" | "backend" | "manual";
 
 interface PowerBIFormState {
     groupId: string;
@@ -44,6 +48,7 @@ interface PowerBIFormState {
     datasetId: string;
     permissions: "View" | "Edit";
     tokenMode: PowerBITokenMode;
+    secureEmbedInput: string;
     manualEmbedUrl: string;
     manualAccessToken: string;
     /** SSO: AAD app client ID. Persisted in localStorage so the author
@@ -76,15 +81,42 @@ function writePersistedSso(value: PersistedSsoConfig): void {
     try { window.localStorage.setItem(PBI_SSO_STORAGE_KEY, JSON.stringify(value)); } catch { /* swallow */ }
 }
 
+function normalizePowerBISecureEmbedInput(input: string): string {
+    const raw = input.trim();
+    const srcMatch = raw.match(/\bsrc\s*=\s*["']([^"']+)["']/i);
+    return (srcMatch?.[1] || raw).trim().replace(/&amp;/g, "&");
+}
+
+function isPowerBISecureEmbedUrl(input: string): boolean {
+    try {
+        const parsed = new URL(input);
+        return parsed.protocol === "https:"
+            && parsed.hostname.toLowerCase().endsWith("powerbi.com")
+            && /\/reportEmbed$/i.test(parsed.pathname);
+    } catch {
+        return false;
+    }
+}
+
+function extractReportIdFromPowerBIUrl(input: string): string | undefined {
+    try {
+        return new URL(input).searchParams.get("reportId") || undefined;
+    } catch {
+        return undefined;
+    }
+}
+
 const EMPTY_PBI: PowerBIFormState = {
     groupId: "",
     reportId: "",
     datasetId: "",
     permissions: "View",
-    // Default mode is SSO — that's the seamless path when the org has
-    // an AAD app registered. Authors who haven't done that setup yet
-    // can pick `backend` (service principal via proxy) or `manual`.
-    tokenMode: "sso",
+    // Default mode is the secure portal link/iframe path so a novice
+    // author can paste what Power BI gives them and see the report first.
+    // SSO/backend remain the production SDK paths for AI-applied filters,
+    // page navigation, and richer events.
+    tokenMode: "secure",
+    secureEmbedInput: "",
     manualEmbedUrl: "",
     manualAccessToken: "",
     aadClientId: "",
@@ -125,6 +157,30 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
 
     const apply = async () => {
         setError("");
+        if (state.tokenMode === "secure") {
+            const embedUrl = normalizePowerBISecureEmbedInput(state.secureEmbedInput);
+            if (!embedUrl) {
+                setError("Paste the secure Power BI embed link or iframe from the portal.");
+                return;
+            }
+            if (!isPowerBISecureEmbedUrl(embedUrl)) {
+                setError("Secure embed mode needs a Power BI reportEmbed URL from app.powerbi.com.");
+                return;
+            }
+            const reportId = state.reportId.trim() || extractReportIdFromPowerBIUrl(embedUrl) || "secure-powerbi-report";
+            props.onChange({
+                type: "report",
+                mode: "secure-embed",
+                embedMode: "secure",
+                id: reportId,
+                embedUrl,
+                url: embedUrl,
+                permissions: "View",
+            });
+            setLastIssuedAt(Date.now());
+            return;
+        }
+
         if (!state.reportId.trim()) {
             setError("Report ID is required.");
             return;
@@ -263,47 +319,6 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
     return (
         <section className="pp-embed-config pp-embed-config--powerbi">
             <h3 className="pp-embed-config__heading">Power BI embed</h3>
-            <label className="pp-embed-config__label" htmlFor="pp-pbi-group">Workspace ID</label>
-            <input
-                id="pp-pbi-group"
-                className="pp-embed-config__input"
-                type="text"
-                value={state.groupId}
-                onChange={e => set("groupId", e.target.value)}
-                placeholder="01234567-89ab-cdef-0123-456789abcdef"
-            />
-
-            <label className="pp-embed-config__label" htmlFor="pp-pbi-report">Report ID</label>
-            <input
-                id="pp-pbi-report"
-                className="pp-embed-config__input"
-                type="text"
-                value={state.reportId}
-                onChange={e => set("reportId", e.target.value)}
-                placeholder="01234567-89ab-cdef-0123-456789abcdef"
-            />
-
-            <label className="pp-embed-config__label" htmlFor="pp-pbi-dataset">Dataset ID</label>
-            <input
-                id="pp-pbi-dataset"
-                className="pp-embed-config__input"
-                type="text"
-                value={state.datasetId}
-                onChange={e => set("datasetId", e.target.value)}
-                placeholder="optional — needed for cross-workspace datasets"
-            />
-
-            <label className="pp-embed-config__label" htmlFor="pp-pbi-perms">Permissions</label>
-            <select
-                id="pp-pbi-perms"
-                className="pp-embed-config__input"
-                value={state.permissions}
-                onChange={e => set("permissions", e.target.value as "View" | "Edit")}
-            >
-                <option value="View">View</option>
-                <option value="Edit">Edit</option>
-            </select>
-
             <label className="pp-embed-config__label" htmlFor="pp-pbi-mode">Embed mode</label>
             <select
                 id="pp-pbi-mode"
@@ -311,10 +326,73 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
                 value={state.tokenMode}
                 onChange={e => set("tokenMode", e.target.value as PowerBITokenMode)}
             >
+                <option value="secure">Secure embed link - quick preview</option>
                 <option value="sso">AAD SSO — Embed for your organization (seamless)</option>
                 <option value="backend">Service principal — Embed for your customers (proxy)</option>
                 <option value="manual">Manual paste (dev only)</option>
             </select>
+
+            {state.tokenMode === "secure" && (
+                <>
+                    <label className="pp-embed-config__label" htmlFor="pp-pbi-secure-url">Secure embed link or iframe</label>
+                    <textarea
+                        id="pp-pbi-secure-url"
+                        className="pp-embed-config__input pp-embed-config__input--textarea"
+                        value={state.secureEmbedInput}
+                        onChange={e => set("secureEmbedInput", e.target.value)}
+                        placeholder={'https://app.powerbi.com/reportEmbed?... or <iframe src="https://app.powerbi.com/reportEmbed?...">'}
+                        rows={4}
+                    />
+                    <p className="pp-embed-config__hint" style={{ fontSize: 11, opacity: 0.7, margin: "4px 0 8px" }}>
+                        Quick preview uses Power BI's website/portal embed. Viewers authenticate with Power BI, but SDK commands such as AI-applied filters and page navigation need AAD SSO or service-principal mode.
+                    </p>
+                </>
+            )}
+
+            {state.tokenMode !== "secure" && (
+                <>
+                    <label className="pp-embed-config__label" htmlFor="pp-pbi-group">Workspace ID</label>
+                    <input
+                        id="pp-pbi-group"
+                        className="pp-embed-config__input"
+                        type="text"
+                        value={state.groupId}
+                        onChange={e => set("groupId", e.target.value)}
+                        placeholder="01234567-89ab-cdef-0123-456789abcdef"
+                    />
+
+                    <label className="pp-embed-config__label" htmlFor="pp-pbi-report">Report ID</label>
+                    <input
+                        id="pp-pbi-report"
+                        className="pp-embed-config__input"
+                        type="text"
+                        value={state.reportId}
+                        onChange={e => set("reportId", e.target.value)}
+                        placeholder="01234567-89ab-cdef-0123-456789abcdef"
+                    />
+
+                    <label className="pp-embed-config__label" htmlFor="pp-pbi-dataset">Dataset ID</label>
+                    <input
+                        id="pp-pbi-dataset"
+                        className="pp-embed-config__input"
+                        type="text"
+                        value={state.datasetId}
+                        onChange={e => set("datasetId", e.target.value)}
+                        placeholder="optional — needed for cross-workspace datasets"
+                    />
+
+                    <label className="pp-embed-config__label" htmlFor="pp-pbi-perms">Permissions</label>
+                    <select
+                        id="pp-pbi-perms"
+                        className="pp-embed-config__input"
+                        value={state.permissions}
+                        onChange={e => set("permissions", e.target.value as "View" | "Edit")}
+                    >
+                        <option value="View">View</option>
+                        <option value="Edit">Edit</option>
+                    </select>
+                </>
+            )}
 
             {state.tokenMode === "sso" && (
                 <>
@@ -373,7 +451,11 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
                     disabled={busy}
                 >
                     {busy ? (state.tokenMode === "sso" ? "Signing in…" : "Issuing token…")
-                          : (state.tokenMode === "sso" ? "Sign in & embed" : "Load report")}
+                          : (state.tokenMode === "sso"
+                              ? "Sign in & embed"
+                              : state.tokenMode === "secure"
+                                  ? "Load secure embed"
+                                  : "Load report")}
                 </button>
                 {state.tokenMode === "sso" && lastIssuedAt && (
                     <button
@@ -396,12 +478,14 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
                     Loaded at {new Date(lastIssuedAt).toLocaleTimeString()}.
                 </p>
             )}
-            <p className="pp-embed-config__hint">
-                Backend-issued mode: the proxy uses an Azure AD service principal
-                (powerBiClientId / powerBiClientSecret / powerBiTenantId on the
-                active profile). The browser only ever sees the short-lived
-                embed token.
-            </p>
+            {state.tokenMode !== "secure" && (
+                <p className="pp-embed-config__hint">
+                    Backend-issued mode: the proxy uses an Azure AD service principal
+                    (powerBiClientId / powerBiClientSecret / powerBiTenantId on the
+                    active profile). The browser only ever sees the short-lived
+                    embed token.
+                </p>
+            )}
         </section>
     );
 }
@@ -409,23 +493,28 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
 function hydratePbiState(value: BIEmbedConfig): PowerBIFormState {
     // Best-effort rehydrate — useful when the parent persists embedConfig
     // across re-renders (e.g. after a vendor switch and back). When no
-    // value is present we default to SSO mode (the seamless production
-    // path); we never auto-flip to "manual" since that's the dev-only
-    // escape hatch. Persisted AAD app config is read separately so it
-    // survives across sessions even after the embedConfig is reset.
+    // value is present we default to secure quick preview so authors can
+    // paste the portal iframe/link first. We never auto-flip to "manual"
+    // unless an access token is present since that's the dev-only escape
+    // hatch. Persisted AAD app config is read separately so it survives
+    // across sessions even after the embedConfig is reset.
     const persistedSso = readPersistedSso();
     const tokenType = (value.tokenType as string) || "";
+    const isSecureEmbed = value.mode === "secure-embed" || value.embedMode === "secure";
+    const embedUrl = (value.embedUrl as string) || (value.url as string) || "";
     const inferredMode: PowerBITokenMode =
-        tokenType === "Aad" ? "sso"
+        isSecureEmbed ? "secure"
+            : tokenType === "Aad" ? "sso"
             : value.accessToken ? "manual"
-            : "sso";
+            : "secure";
     return {
         groupId: (value.groupId as string) || "",
         reportId: (value.id as string) || "",
         datasetId: (value.datasetId as string) || "",
         permissions: (value.permissions as "View" | "Edit") || "View",
         tokenMode: inferredMode,
-        manualEmbedUrl: (value.embedUrl as string) || "",
+        secureEmbedInput: isSecureEmbed ? embedUrl : "",
+        manualEmbedUrl: embedUrl,
         manualAccessToken: (value.accessToken as string) || "",
         aadClientId: persistedSso.aadClientId || "",
         aadTenantId: persistedSso.aadTenantId || "",

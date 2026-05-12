@@ -165,7 +165,9 @@
     display: flex;
     flex-direction: column;
     width: 100%;
+    max-width: 100%;
     height: 100%;
+    min-width: 0;
     min-height: 0;
     background: @gn-bg;
     color: @gn-text;
@@ -948,13 +950,14 @@
 .gn-header-row--bottom {
     min-height: 32px;
     padding-top: 4px;
+    flex-wrap: wrap;
     /* Wave 18 UX — sub-agent UX audit A1/A3: the dashed border-top stacked
      * with the header's own bottom border, producing a visual stripe at
      * the top of the visual. Spacing alone reads cleaner. */
 }
 .gn-header-spacer {
     flex: 1 1 auto;
-    min-width: 8px;
+    min-width: 0;
 }
 // 49.11 — run-state cluster on the right of header row 2. Holds the meta
 // strip (clock + copy + refresh) and the always-on ProgressIndicator capsule
@@ -964,17 +967,25 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    flex-shrink: 0;
+    flex: 1 1 220px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    min-width: 0;
     position: relative;
 }
 .gn-insights-progress-wrap--header {
+    flex: 1 1 180px;
     position: relative;
     min-width: 0;
+    max-width: 100%;
 
     // The collapsed indicator should fit on one line in the header. When
     // expanded (chevron clicked), it grows; let it flow but keep max width.
     .gn-progress {
+        width: 100%;
+        min-width: 0;
         max-width: 320px;
+        box-sizing: border-box;
     }
     // When the user expands the step list, lift it out of the row flow as a
     // dropdown anchored to the chevron so the row 2 height doesn't jump.
@@ -988,7 +999,7 @@
         border-radius: @gn-radius-sm;
         box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
         padding: 8px 10px;
-        min-width: 280px;
+        min-width: min(280px, 100%);
         max-width: 360px;
         z-index: 20;
     }
@@ -1311,9 +1322,10 @@
 .gn-header-tabs {
     display: flex;
     gap: 4px;
-    flex-shrink: 0;
+    flex: 0 1 auto;
+    flex-wrap: wrap;
+    min-width: 0;
     /* Center the tab group horizontally between the left and right zones. */
-    flex: 0 0 auto;
     justify-content: center;
 }
 
@@ -3408,6 +3420,36 @@
     font-size: 11.5px;
     padding: 0 10px;
     min-height: 26px;
+}
+
+.gn-compact .gn-header-row--bottom {
+    align-items: flex-start;
+}
+
+.gn-compact .gn-header-run-state {
+    flex-basis: 100%;
+    justify-content: flex-start;
+}
+
+.gn-compact .gn-insights-meta {
+    justify-content: flex-start;
+}
+
+.gn-compact .gn-insights-progress-wrap--header {
+    flex-basis: 100%;
+    width: 100%;
+
+    .gn-progress {
+        max-width: 100%;
+    }
+
+    .gn-progress--complete .gn-progress-steps,
+    .gn-progress--active .gn-progress-steps {
+        left: 0;
+        right: auto;
+        width: 100%;
+        max-width: 100%;
+    }
 }
 
 .gn-compact .gn-confidence-label {
@@ -7164,7 +7206,10 @@
 
 .gn-insights-pane {
     flex: 1;
+    min-width: 0;
+    max-width: 100%;
     overflow-y: auto;
+    overflow-x: hidden;
     padding: 16px;
 
     /* IDEA-039 scrollbar polish — slim, transparent track + faint thumb so
@@ -7276,6 +7321,8 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+    min-width: 0;
+    max-width: 100%;
 }
 
 /* ── Insights sections (paginated cards with staggered reveal) ── */
@@ -7290,6 +7337,7 @@
     display: grid;
     grid-template-columns: 1fr;
     gap: 10px;
+    min-width: 0;
 }
 
 .gn-insights-section {
@@ -7303,6 +7351,7 @@
     box-shadow: @gn-shadow-xs;
     transition: box-shadow @gn-t-slow @gn-ease;
     position: relative;          /* host the kebab popover's stacking context */
+    min-width: 0;
     z-index: 1;
     &:hover { box-shadow: @gn-shadow-sm; }
     /* Cycle 21 — when this section's kebab popover is open, lift the
@@ -7346,15 +7395,19 @@
     justify-content: space-between;
     gap: 8px;
     margin: 0 0 6px;
+    min-width: 0;
     .gn-insights-section-title {
         margin: 0;
         flex: 1 1 auto;
+        min-width: 0;
     }
 }
 .gn-insights-section-actions {
     display: inline-flex;
     align-items: center;
     gap: 4px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     flex-shrink: 0;
 }
 /* Per-section kebab popover. Right-aligned beneath the ⋮ button. Reuses
@@ -7423,6 +7476,94 @@
             color: currentColor;
         }
     }
+}
+
+.gn-headline-card {
+    position: relative;
+    margin: 2px 0 4px;
+    padding: 12px 14px 12px 16px;
+    border: 1px solid @gn-border-subtle;
+    border-radius: @gn-radius-sm;
+    background: @gn-surface-raised;
+    box-shadow: @gn-shadow-xs;
+
+    &::before {
+        content: "";
+        position: absolute;
+        top: 10px;
+        bottom: 10px;
+        left: 0;
+        width: 3px;
+        border-radius: 3px;
+        background: var(--gn-accent, #1a6fd4);
+    }
+}
+
+.gn-headline-card-text {
+    color: @gn-text;
+    font-size: 15px;
+    line-height: 1.48;
+    font-weight: 500;
+}
+
+.gn-insight-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 10px;
+    margin: 4px 0 2px;
+}
+
+.gn-insight-card {
+    position: relative;
+    min-width: 0;
+    padding: 11px 13px 12px 15px;
+    border: 1px solid @gn-border-subtle;
+    border-radius: @gn-radius-sm;
+    background: @gn-surface-raised;
+    box-shadow: @gn-shadow-xs;
+
+    &::before {
+        content: "";
+        position: absolute;
+        top: 9px;
+        bottom: 9px;
+        left: 0;
+        width: 3px;
+        border-radius: 3px;
+        background: @gn-text-muted;
+        opacity: 0.55;
+    }
+}
+
+.gn-insights-section[data-section="RISKS"] .gn-insight-card::before {
+    background: #b22020;
+    opacity: 0.9;
+}
+
+.gn-insights-section[data-section="RECOMMENDED ACTIONS"] .gn-insight-card::before,
+.gn-insights-section[data-section="ACTIONS"] .gn-insight-card::before,
+.gn-insights-section[data-section="NEXT STEPS"] .gn-insight-card::before {
+    background: #1a6fd4;
+    opacity: 0.9;
+}
+
+.gn-insights-section[data-section="OPPORTUNITIES"] .gn-insight-card::before {
+    background: #1a8c3f;
+    opacity: 0.9;
+}
+
+.gn-insight-card-label {
+    margin-bottom: 5px;
+    color: @gn-text;
+    font-size: 12px;
+    line-height: 1.25;
+    font-weight: 700;
+}
+
+.gn-insight-card-body {
+    color: @gn-text-muted;
+    font-size: 13px;
+    line-height: 1.45;
 }
 
 /* Wide-table sections (CATEGORY MIX, REGIONAL BREAKDOWN, SCORECARD) —
@@ -8165,7 +8306,10 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    flex-shrink: 0;
+    flex: 0 1 auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    min-width: 0;
 }
 .gn-insights-timestamp {
     font-size: 11px;
@@ -8948,6 +9092,9 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     padding: 10px 12px 8px;
     border: 1px solid @gn-border-subtle;
     border-radius: @gn-radius-sm;
@@ -8971,6 +9118,7 @@
     display: flex;
     align-items: center;
     gap: 10px;
+    min-width: 0;
 }
 
 .gn-progress-header-text {
@@ -9002,6 +9150,8 @@
 .gn-progress-meta {
     display: inline-flex;
     align-items: center;
+    flex-wrap: wrap;
+    min-width: 0;
     gap: 6px;
     font-size: 11.5px;
     color: @gn-text-muted;
@@ -9057,6 +9207,7 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    min-width: 0;
     padding: 3px 8px 3px 6px;
     border: 1px solid @gn-border;
     border-radius: @gn-radius-pill;
@@ -9085,6 +9236,7 @@
 .gn-progress-chip-name {
     font-weight: 600;
     max-width: 180px;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -9512,6 +9664,27 @@
 @media (max-width: 480px) {
     .gn-shell {
         .gn-header-row--top { flex-wrap: wrap; gap: 6px; }
+        .gn-header-row--bottom { align-items: flex-start; }
+        .gn-header-run-state {
+            flex-basis: 100%;
+            justify-content: flex-start;
+        }
+        .gn-insights-meta {
+            justify-content: flex-start;
+        }
+        .gn-insights-progress-wrap--header {
+            flex-basis: 100%;
+            .gn-progress {
+                max-width: 100%;
+            }
+            .gn-progress--complete .gn-progress-steps,
+            .gn-progress--active .gn-progress-steps {
+                left: 0;
+                right: auto;
+                width: 100%;
+                max-width: 100%;
+            }
+        }
         .gn-tab-strip { font-size: 12px; }
         .gn-space-compare-toggle { display: none; } /* compare needs width */
     }

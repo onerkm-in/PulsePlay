@@ -1,6 +1,6 @@
 # PulsePlay
 
-**Multi-BI AI playground.** A React app that hosts ANY BI tool (Power BI, Tableau, Qlik, Looker, generic iframe, or any URL) as an embedded guest, with an AI assistant sidebar that reasons about whatever you're currently looking at.
+**Multi-BI AI playground.** A React app where BI and AI components come to play together. Plug in a BI surface, plug in an AI connector, pick or infer a vertical pack, and explore the combination in one web-native host.
 
 ## What it is
 
@@ -10,6 +10,8 @@ PulsePlay is a 2-axis abstraction:
 - **X: AI connector axis** — what the AI brain IS (Databricks Genie / Azure OpenAI / AWS Bedrock / Mosaic AI Foundation Model / Supervisor Agent). Pick one in the sidebar. Connector-agnostic via the proxy's profile system.
 
 Any combination of (vendor, connector) is valid. Switch either independently.
+
+The first production-grade build target is **Databricks Genie + Power BI** because that path inherits the most battle-tested work from the Power BI custom visual project. It must also be novice-author friendly: with org prerequisites in place, the setup goal is roughly 10 minutes through a guided flow where AI/probe output drafts the setup and the author confirms. It is the first product slice, not a cage: the same contracts remain open for Tableau, Qlik, Looker, OpenAI, Bedrock, Foundation Model profiles, and future connectors, but those come after the Genie + Power BI cell is robust. The working rule is documented in [docs/SUPERIOR_BUILD_LEVERAGE_PLAN.md](docs/SUPERIOR_BUILD_LEVERAGE_PLAN.md): best proven behavior wins, but it must enter through PulsePlay's modular contracts.
 
 ## Why it exists
 
@@ -38,16 +40,16 @@ npm run dev
 Configure the proxy by copying `proxy/config.example.json` → `proxy/config.json` and filling in your Databricks workspace + token (or Azure OpenAI key, or Bedrock creds — see [docs/PROXY_REFERENCE.md](docs/PROXY_REFERENCE.md) for every supported backend and the OAuth M2M setup).
 
 Once both are running, the playground will:
-- Show a `VendorPicker` (Y-axis) and `ConnectorPicker` (X-axis) on the left
-- Let you paste any embed URL into `EmbedConfigForm`
+- Start in Pulse mode with a BI source setup panel and the ported Pulse AI experience
+- Let you configure Power BI through secure embed quick-preview, SSO, backend-issued embed token, or manual paste
 - Render the BI tool in the canvas
-- Accept questions in the `AISidebar` that get routed to the active connector
+- Route AI questions through the configured proxy profile
 
 ## Status
 
-**v0.1.0 — scaffold complete.** Proxy + databricks-agents + cross-cutting docs inherited from DwD_AI_Assistant_for_PBI cycles 1-47. Playground React shell + 5 vendor adapter stubs (PowerBI, Tableau, Qlik, Looker, generic-iframe — all currently iframe-based) + the 2-axis pickers + the AI sidebar shell. Vendor SDK wiring is the next cycle.
+**First production target in flight — Genie + Power BI.** Proxy + databricks-agents + cross-cutting docs inherited from DwD_AI_Assistant_for_PBI cycles 1-47. The ported Pulse AI experience now runs inside the playground, Power BI has a real `powerbi-client` adapter, and Tableau/Qlik/Looker remain modular iframe stubs until the first cell passes the production gate.
 
-Proxy tests: 342/342 inherited. Playground tests: not yet written (Vitest configured).
+Current local validation: proxy tests 418/418, playground tests 161/161, playground production build passing.
 
 ## Repository layout
 
@@ -73,6 +75,8 @@ PulsePlay/
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 2-axis design, BIAdapter contract, proxy backbone, 8 backend paths |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Sequenced plan v0.1 -> v1.2 |
 | [docs/AGENDA.md](docs/AGENDA.md) | Open-work tracker, near-term + medium-term + blockers |
+| [docs/SUPERIOR_BUILD_LEVERAGE_PLAN.md](docs/SUPERIOR_BUILD_LEVERAGE_PLAN.md) | How we harvest the mature Power BI visual without reintroducing Power BI-only coupling |
+| [docs/TEN_MINUTE_AUTHOR_SETUP.md](docs/TEN_MINUTE_AUTHOR_SETUP.md) | Novice-author setup target for the production Genie + Power BI cell |
 | [docs/SECURITY.md](docs/SECURITY.md) | Internal-scoped security guardrails |
 | [docs/PROXY_REFERENCE.md](docs/PROXY_REFERENCE.md) | Proxy API surface, scopes, OAuth M2M setup |
 | [docs/QUALITY.md](docs/QUALITY.md) | What we measure, what we don't, what's roadmap |

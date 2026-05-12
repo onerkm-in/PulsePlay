@@ -62,6 +62,17 @@ export interface GenieConfig {
     sqlRlsHintEnabled?: boolean;
 }
 
+const PROXY_HEALTH_CACHE_TTL_MS = 15_000;
+const proxyHealthCache = new Map<string, {
+    expiresAt: number;
+    result?: ProxyHealthInfo;
+    inFlight?: Promise<ProxyHealthInfo>;
+}>();
+
+export function __clearProxyHealthCacheForTests(): void {
+    proxyHealthCache.clear();
+}
+
 export interface AssistantAction {
     id: string;
     label: string;
@@ -1299,6 +1310,40 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
         if (!base) {
             return { ok: false, mode: "proxy", error: "Proxy URL is not configured." };
         }
+        const cached = proxyHealthCache.get(base);
+        if (cached?.result && cached.expiresAt > Date.now()) {
+            return cached.result;
+        }
+        if (cached?.inFlight) {
+            return cached.inFlight;
+        }
+        const inFlight = this.fetchProxyHealth(base);
+        proxyHealthCache.set(base, {
+            expiresAt: Date.now() + PROXY_HEALTH_CACHE_TTL_MS,
+            inFlight,
+        });
+        try {
+            const result = await inFlight;
+            proxyHealthCache.set(base, {
+                expiresAt: Date.now() + PROXY_HEALTH_CACHE_TTL_MS,
+                result,
+            });
+            return result;
+        } catch (err: any) {
+            const result: ProxyHealthInfo = {
+                ok: false,
+                mode: "proxy",
+                error: err?.message ?? String(err)
+            };
+            proxyHealthCache.set(base, {
+                expiresAt: Date.now() + PROXY_HEALTH_CACHE_TTL_MS,
+                result,
+            });
+            return result;
+        }
+    }
+
+    private async fetchProxyHealth(base: string): Promise<ProxyHealthInfo> {
         try {
             // Use a fresh XHR (not this.request) so the probe is cheap and
             // doesn't pull in supervisor/assistant base-URL prefixing.
@@ -1333,11 +1378,7 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
                 raw: data
             };
         } catch (err: any) {
-            return {
-                ok: false,
-                mode: "proxy",
-                error: err?.message ?? String(err)
-            };
+            throw err;
         }
     }
 

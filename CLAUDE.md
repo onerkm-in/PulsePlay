@@ -150,17 +150,17 @@ Earlier docs (`MULTI_BI_ARCHITECTURE.md`, `README.md`) said the proxy supports s
 Default sandbox in `GenericIframeAdapter`: `allow-scripts allow-same-origin allow-forms allow-popups`. Each vendor adapter SHOULD narrow this to the minimum the vendor needs. Open-ended sandbox defeats the purpose.
 
 **Embed tokens are server-side only**
-Power BI embed tokens, Tableau trusted tickets, Qlik OAuth tokens, Looker signed URLs — ALL get issued by the proxy (vendor-specific routes to be added). Never put credentials in the browser bundle. Never embed an embed-token issuance secret in the React app.
+Power BI embed tokens, Tableau trusted tickets, Qlik OAuth tokens, Looker signed URLs — ALL get issued by the proxy. Power BI is implemented through `/assistant/embed-token/powerbi`; other vendors should mirror that server-side pattern. Never put credentials in the browser bundle. Never embed an embed-token issuance secret in the React app.
 
 ## What's NOT in this project (intentionally)
 
-- No PBI custom visual code (`genieChatVisual/` from DwD did NOT come over — different deployment target)
+- No PBI custom visual package (`pbiviz`, `capabilities.json`, or Power BI deployment target). The reusable Pulse source was ported under `playground/src/pulse`.
 - No `pbiviz` build pipeline (Vite is the bundler here)
 - No Power BI Desktop sandbox concerns (we run in a real browser)
 - No `capabilities.json` schema (no PBI custom visual to declare to Power BI)
 
 ## Status
 
-PulsePlay is at v0.1.0 — scaffold complete, no real vendor SDKs wired yet, no tests written for the playground (proxy tests at 342/342 still apply since proxy was copied verbatim).
+PulsePlay is past the original scaffold. Power BI has a real `powerbi-client` adapter plus secure embed quick-preview fallback and a developer tools strip, Pulse mode is hosted in the playground, and the latest local validation is 161/161 playground+adapter tests, 418/418 proxy tests, and a passing playground build. Tableau/Qlik/Looker still use iframe fallbacks until their SDK adapters graduate.
 
 When you come back, see [docs/AGENDA.md](docs/AGENDA.md) for the open-work tracker and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) "Where to start when you come back" for the recommended first cycle.

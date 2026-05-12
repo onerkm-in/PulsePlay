@@ -15,25 +15,36 @@ The scaffold this commit established:
 - Proxy + databricks-agents + scripts inherited from Pulse cycles 1-47
 - Doc consolidation 26 -> ~10 active (this cycle)
 
-## v0.2.0 — One vendor real
+## v0.2.0 — Production-grade Genie + Power BI
 
-Pick the vendor with the lowest activation cost (probably **Power BI** since the org already has the workspace + token):
+Power BI is now the first real SDK adapter. The remaining v0.2 work is to make Databricks Genie + Power BI a production-grade product slice: novice-friendly setup, reliable context, secure auth, clear diagnostics, live smoke proof, and honest limitations. Other BI/AI options stay modular, but they do not get equal investment until this cell passes the production gate.
 
-- [ ] Wire real `powerbi-client` SDK in `bi-adapters/powerbi/index.ts`
-- [ ] Map `report.on('pageChanged' / 'filtersApplied' / 'dataSelected')` to canonical `BIEvent` types
-- [ ] Implement `send()` for `navigate-to-page` + `apply-filter` + `refresh` + `fullscreen` + `export`
-- [ ] Add `/api/powerbi/embed-token` endpoint to proxy (Azure AD service principal flow)
-- [ ] Update `EmbedConfigForm` with PBI-specific fields (workspace ID + report ID + dataset ID + RLS roles)
+- [x] Wire real `powerbi-client` SDK in `bi-adapters/powerbi/index.ts`
+- [x] Map `report.on('pageChanged' / 'filtersApplied' / 'dataSelected')` to canonical `BIEvent` types
+- [x] Implement `send()` for `navigate-to-page` + `apply-filter` + `refresh` + `fullscreen`; server-side export remains later
+- [x] Add Power BI embed-token endpoint to proxy (`/assistant/embed-token/powerbi`)
+- [x] Update `EmbedConfigForm` with Power BI-specific SSO / service-principal / manual-token paths
+- [x] Add secure embed quick-preview mode for the Power BI portal link/iframe path
+- [x] Add Power BI Developer Tools panel for adapter snapshot, events, refresh/fullscreen, and filter test actions
+- [x] Fix proxy health-probe storm and protect AI quota from cheap metadata reads
+- [ ] 10-minute author setup flow — preflight, Power BI connect, Genie probe, AI-drafted setup, author review, live smoke
+- [ ] Unified first-run setup: Genie profile + Power BI report + pack in one guided flow
+- [ ] AI setup proposal from Genie/probe metadata + Power BI context: pack, starter questions, KPI rules, field mappings
+- [ ] Health strip: Power BI report embedded, Genie reachable, context bridge active
+- [ ] Context refresh on load/page change via `getFilters()` / `getPages()`
+- [ ] Field-target mapping for `{ table, column }` filters
 - [ ] First end-to-end demo: load a PBI report, ask the AI sidebar a question that references "the page I'm currently on"
-- [ ] First playground tests — BIAdapter conformance suite, mounted-then-destroyed lifecycle, registry lazy-load
+- [x] First playground tests — BIAdapter conformance suite, adapter tests, PulseShell/AISidebar/PII tests
+- [ ] Port highest-value pure tests from the old Power BI visual
 - [ ] Smoke test adapted to PulsePlay's profiles (the inherited `scripts/smoke-full.ps1` is Pulse-shaped)
+- [ ] Production readiness gate: security posture reviewed, live smoke green, support runbook written, known limitations documented
 
 ## v0.3.0 — AI sidebar at parity with Pulse
 
 The proven Insights pipeline patterns from Pulse cycles 1-47, ported to PulsePlay's playground context:
 
 - [ ] Conversation reuse (single Genie conversation per session, not per question)
-- [ ] Multi-stage pipeline (HEADLINE / KPI SNAPSHOT / TRENDS / RISKS / RECOMMENDED ACTIONS)
+- [x] Fast Insights briefing (HEADLINE / KPI SNAPSHOT / TRENDS / RISKS / RECOMMENDED ACTIONS); optional deep multi-stage mode remains future work
 - [ ] Validator framework — wire `proxy/lib/insightsValidator.js` into the sidebar
 - [ ] Per-section retry with stronger directives on validation failure
 - [ ] Two-tier cache (memory + IndexedDB — the playground has IndexedDB available, unlike the PBI sandbox)
@@ -50,7 +61,7 @@ Now that we're in a real browser:
 
 ## v0.5.0 — Multi-vendor "single pane of glass"
 
-The headline feature only PulsePlay can deliver:
+The headline expansion once the first production cell is solid:
 
 - [ ] Allow loading TWO vendors side-by-side in the canvas (split layout)
 - [ ] AI sidebar's prompt context includes recent events from BOTH active panels

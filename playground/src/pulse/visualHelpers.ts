@@ -743,6 +743,8 @@ export interface InsightsStagePrompts {
     titles: string[];
 }
 
+export const FAST_INSIGHTS_STAGE_TITLE = "AI Insights briefing";
+
 export function buildInsightsStagePrompts(
     context: ContextSummary,
     _roleMode: UserMode,
@@ -838,6 +840,117 @@ export function buildInsightsStagePrompts(
     return {
         stages: [sHeadlineKpi, sTrends, sDrivers, sRisks, sActions],
         titles: ["HEADLINE + KPI SNAPSHOT", "TRENDS", "DRIVERS", "RISKS", "RECOMMENDED ACTIONS"]
+    };
+}
+
+export function buildFastHybridInsightsStagePrompts(
+    context: ContextSummary,
+    domain: string,
+    customSections: HybridCustomSection[],
+    _roleMode: UserMode,
+    kbFlags?: { enabled: boolean; charts: boolean; stats: boolean; reporting: boolean },
+    metricRules?: string,
+    authorGuidance?: string,
+    universalStages?: { headline?: boolean; trends?: boolean; risks?: boolean; actions?: boolean },
+    universalOverrides?: { headline?: string; trends?: string; risks?: string; actions?: string }
+): InsightsStagePrompts {
+    metricRules = redactAuthorPrompt(metricRules);
+    authorGuidance = redactAuthorPrompt(authorGuidance);
+    const aiSections = customSections
+        .filter(s => s.kind !== "sql")
+        .map(s => ({
+            name: redactAuthorPrompt(s.name).trim().toUpperCase(),
+            instruction: redactAuthorPrompt(s.instruction).trim(),
+        }))
+        .filter(s => s.name && s.instruction);
+
+    const dims = Object.keys(context.dimensions).length > 0 ? Object.keys(context.dimensions).join(", ") : "available dimensions";
+    const meas = Object.keys(context.measures).length > 0 ? Object.keys(context.measures).join(", ") : "available measures";
+    const domainLabel = domain.trim() || "this dataset";
+    const ownerLabel = domain.trim() ? `${domain.trim()} owner` : "data owner";
+    const showHeadline = universalStages?.headline !== false;
+    const showTrends = universalStages?.trends !== false;
+    const showRisks = universalStages?.risks !== false;
+    const showActions = universalStages?.actions !== false;
+    const ovHeadline = (universalOverrides?.headline || "").trim();
+    const ovTrends = (universalOverrides?.trends || "").trim();
+    const ovRisks = (universalOverrides?.risks || "").trim();
+    const ovActions = (universalOverrides?.actions || "").trim();
+    const compactKb = kbFlags?.enabled === false
+        ? ""
+        : "Use practical BI/statistical judgement: compare the latest complete period with the prior comparable period, avoid unsupported causality, and surface only decision-useful findings.";
+    const metricDirection = (metricRules ?? "").trim()
+        ? `Metric direction rules: ${metricRules!.trim()}`
+        : "Default metric direction: higher is better unless the metric name implies an inverted-good measure such as rate of returns, defects, churn, cost, or delay.";
+    const authorPrecedence = (authorGuidance ?? "").trim()
+        ? `Author guidance takes priority over the defaults when they conflict:\n${authorGuidance!.trim()}`
+        : "";
+
+    const sections: string[] = [];
+    if (showHeadline) {
+        sections.push([
+            "## HEADLINE",
+            ovHeadline || `One declarative sentence, max 25 words, naming the most important ${domainLabel} number, change vs prior period, and on-track / watch / at-risk signal. Bold the headline number.`,
+            "",
+            "## KPI SNAPSHOT",
+            `Markdown pipe table: KPI | Current | Prior | Δ % / Δ pp | Status. Cover the bound measures (${meas}). Use ▲/▼ and 🟢/🟡/🔴 where useful.`,
+        ].join("\n"));
+    }
+    if (showTrends) {
+        sections.push([
+            "## TRENDS",
+            ovTrends || `3 to 5 compact insight cards as markdown bullets. Use "**Metric or segment:** direction, magnitude, and likely driver" so the UI can render cards instead of a plain bullet list.`,
+        ].join("\n"));
+    }
+    for (const s of aiSections) {
+        sections.push([
+            `## ${s.name}`,
+            s.instruction,
+        ].join("\n"));
+    }
+    if (showRisks) {
+        sections.push([
+            "## RISKS",
+            ovRisks || `Top 3 risks or warning signs in the current ${domainLabel} data. One markdown bullet each, concise, with numeric evidence. Use "**Risk name:** evidence and implication" so the UI can render risk cards instead of a plain bullet list.`,
+        ].join("\n"));
+    }
+    if (showActions) {
+        sections.push([
+            "## RECOMMENDED ACTIONS",
+            ovActions || `Exactly 3 numbered action cards a ${ownerLabel} can take this week. Start each item with an imperative bold label such as "**Audit returns:**", name a specific target, and include expected metric impact.`,
+        ].join("\n"));
+    }
+
+    const sectionList = sections
+        .map(block => (block.match(/^## .+$/m)?.[0] || "").replace(/^## /, "").trim())
+        .filter(Boolean)
+        .join(" -> ");
+
+    return {
+        stages: [[
+            `You are an analytics assistant for a ${domainLabel} report.`,
+            `Current scope binds these measures: ${meas}.`,
+            `Current scope includes these dimensions: ${dims}.`,
+            compactKb,
+            metricDirection,
+            authorPrecedence,
+            "",
+            "FAST BRIEFING MODE: make one efficient pass over the data and return the whole briefing in one response.",
+            `Output exactly these sections, in this order: ${sectionList}.`,
+            "Do not ask clarifying questions. Do not include preamble, alternatives, or a closing summary.",
+            "Use the same current/prior period basis across every section; prefer year-over-year when the data spans multiple years.",
+            "Use exact field/category names from the data. Bold numeric values, not category labels.",
+            "Keep the answer compact enough to render inside a BI side pane.",
+            "POLISH CONTRACT: write like a finished executive card. Use crisp bullets, no filler phrases, no raw audit/debug language, no duplicated explanations.",
+            "Narrative bullets must not contain 🟢/🟡/🔴 status emojis or raw threshold parentheticals such as `(>3%, 🔴 >7%)`. Put status icons only in KPI table cells. If a threshold matters, write it in words, e.g. `above the 3% caution line`.",
+            "Avoid awkward metric-rule fragments such as `caution threshold (>3 ▼ -7%)`, `red threshold`, or bare comparator formulas in prose.",
+            "",
+            "SECTION CONTRACTS:",
+            sections.join("\n\n"),
+            "",
+            "Now emit only the final markdown sections, starting with the first `##` heading.",
+        ].filter(Boolean).join("\n")],
+        titles: [FAST_INSIGHTS_STAGE_TITLE],
     };
 }
 

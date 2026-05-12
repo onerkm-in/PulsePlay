@@ -151,9 +151,12 @@ export function PulseShell(props: PulseShellProps) {
             className="pp-pulse-shell"
             style={{
                 width: "100%",
+                maxWidth: "100%",
                 height: "100%",
+                minWidth: 0,
                 minHeight: 600,
-                overflow: "auto",
+                overflowY: "auto",
+                overflowX: "hidden",
                 position: "relative",
             }}
         />

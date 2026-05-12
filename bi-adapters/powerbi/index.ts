@@ -46,7 +46,12 @@ import { BI_ERR } from "../../playground/src/biPanel/BIAdapter";
 
 /**
  * Shape the host passes to mount(). EmbedConfigForm produces this when
- * the user picks the Power BI vendor. Either:
+ * the user picks the Power BI vendor. Supported modes:
+ *   • Secure embed quick preview: the Power BI portal's reportEmbed URL
+ *     is rendered in a plain iframe. This is fast to configure but does
+ *     not expose the JS SDK command/event surface.
+ *   • SSO mode: MSAL obtains a user AAD token and the SDK embeds with
+ *     tokenType "Aad".
  *   • Backend-issued mode: form posts to /assistant/embed-token/powerbi
  *     and fills accessToken + embedUrl from the response.
  *   • Manual paste mode (dev only): user pastes both values directly.
@@ -57,15 +62,21 @@ import { BI_ERR } from "../../playground/src/biPanel/BIAdapter";
  */
 export interface PowerBIEmbedConfig extends BIEmbedConfig {
     /** Power BI report ID (GUID). */
-    id: string;
+    id?: string;
     /** Workspace (group) ID. Optional but recommended for non-personal workspaces. */
     groupId?: string;
     /** Dataset ID. Optional but recommended when the report is connected to a non-default dataset. */
     datasetId?: string;
-    /** Embed URL — comes from the GenerateToken response or built manually. */
-    embedUrl: string;
-    /** The embed token (short-lived JWT). NEVER a Power BI access token. */
-    accessToken: string;
+    /** Embed URL - from the portal, metadata API, GenerateToken response, or manual paste. */
+    embedUrl?: string;
+    /** The embed token (short-lived JWT) or AAD user token. Not used by secure iframe mode. */
+    accessToken?: string;
+    /** Optional duplicate URL for iframe-style hosts. */
+    url?: string;
+    /** Explicitly select the portal secure-embed iframe path. */
+    embedMode?: "secure" | "sdk";
+    /** Legacy/host-friendly marker for the quick-preview path. */
+    mode?: "secure-embed";
     /** What type of artifact is being embedded. v0 only supports "report". */
     type?: "report";
     /** Token type — almost always "Embed" for embed-tokens, but "Aad" is
@@ -73,6 +84,9 @@ export interface PowerBIEmbedConfig extends BIEmbedConfig {
     tokenType?: "Embed" | "Aad";
     /** "View" (default) or "Edit". */
     permissions?: "View" | "Edit";
+    /** Secure iframe title and sandbox override. */
+    title?: string;
+    sandbox?: string;
 }
 
 /** Resolve the Power BI factory once. The SDK exposes a singleton
@@ -107,6 +121,48 @@ const PBI_EVENT_MAP: Record<BIEventType, string[]> = {
     error: ["error"],
 };
 
+const FULL_SDK_CAPABILITIES: BICapabilities = {
+    canNavigatePages: true,
+    canApplyFilters: true,
+    canExport: false,           // v0 - server-side Export-to-File comes later
+    canRefresh: true,
+    canFullscreen: true,
+    requiresContainerEl: true,
+};
+
+const SECURE_IFRAME_CAPABILITIES: BICapabilities = {
+    canNavigatePages: false,
+    canApplyFilters: false,
+    canExport: false,
+    canRefresh: true,
+    canFullscreen: true,
+    requiresContainerEl: true,
+};
+
+const DEFAULT_SECURE_IFRAME_SANDBOX = [
+    "allow-scripts",
+    "allow-same-origin",
+    "allow-forms",
+    "allow-popups",
+    "allow-popups-to-escape-sandbox",
+].join(" ");
+
+type PowerBIMountMode = "unmounted" | "sdk" | "secure-iframe";
+
+export interface PowerBIDeveloperSnapshot {
+    vendor: "powerbi";
+    displayName: "Power BI";
+    mountMode: PowerBIMountMode;
+    permissions: "View" | "Edit";
+    capabilities: BICapabilities;
+    iframe?: { src: string };
+    pages?: Array<{ name?: string; displayName?: string; isActive?: boolean }>;
+    activePage?: { name?: string; displayName?: string };
+    filters?: unknown[];
+    notes: string[];
+    errors: string[];
+}
+
 /** Vendor-neutral shape of the event payload powerbi-client passes to
  *  `report.on(name, handler)`. The SDK types this as `IEvent<TDetail>`
  *  in service.d.ts but doesn't re-export it from `powerbi-client`'s
@@ -130,20 +186,17 @@ export class PowerBIAdapter implements BIAdapter {
     readonly displayName = "Power BI";
 
     private report: powerbi.Report | null = null;
+    private iframe: HTMLIFrameElement | null = null;
     private containerEl: HTMLElement | null = null;
     private listeners = new Map<BIEventType, Set<(e: BIEvent) => void>>();
     private subs: SubscriptionRecord[] = [];
     private permissionsLevel: "View" | "Edit" = "View";
+    private mountMode: PowerBIMountMode = "unmounted";
 
     capabilities(): BICapabilities {
-        return {
-            canNavigatePages: true,
-            canApplyFilters: true,
-            canExport: false,           // v0 — server-side Export-to-File comes later
-            canRefresh: true,
-            canFullscreen: true,
-            requiresContainerEl: true,
-        };
+        return this.mountMode === "secure-iframe"
+            ? { ...SECURE_IFRAME_CAPABILITIES }
+            : { ...FULL_SDK_CAPABILITIES };
     }
 
     async mount(containerEl: HTMLElement | null, embedConfig: BIEmbedConfig): Promise<void> {
@@ -151,6 +204,11 @@ export class PowerBIAdapter implements BIAdapter {
             throw new Error(`${BI_ERR.NOT_MOUNTED}: PowerBIAdapter requires a container element`);
         }
         const cfg = embedConfig as PowerBIEmbedConfig;
+        if (isSecureEmbedConfig(cfg)) {
+            this.mountSecureIframe(containerEl, cfg);
+            return;
+        }
+
         if (!cfg.id || !cfg.embedUrl || !cfg.accessToken) {
             throw new Error(
                 `${BI_ERR.EMBED_FAILED}: powerbi adapter requires { id, embedUrl, accessToken }`
@@ -159,6 +217,7 @@ export class PowerBIAdapter implements BIAdapter {
 
         this.containerEl = containerEl;
         this.permissionsLevel = cfg.permissions || "View";
+        this.mountMode = "sdk";
 
         const tokenType = cfg.tokenType === "Aad"
             ? pbiModels.TokenType.Aad
@@ -230,6 +289,9 @@ export class PowerBIAdapter implements BIAdapter {
     }
 
     async send(command: BICommand): Promise<void> {
+        if (this.mountMode === "secure-iframe") {
+            return this.sendSecureIframeCommand(command);
+        }
         if (!this.report) {
             throw new Error(`${BI_ERR.NOT_MOUNTED}: powerbi adapter not mounted`);
         }
@@ -287,6 +349,59 @@ export class PowerBIAdapter implements BIAdapter {
         }
     }
 
+    async getDeveloperSnapshot(): Promise<PowerBIDeveloperSnapshot> {
+        const snapshot: PowerBIDeveloperSnapshot = {
+            vendor: "powerbi",
+            displayName: "Power BI",
+            mountMode: this.mountMode,
+            permissions: this.permissionsLevel,
+            capabilities: this.capabilities(),
+            notes: [],
+            errors: [],
+        };
+
+        if (this.mountMode === "secure-iframe") {
+            snapshot.iframe = { src: this.iframe?.src || "" };
+            snapshot.notes.push("Secure embed preview is iframe-only. Use AAD SSO or service-principal mode for Power BI JavaScript API calls.");
+            return snapshot;
+        }
+
+        if (!this.report) {
+            throw new Error(`${BI_ERR.NOT_MOUNTED}: powerbi adapter not mounted`);
+        }
+
+        const report = this.report as unknown as {
+            getPages?: () => Promise<Array<{ name?: string; displayName?: string; isActive?: boolean }>>;
+            getActivePage?: () => Promise<{ name?: string; displayName?: string }>;
+            getFilters?: () => Promise<unknown[]>;
+        };
+
+        if (typeof report.getPages === "function") {
+            try {
+                snapshot.pages = await report.getPages();
+            } catch (err) {
+                snapshot.errors.push(`getPages failed: ${err instanceof Error ? err.message : String(err)}`);
+            }
+        }
+        if (typeof report.getActivePage === "function") {
+            try {
+                snapshot.activePage = await report.getActivePage();
+            } catch (err) {
+                snapshot.errors.push(`getActivePage failed: ${err instanceof Error ? err.message : String(err)}`);
+            }
+        }
+        if (typeof report.getFilters === "function") {
+            try {
+                snapshot.filters = await report.getFilters();
+            } catch (err) {
+                snapshot.errors.push(`getFilters failed: ${err instanceof Error ? err.message : String(err)}`);
+            }
+        }
+
+        snapshot.notes.push("Snapshot comes from the live powerbi-client report instance.");
+        return snapshot;
+    }
+
     destroy(): void {
         // Remove every PBI-native listener we attached so subsequent
         // mounts don't double-fire.
@@ -298,12 +413,90 @@ export class PowerBIAdapter implements BIAdapter {
         this.subs = [];
         this.listeners.clear();
 
-        // Tear down the iframe + SDK bookkeeping.
-        if (this.containerEl) {
+        // Tear down the SDK iframe (when SDK mode injected it) plus local
+        // secure iframe bookkeeping.
+        if (this.containerEl && this.report) {
             try { getService().reset(this.containerEl); } catch { /* best effort */ }
         }
+        if (this.iframe?.parentElement) {
+            try { this.iframe.parentElement.removeChild(this.iframe); } catch { /* best effort */ }
+        }
+        this.iframe = null;
         this.report = null;
         this.containerEl = null;
+        this.mountMode = "unmounted";
+    }
+
+    private mountSecureIframe(containerEl: HTMLElement, cfg: PowerBIEmbedConfig): void {
+        const src = String(cfg.embedUrl || cfg.url || "").trim();
+        if (!src) {
+            throw new Error(
+                `${BI_ERR.EMBED_FAILED}: powerbi secure embed requires a reportEmbed URL`
+            );
+        }
+        if (!isPowerBIReportEmbedUrl(src)) {
+            throw new Error(
+                `${BI_ERR.EMBED_FAILED}: powerbi secure embed URL must be an app.powerbi.com/reportEmbed URL`
+            );
+        }
+
+        this.containerEl = containerEl;
+        this.permissionsLevel = "View";
+        this.mountMode = "secure-iframe";
+
+        containerEl.textContent = "";
+        const iframe = document.createElement("iframe");
+        iframe.src = src;
+        iframe.title = cfg.title || "Power BI secure embed";
+        iframe.setAttribute("sandbox", cfg.sandbox || DEFAULT_SECURE_IFRAME_SANDBOX);
+        iframe.setAttribute("allow", "fullscreen");
+        iframe.style.width = "100%";
+        iframe.style.height = "100%";
+        iframe.style.minHeight = "420px";
+        iframe.style.border = "0";
+        iframe.addEventListener("load", () => {
+            this.emit({
+                type: "loaded",
+                payload: { embedMode: "secure", url: src },
+            });
+        });
+        containerEl.appendChild(iframe);
+        this.iframe = iframe;
+    }
+
+    private async sendSecureIframeCommand(command: BICommand): Promise<void> {
+        if (!this.iframe) {
+            throw new Error(`${BI_ERR.NOT_MOUNTED}: powerbi secure embed not mounted`);
+        }
+        switch (command.kind) {
+            case "refresh": {
+                const currentSrc = this.iframe.src;
+                this.iframe.src = currentSrc;
+                return;
+            }
+            case "fullscreen": {
+                const target = this.containerEl || this.iframe;
+                if (command.on) {
+                    await target.requestFullscreen?.();
+                } else {
+                    await document.exitFullscreen?.();
+                }
+                return;
+            }
+            case "navigate-to-page":
+            case "apply-filter":
+            case "clear-filter":
+            case "export": {
+                throw new Error(
+                    `${BI_ERR.UNSUPPORTED_COMMAND}: powerbi secure embed is preview-only; use AAD SSO or service-principal mode for SDK commands`
+                );
+            }
+            default: {
+                const _exhaustive: never = command;
+                void _exhaustive;
+                throw new Error(`${BI_ERR.UNSUPPORTED_COMMAND}: unknown command`);
+            }
+        }
     }
 
     private emit(event: BIEvent): void {
@@ -355,6 +548,23 @@ export class PowerBIAdapter implements BIAdapter {
                 return { pbiEventName, raw };
             }
         }
+    }
+}
+
+function isSecureEmbedConfig(cfg: PowerBIEmbedConfig): boolean {
+    if (cfg.embedMode === "secure" || cfg.mode === "secure-embed") return true;
+    const url = String(cfg.embedUrl || cfg.url || "").trim();
+    return !cfg.accessToken && isPowerBIReportEmbedUrl(url);
+}
+
+function isPowerBIReportEmbedUrl(input: string): boolean {
+    try {
+        const parsed = new URL(input);
+        return parsed.protocol === "https:"
+            && parsed.hostname.toLowerCase().endsWith("powerbi.com")
+            && /\/reportEmbed$/i.test(parsed.pathname);
+    } catch {
+        return false;
     }
 }
 
