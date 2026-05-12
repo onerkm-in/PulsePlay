@@ -6,6 +6,9 @@
 
 ## Recently shipped (v0.1.2)
 
+- [x] **Power BI secure embed quick-preview mode** (2026-05-11, working tree) — authors can paste the Power BI portal's website/portal link or iframe; the Power BI adapter mounts it as a preview iframe with honest limited capabilities while SSO/service-principal remain the SDK control paths.
+- [x] **Power BI Developer Tools panel** (2026-05-12, working tree) — collapsible report-side dev strip with live adapter snapshot, capabilities, recent events, refresh/fullscreen, and test apply/clear filter actions.
+- [x] **Proxy health storm guard** (2026-05-12, working tree) — stable dependency key + 15s single-flight `/health` cache; cheap `/assistant/profiles` and `/assistant/capabilities` reads no longer spend the AI rate-limit bucket.
 - [x] **Per-vendor iframe sandbox narrowing** (commit `9f7faef`) — Tableau / Qlik / Looker stubs default to `allow-scripts allow-same-origin` only; `allow-forms` / `allow-popups` must now be explicit per-mount opt-ins. Lock-in tests per vendor.
 - [x] **Cycle I — BIAdapter conformance harness** (commit `190c579`) — `runAdapterConformance()` runs the universal BIAdapter contract against every adapter; already caught a `NOT_MOUNTED` vs `UNSUPPORTED_COMMAND` mis-routing in generic-iframe. Total tests went from 35 → 124.
 - [x] **Developer Tools modal maximize toggle** (commit `f1afc3e`) — 🗖 / 🗗 next to the close ✕ fills the viewport on demand; resets to drawer on close.
@@ -23,9 +26,34 @@
 
 - **Agnostic.** Multi-AI + multi-BI. Genie, Supervisor, OpenAI, Bedrock, Foundation Model, future MCP — all peers. Power BI, Tableau, Qlik (Sense + View), Looker, generic iframe, future custom — all peers. Every architectural decision must preserve this. The Genie-vocabulary leakage in the inherited proxy (per [research/CODEBASE_AUDIT.md](research/CODEBASE_AUDIT.md)) gets cleaned up in cycles below; new code must not reintroduce coupling.
 - **Modular.** Every part. Connectors, packs, BI adapters, knowledge-base content — all swappable.
+- **First-build focus.** The first production-grade build is Databricks Genie + Power BI. Other BI/AI options stay as clean extension slots, but they do not compete for polish until this first cell is robust, tested, demoable, and operable.
+- **10-minute author setup.** A novice author should be able to configure the Genie + Power BI cell in about 10 minutes when platform prerequisites are already provisioned. AI/probe output can draft the setup, but the author confirms every persisted change.
+- **Playground-first.** The product promise is "plug in and play here." PulsePlay should feel like a real playground: choose a BI surface, choose an AI brain, choose or infer a pack, then try the combination immediately. Genie + Power BI is the first playable cell, not a hardwired product boundary.
+- **Best-build-wins.** The Power BI custom visual is a proven asset bank, not a throwaway predecessor. Reuse its learning, tests, prompts, setup UX, smoke scripts, and tripwires wherever they are still superior, but promote them through PulsePlay contracts instead of copying Power BI-only assumptions.
+- **Learning-loop.** The product must keep updating as the AI/BI market changes. Connector probes, capability matrices, conformance tests, smoke scripts, eval suites, and docs refreshes are product features, not chores.
 - **Security-first.** "No flaws" — see [SECURITY.md](SECURITY.md).
 - **Author-final-say.** Inferences and AI suggestions are *suggestions*. The author always confirms.
 - **Cost-saving and quick-win positioning.** PulsePlay is the experience + connector + orchestration layer; we do NOT build LLMs or agents — we connect to the platform team's existing ones.
+
+## Playground doctrine (locked 2026-05-11)
+
+PulsePlay should marry "plugin play" with the literal playground idea: bring a component, plug it in, and play with it safely.
+
+- **Everything has a slot.** BI surfaces plug into `BIAdapter`; AI brains plug into proxy profiles; vertical knowledge plugs into `pulsepacks`; host-specific behavior plugs into thin bridges like `PulseHostStub`.
+- **First copy is the product target.** Databricks Genie + Power BI gets first-class production polish because it is proven and credentialed. The implementation must remain contract-driven so Tableau/Qlik/Looker/OpenAI/Bedrock/Foundation profiles can occupy the same slots later without a rewrite.
+- **Cross-axis work goes through contracts.** If AI wants to navigate, filter, export, annotate, or inspect a BI surface, it emits canonical commands/capabilities. No connector should import a vendor SDK directly.
+- **Discovery beats setup sprawl.** Smart Connect, probes, pack inference, and health strips should help users find a valid combination quickly, while still letting authors override every inference.
+- **The UX should invite experimentation.** The first screen should make the composable model visible: pick BI, pick AI, pick pack, ask, inspect, adjust, try again.
+
+## Superior-build leverage doctrine (locked 2026-05-11)
+
+The old Power BI custom visual may already contain the better answer for many user-facing details. Respect that before inventing a new one.
+
+- **Compare before rewriting.** For setup, context, prompt, SQL, trace, rendering, export, cache, and governance flows, check the sister visual first.
+- **Promote, don't paste.** Bring mature behavior into PulsePlay through `BIAdapter`, proxy profiles, `pulsepacks`, canonical context, canonical commands, and diagnostics contracts.
+- **Tests are part of the asset.** A feature is not fully leveraged until the valuable old pure tests or equivalent new tests cover the browser-host version.
+- **Demo proof matters.** The PBIP demo, smoke scripts, and live-test prompts are reference fixtures for the first playable cell.
+- **No static moat.** The market will move; PulsePlay's edge is the ability to re-probe connectors, re-run evals, upgrade adapters, and keep the playground current.
 
 ## Beast-mode list (foundation-laying cycle, in flight)
 
@@ -37,18 +65,53 @@ The 7-item cycle that this docs consolidation is part of. Tracked here for visib
 4. **Embed-token issuance route** — `/api/powerbi/embed-token` in proxy, Azure AD service principal flow.
 5. **First playground tests** — BIAdapter conformance suite, BIPanel lifecycle, registry lazy-load.
 6. **Naming-leak sweep** — package name, header names, `errorStatusFromDatabricks`, supervisor README, `.dwd-session.state.json` rename. Tracked but deferred (low risk).
-7. **AI sidebar at parity with Pulse** (v0.3) — multi-stage pipeline, validator wired, two-tier cache.
+7. **AI sidebar at parity with Pulse** (v0.3) — fast briefing default, validator wired, two-tier cache, optional deep multi-stage path.
 
 ## Near-term (next 1-3 cycles)
 
+### Superior-build leverage
+
+Use [SUPERIOR_BUILD_LEVERAGE_PLAN.md](SUPERIOR_BUILD_LEVERAGE_PLAN.md) as the working source for harvesting the old Power BI visual without reintroducing Power BI-only coupling.
+
+- [x] Scan old handover, project review, master guide, test inventory, and source parity.
+- [x] Capture leverage plan and migration gate.
+- [ ] Port the highest-value old pure tests: context builder, prompt redaction, setup validation, SQL sections, insight validation, rendering edge cases, cache.
+- [ ] Convert old Setup learning into the unified Genie + Power BI first-run flow.
+- [ ] Promote old AI Insights orchestration patterns: single conversation per run, worker pool, SQL trace, SQL provenance.
+- [ ] Adapt old PBIP demo and smoke scripts into PulsePlay live smoke fixtures.
+- [ ] Start fixed-question eval suite from old live-test prompts plus `pulsepacks` sample questions.
+
+### First playable cell — Databricks Genie + Power BI
+
+This is the first production target: make one combination feel seamless, supportable, secure, test-backed, and demo-ready while preserving every modular contract.
+
+- [x] Power BI is the default BI surface in the browser host.
+- [x] Power BI secure embed quick-preview path is available for novice first render.
+- [x] Power BI Developer Tools panel exposes the live adapter surface for API proving, similar to the Microsoft embedded analytics playground.
+- [x] Pulse mode exposes BI source setup instead of hiding it behind v0 mode.
+- [x] `BIPanel` exposes the live BI adapter to the host shell.
+- [x] Pulse `applyJsonFilter` routes into the active BI adapter through canonical `BICommand` values.
+- [x] First-copy research captured in [GENIE_POWERBI_FIRST_COPY_RESEARCH.md](GENIE_POWERBI_FIRST_COPY_RESEARCH.md).
+- [ ] 10-minute author setup path: preflight, Power BI connect, Genie probe, AI-drafted setup, author review, live smoke. See [TEN_MINUTE_AUTHOR_SETUP.md](TEN_MINUTE_AUTHOR_SETUP.md).
+- [ ] Unified first-run setup: configure Genie profile + Power BI report + pack in one guided flow.
+- [ ] AI setup proposal: use Genie/probe metadata plus Power BI context to suggest pack, starter questions, KPI rules, and field mappings in editable JSON-backed state.
+- [ ] Power BI + Genie health strip: report embedded, Genie reachable, context bridge active.
+- [ ] Power BI context refresh on load/page change via `getFilters()` / `getPages()`, not only future events.
+- [ ] Power BI field-target mapping for `{ table, column }` filters; column-only stays demo fallback.
+- [ ] Live credentialed smoke: load org Power BI report, ask Genie a page/filter-aware question, apply a safe filter back to the report.
+- [ ] Production readiness checklist: auth posture, CORS/CSP, token handling, audit trail, rate limits, error diagnostics, rollback/fallback, and support runbook.
+- [ ] Release acceptance gate: all tests green, live smoke green, known limitations documented, and no unsupported multi-vendor promise in the first-build narrative.
+
 ### BI adapters
 
-- [ ] Power BI adapter wires `powerbi-client` SDK
-- [ ] Power BI: `report.on('pageChanged' | 'filtersApplied' | 'dataSelected')` -> canonical `BIEvent`
-- [ ] Power BI: `send()` for `navigate-to-page`, `apply-filter`, `refresh`, `fullscreen`, `export`
-- [ ] Tableau adapter wires Embedding API v3 (`<tableau-viz>` web component)
-- [ ] Qlik adapter wires `qlik-embed`
-- [ ] Looker adapter wires `@looker/embed-sdk`
+- [x] Power BI adapter wires `powerbi-client` SDK (cycle A)
+- [x] Power BI secure embed link/iframe fallback mounts as preview-only iframe (2026-05-11)
+- [x] Power BI developer snapshot API returns pages, active page, filters, capabilities, and secure-embed limitation notes (2026-05-12)
+- [x] Power BI: `report.on('pageChanged' | 'filtersApplied' | 'dataSelected')` -> canonical `BIEvent` (cycle A)
+- [x] Power BI: `send()` for `navigate-to-page`, `apply-filter`, `refresh`, `fullscreen`; `export` intentionally rejects until server-side export-to-file is wired (cycle A)
+- [ ] Defer Tableau SDK graduation until Genie + Power BI production gate passes.
+- [ ] Defer Qlik SDK graduation until Genie + Power BI production gate passes.
+- [ ] Defer Looker SDK graduation until Genie + Power BI production gate passes.
 - [x] Each adapter narrows its iframe sandbox attribute to vendor-minimum (2026-05-11, commit `9f7faef`)
 - [x] BIAdapter conformance test suite (any adapter must pass) (2026-05-11, cycle I, commit `190c579`)
 
@@ -89,7 +152,7 @@ Spec: [CONNECTOR_PROBE_AND_SMART_CONNECT.md](CONNECTOR_PROBE_AND_SMART_CONNECT.m
 ### AI sidebar
 
 - [ ] Submit -> poll loop (replaces submit-only)
-- [ ] Multi-stage pipeline ported from Pulse (HEADLINE / KPI / TRENDS / RISKS / RECOMMENDED ACTIONS)
+- [x] Fast Insights briefing ported from Pulse section taxonomy (HEADLINE / KPI / TRENDS / RISKS / RECOMMENDED ACTIONS); deep multi-stage mode remains a named future option
 - [ ] Validator wired (`proxy/lib/insightsValidator.js` -> sidebar render path)
 - [ ] Two-tier cache (memory + IndexedDB)
 - [ ] BI event payload sanitization before prompt injection
@@ -97,7 +160,7 @@ Spec: [CONNECTOR_PROBE_AND_SMART_CONNECT.md](CONNECTOR_PROBE_AND_SMART_CONNECT.m
 
 ### Tests / quality
 
-- [x] First playground tests (Vitest already configured; zero tests today) — 124 tests live as of 2026-05-11 across BIAdapter conformance, generic-iframe, Power BI, Tableau / Qlik / Looker stubs, AISidebar, and the CPG/FMCG pack merge
+- [x] First playground tests — 161 tests live as of 2026-05-12 across BIAdapter conformance, generic-iframe, Power BI, Tableau / Qlik / Looker stubs, AISidebar, PulseShell, PII redaction, health-probe caching, fast Insights briefing prompts, AI Insights output polish, card-style Insights rendering, raw-data Excel export helpers, and the CPG/FMCG pack merge
 - [x] BIAdapter conformance harness (any adapter must pass it) (cycle I)
 - [ ] First end-to-end demo: load a PBI report, ask "what page am I on?" — answer correctly
 - [ ] Smoke against a live Databricks workspace through the proxy

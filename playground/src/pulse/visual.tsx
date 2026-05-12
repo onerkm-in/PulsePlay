@@ -87,9 +87,9 @@ import {
     buildFullContext,
     buildGenieRequest,
     buildHomeContextPayload,
+    buildFastHybridInsightsStagePrompts,
     buildInsightsPrompt,
-    buildInsightsStagePrompts,
-    buildHybridInsightsStagePrompts,
+    FAST_INSIGHTS_STAGE_TITLE,
     parseCustomSections,
     getDisabledTrendPillSectionTitles,
     buildLinePoints,
@@ -172,6 +172,7 @@ import {
     loadHtml2Canvas,
     exportSingleSectionAsExcel,
     exportSingleSectionAsPng,
+    exportSectionRawDataAsExcel,
     copySectionAsMarkdown,
 } from "./insightsExporters";
 // Wave 27 cycle 3 — subscription to sql-formatter lazy-load completion so
@@ -244,9 +245,15 @@ interface InsightsRenderOptions {
     lazyExportBlocked?: boolean;
     canShowSql?: boolean;
     stageSqlByTitle?: Map<string, { sqls: string[]; reusedFromTitle?: string | null }>;
+    stageDataByTitle?: Map<string, { queryResult: { columns: string[]; rows: unknown[][] }; reusedFromTitle?: string | null }>;
     openSqlSections?: Set<string>;
     onToggleSectionSql?: (title: string) => void;
     onSectionExport?: (title: string, body: string, kind: "md" | "csv" | "excel" | "png", node: HTMLElement | null) => void;
+    onExportSectionRawData?: (
+        title: string,
+        queryResult: { columns: string[]; rows: unknown[][] },
+        reusedFromTitle?: string | null
+    ) => void;
     spaceId?: string;
     spaceLabel?: string;
     /** Cycle 30 — per-section retry. Called from the validation-failure
@@ -560,6 +567,13 @@ export interface InsightsStageTrace {
      *  from <title>" note so the viewer knows the SQL belongs to an
      *  earlier section, not this one. Null when SQL is original. */
     sqlReusedFromTitle?: string | null;
+    /** Raw rows/columns returned by the Genie query-result endpoint for this
+     *  stage. Used by per-section Excel export; memory-only for the current
+     *  run, not persisted to localStorage. */
+    queryResult?: { columns: string[]; rows: unknown[][] } | null;
+    /** Set when this stage exports raw rows reused from an earlier stage
+     *  because Genie synthesized the answer from conversation memory. */
+    queryResultReusedFromTitle?: string | null;
     /** Length of the markdown response in chars (handy for sanity checks). */
     responseLength: number;
     /** Raw markdown returned by Genie before client-side cleanup/stripping. */
@@ -1272,6 +1286,41 @@ function App(props: AppProps) {
             }
         }
     }, [markLazyExportBlocked]);
+    const handleSectionRawDataExport = useCallback(async (
+        title: string,
+        queryResult: { columns: string[]; rows: unknown[][] },
+        reusedFromTitle?: string | null,
+        ctx?: {
+            spaceId?: string;
+            spaceLabel?: string;
+            sourceLabel?: string;
+            generatedAt?: number;
+        }
+    ) => {
+        setExportError("");
+        try {
+            const ok = await exportSectionRawDataAsExcel(queryResult, {
+                sectionTitle: title || "section",
+                spaceId: ctx?.spaceId,
+                spaceLabel: ctx?.spaceLabel,
+                sourceLabel: ctx?.sourceLabel,
+                generatedAt: ctx?.generatedAt,
+                reusedFromTitle,
+            });
+            if (!ok) setExportError("This section has no raw query-result data to export.");
+            else logSession("INFO", `Section "${title}" raw data exported as Excel.`);
+        } catch (e) {
+            if (e instanceof LazyLoadError) {
+                markLazyExportBlocked();
+                setExportError("This host blocks the Excel export library. Open in the web playground or use the SQL panel to copy the query.");
+                logSession("WARN", `Raw data export lazy-load failed for ${e.module}.`);
+            } else {
+                setExportError("Raw data export failed — see browser console.");
+                logSession("ERROR", `Section "${title}" raw data export failed: ${e instanceof Error ? e.message : String(e)}`);
+                console.warn("[section raw data export]", e);
+            }
+        }
+    }, [markLazyExportBlocked]);
     // Build the stage-title → SQL lookup map from a result's stageTraces.
     // Used by the SectionHeader to gate the Show SQL button + render the
     // inline SQL panel. Stable per-render: callers pass a fresh result so
@@ -1293,6 +1342,22 @@ function App(props: AppProps) {
                     reusedFromTitle: st.sqlReusedFromTitle ?? null,
                 });
             }
+        }
+        return map;
+    };
+    const buildStageDataMap = (stageTraces?: {
+        title?: string;
+        queryResult?: { columns: string[]; rows: unknown[][] } | null;
+        queryResultReusedFromTitle?: string | null;
+    }[]) => {
+        const map = new Map<string, { queryResult: { columns: string[]; rows: unknown[][] }; reusedFromTitle?: string | null }>();
+        if (!stageTraces) return map;
+        for (const st of stageTraces) {
+            if (!st.title || !st.queryResult?.columns?.length) continue;
+            map.set(st.title.toUpperCase(), {
+                queryResult: st.queryResult,
+                reusedFromTitle: st.queryResultReusedFromTitle ?? null,
+            });
         }
         return map;
     };
@@ -1763,6 +1828,9 @@ function App(props: AppProps) {
         () => sessionLogRef.current.map((line, index) => parseSessionLogEntry(line, index)),
         [sessionLogVersion]
     );
+    const proxyHealthConnectionMode = opSettings.connectionMode;
+    const proxyHealthApiBaseUrl = opSettings.apiBaseUrl.trim();
+    const lastProxyHealthLogRef = useRef<string>("");
 
     // Proactive proxy health probe (BUG-002 + IDEA-015). Fires once on
     // mount and again whenever proxy URL or auth fields change. Surfaces
@@ -1770,34 +1838,45 @@ function App(props: AppProps) {
     // a chat / insights call to fail. The probe is a cheap GET /health
     // with a 5s timeout; failures resolve gracefully (no thrown error).
     const probeProxyHealth = useCallback(async () => {
-        if (opSettings.connectionMode === "direct") {
+        const logProxyHealth = (level: "INFO" | "WARN", message: string) => {
+            const key = `${proxyHealthConnectionMode}|${proxyHealthApiBaseUrl}|${level}|${message}`;
+            if (lastProxyHealthLogRef.current === key) return;
+            lastProxyHealthLogRef.current = key;
+            logSession(level, message);
+        };
+        if (proxyHealthConnectionMode === "direct") {
             setProxyHealth({ ok: true, mode: "direct" });
             return;
         }
-        if (!opSettings.apiBaseUrl.trim()) {
+        if (!proxyHealthApiBaseUrl) {
             setProxyHealth({ ok: false, mode: "proxy", error: "Proxy URL is not configured." });
             // PulsePlay learning — the user-visible "Proxy offline / URL is
             // not configured" banner used to render silently with no Session
             // Log entry, so authors hit Check / Test, got an error, and
             // had nothing to share when asking for help. Always emit a log
             // when we render a user-visible error state.
-            logSession("WARN", "Proxy URL is not configured — set the Proxy API base URL in Setup → Connect.");
+            logProxyHealth("WARN", "Proxy URL is not configured — set the Proxy API base URL in Setup → Connect.");
             return;
         }
         setProxyHealthProbing(true);
         try {
-            const client = createBackend(opSettings);
+            const client = createBackend({
+                host: "",
+                token: "",
+                connectionMode: proxyHealthConnectionMode,
+                apiBaseUrl: proxyHealthApiBaseUrl,
+            });
             const info = await client.checkProxyHealth!();
             setProxyHealth(info);
             if (info.ok) {
-                logSession("INFO", `Proxy /health: OK (${info.profiles?.length ?? 0} profiles, source: ${info.configSource ?? "unknown"}).`);
+                logProxyHealth("INFO", `Proxy /health: OK (${info.profiles?.length ?? 0} profiles, source: ${info.configSource ?? "unknown"}).`);
             } else {
-                logSession("WARN", `Proxy /health: ${info.error || "unreachable"}`);
+                logProxyHealth("WARN", `Proxy /health: ${info.error || "unreachable"}`);
             }
         } finally {
             setProxyHealthProbing(false);
         }
-    }, [opSettings, logSession]);
+    }, [proxyHealthConnectionMode, proxyHealthApiBaseUrl, logSession]);
     useEffect(() => {
         void probeProxyHealth();
     }, [probeProxyHealth]);
@@ -2632,7 +2711,14 @@ function App(props: AppProps) {
             prompts = [buildInsightsPrompt(props.context, settingsPrompt, roleMode)];
             titles = ["Custom Insights"];
         } else if ((authoringMode === "preset" || authoringMode === "ai-assisted") && hasHybridConfig) {
-            // Preset / AI-assisted with config present → hybrid pipeline.
+            // Preset / AI-assisted with config present → fast hybrid briefing.
+            // The older implementation launched one Genie message per section
+            // (HEADLINE/TRENDS/RISKS/ACTIONS). That preserved strict per-card
+            // contracts, but live runs regularly sat near the 5-minute ceiling
+            // when one stage stalled. The default product path should feel like
+            // Chat: one efficient call that emits all requested sections. The
+            // per-stage runner remains available for manual section retries and
+            // future deep-mode wiring.
             // IDEA-039 author-precedence — pass the effective author guidance
             // (insightsDomainGuidance > domainGuidance) into the stage builder
             // so it gets injected AFTER the default contracts inside each
@@ -2641,7 +2727,7 @@ function App(props: AppProps) {
             // appear twice in the assembled outgoing payload.
             const effectiveAuthorGuidance = (props.settings.insightsDomainGuidance ?? "").trim()
                 || (props.settings.domainGuidance ?? "").trim();
-            const hybrid = buildHybridInsightsStagePrompts(
+            const hybrid = buildFastHybridInsightsStagePrompts(
                 props.context,
                 settingsDomain,
                 customSections,
@@ -2667,10 +2753,30 @@ function App(props: AppProps) {
             prompts = hybrid.stages;
             titles = hybrid.titles;
         } else {
-            // Fallback: default 5-stage pipeline. Fires when:
+            // Fallback: default fast briefing. Fires when:
             //   - mode=manual but insightsPrompt is empty, OR
             //   - mode=preset/ai-assisted but Domain + Sections both empty.
-            const stagePrompts = buildInsightsStagePrompts(props.context, roleMode, kbFlags);
+            const stagePrompts = buildFastHybridInsightsStagePrompts(
+                props.context,
+                "",
+                [],
+                roleMode,
+                kbFlags,
+                props.settings.metricDirectionRules,
+                (props.settings.insightsDomainGuidance ?? "").trim() || props.settings.domainGuidance,
+                {
+                    headline: props.settings.insightsShowHeadline,
+                    trends:   props.settings.insightsShowTrends,
+                    risks:    props.settings.insightsShowRisks,
+                    actions:  props.settings.insightsShowActions
+                },
+                {
+                    headline: props.settings.insightsHeadlineOverride,
+                    trends:   props.settings.insightsTrendsOverride,
+                    risks:    props.settings.insightsRisksOverride,
+                    actions:  props.settings.insightsActionsOverride
+                }
+            );
             prompts = stagePrompts.stages;
             titles = stagePrompts.titles;
         }
@@ -2727,6 +2833,10 @@ function App(props: AppProps) {
         // SectionSqlPanel can show "Reused from <title>" — honest about
         // provenance, useful for debugging.
         let lastSqlSeenInRun: { sqls: string[]; sourceTitle: string } | null = null;
+        let lastDataSeenInRun: {
+            queryResult: { columns: string[]; rows: unknown[][] };
+            sourceTitle: string;
+        } | null = null;
 
         // IDEA-039 Phase 1 — pre-allocate one trace slot per stage. Slots are
         // filled as stages run; the array is attached to the insights
@@ -2737,6 +2847,8 @@ function App(props: AppProps) {
             title: titles[i] ?? `Stage ${i + 1}`,
             prompt: "",
             sql: null,
+            queryResult: null,
+            queryResultReusedFromTitle: null,
             responseLength: 0,
             rawMarkdown: "",
             status: "ok" as const,
@@ -3039,7 +3151,9 @@ function App(props: AppProps) {
             // skipping the prepend just because the question contains
             // a `?`).
             {
-                const expectedTitle = (titles[index] ?? "").split(" + ")[0].trim();
+                const expectedTitle = titles[index] === FAST_INSIGHTS_STAGE_TITLE
+                    ? ""
+                    : (titles[index] ?? "").split(" + ")[0].trim();
                 // Two-step normalization:
                 //   1. enforceStageScope: when the agent over-produced
                 //      multiple sections in one stage response (e.g. the
@@ -3090,6 +3204,15 @@ function App(props: AppProps) {
             const responseSqls: string[] | null = (Array.isArray(response.sqlQueries) && response.sqlQueries.length > 0)
                 ? response.sqlQueries
                 : (response.sqlQuery ? [response.sqlQuery] : null);
+            const responseQueryResult = response.queryResult
+                && Array.isArray(response.queryResult.columns)
+                && Array.isArray(response.queryResult.rows)
+                && response.queryResult.columns.length > 0
+                ? {
+                    columns: response.queryResult.columns.map((c: unknown) => String(c ?? "")),
+                    rows: response.queryResult.rows as unknown[][]
+                }
+                : null;
             const ownTitle = titles[index] || `Stage ${index + 1}`;
             if (responseSqls && responseSqls.length > 0) {
                 stageTraces[index].sql = responseSqls[0];
@@ -3104,6 +3227,17 @@ function App(props: AppProps) {
                 stageTraces[index].sql = null;
                 stageTraces[index].sqls = null;
                 stageTraces[index].sqlReusedFromTitle = null;
+            }
+            if (responseQueryResult) {
+                stageTraces[index].queryResult = responseQueryResult;
+                stageTraces[index].queryResultReusedFromTitle = null;
+                lastDataSeenInRun = { queryResult: responseQueryResult, sourceTitle: ownTitle };
+            } else if (lastDataSeenInRun) {
+                stageTraces[index].queryResult = lastDataSeenInRun.queryResult;
+                stageTraces[index].queryResultReusedFromTitle = lastDataSeenInRun.sourceTitle;
+            } else {
+                stageTraces[index].queryResult = null;
+                stageTraces[index].queryResultReusedFromTitle = null;
             }
             stageTraces[index].responseLength = (response.content ?? "").length;
             stageTraces[index].rawMarkdown = response.content ?? "";
@@ -4485,6 +4619,7 @@ function App(props: AppProps) {
                                                                 lazyExportBlocked,
                                                                 canShowSql,
                                                                 stageSqlByTitle: buildStageSqlMap(r?.stageTraces),
+                                                                stageDataByTitle: buildStageDataMap(r?.stageTraces),
                                                                 openSqlSections: openSqlSectionTitles,
                                                                 onToggleSectionSql: toggleSectionSql,
                                                                 spaceId: space.genieConfig.spaceId,
@@ -4496,6 +4631,17 @@ function App(props: AppProps) {
                                                                     sourceLabel: space.genieConfig.assistantProfile || props.settings.assistantProfile || "default",
                                                                     generatedAt: insightsGeneratedAtMap[space.key] ?? undefined,
                                                                 }),
+                                                                onExportSectionRawData: (title, queryResult, reusedFromTitle) => handleSectionRawDataExport(
+                                                                    title,
+                                                                    queryResult,
+                                                                    reusedFromTitle,
+                                                                    {
+                                                                        spaceId: space.genieConfig.spaceId,
+                                                                        spaceLabel: space.label,
+                                                                        sourceLabel: space.genieConfig.assistantProfile || props.settings.assistantProfile || "default",
+                                                                        generatedAt: insightsGeneratedAtMap[space.key] ?? undefined,
+                                                                    }
+                                                                ),
                                                                 onRetrySection: retrySection,
                                                                 onCopySection: copySection,
                                                                 retriableTitles: new Set((runStageRef.current?.titles ?? []).map(t => (t || "").trim().toUpperCase())),
@@ -4562,6 +4708,7 @@ function App(props: AppProps) {
                                                     lazyExportBlocked,
                                                     canShowSql,
                                                     stageSqlByTitle: buildStageSqlMap(insightsResult.stageTraces),
+                                                    stageDataByTitle: buildStageDataMap(insightsResult.stageTraces),
                                                     openSqlSections: openSqlSectionTitles,
                                                     onToggleSectionSql: toggleSectionSql,
                                                     spaceId: activeSpace?.genieConfig.spaceId,
@@ -4573,6 +4720,17 @@ function App(props: AppProps) {
                                                         sourceLabel: activeSpace?.genieConfig.assistantProfile || props.settings.assistantProfile || "default",
                                                         generatedAt: insightsGeneratedAtMap[activeSpaceKey] ?? undefined,
                                                     }),
+                                                    onExportSectionRawData: (title, queryResult, reusedFromTitle) => handleSectionRawDataExport(
+                                                        title,
+                                                        queryResult,
+                                                        reusedFromTitle,
+                                                        {
+                                                            spaceId: activeSpace?.genieConfig.spaceId,
+                                                            spaceLabel: activeSpace?.label,
+                                                            sourceLabel: activeSpace?.genieConfig.assistantProfile || props.settings.assistantProfile || "default",
+                                                            generatedAt: insightsGeneratedAtMap[activeSpaceKey] ?? undefined,
+                                                        }
+                                                    ),
                                                     onRetrySection: retrySection,
                                                     onCopySection: copySection,
                                                 })}
@@ -7656,12 +7814,37 @@ function renderNarrative(text: string, sectionTitle?: string, metricRules?: Inli
     const normalised = demoteBulletStyleHeadings(normaliseAmbiguousArrows(text));
     const lines = normalised.split("\n");
     const elements: React.ReactNode[] = [];
-    let listItems: React.ReactNode[] = [];
+    let listItems: { key: string; body: string }[] = [];
     let i = 0;
 
     const flushList = () => {
         if (listItems.length > 0) {
-            elements.push(<ul key={`ul-${elements.length}`} className="gn-narrative-list">{listItems}</ul>);
+            if (shouldRenderInsightCards(sectionTitle, listItems.length)) {
+                elements.push(
+                    <div key={`cards-${elements.length}`} className="gn-insight-card-grid">
+                        {listItems.map((item, idx) => {
+                            const card = parseInsightCardItem(item.body, sectionTitle, idx);
+                            return (
+                                <article
+                                    key={item.key}
+                                    className={`gn-insight-card${card.generatedLabel ? " gn-insight-card--plain" : ""}`}
+                                >
+                                    <div className="gn-insight-card-label">{inlineFormat(card.label, sectionTitle, metricRules)}</div>
+                                    <div className="gn-insight-card-body">{inlineFormat(card.body, sectionTitle, metricRules)}</div>
+                                </article>
+                            );
+                        })}
+                    </div>
+                );
+            } else {
+                elements.push(
+                    <ul key={`ul-${elements.length}`} className="gn-narrative-list">
+                        {listItems.map(item => (
+                            <li key={item.key}>{inlineFormat(item.body, sectionTitle, metricRules)}</li>
+                        ))}
+                    </ul>
+                );
+            }
             listItems = [];
         }
     };
@@ -7763,15 +7946,15 @@ function renderNarrative(text: string, sectionTitle?: string, metricRules?: Inli
         }
 
         // Bullet list item
-        if (/^[-*•]\s+/.test(trimmed)) {
+        if (LIST_ITEM_MARKER_RE.test(trimmed)) {
             // Wave 43 — defensive: if the bullet's body starts with
             // heading markdown (### / ##), demote to inline bold so the
             // rendered card doesn't mix font sizes within a list. This
             // is the second layer of defence behind the upstream
             // `demoteBulletStyleHeadings` pass and the CSS rule that
             // forces inheritance for any heading tag inside a list item.
-            const bulletBody = stripBulletInlineHeading(trimmed.replace(/^[-*•]\s+/, ""));
-            listItems.push(<li key={`li-${i}`}>{inlineFormat(bulletBody, sectionTitle, metricRules)}</li>);
+            const bulletBody = stripBulletInlineHeading(trimmed.replace(LIST_ITEM_MARKER_RE, ""));
+            listItems.push({ key: `li-${i}`, body: bulletBody });
             i++; continue;
         }
 
@@ -7831,6 +8014,100 @@ function isMeasurementNumber(numToken: string): boolean {
     // Bare integer with no unit — likely a list ordinal or count, not a delta.
     if (/^\d+$/.test(clean)) return false;
     return false;
+}
+
+function isThresholdContext(text: string, index: number): boolean {
+    const before = text.slice(Math.max(0, index - 80), index).toLowerCase();
+    const after = text.slice(index, Math.min(text.length, index + 40)).toLowerCase();
+    const window = `${before}${after}`;
+    return /\b(threshold|target|benchmark|limit|caution|watch|warning|amber|yellow|red|green|breach|line)\b/.test(window)
+        && /[<>≤≥]/.test(window);
+}
+
+function renderPlainMetricFragment(raw: string, key: React.Key): React.ReactNode {
+    const clean = stripStatusGlyphs(normaliseDirectionalGlyphs(raw))
+        .replace(/[▲▼↔]\s*/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+    return <React.Fragment key={key}>{parseBold(clean || raw)}</React.Fragment>;
+}
+
+function stripNarrativeThresholdFragments(text: string): string {
+    return text
+        .replace(/\s*\((?=[^)]*[<>≤≥])[^)]{1,100}\)/g, "")
+        .replace(/\s+([,.;:])/g, "$1");
+}
+
+const LIST_ITEM_MARKER_RE = /^(?:[-*•]\s+|(?:\d+[.)]|\(\d+\)|\[\d+\])\s+)/;
+const INSIGHT_CARD_SECTIONS = new Set([
+    "TRENDS",
+    "RISKS",
+    "OPPORTUNITIES",
+    "RECOMMENDED ACTIONS",
+    "ACTIONS",
+    "NEXT STEPS",
+    "NEXT BEST ACTIONS",
+    "TOP DRIVERS",
+    "DRIVERS",
+]);
+
+function fallbackInsightCardLabel(sectionTitle: string | undefined, index: number): string {
+    const upper = (sectionTitle || "").trim().toUpperCase();
+    if (/ACTION|NEXT/.test(upper)) return `Action ${index + 1}`;
+    if (/RISK/.test(upper)) return `Risk ${index + 1}`;
+    if (/OPPORTUNIT/.test(upper)) return `Opportunity ${index + 1}`;
+    if (/DRIVER/.test(upper)) return `Driver ${index + 1}`;
+    if (/TREND/.test(upper)) return `Trend ${index + 1}`;
+    return `Insight ${index + 1}`;
+}
+
+function parseInsightCardItem(raw: string, sectionTitle: string | undefined, index: number): {
+    label: string;
+    body: string;
+    generatedLabel: boolean;
+} {
+    const clean = raw.trim();
+    const boldLabel = /^\*\*([^*]{2,80}?)\*\*\s*:?\s*(.+)$/s.exec(clean);
+    if (boldLabel && boldLabel[2]?.trim()) {
+        return {
+            label: boldLabel[1].replace(/:$/, "").trim(),
+            body: boldLabel[2].trim(),
+            generatedLabel: false,
+        };
+    }
+    const colonLabel = /^([^:]{2,72}):\s+(.+)$/s.exec(clean);
+    if (colonLabel && colonLabel[2]?.trim() && colonLabel[1].split(/\s+/).length <= 8) {
+        return {
+            label: colonLabel[1].replace(/\*\*/g, "").trim(),
+            body: colonLabel[2].trim(),
+            generatedLabel: false,
+        };
+    }
+    return {
+        label: fallbackInsightCardLabel(sectionTitle, index),
+        body: clean,
+        generatedLabel: true,
+    };
+}
+
+function shouldRenderInsightCards(sectionTitle: string | undefined, itemCount: number): boolean {
+    if (itemCount < 2 || itemCount > 6) return false;
+    const upper = (sectionTitle || "").trim().toUpperCase();
+    return INSIGHT_CARD_SECTIONS.has(upper);
+}
+
+function renderHeadlineCard(body: string, sectionTitle: string | undefined, metricRules?: InlineMetricRules): React.ReactNode {
+    const cleaned = body
+        .replace(/^[-*•]\s+/, "")
+        .replace(/^\d+[.)]\s+/, "")
+        .trim();
+    return (
+        <div className="gn-headline-card">
+            <div className="gn-headline-card-text">
+                {inlineFormat(cleaned, sectionTitle, metricRules)}
+            </div>
+        </div>
+    );
 }
 
 function parseBold(text: string): React.ReactNode {
@@ -8066,13 +8343,16 @@ function decorateNeutralRulePills(slice: string, ruleNames: string[]): React.Rea
 }
 
 function inlineFormat(text: string, sectionTitle?: string, metricRules?: InlineMetricRules): React.ReactNode {
-    const sourceText = normaliseDirectionalGlyphs(text);
+    const upperTitle = sectionTitle ? sectionTitle.trim().toUpperCase() : "";
+    const statusGlyphsBelongInThisSection = /^(KPI SNAPSHOT|KPI|METRICS?|SCORECARD|PERFORMANCE)$/i.test(upperTitle);
+    const sourceText = statusGlyphsBelongInThisSection
+        ? normaliseDirectionalGlyphs(text)
+        : stripNarrativeThresholdFragments(stripStatusGlyphs(normaliseDirectionalGlyphs(text)));
     // Wave 33 — combine the built-in suppressed-section list with the
     // author-supplied per-custom-section opt-out (`disableTrendPills: true`).
     // Either one suppresses pills for this body verbatim — same effect, two
     // sources. ADDITION-ONLY: an undefined `disabledSections` set keeps the
     // pre-Wave-33 behavior intact.
-    const upperTitle = sectionTitle ? sectionTitle.trim().toUpperCase() : "";
     const suppressTrends = upperTitle
         ? (SECTIONS_WITHOUT_TREND_PILLS.has(upperTitle)
             || (metricRules?.disabledSections?.has(upperTitle) ?? false))
@@ -8106,14 +8386,17 @@ function inlineFormat(text: string, sectionTitle?: string, metricRules?: InlineM
         if (match.index > lastIndex) {
             parts.push(renderPlainSlice(sourceText.slice(lastIndex, match.index), `raw-${lastIndex}`));
         }
+        const thresholdContext = isThresholdContext(sourceText, match.index);
 
         if (match[2] !== undefined) {
             // number + trend word (e.g. **-5.35%** drop)
             // IDEA-039 pill-content hotfix — pill carries only `[▲ number]`;
             // the trend word stays as plain text after the pill.
             // Result: `[▲ -5.35%] drop` instead of `[▲ -5.35% drop]`.
-            if (suppressTrends || !isMeasurementNumber(match[1])) {
-                parts.push(<React.Fragment key={match.index}>{parseBold(match[0])}</React.Fragment>);
+            if (suppressTrends || thresholdContext || !isMeasurementNumber(match[1])) {
+                parts.push(thresholdContext
+                    ? renderPlainMetricFragment(match[0], match.index)
+                    : <React.Fragment key={match.index}>{parseBold(match[0])}</React.Fragment>);
             } else {
                 const dir = POS_RE.test(match[2]) ? "up" : "down";
                 const cls = pillColorClass(dir, sourceText, match.index, match[1], metricRules);
@@ -8129,8 +8412,10 @@ function inlineFormat(text: string, sectionTitle?: string, metricRules?: InlineM
             // Pill carries only `[▲ number]`; the "trend-word of/by " prefix
             // stays as plain text before the pill.
             // Result: `up by [▲ 20.4%]` instead of `[▲ up by 20.4%]`.
-            if (suppressTrends || !isMeasurementNumber(match[4])) {
-                parts.push(<React.Fragment key={match.index}>{parseBold(match[0])}</React.Fragment>);
+            if (suppressTrends || thresholdContext || !isMeasurementNumber(match[4])) {
+                parts.push(thresholdContext
+                    ? renderPlainMetricFragment(match[0], match.index)
+                    : <React.Fragment key={match.index}>{parseBold(match[0])}</React.Fragment>);
             } else {
                 const dir = POS_RE.test(match[3]) ? "up" : "down";
                 const cls = pillColorClass(dir, sourceText, match.index, match[4], metricRules);
@@ -8147,8 +8432,10 @@ function inlineFormat(text: string, sectionTitle?: string, metricRules?: InlineM
             // standalone signed percentage (+33.42% or -0.22%) — already has
             // an explicit sign, so it always qualifies as a measurement. Still
             // suppressed in non-measurement sections. Pill = number only.
-            if (suppressTrends) {
-                parts.push(<React.Fragment key={match.index}>{parseBold(match[0])}</React.Fragment>);
+            if (suppressTrends || thresholdContext) {
+                parts.push(thresholdContext
+                    ? renderPlainMetricFragment(match[0], match.index)
+                    : <React.Fragment key={match.index}>{parseBold(match[0])}</React.Fragment>);
             } else {
                 const dir = match[5].startsWith("+") ? "up" : "down";
                 const cls = pillColorClass(dir, sourceText, match.index, match[5], metricRules);
@@ -8159,8 +8446,10 @@ function inlineFormat(text: string, sectionTitle?: string, metricRules?: InlineM
             // e.g. "up 20.4%" / "down 0.7pp" / "rose 14%" / "up 372"
             // Pill = `[▲ number]` only; trend word stays as plain text BEFORE.
             // Result: `up [▲ 20.4%]` instead of `[▲ up 20.4%]`.
-            if (suppressTrends || !isMeasurementNumber(match[7])) {
-                parts.push(<React.Fragment key={match.index}>{parseBold(match[0])}</React.Fragment>);
+            if (suppressTrends || thresholdContext || !isMeasurementNumber(match[7])) {
+                parts.push(thresholdContext
+                    ? renderPlainMetricFragment(match[0], match.index)
+                    : <React.Fragment key={match.index}>{parseBold(match[0])}</React.Fragment>);
             } else {
                 const dir = POS_RE.test(match[6]) ? "up" : "down";
                 const cls = pillColorClass(dir, sourceText, match.index, match[7], metricRules);
@@ -8173,8 +8462,10 @@ function inlineFormat(text: string, sectionTitle?: string, metricRules?: InlineM
             }
         } else if (match[8] !== undefined && match[9] !== undefined) {
             // G8/G9 — emoji + number. Converts native emojis to standard CSS pills.
-            if (suppressTrends || !isMeasurementNumber(match[9])) {
-                parts.push(<React.Fragment key={match.index}>{parseBold(match[0])}</React.Fragment>);
+            if (suppressTrends || thresholdContext || !isMeasurementNumber(match[9])) {
+                parts.push(thresholdContext
+                    ? renderPlainMetricFragment(match[0], match.index)
+                    : <React.Fragment key={match.index}>{parseBold(match[0])}</React.Fragment>);
             } else {
                 // Wave 29 cycle 2 fix: 🟡 (yellow) is a NEUTRAL/WARN status
                 // indicator the model emits for at-risk values, NOT a directional
@@ -8194,8 +8485,10 @@ function inlineFormat(text: string, sectionTitle?: string, metricRules?: InlineM
             }
         } else if (match[10] !== undefined) {
             // G10 — flat glyph (▪/■/●) + number. Renders as a neutral grey pill.
-            if (suppressTrends) {
-                parts.push(<React.Fragment key={match.index}>{parseBold(match[0])}</React.Fragment>);
+            if (suppressTrends || thresholdContext) {
+                parts.push(thresholdContext
+                    ? renderPlainMetricFragment(match[0], match.index)
+                    : <React.Fragment key={match.index}>{parseBold(match[0])}</React.Fragment>);
             } else {
                 const cls = "gn-trend-pill gn-trend-flat";
                 parts.push(
@@ -8207,8 +8500,10 @@ function inlineFormat(text: string, sectionTitle?: string, metricRules?: InlineM
         } else if (match[11] !== undefined && match[12] !== undefined) {
             // G11/G12 — flat-word ("flat"/"unchanged"/"no change") + number.
             // Pill = `[● number]`; the word stays as plain text BEFORE the pill.
-            if (suppressTrends) {
-                parts.push(<React.Fragment key={match.index}>{parseBold(match[0])}</React.Fragment>);
+            if (suppressTrends || thresholdContext) {
+                parts.push(thresholdContext
+                    ? renderPlainMetricFragment(match[0], match.index)
+                    : <React.Fragment key={match.index}>{parseBold(match[0])}</React.Fragment>);
             } else {
                 const cls = "gn-trend-pill gn-trend-flat";
                 parts.push(
@@ -8222,7 +8517,7 @@ function inlineFormat(text: string, sectionTitle?: string, metricRules?: InlineM
         lastIndex = match.index + match[0].length;
     }
 
-    if (lastIndex < text.length) {
+    if (lastIndex < sourceText.length) {
         parts.push(renderPlainSlice(sourceText.slice(lastIndex), `raw-${lastIndex}`));
     }
 
@@ -8267,8 +8562,12 @@ function InsightsSectionFooter(props: {
     showingSql: boolean;
     onToggleSql: () => void;
     onCopy: () => void;
+    onExportRawData?: () => void;
     onRetry?: () => void;
     canRetry: boolean;
+    hasRawData?: boolean;
+    rawDataReusedFromTitle?: string | null;
+    lazyExportBlocked?: boolean;
     showProvenanceFooter: boolean;
     sourceLabel?: string;
     generatedAt?: number;
@@ -8310,6 +8609,24 @@ function InsightsSectionFooter(props: {
                 >
                     <span aria-hidden="true">📋</span>
                 </button>
+                {props.onExportRawData && !props.lazyExportBlocked && (
+                    <button
+                        type="button"
+                        className="gn-insights-provenance-action gn-insights-provenance-action--icon"
+                        onClick={props.onExportRawData}
+                        disabled={!props.hasRawData}
+                        title={props.hasRawData
+                            ? props.rawDataReusedFromTitle
+                                ? `Export raw data for ${props.title || "section"} to Excel (reused from ${props.rawDataReusedFromTitle})`
+                                : `Export raw data for ${props.title || "section"} to Excel`
+                            : `No raw query-result data available for ${props.title || "section"}`}
+                        aria-label={props.hasRawData
+                            ? `Export raw data for ${props.title || "section"} to Excel`
+                            : `No raw query-result data available for ${props.title || "section"}`}
+                    >
+                        <Icon name="download" />
+                    </button>
+                )}
                 {/* Cycle 34 — per-section reload icon. Re-runs JUST this
                     stage via the runStage closure registered by the most
                     recent runInsights (cycle 30). Hidden for custom JSON
@@ -8627,6 +8944,14 @@ function renderInsightsSections(content: string, options?: InsightsRenderOptions
                 const sectionSqlReusedFrom = sectionSqlEntry?.reusedFromTitle ?? null;
                 const hasSectionSql = Array.isArray(sectionSqls) && sectionSqls.length > 0;
                 const showingSql = options?.openSqlSections?.has(upperTitle) === true;
+                const exactRawDataEntry = options?.stageDataByTitle?.get(upperTitle);
+                const fallbackRawDataEntry = !exactRawDataEntry && options?.stageDataByTitle?.size === 1
+                    ? Array.from(options.stageDataByTitle.values())[0]
+                    : undefined;
+                const rawDataEntry = exactRawDataEntry ?? fallbackRawDataEntry;
+                const rawDataReusedFromTitle = exactRawDataEntry
+                    ? rawDataEntry?.reusedFromTitle
+                    : rawDataEntry ? "AI Insights briefing" : null;
                 return (
                     <section
                         key={`sec-${i}`}
@@ -8694,6 +9019,9 @@ function renderInsightsSections(content: string, options?: InsightsRenderOptions
                             showingSql={showingSql}
                             onToggleSql={() => options?.onToggleSectionSql?.(s.title)}
                             onCopy={() => options?.onCopySection?.(s.title, s.body)}
+                            onExportRawData={rawDataEntry
+                                ? () => options?.onExportSectionRawData?.(s.title, rawDataEntry.queryResult, rawDataReusedFromTitle)
+                                : undefined}
                             onRetry={options?.onRetrySection ? () => options.onRetrySection?.(s.title) : undefined}
                             // Cycle 42 — always show the ↻ retry icon. The
                             // retry callback (cycle 30 + 42) handles the
@@ -8703,6 +9031,9 @@ function renderInsightsSections(content: string, options?: InsightsRenderOptions
                             // cache-loaded sections (runStageRef empty) +
                             // custom JSON sections (not in titles array).
                             canRetry={!!options?.onRetrySection}
+                            hasRawData={!!rawDataEntry}
+                            rawDataReusedFromTitle={rawDataReusedFromTitle}
+                            lazyExportBlocked={!!options?.lazyExportBlocked}
                             showProvenanceFooter={!!options?.showProvenanceFooter}
                             sourceLabel={options?.sourceLabel}
                             generatedAt={options?.generatedAt}
@@ -9037,6 +9368,10 @@ function renderSectionBody(body: string, sectionTitle?: string, options?: Insigh
                 <div className="gn-msg-body">{renderNarrative(trimmedBody, sectionTitle, metricRules)}</div>
             </>
         );
+    }
+
+    if (sectionTitle && /^HEADLINE$/i.test(sectionTitle.trim())) {
+        return <>{renderHeadlineCard(trimmedBody, sectionTitle, metricRules)}</>;
     }
 
     // IDEA-039 step 1.1 — KPI SNAPSHOT gets the new tile grid layout per the

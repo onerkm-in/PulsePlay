@@ -201,10 +201,10 @@ const SECTION_A: FieldMeta[] = [
     {
         name: "insightsPrompt", section: "A",
         label: "Custom AI Insights prompt (advanced override)",
-        hint: "Power-user escape hatch. When set, this prompt is sent verbatim to the AI as a single call: no progressive paint, no auto-adapt to bound dataset. For most use cases, leave blank and use Domain + Custom Sections (above) for a portable, dataset-aware multi-stage progressive run.",
+        hint: "Power-user escape hatch. When set, this prompt is sent verbatim to the AI as a single call. For most use cases, leave blank and use Domain + Custom Sections (above) for a portable, dataset-aware fast briefing.",
         example: "(leave blank; prefer Domain + Custom Sections above)",
         defaultValue: "",
-        preview: d => (d.insightsPrompt || "").trim() ? "Advanced override active: single call" : "Using hybrid pipeline",
+        preview: d => (d.insightsPrompt || "").trim() ? "Advanced override active: single call" : "Using fast hybrid briefing",
     },
     {
         // IDEA-039 anomaly #3 — Insights-only domainGuidance override.
@@ -306,7 +306,7 @@ const SECTION_A: FieldMeta[] = [
     {
         name: "insightsCacheTtlMinutes", section: "A",
         label: "AI Insights cache TTL",
-        hint: "How long a generated Insights run is cached so filter changes and navigation don't re-trigger the 5-stage pipeline.",
+        hint: "How long a generated Insights run is cached so filter changes and navigation don't re-trigger the AI briefing.",
         example: "30 minutes (default), 0 = always re-run",
         defaultValue: 30,
         preview: d => d.insightsCacheTtlMinutes === 0
@@ -444,7 +444,7 @@ const SECTION_E: FieldMeta[] = [
     {
         name: "supervisorEndpoint", section: "E",
         label: "Supervisor agent endpoint",
-        hint: "CHAT-tab feature only. Databricks Mosaic AI serving endpoint URL that orchestrates multi-space queries when Chat is set to Supervisor connection mode. AI Insights does not use the supervisor; it runs the multi-stage pipeline against the primary space directly.",
+        hint: "CHAT-tab feature only. Databricks Mosaic AI serving endpoint URL that orchestrates multi-space queries when Chat is set to Supervisor connection mode. AI Insights does not use the supervisor; it runs the briefing against the primary space directly.",
         example: "https://dbc-xxx.cloud.databricks.com/serving-endpoints/dwd-supervisor/invocations",
         scope: ["supervisor"],
         defaultValue: "",
@@ -3518,7 +3518,7 @@ export function SetupStep5(props: SetupStep5Props) {
                                     <>
                                         <p><strong>Three modes, all save independently:</strong></p>
                                         <ul>
-                                            <li><strong>Preset (default):</strong> pick a Domain from the dropdown + author Custom Sections. Hybrid pipeline runs multi-stage with the domain vocabulary. Best for known domains where you have an opinion on the output structure.</li>
+                                            <li><strong>Preset (default):</strong> pick a Domain from the dropdown + author Custom Sections. Fast hybrid briefing runs as one AI call with the domain vocabulary. Best for known domains where you have an opinion on the output structure.</li>
                                             <li><strong>AI-assisted:</strong> the AI introspects your bound dimensions and measures, then auto-fills Domain + Custom Sections with a tailored suggestion. You tune before clicking Apply. Best for new datasets where you want a starting point.</li>
                                             <li><strong>Manual:</strong> you write the prompt yourself in the "Custom AI Insights prompt" field below. Sent verbatim to the AI as a single call. Best for power users who want very specific output the hybrid pipeline can't produce.</li>
                                         </ul>
@@ -3584,8 +3584,8 @@ export function SetupStep5(props: SetupStep5Props) {
                                     Originally only rendered in Preset mode, but the
                                     insightsShow{Headline,Trends,Risks,Actions} settings
                                     + insightsXxxOverride strings ARE honoured by the
-                                    pipeline in AI-assisted mode too (the same hybrid
-                                    pipeline runs, the AI just auto-fills the Domain +
+                                    briefing in AI-assisted mode too (the same hybrid
+                                    structure runs, the AI just auto-fills the Domain +
                                     custom sections). Without this editor, AI-assisted
                                     authors had no way to drop stages they didn't want
                                     (e.g., a viewer-facing run that should skip RISKS).
@@ -3700,7 +3700,7 @@ export function SetupStep5(props: SetupStep5Props) {
                                 name={fInsightsPrompt.name as string}
                                 label={fInsightsPrompt.label}
                                 optional
-                                hint={<>You are in <strong>Manual</strong> mode — this prompt is sent verbatim to the AI as a single call. Switch to Preset or AI-assisted above for a portable, dataset-aware multi-stage progressive run.</>}
+                                hint={<>You are in <strong>Manual</strong> mode — this prompt is sent verbatim to the AI as a single call. Switch to Preset or AI-assisted above for a portable, dataset-aware fast briefing.</>}
                                 example={fInsightsPrompt.example}
                                 preview={fInsightsPrompt.preview?.(draft)}
                                 helpBody={
@@ -3728,13 +3728,13 @@ export function SetupStep5(props: SetupStep5Props) {
                                 name={fInsightsDomainGuidance.name as string}
                                 label={fInsightsDomainGuidance.label}
                                 optional
-                                hint={<><strong>Guidance / context</strong> appended to every AI Insights stage prompt — NOT a prompt that replaces the pipeline. Use for "rules the AI should respect across stages" (number formats, glossary, business definitions). Leave blank to inherit the Section A Business guidance.</>}
+                                hint={<><strong>Guidance / context</strong> appended to the AI Insights briefing prompt — NOT a prompt that replaces the structure. Use for "rules the AI should respect" (number formats, glossary, business definitions). Leave blank to inherit the Section A Business guidance.</>}
                                 example={fInsightsDomainGuidance.example}
                                 preview={fInsightsDomainGuidance.preview?.(draft)}
                                 helpBody={
                                     <>
                                         <p><strong>What it does:</strong> overrides the shared Business guidance for AI Insights stage prompts only. The text gets concatenated INTO each stage's prompt as background context.</p>
-                                        <p><strong>What it is NOT:</strong> a prompt to execute. If you paste a SWOT / RFM / Pareto-style structural prompt here ("Output 4 sections: ## STRENGTHS / ## WEAKNESSES / ..."), the pipeline still runs its own fixed stages (HEADLINE / TRENDS / RISKS / RECOMMENDED ACTIONS + your custom sections) — your structural prompt gets treated as guidance and the structure is ignored.</p>
+                                        <p><strong>What it is NOT:</strong> a prompt to execute. If you paste a SWOT / RFM / Pareto-style structural prompt here ("Output 4 sections: ## STRENGTHS / ## WEAKNESSES / ..."), the briefing still uses its own fixed structure (HEADLINE / TRENDS / RISKS / RECOMMENDED ACTIONS + your custom sections) — your structural prompt gets treated as guidance and the structure is ignored.</p>
                                         <p><strong>For a structural prompt that drives output shape</strong>, switch <em>Authoring mode</em> above to "Manual" and put the prompt in the <em>AI Insights prompt</em> field instead.</p>
                                         <p><strong>Use when:</strong> Chat and AI Insights need different framing, such as supervisor Chat with single-space Insights.</p>
                                         <p><strong>Leave blank:</strong> AI Insights inherits the shared Domain-specific instructions above.</p>
@@ -3813,13 +3813,13 @@ export function SetupStep5(props: SetupStep5Props) {
                             <FieldRow
                                 name={fCacheTtl.name as string}
                                 label={fCacheTtl.label}
-                                hint={<>How long a generated Insights run is cached in memory + localStorage so filter changes and navigation don't re-trigger the 5-stage pipeline.</>}
+                                hint={<>How long a generated Insights run is cached in memory + localStorage so filter changes and navigation don't re-trigger the AI briefing.</>}
                                 example={fCacheTtl.example}
                                 preview={fCacheTtl.preview?.(draft)}
                                 helpBody={
                                     <>
                                         <p><strong>Default 30 min</strong> survives most authoring sessions. Drop to 5 min for fast-moving demos; extend to 2 h for stable executive dashboards.</p>
-                                        <p><strong>Disabled (0)</strong> always re-runs the 5-stage pipeline on visual mount — costly. Use only when data changes faster than the cache window.</p>
+                                        <p><strong>Disabled (0)</strong> always re-runs the AI briefing on visual mount. Use only when data changes faster than the cache window.</p>
                                         <p><strong>Cache key</strong> includes connection mode, space, role, KB flags, custom prompt, filter scope. Theme is intentionally excluded.</p>
                                         <p><strong>No effect</strong> in Chat-only mode.</p>
                                     </>
@@ -3845,7 +3845,7 @@ export function SetupStep5(props: SetupStep5Props) {
                                 hint={<>Flip ON ↔ OFF after changing any setting to re-run AI Insights immediately.</>}
                                 helpBody={
                                     <>
-                                        <p><strong>Manual force-refresh:</strong> any flip of this toggle clears the AI Insights cache for the current scope and re-fires the 5-stage pipeline.</p>
+                                        <p><strong>Manual force-refresh:</strong> any flip of this toggle clears the AI Insights cache for the current scope and re-fires the briefing.</p>
                                         <p><strong>Why a toggle:</strong> Power BI's format pane has no "button" type, so a toggle whose state-change is the trigger is the cleanest way to expose this from the format pane.</p>
                                         <p><strong>No effect</strong> in Chat-only mode (no Insights to refresh).</p>
                                     </>
@@ -3966,7 +3966,7 @@ export function SetupStep5(props: SetupStep5Props) {
                                 hint={<>Reporting principles — BLUF (bottom line up front), KPI context, precision rules, annotation standards. Requires master ON.</>}
                                 helpBody={
                                     <>
-                                        <p><strong>What it shapes:</strong> the structure of AI Insights output. With this ON, the 5-stage pipeline leads with the bottom line, gives KPIs alongside their comparisons, and uses consistent precision.</p>
+                                        <p><strong>What it shapes:</strong> the structure of AI Insights output. With this ON, the briefing leads with the bottom line, gives KPIs alongside their comparisons, and uses consistent precision.</p>
                                         <p><strong>Tradeoff:</strong> the most opinionated of the three rule sets. Turn off if your house style is already strong and you don't want competing voices.</p>
                                     </>
                                 }

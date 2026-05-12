@@ -102,7 +102,7 @@ export interface GenieVisualSettings {
     /** 49.19 — IDEA-037 phase 3 — authoring mode. Drives which authoring path
      *  the AI Insights run takes:
      *   - "manual"      → use insightsPrompt verbatim (single call, full takeover)
-     *   - "preset"      → use Domain + Custom Sections (hybrid multi-stage pipeline)
+     *   - "preset"      → use Domain + Custom Sections (fast hybrid briefing)
      *   - "ai-assisted" → AI introspects bound data and fills Domain + Custom Sections,
      *                     author tunes, then runs hybrid pipeline
      *  All three settings (insightsPrompt, insightsDomain, insightsCustomSections)
@@ -566,13 +566,13 @@ class InsightsGroup extends FormattingSettingsGroup {
     insightsPrompt = new formattingSettings.TextArea({
         name: "insightsPrompt",
         displayName: "Custom Insights Prompt  (advanced override)",
-        description: "Power-user escape hatch. When set, this prompt is sent verbatim to the AI as a single call — no progressive paint, no auto-adapt to bound dataset. For most use cases, leave blank and use Domain + Custom Sections (below) instead — those produce a portable, dataset-aware, multi-stage progressive run.",
+        description: "Power-user escape hatch. When set, this prompt is sent verbatim to the AI as a single call. For most use cases, leave blank and use Domain + Custom Sections (below) instead — those produce a portable, dataset-aware fast briefing.",
         placeholder: "(leave blank — prefer Domain + Custom Sections below for a portable, dataset-aware run)",
         value: ""
     });
 
     // 49.17 / IDEA-037 — Hybrid prompt: the visual auto-builds a portable,
-    // dataset-aware multi-stage pipeline using Domain + Custom Sections. The
+    // dataset-aware briefing using Domain + Custom Sections. The
     // universal sections (HEADLINE, KPI SNAPSHOT, TRENDS, RISKS, RECOMMENDED
     // ACTIONS) are always emitted with the right domain vocabulary; Custom
     // Sections inject author-defined domain expertise in the middle.
@@ -723,7 +723,7 @@ class InsightsGroup extends FormattingSettingsGroup {
     insightsCacheTtlMinutes = new formattingSettings.ItemDropdown({
         name: "insightsCacheTtlMinutes",
         displayName: "AI Insights cache TTL",
-        description: "How long a generated AI Insights run is cached in memory + browser localStorage so PBI page-switches don't re-trigger the 5-stage AI pipeline. Default 30 minutes — set to 0 to disable caching for fast-moving data, or extend for stable scopes.",
+        description: "How long a generated AI Insights run is cached in memory + browser localStorage so PBI page-switches don't re-trigger the AI briefing. Default 30 minutes — set to 0 to disable caching for fast-moving data, or extend for stable scopes.",
         items: [
             { value: "0",   displayName: "Disabled (always re-run)" },
             { value: "5",   displayName: "5 minutes" },

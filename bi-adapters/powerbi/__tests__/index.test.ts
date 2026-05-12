@@ -22,6 +22,8 @@ interface FakeReport {
     setFilters: ReturnType<typeof vi.fn>;
     removeFilters: ReturnType<typeof vi.fn>;
     getFilters: ReturnType<typeof vi.fn>;
+    getPages: ReturnType<typeof vi.fn>;
+    getActivePage: ReturnType<typeof vi.fn>;
     refresh: ReturnType<typeof vi.fn>;
     fullscreen: ReturnType<typeof vi.fn>;
     exitFullscreen: ReturnType<typeof vi.fn>;
@@ -47,6 +49,11 @@ function makeFakeReport(): FakeReport {
         setFilters: vi.fn(async () => {}),
         removeFilters: vi.fn(async () => {}),
         getFilters: vi.fn(async () => []),
+        getPages: vi.fn(async () => [
+            { name: "ReportSection", displayName: "Overview", isActive: true },
+            { name: "ReportSection2", displayName: "Details", isActive: false },
+        ]),
+        getActivePage: vi.fn(async () => ({ name: "ReportSection", displayName: "Overview" })),
         refresh: vi.fn(async () => {}),
         fullscreen: vi.fn(),
         exitFullscreen: vi.fn(),
@@ -87,6 +94,15 @@ const VALID_CONFIG: PowerBIEmbedConfig = {
     embedUrl: "https://app.powerbi.com/reportEmbed?reportId=report-uuid-1",
     accessToken: "embed-tkn-test",
     tokenType: "Embed",
+    permissions: "View",
+};
+
+const SECURE_CONFIG: PowerBIEmbedConfig = {
+    type: "report",
+    id: "secure-report-uuid-1",
+    embedMode: "secure",
+    mode: "secure-embed",
+    embedUrl: "https://app.powerbi.com/reportEmbed?reportId=secure-report-uuid-1&autoAuth=true",
     permissions: "View",
 };
 
@@ -163,6 +179,31 @@ describe("PowerBIAdapter — mount", () => {
         const a = new PowerBIAdapter();
         const bad = { id: "x" } as unknown as PowerBIEmbedConfig;
         await expect(a.mount(containerEl, bad)).rejects.toThrow(/embedUrl, accessToken/);
+    });
+
+    test("mounts a Power BI secure embed URL as a preview iframe", async () => {
+        const a = new PowerBIAdapter();
+        await a.mount(containerEl, SECURE_CONFIG);
+
+        expect(svc.embed).not.toHaveBeenCalled();
+        const iframe = containerEl.querySelector("iframe");
+        expect(iframe).not.toBeNull();
+        expect(iframe?.src).toContain("/reportEmbed");
+        expect(iframe?.src).toContain("secure-report-uuid-1");
+
+        const caps = a.capabilities();
+        expect(caps.canNavigatePages).toBe(false);
+        expect(caps.canApplyFilters).toBe(false);
+        expect(caps.canRefresh).toBe(true);
+        expect(caps.canFullscreen).toBe(true);
+    });
+
+    test("rejects non-Power-BI URLs in secure embed mode", async () => {
+        const a = new PowerBIAdapter();
+        await expect(a.mount(containerEl, {
+            ...SECURE_CONFIG,
+            embedUrl: "https://example.com/reportEmbed?reportId=x",
+        })).rejects.toThrow(/app\.powerbi\.com\/reportEmbed/);
     });
 });
 
@@ -309,9 +350,48 @@ describe("PowerBIAdapter — send()", () => {
         await expect(a.send({ kind: "export", format: "pdf" })).rejects.toThrow(/UNSUPPORTED_COMMAND/);
     });
 
+    test("secure embed allows refresh but rejects SDK-only commands", async () => {
+        const a = new PowerBIAdapter();
+        await a.mount(containerEl, SECURE_CONFIG);
+
+        await expect(a.send({ kind: "refresh" })).resolves.toBeUndefined();
+        await expect(a.send({ kind: "apply-filter", field: "region", values: ["East"] }))
+            .rejects.toThrow(/UNSUPPORTED_COMMAND/);
+    });
+
     test("send before mount throws NOT_MOUNTED", async () => {
         const a = new PowerBIAdapter();
         await expect(a.send({ kind: "refresh" })).rejects.toThrow(/NOT_MOUNTED/);
+    });
+});
+
+describe("PowerBIAdapter — developer snapshot", () => {
+    test("returns live SDK pages, active page, filters, and capabilities", async () => {
+        const a = new PowerBIAdapter();
+        await a.mount(containerEl, VALID_CONFIG);
+        const report = svc._lastReport!;
+        report.getFilters.mockResolvedValueOnce([{ target: { column: "region" }, values: ["East"] }]);
+
+        const snapshot = await a.getDeveloperSnapshot();
+
+        expect(snapshot.mountMode).toBe("sdk");
+        expect(snapshot.capabilities.canApplyFilters).toBe(true);
+        expect(snapshot.pages).toHaveLength(2);
+        expect(snapshot.activePage?.displayName).toBe("Overview");
+        expect(snapshot.filters).toEqual([{ target: { column: "region" }, values: ["East"] }]);
+        expect(snapshot.errors).toEqual([]);
+    });
+
+    test("developer snapshot explains secure iframe preview mode", async () => {
+        const a = new PowerBIAdapter();
+        await a.mount(containerEl, SECURE_CONFIG);
+
+        const snapshot = await a.getDeveloperSnapshot();
+
+        expect(snapshot.mountMode).toBe("secure-iframe");
+        expect(snapshot.capabilities.canApplyFilters).toBe(false);
+        expect(snapshot.iframe?.src).toContain("reportEmbed");
+        expect(snapshot.notes.join(" ")).toContain("iframe-only");
     });
 });
 
@@ -332,6 +412,18 @@ describe("PowerBIAdapter — destroy()", () => {
         await a.mount(containerEl, VALID_CONFIG);
         a.destroy();
         expect(() => a.destroy()).not.toThrow();
+    });
+
+    test("destroy removes secure iframe without calling the SDK reset path", async () => {
+        const a = new PowerBIAdapter();
+        await a.mount(containerEl, SECURE_CONFIG);
+        expect(containerEl.querySelector("iframe")).not.toBeNull();
+
+        a.destroy();
+
+        expect(containerEl.querySelector("iframe")).toBeNull();
+        expect(svc.reset).not.toHaveBeenCalled();
+        await expect(a.send({ kind: "refresh" })).rejects.toThrow(/NOT_MOUNTED/);
     });
 
     test("destroy detaches the SDK-side listeners", async () => {

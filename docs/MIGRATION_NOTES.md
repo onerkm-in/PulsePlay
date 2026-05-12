@@ -19,7 +19,7 @@
 | `docs/ENTERPRISE_SECURITY_PLATFORM_GUARDRAILS.md` (684 lines, public-commercial-sized) | `docs/SECURITY.md` (~330 lines, internal-org-sized) | Aggressively pruned. Dropped: multi-tenant isolation, public CVE response, SBOM signing, OpenSSF Scorecard, full ISO 42001/EU AI Act compliance. Kept: SSO via org IdP, prompt injection defense, BI embed allowlist, secrets in vault, audit log, CORS/CSP basics. |
 | `docs/ROADMAP.md` (PulsePlay-native) | `docs/ROADMAP.md` | Light update — explicit Path C framing; cross-links to AGENDA + PUBLIC_OSS_AGENDA + PACKS; v1.x scope clarified as still-internal. |
 | `docs/API_AUTH_AND_LIMITATIONS.md` (PepPulse-titled, mixed) | `docs/PROXY_REFERENCE.md` (new) | Split. Kept §1-3 (API list, scopes, OAuth M2M) updated for 8 backend paths. Dropped §4 (Pulse user-identity propagation) and §5 (Pulse-sandbox limitations). Added: profile shapes reference, response shape contract, route table. Original archived as `inherited/API_AUTH_AND_LIMITATIONS_FULL.md`. |
-| `docs/QUALITY_METHODOLOGY.md` (PepPulse-titled with DwD test counts) | `docs/QUALITY.md` (new) | Pruned to ~100 lines. Updated test counts to PulsePlay reality: 0 playground tests, 342/342 inherited proxy tests. Kept honesty framework. |
+| `docs/QUALITY_METHODOLOGY.md` (PepPulse-titled with DwD test counts) | `docs/QUALITY.md` (new) | Pruned to ~100 lines. Originally updated to the scaffold-era PulsePlay counts; later revised to the current 161 playground/adapter tests and 418 proxy tests. Kept honesty framework. |
 | (none) | `docs/AGENDA.md` (new) | Open-work tracker. Captures beast-mode list, BI adapter priorities, AI sidebar v1 work, near/medium/long-term, blockers. |
 | (none) | `docs/PUBLIC_OSS_AGENDA.md` (new) | What gets done IF/WHEN we go public-OSS. License decision, SBOM/signing, conformance harness, public docs site, MCP server reference impls, multi-tenant isolation, full compliance items. So none of it is forgotten. |
 | (none) | `docs/PACKS.md` (new) | Pack architecture overview. Brief — details live in `pulsepacks/PACK_SPECIFICATION.md` (Agent 2's territory). |
@@ -102,7 +102,7 @@ In-place edits — added status callouts at the top of each. No file moves.
 
 **Pruned: 95 -> ~100 lines (similar size, different content).** Items dropped:
 
-- DwD-specific test counts (874 vitest + 152 jest in DwD; PulsePlay has 0 playground + 342 inherited proxy)
+- DwD-specific test counts (874 vitest + 152 jest in DwD; PulsePlay has since moved past the scaffold-era counts recorded during consolidation)
 - DwD-specific cycle / Wave references
 - Pulse-specific build hygiene (.pbiviz cap, custom-visual constraints)
 

@@ -1261,11 +1261,22 @@ const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const RATE_LIMIT_MAX = 120; // requests per IP per window
 const rateLimitBuckets = new Map(); // ip → number[] (timestamps)
 
+function isRateLimitExemptRead(req) {
+    if (req.method !== 'GET') return false;
+    const path = String(req.originalUrl || req.url || '').split('?')[0];
+    // These are cheap metadata reads used by setup/status UI. They should
+    // not consume the same budget as LLM / Genie / warehouse calls.
+    return path === '/assistant/profiles'
+        || path === '/assistant/capabilities'
+        || path === '/health';
+}
+
 function rateLimitMiddleware(req, res, next) {
     // Tests bypass: unit tests fire many sequential requests through the
     // same loopback IP and would otherwise trip the limit and poison other
     // tests' assertions.
     if (process.env.NODE_ENV === 'test') return next();
+    if (isRateLimitExemptRead(req)) return next();
     const ip = req.ip || req.socket?.remoteAddress || 'unknown';
     const now = Date.now();
     const cutoff = now - RATE_LIMIT_WINDOW_MS;

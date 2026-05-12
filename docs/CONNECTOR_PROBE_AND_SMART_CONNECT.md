@@ -1,8 +1,9 @@
 # Connector Probe & Smart Connect — Agnostic Design
 
-> **Status:** Architecture spec — v0 design. Not yet implemented.
+> **Status:** Partially implemented. Proxy probe, pack matcher, playground probe client, Test Connection panel, and Pack Picker are present. The 10-minute Genie + Power BI setup wizard still needs to compose these into one novice-author flow.
 > **Scope:** Connector-agnostic. Works for Genie / Supervisor / OpenAI / Bedrock / Foundation Model / MCP / future custom backends.
 > **Companion docs:** [ARCHITECTURE.md](ARCHITECTURE.md), [PACKS.md](PACKS.md), [pulsepacks/PACK_SPECIFICATION.md](../pulsepacks/PACK_SPECIFICATION.md)
+> **First-build use:** [TEN_MINUTE_AUTHOR_SETUP.md](TEN_MINUTE_AUTHOR_SETUP.md)
 
 ---
 

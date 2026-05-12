@@ -108,6 +108,7 @@ export function describeInsightsStage(title: string | null | undefined): { label
     if (t.includes("summarize") || t.includes("summarise"))             return { label: "Spotting trends",              icon: "reading"  };
     if (t.includes("custom"))                                           return { label: "Working on your request",      icon: "thinking" };
     if (t === "response")                                               return { label: "Working on your request",      icon: "thinking" };
+    if (t.includes("briefing"))                                         return { label: "Drafting the briefing",        icon: "writing" };
 
     // Multi-stage Insights pipeline (the 5-stage default run).
     if (t.includes("headline"))                                         return { label: "Reading the headline numbers", icon: "reading" };

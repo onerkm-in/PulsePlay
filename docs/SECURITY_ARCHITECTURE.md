@@ -2,7 +2,7 @@
 
 > **Audience:** security review board, enterprise architecture review board, identity-and-access stewards.
 > **Companion docs:** [SECURITY.md](SECURITY.md) (internal posture summary), [ARCHITECTURE.md](ARCHITECTURE.md) (system design), [PROXY_REFERENCE.md](PROXY_REFERENCE.md) (API surface).
-> **Last audit:** 2026-05-11, commit `159b7c5` (PBI SSO mode landed).
+> **Last audit:** 2026-05-11, working tree after `c3133b8` (Power BI secure embed quick-preview landed).
 
 ## Executive Summary
 
@@ -18,6 +18,7 @@ PulsePlay supports **eight backend identity paths** (multi-AI × multi-BI). Each
 
 | Path | Credential | Lives | Blast radius if leaked |
 |---|---|---|---|
+| **Power BI secure embed preview** | User's Power BI web session | Power BI iframe/browser session | The user's own PBI access; preview-only, no SDK control |
 | **Power BI SSO** (AAD User-Owns-Data) | AAD access token | Browser MSAL sessionStorage | The user's own PBI access (no escalation) |
 | **Power BI Service Principal** | AAD client secret | Proxy vault-managed env var | All PBI reports in SP's workspace |
 | **Power BI manual paste** | Embed token | Browser memory | Single report, 1-hour TTL |
@@ -34,6 +35,13 @@ PulsePlay supports **eight backend identity paths** (multi-AI × multi-BI). Each
 - **Per Microsoft docs:** [Embed for your organization](https://learn.microsoft.com/en-us/power-bi/developer/embedded/embed-organization-app)
 - **Risk:** LOW. AAD redirects, scopes (`Report.Read.All`), and token rotation are all enforced by Microsoft. No proxy round-trip.
 - **Token cache:** `sessionStorage` (cleared on tab close — narrower blast radius than localStorage).
+
+### 1.1a Power BI secure embed quick-preview
+
+- **Pattern:** Author pastes the Power BI portal's "securely embed in a website or portal" URL or iframe. PulsePlay mounts it as a sandboxed iframe.
+- **Implementation:** [playground/src/components/EmbedConfigForm.tsx](../playground/src/components/EmbedConfigForm.tsx), [bi-adapters/powerbi/index.ts](../bi-adapters/powerbi/index.ts)
+- **Risk:** LOW for preview when report/workspace permissions are already correct. PulsePlay does not see an embed token or AAD secret.
+- **Limitation:** Preview-only. AI-applied filters, page navigation, rich event capture, and future export flows require SSO or service-principal embed-token mode.
 
 ### 1.2 Power BI Service Principal (proxy-issued embed tokens)
 

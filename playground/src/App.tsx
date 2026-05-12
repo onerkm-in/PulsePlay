@@ -17,7 +17,8 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
 import { BIPanel } from "./biPanel/BIPanel";
 import { listVendors } from "./biPanel/registry";
-import type { BIEvent, BIEmbedConfig } from "./biPanel/BIAdapter";
+import type { BIAdapter, BICapabilities, BICommand, BIEvent, BIEmbedConfig } from "./biPanel/BIAdapter";
+import type powerbi from "./pulse/_adapter/powerbi-visuals-api";
 import { AISidebar } from "./components/AISidebar";
 import { VendorPicker } from "./components/VendorPicker";
 import { ConnectorPicker } from "./components/ConnectorPicker";
@@ -66,6 +67,51 @@ const LAYOUT_MODE_STORAGE_KEY = "pulseplay:layout-mode";
  *  (different URL per tile, mixing vendors per tile) is a future cycle. */
 type BiTileMode = "1" | "2" | "4";
 const BI_TILE_MODE_STORAGE_KEY = "pulseplay:bi-tile-mode";
+const BI_VENDOR_STORAGE_KEY = "pulseplay:bi-vendor";
+
+interface PowerBIDeveloperSnapshot {
+    vendor: "powerbi";
+    displayName: "Power BI";
+    mountMode: "unmounted" | "sdk" | "secure-iframe";
+    permissions: "View" | "Edit";
+    capabilities: BICapabilities;
+    iframe?: { src: string };
+    pages?: Array<{ name?: string; displayName?: string; isActive?: boolean }>;
+    activePage?: { name?: string; displayName?: string };
+    filters?: unknown[];
+    notes: string[];
+    errors: string[];
+}
+
+type PowerBIDeveloperAdapter = BIAdapter & {
+    getDeveloperSnapshot?: () => Promise<PowerBIDeveloperSnapshot>;
+};
+
+interface PowerBIDevLogEntry {
+    at: string;
+    action: string;
+    status: "ok" | "error";
+    message: string;
+}
+
+function readInitialBiVendor(): string {
+    if (typeof window === "undefined") return "powerbi";
+    try {
+        return window.localStorage.getItem(BI_VENDOR_STORAGE_KEY) || "powerbi";
+    } catch { /* swallow */ }
+    return "powerbi";
+}
+
+function readPulseAssistantProfile(): string {
+    if (typeof window === "undefined") return "";
+    try {
+        const raw = window.localStorage.getItem("pulseplay:visual-settings:genieSettings");
+        if (!raw) return "";
+        const parsed = JSON.parse(raw);
+        return typeof parsed?.assistantProfile === "string" ? parsed.assistantProfile.trim() : "";
+    } catch { /* swallow */ }
+    return "";
+}
 
 function readInitialUiMode(): UiMode {
     if (typeof window === "undefined") return "pulse";
@@ -117,7 +163,7 @@ export function App() {
     //   activeVendor    = Y-axis: which BI tool is loaded in the canvas
     //   activeConnector = X-axis: which AI brain the sidebar talks to
     // Both pickers are independent — any cell of the matrix is valid.
-    const [activeVendor, setActiveVendor] = useState<string>("generic-iframe");
+    const [activeVendor, setActiveVendor] = useState<string>(() => readInitialBiVendor());
     const [activeConnector, setActiveConnector] = useState<string>("");
     const [embedConfig, setEmbedConfig] = useState<BIEmbedConfig>({});
     const [recentEvents, setRecentEvents] = useState<BIEvent[]>([]);
@@ -129,9 +175,12 @@ export function App() {
     );
     const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => readInitialLayoutMode());
     const [biTileMode, setBiTileMode] = useState<BiTileMode>(() => readInitialBiTileMode());
+    const biAdaptersRef = useRef<Map<number, BIAdapter>>(new Map());
+    const [primaryBIAdapter, setPrimaryBIAdapter] = useState<BIAdapter | null>(null);
     // Bumping renderToken nudges PulseShell to re-call visual.update(),
     // used after settings save events from PulseHostStub.persistProperties.
     const [pulseRenderToken, setPulseRenderToken] = useState(0);
+    const [pulseAssistantProfile, setPulseAssistantProfile] = useState<string>(() => readPulseAssistantProfile());
     const handleUiModeChange = useCallback((next: UiMode) => {
         setUiMode(next);
         try { window.localStorage.setItem(UI_MODE_STORAGE_KEY, next); } catch { /* swallow */ }
@@ -144,6 +193,17 @@ export function App() {
         setLayoutMode(next);
         try { window.localStorage.setItem(LAYOUT_MODE_STORAGE_KEY, next); } catch { /* swallow */ }
     }, []);
+
+    useEffect(() => {
+        try { window.localStorage.setItem(BI_VENDOR_STORAGE_KEY, activeVendor); } catch { /* swallow */ }
+    }, [activeVendor]);
+
+    useEffect(() => {
+        if (!vendors.some(v => v.vendor === activeVendor)) {
+            setActiveVendor("powerbi");
+            setEmbedConfig({});
+        }
+    }, [activeVendor, vendors]);
 
     // Cycle H — the Display tab inside Pulse's Developer Tools modal writes
     // the same three localStorage keys this component owns and dispatches a
@@ -187,6 +247,30 @@ export function App() {
         });
     }, []);
 
+    const handleBIAdapterReady = useCallback((index: number, adapter: BIAdapter | null) => {
+        if (adapter) biAdaptersRef.current.set(index, adapter);
+        else biAdaptersRef.current.delete(index);
+        setPrimaryBIAdapter(biAdaptersRef.current.get(0) || null);
+    }, []);
+
+    const handlePulseApplyFilter = useCallback((
+        filter: powerbi.IFilter | powerbi.IFilter[] | null,
+        action: powerbi.FilterAction,
+    ) => {
+        const commands = commandsFromPulseFilter(filter, action);
+        if (commands.length === 0) return;
+        const adapters = [...biAdaptersRef.current.values()];
+        if (adapters.length === 0) return;
+        void Promise.allSettled(
+            adapters.flatMap(adapter => commands.map(command => adapter.send(command))),
+        ).then(results => {
+            const rejected = results.find(r => r.status === "rejected");
+            if (rejected && rejected.status === "rejected") {
+                console.warn("[PulsePlay] BI action bridge failed:", rejected.reason);
+            }
+        });
+    }, []);
+
     // Probe completion: persist the result and preselect the pack ONLY if
     // the user hasn't already chosen one (author-final-say rule from
     // CONNECTOR_PROBE_AND_SMART_CONNECT.md).
@@ -211,9 +295,13 @@ export function App() {
         let cancelled = false;
         try {
             const raw = window.localStorage.getItem("pulseplay:visual-settings:genieSettings");
-            if (!raw) return;
+            if (!raw) {
+                setPulseAssistantProfile("");
+                return;
+            }
             const parsed = JSON.parse(raw);
             const profile = (parsed?.assistantProfile || "").trim();
+            setPulseAssistantProfile(profile);
             if (!profile) return;
             // Skip if we already probed this profile (probeResult.profile holds the last probed key).
             if (probeResult?.profile === profile) return;
@@ -308,14 +396,32 @@ export function App() {
                 aiContent={(
                     <aside className="pp-app__sidebar" style={panelInnerStyle()}>
                         {uiMode === "pulse" ? (
-                            <Suspense fallback={<PulseLoadingState />}>
-                                <PulseShell
-                                    renderToken={pulseRenderToken}
-                                    onSettingsChange={() => setPulseRenderToken(t => t + 1)}
-                                    biEvents={recentEvents}
-                                    biVendor={activeVendor}
+                            <>
+                                <PulseModeBISourcePanel
+                                    vendors={vendors}
+                                    activeVendor={activeVendor}
+                                    embedConfig={embedConfig}
+                                    hasEmbedConfig={hasEmbedConfig}
+                                    activeConnector={pulseAssistantProfile || activeConnector}
+                                    onVendorChange={(v) => {
+                                        setActiveVendor(v);
+                                        setEmbedConfig({});
+                                        setRecentEvents([]);
+                                        biAdaptersRef.current.clear();
+                                        setPrimaryBIAdapter(null);
+                                    }}
+                                    onEmbedConfigChange={setEmbedConfig}
                                 />
-                            </Suspense>
+                                <Suspense fallback={<PulseLoadingState />}>
+                                    <PulseShell
+                                        renderToken={pulseRenderToken}
+                                        onSettingsChange={() => setPulseRenderToken(t => t + 1)}
+                                        onApplyFilter={handlePulseApplyFilter}
+                                        biEvents={recentEvents}
+                                        biVendor={activeVendor}
+                                    />
+                                </Suspense>
+                            </>
                         ) : (
                             <>
                                 <VendorPicker
@@ -325,6 +431,8 @@ export function App() {
                                         setActiveVendor(v);
                                         setEmbedConfig({});
                                         setRecentEvents([]);
+                                        biAdaptersRef.current.clear();
+                                        setPrimaryBIAdapter(null);
                                     }}
                                 />
                                 <EmbedConfigForm
@@ -364,6 +472,12 @@ export function App() {
                 biContent={(
                     <main className="pp-app__canvas" style={{ ...panelInnerStyle(), display: "flex", flexDirection: "column" }}>
                         <BITileModeToolbar value={biTileMode} />
+                        <PowerBIDeveloperPanel
+                            activeVendor={activeVendor}
+                            hasEmbedConfig={hasEmbedConfig}
+                            adapter={primaryBIAdapter}
+                            recentEvents={recentEvents}
+                        />
                         <div style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
                         {hasEmbedConfig ? (
                             <BITileGrid
@@ -371,6 +485,7 @@ export function App() {
                                 vendor={activeVendor}
                                 embedConfig={embedConfig}
                                 onEvent={handleBIEvent}
+                                onAdapterReady={handleBIAdapterReady}
                             />
                         ) : (
                             <div className="pp-app__empty">
@@ -494,7 +609,17 @@ function SplitLayout(props: {
  *  we only need the inner element to fill its panel and scroll when
  *  content overflows. */
 function panelInnerStyle(): React.CSSProperties {
-    return { width: "100%", height: "100%", minHeight: 0, overflow: "auto" };
+    return {
+        width: "100%",
+        maxWidth: "100%",
+        height: "100%",
+        minWidth: 0,
+        minHeight: 0,
+        flex: "1 1 auto",
+        overflow: "auto",
+        overflowX: "hidden",
+        boxSizing: "border-box",
+    };
 }
 
 /** Cycle K.1 toolbar — three buttons (1 / 2 / 4) at the top of the BI
@@ -546,6 +671,189 @@ function BITileModeToolbar(props: { value: BiTileMode }): React.ReactElement {
     );
 }
 
+function PowerBIDeveloperPanel(props: {
+    activeVendor: string;
+    hasEmbedConfig: boolean;
+    adapter: BIAdapter | null;
+    recentEvents: BIEvent[];
+}): React.ReactElement | null {
+    const [snapshot, setSnapshot] = useState<PowerBIDeveloperSnapshot | null>(null);
+    const [logs, setLogs] = useState<PowerBIDevLogEntry[]>([]);
+    const [busyAction, setBusyAction] = useState<string>("");
+    const [filterField, setFilterField] = useState("Region");
+    const [filterValues, setFilterValues] = useState("East");
+
+    if (props.activeVendor !== "powerbi" || !props.hasEmbedConfig) return null;
+
+    const adapter = props.adapter as PowerBIDeveloperAdapter | null;
+    const capabilities = adapter?.capabilities();
+    const addLog = (entry: Omit<PowerBIDevLogEntry, "at">) => {
+        setLogs(prev => [
+            { ...entry, at: new Date().toLocaleTimeString() },
+            ...prev,
+        ].slice(0, 8));
+    };
+    const run = async (action: string, task: () => Promise<string>) => {
+        setBusyAction(action);
+        try {
+            const message = await task();
+            addLog({ action, status: "ok", message });
+        } catch (err) {
+            addLog({
+                action,
+                status: "error",
+                message: err instanceof Error ? err.message : String(err),
+            });
+        } finally {
+            setBusyAction("");
+        }
+    };
+    const values = filterValues
+        .split(",")
+        .map(v => v.trim())
+        .filter(Boolean);
+    const disabled = !adapter || !!busyAction;
+    const canApplyFilters = capabilities?.canApplyFilters !== false;
+
+    return (
+        <details className="pp-pbi-dev" data-ready={adapter ? "true" : "false"}>
+            <summary className="pp-pbi-dev__summary">
+                <span>Power BI Developer Tools</span>
+                <span className="pp-pbi-dev__status">
+                    {adapter ? "adapter ready" : "waiting for report"}
+                    {snapshot?.mountMode ? ` · ${snapshot.mountMode}` : ""}
+                </span>
+            </summary>
+            <div className="pp-pbi-dev__body">
+                <div className="pp-pbi-dev__actions" role="group" aria-label="Power BI developer actions">
+                    <button
+                        type="button"
+                        onClick={() => run("Snapshot", async () => {
+                            if (!adapter?.getDeveloperSnapshot) throw new Error("Power BI adapter does not expose a developer snapshot.");
+                            const next = await adapter.getDeveloperSnapshot();
+                            setSnapshot(next);
+                            return "Snapshot refreshed.";
+                        })}
+                        disabled={disabled}
+                    >
+                        Snapshot
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => run("Refresh", async () => {
+                            if (!adapter) throw new Error("No live adapter.");
+                            await adapter.send({ kind: "refresh" });
+                            return "Refresh sent.";
+                        })}
+                        disabled={disabled || capabilities?.canRefresh === false}
+                    >
+                        Refresh
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => run("Fullscreen", async () => {
+                            if (!adapter) throw new Error("No live adapter.");
+                            await adapter.send({ kind: "fullscreen", on: true });
+                            return "Fullscreen requested.";
+                        })}
+                        disabled={disabled || capabilities?.canFullscreen === false}
+                    >
+                        Fullscreen
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => run("Exit fullscreen", async () => {
+                            if (!adapter) throw new Error("No live adapter.");
+                            await adapter.send({ kind: "fullscreen", on: false });
+                            return "Exit fullscreen requested.";
+                        })}
+                        disabled={disabled || capabilities?.canFullscreen === false}
+                    >
+                        Exit
+                    </button>
+                </div>
+
+                <div className="pp-pbi-dev__filter">
+                    <label>
+                        Field
+                        <input
+                            type="text"
+                            value={filterField}
+                            onChange={e => setFilterField(e.target.value)}
+                            placeholder="Region"
+                        />
+                    </label>
+                    <label>
+                        Values
+                        <input
+                            type="text"
+                            value={filterValues}
+                            onChange={e => setFilterValues(e.target.value)}
+                            placeholder="East, West"
+                        />
+                    </label>
+                    <button
+                        type="button"
+                        onClick={() => run("Apply filter", async () => {
+                            if (!adapter) throw new Error("No live adapter.");
+                            const field = filterField.trim();
+                            if (!field || values.length === 0) throw new Error("Enter a field and at least one value.");
+                            await adapter.send({
+                                kind: "apply-filter",
+                                field,
+                                values: values.length === 1 ? values[0] : values,
+                            });
+                            return `Applied ${field} filter.`;
+                        })}
+                        disabled={disabled || !canApplyFilters}
+                    >
+                        Apply
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => run("Clear filter", async () => {
+                            if (!adapter) throw new Error("No live adapter.");
+                            const field = filterField.trim();
+                            await adapter.send(field ? { kind: "clear-filter", field } : { kind: "clear-filter" });
+                            return field ? `Cleared ${field}.` : "Cleared all filters.";
+                        })}
+                        disabled={disabled || !canApplyFilters}
+                    >
+                        Clear
+                    </button>
+                </div>
+
+                <div className="pp-pbi-dev__grid">
+                    <section>
+                        <h3>Capabilities</h3>
+                        <pre>{safeJson(capabilities || { status: "waiting for adapter" })}</pre>
+                    </section>
+                    <section>
+                        <h3>Recent events</h3>
+                        <pre>{safeJson(props.recentEvents.slice(-6))}</pre>
+                    </section>
+                    <section>
+                        <h3>Snapshot</h3>
+                        <pre>{safeJson(snapshot || { status: "click Snapshot" })}</pre>
+                    </section>
+                    <section>
+                        <h3>Run log</h3>
+                        <pre>{safeJson(logs.length ? logs : [{ status: "idle" }])}</pre>
+                    </section>
+                </div>
+            </div>
+        </details>
+    );
+}
+
+function safeJson(value: unknown): string {
+    try {
+        return JSON.stringify(value, null, 2);
+    } catch (err) {
+        return `Could not serialize value: ${err instanceof Error ? err.message : String(err)}`;
+    }
+}
+
 /** Suspense fallback for the lazy-loaded Pulse bundle. Restrained — no
  *  spinner-pageant, just a single line of text on the side. The actual
  *  Pulse mount itself paints its full UI as soon as the chunk arrives. */
@@ -566,6 +874,95 @@ function PulseLoadingState(): React.ReactElement {
     );
 }
 
+function PulseModeBISourcePanel(props: {
+    vendors: ReturnType<typeof listVendors>;
+    activeVendor: string;
+    embedConfig: BIEmbedConfig;
+    hasEmbedConfig: boolean;
+    activeConnector?: string;
+    onVendorChange: (vendor: string) => void;
+    onEmbedConfigChange: (next: BIEmbedConfig) => void;
+}) {
+    const activeLabel = props.vendors.find(v => v.vendor === props.activeVendor)?.displayName || props.activeVendor;
+    return (
+        <details
+            className="pp-pulse-bi-source"
+            open={!props.hasEmbedConfig}
+            style={{
+                flex: "0 0 auto",
+                borderBottom: "1px solid rgba(0,0,0,0.08)",
+                padding: "8px 10px",
+                background: "rgba(255,255,255,0.72)",
+            }}
+        >
+            <summary
+                style={{
+                    cursor: "pointer",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    listStyle: "revert",
+                }}
+            >
+                BI source: {activeLabel}{props.hasEmbedConfig ? " · ready" : " · setup"}
+            </summary>
+            <div style={{ marginTop: 8 }}>
+                <VendorPicker
+                    vendors={props.vendors}
+                    activeVendor={props.activeVendor}
+                    onChange={props.onVendorChange}
+                />
+                <EmbedConfigForm
+                    vendor={props.activeVendor}
+                    value={props.embedConfig}
+                    onChange={props.onEmbedConfigChange}
+                    assistantProfile={props.activeConnector}
+                />
+            </div>
+        </details>
+    );
+}
+
+function commandsFromPulseFilter(
+    filter: powerbi.IFilter | powerbi.IFilter[] | null,
+    action: powerbi.FilterAction,
+): BICommand[] {
+    const filters = Array.isArray(filter) ? filter : filter ? [filter] : [];
+    const removing = action === 1;
+    if (removing && filters.length === 0) {
+        return [{ kind: "clear-filter" }];
+    }
+    const commands: BICommand[] = [];
+    for (const f of filters) {
+        const field = extractPulseFilterField(f);
+        if (!field) continue;
+        if (removing) {
+            commands.push({ kind: "clear-filter", field });
+            continue;
+        }
+        const values = (Array.isArray(f.values) ? f.values : [])
+            .filter((v): v is string | number => typeof v === "string" || typeof v === "number");
+        if (values.length === 0) continue;
+        const stringValues = values.map(String);
+        commands.push({
+            kind: "apply-filter",
+            field,
+            values: stringValues.length === 1 ? stringValues[0] : stringValues,
+        });
+    }
+    return commands;
+}
+
+function extractPulseFilterField(filter: powerbi.IFilter): string | null {
+    const target = filter.target as { column?: unknown; measure?: unknown } | undefined;
+    const candidate = typeof target?.column === "string"
+        ? target.column
+        : typeof target?.measure === "string"
+            ? target.measure
+            : "";
+    const trimmed = candidate.trim();
+    return trimmed || null;
+}
+
 /** Cycle K.1 — multi-tile BI grid. `tileMode` = "1" renders a single
  *  BIPanel filling the canvas (the v0 behaviour, no extra DOM). "2"
  *  renders two side-by-side; "4" renders a 2×2 grid. All tiles share
@@ -578,10 +975,18 @@ function BITileGrid(props: {
     vendor: string;
     embedConfig: BIEmbedConfig;
     onEvent: (e: BIEvent) => void;
+    onAdapterReady: (index: number, adapter: BIAdapter | null) => void;
 }): React.ReactElement {
-    const { tileMode, vendor, embedConfig, onEvent } = props;
+    const { tileMode, vendor, embedConfig, onEvent, onAdapterReady } = props;
     if (tileMode === "1") {
-        return <BIPanel vendor={vendor} embedConfig={embedConfig} onEvent={onEvent} />;
+        return (
+            <BIPanel
+                vendor={vendor}
+                embedConfig={embedConfig}
+                onEvent={onEvent}
+                onAdapterReady={(adapter) => onAdapterReady(0, adapter)}
+            />
+        );
     }
     const tileCount = tileMode === "2" ? 2 : 4;
     const columns = tileMode === "2" ? 2 : 2;
@@ -618,6 +1023,7 @@ function BITileGrid(props: {
                         vendor={vendor}
                         embedConfig={embedConfig}
                         onEvent={onEvent}
+                        onAdapterReady={(adapter) => onAdapterReady(i, adapter)}
                     />
                 </div>
             ))}

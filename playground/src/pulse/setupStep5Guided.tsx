@@ -392,7 +392,7 @@ export function SetupStep5Guided(props: SetupStep5GuidedProps) {
                                 placeholder="e.g. Summarise key KPIs, highlight trends, and flag any risks or anomalies."
                             />
                             <span className="gn-setup-field-hint">
-                                Override the default 5-stage descriptive prompt. Leave blank to use the bundled default.
+                                Override the default descriptive briefing prompt. Leave blank to use the bundled default.
                             </span>
                         </div>
                         <div className="gn-setup-guided-field">
@@ -417,7 +417,7 @@ export function SetupStep5Guided(props: SetupStep5GuidedProps) {
                                 </button>
                             </div>
                             <span className="gn-setup-field-hint">
-                                How long a generated AI Insights run is cached so PBI page-switches don't re-trigger the 5-stage pipeline.
+                                How long a generated AI Insights run is cached so PBI page-switches don't re-trigger the AI briefing.
                             </span>
                         </div>
                     </>

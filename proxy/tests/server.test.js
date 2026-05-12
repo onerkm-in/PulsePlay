@@ -768,6 +768,19 @@ describe('rate limit middleware wiring', () => {
             expect(res.status).toBe(200);
         }
     });
+
+    it('does not spend the cost-bearing request budget on cheap metadata reads', async () => {
+        const originalNodeEnv = process.env.NODE_ENV;
+        process.env.NODE_ENV = 'development';
+        try {
+            for (let i = 0; i < 125; i++) {
+                const res = await request(app).get('/assistant/profiles');
+                expect(res.status).toBe(200);
+            }
+        } finally {
+            process.env.NODE_ENV = originalNodeEnv;
+        }
+    });
 });
 
 // ── Path-traversal protection on feedback log ─────────────────────────────────
