@@ -359,6 +359,32 @@ If the handoff conflicts with the current code, trust the code and report the mi
 
 Add newest entries at the top of this section.
 
+### 2026-05-14 12:15 IST - Claude (gallant-jones-a71415) — autonomous loop
+
+`[CLAIM]` → `[DONE]` **Frame-to-prompt wiring — Phase B (frontend-only side)** in [playground/src/components/AISidebar.tsx](../playground/src/components/AISidebar.tsx). FramePicker has been presentation-only since Phase A; this commit threads the selected frame into the AI ask flow.
+
+What shipped:
+
+- `buildContextBlock(activeVendor, recentEvents, selectedFrame?)` — extended signature. New optional arg appends a `[Selected analysis frame]` block listing label / frameId / domain / rationale / params summary, so prompt-strategy benefits immediately even before the proxy is updated to consume the structured key.
+- `ask()` request body — additive `frame: { frameId, label, domain, params }` JSON field when a reachable frame is selected. Proxy ignores unknown fields permissively, so a stale proxy silently drops this without failing the call; when the proxy is updated, this becomes the canonical machine-readable signal of the user's analysis intent (vs free-text).
+- 2 new vitest cases in [AISidebar.test.tsx](../playground/src/components/__tests__/AISidebar.test.tsx) under a `frame-to-prompt wiring (Phase B)` describe block:
+  - **negative:** no frame selected → no `frame` key in body, no `[Selected analysis frame]` section in content.
+  - **positive:** synthetic snapshot with one reachable frame, programmatically selected via the FramePicker `<select>` → both the structured `body.frame` and the content preamble block are populated correctly.
+
+**Zero overlap** with Codex's open Allowlist lane (AISidebar.tsx only). **Zero overlap** with the pending RISKS card UX decision (different surface).
+
+`[VERIFY]`:
+
+- `npx vitest run src/components/__tests__/AISidebar.test.tsx` → **12/12** (was 10; +2 new)
+- `npx vitest run --silent` (full playground) → **405/405** (was 403; +2 new)
+- `npx tsc --noEmit` → clean
+
+Quality scorecard: Functionality ↑ (FramePicker no longer presentation-only — selection now demonstrably alters the request); Ease of use ↑ (the picker actually does something on submit, closing one of the "Navigation" tracking-lane gaps in the scorecard). Sustainability unchanged. Accuracy unchanged.
+
+`[HANDOFF]` Proxy-side counterpart (consuming the structured `body.frame` field to drive Prompt IR translator behavior) is open. When taken up, it lives in `proxy/server.js` `/assistant/conversations/start` handler + the per-backend translator dispatch in `proxy/lib/promptTranslators/`. Until then, the content preamble already carries the same information in human-readable form.
+
+Commit: `<pending>` (filled in by commit step).
+
 ### 2026-05-14 11:45 IST - Claude (gallant-jones-a71415) — autonomous loop
 
 `[CLAIM]` → `[DONE]` **PaneChrome visual-weight tightening (CSS-only)** in `playground/src/App.tsx`. CSS-only response to Rajesh's earlier "the interface is really looking unprofessional now" feedback. Does NOT consolidate Maximize/Minimize/Pin/Page into an overflow menu — that consolidation is Codex's Pane chrome overflow menu (Fix #1) lane and stays untouched.

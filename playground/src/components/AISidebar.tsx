@@ -30,7 +30,7 @@ import { useEffect, useRef, useState } from "react";
 import type { BIEvent } from "../biPanel/BIAdapter";
 import type { PackSelection } from "./PackPicker";
 import { FramePicker } from "./FramePicker";
-import { getDiscoverySnapshot, type DiscoverySnapshot } from "../lib/discoveryClient";
+import { getDiscoverySnapshot, type DiscoverySnapshot, type ReachableFrame } from "../lib/discoveryClient";
 import { SustainabilityIndicator } from "./SustainabilityIndicator";
 import { recordResponse as recordUsageResponse } from "../lib/usageTracker";
 
@@ -225,15 +225,48 @@ export function describePollStatus(status: string | undefined): { label: string;
 /** Build a small context block from the recent BI events so the LLM
  *  knows what the user is looking at. Same idea as DwD's contextBuilder,
  *  but sourced from BI vendor events. */
-function buildContextBlock(activeVendor: string, recentEvents: BIEvent[]): string {
+/**
+ * Build the [BI Context] preamble that prefixes the user question on every
+ * ask. Phase B of frame-to-prompt wiring: when a reachable analysis frame is
+ * selected in the FramePicker, append a "[Selected analysis frame]" block so
+ * the AI brain knows the user committed to a specific analysis intent (e.g.
+ * "BCG growth–share matrix on the current category mix") instead of an
+ * open-ended question. The proxy doesn't need to know about this field —
+ * it lives in the same `content` string the proxy already forwards verbatim.
+ */
+function buildContextBlock(
+    activeVendor: string,
+    recentEvents: BIEvent[],
+    selectedFrame?: ReachableFrame | null,
+): string {
     const eventLines = recentEvents
         .slice(-5)
         .map(e => `- ${e.type}${e.payload ? ": " + JSON.stringify(e.payload).slice(0, 120) : ""}`);
-    return [
+    const blocks: string[] = [
         `[BI Context]`,
         `- Active vendor: ${activeVendor}`,
         ...(eventLines.length > 0 ? ["- Recent events:", ...eventLines] : ["- No recent events captured."]),
-    ].join("\n");
+    ];
+    if (selectedFrame) {
+        const paramKeys = Object.keys(selectedFrame.params || {});
+        const paramSummary = paramKeys.length > 0
+            ? paramKeys.map(k => {
+                const v = (selectedFrame.params as Record<string, unknown>)[k];
+                const display = typeof v === "string" || typeof v === "number" || typeof v === "boolean"
+                    ? String(v)
+                    : JSON.stringify(v);
+                return `  - ${k}: ${display.slice(0, 80)}`;
+            }).join("\n")
+            : "  (no parameters)";
+        blocks.push("");
+        blocks.push("[Selected analysis frame]");
+        blocks.push(`- Frame: ${selectedFrame.label} (${selectedFrame.frameId})`);
+        blocks.push(`- Domain: ${selectedFrame.domain}`);
+        blocks.push(`- Rationale: ${selectedFrame.rationale}`);
+        blocks.push(`- Params:`);
+        blocks.push(paramSummary);
+    }
+    return blocks.join("\n");
 }
 
 /** Lightweight elapsed-time pretty-printer. */
@@ -452,7 +485,16 @@ export function AISidebar(props: AISidebarProps) {
         setHistory(prev => [...prev, entry]);
         setQuestion("");
 
-        const contextBlock = buildContextBlock(props.activeVendor, props.recentEvents);
+        // Resolve the selected analysis frame (if any) from the snapshot so we
+        // can include both a structured `frame` JSON field (additive — proxy
+        // ignores unknown fields permissively) AND a "[Selected analysis frame]"
+        // section in the content preamble (so prompt-strategy benefits even
+        // before the proxy is updated to consume the structured field).
+        const selectedFrameObj: ReachableFrame | null = (selectedFrame && snapshot)
+            ? (snapshot.fused.reachableFrames.find(f => f.frameId === selectedFrame) || null)
+            : null;
+
+        const contextBlock = buildContextBlock(props.activeVendor, props.recentEvents, selectedFrameObj);
         const ctrl = new AbortController();
         abortControllers.current.set(entryId, ctrl);
 
@@ -469,6 +511,20 @@ export function AISidebar(props: AISidebarProps) {
                     // Pack/sub-vertical drives prompt enrichment on the proxy.
                     pack: props.packSelection?.pack,
                     subVertical: props.packSelection?.subVertical,
+                    // Frame-to-prompt wiring (Phase B). Additive field; the
+                    // proxy ignores unknown JSON keys, so a stale proxy
+                    // version silently drops this without failing the call.
+                    // When the proxy is updated to consume it, this becomes
+                    // the canonical machine-readable signal of the user's
+                    // selected analysis intent (vs free-text question).
+                    ...(selectedFrameObj ? {
+                        frame: {
+                            frameId: selectedFrameObj.frameId,
+                            label: selectedFrameObj.label,
+                            domain: selectedFrameObj.domain,
+                            params: selectedFrameObj.params,
+                        },
+                    } : {}),
                 }),
                 signal: ctrl.signal,
             });
