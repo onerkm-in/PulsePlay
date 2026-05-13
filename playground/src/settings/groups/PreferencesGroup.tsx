@@ -29,7 +29,7 @@ export function PreferencesGroup(): React.ReactElement {
                 </p>
             </header>
 
-            <Leaf label="UI mode" helper="Pulse is the ported PBI-heritage UI. v0 is the lightweight cycle-C sidebar.">
+            <Leaf group="preferences" label="UI mode" helper="Pulse is the ported PBI-heritage UI. v0 is the lightweight cycle-C sidebar.">
                 <ButtonGroup<UiMode>
                     value={uiMode}
                     onChange={setUiMode}
@@ -40,7 +40,7 @@ export function PreferencesGroup(): React.ReactElement {
                 />
             </Leaf>
 
-            <Leaf label="Visible panels" helper="Which surfaces this PulsePlay instance shows.">
+            <Leaf group="preferences" label="Visible panels" helper="Which surfaces this PulsePlay instance shows.">
                 <ButtonGroup<EnabledComponents>
                     value={enabledComponents}
                     onChange={setEnabledComponents}
@@ -52,7 +52,7 @@ export function PreferencesGroup(): React.ReactElement {
                 />
             </Leaf>
 
-            <Leaf label="AI position" helper="Where the AI panel sits relative to the BI canvas. Only applies when both panels are enabled.">
+            <Leaf group="preferences" label="AI position" helper="Where the AI panel sits relative to the BI canvas. Only applies when both panels are enabled.">
                 <ButtonGroup<LayoutMode>
                     value={layoutMode}
                     onChange={setLayoutMode}
@@ -65,7 +65,7 @@ export function PreferencesGroup(): React.ReactElement {
                 />
             </Leaf>
 
-            <Leaf label="Canvas tiles" helper="How many BI frames render in the BI pane. v1 shares one embed config across all tiles.">
+            <Leaf group="preferences" label="Canvas tiles" helper="How many BI frames render in the BI pane. v1 shares one embed config across all tiles.">
                 <ButtonGroup<BiTileMode>
                     value={biTileMode}
                     onChange={setBiTileMode}

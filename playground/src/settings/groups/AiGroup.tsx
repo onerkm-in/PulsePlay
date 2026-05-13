@@ -134,6 +134,7 @@ export function AiGroup(): React.ReactElement {
 
             {/* ── Provider ──────────────────────────────────────────── */}
             <Leaf
+                group="ai"
                 label="Provider"
                 helper="The AI brain that answers your questions. Restricted to the providers your organization allows."
             >
@@ -166,6 +167,7 @@ export function AiGroup(): React.ReactElement {
 
             {/* ── Model / Agent ─────────────────────────────────────── */}
             <Leaf
+                group="ai"
                 label="Model / Agent"
                 helper={
                     isSupervisor
@@ -192,6 +194,7 @@ export function AiGroup(): React.ReactElement {
 
             {/* ── Connection test ───────────────────────────────────── */}
             <Leaf
+                group="ai"
                 label="Connection test"
                 helper={
                     isSupervisor
@@ -214,6 +217,7 @@ export function AiGroup(): React.ReactElement {
 
             {/* ── Knowledge pack ────────────────────────────────────── */}
             <Leaf
+                group="ai"
                 label="Knowledge pack"
                 helper="Vertical domain bundle the AI uses for vocabulary, KPIs, and starter questions. Restricted to packs your organization installs."
             >
@@ -237,7 +241,7 @@ export function AiGroup(): React.ReactElement {
             </Leaf>
 
             {/* ── Deep-link rows (unchanged) ────────────────────────── */}
-            <Leaf label="AI Insights setup ↗" helper="Open Pulse Setup for detailed prompt, KPI rule, and validator configuration.">
+            <Leaf group="ai" label="AI Insights setup ↗" helper="Open Pulse Setup for detailed prompt, KPI rule, and validator configuration.">
                 <DeepLinkButton label="Open Pulse Setup" onClick={() => {
                     // Phase 5 wires this to a Pulse Setup hash route. For
                     // now navigate to / and rely on the user opening Pulse.
@@ -245,7 +249,7 @@ export function AiGroup(): React.ReactElement {
                 }} />
             </Leaf>
 
-            <Leaf label="Browse library ↗" helper="Open the Knowledge Base content browser — glossary, ontology, KPIs, sample questions per pack.">
+            <Leaf group="ai" label="Browse library ↗" helper="Open the Knowledge Base content browser — glossary, ontology, KPIs, sample questions per pack.">
                 <DeepLinkButton
                     label={packSelection?.pack ? `Browse ${packSelection.pack}` : "Browse Knowledge Base"}
                     onClick={() => {

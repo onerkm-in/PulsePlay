@@ -23,7 +23,7 @@ import {
     type SettingsGroupId,
 } from "./settingsRoute";
 import { useSettings } from "./settingsStore";
-import { BiGroup } from "./groups/BiGroup";
+import { BiGroup, leafSlug } from "./groups/BiGroup";
 import { AiGroup } from "./groups/AiGroup";
 import { PreferencesGroup } from "./groups/PreferencesGroup";
 import { SystemGroup } from "./groups/SystemGroup";
@@ -78,6 +78,31 @@ export function SettingsShell(): React.ReactElement {
         window.addEventListener("keydown", handler);
         return () => window.removeEventListener("keydown", handler);
     }, []);
+
+    // Settings IA fix #2 — when the URL has a `/settings/<group>/<leaf>`
+    // segment, scroll the matching leaf into view after the group renders.
+    // The `<Leaf>` component renders `id="settings-<group>-<slug>"`; we
+    // accept either the exact slug or any label that slugifies to it
+    // (case-insensitive, separator-tolerant).
+    useEffect(() => {
+        if (!route.isSettingsRoute || !route.leaf) return;
+        const wanted = leafSlug(route.leaf);
+        if (!wanted) return;
+        // Defer one frame so the active group has mounted and its leaves
+        // are in the DOM before we look them up.
+        const id = window.requestAnimationFrame(() => {
+            const target = document.getElementById(`settings-${route.group}-${wanted}`);
+            if (target) {
+                target.scrollIntoView({ behavior: "smooth", block: "start" });
+                // Visual highlight pulse so the user can spot the destination
+                // when the layout is dense. Pure CSS transition; no JS timer
+                // leak if the user navigates away.
+                target.setAttribute("data-leaf-just-scrolled", "true");
+                setTimeout(() => target.removeAttribute("data-leaf-just-scrolled"), 2000);
+            }
+        });
+        return () => window.cancelAnimationFrame(id);
+    }, [route.isSettingsRoute, route.group, route.leaf]);
 
     const filteredGroups = useMemo(() => {
         const needle = search.trim().toLowerCase();
@@ -241,6 +266,8 @@ function SettingsStatusStrip(): React.ReactElement {
     const proxyStatus = allowlistError ? "warn" : allowlistLoading ? "loading" : "ok";
     const securityStatus = allowlist?.enforcement === "strict" ? "ok" : "warn";
 
+    // Settings IA fix #3 — each chip is a button that jumps to the matching
+    // group. BI / AI / Preferences / System / Advanced. Pack lives under AI.
     return (
         <div
             style={{
@@ -252,18 +279,18 @@ function SettingsStatusStrip(): React.ReactElement {
                 flexWrap: "wrap",
             }}
         >
-            <Chip label="BI" status={biStatus} detail={biVendor || "(none)"} />
-            <Chip label="AI" status={aiStatus} detail={allowlist?.aiProfiles?.[0] || "(none)"} />
-            <Chip label="Pack" status={packStatus} detail={packSelection?.pack || "(none)"} />
-            <Chip label="Proxy" status={proxyStatus} detail={allowlistError || (allowlistLoading ? "loading" : "ok")} />
-            <Chip label="Security" status={securityStatus} detail={allowlist?.enforcement || "(unknown)"} />
+            <Chip label="BI" status={biStatus} detail={biVendor || "(none)"} group="bi" />
+            <Chip label="AI" status={aiStatus} detail={allowlist?.aiProfiles?.[0] || "(none)"} group="ai" />
+            <Chip label="Pack" status={packStatus} detail={packSelection?.pack || "(none)"} group="ai" leaf="knowledge-pack" />
+            <Chip label="Proxy" status={proxyStatus} detail={allowlistError || (allowlistLoading ? "loading" : "ok")} group="system" leaf="proxy-status" />
+            <Chip label="Security" status={securityStatus} detail={allowlist?.enforcement || "(unknown)"} group="system" leaf="security-posture" />
         </div>
     );
 }
 
 type ChipStatus = "ok" | "warn" | "missing" | "loading";
 
-function Chip(props: { label: string; status: ChipStatus; detail: string }): React.ReactElement {
+function Chip(props: { label: string; status: ChipStatus; detail: string; group: SettingsGroupId; leaf?: string }): React.ReactElement {
     const colors: Record<ChipStatus, { dot: string; bg: string; fg: string }> = {
         ok: { dot: "#22c55e", bg: "rgba(34, 197, 94, 0.08)", fg: "#0f6b35" },
         warn: { dot: "#facc15", bg: "rgba(250, 204, 21, 0.12)", fg: "#7a5b00" },
@@ -271,8 +298,13 @@ function Chip(props: { label: string; status: ChipStatus; detail: string }): Rea
         loading: { dot: "#888", bg: "rgba(0, 0, 0, 0.04)", fg: "#555" },
     };
     const c = colors[props.status];
+    const target = props.leaf ? `${props.group} › ${props.label}` : `${props.label} group`;
     return (
-        <div
+        <button
+            type="button"
+            onClick={() => navigateToSettings(props.group, props.leaf)}
+            aria-label={`Jump to ${target}`}
+            title={`Jump to ${target}`}
             style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -283,7 +315,12 @@ function Chip(props: { label: string; status: ChipStatus; detail: string }): Rea
                 borderRadius: 14,
                 fontSize: 11,
                 fontWeight: 500,
+                border: "1px solid transparent",
+                cursor: "pointer",
+                font: "inherit",
             }}
+            onFocus={e => { e.currentTarget.style.borderColor = c.dot; }}
+            onBlur={e => { e.currentTarget.style.borderColor = "transparent"; }}
         >
             <span
                 aria-hidden="true"
@@ -297,7 +334,7 @@ function Chip(props: { label: string; status: ChipStatus; detail: string }): Rea
             />
             <span style={{ fontWeight: 600 }}>{props.label}</span>
             <span style={{ opacity: 0.75 }}>{props.detail}</span>
-        </div>
+        </button>
     );
 }
 

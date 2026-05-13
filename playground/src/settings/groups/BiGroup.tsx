@@ -19,7 +19,7 @@ export function BiGroup(): React.ReactElement {
                 </p>
             </header>
 
-            <Leaf label="Provider" helper="The BI tool PulsePlay embeds. Restricted to the providers your organization allows.">
+            <Leaf group="bi" label="Provider" helper="The BI tool PulsePlay embeds. Restricted to the providers your organization allows.">
                 <CurrentValue label="Active">{biVendor}</CurrentValue>
                 <CurrentValue label="Allowed">
                     {allowedProviders.length > 0 ? allowedProviders.join(" · ") : "(allowlist unavailable)"}
@@ -27,22 +27,22 @@ export function BiGroup(): React.ReactElement {
                 {biOrphan && <OrphanBanner reason={biOrphan.reason} />}
             </Leaf>
 
-            <Leaf label="Embed" helper="How PulsePlay obtains the embed. Power BI: secure-embed link, AAD SSO, service principal, or manual token.">
+            <Leaf group="bi" label="Embed" helper="How PulsePlay obtains the embed. Power BI: secure-embed link, AAD SSO, service principal, or manual token.">
                 <PhaseStub phase={3} />
             </Leaf>
 
-            <Leaf label="Authentication" helper="Sign-in mode + tenant. Tenant is locked to your organization's allowlist.">
+            <Leaf group="bi" label="Authentication" helper="Sign-in mode + tenant. Tenant is locked to your organization's allowlist.">
                 <CurrentValue label="Allowed AAD tenants">
                     {allowlist?.aadTenants?.length ? allowlist.aadTenants.join(", ") : "(allowlist unavailable)"}
                 </CurrentValue>
                 <PhaseStub phase={3} />
             </Leaf>
 
-            <Leaf label="Canvas" helper="How many Power BI frames render side-by-side.">
+            <Leaf group="bi" label="Canvas" helper="How many Power BI frames render side-by-side.">
                 <PhaseStub phase={3} />
             </Leaf>
 
-            <Leaf label="Status" helper="Live state of the embed: mount mode, last load, recent events, license posture (Premium tier, embed-token availability, Fabric capability).">
+            <Leaf group="bi" label="Status" helper="Live state of the embed: mount mode, last load, recent events, license posture (Premium tier, embed-token availability, Fabric capability).">
                 {allowlist?.license?.powerbi ? (
                     <>
                         <CurrentValue label="Premium tier required">{allowlist.license.powerbi.minTier || "(unset)"}</CurrentValue>
@@ -80,12 +80,28 @@ export function BiGroup(): React.ReactElement {
 
 // ─── Shared leaf renderer + small helpers (used by every group) ──────────
 
-export function Leaf(props: { label: string; helper: string; children: React.ReactNode }): React.ReactElement {
+/** Convert a leaf label into a stable URL slug for deep linking.
+ *  e.g. "AI Insights setup ↗" → "ai-insights-setup"
+ *  Pure ASCII output; non-ASCII characters are stripped so a copy-paste
+ *  from the URL bar always works regardless of locale. */
+export function leafSlug(label: string): string {
+    return label
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+}
+
+export function Leaf(props: { label: string; helper: string; group?: string; children: React.ReactNode }): React.ReactElement {
+    const slug = leafSlug(props.label);
+    const id = props.group ? `settings-${props.group}-${slug}` : undefined;
     return (
         <article
+            id={id}
+            data-leaf-slug={slug}
             style={{
                 padding: "14px 16px",
                 borderTop: "1px solid var(--pp-border, rgba(0,0,0,0.08))",
+                scrollMarginTop: 90, // leave room for the sticky search + status strip when scrolled into view
             }}
         >
             <div style={{ fontWeight: 600, fontSize: 14 }}>{props.label}</div>

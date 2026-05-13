@@ -41,15 +41,15 @@ export function AdvancedGroup(): React.ReactElement {
                 </p>
             </header>
 
-            <Leaf label="Local storage inspector" helper="Every PulsePlay localStorage key on this origin. Read-only.">
+            <Leaf group="advanced" label="Local storage inspector" helper="Every PulsePlay localStorage key on this origin. Read-only.">
                 <LocalStorageTable entries={entries} />
             </Leaf>
 
-            <Leaf label="Reset section" helper="Clear localStorage keys owned by one settings group. The other groups keep their state.">
+            <Leaf group="advanced" label="Reset section" helper="Clear localStorage keys owned by one settings group. The other groups keep their state.">
                 <ResetSectionAction />
             </Leaf>
 
-            <Leaf label="Reset all" helper="Clear every PulsePlay setting on this origin. The app's BI and AI selections, layout, and pack will all be gone. Pulse's persisted visual-settings keys also clear.">
+            <Leaf group="advanced" label="Reset all" helper="Clear every PulsePlay setting on this origin. The app's BI and AI selections, layout, and pack will all be gone. Pulse's persisted visual-settings keys also clear.">
                 <TypeToConfirmAction
                     name="Reset all"
                     label="Clear all PulsePlay settings"
@@ -61,7 +61,7 @@ export function AdvancedGroup(): React.ReactElement {
                 />
             </Leaf>
 
-            <Leaf label="Danger zone" helper="Sign out of Power BI and clear cached MSAL sessions. The browser drops the AAD session — you'll need to sign in again to embed.">
+            <Leaf group="advanced" label="Danger zone" helper="Sign out of Power BI and clear cached MSAL sessions. The browser drops the AAD session — you'll need to sign in again to embed.">
                 <DangerZoneActions />
             </Leaf>
         </section>

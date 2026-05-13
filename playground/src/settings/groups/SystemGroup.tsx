@@ -112,12 +112,12 @@ export function SystemGroup(): React.ReactElement {
             </header>
 
             {/* ── Proxy status ──────────────────────────────────────── */}
-            <Leaf label="Proxy status" helper="Live /health from the PulsePlay proxy. Polled every 10 seconds; click Re-run to refresh immediately.">
+            <Leaf group="system" label="Proxy status" helper="Live /health from the PulsePlay proxy. Polled every 10 seconds; click Re-run to refresh immediately.">
                 <ProxyStatusBlock state={health} onReload={health.reload} />
             </Leaf>
 
             {/* ── Security posture (unchanged from Phase 3) ─────────── */}
-            <Leaf label="Security posture" helper="Read-only view of the organization-controlled allowlist. Configured via proxy/config.json. Do not edit here.">
+            <Leaf group="system" label="Security posture" helper="Read-only view of the organization-controlled allowlist. Configured via proxy/config.json. Do not edit here.">
                 {allowlistLoading && <CurrentValue label="Status">Loading...</CurrentValue>}
                 {allowlistError && (
                     <CurrentValue label="Status">
@@ -145,7 +145,7 @@ export function SystemGroup(): React.ReactElement {
             </Leaf>
 
             {/* ── License posture (Phase 3) ─────────────────────────── */}
-            <Leaf label="License posture" helper="What's licensed in this deployment. Read-only; configured by the admin via proxy/config.json allowlist.license.">
+            <Leaf group="system" label="License posture" helper="What's licensed in this deployment. Read-only; configured by the admin via proxy/config.json allowlist.license.">
                 {allowlist?.license?.powerbi ? (
                     <>
                         <CurrentValue label="PBI min tier">{allowlist.license.powerbi.minTier || "(unset)"}</CurrentValue>
@@ -179,12 +179,12 @@ export function SystemGroup(): React.ReactElement {
             </Leaf>
 
             {/* ── Diagnostics ───────────────────────────────────────── */}
-            <Leaf label="Diagnostics" helper="Last 20 BI events + last 20 console errors. Use Export bundle below to save a redacted snapshot for support.">
+            <Leaf group="system" label="Diagnostics" helper="Last 20 BI events + last 20 console errors. Use Export bundle below to save a redacted snapshot for support.">
                 <DiagnosticsBlock events={diagnostics.events} errors={diagnostics.errors} />
             </Leaf>
 
             {/* ── Export bundle ─────────────────────────────────────── */}
-            <Leaf label="Export support bundle" helper="Download a redacted JSON snapshot of state for support tickets. Tokens and secrets are masked before download.">
+            <Leaf group="system" label="Export support bundle" helper="Download a redacted JSON snapshot of state for support tickets. Tokens and secrets are masked before download.">
                 <button
                     type="button"
                     onClick={onExport}
