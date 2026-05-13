@@ -89,6 +89,12 @@ export interface AnswerEntry {
     /** Optional token usage from the backend (OpenAI / Anthropic shape).
      *  Surfaced by SustainabilityIndicator. Absent for pure Genie responses. */
     usage?: ProxyMessageResponse["usage"];
+    /** Latest upstream poll status reported by the proxy (e.g.
+     *  `ASKING_AI`, `EXECUTING_QUERY`, `PENDING_WAREHOUSE`). Used to render
+     *  a contextual loading message instead of a blanket "Thinking…" so
+     *  the user sees that a 40-second wait is a cold-start warehouse,
+     *  not the proxy hanging. Cleared on terminal status. */
+    pollStatus?: string;
 }
 
 let nextEntryId = 1;
@@ -167,7 +173,46 @@ function projectEntryFromResponse(data: ProxyMessageResponse): Partial<AnswerEnt
         executionTimeMs: typeof data.execution_time_ms === "number" ? data.execution_time_ms : undefined,
         validationDiagnostics: data.validationDiagnostics,
         usage: data.usage,
+        pollStatus: typeof data.status === "string" ? data.status : undefined,
     };
+}
+
+/** Map a raw upstream poll status (Genie / Databricks Apps state machine)
+ *  to a viewer-friendly loading message + an optional "typical wait" hint.
+ *
+ *  Live-smoke 2026-05-14: warehouse cold-start regularly takes 30-60 s.
+ *  Generic "Thinking…" left users thinking the proxy was hung. Surfacing
+ *  the upstream state with a sympathetic explanation closes the
+ *  perceived-time gap without making us faster.
+ *
+ *  Returns null when the status is unknown so the caller renders the
+ *  default loading line. */
+export function describePollStatus(status: string | undefined): { label: string; hint?: string } | null {
+    if (!status) return null;
+    switch (status.toUpperCase()) {
+        case "PENDING_WAREHOUSE":
+        case "STARTING":
+            return {
+                label: "Warming the SQL warehouse",
+                hint: "First question after the warehouse goes idle takes ~30-60 s while Databricks spins compute. Follow-up questions reuse the warm cluster.",
+            };
+        case "ASKING_AI":
+        case "PENDING":
+            return { label: "Asking the AI for SQL" };
+        case "EXECUTING_QUERY":
+        case "RUNNING_QUERY":
+            return { label: "Running the SQL on the warehouse" };
+        case "SUMMARIZING":
+        case "NARRATING":
+            return { label: "Writing the narrative answer" };
+        case "FETCHING_METADATA":
+            return { label: "Fetching warehouse metadata" };
+        case "COMPLETED":
+        case "FAILED":
+            return null;
+        default:
+            return null;
+    }
 }
 
 /** Build a small context block from the recent BI events so the LLM
@@ -554,11 +599,25 @@ function AnswerEntryView(props: { entry: AnswerEntry; onStop: () => void; onRetr
             {entry.status === "submitting" && (
                 <div className="pp-ai-sidebar__pending">Submitting…</div>
             )}
-            {entry.status === "polling" && (
-                <div className="pp-ai-sidebar__pending">
-                    Thinking… (elapsed: {formatElapsed(elapsedMs)})
-                </div>
-            )}
+            {entry.status === "polling" && (() => {
+                const detail = describePollStatus(entry.pollStatus);
+                return (
+                    <div
+                        className="pp-ai-sidebar__pending"
+                        data-testid={`pp-ai-poll-${entry.id}`}
+                        data-poll-status={(entry.pollStatus || "").toUpperCase()}
+                    >
+                        <div style={{ fontWeight: 500 }}>
+                            {detail ? detail.label : "Thinking…"} <span style={{ opacity: 0.6, fontWeight: 400 }}>(elapsed: {formatElapsed(elapsedMs)})</span>
+                        </div>
+                        {detail?.hint && (
+                            <div style={{ fontSize: 11, opacity: 0.65, marginTop: 4, lineHeight: 1.35 }}>
+                                {detail.hint}
+                            </div>
+                        )}
+                    </div>
+                );
+            })()}
 
             {entry.answer && (
                 <div className="pp-ai-sidebar__a">

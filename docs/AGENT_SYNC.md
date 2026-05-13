@@ -367,6 +367,60 @@ If the handoff conflicts with the current code, trust the code and report the mi
 
 Add newest entries at the top of this section.
 
+### 2026-05-14 09:45 IST - Claude (gallant-jones-a71415) — live-smoke driven polish
+
+`[DONE]` Two UX fixes triggered by Rajesh's live-smoke session. Zero overlap with Codex's still-active App.tsx PaneChrome polish (Codex: layout/headerReserve tweaks; Claude: AISidebar + pulse/visual.tsx).
+
+**Context from the live smoke:**
+
+- Rajesh hit Ask in the AI sidebar; Genie call took 1:05. Proxy log showed 40 s of `[warehouse] Starting…` (cold-start) + 25 s of ASKING_AI / EXECUTING_QUERY / ASKING_AI. UI just said "Thinking… 0:53" with no indication that the dominant wait was Databricks spinning compute.
+- The HEADLINE card surfaced an italic message "**No SQL was attached to this stage's response**" which Rajesh reasonably read as a failure. The SQL **was** in the response (confirmed via `curl` against the conversation/message endpoint) but on a sibling section — HEADLINE is a narrative-only stage that reuses sibling data.
+
+**Fix #3 (Pulse stage SQL-empty wording):**
+
+- `playground/src/pulse/visual.tsx` — rewrote the empty-state card from "No SQL was attached" (reads like failure) to "**This section reuses data from an earlier query.**" with an explicit pointer at the `</>` icon on sibling sections. Added `role="status"` for screen-reader semantics.
+
+**Fix #4 (warehouse cold-start visibility):**
+
+- `playground/src/components/AISidebar.tsx` — new `describePollStatus(status)` helper maps each upstream Genie/Databricks state machine label to a sympathetic, specific loading line + optional "typical wait" hint:
+  - `PENDING_WAREHOUSE` / `STARTING` → "Warming the SQL warehouse" + "First question after the warehouse goes idle takes ~30-60 s…"
+  - `ASKING_AI` / `PENDING` → "Asking the AI for SQL"
+  - `EXECUTING_QUERY` / `RUNNING_QUERY` → "Running the SQL on the warehouse"
+  - `SUMMARIZING` / `NARRATING` → "Writing the narrative answer"
+  - `FETCHING_METADATA` → "Fetching warehouse metadata"
+  - Unknown → null (caller falls back to generic "Thinking…")
+- `AnswerEntry` gains `pollStatus?: string`; `projectEntryFromResponse` captures `data.status` on every poll tick.
+- Polling render replaces the bare "Thinking… (elapsed)" with `<div data-testid="pp-ai-poll-N" data-poll-status="…">{label} (elapsed: …) <hint>`.
+
+**Tests:**
+
+- New `playground/src/components/__tests__/describePollStatus.test.ts` — 10 tests covering null/empty inputs, unknown states, terminal states, every known status (PENDING_WAREHOUSE/STARTING/ASKING_AI/PENDING/EXECUTING_QUERY/RUNNING_QUERY/SUMMARIZING/NARRATING/FETCHING_METADATA), case-insensitivity.
+
+`[VERIFY]`:
+
+- `npx tsc --noEmit` (playground) → clean
+- `npx vitest run src/components/__tests__/describePollStatus.test.ts` → 10/10
+- `npx vitest run --silent` (full playground) → **379/379** (was 369; +10)
+- `npx jest --silent` (proxy, unchanged) → 658/658
+
+**Queued for Codex** (their territory in App.tsx PaneChrome; ZERO overlap with their current `data-testid` polish):
+
+- **Fix #1 — PaneChrome overflow menu.** Today each pane title bar has 4 inline buttons (Maximize / Minimize / Pin / Page). Consolidate into ONE inline button + a `⋮` overflow menu that opens a small popover with the rest. Drops 8 buttons → 2-4 buttons total across both panes. Big visual-weight reduction; closes Rajesh's "looks unprofessional" feedback. Add `data-testid` for the overflow trigger so the existing viewport-controls integration tests can be updated.
+- **Fix #2 — Hide PaneChrome on the empty pane.** When `hasEmbedConfig` is false (BI pane shows the empty-state hero), the chrome row should be absent or reduced to just the title — there's nothing to maximize. Avoids the empty pane looking like a populated one.
+
+Quality scorecard movement:
+
+- **Ease of use** ↑ — "Warming the SQL warehouse" labels stop a 40 s wait from looking broken.
+- **Accuracy** ↑ — Pulse empty-state copy is no longer misleading (the SQL exists; it's on a sibling).
+- **Sustainability** ↑ — once Codex ships fix #1/#2, the interface stops competing with the content for attention, which is itself an accuracy-of-comprehension win.
+
+Next:
+
+- Codex: pick up fixes #1 + #2 in the same PaneChrome block you're editing right now. They're tight in scope (~30 min each).
+- Claude: standby; will review Codex's chrome PR + Allowlist PR when posted.
+
+Commit: `<sha>` once committed.
+
 ### 2026-05-14 06:10 IST - Claude (gallant-jones-a71415)
 
 `[VERIFY]` Reviewed Codex's `docs/research/INTEGRATION_TEST_FINDINGS.md`. Findings confirmed independently:

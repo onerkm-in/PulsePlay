@@ -8971,20 +8971,25 @@ function renderInsightsSections(content: string, options?: InsightsRenderOptions
                                         reusedFromTitle={sectionSqlReusedFrom}
                                     />
                                 ) : (
-                                    <div className="gn-insights-section-sql-empty">
-                                        {/* Cycle 38 — clearer empty-state copy. The previous
+                                    <div className="gn-insights-section-sql-empty" role="status">
+                                        {/* Cycle 38 — clearer empty-state copy. Previous
                                             message implied only RISKS / OPPORTUNITIES /
                                             RECOMMENDED ACTIONS lacked SQL, but in practice
                                             ANY stage that's a follow-up turn in the same Genie
                                             conversation can reuse the prior stage's query
-                                            result instead of generating a new SQL — which
-                                            includes HEADLINE when it lands after KPI SNAPSHOT.
-                                            Genie-side optimisation, not a bug. */}
-                                        No SQL was attached to this stage&apos;s response.
-                                        The AI typically reused data from an earlier stage&apos;s
-                                        query (Genie conversation memory) instead of
-                                        generating a new warehouse query — saves a roundtrip
-                                        when the answer can be synthesised from context.
+                                            result instead of generating a new SQL.
+                                            2026-05-14 live-smoke pass — reframe from
+                                            "No SQL was attached" (reads like failure) to
+                                            "This section reuses data from an earlier query"
+                                            (reads like an optimisation). Point the viewer at
+                                            sibling stages with the `</>` icon so they know
+                                            where to click. */}
+                                        <strong>This section reuses data from an earlier query.</strong>{" "}
+                                        It's a narrative summary — Pulse synthesises it from the result
+                                        of a sibling stage (often <em>KPI SNAPSHOT</em> or the initial
+                                        briefing) rather than running another warehouse query.
+                                        Click the <code style={{ background: "rgba(0,0,0,0.05)", padding: "0 4px", borderRadius: 3 }}>{`</>`}</code>{" "}
+                                        icon on a sibling section above to see the SQL that supplied the data.
                                     </div>
                                 )}
                             </div>
