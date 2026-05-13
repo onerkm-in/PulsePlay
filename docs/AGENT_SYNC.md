@@ -132,38 +132,30 @@ Newest active/review lane first. Keep completed-but-reviewing work above older o
 | Power BI token hardening review | Claude (2026-05-14 02:35 IST) | done; approved | `proxy/server.js`, `proxy/tests/embedTokenRoute.test.js`, `playground/src/components/EmbedConfigForm.tsx`, `playground/src/components/__tests__/EmbedConfigForm.test.tsx`, docs | [VERIFY] 630/630 proxy + 338/338 playground green; non-blocking [RISK] notes captured in Coordination Log. |
 | Power BI token hardening | Codex (assigned 2026-05-14 by Rajesh) | done; reviewed | `proxy/server.js`, `EmbedConfigForm.tsx`, tests | Client identities rejected; server-derived RLS; Edit gate; identity-aware cache. Reviewed clean; committed by Claude with co-author trailer. Live credentialed smoke still pending. |
 | Settings IA polish | Claude (2026-05-14 04:05 IST → 05:30 IST) | done; reviewed | `playground/src/settings/`, `playground/src/knowledge/KnowledgeShell.tsx`, settings tests | Fixes #1/#2/#3/#4/#5 shipped in 3 batched commits (`e651c80` / `f38af88` / `6fad9d9`); fix #7 (focus trap + aria) deferred to separate a11y lane. 369/369 playground green; live boot smoke verified all routes + IR translator pipeline. |
-| BI live controls (Phase 3) | unclaimed (queued for Codex) | open | `playground/src/settings/groups/BiGroup.tsx`, `EmbedConfigForm.tsx` | Settings IA review fix #6 — wires the 3 PhaseStub leaves. |
+| BI live controls (Phase 3) | Phase A done by Claude 2026-05-14 11:00 IST (commit `f20b00f`); Phase B queued for Codex | partial | Phase A shipped: `playground/src/settings/embedConfigStore.ts` (new) + `playground/src/settings/groups/BiGroup.tsx` (3 of 4 PhaseStubs gone). Phase B: `App.tsx` adopts `useEmbedConfig` + Pulse sidebar inline `EmbedConfigForm` replaced with status-row + deep-link to `/settings/bi/embed`. | Wait until Codex's Allowlist work in App.tsx ships before starting Phase B. |
 | Per-leaf revert + deep-link copy | unclaimed (queued for Codex) | open | `playground/src/settings/`, shared Leaf | Settings IA review fix #8. |
+| BIAdapter.getMetadata() — Power BI | Claude (2026-05-14 10:30 IST, commit `c7759bd`) | done; reviewed | `playground/src/biPanel/BIAdapter.ts`, `bi-adapters/powerbi/index.ts`, `playground/src/components/AISidebar.tsx`, `playground/src/App.tsx` | Power BI adapter surfaces visibleMeasures + visibleDimensions + activeFilters via `getMetadata()`. AISidebar discovery effect forwards to `/assistant/discover`. Tableau/Qlik/Looker stay null until SDK graduation. |
 | Production auth hardening | Codex (2026-05-14 04:10 IST) | done; reviewed | `proxy/server.js`, `docs/SECURITY.md`, `productionAuth.test.js` | `PROXY_AUTH_MODE` shipped; production fail-closed; 16/16 productionAuth, 646/646 proxy green; Claude line-by-line review at 04:15 IST — all 8 security checks pass. |
-| Allowlist fail-closed pass | unclaimed | open | `playground/src/settings/`, `App.tsx`, `BIPanel.tsx` | Distinguish dev-unconfigured from governance-fetch-failed. |
-| Discovery metadata wiring | unclaimed | open | `BIAdapter.ts`, PBI adapter, `AISidebar.tsx` | Add `getMetadata()` and pass `biMetadata` + `biUrl` into discovery. |
-| Frame-to-prompt wiring | unclaimed | open | `AISidebar.tsx`, proxy routes, Prompt IR docs | Selected frame should alter request payload and prompt strategy. |
+| Allowlist fail-closed pass | unclaimed — **next Codex lane** | open | `playground/src/settings/settingsStore.tsx`, `App.tsx`, `BIPanel.tsx` | Distinguish dev-unconfigured (no allowlist file authored, accept any selection) from governance-fetch-failed (allowlist endpoint returned 5xx/network error, refuse new selections). Today both paths reach the same `allowlistError` state. BIPanel needs mount-time revalidation when allowlist transitions null → configured. |
+| Frame-to-prompt wiring | unclaimed | open | `AISidebar.tsx`, proxy routes, Prompt IR docs | Selected frame should alter request payload and prompt strategy. Now that BIAdapter.getMetadata is in place, the proxy can compute reachableFrames honestly; this lane wires the selected frame's params into the request. |
 | Support bundle redaction | unclaimed | open | `diagnosticsBuffer.ts`, `exportBundle.ts`, `AdvancedGroup.tsx` | Redact raw event payloads and nested localStorage secrets. |
+| Tableau / Qlik / Looker BIAdapter.getMetadata() | unclaimed (deferred to v0.3+) | open | `bi-adapters/tableau/index.ts`, `bi-adapters/qlik/index.ts`, `bi-adapters/looker/index.ts` | Today these adapters are iframe stubs — they can't introspect. Lands when their SDKs graduate from iframe in v0.3+. |
 
 ## Next Task For Other Agent
 
 LIFO: newest task first. When adding another task, insert it above the current one and leave older tasks below for traceability.
 
-**Immediate task (Claude, requested by Rajesh via Codex 2026-05-14):** **Review integration-test findings and take up cross-validation / next action**.
+**Immediate task (Codex, re-confirmed by Rajesh 2026-05-14 ~11:30 IST):** **Allowlist fail-closed pass (P1)**.
 
-Scope:
+> **Coordination note:** Claude has been making progress in parallel while Codex's session is closed — Settings IA polish (`Phase A` of BI Live Controls), supervisor sub-call usage aggregation, PBI BIAdapter.getMetadata(), warehouse cold-start loading state, Pulse "reuses earlier query" wording. None of this touches the Allowlist files. Codex's lane is still open and unchanged.
 
-- Read `docs/research/INTEGRATION_TEST_FINDINGS.md`.
-- Independently confirm or challenge the verification baseline:
-  - Playground: `npm.cmd test -- --silent` from `playground/`.
-  - Proxy: `npm.cmd test -- --silent` from `proxy/`.
-  - Playground typecheck: `npm.cmd run lint` from `playground/`.
-  - Proxy syntax: `node --check server.js` from `proxy/`.
-- Post `[VERIFY]` if the baseline is accepted, or `[RISK]` with exact failing command/output if not.
-- Decide whether ITF-005 stale TODO cleanup is worth taking immediately or leaving as low-priority cleanup.
-- Keep ITF-006 / ITF-007 visible: green tests do not close the Allowlist fail-closed P1 lane, and no live credentialed PBI + Genie smoke has been run.
+Codex's NEXT-SESSION checklist when you open a new session:
 
-Expected output:
+1. Run `git pull` (or `git fetch --all && git log --oneline origin/main -5`) — main is at `9f87c3e` (Claude's docs merge) or newer. There are 4 commits ahead of where you last left.
+2. Read this file's Coordination Log entries since your last `[DONE]` (10:55 IST) — three Claude entries cover what shipped.
+3. Confirm your Allowlist [CLAIM] is still valid (the lane row still says `unclaimed` because you never posted a [CLAIM]; only the prep claim at 04:10 IST was rolled forward; please post a fresh [CLAIM] before editing files).
 
-- `[VERIFY]` / `[RISK]` entry in the Coordination Log.
-- If Claude takes implementation work, add a separate `[CLAIM]` before touching files and avoid overlapping Codex's Allowlist fail-closed lane unless explicitly reassigned.
 
-**Immediate task (Codex, assigned by Claude 2026-05-14 05:00 IST):** **Allowlist fail-closed pass (P1)**.
 
 Scope:
 
