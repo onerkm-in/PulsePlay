@@ -831,6 +831,30 @@ function spHashForProfile(profile) {
     return hashServicePrincipalId(profile.clientId);
 }
 
+/**
+ * Normalise a backend's `usage` block to the OpenAI-compatible shape the
+ * playground's SustainabilityIndicator expects. Tolerates partial fields
+ * (some self-hosted endpoints only report total_tokens). Returns null when
+ * the input carries no usable numeric fields.
+ *
+ * Backends and shapes handled:
+ *   • OpenAI chat-completions: { prompt_tokens, completion_tokens, total_tokens }
+ *   • Anthropic / Claude:      { input_tokens, output_tokens }
+ *   • Bedrock-normalised:      both shapes (via bedrock.js _extractBedrockUsage)
+ *   • Foundation Model:        OpenAI-compatible
+ */
+function _sanitizeUsageBlock(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const num = (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.floor(v) : null;
+    const out = {};
+    let any = false;
+    for (const k of ['prompt_tokens', 'completion_tokens', 'total_tokens', 'input_tokens', 'output_tokens']) {
+        const v = num(raw[k]);
+        if (v !== null) { out[k] = v; any = true; }
+    }
+    return any ? out : null;
+}
+
 async function resolveToken(profile) {
     // If a PAT is explicitly configured, use it
     if (profile.token && profile.token.trim() && !profile.token.includes('YOUR_')) {
@@ -3789,7 +3813,10 @@ app.post('/openai/conversations/start', async (req, res) => {
             const msgId = `aoai-msg-${Date.now()}`;
             const callLlm = async (messages) => {
                 const data = await azureOpenAiRequest(resolved.profile, messages);
-                return data.choices?.[0]?.message?.content ?? '';
+                return {
+                    content: data.choices?.[0]?.message?.content ?? '',
+                    usage: _sanitizeUsageBlock(data?.usage),
+                };
             };
             const { result, retried, attempts } = await runAnalyticsOrchestrator({
                 profile: resolved.profile, content, callLlm, convId, msgId,
@@ -3804,6 +3831,7 @@ app.post('/openai/conversations/start', async (req, res) => {
                 status: result.status,
                 content: result.content,
                 sqlQuery: result.sqlQuery,
+                ...(result.usage ? { usage: result.usage } : {}),
             };
             console.log(`[openai/analytics] profile=${resolved.name} conv=${convId} status=${result.status} attempts=${attempts} retried=${retried}`);
             return res.json(responsePayload);
@@ -3825,13 +3853,15 @@ app.post('/openai/conversations/start', async (req, res) => {
     try {
         const data = await azureOpenAiRequest(resolved.profile, messages);
         const answer = data.choices?.[0]?.message?.content ?? '';
+        const usage = _sanitizeUsageBlock(data?.usage);
         messages.push({ role: 'assistant', content: answer });
 
         const responsePayload = {
             conversation_id: convId,
-            message_id: JSON.stringify({ id: convId, status: 'COMPLETED', content: answer }),
+            message_id: JSON.stringify({ id: convId, status: 'COMPLETED', content: answer, ...(usage ? { usage } : {}) }),
             status: 'COMPLETED',
-            content: answer
+            content: answer,
+            ...(usage ? { usage } : {}),
         };
         console.log(`[openai/start] profile=${resolved.name} conv=${convId}`);
         res.json(responsePayload);
@@ -3977,9 +4007,9 @@ app.get('/bedrock/health', (req, res) => {
 
 // IDEA-040 Phase 2 — direct-mode helper. Calls Bedrock InvokeModel
 // (the new lib/bedrock.js entry point) and returns plain text.
-async function bedrockInvokeModelCall(profile, messages) {
+async function bedrockInvokeModelCall(profile, messages, opts = {}) {
     const { bedrockInvokeModel } = require('./lib/bedrock');
-    return bedrockInvokeModel(profile, messages);
+    return bedrockInvokeModel(profile, messages, opts);
 }
 
 app.post('/bedrock/conversations/start', async (req, res) => {
@@ -4010,7 +4040,13 @@ app.post('/bedrock/conversations/start', async (req, res) => {
     if (engine === 'bedrock-direct' && resolved.profile.mode === 'analytics' && hasAnalyticsContext) {
         try {
             const msgId = `bedrock-msg-${Date.now()}`;
-            const callLlm = (messages) => bedrockInvokeModelCall(resolved.profile, messages);
+            const callLlm = async (messages) => {
+                let capturedUsage = null;
+                const content = await bedrockInvokeModelCall(resolved.profile, messages, {
+                    onUsage: u => { capturedUsage = u; },
+                });
+                return { content, usage: capturedUsage };
+            };
             const { result, retried, attempts } = await runAnalyticsOrchestrator({
                 profile: resolved.profile, content, callLlm, convId, msgId,
                 packContext: packResolved.resolved ? packResolved.content : null,
@@ -4021,6 +4057,7 @@ app.post('/bedrock/conversations/start', async (req, res) => {
                 status: result.status,
                 content: result.content,
                 sqlQuery: result.sqlQuery,
+                ...(result.usage ? { usage: result.usage } : {}),
             };
             console.log(`[bedrock/analytics] profile=${resolved.name} conv=${convId} status=${result.status} attempts=${attempts} retried=${retried}`);
             return res.json(responsePayload);
@@ -4039,10 +4076,14 @@ app.post('/bedrock/conversations/start', async (req, res) => {
             const messages = packResolved.resolved && packResolved.content
                 ? [{ role: 'system', content: packResolved.content }, { role: 'user', content }]
                 : [{ role: 'user', content }];
-            const answer = await bedrockInvokeModelCall(resolved.profile, messages);
-            const msgId = JSON.stringify({ id: convId, status: 'COMPLETED', content: answer });
+            let capturedUsage = null;
+            const answer = await bedrockInvokeModelCall(resolved.profile, messages, {
+                onUsage: u => { capturedUsage = u; },
+            });
+            const usage = _sanitizeUsageBlock(capturedUsage);
+            const msgId = JSON.stringify({ id: convId, status: 'COMPLETED', content: answer, ...(usage ? { usage } : {}) });
             console.log(`[bedrock/direct/start] profile=${resolved.name} conv=${convId}`);
-            return res.json({ conversation_id: convId, message_id: msgId, status: 'COMPLETED', content: answer });
+            return res.json({ conversation_id: convId, message_id: msgId, status: 'COMPLETED', content: answer, ...(usage ? { usage } : {}) });
         } catch (err) {
             console.error('[bedrock/direct/start]', err.message);
             return res.status(500).json({ error: err.message });

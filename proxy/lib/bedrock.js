@@ -199,6 +199,17 @@ async function bedrockInvokeModel(profile, messages, opts = {}) {
     }
 
     const data = await response.json();
+
+    // Optional usage capture — Anthropic-on-Bedrock returns
+    // { usage: { input_tokens, output_tokens } }; Llama-on-Bedrock returns
+    // { prompt_token_count, generation_token_count } at the top level.
+    // The caller passes `opts.onUsage` to receive whichever shape is present
+    // so we don't change the string return type for existing callers.
+    if (typeof opts.onUsage === 'function') {
+        const usage = _extractBedrockUsage(data);
+        if (usage) { try { opts.onUsage(usage); } catch { /* listener errors don't break dispatch */ } }
+    }
+
     // Anthropic-on-Bedrock returns `{ content: [{type:'text', text:'...'}] }`
     if (Array.isArray(data?.content)) {
         const txt = data.content
@@ -213,9 +224,49 @@ async function bedrockInvokeModel(profile, messages, opts = {}) {
     return JSON.stringify(data);
 }
 
+/**
+ * Normalise the various Bedrock usage shapes into the OpenAI-compatible
+ * `{ prompt_tokens, completion_tokens, total_tokens }` shape that the
+ * SustainabilityIndicator on the playground expects.
+ *
+ * Defensive: any non-numeric / negative value is dropped. Returns null
+ * when no usage signal is present.
+ */
+function _extractBedrockUsage(data) {
+    if (!data || typeof data !== 'object') return null;
+    // Anthropic shape.
+    const u = data.usage;
+    if (u && typeof u === 'object') {
+        const input = _num(u.input_tokens);
+        const output = _num(u.output_tokens);
+        if (input != null || output != null) {
+            const out = {};
+            if (input != null) { out.input_tokens = input; out.prompt_tokens = input; }
+            if (output != null) { out.output_tokens = output; out.completion_tokens = output; }
+            if (input != null && output != null) out.total_tokens = input + output;
+            return out;
+        }
+    }
+    // Llama-on-Bedrock shape.
+    const promptCount = _num(data.prompt_token_count);
+    const genCount = _num(data.generation_token_count);
+    if (promptCount != null || genCount != null) {
+        const out = {};
+        if (promptCount != null) { out.prompt_tokens = promptCount; out.input_tokens = promptCount; }
+        if (genCount != null) { out.completion_tokens = genCount; out.output_tokens = genCount; }
+        if (promptCount != null && genCount != null) out.total_tokens = promptCount + genCount;
+        return out;
+    }
+    return null;
+}
+
+function _num(v) {
+    return typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.floor(v) : null;
+}
+
 module.exports = {
     bedrockRetrieveAndGenerate,
     bedrockInvokeModel,
     signAwsRequest,
-    __test_internals: { hmac, getSignatureKey },
+    __test_internals: { hmac, getSignatureKey, _extractBedrockUsage },
 };

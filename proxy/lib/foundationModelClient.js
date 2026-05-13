@@ -96,6 +96,31 @@ function extractAssistantContent(rawResponse) {
     return msg.content;
 }
 
+/**
+ * Extract the `usage` block from an OpenAI-compatible response. Returns
+ * the shape `{ prompt_tokens, completion_tokens, total_tokens }` when
+ * present; null otherwise. Consumed by the SustainabilityIndicator UI via
+ * the conversation response payload.
+ *
+ * Defensive: tolerates partial usage blocks (some self-hosted endpoints
+ * only report total) and ignores non-numeric values.
+ */
+function extractUsage(rawResponse) {
+    const u = rawResponse?.usage;
+    if (!u || typeof u !== 'object') return null;
+    const out = {};
+    const fields = ['prompt_tokens', 'completion_tokens', 'total_tokens', 'input_tokens', 'output_tokens'];
+    let anyPresent = false;
+    for (const k of fields) {
+        const v = u[k];
+        if (typeof v === 'number' && Number.isFinite(v) && v >= 0) {
+            out[k] = Math.floor(v);
+            anyPresent = true;
+        }
+    }
+    return anyPresent ? out : null;
+}
+
 function tryParseJson(content) {
     if (typeof content !== 'string' || !content.trim()) return null;
     try {
@@ -146,7 +171,9 @@ async function callFoundationModel(databricksRequestFn, profile, options) {
     }
 
     const content = extractAssistantContent(raw);
+    const usage = extractUsage(raw);
     const result = { content, raw };
+    if (usage) result.usage = usage;
     if (options?.responseFormat) {
         const parsed = tryParseJson(content);
         if (parsed !== null) result.parsedJson = parsed;
@@ -294,12 +321,14 @@ const SECTION_RENDERERS = Object.freeze({
 
 module.exports = {
     callFoundationModel,
+    extractUsage,
     RESPONSE_SCHEMAS,
     SECTION_RENDERERS,
     // Internals exposed for tests
     __test_internals: {
         buildFoundationModelBody,
         extractAssistantContent,
+        extractUsage,
         tryParseJson,
         renderActionsMarkdown,
         renderRisksMarkdown,

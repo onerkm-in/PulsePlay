@@ -117,12 +117,29 @@ async function orchestrateGroundedAnswer({
         ? `${NARRATIVE_SYSTEM_PROMPT}\n\n${packCtx}`
         : NARRATIVE_SYSTEM_PROMPT;
 
+    // Accumulator for per-call usage blocks. The orchestrator makes 2-3
+    // LLM calls (SQL, narrative, optional retry); we sum their `usage` so
+    // the conversation response carries the total session contribution.
+    // Genie-style backends don't expose usage, in which case the accumulator
+    // stays null and the response simply omits the field.
+    /** @type {{prompt_tokens:number,completion_tokens:number,total_tokens:number}|null} */
+    let totalUsage = null;
+    const _runLlm = async (messages) => {
+        const out = await callLlm(messages);
+        if (typeof out === 'string') return out;
+        if (out && typeof out === 'object') {
+            if (out.usage && typeof out.usage === 'object') totalUsage = _accumulateUsage(totalUsage, out.usage);
+            return typeof out.content === 'string' ? out.content : '';
+        }
+        return '';
+    };
+
     // Step 1+2: get SQL from LLM.
     const sqlMessages = [
         { role: 'system', content: sqlSystemPrompt },
         { role: 'user', content: `Schema:\n${schemaContext}\n\nQuestion: ${question}` },
     ];
-    const sqlResponse = await callLlm(sqlMessages);
+    const sqlResponse = await _runLlm(sqlMessages);
     const extractedSql = extractSqlFromResponse(sqlResponse);
     if (!extractedSql) {
         return {
@@ -182,7 +199,7 @@ async function orchestrateGroundedAnswer({
     ];
     let narrative;
     try {
-        narrative = await callLlm(narrativeMessages);
+        narrative = await _runLlm(narrativeMessages);
     } catch (err) {
         // SQL succeeded but narrative failed — return the data with a fallback message.
         narrative = `SQL ran successfully but the narrative pass failed: ${err.message}. The data is shown below.`;
@@ -221,7 +238,7 @@ async function orchestrateGroundedAnswer({
                     { role: 'user', content: retryDirective },
                 ];
                 try {
-                    const retryNarrative = await callLlm(retryMessages);
+                    const retryNarrative = await _runLlm(retryMessages);
                     if (retryNarrative && retryNarrative.trim()) {
                         // Re-validate the retry; pick the better of the two
                         // (retry usually wins because we steered with the
@@ -269,7 +286,34 @@ async function orchestrateGroundedAnswer({
         // Cycle 45 — validation diagnostics (null when retry budget = 0
         // OR narrative isn't multi-section). Visual can surface inline.
         ...(validationDiagnostics ? { validationDiagnostics } : {}),
+        // Token usage summed across SQL + narrative + optional retry calls.
+        // Absent when the backend didn't expose `usage` (Genie path).
+        ...(totalUsage ? { usage: totalUsage } : {}),
     };
+}
+
+/**
+ * Sum two OpenAI-shape `usage` blocks element-by-element. Used by the
+ * orchestrator to aggregate SQL + narrative call costs into a single
+ * `usage` payload returned to the client. Tolerates partial inputs.
+ *
+ * @param {object | null} acc
+ * @param {object} next
+ */
+function _accumulateUsage(acc, next) {
+    const a = acc || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+    const p = _num(next.prompt_tokens) ?? _num(next.input_tokens) ?? 0;
+    const c = _num(next.completion_tokens) ?? _num(next.output_tokens) ?? 0;
+    const t = _num(next.total_tokens) ?? (p + c);
+    return {
+        prompt_tokens: (a.prompt_tokens || 0) + p,
+        completion_tokens: (a.completion_tokens || 0) + c,
+        total_tokens: (a.total_tokens || 0) + t,
+    };
+}
+
+function _num(v) {
+    return typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.floor(v) : null;
 }
 
 // ── Retry-on-bad-SQL wrapper (IDEA-040 Phase 2) ───────────────────────────────
@@ -591,6 +635,7 @@ module.exports = {
     withRetryOnBadSql,
     isSyntacticSqlError,
     __retry_internals: { SYNTACTIC_ERROR_PATTERNS, NON_RETRYABLE_PATTERNS },
+    __usage_internals: { _accumulateUsage },
     // Wave 41 PREP additions
     suggestMetricRules,
     buildMetricRulePrompt,

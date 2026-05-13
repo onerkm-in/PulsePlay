@@ -5,6 +5,55 @@
 
 ---
 
+## 2026-05-13 — Proxy plumbs `usage` blocks for sustainability indicator
+
+**Range:** follow-on to the sustainability-indicator commit. Replaces text-length estimates with real token counts for every backend that exposes them.
+
+### What shipped
+
+- **`proxy/lib/foundationModelClient.js`** — `extractUsage()` helper + `callFoundationModel` now returns `{ content, raw, usage? }`. Tolerates partial blocks; rejects negative/NaN values.
+- **`proxy/lib/bedrock.js`** — new `opts.onUsage` callback on `bedrockInvokeModel`. Normalises both Anthropic-on-Bedrock (`{ usage: { input_tokens, output_tokens } }`) and Llama-on-Bedrock (`{ prompt_token_count, generation_token_count }`) into OpenAI-compatible shape via internal `_extractBedrockUsage()`. Existing string-returning signature unchanged for backwards-compat with probe + suggest-metric-rules call sites.
+- **`proxy/lib/llmOrchestrator.js`** — `orchestrateGroundedAnswer` accepts `callLlm` returning either a bare string (legacy contract) OR `{ content, usage? }` (new). Internal `_runLlm()` wrapper accumulates usage across SQL + narrative + optional validation-retry calls. `_accumulateUsage()` helper sums OpenAI/Anthropic-shape blocks into a single OpenAI-shape total. Result object now carries `usage` when at least one LLM call returned a block.
+- **`proxy/server.js`** — `_sanitizeUsageBlock()` helper added near `spHashForProfile`. Four conversation/start handlers updated:
+  - OpenAI chat-only: extracts `data.usage` → adds to `responsePayload.usage` + `message_id` JSON.
+  - OpenAI analytics: inline `callLlm` returns `{ content, usage }` so the orchestrator accumulates across both LLM calls.
+  - Bedrock direct chat-only: passes `onUsage` callback to `bedrockInvokeModelCall`; captured usage flows through the response.
+  - Bedrock direct analytics: same pattern as Bedrock chat-only, into the orchestrator.
+
+### Backends covered
+
+| Backend | Usage block | Plumbed |
+|---|---|---|
+| Foundation Model (Databricks Model Serving) | OpenAI shape | ✅ |
+| Azure OpenAI chat-only | OpenAI shape | ✅ |
+| Azure OpenAI analytics-mode (LLM→SQL→narrative) | OpenAI shape | ✅ summed across calls |
+| Bedrock Anthropic (Claude) | `{ input_tokens, output_tokens }` | ✅ normalised |
+| Bedrock Llama | `{ prompt_token_count, generation_token_count }` | ✅ normalised |
+| Bedrock RAG (RetrieveAndGenerate) | Not exposed | ⏳ N/A |
+| Databricks Genie | Not exposed | ⏳ N/A — heuristic estimation in playground |
+| Supervisor (fan-out) | Per-space sub-calls | ⏳ aggregation pending |
+
+### Tests + build
+
+- `proxy`: **625/625 pass** (was 608 — +17 from usage tests). Coverage: `foundationModelClient.extractUsage` (5 cases), `bedrock._extractBedrockUsage` (5 cases including partial inputs), `llmOrchestrator._accumulateUsage` (5 cases), orchestrator end-to-end with stub callLlm (2 cases including the bare-string legacy contract).
+- `playground`: 336/336 unchanged. Playground already had the `usage` field plumbed through `AnswerEntry`/`ProxyMessageResponse`/`recordUsageResponse` from the previous commit; once the proxy starts sending the field, real counts flow into the SustainabilityIndicator with no client changes needed.
+
+### Tripwires
+
+- **Bedrock-RAG path doesn't expose token counts.** Sessions on bedrock-rag profiles fall back to playground-side estimation. If AWS adds a `usage` field to the RetrieveAndGenerate response, lift it in the bedrock-rag handler the same way (`_sanitizeUsageBlock(data.usage)`).
+- **Genie path stays on estimation indefinitely.** The Genie REST API doesn't return token counts. The playground's chars/4 heuristic is the honest answer here; the SustainabilityIndicator marks these sessions with a "~" prefix + tooltip disclaimer.
+- **Supervisor fan-out doesn't yet aggregate sub-call usages.** Each Genie sub-call is unmetered; the synthesis-LLM call IS metered when it goes through the Foundation Model translator path. A future commit can sum sub-call usages — but only for non-Genie fan-out spaces (since Genie has no usage to sum).
+- **The `callLlm` contract is now dual-shape** — bare string OR `{ content, usage }`. Existing callers that return a string still work. New callers should return the object form. The `_runLlm()` wrapper in the orchestrator handles normalisation.
+- **Don't expose `usage` to audit logs by default.** Token counts aren't sensitive but they do leak into the standard audit pipeline if a future commit blindly stringifies the response. Audit logs today carry a deliberate subset of response fields; keep `usage` out unless you add a typed field for it (it's metric data, not security signal).
+
+### What's next
+
+- **Supervisor aggregation**: sum per-space usage where exposed; expose `usage` on the supervisor response.
+- **Per-entry token badge**: small inline `🍃 1.2k` next to each AISidebar answer entry's elapsed-time stamp (currently only session-aggregate).
+- **Track cumulative cost in audit log (opt-in)**: a `usageStats` metric line, separate from the main audit stream, that finance/observability can scrape to track per-profile spend.
+
+---
+
 ## 2026-05-13 — Sustainability indicator (leaf + smile token gauge)
 
 **Range:** small UX feature requested by the user. Reinforces PulsePlay's "fewer tokens, better accuracy — the lean-and-mean solution" positioning by making it visible in the UI itself.
