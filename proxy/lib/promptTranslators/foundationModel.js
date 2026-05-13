@@ -140,6 +140,16 @@ function _buildSystem(ir, request) {
     if (ir?.output?.format === 'structured-sections' && Array.isArray(ir?.output?.sections)) {
         const ids = ir.output.sections.map(s => `${s.id}${s.required ? ' (required)' : ''}`).join(', ');
         blocks.push(`Output sections: ${ids}. Respond with each section as a top-level field; omit non-required sections when not applicable.`);
+        // Phase B SQL transparency: ask the model to label each CTE in any
+        // generated SQL with the section it backs, so the UI can show
+        // per-section provenance. Parsed back out via sqlSectionExtractor.
+        const sectionIds = ir.output.sections.map(s => s.id).join(', ');
+        blocks.push(
+            'When you produce SQL (analytics mode, tool-call payload, or ' +
+            'inline code-fence), label each top-level CTE with a ' +
+            `/* Section: <SECTION_ID> */ comment immediately before its ` +
+            `definition. Use these IDs verbatim: ${sectionIds}.`,
+        );
     }
 
     // Analytics-mode hint — Azure OpenAI's analytics path uses schemaContext

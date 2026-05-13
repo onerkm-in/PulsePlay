@@ -86,6 +86,20 @@ describe('foundationModel.translate — authored IR', () => {
         expect(sys).toMatch(/Output sections: HEADLINE \(required\), TRENDS/);
     });
 
+    test('Phase B: system message adds a CTE-labelling directive citing section IDs', () => {
+        const out = foundationModel.translate(authoredIR, { userQuestion: 'Q' });
+        const sys = out.messages[0].content;
+        expect(sys).toMatch(/\/\* Section: <SECTION_ID> \*\//);
+        expect(sys).toMatch(/HEADLINE, TRENDS/);
+    });
+
+    test('Phase B: directive is absent when IR has no structured sections', () => {
+        const ir = { ...authoredIR, output: { format: 'free-text' } };
+        const out = foundationModel.translate(ir, { userQuestion: 'Q' });
+        const sys = out.messages[0].content;
+        expect(sys).not.toMatch(/Section: <SECTION_ID>/);
+    });
+
     test('examples expand into alternating user/assistant turns BEFORE the user question', () => {
         const out = foundationModel.translate(authoredIR, { userQuestion: 'New Q' });
         // [system, user(example.q), assistant(example.a), user(New Q)]

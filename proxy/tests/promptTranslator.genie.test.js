@@ -162,6 +162,23 @@ describe('genie.translate — authored IR (structured user message)', () => {
         expect(out).toBe('hello');
     });
 
+    test('Phase B: structured-sections output adds an SQL-provenance directive citing the section IDs', () => {
+        const out = genie.translate(authoredIR, { userQuestion: 'Q?' }).userMessage;
+        expect(out).toMatch(/\[SQL provenance\]/);
+        expect(out).toMatch(/\/\* Section: <SECTION_ID> \*\//);
+        // Section IDs verbatim from the IR (HEADLINE, TRENDS in this fixture).
+        expect(out).toMatch(/HEADLINE, TRENDS/);
+    });
+
+    test('Phase B: SQL-provenance directive is absent when IR has no sections', () => {
+        const ir = {
+            ...authoredIR,
+            output: { format: 'free-text', sections: [] },
+        };
+        const out = genie.translate(ir, { userQuestion: 'Q' }).userMessage;
+        expect(out).not.toMatch(/\[SQL provenance\]/);
+    });
+
     test('omits Guardrails block when both must and mustNot are empty', () => {
         const ir = {
             ...authoredIR,

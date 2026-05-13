@@ -92,6 +92,18 @@ function translate(ir, request) {
     if (Array.isArray(ir?.output?.sections) && ir.output.sections.length > 0) {
         const ids = ir.output.sections.map(s => s.id).join(', ');
         blocks.push(_section('Output format', `Respond with sections: ${ids}`));
+        // Phase B SQL transparency: ask Genie to label each CTE in the
+        // generated SQL with the section it backs, so the UI can show
+        // per-section provenance. Genie returns the SQL in the `attachments[].
+        // query.query_text` field; the orchestrator pipes it through the
+        // sqlSectionExtractor to split on these markers.
+        blocks.push(_section(
+            'SQL provenance',
+            'When you generate SQL, label each top-level CTE with a ' +
+            '/* Section: <SECTION_ID> */ comment immediately before the ' +
+            `CTE definition. Use these IDs verbatim: ${ids}. ` +
+            'This lets the UI show which SQL fragment backs each section.',
+        ));
     }
     blocks.push(_section('Question', userQuestion));
 
