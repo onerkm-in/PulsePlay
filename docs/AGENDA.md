@@ -4,6 +4,10 @@
 >
 > Strategic direction is locked: **Path C — inner-source-first, public-OSS-later.** Items that only matter for the public-OSS path live in [PUBLIC_OSS_AGENDA.md](PUBLIC_OSS_AGENDA.md), not here.
 
+## Recently shipped (v0.1.3)
+
+- [x] **Phase 11a — Prompt IR + per-backend translators** (2026-05-13, working tree) — Vendor-neutral Prompt IR schema (YAML+JSON dual format) authored at `pulsepacks/<pack>/<sv>/prompt-ir.yaml`. Per-backend translators emit native shapes: Genie (single fenced user message — byte-identical to legacy `wrapAsGenieUserMessage` for un-migrated packs), Foundation Model (OpenAI-compatible messages + tools + response_format), Supervisor (fan-out + synthesis). Dispatcher is additive in 11a — `packPromptInjector` still wired into routes. Phase 11b migrates routes one at a time. CLI: `node scripts/check-prompt-ir.js --all`. 87 new proxy tests including byte-identical backward-compat regression. See [PROMPT_IR_ARCHITECTURE.md](PROMPT_IR_ARCHITECTURE.md).
+
 ## Recently shipped (v0.1.2)
 
 - [x] **Power BI secure embed quick-preview mode** (2026-05-11, working tree) — authors can paste the Power BI portal's website/portal link or iframe; the Power BI adapter mounts it as a preview iframe with honest limited capabilities while SSO/service-principal remain the SDK control paths.

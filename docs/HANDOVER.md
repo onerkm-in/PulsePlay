@@ -5,6 +5,51 @@
 
 ---
 
+## 2026-05-13 — Phase 11a: Prompt IR + per-backend translators
+
+**Range:** four prior beast-mode commits + new Phase 11a work. Phase 11a is **additive** — no existing route handler is migrated yet; the dispatcher coexists with `packPromptInjector`.
+
+### Why this phase exists
+
+The author raised a critical architectural concern: prompt-context.md today is Genie-shaped (single-user-message + "[Pack Context: …]" header). Routing the same markdown to Foundation Model, OpenAI, Bedrock, or future Anthropic/MCP backends produces sub-optimal prompts because each backend has different idiomatic shapes (system+messages+tools+response_format, etc.). The author should get **upper hand** by writing a vendor-neutral contract once; the runtime translates per-backend.
+
+### What shipped
+
+- **[docs/PROMPT_IR_ARCHITECTURE.md](PROMPT_IR_ARCHITECTURE.md)** — canonical design, YAML+JSON dual-format decision, translator pattern, migration plan, schema for `role / task / vocabulary / functions / guardrails / output / examples / overrides`.
+- **`proxy/lib/promptIR.js`** — loader + hand-rolled validator + synthetic-IR builder.
+  - YAML loaded with `yaml.JSON_SCHEMA` mode (no custom tags → defends against the YAML deserialisation CVE class).
+  - Synthetic IR carries the raw legacy markdown verbatim in `overrides.genie.legacyPreamble` for byte-identical Genie backward-compat.
+  - In-memory cache keyed on `(packsRoot, pack, subVertical)`, `__rebuildIRCache()` test hook.
+- **`proxy/lib/promptTranslators/{genie,foundationModel,supervisor,index}.js`** — per-backend translators.
+  - `genie`: emits byte-identical output to `wrapAsGenieUserMessage` for synthetic IRs; emits a structured `[Persona]/[Vocabulary]/[Guardrails]/…/[Question]` message for authored IRs.
+  - `foundationModel`: OpenAI chat-completions shape — system message with persona/audience/tone/vocabulary/guardrails, alternating user/assistant turns from `examples[]`, `tools[]` from `functions[]`, `response_format.json_schema` from `output.sections`.
+  - `supervisor`: fan-out per Genie space (each via Genie translator) + synthesis step via Foundation Model translator with `task.kind=summarise`.
+  - `index`: registry maps `genie / supervisor / supervisor-local / foundation-model / openai / bedrock-llama` to translators; `openai` and `bedrock-llama` alias to `foundationModel` because they're OpenAI-compatible.
+- **`proxy/lib/promptDispatcher.js`** — top-level facade `buildBackendPayload(profile, request)`. Additive in Phase 11a; doesn't replace `packPromptInjector`. Reports `irSource: 'yaml' | 'json' | 'synthetic' | 'none'` diagnostic so the future "Show translated prompt" UI knows where the IR came from.
+- **`pulsepacks/cpg-fmcg/sub-verticals/supply-chain/prompt-ir.yaml`** — first authored example. Carries role, task, full vocabulary (OTIF, fill rate, forecast accuracy, inventory days, service level, cost-to-serve), `compute_kpi` + `decompose_variance` functions, 10 guardrail rules, 5-section structured output, 2 few-shot examples, and a Genie-only `extraUserPreamble` override.
+- **`scripts/check-prompt-ir.js`** — local validator CLI: `--all` walks `pulsepacks/`, single-target validates one pack, `--show <pack>/<sv> <backend>` prints the translated payload for debugging ("what does Genie see?", "what does Foundation Model see?").
+- **`js-yaml ^4.1.1`** — the only new runtime dep this phase.
+
+### Tests + build
+
+- `proxy`: 5 new test files, **87 new tests** — `promptIR.test.js` (43), `promptTranslator.genie.test.js` (12), `promptTranslator.foundationModel.test.js` (14), `promptTranslator.supervisor.test.js` (10), `promptDispatcher.test.js` (12). **Full suite: 551/551 pass** (was 464).
+- The most important test: `promptTranslator.genie.test.js` includes the byte-identical backward-compat regression for both `supply-chain` and `sustainability` packs. If this ever loosens, ALL un-migrated packs see their Genie prompt change. Phase 11b dispatcher migration leans on this guarantee.
+- `playground`: 264/264 pass (unchanged — playground does not touch Phase 11a code).
+- CLI smoke: `node scripts/check-prompt-ir.js --all` → ✓ cpg-fmcg/supply-chain (yaml).
+
+### Tripwires
+
+- **Phase 11a is additive — no route handler migrated yet.** Existing `/assistant/conversations/start`, `/foundation/section`, and supervisor routes still call `packPromptInjector` directly. Phase 11b migrates them one at a time, locked by per-route regression tests.
+- **Synthetic IR carries a generic `persona: 'data analyst'`.** Foundation Model translator's `_buildSystem` checks `ir.meta.synthetic` and unconditionally appends `legacyPreamble` for synthetic IRs (the stub persona doesn't carry domain knowledge). Don't add fancier stub fields — they'd suppress the legacy lift.
+- **YAML wins when both formats exist.** Authors can ship `prompt-ir.yaml` AND `prompt-ir.json`; loader prefers YAML; validator CLI emits a warning. Decide once per pack; don't keep both for "fallback" reasons.
+- **`overrides.<backend>.legacyPreamble` is reserved for synthetic IRs.** Authored YAMLs use `overrides.genie.extraUserPreamble` (Notes section append) instead. The Genie translator's check on `legacyPreamble` is what triggers byte-identical-to-legacy output — don't set it on authored IRs.
+
+### What's next (Phase 11b)
+
+Migrate the three live route handlers to `buildBackendPayload`. Each migration: write a regression test that locks the new output against the old `packPromptInjector`/`wrapAsGenieUserMessage` output, then flip the route. Once all three are migrated and a release cycle has shipped, retire `packPromptInjector.wrapAsGenieUserMessage` (keep `resolvePackContext` + `buildAuditDetail` — they're still used by the audit pipeline).
+
+---
+
 ## 2026-05-13 — Phase 8: Knowledge Base UI (beast-mode six)
 
 **Range:** working tree after `8fde791` — current session, not yet committed. Builds on Phase 0-7 + Phase 6 medium cleanup.
