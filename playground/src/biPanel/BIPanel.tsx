@@ -39,16 +39,48 @@ function blockedEmbedOrigin(vendor: string, embedConfig: BIEmbedConfig, allowlis
     return `URL hostname "${host}" is not in your organization's allowed origins. Allowed: ${allowed.join(", ") || "none configured"}.`;
 }
 
+/** Stable key derived from embedConfig content. The mount effect re-runs
+ *  on real config changes (a new URL, a new token mode, etc.) but NOT on
+ *  parent re-renders that happen to recreate the same-shaped object —
+ *  e.g. a recentEvents push in App.tsx that does not touch embedConfig
+ *  but causes a re-render. Stringifying is cheap (embedConfig is small);
+ *  the alternative is shallow-equality per known field which is fragile
+ *  every time a new field is added to BIEmbedConfig.
+ *
+ *  Perf rationale: before this fix, BIPanel re-mounted the adapter every
+ *  time the parent re-rendered with a fresh `embedConfig` reference even
+ *  when the content was unchanged. For Power BI, "re-mount" = full SDK
+ *  re-init + iframe reload mid-session, which is the biggest single
+ *  source of user-visible jank per the 2026-05-13 perf audit. */
+function embedConfigKey(cfg: BIEmbedConfig): string {
+    try { return JSON.stringify(cfg); }
+    catch { return "[unserialisable-embed-config]"; }
+}
+
 export function BIPanel(props: BIPanelProps) {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const adapterRef = useRef<BIAdapter | null>(null);
     const onAdapterReadyRef = useRef(props.onAdapterReady);
+    // Phase 5+ perf — mirror the onAdapterReady ref pattern for the other
+    // optional handlers / cross-cutting context so they don't fall into
+    // the mount effect's dep array and trigger spurious remounts. The
+    // adapter still sees the LATEST value at event time because we read
+    // through the ref inside the handler closures below.
+    const onEventRef = useRef(props.onEvent);
+    const allowlistRef = useRef(props.allowlist);
+    const embedConfigRef = useRef(props.embedConfig);
     const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
     const [errorMsg, setErrorMsg] = useState<string>("");
 
-    useEffect(() => {
-        onAdapterReadyRef.current = props.onAdapterReady;
-    }, [props.onAdapterReady]);
+    // Sync refs every render — these stay current without invalidating
+    // the mount effect's dep array.
+    useEffect(() => { onAdapterReadyRef.current = props.onAdapterReady; }, [props.onAdapterReady]);
+    useEffect(() => { onEventRef.current = props.onEvent; }, [props.onEvent]);
+    useEffect(() => { allowlistRef.current = props.allowlist; }, [props.allowlist]);
+    useEffect(() => { embedConfigRef.current = props.embedConfig; }, [props.embedConfig]);
+
+    const configKey = embedConfigKey(props.embedConfig);
+    const vendor = props.vendor;
 
     useEffect(() => {
         let cancelled = false;
@@ -57,9 +89,11 @@ export function BIPanel(props: BIPanelProps) {
 
         (async () => {
             try {
-                const blocked = blockedEmbedOrigin(props.vendor, props.embedConfig, props.allowlist);
+                const embedConfig = embedConfigRef.current;
+                const allowlist = allowlistRef.current;
+                const blocked = blockedEmbedOrigin(vendor, embedConfig, allowlist);
                 if (blocked) throw new Error(blocked);
-                const adapter = await loadAdapter(props.vendor);
+                const adapter = await loadAdapter(vendor);
                 if (cancelled) {
                     adapter.destroy();
                     return;
@@ -72,12 +106,12 @@ export function BIPanel(props: BIPanelProps) {
                 // fires. The adapter-side helpers fall through cleanly
                 // when allowedOrigins is missing.
                 const allowedOrigins =
-                    props.allowlist?.configured
-                        ? props.allowlist.embedOrigins?.[props.vendor] || []
+                    allowlist?.configured
+                        ? allowlist.embedOrigins?.[vendor] || []
                         : undefined;
                 const embedConfigWithAllowlist = allowedOrigins && allowedOrigins.length > 0
-                    ? { ...props.embedConfig, allowedOrigins }
-                    : props.embedConfig;
+                    ? { ...embedConfig, allowedOrigins }
+                    : embedConfig;
                 await adapter.mount(containerRef.current, embedConfigWithAllowlist);
                 if (cancelled) {
                     adapter.destroy();
@@ -87,18 +121,21 @@ export function BIPanel(props: BIPanelProps) {
                 setStatus("ready");
                 onAdapterReadyRef.current?.(adapter);
 
-                // Wire vendor → host event bridge if the host is listening.
-                // Phase 5 — also broadcast a `pulseplay:bi-event` window event
-                // so Settings › System › Diagnostics can subscribe to the
-                // rolling-buffer view without needing a SettingsHostContext.
+                // Wire vendor → host event bridge. The handler reads
+                // `onEventRef.current` so callers can swap their onEvent
+                // callback (e.g. via useCallback identity churn) without
+                // triggering an adapter remount.
+                // Phase 5 — also broadcast a `pulseplay:bi-event` window
+                // event so Settings › System › Diagnostics can subscribe
+                // to the rolling-buffer view without a SettingsHostContext.
                 const eventTypes = ["loaded", "page-changed", "filter-applied", "selection-made", "data-refreshed", "error"] as const;
                 for (const t of eventTypes) {
                     adapter.on(t, (event) => {
-                        if (props.onEvent) props.onEvent(event);
+                        onEventRef.current?.(event);
                         try {
                             window.dispatchEvent(
                                 new CustomEvent("pulseplay:bi-event", {
-                                    detail: { vendor: props.vendor, event },
+                                    detail: { vendor, event },
                                 }),
                             );
                         } catch { /* swallow */ }
@@ -119,7 +156,11 @@ export function BIPanel(props: BIPanelProps) {
             adapterRef.current?.destroy();
             adapterRef.current = null;
         };
-    }, [props.vendor, props.embedConfig, props.onEvent, props.allowlist]);
+        // Intentionally minimal deps: vendor (primitive) + configKey (value
+        // hash of embedConfig). onEvent, allowlist, and onAdapterReady flow
+        // through refs and don't trigger remounts. See per-ref useEffects
+        // above. eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [vendor, configKey]);
 
     return (
         <div className="pp-bi-panel" data-status={status}>
