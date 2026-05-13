@@ -4995,11 +4995,16 @@ async function synthesizeSupervisorAnswer(supervisorProfile, question, spaceResu
             || data.output?.content
             || data.content
             || JSON.stringify(data);
-        return scrubInternalJargon(raw);
+        // Capture the synthesis-LLM token usage so the supervisor route can
+        // forward an aggregated `usage` block back to the playground's
+        // SustainabilityIndicator. Foundation Model serving endpoints return
+        // an OpenAI-shaped `data.usage` when available.
+        const usage = _sanitizeUsageBlock(data?.usage);
+        return { answer: scrubInternalJargon(raw), usage };
     } catch (err) {
         // Fallback: return structured raw results so no information is lost.
         // Phrasing intentionally avoids "Genie space" wording (BUG-013).
-        return [
+        const fallback = [
             'Supervisor synthesis model was unavailable — showing the raw source results below.',
             `Synthesis error: ${err.message}`,
             '',
@@ -5007,6 +5012,7 @@ async function synthesizeSupervisorAnswer(supervisorProfile, question, spaceResu
             '',
             sourceBlocks
         ].join('\n\n');
+        return { answer: fallback, usage: null };
     }
 }
 
@@ -5098,9 +5104,46 @@ async function runLocalSupervisor(supervisorProfile, content, onEvent, req) {
 
     emit({ type: 'synthesis.start', helperCount: results.filter(r => r.ok).length });
     const synthStart = Date.now();
-    const answer = await synthesizeSupervisorAnswer(supervisorProfile, content, results);
+    const synthesis = await synthesizeSupervisorAnswer(supervisorProfile, content, results);
     emit({ type: 'synthesis.done', elapsedMs: Date.now() - synthStart, totalElapsedMs: Date.now() - startedAt });
-    return { answer, results };
+    // Aggregate usage across the fan-out (today only the synthesis-LLM call
+    // surfaces it — Genie doesn't expose tokens). Structured so we can sum
+    // sub-call usages later when other backends start to forward them.
+    const aggregatedUsage = _aggregateUsageBlocks([
+        synthesis.usage,
+        ...results.map(r => r.usage).filter(Boolean),
+    ]);
+    return { answer: synthesis.answer, results, usage: aggregatedUsage };
+}
+
+/**
+ * Sum N OpenAI-shape usage blocks (or compatible Anthropic shapes that have
+ * been normalized through `_sanitizeUsageBlock`) into a single block. Returns
+ * null when every input is null/undefined.
+ *
+ * Used by the supervisor route to roll up per-space + synthesis token counts
+ * so the playground SustainabilityIndicator reflects the FULL session cost,
+ * not just the synthesis step.
+ */
+function _aggregateUsageBlocks(blocks) {
+    if (!Array.isArray(blocks)) return null;
+    // Defensive numeric coercion — Number.isFinite() rejects NaN, ±Infinity,
+    // and non-number types; the |0 chain then floors and clamps to 0.
+    const num = (v) => Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0;
+    const totals = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+    let any = false;
+    for (const b of blocks) {
+        if (!b || typeof b !== 'object') continue;
+        const p = num(b.prompt_tokens) || num(b.input_tokens);
+        const c = num(b.completion_tokens) || num(b.output_tokens);
+        const tRaw = num(b.total_tokens);
+        const t = tRaw > 0 ? tRaw : (p + c);
+        if (p > 0 || c > 0 || t > 0) any = true;
+        totals.prompt_tokens += p;
+        totals.completion_tokens += c;
+        totals.total_tokens += t;
+    }
+    return any ? totals : null;
 }
 
 // ── Confidence evaluation ─────────────────────────────────────────────────────
@@ -5555,6 +5598,11 @@ app.post('/supervisor/conversations/start', async (req, res) => {
                         status: r.status || (r.ok ? 'COMPLETED' : 'ERROR'),
                     })),
                 },
+                // Aggregated token usage across helper fan-out + synthesis.
+                // Currently only the synthesis-LLM call exposes real tokens
+                // (Genie has no upstream usage). Future helpers backed by
+                // Foundation Model / OpenAI / Bedrock will add their share.
+                ...(supervisor.usage ? { usage: supervisor.usage } : {}),
             });
         }
 
@@ -5635,6 +5683,7 @@ app.post('/supervisor/conversations/start', async (req, res) => {
         }
 
         storeConversation(convId, resolved.profile.endpoint, resolved.name);
+        const usage = _sanitizeUsageBlock(data?.usage);
         console.log(`[supervisor/start] profile=${resolved.name} conv=${convId}`);
         res.json({
             conversation_id: convId,
@@ -5644,7 +5693,11 @@ app.post('/supervisor/conversations/start', async (req, res) => {
             status:          'COMPLETED',
             content:         answer,
             attachments:     [{ text: { content: answer } }],
-            route:           { assistantProfile: resolved.name, routeLabel: resolved.profile.agentName || 'Supervisor' }
+            route:           { assistantProfile: resolved.name, routeLabel: resolved.profile.agentName || 'Supervisor' },
+            // Mosaic AI agent endpoints (OpenAI-compatible) may expose
+            // `data.usage`; forward when present so the SustainabilityIndicator
+            // reflects real cost for the remote-supervisor path too.
+            ...(usage ? { usage } : {}),
         });
     } catch (err) {
         console.error('[supervisor/start]', err.message);
@@ -5793,6 +5846,10 @@ module.exports = {
     configuredSharedKey,
     validateProductionAuthConfig,
     normalizeIdpUserClaims,
+    // Supervisor sub-call + synthesis usage aggregation (forwarded to
+    // the playground's SustainabilityIndicator). Pure function; exported
+    // for unit-test coverage in supervisorUsageAggregation.test.js.
+    _aggregateUsageBlocks,
     hasVerifiedIdpUser,
     requestHasSharedKey,
     sharedKeyMiddleware,

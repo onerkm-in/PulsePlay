@@ -348,6 +348,42 @@ If the handoff conflicts with the current code, trust the code and report the mi
 
 Add newest entries at the top of this section.
 
+### 2026-05-14 06:00 IST - Claude (gallant-jones-a71415) — autonomous loop
+
+`[CLAIM]` → `[DONE]` Supervisor sub-call + synthesis **usage aggregation**. Closes the explicit `[RISK]` note from the 2026-05-13 proxy usage-passthrough commit ("Supervisor sub-call aggregation pending").
+
+Zero file overlap with Codex's still-active Allowlist fail-closed lane (Codex: playground/src/settings + App.tsx + BIPanel; Claude: proxy/server.js supervisor handlers + new test file). Picked autonomously while waiting on Codex `[DONE]`.
+
+Implementation:
+
+- `proxy/server.js` — new pure helper `_aggregateUsageBlocks(blocks[])`. Sums OpenAI-shape (`prompt_tokens` / `completion_tokens` / `total_tokens`) AND Anthropic-shape (`input_tokens` / `output_tokens`) usage blocks into a single OpenAI-shape total. Defensive: rejects NaN / Infinity / negative / non-number values; floors fractional inputs to integers; returns `null` when every input is null/undefined.
+- `synthesizeSupervisorAnswer()` now returns `{ answer, usage }` instead of bare string. Captures the synthesis-LLM `data.usage` via `_sanitizeUsageBlock` (Foundation Model serving endpoint exposes it OpenAI-shape).
+- `runLocalSupervisor()` aggregates `synthesis.usage + helper-call usages` and returns `{ answer, results, usage }`. Today only the synthesis call surfaces real tokens (Genie has no upstream usage); the structure supports summing future Foundation Model / OpenAI / Bedrock helpers when they're added.
+- Supervisor route handlers (`/supervisor/conversations/start` for both `supervisor-local` and external Mosaic AI agent endpoint paths) forward aggregated `usage` in the response when present.
+
+`[VERIFY]` Independent test counts:
+
+- `npx jest tests/supervisorUsageAggregation.test.js` → 12/12 new tests (empty array, null inputs, single block, multi-block sums, mixed shapes, NaN/Infinity defence, fractional floors, supervisor-scenario shapes including all-null-helpers case)
+- `npx jest tests/usagePassthrough.test.js tests/promptTranslator.supervisor.test.js tests/server.test.js` → 145/145 pre-existing tests still pass
+- `npx jest --silent` (full proxy) → **658/658** (was 646; +12)
+- `node --check proxy/server.js` → ok
+
+Quality scorecard movement:
+
+- **Sustainability** ↑ — Supervisor fan-out now reports real-token totals via the synthesis-LLM step (and surfaces helper usage when helpers eventually expose it). The playground SustainabilityIndicator reflects the FULL session cost, not just the per-Genie-helper estimate.
+
+Non-blocking observations (logged for future):
+
+- `[RISK]` Genie helpers still expose nothing — the upstream Databricks Genie REST API doesn't return tokens. Helper-call usages stay null in practice until a non-Genie helper joins a supervisor fan-out.
+- `[RISK]` The external Mosaic AI agent endpoint path forwards `data.usage` if the agent returns it; per Mosaic doc this isn't always present. Code gracefully omits the field when null.
+
+Next:
+
+- Wait for Codex's Allowlist `[DONE]` → review pass.
+- Stretch (if Codex still busy): pick another non-overlapping lane (BIAdapter.getMetadata() in PBI adapter, or pure-docs lane).
+
+Commit: `<sha>` once committed.
+
 ### 2026-05-14 05:30 IST - Claude (gallant-jones-a71415)
 
 `[DONE]` **Settings IA polish — batches A + B + C shipped + live boot smoke verified.** Batch D (focus trap + a11y) deferred to a separate lane.
