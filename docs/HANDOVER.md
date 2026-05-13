@@ -5,6 +5,33 @@
 
 ---
 
+## 2026-05-14 - Production auth hardening
+
+**Range:** P0 security lane from `docs/AGENT_SYNC.md`; scoped to proxy auth mode, startup refusal, request rejection audit, and deploy docs.
+
+### What shipped
+
+- Added explicit `PROXY_AUTH_MODE` handling in [proxy/server.js](../proxy/server.js): `idp`, `shared-key`, `idp-or-shared-key`, and `none`.
+- Production auth is now fail-closed: `NODE_ENV=production` or `PROXY_REQUIRE_AUTH=true` refuses `PROXY_AUTH_MODE=none` and refuses startup unless IdP verification or a shared-key fallback is configured.
+- Preserved dev/test ergonomics: no auth remains `none`; a configured legacy shared key still gates requests as `shared-key`.
+- Reused the IdP claim mapping chain for `email`, `preferredUsername` / `preferred_username`, and `upn`; Power BI RLS claim aliases remain aligned.
+- Auth rejection paths now audit machine-readable reasons: `auth.missing-idp`, `auth.missing-shared-key`, and combined `auth.missing-idp,auth.missing-shared-key`.
+- Updated [docs/SECURITY.md](SECURITY.md) and [docs/DEPLOY_MVP_0.2.md](DEPLOY_MVP_0.2.md) with the new mode/defaults.
+
+### Validation
+
+- `proxy`: `node --check proxy/server.js`
+- `proxy`: `npm.cmd test -- productionAuth` -> 16/16
+- `proxy`: `npm.cmd test -- server --runInBand` -> 119/119
+- `proxy`: full `npm.cmd test` -> 646/646
+
+### Tripwires
+
+- `idp-or-shared-key` allows either verified IdP claims or a shared key. If the enterprise wants every browser request tied to a real user identity, deploy `PROXY_AUTH_MODE=idp`.
+- Live IdP JWT verification was not smoke-tested against a real enterprise JWKS in this lane; the request enforcement and startup validation are covered with unit/integration tests.
+
+---
+
 ## 2026-05-14 - Playground viewport controls and clean validation
 
 **Range:** AI/BI pane comfort pass for the literal playground experience.

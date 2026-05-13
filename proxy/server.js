@@ -1275,30 +1275,182 @@ app.use((req, res, next) => {
     next();
 });
 
-// ── Shared-key auth ──────────────────────────────────────────────────────────
-// Opt-in protection: when config.json sets `sharedKey`, every /assistant/*,
-// /warehouse/*, and /feedback call must send the matching X-PulsePlay-Key
-// header (or the legacy X-Genie-Key alias for the Pulse PBI sibling).
-// Leaving `sharedKey` unset (the default for local dev) preserves existing
-// behaviour — localhost-only binding is still the primary defence.
-function sharedKeyMiddleware(req, res, next) {
-    const required = cfg().sharedKey;
-    if (!required || !String(required).trim()) return next();
-    // Prefer the canonical PulsePlay header; fall back to the legacy
-    // Pulse name so existing PBI-custom-visual deployments keep working
-    // unchanged. Constant-time compare on whichever was supplied.
+// ── Proxy auth mode ──────────────────────────────────────────────────────────
+//
+// Production deployments must be explicit about the edge auth story:
+//   PROXY_AUTH_MODE=none               dev/lab only
+//   PROXY_AUTH_MODE=idp                verified Bearer JWT required
+//   PROXY_AUTH_MODE=shared-key         X-PulsePlay-Key / X-Genie-Key required
+//   PROXY_AUTH_MODE=idp-or-shared-key  either verified JWT or shared key
+//
+// Compatibility: a configured shared key with no explicit PROXY_AUTH_MODE
+// still enables shared-key auth in dev/test, preserving the historical gate.
+const VALID_PROXY_AUTH_MODES = new Set(['none', 'idp', 'shared-key', 'idp-or-shared-key']);
+
+function _normalizeProxyAuthMode(raw) {
+    const v = String(raw || '').trim().toLowerCase();
+    if (!v) return '';
+    if (v === 'sharedkey' || v === 'shared_key') return 'shared-key';
+    if (v === 'idp_or_shared_key' || v === 'idp-or-key' || v === 'either') return 'idp-or-shared-key';
+    if (v === 'off' || v === 'anonymous') return 'none';
+    return v;
+}
+
+function configuredSharedKey(config = cfg(), env = process.env) {
+    const raw = env.PROXY_SHARED_KEY || env.PROXY_KEY || env.GENIE_PROXY_SHARED_KEY || config?.sharedKey || '';
+    return String(raw || '').trim();
+}
+
+function isProxyProductionAuthRequired(env = process.env) {
+    return env.NODE_ENV === 'production' || _truthyConfig(env.PROXY_REQUIRE_AUTH);
+}
+
+function resolveProxyAuthMode(env = process.env, config = cfg()) {
+    const explicit = _normalizeProxyAuthMode(env.PROXY_AUTH_MODE);
+    if (explicit && VALID_PROXY_AUTH_MODES.has(explicit)) return explicit;
+    if (String(env.PROXY_IDP_REQUIRED || '').toLowerCase() === 'true') return 'idp';
+    if (isProxyProductionAuthRequired(env)) return 'idp-or-shared-key';
+    if (configuredSharedKey(config, env)) return 'shared-key';
+    return 'none';
+}
+
+function hasVerifiedIdpUser(req) {
+    const user = req?.user || {};
+    return Boolean(user.sub || user.email || user.preferredUsername || user.preferred_username || user.upn);
+}
+
+function requestHasSharedKey(req, required = configuredSharedKey()) {
+    if (!required) return false;
     const provided = req.headers['x-pulseplay-key'] || req.headers['x-genie-key'];
-    if (provided) {
-        try {
-            const cryptoMod = require('crypto');
-            const a = Buffer.from(String(provided), 'utf8');
-            const b = Buffer.from(String(required), 'utf8');
-            if (a.length === b.length && cryptoMod.timingSafeEqual(a, b)) return next();
-        } catch { /* fall through to 401 */ }
+    if (!provided) return false;
+    try {
+        const cryptoMod = require('crypto');
+        const a = Buffer.from(String(provided), 'utf8');
+        const b = Buffer.from(String(required), 'utf8');
+        return a.length === b.length && cryptoMod.timingSafeEqual(a, b);
+    } catch {
+        return false;
     }
-    return res.status(401).json({
-        error: 'Missing or invalid X-PulsePlay-Key header (legacy alias: X-Genie-Key). Set the Proxy Shared Key in your client.'
-    });
+}
+
+function auditAuthRejection(req, reason, status = 401) {
+    try {
+        auditLog(req, {
+            profileName: req.body?.assistantProfile || req.body?.profile || req.query?.assistantProfile || req.query?.profile || null,
+            action: 'auth.rejected',
+            status,
+            detail: reason,
+        });
+    } catch {
+        // Auth rejection must never crash the request path.
+    }
+}
+
+function sendAuthRejection(req, res, reason, error, status = 401) {
+    auditAuthRejection(req, reason, status);
+    return res.status(status).json({ error });
+}
+
+function normalizeIdpUserClaims(payload = {}) {
+    const preferred = payload.preferredUsername || payload.preferred_username || null;
+    return {
+        sub: payload.sub || null,
+        email: payload.email || preferred || null,
+        preferred_username: preferred,
+        preferredUsername: preferred,
+        upn: payload.upn || null,
+        name: payload.name || null,
+        tid: payload.tid || null, // AAD tenant
+        scp: payload.scp || payload.scope || null, // delegated scopes
+        roles: Array.isArray(payload.roles) ? payload.roles : (payload.roles ? [payload.roles] : null),
+        groups: Array.isArray(payload.groups) ? payload.groups : (payload.groups ? [payload.groups] : null),
+        // Raw subset for downstream audit log; never expose the full token
+        // or any signature material.
+        iat: payload.iat,
+        exp: payload.exp,
+    };
+}
+
+function validateProductionAuthConfig({ env = process.env, config = cfg(), idpConfigured = Boolean(_idpJwksFetcher) } = {}) {
+    const mode = resolveProxyAuthMode(env, config);
+    const sharedKey = configuredSharedKey(config, env);
+    if (!isProxyProductionAuthRequired(env)) return { ok: true, mode, reason: null };
+    if (mode === 'none') {
+        return {
+            ok: false,
+            mode,
+            reason: 'auth.production-refuses-none',
+            message: 'PROXY_AUTH_MODE=none is refused when NODE_ENV=production or PROXY_REQUIRE_AUTH=true.',
+        };
+    }
+    if (mode === 'idp' && !idpConfigured) {
+        return {
+            ok: false,
+            mode,
+            reason: 'auth.missing-idp',
+            message: 'PROXY_AUTH_MODE=idp requires PROXY_IDP_JWKS_URL and jose JWT verification.',
+        };
+    }
+    if (mode === 'shared-key' && !sharedKey) {
+        return {
+            ok: false,
+            mode,
+            reason: 'auth.missing-shared-key',
+            message: 'PROXY_AUTH_MODE=shared-key requires PROXY_SHARED_KEY or PROXY_KEY.',
+        };
+    }
+    if (mode === 'idp-or-shared-key' && !idpConfigured && !sharedKey) {
+        return {
+            ok: false,
+            mode,
+            reason: 'auth.missing-idp,auth.missing-shared-key',
+            message: 'Production auth requires PROXY_IDP_JWKS_URL or PROXY_SHARED_KEY / PROXY_KEY.',
+        };
+    }
+    return { ok: true, mode, reason: null };
+}
+
+function assertProductionAuthConfig() {
+    const result = validateProductionAuthConfig();
+    if (result.ok) return result;
+    console.error(`FATAL: ${result.message} (${result.reason})`);
+    process.exit(1);
+}
+
+// Historical middleware name retained because tests and route invariants assert
+// that the shared-key gate is mounted on every cost-bearing prefix. It now
+// enforces the full PROXY_AUTH_MODE contract, not only shared-key mode.
+function sharedKeyMiddleware(req, res, next) {
+    const mode = resolveProxyAuthMode();
+    if (mode === 'none') return next();
+    if (mode === 'idp') {
+        if (hasVerifiedIdpUser(req)) return next();
+        return sendAuthRejection(req, res, 'auth.missing-idp', 'Authorization Bearer JWT required.');
+    }
+
+    const required = configuredSharedKey();
+    if (mode === 'shared-key') {
+        if (requestHasSharedKey(req, required)) return next();
+        return sendAuthRejection(
+            req,
+            res,
+            'auth.missing-shared-key',
+            'Missing or invalid X-PulsePlay-Key header (legacy alias: X-Genie-Key). Set the Proxy Shared Key in your client.',
+        );
+    }
+
+    if (mode === 'idp-or-shared-key') {
+        if (hasVerifiedIdpUser(req)) return next();
+        if (requestHasSharedKey(req, required)) return next();
+        return sendAuthRejection(
+            req,
+            res,
+            'auth.missing-idp,auth.missing-shared-key',
+            'Authorization Bearer JWT or X-PulsePlay-Key header required.',
+        );
+    }
+
+    return sendAuthRejection(req, res, 'auth.production-refuses-none', 'Invalid PROXY_AUTH_MODE configuration.', 500);
 }
 
 // ── IdP session validation (JWT) ─────────────────────────────────────────────
@@ -1314,18 +1466,13 @@ function sharedKeyMiddleware(req, res, next) {
 //                          (e.g. https://login.microsoftonline.com/<tenant>/discovery/v2.0/keys)
 //   PROXY_IDP_ISSUER     — Expected `iss` claim (one or many, comma-separated)
 //   PROXY_IDP_AUDIENCE   — Expected `aud` claim (one or many, comma-separated)
-//   PROXY_IDP_REQUIRED   — "true" => reject unauthenticated requests.
-//                          When false (default), missing/invalid tokens are
-//                          fail-open so dev / loopback flows keep working
-//                          alongside the shared-key path. Production MUST
-//                          set this true.
-//   NODE_ENV=production  — When production AND PROXY_IDP_REQUIRED is true
-//                          but JWKS URL is unset, the proxy refuses to
-//                          start (security board ask: no silent skipping).
+//   PROXY_IDP_REQUIRED   — legacy alias for PROXY_AUTH_MODE=idp when
+//                          PROXY_AUTH_MODE is unset.
+//   PROXY_AUTH_MODE      — see the proxy auth mode section above.
 //
-// Combines with sharedKeyMiddleware as an ALTERNATIVE auth (either JWT
-// OR shared key satisfies; shared key remains the service-to-service
-// path). Routes consume both via the middleware chain.
+// This middleware verifies and attaches IdP claims when a Bearer token is
+// present. The downstream sharedKeyMiddleware enforces the final auth-mode
+// contract, allowing either JWT or shared key when configured that way.
 const _jose = (() => {
     try { return require('jose'); }
     catch { return null; }
@@ -1339,26 +1486,30 @@ if (_jose && _idpJwksUrl) {
     try { _idpJwksFetcher = _jose.createRemoteJWKSet(new URL(_idpJwksUrl)); }
     catch (err) { console.warn('[idp] failed to initialise JWKS fetcher:', err.message); }
 }
-if (process.env.NODE_ENV === 'production' && _idpRequired && !_idpJwksFetcher) {
-    console.error('FATAL: PROXY_IDP_REQUIRED=true in production requires PROXY_IDP_JWKS_URL + jose installed. Refusing to start.');
-    process.exit(1);
-}
 
 async function idpMiddleware(req, res, next) {
     // Tests bypass — unit tests inject profiles directly without an IdP.
     if (process.env.NODE_ENV === 'test') return next();
+    const authMode = resolveProxyAuthMode();
+    const requireIdp = authMode === 'idp' || (!process.env.PROXY_AUTH_MODE && _idpRequired);
     const auth = req.headers.authorization || '';
     const m = /^Bearer\s+(.+)$/i.exec(auth);
     const token = m ? m[1].trim() : '';
     if (!token) {
-        if (_idpRequired) {
-            return res.status(401).json({ error: 'Authorization Bearer JWT required.' });
+        if (requireIdp) {
+            return sendAuthRejection(req, res, 'auth.missing-idp', 'Authorization Bearer JWT required.');
         }
         return next(); // dev fail-open
     }
     if (!_idpJwksFetcher) {
-        if (_idpRequired) {
-            return res.status(500).json({ error: 'IdP enforcement enabled but PROXY_IDP_JWKS_URL is not configured.' });
+        if (requireIdp) {
+            return sendAuthRejection(
+                req,
+                res,
+                'auth.missing-idp',
+                'IdP enforcement enabled but PROXY_IDP_JWKS_URL is not configured.',
+                500,
+            );
         }
         return next();
     }
@@ -1367,25 +1518,16 @@ async function idpMiddleware(req, res, next) {
         if (_idpIssuer) verifyOpts.issuer = _idpIssuer.includes(',') ? _idpIssuer.split(',').map(s => s.trim()) : _idpIssuer;
         if (_idpAud)    verifyOpts.audience = _idpAud.includes(',') ? _idpAud.split(',').map(s => s.trim()) : _idpAud;
         const { payload } = await _jose.jwtVerify(token, _idpJwksFetcher, verifyOpts);
-        req.user = {
-            sub: payload.sub || null,
-            email: payload.email || payload.preferred_username || null,
-            preferredUsername: payload.preferred_username || null,
-            upn: payload.upn || null,
-            name: payload.name || null,
-            tid: payload.tid || null, // AAD tenant
-            scp: payload.scp || payload.scope || null, // delegated scopes
-            roles: Array.isArray(payload.roles) ? payload.roles : (payload.roles ? [payload.roles] : null),
-            groups: Array.isArray(payload.groups) ? payload.groups : (payload.groups ? [payload.groups] : null),
-            // Raw subset for downstream audit log; never expose the full
-            // token or any signature material.
-            iat: payload.iat,
-            exp: payload.exp,
-        };
+        req.user = normalizeIdpUserClaims(payload);
         return next();
     } catch (err) {
-        if (_idpRequired) {
-            return res.status(401).json({ error: `Invalid Authorization token: ${err.message || 'verify failed'}` });
+        if (requireIdp) {
+            return sendAuthRejection(
+                req,
+                res,
+                'auth.missing-idp',
+                `Invalid Authorization token: ${err.message || 'verify failed'}`,
+            );
         }
         // Fail-open in dev — log the reason once per token kind so
         // misconfigured dev setups are debuggable.
@@ -1437,6 +1579,23 @@ function rateLimitMiddleware(req, res, next) {
     next();
 }
 
+// Wave 28 — X-Request-Id correlation. Visual sets `X-Request-Id` on every
+// outbound request; we echo it back in the response so the visual + proxy
+// + downstream Databricks logs can all be joined on one ID. If the visual
+// doesn't supply one, we mint a server-side fallback so audit lines are
+// always traceable. Mounted before auth so rejected requests are traceable.
+app.use((req, res, next) => {
+    let rid = req.headers['x-request-id'];
+    if (!rid || typeof rid !== 'string' || rid.length > 80) {
+        rid = `srv-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    }
+    // Sanitize: only safe header chars
+    rid = String(rid).replace(/[^A-Za-z0-9._\-]/g, '').slice(0, 80) || `srv-${Date.now()}`;
+    req.requestId = rid;
+    res.setHeader('X-Request-Id', rid);
+    next();
+});
+
 // Rate-limit + IdP-validate any path that hits an LLM / warehouse / Genie
 // space — these are the routes that burn DBUs or token cost per call.
 // Health/profiles/list are cheap reads and stay open. Order matters:
@@ -1463,23 +1622,6 @@ app.use('/history', rateLimitMiddleware, idpMiddleware);
 // rate limit here too so a runaway probe can't spam /admin/health-summary.
 app.use('/admin', rateLimitMiddleware);
 
-// Wave 28 — X-Request-Id correlation. Visual sets `X-Request-Id` on every
-// outbound request; we echo it back in the response so the visual + proxy
-// + downstream Databricks logs can all be joined on one ID. If the visual
-// doesn't supply one, we mint a server-side fallback so audit lines are
-// always traceable. Mounted before all routes so every response carries it.
-app.use((req, res, next) => {
-    let rid = req.headers['x-request-id'];
-    if (!rid || typeof rid !== 'string' || rid.length > 80) {
-        rid = `srv-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    }
-    // Sanitize: only safe header chars
-    rid = String(rid).replace(/[^A-Za-z0-9._\-]/g, '').slice(0, 80) || `srv-${Date.now()}`;
-    req.requestId = rid;
-    res.setHeader('X-Request-Id', rid);
-    next();
-});
-
 // Shared-key auth. When the deployer sets `sharedKey` in config (or
 // PROXY_SHARED_KEY env), every cost-bearing route requires the matching
 // X-Genie-Key header. Missing previously: /supervisor, /confidence,
@@ -1500,6 +1642,7 @@ app.use('/foundation', sharedKeyMiddleware);
 // Genie conversation channel for that path. Same auth posture as every
 // cost-bearing route.
 app.use('/insights', rateLimitMiddleware);
+app.use('/insights', idpMiddleware);
 app.use('/insights', sharedKeyMiddleware);
 
 // ── Audit logging ─────────────────────────────────────────────────────────────
@@ -1687,9 +1830,8 @@ app.use('/insights', allowlistGuard);
 // ── Health ────────────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => {
     const c = cfg();
-    // authMode is whether the proxy enforces an X-Genie-Key shared secret.
-    // We never reveal the secret itself — just whether it's configured.
-    const authMode = (process.env.PROXY_SHARED_KEY || c.sharedKey) ? 'sharedKey' : 'anonymous';
+    // Never reveal the secret itself — just the effective auth posture.
+    const authMode = resolveProxyAuthMode(process.env, c);
     // Route through the registry so doc keys never leak (IDEA-016).
     const profileNames = profileRegistry.list();
     res.json({
@@ -1734,7 +1876,7 @@ app.get('/admin/health-summary', (req, res) => {
 // 127.0.0.1 bind enforced by ADR-0002).
 function _adminAuthOk(req) {
     const c = cfg();
-    const expected = process.env.PROXY_SHARED_KEY || c.sharedKey;
+    const expected = configuredSharedKey(c);
     if (!expected) return true;
     const provided = req.headers['x-genie-key'] || req.headers['x-pulseplay-key'];
     try {
@@ -1803,7 +1945,7 @@ app.post('/admin/embed-tokens/purge', (req, res) => {
 app.get('/admin/query-history', async (req, res) => {
     // Shared-key gate (constant-time, mirrors /admin/health-summary).
     const c = cfg();
-    const expected = process.env.PROXY_SHARED_KEY || c.sharedKey;
+    const expected = configuredSharedKey(c);
     if (expected) {
         const provided = req.headers['x-genie-key'];
         let ok = false;
@@ -3624,7 +3766,7 @@ LIMIT ${limit}
 // redaction wraps every error before propagation.
 const { previewSectionSql, validateSectionSql, PREVIEW_MAX_ROWS } = require('./lib/sqlSectionPreview');
 
-app.use('/sql', rateLimitMiddleware);
+app.use('/sql', rateLimitMiddleware, idpMiddleware);
 app.use('/sql', sharedKeyMiddleware);
 
 app.post('/sql/explain', (req, res) => {
@@ -5553,6 +5695,7 @@ app.get('/supervisor/conversations/:conversationId/messages/:messageId', (req, r
 // ── Start ─────────────────────────────────────────────────────────────────────
 if (require.main === module) {
     const config = cfg();
+    assertProductionAuthConfig();
     const port = Number(process.env.PORT || process.env.DATABRICKS_APP_PORT || config.port || 8787);
     const runAsDatabricksApp = Boolean(process.env.PORT || process.env.DATABRICKS_APP_PORT);
 
@@ -5645,6 +5788,14 @@ module.exports = {
     // and applyInlineMode without standing up a full request stack.
     resolveInlineCredentialsMode,
     applyInlineMode,
+    VALID_PROXY_AUTH_MODES,
+    resolveProxyAuthMode,
+    configuredSharedKey,
+    validateProductionAuthConfig,
+    normalizeIdpUserClaims,
+    hasVerifiedIdpUser,
+    requestHasSharedKey,
+    sharedKeyMiddleware,
     resolveProfile,
     VALID_INLINE_MODES,
     // Tier B Day 2 — exported so the OAuth M2M unit tests can drive the

@@ -1,6 +1,6 @@
 ---
 name: PulsePlay current state
-description: As of 2026-05-14 - Power BI embed-token hardening, playground viewport controls, enterprise allowlist runtime, pack registry foundation, and agent sync doc implemented
+description: As of 2026-05-14 - production auth hardening, Power BI embed-token hardening, playground viewport controls, enterprise allowlist runtime, pack registry foundation, and agent sync doc implemented
 type: project
 originSessionId: current
 ---
@@ -21,6 +21,7 @@ originSessionId: current
 - **Phase 8 KB UI — beast-mode six.** New `/knowledge` page separate from Settings. Path-based router (no new dep). KnowledgeShell with header + left rail (installed packs) + content pane with section tabs (Overview / Glossary / Ontology / References / Sub-verticals / Runtime use / Demos). Sub-verticals tab has inner left rail + per-sub-vertical content. Runtime-use tab honestly describes what pack content the AI injects TODAY vs what's available for human review only. Proxy: `loadPackDetail` + `loadSubVerticalDetail` + `isSafePackSegment` in [packRegistry.js](../../proxy/lib/packRegistry.js); new endpoints `GET /assistant/knowledge/packs/:pack` + `GET /assistant/knowledge/packs/:pack/sub-verticals/:subVertical` with allowlist gating + path-traversal regex. Settings › AI › Browse library ↗ deep-link wired. Lives at [playground/src/knowledge/](../../playground/src/knowledge/).
 - **Power BI embed-token hardening (P0).** `POST /assistant/embed-token/powerbi` now rejects browser-supplied RLS/effective-identity payloads, derives optional RLS identities only from server-side config or verified IdP claims, gates `Edit` behind `powerBiAllowEdit=true`, and caches by workspace/report/dataset/access/identity hash. Manual Power BI token paste in `EmbedConfigForm` is hidden unless `VITE_PULSEPLAY_ENABLE_MANUAL_PBI_TOKEN=true` outside production; backend-issued mode requests View only. See [docs/HANDOVER.md](../HANDOVER.md) 2026-05-14 entry.
 - **Playground viewport controls.** The outer AI/BI shell now supports per-pane maximize/focus, restore, minimize with restore dock, pin/unpin focused startup pane, and open AI/BI in `?focus=ai|bi` pages. The non-focused pane stays mounted during shell focus when both panes are enabled. Browser smoke caught and Codex fixed a duplicate restore-label bug; mounted tests cover minimize dock, Show both, `window.open`, and popstate sync. See [docs/HANDOVER.md](../HANDOVER.md) 2026-05-14 viewport entry.
+- **Production auth hardening (P0).** `proxy/server.js` now has explicit `PROXY_AUTH_MODE` values (`idp`, `shared-key`, `idp-or-shared-key`, `none`), production startup validation for `NODE_ENV=production` / `PROXY_REQUIRE_AUTH=true`, shared-key aliases (`PROXY_SHARED_KEY`, `PROXY_KEY`, `GENIE_PROXY_SHARED_KEY`), IdP/shared-key request enforcement, and audit reasons for rejected auth requests. See [docs/HANDOVER.md](../HANDOVER.md) 2026-05-14 production-auth entry.
 - Updated SETTINGS_SPEC § 15 (all HIGH closed; MEDIUM closed/accepted; LOW L17+L18 closed) + § 16 (Phase 6 ticked); updated HANDOVER 2026-05-13 entries (5 separate entries for the five beast-mode cycles); updated AGENDA phase markers; cross-referenced from feature_settings_spec.md.
 
 **Validation:**
@@ -36,6 +37,7 @@ originSessionId: current
 - `playground`: after Power BI hardening, `npm run lint` passed, full `npm test` passed **338/338**, and `npm run build` passed.
 - `playground`: after viewport controls and warning cleanup, `npm.cmd test -- viewportControls` passed **16/16**, full `npm.cmd test` passed **354/354**, `npm.cmd run lint` passed, and `npm.cmd run build` passed.
 - `proxy`: after final cross-validation, full `npm.cmd test` still passed **630/630**.
+- `proxy`: after production auth hardening, `node --check proxy/server.js` passed, focused `npm.cmd test -- productionAuth` passed **16/16**, focused `npm.cmd test -- server --runInBand` passed **119/119**, and full `npm.cmd test` passed **646/646**.
 
 **Current limitations / brutal honesty:**
 
@@ -46,6 +48,7 @@ originSessionId: current
 - **Phase 8 KB UI shipped** as a separate `/knowledge` page (read-only browser for installed pack content). Settings deep-links here via AI › Browse library ↗.
 - **Power BI embed-token P0 is closed in code and tests**, but a live credentialed smoke is still needed against an org Power BI report to verify the chosen `powerBiRlsUsernameClaim` aligns with that report's dataset RLS model.
 - **Playground viewport controls are closed in code and tests.** Remaining UX polish is field feedback only; no known code/test gap remains for maximize/minimize/restore/pin/open-page.
+- **Production auth P0 is closed in code and tests.** Deploy `PROXY_AUTH_MODE=idp` if every browser request must carry verified end-user identity; `idp-or-shared-key` intentionally permits controlled service-to-service shared-key fallback. Live enterprise JWKS verification still needs environment smoke.
 - **Phase 9 framing tightened (do not collapse again):** what was previously listed as "Phase 9 Vendor expansion" is actually two unrelated things:
   - **Phase 9a — Configuration expansion** (✅ AVAILABLE TODAY, pure config in `proxy/config.json`, no code). Adding more Genie spaces / Supervisor fan-outs / Azure OpenAI / Bedrock / Mosaic Foundation Model profiles / Power BI workspaces / AAD tenants / packs is a config edit. The proxy already has routes for every connector type in `config.example.json`. See [DEPLOY_MVP_0.2.md](../DEPLOY_MVP_0.2.md) for the literal deployer checklist.
   - **Phase 9b — Stub-to-SDK graduation** (⏳ v0.3+, per-vendor code). Only Tableau / Qlik / Looker need real adapter code beyond the iframe stub today. Triggered by an org standardising on a non-PBI BI tool. Power BI is already fully wired with `powerbi-client` SDK.
@@ -56,8 +59,8 @@ originSessionId: current
 
 **Next recommended implementation cycle:**
 
-1. Close production auth hardening: refuse production startup without IdP and/or shared-key enforcement.
-2. Add allowlist fail-closed behavior and mounted-panel revalidation.
-3. Wire live BI metadata into Discovery Loop.
-4. Make selected frames affect the AI request/prompt strategy.
-5. Run live credentialed smoke with an org Power BI report + Genie/Supervisor profile.
+1. Add allowlist fail-closed behavior and mounted-panel revalidation.
+2. Wire live BI metadata into Discovery Loop.
+3. Make selected frames affect the AI request/prompt strategy.
+4. Harden diagnostics/support-bundle redaction.
+5. Run live credentialed smoke with an org Power BI report + Genie/Supervisor profile and enterprise IdP JWKS.

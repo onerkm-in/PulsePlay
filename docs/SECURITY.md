@@ -70,7 +70,8 @@ If a control belongs in IdP / Unity Catalog / the BI tool's own RBAC / the AI se
 
 ### Authorization (proxy-side)
 
-- **Session validation on every request** to the proxy. The shared-key gate (`X-Genie-Key`) is a secondary belt; the primary auth is the IdP-validated session.
+- **Session validation on every request** to the proxy. `PROXY_AUTH_MODE` controls the gate: `idp`, `shared-key`, `idp-or-shared-key`, or `none`. Production (`NODE_ENV=production` or `PROXY_REQUIRE_AUTH=true`) refuses `none` and refuses to start unless IdP verification or a shared-key fallback is configured.
+- **Shared-key fallback is service-to-service only.** `X-PulsePlay-Key` is canonical; `X-Genie-Key` remains as a legacy alias. Use a 32+ character random value from vault.
 - **Per-profile authorization.** A user may have access to "sales-genie" profile but not "hr-genie." Enforced server-side; never trust the browser's profile picker.
 - **Scoped embed tokens.** When the proxy issues a Power BI embed token (or Tableau trusted ticket, etc.), it is bound to the user, the report, and a TTL. Never long-lived.
 - **Power BI RLS/effective identity is proxy-owned.** The browser cannot supply `identities` / `effectiveIdentity`; the proxy derives optional RLS identities from verified IdP claims (`email`, `preferredUsername`, `upn`) or server-side profile config. Edit embed tokens are denied unless the selected profile explicitly sets `powerBiAllowEdit=true`.
@@ -174,12 +175,12 @@ These controls EXIST IN CODE today (inherited from Pulse, applicable to PulsePla
 | C10 | Audit log with X-Request-Id correlation | [proxy/server.js](../proxy/server.js) — `auditLog` per route |
 | C11 | Validator framework auto-retry | [proxy/lib/insightsValidator.js](../proxy/lib/insightsValidator.js) + [llmOrchestrator.js](../proxy/lib/llmOrchestrator.js) |
 | C12 | Power BI embed-token hardening: rejects client identities, derives RLS server-side, gates Edit, identity-aware cache | [proxy/server.js](../proxy/server.js) — `/assistant/embed-token/powerbi` |
+| C13 | Production auth mode gate: `idp`, `shared-key`, `idp-or-shared-key`, `none`; production refuses unsafe startup and audits auth rejections | [proxy/server.js](../proxy/server.js) — `resolveProxyAuthMode`, `validateProductionAuthConfig`, `sharedKeyMiddleware` |
 
 Pending (to be added before broad pilot):
 
 | Item | Owner | Effort |
 |---|---|---|
-| IdP session validation middleware (replaces shared-key as primary auth) | proxy | 2-3 days |
 | Per-user / per-profile rate limits | proxy | 1-2 days |
 | BIAdapter event payload sanitization before prompt injection | playground | 1 day |
 | Configurable CSP headers in deploy config | proxy or hosting layer | 1 day |
@@ -192,6 +193,7 @@ Tick before any pilot beyond the maintainer's laptop.
 ### Proxy host
 
 - [ ] `PROXY_INLINE_CREDENTIALS_MODE=off` (rejects browser-supplied creds — production posture)
+- [ ] `PROXY_AUTH_MODE=idp-or-shared-key` (or stricter `idp` if every request has a verified Bearer JWT)
 - [ ] `PROXY_SHARED_KEY` set to a 32+ char random value, fetched from vault
 - [ ] All credentials (Databricks SP secret, Azure OpenAI key, Bedrock keys, BI vendor secrets) in vault, referenced via env vars
 - [ ] Managed identity assigned to the proxy host with least-privilege vault read role
@@ -201,11 +203,12 @@ Tick before any pilot beyond the maintainer's laptop.
 - [ ] TLS 1.2 minimum
 - [ ] `NODE_EXTRA_CA_CERTS` set if the org uses a TLS-MITM proxy
 - [ ] Logs piped to the org SIEM
-- [ ] Audit log monitored for `inlineCredsUsed: true` (should be zero), 401 spikes, cross-tenant access attempts
+- [ ] Audit log monitored for `inlineCredsUsed: true` (should be zero), `auth.missing-idp`, `auth.missing-shared-key`, 401 spikes, cross-tenant access attempts
 
 ### Identity / authz
 
 - [ ] SSO via org IdP wired to the proxy
+- [ ] `PROXY_IDP_JWKS_URL`, `PROXY_IDP_ISSUER`, and `PROXY_IDP_AUDIENCE` set when `PROXY_AUTH_MODE` includes `idp`
 - [ ] MFA enforced at IdP
 - [ ] SCIM provisioning configured
 - [ ] `app.pulseplay.users` group exists and is the gate

@@ -6,6 +6,7 @@
 
 ## In flight (v0.1.3)
 
+- [x] **Production auth hardening** (2026-05-14, shipped). `PROXY_AUTH_MODE` supports `idp`, `shared-key`, `idp-or-shared-key`, and `none`; production / `PROXY_REQUIRE_AUTH=true` refuses `none` and refuses startup without IdP or shared-key config. Rejected auth requests audit `auth.missing-idp` / `auth.missing-shared-key`. 16 production-auth tests; full proxy 646/646.
 - [x] **Playground viewport controls** (2026-05-14, shipped). AI/BI panes now have maximize/focus, restore, minimize with dock restore, pin/unpin startup focus, and open-page `?focus=ai|bi` controls. Browser smoke caught a duplicate restore-label bug; fixed with `Show both panels` and regression coverage. 16 viewport tests; full playground 354/354.
 - [x] **Sustainability indicator** (2026-05-13, shipped). Leaf + face token-cost gauge in the AISidebar footer. 6 tiers (`ready / lean / green / moderate / heavy / very-heavy`) with thresholds at 2k/8k/20k/50k cumulative tokens. Hover/focus tooltip shows token breakdown + brand-message tagline. Reset button. 42 new playground tests.
 - [x] **Proxy plumbs `usage` blocks for the indicator** (2026-05-13, shipped). Foundation Model + Azure OpenAI (chat + analytics) + Bedrock direct (chat + analytics) now forward `usage`. Anthropic-on-Bedrock `{ input_tokens, output_tokens }` and Llama-on-Bedrock `{ prompt_token_count, generation_token_count }` normalised to OpenAI shape. Orchestrator accumulates across SQL + narrative calls. 17 new proxy tests (625/625 total). Bedrock-RAG + Genie don't expose tokens — those sessions stay on chars/4 heuristic with a "~" marker.
@@ -164,7 +165,7 @@ Specs: [SETTINGS_SPEC.md](SETTINGS_SPEC.md) is the consolidated source of truth 
 
 ### Proxy / connectors
 
-- [ ] IdP session validation middleware (replaces shared-key as primary auth for non-localhost deployments)
+- [x] Production auth mode gate: IdP/shared-key/combined modes plus fail-closed production startup validation (2026-05-14)
 - [ ] Per-user / per-profile rate limits
 - [x] `/assistant/embed-token/powerbi` route (Azure AD SP) with RLS/Edit/cache hardening (2026-05-14)
 - [ ] `/api/tableau/trusted-ticket` route

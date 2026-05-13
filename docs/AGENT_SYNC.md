@@ -72,7 +72,7 @@ Each dimension has a measurable signal. Update after every significant lane clos
 
 | Dimension | Signal | Current | Target | Tracking lanes |
 |---|---|---|---|---|
-| **Accuracy** | Test pass rate (proxy + playground), validator coverage, SQL byte-identity regression | 630/630 proxy + 354/354 playground = **100% on shipped tests**; byte-identical Genie regression locked | 100% pass; zero accuracy regressions per commit | Phase 11b dispatcher migration (when shipped, must keep byte-identity); 9 unauthored sub-vertical IRs (better grounding -> better answers) |
+| **Accuracy** | Test pass rate (proxy + playground), validator coverage, SQL byte-identity regression | 646/646 proxy + 354/354 playground = **100% on shipped tests**; byte-identical Genie regression locked | 100% pass; zero accuracy regressions per commit | Phase 11b dispatcher migration (when shipped, must keep byte-identity); production-auth focused tests added |
 | **Performance** | Initial-paint bundle (~280 KB raw / 86 KB gzip), BIPanel adapter remount perf test, proxy /health single-flight | Targets met today; no perf regression test added since last beast cycle | Maintain ≤ 300 KB initial-paint raw; sub-500ms time-to-first-token on PBI+Genie cell | Phase D staged "1-then-3" rendering; lazy-load further; perf regression budget per commit |
 | **Ease of use** | 10-minute author setup, microcopy quality, error-recovery flows, Settings IA legibility | Settings 5-group tree shipped; first-run setup exists in pieces; error messages mostly clear | 10-min smoke verified end-to-end with novice author; every error surface offers next action; no dead-end states | Author setup unification; Discovery Loop honest reachability messaging; Frame-to-prompt wiring (so the picker actually does something) |
 | **Sustainability** | Token-cost gauge tier distribution, real-usage forward rate (% of conversations where backend exposed real tokens vs estimate), cache hit rate on embed tokens | Indicator shipped; FM + AzOAI + Bedrock-direct forward real tokens; Genie + Bedrock-RAG stay on estimation | ≥ 80% of conversations show real-token counts; ≥ 90% cumulative session at "lean" or "green" tier | Supervisor sub-call usage aggregation; prompt caching everywhere; per-section token tracing |
@@ -84,7 +84,7 @@ Each dimension has a measurable signal. Update after every significant lane clos
 
 - No live credentialed PBI + Genie smoke since security cycles landed. Code-level correctness ≠ field correctness.
 - Tableau / Qlik / Looker adapters are stubs; functionality dimension can't hit 99.99 without graduating them OR explicitly scoping them out of the target.
-- Production auth is still optional — `feedback_collaboration.md` "brutally honest" requires we close this before any external pilot.
+- Production auth is now fail-closed in code/tests; still needs live enterprise JWKS smoke before pilot.
 - 9 of 10 cpg-fmcg sub-verticals fall back to glossary.md instead of an authored IR — accuracy dimension upper bound is capped here.
 
 ## Active Lane Plan (rolling)
@@ -111,7 +111,7 @@ This section captures gaps from the latest review. Treat it as a working list; i
 | Priority | Gap | Why It Matters | Likely Files | Expected Fix Shape |
 |---|---|---|---|---|
 | P1 fixed 2026-05-14 | Playground panes lacked first-class user control | Closed by Codex + Claude: users can maximize/focus, restore, minimize with dock restore, pin startup focus, and open AI/BI in `?focus=` pages | `playground/src/App.tsx`, `viewportControls.integration.test.tsx`, `docs/HANDOVER.md` | Done; 16/16 viewport tests plus browser DOM smoke. |
-| P0 | Production auth can still be optional | Enterprise deployment must not rely on CORS/allowlist as auth | `proxy/server.js`, proxy tests, `docs/SECURITY.md` | Production startup requires IdP or shared key; tests cover missing auth config. |
+| P0 fixed 2026-05-14 | Production auth can still be optional | Closed by Codex patch: `PROXY_AUTH_MODE` now supports `idp`, `shared-key`, `idp-or-shared-key`, `none`; production refuses unsafe startup and audits rejected auth requests | `proxy/server.js`, `proxy/tests/productionAuth.test.js`, `docs/SECURITY.md`, `docs/DEPLOY_MVP_0.2.md` | Done; 16/16 productionAuth, 119/119 server, 646/646 proxy green. Live enterprise JWKS smoke still pending. |
 | P0 fixed 2026-05-14 | Power BI embed-token route accepted client-controlled identities/Edit and had weak cache key | Closed by Codex patch: client identities rejected, RLS derived server-side, Edit profile-gated, cache includes workspace/report/dataset/access/identity hash | `proxy/server.js`, `EmbedConfigForm.tsx`, `proxy/tests/embedTokenRoute.test.js` | Review patch, then run live credentialed Power BI smoke with the enterprise RLS claim mapping. |
 | P1 | Allowlist can fail open in UI/store | Governance fetch failures should not unlock restricted selections | `playground/src/settings/`, `App.tsx` | Separate dev-unconfigured from fetch-failed; restricted controls disable or reconcile fail-closed. |
 | P1 | Mounted BI panel is not revalidated after allowlist arrives/changes | A panel can mount before governance state is ready | `BIPanel.tsx`, `App.tsx`, tests | Revalidate/remount when allowlist transitions from null to configured or configured values change. |
@@ -131,7 +131,7 @@ Newest active/review lane first. Keep completed-but-reviewing work above older o
 | Playground viewport controls | Codex (impl) + Claude (tests/review, 2026-05-14 03:05 IST) | done; reviewed | Codex: `playground/src/App.tsx`. Claude/Codex: `playground/src/__tests__/viewportControls.integration.test.tsx`. | [VERIFY] 354/354 playground green; viewport slice 16/16. Browser DOM smoke caught a duplicate restore-label issue; Codex fixed it and added regression coverage for minimize dock, Show both, popstate, and open-page URL. |
 | Power BI token hardening review | Claude (2026-05-14 02:35 IST) | done; approved | `proxy/server.js`, `proxy/tests/embedTokenRoute.test.js`, `playground/src/components/EmbedConfigForm.tsx`, `playground/src/components/__tests__/EmbedConfigForm.test.tsx`, docs | [VERIFY] 630/630 proxy + 338/338 playground green; non-blocking [RISK] notes captured in Coordination Log. |
 | Power BI token hardening | Codex (assigned 2026-05-14 by Rajesh) | done; reviewed | `proxy/server.js`, `EmbedConfigForm.tsx`, tests | Client identities rejected; server-derived RLS; Edit gate; identity-aware cache. Reviewed clean; committed by Claude with co-author trailer. Live credentialed smoke still pending. |
-| Production auth hardening | unclaimed | open | `proxy/server.js`, `docs/SECURITY.md`, tests | Require IdP or shared key in production startup. |
+| Production auth hardening | Codex (2026-05-14 04:10 IST) | done; needs Claude review | `proxy/server.js`, `docs/SECURITY.md`, tests | `PROXY_AUTH_MODE` shipped; production fail-closed; 646/646 proxy green. |
 | Allowlist fail-closed pass | unclaimed | open | `playground/src/settings/`, `App.tsx`, `BIPanel.tsx` | Distinguish dev-unconfigured from governance-fetch-failed. |
 | Discovery metadata wiring | unclaimed | open | `BIAdapter.ts`, PBI adapter, `AISidebar.tsx` | Add `getMetadata()` and pass `biMetadata` + `biUrl` into discovery. |
 | Frame-to-prompt wiring | unclaimed | open | `AISidebar.tsx`, proxy routes, Prompt IR docs | Selected frame should alter request payload and prompt strategy. |
@@ -141,7 +141,35 @@ Newest active/review lane first. Keep completed-but-reviewing work above older o
 
 LIFO: newest task first. When adding another task, insert it above the current one and leave older tasks below for traceability.
 
-**Immediate task (Codex, assigned by Rajesh via Claude 2026-05-14 03:30 IST):** **Production auth hardening (P0)**. Closes the largest accuracy/security gap on the board.
+**Immediate task (Claude, assigned by Codex 2026-05-14 04:45 IST):** **Review production auth hardening (P0)**. Please review line-by-line before Codex starts editing the next shared server/playground lane.
+
+Review scope:
+
+- `proxy/server.js`
+- `proxy/tests/productionAuth.test.js`
+- `proxy/tests/server.test.js`
+- `docs/SECURITY.md`
+- `docs/DEPLOY_MVP_0.2.md`
+- `docs/HANDOVER.md`
+- `docs/memory/project_state.md`
+
+Review checklist:
+
+- Confirm `PROXY_AUTH_MODE=none` is refused when `NODE_ENV=production` or `PROXY_REQUIRE_AUTH=true`.
+- Confirm production default `idp-or-shared-key` refuses startup when both IdP verification and shared key are absent.
+- Confirm `idp`, `shared-key`, and `idp-or-shared-key` request enforcement matches the docs.
+- Confirm rejected auth requests audit one of: `auth.missing-idp`, `auth.missing-shared-key`, `auth.missing-idp,auth.missing-shared-key`, `auth.production-refuses-none`.
+- Confirm the IdP claim normalization still supports `email`, `preferredUsername` / `preferred_username`, and `upn` for Power BI RLS.
+- Re-run `npm.cmd test -- productionAuth`, `npm.cmd test -- server --runInBand`, and full `npm.cmd test` from `proxy/`.
+
+Expected output:
+
+- Post `[VERIFY]` if clean, or `[RISK]` findings with file/line references.
+- If clean, mark Production auth hardening `done; reviewed` and assign Codex the next LIFO lane: Allowlist fail-closed pass (P1).
+
+**Prior task (resolved, awaiting review):** Production auth hardening (P0) — Codex implementation complete 2026-05-14 04:45 IST.
+
+Scope was:
 
 Scope:
 
@@ -320,6 +348,39 @@ If the handoff conflicts with the current code, trust the code and report the mi
 ## Coordination Log
 
 Add newest entries at the top of this section.
+
+### 2026-05-14 04:45 IST - Codex
+
+`[DONE]` Production auth hardening P0 implemented.
+
+Shipped:
+
+- `PROXY_AUTH_MODE` values in `proxy/server.js`: `idp`, `shared-key`, `idp-or-shared-key`, `none`.
+- Production/startup guard: `NODE_ENV=production` or `PROXY_REQUIRE_AUTH=true` refuses `none` and refuses missing IdP/shared-key config.
+- Request enforcement: `idp` requires verified `req.user`; `shared-key` requires `X-PulsePlay-Key` or legacy `X-Genie-Key`; `idp-or-shared-key` accepts either.
+- Auth rejection audit reasons: `auth.missing-idp`, `auth.missing-shared-key`, `auth.missing-idp,auth.missing-shared-key`.
+- IdP claim normalization now preserves both `preferredUsername` and `preferred_username` while keeping `email` / `preferredUsername` / `upn` aligned with the Power BI RLS fallback chain.
+- Docs updated: `docs/SECURITY.md`, `docs/DEPLOY_MVP_0.2.md`, `docs/HANDOVER.md`, `docs/memory/project_state.md`.
+
+`[VERIFY]`
+
+- `node --check proxy/server.js` -> pass
+- `proxy`: `npm.cmd test -- productionAuth` -> **16/16**
+- `proxy`: `npm.cmd test -- server --runInBand` -> **119/119**
+- `proxy`: full `npm.cmd test` -> **646/646**
+
+`[RISK]` Live enterprise IdP/JWKS smoke is still pending. Tests prove the auth-mode contract and request enforcement with controlled fixtures; they do not prove the deployed edge forwards the exact JWT issuer/audience the enterprise IdP will issue.
+
+`[HANDOFF]` Claude should review this patch before Codex starts the next shared lane. If clean, next LIFO Codex lane is **Allowlist fail-closed pass (P1)**.
+
+### 2026-05-14 04:10 IST - Codex
+
+`[CLAIM]` Production auth hardening P0.
+
+- Files I expect to touch: `proxy/server.js`, focused proxy auth tests, `docs/SECURITY.md`, `docs/DEPLOY_MVP_0.2.md`, `docs/HANDOVER.md`, `docs/memory/project_state.md`, and this sync file.
+- Scope: add explicit `PROXY_AUTH_MODE` handling for `idp`, `shared-key`, `idp-or-shared-key`, and `none`; keep dev ergonomics; refuse unsafe production startup; audit rejected auth requests with machine-readable reasons.
+- Claim-mapping answer: current `idpMiddleware` already maps `email`, `preferred_username` -> `preferredUsername`/email, and `upn`; Power BI `_powerBiUserClaim` already aliases `preferred_username`, `preferredUsername`, `email`, and `upn`. I will reuse/extract that pattern rather than introduce a second fallback chain.
+- Validation target: `node --check proxy/server.js`, focused proxy auth tests, then full proxy test suite if focused tests pass.
 
 ### 2026-05-14 03:55 IST - Claude (gallant-jones-a71415)
 

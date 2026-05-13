@@ -213,13 +213,15 @@ The proxy refuses to start in `NODE_ENV=production` unless these are set correct
 | Env var | Value | Why |
 |---|---|---|
 | `NODE_ENV` | `production` | Trips every security gate (allowlist enforcement, CORS pin, IdP requirement, inline-creds gate, config validator) |
-| `PROXY_SHARED_KEY` | 32+ char random value from vault | Required when `PROXY_IDP_REQUIRED=false`; auto-detect pins inline-creds mode to `off` |
+| `PROXY_AUTH_MODE` | `idp-or-shared-key` recommended; `idp` if the edge always forwards a verified Bearer JWT; `shared-key` only for service-to-service controlled networks | Production refuses `none` and refuses to start unless the selected mode has usable IdP or shared-key config |
+| `PROXY_SHARED_KEY` | 32+ char random value from vault | Shared-key fallback for `idp-or-shared-key` and required for `shared-key`; canonical header is `X-PulsePlay-Key`, legacy alias is `X-Genie-Key` |
 | `PROXY_INLINE_CREDENTIALS_MODE` | `off` | L8 closure — refuses to start otherwise in production |
 | `PROXY_CORS_ORIGIN` | Playground deploy origin(s), comma-separated, never `*` | L7 + CORS gate. Production refuses to start with `*`. |
-| `PROXY_IDP_REQUIRED` | `true` | Forces JWT validation on every `/assistant/*` route |
-| `PROXY_IDP_JWKS_URL` | Your org IdP's JWKS endpoint | Used by `jose` to verify Bearer tokens |
+| `PROXY_IDP_JWKS_URL` | Your org IdP's JWKS endpoint | Used by `jose` to verify Bearer tokens when `PROXY_AUTH_MODE` includes `idp` |
 | `PROXY_IDP_ISSUER` | Expected `iss` claim | JWT verification |
 | `PROXY_IDP_AUDIENCE` | Expected `aud` claim | JWT verification |
+
+`PROXY_KEY` is accepted as a shared-key compatibility alias. Prefer `PROXY_SHARED_KEY` for new deployments. `PROXY_IDP_REQUIRED=true` is accepted as a legacy shorthand for `PROXY_AUTH_MODE=idp` when `PROXY_AUTH_MODE` is unset.
 
 ### 2.2 Secret references (vault-managed, do NOT commit to config.json)
 
@@ -237,6 +239,7 @@ Use the env-var path. Plain-text secrets in `config.json` are dev-only.
 
 | Env var | Use |
 |---|---|
+| `PROXY_REQUIRE_AUTH=true` | Forces production auth validation even outside `NODE_ENV=production`; useful for staging |
 | `WEBSITE_SITE_NAME` | Azure App Service indicator — auto-pins inline-creds to `off`, suppresses dev banner |
 | `NODE_EXTRA_CA_CERTS` | TLS-MITM proxy chain cert path |
 | `FEEDBACK_LOG` | Override audit log path |
@@ -302,7 +305,7 @@ Run these on the deployed proxy + playground from a real user's browser:
 
 ```bash
 curl -s https://your-proxy/health | jq
-# Expected: { "ok": true, "profiles": [...], "authMode": "sharedKey", ... }
+# Expected: { "ok": true, "profiles": [...], "authMode": "idp-or-shared-key", ... }
 ```
 
 ### 5.2 Allowlist visibility

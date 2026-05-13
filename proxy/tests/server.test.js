@@ -92,10 +92,10 @@ describe('GET /health', () => {
         expect(res.body.profiles).toEqual(expect.arrayContaining(['default', 'analytics']));
     });
 
-    it('reports authMode based on whether a sharedKey is configured (IDEA-015)', async () => {
+    it('reports the effective authMode (IDEA-015)', async () => {
         const res = await request(app).get('/health');
-        // No PROXY_SHARED_KEY env var and no sharedKey in MOCK_CONFIG_BASE.
-        expect(res.body.authMode).toBe('anonymous');
+        // No auth env var and no sharedKey in MOCK_CONFIG_BASE.
+        expect(res.body.authMode).toBe('none');
     });
 
     it('filters _doc_* keys out of the public profile list (BUG-013 + IDEA-015)', async () => {
