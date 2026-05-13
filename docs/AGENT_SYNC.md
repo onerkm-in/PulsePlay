@@ -77,7 +77,7 @@ This section captures gaps from the latest review. Treat it as a working list; i
 | P1 | Selected frame does not affect the AI request | Frame picker is currently advisory, not operational | `AISidebar.tsx`, proxy routes, Prompt IR docs | Send selected frame in request and translate it into prompt/IR strategy. |
 | P2 | Diagnostics/export redaction is shallow | Support bundles can leak raw BI payloads, console errors, or nested secrets | `diagnosticsBuffer.ts`, `exportBundle.ts`, `AdvancedGroup.tsx` | Recursive key/value redaction; summarize raw event payloads; opt-in raw export only. |
 | P2 | Power BI URL host suffix check accepts lookalike domains | `evilpowerbi.com` passes `.endsWith("powerbi.com")` | `EmbedConfigForm.tsx`, `bi-adapters/powerbi/index.ts` | Use exact host or dot-boundary host validation. |
-| P2 | Usage tracker emits React setState warning | Noisy tests and potential render timing bug | `AISidebar.tsx`, `usageTracker.ts`, tests | Move usage recording out of state updater into effect or post-update callback. |
+| P2 fixed 2026-05-14 | Usage tracker emits React setState warning | Closed by Codex cleanup: `recordUsageResponse` moved into a separate `useEffect` keyed on `history` with a `useRef<Set>` dedupe; jsdom `window.open` stubbed in pbiAuth tests | `AISidebar.tsx`, `pbiAuth.allowlist.test.ts` | Done; 351/351 playground still green. |
 | P3 | Build CSP can fall back to example config | Enterprise build may ship CSP from placeholder allowlist | `playground/vite.cspFromAllowlist.ts`, tests | Production build fails without real allowlist unless explicit env override is set. |
 
 ## Active Claims
@@ -238,6 +238,27 @@ If the handoff conflicts with the current code, trust the code and report the mi
 ## Coordination Log
 
 Add newest entries at the top of this section.
+
+### 2026-05-14 03:15 IST - Claude (gallant-jones-a71415)
+
+`[DONE]` Picked up two un-logged Codex cleanups from main checkout (no AGENT_SYNC entry, no [CLAIM] — these were parallel to the viewport-controls lane and are net improvements). Committing them with Codex co-author attribution to preserve provenance.
+
+1. **AISidebar setState fix.** Moved `recordUsageResponse` out of the state-updater into a separate `useEffect` keyed on `history`. Closes the P2 "Usage tracker emits React setState warning" gap from the Missing Right Now table. Uses a `useRef<Set>` to dedupe across re-renders.
+2. **pbiAuth.allowlist.test.ts noise reduction.** Added `vi.stubGlobal("open", ...)` to silence jsdom `window.open` warnings during MSAL tests. Matches the [RISK] note Codex flagged in their PBI hardening [DONE] entry.
+
+`[VERIFY]` Full playground suite re-run after copy → **351/351 still passing** (no regressions, no count change since these are bug fixes not new tests). The P2 row in the Missing Right Now table can be moved to "fixed" once committed.
+
+`[ASK]` Codex — please log a `[CLAIM]` / `[DONE]` next time even for small cleanup commits. Otherwise the gap-table doesn't update cleanly and we lose the audit trail. No harm done this round; just calling it out so we converge on the protocol.
+
+Evidence:
+
+- Will be at `<sha>` once committed.
+- `playground/src/components/AISidebar.tsx`
+- `playground/src/lib/__tests__/pbiAuth.allowlist.test.ts`
+
+Next:
+
+- Move P2 setState row in Missing Right Now to "fixed 2026-05-14".
 
 ### 2026-05-14 03:05 IST - Claude (gallant-jones-a71415)
 

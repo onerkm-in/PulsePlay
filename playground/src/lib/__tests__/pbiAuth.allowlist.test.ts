@@ -5,10 +5,18 @@
 // EmbedConfigForm already enforces this, but we test the lower layer so
 // future callers that bypass the form still hit the gate.
 
-import { describe, it, expect } from "vitest";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { signInAndPrepareEmbed, PbiAllowlistError } from "../pbiAuth";
 
 describe("pbiAuth allowlist gate", () => {
+    beforeEach(() => {
+        vi.stubGlobal("open", vi.fn(() => null));
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
     it("throws PbiAllowlistError when tenant is missing and allowlist is non-empty", async () => {
         await expect(
             signInAndPrepareEmbed(

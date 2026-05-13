@@ -202,6 +202,7 @@ export function AISidebar(props: AISidebarProps) {
     const abortControllers = useRef<Map<number, AbortController>>(new Map());
     /** Per-entry polling interval timer ids. */
     const pollTimers = useRef<Map<number, ReturnType<typeof setInterval>>>(new Map());
+    const recordedUsageEntryIds = useRef<Set<number>>(new Set());
 
     // While there's at least one in-flight entry, keep ticking so the
     // elapsed time UI stays current. Stops when nothing is pending.
@@ -225,6 +226,20 @@ export function AISidebar(props: AISidebarProps) {
             timers.clear();
         };
     }, []);
+
+    useEffect(() => {
+        for (const completed of history) {
+            if (completed.status !== "completed" || recordedUsageEntryIds.current.has(completed.id)) continue;
+            recordedUsageEntryIds.current.add(completed.id);
+            recordUsageResponse({
+                usage: completed.usage,
+                texts: {
+                    userQuestion: completed.question,
+                    response: completed.answer || "",
+                },
+            });
+        }
+    }, [history]);
 
     // Phase A discovery state: fetch a DiscoverySnapshot whenever the
     // connector or pack changes. The snapshot is cached in sessionStorage
@@ -290,21 +305,6 @@ export function AISidebar(props: AISidebarProps) {
                     ? { ...h, ...patch, status, finishedAt: Date.now() }
                     : h
             );
-            // Record usage for the SustainabilityIndicator on successful
-            // completion. Real `usage` block wins; otherwise estimate from
-            // text length (chars/4 heuristic — see usageTracker for the why).
-            if (status === "completed") {
-                const completed = next.find(h => h.id === entryId);
-                if (completed) {
-                    recordUsageResponse({
-                        usage: completed.usage,
-                        texts: {
-                            userQuestion: completed.question,
-                            response: completed.answer || "",
-                        },
-                    });
-                }
-            }
             return next;
         });
     };
