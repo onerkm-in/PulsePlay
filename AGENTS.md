@@ -1,4 +1,4 @@
-# PulsePlay — Claude Code Guide
+# PulsePlay — Codex Guide
 
 ## Project in one line
 
@@ -98,9 +98,6 @@ ANY combination of (vendor, connector) is valid. Switching either is independent
 | `docs/PROXY_REFERENCE.md` | Proxy API surface, scopes, OAuth M2M setup |
 | `docs/QUALITY.md` | What we measure / don't / will (honest) |
 | `docs/PACKS.md` | Pack architecture overview |
-| `docs/SETTINGS_SPEC.md` | Settings page master spec (IA + microcopy + state + guardrails + loophole audit) |
-| `docs/KNOWLEDGE_BASE_ARCHITECTURE.md` | Knowledge plane + Knowledge Base IA |
-| `docs/DEPLOY_MVP_0.2.md` | MVP 0.2 deployer checklist (config.json + env vars + smoke) |
 | `docs/PUBLIC_OSS_AGENDA.md` | Public-OSS path items, deferred from v1.x |
 | `docs/MIGRATION_NOTES.md` | 2026-05-10 doc consolidation summary |
 | `docs/research/CODEBASE_AUDIT.md` | Brutal-honest gap analysis at HEAD |

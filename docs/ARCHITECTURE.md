@@ -39,6 +39,26 @@ Any cell of the matrix is valid:
 
 The user picks both axes independently in the sidebar. Switching either does not disturb the other.
 
+## The Knowledge plane
+
+Knowledge is a first-class context plane, not a third product axis that competes with BI vendor and AI connector.
+
+```text
+Y-axis: BI Runtime       -> what the user is looking at
+X-axis: AI Runtime       -> what reasoning backend answers
+Knowledge plane          -> what governed context grounds the answer
+```
+
+This split keeps the product understandable:
+
+- **BI adapters observe.** They emit canonical context, events, and capabilities.
+- **Knowledge retrieves.** It loads packs, source documents, indexes, policies, and retrieval profiles.
+- **AI connectors reason.** They consume the user question, BI context, and a normalized grounding bundle.
+
+PulsePacks are the curated domain-content substrate: glossary, ontology, KPIs, sample questions, prompt context, references, and demo configs. They are not the same thing as a vector index. The retrieval layer can use PulsePack content, BI metadata, Unity Catalog data, SharePoint/S3/docs, or provider-native knowledge bases, then return the same `GroundingBundle` shape to any connector.
+
+The active design is captured in [KNOWLEDGE_BASE_ARCHITECTURE.md](KNOWLEDGE_BASE_ARCHITECTURE.md). The brutal-honest current state: PulsePlay already has pack matching and pack prompt-context injection, but it does **not** yet have a full governed RAG/knowledge-base runtime.
+
 ## How a BI vendor adapter works (Y-axis)
 
 Every vendor adapter implements the [`BIAdapter`](../playground/src/biPanel/BIAdapter.ts) interface:
@@ -204,6 +224,7 @@ PulsePlay/
 ├── pulsepacks/              # Vertical packs (CPG/FMCG, manufacturing, ...). Pack architecture lives here.
 ├── scripts/                 # llm_onboard, llm_wrapup, smoke helpers, deploy helper
 └── docs/                    # See docs/MIGRATION_NOTES.md for current map
+    └── KNOWLEDGE_BASE_ARCHITECTURE.md # Knowledge plane, retrieval contracts, and Settings/KB IA
 ```
 
 ## Cross-origin iframe security
@@ -281,10 +302,11 @@ See [ROADMAP.md](ROADMAP.md) for the sequenced plan.
 
 ## Where to start when you come back
 
-1. Pick ONE vendor (probably Power BI since the org has the credentials) and graduate its adapter from stub to real `powerbi-client` integration
-2. Add the `/api/powerbi/embed-token` route in `proxy/server.js` (Azure AD service principal flow)
-3. Wire one canonical event end-to-end (e.g., `page-changed`) so the AI sidebar can SEE what page the user is on and prompt accordingly
-4. Then unlock streaming AI (v0.4) — the most demo-worthy first "gateway" vector
+1. Finish the 10-minute Genie + Power BI first-run flow: preflight, Power BI connect, Genie probe, pack suggestion, author review, live smoke.
+2. Build the `/settings` shell from the Settings IA: BI, AI, Preferences, System, Advanced.
+3. Tighten the remaining pilot loopholes: generated CSP from the allowlist, inline-credential startup gate, and localStorage/settings revalidation.
+4. Add the first read-only Knowledge Base surface so users can inspect what a pack contributes before they ask the AI.
+5. Then wire governed retrieval (`GroundingBundle`) behind the AI sidebar, starting with local PulsePack content and Databricks Vector Search as the first enterprise provider.
 
 Everything else is creativity surface area. See [AGENDA.md](AGENDA.md) for the open-work tracker.
 
@@ -297,6 +319,10 @@ Everything else is creativity surface area. See [AGENDA.md](AGENDA.md) for the o
 - [AGENDA.md](AGENDA.md) — open-work tracker (active items)
 - [PUBLIC_OSS_AGENDA.md](PUBLIC_OSS_AGENDA.md) — what gets done IF/WHEN we go public-OSS
 - [PACKS.md](PACKS.md) — pack architecture overview
+- [KNOWLEDGE_BASE_ARCHITECTURE.md](KNOWLEDGE_BASE_ARCHITECTURE.md) — Knowledge plane, retrieval contracts, Knowledge Base IA
+- [SETTINGS_SPEC.md](SETTINGS_SPEC.md) — Settings page master spec: IA, layout, microcopy, state model, interaction rules, enterprise guardrails, security setup, maintenance, administration, loophole audit
+- [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md) — board-ready enterprise security audit
+- [DEPLOY_MVP_0.2.md](DEPLOY_MVP_0.2.md) — MVP 0.2 deployer checklist: prereqs, `config.json` template, env vars, smoke verification, common pitfalls
 - [research/CODEBASE_AUDIT.md](research/CODEBASE_AUDIT.md) — brutal-honest gap analysis at HEAD
 - [research/MARKET_AND_STANDARDS.md](research/MARKET_AND_STANDARDS.md) — market + standards research
 - [adr/](adr/) — architecture decision records (immutable history)

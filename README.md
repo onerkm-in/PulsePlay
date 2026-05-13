@@ -81,6 +81,9 @@ PulsePlay/
 | [docs/PROXY_REFERENCE.md](docs/PROXY_REFERENCE.md) | Proxy API surface, scopes, OAuth M2M setup |
 | [docs/QUALITY.md](docs/QUALITY.md) | What we measure, what we don't, what's roadmap |
 | [docs/PACKS.md](docs/PACKS.md) | Pack architecture overview |
+| [docs/SETTINGS_SPEC.md](docs/SETTINGS_SPEC.md) | Settings page master spec — IA + microcopy + state + guardrails + loophole audit |
+| [docs/KNOWLEDGE_BASE_ARCHITECTURE.md](docs/KNOWLEDGE_BASE_ARCHITECTURE.md) | Knowledge plane, retrieval contracts, Settings IA, and Knowledge Base IA |
+| [docs/DEPLOY_MVP_0.2.md](docs/DEPLOY_MVP_0.2.md) | MVP 0.2 deployer checklist — `config.json` template, env vars, smoke verification |
 | [docs/PUBLIC_OSS_AGENDA.md](docs/PUBLIC_OSS_AGENDA.md) | What gets done IF/WHEN we go public-OSS later |
 | [docs/MIGRATION_NOTES.md](docs/MIGRATION_NOTES.md) | Doc consolidation 2026-05-10 (this cycle's notes) |
 | [docs/research/CODEBASE_AUDIT.md](docs/research/CODEBASE_AUDIT.md) | Brutal-honest gap analysis at HEAD |

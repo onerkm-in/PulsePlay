@@ -5,6 +5,280 @@
 
 ---
 
+## 2026-05-13 — Phase 8: Knowledge Base UI (beast-mode six)
+
+**Range:** working tree after `8fde791` — current session, not yet committed. Builds on Phase 0-7 + Phase 6 medium cleanup.
+
+### What shipped
+
+- **Pack detail readers in `packRegistry.js`.** Added `loadPackDetail(pack)` returning manifest + README + migration notes + knowledge-base (glossary/ontology/references) + installed sub-verticals + demo configs. Added `loadSubVerticalDetail(pack, sv)` returning per-sub-vertical KPIs/sample-questions/prompt-context/bi-ai-fit/README. Both gated by `isSafePackSegment` (mirrors L15 identifier regex from packPromptLoader).
+- **Two new proxy endpoints** with allowlist gating: `GET /assistant/knowledge/packs/:pack` and `GET /assistant/knowledge/packs/:pack/sub-verticals/:subVertical`. Both rate-limit-exempt (cheap file I/O); both reject path-traversal identifiers before constructing any filesystem path. New entries added to `isRateLimitExemptRead` prefix check.
+- **New Knowledge Base page** at `/knowledge` ([playground/src/knowledge/](../playground/src/knowledge/)). Path-based router with no new dep. Header + left rail (installed packs from `/assistant/knowledge/packs`) + content pane with section tabs: Overview, Glossary, Ontology, References, Sub-verticals, Runtime use, Demos. Sub-verticals tab has its own inner left rail + per-sub-vertical content pane.
+- **Runtime-use tab** explains, for each pack, exactly what content the current PulsePlay runtime injects today (prompt-context per active sub-vertical; glossary fallback when not present) vs what's available for human review but NOT runtime-injected (ontology / references / KPIs / sample questions). Sets expectations honestly — no overclaiming the existence of governed retrieval before Phase 3.
+- **Settings deep-link wired.** Settings › AI › Browse library ↗ is no longer a "Coming soon" stub; it now navigates to `/knowledge/<active-pack>` or `/knowledge` when no pack is selected.
+- **App.tsx routing.** AppRouted now checks `useKnowledgeRoute()` FIRST, then `useSettingsRoute()`, then falls through to PlaygroundApp.
+
+### Tests + build
+
+- `playground`: `npm run lint` (tsc --noEmit) clean.
+- `playground`: 17 new tests (12 knowledgeRoute + 5 KnowledgeShell). **Total 257/257 pass** (was 240).
+- `playground`: `npm run build` green.
+- `proxy`: 7 new tests (packRegistry.detail). **Total 464/464 pass** (was 457).
+
+### Tripwire
+
+- The Markdown pane currently renders content as preformatted text (whitespace preserved, monospace) — NOT as HTML-rendered Markdown. This is intentional for v0.2: no client-side Markdown parser dep, no XSS risk from author-supplied content. When we add proper Markdown rendering, route it through `DOMPurify` and use a safe-by-default parser. The current `pre` rendering means headers / bullets show their raw `#` / `-` markers, which is fine for read-only inspection.
+- The KB endpoints serve raw markdown content with a 256 KB per-file cap. If a pack ships a > 256 KB markdown file, it's truncated server-side with a "[…truncated]" suffix. Not a security issue but worth noting if authors expect full text.
+- The runtime-use tab is descriptive, not prescriptive. It explains current behavior; it doesn't actually invoke the runtime. When governed retrieval (Phase 3 of KB architecture) lands, this tab should grow a "Preview retrieval for question…" form.
+- Settings › AI › Browse library ↗ relies on `pulseplay:knowledge-navigate` window event for SPA navigation. If that event handler is removed (or the route changes), the deep-link silently degrades to a full reload. Test in place via the integration test.
+
+### Phase tracker (post Phase 8)
+
+| Phase | Status |
+|---|---|
+| 0-7 | ✅ |
+| **8. KB UI** | ✅ DONE |
+| **9a. Configuration expansion** (more Genie spaces / Supervisor / OpenAI / Bedrock / Foundation Model / PBI workspaces / packs) | ✅ AVAILABLE TODAY — pure config in `proxy/config.json`, no code |
+| 9b. Stub-to-SDK graduation (Tableau / Qlik / Looker real SDK adapters) | ⏳ v0.3+, per-vendor code |
+| 10. Fabric feature support (Direct Lake, Dataflow Gen2, semantic-link) | ⏳ v0.4+, additive code in PBI adapter |
+
+**MVP 0.2 + Phase 8 complete.** Remaining gates: live credentialed PBI + Genie/Supervisor smoke. Phase 9a is configuration only (no roadmap blocker — see [DEPLOY_MVP_0.2.md](DEPLOY_MVP_0.2.md)). Phases 9b + 10 are real code work, gated on org demand (a non-PBI BI tool or Fabric adoption).
+
+### Framing call-out — common mis-scoping
+
+Earlier in this session I framed "Phase 9 Vendor expansion" as a single deferred milestone. That collapsed two very different things:
+
+| What I was calling "Phase 9" | Reality |
+|---|---|
+| "Adding more Genie spaces / Foundation Model / OpenAI / Bedrock / PBI workspaces" | **Configuration. Plug-and-play TODAY** via `proxy/config.json`. The proxy already has every connector route. |
+| "Tableau / Qlik / Looker as first-class BI vendors" | **Per-vendor code work.** Adapters today are iframe stubs; need real SDK wiring. |
+
+Future LLM sessions: read this distinction first. The 2-axis architecture **is** plug-and-play; what's deferred is the SDK graduation for non-PBI BI vendors and Fabric-specific code paths.
+
+---
+
+## 2026-05-13 — Phase 6 medium cleanup: L12 + L14 + L15 + L17 + L18 closed; L9 + L10 + L13 accepted (beast-mode five)
+
+**Range:** working tree after `8fde791` — current session, not yet committed. Closes out the audit surface from the 2026-05-13 loophole scan.
+
+### What shipped
+
+- **L15 closed (path-traversal whitelist).** [proxy/lib/packPromptLoader.js](../proxy/lib/packPromptLoader.js) now refuses pack + subVertical identifiers that don't match `^[a-z0-9][a-z0-9-]{0,62}$` BEFORE constructing any filesystem path. New `isValidPackIdentifier` export.
+- **L17 closed (config startup validator).** New [proxy/lib/configValidator.js](../proxy/lib/configValidator.js). `validateConfigShape` runs at startup; production hard-fails on malformed config; dev mode logs warnings. No new JSON-schema dep — hand-rolled checks on fields whose wrong types crash at runtime.
+- **L14 closed (probe payload sanitization).** [playground/src/lib/probeClient.ts](../playground/src/lib/probeClient.ts) `probeConnector` now rejects profile names that don't match `^[a-zA-Z0-9._-]{1,128}$` with a new `ProbeInvalidProfileError` BEFORE any network call.
+- **L18 closed (admin token-cache endpoints).** [proxy/server.js](../proxy/server.js) adds `GET /admin/embed-tokens/stats` + `POST /admin/embed-tokens/purge` behind the constant-time shared-key compare (extracted to `_adminAuthOk` helper). Stats returns size + per-entry expiry; purge clears the cache and returns the count.
+- **L12 closed (prompt-injection keyword stripper).** [playground/src/pulse/promptRedaction.ts](../playground/src/pulse/promptRedaction.ts) adds `stripInstructionKeywords` + `detectInstructionKeywords` + `safeAuthorPrompt` (combines existing `redactAuthorPrompt` with the new stripper). Heuristic patterns: ignore-prior, disregard-prior, override-system, you-are-now-jailbroken, act-as, from-now-on, developer-mode, reveal-system, end-of-prompt, instruction-fence-attack. Truncates to 16 000 chars. [pulse/visualHelpers.ts](../playground/src/pulse/visualHelpers.ts) switched all author-prompt call sites to `safeAuthorPrompt`. AI vendor's prompt hierarchy + validator framework remain the real fence.
+- **L9 + L10 + L13 ACCEPTED.** New § 15.5 risk-acceptance log in SETTINGS_SPEC documents the rationale + re-open trigger for each. L9: CSP works on origin, not path. L10: build-time env var. L13: per-user PBI report ACLs require a REST API lookup the proxy doesn't currently do — Phase 9b.
+
+### Tests + build
+
+- `playground`: `npm run lint` (tsc --noEmit) clean.
+- `playground`: 20 new tests (11 prompt-injection stripper + 6 probeClient.sanitize + 3 spillover). **Total 240/240 pass** (was 220).
+- `playground`: `npm run build` green.
+- `proxy`: 29 new tests (16 configValidator + 7 packPromptLoader.identifier + 5 adminEmbedTokenCache + 1 spillover). **Total 457/457 pass** (was 428).
+
+### Audit surface status (final, MVP 0.2)
+
+- 8 HIGH: all ✅ CLOSED or ✅ MITIGATED.
+- 7 MEDIUM: L11 + L12 + L14 + L15 ✅ CLOSED; L9 + L10 + L13 ◐ ACCEPTED with explicit re-open triggers.
+- 4 LOW: L17 + L18 ✅ CLOSED; L16 + L19 ⏳ OPEN (defer to Phase 9b).
+
+Net: **pilot-readiness from the audit perspective is GREEN.** Remaining gates are live credentialed Power BI + Genie/Supervisor smoke and Phase 8 KB UI (post-MVP-0.2).
+
+### Tripwire
+
+- `safeAuthorPrompt` is a HEURISTIC. It defends against the patterns we've seen, not unknown variants. The AI vendor's prompt hierarchy + Insights validator framework are the load-bearing fences. If an author finds a real prompt-injection bypass that the model honored, ADD the pattern to `INJECTION_PATTERNS` and ship a regression test — never trust the stripper alone.
+- The L17 config validator is a hand-rolled checker, not full JSON-schema. It catches the wrong-type-for-known-field cases; it doesn't catch unknown future fields. If a new config shape lands, extend `configValidator.js` rather than assuming the validator covers it.
+- The L18 admin endpoints share the same `_adminAuthOk` helper as `/admin/health-summary`. If we ever add an IdP-group-based admin tier (Operator vs Administrator from SETTINGS_SPEC § 14.1), update `_adminAuthOk` to check `req.user.groups` AND constant-time-compare the shared key.
+
+---
+
+## 2026-05-13 — Phase 5: UX cleanup, retirement of legacy surfaces (beast-mode four)
+
+**Range:** working tree after `8fde791` — current session, not yet committed. Wraps the MVP 0.2 functional core.
+
+### What shipped
+
+- **System › Proxy status — live.** [SystemGroup.tsx](../playground/src/settings/groups/SystemGroup.tsx) `useProxyHealth` hook polls `/api/health` every 10 s, surfaces a dot + latency badge + auth-mode + config-source + profile count. Includes a manual "Re-run" button. Latency colored green/yellow/red at 100 / 500 ms thresholds.
+- **System › Diagnostics — rolling buffer.** Added [diagnosticsBuffer.ts](../playground/src/settings/diagnosticsBuffer.ts): a 20-event ring buffer fed by a new `pulseplay:bi-event` window event ([BIPanel.tsx](../playground/src/biPanel/BIPanel.tsx) dispatches it on every adapter emit) AND a monkey-patched `console.error` capturing the last 20 errors. `useDiagnosticsBuffer` hook re-renders on each push.
+- **System › Export bundle — JSON download.** Added [exportBundle.ts](../playground/src/settings/exportBundle.ts): gathers settings + allowlist + proxy health + diagnostics buffer + `pulseplay:*` localStorage (with token/secret redaction) + browser info. Conservative redaction: any key matching `/token|secret|key/i` is masked; JWT-shaped + dapi-shaped values inside non-secret keys are also masked.
+- **Advanced › Reset section / Reset all / Danger zone — type-to-confirm.** [AdvancedGroup.tsx](../playground/src/settings/groups/AdvancedGroup.tsx) gates each destructive action behind a `TypeToConfirmAction` primitive — the user types the action name verbatim before the button enables. Reset section clears keys for a chosen group (`bi` / `ai` / `preferences`). Reset all clears every `pulseplay:*` key on the origin. Danger zone offers `signOutPbi` + a Clear-Pulse-settings action for the Pulse `pulseplay:visual-settings:*` namespace.
+- **Retired floating gear popover.** [App.tsx `PulsePlaySettingsGear`](../playground/src/App.tsx) no longer renders the inline UI/Panels/Position popover. The gear button now navigates directly to `/settings`. The retired popover code is documented as removed (live in git history).
+- **Repointed Pulse Cycle H Display tab.** [pulse/visual.tsx `PulsePlayDisplayPanel`](../playground/src/pulse/visual.tsx) no longer hosts duplicate toggles. Renders an explanatory paragraph + "Open Settings › Preferences →" button that uses `history.pushState` to enter the canonical Settings page. Single source of truth for display preferences.
+
+### Tests + build
+
+- `playground`: `npm run lint` (tsc --noEmit) clean.
+- `playground`: 7 new tests (4 exportBundle redaction + 3 AdvancedGroup type-to-confirm). **Total 220/220 pass** (was 213).
+- `playground`: `npm run build` green.
+- `proxy`: `npm test` **428/428 pass** (no regression).
+
+### Tripwire
+
+- The `console.error` monkey-patch lives at module load time of `diagnosticsBuffer.ts` and never unwires. That's the right behavior for a long-lived rolling buffer but means tests that import the module multiple times re-patch each time. Use the `__clearDiagnosticsBufferForTests` seam if it ever causes flake.
+- The Export bundle is a browser-side download. It contains the local-allowlist contents — fine for support tickets but DON'T paste it into a public issue tracker unless redaction was reviewed.
+- Pulse `pulseplay:visual-settings:*` keys are NOT cleared by Reset all (that namespace is owned by Pulse). They have their own Clear button under Danger zone. Documented in the helper text.
+- The gear retirement keeps the `PulsePlaySettingsGear` component shape (still takes the four props the App previously passed) so existing callers don't break. The props are now unused — left in place for one cycle to avoid a wider refactor; remove in Phase 9b when v0 sidebar mode is rewritten.
+
+### MVP 0.2 status
+
+**Functional core complete.** All 5 Settings groups wired live: Preferences (Phase 2), BI Status license posture (Phase 3), AI group + Supervisor fan-out (Phase 4), System full + Advanced full + retirement (Phase 5). All 8 HIGH loopholes resolved. Remaining before pilot: MEDIUM findings L9-L15, live credentialed Power BI + Genie/Supervisor smoke, KB UI surface (Phase 8 post-MVP-0.2).
+
+---
+
+## 2026-05-13 — Phase 4 + L6/L8: AI group live + Supervisor fan-out + final HIGH loophole closures (beast-mode three)
+
+**Range:** working tree after `8fde791` — current session, not yet committed. Layers on top of Phase 0-3 + Phase 6 (L7) earlier today.
+
+### What shipped
+
+- **Cycle A — settingsStore `activeAiProfile`.** New `pulseplay:active-ai-profile` localStorage key + allowlist-aware setter + orphan detection. Fallback read from Pulse `pulseplay:visual-settings:genieSettings.assistantProfile` so a returning Pulse user lands on their existing selection.
+- **Cycle B — Provider picker live.** [AiGroup.tsx](../playground/src/settings/groups/AiGroup.tsx) renders a filtered picker against `/assistant/profiles` + allowlist intersection. Supervisor profiles get a badge showing fan-out count. Clicks persist via `setActiveAiProfile`.
+- **Cycle C — Supervisor fan-out table.** [proxy/server.js `/assistant/profiles`](../proxy/server.js) now includes `type`, `spaces`, `agentName` (non-sensitive routing metadata). AiGroup detects `type === supervisor*` and renders a read-only fan-out table with per-space allowlist match (green "allowed" / red "not in allowlist" per row).
+- **Cycle D — Connection test matrix.** For Genie profiles, reuses TestConnectionPanel (single probe). For Supervisor profiles, renders a per-space probe matrix with the 2 s stagger from ADR-0003 — partial-failure visualized cleanly (some spaces succeed, some fail; aggregate count shown).
+- **Cycle E — Knowledge pack live picker.** AiGroup renders PackPicker inline with allowlist-filtered packs from the proxy registry. Selection persists via existing `setPackSelection`.
+- **Cycle F — L8 closure.** [proxy/server.js](../proxy/server.js) refuses to start (FATAL + `process.exit(1)`) when `NODE_ENV=production` and `resolveInlineCredentialsMode() !== "off"`. Closes the misconfiguration window where neither `PROXY_SHARED_KEY` nor `WEBSITE_SITE_NAME` is set in prod.
+- **Cycle G — L6 mitigation.** Dev-mode startup banner emits `[security] Embed-token route is reachable without IdP enforcement (dev posture). ADR-0002 binds the proxy to 127.0.0.1 in dev; do NOT expose this port.` Suppressed in `NODE_ENV=test`.
+
+### Tests + build
+
+- `playground`: `npm run lint` (tsc --noEmit) clean.
+- `playground`: 10 new tests (5 settingsStore activeAiProfile + 5 AiGroup integration). **Total 213/213 pass** (was 203).
+- `playground`: `npm run build` green. Initial JS 101 KB raw / 27.6 KB gzip (slight uptick from AiGroup wiring; well within budget).
+- `proxy`: `npm test` **428/428 pass** (no regression from `/assistant/profiles` field addition or new startup gates).
+
+### Loophole audit — final state
+
+All 8 HIGH loopholes resolved this session: L1, L2, L3, L4, L5, L7, L8 ✅ CLOSED · L6 ✅ MITIGATED · L11 ✅ CLOSED. Remaining: MEDIUM findings L9-L15 (deferred to a sub-cycle of Phase 6).
+
+### Tripwire
+
+- L6 mitigation relies on ADR-0002's 127.0.0.1 dev bind. Anyone changing that bind without enabling IdP exposes the embed-token route. The banner makes this loud but a misconfigured Docker `0.0.0.0` bind could re-expose. Phase 6 follow-up: refuse to start in non-localhost dev mode unless IdP is enabled.
+- The Supervisor fan-out table reads `profile.spaces` from `/assistant/profiles`. If a supervisor profile uses an empty `spaces: []` (default-to-all-profiles routing), the table renders "(none)". The actual runtime behavior is "fan to every non-supervisor profile" — document that in the helper text in a follow-up.
+- The proxy's `/assistant/profiles` now exposes `type` and `spaces`. These are non-sensitive but listed in the deploy checklist as "data the org makes visible to authenticated users".
+- App.tsx still holds its own copies of bi-vendor / pack-selection / ui-mode etc. alongside the new store (Phase 5 retires the duplicates). The `pulseplay:display-change` event keeps both sides synced.
+
+---
+
+## 2026-05-13 — Phase 3 + Phase 6 (L7): BI cleanups + license posture + CSP-from-allowlist (beast-mode two)
+
+**Range:** working tree after `8fde791` — current session, not yet committed. Layers on top of Phase 0/1/2/7 from earlier the same day.
+
+### What shipped
+
+- **Cycle A — L1 closure (`pbiAuth.ts` tenant gate).** Added `PbiAllowlistError` + `assertTenantAllowed` to [playground/src/lib/pbiAuth.ts](../playground/src/lib/pbiAuth.ts). `signInAndPrepareEmbed` + `getMsal` now refuse to initialize MSAL when `tenantId` is absent or outside `allowedTenants`. `EmbedConfigForm` passes the live `allowlist.aadTenants` into the call so the lower layer enforces too — closes the form-bypass attack vector.
+- **Cycle B — L2 closure (adapter-mount allowlist).** Added `allowedOrigins?: string[]` to `GenericConfig` + `PowerBIEmbedConfig` + exported `assertIframeOriginAllowed` helper in [bi-adapters/generic-iframe/index.ts](../bi-adapters/generic-iframe/index.ts) and `assertPowerBIOriginAllowed` in [bi-adapters/powerbi/index.ts](../bi-adapters/powerbi/index.ts). [BIPanel.tsx](../playground/src/biPanel/BIPanel.tsx) forwards the per-vendor allowlist into `embedConfig.allowedOrigins` on every mount. Adapter rejects non-allowlisted URLs before `iframe.src` is set.
+- **Cycle C — L3 closure (PBI secure-embed query-param parsing).** New helper `extractGroupIdFromPowerBIUrl` in [EmbedConfigForm.tsx](../playground/src/components/EmbedConfigForm.tsx). Secure-embed mode now extracts `groupId` + `reportId` from the pasted URL's query string and validates BOTH against `powerbiWorkspaces` / `powerbiReports` allowlists before persisting.
+- **Cycle D + E — License posture readout + no-Fabric diagnostic.** Added `license` to `buildVisibleAllowlist` ([proxy/lib/allowlist.js](../proxy/lib/allowlist.js)) so the browser sees `allowlist.license.powerbi`. Added `PulsePlayLicensePosture` to [playground/src/types/allowlist.ts](../playground/src/types/allowlist.ts). [BiGroup.tsx](../playground/src/settings/groups/BiGroup.tsx) renders Premium tier / allowed tiers / embed SKU / Fabric capability in the Status leaf. [SystemGroup.tsx](../playground/src/settings/groups/SystemGroup.tsx) renders the same as a "License posture" leaf. Both surface a yellow "Fabric NOT available" callout when `fabricEnabled === false`.
+- **Cycle F — L7 closure (CSP-from-allowlist).** Added Vite plugin [playground/vite.cspFromAllowlist.ts](../playground/vite.cspFromAllowlist.ts) that reads `proxy/config.json` (with fallback to `proxy/config.example.json` when the dev config has no allowlist block) at build time and emits a strict CSP with full hostnames only — no `*.powerbi.com`, no `*.tableau.com`, no `*.microsoftonline.com`, no `'unsafe-eval'`. Dev mode keeps the permissive index.html CSP so HMR's `'unsafe-eval'` keeps working; `apply: "build"` scopes the plugin to production builds. [vite.config.ts](../playground/vite.config.ts) wires the plugin. Verified post-build: `dist/index.html` now has `frame-src 'self' https://login.microsoftonline.com https://app.powerbi.com`.
+
+### Tests + build
+
+- `playground`: `npm run lint` (tsc --noEmit) clean.
+- `playground`: 17 new tests (5 pbiAuth allowlist + 8 generic-iframe allowlist + 4 CSP generation). **Total 203/203 pass** (was 186).
+- `playground`: `npm run build` green. Bundle largely unchanged; `dist/index.html` is slightly smaller because strict CSP is tighter than the wildcard version.
+- `proxy`: `npm test` still **428/428 pass** (license field on `buildVisibleAllowlist` is additive).
+
+### Tripwire
+
+- The CSP plugin reads `proxy/config.json` first and falls back to `proxy/config.example.json` only if the primary has no `allowlist` block. Production deployments MUST commit an `allowlist` block to their real config.json — otherwise the build silently uses example values. Add a CI lint check.
+- The Vite plugin's `apply: "build"` means dev-mode `vite dev` does NOT generate the strict CSP. Dev still has the permissive index.html CSP. If someone runs `vite preview` after `vite build`, they get strict CSP; if they hot-reload via `vite dev`, they don't. Document.
+- L8 (inline-credentials startup gate) + L6 (dev-mode embed-token route banner) remain open as Phase 6 cleanup before any non-laptop pilot.
+- The proxy embed-token route already enforces tenant/workspace/report — the form + adapter + CSP changes are all defense-in-depth layers in front of that primary fence.
+
+---
+
+## 2026-05-13 — Phase 2: Settings shell + store (beast-mode one)
+
+**Range:** working tree after `8fde791` — current session, not yet committed. Layers on top of the earlier same-day Phase 1 (allowlist runtime) and pack registry work.
+
+### What shipped
+
+- **Full-page `/settings` route.** Tiny path-based router under [playground/src/settings/settingsRoute.ts](../playground/src/settings/settingsRoute.ts) — no new dep. Browser back/forward works; deep links (`/settings/<group>`, `/settings/<group>/<leaf>`) work; last-visited group persists to `pulseplay:settings-last-group`.
+- **SettingsProvider + useSettings.** [playground/src/settings/settingsStore.tsx](../playground/src/settings/settingsStore.tsx) holds Context + reducer + allowlist-aware setters. Reads `/assistant/allowlist`, reconciles persisted `pulseplay:*` values against it on load, surfaces orphans via `state.orphans`. Bridges to/from the legacy `pulseplay:display-change` event so App.tsx + Pulse Cycle H stay in sync. **L11 closed at primary read paths.**
+- **SettingsShell** at [playground/src/settings/SettingsShell.tsx](../playground/src/settings/SettingsShell.tsx). Header + Back-to-app, search box (focus with `Cmd/Ctrl+/`), 5-chip status strip (BI · AI · Pack · Proxy · Security), 5-group left rail, content pane. Setup-needed badge surfaces on the System group when orphans are present.
+- **Five group surfaces** under [playground/src/settings/groups/](../playground/src/settings/groups/):
+  - BiGroup — Phase 3 stubs + read-only current values
+  - AiGroup — Phase 4 stubs + allowlist readout
+  - **PreferencesGroup** — fully wired end-to-end (UI mode / Visible panels / AI position / Canvas tiles)
+  - SystemGroup — live read-only Security posture (allowlist contents); Proxy/Diagnostics/Export-bundle stubs for Phase 5
+  - AdvancedGroup — live read-only localStorage inspector; Reset stubs for Phase 5
+- **App.tsx integration.** `<SettingsProvider>` wraps the app; `AppRouted` switches between `<SettingsShell />` and the existing `<PlaygroundApp />` based on the URL. Global `Cmd/Ctrl+,` shortcut opens Settings. The legacy gear popover got an "Open full Settings →" footer link.
+
+### Tests + build
+
+- `playground`: `npm run lint` (tsc --noEmit) clean.
+- `playground`: 25 new tests (10 settingsRoute + 9 settingsStore + 6 SettingsShell). Total **186/186 pass**.
+- `playground`: `npm run build` green; initial JS bundle 89 KB raw / 24.6 KB gzipped (well within budget).
+
+### Tripwire
+
+- The Preferences group writes through `settingsStore` setters but App.tsx still has its own copies of the same keys (intentional Phase 2 coexistence). Phase 5 retires the duplicates. The `pulseplay:display-change` bus keeps both sides synced during the transition — do NOT remove the legacy event dispatch until Phase 5 wraps.
+- L1/L2/L3 are still ◐ PARTIAL despite Phase 1 closing the primary paths — the in-form validators exist, but the lower-level `pbiAuth.ts` wrapper + adapter-mount allowlist push-down land in Phase 3.
+- The legacy gear popover still works as a quick-switch. It's deprecated but not removed in Phase 2 — Phase 5 retirement.
+
+---
+
+## 2026-05-13 — Enterprise allowlist runtime + pack registry
+
+**Range:** working tree after `8fde791` — current session, not yet committed.
+
+### What shipped
+
+- **Runtime allowlist foundation.** Added `proxy/lib/allowlist.js` and wired `proxy/server.js` to enforce organization-controlled BI providers, embed origins, Power BI workspaces/reports, AAD tenants, AI profiles, Genie spaces, Supervisor profiles, and packs. Production refuses to start without a configured allowlist; local dev/test remains permissive with a warning.
+- **Allowlist-aware proxy APIs.** Added `GET /assistant/allowlist`, filtered `/assistant/profiles`, route-level allowlist rejection with audit events, and Power BI embed-token tenant/workspace/report checks.
+- **Pack registry pulled forward.** Added `proxy/lib/packRegistry.js` and `GET /assistant/knowledge/packs`, reading installed `pulsepacks/*/pack.json` and filtering by `allowlist.packs`.
+- **Playground uses governance data.** `App.tsx` fetches allowlist + pack registry, filters visible BI providers/packs, and shows a governance warning if config cannot load. `EmbedConfigForm` validates embed origins, PBI workspace/report, and SSO tenant. `BIPanel` refuses to mount a non-allowlisted embed URL even if config is injected outside the form.
+- **Docs aligned.** Updated AGENDA / SETTINGS_SPEC / PACKS / ARCHITECTURE / KB architecture / pulsepacks README / repo memory so they no longer describe the pack picker as hardcoded-only or Phase 1 allowlist as purely speculative.
+
+### Tests + build
+
+- `node --check proxy/server.js`, `proxy/lib/allowlist.js`, `proxy/lib/packRegistry.js`: pass.
+- `proxy`: focused `npm test -- allowlist packRegistry server`: pass.
+- `proxy`: full `npm test`: **428/428 pass**.
+- `playground`: `npm run lint`: pass.
+- `playground`: full `npm test`: **161/161 pass**.
+- `playground`: `npm run build`: pass.
+
+### Tripwire
+
+- Do not call this pilot-ready yet. Generated CSP from the allowlist is still open, `/settings` shell/store revalidation is not built, inline-credential startup gating remains open, and no live credentialed Power BI + Genie/Supervisor smoke was run in this session.
+- `DEFAULT_AVAILABLE_PACKS` still exists as a legacy/test fallback export, but the main app now loads `GET /assistant/knowledge/packs`.
+
+---
+
+## 2026-05-13 — Knowledge plane + Settings IA architecture
+
+**Range:** working tree after `8fde791` — current session, not yet committed.
+
+### What shipped
+
+- **Knowledge plane architecture.** Added [KNOWLEDGE_BASE_ARCHITECTURE.md](KNOWLEDGE_BASE_ARCHITECTURE.md) after reviewing the two downloaded Settings IA research prompts and three parallel subagent research passes. It defines Knowledge as a governed context plane, not a third product axis.
+- **Pack vs Knowledge Base split.** The new doc separates PulsePacks, knowledge sources, indexes, retrieval profiles, and `GroundingBundle` so future work does not overclaim today's prompt-context injection as full RAG.
+- **Settings IA locked.** The recommended `/settings` model is a full-page route with shallow left rail.
+- **Settings IA tightened (later in session).** After a polish/professional/organized critique pass, the 7-group draft tightened to **5 groups: BI / AI / Preferences / System / Advanced**. Knowledge Pack folded back under AI Runtime for v1 (it's an AI-side modifier today; promotion trigger documented). "Quick Setup" group dropped — replaced by status-chip "Setup needed" badges on incomplete sections. Names cleaned: `Runtime` suffix dropped; `Workspace` → `Preferences`; `System & Health` → `System`; "Pulse Setup" → "AI Insights setup". See [SETTINGS_SPEC.md § 2.3](SETTINGS_SPEC.md).
+- **Settings spec consolidated.** Added [SETTINGS_SPEC.md](SETTINGS_SPEC.md) — single source of truth combining IA, layout, microcopy, state model, interaction rules, enterprise guardrails, security setup, maintenance, administration, and a loophole audit. Replaces the scattered settings notes across KB_ARCHITECTURE / AGENDA / HANDOVER / memory.
+- **Enterprise allowlist contract.** [SETTINGS_SPEC.md § 11](SETTINGS_SPEC.md) defines 6 named allowlists (BI providers, embed origins, AAD tenants, AI profiles, knowledge packs, future knowledge sources), single source of truth in `proxy/config.json`, fail-closed defaults, defense-in-depth enforcement at 8 layers (Settings UI → shortcut store → adapter mount → CSP → proxy allowlist middleware → IdP-claim refinement → audit log → SIEM alert). New endpoint shape: `GET /assistant/allowlist`.
+- **Loophole audit run.** Subagent security scan of every code path where a user-provided value flows into a security-relevant operation. Findings: 8 HIGH (L1-L8), 7 MEDIUM (L9-L15), 4 LOW (L16-L19). Biggest single risk: **L1 (no AAD tenant allowlist)** — phishing vector. Full inventory in [SETTINGS_SPEC.md § 15](SETTINGS_SPEC.md).
+- **MVP 0.2 scope locked.** PulsePlay MVP 0.2 = Databricks Genie (direct + Supervisor multi-space) + Power BI (Premium-workspace constraint, governed, no Fabric). [SETTINGS_SPEC.md § 0](SETTINGS_SPEC.md) captures the scope, defers Tableau/Qlik/Looker/OpenAI/Bedrock/Foundation/Fabric/Knowledge-Base-UI to v0.3+. Allowlist defaults tightened to `["powerbi"]` BI providers + Genie/Supervisor profiles only. License posture is now a first-class status surface (Premium tier, embed-token availability, Fabric explicitly disabled). Supervisor fan-out across multiple Genie spaces gets its own UI affordance (per-space probe + partial-failure handling). Phases re-ordered: MVP 0.2 ships through Phase 6 (loophole closure); Phase 7+ is post-MVP-0.2.
+- **Existing docs aligned.** Updated [ARCHITECTURE.md](ARCHITECTURE.md), [AGENDA.md](AGENDA.md), [PACKS.md](PACKS.md), [CONNECTOR_PROBE_AND_SMART_CONNECT.md](CONNECTOR_PROBE_AND_SMART_CONNECT.md), [README.md](../README.md), and [pulsepacks/README.md](../pulsepacks/README.md) to point at the new architecture and correct stale pack-runtime status.
+- **Repo-local memory made canonical.** Added [docs/memory/MEMORY.md](memory/MEMORY.md), [docs/memory/project_state.md](memory/project_state.md), and [docs/memory/feature_knowledge_base_architecture.md](memory/feature_knowledge_base_architecture.md). Updated [llm_onboard.py](../scripts/llm_onboard.py) so `docs/memory/` is the default memory source and the Knowledge Base architecture is a canonical doc.
+
+### Tests + validation
+
+- `git diff --check`: clean (line-ending warnings only).
+- `python -m py_compile scripts\llm_onboard.py`: pass.
+- `python scripts\llm_onboard.py --paths-only --no-state-write`: pass; new Knowledge Base architecture doc appears in canonical docs.
+- Re-run after repo-local memory switch: pass; output now includes `docs\memory\MEMORY.md`, `feature_knowledge_base_architecture.md`, and `project_state.md`.
+
+### Tripwire
+
+- Do not say PulsePlay has an enterprise knowledge base yet. Today it has pack content, probe/matcher inference, and prompt-context injection. Governed retrieval, citations, ACL trimming, provider adapters, retrieval profiles, and Knowledge Base UI are architecture/agenda items, not shipped runtime.
+- Superseded by the later 2026-05-13 entry above: Phase 1 allowlist enforcement is now implemented for the current proxy/playground paths, but generated CSP, `/settings` store revalidation, and live credentialed smoke are still pending before any non-laptop pilot.
+- HANDOVER's existing 2026-05-13 entry already mentioned the 7-group tree (Quick Setup / BI Runtime / AI Runtime / Knowledge Packs / Experience / System & Health / Advanced). That was superseded later in the same session by the 5-group tree above. Treat the 5-group tree (SETTINGS_SPEC § 2.1) as canonical.
+
+---
+
 ## 2026-05-12 — Power BI secure embed quick-preview + developer panel
 
 **Range:** working tree after `c3133b8` — current session, not yet committed.

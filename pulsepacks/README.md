@@ -17,19 +17,27 @@ pulsepacks/
     MIGRATION_NOTES.md        # what was scaffolded, what still needs SME input
 ```
 
-Each pack is self-contained. Adding a new pack means adding a new top-level folder here and registering it from the playground (wiring is left for a subsequent cycle).
+Each pack is self-contained. Adding a new pack means adding a new top-level folder here with a valid `pack.json`. The proxy-side matcher scans installed packs, and the playground picker loads the user-visible pack list from `GET /assistant/knowledge/packs` filtered by the organization allowlist.
 
 ## How a pack is used at runtime
 
-A future cycle will wire the playground UI to load a selected pack and:
+Implemented today:
 
-1. Inject the pack's prompt context into the AI sidebar's system message.
-2. Surface the pack's sample questions as suggested prompts in the sidebar.
-3. Surface the pack's KPI definitions to the AI agent as tool-callable references.
-4. Load demo BIPanel + AISidebar configurations from `demo-configs/` for one-click onboarding.
-5. Expose the pack's glossary and ontology to the agent as retrieval-augmented context.
+1. Smart Connect probes a connector and asks `packMatcher` to infer a pack/sub-vertical from metadata.
+2. `GET /assistant/knowledge/packs` returns installed packs visible to the current user.
+3. `PackPicker` lets the author confirm or override the inferred pack/sub-vertical.
+4. `AISidebar` forwards the confirmed `pack` and `subVertical` to the proxy.
+5. The proxy loads `prompt-context.md` for that pack/sub-vertical and injects it into Genie/OpenAI/Bedrock paths.
+6. If `prompt-context.md` is missing, the proxy can fall back to a truncated pack glossary.
 
-None of that wiring exists yet. This directory is the content substrate that the wiring will read.
+Not implemented yet:
+
+1. Suggested prompt UI from `sample-questions.md`.
+2. Tool-callable KPI/reference lookup.
+3. One-click demo config loading.
+4. Governed retrieval over glossary/ontology/references with citations.
+
+See [docs/KNOWLEDGE_BASE_ARCHITECTURE.md](../docs/KNOWLEDGE_BASE_ARCHITECTURE.md) for the broader Knowledge plane.
 
 ## Authoring a pack
 
