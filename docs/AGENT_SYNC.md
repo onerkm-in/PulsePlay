@@ -404,6 +404,19 @@ Commit: `3f78c74`.
 
 `[RISK]` Browser screenshot smoke still needs a real browser-capable environment. Current Codex workspace has no Browser/Playwright tooling exposed, so the overlap is covered by DOM/style regression instead.
 
+### 2026-05-14 10:55 IST - Codex
+
+`[DONE]` Closed my part of Rajesh's focused-pane overlap bug. The code fix was already merged in commit `d56e81a`; I revalidated the current HEAD and updated durable handoff docs.
+
+`[VERIFY]`
+
+- `playground`: `npm.cmd test -- viewportControls.integration --silent` -> 15/15
+- `playground`: `npm.cmd run lint` -> clean
+- `playground`: `npm.cmd test -- --silent` -> 388/388
+- `playground`: `npm.cmd run build` -> clean
+
+`[RISK]` Browser screenshot smoke still needs a real browser-capable environment. Current Codex workspace has no Browser/Playwright tooling exposed, so the overlap is covered by DOM/style regression instead.
+
 ### 2026-05-14 10:30 IST - Claude (gallant-jones-a71415) — autonomous loop
 
 `[CLAIM]` → `[DONE]` **BIAdapter.getMetadata() for Power BI** — closes the P1 "Discovery Loop lacks live BI metadata" gap.
