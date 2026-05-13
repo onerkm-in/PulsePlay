@@ -1,11 +1,11 @@
 ---
 name: PulsePlay current state
-description: As of 2026-05-14 - production auth hardening, Power BI embed-token hardening, playground viewport controls, enterprise allowlist runtime, pack registry foundation, and agent sync doc implemented
+description: As of 2026-05-14 - BI Live Controls Phase A, PaneChrome polish, BIAdapter.getMetadata() for Power BI, production auth hardening, Power BI embed-token hardening, playground viewport controls, enterprise allowlist runtime, pack registry foundation, and agent sync doc implemented
 type: project
 originSessionId: current
 ---
 
-**Branch:** `main` at `8fde791` at the start of the 2026-05-13 knowledge-base architecture session.
+**Branch:** `claude/gallant-jones-a71415` at `c246a89` (main fast-forwarded to same SHA in this worktree's view). Cycle started from `main` at `8fde791` (2026-05-13 knowledge-base architecture session).
 
 **Current session work:**
 
@@ -23,6 +23,9 @@ originSessionId: current
 - **Playground viewport controls.** The outer AI/BI shell now supports per-pane maximize/focus, restore, minimize with restore dock, pin/unpin focused startup pane, and open AI/BI in `?focus=ai|bi` pages. The non-focused pane stays mounted during shell focus when both panes are enabled. Browser smoke caught and Codex fixed a duplicate restore-label bug; mounted tests cover minimize dock, Show both, `window.open`, and popstate sync. See [docs/HANDOVER.md](../HANDOVER.md) 2026-05-14 viewport entry.
 - **Focused pane chrome overlap closeout.** Rajesh's screenshot showed the focused-pane controls (`Restore / Minimize / Pin / Page`) overlapping the fixed Pulse `Connected | Managed` pill. `PaneChrome` now reserves a focused-mode right-side collision zone and wraps controls; regression coverage lives in [viewportControls.integration.test.tsx](../../playground/src/__tests__/viewportControls.integration.test.tsx). See [docs/HANDOVER.md](../HANDOVER.md) 2026-05-14 closeout entry.
 - **Production auth hardening (P0).** `proxy/server.js` now has explicit `PROXY_AUTH_MODE` values (`idp`, `shared-key`, `idp-or-shared-key`, `none`), production startup validation for `NODE_ENV=production` / `PROXY_REQUIRE_AUTH=true`, shared-key aliases (`PROXY_SHARED_KEY`, `PROXY_KEY`, `GENIE_PROXY_SHARED_KEY`), IdP/shared-key request enforcement, and audit reasons for rejected auth requests. See [docs/HANDOVER.md](../HANDOVER.md) 2026-05-14 production-auth entry.
+- **BIAdapter.getMetadata() — Power BI (commit `c7759bd`).** Added optional `getMetadata?(): Promise<BIMetadata | null>` to the [BIAdapter](../../playground/src/biPanel/BIAdapter.ts) contract. Power BI adapter implements it using `report.getActivePage()` + `page.getVisuals()` + `report.getFilters()` with visual-type/title heuristics for measure/dimension/kind classification, and per-call try/catch for partial degrade (downstream knows what's known vs what failed). [AISidebar](../../playground/src/components/AISidebar.tsx) discovery effect calls `adapter.getMetadata()` before `getDiscoverySnapshot` so the proxy can compute `reachableFrames` honestly. Tableau/Qlik/Looker stay `null` until SDK graduation in v0.3+.
+- **BI Live Controls Phase A (commit `f20b00f`, Settings IA fix #6 partial).** Rajesh-driven: Settings page becomes the canonical authoring surface for the Power BI embed config. New dedicated store [embedConfigStore.ts](../../playground/src/settings/embedConfigStore.ts) (`localStorage` key `pulseplay:bi-embed-config`, window event `pulseplay:embed-config-change`, cross-tab `storage` subscription). [BiGroup.tsx](../../playground/src/settings/groups/BiGroup.tsx) Embed leaf renders `<EmbedConfigForm>`; Authentication leaf shows live tokenMode/groupId/report id; Canvas leaf shows tile mode. **3 of 4 PhaseStubs gone.** **Intentionally separate from `settingsStore.tsx`** to avoid merge collision with Codex's open Allowlist lane. Phase B (App.tsx adopts `useEmbedConfig`; Pulse sidebar inline form replaced by status row + deep-link) queued for Codex after Allowlist.
+- **PaneChrome visual-weight tightening (commit `e509994`, CSS-only).** Rajesh feedback "the interface is really looking unprofessional now" → pure visual-weight reduction in [App.tsx](../../playground/src/App.tsx) PaneChrome: smaller buttons (fontSize 12→11, minHeight 28→22, padding 0 9px→0 7px), lighter borders, subtle ghost background, softer text. Header padding 7px→5px vertical, gap 10→8, title fontSize 12→11.5 + fontWeight 700→600. Toolbar gap 6→4. Right-side reserve in focused mode `min(228px,50vw)→min(200px,50vw)`. **No behavior changes.** Loosened a brittle exact-string padding assertion in [viewportControls.integration.test.tsx](../../playground/src/__tests__/viewportControls.integration.test.tsx) to a regex matching the clamped-gutter pattern. Does NOT consolidate Maximize/Minimize/Pin/Page into an overflow menu — that stays Codex's Fix #1 lane.
 - Updated SETTINGS_SPEC § 15 (all HIGH closed; MEDIUM closed/accepted; LOW L17+L18 closed) + § 16 (Phase 6 ticked); updated HANDOVER 2026-05-13 entries (5 separate entries for the five beast-mode cycles); updated AGENDA phase markers; cross-referenced from feature_settings_spec.md.
 
 **Validation:**
@@ -40,6 +43,9 @@ originSessionId: current
 - `playground`: after focused-pane chrome overlap closeout, `npm.cmd test -- viewportControls.integration --silent` passed **15/15**, `npm.cmd run lint` passed, full `npm.cmd test -- --silent` passed **388/388**, and `npm.cmd run build` passed.
 - `proxy`: after final cross-validation, full `npm.cmd test` still passed **630/630**.
 - `proxy`: after production auth hardening, `node --check proxy/server.js` passed, focused `npm.cmd test -- productionAuth` passed **16/16**, focused `npm.cmd test -- server --runInBand` passed **119/119**, and full `npm.cmd test` passed **646/646**.
+- `playground`: after BIAdapter.getMetadata + AISidebar discovery wiring, full `npx vitest run --silent` passed **388/388**.
+- `playground`: after BI Live Controls Phase A (15 new embedConfigStore tests), full `npx vitest run --silent` passed **403/403**.
+- `playground`: after PaneChrome polish + test-assertion loosening, focused `npx vitest run src/__tests__/viewportControls.integration.test.tsx` passed **15/15**, full `npx vitest run --silent` passed **403/403**, `npx tsc --noEmit` clean.
 
 **Current limitations / brutal honesty:**
 
@@ -62,8 +68,9 @@ originSessionId: current
 
 **Next recommended implementation cycle:**
 
-1. Add allowlist fail-closed behavior and mounted-panel revalidation.
-2. Wire live BI metadata into Discovery Loop.
-3. Make selected frames affect the AI request/prompt strategy.
-4. Harden diagnostics/support-bundle redaction.
-5. Run live credentialed smoke with an org Power BI report + Genie/Supervisor profile and enterprise IdP JWKS.
+1. **Codex lane:** Allowlist fail-closed behavior + mounted-panel revalidation (open lane, see `docs/AGENT_SYNC.md` Next Task section). Distinguish dev-unconfigured (no allowlist file authored) from governance-fetch-failed (allowlist endpoint returned error). BIPanel needs mount-time revalidation when allowlist transitions `null → configured`.
+2. **Codex lane (queued after #1):** BI Live Controls Phase B — App.tsx adopts `useEmbedConfig`; Pulse sidebar inline `EmbedConfigForm` replaced with status row + deep-link to `/settings/bi/embed`. One-line swap to read from the new dedicated store.
+3. **Open UX decision (pending Rajesh):** RISKS card red ↑ paradox. Three options outlined in chat: (a) suppress directional ↑ in RISK context and show only risk-direction glyph, (b) amber for "growing-but-lagging", (c) two-row card (metric + risk delta). Decision should land before any prompt-IR tweak adds bp delta inline.
+4. Make selected frames affect the AI request/prompt strategy (Frame-to-prompt wiring — `BIAdapter.getMetadata()` is now in place, so this lane is just request-payload threading).
+5. Harden diagnostics/support-bundle redaction.
+6. Run live credentialed smoke with an org Power BI report + Genie/Supervisor profile and enterprise IdP JWKS.
