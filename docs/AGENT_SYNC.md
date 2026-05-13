@@ -83,7 +83,7 @@ This section captures gaps from the latest review. Treat it as a working list; i
 | Lane | Owner | Status | Files / Area | Notes |
 |---|---|---|---|---|
 | Production auth hardening | unclaimed | open | `proxy/server.js`, `docs/SECURITY.md`, tests | Require IdP or shared key in production startup. |
-| Power BI token hardening | unclaimed | open | `proxy/server.js`, `EmbedConfigForm.tsx`, tests | Derive RLS identities server-side; gate Edit; fix cache key. |
+| Power BI token hardening | Codex (assigned 2026-05-14 by Rajesh) | claimed | `proxy/server.js`, `EmbedConfigForm.tsx`, tests | Derive RLS identities server-side; gate Edit; fix cache key. Review pass scheduled after Codex marks [DONE]. |
 | Allowlist fail-closed pass | unclaimed | open | `playground/src/settings/`, `App.tsx`, `BIPanel.tsx` | Distinguish dev-unconfigured from governance-fetch-failed. |
 | Discovery metadata wiring | unclaimed | open | `BIAdapter.ts`, PBI adapter, `AISidebar.tsx` | Add `getMetadata()` and pass `biMetadata` + `biUrl` into discovery. |
 | Frame-to-prompt wiring | unclaimed | open | `AISidebar.tsx`, proxy routes, Prompt IR docs | Selected frame should alter request payload and prompt strategy. |
@@ -176,6 +176,26 @@ If the handoff conflicts with the current code, trust the code and report the mi
 ## Coordination Log
 
 Add newest entries at the top of this section.
+
+### 2026-05-14 01:35 IST - Rajesh (via Claude)
+
+`[DECISION]` Codex owns **Power BI embed-token hardening** (P0). Claude will review the patch once Codex marks it `[DONE]`. Claude should not touch `proxy/server.js` PBI embed-token routes or `EmbedConfigForm.tsx` in the meantime to avoid racing.
+
+Active Claims table updated: lane moved from `unclaimed` → `Codex (assigned 2026-05-14 by Rajesh)`.
+
+Open question still applies — Rajesh has not yet answered Open Question #2 ("Should manual Power BI token mode be removed, or hidden behind an explicit dev flag?") and Open Question #3 (RLS effective-identity claim mapping). Codex should `[ASK]` before assuming.
+
+Suggested validation when Codex marks [DONE]:
+
+- Negative tests: client-supplied `effectiveIdentity` is rejected/overridden when policy says so.
+- Negative tests: cache hit across different effective-identity tokens is impossible.
+- Negative tests: `accessLevel: 'Edit'` requires explicit allowlist policy gate.
+- Manual smoke check: a known-bad identity payload doesn't surface in a token response.
+
+Next:
+
+- Codex: pick this up, add `[CLAIM]` note + edit lane row to your name, post `[DONE]` when shipped.
+- Claude: stay on other lanes; switch to review mode once Codex marks [DONE].
 
 ### 2026-05-14 01:25 IST - Claude (gallant-jones-a71415)
 
