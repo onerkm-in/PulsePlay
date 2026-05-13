@@ -6,12 +6,12 @@
 
 ## In flight (v0.1.3)
 
-- [ ] **Discovery Loop + Staged Rendering** — design specs locked 2026-05-13 ([DISCOVERY_LOOP.md](DISCOVERY_LOOP.md), [STAGED_RENDERING.md](STAGED_RENDERING.md)). Four phases:
-  - **A**: `/assistant/discover` endpoint + 3-layer cache + frame reachability + static param defaults (2d)
-  - **B**: SQL transparency via CTE-comment markers in Genie + Foundation Model translators (1d)
-  - **C**: Auto-derived param defaults + slider/stepper UI upgrade (2-3d)
-  - **D**: Staged "1-then-3" orchestrator + SSE streaming + SectionedAnswer UI (3-4d)
-  - Total ~8-10 days. Phase A breaks ground next.
+- [x] **Phase A — Discovery Loop** (2026-05-13, shipped). Pre-flight discovery endpoint fuses Genie probe + caller-forwarded BIMetadata + pack KPIs into a DiscoverySnapshot with reachableFrames + unreachableFrames. sessionStorage cache (15min) + proxy in-memory cache (60s). Frame dropdown in AISidebar with greyed-out unreachable frames + blockedBy tooltip. 38 new proxy tests + 30 new playground tests.
+- [x] **Phase B — SQL transparency** (2026-05-13, shipped). Genie + Foundation Model translators inject `/* Section: <ID> */` CTE-comment markers when IR has structured-sections output. sqlSectionExtractor parses them back. 19 new tests. Wiring into live routes is Phase 11b.
+- [ ] **Phase C — Auto-derived params** (2-3d, queued). Slider/stepper/multi-select UI upgrade driven by data distribution from Phase A's availableKpis + biDimensions.
+- [ ] **Phase D — Staged "1-then-3" rendering** (3-4d, queued). SectionedOrchestrator + SSE streaming + SectionedAnswer UI; HEADLINE first, then parallel TRENDS/RISKS/ACTIONS.
+- [ ] **BIAdapter.getMetadata() extension** — makes BCG / RFM reachability honest by exposing visible measures + dimensions from the active BI view. Power BI implements via powerbi-client; iframe adapters return null.
+- See [DISCOVERY_LOOP.md](DISCOVERY_LOOP.md) + [STAGED_RENDERING.md](STAGED_RENDERING.md).
 
 ## Recently shipped (v0.1.3)
 

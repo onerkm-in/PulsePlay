@@ -5,6 +5,47 @@
 
 ---
 
+## 2026-05-13 — Phase A Discovery Loop + Phase B SQL transparency shipped
+
+**Range:** continues from the Discovery + Staged Rendering specs (same date entry below). Phases A + B both landed. Phases C + D remain queued.
+
+### What shipped
+
+**Phase A — Discovery endpoint + reachability + Frame picker:**
+
+- `proxy/lib/discoveryEngine.js` — fuses Genie probe + caller-forwarded `BIMetadata` + pack KPIs (parsed from `kpis.md`) into a `DiscoverySnapshot` with `reachableFrames[]` and `unreachableFrames[]`. Hardcoded `FRAME_PREREQUISITES` table mirrors the playground preset library (SWOT, BCG, Pareto, RFM, variance, anomaly + 7 CPG/FMCG vertical presets); Phase C moves these to the IR.
+- `proxy/server.js` — new `POST /assistant/discover` endpoint. Pack allowlist gating + 60-sec proxy-side LRU cache + `X-PulsePlay-Discovery-Cache: hit/miss` header + `bypassCache` flag + audit log with `action=discover`.
+- `playground/src/lib/discoveryClient.ts` — `getDiscoverySnapshot()` wrapper with sessionStorage cache (15-min TTL keyed on `profile|pack|sv|biUrlHash`), in-flight request dedupe, `subscribeDiscoveryCache()` event bus, client-side input sanitization.
+- `playground/src/components/FramePicker.tsx` — accessible `<select>`-based dropdown. Reachable frames grouped by domain with ✓; unreachable disabled with ✗ marker + `blockedBy` tooltip + visible reason pane. Empty-state hint when no frames are reachable.
+- `playground/src/components/AISidebar.tsx` — fires discovery on mount + when `activeConnector`/`packSelection` changes. FramePicker rendered above the textarea in the composer. **Phase A scope**: selection is local state only; ask flow is unchanged. Phase B+ wires the frame into the prompt.
+
+**Phase B — SQL transparency via CTE markers:**
+
+- `proxy/lib/promptTranslators/genie.js` + `foundationModel.js` — when IR has `output.format === 'structured-sections'`, inject a directive asking the LLM to label each top-level CTE with `/* Section: <ID> */`. Synthetic IRs (no sections) are unaffected — byte-identical wrapAsGenieUserMessage regression still holds.
+- `proxy/lib/sqlSectionExtractor.js` — parses labelled SQL back into `{sectionId, cteName, sqlFragment, startOffset}[]`. Recognises `/* Section: X */` and `-- Section: X` forms (case-insensitive). `annotateAgainstIR()` matches sections to IR spec entries + reports `coverage.missing` / `coverage.unexpected`.
+
+### Tests + build
+
+- `proxy`: **608/608 pass** (was 589 — +19 from Phase B). Includes the critical byte-identical Genie backward-compat regression. Phase A discovery: 38 new tests. Phase B SQL extractor: 19 new tests.
+- `playground`: **294/294 pass** (was 264 — +30 from Phase A). discoveryClient: 19 tests covering sanitization, network shape, sessionStorage cache TTL, in-flight dedupe, subscribe/unsubscribe. FramePicker: 11 tests covering rendering states + onChange wiring.
+- `playground`: `npm run lint` (tsc --noEmit) clean. `npm run build` green — bundle sizes unchanged.
+
+### Tripwires
+
+- **AISidebar tests mock `discoveryClient`** — the existing ask + poll assertions on `fetchMock.mock.calls[0]` would otherwise see the discovery fetch as call #0. The mock is in `src/components/__tests__/AISidebar.test.tsx`; if you add new sidebar tests that need real discovery behaviour, mount with `activeConnector=""` to short-circuit the effect, or override the mock locally.
+- **`BIAdapter.getMetadata()` is NOT implemented yet** — discovery runs with `biMetadata: null`, which means reachability for BCG/RFM/Procurement/Commercial-retail (frames needing categorical dimensions) is conservative. Phase C adds the BIAdapter contract extension; existing adapters degrade to `null` cleanly.
+- **`FRAME_PREREQUISITES` in `discoveryEngine.js` mirrors playground preset IDs.** Drift between the two is silent — a frame added to the playground but not to the proxy table will show up in the dropdown only after the proxy table is updated. Phase C moves the table to the IR + author-owned `prerequisites`.
+- **Phase B's CTE markers depend on the LLM honouring the directive.** Foundation Model / Anthropic models comply reliably; Genie is more variable in our smoke testing. If Genie ignores the directive, the extractor returns `[]` and the UI falls back to showing the unlabelled SQL — graceful degradation, not a crash.
+- **Phase B's CTE markers are NOT yet WIRED into any route handler.** The translators emit the directive; the extractor parses it; but no live route currently calls `extractSqlSections()` on Genie's response. That wiring lands in Phase 11b (the dispatcher migration) so the per-section SQL fragment becomes visible in the SQL Trace tab.
+
+### What's next
+
+- **Phase C (~2-3 days)** — auto-derive parameter defaults from data signals; slider/multi-select UI upgrade from declared `param.type`. Builds on Phase A's `availableKpis` + `biDimensions`. Likely independent of Phase D.
+- **Phase D (~3-4 days)** — staged "1-then-3" orchestrator + SSE streaming + SectionedAnswer UI. Consumes Phase B's extractor for per-section SQL provenance.
+- **`BIAdapter.getMetadata()` contract extension** — needed to make BCG / RFM / commercial-retail / procurement reachability honest. Power BI implements via `report.getActivePage().getVisuals().getCapabilities()`; iframe-based adapters return `null` cleanly.
+
+---
+
 ## 2026-05-13 — Discovery Loop + Staged Rendering design specs (Phase A/B/C/D)
 
 **Range:** design-first lock for the next cycle of beast-mode work. **No code shipped yet** — these specs gate the implementation.
