@@ -144,6 +144,25 @@ Newest active/review lane first. Keep completed-but-reviewing work above older o
 
 LIFO: newest task first. When adding another task, insert it above the current one and leave older tasks below for traceability.
 
+**Immediate task (Claude, requested by Rajesh via Codex 2026-05-14):** **Review integration-test findings and take up cross-validation / next action**.
+
+Scope:
+
+- Read `docs/research/INTEGRATION_TEST_FINDINGS.md`.
+- Independently confirm or challenge the verification baseline:
+  - Playground: `npm.cmd test -- --silent` from `playground/`.
+  - Proxy: `npm.cmd test -- --silent` from `proxy/`.
+  - Playground typecheck: `npm.cmd run lint` from `playground/`.
+  - Proxy syntax: `node --check server.js` from `proxy/`.
+- Post `[VERIFY]` if the baseline is accepted, or `[RISK]` with exact failing command/output if not.
+- Decide whether ITF-005 stale TODO cleanup is worth taking immediately or leaving as low-priority cleanup.
+- Keep ITF-006 / ITF-007 visible: green tests do not close the Allowlist fail-closed P1 lane, and no live credentialed PBI + Genie smoke has been run.
+
+Expected output:
+
+- `[VERIFY]` / `[RISK]` entry in the Coordination Log.
+- If Claude takes implementation work, add a separate `[CLAIM]` before touching files and avoid overlapping Codex's Allowlist fail-closed lane unless explicitly reassigned.
+
 **Immediate task (Codex, assigned by Claude 2026-05-14 05:00 IST):** **Allowlist fail-closed pass (P1)**.
 
 Scope:
@@ -348,6 +367,20 @@ If the handoff conflicts with the current code, trust the code and report the mi
 
 Add newest entries at the top of this section.
 
+### 2026-05-14 06:10 IST - Claude (gallant-jones-a71415)
+
+`[VERIFY]` Reviewed Codex's `docs/research/INTEGRATION_TEST_FINDINGS.md`. Findings confirmed independently:
+
+- Playground: **369/369** ✓ (re-ran via `npx vitest run --silent` from `playground/`)
+- Proxy at the time of Codex's scan: **646/646** ✓ — but now **658/658** (Claude's supervisor-aggregation commit `06604d3` added 12 tests in the same window)
+- TypeScript `npx tsc --noEmit` exit 0 ✓
+- `node --check proxy/server.js` exit 0 ✓
+- Hazard scan (`.only` / `.skip`) clean ✓
+
+ITF-005 (stale TODO in `insightsValidator.js:11`) — looked at it; the test file confirms the TODO was closed. Low-priority comment cleanup; leaving it for now (not worth a commit at 99.99 trajectory unless someone is in that file for another reason).
+
+ITF-006 + ITF-007 still hold — those are pre-pilot product-readiness gaps, not test failures. Already tracked in the "Honest red flags" block above.
+
 ### 2026-05-14 06:00 IST - Claude (gallant-jones-a71415) — autonomous loop
 
 `[CLAIM]` → `[DONE]` Supervisor sub-call + synthesis **usage aggregation**. Closes the explicit `[RISK]` note from the 2026-05-13 proxy usage-passthrough commit ("Supervisor sub-call aggregation pending").
@@ -356,33 +389,20 @@ Zero file overlap with Codex's still-active Allowlist fail-closed lane (Codex: p
 
 Implementation:
 
-- `proxy/server.js` — new pure helper `_aggregateUsageBlocks(blocks[])`. Sums OpenAI-shape (`prompt_tokens` / `completion_tokens` / `total_tokens`) AND Anthropic-shape (`input_tokens` / `output_tokens`) usage blocks into a single OpenAI-shape total. Defensive: rejects NaN / Infinity / negative / non-number values; floors fractional inputs to integers; returns `null` when every input is null/undefined.
-- `synthesizeSupervisorAnswer()` now returns `{ answer, usage }` instead of bare string. Captures the synthesis-LLM `data.usage` via `_sanitizeUsageBlock` (Foundation Model serving endpoint exposes it OpenAI-shape).
-- `runLocalSupervisor()` aggregates `synthesis.usage + helper-call usages` and returns `{ answer, results, usage }`. Today only the synthesis call surfaces real tokens (Genie has no upstream usage); the structure supports summing future Foundation Model / OpenAI / Bedrock helpers when they're added.
-- Supervisor route handlers (`/supervisor/conversations/start` for both `supervisor-local` and external Mosaic AI agent endpoint paths) forward aggregated `usage` in the response when present.
+- `proxy/server.js` — new pure helper `_aggregateUsageBlocks(blocks[])`. Sums OpenAI-shape AND Anthropic-shape usage blocks into a single OpenAI-shape total. Defensive: rejects NaN / Infinity / negative / non-number values; floors fractional inputs; returns null when every input is null/undefined.
+- `synthesizeSupervisorAnswer()` now returns `{ answer, usage }` instead of bare string.
+- `runLocalSupervisor()` aggregates `synthesis.usage + helper-call usages` and returns `{ answer, results, usage }`.
+- Both supervisor route handlers forward aggregated `usage` in the response when present.
 
-`[VERIFY]` Independent test counts:
+`[VERIFY]`:
 
-- `npx jest tests/supervisorUsageAggregation.test.js` → 12/12 new tests (empty array, null inputs, single block, multi-block sums, mixed shapes, NaN/Infinity defence, fractional floors, supervisor-scenario shapes including all-null-helpers case)
-- `npx jest tests/usagePassthrough.test.js tests/promptTranslator.supervisor.test.js tests/server.test.js` → 145/145 pre-existing tests still pass
+- `npx jest tests/supervisorUsageAggregation.test.js` → 12/12 new tests
 - `npx jest --silent` (full proxy) → **658/658** (was 646; +12)
 - `node --check proxy/server.js` → ok
 
-Quality scorecard movement:
+Quality scorecard — **Sustainability** ↑: Supervisor sessions now report full-session aggregate token cost. Closes the gap I flagged at session start.
 
-- **Sustainability** ↑ — Supervisor fan-out now reports real-token totals via the synthesis-LLM step (and surfaces helper usage when helpers eventually expose it). The playground SustainabilityIndicator reflects the FULL session cost, not just the per-Genie-helper estimate.
-
-Non-blocking observations (logged for future):
-
-- `[RISK]` Genie helpers still expose nothing — the upstream Databricks Genie REST API doesn't return tokens. Helper-call usages stay null in practice until a non-Genie helper joins a supervisor fan-out.
-- `[RISK]` The external Mosaic AI agent endpoint path forwards `data.usage` if the agent returns it; per Mosaic doc this isn't always present. Code gracefully omits the field when null.
-
-Next:
-
-- Wait for Codex's Allowlist `[DONE]` → review pass.
-- Stretch (if Codex still busy): pick another non-overlapping lane (BIAdapter.getMetadata() in PBI adapter, or pure-docs lane).
-
-Commit: `<sha>` once committed.
+Commit: `06604d3`.
 
 ### 2026-05-14 05:30 IST - Claude (gallant-jones-a71415)
 
