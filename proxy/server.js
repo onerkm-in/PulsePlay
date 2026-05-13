@@ -2623,6 +2623,139 @@ app.post('/assistant/probe', async (req, res) => {
     res.json(probeResult);
 });
 
+// ── Discovery Loop (Phase A) ────────────────────────────────────────────────
+// POST /assistant/discover
+//
+// Pre-flight discovery: fuses `probeConnector` (AI brain side) with the
+// caller-forwarded `BIMetadata` (BI surface side) and pack KPIs into a single
+// DiscoverySnapshot. UI consumes the snapshot to render the analysis-frame
+// dropdown with reachable + unreachable frames + tooltips.
+//
+// See docs/DISCOVERY_LOOP.md for the full contract.
+//
+// Body:
+//   {
+//     assistantProfile: string,
+//     pack?: string,
+//     subVertical?: string,
+//     biMetadata?: { activeViewId, visibleMeasures, visibleDimensions, activeFilters },
+//     biUrlHash?: string,        // sha256 of the BI URL — opaque cache key component
+//     bypassCache?: boolean
+//   }
+//
+// Allowlist enforcement: pack must be visible to the caller; same rule as the
+// knowledge endpoints. Profile must resolve via resolveProfile (which already
+// checks the allowlist). Rate-limit: shares the /probe bucket.
+const _discoveryEngine = require('./lib/discoveryEngine');
+
+app.post('/assistant/discover', async (req, res) => {
+    const startedAt = Date.now();
+    const body = req.body || {};
+    const pack = typeof body.pack === 'string' ? body.pack.trim() : '';
+    const subVertical = typeof body.subVertical === 'string' ? body.subVertical.trim() : '';
+    const bypassCache = body.bypassCache === true;
+    const biUrlHash = typeof body.biUrlHash === 'string' ? body.biUrlHash.trim() : '';
+    const biMetadata = body.biMetadata && typeof body.biMetadata === 'object' ? body.biMetadata : null;
+
+    const resolved = resolveProfile(body, {}, req.headers, req);
+    if (!resolved) {
+        auditLog(req, {
+            profileName: body.assistantProfile || null,
+            action: 'discover',
+            status: 400,
+            detail: 'no-matching-profile',
+        });
+        return sendNoMatchingProfile(req, res);
+    }
+
+    // Pack allowlist gate — same posture as /assistant/knowledge/packs.
+    const c = cfg();
+    const visible = allowlist.buildVisibleAllowlist(c, req);
+    const normalized = allowlist.normalizeAllowlist(c);
+    if (pack && normalized.active && !visible.packs.includes(pack)) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'discover',
+            status: 404,
+            detail: 'pack-not-in-allowlist',
+        });
+        return res.status(404).json({ error: 'Pack not available in your organization allowlist.' });
+    }
+
+    const cacheKey = _discoveryEngine.computeCacheKey({
+        assistantProfile: resolved.name,
+        pack,
+        subVertical,
+        biUrlHash,
+    });
+
+    if (!bypassCache) {
+        const cached = _discoveryEngine.getCachedSnapshot(cacheKey);
+        if (cached) {
+            auditLog(req, {
+                profileName: resolved.name,
+                action: 'discover',
+                status: 200,
+                detail: JSON.stringify({ cacheHit: true, durationMs: Date.now() - startedAt }),
+            });
+            res.set('X-PulsePlay-Discovery-Cache', 'hit');
+            return res.json(cached);
+        }
+    }
+
+    // Cache miss — run a fresh probe + fuse.
+    let probeResult;
+    try {
+        probeResult = await _probeConnector(resolved, { databricksRequest });
+    } catch (err) {
+        console.error('[discover/probe]', err?.message || err);
+        probeResult = {
+            profile: resolved.name,
+            connectorType: 'generic',
+            metadataAvailability: 'none',
+            warnings: [`Probe handler error: ${String(err?.message || err).slice(0, 200)}`],
+        };
+    }
+
+    let snapshot;
+    try {
+        snapshot = _discoveryEngine.buildSnapshot({
+            probe: probeResult,
+            biMetadata,
+            pack: pack || undefined,
+            subVertical: subVertical || undefined,
+            cacheKey,
+        });
+    } catch (fusionErr) {
+        console.error('[discover/fuse]', fusionErr?.message || fusionErr);
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'discover',
+            status: 500,
+            detail: 'fusion-error',
+        });
+        return res.status(500).json({ error: 'Discovery fusion failed unexpectedly.' });
+    }
+
+    _discoveryEngine.setCachedSnapshot(cacheKey, snapshot);
+
+    auditLog(req, {
+        profileName: resolved.name,
+        action: 'discover',
+        status: 200,
+        detail: JSON.stringify({
+            cacheHit: false,
+            durationMs: Date.now() - startedAt,
+            reachableFrames: snapshot.fused.reachableFrames.length,
+            unreachableFrames: snapshot.fused.unreachableFrames.length,
+        }),
+        spIdentityHash: spHashForProfile(resolved.profile),
+    });
+
+    res.set('X-PulsePlay-Discovery-Cache', 'miss');
+    res.json(snapshot);
+});
+
 // ── Power BI embed-token issuance (Cycle A) ─────────────────────────────────
 // POST /assistant/embed-token/powerbi
 //
