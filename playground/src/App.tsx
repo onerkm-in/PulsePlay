@@ -74,6 +74,9 @@ const LAYOUT_MODE_STORAGE_KEY = "pulseplay:layout-mode";
 type BiTileMode = "1" | "2" | "4";
 const BI_TILE_MODE_STORAGE_KEY = "pulseplay:bi-tile-mode";
 const BI_VENDOR_STORAGE_KEY = "pulseplay:bi-vendor";
+type ViewportPane = "ai" | "bi";
+type ViewportFocus = ViewportPane | null;
+const PINNED_VIEWPORT_PANE_STORAGE_KEY = "pulseplay:pinned-viewport-pane";
 
 interface PowerBIDeveloperSnapshot {
     vendor: "powerbi";
@@ -157,6 +160,50 @@ function readInitialBiTileMode(): BiTileMode {
     return "1";
 }
 
+function normalizeViewportPane(value: string | null): ViewportFocus {
+    return value === "ai" || value === "bi" ? value : null;
+}
+
+function readViewportFocusFromUrl(): ViewportFocus {
+    if (typeof window === "undefined") return null;
+    try {
+        return normalizeViewportPane(new URL(window.location.href).searchParams.get("focus"));
+    } catch { /* swallow */ }
+    return null;
+}
+
+function readInitialPinnedViewportPane(): ViewportFocus {
+    if (typeof window === "undefined") return null;
+    try {
+        return normalizeViewportPane(window.localStorage.getItem(PINNED_VIEWPORT_PANE_STORAGE_KEY));
+    } catch { /* swallow */ }
+    return null;
+}
+
+function readInitialViewportFocus(): ViewportFocus {
+    return readViewportFocusFromUrl() ?? readInitialPinnedViewportPane();
+}
+
+function writeViewportFocusToUrl(next: ViewportFocus) {
+    if (typeof window === "undefined") return;
+    try {
+        const url = new URL(window.location.href);
+        if (next) url.searchParams.set("focus", next);
+        else url.searchParams.delete("focus");
+        window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+    } catch { /* swallow */ }
+}
+
+function buildFocusedPaneUrl(pane: ViewportPane): string {
+    if (typeof window === "undefined") return "";
+    try {
+        const url = new URL(window.location.href);
+        url.searchParams.set("focus", pane);
+        return url.toString();
+    } catch { /* swallow */ }
+    return "";
+}
+
 /** Cycle J — layoutMode now controls the PanelGroup direction + which
  *  panel sits first (see `renderSplitLayout` below). The flex-based
  *  layout helpers and hard sidebar caps are gone; the user drags the
@@ -236,6 +283,8 @@ function PlaygroundApp(): React.ReactElement {
     );
     const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => readInitialLayoutMode());
     const [biTileMode, setBiTileMode] = useState<BiTileMode>(() => readInitialBiTileMode());
+    const [focusedPane, setFocusedPane] = useState<ViewportFocus>(() => readInitialViewportFocus());
+    const [pinnedViewportPane, setPinnedViewportPane] = useState<ViewportFocus>(() => readInitialPinnedViewportPane());
     const biAdaptersRef = useRef<Map<number, BIAdapter>>(new Map());
     const [primaryBIAdapter, setPrimaryBIAdapter] = useState<BIAdapter | null>(null);
     // Bumping renderToken nudges PulseShell to re-call visual.update(),
@@ -290,6 +339,48 @@ function PlaygroundApp(): React.ReactElement {
         try { window.localStorage.setItem(LAYOUT_MODE_STORAGE_KEY, next); } catch { /* swallow */ }
     }, []);
 
+    const applyViewportFocus = useCallback((next: ViewportFocus) => {
+        setFocusedPane(next);
+        writeViewportFocusToUrl(next);
+    }, []);
+
+    const handleViewportRestore = useCallback(() => {
+        applyViewportFocus(null);
+    }, [applyViewportFocus]);
+
+    const handleViewportMinimize = useCallback((pane: ViewportPane) => {
+        setFocusedPane(null);
+        writeViewportFocusToUrl(null);
+        handleEnabledComponentsChange(pane === "ai" ? "biOnly" : "aiOnly");
+        if (pinnedViewportPane === pane) {
+            setPinnedViewportPane(null);
+            try { window.localStorage.removeItem(PINNED_VIEWPORT_PANE_STORAGE_KEY); } catch { /* swallow */ }
+        }
+    }, [handleEnabledComponentsChange, pinnedViewportPane]);
+
+    const handleViewportPinToggle = useCallback((pane: ViewportPane) => {
+        setPinnedViewportPane(prev => {
+            const next = prev === pane ? null : pane;
+            try {
+                if (next) window.localStorage.setItem(PINNED_VIEWPORT_PANE_STORAGE_KEY, next);
+                else window.localStorage.removeItem(PINNED_VIEWPORT_PANE_STORAGE_KEY);
+            } catch { /* swallow */ }
+            return next;
+        });
+    }, []);
+
+    const handleViewportOpenPage = useCallback((pane: ViewportPane) => {
+        const url = buildFocusedPaneUrl(pane);
+        if (!url) return;
+        window.open(url, "_blank", "noopener,noreferrer");
+    }, []);
+
+    const handleShowBothPanes = useCallback(() => {
+        setFocusedPane(null);
+        writeViewportFocusToUrl(null);
+        handleEnabledComponentsChange("both");
+    }, [handleEnabledComponentsChange]);
+
     useEffect(() => {
         try { window.localStorage.setItem(BI_VENDOR_STORAGE_KEY, activeVendor); } catch { /* swallow */ }
     }, [activeVendor]);
@@ -324,8 +415,21 @@ function PlaygroundApp(): React.ReactElement {
         return () => window.removeEventListener("pulseplay:display-change", handler as EventListener);
     }, []);
 
+    useEffect(() => {
+        const handler = () => setFocusedPane(readViewportFocusFromUrl());
+        window.addEventListener("popstate", handler);
+        return () => window.removeEventListener("popstate", handler);
+    }, []);
+
     const aiVisible = enabledComponents === "aiOnly" || enabledComponents === "both";
     const biVisible = enabledComponents === "biOnly" || enabledComponents === "both";
+    const mountedAiVisible = focusedPane ? focusedPane === "ai" || aiVisible : aiVisible;
+    const mountedBiVisible = focusedPane ? focusedPane === "bi" || biVisible : biVisible;
+    const minimizedPane: ViewportFocus = !focusedPane && enabledComponents === "biOnly"
+        ? "ai"
+        : !focusedPane && enabledComponents === "aiOnly"
+            ? "bi"
+            : null;
     // Smart Connect state — populated by TestConnectionPanel's probe and the
     // user's pack confirmation (which may override the inferred suggestion).
     // See docs/CONNECTOR_PROBE_AND_SMART_CONNECT.md for the design.
@@ -449,7 +553,13 @@ function PlaygroundApp(): React.ReactElement {
             : undefined;
 
     return (
-        <div className="pp-app" style={{ position: "relative", width: "100%", height: "100vh", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+        <div
+            className="pp-app"
+            data-testid="pp-viewport-shell"
+            data-viewport-focus={focusedPane ?? "split"}
+            data-layout-pinned={pinnedViewportPane ? "true" : "false"}
+            style={{ position: "relative", width: "100%", height: "100vh", overflow: "hidden", display: "flex", flexDirection: "column" }}
+        >
             {/* PulsePlay top bar — full-width header strip. Branding on
               * the left; the connection pill (rendered by Pulse via
               * position: fixed) lands on the right inline with this
@@ -459,7 +569,7 @@ function PlaygroundApp(): React.ReactElement {
                 className="pp-top-bar"
                 style={{
                     flex: "0 0 auto",
-                    display: "flex",
+                    display: focusedPane ? "none" : "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
                     padding: "10px 16px",
@@ -482,7 +592,7 @@ function PlaygroundApp(): React.ReactElement {
             {/* Floating gear — shown when the pill won't be available:
               * v0 mode (no Pulse), or biOnly mode (Pulse not mounted).
               * Otherwise the pill in the top bar is the single entry. */}
-            {(uiMode === "v0" || !aiVisible) && (
+            {!focusedPane && (uiMode === "v0" || !aiVisible) && (
                 <PulsePlaySettingsGear
                     uiMode={uiMode}
                     onUiModeChange={handleUiModeChange}
@@ -494,156 +604,189 @@ function PlaygroundApp(): React.ReactElement {
             )}
             <div style={{ flex: "1 1 auto", minHeight: 0, position: "relative" }}>
             <SplitLayout
-                aiVisible={aiVisible}
-                biVisible={biVisible}
+                aiVisible={mountedAiVisible}
+                biVisible={mountedBiVisible}
                 layoutMode={layoutMode}
+                focusedPane={focusedPane}
                 aiContent={(
-                    <aside className="pp-app__sidebar" style={panelInnerStyle()}>
-                        {allowlistState.error && (
-                            <div
-                                role="status"
-                                style={{
-                                    padding: "8px 10px",
-                                    borderBottom: "1px solid rgba(120,0,0,0.18)",
-                                    background: "rgba(255,245,245,0.86)",
-                                    color: "#7f1d1d",
-                                    fontSize: 12,
-                                    lineHeight: 1.4,
-                                }}
-                            >
-                                Governance config unavailable. Pickers may be incomplete until the proxy responds.
-                            </div>
-                        )}
-                        {uiMode === "pulse" ? (
-                            <>
-                                <PulseModeBISourcePanel
-                                    vendors={visibleVendors}
-                                    activeVendor={activeVendor}
-                                    embedConfig={embedConfig}
-                                    hasEmbedConfig={hasEmbedConfig}
-                                    activeConnector={pulseAssistantProfile || activeConnector}
-                                    allowlist={allowlistState.allowlist}
-                                    onVendorChange={(v) => {
-                                        setActiveVendor(v);
-                                        setEmbedConfig({});
-                                        setRecentEvents([]);
-                                        biAdaptersRef.current.clear();
-                                        setPrimaryBIAdapter(null);
+                    <PaneChrome
+                        pane="ai"
+                        title="AI"
+                        subtitle={uiMode === "pulse" ? "Pulse assistant" : "Assistant"}
+                        isFocused={focusedPane === "ai"}
+                        isBackgrounded={focusedPane === "bi"}
+                        isPinned={pinnedViewportPane === "ai"}
+                        canShowBoth={!focusedPane && enabledComponents !== "both"}
+                        onFocus={() => applyViewportFocus("ai")}
+                        onRestore={handleViewportRestore}
+                        onMinimize={() => handleViewportMinimize("ai")}
+                        onPinToggle={() => handleViewportPinToggle("ai")}
+                        onOpenPage={() => handleViewportOpenPage("ai")}
+                        onShowBoth={handleShowBothPanes}
+                    >
+                        <aside className="pp-app__sidebar" style={panelInnerStyle()}>
+                            {allowlistState.error && (
+                                <div
+                                    role="status"
+                                    style={{
+                                        padding: "8px 10px",
+                                        borderBottom: "1px solid rgba(120,0,0,0.18)",
+                                        background: "rgba(255,245,245,0.86)",
+                                        color: "#7f1d1d",
+                                        fontSize: 12,
+                                        lineHeight: 1.4,
                                     }}
-                                    onEmbedConfigChange={setEmbedConfig}
-                                />
-                                <Suspense fallback={<PulseLoadingState />}>
-                                    <PulseShell
-                                        renderToken={pulseRenderToken}
-                                        onSettingsChange={() => setPulseRenderToken(t => t + 1)}
-                                        onApplyFilter={handlePulseApplyFilter}
-                                        biEvents={recentEvents}
-                                        biVendor={activeVendor}
+                                >
+                                    Governance config unavailable. Pickers may be incomplete until the proxy responds.
+                                </div>
+                            )}
+                            {uiMode === "pulse" ? (
+                                <>
+                                    <PulseModeBISourcePanel
+                                        vendors={visibleVendors}
+                                        activeVendor={activeVendor}
+                                        embedConfig={embedConfig}
+                                        hasEmbedConfig={hasEmbedConfig}
+                                        activeConnector={pulseAssistantProfile || activeConnector}
+                                        allowlist={allowlistState.allowlist}
+                                        onVendorChange={(v) => {
+                                            setActiveVendor(v);
+                                            setEmbedConfig({});
+                                            setRecentEvents([]);
+                                            biAdaptersRef.current.clear();
+                                            setPrimaryBIAdapter(null);
+                                        }}
+                                        onEmbedConfigChange={setEmbedConfig}
                                     />
-                                </Suspense>
-                            </>
-                        ) : (
-                            <>
-                                <VendorPicker
-                                    vendors={visibleVendors}
-                                    activeVendor={activeVendor}
-                                    onChange={(v) => {
-                                        setActiveVendor(v);
-                                        setEmbedConfig({});
-                                        setRecentEvents([]);
-                                        biAdaptersRef.current.clear();
-                                        setPrimaryBIAdapter(null);
-                                    }}
-                                />
-                                <EmbedConfigForm
-                                    vendor={activeVendor}
-                                    value={embedConfig}
-                                    onChange={setEmbedConfig}
-                                    assistantProfile={activeConnector}
-                                    allowlist={allowlistState.allowlist}
-                                />
-                                <ConnectorPicker
-                                    activeConnector={activeConnector}
-                                    onChange={handleConnectorChange}
-                                />
-                                {activeConnector && (
-                                    <TestConnectionPanel
-                                        profile={activeConnector}
-                                        onProbeComplete={handleProbeComplete}
+                                    <Suspense fallback={<PulseLoadingState />}>
+                                        <PulseShell
+                                            renderToken={pulseRenderToken}
+                                            onSettingsChange={() => setPulseRenderToken(t => t + 1)}
+                                            onApplyFilter={handlePulseApplyFilter}
+                                            biEvents={recentEvents}
+                                            biVendor={activeVendor}
+                                        />
+                                    </Suspense>
+                                </>
+                            ) : (
+                                <>
+                                    <VendorPicker
+                                        vendors={visibleVendors}
+                                        activeVendor={activeVendor}
+                                        onChange={(v) => {
+                                            setActiveVendor(v);
+                                            setEmbedConfig({});
+                                            setRecentEvents([]);
+                                            biAdaptersRef.current.clear();
+                                            setPrimaryBIAdapter(null);
+                                        }}
                                     />
-                                )}
-                                {activeConnector && (
-                                    <PackPicker
-                                        availablePacks={availablePacks}
-                                        suggested={probeSuggested}
-                                        value={packSelection}
-                                        onChange={setPackSelection}
+                                    <EmbedConfigForm
+                                        vendor={activeVendor}
+                                        value={embedConfig}
+                                        onChange={setEmbedConfig}
+                                        assistantProfile={activeConnector}
+                                        allowlist={allowlistState.allowlist}
                                     />
-                                )}
-                                <AISidebar
-                                    activeVendor={activeVendor}
-                                    activeConnector={activeConnector}
-                                    recentEvents={recentEvents}
-                                    packSelection={packSelection}
-                                />
-                            </>
-                        )}
-                    </aside>
+                                    <ConnectorPicker
+                                        activeConnector={activeConnector}
+                                        onChange={handleConnectorChange}
+                                    />
+                                    {activeConnector && (
+                                        <TestConnectionPanel
+                                            profile={activeConnector}
+                                            onProbeComplete={handleProbeComplete}
+                                        />
+                                    )}
+                                    {activeConnector && (
+                                        <PackPicker
+                                            availablePacks={availablePacks}
+                                            suggested={probeSuggested}
+                                            value={packSelection}
+                                            onChange={setPackSelection}
+                                        />
+                                    )}
+                                    <AISidebar
+                                        activeVendor={activeVendor}
+                                        activeConnector={activeConnector}
+                                        recentEvents={recentEvents}
+                                        packSelection={packSelection}
+                                    />
+                                </>
+                            )}
+                        </aside>
+                    </PaneChrome>
                 )}
                 biContent={(
-                    <main className="pp-app__canvas" style={{ ...panelInnerStyle(), display: "flex", flexDirection: "column" }}>
-                        <BITileModeToolbar value={biTileMode} />
-                        <PowerBIDeveloperPanel
-                            activeVendor={activeVendor}
-                            hasEmbedConfig={hasEmbedConfig}
-                            adapter={primaryBIAdapter}
-                            recentEvents={recentEvents}
-                        />
-                        <div style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
-                        {hasEmbedConfig ? (
-                            <BITileGrid
-                                tileMode={biTileMode}
-                                vendor={activeVendor}
-                                embedConfig={embedConfig}
-                                allowlist={allowlistState.allowlist}
-                                onEvent={handleBIEvent}
-                                onAdapterReady={handleBIAdapterReady}
+                    <PaneChrome
+                        pane="bi"
+                        title="BI"
+                        subtitle={visibleVendors.find(v => v.vendor === activeVendor)?.displayName || activeVendor}
+                        isFocused={focusedPane === "bi"}
+                        isBackgrounded={focusedPane === "ai"}
+                        isPinned={pinnedViewportPane === "bi"}
+                        canShowBoth={!focusedPane && enabledComponents !== "both"}
+                        onFocus={() => applyViewportFocus("bi")}
+                        onRestore={handleViewportRestore}
+                        onMinimize={() => handleViewportMinimize("bi")}
+                        onPinToggle={() => handleViewportPinToggle("bi")}
+                        onOpenPage={() => handleViewportOpenPage("bi")}
+                        onShowBoth={handleShowBothPanes}
+                    >
+                        <main className="pp-app__canvas" style={{ ...panelInnerStyle(), display: "flex", flexDirection: "column" }}>
+                            <BITileModeToolbar value={biTileMode} />
+                            <PowerBIDeveloperPanel
+                                activeVendor={activeVendor}
+                                hasEmbedConfig={hasEmbedConfig}
+                                adapter={primaryBIAdapter}
+                                recentEvents={recentEvents}
                             />
-                        ) : (
-                            <div className="pp-app__empty">
-                                {aiVisible ? (
-                                    <>
-                                        <h2>Pick a BI tool and supply embed config</h2>
-                                        <p>
-                                            PulsePlay can host {visibleVendors.map(v => v.displayName).join(" · ") || "no allowlisted BI providers"} as guests.
-                                            Choose a vendor on the left, fill in its embed config, and the AI
-                                            assistant will reason about whatever you load. Drag the divider to
-                                            resize either pane; multi-frame BI is coming next.
-                                        </p>
-                                        {uiMode === "pulse" && (
-                                            <p style={{ fontSize: 12, opacity: 0.7, marginTop: 12 }}>
-                                                Pulse UI is active in the AI pane. Configure the connection
-                                                via its Setup tab; the embedded BI surface will appear here.
+                            <div style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
+                            {hasEmbedConfig ? (
+                                <BITileGrid
+                                    tileMode={biTileMode}
+                                    vendor={activeVendor}
+                                    embedConfig={embedConfig}
+                                    allowlist={allowlistState.allowlist}
+                                    onEvent={handleBIEvent}
+                                    onAdapterReady={handleBIAdapterReady}
+                                />
+                            ) : (
+                                <div className="pp-app__empty">
+                                    {aiVisible ? (
+                                        <>
+                                            <h2>Pick a BI tool and supply embed config</h2>
+                                            <p>
+                                                PulsePlay can host {visibleVendors.map(v => v.displayName).join(" · ") || "no allowlisted BI providers"} as guests.
+                                                Choose a vendor on the left, fill in its embed config, and the AI
+                                                assistant will reason about whatever you load. Drag the divider to
+                                                resize either pane; multi-frame BI is coming next.
                                             </p>
-                                        )}
-                                    </>
-                                ) : (
-                                    <>
-                                        <h2>BI-only mode</h2>
-                                        <p>
-                                            AI components are hidden. Embed any BI URL below — PulsePlay is acting
-                                            as a thin multi-vendor BI host. Switch back to "Both" or "AI only" via
-                                            the Display tab to re-enable Pulse / v0.
-                                        </p>
-                                        <p style={{ marginTop: 12 }}>
-                                            Vendors: {visibleVendors.map(v => v.displayName).join(" · ") || "none allowlisted"}
-                                        </p>
-                                    </>
-                                )}
+                                            {uiMode === "pulse" && (
+                                                <p style={{ fontSize: 12, opacity: 0.7, marginTop: 12 }}>
+                                                    Pulse UI is active in the AI pane. Configure the connection
+                                                    via its Setup tab; the embedded BI surface will appear here.
+                                                </p>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <>
+                                            <h2>BI-only mode</h2>
+                                            <p>
+                                                AI components are hidden. Embed any BI URL below — PulsePlay is acting
+                                                as a thin multi-vendor BI host. Switch back to "Both" or "AI only" via
+                                                the Display tab to re-enable Pulse / v0.
+                                            </p>
+                                            <p style={{ marginTop: 12 }}>
+                                                Vendors: {visibleVendors.map(v => v.displayName).join(" · ") || "none allowlisted"}
+                                            </p>
+                                        </>
+                                    )}
+                                </div>
+                            )}
                             </div>
-                        )}
-                        </div>
-                    </main>
+                        </main>
+                    </PaneChrome>
                 )}
                 emptyContent={(
                     <main className="pp-app__canvas">
@@ -654,8 +797,218 @@ function PlaygroundApp(): React.ReactElement {
                     </main>
                 )}
             />
+            {minimizedPane && (
+                <MinimizedPaneDock
+                    pane={minimizedPane}
+                    onRestore={handleShowBothPanes}
+                />
+            )}
             </div>
         </div>
+    );
+}
+
+function PaneChrome(props: {
+    pane: ViewportPane;
+    title: string;
+    subtitle: string;
+    isFocused: boolean;
+    isBackgrounded: boolean;
+    isPinned: boolean;
+    canShowBoth: boolean;
+    onFocus: () => void;
+    onRestore: () => void;
+    onMinimize: () => void;
+    onPinToggle: () => void;
+    onOpenPage: () => void;
+    onShowBoth: () => void;
+    children: React.ReactNode;
+}): React.ReactElement {
+    const label = props.pane === "ai" ? "AI" : "BI";
+    const state = props.isFocused ? "maximized" : props.isBackgrounded ? "minimized" : "normal";
+    const oppositeLabel = props.pane === "ai" ? "BI" : "AI";
+    const buttonStyle: React.CSSProperties = {
+        border: "1px solid rgba(0,0,0,0.14)",
+        borderRadius: 4,
+        background: "#fff",
+        color: "#111827",
+        cursor: "pointer",
+        fontSize: 12,
+        lineHeight: 1,
+        minHeight: 28,
+        padding: "0 9px",
+        whiteSpace: "nowrap",
+    };
+    const activeButtonStyle: React.CSSProperties = {
+        ...buttonStyle,
+        border: "1px solid #2563eb",
+        background: "#eff6ff",
+        color: "#1d4ed8",
+        fontWeight: 600,
+    };
+
+    return (
+        <section
+            data-testid={`pp-panel-chrome-${props.pane}`}
+            data-panel-state={state}
+            data-panel-pinned={props.isPinned ? "true" : "false"}
+            role="region"
+            aria-label={`${label} panel`}
+            style={{
+                width: "100%",
+                height: "100%",
+                minWidth: 0,
+                minHeight: 0,
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+                background: "#fff",
+            }}
+        >
+            <div
+                style={{
+                    flex: "0 0 auto",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 10,
+                    padding: "7px 10px",
+                    borderBottom: "1px solid rgba(0,0,0,0.08)",
+                    background: props.isFocused ? "#f8fafc" : "rgba(248,250,252,0.82)",
+                }}
+            >
+                <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.2 }}>{props.title}</div>
+                    <div style={{ fontSize: 11, opacity: 0.65, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {props.subtitle}
+                    </div>
+                </div>
+                <div
+                    role="toolbar"
+                    aria-label={`${label} panel controls`}
+                    style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}
+                >
+                    {props.isFocused ? (
+                        <button
+                            type="button"
+                            aria-label={`Restore ${label} panel`}
+                            title="Restore split layout"
+                            onClick={props.onRestore}
+                            style={activeButtonStyle}
+                        >
+                            Restore
+                        </button>
+                    ) : (
+                        <button
+                            type="button"
+                            aria-label={`Maximize ${label} panel`}
+                            title={`Maximize ${label} panel`}
+                            onClick={props.onFocus}
+                            style={buttonStyle}
+                        >
+                            Maximize
+                        </button>
+                    )}
+                    {props.canShowBoth && (
+                        <button
+                            type="button"
+                            aria-label={`Restore ${oppositeLabel} panel`}
+                            title={`Restore ${oppositeLabel} panel`}
+                            onClick={props.onShowBoth}
+                            style={buttonStyle}
+                        >
+                            Both
+                        </button>
+                    )}
+                    <button
+                        type="button"
+                        aria-label={`Minimize ${label} panel`}
+                        title={`Minimize ${label} panel`}
+                        onClick={props.onMinimize}
+                        style={buttonStyle}
+                    >
+                        Minimize
+                    </button>
+                    <button
+                        type="button"
+                        aria-label={props.isPinned ? "Unpin layout" : "Pin layout"}
+                        title={props.isPinned ? "Unpin this focused startup layout" : "Pin this pane as the focused startup layout"}
+                        aria-pressed={props.isPinned}
+                        onClick={props.onPinToggle}
+                        style={props.isPinned ? activeButtonStyle : buttonStyle}
+                    >
+                        {props.isPinned ? "Unpin" : "Pin"}
+                    </button>
+                    <button
+                        type="button"
+                        aria-label={`Open ${label} panel in separate page`}
+                        title={`Open ${label} panel in separate page`}
+                        onClick={props.onOpenPage}
+                        style={buttonStyle}
+                    >
+                        Page
+                    </button>
+                </div>
+            </div>
+            <div
+                aria-hidden={props.isBackgrounded ? true : undefined}
+                style={{ flex: "1 1 auto", minHeight: 0, minWidth: 0, overflow: "hidden" }}
+            >
+                {props.children}
+            </div>
+        </section>
+    );
+}
+
+function MinimizedPaneDock(props: {
+    pane: ViewportPane;
+    onRestore: () => void;
+}): React.ReactElement {
+    const label = props.pane === "ai" ? "AI" : "BI";
+    return (
+        <section
+            data-testid={`pp-panel-chrome-${props.pane}`}
+            data-panel-state="minimized"
+            role="region"
+            aria-label={`${label} panel`}
+            style={{
+                position: "absolute",
+                zIndex: 20,
+                left: props.pane === "ai" ? 12 : "auto",
+                right: props.pane === "bi" ? 12 : "auto",
+                bottom: 12,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "8px 10px",
+                border: "1px solid rgba(0,0,0,0.14)",
+                borderRadius: 6,
+                background: "rgba(255,255,255,0.96)",
+                boxShadow: "0 8px 24px rgba(15,23,42,0.16)",
+            }}
+        >
+            <span style={{ fontSize: 12, fontWeight: 700 }}>{label}</span>
+            <button
+                type="button"
+                aria-label={`Restore ${label} panel`}
+                title={`Restore ${label} panel`}
+                onClick={props.onRestore}
+                style={{
+                    border: "1px solid rgba(0,0,0,0.14)",
+                    borderRadius: 4,
+                    background: "#fff",
+                    color: "#111827",
+                    cursor: "pointer",
+                    fontSize: 12,
+                    lineHeight: 1,
+                    minHeight: 28,
+                    padding: "0 9px",
+                    whiteSpace: "nowrap",
+                }}
+            >
+                Restore
+            </button>
+        </section>
     );
 }
 
@@ -670,11 +1023,12 @@ function SplitLayout(props: {
     aiVisible: boolean;
     biVisible: boolean;
     layoutMode: LayoutMode;
+    focusedPane: ViewportFocus;
     aiContent: React.ReactNode;
     biContent: React.ReactNode;
     emptyContent: React.ReactNode;
 }): React.ReactElement {
-    const { aiVisible, biVisible, layoutMode, aiContent, biContent, emptyContent } = props;
+    const { aiVisible, biVisible, layoutMode, focusedPane, aiContent, biContent, emptyContent } = props;
 
     const orientation: "horizontal" | "vertical" =
         layoutMode === "ai-top" || layoutMode === "ai-bottom" ? "vertical" : "horizontal";
@@ -688,6 +1042,40 @@ function SplitLayout(props: {
     if (!aiVisible && !biVisible) return <>{emptyContent}</>;
     if (aiVisible && !biVisible) return <>{aiContent}</>;
     if (!aiVisible && biVisible) return <>{biContent}</>;
+
+    if (focusedPane) {
+        const frame = (pane: ViewportPane, content: React.ReactNode) => {
+            const isActive = focusedPane === pane;
+            return (
+                <div
+                    key={pane}
+                    aria-hidden={isActive ? undefined : true}
+                    style={{
+                        position: "absolute",
+                        inset: 0,
+                        zIndex: isActive ? 2 : 1,
+                        width: "100%",
+                        height: "100%",
+                        minWidth: 0,
+                        minHeight: 0,
+                        overflow: "hidden",
+                        opacity: isActive ? 1 : 0,
+                        pointerEvents: isActive ? "auto" : "none",
+                        visibility: isActive ? "visible" : "hidden",
+                    }}
+                >
+                    {content}
+                </div>
+            );
+        };
+
+        return (
+            <div style={{ position: "relative", width: "100%", height: "100%", minWidth: 0, minHeight: 0 }}>
+                {frame("ai", aiContent)}
+                {frame("bi", biContent)}
+            </div>
+        );
+    }
 
     const aiFirst = layoutMode === "ai-left" || layoutMode === "ai-top";
     const aiDefaultSize = orientation === "horizontal" ? 35 : 40;
