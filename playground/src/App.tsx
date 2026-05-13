@@ -826,7 +826,6 @@ function PaneChrome(props: {
 }): React.ReactElement {
     const label = props.pane === "ai" ? "AI" : "BI";
     const state = props.isFocused ? "maximized" : props.isBackgrounded ? "minimized" : "normal";
-    const oppositeLabel = props.pane === "ai" ? "BI" : "AI";
     const buttonStyle: React.CSSProperties = {
         border: "1px solid rgba(0,0,0,0.14)",
         borderRadius: 4,
@@ -912,8 +911,8 @@ function PaneChrome(props: {
                     {props.canShowBoth && (
                         <button
                             type="button"
-                            aria-label={`Restore ${oppositeLabel} panel`}
-                            title={`Restore ${oppositeLabel} panel`}
+                            aria-label="Show both panels"
+                            title="Show both panels"
                             onClick={props.onShowBoth}
                             style={buttonStyle}
                         >

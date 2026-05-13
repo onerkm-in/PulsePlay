@@ -6,6 +6,7 @@
 
 ## In flight (v0.1.3)
 
+- [x] **Playground viewport controls** (2026-05-14, shipped). AI/BI panes now have maximize/focus, restore, minimize with dock restore, pin/unpin startup focus, and open-page `?focus=ai|bi` controls. Browser smoke caught a duplicate restore-label bug; fixed with `Show both panels` and regression coverage. 16 viewport tests; full playground 354/354.
 - [x] **Sustainability indicator** (2026-05-13, shipped). Leaf + face token-cost gauge in the AISidebar footer. 6 tiers (`ready / lean / green / moderate / heavy / very-heavy`) with thresholds at 2k/8k/20k/50k cumulative tokens. Hover/focus tooltip shows token breakdown + brand-message tagline. Reset button. 42 new playground tests.
 - [x] **Proxy plumbs `usage` blocks for the indicator** (2026-05-13, shipped). Foundation Model + Azure OpenAI (chat + analytics) + Bedrock direct (chat + analytics) now forward `usage`. Anthropic-on-Bedrock `{ input_tokens, output_tokens }` and Llama-on-Bedrock `{ prompt_token_count, generation_token_count }` normalised to OpenAI shape. Orchestrator accumulates across SQL + narrative calls. 17 new proxy tests (625/625 total). Bedrock-RAG + Genie don't expose tokens — those sessions stay on chars/4 heuristic with a "~" marker.
 - [x] **Phase A — Discovery Loop** (2026-05-13, shipped). Pre-flight discovery endpoint fuses Genie probe + caller-forwarded BIMetadata + pack KPIs into a DiscoverySnapshot with reachableFrames + unreachableFrames. sessionStorage cache (15min) + proxy in-memory cache (60s). Frame dropdown in AISidebar with greyed-out unreachable frames + blockedBy tooltip. 38 new proxy tests + 30 new playground tests.
@@ -103,6 +104,7 @@ This is the first production target: make one combination feel seamless, support
 - [x] Power BI is the default BI surface in the browser host.
 - [x] Power BI secure embed quick-preview path is available for novice first render.
 - [x] Power BI Developer Tools panel exposes the live adapter surface for API proving, similar to the Microsoft embedded analytics playground.
+- [x] Playground viewport controls let users maximize/focus, restore, minimize, pin, and open AI/BI panes as focused pages (2026-05-14).
 - [x] Pulse mode exposes BI source setup instead of hiding it behind v0 mode.
 - [x] `BIPanel` exposes the live BI adapter to the host shell.
 - [x] Pulse `applyJsonFilter` routes into the active BI adapter through canonical `BICommand` values.

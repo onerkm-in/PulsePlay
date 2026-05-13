@@ -120,6 +120,7 @@ afterEach(() => {
     document.body.innerHTML = "";
     setLocation("");
     clearStorage();
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
 });
 
@@ -197,6 +198,24 @@ describe("App viewport controls — ?focus= URL", () => {
         expect(shell?.getAttribute("data-viewport-focus")).toBe("split");
         unmount(state);
     });
+
+    it("syncs focused pane when browser history emits popstate", () => {
+        const state = mountApp();
+        let shell = state.container.querySelector(viewportControlShellSelector);
+        expect(shell?.getAttribute("data-viewport-focus")).toBe("split");
+
+        setLocation("?focus=ai");
+        act(() => { window.dispatchEvent(new PopStateEvent("popstate")); });
+        shell = state.container.querySelector(viewportControlShellSelector);
+        expect(shell?.getAttribute("data-viewport-focus")).toBe("ai");
+
+        setLocation("");
+        act(() => { window.dispatchEvent(new PopStateEvent("popstate")); });
+        shell = state.container.querySelector(viewportControlShellSelector);
+        expect(shell?.getAttribute("data-viewport-focus")).toBe("split");
+
+        unmount(state);
+    });
 });
 
 /* ─── Click-driven transitions ───────────────────────────────────── */
@@ -225,6 +244,40 @@ describe("App viewport controls — chrome buttons", () => {
         clickByLabel(state, "Restore AI panel");
         shell = state.container.querySelector(viewportControlShellSelector);
         expect(shell?.getAttribute("data-viewport-focus")).toBe("split");
+
+        unmount(state);
+    });
+
+    it("Minimize keeps one restore target and uses a distinct Show both action", () => {
+        const state = mountApp();
+
+        clickByLabel(state, "Minimize AI panel");
+        expect(window.localStorage.getItem("pulseplay:enabled-components")).toBe("biOnly");
+
+        const restoreAiButtons = state.container.querySelectorAll('button[aria-label="Restore AI panel"]');
+        const showBothButtons = state.container.querySelectorAll('button[aria-label="Show both panels"]');
+        expect(restoreAiButtons.length).toBe(1);
+        expect(showBothButtons.length).toBe(1);
+        expect(state.container.querySelector(viewportControlPanelChromeSelector("ai"))?.getAttribute("data-panel-state")).toBe("minimized");
+
+        clickByLabel(state, "Restore AI panel");
+        expect(window.localStorage.getItem("pulseplay:enabled-components")).toBe("both");
+        expect(state.container.querySelector(viewportControlPanelChromeSelector("ai"))?.getAttribute("data-panel-state")).toBe("normal");
+
+        unmount(state);
+    });
+
+    it("Page opens the selected pane in a focused separate tab URL", () => {
+        const state = mountApp();
+        const openMock = vi.fn();
+        vi.stubGlobal("open", openMock);
+
+        clickByLabel(state, "Open BI panel in separate page");
+
+        expect(openMock).toHaveBeenCalledTimes(1);
+        expect(String(openMock.mock.calls[0][0])).toContain("focus=bi");
+        expect(openMock.mock.calls[0][1]).toBe("_blank");
+        expect(openMock.mock.calls[0][2]).toBe("noopener,noreferrer");
 
         unmount(state);
     });

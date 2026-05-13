@@ -72,12 +72,12 @@ Each dimension has a measurable signal. Update after every significant lane clos
 
 | Dimension | Signal | Current | Target | Tracking lanes |
 |---|---|---|---|---|
-| **Accuracy** | Test pass rate (proxy + playground), validator coverage, SQL byte-identity regression | 630/630 proxy + 351/351 playground = **100% on shipped tests**; byte-identical Genie regression locked | 100% pass; zero accuracy regressions per commit | Phase 11b dispatcher migration (when shipped, must keep byte-identity); 9 unauthored sub-vertical IRs (better grounding → better answers) |
+| **Accuracy** | Test pass rate (proxy + playground), validator coverage, SQL byte-identity regression | 630/630 proxy + 354/354 playground = **100% on shipped tests**; byte-identical Genie regression locked | 100% pass; zero accuracy regressions per commit | Phase 11b dispatcher migration (when shipped, must keep byte-identity); 9 unauthored sub-vertical IRs (better grounding -> better answers) |
 | **Performance** | Initial-paint bundle (~280 KB raw / 86 KB gzip), BIPanel adapter remount perf test, proxy /health single-flight | Targets met today; no perf regression test added since last beast cycle | Maintain ≤ 300 KB initial-paint raw; sub-500ms time-to-first-token on PBI+Genie cell | Phase D staged "1-then-3" rendering; lazy-load further; perf regression budget per commit |
 | **Ease of use** | 10-minute author setup, microcopy quality, error-recovery flows, Settings IA legibility | Settings 5-group tree shipped; first-run setup exists in pieces; error messages mostly clear | 10-min smoke verified end-to-end with novice author; every error surface offers next action; no dead-end states | Author setup unification; Discovery Loop honest reachability messaging; Frame-to-prompt wiring (so the picker actually does something) |
 | **Sustainability** | Token-cost gauge tier distribution, real-usage forward rate (% of conversations where backend exposed real tokens vs estimate), cache hit rate on embed tokens | Indicator shipped; FM + AzOAI + Bedrock-direct forward real tokens; Genie + Bedrock-RAG stay on estimation | ≥ 80% of conversations show real-token counts; ≥ 90% cumulative session at "lean" or "green" tier | Supervisor sub-call usage aggregation; prompt caching everywhere; per-section token tracing |
 | **Functionality** | Architecture-spec coverage, 8-backend support, 2-axis independence, PBI SDK adapter parity | Genie + PBI cell complete; Tableau/Qlik/Looker still iframe stubs; Phase 11a Prompt IR additive; Phase A discovery shipped; Phase B SQL transparency shipped | Genie+PBI cell at 100%; Phase 11b migration land; Phase C auto-derived params + Phase D staged rendering shipped | Phase 11b; Phase C; Phase D; non-PBI adapter SDK graduation (deferred to v0.3+) |
-| **Navigation** | Path-based router coverage, keyboard shortcuts, deep links, breadcrumbs, viewport controls | `/settings`, `/knowledge`, `?focus=ai/bi` URL hydration shipped; Cmd/Ctrl+, opens Settings; FramePicker dropdown shipped; Pin persists | All shipped routes deep-linkable; every primary action keyboard-reachable; no "lost in the app" states | Show-Both button flow polish; Frame-to-prompt wiring (FramePicker actually does something on submit) |
+| **Navigation** | Path-based router coverage, keyboard shortcuts, deep links, breadcrumbs, viewport controls | `/settings`, `/knowledge`, `?focus=ai/bi` URL hydration shipped; Cmd/Ctrl+, opens Settings; FramePicker dropdown shipped; pane maximize/minimize/pin/open-page controls covered | All shipped routes deep-linkable; every primary action keyboard-reachable; no "lost in the app" states | Frame-to-prompt wiring (FramePicker actually does something on submit) |
 | **User preferences** | Display tab (BI/AI/Both), layout mode (4 positions), pin viewport, BI tile mode, vendor + connector + pack persistence | All shipped, all persist via localStorage | Every preference reversible; no hidden state; one-click reset preserved | Settings → Preferences group polish; default reset flow; per-user override of allowlist when admin grants |
 
 **Honest red flags (must close before 99.99 claim):**
@@ -110,7 +110,7 @@ This section captures gaps from the latest review. Treat it as a working list; i
 
 | Priority | Gap | Why It Matters | Likely Files | Expected Fix Shape |
 |---|---|---|---|---|
-| P1 | Playground panes lack first-class user control | "Playground" should let users maximize, minimize, restore, pin, and open AI or BI in a focused page without fighting the layout | `playground/src/App.tsx`, focused playground tests, `docs/HANDOVER.md` | Add per-pane chrome controls and route/query-based focus mode; persist pin preference; keep behavior accessible and test-covered. |
+| P1 fixed 2026-05-14 | Playground panes lacked first-class user control | Closed by Codex + Claude: users can maximize/focus, restore, minimize with dock restore, pin startup focus, and open AI/BI in `?focus=` pages | `playground/src/App.tsx`, `viewportControls.integration.test.tsx`, `docs/HANDOVER.md` | Done; 16/16 viewport tests plus browser DOM smoke. |
 | P0 | Production auth can still be optional | Enterprise deployment must not rely on CORS/allowlist as auth | `proxy/server.js`, proxy tests, `docs/SECURITY.md` | Production startup requires IdP or shared key; tests cover missing auth config. |
 | P0 fixed 2026-05-14 | Power BI embed-token route accepted client-controlled identities/Edit and had weak cache key | Closed by Codex patch: client identities rejected, RLS derived server-side, Edit profile-gated, cache includes workspace/report/dataset/access/identity hash | `proxy/server.js`, `EmbedConfigForm.tsx`, `proxy/tests/embedTokenRoute.test.js` | Review patch, then run live credentialed Power BI smoke with the enterprise RLS claim mapping. |
 | P1 | Allowlist can fail open in UI/store | Governance fetch failures should not unlock restricted selections | `playground/src/settings/`, `App.tsx` | Separate dev-unconfigured from fetch-failed; restricted controls disable or reconcile fail-closed. |
@@ -119,7 +119,7 @@ This section captures gaps from the latest review. Treat it as a working list; i
 | P1 | Selected frame does not affect the AI request | Frame picker is currently advisory, not operational | `AISidebar.tsx`, proxy routes, Prompt IR docs | Send selected frame in request and translate it into prompt/IR strategy. |
 | P2 | Diagnostics/export redaction is shallow | Support bundles can leak raw BI payloads, console errors, or nested secrets | `diagnosticsBuffer.ts`, `exportBundle.ts`, `AdvancedGroup.tsx` | Recursive key/value redaction; summarize raw event payloads; opt-in raw export only. |
 | P2 | Power BI URL host suffix check accepts lookalike domains | `evilpowerbi.com` passes `.endsWith("powerbi.com")` | `EmbedConfigForm.tsx`, `bi-adapters/powerbi/index.ts` | Use exact host or dot-boundary host validation. |
-| P2 fixed 2026-05-14 | Usage tracker emits React setState warning | Closed by Codex cleanup: `recordUsageResponse` moved into a separate `useEffect` keyed on `history` with a `useRef<Set>` dedupe; jsdom `window.open` stubbed in pbiAuth tests | `AISidebar.tsx`, `pbiAuth.allowlist.test.ts` | Done; 351/351 playground still green. |
+| P2 fixed 2026-05-14 | Usage tracker emits React setState warning | Closed by Codex cleanup: `recordUsageResponse` moved into a separate `useEffect` keyed on `history` with a `useRef<Set>` dedupe; jsdom `window.open` stubbed in pbiAuth tests | `AISidebar.tsx`, `pbiAuth.allowlist.test.ts` | Done; 354/354 playground still green. |
 | P3 | Build CSP can fall back to example config | Enterprise build may ship CSP from placeholder allowlist | `playground/vite.cspFromAllowlist.ts`, tests | Production build fails without real allowlist unless explicit env override is set. |
 
 ## Active Claims
@@ -128,7 +128,7 @@ Newest active/review lane first. Keep completed-but-reviewing work above older o
 
 | Lane | Owner | Status | Files / Area | Notes |
 |---|---|---|---|---|
-| Playground viewport controls | Codex (impl) + Claude (tests/review, 2026-05-14 03:05 IST) | done; reviewed | Codex: `playground/src/App.tsx`. Claude: `playground/src/__tests__/viewportControls.integration.test.tsx`. | [VERIFY] 351/351 playground green (11/11 viewport tests in this file). Non-blocking [RISK] notes captured in Coordination Log: window.open click coverage gap, popstate URL sync gap, Show-Both / MinimizedPaneDock paths only exercised partially. |
+| Playground viewport controls | Codex (impl) + Claude (tests/review, 2026-05-14 03:05 IST) | done; reviewed | Codex: `playground/src/App.tsx`. Claude/Codex: `playground/src/__tests__/viewportControls.integration.test.tsx`. | [VERIFY] 354/354 playground green; viewport slice 16/16. Browser DOM smoke caught a duplicate restore-label issue; Codex fixed it and added regression coverage for minimize dock, Show both, popstate, and open-page URL. |
 | Power BI token hardening review | Claude (2026-05-14 02:35 IST) | done; approved | `proxy/server.js`, `proxy/tests/embedTokenRoute.test.js`, `playground/src/components/EmbedConfigForm.tsx`, `playground/src/components/__tests__/EmbedConfigForm.test.tsx`, docs | [VERIFY] 630/630 proxy + 338/338 playground green; non-blocking [RISK] notes captured in Coordination Log. |
 | Power BI token hardening | Codex (assigned 2026-05-14 by Rajesh) | done; reviewed | `proxy/server.js`, `EmbedConfigForm.tsx`, tests | Client identities rejected; server-derived RLS; Edit gate; identity-aware cache. Reviewed clean; committed by Claude with co-author trailer. Live credentialed smoke still pending. |
 | Production auth hardening | unclaimed | open | `proxy/server.js`, `docs/SECURITY.md`, tests | Require IdP or shared key in production startup. |
@@ -320,6 +320,26 @@ If the handoff conflicts with the current code, trust the code and report the mi
 ## Coordination Log
 
 Add newest entries at the top of this section.
+
+### 2026-05-14 03:45 IST - Codex
+
+`[DONE]` Final cross-validation pass for **Playground viewport controls** after Claude's review/tests. Browser DOM smoke on `http://127.0.0.1:5173/?focus=bi` confirmed query-driven BI focus (`data-viewport-focus="bi"`, BI `maximized`, AI still mounted). That smoke also caught a real accessibility bug: after minimizing AI, both the BI chrome "Both" button and the AI dock restore button used `aria-label="Restore AI panel"`.
+
+Fix applied:
+
+- Updated the visible-pane helper action to `aria-label="Show both panels"` so `Restore AI panel` is unique to the minimized AI dock.
+- Added regression coverage for minimize/dock restore uniqueness, `Show both panels`, `window.open` focused-page URL/options, and `popstate` URL focus sync.
+
+`[VERIFY]`
+
+- `playground`: `npm.cmd test -- viewportControls` -> 16/16
+- `playground`: `npm.cmd run lint` -> clean
+- `playground`: full `npm.cmd test` -> 354/354
+- `playground`: `npm.cmd run build` -> clean
+- `proxy`: full `npm.cmd test` -> 630/630
+- Browser DOM smoke verified `?focus=bi` focused state and preserved AI mount. Screenshot/click dispatch in the in-app browser hit tooling timeouts on this heavy page, so the click behaviour is covered by mounted integration tests rather than the browser driver.
+
+`[HANDOFF]` No remaining viewport-control code/test gap is known. Next Codex lane remains **Production auth hardening (P0)** per the Next Task section.
 
 ### 2026-05-14 03:30 IST - Claude (gallant-jones-a71415)
 

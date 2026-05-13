@@ -5,6 +5,35 @@
 
 ---
 
+## 2026-05-14 - Playground viewport controls and clean validation
+
+**Range:** AI/BI pane comfort pass for the literal playground experience.
+
+### What shipped
+
+- Added per-pane control chrome in [playground/src/App.tsx](../playground/src/App.tsx): AI and BI panes now support maximize/focus, restore, minimize, pin/unpin startup focus, and open-page actions.
+- Added URL-addressable focus mode with `?focus=ai` / `?focus=bi`; focused mode hides the top bar for more working space and keeps the background pane mounted when both panes are enabled.
+- Added minimized restore docks so hiding AI or BI is reversible from the canvas without digging through Settings.
+- Browser cross-validation caught a duplicate `aria-label="Restore AI panel"` path after minimizing AI; fixed by making the visible-pane helper action `Show both panels`.
+- Moved AISidebar usage recording out of a React state updater and stubbed `window.open` in the Power BI auth allowlist test, removing the previous full-suite stderr noise.
+
+### Validation
+
+- `playground`: `npm.cmd test -- viewportControls` -> 16/16
+- `playground`: `npm.cmd run lint`
+- `playground`: full `npm.cmd test` -> 354/354
+- `playground`: `npm.cmd run build`
+- `proxy`: full `npm.cmd test` -> 630/630
+- Browser DOM smoke: `?focus=bi` hydrated BI as maximized and AI remained mounted in the background. Browser screenshot/click dispatch hit tooling timeouts on the heavy dev page; mounted integration tests cover the clicks.
+
+### Tripwires
+
+- Focus mode is a shell-level maximize, not vendor-native fullscreen. Power BI's SDK fullscreen command remains in the developer strip.
+- Pinning stores the startup focused pane in `pulseplay:pinned-viewport-pane`; unpin clears it. It does not overwrite the user's AI position or BI tile preferences.
+- The next largest gap is still production auth hardening; viewport comfort is no longer the blocker.
+
+---
+
 ## 2026-05-14 - Power BI embed-token hardening
 
 **Range:** P0 security lane from `docs/AGENT_SYNC.md`; scoped to Power BI service-principal token issuance and the setup UI posture.
