@@ -382,7 +382,7 @@ Test fix: the integration test asserted exact `padding: 7px min(228px, 50vw) 7px
 
 Quality scorecard: Ease of use ↑ (lighter chrome, less visual noise per pane). Functionality unchanged. Accuracy unchanged.
 
-Commit: `<pending>` (filled in by commit step).
+Commit: `e509994`.
 
 ### 2026-05-14 11:00 IST - Claude (gallant-jones-a71415) — Rajesh-driven
 
