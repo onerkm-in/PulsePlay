@@ -5,6 +5,37 @@
 
 ---
 
+## 2026-05-13 — Sustainability indicator (leaf + smile token gauge)
+
+**Range:** small UX feature requested by the user. Reinforces PulsePlay's "fewer tokens, better accuracy — the lean-and-mean solution" positioning by making it visible in the UI itself.
+
+### What shipped
+
+- `playground/src/lib/usageTracker.ts` — session-wide token accounting. Accepts real `usage` blocks from OpenAI / Anthropic / Foundation Model / Bedrock-Llama (each have slightly different shapes — tracker normalises). Falls back to a `chars/4` heuristic when the backend doesn't expose token counts (Genie is the main offender today). Exposes `recordResponse`, `getSessionUsage`, `subscribeUsage`, `resetSessionUsage` + tier helpers (`tierLabel`/`tierColor`/`tierEmoji`/`tierFace`/`tierTagline`).
+- `playground/src/components/SustainabilityIndicator.tsx` — leaf-icon + face + tier label + token-count badge + bar visualisation in the AISidebar footer. Six tiers: `ready` (🌱), `lean` (🍃 😄), `green` (🍃 🙂), `moderate` (🍂 😐), `heavy` (🍂 😕), `very-heavy` (🍁 ☹️). Thresholds: 2k / 8k / 20k / 50k cumulative session tokens. Hover or keyboard-focus shows a tooltip with: total tokens, input/output split, question count, an "Estimated from text length" disclaimer when applicable, and a brand-message tagline. Optional `↻` reset button starts a fresh session.
+- `playground/src/components/AISidebar.tsx` — recordResponse is called from `finalize()` whenever an entry reaches `status: "completed"`. Real `usage` block wins; falls back to text-length estimation. SustainabilityIndicator rendered in the sidebar footer with `showReset`.
+
+### Tests + build
+
+- `playground`: **336/336 pass** (was 294 — +42 from sustainability). usageTracker: 22 tests (real-usage normalisation, text estimation, tier transitions across all 6 boundaries, subscribe/unsubscribe, reset). SustainabilityIndicator: 20 tests (rendering states, tooltip on focus, bar + reset button visibility, live-tracker subscription).
+- TypeScript lint clean. Production build clean.
+
+### Tripwires
+
+- **Tooltip uses focus instead of mouseenter for keyboard accessibility.** React's synthetic `onMouseEnter` doesn't bubble in jsdom test environments — tests use `.focus()`/`.blur()` to trigger hover state. Real users get both: mouse OR keyboard. `tabIndex={0}` makes the indicator keyboard-reachable.
+- **Token counts are session-wide, not per-conversation.** The reset button (↻) is the only way to zero it out. We may want to auto-reset when the user clears history (no clear-all button exists today; if added, wire `resetSessionUsage()`).
+- **Heuristic estimation uses `chars/4`** — well-known approximation for GPT/Claude/Llama tokenizers on English prose. Within ~15% accuracy for typical content. Marked with `~` prefix + tooltip disclaimer so users know it's an estimate.
+- **Proxy does NOT currently pass `usage` blocks through** — the proxy's response shapes drop the `usage` field from OpenAI/Anthropic/Bedrock responses. Until that's plumbed, every entry's usage is estimated. Once the proxy forwards `usage`, OpenAI/Bedrock/Foundation Model sessions show real counts automatically. Genie still uses estimation.
+- **Emoji discipline:** the user explicitly requested "green leaf happy icon" + "smile" — emojis here are sanctioned. Don't propagate emoji style to other components without a user ask.
+
+### What's next
+
+- **Proxy plumbing**: forward the `usage` block from `foundationModelClient.js` / OpenAI / Bedrock orchestrators into the conversation response payload. Then real counts replace estimates for those backends.
+- **Per-entry token badge**: small inline "🍃 1.2k" next to each answer entry's elapsed-time stamp (currently only session-aggregate is shown).
+- **Reset-on-clear**: when a clear-history button lands, call `resetSessionUsage()`.
+
+---
+
 ## 2026-05-13 — Phase A Discovery Loop + Phase B SQL transparency shipped
 
 **Range:** continues from the Discovery + Staged Rendering specs (same date entry below). Phases A + B both landed. Phases C + D remain queued.

@@ -31,6 +31,8 @@ import type { BIEvent } from "../biPanel/BIAdapter";
 import type { PackSelection } from "./PackPicker";
 import { FramePicker } from "./FramePicker";
 import { getDiscoverySnapshot, type DiscoverySnapshot } from "../lib/discoveryClient";
+import { SustainabilityIndicator } from "./SustainabilityIndicator";
+import { recordResponse as recordUsageResponse } from "../lib/usageTracker";
 
 /** Hard upper bound on how long we poll before giving up. */
 export const MAX_POLL_DURATION_MS = 60_000;
@@ -84,6 +86,9 @@ export interface AnswerEntry {
     executionTimeMs?: number;
     validationDiagnostics?: Record<string, unknown>;
     error?: string;
+    /** Optional token usage from the backend (OpenAI / Anthropic shape).
+     *  Surfaced by SustainabilityIndicator. Absent for pure Genie responses. */
+    usage?: ProxyMessageResponse["usage"];
 }
 
 let nextEntryId = 1;
@@ -109,6 +114,15 @@ interface ProxyMessageResponse {
     rows_returned?: number;
     validationDiagnostics?: Record<string, unknown>;
     error?: string;
+    /** OpenAI / Anthropic-shape token usage block; absent from pure Genie
+     *  responses. Surfaced by SustainabilityIndicator when present. */
+    usage?: {
+        prompt_tokens?: number;
+        completion_tokens?: number;
+        input_tokens?: number;
+        output_tokens?: number;
+        total_tokens?: number;
+    };
 }
 
 /** Pull the narrative answer text out of a Genie-shape response, falling
@@ -152,6 +166,7 @@ function projectEntryFromResponse(data: ProxyMessageResponse): Partial<AnswerEnt
         rowsReturned: typeof data.rows_returned === "number" ? data.rows_returned : undefined,
         executionTimeMs: typeof data.execution_time_ms === "number" ? data.execution_time_ms : undefined,
         validationDiagnostics: data.validationDiagnostics,
+        usage: data.usage,
     };
 }
 
@@ -269,11 +284,29 @@ export function AISidebar(props: AISidebarProps) {
             pollTimers.current.delete(entryId);
         }
         abortControllers.current.delete(entryId);
-        setHistory(prev => prev.map(h =>
-            h.id === entryId
-                ? { ...h, ...patch, status, finishedAt: Date.now() }
-                : h
-        ));
+        setHistory(prev => {
+            const next = prev.map(h =>
+                h.id === entryId
+                    ? { ...h, ...patch, status, finishedAt: Date.now() }
+                    : h
+            );
+            // Record usage for the SustainabilityIndicator on successful
+            // completion. Real `usage` block wins; otherwise estimate from
+            // text length (chars/4 heuristic — see usageTracker for the why).
+            if (status === "completed") {
+                const completed = next.find(h => h.id === entryId);
+                if (completed) {
+                    recordUsageResponse({
+                        usage: completed.usage,
+                        texts: {
+                            userQuestion: completed.question,
+                            response: completed.answer || "",
+                        },
+                    });
+                }
+            }
+            return next;
+        });
     };
 
     /** One poll tick. Resolves the message status from the proxy and
@@ -504,6 +537,7 @@ export function AISidebar(props: AISidebarProps) {
                     </button>
                 </div>
             </div>
+            <SustainabilityIndicator showReset />
         </section>
     );
 }

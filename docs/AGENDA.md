@@ -6,6 +6,7 @@
 
 ## In flight (v0.1.3)
 
+- [x] **Sustainability indicator** (2026-05-13, shipped). Leaf + face token-cost gauge in the AISidebar footer. 6 tiers (`ready / lean / green / moderate / heavy / very-heavy`) with thresholds at 2k/8k/20k/50k cumulative tokens. Hover/focus tooltip shows token breakdown (input/output split, question count, estimation disclaimer when applicable) + brand-message tagline. Reset button. Real `usage` block from OpenAI/Anthropic/Foundation Model when available; chars/4 heuristic estimation otherwise. 42 new playground tests. Proxy plumbing to forward `usage` from backends is the obvious follow-up.
 - [x] **Phase A — Discovery Loop** (2026-05-13, shipped). Pre-flight discovery endpoint fuses Genie probe + caller-forwarded BIMetadata + pack KPIs into a DiscoverySnapshot with reachableFrames + unreachableFrames. sessionStorage cache (15min) + proxy in-memory cache (60s). Frame dropdown in AISidebar with greyed-out unreachable frames + blockedBy tooltip. 38 new proxy tests + 30 new playground tests.
 - [x] **Phase B — SQL transparency** (2026-05-13, shipped). Genie + Foundation Model translators inject `/* Section: <ID> */` CTE-comment markers when IR has structured-sections output. sqlSectionExtractor parses them back. 19 new tests. Wiring into live routes is Phase 11b.
 - [ ] **Phase C — Auto-derived params** (2-3d, queued). Slider/stepper/multi-select UI upgrade driven by data distribution from Phase A's availableKpis + biDimensions.
