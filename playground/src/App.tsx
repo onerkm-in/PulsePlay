@@ -827,16 +827,20 @@ function PaneChrome(props: {
 }): React.ReactElement {
     const label = props.pane === "ai" ? "AI" : "BI";
     const state = props.isFocused ? "maximized" : props.isBackgrounded ? "minimized" : "normal";
+    // Pane chrome buttons use a quieter "ghost" treatment: lighter border, smaller
+    // type, tighter padding. Active/pinned states keep the accent so they remain
+    // legible. All aria-labels and button text are unchanged — see
+    // viewportControls.integration.test.tsx for the contract.
     const buttonStyle: React.CSSProperties = {
-        border: "1px solid rgba(0,0,0,0.14)",
+        border: "1px solid rgba(0,0,0,0.10)",
         borderRadius: 4,
-        background: "#fff",
-        color: "#111827",
+        background: "rgba(255,255,255,0.78)",
+        color: "#374151",
         cursor: "pointer",
-        fontSize: 12,
+        fontSize: 11,
         lineHeight: 1,
-        minHeight: 28,
-        padding: "0 9px",
+        minHeight: 22,
+        padding: "0 7px",
         whiteSpace: "nowrap",
     };
     const activeButtonStyle: React.CSSProperties = {
@@ -846,7 +850,7 @@ function PaneChrome(props: {
         color: "#1d4ed8",
         fontWeight: 600,
     };
-    const focusedHeaderRightReserve = props.isFocused ? "min(228px, 50vw)" : 10;
+    const focusedHeaderRightReserve = props.isFocused ? "min(200px, 50vw)" : 8;
 
     return (
         <section
@@ -873,15 +877,15 @@ function PaneChrome(props: {
                     display: "flex",
                     alignItems: "flex-start",
                     justifyContent: "space-between",
-                    gap: 10,
-                    padding: `7px ${focusedHeaderRightReserve} 7px 10px`,
-                    borderBottom: "1px solid rgba(0,0,0,0.08)",
-                    background: props.isFocused ? "#f8fafc" : "rgba(248,250,252,0.82)",
+                    gap: 8,
+                    padding: `5px ${focusedHeaderRightReserve} 5px 9px`,
+                    borderBottom: "1px solid rgba(0,0,0,0.06)",
+                    background: props.isFocused ? "#f8fafc" : "rgba(248,250,252,0.6)",
                 }}
             >
                 <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.2 }}>{props.title}</div>
-                    <div style={{ fontSize: 11, opacity: 0.65, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div style={{ fontSize: 11.5, fontWeight: 600, lineHeight: 1.2, letterSpacing: 0.1 }}>{props.title}</div>
+                    <div style={{ fontSize: 10.5, opacity: 0.6, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {props.subtitle}
                     </div>
                 </div>
@@ -892,7 +896,7 @@ function PaneChrome(props: {
                     style={{
                         display: "flex",
                         alignItems: "center",
-                        gap: 6,
+                        gap: 4,
                         flex: "1 1 auto",
                         flexWrap: "wrap",
                         justifyContent: "flex-end",

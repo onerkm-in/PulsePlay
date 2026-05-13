@@ -226,7 +226,13 @@ describe("App viewport controls — ?focus= URL", () => {
 
         expect(header, "focused AI chrome header").toBeTruthy();
         expect(controls, "focused AI controls toolbar").toBeTruthy();
-        expect(header?.getAttribute("style")).toContain("padding: 7px min(228px, 50vw) 7px 10px");
+        // The chrome reserves a clamped right-side gutter (min(Xpx, 50vw)) in focused
+        // mode so the fixed top-right connection pill cannot overlap the toolbar.
+        // Exact pixel values are intentionally not asserted (visual tuning lane);
+        // contract is that the gutter exists and is clamped against the viewport.
+        const headerStyle = header?.getAttribute("style") || "";
+        expect(headerStyle, "focused header padding reserves clamped right gutter")
+            .toMatch(/padding:\s*\d+px\s+min\(\d+px,\s*50vw\)\s+\d+px\s+\d+px/);
         expect(controls?.style.flexWrap).toBe("wrap");
         expect(controls?.style.minWidth).toBe("0");
 

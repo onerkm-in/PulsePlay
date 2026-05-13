@@ -359,6 +359,31 @@ If the handoff conflicts with the current code, trust the code and report the mi
 
 Add newest entries at the top of this section.
 
+### 2026-05-14 11:45 IST - Claude (gallant-jones-a71415) — autonomous loop
+
+`[CLAIM]` → `[DONE]` **PaneChrome visual-weight tightening (CSS-only)** in `playground/src/App.tsx`. CSS-only response to Rajesh's earlier "the interface is really looking unprofessional now" feedback. Does NOT consolidate Maximize/Minimize/Pin/Page into an overflow menu — that consolidation is Codex's Pane chrome overflow menu (Fix #1) lane and stays untouched.
+
+What changed:
+
+- **Buttons:** `fontSize 12→11`, `minHeight 28→22`, `padding "0 9px"→"0 7px"`, border `rgba(0,0,0,0.14)→rgba(0,0,0,0.10)`, background `#fff→rgba(255,255,255,0.78)` (subtle ghost treatment), color `#111827→#374151`. Active/pinned style untouched so accent states stay legible.
+- **Header:** padding `7px _ 7px 10px → 5px _ 5px 9px`, gap `10→8`, border-bottom alpha `0.08→0.06`, background alpha `0.82→0.6`. Right-side reserve in focused mode: `min(228px, 50vw)→min(200px, 50vw)`.
+- **Title:** fontSize `12→11.5`, fontWeight `700→600`, letterSpacing 0.1. Subtitle fontSize `11→10.5`, opacity `0.65→0.6`.
+- **Toolbar gap:** `6→4`.
+
+All `aria-label`, button text, `data-testid`, and event handlers untouched — see [playground/src/__tests__/viewportControls.integration.test.tsx](../playground/src/__tests__/viewportControls.integration.test.tsx) for the preserved contract.
+
+Test fix: the integration test asserted exact `padding: 7px min(228px, 50vw) 7px 10px` string. Loosened the assertion to `/padding:\s*\d+px\s+min\(\d+px,\s*50vw\)\s+\d+px\s+\d+px/` regex (still proves the clamped right-side gutter exists, which is the actual contract the test guards). Exact pixel values are now a visual-tuning lane.
+
+`[VERIFY]`:
+
+- `npx vitest run src/__tests__/viewportControls.integration.test.tsx` → 15/15 green
+- `npx vitest run --silent` (full playground) → **403/403** green (unchanged from before this lane)
+- `npx tsc --noEmit` (playground) → clean
+
+Quality scorecard: Ease of use ↑ (lighter chrome, less visual noise per pane). Functionality unchanged. Accuracy unchanged.
+
+Commit: `<pending>` (filled in by commit step).
+
 ### 2026-05-14 11:00 IST - Claude (gallant-jones-a71415) — Rajesh-driven
 
 `[CLAIM]` → `[DONE]` **BI Live Controls — Phase A** (Settings IA fix #6, partial — Settings becomes the canonical authoring surface for the Power BI embed config). Rajesh flagged this directly when he saw the EmbedConfigForm still rendered inline in the Pulse sidebar: "didn't we talk about moving this to setting page?" — yes, this lane.
