@@ -215,18 +215,34 @@ describe('loadIR — real cpg-fmcg/supply-chain (authored YAML)', () => {
 /* ─── loadIR — synthetic IR (legacy markdown) ─────────────────────────── */
 
 describe('loadIR — synthetic IR built from legacy markdown', () => {
-    test('cpg-fmcg/sustainability has no prompt-ir.yaml → synthetic IR with legacy preamble', () => {
-        const ir = loadIR('cpg-fmcg', 'sustainability', { log: _logSink });
+    // Note: when this test file was first written (Phase 11a) we exercised the
+    // synthetic-IR path against the real cpg-fmcg/sustainability pack, which
+    // shipped with prompt-context.md but no authored YAML. In a later cycle
+    // (batch 3 of the 9-IR closure) every cpg-fmcg sub-vertical received an
+    // authored prompt-ir.yaml, so the real fixtures no longer trigger the
+    // synthetic fallback. These tests now use a tmp packs root with markdown
+    // ONLY so the synthetic IR path stays under regression coverage.
+
+    let tmpRoot;
+    beforeEach(() => { tmpRoot = makeTmpPacksRoot(); });
+    afterEach(() => rmrf(tmpRoot));
+
+    test('sub-vertical without prompt-ir.yaml → synthetic IR with legacy preamble', () => {
+        const markdown = '# Synthetic context test\n\nSome curated prose long enough to clear the 20-char floor.';
+        writePackFile(tmpRoot, 'mypack/sub-verticals/sv/prompt-context.md', markdown);
+        const ir = loadIR('mypack', 'sv', { packsRoot: tmpRoot, log: _logSink });
         expect(ir).not.toBeNull();
         expect(ir.meta?.synthetic).toBe(true);
         expect(typeof ir?.overrides?.genie?.legacyPreamble).toBe('string');
         expect(ir.overrides.genie.legacyPreamble.length).toBeGreaterThan(20);
-        expect(ir.id).toBe('cpg-fmcg/sustainability');
+        expect(ir.id).toBe('mypack/sv');
     });
 
     test('synthetic IR carries source file path in meta', () => {
-        const ir = loadIR('cpg-fmcg', 'sustainability', { log: _logSink });
-        expect(ir.meta.sourceFile).toMatch(/sustainability[\\/]prompt-context\.md$/);
+        writePackFile(tmpRoot, 'mypack/sub-verticals/sv/prompt-context.md', '# context');
+        const ir = loadIR('mypack', 'sv', { packsRoot: tmpRoot, log: _logSink });
+        expect(ir).not.toBeNull();
+        expect(ir.meta.sourceFile).toMatch(/sv[\\/]prompt-context\.md$/);
     });
 });
 

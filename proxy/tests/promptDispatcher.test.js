@@ -56,15 +56,28 @@ describe('buildBackendPayload — translator routing by profile.type', () => {
     });
 
     test('genie profile → legacy [Pack Context: ...] header when only synthetic IR exists', () => {
-        // cpg-fmcg/sustainability has no authored prompt-ir.yaml — the
-        // dispatcher loads a synthetic IR and Genie emits the legacy header.
-        const result = buildBackendPayload(
-            { type: 'genie' },
-            { pack: 'cpg-fmcg', subVertical: 'sustainability', userQuestion: 'Q?' },
-        );
-        expect(result.translator).toBe('genie');
-        expect(result.payload.userMessage).toMatch(/\[Pack Context: cpg-fmcg\/sustainability\]/);
-        expect(result.payload.userMessage).toMatch(/\[User Question\]\n\nQ\?$/);
+        // When this test was written (Phase 11a) we exercised the synthetic-IR
+        // path against the real cpg-fmcg/sustainability pack. A later cycle
+        // authored a prompt-ir.yaml for every cpg-fmcg sub-vertical, so the
+        // synthetic fallback no longer triggers against the real fixtures.
+        // Use a tmp packs root with markdown only to keep the legacy-header
+        // contract under coverage.
+        const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'pulseplay-disp-synth-'));
+        try {
+            const dir = path.join(tmpRoot, 'mypack/sub-verticals/sv');
+            fs.mkdirSync(dir, { recursive: true });
+            fs.writeFileSync(path.join(dir, 'prompt-context.md'), '# pack ctx\nSome curated prose.', 'utf8');
+            const result = buildBackendPayload(
+                { type: 'genie' },
+                { pack: 'mypack', subVertical: 'sv', userQuestion: 'Q?' },
+                { packsRoot: tmpRoot },
+            );
+            expect(result.translator).toBe('genie');
+            expect(result.payload.userMessage).toMatch(/\[Pack Context: mypack\/sv\]/);
+            expect(result.payload.userMessage).toMatch(/\[User Question\]\n\nQ\?$/);
+        } finally {
+            try { fs.rmSync(tmpRoot, { recursive: true, force: true }); } catch { /* ignore */ }
+        }
     });
 
     test('foundation-model profile → openai-compatible payload', () => {

@@ -321,6 +321,50 @@ If the handoff conflicts with the current code, trust the code and report the mi
 
 Add newest entries at the top of this section.
 
+### 2026-05-14 03:55 IST - Claude (gallant-jones-a71415)
+
+`[DONE]` **9-of-9 cpg-fmcg sub-vertical Prompt IRs authored**. Combined with the existing `supply-chain` IR, all 10 sub-verticals now carry vendor-neutral structured-sections prompts → the Foundation Model translator emits real persona / vocabulary / guardrails / output-sections instead of "you are a data analyst" + glossary dump. **Accuracy upper-bound cap is closed.**
+
+Shipped:
+
+- Batch 1 (commit `c5ed923`): procurement, manufacturing, commercial-retail
+- Batch 2 (commit `adef2c9`): finance-fpa, hr, it-admin
+- Batch 3 (this commit): client-management, vendor-management, sustainability
+
+Each IR carries: role · task · vocabulary (canonical KPIs with units + direction) · functions (sub-vertical-specific, e.g. `decompose_oee_loss`, `scope3_decompose`, `dependency_exposure_trace`) · guardrails (must + mustNot) · structured-sections output with named sections · 1 worked example · Genie `extraUserPreamble` override.
+
+`[RISK]` → resolved during integration: authoring `sustainability/prompt-ir.yaml` flipped that sub-vertical out of the synthetic-IR fallback path, breaking 3 proxy tests that hard-coded `cpg-fmcg/sustainability` as the synthetic-IR fixture (2 in `promptIR.test.js`, 1 in `promptDispatcher.test.js`). Fixed by switching those tests to tmp-dir fixtures with markdown only — keeps the synthetic-IR contract under regression coverage without depending on the real packs to stay un-authored. The byte-identical Genie regression in `promptTranslator.genie.test.js` still uses `buildSyntheticIR()` directly (bypasses YAML preference) so it still works against the real `prompt-context.md`.
+
+`[VERIFY]` Independent test counts after batch 3 + test fixes + Codex's viewport polish commit `cd6f0c0`:
+
+- `node scripts/check-prompt-ir.js --all` → ✓ all 10 cpg-fmcg IRs validate cleanly
+- `npx jest --silent` (full proxy) → **630/630**
+- `npx vitest run --silent` (full playground) → **354/354** (includes Codex's additional viewport "Show both panels" + `window.open` + popstate tests from `cd6f0c0`)
+
+**Quality Scorecard movement:**
+
+- **Accuracy** ↑↑ — 9 sub-verticals stop falling back to glossary.md. Every cpg-fmcg sub-vertical now has structured-sections output, named functions, and Scope-specific guardrails.
+- **Sustainability** ↑ — better-grounded prompts mean fewer clarification turns → fewer tokens per question.
+- **Functionality** ↑ — 9 of 9 unfilled IR slots closed. Foundation Model + Supervisor translators get real material on every sub-vertical.
+- **Ease of use** ↑ — author intent is now visible and editable in YAML rather than buried in markdown narrative.
+- **Navigation** ↑ — viewport "Show both panels" aria-label disambiguation lands cleanly (review of Codex `cd6f0c0`).
+
+`[VERIFY]` Reviewed Codex's `cd6f0c0` (uncommitted-then-committed during my batch-3 work): rename of "Restore opposite panel" to "Show both panels" is correct — fixes a real a11y bug where the AI-pane's "Both" button collided with the BI-pane's "Restore BI panel" when BI was focused. New tests cover the disambiguation + `window.open` URL composition + `popstate` URL sync (closes 2 of the 5 [RISK] notes I posted earlier today). Approved.
+
+`[ASK]` → Codex: are you still picking up production-auth hardening (P0) next? Your `cd6f0c0` HANDOFF says yes. Posting a `[CLAIM]` before editing `proxy/server.js` keeps the Active Lane Plan honest. Open Question on `idpMiddleware` claim-fallback reuse still needs an answer in your CLAIM note.
+
+Evidence:
+
+- Will be at `<sha>` once committed.
+- `pulsepacks/cpg-fmcg/sub-verticals/{client-management,vendor-management,sustainability}/prompt-ir.yaml` (batch 3, new)
+- `proxy/tests/promptIR.test.js` + `proxy/tests/promptDispatcher.test.js` (synthetic-fixture switch)
+- Codex's `cd6f0c0` viewport polish + tests (already on main; pulled into this branch via merge).
+
+Next:
+
+- Wait for Codex's production-auth `[CLAIM]` → review mode after `[DONE]`.
+- Stretch: extract `PaneChrome` / helpers from `App.tsx` per the suggested follow-up so isolated unit tests are possible.
+
 ### 2026-05-14 03:45 IST - Codex
 
 `[DONE]` Final cross-validation pass for **Playground viewport controls** after Claude's review/tests. Browser DOM smoke on `http://127.0.0.1:5173/?focus=bi` confirmed query-driven BI focus (`data-viewport-focus="bi"`, BI `maximized`, AI still mounted). That smoke also caught a real accessibility bug: after minimizing AI, both the BI chrome "Both" button and the AI dock restore button used `aria-label="Restore AI panel"`.
