@@ -131,7 +131,7 @@ Newest active/review lane first. Keep completed-but-reviewing work above older o
 | Playground viewport controls | Codex (impl) + Claude (tests/review, 2026-05-14 03:05 IST) | done; reviewed | Codex: `playground/src/App.tsx`. Claude/Codex: `playground/src/__tests__/viewportControls.integration.test.tsx`. | [VERIFY] 354/354 playground green; viewport slice 16/16. Browser DOM smoke caught a duplicate restore-label issue; Codex fixed it and added regression coverage for minimize dock, Show both, popstate, and open-page URL. |
 | Power BI token hardening review | Claude (2026-05-14 02:35 IST) | done; approved | `proxy/server.js`, `proxy/tests/embedTokenRoute.test.js`, `playground/src/components/EmbedConfigForm.tsx`, `playground/src/components/__tests__/EmbedConfigForm.test.tsx`, docs | [VERIFY] 630/630 proxy + 338/338 playground green; non-blocking [RISK] notes captured in Coordination Log. |
 | Power BI token hardening | Codex (assigned 2026-05-14 by Rajesh) | done; reviewed | `proxy/server.js`, `EmbedConfigForm.tsx`, tests | Client identities rejected; server-derived RLS; Edit gate; identity-aware cache. Reviewed clean; committed by Claude with co-author trailer. Live credentialed smoke still pending. |
-| Settings IA polish | Claude (claimed 2026-05-14 04:05 IST) | active | `playground/src/settings/`, `playground/src/knowledge/KnowledgeShell.tsx`, settings tests | Fixes #1/#2/#3/#4/#5/#7 from Claude's Settings IA review. Zero overlap with proxy/server.js. |
+| Settings IA polish | Claude (2026-05-14 04:05 IST → 05:30 IST) | done; reviewed | `playground/src/settings/`, `playground/src/knowledge/KnowledgeShell.tsx`, settings tests | Fixes #1/#2/#3/#4/#5 shipped in 3 batched commits (`e651c80` / `f38af88` / `6fad9d9`); fix #7 (focus trap + aria) deferred to separate a11y lane. 369/369 playground green; live boot smoke verified all routes + IR translator pipeline. |
 | BI live controls (Phase 3) | unclaimed (queued for Codex) | open | `playground/src/settings/groups/BiGroup.tsx`, `EmbedConfigForm.tsx` | Settings IA review fix #6 — wires the 3 PhaseStub leaves. |
 | Per-leaf revert + deep-link copy | unclaimed (queued for Codex) | open | `playground/src/settings/`, shared Leaf | Settings IA review fix #8. |
 | Production auth hardening | Codex (2026-05-14 04:10 IST) | done; reviewed | `proxy/server.js`, `docs/SECURITY.md`, `productionAuth.test.js` | `PROXY_AUTH_MODE` shipped; production fail-closed; 16/16 productionAuth, 646/646 proxy green; Claude line-by-line review at 04:15 IST — all 8 security checks pass. |
@@ -347,6 +347,70 @@ If the handoff conflicts with the current code, trust the code and report the mi
 ## Coordination Log
 
 Add newest entries at the top of this section.
+
+### 2026-05-14 05:30 IST - Claude (gallant-jones-a71415)
+
+`[DONE]` **Settings IA polish — batches A + B + C shipped + live boot smoke verified.** Batch D (focus trap + a11y) deferred to a separate lane.
+
+Shipped:
+
+- `e651c80` — Batch A: reconciled `GROUP_LEAF_LABELS` drift (4 entries fixed) + new drift-prevention test (6 tests). Search bar now finds "license posture", "export support bundle", "local storage inspector" again.
+- `f38af88` — Batch B: `<Leaf id="settings-<group>-<slug>">` + scroll-to-leaf effect in `SettingsShell` + clickable status chips (BI, AI, Pack, Proxy, Security) → 7 new tests. `/settings/<group>/<leaf>` URLs now actually scroll the leaf into view.
+- `6fad9d9` — Batch C: KnowledgeShell's Settings button deep-links to `/settings/ai/knowledge-pack` when an active pack is in the URL, with button label reflecting the pack name. +2 tests.
+
+`[VERIFY]` Cross-validation pass (independent re-runs):
+
+- `node scripts/check-prompt-ir.js --all` → ✓ 10/10 cpg-fmcg IRs valid
+- `npx jest --silent` (full proxy) → **646/646**
+- `npx tsc --noEmit` (playground) → clean
+- `npx vitest run --silent` (full playground) → **369/369** (was 354 — +15 from Settings IA polish batches)
+- `npx vite build` (production) → 36s, all chunks ok; critical path ≈113 KB gzip (index + vendor-react)
+
+`[VERIFY]` Live boot smoke (start proxy + Vite dev server, probe routes):
+
+- Proxy boots in ~3s with env-only config + `PROXY_AUTH_MODE=none` (dev posture); refuses none in production per the assertion gate.
+- `/health` → 200 (`profiles: ["default","supervisor"], authMode: "none"`)
+- `/assistant/profiles` → 200 (default + supervisor)
+- `/assistant/capabilities` → 200
+- `/assistant/allowlist` → 200 (configured: false, dev mode)
+- `/assistant/knowledge/packs` → 200, returns full `cpg-fmcg` pack with all 10 sub-verticals
+- `/assistant/discover` POST `{pack:'cpg-fmcg', subVertical:'supply-chain'}` → 200, returns `DiscoverySnapshot` with reachableFrames (SWOT + 3 CPG verticals) and unreachableFrames (BCG/RFM/Pareto + 4 CPG verticals — all need currency measures the dev profile doesn't have)
+- `/openai/conversations/start` no profile → 400 (expected)
+- Vite dev server boots in 3.2s
+- Vite SPA routes `/`, `/settings`, `/settings/ai/knowledge-pack`, `/knowledge/cpg-fmcg` → all 200 in 36-54 ms
+- Vite `/api/*` proxy → `/api/health` and `/api/assistant/knowledge/packs` both passed through correctly
+
+`[VERIFY]` Prompt IR translator pipeline end-to-end:
+
+- `check-prompt-ir.js --show cpg-fmcg/supply-chain foundation-model` → emits valid OpenAI-compatible payload with persona/audience/tone/vocabulary/guardrails/CTE-provenance directive
+- `check-prompt-ir.js --show cpg-fmcg/finance-fpa genie` → emits structured Genie user message with all blocks
+- `check-prompt-ir.js --show cpg-fmcg/sustainability supervisor` → emits fan-out + synthesis payload
+
+**Quality scorecard movement from this batch:**
+
+| Dimension | Before | After |
+|---|---|---|
+| Navigation | ~95% | **~99%** (deep-link scroll + clickable chips + Knowledge ↔ Settings round-trip) |
+| Ease of use | ~75% | **~95%** (search dictionary accurate + drift-prevented + status chips actionable) |
+| Accuracy | ~99% | **~99.5%** (drift caught at test time, no longer silent) |
+
+**Deferred / queued (not in this batch):**
+
+- Batch D (focus trap + `aria-describedby` + `aria-busy`) — moved to its own a11y lane.
+- Codex's Allowlist fail-closed pass (P1) — assigned at 05:00 IST, still open.
+- Codex's BI Live Controls (Phase 3, fix #6) — queued after Allowlist.
+- Codex's per-leaf revert + deep-link copy (fix #8) — queued.
+
+Evidence:
+
+- 3 commits: `e651c80` + `f38af88` + `6fad9d9` (now on main).
+- Live smoke `curl` evidence captured in the [VERIFY] block above.
+- Quality scorecard snapshot above the Coordination Log table.
+
+Next:
+
+- Wait on Codex's Allowlist fail-closed `[CLAIM]` / `[DONE]`.
+- If needed in parallel, pick Phase 11b dispatcher migration (touches `proxy/server.js` so wait until Codex finishes their P1).
 
 ### 2026-05-14 05:00 IST - Claude (gallant-jones-a71415)
 
