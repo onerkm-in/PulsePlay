@@ -1,15 +1,28 @@
 // playground/src/settings/groups/BiGroup.tsx
 //
-// BI group placeholder for Phase 2. Phase 3 fills in the live controls
-// (Provider picker filtered by allowlist, EmbedConfigForm, Authentication
-// with tenant lock, Canvas, Status with license posture).
+// Phase 3 (BI Live Controls, fix #6 from the Settings IA review).
+// Settings is now the canonical AUTHORING surface for the Power BI
+// embed config. The Pulse sidebar will retire its inline form in
+// Phase B once Codex finishes the Allowlist fail-closed lane in
+// playground/src/settings/settingsStore.tsx (App.tsx then reads from
+// embedConfigStore.ts and the sidebar shows a status row instead of
+// the form).
+//
+// Until Phase B lands the form here writes to its own store
+// (embedConfigStore) and broadcasts a `pulseplay:embed-config-change`
+// event. The playground picks up the new config on next mount;
+// authors who want the running session to update can refresh.
 
 import { useSettings } from "../settingsStore";
+import { useEmbedConfig } from "../embedConfigStore";
+import { EmbedConfigForm } from "../../components/EmbedConfigForm";
 
 export function BiGroup(): React.ReactElement {
-    const { allowlist, biVendor, orphans } = useSettings();
+    const { allowlist, biVendor, orphans, activeAiProfile } = useSettings();
     const biOrphan = orphans.find(o => o.key === "pulseplay:bi-vendor");
     const allowedProviders = allowlist?.biProviders || [];
+    const { embedConfig, setEmbedConfig, clearEmbedConfig } = useEmbedConfig();
+    const hasEmbedConfig = !!embedConfig && Object.keys(embedConfig).length > 0;
     return (
         <section aria-labelledby="settings-bi-title">
             <header style={{ marginBottom: 20 }}>
@@ -27,19 +40,92 @@ export function BiGroup(): React.ReactElement {
                 {biOrphan && <OrphanBanner reason={biOrphan.reason} />}
             </Leaf>
 
-            <Leaf group="bi" label="Embed" helper="How PulsePlay obtains the embed. Power BI: secure-embed link, AAD SSO, service principal, or manual token.">
-                <PhaseStub phase={3} />
+            <Leaf
+                group="bi"
+                label="Embed"
+                helper="Power BI report / dashboard wiring. Three modes: Secure embed (paste an app.powerbi.com URL), AAD SSO (user identity), or Service principal (proxy mints the token). The Pulse sidebar's inline form will retire once Phase B activates bidirectional sync."
+            >
+                <div
+                    role="note"
+                    style={{
+                        fontSize: 11,
+                        opacity: 0.7,
+                        background: "rgba(0,0,0,0.03)",
+                        padding: "6px 10px",
+                        borderRadius: 4,
+                        marginBottom: 8,
+                    }}
+                >
+                    Changes save to <code>pulseplay:bi-embed-config</code> in local storage and broadcast a change event. The playground picks them up on next mount — refresh the page to apply to the running session until Phase B lands.
+                </div>
+                <EmbedConfigForm
+                    vendor={biVendor || "powerbi"}
+                    value={embedConfig}
+                    onChange={setEmbedConfig}
+                    assistantProfile={activeAiProfile}
+                    allowlist={allowlist}
+                />
+                {hasEmbedConfig && (
+                    <div style={{ marginTop: 10 }}>
+                        <button
+                            type="button"
+                            onClick={clearEmbedConfig}
+                            style={{
+                                fontSize: 12,
+                                padding: "4px 10px",
+                                border: "1px solid var(--pp-border, rgba(0,0,0,0.18))",
+                                background: "transparent",
+                                borderRadius: 4,
+                                cursor: "pointer",
+                                color: "#a01828",
+                            }}
+                        >
+                            Clear embed config
+                        </button>
+                    </div>
+                )}
             </Leaf>
 
-            <Leaf group="bi" label="Authentication" helper="Sign-in mode + tenant. Tenant is locked to your organization's allowlist.">
+            <Leaf
+                group="bi"
+                label="Authentication"
+                helper="Sign-in mode + tenant. Tenant is locked to your organization's allowlist. Choose your AAD sign-in flow in the Embed leaf above; this view is read-only governance state."
+            >
                 <CurrentValue label="Allowed AAD tenants">
                     {allowlist?.aadTenants?.length ? allowlist.aadTenants.join(", ") : "(allowlist unavailable)"}
                 </CurrentValue>
-                <PhaseStub phase={3} />
+                <CurrentValue label="Token mode">
+                    {(() => {
+                        const cfg = embedConfig as { mode?: string; embedMode?: string };
+                        return cfg?.mode || cfg?.embedMode || "(none — pick Embed mode above)";
+                    })()}
+                </CurrentValue>
+                <CurrentValue label="Workspace (groupId)">
+                    {(embedConfig as { groupId?: string })?.groupId || "(unset)"}
+                </CurrentValue>
+                <CurrentValue label="Report ID">
+                    {(embedConfig as { id?: string; reportId?: string })?.id
+                        || (embedConfig as { reportId?: string })?.reportId
+                        || "(unset)"}
+                </CurrentValue>
             </Leaf>
 
-            <Leaf group="bi" label="Canvas" helper="How many Power BI frames render side-by-side.">
-                <PhaseStub phase={3} />
+            <Leaf
+                group="bi"
+                label="Canvas"
+                helper="How many Power BI frames render side-by-side. Controlled by the BI tile mode in the canvas toolbar; this view is read-only."
+            >
+                <CurrentValue label="Tile mode">
+                    {(() => {
+                        try {
+                            const stored = typeof window !== "undefined" ? window.localStorage.getItem("pulseplay:bi-tile-mode") : null;
+                            return stored || "1";
+                        } catch { return "1"; }
+                    })()}
+                </CurrentValue>
+                <p style={{ fontSize: 11, opacity: 0.6, margin: 0 }}>
+                    Click the 1 / 2 / 4 toggle above the BI canvas to change.
+                </p>
             </Leaf>
 
             <Leaf group="bi" label="Status" helper="Live state of the embed: mount mode, last load, recent events, license posture (Premium tier, embed-token availability, Fabric capability).">

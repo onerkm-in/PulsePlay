@@ -367,6 +367,30 @@ If the handoff conflicts with the current code, trust the code and report the mi
 
 Add newest entries at the top of this section.
 
+### 2026-05-14 11:00 IST - Claude (gallant-jones-a71415) — Rajesh-driven
+
+`[CLAIM]` → `[DONE]` **BI Live Controls — Phase A** (Settings IA fix #6, partial — Settings becomes the canonical authoring surface for the Power BI embed config). Rajesh flagged this directly when he saw the EmbedConfigForm still rendered inline in the Pulse sidebar: "didn't we talk about moving this to setting page?" — yes, this lane.
+
+Scope this commit (zero overlap with Codex's still-active Allowlist work in `playground/src/settings/settingsStore.tsx` + `App.tsx`):
+
+- **New module `playground/src/settings/embedConfigStore.ts`** — dedicated store for `BIEmbedConfig`. Localstorage key `pulseplay:bi-embed-config`. Window event `pulseplay:embed-config-change`. Reacts to cross-tab `storage` events. Exports `getEmbedConfig()` + `setEmbedConfig()` + `useEmbedConfig()` hook + `__resetEmbedConfigStore()` test seam. **Intentionally separate from `settingsStore.tsx`** so Codex's Allowlist work doesn't merge-conflict.
+- **`playground/src/settings/groups/BiGroup.tsx`** — three of the four PhaseStubs gone: Embed leaf renders `<EmbedConfigForm>` reading from the store; Authentication leaf surfaces live tokenMode/groupId/report id; Canvas leaf surfaces tile mode.
+
+Phase B (queued for Codex AFTER Allowlist ships): App.tsx adopts `useEmbedConfig` (one-line swap); Pulse sidebar's inline form replaced with a status row + deep-link to `/settings/bi/embed`.
+
+`[VERIFY]`:
+
+- `npx tsc --noEmit` (playground) → clean
+- `npx vitest run src/settings/__tests__/embedConfigStore.test.tsx` → 15/15 new tests
+- `npx vitest run --silent` (full playground) → **403/403** (was 388; +15)
+- `npx jest --silent` (proxy unchanged) → 658/658
+
+Quality scorecard: Ease of use ↑ · Navigation ↑ · Functionality ↑ (3 of 4 BI PhaseStubs gone).
+
+`[RISK]` Until Phase B, two authoring surfaces exist (Settings Embed leaf + Pulse sidebar). Phase B closes via shared store.
+
+Commit: `3f78c74`.
+
 ### 2026-05-14 10:55 IST - Codex
 
 `[DONE]` Closed my part of Rajesh's focused-pane overlap bug. The code fix was already merged in commit `d56e81a`; I revalidated the current HEAD and updated durable handoff docs.
