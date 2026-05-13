@@ -216,6 +216,22 @@ describe("App viewport controls — ?focus= URL", () => {
 
         unmount(state);
     });
+
+    it("reserves right-side chrome space in focused mode so the fixed connection pill cannot overlap controls", () => {
+        setLocation("?focus=ai");
+        const state = mountApp();
+
+        const header = state.container.querySelector('[data-testid="pp-panel-chrome-header-ai"]') as HTMLElement | null;
+        const controls = state.container.querySelector('[data-testid="pp-panel-controls-ai"]') as HTMLElement | null;
+
+        expect(header, "focused AI chrome header").toBeTruthy();
+        expect(controls, "focused AI controls toolbar").toBeTruthy();
+        expect(header?.getAttribute("style")).toContain("padding: 7px min(228px, 50vw) 7px 10px");
+        expect(controls?.style.flexWrap).toBe("wrap");
+        expect(controls?.style.minWidth).toBe("0");
+
+        unmount(state);
+    });
 });
 
 /* ─── Click-driven transitions ───────────────────────────────────── */

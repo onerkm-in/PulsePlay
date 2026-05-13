@@ -845,6 +845,7 @@ function PaneChrome(props: {
         color: "#1d4ed8",
         fontWeight: 600,
     };
+    const focusedHeaderRightReserve = props.isFocused ? "min(228px, 50vw)" : 10;
 
     return (
         <section
@@ -865,13 +866,14 @@ function PaneChrome(props: {
             }}
         >
             <div
+                data-testid={`pp-panel-chrome-header-${props.pane}`}
                 style={{
                     flex: "0 0 auto",
                     display: "flex",
-                    alignItems: "center",
+                    alignItems: "flex-start",
                     justifyContent: "space-between",
                     gap: 10,
-                    padding: "7px 10px",
+                    padding: `7px ${focusedHeaderRightReserve} 7px 10px`,
                     borderBottom: "1px solid rgba(0,0,0,0.08)",
                     background: props.isFocused ? "#f8fafc" : "rgba(248,250,252,0.82)",
                 }}
@@ -884,8 +886,18 @@ function PaneChrome(props: {
                 </div>
                 <div
                     role="toolbar"
+                    data-testid={`pp-panel-controls-${props.pane}`}
                     aria-label={`${label} panel controls`}
-                    style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}
+                    style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        flex: "1 1 auto",
+                        flexWrap: "wrap",
+                        justifyContent: "flex-end",
+                        maxWidth: "100%",
+                        minWidth: 0,
+                    }}
                 >
                     {props.isFocused ? (
                         <button
