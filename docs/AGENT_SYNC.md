@@ -383,7 +383,7 @@ Quality scorecard: Functionality ↑ (FramePicker no longer presentation-only �
 
 `[HANDOFF]` Proxy-side counterpart (consuming the structured `body.frame` field to drive Prompt IR translator behavior) is open. When taken up, it lives in `proxy/server.js` `/assistant/conversations/start` handler + the per-backend translator dispatch in `proxy/lib/promptTranslators/`. Until then, the content preamble already carries the same information in human-readable form.
 
-Commit: `<pending>` (filled in by commit step).
+Commit: `738e4e1`.
 
 ### 2026-05-14 11:45 IST - Claude (gallant-jones-a71415) — autonomous loop
 
