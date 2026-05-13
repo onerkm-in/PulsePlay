@@ -35,7 +35,7 @@ export interface PackSelection {
 }
 
 export interface PackPickerProps {
-    /** All installed packs. v0 callers pass the hardcoded cpg-fmcg pack. */
+    /** All installed packs visible to the current user, normally loaded from the proxy pack registry. */
     availablePacks: PackInfo[];
     /** Suggested pack from probe inference (preselect, also drives the * marker). */
     suggested?: PackSelection;
@@ -45,9 +45,8 @@ export interface PackPickerProps {
 }
 
 /**
- * Default v0 hardcoded list — read directly from pulsepacks/cpg-fmcg/pack.json.
- * Exported so the parent (App.tsx) can pass this as `availablePacks` without
- * fetching anything until the /api/packs endpoint exists.
+ * Legacy fallback list for tests/story-like callers that render PackPicker in
+ * isolation. App.tsx uses /api/assistant/knowledge/packs instead.
  */
 export const DEFAULT_AVAILABLE_PACKS: PackInfo[] = [
     {

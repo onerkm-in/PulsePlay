@@ -14,13 +14,41 @@ import type { ConnectorProbeResult } from "../types/probe";
 const PROXY_UNREACHABLE_MESSAGE =
     "Proxy unreachable — is `node server.js` running on 127.0.0.1:8787?";
 
+/** L14 — Profile names that flow into the probe payload must match a
+ *  strict whitelist (alphanumeric + hyphens/underscores/dots). The proxy
+ *  re-validates server-side via `allowlist.isAiProfileAllowed`, but a
+ *  client-side gate cuts noise from malformed entries before they hit
+ *  the wire AND prevents accidental PII leakage (e.g. someone pastes
+ *  a real email into the profile field by mistake). */
+const PROFILE_NAME_REGEX = /^[a-zA-Z0-9._-]{1,128}$/;
+
+export class ProbeInvalidProfileError extends Error {
+    constructor(profile: string) {
+        super(
+            `Profile name "${profile.slice(0, 64)}" contains characters not allowed by the probe sanitizer. ` +
+            `Profile names must be 1-128 chars of [a-z A-Z 0-9 . _ -]. ` +
+            `Check the active profile selection.`,
+        );
+        this.name = "ProbeInvalidProfileError";
+    }
+}
+
 /**
  * Probe a connector profile and return its canonical metadata + inference
  * result. Throws on non-2xx responses with a message taken from
  * `data.error` when the proxy supplied one, or a friendly fallback when the
  * proxy itself appears to be unreachable (network error / DNS / refused).
+ *
+ * The `profile` argument is sanitized against `PROFILE_NAME_REGEX` before
+ * any network call (L14). The proxy still enforces its own allowlist on
+ * receipt — this is defense in depth.
  */
 export async function probeConnector(profile: string): Promise<ConnectorProbeResult> {
+    const cleaned = String(profile || "").trim();
+    if (!cleaned || !PROFILE_NAME_REGEX.test(cleaned)) {
+        throw new ProbeInvalidProfileError(cleaned);
+    }
+
     let response: Response;
     try {
         response = await fetch("/api/assistant/probe", {
@@ -30,7 +58,7 @@ export async function probeConnector(profile: string): Promise<ConnectorProbeRes
             // shared-key auth is configured; the deployer's wrapper or
             // settings UI threads them through, not this client).
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ assistantProfile: profile }),
+            body: JSON.stringify({ assistantProfile: cleaned }),
         });
     } catch (err) {
         // fetch() rejects on network-level failures. We treat all of these as

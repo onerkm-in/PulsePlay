@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { BIEmbedConfig } from "../biPanel/BIAdapter";
 import { signInAndPrepareEmbed, signOutPbi } from "../lib/pbiAuth";
+import type { PulsePlayAllowlist } from "../types/allowlist";
 
 // Vendor-aware embed-config form.
 //
@@ -38,6 +39,9 @@ interface EmbedConfigFormProps {
      *  to be passed through. Empty string is allowed (then the proxy
      *  falls back to "default"). */
     assistantProfile?: string;
+    /** Organization allowlist fetched from the proxy. When present, the
+     *  form refuses values the proxy will reject anyway. */
+    allowlist?: PulsePlayAllowlist | null;
 }
 
 type PowerBITokenMode = "secure" | "sso" | "backend" | "manual";
@@ -106,6 +110,55 @@ function extractReportIdFromPowerBIUrl(input: string): string | undefined {
     }
 }
 
+/** L3 — Power BI portal "embed in website or portal" URLs carry the
+ *  workspace (group) ID as a `groupId` query param. Pull it so we can
+ *  validate the secure-embed path against `allowlist.powerbiWorkspaces`
+ *  the same way SSO + service-principal modes do. */
+function extractGroupIdFromPowerBIUrl(input: string): string | undefined {
+    try {
+        return new URL(input).searchParams.get("groupId") || undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+function allowlistActive(allowlist?: PulsePlayAllowlist | null): boolean {
+    return !!allowlist?.configured;
+}
+
+function hostnameFromUrl(input: string): string {
+    try { return new URL(input).hostname.toLowerCase(); }
+    catch { return ""; }
+}
+
+function isEmbedOriginAllowed(allowlist: PulsePlayAllowlist | null | undefined, vendor: string, url: string): boolean {
+    if (!allowlistActive(allowlist)) return true;
+    const allowed = allowlist?.embedOrigins?.[vendor] || [];
+    return allowed.includes(hostnameFromUrl(url));
+}
+
+function allowlistContains(values: string[] | undefined, value: string): boolean {
+    const needle = value.trim().toLowerCase();
+    return !!needle && (values || []).map(v => v.toLowerCase()).includes(needle);
+}
+
+function powerBIWorkspaceAllowed(allowlist: PulsePlayAllowlist | null | undefined, groupId: string): boolean {
+    if (!allowlistActive(allowlist)) return true;
+    return allowlistContains(allowlist?.powerbiWorkspaces, groupId);
+}
+
+function powerBIReportAllowed(allowlist: PulsePlayAllowlist | null | undefined, reportId: string): boolean {
+    if (!allowlistActive(allowlist)) return true;
+    const reports = allowlist?.powerbiReports || [];
+    if (reports.length === 0) return !!reportId.trim();
+    return allowlistContains(reports, reportId);
+}
+
+function aadTenantAllowed(allowlist: PulsePlayAllowlist | null | undefined, tenantId: string): boolean {
+    if (!allowlistActive(allowlist)) return true;
+    return allowlistContains(allowlist?.aadTenants, tenantId);
+}
+
 const EMPTY_PBI: PowerBIFormState = {
     groupId: "",
     reportId: "",
@@ -167,12 +220,36 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
                 setError("Secure embed mode needs a Power BI reportEmbed URL from app.powerbi.com.");
                 return;
             }
-            const reportId = state.reportId.trim() || extractReportIdFromPowerBIUrl(embedUrl) || "secure-powerbi-report";
+            if (!isEmbedOriginAllowed(props.allowlist, "powerbi", embedUrl)) {
+                const allowed = props.allowlist?.embedOrigins?.powerbi || [];
+                setError(`Power BI URL hostname is not allowed by your organization. Allowed: ${allowed.join(", ") || "none configured"}.`);
+                return;
+            }
+            const extractedGroupId = extractGroupIdFromPowerBIUrl(embedUrl);
+            const effectiveGroupId = state.groupId.trim() || extractedGroupId || "";
+            // L3 — workspace allowlist applies to secure-embed too. Without
+            // this gate, a user could paste a portal URL pointing at a
+            // workspace the org didn't authorize for embedding.
+            if (effectiveGroupId && !powerBIWorkspaceAllowed(props.allowlist, effectiveGroupId)) {
+                setError(
+                    `Workspace "${effectiveGroupId}" extracted from the secure embed URL is not in your organization's Power BI workspace allowlist.`,
+                );
+                return;
+            }
+            const extractedReportId = state.reportId.trim() || extractReportIdFromPowerBIUrl(embedUrl);
+            if (extractedReportId && !powerBIReportAllowed(props.allowlist, extractedReportId)) {
+                setError(
+                    `Report "${extractedReportId}" extracted from the secure embed URL is not in your organization's Power BI report allowlist.`,
+                );
+                return;
+            }
+            const reportId = extractedReportId || "secure-powerbi-report";
             props.onChange({
                 type: "report",
                 mode: "secure-embed",
                 embedMode: "secure",
                 id: reportId,
+                groupId: effectiveGroupId || undefined,
                 embedUrl,
                 url: embedUrl,
                 permissions: "View",
@@ -185,10 +262,19 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
             setError("Report ID is required.");
             return;
         }
+        if (!powerBIReportAllowed(props.allowlist, state.reportId)) {
+            setError("This report is not in your organization's Power BI report allowlist.");
+            return;
+        }
 
         if (state.tokenMode === "manual") {
             if (!state.manualEmbedUrl.trim() || !state.manualAccessToken.trim()) {
                 setError("Manual mode needs both an embed URL and an access token.");
+                return;
+            }
+            if (!isEmbedOriginAllowed(props.allowlist, "powerbi", state.manualEmbedUrl)) {
+                const allowed = props.allowlist?.embedOrigins?.powerbi || [];
+                setError(`Embed URL hostname is not allowed by your organization. Allowed: ${allowed.join(", ") || "none configured"}.`);
                 return;
             }
             props.onChange({
@@ -219,17 +305,34 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
                 setError("Workspace (group) ID is required.");
                 return;
             }
+            if (!powerBIWorkspaceAllowed(props.allowlist, state.groupId)) {
+                setError("This workspace is not in your organization's Power BI workspace allowlist.");
+                return;
+            }
+            const effectiveTenantId = state.aadTenantId.trim()
+                || (allowlistActive(props.allowlist) && props.allowlist?.aadTenants?.length === 1
+                    ? props.allowlist.aadTenants[0]
+                    : "");
+            if (allowlistActive(props.allowlist) && !aadTenantAllowed(props.allowlist, effectiveTenantId)) {
+                setError("AAD SSO is restricted to your organization's tenant. Enter an allowlisted tenant ID.");
+                return;
+            }
             // Persist AAD app config so the author enters it once per browser.
             writePersistedSso({
                 aadClientId: state.aadClientId.trim(),
-                aadTenantId: state.aadTenantId.trim(),
+                aadTenantId: effectiveTenantId,
             });
             setBusy(true);
             try {
                 const handshake = await signInAndPrepareEmbed(
                     {
                         clientId: state.aadClientId.trim(),
-                        tenantId: state.aadTenantId.trim() || undefined,
+                        tenantId: effectiveTenantId || undefined,
+                        // Defense in depth — passing the live allowlist
+                        // lets pbiAuth.signInAndPrepareEmbed re-assert the
+                        // tenant gate even if some future caller bypasses
+                        // this form. Closes loophole L1 at the lower layer.
+                        allowedTenants: props.allowlist?.aadTenants,
                     },
                     state.groupId.trim(),
                     state.reportId.trim(),
@@ -260,6 +363,10 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
         // route also passes `identities` for RLS impersonation).
         if (!state.groupId.trim()) {
             setError("Workspace (group) ID is required for backend-issued tokens.");
+            return;
+        }
+        if (!powerBIWorkspaceAllowed(props.allowlist, state.groupId)) {
+            setError("This workspace is not in your organization's Power BI workspace allowlist.");
             return;
         }
         setBusy(true);
@@ -528,6 +635,9 @@ function GenericUrlForm(props: EmbedConfigFormProps) {
 
     const apply = () => {
         if (!url.trim()) return;
+        if (!isEmbedOriginAllowed(props.allowlist, props.vendor, url.trim())) {
+            return;
+        }
         props.onChange({ url: url.trim() });
     };
 
@@ -556,6 +666,11 @@ function GenericUrlForm(props: EmbedConfigFormProps) {
             <button type="button" className="pp-embed-config__apply" onClick={apply}>
                 Load
             </button>
+            {allowlistActive(props.allowlist) && url.trim() && !isEmbedOriginAllowed(props.allowlist, props.vendor, url.trim()) && (
+                <p className="pp-embed-config__error" role="alert">
+                    URL hostname is not in your organization's allowed origins. Allowed: {(props.allowlist?.embedOrigins?.[props.vendor] || []).join(", ") || "none configured"}.
+                </p>
+            )}
             <p className="pp-embed-config__hint">
                 v0: paste any embed URL. v1 will add per-vendor credential helpers + token issuance via the proxy.
             </p>

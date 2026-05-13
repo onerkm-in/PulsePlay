@@ -1,0 +1,544 @@
+// playground/src/settings/settingsStore.tsx
+//
+// The Settings canonical state surface. Owns reads + writes for the
+// `pulseplay:*` localStorage keys that the Settings page surfaces, and
+// re-validates every persisted value against the live allowlist on
+// load (closes L11 — XSS-persisted orphan values can no longer become
+// silent selections).
+//
+// Coexistence with existing code: the playground today writes some keys
+// directly (App.tsx, Pulse Cycle H Display tab). The store mirrors those
+// keys via the existing `pulseplay:display-change` window event AND its
+// own setters dispatch that same event. Net effect: store and legacy
+// paths stay in sync during Phase 2-3 migration. Phase 5 retires the
+// legacy paths.
+//
+// Out of scope: the `pulseplay:visual-settings:*` namespace remains
+// owned by Pulse via PulseHostStub.persistProperties. This store never
+// touches those keys.
+
+import {
+    createContext,
+    useCallback,
+    useContext,
+    useEffect,
+    useMemo,
+    useReducer,
+    type ReactNode,
+} from "react";
+import type { PulsePlayAllowlist } from "../types/allowlist";
+import type { PackSelection } from "../components/PackPicker";
+
+// ─── Storage keys (mirrors App.tsx + Pulse Cycle H) ───────────────────────
+
+const KEY = {
+    biVendor: "pulseplay:bi-vendor",
+    packSelection: "pulseplay:pack-selection",
+    uiMode: "pulseplay:ui-mode",
+    enabledComponents: "pulseplay:enabled-components",
+    layoutMode: "pulseplay:layout-mode",
+    biTileMode: "pulseplay:bi-tile-mode",
+    activeAiProfile: "pulseplay:active-ai-profile",
+} as const;
+
+// ─── State shape ─────────────────────────────────────────────────────────
+
+export type UiMode = "pulse" | "v0";
+export type EnabledComponents = "aiOnly" | "biOnly" | "both";
+export type LayoutMode = "ai-left" | "ai-right" | "ai-top" | "ai-bottom";
+export type BiTileMode = "1" | "2" | "4";
+
+export interface OrphanedValue {
+    /** Storage key (e.g., "pulseplay:bi-vendor"). */
+    key: string;
+    /** The value found in localStorage that no longer passes the allowlist. */
+    value: string;
+    /** Human-readable reason ("biVendor not in allowlist", etc.). */
+    reason: string;
+}
+
+export interface SettingsState {
+    allowlist: PulsePlayAllowlist | null;
+    allowlistLoading: boolean;
+    allowlistError: string | null;
+    biVendor: string;
+    packSelection: PackSelection | null;
+    uiMode: UiMode;
+    enabledComponents: EnabledComponents;
+    layoutMode: LayoutMode;
+    biTileMode: BiTileMode;
+    /** Phase 4 — currently-active AI profile name (one of
+     *  `allowlist.aiProfiles`). Persisted to `pulseplay:active-ai-profile`.
+     *  Pulse mode also maintains its own `genieSettings.assistantProfile`
+     *  via the PulseHostStub persistProperties contract; the settingsStore
+     *  reads that on load if `active-ai-profile` is unset so the user's
+     *  existing selection survives. Phase 5 unifies the two paths. */
+    activeAiProfile: string;
+    /** Values found in localStorage that didn't validate against the
+     *  live allowlist on the most-recent reconciliation pass. The
+     *  Settings page surfaces these as "deprecated" banners. */
+    orphans: OrphanedValue[];
+}
+
+// ─── Allowlist-aware validators ──────────────────────────────────────────
+
+function passesAllowlist(value: string, allowed: string[] | undefined): boolean {
+    if (!allowed || allowed.length === 0) return true; // no allowlist configured = permissive (matches proxy "warn" mode)
+    return allowed.includes(value);
+}
+
+function validateBiVendor(value: string, allowlist: PulsePlayAllowlist | null): boolean {
+    if (!value) return false;
+    if (!allowlist) return true;
+    return passesAllowlist(value, allowlist.biProviders);
+}
+
+function validatePack(selection: PackSelection | null, allowlist: PulsePlayAllowlist | null): boolean {
+    if (!selection) return true;
+    if (!allowlist) return true;
+    return passesAllowlist(selection.pack, allowlist.packs);
+}
+
+// ─── Initial load + reconciliation ───────────────────────────────────────
+
+function readUiMode(): UiMode {
+    if (typeof window === "undefined") return "pulse";
+    try {
+        const v = window.localStorage.getItem(KEY.uiMode);
+        if (v === "pulse" || v === "v0") return v;
+    } catch { /* swallow */ }
+    return "pulse";
+}
+
+function readEnabledComponents(): EnabledComponents {
+    if (typeof window === "undefined") return "both";
+    try {
+        const v = window.localStorage.getItem(KEY.enabledComponents);
+        if (v === "aiOnly" || v === "biOnly" || v === "both") return v;
+    } catch { /* swallow */ }
+    return "both";
+}
+
+function readLayoutMode(): LayoutMode {
+    if (typeof window === "undefined") return "ai-left";
+    try {
+        const v = window.localStorage.getItem(KEY.layoutMode);
+        if (v === "ai-left" || v === "ai-right" || v === "ai-top" || v === "ai-bottom") return v;
+    } catch { /* swallow */ }
+    return "ai-left";
+}
+
+function readBiTileMode(): BiTileMode {
+    if (typeof window === "undefined") return "1";
+    try {
+        const v = window.localStorage.getItem(KEY.biTileMode);
+        if (v === "1" || v === "2" || v === "4") return v;
+    } catch { /* swallow */ }
+    return "1";
+}
+
+function readBiVendor(): string {
+    if (typeof window === "undefined") return "powerbi";
+    try {
+        return window.localStorage.getItem(KEY.biVendor) || "powerbi";
+    } catch { /* swallow */ }
+    return "powerbi";
+}
+
+function readActiveAiProfile(): string {
+    if (typeof window === "undefined") return "";
+    try {
+        const direct = window.localStorage.getItem(KEY.activeAiProfile);
+        if (direct && direct.trim()) return direct.trim();
+        // Fallback — Pulse mode persists its assistantProfile inside
+        // genieSettings via persistProperties. Read that so a returning
+        // Pulse user doesn't lose their selection when we layer the new
+        // settingsStore on top.
+        const pulseRaw = window.localStorage.getItem("pulseplay:visual-settings:genieSettings");
+        if (pulseRaw) {
+            const parsed = JSON.parse(pulseRaw);
+            const profile = parsed && typeof parsed === "object" ? parsed.assistantProfile : "";
+            if (typeof profile === "string" && profile.trim()) return profile.trim();
+        }
+    } catch {
+        /* swallow */
+    }
+    return "";
+}
+
+function readPackSelection(): PackSelection | null {
+    if (typeof window === "undefined") return null;
+    try {
+        const raw = window.localStorage.getItem(KEY.packSelection);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw) as PackSelection;
+        if (parsed && typeof parsed.pack === "string" && parsed.pack) return parsed;
+    } catch { /* swallow */ }
+    return null;
+}
+
+function buildInitialState(): SettingsState {
+    return {
+        allowlist: null,
+        allowlistLoading: true,
+        allowlistError: null,
+        biVendor: readBiVendor(),
+        packSelection: readPackSelection(),
+        uiMode: readUiMode(),
+        enabledComponents: readEnabledComponents(),
+        layoutMode: readLayoutMode(),
+        biTileMode: readBiTileMode(),
+        activeAiProfile: readActiveAiProfile(),
+        orphans: [],
+    };
+}
+
+function validateAiProfile(profile: string, allowlist: PulsePlayAllowlist | null): boolean {
+    if (!profile) return true; // empty = nothing selected = not an orphan
+    if (!allowlist) return true;
+    return passesAllowlist(profile, allowlist.aiProfiles);
+}
+
+function reconcileWithAllowlist(state: SettingsState, allowlist: PulsePlayAllowlist | null): {
+    biVendor: string;
+    packSelection: PackSelection | null;
+    activeAiProfile: string;
+    orphans: OrphanedValue[];
+} {
+    const orphans: OrphanedValue[] = [];
+    let biVendor = state.biVendor;
+    let packSelection = state.packSelection;
+    let activeAiProfile = state.activeAiProfile;
+
+    if (allowlist) {
+        if (!validateBiVendor(biVendor, allowlist)) {
+            orphans.push({
+                key: KEY.biVendor,
+                value: biVendor,
+                reason: `BI provider "${biVendor}" is not in your organization's allowlist.`,
+            });
+            // Don't clobber localStorage — surface the orphan and let the
+            // Settings page guide the user through re-selection.
+        }
+        if (packSelection && !validatePack(packSelection, allowlist)) {
+            orphans.push({
+                key: KEY.packSelection,
+                value: packSelection.pack,
+                reason: `Pack "${packSelection.pack}" is not in your organization's allowlist.`,
+            });
+            packSelection = null;
+            try { window.localStorage.removeItem(KEY.packSelection); } catch { /* swallow */ }
+        }
+        if (activeAiProfile && !validateAiProfile(activeAiProfile, allowlist)) {
+            orphans.push({
+                key: KEY.activeAiProfile,
+                value: activeAiProfile,
+                reason: `AI provider "${activeAiProfile}" is not in your organization's allowlist.`,
+            });
+            // Same rule as biVendor — surface the orphan but keep the
+            // value so the UI can warn rather than silently dropping it.
+        }
+    }
+
+    return { biVendor, packSelection, activeAiProfile, orphans };
+}
+
+// ─── Reducer ─────────────────────────────────────────────────────────────
+
+type Action =
+    | { type: "allowlist/loading" }
+    | { type: "allowlist/loaded"; allowlist: PulsePlayAllowlist | null }
+    | { type: "allowlist/error"; message: string }
+    | { type: "set/biVendor"; value: string }
+    | { type: "set/packSelection"; value: PackSelection | null }
+    | { type: "set/uiMode"; value: UiMode }
+    | { type: "set/enabledComponents"; value: EnabledComponents }
+    | { type: "set/layoutMode"; value: LayoutMode }
+    | { type: "set/biTileMode"; value: BiTileMode }
+    | { type: "set/activeAiProfile"; value: string }
+    | { type: "sync/external"; key: string; value: string };
+
+function reducer(state: SettingsState, action: Action): SettingsState {
+    switch (action.type) {
+        case "allowlist/loading":
+            return { ...state, allowlistLoading: true, allowlistError: null };
+        case "allowlist/loaded": {
+            const reconciled = reconcileWithAllowlist(state, action.allowlist);
+            return {
+                ...state,
+                allowlist: action.allowlist,
+                allowlistLoading: false,
+                allowlistError: null,
+                biVendor: reconciled.biVendor,
+                packSelection: reconciled.packSelection,
+                activeAiProfile: reconciled.activeAiProfile,
+                orphans: reconciled.orphans,
+            };
+        }
+        case "allowlist/error":
+            return {
+                ...state,
+                allowlist: null,
+                allowlistLoading: false,
+                allowlistError: action.message,
+            };
+        case "set/biVendor":
+            return { ...state, biVendor: action.value };
+        case "set/packSelection":
+            return { ...state, packSelection: action.value };
+        case "set/uiMode":
+            return { ...state, uiMode: action.value };
+        case "set/enabledComponents":
+            return { ...state, enabledComponents: action.value };
+        case "set/layoutMode":
+            return { ...state, layoutMode: action.value };
+        case "set/biTileMode":
+            return { ...state, biTileMode: action.value };
+        case "set/activeAiProfile":
+            return { ...state, activeAiProfile: action.value };
+        case "sync/external":
+            return applyExternalSync(state, action.key, action.value);
+        default:
+            return state;
+    }
+}
+
+function applyExternalSync(state: SettingsState, key: string, value: string): SettingsState {
+    switch (key) {
+        case KEY.uiMode:
+            if (value === "pulse" || value === "v0") return { ...state, uiMode: value };
+            return state;
+        case KEY.enabledComponents:
+            if (value === "aiOnly" || value === "biOnly" || value === "both") {
+                return { ...state, enabledComponents: value };
+            }
+            return state;
+        case KEY.layoutMode:
+            if (value === "ai-left" || value === "ai-right" || value === "ai-top" || value === "ai-bottom") {
+                return { ...state, layoutMode: value };
+            }
+            return state;
+        case KEY.biTileMode:
+            if (value === "1" || value === "2" || value === "4") return { ...state, biTileMode: value };
+            return state;
+        case KEY.biVendor:
+            return { ...state, biVendor: value };
+        case KEY.activeAiProfile:
+            return { ...state, activeAiProfile: value };
+        default:
+            return state;
+    }
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────
+
+function persistAndBroadcast(key: string, value: string): void {
+    if (typeof window === "undefined") return;
+    try { window.localStorage.setItem(key, value); } catch { /* swallow */ }
+    try {
+        window.dispatchEvent(
+            new CustomEvent("pulseplay:display-change", { detail: { key, value } }),
+        );
+    } catch { /* swallow */ }
+}
+
+function removeAndBroadcast(key: string): void {
+    if (typeof window === "undefined") return;
+    try { window.localStorage.removeItem(key); } catch { /* swallow */ }
+    try {
+        window.dispatchEvent(
+            new CustomEvent("pulseplay:display-change", { detail: { key, value: null } }),
+        );
+    } catch { /* swallow */ }
+}
+
+// ─── Context + provider ──────────────────────────────────────────────────
+
+export interface SettingsActions {
+    setBiVendor: (value: string) => { ok: boolean; reason?: string };
+    setPackSelection: (value: PackSelection | null) => { ok: boolean; reason?: string };
+    setUiMode: (value: UiMode) => void;
+    setEnabledComponents: (value: EnabledComponents) => void;
+    setLayoutMode: (value: LayoutMode) => void;
+    setBiTileMode: (value: BiTileMode) => void;
+    setActiveAiProfile: (value: string) => { ok: boolean; reason?: string };
+    reloadAllowlist: () => Promise<void>;
+}
+
+export interface SettingsContextValue extends SettingsState, SettingsActions {}
+
+const SettingsContext = createContext<SettingsContextValue | null>(null);
+
+/** Override hook for tests + storybook scenarios. */
+export interface SettingsProviderProps {
+    children: ReactNode;
+    /** Optional injected fetcher for tests; defaults to fetch("/api/assistant/allowlist"). */
+    fetchAllowlist?: () => Promise<PulsePlayAllowlist>;
+}
+
+async function defaultFetchAllowlist(): Promise<PulsePlayAllowlist> {
+    const res = await fetch("/api/assistant/allowlist");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return (await res.json()) as PulsePlayAllowlist;
+}
+
+export function SettingsProvider(props: SettingsProviderProps): React.ReactElement {
+    const [state, dispatch] = useReducer(reducer, undefined, buildInitialState);
+    const fetcher = props.fetchAllowlist ?? defaultFetchAllowlist;
+
+    // Load allowlist once on mount + reconcile.
+    const reload = useCallback(async () => {
+        dispatch({ type: "allowlist/loading" });
+        try {
+            const allowlist = await fetcher();
+            dispatch({ type: "allowlist/loaded", allowlist });
+        } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            dispatch({ type: "allowlist/error", message });
+        }
+    }, [fetcher]);
+
+    useEffect(() => {
+        void reload();
+    }, [reload]);
+
+    // Listen for legacy `pulseplay:display-change` events so the store
+    // stays in sync when App.tsx or Pulse Cycle H writes directly.
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const handler = (e: Event) => {
+            const detail = (e as CustomEvent<{ key?: string; value?: string }>).detail;
+            if (!detail || typeof detail.key !== "string" || typeof detail.value !== "string") return;
+            dispatch({ type: "sync/external", key: detail.key, value: detail.value });
+        };
+        window.addEventListener("pulseplay:display-change", handler);
+        return () => window.removeEventListener("pulseplay:display-change", handler);
+    }, []);
+
+    // ─── Setters (allowlist-aware) ────────────────────────────────────
+
+    const setBiVendor = useCallback<SettingsActions["setBiVendor"]>(
+        (value) => {
+            const allowlist = state.allowlist;
+            if (!validateBiVendor(value, allowlist)) {
+                return {
+                    ok: false,
+                    reason: `BI provider "${value}" is not in your organization's allowlist.`,
+                };
+            }
+            persistAndBroadcast(KEY.biVendor, value);
+            dispatch({ type: "set/biVendor", value });
+            return { ok: true };
+        },
+        [state.allowlist],
+    );
+
+    const setPackSelection = useCallback<SettingsActions["setPackSelection"]>(
+        (value) => {
+            const allowlist = state.allowlist;
+            if (value && !validatePack(value, allowlist)) {
+                return {
+                    ok: false,
+                    reason: `Pack "${value.pack}" is not in your organization's allowlist.`,
+                };
+            }
+            if (value && value.pack) {
+                persistAndBroadcast(KEY.packSelection, JSON.stringify(value));
+            } else {
+                removeAndBroadcast(KEY.packSelection);
+            }
+            dispatch({ type: "set/packSelection", value });
+            return { ok: true };
+        },
+        [state.allowlist],
+    );
+
+    const setUiMode = useCallback<SettingsActions["setUiMode"]>((value) => {
+        persistAndBroadcast(KEY.uiMode, value);
+        dispatch({ type: "set/uiMode", value });
+    }, []);
+
+    const setEnabledComponents = useCallback<SettingsActions["setEnabledComponents"]>(
+        (value) => {
+            persistAndBroadcast(KEY.enabledComponents, value);
+            dispatch({ type: "set/enabledComponents", value });
+        },
+        [],
+    );
+
+    const setLayoutMode = useCallback<SettingsActions["setLayoutMode"]>((value) => {
+        persistAndBroadcast(KEY.layoutMode, value);
+        dispatch({ type: "set/layoutMode", value });
+    }, []);
+
+    const setBiTileMode = useCallback<SettingsActions["setBiTileMode"]>((value) => {
+        persistAndBroadcast(KEY.biTileMode, value);
+        dispatch({ type: "set/biTileMode", value });
+    }, []);
+
+    const setActiveAiProfile = useCallback<SettingsActions["setActiveAiProfile"]>(
+        (value) => {
+            const trimmed = String(value || "").trim();
+            const allowlist = state.allowlist;
+            if (trimmed && !validateAiProfile(trimmed, allowlist)) {
+                return {
+                    ok: false,
+                    reason: `AI provider "${trimmed}" is not in your organization's allowlist.`,
+                };
+            }
+            if (trimmed) {
+                persistAndBroadcast(KEY.activeAiProfile, trimmed);
+            } else {
+                removeAndBroadcast(KEY.activeAiProfile);
+            }
+            dispatch({ type: "set/activeAiProfile", value: trimmed });
+            return { ok: true };
+        },
+        [state.allowlist],
+    );
+
+    const value = useMemo<SettingsContextValue>(
+        () => ({
+            ...state,
+            setBiVendor,
+            setPackSelection,
+            setUiMode,
+            setEnabledComponents,
+            setLayoutMode,
+            setBiTileMode,
+            setActiveAiProfile,
+            reloadAllowlist: reload,
+        }),
+        [
+            state,
+            setBiVendor,
+            setPackSelection,
+            setUiMode,
+            setEnabledComponents,
+            setLayoutMode,
+            setBiTileMode,
+            setActiveAiProfile,
+            reload,
+        ],
+    );
+
+    return <SettingsContext.Provider value={value}>{props.children}</SettingsContext.Provider>;
+}
+
+export function useSettings(): SettingsContextValue {
+    const ctx = useContext(SettingsContext);
+    if (!ctx) {
+        throw new Error("useSettings must be called inside <SettingsProvider />");
+    }
+    return ctx;
+}
+
+/** Lower-level hook for components that need state only (no setters). */
+export function useSettingsState(): SettingsState {
+    const ctx = useSettings();
+    return ctx;
+}
+
+// Re-export storage keys so external callers (tests, migration code) can
+// reference them without re-declaring strings.
+export const SETTINGS_KEYS = KEY;

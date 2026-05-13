@@ -6110,72 +6110,57 @@ function writeDisplayPref(key: string, value: string): void {
 }
 
 function PulsePlayDisplayPanel(): React.ReactElement {
-    const [uiMode, setUiMode] = React.useState<"pulse" | "v0">(
-        () => readDisplayPref(PP_UI_MODE_KEY, ["pulse", "v0"] as const, "pulse"),
-    );
-    const [enabled, setEnabled] = React.useState<"aiOnly" | "biOnly" | "both">(
-        () => readDisplayPref(PP_ENABLED_KEY, ["aiOnly", "biOnly", "both"] as const, "both"),
-    );
-    const [layout, setLayout] = React.useState<"ai-left" | "ai-right" | "ai-top" | "ai-bottom">(
-        () => readDisplayPref(PP_LAYOUT_KEY, ["ai-left", "ai-right", "ai-top", "ai-bottom"] as const, "ai-left"),
-    );
-    const [biTile, setBiTile] = React.useState<"1" | "2" | "4">(
-        () => readDisplayPref(PP_BI_TILE_KEY, ["1", "2", "4"] as const, "1"),
-    );
-
-    const applyUiMode = (next: "pulse" | "v0") => { setUiMode(next); writeDisplayPref(PP_UI_MODE_KEY, next); };
-    const applyEnabled = (next: "aiOnly" | "biOnly" | "both") => { setEnabled(next); writeDisplayPref(PP_ENABLED_KEY, next); };
-    const applyLayout = (next: "ai-left" | "ai-right" | "ai-top" | "ai-bottom") => { setLayout(next); writeDisplayPref(PP_LAYOUT_KEY, next); };
-    const applyBiTile = (next: "1" | "2" | "4") => { setBiTile(next); writeDisplayPref(PP_BI_TILE_KEY, next); };
-
-    const btn = (active: boolean): React.CSSProperties => ({
-        padding: "6px 12px",
-        border: "1px solid",
-        borderColor: active ? "#0078d4" : "rgba(0,0,0,0.18)",
-        background: active ? "#0078d4" : "transparent",
-        color: active ? "#fff" : "inherit",
-        borderRadius: 4,
-        cursor: "pointer",
-        fontSize: 13,
-        fontWeight: active ? 600 : 400,
-    });
-    const row: React.CSSProperties = { display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6, marginBottom: 14 };
-    const label: React.CSSProperties = { fontSize: 12, fontWeight: 600, opacity: 0.75, textTransform: "uppercase", letterSpacing: 0.4 };
-    const hint: React.CSSProperties = { fontSize: 11, opacity: 0.6, margin: "0 0 18px" };
-
+    // Phase 5 — the four toggles (UI mode / Enabled panels / Layout /
+    // BI tiles) have moved into Settings › Preferences. The Cycle H
+    // panel inside Pulse Developer Tools is reduced to a deep-link so
+    // there's exactly one place to edit these values and no chance of
+    // state drift between the inline panel and the Settings page.
+    //
+    // Keep the readDisplayPref/writeDisplayPref helpers in this file —
+    // they're still used by other parts of Pulse and the legacy event
+    // bus to mirror values into the settings store.
+    void readDisplayPref;
+    void writeDisplayPref;
+    void PP_UI_MODE_KEY;
+    void PP_ENABLED_KEY;
+    void PP_LAYOUT_KEY;
+    void PP_BI_TILE_KEY;
+    const handleOpenSettings = () => {
+        if (typeof window === "undefined") return;
+        if (window.location.pathname !== "/settings") {
+            window.history.pushState({}, "", "/settings/preferences");
+            try {
+                window.dispatchEvent(new CustomEvent("pulseplay:settings-navigate"));
+            } catch { /* swallow */ }
+        }
+    };
     return (
-        <div style={{ padding: "8px 4px 4px" }}>
-            <div style={label}>UI Mode</div>
-            <div style={row}>
-                <button style={btn(uiMode === "pulse")} onClick={() => applyUiMode("pulse")}>Pulse (default)</button>
-                <button style={btn(uiMode === "v0")} onClick={() => applyUiMode("v0")}>v0 sidebar</button>
-            </div>
-            <p style={hint}>Pulse is the ported PBI-heritage UI. v0 is the lightweight cycle-C sidebar kept as an alternate.</p>
-
-            <div style={label}>Enabled Panels</div>
-            <div style={row}>
-                <button style={btn(enabled === "aiOnly")} onClick={() => applyEnabled("aiOnly")}>AI only</button>
-                <button style={btn(enabled === "biOnly")} onClick={() => applyEnabled("biOnly")}>BI only</button>
-                <button style={btn(enabled === "both")} onClick={() => applyEnabled("both")}>Both</button>
-            </div>
-            <p style={hint}>Which surfaces this PulsePlay instance shows.</p>
-
-            <div style={label}>Layout</div>
-            <div style={row}>
-                <button style={btn(layout === "ai-left")} onClick={() => applyLayout("ai-left")}>AI · Left</button>
-                <button style={btn(layout === "ai-right")} onClick={() => applyLayout("ai-right")}>AI · Right</button>
-                <button style={btn(layout === "ai-top")} onClick={() => applyLayout("ai-top")}>AI · Top</button>
-                <button style={btn(layout === "ai-bottom")} onClick={() => applyLayout("ai-bottom")}>AI · Bottom</button>
-            </div>
-            <p style={hint}>Where the AI pane sits relative to the BI pane. Only applies when both panels are enabled.</p>
-
-            <div style={label}>BI Tiles</div>
-            <div style={row}>
-                <button style={btn(biTile === "1")} onClick={() => applyBiTile("1")}>Single frame</button>
-                <button style={btn(biTile === "2")} onClick={() => applyBiTile("2")}>2 side-by-side</button>
-                <button style={btn(biTile === "4")} onClick={() => applyBiTile("4")}>2 × 2 grid</button>
-            </div>
-            <p style={hint}>How many BI frames render in the BI pane. v1 shares one embed config across all tiles — useful for side-by-side comparison. Per-tile content is a future cycle.</p>
+        <div style={{ padding: "16px 4px 8px", display: "flex", flexDirection: "column", gap: 12 }}>
+            <p style={{ margin: 0, fontSize: 13, opacity: 0.75, lineHeight: 1.5 }}>
+                Display preferences (UI mode, visible panels, AI position, BI tiles) have moved to
+                the canonical Settings page. Edits made here used to live in this developer panel
+                and could drift from Settings; they now live in one place.
+            </p>
+            <button
+                type="button"
+                onClick={handleOpenSettings}
+                style={{
+                    padding: "8px 14px",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    border: "1px solid #0078d4",
+                    background: "#0078d4",
+                    color: "white",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    alignSelf: "flex-start",
+                }}
+            >
+                Open Settings › Preferences →
+            </button>
+            <p style={{ margin: 0, fontSize: 11, opacity: 0.55, lineHeight: 1.4 }}>
+                Keyboard: <code>Cmd/Ctrl + ,</code> opens Settings from anywhere.
+            </p>
         </div>
     );
 }

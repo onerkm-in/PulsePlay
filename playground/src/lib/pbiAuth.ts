@@ -39,6 +39,45 @@ export interface PbiAuthConfig {
      *  `window.location.origin` — register that in the AAD app's "SPA"
      *  platform config. */
     redirectUri?: string;
+    /** Organization allowlist of permitted tenant IDs. When non-empty,
+     *  `tenantId` (or the resolved authority tenant) MUST be in this list
+     *  or sign-in is refused BEFORE MSAL is instantiated. Empty / undefined
+     *  means "no allowlist enforced at this layer" (dev mode); the form
+     *  layer always validates too, so this is defense in depth — it
+     *  protects any future caller that uses signInAndPrepareEmbed without
+     *  the EmbedConfigForm. Closes loophole L1 from SETTINGS_SPEC § 15. */
+    allowedTenants?: string[];
+}
+
+/** Thrown by signInAndPrepareEmbed when the configured tenant is not in
+ *  the organization allowlist. Distinct from generic Error so callers can
+ *  surface it as a security message ("Your administrator restricts SSO to
+ *  the organization's AAD tenant") rather than a generic auth failure. */
+export class PbiAllowlistError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = "PbiAllowlistError";
+    }
+}
+
+/** Pre-MSAL allowlist gate. Refuses sign-in if the requested tenant is not
+ *  in the organization's allowlist. Called before any MSAL initialization
+ *  so an attacker who tricks a user into pasting a malicious tenant ID
+ *  never reaches Microsoft's login endpoint with attacker-controlled state. */
+function assertTenantAllowed(config: PbiAuthConfig): void {
+    const allowed = (config.allowedTenants || []).map(t => t.trim().toLowerCase()).filter(Boolean);
+    if (allowed.length === 0) return; // no allowlist → permissive (dev fallback; form layer handles strict mode)
+    const tenant = (config.tenantId || "").trim().toLowerCase();
+    if (!tenant) {
+        throw new PbiAllowlistError(
+            "AAD SSO is restricted to your organization's tenant. Pick an allowed tenant before signing in.",
+        );
+    }
+    if (!allowed.includes(tenant)) {
+        throw new PbiAllowlistError(
+            `AAD tenant "${config.tenantId}" is not in your organization's allowlist. Allowed: ${config.allowedTenants?.join(", ") || "(none)"}.`,
+        );
+    }
 }
 
 /** Power BI REST API scope — `.default` defers to the permissions the AAD
@@ -83,6 +122,9 @@ let _msalInitPromise: Promise<PublicClientApplication> | null = null;
  * manualChunks rule.
  */
 async function getMsal(config: PbiAuthConfig): Promise<PublicClientApplication> {
+    // Allowlist gate runs BEFORE any MSAL init or network call so an
+    // attacker-controlled tenant ID never reaches login.microsoftonline.com.
+    assertTenantAllowed(config);
     if (_msalInstance) return _msalInstance;
     if (_msalInitPromise) return _msalInitPromise;
     _msalInitPromise = (async () => {
@@ -182,6 +224,11 @@ export async function signInAndPrepareEmbed(
     if (!config.clientId.trim()) throw new Error("AAD App Client ID is required for SSO mode.");
     if (!groupId.trim()) throw new Error("Workspace (group) ID is required.");
     if (!reportId.trim()) throw new Error("Report ID is required.");
+
+    // Defense in depth: re-assert tenant allowlist at the public entry
+    // point too, so a future caller that constructs PbiAuthConfig
+    // dynamically still hits the gate even before getMsal() runs.
+    assertTenantAllowed(config);
 
     const auth = await acquirePbiAccessToken(config);
     const meta = await fetchReportEmbedInfo(auth.accessToken, groupId.trim(), reportId.trim());

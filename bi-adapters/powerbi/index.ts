@@ -87,6 +87,27 @@ export interface PowerBIEmbedConfig extends BIEmbedConfig {
     /** Secure iframe title and sandbox override. */
     title?: string;
     sandbox?: string;
+    /** Defense-in-depth allowlist of permitted iframe hostnames. Enforced
+     *  by the secure-iframe mount path so a caller that bypasses BIPanel
+     *  still gets the L2 gate. SDK embed mode is not affected — the SDK
+     *  manages its own iframe whose URL is the validated embedUrl. */
+    allowedOrigins?: string[];
+}
+
+/** L2 defense-in-depth allowlist gate for the secure-iframe path. Mirrors
+ *  the generic-iframe adapter's helper so the powerbi adapter doesn't
+ *  reach across the bi-adapters/ tree at runtime. */
+function assertPowerBIOriginAllowed(url: string, allowedOrigins: string[] | undefined): void {
+    if (!allowedOrigins || allowedOrigins.length === 0) return;
+    let host = "";
+    try { host = new URL(url).hostname.toLowerCase(); }
+    catch { throw new Error(`${BI_ERR.EMBED_FAILED}: powerbi secure embed URL is not a valid URL`); }
+    const normalized = allowedOrigins.map(o => o.trim().toLowerCase()).filter(Boolean);
+    if (!normalized.includes(host)) {
+        throw new Error(
+            `${BI_ERR.EMBED_FAILED}: powerbi secure embed hostname "${host}" is not in your organization's allowed origins. Allowed: ${normalized.join(", ") || "(empty)"}.`,
+        );
+    }
 }
 
 /** Resolve the Power BI factory once. The SDK exposes a singleton
@@ -439,6 +460,7 @@ export class PowerBIAdapter implements BIAdapter {
                 `${BI_ERR.EMBED_FAILED}: powerbi secure embed URL must be an app.powerbi.com/reportEmbed URL`
             );
         }
+        assertPowerBIOriginAllowed(src, cfg.allowedOrigins);
 
         this.containerEl = containerEl;
         this.permissionsLevel = "View";

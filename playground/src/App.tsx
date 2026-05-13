@@ -24,10 +24,16 @@ import { VendorPicker } from "./components/VendorPicker";
 import { ConnectorPicker } from "./components/ConnectorPicker";
 import { EmbedConfigForm } from "./components/EmbedConfigForm";
 import { TestConnectionPanel } from "./components/TestConnectionPanel";
-import { PackPicker, DEFAULT_AVAILABLE_PACKS } from "./components/PackPicker";
-import type { PackSelection } from "./components/PackPicker";
+import { PackPicker } from "./components/PackPicker";
+import type { PackInfo, PackSelection } from "./components/PackPicker";
 import type { ConnectorProbeResult } from "./types/probe";
+import type { PulsePlayAllowlist } from "./types/allowlist";
 import { probeConnector } from "./lib/probeClient";
+import { SettingsProvider } from "./settings/settingsStore";
+import { SettingsShell } from "./settings/SettingsShell";
+import { useSettingsRoute, navigateToSettings } from "./settings/settingsRoute";
+import { KnowledgeShell } from "./knowledge/KnowledgeShell";
+import { useKnowledgeRoute } from "./knowledge/knowledgeRoute";
 // PERF — lazy-load PulseShell so the 642 KB pulse chunk isn't on the
 // first-paint critical path. The brand strip + top bar render
 // instantly while pulse fetches in parallel. v0 mode (which doesn't
@@ -157,8 +163,63 @@ function readInitialBiTileMode(): BiTileMode {
  *  divider to size each pane, and the choice persists via PanelGroup's
  *  `autoSaveId`. */
 
-export function App() {
+/** App entry — wraps PulsePlay with the SettingsProvider, then renders
+ *  either the Settings page or the playground based on the route. */
+export function App(): React.ReactElement {
+    return (
+        <SettingsProvider>
+            <AppRouted />
+        </SettingsProvider>
+    );
+}
+
+/** Renders <SettingsShell /> when the URL is /settings*, <KnowledgeShell />
+ *  when the URL is /knowledge*, else the playground. Also wires the
+ *  global `Cmd/Ctrl+,` shortcut to open Settings (and `Esc` to close,
+ *  handled inside the page shells). */
+function AppRouted(): React.ReactElement {
+    const settingsRoute = useSettingsRoute();
+    const knowledgeRoute = useKnowledgeRoute();
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const handler = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === ",") {
+                e.preventDefault();
+                navigateToSettings();
+            }
+        };
+        window.addEventListener("keydown", handler);
+        return () => window.removeEventListener("keydown", handler);
+    }, []);
+
+    if (knowledgeRoute.isKnowledgeRoute) {
+        return <KnowledgeShell />;
+    }
+    if (settingsRoute.isSettingsRoute) {
+        return <SettingsShell />;
+    }
+    return <PlaygroundApp />;
+}
+
+/** The existing playground shell. Renders at "/" and any non-/settings
+ *  pathname. Settings state is read via SettingsProvider when the
+ *  playground needs it; for now the playground keeps its own copies of
+ *  the legacy storage keys for backward compatibility with Pulse Cycle H
+ *  and the inline forms. Phase 5 retires those duplicates. */
+function PlaygroundApp(): React.ReactElement {
     const vendors = useMemo(() => listVendors(), []);
+    const [allowlistState, setAllowlistState] = useState<{
+        allowlist: PulsePlayAllowlist | null;
+        error: string;
+    }>({ allowlist: null, error: "" });
+    const [availablePacks, setAvailablePacks] = useState<PackInfo[]>([]);
+    const [packsLoaded, setPacksLoaded] = useState(false);
+    const visibleVendors = useMemo(() => {
+        if (!allowlistState.allowlist?.configured) return vendors;
+        const allowed = allowlistState.allowlist.biProviders || [];
+        return vendors.filter(v => allowed.includes(v.vendor));
+    }, [allowlistState.allowlist, vendors]);
     // PulsePlay's 2-axis abstraction:
     //   activeVendor    = Y-axis: which BI tool is loaded in the canvas
     //   activeConnector = X-axis: which AI brain the sidebar talks to
@@ -181,6 +242,41 @@ export function App() {
     // used after settings save events from PulseHostStub.persistProperties.
     const [pulseRenderToken, setPulseRenderToken] = useState(0);
     const [pulseAssistantProfile, setPulseAssistantProfile] = useState<string>(() => readPulseAssistantProfile());
+
+    useEffect(() => {
+        let cancelled = false;
+        async function loadGovernanceState() {
+            try {
+                const [allowlistResp, packsResp] = await Promise.all([
+                    fetch("/api/assistant/allowlist"),
+                    fetch("/api/assistant/knowledge/packs"),
+                ]);
+                const nextAllowlist = allowlistResp.ok
+                    ? await allowlistResp.json() as PulsePlayAllowlist
+                    : null;
+                const nextPacksPayload = packsResp.ok
+                    ? await packsResp.json() as { packs?: PackInfo[] }
+                    : { packs: [] };
+                if (cancelled) return;
+                setAllowlistState({
+                    allowlist: nextAllowlist,
+                    error: nextAllowlist ? "" : `Allowlist unavailable (HTTP ${allowlistResp.status}).`,
+                });
+                setAvailablePacks(Array.isArray(nextPacksPayload.packs) ? nextPacksPayload.packs : []);
+                setPacksLoaded(true);
+            } catch (err) {
+                if (cancelled) return;
+                setAllowlistState({
+                    allowlist: null,
+                    error: err instanceof Error ? err.message : String(err),
+                });
+                setAvailablePacks([]);
+                setPacksLoaded(true);
+            }
+        }
+        void loadGovernanceState();
+        return () => { cancelled = true; };
+    }, []);
     const handleUiModeChange = useCallback((next: UiMode) => {
         setUiMode(next);
         try { window.localStorage.setItem(UI_MODE_STORAGE_KEY, next); } catch { /* swallow */ }
@@ -199,11 +295,11 @@ export function App() {
     }, [activeVendor]);
 
     useEffect(() => {
-        if (!vendors.some(v => v.vendor === activeVendor)) {
-            setActiveVendor("powerbi");
+        if (!visibleVendors.some(v => v.vendor === activeVendor)) {
+            setActiveVendor(visibleVendors[0]?.vendor || "powerbi");
             setEmbedConfig({});
         }
-    }, [activeVendor, vendors]);
+    }, [activeVendor, visibleVendors]);
 
     // Cycle H — the Display tab inside Pulse's Developer Tools modal writes
     // the same three localStorage keys this component owns and dispatches a
@@ -235,6 +331,14 @@ export function App() {
     // See docs/CONNECTOR_PROBE_AND_SMART_CONNECT.md for the design.
     const [probeResult, setProbeResult] = useState<ConnectorProbeResult | null>(null);
     const [packSelection, setPackSelection] = useState<PackSelection | null>(null);
+
+    useEffect(() => {
+        if (!packsLoaded || !packSelection?.pack) return;
+        const pack = availablePacks.find(p => p.name === packSelection.pack);
+        const subOk = !packSelection.subVertical
+            || !!pack?.subVerticals?.some(sv => sv.name === packSelection.subVertical);
+        if (!pack || !subOk) setPackSelection(null);
+    }, [availablePacks, packSelection, packsLoaded]);
 
     // Buffer the last ~20 BI events so the AI sidebar can include "what is
     // the user actually looking at right now?" in its prompt context. Same
@@ -395,14 +499,30 @@ export function App() {
                 layoutMode={layoutMode}
                 aiContent={(
                     <aside className="pp-app__sidebar" style={panelInnerStyle()}>
+                        {allowlistState.error && (
+                            <div
+                                role="status"
+                                style={{
+                                    padding: "8px 10px",
+                                    borderBottom: "1px solid rgba(120,0,0,0.18)",
+                                    background: "rgba(255,245,245,0.86)",
+                                    color: "#7f1d1d",
+                                    fontSize: 12,
+                                    lineHeight: 1.4,
+                                }}
+                            >
+                                Governance config unavailable. Pickers may be incomplete until the proxy responds.
+                            </div>
+                        )}
                         {uiMode === "pulse" ? (
                             <>
                                 <PulseModeBISourcePanel
-                                    vendors={vendors}
+                                    vendors={visibleVendors}
                                     activeVendor={activeVendor}
                                     embedConfig={embedConfig}
                                     hasEmbedConfig={hasEmbedConfig}
                                     activeConnector={pulseAssistantProfile || activeConnector}
+                                    allowlist={allowlistState.allowlist}
                                     onVendorChange={(v) => {
                                         setActiveVendor(v);
                                         setEmbedConfig({});
@@ -425,7 +545,7 @@ export function App() {
                         ) : (
                             <>
                                 <VendorPicker
-                                    vendors={vendors}
+                                    vendors={visibleVendors}
                                     activeVendor={activeVendor}
                                     onChange={(v) => {
                                         setActiveVendor(v);
@@ -440,6 +560,7 @@ export function App() {
                                     value={embedConfig}
                                     onChange={setEmbedConfig}
                                     assistantProfile={activeConnector}
+                                    allowlist={allowlistState.allowlist}
                                 />
                                 <ConnectorPicker
                                     activeConnector={activeConnector}
@@ -453,7 +574,7 @@ export function App() {
                                 )}
                                 {activeConnector && (
                                     <PackPicker
-                                        availablePacks={DEFAULT_AVAILABLE_PACKS}
+                                        availablePacks={availablePacks}
                                         suggested={probeSuggested}
                                         value={packSelection}
                                         onChange={setPackSelection}
@@ -484,6 +605,7 @@ export function App() {
                                 tileMode={biTileMode}
                                 vendor={activeVendor}
                                 embedConfig={embedConfig}
+                                allowlist={allowlistState.allowlist}
                                 onEvent={handleBIEvent}
                                 onAdapterReady={handleBIAdapterReady}
                             />
@@ -493,7 +615,7 @@ export function App() {
                                     <>
                                         <h2>Pick a BI tool and supply embed config</h2>
                                         <p>
-                                            PulsePlay can host {vendors.map(v => v.displayName).join(" · ")} as guests.
+                                            PulsePlay can host {visibleVendors.map(v => v.displayName).join(" · ") || "no allowlisted BI providers"} as guests.
                                             Choose a vendor on the left, fill in its embed config, and the AI
                                             assistant will reason about whatever you load. Drag the divider to
                                             resize either pane; multi-frame BI is coming next.
@@ -514,7 +636,7 @@ export function App() {
                                             the Display tab to re-enable Pulse / v0.
                                         </p>
                                         <p style={{ marginTop: 12 }}>
-                                            Vendors: {vendors.map(v => v.displayName).join(" · ")}
+                                            Vendors: {visibleVendors.map(v => v.displayName).join(" · ") || "none allowlisted"}
                                         </p>
                                     </>
                                 )}
@@ -880,6 +1002,7 @@ function PulseModeBISourcePanel(props: {
     embedConfig: BIEmbedConfig;
     hasEmbedConfig: boolean;
     activeConnector?: string;
+    allowlist?: PulsePlayAllowlist | null;
     onVendorChange: (vendor: string) => void;
     onEmbedConfigChange: (next: BIEmbedConfig) => void;
 }) {
@@ -916,6 +1039,7 @@ function PulseModeBISourcePanel(props: {
                     value={props.embedConfig}
                     onChange={props.onEmbedConfigChange}
                     assistantProfile={props.activeConnector}
+                    allowlist={props.allowlist}
                 />
             </div>
         </details>
@@ -974,15 +1098,17 @@ function BITileGrid(props: {
     tileMode: BiTileMode;
     vendor: string;
     embedConfig: BIEmbedConfig;
+    allowlist?: PulsePlayAllowlist | null;
     onEvent: (e: BIEvent) => void;
     onAdapterReady: (index: number, adapter: BIAdapter | null) => void;
 }): React.ReactElement {
-    const { tileMode, vendor, embedConfig, onEvent, onAdapterReady } = props;
+    const { tileMode, vendor, embedConfig, allowlist, onEvent, onAdapterReady } = props;
     if (tileMode === "1") {
         return (
             <BIPanel
                 vendor={vendor}
                 embedConfig={embedConfig}
+                allowlist={allowlist}
                 onEvent={onEvent}
                 onAdapterReady={(adapter) => onAdapterReady(0, adapter)}
             />
@@ -1022,6 +1148,7 @@ function BITileGrid(props: {
                         key={`tile-${i}`}
                         vendor={vendor}
                         embedConfig={embedConfig}
+                        allowlist={allowlist}
                         onEvent={onEvent}
                         onAdapterReady={(adapter) => onAdapterReady(i, adapter)}
                     />
@@ -1127,12 +1254,13 @@ function EnabledComponentsToggle(props: { value: EnabledComponents; onChange: (n
     );
 }
 
-/** Floating gear in the viewport corner. Click to open a popover with
- *  the PulsePlay-level toggles (Pulse/v0 + AI/BI/Both). Click-outside
- *  or Escape closes it. Lives outside the sidebar so it stays visible
- *  in every layout mode — including biOnly (no sidebar) and aiOnly
- *  (full-width Pulse panel). */
-function PulsePlaySettingsGear(props: {
+/** Floating gear in the viewport corner. Phase 5 retirement — the
+ *  inline popover with UI / panels / position toggles is gone; the gear
+ *  now navigates directly to /settings (the canonical surface). The
+ *  inline toggles live inside Settings › Preferences. Kept as a fixed
+ *  fall-through entry point so biOnly (no sidebar) and aiOnly (no top
+ *  bar pill) layouts still expose Settings. */
+function PulsePlaySettingsGear(_props: {
     uiMode: UiMode;
     onUiModeChange: (next: UiMode) => void;
     enabledComponents: EnabledComponents;
@@ -1140,31 +1268,9 @@ function PulsePlaySettingsGear(props: {
     layoutMode: LayoutMode;
     onLayoutModeChange: (next: LayoutMode) => void;
 }) {
-    const [open, setOpen] = useState(false);
-    const popoverRef = useRef<HTMLDivElement | null>(null);
-
-    // Click-outside + Escape to close.
-    useEffect(() => {
-        if (!open) return;
-        const onDown = (e: MouseEvent) => {
-            if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
-                setOpen(false);
-            }
-        };
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key === "Escape") setOpen(false);
-        };
-        document.addEventListener("mousedown", onDown);
-        document.addEventListener("keydown", onKey);
-        return () => {
-            document.removeEventListener("mousedown", onDown);
-            document.removeEventListener("keydown", onKey);
-        };
-    }, [open]);
-
+    void _props;
     return (
         <div
-            ref={popoverRef}
             style={{
                 position: "fixed",
                 top: 12,
@@ -1174,17 +1280,16 @@ function PulsePlaySettingsGear(props: {
         >
             <button
                 type="button"
-                aria-label="PulsePlay settings"
-                aria-expanded={open}
-                title="PulsePlay display settings"
-                onClick={() => setOpen(o => !o)}
+                aria-label="Open PulsePlay settings"
+                title="Open Settings (Cmd/Ctrl+,)"
+                onClick={() => navigateToSettings()}
                 style={{
                     width: 32,
                     height: 32,
                     borderRadius: "50%",
                     border: "1px solid var(--pp-border, #ccc)",
-                    background: open ? "var(--pp-accent, #0078d4)" : "rgba(255,255,255,0.92)",
-                    color: open ? "white" : "inherit",
+                    background: "rgba(255,255,255,0.92)",
+                    color: "inherit",
                     cursor: "pointer",
                     boxShadow: "0 1px 4px rgba(0,0,0,0.12)",
                     display: "flex",
@@ -1196,46 +1301,14 @@ function PulsePlaySettingsGear(props: {
             >
                 ⚙
             </button>
-            {open && (
-                <div
-                    role="dialog"
-                    aria-label="PulsePlay display settings"
-                    style={{
-                        position: "absolute",
-                        top: 40,
-                        right: 0,
-                        minWidth: 220,
-                        background: "white",
-                        border: "1px solid var(--pp-border, #ccc)",
-                        borderRadius: 6,
-                        boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
-                        padding: 12,
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 12,
-                        fontSize: 12,
-                    }}
-                >
-                    <div>
-                        <div style={{ fontWeight: 600, marginBottom: 4 }}>UI</div>
-                        <UiModeToggle value={props.uiMode} onChange={props.onUiModeChange} />
-                    </div>
-                    <div>
-                        <div style={{ fontWeight: 600, marginBottom: 4 }}>Panels visible</div>
-                        <EnabledComponentsToggle value={props.enabledComponents} onChange={props.onEnabledComponentsChange} />
-                    </div>
-                    <div>
-                        <div style={{ fontWeight: 600, marginBottom: 4 }}>AI position</div>
-                        <LayoutModeToggle value={props.layoutMode} onChange={props.onLayoutModeChange} />
-                    </div>
-                    <p style={{ margin: 0, fontSize: 10, opacity: 0.6, lineHeight: 1.4 }}>
-                        These outer-layout settings will move into Pulse's Setup tab in a future cycle.
-                    </p>
-                </div>
-            )}
         </div>
     );
 }
+
+// Retired (Phase 5) — the old PulsePlaySettingsGear popover that hosted
+// inline UI/Panels/Position toggles. Those toggles now live inside
+// Settings › Preferences and the gear above just navigates to /settings.
+// The old popover code lives in `git log` if anyone needs to compare.
 
 /** Small top-right toggle to flip between the ported Pulse UI and the
  *  v0 Smart-Connect-flavoured components from cycles B + C. Persists

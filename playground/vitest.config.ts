@@ -42,6 +42,9 @@ export default defineConfig({
         include: [
             "src/**/*.test.ts",
             "src/**/*.test.tsx",
+            // Phase 3 — build-tool plugin tests live at the playground
+            // root next to the plugin source (vite.cspFromAllowlist.ts).
+            "__tests__/**/*.test.ts",
             // Cycle A — adapter tests live alongside their adapter under
             // __tests__/ folders. Pick them up without forcing the
             // adapters to live inside playground/src/.

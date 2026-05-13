@@ -57,7 +57,7 @@ import {
 import { GenieVisualSettings } from "./settings";
 import { getKBSystemPrompt, getKBChatHint, parseOrgRules } from "./knowledgeBase";
 import { describeGenieStatus } from "./progressVocab";
-import { redactAuthorPrompt } from "./promptRedaction";
+import { safeAuthorPrompt } from "./promptRedaction";
 
 import DataView = powerbi.DataView;
 import PrimitiveValue = powerbi.PrimitiveValue;
@@ -854,13 +854,18 @@ export function buildFastHybridInsightsStagePrompts(
     universalStages?: { headline?: boolean; trends?: boolean; risks?: boolean; actions?: boolean },
     universalOverrides?: { headline?: string; trends?: string; risks?: string; actions?: string }
 ): InsightsStagePrompts {
-    metricRules = redactAuthorPrompt(metricRules);
-    authorGuidance = redactAuthorPrompt(authorGuidance);
+    // L12 — author-supplied free text passes through `safeAuthorPrompt`
+    // before reaching the AI prompt builder: existing secret-redaction
+    // (PAT / JWT / email / etc.) PLUS prompt-injection keyword stripping
+    // (ignore-previous-instructions, you-are-now, developer-mode, etc.).
+    // See playground/src/pulse/promptRedaction.ts.
+    metricRules = safeAuthorPrompt(metricRules);
+    authorGuidance = safeAuthorPrompt(authorGuidance);
     const aiSections = customSections
         .filter(s => s.kind !== "sql")
         .map(s => ({
-            name: redactAuthorPrompt(s.name).trim().toUpperCase(),
-            instruction: redactAuthorPrompt(s.instruction).trim(),
+            name: safeAuthorPrompt(s.name).trim().toUpperCase(),
+            instruction: safeAuthorPrompt(s.instruction).trim(),
         }))
         .filter(s => s.name && s.instruction);
 
@@ -1136,8 +1141,13 @@ export function buildHybridInsightsStagePrompts(
     // fields; we don't want raw PATs / bearer tokens / emails ending up in
     // Databricks request logs forever. Redaction runs at prompt assembly so
     // it covers every code path that hits this function.
-    metricRules = redactAuthorPrompt(metricRules);
-    authorGuidance = redactAuthorPrompt(authorGuidance);
+    //
+    // L12 (SETTINGS_SPEC § 15) — now also strips prompt-injection keywords
+    // ("ignore previous instructions", "you are now…", etc.) via
+    // `safeAuthorPrompt`. Best-effort heuristic; the AI vendor's prompt
+    // hierarchy + the validator framework are the real fence.
+    metricRules = safeAuthorPrompt(metricRules);
+    authorGuidance = safeAuthorPrompt(authorGuidance);
     customSections = customSections
         // Wave 35 Phase 2 — SQL sections aren't part of the prompt-engineering
         // pipeline. Strip them out before assembling stage prompts so the
@@ -1146,8 +1156,8 @@ export function buildHybridInsightsStagePrompts(
         // separately (see visual.tsx kind-aware render branch).
         .filter(s => s.kind !== "sql")
         .map(s => ({
-            name: redactAuthorPrompt(s.name),
-            instruction: redactAuthorPrompt(s.instruction),
+            name: safeAuthorPrompt(s.name),
+            instruction: safeAuthorPrompt(s.instruction),
             disableTrendPills: s.disableTrendPills,
         }));
 
