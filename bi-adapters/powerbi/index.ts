@@ -41,6 +41,7 @@ import type {
     BIEmbedConfig,
     BIEvent,
     BIEventType,
+    BIMetadata,
 } from "../../playground/src/biPanel/BIAdapter";
 import { BI_ERR } from "../../playground/src/biPanel/BIAdapter";
 
@@ -421,6 +422,101 @@ export class PowerBIAdapter implements BIAdapter {
 
         snapshot.notes.push("Snapshot comes from the live powerbi-client report instance.");
         return snapshot;
+    }
+
+    /**
+     * Live-view metadata for the Discovery Loop. Returns null when the
+     * adapter is in secure-iframe mode (no SDK introspection available)
+     * or not mounted. In SDK mode reads the active page + report-level
+     * filters via the public powerbi-client API; visible measures are
+     * inferred from the active page's visuals when the SDK exposes
+     * `getVisuals()`.
+     *
+     * Defensive: every SDK call is wrapped in try/catch — a failure
+     * collapses to null rather than throwing so the AISidebar's discovery
+     * effect can keep firing.
+     */
+    async getMetadata(): Promise<BIMetadata | null> {
+        if (this.mountMode !== "sdk" || !this.report) return null;
+        const out: BIMetadata = {
+            activeViewId: null,
+            visibleMeasures: [],
+            visibleDimensions: [],
+            activeFilters: [],
+        };
+        const report = this.report as unknown as {
+            getActivePage?: () => Promise<{ name?: string; displayName?: string; getVisuals?: () => Promise<Array<{ type?: string; title?: string; name?: string }>> } | null>;
+            getFilters?: () => Promise<pbiModels.IFilter[]>;
+        };
+
+        try {
+            // Step 1: active page (and visuals from that page). Each is
+            // independently catch-wrapped so a failure here doesn't blank
+            // out filters in step 2 — partial degrade > total degrade.
+            let page: { name?: string; displayName?: string; getVisuals?: () => Promise<Array<{ type?: string; title?: string; name?: string }>> } | null = null;
+            if (typeof report.getActivePage === "function") {
+                try { page = await report.getActivePage(); } catch { page = null; }
+            }
+            if (page) {
+                out.activeViewId = page.name || page.displayName || null;
+                if (typeof page.getVisuals === "function") {
+                    try {
+                        const visuals = (await page.getVisuals()) || [];
+                        // Power BI exposes only the visual type + title at the
+                        // public API level; we can't read the actual field
+                        // bindings without an Export-to-DAX call. Use visual
+                        // titles as a best-effort measure/dimension hint —
+                        // the proxy treats this as a SOFT signal.
+                        for (const visual of visuals) {
+                            const title = String(visual.title || visual.name || "").trim();
+                            if (!title) continue;
+                            const lower = title.toLowerCase();
+                            const t = String(visual.type || "").toLowerCase();
+                            const isMeasureCard = t === "card" || t === "multirowcard" || t === "kpi" || t === "gauge";
+                            const isDimensionList = t === "slicer" || t === "tableex" || t === "matrix";
+                            // Order matters: percent first because words like
+                            // "margin %" / "growth rate" overlap the currency
+                            // keyword set. % / rate / share / cagr commit
+                            // "percent". Currency wins on direct signals
+                            // ($, revenue, sales, cost). Count on cardinality.
+                            const kindHint =
+                                /(%|\bpercent\b|\brate\b|\bshare\b|\bcagr\b)/i.test(lower) ? "percent"
+                                : /\b(\$|revenue|sales|profit|margin|cost|spend|currency)\b/i.test(lower) ? "currency"
+                                : /\b(count|orders|customers|tickets|incidents|growth)\b/i.test(lower) ? "count"
+                                : undefined;
+                            if (isMeasureCard) {
+                                out.visibleMeasures!.push(kindHint ? { name: title, kind: kindHint } : { name: title });
+                            } else if (isDimensionList) {
+                                out.visibleDimensions!.push({ name: title });
+                            } else if (kindHint) {
+                                out.visibleMeasures!.push({ name: title, kind: kindHint });
+                            } else {
+                                // Unknown visual type with no strong cue — skip rather than mislabel.
+                            }
+                        }
+                    } catch { /* visual enumeration failed; leave measure list empty */ }
+                }
+            }
+            // Step 2: report-level filters (independent of step 1).
+            if (typeof report.getFilters === "function") {
+                try {
+                    const filters = (await report.getFilters()) || [];
+                    for (const f of filters) {
+                        const target = f.target as pbiModels.IFilterColumnTarget | undefined;
+                        const field = target?.column;
+                        if (!field) continue;
+                        const basicVal = (f as pbiModels.IBasicFilter).values;
+                        const value = Array.isArray(basicVal) && basicVal.length === 1 ? basicVal[0] : basicVal;
+                        out.activeFilters!.push({ field, value: value ?? null });
+                    }
+                } catch { /* filter readout failed; leave empty */ }
+            }
+        } catch {
+            // Top-level catch — if anything truly unexpected blew up,
+            // return null so discovery degrades to pack-only signals.
+            return null;
+        }
+        return out;
     }
 
     destroy(): void {

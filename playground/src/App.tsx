@@ -711,6 +711,7 @@ function PlaygroundApp(): React.ReactElement {
                                         activeConnector={activeConnector}
                                         recentEvents={recentEvents}
                                         packSelection={packSelection}
+                                        biAdapter={primaryBIAdapter}
                                     />
                                 </>
                             )}

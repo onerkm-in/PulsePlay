@@ -86,6 +86,46 @@ export interface BICapabilities {
 export type BIEmbedConfig = Record<string, unknown>;
 
 /**
+ * Live metadata from the BI surface — what the user is actually looking at.
+ *
+ * Adapters OPTIONALLY surface this via `getMetadata()`. The AISidebar
+ * forwards the result to the proxy's `/assistant/discover` endpoint so the
+ * Discovery Loop can compute honest reachability for BCG / RFM / variance
+ * frames (which need currency measures) and Pareto / anomaly (which need
+ * count/dimension splits).
+ *
+ * Without this signal, reachableFrames falls back to pack KPIs only —
+ * which means "any frame that needs a currency measure is unreachable"
+ * even if the active Power BI report obviously has $sales. With this
+ * signal, the picker tells the truth about what the user can ask.
+ *
+ * Shape mirrors `proxy/lib/discoveryEngine.js` BIMetadata typedef so the
+ * proxy can consume the payload verbatim.
+ */
+export interface BIMetadata {
+    /** Identifier of the currently-active page / sheet / dashboard. Vendor
+     *  format (PBI page name, Tableau worksheet name, Qlik sheet id, etc.). */
+    activeViewId?: string | null;
+    /** Numeric / aggregated measures visible on the active view. */
+    visibleMeasures?: Array<{
+        name: string;
+        /** Coarse classification — `currency`, `percent`, `count`, `duration`. */
+        kind?: "currency" | "percent" | "count" | "duration" | "ratio" | string;
+        format?: string;
+        aggregation?: "sum" | "avg" | "min" | "max" | "count" | "distinctcount" | string;
+    }>;
+    /** Categorical / time dimensions available for grouping or filtering. */
+    visibleDimensions?: Array<{
+        name: string;
+        kind?: "categorical" | "temporal" | "geographic" | "ordinal" | string;
+        /** Cardinality hint when known — `low` (< 10), `medium`, `high` (> 1000). */
+        cardinalityHint?: "low" | "medium" | "high" | string;
+    }>;
+    /** User-applied filters / slicers on the active view. */
+    activeFilters?: Array<{ field: string; value: unknown }>;
+}
+
+/**
  * The contract every vendor adapter implements.
  *
  * Lifecycle: a new instance is created per panel. Call `mount()` once
@@ -121,6 +161,23 @@ export interface BIAdapter {
     /** Tear down the embedded view, remove DOM, drop event listeners,
      *  release any vendor SDK resources. Idempotent. */
     destroy(): void;
+    /**
+     * OPTIONAL — return the live BI metadata (visible measures + dimensions
+     * + active filters) for the currently-rendered view. The host calls
+     * this from the AISidebar discovery effect to send honest reachability
+     * signals to the proxy's `/assistant/discover` endpoint.
+     *
+     * Adapters that can't introspect the embedded view (today: iframe
+     * stubs for Tableau / Qlik / Looker / generic-iframe) MUST either
+     * omit this method entirely or return `null` so the host degrades
+     * gracefully to "pack-KPI-only reachability". Returning a fake
+     * payload would silently corrupt the reachability picker.
+     *
+     * Implementations should be cheap (no SDK round trips per call); cache
+     * the result in the adapter and refresh it on `loaded` / `page-changed`
+     * / `filter-applied` events.
+     */
+    getMetadata?(): Promise<BIMetadata | null>;
 }
 
 /**

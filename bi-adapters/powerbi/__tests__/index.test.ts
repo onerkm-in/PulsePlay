@@ -439,3 +439,128 @@ describe("PowerBIAdapter — destroy()", () => {
         expect(report.off).toHaveBeenCalledWith("pageChanged", expect.any(Function));
     });
 });
+
+// ── getMetadata() — Discovery Loop honest reachability ───────────────────
+
+describe("PowerBIAdapter — getMetadata()", () => {
+    function reportWithVisuals(visuals: Array<{ type?: string; title?: string; name?: string }>): FakeReport {
+        const r = makeFakeReport();
+        // Extend the fake getActivePage to attach a getVisuals() method.
+        r.getActivePage = vi.fn(async () => ({
+            name: "ReportSection",
+            displayName: "Overview",
+            getVisuals: vi.fn(async () => visuals),
+        }));
+        return r;
+    }
+
+    test("returns null when adapter is not mounted", async () => {
+        const a = new PowerBIAdapter();
+        expect(await a.getMetadata()).toBeNull();
+    });
+
+    test("returns null in secure-iframe mode (no SDK introspection)", async () => {
+        const a = new PowerBIAdapter();
+        await a.mount(containerEl, SECURE_CONFIG);
+        expect(await a.getMetadata()).toBeNull();
+    });
+
+    test("returns activeViewId from the active page name", async () => {
+        const a = new PowerBIAdapter();
+        await a.mount(containerEl, VALID_CONFIG);
+        // Stub the active page so it has getVisuals.
+        svc._lastReport!.getActivePage = vi.fn(async () => ({
+            name: "Sales_Overview",
+            getVisuals: vi.fn(async () => []),
+        }));
+        const meta = await a.getMetadata();
+        expect(meta).not.toBeNull();
+        expect(meta!.activeViewId).toBe("Sales_Overview");
+    });
+
+    test("classifies card / kpi visuals as measures with currency / percent / count kind hints", async () => {
+        const a = new PowerBIAdapter();
+        await a.mount(containerEl, VALID_CONFIG);
+        const fakeReport = reportWithVisuals([
+            { type: "card", title: "Total Revenue" },
+            { type: "kpi", title: "Profit Margin %" },
+            { type: "card", title: "Order Count" },
+            { type: "multiRowCard", title: "Forecast Accuracy" },
+        ]);
+        // Inject the fake getActivePage that returns getVisuals.
+        (svc._lastReport! as unknown as { getActivePage: typeof fakeReport.getActivePage }).getActivePage = fakeReport.getActivePage;
+
+        const meta = await a.getMetadata();
+        expect(meta).not.toBeNull();
+        const measures = meta!.visibleMeasures || [];
+        expect(measures.find(m => m.name === "Total Revenue")?.kind).toBe("currency");
+        expect(measures.find(m => m.name === "Profit Margin %")?.kind).toBe("percent");
+        expect(measures.find(m => m.name === "Order Count")?.kind).toBe("count");
+        // Forecast Accuracy has no kind cue → present without kind
+        const fcst = measures.find(m => m.name === "Forecast Accuracy");
+        expect(fcst).toBeDefined();
+        expect(fcst!.kind).toBeUndefined();
+    });
+
+    test("classifies slicer / tableEx / matrix visuals as dimensions", async () => {
+        const a = new PowerBIAdapter();
+        await a.mount(containerEl, VALID_CONFIG);
+        const fakeReport = reportWithVisuals([
+            { type: "slicer", title: "Region" },
+            { type: "tableEx", title: "Customer" },
+            { type: "matrix", title: "Category" },
+        ]);
+        (svc._lastReport! as unknown as { getActivePage: typeof fakeReport.getActivePage }).getActivePage = fakeReport.getActivePage;
+
+        const meta = await a.getMetadata();
+        const dimensions = meta!.visibleDimensions || [];
+        expect(dimensions.map(d => d.name)).toEqual(expect.arrayContaining(["Region", "Customer", "Category"]));
+        // Measures should not contain any of the slicer titles.
+        const measureNames = (meta!.visibleMeasures || []).map(m => m.name);
+        expect(measureNames).not.toContain("Region");
+    });
+
+    test("includes active filters with field + value from report.getFilters()", async () => {
+        const a = new PowerBIAdapter();
+        await a.mount(containerEl, VALID_CONFIG);
+        svc._lastReport!.getFilters = vi.fn(async () => [
+            { target: { column: "Region" }, values: ["East"] },
+            { target: { column: "Year" }, values: [2024, 2025] },
+        ]);
+        svc._lastReport!.getActivePage = vi.fn(async () => ({
+            name: "Overview",
+            getVisuals: vi.fn(async () => []),
+        }));
+
+        const meta = await a.getMetadata();
+        const filters = meta!.activeFilters || [];
+        expect(filters).toHaveLength(2);
+        expect(filters.find(f => f.field === "Region")?.value).toBe("East");
+        // Multi-value array stays as an array.
+        expect(filters.find(f => f.field === "Year")?.value).toEqual([2024, 2025]);
+    });
+
+    test("partial inner-call failures degrade gracefully (returns shape with empty lists, not null)", async () => {
+        const a = new PowerBIAdapter();
+        await a.mount(containerEl, VALID_CONFIG);
+        // Inner getActivePage + getFilters reject — the adapter's per-call
+        // try/catch swallows each. The result is a well-formed BIMetadata
+        // with the unfilled fields left empty, so the proxy's Discovery
+        // engine knows what's known vs unknown rather than getting a flat
+        // null (which would mean "no signal at all").
+        svc._lastReport!.getActivePage = vi.fn(async () => { throw new Error("boom"); });
+        svc._lastReport!.getFilters = vi.fn(async () => { throw new Error("boom"); });
+
+        const meta = await a.getMetadata();
+        expect(meta).not.toBeNull();
+        expect(meta!.activeViewId).toBeNull();
+        expect(meta!.visibleMeasures).toEqual([]);
+        expect(meta!.visibleDimensions).toEqual([]);
+        expect(meta!.activeFilters).toEqual([]);
+    });
+
+    test("getMetadata is declared on the PowerBIAdapter prototype (BIAdapter optional contract)", () => {
+        const a = new PowerBIAdapter();
+        expect(typeof a.getMetadata).toBe("function");
+    });
+});

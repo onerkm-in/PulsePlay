@@ -367,6 +367,68 @@ If the handoff conflicts with the current code, trust the code and report the mi
 
 Add newest entries at the top of this section.
 
+### 2026-05-14 10:30 IST - Claude (gallant-jones-a71415) — autonomous loop
+
+`[CLAIM]` → `[DONE]` **BIAdapter.getMetadata() for Power BI** — closes the P1 "Discovery Loop lacks live BI metadata" gap.
+
+Scope: `bi-adapters/powerbi/index.ts` + `playground/src/biPanel/BIAdapter.ts` (contract) + `playground/src/components/AISidebar.tsx` (wiring) + `playground/src/App.tsx` (single prop pass-through). Zero overlap with Codex's still-open Allowlist fail-closed lane (Codex: `playground/src/settings/settingsStore.tsx` + BIPanel mount logic). Both edited `App.tsx` but at different spots — Codex around the BIPanel-mount JSX; Claude only added one `biAdapter={primaryBIAdapter}` prop on the existing AISidebar invocation.
+
+**Why this lane:** Discovery Loop's reachableFrames were limited to pack-KPI evidence — BCG / RFM / Variance frames need currency measures the pack doesn't enumerate, so they always landed as unreachable even when the active Power BI report obviously had `$sales` / `$profit`. With live BI metadata fused in, the picker tells the truth.
+
+**Contract addition (`BIAdapter.ts`):**
+
+- New `BIMetadata` interface mirroring `proxy/lib/discoveryEngine.js` typedef: `{ activeViewId, visibleMeasures[], visibleDimensions[], activeFilters[] }`. Each measure carries a coarse `kind` (`currency` / `percent` / `count` / `duration` / `ratio`).
+- New `BIAdapter.getMetadata?(): Promise<BIMetadata | null>` — OPTIONAL. Iframe stubs (Tableau / Qlik / Looker / generic) omit it → discovery falls back to pack-only signals (today's behaviour).
+
+**Power BI implementation:**
+
+- `mountMode !== "sdk"` or `!report` → returns `null` (secure-iframe + unmounted).
+- SDK mode reads the active page via `report.getActivePage()` + `page.getVisuals()` + report-level `getFilters()`. Each call is INDEPENDENTLY try/catch wrapped so a single SDK failure doesn't blank out the whole snapshot (partial degrade > total degrade).
+- Visual-type → role classification: `card` / `multiRowCard` / `kpi` / `gauge` → measure; `slicer` / `tableEx` / `matrix` → dimension. Otherwise inferred from the title.
+- Title-text kind hints (best-effort because PBI's public API hides field bindings): `%` / `percent` / `rate` / `share` / `cagr` → `percent`; `$` / `revenue` / `sales` / `margin` / `cost` → `currency`; `count` / `orders` / `customers` → `count`. Percent matched first to avoid "Profit Margin %" → currency collision.
+- Filter values normalised: single-element `values[]` collapses to scalar; multi-value stays as array.
+
+**AISidebar discovery wiring:**
+
+- New `biAdapter?` prop on `AISidebarProps`. When present, the discovery effect calls `adapter.getMetadata()` BEFORE `getDiscoverySnapshot()` and forwards the result. Adapters without `getMetadata` (Tableau / Qlik / Looker) silently skip — discovery degrades to pack-only signals. Errors are swallowed; discovery is non-blocking.
+- `App.tsx` passes `primaryBIAdapter` (already tracked since the BIPanel adapter-ready callback wave).
+
+**Tests (`bi-adapters/powerbi/__tests__/index.test.ts` + 8 new):**
+
+- Returns null when not mounted.
+- Returns null in secure-iframe mode.
+- `activeViewId` reads from page name.
+- Card / KPI / multiRowCard visuals → measures with kind hints (currency for "Total Revenue", percent for "Profit Margin %", count for "Order Count", undefined for "Forecast Accuracy" which has no cue).
+- Slicer / TableEx / Matrix → dimensions.
+- Filters surface field + value (scalar for single-value; array for multi-value).
+- Inner getActivePage + getFilters throw → partial empty snapshot (NOT null) so discovery still knows what's known vs unknown.
+- `typeof a.getMetadata === "function"` on the prototype.
+
+`[VERIFY]`:
+
+- `npx tsc --noEmit` (playground) → clean
+- `npx vitest run "../bi-adapters/powerbi/__tests__/index.test.ts"` → 48/48 (40 pre-existing + 8 new)
+- `npx vitest run --silent` (full playground) → **388/388** (was 380; +8)
+- `npx jest --silent` (proxy unchanged) → 658/658
+
+Quality scorecard movement:
+
+- **Functionality** ↑ — Discovery Loop now honest about reachability when a Power BI SDK report is mounted. BCG / RFM / Variance frames stop being permanently unreachable when the report has `$sales` cards.
+- **Accuracy** ↑ — Frame picker labels match what the user can actually ask.
+- **Navigation** ↑ — Honest reachability removes a confusing dead-end where users picked a frame the data couldn't support.
+
+Non-blocking observations:
+
+- `[RISK]` Title-text heuristic is a SOFT signal. Real PBI field-binding introspection needs Export-to-DAX (server-side path; future cycle). Proxy treats biMetadata as a soft signal exactly because of this — pack KPIs still win when both are present.
+- `[RISK]` Tableau / Qlik / Looker still omit getMetadata. Their reachability stays pack-only until adapter SDK graduation (v0.3+).
+
+Next:
+
+- Codex still on Allowlist fail-closed; standby for review.
+- Stretch: schedule a wakeup in 25 min if Codex still busy → take another non-overlapping lane.
+
+Commit: `<sha>` once committed.
+
 ### 2026-05-14 09:45 IST - Claude (gallant-jones-a71415) — live-smoke driven polish
 
 `[DONE]` Two UX fixes triggered by Rajesh's live-smoke session.

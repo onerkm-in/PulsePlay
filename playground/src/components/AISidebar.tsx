@@ -52,6 +52,13 @@ export interface AISidebarProps {
      *  the proxy on every question so the prompt context is enriched
      *  with the right vertical vocabulary. */
     packSelection?: PackSelection | null;
+    /** Live BI adapter for the mounted panel. When present, the discovery
+     *  effect calls `adapter.getMetadata()` and forwards the result to
+     *  `/assistant/discover` so the Discovery Loop computes honest
+     *  reachable-frame signals from what the user is actually looking at,
+     *  not just from the pack KPIs. Optional — when null, discovery
+     *  degrades to pack-only signals (today's behaviour). */
+    biAdapter?: { getMetadata?(): Promise<unknown | null> } | null;
 }
 
 export type AISidebarStatus =
@@ -300,12 +307,35 @@ export function AISidebar(props: AISidebarProps) {
         }
         let cancelled = false;
         setDiscoveryLoading(true);
-        getDiscoverySnapshot({
-            assistantProfile: props.activeConnector,
-            pack: props.packSelection?.pack,
-            subVertical: props.packSelection?.subVertical,
+
+        // Optional live BI metadata. The adapter is allowed to omit the
+        // method entirely (iframe adapters) or return null (SDK mode not
+        // available yet). We swallow failures — discovery already degrades
+        // to pack-only signals when biMetadata is null.
+        const collectBiMetadata = async (): Promise<unknown | null> => {
+            const adapter = props.biAdapter;
+            if (!adapter || typeof adapter.getMetadata !== "function") return null;
+            try {
+                return await adapter.getMetadata();
+            } catch {
+                return null;
+            }
+        };
+
+        collectBiMetadata().then(biMetadata => {
+            if (cancelled) return;
+            return getDiscoverySnapshot({
+                assistantProfile: props.activeConnector,
+                pack: props.packSelection?.pack,
+                subVertical: props.packSelection?.subVertical,
+                // Cast: BIAdapter's BIMetadata is structurally compatible
+                // with discoveryClient's local BIMetadata. The optional
+                // chain + cast keeps the wiring loose so an adapter that
+                // returns extra fields doesn't break the proxy call.
+                biMetadata: biMetadata as Parameters<typeof getDiscoverySnapshot>[0]["biMetadata"],
+            });
         }).then(snap => {
-            if (!cancelled) {
+            if (!cancelled && snap !== undefined) {
                 setSnapshot(snap);
                 setDiscoveryLoading(false);
             }
@@ -317,7 +347,7 @@ export function AISidebar(props: AISidebarProps) {
             }
         });
         return () => { cancelled = true; };
-    }, [props.activeConnector, props.packSelection?.pack, props.packSelection?.subVertical]);
+    }, [props.activeConnector, props.packSelection?.pack, props.packSelection?.subVertical, props.biAdapter]);
 
     const stopEntry = (entryId: number, reason: string) => {
         const ctrl = abortControllers.current.get(entryId);
