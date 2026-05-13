@@ -52,15 +52,57 @@ Use these tags so another agent can scan quickly:
 
 Keep PulsePlay moving faster by coordinating work across agents without losing brutal honesty.
 
+**Operating model (locked 2026-05-14 by Rajesh):**
+
+- **Codex = primary implementer.** Codex picks up the next assigned lane and ships code + targeted tests + a `[DONE]` entry.
+- **Claude = supervisor + parallel non-overlapping worker.** Claude (a) assigns next lanes to Codex via the Next Task section, (b) reviews every Codex `[DONE]` line-by-line (per `feedback_external_llm_audit.md`), (c) runs full suites independently to verify test counts, (d) posts `[VERIFY]` / `[RISK]` findings, (e) works in parallel on lanes that don't touch Codex's open files (pulsepacks/, docs, isolated playground modules), (f) does a **complete final-pass scan** before any release tag.
+- **Quality target = 99.99 across all seven dimensions in the scorecard below.** Lanes get prioritised by which dimension they move forward and how far from 99.99 it currently sits. No lane is "done" until every reachable dimension stays at or above the bar.
+
 Current near-term review priority:
 
-0. Playground viewport controls for AI/BI pane comfort.
 1. Mandatory production auth.
-2. Power BI embed-token identity, permission, and cache hardening.
-3. Allowlist fail-closed behavior and mounted-panel revalidation.
-4. Discovery Loop live BI metadata wiring.
-5. Frame selection actually influencing the AI ask.
-6. Diagnostics/export redaction hardening.
+2. Allowlist fail-closed behaviour and mounted-panel revalidation.
+3. Discovery Loop live BI metadata wiring.
+4. Frame selection actually influencing the AI ask.
+5. Diagnostics/export redaction hardening.
+
+## Quality Scorecard (99.99 target across all dimensions)
+
+Each dimension has a measurable signal. Update after every significant lane closes.
+
+| Dimension | Signal | Current | Target | Tracking lanes |
+|---|---|---|---|---|
+| **Accuracy** | Test pass rate (proxy + playground), validator coverage, SQL byte-identity regression | 630/630 proxy + 351/351 playground = **100% on shipped tests**; byte-identical Genie regression locked | 100% pass; zero accuracy regressions per commit | Phase 11b dispatcher migration (when shipped, must keep byte-identity); 9 unauthored sub-vertical IRs (better grounding → better answers) |
+| **Performance** | Initial-paint bundle (~280 KB raw / 86 KB gzip), BIPanel adapter remount perf test, proxy /health single-flight | Targets met today; no perf regression test added since last beast cycle | Maintain ≤ 300 KB initial-paint raw; sub-500ms time-to-first-token on PBI+Genie cell | Phase D staged "1-then-3" rendering; lazy-load further; perf regression budget per commit |
+| **Ease of use** | 10-minute author setup, microcopy quality, error-recovery flows, Settings IA legibility | Settings 5-group tree shipped; first-run setup exists in pieces; error messages mostly clear | 10-min smoke verified end-to-end with novice author; every error surface offers next action; no dead-end states | Author setup unification; Discovery Loop honest reachability messaging; Frame-to-prompt wiring (so the picker actually does something) |
+| **Sustainability** | Token-cost gauge tier distribution, real-usage forward rate (% of conversations where backend exposed real tokens vs estimate), cache hit rate on embed tokens | Indicator shipped; FM + AzOAI + Bedrock-direct forward real tokens; Genie + Bedrock-RAG stay on estimation | ≥ 80% of conversations show real-token counts; ≥ 90% cumulative session at "lean" or "green" tier | Supervisor sub-call usage aggregation; prompt caching everywhere; per-section token tracing |
+| **Functionality** | Architecture-spec coverage, 8-backend support, 2-axis independence, PBI SDK adapter parity | Genie + PBI cell complete; Tableau/Qlik/Looker still iframe stubs; Phase 11a Prompt IR additive; Phase A discovery shipped; Phase B SQL transparency shipped | Genie+PBI cell at 100%; Phase 11b migration land; Phase C auto-derived params + Phase D staged rendering shipped | Phase 11b; Phase C; Phase D; non-PBI adapter SDK graduation (deferred to v0.3+) |
+| **Navigation** | Path-based router coverage, keyboard shortcuts, deep links, breadcrumbs, viewport controls | `/settings`, `/knowledge`, `?focus=ai/bi` URL hydration shipped; Cmd/Ctrl+, opens Settings; FramePicker dropdown shipped; Pin persists | All shipped routes deep-linkable; every primary action keyboard-reachable; no "lost in the app" states | Show-Both button flow polish; Frame-to-prompt wiring (FramePicker actually does something on submit) |
+| **User preferences** | Display tab (BI/AI/Both), layout mode (4 positions), pin viewport, BI tile mode, vendor + connector + pack persistence | All shipped, all persist via localStorage | Every preference reversible; no hidden state; one-click reset preserved | Settings → Preferences group polish; default reset flow; per-user override of allowlist when admin grants |
+
+**Honest red flags (must close before 99.99 claim):**
+
+- No live credentialed PBI + Genie smoke since security cycles landed. Code-level correctness ≠ field correctness.
+- Tableau / Qlik / Looker adapters are stubs; functionality dimension can't hit 99.99 without graduating them OR explicitly scoping them out of the target.
+- Production auth is still optional — `feedback_collaboration.md` "brutally honest" requires we close this before any external pilot.
+- 9 of 10 cpg-fmcg sub-verticals fall back to glossary.md instead of an authored IR — accuracy dimension upper bound is capped here.
+
+## Active Lane Plan (rolling)
+
+The current cycle plan. Codex picks the top unclaimed Codex-row; Claude picks the top unclaimed Claude-row; both update the Coordination Log with `[CLAIM]` before touching files.
+
+| Order | Owner | Lane | Files | Why this slot |
+|---|---|---|---|---|
+| 1 | **Codex** | Production auth hardening (P0) | `proxy/server.js`, `docs/SECURITY.md`, proxy tests | Largest accuracy/security gap on the board. Locks ease-of-use too (deploy guide stops being conditional). |
+| 1 | **Claude** | Author 9 missing cpg-fmcg sub-vertical Prompt IRs | `pulsepacks/cpg-fmcg/sub-verticals/<name>/prompt-ir.yaml` only | Zero overlap with Codex's proxy work. Closes the accuracy upper-bound cap. Each IR independent + validatable via `scripts/check-prompt-ir.js`. |
+| 2 | Codex | Allowlist fail-closed pass (P1) | `playground/src/settings/`, `App.tsx`, `BIPanel.tsx` | Follow-on to production auth — finishes the governance story. |
+| 2 | Claude | Phase 11b — migrate one route handler to `buildBackendPayload` | `proxy/server.js` (one route at a time), regression test per migration | Locked by byte-identical Genie regression. Codex finishes auth before this so server.js conflict risk is gone. |
+| 3 | Codex | Discovery metadata wiring (P1) — `BIAdapter.getMetadata()` extension | `BIAdapter.ts`, PBI adapter, `AISidebar.tsx` | Unblocks Frame-to-prompt wiring next. |
+| 3 | Claude | Phase 11b continuation (next route) + review Codex's adapter changes | proxy + review | Continues dispatcher migration in parallel. |
+| 4 | Codex | Frame-to-prompt wiring (P1) | `AISidebar.tsx`, proxy routes, Prompt IR docs | Now the FramePicker actually changes the prompt strategy. |
+| 4 | Claude | Final-pass scan: navigation accessibility, keyboard reachability, deep-link coverage | playground | Pre-pilot polish. |
+| 5 | Codex | Support bundle redaction (P2), URL host suffix check (P2) | diagnosticsBuffer, exportBundle, EmbedConfigForm | Cleanup before pilot. |
+| 5 | Claude | Phase D staged "1-then-3" rendering OR Phase C auto-derived params (whichever moves the relevant dimension further from 99.99 at the time) | new orchestrator + UI | Stretch lane; conditional on the rest landing clean. |
 
 ## What Is Missing Right Now
 
@@ -99,7 +141,47 @@ Newest active/review lane first. Keep completed-but-reviewing work above older o
 
 LIFO: newest task first. When adding another task, insert it above the current one and leave older tasks below for traceability.
 
-**Immediate task:** add/review focused tests for playground viewport controls. Codex owns the app-shell implementation; Darwin owns test coverage and review so the work can move in parallel.
+**Immediate task (Codex, assigned by Rajesh via Claude 2026-05-14 03:30 IST):** **Production auth hardening (P0)**. Closes the largest accuracy/security gap on the board.
+
+Scope:
+
+- `proxy/server.js`: detect production mode (`NODE_ENV=production` and/or explicit `PROXY_REQUIRE_AUTH=true`); refuse to start if **both** of these are missing — verified IdP middleware (the existing `idpMiddleware`) is wired AND a shared-key fallback (`PROXY_KEY` set + `X-Genie-Key` enforced on all routes). Localhost / dev / test paths remain unchanged.
+- Add a documented `PROXY_AUTH_MODE` env knob: `idp` (require verified IdP claims on every non-localhost request), `shared-key` (require `X-Genie-Key`), `idp-or-shared-key` (allow either), `none` (dev only, refused in production). Default in production must be `idp-or-shared-key`; default in dev is `none`.
+- Audit log every rejected request with the reason (`auth.missing-idp`, `auth.missing-shared-key`, `auth.production-refuses-none`).
+- Negative tests in `proxy/tests/server.test.js` (or a new `proxy/tests/productionAuth.test.js`):
+  - Production startup with `PROXY_AUTH_MODE=none` → server refuses to listen.
+  - Production startup with neither IdP env vars nor `PROXY_KEY` → server refuses to listen.
+  - Dev / test mode with no auth → server starts (current behaviour preserved).
+  - Authenticated request with `idp` mode + valid token → 200.
+  - Authenticated request with `idp` mode + missing/invalid token → 401, audit logged.
+  - Authenticated request with `shared-key` mode + valid `X-Genie-Key` → 200.
+  - Authenticated request with `shared-key` mode + missing/invalid key → 401, audit logged.
+- Docs:
+  - `docs/SECURITY.md`: document the new mode + default behaviour. Cross-link the production startup checklist row.
+  - `docs/DEPLOY_MVP_0.2.md`: add the env-var section.
+  - `docs/HANDOVER.md`: new top entry.
+
+Open question to answer in your `[CLAIM]` note (don't proceed without it):
+
+- Does the user claim mapping in `idpMiddleware` already cover the email / preferredUsername / upn fallback chain you used in PBI hardening? If yes, reuse it. If no, propose a shared helper.
+
+Validation expectations:
+
+- `node --check proxy/server.js`
+- `npm test -- productionAuth` (or full suite)
+- Full `npm test` to confirm no regression
+- Manual smoke: start server with each `PROXY_AUTH_MODE` value, confirm behaviour matches docs.
+
+Expected output:
+
+- One `[CLAIM]` entry, then a `[DONE]` entry with test counts and any residual `[RISK]` notes.
+- Post the new commit count in the [VERIFY] entry so the reviewer can independently re-run.
+
+**Prior task (resolved):** Playground viewport controls — `done; reviewed` (Codex impl + Claude tests, commits `9fca224` + `e320df4`).
+
+**Prior task (resolved):** Power BI embed-token hardening — `done; reviewed` (commit `1d39ff6`).
+
+
 
 Test/review scope:
 
@@ -238,6 +320,31 @@ If the handoff conflicts with the current code, trust the code and report the mi
 ## Coordination Log
 
 Add newest entries at the top of this section.
+
+### 2026-05-14 03:30 IST - Claude (gallant-jones-a71415)
+
+`[DECISION]` Rajesh locked the **supervisor + parallel-worker** operating model: Codex implements assigned lanes, Claude supervises (assigns + reviews + verifies test counts) AND works in parallel on lanes that don't overlap Codex's files. Quality target = **99.99 across 7 dimensions** (Accuracy / Performance / Ease of use / Sustainability / Functionality / Navigation / User preferences). See the Quality Scorecard section above for the current baseline + tracking lanes.
+
+`[ASK]` → Codex: **production auth hardening (P0)** is yours. Full scope in the Next Task section above. Please post a `[CLAIM]` before editing `proxy/server.js`, and answer the open question about `idpMiddleware` claim reuse in your CLAIM note.
+
+`[CLAIM]` → Claude: starting the **9 missing cpg-fmcg sub-vertical Prompt IRs** in parallel. Zero file overlap with Codex's proxy work. Plan:
+
+- Target files: `pulsepacks/cpg-fmcg/sub-verticals/{procurement,manufacturing,commercial-retail,finance-fpa,hr,it-admin,client-management,vendor-management,sustainability}/prompt-ir.yaml`. (sustainability already has `prompt-context.md` so the synthetic IR is non-stub today; an authored YAML still upgrades it to structured-sections + vocabulary.)
+- Source material: each sub-vertical already has `kpis.md`, `sample-questions.md`, `bi-ai-fit.md` in the same directory. The existing `playground/src/pulse/_packs/cpgFmcgPresets.ts` also has curated `params` + section instructions for each. I'll port that content into proper IR schema (role / task / vocabulary / functions / guardrails / output.sections / examples).
+- Validation: `node scripts/check-prompt-ir.js --all` after each batch, then `node scripts/check-prompt-ir.js --show <pack>/<sv> foundation-model` spot-check on 2-3 to confirm the translated payload reads well.
+- Commits: 3 logical batches (3 IRs each). Each batch independently shippable.
+- Tests: existing `proxy/tests/promptIR.test.js` already validates schema. I'll add no new tests unless something specific breaks — the 87 Phase 11a tests cover the schema validator, the byte-identical Genie regression covers backward compat, and the per-IR validation lives in the CLI.
+
+Quality scorecard movement expected from this lane:
+
+- **Accuracy** ↑ — 9 sub-verticals stop using glossary.md fallback; Foundation Model + future Phase 11b dispatcher migration get real structured prompts.
+- **Sustainability** ↑ — better-grounded prompts mean fewer clarification turns → fewer tokens.
+- **Functionality** ↑ — closes 9 of 10 unfilled IR slots in the cpg-fmcg pack.
+
+Next:
+
+- Author IRs in 3 batches; post `[DONE]` with test counts after each batch.
+- Once Codex marks production auth `[DONE]`, switch to review mode for that lane.
 
 ### 2026-05-14 03:15 IST - Claude (gallant-jones-a71415)
 
