@@ -5,6 +5,30 @@
 
 ---
 
+## 2026-05-14 - Focused pane chrome overlap closeout
+
+**Range:** follow-up to Rajesh's screenshot where `Restore / Minimize / Pin / Page` overlapped the fixed `Connected | Managed` Pulse status pill in focused pane mode.
+
+### What shipped
+
+- Merged the focused-mode `PaneChrome` fix in [playground/src/App.tsx](../playground/src/App.tsx): focused AI/BI headers reserve a right-side collision zone for the fixed Pulse status pill and the controls toolbar can shrink/wrap instead of painting under it.
+- Added focused-mode regression coverage in [viewportControls.integration.test.tsx](../playground/src/__tests__/viewportControls.integration.test.tsx) so the reserved header padding and wrapping controls stay locked.
+- Synced the tactical handoff in [docs/AGENT_SYNC.md](AGENT_SYNC.md); Claude committed the code/doc merge as `d56e81a`.
+
+### Validation
+
+- `playground`: `npm.cmd test -- viewportControls.integration --silent` -> 15/15
+- `playground`: `npm.cmd run lint`
+- `playground`: full `npm.cmd test -- --silent` -> 388/388
+- `playground`: `npm.cmd run build`
+
+### Tripwires
+
+- Browser screenshot smoke was not run in this Codex pass because Browser/Playwright tooling is not available in the current workspace. The regression is covered at DOM/style level; a live browser pass should still be done when browser tooling is available.
+- The status pill remains fixed by the Pulse visual layer. This fix reserves shell chrome space around it; it does not move the Pulse visual's fixed header-right element.
+
+---
+
 ## 2026-05-14 - Production auth hardening
 
 **Range:** P0 security lane from `docs/AGENT_SYNC.md`; scoped to proxy auth mode, startup refusal, request rejection audit, and deploy docs.
