@@ -1,6 +1,32 @@
 {
     "port": 8787,
     "feedbackLog": "feedback.log",
+    "allowlistEnforcement": "strict",
+    "allowlist": {
+        "biProviders": ["powerbi"],
+        "embedOrigins": {
+            "powerbi": ["app.powerbi.com"]
+        },
+        "powerbiWorkspaces": ["YOUR_POWER_BI_WORKSPACE_ID"],
+        "powerbiReports": [],
+        "aadTenants": ["YOUR_AAD_TENANT_ID"],
+        "aiProfiles": {
+            "default": ["default", "supervisor"],
+            "byGroup": {}
+        },
+        "genieSpaces": ["YOUR_GENIE_SPACE_ID"],
+        "supervisorProfiles": ["supervisor"],
+        "packs": ["cpg-fmcg"],
+        "knowledgeSources": [],
+        "license": {
+            "powerbi": {
+                "minTier": "Premium",
+                "allowedTiers": ["Premium P1", "Premium P2", "Premium P3", "PPU"],
+                "embedSku": ["EM1", "EM2", "EM3"],
+                "fabricEnabled": false
+            }
+        }
+    },
     "profiles": {
         "default": {
             "host": "https://adb-WORKSPACE_ID.REGION.azuredatabricks.net",

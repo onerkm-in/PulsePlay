@@ -1041,6 +1041,62 @@ describe('GET /assistant/profiles — friendly metadata for the Setup screen (BU
     });
 });
 
+describe('allowlist routes and profile filtering', () => {
+    const ALLOWLISTED_CONFIG = {
+        ...MOCK_CONFIG_BASE,
+        allowlistEnforcement: 'strict',
+        allowlist: {
+            biProviders: ['powerbi'],
+            embedOrigins: { powerbi: ['app.powerbi.com'] },
+            powerbiWorkspaces: ['workspace-1'],
+            powerbiReports: [],
+            aadTenants: ['tenant-1'],
+            aiProfiles: { default: ['default'], byGroup: {} },
+            genieSpaces: ['space-default-123'],
+            supervisorProfiles: [],
+            packs: ['cpg-fmcg'],
+            knowledgeSources: [],
+        },
+    };
+
+    beforeEach(() => {
+        const actualFs = jest.requireActual('fs');
+        fs.readFileSync.mockImplementation((filePath, ...rest) => {
+            if (String(filePath).endsWith('config.json')) return JSON.stringify(ALLOWLISTED_CONFIG);
+            return actualFs.readFileSync(filePath, ...rest);
+        });
+    });
+    afterEach(() => fs.readFileSync.mockReturnValue(JSON.stringify(MOCK_CONFIG_BASE)));
+
+    it('returns user-visible allowlist contents', async () => {
+        const res = await request(app).get('/assistant/allowlist');
+        expect(res.status).toBe(200);
+        expect(res.body.configured).toBe(true);
+        expect(res.body.biProviders).toEqual(['powerbi']);
+        expect(res.body.aiProfiles).toEqual(['default']);
+        expect(res.body.packs).toEqual(['cpg-fmcg']);
+    });
+
+    it('filters /assistant/profiles to allowlisted profiles', async () => {
+        const res = await request(app).get('/assistant/profiles');
+        expect(res.status).toBe(200);
+        expect(res.body.map(p => p.name)).toEqual(['default']);
+    });
+
+    it('rejects a configured but non-allowlisted profile before connector use', async () => {
+        const res = await request(app).get('/assistant/capabilities?assistantProfile=analytics');
+        expect(res.status).toBe(403);
+        expect(res.body.kind).toBe('aiProfile');
+    });
+
+    it('returns the allowlisted pack registry', async () => {
+        const res = await request(app).get('/assistant/knowledge/packs');
+        expect(res.status).toBe(200);
+        expect(Array.isArray(res.body.packs)).toBe(true);
+        expect(res.body.packs.map(p => p.name)).toContain('cpg-fmcg');
+    });
+});
+
 describe('POST /history — supervisor warehouse fallback (BUG-009)', () => {
     // /history POST calls cfg() multiple times during one request (resolveProfile,
     // historyTableFor, pickHistoryProfile). mockReturnValue keeps the override
