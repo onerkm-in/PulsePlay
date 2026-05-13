@@ -5,6 +5,52 @@
 
 ---
 
+## 2026-05-13 — Discovery Loop + Staged Rendering design specs (Phase A/B/C/D)
+
+**Range:** design-first lock for the next cycle of beast-mode work. **No code shipped yet** — these specs gate the implementation.
+
+### Why these specs exist
+
+Following the Phase 11a Prompt IR landing, the next user-facing question is "how do business users actually USE this?" The user pushed on three concerns:
+
+1. **Pre-flight knowledge** — "how does the system know what KPIs / data are available?" → Discovery loop
+2. **Analysis-frame dropdown** — "BCG / SWOT / Pareto / vertical presets should be picker-driven, not authored deep in setup" → reachable-frames surfacing
+3. **Auto + manual parameter system** — sliders driven by data distribution, manually overridable
+4. **SQL transparency for every section** — "without showing the SQL, business won't trust the numbers"
+5. **Staged rendering** — "render HEADLINE first, then fan out TRENDS/RISKS/ACTIONS" → 1-then-3 orchestration
+
+### What shipped
+
+- **[docs/DISCOVERY_LOOP.md](DISCOVERY_LOOP.md)** — Phase A/B/C spec. Defines the pre-flight discovery loop that fuses Genie probe + `BIAdapter.getMetadata()` + pack KPIs into a `DiscoverySnapshot` with `reachableFrames[]` and `unreachableFrames[]`. 3-layer cache (sessionStorage 15min + proxy in-memory 60s + probeConnector underneath). Endpoint contract: `POST /assistant/discover`. Parameter proposals upgrade declared `type` to data-aware controls (slider/multi-select/period-picker).
+- **[docs/STAGED_RENDERING.md](STAGED_RENDERING.md)** — Phase D spec. "1-then-3" orchestration: probe once, generate HEADLINE first (first paint at ~2s), fan out remaining sections in parallel. Per-backend behaviour for Genie (follow-up messages on same conversation), Foundation Model/OpenAI/Bedrock (parallel completions with prompt caching), Supervisor (per-space fan-out). SQL provenance in two modes: Phase B CTE-comment markers (cheap, ships first) and Phase D per-section function calls (proper). SSE-streaming endpoint `POST /assistant/conversations/start-sectioned`.
+
+### Phase plan (locked)
+
+| Phase | Scope | Effort |
+|---|---|---|
+| A | Discovery endpoint + cache + frame reachability + static param defaults | 2 days |
+| B | SQL transparency via CTE-comment markers in Genie + Foundation Model translators | 1 day |
+| C | Auto-derived param defaults + slider/stepper UI upgrade | 2-3 days |
+| D | Staged "1-then-3" orchestrator + SSE streaming + SectionedAnswer UI | 3-4 days |
+
+Total ~8-10 days across all four phases. They build on each other; Phase A is the entry point.
+
+### Tripwires for next-session implementation
+
+- **`BIAdapter.getMetadata()` is a new optional method.** Adding it triggers the conformance harness — verify adapters that don't implement it return `null` cleanly. Generic-iframe always returns `null` (iframe boundary).
+- **Pack KPI parser is markdown-list-based.** If a pack's `kpis.md` doesn't follow the expected shape, the parser must emit a warning + return an empty list, not crash. Pack authors own that contract.
+- **`/assistant/discover` rate-limit shares the `/probe` bucket.** Don't add a new bucket — keep cap shared.
+- **OpenAI prompt caching is hash-based on the first N tokens.** Keep param values OUT of the system prompt (translator already does this; lock with a test in Phase D).
+- **Genie follow-up SQL may re-execute.** Smoke before assuming staged rendering is free on the Genie side. Fall back to single-call for Genie if needed.
+- **Phase B + D both touch SQL provenance.** Phase B's CTE comment markers must survive the eventual Phase D function-call refactor — they're the fallback when function-calling isn't available (Genie).
+- **Selective re-run (Phase D.4)** replays cached probe + new LLM call for ONE section. Don't re-probe.
+
+### What's next
+
+Start Phase A code: `proxy/lib/discoveryEngine.js` + `/assistant/discover` endpoint + tests. Land in a single commit. Then frontend client + frame dropdown.
+
+---
+
 ## 2026-05-13 — Phase 11a: Prompt IR + per-backend translators
 
 **Range:** four prior beast-mode commits + new Phase 11a work. Phase 11a is **additive** — no existing route handler is migrated yet; the dispatcher coexists with `packPromptInjector`.

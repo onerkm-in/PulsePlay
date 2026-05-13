@@ -4,6 +4,15 @@
 >
 > Strategic direction is locked: **Path C — inner-source-first, public-OSS-later.** Items that only matter for the public-OSS path live in [PUBLIC_OSS_AGENDA.md](PUBLIC_OSS_AGENDA.md), not here.
 
+## In flight (v0.1.3)
+
+- [ ] **Discovery Loop + Staged Rendering** — design specs locked 2026-05-13 ([DISCOVERY_LOOP.md](DISCOVERY_LOOP.md), [STAGED_RENDERING.md](STAGED_RENDERING.md)). Four phases:
+  - **A**: `/assistant/discover` endpoint + 3-layer cache + frame reachability + static param defaults (2d)
+  - **B**: SQL transparency via CTE-comment markers in Genie + Foundation Model translators (1d)
+  - **C**: Auto-derived param defaults + slider/stepper UI upgrade (2-3d)
+  - **D**: Staged "1-then-3" orchestrator + SSE streaming + SectionedAnswer UI (3-4d)
+  - Total ~8-10 days. Phase A breaks ground next.
+
 ## Recently shipped (v0.1.3)
 
 - [x] **Phase 11a — Prompt IR + per-backend translators** (2026-05-13, working tree) — Vendor-neutral Prompt IR schema (YAML+JSON dual format) authored at `pulsepacks/<pack>/<sv>/prompt-ir.yaml`. Per-backend translators emit native shapes: Genie (single fenced user message — byte-identical to legacy `wrapAsGenieUserMessage` for un-migrated packs), Foundation Model (OpenAI-compatible messages + tools + response_format), Supervisor (fan-out + synthesis). Dispatcher is additive in 11a — `packPromptInjector` still wired into routes. Phase 11b migrates routes one at a time. CLI: `node scripts/check-prompt-ir.js --all`. 87 new proxy tests including byte-identical backward-compat regression. See [PROMPT_IR_ARCHITECTURE.md](PROMPT_IR_ARCHITECTURE.md).
