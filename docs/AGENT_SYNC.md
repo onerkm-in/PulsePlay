@@ -177,6 +177,59 @@ If the handoff conflicts with the current code, trust the code and report the mi
 
 Add newest entries at the top of this section.
 
+### 2026-05-14 01:25 IST - Claude (gallant-jones-a71415)
+
+`[HANDOFF]` Status briefing for Codex (or whichever agent reads this next). Rajesh asked me to actively use this file to coordinate with you, not just log my own work — so this is the open-state snapshot from where I sit.
+
+**Tree state.** Branch `claude/gallant-jones-a71415` and `main` are aligned at `57960d5`. Everything I shipped today is on both. No uncommitted work in either tree (apart from `docs/research/SETTINGS_IA_PROMPT.md` which has been untracked for a while — looks pre-existing, not mine).
+
+**What landed today (most recent first):**
+
+- `57960d5` AGENT_SYNC adoption + this [DONE] for usage-passthrough.
+- `44c1009` Proxy plumbs `usage` blocks for sustainability indicator (Foundation Model, Azure OpenAI chat + analytics, Bedrock direct chat + analytics including Anthropic and Llama shapes). Genie + Bedrock-RAG stay on chars/4 estimation — upstream APIs don't expose tokens.
+- `366fedf` Sustainability indicator (leaf + smile token gauge in AISidebar footer; 6 tiers; tooltip; reset button).
+- `92ea888` / `ab20f65` / `bd4f915` / `af740b6` / `7ca3c06` — your Phase A (Discovery Loop) + Phase B (SQL transparency via CTE markers) + design specs. I'd already pulled them through the FF earlier today.
+
+**Tests:** 625/625 proxy, 336/336 playground. All green.
+
+**What I would warn an agent picking up the next lane about:**
+
+- `callLlm` is now dual-shape (string OR `{ content, usage }`). Existing string-returning callers still work via `_runLlm` normaliser in `proxy/lib/llmOrchestrator.js`. New callLlm definitions in conversation routes should return the object form so token counts flow through.
+- Synthetic IRs ship a generic `persona: 'data analyst'`. The Foundation Model translator (`proxy/lib/promptTranslators/foundationModel.js`) checks `ir.meta.synthetic` and unconditionally appends `overrides.genie.legacyPreamble` for those — don't add richer stub fields to `buildSyntheticIR` without thinking about that interaction.
+- `FRAME_PREREQUISITES` in `proxy/lib/discoveryEngine.js` mirrors playground preset IDs by hand. If you rename a preset in `_packs/cpgFmcgPresets.ts` without updating that table, frames silently drop from `reachableFrames[]`. Phase C is supposed to move this into the Prompt IR; until it does, drift is silent.
+- Bedrock RAG path doesn't forward usage (RetrieveAndGenerate doesn't return token counts). Don't add `_sanitizeUsageBlock` calls there without a real `data.usage` field — you'll just create dead code.
+
+**Open lanes worth picking up (from the Active Claims table):**
+
+| Lane | My read on priority |
+|---|---|
+| Production auth hardening (P0) | Highest. Today's allowlist is governance, not auth. If shared-key is missing, the proxy boots wide open. |
+| Power BI embed-token hardening (P0) | Second-highest. RLS identity is client-controlled today; cache key doesn't include identity. Concrete + scoped — one route handler + tests. |
+| Allowlist fail-closed pass (P1) | Cleanup of the existing allowlist runtime. Smaller. |
+| Discovery metadata wiring (P1) | Enables honest BCG/RFM/Procurement reachability. Needs `BIAdapter.getMetadata()` contract extension. |
+| Frame-to-prompt wiring (P1) | Frame picker is purely advisory today. Wiring it into request payload is fast; translating into prompt strategy is where the design work lives. |
+| Support bundle redaction (P2) | Nice-to-have unless we ship the export feature externally soon. |
+
+**Followups that aren't in the Active Claims table yet (worth adding if you agree):**
+
+- Supervisor sub-call usage aggregation. Today the synthesis-LLM call IS metered when it routes through Foundation Model, but per-space Genie sub-calls stay unmetered (Genie has no upstream usage anyway). Real gap, not a regression. Likely a tiny lane.
+- The 9 cpg-fmcg sub-verticals without authored `prompt-ir.yaml` (everything except `supply-chain`). They fall back to the pack-level `glossary.md`. Each one is independent work (~30 min per vertical).
+- React setState warning from `usageTracker` recording during render — I haven't seen the warning myself but it's in the Missing-Right-Now table; if you have the repro, that's a tiny fix.
+
+**My next move.** Waiting on Rajesh's call between the two P0 lanes. I'm not editing those files until he picks one (avoids racing you).
+
+`[ASK]` Codex: if you start a lane before Rajesh assigns me one, [CLAIM] it explicitly so I don't pick the same one. I'll do the same.
+
+Evidence:
+
+- `57960d5` and `44c1009` (today's commits).
+- `proxy/lib/llmOrchestrator.js` (dual-shape callLlm).
+- `proxy/lib/discoveryEngine.js` (FRAME_PREREQUISITES drift risk).
+
+Next:
+
+- Wait for Rajesh to assign a lane (or Codex to claim one), then add [CLAIM] here before any edits.
+
 ### 2026-05-14 01:15 IST - Claude (gallant-jones-a71415)
 
 `[DONE]` Proxy forwards `usage` blocks for the sustainability indicator. Backends covered: Foundation Model, Azure OpenAI (chat + analytics), Bedrock direct (chat + analytics, both Anthropic and Llama shapes normalised to OpenAI). Bedrock-RAG + Genie stay on playground-side chars/4 estimation (upstream APIs don't expose tokens).
