@@ -29,6 +29,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { BIEvent } from "../biPanel/BIAdapter";
 import type { PackSelection } from "./PackPicker";
+import { FramePicker } from "./FramePicker";
+import { getDiscoverySnapshot, type DiscoverySnapshot } from "../lib/discoveryClient";
 
 /** Hard upper bound on how long we poll before giving up. */
 export const MAX_POLL_DURATION_MS = 60_000;
@@ -208,6 +210,39 @@ export function AISidebar(props: AISidebarProps) {
             timers.clear();
         };
     }, []);
+
+    // Phase A discovery state: fetch a DiscoverySnapshot whenever the
+    // connector or pack changes. The snapshot is cached in sessionStorage
+    // by discoveryClient with a 15-min TTL, so navigating back to a
+    // previously-loaded combo is instant.
+    const [snapshot, setSnapshot] = useState<DiscoverySnapshot | null>(null);
+    const [discoveryLoading, setDiscoveryLoading] = useState(false);
+    const [selectedFrame, setSelectedFrame] = useState<string | null>(null);
+    useEffect(() => {
+        if (!props.activeConnector) {
+            setSnapshot(null);
+            return;
+        }
+        let cancelled = false;
+        setDiscoveryLoading(true);
+        getDiscoverySnapshot({
+            assistantProfile: props.activeConnector,
+            pack: props.packSelection?.pack,
+            subVertical: props.packSelection?.subVertical,
+        }).then(snap => {
+            if (!cancelled) {
+                setSnapshot(snap);
+                setDiscoveryLoading(false);
+            }
+        }).catch(() => {
+            // Discovery is non-blocking — UI just falls back to free text.
+            if (!cancelled) {
+                setSnapshot(null);
+                setDiscoveryLoading(false);
+            }
+        });
+        return () => { cancelled = true; };
+    }, [props.activeConnector, props.packSelection?.pack, props.packSelection?.subVertical]);
 
     const stopEntry = (entryId: number, reason: string) => {
         const ctrl = abortControllers.current.get(entryId);
@@ -418,6 +453,13 @@ export function AISidebar(props: AISidebarProps) {
                 ))}
             </div>
             <div className="pp-ai-sidebar__composer">
+                <FramePicker
+                    snapshot={snapshot}
+                    loading={discoveryLoading}
+                    value={selectedFrame}
+                    onChange={setSelectedFrame}
+                    compact
+                />
                 <textarea
                     className="pp-ai-sidebar__input"
                     rows={3}

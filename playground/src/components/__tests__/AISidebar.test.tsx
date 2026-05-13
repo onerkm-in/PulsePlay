@@ -8,6 +8,17 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
+
+// Phase A — AISidebar now fires a /api/assistant/discover fetch on mount via
+// discoveryClient. These tests pre-date that effect and assume each test's
+// fetchMock.mock.calls contains only ask + poll traffic. Mock the discovery
+// client to a no-op resolved promise so existing assertions on mock.calls[0]
+// remain valid. discoveryClient itself has dedicated tests in
+// src/lib/__tests__/discoveryClient.test.ts.
+vi.mock("../../lib/discoveryClient", () => ({
+    getDiscoverySnapshot: vi.fn().mockResolvedValue(null),
+}));
+
 import { AISidebar, MAX_POLL_DURATION_MS, POLL_INTERVAL_MS } from "../AISidebar";
 import type { PackSelection } from "../PackPicker";
 
