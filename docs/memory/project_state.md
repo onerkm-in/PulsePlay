@@ -1,6 +1,6 @@
 ---
 name: PulsePlay current state
-description: As of 2026-05-13 - enterprise allowlist runtime and pack registry foundation implemented
+description: As of 2026-05-14 - enterprise allowlist runtime, pack registry foundation, and agent sync doc implemented
 type: project
 originSessionId: current
 ---
@@ -9,6 +9,7 @@ originSessionId: current
 
 **Current session work:**
 
+- **Agent coordination scratchpad.** Added [docs/AGENT_SYNC.md](../AGENT_SYNC.md) as a repo-tracked communication file for Codex and other agents to align on operating instructions, claims, blockers, handoffs, review risks, missing gaps, copy-paste prompts, and open questions. It is intentionally non-canonical; durable decisions still move into HANDOVER, AGENDA, ADRs, or focused feature docs.
 - **Phase 1 (allowlist runtime).** Added `proxy/lib/allowlist.js`, production startup validation, filtered `/assistant/allowlist` + `/assistant/profiles`, route guards, rejection audit events, Power BI workspace/report/tenant checks, and MVP 0.2 `proxy/config.example.json`.
 - **Phase 7 (pack registry, pulled forward).** Added `proxy/lib/packRegistry.js` + `GET /assistant/knowledge/packs`, filtered by `allowlist.packs`.
 - **Playground governance wiring.** Vendor/packs are filtered, `EmbedConfigForm` validates embed origins/workspace/report/tenant, and `BIPanel` refuses to mount a non-allowlisted URL.

@@ -5,6 +5,22 @@
 
 ---
 
+## 2026-05-14 - Agent coordination scratchpad
+
+**Range:** documentation-only helper requested by Rajesh so multiple AI agents can coordinate faster without stepping on each other's work.
+
+### What shipped
+
+- Added [docs/AGENT_SYNC.md](AGENT_SYNC.md) as a repo-tracked agent-to-agent communication file.
+- The file defines operating instructions, message tags, active work lanes, a missing-gap table, copy-paste prompts, open questions, a decision log, and a handoff template.
+- It explicitly stays non-canonical: architecture, security, roadmap, and durable decisions still belong in the relevant docs, ADRs, HANDOVER, and `docs/memory/`.
+
+### Validation
+
+- No code changed.
+
+---
+
 ## 2026-05-13 — Proxy plumbs `usage` blocks for sustainability indicator
 
 **Range:** follow-on to the sustainability-indicator commit. Replaces text-length estimates with real token counts for every backend that exposes them.
