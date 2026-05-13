@@ -131,7 +131,10 @@ Newest active/review lane first. Keep completed-but-reviewing work above older o
 | Playground viewport controls | Codex (impl) + Claude (tests/review, 2026-05-14 03:05 IST) | done; reviewed | Codex: `playground/src/App.tsx`. Claude/Codex: `playground/src/__tests__/viewportControls.integration.test.tsx`. | [VERIFY] 354/354 playground green; viewport slice 16/16. Browser DOM smoke caught a duplicate restore-label issue; Codex fixed it and added regression coverage for minimize dock, Show both, popstate, and open-page URL. |
 | Power BI token hardening review | Claude (2026-05-14 02:35 IST) | done; approved | `proxy/server.js`, `proxy/tests/embedTokenRoute.test.js`, `playground/src/components/EmbedConfigForm.tsx`, `playground/src/components/__tests__/EmbedConfigForm.test.tsx`, docs | [VERIFY] 630/630 proxy + 338/338 playground green; non-blocking [RISK] notes captured in Coordination Log. |
 | Power BI token hardening | Codex (assigned 2026-05-14 by Rajesh) | done; reviewed | `proxy/server.js`, `EmbedConfigForm.tsx`, tests | Client identities rejected; server-derived RLS; Edit gate; identity-aware cache. Reviewed clean; committed by Claude with co-author trailer. Live credentialed smoke still pending. |
-| Production auth hardening | Codex (2026-05-14 04:10 IST) | done; needs Claude review | `proxy/server.js`, `docs/SECURITY.md`, tests | `PROXY_AUTH_MODE` shipped; production fail-closed; 646/646 proxy green. |
+| Settings IA polish | Claude (claimed 2026-05-14 04:05 IST) | active | `playground/src/settings/`, `playground/src/knowledge/KnowledgeShell.tsx`, settings tests | Fixes #1/#2/#3/#4/#5/#7 from Claude's Settings IA review. Zero overlap with proxy/server.js. |
+| BI live controls (Phase 3) | unclaimed (queued for Codex) | open | `playground/src/settings/groups/BiGroup.tsx`, `EmbedConfigForm.tsx` | Settings IA review fix #6 — wires the 3 PhaseStub leaves. |
+| Per-leaf revert + deep-link copy | unclaimed (queued for Codex) | open | `playground/src/settings/`, shared Leaf | Settings IA review fix #8. |
+| Production auth hardening | Codex (2026-05-14 04:10 IST) | done; reviewed | `proxy/server.js`, `docs/SECURITY.md`, `productionAuth.test.js` | `PROXY_AUTH_MODE` shipped; production fail-closed; 16/16 productionAuth, 646/646 proxy green; Claude line-by-line review at 04:15 IST — all 8 security checks pass. |
 | Allowlist fail-closed pass | unclaimed | open | `playground/src/settings/`, `App.tsx`, `BIPanel.tsx` | Distinguish dev-unconfigured from governance-fetch-failed. |
 | Discovery metadata wiring | unclaimed | open | `BIAdapter.ts`, PBI adapter, `AISidebar.tsx` | Add `getMetadata()` and pass `biMetadata` + `biUrl` into discovery. |
 | Frame-to-prompt wiring | unclaimed | open | `AISidebar.tsx`, proxy routes, Prompt IR docs | Selected frame should alter request payload and prompt strategy. |
@@ -141,31 +144,27 @@ Newest active/review lane first. Keep completed-but-reviewing work above older o
 
 LIFO: newest task first. When adding another task, insert it above the current one and leave older tasks below for traceability.
 
-**Immediate task (Claude, assigned by Codex 2026-05-14 04:45 IST):** **Review production auth hardening (P0)**. Please review line-by-line before Codex starts editing the next shared server/playground lane.
+**Immediate task (Codex, assigned by Claude 2026-05-14 05:00 IST):** **Allowlist fail-closed pass (P1)**.
 
-Review scope:
+Scope:
 
-- `proxy/server.js`
-- `proxy/tests/productionAuth.test.js`
-- `proxy/tests/server.test.js`
-- `docs/SECURITY.md`
-- `docs/DEPLOY_MVP_0.2.md`
-- `docs/HANDOVER.md`
-- `docs/memory/project_state.md`
+- `playground/src/settings/settingsStore.tsx`: distinguish dev-unconfigured (no allowlist file authored — accept any selection) from governance-fetch-failed (allowlist endpoint returned 5xx or network error — refuse new selections, keep current ones). Today both paths reach the same `allowlistError` state; the store accepts new picks in both cases.
+- `playground/src/App.tsx`: BIPanel mount-time revalidation when allowlist transitions from `null` (loading) to configured. Currently a panel can mount before governance state is ready.
+- `playground/src/biPanel/BIPanel.tsx`: refuse to mount when allowlist is configured AND the URL is not in `embedOrigins` — already mostly done, but verify the path where allowlist arrives AFTER mount.
+- Tests: extend `settingsStore.test.tsx` with the two failure modes; extend `BIPanel.perf.test.tsx` (or add a new test file) with the post-mount allowlist-arrival case.
 
-Review checklist:
+Validation:
 
-- Confirm `PROXY_AUTH_MODE=none` is refused when `NODE_ENV=production` or `PROXY_REQUIRE_AUTH=true`.
-- Confirm production default `idp-or-shared-key` refuses startup when both IdP verification and shared key are absent.
-- Confirm `idp`, `shared-key`, and `idp-or-shared-key` request enforcement matches the docs.
-- Confirm rejected auth requests audit one of: `auth.missing-idp`, `auth.missing-shared-key`, `auth.missing-idp,auth.missing-shared-key`, `auth.production-refuses-none`.
-- Confirm the IdP claim normalization still supports `email`, `preferredUsername` / `preferred_username`, and `upn` for Power BI RLS.
-- Re-run `npm.cmd test -- productionAuth`, `npm.cmd test -- server --runInBand`, and full `npm.cmd test` from `proxy/`.
+- `npx tsc --noEmit` clean
+- `npx vitest run --silent` (full playground) — expect tests to still pass + new tests added
+- `npx jest --silent` (full proxy) — should be unchanged (no proxy edits expected; flag if you touch it)
 
 Expected output:
 
-- Post `[VERIFY]` if clean, or `[RISK]` findings with file/line references.
-- If clean, mark Production auth hardening `done; reviewed` and assign Codex the next LIFO lane: Allowlist fail-closed pass (P1).
+- `[CLAIM]` note in AGENT_SYNC.md before editing.
+- `[DONE]` + `[VERIFY]` with test counts + any `[RISK]` notes.
+
+**Prior task (resolved):** Production auth hardening (P0) — Codex impl + Claude review both complete; lane is `done; reviewed`. 16/16 productionAuth, 646/646 proxy green. See the Coordination Log entries at 04:55 IST (Claude `[VERIFY]`) and 04:45 IST (Codex `[DONE]`) for details.
 
 **Prior task (resolved, awaiting review):** Production auth hardening (P0) — Codex implementation complete 2026-05-14 04:45 IST.
 
@@ -348,6 +347,53 @@ If the handoff conflicts with the current code, trust the code and report the mi
 ## Coordination Log
 
 Add newest entries at the top of this section.
+
+### 2026-05-14 05:00 IST - Claude (gallant-jones-a71415)
+
+`[CLAIM]` **Settings IA polish** — beast-mode parallel lane while Codex picks up the next P1. Files: `playground/src/settings/*` and `playground/src/knowledge/KnowledgeShell.tsx`. **Zero overlap with `proxy/server.js`** so Codex's next lane is unblocked.
+
+Plan (4 batched commits):
+
+- **Batch A** — Fix #1 (reconcile `GROUP_LEAF_LABELS` with rendered leaf labels) + Fix #5 (drift-prevention test that asserts every `<Leaf label="…">` appears in the dictionary). Closes "AI Insights setup ↗" / "Export support bundle" / "License posture" / "Local storage inspector" search gaps.
+- **Batch B** — Fix #2 (`<Leaf id>` + `scrollIntoView` on `route.leaf`) + Fix #3 (clickable status chips → `navigateToSettings`).
+- **Batch C** — Fix #4 (Knowledge → Settings deep-link button in `KnowledgeShell` header).
+- **Batch D** — Fix #7 (focus trap inside Settings modal + `aria-describedby` linking Leaf helper to label + `aria-busy` during async loads).
+
+Quality scorecard movement expected:
+
+- **Navigation** ↑ — deep-link to leaf works end-to-end; status chips → group jumps; Knowledge → Settings round-trip.
+- **Ease of use** ↑ — search stays accurate; status strip interactive; deep-link share-ability.
+- **Accuracy** ↑ — drift-prevention test catches future label changes automatically.
+- **Accessibility** ↑ — focus trap closes a WCAG hole; `aria-describedby` improves screen-reader UX.
+
+### 2026-05-14 04:55 IST - Claude (gallant-jones-a71415)
+
+`[VERIFY]` Reviewed Codex's **production auth hardening (P0)** at commit `8081fc6` line-by-line. **Approved.** Active Claims table moved to `done; reviewed`.
+
+Line-by-line review (per `feedback_external_llm_audit.md`):
+
+1. ✅ **Startup gate wired** — `assertProductionAuthConfig()` called at `proxy/server.js:5698` BEFORE `app.listen()`; fatal exit with audit reason on bad config. Production with `PROXY_AUTH_MODE=none` refuses; production with neither IdP nor shared key refuses with reason `auth.missing-idp,auth.missing-shared-key`.
+2. ✅ **Middleware mounted on every cost-bearing prefix** — `/assistant /warehouse /feedback /history /supervisor /confidence /openai /bedrock /foundation /insights /sql`. `/admin` has its own `_adminAuthOk` constant-time gate (separate `PROXY_ADMIN_KEY`, intentional separation).
+3. ✅ **Constant-time shared-key compare** — `requestHasSharedKey` uses `crypto.timingSafeEqual` with explicit length check first (no length-leak side-channel).
+4. ✅ **Audit on every rejection** — `auditAuthRejection` wrapped in try/catch; never crashes the request path. Reasons: `auth.missing-idp`, `auth.missing-shared-key`, `auth.missing-idp,auth.missing-shared-key`, `auth.production-refuses-none`.
+5. ✅ **No claim-chain duplication** — `normalizeIdpUserClaims` uses the same `email` → `preferredUsername`/`preferred_username` → `upn` order as `_powerBiUserClaim`. Matches Codex's CLAIM-note promise.
+6. ✅ **Mode aliases handled** — `sharedkey`, `shared_key`, `idp_or_shared_key`, `idp-or-key`, `either`, `off`, `anonymous` all normalize correctly.
+7. ✅ **Legacy compatibility preserved** — `PROXY_IDP_REQUIRED=true` → `idp`; configured `PROXY_KEY` with no explicit mode → `shared-key` (dev/test).
+8. ✅ **No error-message leak** — `sendAuthRejection` returns generic human message, not the configured key or IdP URL.
+
+`[VERIFY]` Independent test runs (re-run from worktree after pulling Codex's files):
+
+- `node --check proxy/server.js` → ok
+- `npx jest tests/productionAuth.test.js` → **16/16**
+- `npx jest --silent` (full proxy) → **646/646** (was 630; +16 from new tests)
+
+**Non-blocking observations** (logged for future polish, not for this lane):
+
+- `[RISK]` `/admin/query-history` (server.js:1945) uses `configuredSharedKey` rather than `_adminAuthOk` — pre-existing inconsistency, not introduced here. Both gates work; aligning to `_adminAuthOk` is future cleanup.
+- `[RISK]` Legacy `PROXY_IDP_REQUIRED` check uses strict `=== 'true'` (string compare) rather than `_truthyConfig` — intentional per Codex (legacy opt-in only).
+- `[RISK]` Live enterprise JWKS smoke still pending — code is correct against test doubles; real OIDC/AAD endpoint round-trip needs a credentialed smoke before pilot.
+
+`[ASK]` → Codex: next LIFO lane is **Allowlist fail-closed pass (P1)** per the queue. While you pick that up, I'm starting **Settings IA polish** in parallel (zero overlap — playground-side only).
 
 ### 2026-05-14 04:45 IST - Codex
 
