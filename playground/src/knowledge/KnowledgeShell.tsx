@@ -211,7 +211,7 @@ export function KnowledgeShell(): React.ReactElement {
                 zIndex: 1000,
             }}
         >
-            <KnowledgeHeader />
+            <KnowledgeHeader activePack={route.pack} />
             <div style={{ flex: "1 1 auto", display: "flex", minHeight: 0 }}>
                 <KnowledgeLeftRail
                     packs={packList}
@@ -254,7 +254,7 @@ export function KnowledgeShell(): React.ReactElement {
 
 // ─── Header ─────────────────────────────────────────────────────────────
 
-function KnowledgeHeader(): React.ReactElement {
+function KnowledgeHeader(props: { activePack?: string | null }): React.ReactElement {
     return (
         <header
             style={{
@@ -277,13 +277,29 @@ function KnowledgeHeader(): React.ReactElement {
                     type="button"
                     onClick={() => {
                         if (typeof window === "undefined") return;
-                        window.history.pushState({}, "", "/settings");
+                        // Settings IA fix #4 — when the user is browsing a
+                        // specific pack, deep-link to the AI Knowledge-pack
+                        // leaf so they land where the pack picker lives.
+                        // Otherwise fall back to bare /settings (last group).
+                        const target = props.activePack
+                            ? "/settings/ai/knowledge-pack"
+                            : "/settings";
+                        window.history.pushState({}, "", target);
                         window.dispatchEvent(new CustomEvent("pulseplay:settings-navigate"));
                     }}
                     style={btnStyle}
-                    title="Open Settings (also: Cmd/Ctrl+, anywhere in the app)"
+                    title={
+                        props.activePack
+                            ? `Open Settings → AI → Knowledge pack (currently: ${props.activePack})`
+                            : "Open Settings (also: Cmd/Ctrl+, anywhere in the app)"
+                    }
+                    aria-label={
+                        props.activePack
+                            ? `Open Settings for pack ${props.activePack}`
+                            : "Open Settings"
+                    }
                 >
-                    Settings
+                    {props.activePack ? `⚙ ${props.activePack} settings` : "Settings"}
                 </button>
                 <button
                     type="button"

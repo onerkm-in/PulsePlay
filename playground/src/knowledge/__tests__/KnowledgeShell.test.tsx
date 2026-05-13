@@ -155,6 +155,37 @@ describe("KnowledgeShell — render", () => {
         unmount(state);
     });
 
+    it("deep-links Settings button to /settings/ai/knowledge-pack when an active pack is in the URL", async () => {
+        const state = mount("/knowledge/cpg-fmcg");
+        await flushAll();
+        // Find the Settings button by its dynamic aria-label.
+        const settingsBtn = state.container.querySelector(
+            'button[aria-label="Open Settings for pack cpg-fmcg"]',
+        ) as HTMLButtonElement | null;
+        expect(settingsBtn, "Settings button should be aware of the active pack").toBeTruthy();
+        expect(settingsBtn?.textContent).toContain("cpg-fmcg settings");
+        act(() => {
+            settingsBtn!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        });
+        expect(window.location.pathname).toBe("/settings/ai/knowledge-pack");
+        unmount(state);
+    });
+
+    it("falls back to bare /settings when there is no active pack", async () => {
+        const state = mount("/knowledge");
+        await flushAll();
+        const settingsBtn = state.container.querySelector(
+            'button[aria-label="Open Settings"]',
+        ) as HTMLButtonElement | null;
+        expect(settingsBtn, "Settings button should be present without an active pack").toBeTruthy();
+        expect(settingsBtn?.textContent).toBe("Settings");
+        act(() => {
+            settingsBtn!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        });
+        expect(window.location.pathname).toBe("/settings");
+        unmount(state);
+    });
+
     it("shows section tabs (Overview / Glossary / Ontology / References / Sub-verticals / Runtime / Demos)", async () => {
         const state = mount("/knowledge/cpg-fmcg");
         await flushAll();
