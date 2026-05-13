@@ -5,6 +5,39 @@
 
 ---
 
+## 2026-05-14 - Power BI embed-token hardening
+
+**Range:** P0 security lane from `docs/AGENT_SYNC.md`; scoped to Power BI service-principal token issuance and the setup UI posture.
+
+### What shipped
+
+- Hardened `POST /assistant/embed-token/powerbi` in [proxy/server.js](../proxy/server.js):
+  - rejects browser-supplied `identities`, `effectiveIdentity`, `effectiveIdentities`, and `rlsIdentity` before any Microsoft call;
+  - derives optional RLS effective identities only from server-side profile config or verified IdP user claims;
+  - denies `permissions: "Edit"` unless the profile explicitly sets `powerBiAllowEdit=true`;
+  - expands the cache key to `(profile, workspace, report, dataset, accessLevel, identityHash)` so RLS tokens cannot cross users.
+- Added profile/env knobs documented in [proxy/config.example.json](../proxy/config.example.json) and [docs/PROXY_REFERENCE.md](PROXY_REFERENCE.md): `powerBiAllowEdit`, `powerBiRlsEnabled`, `powerBiRlsRequired`, `powerBiRlsUsername`, `powerBiRlsUsernameClaim`, `powerBiRlsRoles`.
+- Updated [playground/src/components/EmbedConfigForm.tsx](../playground/src/components/EmbedConfigForm.tsx): manual Power BI token paste is hidden unless `VITE_PULSEPLAY_ENABLE_MANUAL_PBI_TOKEN=true` outside production; backend-issued mode requests View only.
+- Added negative coverage in [proxy/tests/embedTokenRoute.test.js](../proxy/tests/embedTokenRoute.test.js) and UI posture coverage in [EmbedConfigForm.test.tsx](../playground/src/components/__tests__/EmbedConfigForm.test.tsx).
+
+### Validation
+
+- `proxy`: `node --check server.js`
+- `proxy`: `npm test -- embedTokenRoute` → 22/22
+- `proxy`: full `npm test` → 630/630
+- `playground`: `npm run lint`
+- `playground`: `npm test -- EmbedConfigForm` → 2/2
+- `playground`: full `npm test` → 338/338
+- `playground`: `npm run build`
+
+### Tripwires
+
+- RLS derivation is available, but only works when the deployed proxy has a verified IdP session or a deliberate server-side `powerBiRlsUsername` pilot override. Shared-key-only deployments cannot infer a real end-user RLS username.
+- Full playground tests still print existing stderr noise from the SustainabilityIndicator setState warning and jsdom `window.open` in MSAL tests; both suites pass and those warnings predate this lane.
+- Claude/another agent should review this patch next per `docs/AGENT_SYNC.md`.
+
+---
+
 ## 2026-05-14 - Agent coordination scratchpad
 
 **Range:** documentation-only helper requested by Rajesh so multiple AI agents can coordinate faster without stepping on each other's work.

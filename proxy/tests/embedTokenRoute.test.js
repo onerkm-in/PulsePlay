@@ -15,9 +15,11 @@
  *
  * Coverage:
  *   • 200 happy path with mocked AAD + GenerateToken
+ *   • Server-derived RLS identities only; browser-supplied identities rejected
+ *   • Edit embed tokens denied by default and gated by profile policy
  *   • 503 when powerBi* fields are missing on the profile
  *   • 401/403 propagation when AAD or PBI returns auth failures
- *   • Cache hit on a second call within TTL (no re-fetch)
+ *   • Cache hit on a second call within TTL (no re-fetch) and identity-safe cache slots
  *   • Single-flight: 5 concurrent requests produce 1 AAD fetch
  *   • Audit log entry created
  *   • Client secret NEVER appears in any response or log
@@ -120,6 +122,12 @@ beforeEach(() => {
 });
 afterEach(() => {
     _setPowerBiFetchImplForTests(null);
+    delete process.env.PROXY_PROFILE_PBITEST_POWER_BI_ALLOW_EDIT;
+    delete process.env.PROXY_PROFILE_PBITEST_POWER_BI_RLS_ENABLED;
+    delete process.env.PROXY_PROFILE_PBITEST_POWER_BI_RLS_REQUIRED;
+    delete process.env.PROXY_PROFILE_PBITEST_POWER_BI_RLS_USERNAME;
+    delete process.env.PROXY_PROFILE_PBITEST_POWER_BI_RLS_USERNAME_CLAIM;
+    delete process.env.PROXY_PROFILE_PBITEST_POWER_BI_RLS_ROLES;
 });
 
 // ── Tests ──────────────────────────────────────────────────────────────────
@@ -160,7 +168,28 @@ describe('POST /assistant/embed-token/powerbi — happy path', () => {
         expect(pbiBody.accessLevel).toBe('View');
     });
 
-    test('Edit accessLevel propagates to the PBI body', async () => {
+    test('Edit accessLevel is denied unless the profile explicitly opts in', async () => {
+        let attempted = false;
+        _setPowerBiFetchImplForTests(async () => {
+            attempted = true;
+            throw new Error('should not fetch');
+        });
+
+        const res = await request(app)
+            .post('/assistant/embed-token/powerbi')
+            .send({
+                assistantProfile: 'pbitest',
+                groupId: 'wsp-uuid',
+                reportId: 'rep-uuid',
+                permissions: 'Edit',
+            });
+        expect(res.status).toBe(403);
+        expect(res.body.error).toMatch(/Edit embed tokens are disabled/);
+        expect(attempted).toBe(false);
+    });
+
+    test('Edit accessLevel propagates only when the profile opts in', async () => {
+        process.env.PROXY_PROFILE_PBITEST_POWER_BI_ALLOW_EDIT = 'true';
         const { impl, calls } = makeFetchRecorder([aadOkResponse(), pbiOkResponse('embed-tkn-edit')]);
         _setPowerBiFetchImplForTests(impl);
 
@@ -177,9 +206,12 @@ describe('POST /assistant/embed-token/powerbi — happy path', () => {
         expect(pbiBody.accessLevel).toBe('Edit');
     });
 
-    test('datasetId + identities flow through to PBI body when provided', async () => {
-        const { impl, calls } = makeFetchRecorder([aadOkResponse(), pbiOkResponse('embed-tkn-rls')]);
-        _setPowerBiFetchImplForTests(impl);
+    test('client-supplied identities are rejected before any Microsoft call', async () => {
+        let attempted = false;
+        _setPowerBiFetchImplForTests(async () => {
+            attempted = true;
+            throw new Error('should not fetch');
+        });
 
         const res = await request(app)
             .post('/assistant/embed-token/powerbi')
@@ -190,11 +222,32 @@ describe('POST /assistant/embed-token/powerbi — happy path', () => {
                 datasetId: 'ds-uuid',
                 identities: [{ username: 'alice@example.com', roles: ['Sales'], datasets: ['ds-uuid'] }],
             });
+        expect(res.status).toBe(400);
+        expect(res.body.error).toMatch(/client-supplied identity/i);
+        expect(attempted).toBe(false);
+    });
+
+    test('datasetId + server-configured RLS identity flow through to PBI body', async () => {
+        process.env.PROXY_PROFILE_PBITEST_POWER_BI_RLS_USERNAME = 'alice@example.com';
+        process.env.PROXY_PROFILE_PBITEST_POWER_BI_RLS_ROLES = 'Sales, West';
+        const { impl, calls } = makeFetchRecorder([aadOkResponse(), pbiOkResponse('embed-tkn-rls')]);
+        _setPowerBiFetchImplForTests(impl);
+
+        const res = await request(app)
+            .post('/assistant/embed-token/powerbi')
+            .send({
+                assistantProfile: 'pbitest',
+                groupId: 'wsp-uuid',
+                reportId: 'rep-uuid',
+                datasetId: 'ds-uuid',
+            });
         expect(res.status).toBe(200);
         const pbiBody = JSON.parse(calls[1].init.body);
         expect(pbiBody.datasetId).toBe('ds-uuid');
         expect(pbiBody.identities).toBeDefined();
         expect(pbiBody.identities[0].username).toBe('alice@example.com');
+        expect(pbiBody.identities[0].datasets).toEqual(['ds-uuid']);
+        expect(pbiBody.identities[0].roles).toEqual(['Sales', 'West']);
     });
 });
 
@@ -290,6 +343,7 @@ describe('POST /assistant/embed-token/powerbi — cache + single-flight', () => 
     });
 
     test('different accessLevel uses a different cache slot', async () => {
+        process.env.PROXY_PROFILE_PBITEST_POWER_BI_ALLOW_EDIT = 'true';
         const { impl, calls } = makeFetchRecorder([
             aadOkResponse(), pbiOkResponse('view-token'),
             aadOkResponse(), pbiOkResponse('edit-token'),
@@ -306,6 +360,46 @@ describe('POST /assistant/embed-token/powerbi — cache + single-flight', () => 
             .send({ assistantProfile: 'pbitest', groupId: 'wsp-uuid', reportId: 'rep-uuid', permissions: 'Edit' });
         expect(e.body.embedToken).toBe('edit-token');
         expect(calls).toHaveLength(4);
+    });
+
+    test('different server-derived RLS identities use different cache slots', async () => {
+        const { impl, calls } = makeFetchRecorder([
+            aadOkResponse(), pbiOkResponse('alice-token'),
+            aadOkResponse(), pbiOkResponse('bob-token'),
+        ]);
+        _setPowerBiFetchImplForTests(impl);
+
+        process.env.PROXY_PROFILE_PBITEST_POWER_BI_RLS_USERNAME = 'alice@example.com';
+        const first = await request(app)
+            .post('/assistant/embed-token/powerbi')
+            .send({
+                assistantProfile: 'pbitest',
+                groupId: 'wsp-uuid',
+                reportId: 'rep-uuid',
+                datasetId: 'ds-uuid',
+            });
+        expect(first.status).toBe(200);
+        expect(first.body.embedToken).toBe('alice-token');
+        expect(first.body.cached).toBe(false);
+
+        process.env.PROXY_PROFILE_PBITEST_POWER_BI_RLS_USERNAME = 'bob@example.com';
+        const second = await request(app)
+            .post('/assistant/embed-token/powerbi')
+            .send({
+                assistantProfile: 'pbitest',
+                groupId: 'wsp-uuid',
+                reportId: 'rep-uuid',
+                datasetId: 'ds-uuid',
+            });
+        expect(second.status).toBe(200);
+        expect(second.body.embedToken).toBe('bob-token');
+        expect(second.body.cached).toBe(false);
+        expect(calls).toHaveLength(4);
+
+        const firstPbiBody = JSON.parse(calls[1].init.body);
+        const secondPbiBody = JSON.parse(calls[3].init.body);
+        expect(firstPbiBody.identities[0].username).toBe('alice@example.com');
+        expect(secondPbiBody.identities[0].username).toBe('bob@example.com');
     });
 
     test('5 concurrent calls share a single AAD round-trip (single-flight)', async () => {
@@ -438,5 +532,45 @@ describe('POST /assistant/embed-token/:vendor — input validation', () => {
             .send({ assistantProfile: 'pbitest', groupId: 'wsp-uuid' });
         expect(res.status).toBe(400);
         expect(res.body.error).toMatch(/groupId and reportId/);
+    });
+
+    test('400 when effectiveIdentity is supplied by the client', async () => {
+        let attempted = false;
+        _setPowerBiFetchImplForTests(async () => {
+            attempted = true;
+            throw new Error('should not fetch');
+        });
+
+        const res = await request(app)
+            .post('/assistant/embed-token/powerbi')
+            .send({
+                assistantProfile: 'pbitest',
+                groupId: 'wsp-uuid',
+                reportId: 'rep-uuid',
+                effectiveIdentity: { username: 'mallory@example.com' },
+            });
+        expect(res.status).toBe(400);
+        expect(res.body.error).toMatch(/client-supplied identity/i);
+        expect(attempted).toBe(false);
+    });
+
+    test('400 when server-side RLS is enabled but datasetId is missing', async () => {
+        process.env.PROXY_PROFILE_PBITEST_POWER_BI_RLS_USERNAME = 'alice@example.com';
+        let attempted = false;
+        _setPowerBiFetchImplForTests(async () => {
+            attempted = true;
+            throw new Error('should not fetch');
+        });
+
+        const res = await request(app)
+            .post('/assistant/embed-token/powerbi')
+            .send({
+                assistantProfile: 'pbitest',
+                groupId: 'wsp-uuid',
+                reportId: 'rep-uuid',
+            });
+        expect(res.status).toBe(400);
+        expect(res.body.error).toMatch(/datasetId is required/);
+        expect(attempted).toBe(false);
     });
 });

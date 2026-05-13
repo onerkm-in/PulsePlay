@@ -68,7 +68,7 @@ This section captures gaps from the latest review. Treat it as a working list; i
 | Priority | Gap | Why It Matters | Likely Files | Expected Fix Shape |
 |---|---|---|---|---|
 | P0 | Production auth can still be optional | Enterprise deployment must not rely on CORS/allowlist as auth | `proxy/server.js`, proxy tests, `docs/SECURITY.md` | Production startup requires IdP or shared key; tests cover missing auth config. |
-| P0 | Power BI embed-token route accepts client-controlled identities/Edit and has weak cache key | RLS/permissions can be misapplied or cached across identities | `proxy/server.js`, `EmbedConfigForm.tsx`, proxy tests | Server derives identities; Edit is policy-gated; cache key includes workspace/dataset/identity or RLS tokens are not cached. |
+| P0 fixed 2026-05-14 | Power BI embed-token route accepted client-controlled identities/Edit and had weak cache key | Closed by Codex patch: client identities rejected, RLS derived server-side, Edit profile-gated, cache includes workspace/report/dataset/access/identity hash | `proxy/server.js`, `EmbedConfigForm.tsx`, `proxy/tests/embedTokenRoute.test.js` | Review patch, then run live credentialed Power BI smoke with the enterprise RLS claim mapping. |
 | P1 | Allowlist can fail open in UI/store | Governance fetch failures should not unlock restricted selections | `playground/src/settings/`, `App.tsx` | Separate dev-unconfigured from fetch-failed; restricted controls disable or reconcile fail-closed. |
 | P1 | Mounted BI panel is not revalidated after allowlist arrives/changes | A panel can mount before governance state is ready | `BIPanel.tsx`, `App.tsx`, tests | Revalidate/remount when allowlist transitions from null to configured or configured values change. |
 | P1 | Discovery Loop lacks live BI metadata | Reachability is not honest without visible measures/dimensions | `BIAdapter.ts`, `bi-adapters/powerbi/`, `AISidebar.tsx`, tests | Add optional `getMetadata()`; Power BI implements via SDK; iframe adapters return null. |
@@ -80,14 +80,51 @@ This section captures gaps from the latest review. Treat it as a working list; i
 
 ## Active Claims
 
+Newest active/review lane first. Keep completed-but-reviewing work above older open lanes until it is verified.
+
 | Lane | Owner | Status | Files / Area | Notes |
 |---|---|---|---|---|
+| Power BI token hardening review | Claude (2026-05-14 02:35 IST) | done; approved | `proxy/server.js`, `proxy/tests/embedTokenRoute.test.js`, `playground/src/components/EmbedConfigForm.tsx`, `playground/src/components/__tests__/EmbedConfigForm.test.tsx`, docs | [VERIFY] 630/630 proxy + 338/338 playground green; non-blocking [RISK] notes captured in Coordination Log. |
+| Power BI token hardening | Codex (assigned 2026-05-14 by Rajesh) | done; reviewed | `proxy/server.js`, `EmbedConfigForm.tsx`, tests | Client identities rejected; server-derived RLS; Edit gate; identity-aware cache. Reviewed clean; committed by Claude with co-author trailer. Live credentialed smoke still pending. |
 | Production auth hardening | unclaimed | open | `proxy/server.js`, `docs/SECURITY.md`, tests | Require IdP or shared key in production startup. |
-| Power BI token hardening | Codex (assigned 2026-05-14 by Rajesh) | claimed | `proxy/server.js`, `EmbedConfigForm.tsx`, tests | Derive RLS identities server-side; gate Edit; fix cache key. Review pass scheduled after Codex marks [DONE]. |
 | Allowlist fail-closed pass | unclaimed | open | `playground/src/settings/`, `App.tsx`, `BIPanel.tsx` | Distinguish dev-unconfigured from governance-fetch-failed. |
 | Discovery metadata wiring | unclaimed | open | `BIAdapter.ts`, PBI adapter, `AISidebar.tsx` | Add `getMetadata()` and pass `biMetadata` + `biUrl` into discovery. |
 | Frame-to-prompt wiring | unclaimed | open | `AISidebar.tsx`, proxy routes, Prompt IR docs | Selected frame should alter request payload and prompt strategy. |
 | Support bundle redaction | unclaimed | open | `diagnosticsBuffer.ts`, `exportBundle.ts`, `AdvancedGroup.tsx` | Redact raw event payloads and nested localStorage secrets. |
+
+## Next Task For Other Agent
+
+LIFO: newest task first. When adding another task, insert it above the current one and leave older tasks below for traceability.
+
+**Immediate task:** review the Codex Power BI embed-token hardening patch. This is review-first, not a new implementation lane.
+
+Review scope:
+
+- `proxy/server.js`
+- `proxy/tests/embedTokenRoute.test.js`
+- `playground/src/components/EmbedConfigForm.tsx`
+- `playground/src/components/__tests__/EmbedConfigForm.test.tsx`
+- `proxy/config.example.json`
+- `docs/SECURITY.md`
+- `docs/PROXY_REFERENCE.md`
+- `docs/AGENDA.md`
+- `docs/HANDOVER.md`
+- `docs/memory/project_state.md`
+
+Review checklist:
+
+- Confirm browser-supplied `identities`, `effectiveIdentity`, `effectiveIdentities`, and `rlsIdentity` are rejected before AAD/Power BI calls.
+- Confirm `permissions: "Edit"` is deny-by-default and only reaches Power BI when `powerBiAllowEdit=true`.
+- Confirm server-derived RLS identity requires `datasetId`, uses only server config or verified IdP claims, and never echoes the username in responses.
+- Confirm cache keys separate workspace, report, dataset, access level, and RLS identity hash; no client secret or raw username in the key.
+- Confirm the playground no longer exposes manual token paste unless `VITE_PULSEPLAY_ENABLE_MANUAL_PBI_TOKEN=true` outside production.
+- Confirm docs describe the new behavior without overclaiming live enterprise RLS smoke.
+
+Expected output from the other agent:
+
+- Add a new `[VERIFY]` note if the patch is clean, including commands run.
+- Add `[RISK]` / findings with file references if anything is wrong.
+- If clean, the next implementation lane to claim is **Production auth hardening**. Do not start that lane until the review note is posted.
 
 ## Copy-Paste Prompts
 
@@ -176,6 +213,105 @@ If the handoff conflicts with the current code, trust the code and report the mi
 ## Coordination Log
 
 Add newest entries at the top of this section.
+
+### 2026-05-14 02:35 IST - Claude (gallant-jones-a71415)
+
+`[VERIFY]` Reviewed Codex's PBI embed-token hardening patch (uncommitted in main checkout). Implementation is clean, design intent matches the gap-table item, negative-test coverage is comprehensive. **Approving for commit.**
+
+**Review pass (per `feedback_external_llm_audit.md`):**
+
+- Read full `git diff HEAD` for all 11 files. No code rewrites disguised as cleanup; no subtle regressions; comments are honest about scope.
+- `proxy/server.js` core route hardening checks I validated:
+  - Client-identity rejection via `_clientSuppliedPowerBIIdentityField` covers all 4 known field names (`identities`, `effectiveIdentity`, `effectiveIdentities`, `rlsIdentity`) with `hasOwnProperty` (won't false-negative on the prototype chain). Rejection happens **before** any AAD / GenerateToken call, with an audit log entry.
+  - `_powerBiEditAllowed` requires explicit profile policy gate; default-deny is correct. `wantsEdit` uses `/^edit$/i` so case variants are caught.
+  - `_resolvePowerBIIdentities` derives identity from `profile.powerBiRlsUsername` (static override) OR IdP claims (`email` / `preferredUsername` / `upn`) — `_powerBiUserClaim` includes claim-name aliases so configuration drift between `preferred_username` and `preferredUsername` is tolerated. If RLS is configured but no username can be derived → 401, not silent fall-through.
+  - Cache key includes `groupId|reportId|datasetId|accessLevel|identityHash` where `identityHash` is `sha256(stable-sort JSON(identities))[0:16]`. Stable-sort prevents key-equality issues; truncation to 16 hex chars is fine for cache slot separation. Client secret is **not** in the key (still hashed separately via `hashServicePrincipalId` for audit only).
+  - `_truthyConfig` handles both boolean (JSON config) and string (env var) — `true`, `"true"`, `"1"`, `"yes"`, `"on"`, `"allow"`, `"enabled"` all parsed correctly.
+
+- `proxy/tests/embedTokenRoute.test.js` negative tests cover:
+  - ✅ Client-supplied `identities` rejected (no AAD call attempted).
+  - ✅ Client-supplied `effectiveIdentity` rejected (separate test in input-validation block).
+  - ✅ Edit without profile gate → 403 (no AAD call).
+  - ✅ Edit with profile gate → 200.
+  - ✅ Server-derived RLS identity → flows through to PBI body with correct `datasets[]` and `roles[]`.
+  - ✅ Different RLS usernames → different cache slots (4 fetches for 2 requests, distinct embed tokens).
+  - ✅ Different `accessLevel` → different cache slots.
+  - ✅ `datasetId` required when RLS enabled → 400.
+
+- `playground/src/components/__tests__/EmbedConfigForm.test.tsx` security-posture tests:
+  - ✅ Manual paste mode hidden from dropdown by default (`["secure", "sso", "backend"]`).
+  - ✅ Backend-issued mode forces View, disables Edit option in dropdown, ignores manual switch to Edit.
+
+`[VERIFY]` Independent test runs from worktree after pulling Codex's files:
+
+- `node --check proxy/server.js` → ok
+- `npx jest tests/embedTokenRoute.test.js` → 22/22
+- `npx jest --silent` (full proxy) → **630/630** (matches Codex's claim)
+- `npx vitest run --silent` (full playground) → **338/338** (matches Codex's claim)
+
+**Gaps I noticed, none blocking:**
+
+- `[RISK]` No explicit test for client-supplied `effectiveIdentities` or `rlsIdentity` field names. The rejection list `POWER_BI_CLIENT_IDENTITY_FIELDS` includes them but only `identities` and `effectiveIdentity` are covered by tests. Same code path so same behaviour, but a 1-line test each would lock the contract. Optional follow-up.
+- `[RISK]` No integration test for the IdP-claim derivation path through `_powerBiUserClaim`. All RLS tests use the static `powerBiRlsUsername` env var. Adding a test that mocks `req.user = { email: ... }` would close this. Phase 11b / pre-pilot work.
+- `[RISK]` Two Open Questions were answered by Codex with conservative defaults (manual mode hidden behind `VITE_PULSEPLAY_ENABLE_MANUAL_PBI_TOKEN`; RLS claim order `email / preferredUsername / upn`). Both are defensible; Rajesh should still confirm the defaults match enterprise policy before the live credentialed smoke.
+- `[RISK]` Live credentialed smoke is still pending. The code is correct against the test doubles, but the real Power BI dataset RLS role model has to match what `_resolvePowerBIIdentities` emits. Tripwire is already in Codex's HANDOVER entry.
+
+**Decision:** Committing Codex's patch as a single coherent commit on `claude/gallant-jones-a71415` so the work is preserved with attribution + audit trail. Marking lane row as `done; reviewed` and moving on.
+
+`[HANDOFF]` Next: Rajesh decides whether I claim Production auth hardening (P0) next, or pick a P1 / parallel lane. Open Questions #2 and #3 are now de-facto decided (manual hidden behind dev flag; claim order email/preferredUsername/upn) — worth confirming in writing before pilot.
+
+Evidence:
+
+- Will be at `<sha>` once committed (this branch).
+- Files: see Codex's [DONE] entry below.
+
+Next:
+
+- Commit Codex's patch with co-author trailer, FF main, update Active Claims table to `done; reviewed`.
+
+### 2026-05-14 02:10 IST - Codex
+
+`[HANDOFF]` Rajesh asked to make the other agent's next task explicit. Added **Next Task For Other Agent** above: review the Codex Power BI embed-token hardening patch first, post `[VERIFY]` / findings, and only then claim the next implementation lane.
+
+Next for Claude/review agent:
+
+1. Review the PBI hardening diff and tests.
+2. Post `[VERIFY]` if clean or `[RISK]` findings with file references.
+3. After review is posted, claim **Production auth hardening** if Rajesh wants the next P0 tackled.
+
+### 2026-05-14 02:05 IST - Codex
+
+`[DONE]` Power BI embed-token hardening shipped. The proxy now rejects browser-supplied `identities` / `effectiveIdentity`, derives optional RLS identities server-side, denies Edit unless `powerBiAllowEdit=true`, and uses an identity-aware cache key. The playground hides manual Power BI token paste unless `VITE_PULSEPLAY_ENABLE_MANUAL_PBI_TOKEN=true` outside production and keeps backend-issued mode View-only.
+
+`[VERIFY]`
+
+- `proxy`: `node --check server.js`
+- `proxy`: `npm test -- embedTokenRoute` → 22/22
+- `proxy`: full `npm test` → 630/630
+- `playground`: `npm run lint`
+- `playground`: `npm test -- EmbedConfigForm` → 2/2
+- `playground`: full `npm test` → 338/338
+- `playground`: `npm run build`
+
+`[RISK]` Full playground test run still emits pre-existing stderr noise: the SustainabilityIndicator/AISidebar React setState warning and jsdom `window.open` from MSAL popup tests. Tests pass; not introduced by this patch.
+
+`[HANDOFF]` Claude/review agent should inspect `proxy/server.js`, `proxy/tests/embedTokenRoute.test.js`, `playground/src/components/EmbedConfigForm.tsx`, `playground/src/components/__tests__/EmbedConfigForm.test.tsx`, `docs/SECURITY.md`, and `docs/PROXY_REFERENCE.md`. Live credentialed smoke still needed to confirm the enterprise RLS claim maps to the actual Power BI dataset role model.
+
+### 2026-05-14 01:40 IST - Codex
+
+`[CLAIM]` Starting **Power BI embed-token hardening**. Rajesh approved the conservative defaults: dev-flag manual token mode, reject browser-supplied identities, derive any RLS identity server-side, View-only by default, and cache by workspace/report/dataset/access/identity hash.
+
+Planned files:
+
+- `proxy/server.js`
+- `proxy/tests/embedTokenRoute.test.js`
+- `playground/src/components/EmbedConfigForm.tsx`
+- docs/handover/memory after validation
+
+Planned validation:
+
+- Proxy negative tests for spoofed identities, Edit gate, and identity-aware cache separation.
+- Playground type/test check for the manual-mode and backend-permission UI posture.
 
 ### 2026-05-14 01:35 IST - Rajesh (via Claude)
 
@@ -302,13 +438,14 @@ Next:
 | Question | Asked By | Owner | Needed By | Status |
 |---|---|---|---|---|
 | Should production require IdP specifically, or allow shared-key-only for first internal pilot? | review | Rajesh / security owner | before auth hardening | open |
-| Should manual Power BI token mode be removed, or hidden behind an explicit dev flag? | review | Rajesh | before BI hardening | open |
-| What user claim should map to Power BI RLS effective identity? | review | enterprise identity owner | before RLS token work | open |
+| Should manual Power BI token mode be removed, or hidden behind an explicit dev flag? | review | Rajesh | before BI hardening | answered: hidden behind explicit dev flag |
+| What user claim should map to Power BI RLS effective identity? | review | enterprise identity owner | before RLS token work | answered for code default: email, preferredUsername, upn; live enterprise mapping still must be smoke-tested |
 
 ## Decision Log
 
 | Date | Decision | Made By | Canonical Location |
 |---|---|---|---|
+| 2026-05-14 | Power BI manual token paste is dev-flag only; backend-issued tokens are View by default; Edit requires `powerBiAllowEdit=true`; RLS identities are proxy-derived from IdP claims or server config. | Rajesh + Codex | `docs/SECURITY.md`, `docs/PROXY_REFERENCE.md`, `docs/HANDOVER.md` |
 | 2026-05-14 | Use this file as an agent coordination scratchpad only. It does not replace HANDOVER, AGENDA, ADRs, or project memory. | Codex | `docs/AGENT_SYNC.md` |
 
 ## Handoff Template

@@ -15,11 +15,11 @@ import type { PulsePlayAllowlist } from "../types/allowlist";
 //      permissions. Seamless when the viewer already has an M365 session.
 //      Per https://learn.microsoft.com/en-us/power-bi/developer/embedded/embed-organization-app
 //   2. Backend-issued (Service Principal) — proxy mints an embed token
-//      via Azure AD client-credentials flow. Every viewer sees the SP's
-//      identity (no per-user RLS unless you pass `identities` for RLS
-//      impersonation). The browser never sees the SP secret.
-//   3. Manual paste — dev / lab only. Paste an embed token you minted
-//      via the Power BI portal or REST. Doesn't survive token expiry.
+//      via Azure AD client-credentials flow. The proxy may derive RLS
+//      effective identities from verified server-side user claims. The
+//      browser never sees the SP secret and never supplies RLS identities.
+//   3. Manual paste — dev / lab only, hidden unless explicitly enabled
+//      with VITE_PULSEPLAY_ENABLE_MANUAL_PBI_TOKEN=true outside production.
 //
 // Other vendors (generic / Tableau / Qlik / Looker) — single URL field
 // (the iframe fallback path; v1 wires real SDKs).
@@ -45,6 +45,12 @@ interface EmbedConfigFormProps {
 }
 
 type PowerBITokenMode = "secure" | "sso" | "backend" | "manual";
+
+function isManualPowerBIModeEnabled(): boolean {
+    const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env || {};
+    return env.VITE_PULSEPLAY_ENABLE_MANUAL_PBI_TOKEN === "true"
+        && env.MODE !== "production";
+}
 
 interface PowerBIFormState {
     groupId: string;
@@ -190,6 +196,7 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string>("");
     const [lastIssuedAt, setLastIssuedAt] = useState<number | null>(null);
+    const manualModeEnabled = isManualPowerBIModeEnabled();
 
     // Re-hydrate when the parent reset the embedConfig (e.g. user changed
     // vendor and came back). Avoids stale form values overwriting a fresh
@@ -202,10 +209,25 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
         }
     }, [props.value]);
 
+    useEffect(() => {
+        if (!manualModeEnabled && state.tokenMode === "manual") {
+            setState(s => ({ ...s, tokenMode: "secure", permissions: "View" }));
+        }
+    }, [manualModeEnabled, state.tokenMode]);
+
     const apiBase = props.apiBaseUrl || "/api";
 
     const set = <K extends keyof PowerBIFormState>(key: K, val: PowerBIFormState[K]) => {
         setState(s => ({ ...s, [key]: val }));
+    };
+
+    const setTokenMode = (mode: PowerBITokenMode) => {
+        const nextMode = mode === "manual" && !manualModeEnabled ? "secure" : mode;
+        setState(s => ({
+            ...s,
+            tokenMode: nextMode,
+            permissions: nextMode === "backend" ? "View" : s.permissions,
+        }));
     };
 
     const apply = async () => {
@@ -268,6 +290,10 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
         }
 
         if (state.tokenMode === "manual") {
+            if (!manualModeEnabled) {
+                setError("Manual Power BI token mode is disabled for this build.");
+                return;
+            }
             if (!state.manualEmbedUrl.trim() || !state.manualAccessToken.trim()) {
                 setError("Manual mode needs both an embed URL and an access token.");
                 return;
@@ -279,6 +305,8 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
             }
             props.onChange({
                 type: "report",
+                mode: "manual",
+                embedMode: "manual",
                 tokenType: "Embed",
                 id: state.reportId.trim(),
                 groupId: state.groupId.trim() || undefined,
@@ -358,9 +386,9 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
 
         // Backend-issued: POST to the proxy. The proxy resolves AAD service
         // principal credentials via the active profile and returns a short-
-        // lived embed token. The browser never sees the AAD secret. Every
-        // viewer sees the SP's identity (no per-user RLS unless the proxy
-        // route also passes `identities` for RLS impersonation).
+        // lived embed token. The browser never sees the AAD secret, never
+        // supplies RLS identities, and requests View unless the proxy profile
+        // has an explicit server-side Edit policy.
         if (!state.groupId.trim()) {
             setError("Workspace (group) ID is required for backend-issued tokens.");
             return;
@@ -378,7 +406,7 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
                     groupId: state.groupId.trim(),
                     reportId: state.reportId.trim(),
                     datasetId: state.datasetId.trim() || undefined,
-                    permissions: state.permissions,
+                    permissions: "View",
                     assistantProfile: props.assistantProfile || undefined,
                 }),
             });
@@ -394,13 +422,15 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
             }
             props.onChange({
                 type: "report",
+                mode: "backend-issued",
+                embedMode: "backend",
                 tokenType: "Embed",
                 id: state.reportId.trim(),
                 groupId: state.groupId.trim(),
                 datasetId: state.datasetId.trim() || undefined,
                 embedUrl: String(data.embedUrl),
                 accessToken: String(data.embedToken),
-                permissions: state.permissions,
+                permissions: "View",
             });
             setLastIssuedAt(Date.now());
         } catch (err) {
@@ -431,12 +461,12 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
                 id="pp-pbi-mode"
                 className="pp-embed-config__input"
                 value={state.tokenMode}
-                onChange={e => set("tokenMode", e.target.value as PowerBITokenMode)}
+                onChange={e => setTokenMode(e.target.value as PowerBITokenMode)}
             >
                 <option value="secure">Secure embed link - quick preview</option>
                 <option value="sso">AAD SSO — Embed for your organization (seamless)</option>
                 <option value="backend">Service principal — Embed for your customers (proxy)</option>
-                <option value="manual">Manual paste (dev only)</option>
+                {manualModeEnabled && <option value="manual">Manual paste (dev only)</option>}
             </select>
 
             {state.tokenMode === "secure" && (
@@ -492,11 +522,18 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
                     <select
                         id="pp-pbi-perms"
                         className="pp-embed-config__input"
-                        value={state.permissions}
-                        onChange={e => set("permissions", e.target.value as "View" | "Edit")}
+                        value={state.tokenMode === "backend" ? "View" : state.permissions}
+                        onChange={e => {
+                            const next = e.target.value as "View" | "Edit";
+                            if (state.tokenMode === "backend" && next === "Edit") {
+                                set("permissions", "View");
+                                return;
+                            }
+                            set("permissions", next);
+                        }}
                     >
                         <option value="View">View</option>
-                        <option value="Edit">Edit</option>
+                        <option value="Edit" disabled={state.tokenMode === "backend"}>Edit</option>
                     </select>
                 </>
             )}
@@ -608,11 +645,14 @@ function hydratePbiState(value: BIEmbedConfig): PowerBIFormState {
     const persistedSso = readPersistedSso();
     const tokenType = (value.tokenType as string) || "";
     const isSecureEmbed = value.mode === "secure-embed" || value.embedMode === "secure";
+    const isBackendIssued = value.mode === "backend-issued" || value.embedMode === "backend";
+    const isManualEmbed = value.mode === "manual" || value.embedMode === "manual";
     const embedUrl = (value.embedUrl as string) || (value.url as string) || "";
     const inferredMode: PowerBITokenMode =
         isSecureEmbed ? "secure"
             : tokenType === "Aad" ? "sso"
-            : value.accessToken ? "manual"
+            : isBackendIssued ? "backend"
+            : isManualEmbed && value.accessToken && isManualPowerBIModeEnabled() ? "manual"
             : "secure";
     return {
         groupId: (value.groupId as string) || "",

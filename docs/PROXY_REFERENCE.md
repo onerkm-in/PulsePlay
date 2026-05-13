@@ -74,6 +74,7 @@ No new endpoints — proxy fans out to N Genie spaces (1.1 row 2-4 above) in par
 | GET | `/admin/query-history` | Genie Query Audit panel |
 | GET | `/assistant/profiles` | Profile listing for the ConnectorPicker |
 | GET | `/assistant/capabilities` | Per-profile capability listing |
+| POST | `/assistant/embed-token/powerbi` | Power BI service-principal embed token issuance |
 | POST | `/assistant/conversations/start` | Each new sidebar prompt |
 | POST | `/assistant/conversations/{id}/messages` | Follow-up turns |
 | GET | `/assistant/conversations/{id}/messages/{id}` | Polling for completion |
@@ -87,6 +88,16 @@ No new endpoints — proxy fans out to N Genie spaces (1.1 row 2-4 above) in par
 | POST | `/supervisor-local/run` | Proxy-side fan-out |
 
 The Vite dev server proxies `/api/*` from the playground at `http://127.0.0.1:5173` to the proxy at `http://127.0.0.1:8787`. So the React app fetches `/api/assistant/conversations/start` and the proxy receives it at `/assistant/conversations/start`.
+
+Power BI embed tokens are minted only by the proxy. Required profile fields are `powerBiClientId`, `powerBiClientSecret`, and `powerBiTenantId`. Optional hardening fields:
+
+- `powerBiAllowEdit`: defaults false; must be true before the route will request `accessLevel: "Edit"`.
+- `powerBiRlsEnabled` / `powerBiRlsRequired`: enable or require server-derived effective identity.
+- `powerBiRlsUsernameClaim`: claim order for RLS username; default is `email`, `preferredUsername`, `upn`.
+- `powerBiRlsUsername`: server-configured override for controlled pilots.
+- `powerBiRlsRoles`: comma-separated or array of Power BI RLS role names.
+
+The route rejects browser-supplied `identities` / `effectiveIdentity` payloads and caches tokens by non-secret `(profile, workspace, report, dataset, access, identityHash)`.
 
 ## 2. Permissions, scopes, network
 

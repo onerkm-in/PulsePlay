@@ -24,6 +24,12 @@
  * @property {string} [powerBiClientId] Cycle A — Azure AD application (client) ID used to mint Power BI embed tokens (POST /assistant/embed-token/powerbi).
  * @property {string} [powerBiClientSecret] Cycle A — Azure AD client secret. NEVER logged or returned to the browser.
  * @property {string} [powerBiTenantId] Cycle A — Azure AD tenant ID for the client_credentials grant.
+ * @property {string|boolean} [powerBiAllowEdit] Explicit policy gate for Power BI Edit embed tokens. Defaults false.
+ * @property {string|boolean} [powerBiRlsEnabled] Enables server-derived Power BI effective identities.
+ * @property {string|boolean} [powerBiRlsRequired] When true, fail token issuance if an RLS identity cannot be derived.
+ * @property {string} [powerBiRlsUsername] Optional server-configured RLS username override.
+ * @property {string} [powerBiRlsUsernameClaim] IdP claim name/list used for RLS username. Defaults to email/preferredUsername/upn.
+ * @property {string|string[]} [powerBiRlsRoles] Optional Power BI RLS role names.
  *
  * @typedef {Object} ProxyConfig
  * @property {number} [port]
@@ -201,7 +207,19 @@ const ENV_PROFILE_FIELDS = {
     POWER_BI_CLIENT_SECRET: 'powerBiClientSecret',
     POWERBICLIENTSECRET: 'powerBiClientSecret',
     POWER_BI_TENANT_ID: 'powerBiTenantId',
-    POWERBITENANTID: 'powerBiTenantId'
+    POWERBITENANTID: 'powerBiTenantId',
+    POWER_BI_ALLOW_EDIT: 'powerBiAllowEdit',
+    POWERBIALLOWEDIT: 'powerBiAllowEdit',
+    POWER_BI_RLS_ENABLED: 'powerBiRlsEnabled',
+    POWERBIRLSENABLED: 'powerBiRlsEnabled',
+    POWER_BI_RLS_REQUIRED: 'powerBiRlsRequired',
+    POWERBIRLSREQUIRED: 'powerBiRlsRequired',
+    POWER_BI_RLS_USERNAME: 'powerBiRlsUsername',
+    POWERBIRLSUSERNAME: 'powerBiRlsUsername',
+    POWER_BI_RLS_USERNAME_CLAIM: 'powerBiRlsUsernameClaim',
+    POWERBIRLSUSERNAMECLAIM: 'powerBiRlsUsernameClaim',
+    POWER_BI_RLS_ROLES: 'powerBiRlsRoles',
+    POWERBIRLSROLES: 'powerBiRlsRoles'
 };
 
 function loadEnvProfiles(env = process.env) {
@@ -223,7 +241,7 @@ function loadEnvProfiles(env = process.env) {
         const value = env[key];
         if (value == null || value === '') continue;
         if (!out[profileName]) out[profileName] = {};
-        if (fieldName === 'spaces' || fieldName === 'suggestedQuestions') {
+        if (fieldName === 'spaces' || fieldName === 'suggestedQuestions' || fieldName === 'powerBiRlsRoles') {
             out[profileName][fieldName] = String(value).split(',').map(s => s.trim()).filter(Boolean);
         } else {
             out[profileName][fieldName] = String(value);
@@ -1352,6 +1370,8 @@ async function idpMiddleware(req, res, next) {
         req.user = {
             sub: payload.sub || null,
             email: payload.email || payload.preferred_username || null,
+            preferredUsername: payload.preferred_username || null,
+            upn: payload.upn || null,
             name: payload.name || null,
             tid: payload.tid || null, // AAD tenant
             scp: payload.scp || payload.scope || null, // delegated scopes
@@ -2794,9 +2814,15 @@ app.post('/assistant/discover', async (req, res) => {
 //   • Client secret lives in proxy config (or env var) and NEVER appears
 //     in responses, audit logs, or the cache key — we hash the SP client
 //     ID for the audit line and use a non-secret cache key.
-//   • Embed tokens are cached per (profile|reportId|accessLevel) with TTL
+//   • Browser-supplied RLS/effective-identity payloads are rejected. When
+//     RLS is enabled, the proxy derives the effective identity from server
+//     config or verified IdP claims.
+//   • Edit tokens require an explicit profile policy gate
+//     (`powerBiAllowEdit: true`). View is the default.
+//   • Embed tokens are cached per
+//     (profile|workspace|report|dataset|accessLevel|identityHash) with TTL
 //     = expiry-minus-60s buffer so a refresh cycle starts before the
-//     client sees a 401.
+//     client sees a 401, and RLS tokens never cross identities.
 //   • Single-flight: 5 concurrent requests for the same key share one
 //     AAD round-trip + one GenerateToken round-trip.
 //   • If AAD/PBI returns 401/403, we propagate the status with a generic
@@ -2809,9 +2835,138 @@ app.post('/assistant/discover', async (req, res) => {
 const EMBED_TOKEN_BUFFER_MS = 60 * 1000;       // refresh 60s before expiry
 const _powerBiTokenCache = new Map();           // key → { embedToken, embedUrl, expiry, refreshPromise }
 const _powerBiTokenCacheMaxEntries = 500;
+const POWER_BI_CLIENT_IDENTITY_FIELDS = ['identities', 'effectiveIdentity', 'effectiveIdentities', 'rlsIdentity'];
 
-function _powerBiCacheKey(profileName, reportId, accessLevel) {
-    return `${profileName}|${reportId}|${accessLevel}`;
+function _truthyConfig(value) {
+    if (value === true) return true;
+    if (value === false || value == null) return false;
+    return /^(true|1|yes|on|allow|enabled)$/i.test(String(value).trim());
+}
+
+function _listFromConfig(value) {
+    if (Array.isArray(value)) return value.map(v => String(v).trim()).filter(Boolean);
+    if (typeof value === 'string') return value.split(',').map(v => v.trim()).filter(Boolean);
+    return [];
+}
+
+function _stableJsonValue(value) {
+    if (Array.isArray(value)) return value.map(_stableJsonValue);
+    if (value && typeof value === 'object') {
+        return Object.keys(value).sort().reduce((acc, key) => {
+            acc[key] = _stableJsonValue(value[key]);
+            return acc;
+        }, {});
+    }
+    return value;
+}
+
+function _stableIdentityJson(identities) {
+    try { return JSON.stringify(_stableJsonValue(identities || [])); }
+    catch { return '[]'; }
+}
+
+function _powerBiIdentityHash(identities) {
+    if (!Array.isArray(identities) || identities.length === 0) return 'rls:none';
+    try {
+        const cryptoMod = require('crypto');
+        const digest = cryptoMod.createHash('sha256').update(_stableIdentityJson(identities)).digest('hex');
+        return `rls:${digest.slice(0, 16)}`;
+    } catch {
+        return 'rls:hash-error';
+    }
+}
+
+function _powerBiCacheKey({ profileName, groupId, reportId, datasetId, accessLevel, identities }) {
+    return [
+        String(profileName || 'default'),
+        String(groupId || '-'),
+        String(reportId || '-'),
+        String(datasetId || '-'),
+        String(accessLevel || 'View'),
+        _powerBiIdentityHash(identities),
+    ].join('|');
+}
+
+function _clientSuppliedPowerBIIdentityField(body) {
+    const payload = body && typeof body === 'object' ? body : {};
+    return POWER_BI_CLIENT_IDENTITY_FIELDS.find(field => Object.prototype.hasOwnProperty.call(payload, field)) || '';
+}
+
+function _powerBiEditAllowed(profile) {
+    return _truthyConfig(profile?.powerBiAllowEdit);
+}
+
+function _powerBiUserClaim(req, claimName) {
+    const user = req?.user || {};
+    const aliases = {
+        preferred_username: ['preferred_username', 'preferredUsername', 'email'],
+        preferredUsername: ['preferredUsername', 'preferred_username', 'email'],
+        upn: ['upn', 'email'],
+        email: ['email'],
+    };
+    const keys = aliases[claimName] || [claimName];
+    for (const key of keys) {
+        const raw = user[key];
+        if (typeof raw === 'string' && raw.trim()) return raw.trim();
+        if (Array.isArray(raw)) {
+            const first = raw.map(v => String(v).trim()).find(Boolean);
+            if (first) return first;
+        }
+    }
+    return '';
+}
+
+function _resolvePowerBIRlsUsername(req, profile) {
+    const staticUsername = typeof profile?.powerBiRlsUsername === 'string'
+        ? profile.powerBiRlsUsername.trim()
+        : '';
+    if (staticUsername) return staticUsername;
+
+    const configuredClaims = _listFromConfig(profile?.powerBiRlsUsernameClaim);
+    const claims = configuredClaims.length > 0
+        ? configuredClaims
+        : ['email', 'preferredUsername', 'upn'];
+    for (const claim of claims) {
+        const value = _powerBiUserClaim(req, claim);
+        if (value) return value;
+    }
+    return '';
+}
+
+function _resolvePowerBIIdentities({ req, profile, datasetId }) {
+    const roles = _listFromConfig(profile?.powerBiRlsRoles);
+    const rlsConfigured = _truthyConfig(profile?.powerBiRlsEnabled)
+        || _truthyConfig(profile?.powerBiRlsRequired)
+        || !!(typeof profile?.powerBiRlsUsername === 'string' && profile.powerBiRlsUsername.trim())
+        || !!(typeof profile?.powerBiRlsUsernameClaim === 'string' && profile.powerBiRlsUsernameClaim.trim())
+        || roles.length > 0;
+
+    if (!rlsConfigured) return { identities: undefined, identityHash: 'rls:none' };
+
+    const username = _resolvePowerBIRlsUsername(req, profile);
+    if (!username) {
+        return {
+            status: 401,
+            error: 'Power BI RLS is enabled, but no server-side user claim was available for the effective identity.',
+        };
+    }
+    if (!datasetId) {
+        return {
+            status: 400,
+            error: 'datasetId is required when server-side Power BI RLS identity is enabled.',
+        };
+    }
+
+    const identity = {
+        username,
+        datasets: [datasetId],
+        ...(roles.length > 0 ? { roles } : {}),
+    };
+    const identities = [identity];
+    return {
+        identities,
+        identityHash: _powerBiIdentityHash(identities),
+    };
 }
 
 function _powerBiEvictOldestIfFull() {
@@ -2960,9 +3115,22 @@ app.post('/assistant/embed-token/:vendor', async (req, res) => {
     const groupId = String(req.body?.groupId || '').trim();
     const reportId = String(req.body?.reportId || '').trim();
     const datasetId = req.body?.datasetId ? String(req.body.datasetId).trim() : '';
-    const requestedPerms = String(req.body?.permissions || 'View');
-    const accessLevel = requestedPerms === 'Edit' ? 'Edit' : 'View';
-    const identities = Array.isArray(req.body?.identities) ? req.body.identities : undefined;
+    const requestedPerms = String(req.body?.permissions || 'View').trim();
+    const wantsEdit = /^edit$/i.test(requestedPerms);
+    const accessLevel = wantsEdit ? 'Edit' : 'View';
+    const clientIdentityField = _clientSuppliedPowerBIIdentityField(req.body);
+
+    if (clientIdentityField) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'embed-token',
+            status: 400,
+            detail: `client-supplied-powerbi-identity:${clientIdentityField}`,
+        });
+        return res.status(400).json({
+            error: 'Power BI RLS/effective identity must be derived by the proxy; client-supplied identity payloads are not accepted.',
+        });
+    }
 
     if (!groupId || !reportId) {
         auditLog(req, {
@@ -2972,6 +3140,18 @@ app.post('/assistant/embed-token/:vendor', async (req, res) => {
             detail: 'missing-groupId-or-reportId',
         });
         return res.status(400).json({ error: 'groupId and reportId are required.' });
+    }
+
+    if (wantsEdit && !_powerBiEditAllowed(profile)) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'embed-token',
+            status: 403,
+            detail: 'edit-access-denied-by-policy',
+        });
+        return res.status(403).json({
+            error: 'Power BI Edit embed tokens are disabled by policy for this profile. Use View, or set powerBiAllowEdit=true only for an approved authoring profile.',
+        });
     }
 
     if (!profile.powerBiClientId || !profile.powerBiClientSecret || !profile.powerBiTenantId) {
@@ -2990,10 +3170,31 @@ app.post('/assistant/embed-token/:vendor', async (req, res) => {
     if (!tenantDecision.ok) return sendAllowlistRejection(req, res, tenantDecision);
     if (tenantDecision.warn) console.warn(`[allowlist] warn: Power BI tenant "${profile.powerBiTenantId}" is outside aadTenants allowlist`);
 
+    const identityResolution = _resolvePowerBIIdentities({ req, profile, datasetId });
+    if (identityResolution.status) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'embed-token',
+            status: identityResolution.status,
+            detail: identityResolution.error,
+        });
+        return res.status(identityResolution.status).json({ error: identityResolution.error });
+    }
+    const identities = identityResolution.identities;
+    const identityHash = identityResolution.identityHash || _powerBiIdentityHash(identities);
+
     // Cache key intentionally OMITS the client secret. Profile name +
-    // reportId + accessLevel is sufficient because each profile pins a
-    // single SP and rotating the SP secret means rotating the profile.
-    const cacheKey = _powerBiCacheKey(resolved.name, reportId, accessLevel);
+    // report/workspace/dataset/access/RLS identity is sufficient because
+    // each profile pins a single SP and rotating the SP secret means
+    // rotating the profile. Identity is represented only by a hash.
+    const cacheKey = _powerBiCacheKey({
+        profileName: resolved.name,
+        groupId,
+        reportId,
+        datasetId,
+        accessLevel,
+        identities,
+    });
     const cached = _powerBiTokenCache.get(cacheKey);
 
     // Hot path: still-valid cached token.
@@ -3005,7 +3206,10 @@ app.post('/assistant/embed-token/:vendor', async (req, res) => {
             detail: JSON.stringify({
                 cache: 'hit',
                 reportId,
+                groupId,
+                datasetId: datasetId || null,
                 accessLevel,
+                identityHash,
                 spIdHash: hashServicePrincipalId(profile.powerBiClientId),
                 durationMs: Date.now() - startedAt,
             }),
@@ -3031,7 +3235,10 @@ app.post('/assistant/embed-token/:vendor', async (req, res) => {
                 detail: JSON.stringify({
                     cache: 'single-flight-await',
                     reportId,
+                    groupId,
+                    datasetId: datasetId || null,
                     accessLevel,
+                    identityHash,
                     spIdHash: hashServicePrincipalId(profile.powerBiClientId),
                     durationMs: Date.now() - startedAt,
                 }),
@@ -3085,7 +3292,10 @@ app.post('/assistant/embed-token/:vendor', async (req, res) => {
             detail: JSON.stringify({
                 cache: 'miss',
                 reportId,
+                groupId,
+                datasetId: datasetId || null,
                 accessLevel,
+                identityHash,
                 spIdHash: hashServicePrincipalId(profile.powerBiClientId),
                 durationMs: Date.now() - startedAt,
             }),
@@ -3113,7 +3323,10 @@ app.post('/assistant/embed-token/:vendor', async (req, res) => {
             status: clientStatus,
             detail: JSON.stringify({
                 reportId,
+                groupId,
+                datasetId: datasetId || null,
                 accessLevel,
+                identityHash,
                 spIdHash: hashServicePrincipalId(profile.powerBiClientId),
                 error: detail.slice(0, 200),
                 durationMs: Date.now() - startedAt,

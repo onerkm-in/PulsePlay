@@ -107,6 +107,7 @@ This is the first production target: make one combination feel seamless, support
 - [x] `BIPanel` exposes the live BI adapter to the host shell.
 - [x] Pulse `applyJsonFilter` routes into the active BI adapter through canonical `BICommand` values.
 - [x] First-copy research captured in [GENIE_POWERBI_FIRST_COPY_RESEARCH.md](GENIE_POWERBI_FIRST_COPY_RESEARCH.md).
+- [x] Power BI embed-token hardening: client-supplied RLS identities rejected, server-side RLS derivation supported, Edit gated by profile policy, cache keyed by workspace/report/dataset/access/identity hash (2026-05-14).
 - [ ] 10-minute author setup path: preflight, Power BI connect, Genie probe, AI-drafted setup, author review, live smoke. See [TEN_MINUTE_AUTHOR_SETUP.md](TEN_MINUTE_AUTHOR_SETUP.md).
 - [ ] Unified first-run setup: configure Genie profile + Power BI report + pack in one guided flow.
 - [ ] AI setup proposal: use Genie/probe metadata plus Power BI context to suggest pack, starter questions, KPI rules, and field mappings in editable JSON-backed state.
@@ -163,7 +164,7 @@ Specs: [SETTINGS_SPEC.md](SETTINGS_SPEC.md) is the consolidated source of truth 
 
 - [ ] IdP session validation middleware (replaces shared-key as primary auth for non-localhost deployments)
 - [ ] Per-user / per-profile rate limits
-- [ ] `/api/powerbi/embed-token` route (Azure AD SP)
+- [x] `/assistant/embed-token/powerbi` route (Azure AD SP) with RLS/Edit/cache hardening (2026-05-14)
 - [ ] `/api/tableau/trusted-ticket` route
 - [ ] `/api/qlik/oauth-token` route
 - [ ] `/api/looker/signed-url` route
