@@ -45,12 +45,17 @@ const GROUP_DESCRIPTIONS: Record<SettingsGroupId, string> = {
     advanced: "Reset + destructive",
 };
 
-const GROUP_LEAF_LABELS: Record<SettingsGroupId, string[]> = {
+// Leaf labels must match the `<Leaf label="…">` props rendered in each
+// group file verbatim. The drift-prevention test in
+// __tests__/leafLabels.drift.test.tsx scans the rendered DOM and asserts
+// every leaf appears here. If you add or rename a Leaf in one of the
+// groups, update this dictionary or the test will fail.
+export const GROUP_LEAF_LABELS: Record<SettingsGroupId, string[]> = {
     bi: ["Provider", "Embed", "Authentication", "Canvas", "Status"],
-    ai: ["Provider", "Model / Agent", "Connection test", "Knowledge pack", "AI Insights setup", "Browse library"],
+    ai: ["Provider", "Model / Agent", "Connection test", "Knowledge pack", "AI Insights setup ↗", "Browse library ↗"],
     preferences: ["UI mode", "Visible panels", "AI position", "Canvas tiles"],
-    system: ["Proxy status", "Security posture", "Diagnostics", "Export bundle"],
-    advanced: ["Local storage", "Reset section", "Reset all", "Danger zone"],
+    system: ["Proxy status", "Security posture", "License posture", "Diagnostics", "Export support bundle"],
+    advanced: ["Local storage inspector", "Reset section", "Reset all", "Danger zone"],
 };
 
 export function SettingsShell(): React.ReactElement {
