@@ -25,6 +25,12 @@ interface BIPanelProps {
     /** Defense in depth: refuse to mount iframe/sdk URLs outside the org
      *  allowlist even if embedConfig was injected outside the setup UI. */
     allowlist?: PulsePlayAllowlist | null;
+    /** Allowlist fail-closed (P1). When true, the governance allowlist is
+     *  unreachable and the BIPanel must refuse to mount — even if the
+     *  embedConfig superficially looks fine — to avoid loading a BI surface
+     *  the org may not actually permit. Wired from `isAllowlistFailClosed(state)`
+     *  in `settingsStore`. */
+    allowlistFailClosed?: boolean;
 }
 
 function blockedEmbedOrigin(vendor: string, embedConfig: BIEmbedConfig, allowlist?: PulsePlayAllowlist | null): string | null {
@@ -81,11 +87,22 @@ export function BIPanel(props: BIPanelProps) {
 
     const configKey = embedConfigKey(props.embedConfig);
     const vendor = props.vendor;
+    const failClosed = !!props.allowlistFailClosed;
 
     useEffect(() => {
         let cancelled = false;
         setStatus("loading");
         setErrorMsg("");
+
+        // Allowlist fail-closed P1 — refuse to mount when the governance
+        // allowlist is unreachable. The Settings layer surfaces a
+        // recovery banner; BIPanel just becomes a placeholder until the
+        // proxy comes back.
+        if (failClosed) {
+            setStatus("error");
+            setErrorMsg("Governance allowlist is unreachable — refusing to mount until the proxy responds.");
+            return () => { cancelled = true; };
+        }
 
         (async () => {
             try {
@@ -157,10 +174,35 @@ export function BIPanel(props: BIPanelProps) {
             adapterRef.current = null;
         };
         // Intentionally minimal deps: vendor (primitive) + configKey (value
-        // hash of embedConfig). onEvent, allowlist, and onAdapterReady flow
-        // through refs and don't trigger remounts. See per-ref useEffects
-        // above. eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [vendor, configKey]);
+        // hash of embedConfig) + failClosed (so a transition from
+        // governance-unreachable → reachable triggers a fresh mount, and
+        // vice-versa cleanly tears down). onEvent, allowlist (origin-check
+        // only), and onAdapterReady flow through refs and don't trigger
+        // remounts. See per-ref useEffects above.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [vendor, configKey, failClosed]);
+
+    // Allowlist late-arrival revalidation (P1). The mount effect above
+    // reads `allowlistRef.current` at mount time — if the allowlist was
+    // null/loading then and arrives later, the panel stays mounted but
+    // may now be embedding a URL the new allowlist would block. Watch
+    // props.allowlist + props.embedConfig and force an error state when
+    // an already-mounted panel no longer passes blockedEmbedOrigin. We
+    // do NOT silently re-mount; the user sees the block + the URL so
+    // they understand why.
+    const allowlistConfiguredVersion = props.allowlist?.fetchedAt || (props.allowlist?.configured ? "configured" : "null");
+    useEffect(() => {
+        if (status !== "ready") return; // only relevant once a successful mount exists
+        const blocked = blockedEmbedOrigin(vendor, props.embedConfig, props.allowlist);
+        if (blocked) {
+            adapterRef.current?.destroy();
+            adapterRef.current = null;
+            onAdapterReadyRef.current?.(null);
+            setStatus("error");
+            setErrorMsg(`Governance update blocked this BI surface: ${blocked}`);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [allowlistConfiguredVersion, configKey, vendor]);
 
     return (
         <div className="pp-bi-panel" data-status={status}>

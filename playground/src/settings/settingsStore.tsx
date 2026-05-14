@@ -82,6 +82,29 @@ export interface SettingsState {
 
 // ─── Allowlist-aware validators ──────────────────────────────────────────
 
+/**
+ * Three distinct "no allowlist in hand" states need to behave differently:
+ *
+ *   - **Dev-unconfigured** (`allowlist?.configured === false`):
+ *     the deployment intentionally has no allowlist authored. Validators
+ *     stay permissive. This is the MVP/dev path.
+ *   - **First-load fetch failed** (`allowlist === null && allowlistError !== null`):
+ *     we never got a known-good list. Fail closed — refuse new selections,
+ *     refuse to mount BI panels. The user sees a banner explaining why.
+ *   - **Refresh-after-success failed** (`allowlist !== null && allowlistError !== null`):
+ *     the last load succeeded; the reducer keeps that value, so validators
+ *     continue to enforce against the last-known-good list while the
+ *     banner asks the user to reload.
+ *
+ * `isAllowlistFailClosed(state)` collapses these into a single signal the
+ * setters + BIPanel can check. It is exported so callers outside the
+ * reducer (App.tsx, BIPanel.tsx) can read it.
+ */
+export function isAllowlistFailClosed(state: Pick<SettingsState, "allowlist" | "allowlistError" | "allowlistLoading">): boolean {
+    if (state.allowlistLoading) return false; // never refuse while still loading — let the loader resolve first
+    return state.allowlist === null && !!state.allowlistError;
+}
+
 function passesAllowlist(value: string, allowed: string[] | undefined): boolean {
     if (!allowed || allowed.length === 0) return true; // no allowlist configured = permissive (matches proxy "warn" mode)
     return allowed.includes(value);
@@ -276,9 +299,16 @@ function reducer(state: SettingsState, action: Action): SettingsState {
             };
         }
         case "allowlist/error":
+            // Fail-closed P1: do NOT blow away a previously-loaded
+            // allowlist on a refresh failure — keep the last-known-good
+            // value so the user keeps validated access until the
+            // governance endpoint comes back. The error banner surfaces
+            // the failure to the user. If this is the FIRST load and
+            // there's nothing known-good in hand, allowlist stays null
+            // and validators flip to fail-closed via
+            // `isAllowlistFailClosed(state)`.
             return {
                 ...state,
-                allowlist: null,
                 allowlistLoading: false,
                 allowlistError: action.message,
             };
@@ -417,8 +447,17 @@ export function SettingsProvider(props: SettingsProviderProps): React.ReactEleme
 
     // ─── Setters (allowlist-aware) ────────────────────────────────────
 
+    // Fail-closed reason shared by every governance-aware setter. Keeping
+    // it identical across setters means the Settings UI can pattern-match
+    // the prefix when rendering banners.
+    const FAIL_CLOSED_REASON =
+        "Governance allowlist is unreachable — refusing new selections until the proxy responds. Try System › Proxy › Reload.";
+
     const setBiVendor = useCallback<SettingsActions["setBiVendor"]>(
         (value) => {
+            if (isAllowlistFailClosed(state)) {
+                return { ok: false, reason: FAIL_CLOSED_REASON };
+            }
             const allowlist = state.allowlist;
             if (!validateBiVendor(value, allowlist)) {
                 return {
@@ -430,11 +469,14 @@ export function SettingsProvider(props: SettingsProviderProps): React.ReactEleme
             dispatch({ type: "set/biVendor", value });
             return { ok: true };
         },
-        [state.allowlist],
+        [state],
     );
 
     const setPackSelection = useCallback<SettingsActions["setPackSelection"]>(
         (value) => {
+            if (isAllowlistFailClosed(state)) {
+                return { ok: false, reason: FAIL_CLOSED_REASON };
+            }
             const allowlist = state.allowlist;
             if (value && !validatePack(value, allowlist)) {
                 return {
@@ -450,7 +492,7 @@ export function SettingsProvider(props: SettingsProviderProps): React.ReactEleme
             dispatch({ type: "set/packSelection", value });
             return { ok: true };
         },
-        [state.allowlist],
+        [state],
     );
 
     const setUiMode = useCallback<SettingsActions["setUiMode"]>((value) => {
@@ -479,6 +521,9 @@ export function SettingsProvider(props: SettingsProviderProps): React.ReactEleme
     const setActiveAiProfile = useCallback<SettingsActions["setActiveAiProfile"]>(
         (value) => {
             const trimmed = String(value || "").trim();
+            if (trimmed && isAllowlistFailClosed(state)) {
+                return { ok: false, reason: FAIL_CLOSED_REASON };
+            }
             const allowlist = state.allowlist;
             if (trimmed && !validateAiProfile(trimmed, allowlist)) {
                 return {
@@ -494,7 +539,7 @@ export function SettingsProvider(props: SettingsProviderProps): React.ReactEleme
             dispatch({ type: "set/activeAiProfile", value: trimmed });
             return { ok: true };
         },
-        [state.allowlist],
+        [state],
     );
 
     const value = useMemo<SettingsContextValue>(

@@ -267,6 +267,15 @@ function PlaygroundApp(): React.ReactElement {
         const allowed = allowlistState.allowlist.biProviders || [];
         return vendors.filter(v => allowed.includes(v.vendor));
     }, [allowlistState.allowlist, vendors]);
+    // Allowlist fail-closed P1 — when the governance endpoint is unreachable
+    // (allowlist is null AND error is set), surface the state to BIPanel so
+    // it refuses to mount instead of silently embedding without governance.
+    // The "configured: false" + null cases (dev-unconfigured, intentional
+    // permissive mode) DO NOT trip this; only governance-reachability failures.
+    const allowlistFailClosed = useMemo(
+        () => allowlistState.allowlist === null && allowlistState.error !== "",
+        [allowlistState],
+    );
     // PulsePlay's 2-axis abstraction:
     //   activeVendor    = Y-axis: which BI tool is loaded in the canvas
     //   activeConnector = X-axis: which AI brain the sidebar talks to
@@ -627,7 +636,7 @@ function PlaygroundApp(): React.ReactElement {
                         <aside className="pp-app__sidebar" style={panelInnerStyle()}>
                             {allowlistState.error && (
                                 <div
-                                    role="status"
+                                    role={allowlistFailClosed ? "alert" : "status"}
                                     style={{
                                         padding: "8px 10px",
                                         borderBottom: "1px solid rgba(120,0,0,0.18)",
@@ -637,7 +646,15 @@ function PlaygroundApp(): React.ReactElement {
                                         lineHeight: 1.4,
                                     }}
                                 >
-                                    Governance config unavailable. Pickers may be incomplete until the proxy responds.
+                                    {allowlistFailClosed ? (
+                                        <>
+                                            <strong>Governance allowlist unreachable — fail-closed.</strong>{" "}
+                                            BI surfaces will not mount and selections are refused until the proxy responds.
+                                            Check the proxy is running on <code>http://127.0.0.1:8787</code> and reload.
+                                        </>
+                                    ) : (
+                                        <>Governance config unavailable. Pickers may be incomplete until the proxy responds.</>
+                                    )}
                                 </div>
                             )}
                             {uiMode === "pulse" ? (
@@ -749,6 +766,7 @@ function PlaygroundApp(): React.ReactElement {
                                     vendor={activeVendor}
                                     embedConfig={embedConfig}
                                     allowlist={allowlistState.allowlist}
+                                    allowlistFailClosed={allowlistFailClosed}
                                     onEvent={handleBIEvent}
                                     onAdapterReady={handleBIAdapterReady}
                                 />
@@ -1503,16 +1521,20 @@ function BITileGrid(props: {
     vendor: string;
     embedConfig: BIEmbedConfig;
     allowlist?: PulsePlayAllowlist | null;
+    /** Allowlist fail-closed P1 — forwarded to each BIPanel so panels
+     *  refuse to mount while the governance endpoint is unreachable. */
+    allowlistFailClosed?: boolean;
     onEvent: (e: BIEvent) => void;
     onAdapterReady: (index: number, adapter: BIAdapter | null) => void;
 }): React.ReactElement {
-    const { tileMode, vendor, embedConfig, allowlist, onEvent, onAdapterReady } = props;
+    const { tileMode, vendor, embedConfig, allowlist, allowlistFailClosed, onEvent, onAdapterReady } = props;
     if (tileMode === "1") {
         return (
             <BIPanel
                 vendor={vendor}
                 embedConfig={embedConfig}
                 allowlist={allowlist}
+                allowlistFailClosed={allowlistFailClosed}
                 onEvent={onEvent}
                 onAdapterReady={(adapter) => onAdapterReady(0, adapter)}
             />
@@ -1553,6 +1575,7 @@ function BITileGrid(props: {
                         vendor={vendor}
                         embedConfig={embedConfig}
                         allowlist={allowlist}
+                        allowlistFailClosed={allowlistFailClosed}
                         onEvent={onEvent}
                         onAdapterReady={(adapter) => onAdapterReady(i, adapter)}
                     />
