@@ -24,7 +24,7 @@ import { VendorPicker } from "./components/VendorPicker";
 import { ConnectorPicker } from "./components/ConnectorPicker";
 import { EmbedConfigForm } from "./components/EmbedConfigForm";
 import { useEmbedConfig } from "./settings/embedConfigStore";
-import { warmGenieWarehouse } from "./lib/warehouseWarmup";
+import { warmGenieWarehouse, startWarehouseKeepalive, stopWarehouseKeepalive } from "./lib/warehouseWarmup";
 import { TestConnectionPanel } from "./components/TestConnectionPanel";
 import { PackPicker } from "./components/PackPicker";
 import type { PackInfo, PackSelection } from "./components/PackPicker";
@@ -363,12 +363,23 @@ function PlaygroundApp(): React.ReactElement {
     // Fire-and-forget; the proxy returns 400 cleanly for profiles without
     // a warehouseId (Foundation Model / Bedrock). Debounced 600ms to avoid
     // thrashing during rapid connector swaps.
+    //
+    // After the initial pre-warm fires, install a keep-alive ping every
+    // ~4 min so the warehouse doesn't auto-stop mid-session (Databricks
+    // default auto-stop is 10 min idle). The keep-alive auto-pauses when
+    // the tab goes background (document.hidden) and fires an immediate
+    // re-warm on tab return. Cleanup tears both down on connector swap +
+    // App unmount.
     useEffect(() => {
         if (!activeConnector) return;
-        const t = setTimeout(() => {
+        const debounce = setTimeout(() => {
             void warmGenieWarehouse(activeConnector);
+            startWarehouseKeepalive(activeConnector);
         }, 600);
-        return () => clearTimeout(t);
+        return () => {
+            clearTimeout(debounce);
+            stopWarehouseKeepalive();
+        };
     }, [activeConnector]);
 
     const handleUiModeChange = useCallback((next: UiMode) => {

@@ -85,12 +85,140 @@ export async function warmGenieWarehouse(profileName: string): Promise<
     }
 }
 
-/** Test seam — abort + drop every in-flight warm-up. */
+/* ─── Keep-alive ping ───────────────────────────────────────────────── */
+//
+// The warmup above eliminates cold-start on the user's FIRST ask. The
+// keep-alive ping below keeps the warehouse warm across the rest of the
+// session so the SECOND-and-onward asks also skip cold-start when the
+// user pauses for >~10 min between questions (lunch, meetings, deep
+// reading the BI canvas).
+//
+// Defaults are tuned for Databricks' typical auto-stop:
+//   • Warehouse auto-stops after 10 min idle (Databricks default).
+//   • We ping every 4 min so the warehouse is touched well before
+//     the auto-stop window closes. Two missed pings still leave a
+//     2-min safety margin (4 + 4 = 8 < 10).
+//   • Document.hidden tabs PAUSE pinging — no point keeping a
+//     warehouse warm for a background tab the user isn't using;
+//     when they return, the visibility-change handler fires an
+//     immediate warmup so the next ask still benefits.
+
+const DEFAULT_KEEPALIVE_INTERVAL_MS = 4 * 60 * 1000;
+
+interface KeepaliveSession {
+    profileName: string;
+    intervalMs: number;
+    timerId: ReturnType<typeof setInterval> | null;
+    visibilityHandler: (() => void) | null;
+}
+
+/** Singleton keep-alive session. Replacing it (e.g. on connector swap)
+ *  stops the prior session cleanly. */
+let _activeKeepalive: KeepaliveSession | null = null;
+
+/**
+ * Start firing warm-up pings every `intervalMs` (default 4 min) for the
+ * given profile. Replaces any prior keep-alive — the playground only
+ * needs one warehouse warm at a time per session.
+ *
+ * Returns a stop function for callers that prefer that idiom (useEffect
+ * cleanup, for instance). Calling `stopWarehouseKeepalive` directly is
+ * equivalent.
+ *
+ * Visibility:
+ *   • When `document.hidden` becomes true, the interval timer is
+ *     suspended (saves pings while the tab is in background).
+ *   • When the tab returns to visible, an immediate warm-up fires + the
+ *     interval re-starts.
+ */
+export function startWarehouseKeepalive(
+    profileName: string,
+    intervalMs: number = DEFAULT_KEEPALIVE_INTERVAL_MS,
+): () => void {
+    const trimmed = (profileName || "").trim();
+    if (!trimmed) return () => { /* no-op */ };
+
+    // Replace any prior session (different profile or same profile being
+    // re-started). This stops the old timer + listener before installing
+    // the new one — no duplicate intervals.
+    stopWarehouseKeepalive();
+
+    const session: KeepaliveSession = {
+        profileName: trimmed,
+        intervalMs,
+        timerId: null,
+        visibilityHandler: null,
+    };
+
+    const armTimer = () => {
+        if (session.timerId) return; // already armed
+        session.timerId = setInterval(() => {
+            void warmGenieWarehouse(session.profileName);
+        }, session.intervalMs);
+    };
+    const disarmTimer = () => {
+        if (session.timerId) {
+            clearInterval(session.timerId);
+            session.timerId = null;
+        }
+    };
+
+    if (typeof document !== "undefined") {
+        session.visibilityHandler = () => {
+            if (document.hidden) {
+                disarmTimer();
+            } else {
+                // Tab returned to visible — fire an immediate ping so the
+                // next user ask doesn't pay cold-start if they paused
+                // long enough for an auto-stop to fire, then re-arm.
+                void warmGenieWarehouse(session.profileName);
+                armTimer();
+            }
+        };
+        document.addEventListener("visibilitychange", session.visibilityHandler);
+        // Only arm immediately if the tab is currently visible.
+        if (!document.hidden) armTimer();
+    } else {
+        armTimer();
+    }
+
+    _activeKeepalive = session;
+    return () => stopWarehouseKeepalive();
+}
+
+/** Stop any active keep-alive session. Safe to call multiple times. */
+export function stopWarehouseKeepalive(): void {
+    const session = _activeKeepalive;
+    if (!session) return;
+    if (session.timerId) {
+        clearInterval(session.timerId);
+        session.timerId = null;
+    }
+    if (session.visibilityHandler && typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", session.visibilityHandler);
+        session.visibilityHandler = null;
+    }
+    _activeKeepalive = null;
+}
+
+/** Test seam — abort + drop every in-flight warm-up and stop keepalive. */
 export function __resetWarehouseWarmupForTests(): void {
     for (const ctrl of inFlight.values()) {
         try { ctrl.abort(); } catch { /* swallow */ }
     }
     inFlight.clear();
+    stopWarehouseKeepalive();
+}
+
+/** Test seam — peek at the active keepalive session (null when stopped). */
+export function __getActiveKeepaliveForTests(): { profileName: string; intervalMs: number; armed: boolean } | null {
+    if (!_activeKeepalive) return null;
+    return {
+        profileName: _activeKeepalive.profileName,
+        intervalMs: _activeKeepalive.intervalMs,
+        armed: _activeKeepalive.timerId !== null,
+    };
 }
 
 export const WAREHOUSE_WARMUP_ENDPOINT = WARMUP_ENDPOINT;
+export const WAREHOUSE_KEEPALIVE_INTERVAL_MS = DEFAULT_KEEPALIVE_INTERVAL_MS;

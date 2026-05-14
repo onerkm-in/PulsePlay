@@ -9,8 +9,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
     warmGenieWarehouse,
+    startWarehouseKeepalive,
+    stopWarehouseKeepalive,
     __resetWarehouseWarmupForTests,
+    __getActiveKeepaliveForTests,
     WAREHOUSE_WARMUP_ENDPOINT,
+    WAREHOUSE_KEEPALIVE_INTERVAL_MS,
 } from "../warehouseWarmup";
 
 beforeEach(() => {
@@ -134,5 +138,131 @@ describe("warmGenieWarehouse", () => {
         // Neither was aborted.
         expect(callsByProfile["genie-default"]?.aborted).toBe(false);
         expect(callsByProfile["genie-finance"]?.aborted).toBe(false);
+    });
+});
+
+/* ─── Keep-alive ping ──────────────────────────────────────────────── */
+//
+// The keep-alive ping holds the warehouse warm across the rest of a
+// session after the initial pre-warm. These tests use vi.useFakeTimers
+// to walk the interval forward deterministically and assert cadence,
+// cleanup, visibility-pause + auto-resume, and connector-swap behavior.
+
+describe("startWarehouseKeepalive", () => {
+    function mockFetchOk(): ReturnType<typeof vi.fn> {
+        const m = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ ok: true }) });
+        globalThis.fetch = m as unknown as typeof fetch;
+        return m;
+    }
+
+    it("returns a no-op stop function when profileName is empty (no timer installed)", () => {
+        vi.useFakeTimers();
+        const stop = startWarehouseKeepalive("");
+        expect(__getActiveKeepaliveForTests()).toBeNull();
+        expect(typeof stop).toBe("function");
+        stop();
+    });
+
+    it("fires a warm-up on the configured interval", async () => {
+        vi.useFakeTimers();
+        const fetchMock = mockFetchOk();
+        // Use a short test interval so vi.advanceTimersByTime moves predictably.
+        startWarehouseKeepalive("genie-default", 1000);
+
+        // Pre-arm — no fetch yet (the first ping happens after one interval).
+        expect(fetchMock).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+
+    it("stops firing after stopWarehouseKeepalive() is called", async () => {
+        vi.useFakeTimers();
+        const fetchMock = mockFetchOk();
+        startWarehouseKeepalive("genie-default", 1000);
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        stopWarehouseKeepalive();
+        expect(__getActiveKeepaliveForTests()).toBeNull();
+        await vi.advanceTimersByTimeAsync(5000);
+        // Still 1 — the timer was torn down.
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("replaces a prior keepalive when called with a different profile (no duplicate intervals)", async () => {
+        vi.useFakeTimers();
+        const fetchMock = mockFetchOk();
+        startWarehouseKeepalive("genie-default", 1000);
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+
+        // Swap to a new profile — prior timer must be cleared so we don't
+        // double-ping per interval.
+        startWarehouseKeepalive("genie-finance", 1000);
+        const session = __getActiveKeepaliveForTests();
+        expect(session?.profileName).toBe("genie-finance");
+
+        await vi.advanceTimersByTimeAsync(1000);
+        // 1 + 1 (only the new profile fires; no leftover from the old).
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+
+        // Confirm the body of the most recent call is the new profile.
+        const lastCall = fetchMock.mock.calls[fetchMock.mock.calls.length - 1];
+        const body = JSON.parse((lastCall[1] as RequestInit).body as string);
+        expect(body.assistantProfile).toBe("genie-finance");
+    });
+
+    it("pauses pinging while document is hidden, and fires an immediate ping + resumes on visibility return", async () => {
+        vi.useFakeTimers();
+        const fetchMock = mockFetchOk();
+        // Stub visibilityState BEFORE startKeepalive so the initial arm
+        // condition sees the right value.
+        Object.defineProperty(document, "hidden", {
+            configurable: true,
+            get: () => false,
+        });
+        startWarehouseKeepalive("genie-default", 1000);
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+
+        // Tab goes background — flip hidden + dispatch visibilitychange.
+        Object.defineProperty(document, "hidden", { configurable: true, get: () => true });
+        document.dispatchEvent(new Event("visibilitychange"));
+
+        // Advance well past the interval — no pings should fire while hidden.
+        await vi.advanceTimersByTimeAsync(5000);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+
+        // Tab returns — flip back + dispatch. Should fire an IMMEDIATE
+        // ping (the on-return safety re-warm) AND re-arm the interval.
+        Object.defineProperty(document, "hidden", { configurable: true, get: () => false });
+        document.dispatchEvent(new Event("visibilitychange"));
+        // Microtask flush for the synchronous warmGenieWarehouse await.
+        await Promise.resolve();
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+
+        // And the interval ticks normally from here.
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+
+    it("does not arm the timer when document is already hidden at start", async () => {
+        vi.useFakeTimers();
+        const fetchMock = mockFetchOk();
+        Object.defineProperty(document, "hidden", { configurable: true, get: () => true });
+        startWarehouseKeepalive("genie-default", 1000);
+        const session = __getActiveKeepaliveForTests();
+        expect(session?.armed).toBe(false);
+        await vi.advanceTimersByTimeAsync(5000);
+        expect(fetchMock).not.toHaveBeenCalled();
+        // Cleanup: flip back so other tests aren't poisoned.
+        Object.defineProperty(document, "hidden", { configurable: true, get: () => false });
+    });
+
+    it("default interval matches the documented constant (4 min)", () => {
+        expect(WAREHOUSE_KEEPALIVE_INTERVAL_MS).toBe(4 * 60 * 1000);
     });
 });
