@@ -17,6 +17,7 @@ import type {
     BIEmbedConfig,
     BIEvent,
     BIEventType,
+    BIMetadata,
 } from "../../playground/src/biPanel/BIAdapter";
 import { BI_ERR } from "../../playground/src/biPanel/BIAdapter";
 
@@ -152,6 +153,25 @@ export class GenericIframeAdapter implements BIAdapter {
             this.iframe.parentElement.removeChild(this.iframe);
         }
         this.iframe = null;
+    }
+
+    /**
+     * Iframe-only adapters (GenericIframeAdapter + Tableau/Qlik/Looker
+     * vendor stubs that extend it) cannot introspect what the user is
+     * looking at — there is no vendor SDK to query for visible measures,
+     * dimensions, or active filters. Returning `null` here is explicit:
+     * downstream Discovery Loop falls back to pack-only signals and the
+     * FramePicker honestly reports unreachable analysis frames that need
+     * live metadata.
+     *
+     * Vendor adapters that graduate from iframe stubs (e.g. when the
+     * Tableau Embedding API v3 wiring lands in v0.3+) override this with
+     * a real implementation reading from their SDK. The PowerBIAdapter
+     * already overrides this with a `getActivePage` + `getVisuals` +
+     * `getFilters` walk — see `bi-adapters/powerbi/index.ts`.
+     */
+    async getMetadata(): Promise<BIMetadata | null> {
+        return null;
     }
 
     private emit(event: BIEvent): void {
