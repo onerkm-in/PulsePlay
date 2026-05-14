@@ -39,6 +39,7 @@ vi.mock("../pulse", () => ({
 }));
 
 import { App } from "../App";
+import { __resetEmbedConfigStore } from "../settings/embedConfigStore";
 import {
     viewportControlControlSelector,
     viewportControlPanelChromeSelector,
@@ -81,11 +82,46 @@ function unmount(state: MountState): void {
     state.container.remove();
 }
 
+/** Click a button by its aria-label.
+ *
+ * After Fix #1 (overflow menu consolidation), Minimize / Pin / Unpin /
+ * "Open … in separate page" live inside the per-pane ⋮ overflow menu and
+ * are only mounted while the menu is open. To keep test bodies stable
+ * across the contract change, this helper transparently opens the
+ * relevant overflow menu when the target button isn't immediately found.
+ *
+ * The pane the action belongs to is derived from the aria-label suffix
+ * ("…AI panel" → ai, "…BI panel" → bi); the Pin/Unpin labels are pane-
+ * agnostic and fall back to opening AI's overflow first, then BI's. */
+function openOverflowFor(state: MountState, pane: "ai" | "bi"): void {
+    const overflowBtn = state.container.querySelector(
+        `button[aria-label="More ${pane === "ai" ? "AI" : "BI"} panel actions"]`,
+    ) as HTMLButtonElement | null;
+    if (!overflowBtn) return;
+    act(() => {
+        overflowBtn.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+        overflowBtn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+}
+
 function clickByLabel(state: MountState, ariaLabel: string): void {
-    const btn = state.container.querySelector(`button[aria-label="${ariaLabel}"]`) as HTMLButtonElement | null;
+    const find = () => state.container.querySelector(`button[aria-label="${ariaLabel}"]`) as HTMLButtonElement | null;
+    let btn = find();
+    if (!btn) {
+        // Try opening the relevant overflow menu first, then retry.
+        const lower = ariaLabel.toLowerCase();
+        const panes: ("ai" | "bi")[] = lower.includes("ai panel") ? ["ai"]
+            : lower.includes("bi panel") ? ["bi"]
+            : ["ai", "bi"];
+        for (const p of panes) {
+            openOverflowFor(state, p);
+            btn = find();
+            if (btn) break;
+        }
+    }
     if (!btn) throw new Error(`button[aria-label="${ariaLabel}"] not found`);
     act(() => {
-        btn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        btn!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 }
 
@@ -105,6 +141,20 @@ beforeEach(() => {
     document.body.innerHTML = "";
     clearStorage();
     setLocation("");
+    // Seed a non-empty BI embed config so the BI pane has content to
+    // operate on. After Fix #2 (Hide PaneChrome on empty pane), the BI
+    // chrome's toolbar is hidden when hasEmbedConfig === false; these
+    // viewport-control tests assert against the toolbar buttons so they
+    // need the configured state. The embedConfigStore reads from this
+    // key on first call; we reset its in-memory cache so each test
+    // re-reads.
+    __resetEmbedConfigStore();
+    try {
+        window.localStorage.setItem(
+            "pulseplay:bi-embed-config",
+            JSON.stringify({ url: "https://app.powerbi.com/reportEmbed?reportId=test-r1" }),
+        );
+    } catch { /* swallow */ }
     // Provide a passthrough fetch that returns empty payloads so any
     // background fetches from settings/allowlist/profiles don't hang.
     const fetchMock = vi.fn().mockResolvedValue({
@@ -147,17 +197,33 @@ describe("App viewport controls — default split", () => {
         unmount(state);
     });
 
-    it("exposes Maximize / Minimize / Pin / Page buttons for each pane", () => {
+    it("exposes Maximize inline + Minimize/Pin/Page in the ⋮ overflow menu for each pane", () => {
         const state = mountApp();
         for (const pane of ["ai", "bi"] as const) {
+            // Maximize stays inline (primary action).
             const max = state.container.querySelector(viewportControlControlSelector(pane, "Maximize"));
+            expect(max, `${pane} Maximize button (inline)`).toBeTruthy();
+
+            // Overflow trigger present.
+            const overflow = state.container.querySelector(`button[aria-label="More ${pane === "ai" ? "AI" : "BI"} panel actions"]`);
+            expect(overflow, `${pane} overflow trigger`).toBeTruthy();
+
+            // Pre-overflow-open: Minimize/Pin/Page must NOT exist in the DOM
+            // (menu is closed; menuitems not rendered).
+            const minClosed = state.container.querySelector(viewportControlControlSelector(pane, "Minimize"));
+            expect(minClosed, `${pane} Minimize (menu closed → absent)`).toBeNull();
+
+            // Open the overflow menu for this pane.
+            openOverflowFor(state, pane);
+
+            // Now the overflow menuitems are mounted and reachable by the
+            // same aria-labels the integration contract requires.
             const min = state.container.querySelector(viewportControlControlSelector(pane, "Minimize"));
-            const pin = state.container.querySelector(`button[aria-label="${pane === "ai" ? "Pin layout" : "Pin layout"}"]`);
+            const pin = state.container.querySelector(`button[aria-label="Pin layout"]`);
             const openPage = state.container.querySelector(`button[aria-label="Open ${pane === "ai" ? "AI" : "BI"} panel in separate page"]`);
-            expect(max, `${pane} Maximize button`).toBeTruthy();
-            expect(min, `${pane} Minimize button`).toBeTruthy();
-            expect(pin, `${pane} Pin button`).toBeTruthy();
-            expect(openPage, `${pane} Page button`).toBeTruthy();
+            expect(min, `${pane} Minimize menuitem`).toBeTruthy();
+            expect(pin, `${pane} Pin menuitem`).toBeTruthy();
+            expect(openPage, `${pane} Open-in-separate-page menuitem`).toBeTruthy();
         }
         unmount(state);
     });
@@ -307,10 +373,12 @@ describe("App viewport controls — chrome buttons", () => {
     it("Pin → aria-pressed=true + localStorage write; toggle back unpins", () => {
         const state = mountApp();
 
-        // Pin the AI panel.
+        // After Fix #1 (overflow menu), Pin/Unpin live inside the per-pane
+        // ⋮ overflow menu — open it first.
+        openOverflowFor(state, "ai");
         const pinSelector = `${viewportControlPanelChromeSelector("ai")} ${viewportControlPinButtonSelector}`;
         const pinBtn = state.container.querySelector(pinSelector) as HTMLButtonElement | null;
-        expect(pinBtn, "AI pin button").toBeTruthy();
+        expect(pinBtn, "AI pin button (in overflow)").toBeTruthy();
         act(() => { pinBtn!.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
 
         const shell = state.container.querySelector(viewportControlShellSelector);
@@ -318,7 +386,8 @@ describe("App viewport controls — chrome buttons", () => {
         const persisted = window.localStorage.getItem("pulseplay:pinned-viewport-pane");
         expect(persisted).toBe("ai");
 
-        // Click the same button again — now labelled "Unpin layout" — to clear.
+        // Re-open the menu (it auto-closed on selection) and click Unpin.
+        openOverflowFor(state, "ai");
         const unpinBtn = state.container.querySelector(
             `${viewportControlPanelChromeSelector("ai")} button[aria-label="Unpin layout"]`,
         ) as HTMLButtonElement | null;

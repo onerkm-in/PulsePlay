@@ -762,6 +762,10 @@ function PlaygroundApp(): React.ReactElement {
                         isBackgrounded={focusedPane === "ai"}
                         isPinned={pinnedViewportPane === "bi"}
                         canShowBoth={!focusedPane && enabledComponents !== "both"}
+                        // Fix #2 — hide the controls toolbar while the BI pane
+                        // has nothing to operate on. The title bar stays so the
+                        // user sees which vendor would mount once configured.
+                        quiet={!hasEmbedConfig}
                         onFocus={() => applyViewportFocus("bi")}
                         onRestore={handleViewportRestore}
                         onMinimize={() => handleViewportMinimize("bi")}
@@ -859,10 +863,30 @@ function PaneChrome(props: {
     onPinToggle: () => void;
     onOpenPage: () => void;
     onShowBoth: () => void;
+    /** Fix #2 — when true, render only the title/subtitle row without the
+     *  controls toolbar. Used when the pane has nothing to operate on
+     *  (e.g. BI pane with no embedConfig). Keeps the title for context
+     *  but stops painting Maximize/Pin/Page on top of an empty pane. */
+    quiet?: boolean;
     children: React.ReactNode;
 }): React.ReactElement {
     const label = props.pane === "ai" ? "AI" : "BI";
     const state = props.isFocused ? "maximized" : props.isBackgrounded ? "minimized" : "normal";
+    const [overflowOpen, setOverflowOpen] = useState(false);
+    const overflowRef = useRef<HTMLDivElement | null>(null);
+
+    // Close the overflow menu on outside-click. Keyboard Escape is handled
+    // by the menu's own onKeyDown handler below.
+    useEffect(() => {
+        if (!overflowOpen) return;
+        const onDown = (e: MouseEvent) => {
+            if (!overflowRef.current) return;
+            if (!overflowRef.current.contains(e.target as Node)) setOverflowOpen(false);
+        };
+        document.addEventListener("mousedown", onDown);
+        return () => document.removeEventListener("mousedown", onDown);
+    }, [overflowOpen]);
+
     // Pane chrome buttons use a quieter "ghost" treatment: lighter border, smaller
     // type, tighter padding. Active/pinned states keep the accent so they remain
     // legible. All aria-labels and button text are unchanged — see
@@ -887,6 +911,18 @@ function PaneChrome(props: {
         fontWeight: 600,
     };
     const focusedHeaderRightReserve = props.isFocused ? "min(200px, 50vw)" : 8;
+    const overflowItemStyle: React.CSSProperties = {
+        display: "block",
+        width: "100%",
+        textAlign: "left",
+        padding: "6px 10px",
+        fontSize: 12,
+        background: "transparent",
+        border: "none",
+        cursor: "pointer",
+        color: "#1f2937",
+        whiteSpace: "nowrap",
+    };
 
     return (
         <section
@@ -925,82 +961,137 @@ function PaneChrome(props: {
                         {props.subtitle}
                     </div>
                 </div>
-                <div
-                    role="toolbar"
-                    data-testid={`pp-panel-controls-${props.pane}`}
-                    aria-label={`${label} panel controls`}
-                    style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 4,
-                        flex: "1 1 auto",
-                        flexWrap: "wrap",
-                        justifyContent: "flex-end",
-                        maxWidth: "100%",
-                        minWidth: 0,
-                    }}
-                >
-                    {props.isFocused ? (
-                        <button
-                            type="button"
-                            aria-label={`Restore ${label} panel`}
-                            title="Restore split layout"
-                            onClick={props.onRestore}
-                            style={activeButtonStyle}
-                        >
-                            Restore
-                        </button>
-                    ) : (
-                        <button
-                            type="button"
-                            aria-label={`Maximize ${label} panel`}
-                            title={`Maximize ${label} panel`}
-                            onClick={props.onFocus}
-                            style={buttonStyle}
-                        >
-                            Maximize
-                        </button>
-                    )}
-                    {props.canShowBoth && (
-                        <button
-                            type="button"
-                            aria-label="Show both panels"
-                            title="Show both panels"
-                            onClick={props.onShowBoth}
-                            style={buttonStyle}
-                        >
-                            Both
-                        </button>
-                    )}
-                    <button
-                        type="button"
-                        aria-label={`Minimize ${label} panel`}
-                        title={`Minimize ${label} panel`}
-                        onClick={props.onMinimize}
-                        style={buttonStyle}
+                {!props.quiet && (
+                    <div
+                        role="toolbar"
+                        data-testid={`pp-panel-controls-${props.pane}`}
+                        aria-label={`${label} panel controls`}
+                        style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 4,
+                            flex: "1 1 auto",
+                            flexWrap: "wrap",
+                            justifyContent: "flex-end",
+                            maxWidth: "100%",
+                            minWidth: 0,
+                            position: "relative",
+                        }}
                     >
-                        Minimize
-                    </button>
-                    <button
-                        type="button"
-                        aria-label={props.isPinned ? "Unpin layout" : "Pin layout"}
-                        title={props.isPinned ? "Unpin this focused startup layout" : "Pin this pane as the focused startup layout"}
-                        aria-pressed={props.isPinned}
-                        onClick={props.onPinToggle}
-                        style={props.isPinned ? activeButtonStyle : buttonStyle}
-                    >
-                        {props.isPinned ? "Unpin" : "Pin"}
-                    </button>
-                    <button
-                        type="button"
-                        aria-label={`Open ${label} panel in separate page`}
-                        title={`Open ${label} panel in separate page`}
-                        onClick={props.onOpenPage}
-                        style={buttonStyle}
-                    >
-                        Page
-                    </button>
-                </div>
+                        {/* Primary action: state-relevant focus toggle. */}
+                        {props.isFocused ? (
+                            <button
+                                type="button"
+                                aria-label={`Restore ${label} panel`}
+                                title="Restore split layout"
+                                onClick={props.onRestore}
+                                style={activeButtonStyle}
+                            >
+                                Restore
+                            </button>
+                        ) : (
+                            <button
+                                type="button"
+                                aria-label={`Maximize ${label} panel`}
+                                title={`Maximize ${label} panel`}
+                                onClick={props.onFocus}
+                                style={buttonStyle}
+                            >
+                                Maximize
+                            </button>
+                        )}
+                        {/* "Both" is a distinct intent from the focus toggle (one
+                         *  pane is enabled instead of split). Keep visible when
+                         *  applicable; the integration test expects the inline
+                         *  aria-label "Show both panels" to keep working. */}
+                        {props.canShowBoth && (
+                            <button
+                                type="button"
+                                aria-label="Show both panels"
+                                title="Show both panels"
+                                onClick={props.onShowBoth}
+                                style={buttonStyle}
+                            >
+                                Both
+                            </button>
+                        )}
+                        {/* Fix #1 — Minimize / Pin / Page move into a ⋮ overflow
+                         *  menu. Keeps the chrome to 1-2 inline buttons while
+                         *  preserving every aria-label the contract requires
+                         *  (Minimize / Pin / Unpin / Open in separate page). The
+                         *  menu items are real <button>s so testing helpers like
+                         *  clickByLabel still find them with the same selectors. */}
+                        <div ref={overflowRef} style={{ position: "relative" }}>
+                            <button
+                                type="button"
+                                aria-label={`More ${label} panel actions`}
+                                title="More actions"
+                                aria-haspopup="menu"
+                                aria-expanded={overflowOpen}
+                                onClick={() => setOverflowOpen(v => !v)}
+                                style={buttonStyle}
+                                data-testid={`pp-panel-overflow-${props.pane}`}
+                            >
+                                ⋮
+                            </button>
+                            {overflowOpen && (
+                                <div
+                                    role="menu"
+                                    aria-label={`${label} panel overflow actions`}
+                                    onKeyDown={(e) => { if (e.key === "Escape") setOverflowOpen(false); }}
+                                    style={{
+                                        position: "absolute",
+                                        top: "calc(100% + 4px)",
+                                        right: 0,
+                                        minWidth: 140,
+                                        background: "#fff",
+                                        border: "1px solid rgba(0,0,0,0.14)",
+                                        borderRadius: 4,
+                                        boxShadow: "0 4px 12px rgba(0,0,0,0.10)",
+                                        zIndex: 50,
+                                        padding: "4px 0",
+                                    }}
+                                >
+                                    <button
+                                        type="button"
+                                        role="menuitem"
+                                        aria-label={`Minimize ${label} panel`}
+                                        title={`Minimize ${label} panel`}
+                                        onClick={() => { props.onMinimize(); setOverflowOpen(false); }}
+                                        style={overflowItemStyle}
+                                    >
+                                        Minimize
+                                    </button>
+                                    <button
+                                        type="button"
+                                        role="menuitemcheckbox"
+                                        aria-label={props.isPinned ? "Unpin layout" : "Pin layout"}
+                                        title={props.isPinned ? "Unpin this focused startup layout" : "Pin this pane as the focused startup layout"}
+                                        aria-checked={props.isPinned}
+                                        onClick={() => { props.onPinToggle(); setOverflowOpen(false); }}
+                                        style={{
+                                            ...overflowItemStyle,
+                                            color: props.isPinned ? "#1d4ed8" : overflowItemStyle.color,
+                                            fontWeight: props.isPinned ? 600 : 400,
+                                        }}
+                                    >
+                                        {props.isPinned ? "Unpin layout" : "Pin layout"}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        role="menuitem"
+                                        aria-label={`Open ${label} panel in separate page`}
+                                        title={`Open ${label} panel in separate page`}
+                                        onClick={() => { props.onOpenPage(); setOverflowOpen(false); }}
+                                        style={overflowItemStyle}
+                                    >
+                                        Open in separate page
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
             </div>
             <div
                 aria-hidden={props.isBackgrounded ? true : undefined}
