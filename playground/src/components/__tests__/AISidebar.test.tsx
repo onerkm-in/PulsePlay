@@ -94,7 +94,7 @@ describe("AISidebar", () => {
                 recentEvents={[]}
             />,
         );
-        expect(state.container.querySelector(".pp-ai-sidebar__title")?.textContent).toBe("AI Assistant");
+        expect(state.container.querySelector(".pp-ai-sidebar__title")?.textContent).toBe("PulsePlay AI");
         // No history entries.
         expect(state.container.querySelectorAll(".pp-ai-sidebar__entry").length).toBe(0);
         unmount(state);

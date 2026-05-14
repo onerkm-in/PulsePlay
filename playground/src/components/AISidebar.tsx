@@ -589,7 +589,7 @@ export function AISidebar(props: AISidebarProps) {
     return (
         <section className="pp-ai-sidebar">
             <header className="pp-ai-sidebar__header">
-                <h2 className="pp-ai-sidebar__title">AI Assistant</h2>
+                <h2 className="pp-ai-sidebar__title">PulsePlay AI</h2>
                 <p
                     className="pp-ai-sidebar__pack-indicator"
                     data-testid="pp-ai-sidebar-pack-indicator"

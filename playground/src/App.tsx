@@ -641,8 +641,8 @@ function PlaygroundApp(): React.ReactElement {
                 aiContent={(
                     <PaneChrome
                         pane="ai"
-                        title="AI"
-                        subtitle={uiMode === "pulse" ? "Pulse assistant" : "Assistant"}
+                        title="PulsePlay AI"
+                        subtitle={uiMode === "pulse" ? "Pulse mode" : "v0 mode"}
                         isFocused={focusedPane === "ai"}
                         isBackgrounded={focusedPane === "bi"}
                         isPinned={pinnedViewportPane === "ai"}
