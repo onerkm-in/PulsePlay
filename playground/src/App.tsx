@@ -24,6 +24,7 @@ import { VendorPicker } from "./components/VendorPicker";
 import { ConnectorPicker } from "./components/ConnectorPicker";
 import { EmbedConfigForm } from "./components/EmbedConfigForm";
 import { useEmbedConfig } from "./settings/embedConfigStore";
+import { warmGenieWarehouse } from "./lib/warehouseWarmup";
 import { TestConnectionPanel } from "./components/TestConnectionPanel";
 import { PackPicker } from "./components/PackPicker";
 import type { PackInfo, PackSelection } from "./components/PackPicker";
@@ -356,6 +357,20 @@ function PlaygroundApp(): React.ReactElement {
         void loadGovernanceState();
         return () => { cancelled = true; };
     }, []);
+
+    // Pre-warm the Databricks SQL warehouse for the active Genie profile so
+    // the user's first Pulse / AI ask doesn't pay 30–60s of cold-start.
+    // Fire-and-forget; the proxy returns 400 cleanly for profiles without
+    // a warehouseId (Foundation Model / Bedrock). Debounced 600ms to avoid
+    // thrashing during rapid connector swaps.
+    useEffect(() => {
+        if (!activeConnector) return;
+        const t = setTimeout(() => {
+            void warmGenieWarehouse(activeConnector);
+        }, 600);
+        return () => clearTimeout(t);
+    }, [activeConnector]);
+
     const handleUiModeChange = useCallback((next: UiMode) => {
         setUiMode(next);
         try { window.localStorage.setItem(UI_MODE_STORAGE_KEY, next); } catch { /* swallow */ }
