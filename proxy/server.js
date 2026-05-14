@@ -4165,7 +4165,13 @@ app.post('/openai/conversations/start', async (req, res) => {
     const resolved = resolveOpenAiProfile(req.body, req.headers, req);
     if (!resolved) return sendNoMatchingProfile(req, res, 400, 'No Azure OpenAI profile configured.');
 
-    const { content, pack, subVertical } = req.body;
+    const { pack, subVertical } = req.body;
+    // Phase 11b prep — bridge structured body.frame into content for
+    // direct API callers; idempotent when content already carries the
+    // AISidebar's [Selected analysis frame] marker. Byte-identical for
+    // free-text (frame === null / invalid).
+    const frame = validateFrame(req.body && req.body.frame);
+    const content = prependFrameContext(req.body.content, frame);
     const convId = `aoai-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
     // Cycle C — pack-context resolution. Forwarded to BOTH the analytics
@@ -4179,6 +4185,15 @@ app.post('/openai/conversations/start', async (req, res) => {
             action: 'pack-context-inject',
             status: packResolved.resolved ? 'OK' : 'WARN',
             detail: JSON.stringify({ ...buildPackAuditDetail(packResolved), backend: 'openai' }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+    }
+    if (frame) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'frame-context-inject',
+            status: 'OK',
+            detail: JSON.stringify({ ...buildFrameAuditDetail(frame), backend: 'openai' }),
             spIdentityHash: spHashForProfile(resolved.profile),
         });
     }
@@ -4401,7 +4416,12 @@ app.post('/bedrock/conversations/start', async (req, res) => {
     const resolved = resolveBedrockProfile(req.body, req.headers, req);
     if (!resolved) return sendNoMatchingProfile(req, res, 400, 'No AWS Bedrock profile configured.');
 
-    const { content, pack, subVertical } = req.body;
+    const { pack, subVertical } = req.body;
+    // Phase 11b prep — bridge body.frame into content (idempotent, no-op
+    // for free-text). See proxy/lib/frameContext.js + Genie route at
+    // app.post('/assistant/conversations/start') for the byte-identity contract.
+    const frame = validateFrame(req.body && req.body.frame);
+    const content = prependFrameContext(req.body.content, frame);
     const convId = `bedrock-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const engine = resolveEngine(resolved.profile) || 'bedrock-rag';
 
@@ -4414,6 +4434,15 @@ app.post('/bedrock/conversations/start', async (req, res) => {
             action: 'pack-context-inject',
             status: packResolved.resolved ? 'OK' : 'WARN',
             detail: JSON.stringify({ ...buildPackAuditDetail(packResolved), backend: 'bedrock', engine }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+    }
+    if (frame) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'frame-context-inject',
+            status: 'OK',
+            detail: JSON.stringify({ ...buildFrameAuditDetail(frame), backend: 'bedrock', engine }),
             spIdentityHash: spHashForProfile(resolved.profile),
         });
     }
@@ -5428,7 +5457,23 @@ app.post('/supervisor/conversations/start-stream', async (req, res) => {
         res.status(400).json({ error: 'Question content is required.' });
         return;
     }
-    const fullContent = [contextText, content].filter(Boolean).join('\n\n');
+    // Phase 11b prep — bridge body.frame into the supervisor content.
+    // Idempotent when the frontend already prefixed [Selected analysis
+    // frame] into content. See proxy/lib/frameContext.js.
+    const frame = validateFrame(req.body && req.body.frame);
+    const fullContent = prependFrameContext(
+        [contextText, content].filter(Boolean).join('\n\n'),
+        frame,
+    );
+    if (frame) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'frame-context-inject',
+            status: 'OK',
+            detail: JSON.stringify({ ...buildFrameAuditDetail(frame), backend: 'supervisor-stream' }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+    }
 
     res.setHeader('Content-Type', 'application/x-ndjson');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -5599,7 +5644,22 @@ app.post('/supervisor/conversations/start', async (req, res) => {
         return res.status(400).json({ error: 'Question content is required.' });
     }
 
-    const fullContent = [contextText, content].filter(Boolean).join('\n\n');
+    // Phase 11b prep — bridge body.frame into the supervisor user content.
+    // Idempotent when the frontend already prefixed [Selected analysis frame].
+    const frame = validateFrame(req.body && req.body.frame);
+    const fullContent = prependFrameContext(
+        [contextText, content].filter(Boolean).join('\n\n'),
+        frame,
+    );
+    if (frame) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'frame-context-inject',
+            status: 'OK',
+            detail: JSON.stringify({ ...buildFrameAuditDetail(frame), backend: 'supervisor' }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+    }
     const host  = resolved.profile.host.replace(/\/$/, '');
     const token = resolved.profile.token;
     const ep    = resolved.profile.endpoint;
