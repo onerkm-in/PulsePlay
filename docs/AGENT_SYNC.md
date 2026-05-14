@@ -138,7 +138,7 @@ Newest active/review lane first. Keep completed-but-reviewing work above older o
 | Production auth hardening | Codex (2026-05-14 04:10 IST) | done; reviewed | `proxy/server.js`, `docs/SECURITY.md`, `productionAuth.test.js` | `PROXY_AUTH_MODE` shipped; production fail-closed; 16/16 productionAuth, 646/646 proxy green; Claude line-by-line review at 04:15 IST — all 8 security checks pass. |
 | Allowlist fail-closed pass | unclaimed — **next Codex lane** | open | `playground/src/settings/settingsStore.tsx`, `App.tsx`, `BIPanel.tsx` | Distinguish dev-unconfigured (no allowlist file authored, accept any selection) from governance-fetch-failed (allowlist endpoint returned 5xx/network error, refuse new selections). Today both paths reach the same `allowlistError` state. BIPanel needs mount-time revalidation when allowlist transitions null → configured. |
 | Frame-to-prompt wiring | unclaimed | open | `AISidebar.tsx`, proxy routes, Prompt IR docs | Selected frame should alter request payload and prompt strategy. Now that BIAdapter.getMetadata is in place, the proxy can compute reachableFrames honestly; this lane wires the selected frame's params into the request. |
-| Support bundle redaction | unclaimed | open | `diagnosticsBuffer.ts`, `exportBundle.ts`, `AdvancedGroup.tsx` | Redact raw event payloads and nested localStorage secrets. |
+| Support bundle redaction | Claude (2026-05-14 12:45 IST) | done; awaiting Codex review | `playground/src/settings/exportBundle.ts`, `playground/src/settings/__tests__/exportBundle.test.ts` | `redactDeep()` walker closes the three leak paths (nested JSON localStorage / diagnostic event payloads / proxy.health). Depth cap 8, array cap 200, string cap 4 KB. 11/11 focused + 412/412 full playground green. |
 | Tableau / Qlik / Looker BIAdapter.getMetadata() | unclaimed (deferred to v0.3+) | open | `bi-adapters/tableau/index.ts`, `bi-adapters/qlik/index.ts`, `bi-adapters/looker/index.ts` | Today these adapters are iframe stubs — they can't introspect. Lands when their SDKs graduate from iframe in v0.3+. |
 
 ## Next Task For Other Agent
@@ -358,6 +358,37 @@ If the handoff conflicts with the current code, trust the code and report the mi
 ## Coordination Log
 
 Add newest entries at the top of this section.
+
+### 2026-05-14 12:45 IST - Claude (gallant-jones-a71415) — autonomous loop
+
+`[CLAIM]` → `[DONE]` **Support bundle redaction (P2)** in [playground/src/settings/exportBundle.ts](../playground/src/settings/exportBundle.ts). Closed three concrete leak paths:
+
+1. **Nested JSON localStorage values** — a `pulseplay:visual-settings:genieSettings` value like `{"config":{"accessToken":"plain-text-secret"}}` previously only got the substring scrub; nested `accessToken`/`clientSecret`/etc. flowed through verbatim. Now: `redactValue` tries `JSON.parse` and runs the result through `redactDeep`; non-JSON values fall through to the original substring redactor (existing JWT-in-non-secret-key test still passes).
+2. **Diagnostic event payloads** — `snapshotDiagnostics()` previously returned payloads verbatim. Vendor events with filter values, dataset ids, or worst-case embed tokens leaked. Now: `redactDiagnosticEvents()` walks every event's payload through `redactDeep`; the envelope (`at`/`vendor`/`type`) stays intact for debugging.
+3. **`proxy.health`** — typed `unknown`; previously emitted verbatim. Now: walked through `redactDeep` so a misconfigured `/health` route bleeding `clientSecret` can't bleed into the bundle.
+
+New helper `redactDeep(value, depth=0)` exported from `exportBundle.ts`:
+
+- Walks objects + arrays recursively.
+- Applies `SENSITIVE_KEY_PATTERNS` to every nested object key (matching key → `[REDACTED]`).
+- Applies `SENSITIVE_VALUE_PATTERNS` to every nested string (JWT / dapi / Bearer substring → `[REDACTED]`).
+- Caps depth at `MAX_DEPTH=8` (returns `"[REDACTED:max-depth]"` past that, preventing runaway).
+- Trims arrays past `MAX_ARRAY_ITEMS=200` (returns 200 elements + a trailing `"[REDACTED:array-trimmed-N-more]"` marker).
+- Truncates string values past `MAX_STRING_BYTES=4000`.
+
+7 new vitest cases added to `exportBundle.test.ts` (under two new describe blocks: `redactDeep` for the helper, and `buildExportBundle — nested redaction coverage` for the integration). The existing 4 tests are unchanged and still pass; the JWT-in-non-secret-key contract is preserved because the fallback path runs the substring redactor when JSON.parse fails.
+
+`[VERIFY]`:
+
+- `npx vitest run src/settings/__tests__/exportBundle.test.ts` → **11/11** (was 4; +7 new)
+- `npx vitest run --silent` (full playground) → **412/412** (was 405; +7 new)
+- `npx tsc --noEmit` → clean
+
+Quality scorecard: Sustainability ↑ (less risk of secrets escaping in support bundles improves the trust posture); Functionality ↑ (deeper defense-in-depth on the diagnostics surface); Accuracy unchanged. **No overlap** with Codex's Allowlist lane — touches `exportBundle.ts` + its test only.
+
+`[RISK]` None known. The existing JWT-in-non-secret-key behavior is preserved because the JSON-parse path is wrapped in try/catch and falls through to `redactStringValue` for opaque tokens stored directly (e.g. a raw JWT stuck in `pulseplay:visual-settings:foo` would still get its JWT substring caught). The depth + array caps are defensive against malicious crafted bundles, not part of the normal threat model.
+
+Commit: `<pending>` (filled in by commit step).
 
 ### 2026-05-14 12:15 IST - Claude (gallant-jones-a71415) — autonomous loop
 

@@ -5,10 +5,21 @@
 // pulseplay:* localStorage keys, and basic browser info, then offers
 // the result as a downloadable JSON blob.
 //
-// Redaction is conservative: any localStorage value whose key contains
-// "token", "secret", "accesstoken", "clientsecret", or "key" is replaced
-// with "[REDACTED]" before it leaves the page. The Pulse `visual-settings:*`
-// keys are scrubbed of their `assistantProfile` token-shaped values too.
+// Redaction layers (applied in order to every fielded value that could
+// carry sensitive data):
+//   1. SENSITIVE_KEY_PATTERNS — any localStorage key OR nested object key
+//      matching /token|secret|accesstoken|clientsecret|\bkey\b/i has its
+//      value replaced with "[REDACTED]".
+//   2. SENSITIVE_VALUE_PATTERNS — any string value containing a JWT,
+//      Databricks PAT, or Bearer-token shape gets the matching substring
+//      replaced with "[REDACTED]".
+//   3. Length cap — string values are truncated to 4 KB to bound bundle
+//      size and avoid leaking huge attachments.
+//
+// The redactDeep() walker applies (1)+(2) to ANY object/array tree —
+// covering both nested localStorage JSON values and diagnostic event
+// payloads. Depth is capped at 8 and array length at 200 to prevent
+// runaway bundles from circular or massive structures.
 //
 // No network call — this is a pure browser action. The blob is created
 // via URL.createObjectURL and an anchor click; the URL is revoked
@@ -16,7 +27,7 @@
 
 import type { PulsePlayAllowlist } from "../types/allowlist";
 import type { SettingsState } from "./settingsStore";
-import { snapshotDiagnostics } from "./diagnosticsBuffer";
+import { snapshotDiagnostics, type DiagnosticBiEvent } from "./diagnosticsBuffer";
 
 const REDACTED = "[REDACTED]";
 const SENSITIVE_KEY_PATTERNS = [/token/i, /secret/i, /accesstoken/i, /clientsecret/i, /\bkey\b/i];
@@ -25,6 +36,65 @@ const SENSITIVE_VALUE_PATTERNS = [
     /dapi[a-f0-9]{16,}/i,                                 // Databricks PAT
     /Bearer [A-Za-z0-9._-]+/i,                            // Bearer tokens
 ];
+const MAX_DEPTH = 8;
+const MAX_ARRAY_ITEMS = 200;
+const MAX_STRING_BYTES = 4000;
+
+function redactStringValue(raw: string): string {
+    let value = raw;
+    if (value.length > MAX_STRING_BYTES) value = `${value.slice(0, MAX_STRING_BYTES)}…[truncated]`;
+    for (const re of SENSITIVE_VALUE_PATTERNS) {
+        value = value.replace(re, REDACTED);
+    }
+    return value;
+}
+
+function keyLooksSensitive(key: string): boolean {
+    return SENSITIVE_KEY_PATTERNS.some(re => re.test(key));
+}
+
+/**
+ * Recursive object/array walker that applies the same redaction rules
+ * everywhere — not just at the top-level localStorage key. Used for:
+ *
+ *   - Parsed JSON values of `pulseplay:*` localStorage entries (so a
+ *     nested `{ config: { accessToken: "plain-secret" } }` gets caught
+ *     instead of slipping through the outer-key-only filter).
+ *   - `DiagnosticBiEvent.payload` — BI vendor events may carry filter
+ *     values, dataset ids, or worst-case embed tokens.
+ *   - `proxy.health` — typed `unknown`, whatever the /health route
+ *     returns lands here.
+ *
+ * Depth + size caps keep the bundle bounded under any input.
+ */
+export function redactDeep(value: unknown, depth = 0): unknown {
+    if (depth >= MAX_DEPTH) return "[REDACTED:max-depth]";
+    if (value === null || value === undefined) return value;
+    if (typeof value === "string") return redactStringValue(value);
+    if (typeof value === "number" || typeof value === "boolean") return value;
+    if (Array.isArray(value)) {
+        const out: unknown[] = [];
+        const limit = Math.min(value.length, MAX_ARRAY_ITEMS);
+        for (let i = 0; i < limit; i += 1) out.push(redactDeep(value[i], depth + 1));
+        if (value.length > MAX_ARRAY_ITEMS) out.push(`[REDACTED:array-trimmed-${value.length - MAX_ARRAY_ITEMS}-more]`);
+        return out;
+    }
+    if (typeof value === "object") {
+        const src = value as Record<string, unknown>;
+        const out: Record<string, unknown> = {};
+        for (const k of Object.keys(src)) {
+            if (keyLooksSensitive(k)) {
+                out[k] = REDACTED;
+                continue;
+            }
+            out[k] = redactDeep(src[k], depth + 1);
+        }
+        return out;
+    }
+    // Functions, symbols, bigints — unreachable in JSON-serializable payloads
+    // but redact defensively to keep the bundle JSON-clean.
+    return "[REDACTED:unsupported-type]";
+}
 
 interface BundleProxy {
     health: unknown;
@@ -57,14 +127,32 @@ export interface ExportBundle {
     };
 }
 
+/**
+ * Redact a raw localStorage value. If the OUTER key is sensitive the
+ * value is dropped wholesale; otherwise we try to parse it as JSON and
+ * walk the tree with redactDeep so nested sensitive fields don't slip
+ * through. Non-JSON strings fall back to the substring redactor.
+ *
+ * The output is JSON-serialised so the bundle payload stays a flat
+ * Record<string,string> (existing test contract).
+ */
 function redactValue(key: string, raw: string): string {
-    if (SENSITIVE_KEY_PATTERNS.some(re => re.test(key))) return REDACTED;
-    if (raw.length > 4000) return `${raw.slice(0, 4000)}…[truncated]`;
-    let value = raw;
-    for (const re of SENSITIVE_VALUE_PATTERNS) {
-        value = value.replace(re, REDACTED);
+    if (keyLooksSensitive(key)) return REDACTED;
+    // Try to parse JSON so nested fields like `{config:{accessToken:"…"}}`
+    // get the deep walker. JSON.parse is forgiving of trailing whitespace
+    // but throws on plain strings — fall back to the substring redactor
+    // for non-JSON values (which keeps existing behavior for opaque
+    // tokens like JWTs stored directly).
+    try {
+        const parsed = JSON.parse(raw);
+        if (parsed !== null && (typeof parsed === "object" || Array.isArray(parsed))) {
+            const redacted = redactDeep(parsed);
+            return JSON.stringify(redacted);
+        }
+    } catch {
+        /* not JSON — fall through to substring redaction */
     }
-    return value;
+    return redactStringValue(raw);
 }
 
 function readPulseplayLocalStorage(): Record<string, string> {
@@ -83,6 +171,17 @@ function readPulseplayLocalStorage(): Record<string, string> {
     return out;
 }
 
+/** Apply redactDeep to every diagnostic event's payload field. The
+ *  envelope (at/vendor/type) is plain metadata and stays intact. */
+function redactDiagnosticEvents(events: DiagnosticBiEvent[]): DiagnosticBiEvent[] {
+    return events.map(e => ({
+        at: e.at,
+        vendor: e.vendor,
+        type: e.type,
+        payload: e.payload === undefined ? undefined : redactDeep(e.payload),
+    }));
+}
+
 export interface BuildExportBundleArgs {
     settings: SettingsState;
     proxy: BundleProxy;
@@ -90,6 +189,7 @@ export interface BuildExportBundleArgs {
 
 export function buildExportBundle(args: BuildExportBundleArgs): ExportBundle {
     const settings = args.settings;
+    const rawDiagnostics = snapshotDiagnostics();
     return {
         generatedAt: new Date().toISOString(),
         pulseplayVersion: "v0.1.3-mvp-0.2",
@@ -104,8 +204,20 @@ export function buildExportBundle(args: BuildExportBundleArgs): ExportBundle {
             orphans: settings.orphans,
         },
         allowlist: settings.allowlist,
-        proxy: args.proxy,
-        diagnostics: snapshotDiagnostics(),
+        proxy: {
+            // proxy.health is typed `unknown` — the upstream /health
+            // payload may carry anything. Walk it through redactDeep so
+            // a misconfigured proxy that surfaces a `clientSecret` or
+            // bearer token in /health diagnostics can't bleed into the
+            // bundle. lastCheckedAt + error are plain metadata.
+            health: redactDeep(args.proxy.health),
+            lastCheckedAt: args.proxy.lastCheckedAt,
+            error: args.proxy.error,
+        },
+        diagnostics: {
+            events: redactDiagnosticEvents(rawDiagnostics.events),
+            errors: rawDiagnostics.errors,
+        },
         localStorage: readPulseplayLocalStorage(),
         browser: {
             userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "",
