@@ -5,6 +5,33 @@
 
 ---
 
+## 2026-05-14 - Beast-mode catchup: Allowlist P1, BI Phase B, PaneChrome Fix #1+#2, getMetadata stubs, rename
+
+**Range:** Rajesh switched to single-agent beast mode ("you take care of everything don't depend on codex for now"). Six lanes shipped back-to-back in this session.
+
+### What shipped
+
+- **Allowlist fail-closed (P1)** — commit `30b2e21`. settingsStore + App.tsx + BIPanel now distinguish dev-unconfigured (`allowlist?.configured === false`, permissive) from governance-fetch-failed (`allowlist === null && allowlistError !== null`, refuse). New `isAllowlistFailClosed(state)` helper. Reducer `allowlist/error` no longer blows away the prior allowlist on refresh failure — only first-load failure flips to fail-closed. BIPanel: new `allowlistFailClosed` prop refuses to mount when set; late-arriving restrictive allowlist destroys an already-mounted adapter. App.tsx error banner differentiates the two states with `role="alert"` vs `role="status"`. +9 tests (6 settingsStore + 3 BIPanel.failClosed).
+- **BI Live Controls Phase B** — commit `923c192`. App.tsx adopts `useEmbedConfig()` from the dedicated store. Pulse sidebar inline EmbedConfigForm retired in favor of a status row + deep-link to `/settings/bi/embed`. Edits in Settings live-update the playground without a refresh, including cross-tab via the storage event. **Behavior change:** embedConfig now persists across reloads via localStorage. The Settings BI Embed leaf's "refresh to apply" note is gone.
+- **PaneChrome Fix #1 + Fix #2** — commit `eb5820b`. Fix #1: Minimize / Pin/Unpin / Open-in-separate-page collapse into a single `⋮` overflow menu with proper menuitem semantics. Maximize/Restore + Both stay inline. Fix #2: new `quiet` prop on PaneChrome hides the toolbar entirely when the pane has nothing to operate on (App.tsx wires `quiet={!hasEmbedConfig}` on the BI pane). All aria-labels preserved exactly. Integration test updated with an `openOverflowFor()` helper + the seeded embedConfig in beforeEach so the BI chrome's toolbar isn't quiet for viewport assertions.
+- **GenericIframeAdapter.getMetadata() = null** — commit `0ea3ed0`. Iframe-only adapters (generic-iframe + Tableau/Qlik/Looker stubs) now have an explicit `async getMetadata(): Promise<BIMetadata | null> { return null }` instead of omitting the method. TypeScript discoverability; honest contract documenting why iframe adapters can't introspect. PowerBIAdapter's real implementation continues to override.
+- **"AI Assistant" / "Pulse assistant" → "PulsePlay AI"** — commit `7c1bc28`. Disambiguates the PulsePlay sidebar from the Power BI Copilot panel that may render inside the embedded report. Title in AISidebar.tsx + PaneChrome subtitle in App.tsx updated. Viewport-control aria-labels untouched (they refer to the pane axis, not the product).
+- (Earlier in session, before beast mode) **Support bundle redaction P2** — commit `16b5ee3`. `redactDeep()` walker closes 3 leak paths: nested JSON localStorage values, diagnostic event payloads, `proxy.health`. +7 tests.
+
+### Validation (cumulative through `7c1bc28`)
+
+- Full playground vitest: **423/423** green (was 412 at session start; +11 net).
+- `npx tsc --noEmit`: clean.
+- Proxy unchanged at 658/658 (no proxy edits this session).
+
+### Tripwires
+
+- **Recurring "stale-rollback" diff in the primary worktree** if FF'd from a sibling via `git update-ref`. The fix is to FF from the primary worktree itself via `git merge --ff-only`. Codex independently flagged this earlier in the session; the recovery is `git reset --hard <SHA>` in the primary. Working tree is now refreshed and clean.
+- **RISKS card red-up paradox** still pending Rajesh's decision (3 options outlined in chat). Do not ship the bp-delta prompt-IR tweak in isolation — it papers over the visual paradox.
+- **Live credentialed smoke** still needed against an org Power BI report + Genie/Supervisor profile + enterprise IdP JWKS before pilot. No code work blocks this.
+
+---
+
 ## 2026-05-14 - PaneChrome visual-weight tightening (CSS-only)
 
 **Range:** Rajesh feedback "the interface is really looking unprofessional now" → CSS-only response, no behavior change. Does NOT consolidate Maximize/Minimize/Pin/Page into an overflow menu — that stays Codex's Fix #1 lane in `docs/AGENT_SYNC.md`.
