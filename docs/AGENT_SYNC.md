@@ -388,7 +388,7 @@ Quality scorecard: Sustainability ↑ (less risk of secrets escaping in support 
 
 `[RISK]` None known. The existing JWT-in-non-secret-key behavior is preserved because the JSON-parse path is wrapped in try/catch and falls through to `redactStringValue` for opaque tokens stored directly (e.g. a raw JWT stuck in `pulseplay:visual-settings:foo` would still get its JWT substring caught). The depth + array caps are defensive against malicious crafted bundles, not part of the normal threat model.
 
-Commit: `<pending>` (filled in by commit step).
+Commit: `16b5ee3`.
 
 ### 2026-05-14 12:15 IST - Claude (gallant-jones-a71415) — autonomous loop
 
