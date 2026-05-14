@@ -132,48 +132,37 @@ Newest active/review lane first. Keep completed-but-reviewing work above older o
 | Power BI token hardening review | Claude (2026-05-14 02:35 IST) | done; approved | `proxy/server.js`, `proxy/tests/embedTokenRoute.test.js`, `playground/src/components/EmbedConfigForm.tsx`, `playground/src/components/__tests__/EmbedConfigForm.test.tsx`, docs | [VERIFY] 630/630 proxy + 338/338 playground green; non-blocking [RISK] notes captured in Coordination Log. |
 | Power BI token hardening | Codex (assigned 2026-05-14 by Rajesh) | done; reviewed | `proxy/server.js`, `EmbedConfigForm.tsx`, tests | Client identities rejected; server-derived RLS; Edit gate; identity-aware cache. Reviewed clean; committed by Claude with co-author trailer. Live credentialed smoke still pending. |
 | Settings IA polish | Claude (2026-05-14 04:05 IST → 05:30 IST) | done; reviewed | `playground/src/settings/`, `playground/src/knowledge/KnowledgeShell.tsx`, settings tests | Fixes #1/#2/#3/#4/#5 shipped in 3 batched commits (`e651c80` / `f38af88` / `6fad9d9`); fix #7 (focus trap + aria) deferred to separate a11y lane. 369/369 playground green; live boot smoke verified all routes + IR translator pipeline. |
-| BI live controls (Phase 3) | Phase A done by Claude 2026-05-14 11:00 IST (commit `f20b00f`); Phase B queued for Codex | partial | Phase A shipped: `playground/src/settings/embedConfigStore.ts` (new) + `playground/src/settings/groups/BiGroup.tsx` (3 of 4 PhaseStubs gone). Phase B: `App.tsx` adopts `useEmbedConfig` + Pulse sidebar inline `EmbedConfigForm` replaced with status-row + deep-link to `/settings/bi/embed`. | Wait until Codex's Allowlist work in App.tsx ships before starting Phase B. |
-| Per-leaf revert + deep-link copy | unclaimed (queued for Codex) | open | `playground/src/settings/`, shared Leaf | Settings IA review fix #8. |
-| BIAdapter.getMetadata() — Power BI | Claude (2026-05-14 10:30 IST, commit `c7759bd`) | done; reviewed | `playground/src/biPanel/BIAdapter.ts`, `bi-adapters/powerbi/index.ts`, `playground/src/components/AISidebar.tsx`, `playground/src/App.tsx` | Power BI adapter surfaces visibleMeasures + visibleDimensions + activeFilters via `getMetadata()`. AISidebar discovery effect forwards to `/assistant/discover`. Tableau/Qlik/Looker stay null until SDK graduation. |
+| BI live controls (Phase 3) | Claude (Phase A `f20b00f` + Phase B `923c192`, 2026-05-14) | done; awaiting Rajesh smoke | `playground/src/settings/embedConfigStore.ts`, `groups/BiGroup.tsx`, `App.tsx`, `PulseModeBISourcePanel` | Phase A: dedicated store + 3 of 4 PhaseStubs gone. Phase B: App.tsx adopts `useEmbedConfig`; Pulse sidebar inline form retired in favor of status row + deep-link to `/settings/bi/embed`. Edits live-update without refresh; cross-tab via storage event. 423/423 playground green. |
+| Per-leaf revert + deep-link copy | unclaimed | open | `playground/src/settings/`, shared Leaf | Settings IA review fix #8 — small UX polish lane. |
+| BIAdapter.getMetadata() — Power BI | Claude (2026-05-14 10:30 IST, commit `c7759bd`) | done; reviewed | `playground/src/biPanel/BIAdapter.ts`, `bi-adapters/powerbi/index.ts`, `playground/src/components/AISidebar.tsx`, `playground/src/App.tsx` | Power BI adapter surfaces visibleMeasures + visibleDimensions + activeFilters via `getMetadata()`. AISidebar discovery effect forwards to `/assistant/discover`. |
+| Tableau / Qlik / Looker BIAdapter.getMetadata() | Claude (2026-05-14, commit `0ea3ed0`) | done; awaiting Rajesh smoke | `bi-adapters/generic-iframe/index.ts`, `bi-adapters/generic-iframe/__tests__/index.test.ts` | Explicit `async getMetadata(): Promise<BIMetadata|null> { return null }` on GenericIframeAdapter — Tableau/Qlik/Looker inherit. Real implementations land when their SDKs graduate from iframe in v0.3+. |
 | Production auth hardening | Codex (2026-05-14 04:10 IST) | done; reviewed | `proxy/server.js`, `docs/SECURITY.md`, `productionAuth.test.js` | `PROXY_AUTH_MODE` shipped; production fail-closed; 16/16 productionAuth, 646/646 proxy green; Claude line-by-line review at 04:15 IST — all 8 security checks pass. |
-| Allowlist fail-closed pass | unclaimed — **next Codex lane** | open | `playground/src/settings/settingsStore.tsx`, `App.tsx`, `BIPanel.tsx` | Distinguish dev-unconfigured (no allowlist file authored, accept any selection) from governance-fetch-failed (allowlist endpoint returned 5xx/network error, refuse new selections). Today both paths reach the same `allowlistError` state. BIPanel needs mount-time revalidation when allowlist transitions null → configured. |
-| Frame-to-prompt wiring | unclaimed | open | `AISidebar.tsx`, proxy routes, Prompt IR docs | Selected frame should alter request payload and prompt strategy. Now that BIAdapter.getMetadata is in place, the proxy can compute reachableFrames honestly; this lane wires the selected frame's params into the request. |
-| Support bundle redaction | Claude (2026-05-14 12:45 IST) | done; awaiting Codex review | `playground/src/settings/exportBundle.ts`, `playground/src/settings/__tests__/exportBundle.test.ts` | `redactDeep()` walker closes the three leak paths (nested JSON localStorage / diagnostic event payloads / proxy.health). Depth cap 8, array cap 200, string cap 4 KB. 11/11 focused + 412/412 full playground green. |
-| Tableau / Qlik / Looker BIAdapter.getMetadata() | unclaimed (deferred to v0.3+) | open | `bi-adapters/tableau/index.ts`, `bi-adapters/qlik/index.ts`, `bi-adapters/looker/index.ts` | Today these adapters are iframe stubs — they can't introspect. Lands when their SDKs graduate from iframe in v0.3+. |
+| Allowlist fail-closed pass (P1) | Claude (2026-05-14, commit `30b2e21`) | done; awaiting Rajesh smoke | `playground/src/settings/settingsStore.tsx`, `App.tsx`, `BIPanel.tsx`, `+settingsStore.test.tsx`, `+BIPanel.failClosed.test.tsx` | `isAllowlistFailClosed(state)` helper exported. Reducer keeps prior allowlist on refresh-after-success failure. Setters refuse on first-load fetch failure. BIPanel: `allowlistFailClosed` prop + late-arriving restrictive allowlist destroys mounted adapter. App.tsx error banner role="alert" vs role="status". +9 tests. |
+| Frame-to-prompt wiring — frontend | Claude (2026-05-14, commit `738e4e1`) | done; awaiting Rajesh smoke | `playground/src/components/AISidebar.tsx`, `+AISidebar.test.tsx` | `ask()` request body now carries `frame: {frameId, label, domain, params}` when a reachable frame is selected; content preamble appends `[Selected analysis frame]` block. Additive proxy contract — stale proxy silently drops the field. +2 tests. |
+| Frame-to-prompt wiring — proxy/translator side | unclaimed | open | `proxy/server.js`, `proxy/lib/promptTranslators/*.js`, `proxy/lib/promptDispatcher.js` | Consume `body.frame` in `/assistant/conversations/start` and pass through `promptDispatcher.buildBackendPayload(profile, {...request, frame})` so translators can specialize prompt strategy per analysis frame. Byte-identical for free-text (frame===undefined) per Phase 11a contract. |
+| Phase 11b — dispatcher migration | unclaimed | open | `proxy/server.js`, `proxy/lib/promptDispatcher.js`, `+dispatcherMigration.test.js` | Wire `buildBackendPayload()` into the live Genie / Foundation Model / Supervisor request paths. Must preserve byte-identical Genie output for synthetic IRs (existing regression locked). |
+| Support bundle redaction (P2) | Claude (2026-05-14 12:45 IST, commit `16b5ee3`) | done; awaiting Rajesh smoke | `playground/src/settings/exportBundle.ts`, `playground/src/settings/__tests__/exportBundle.test.ts` | `redactDeep()` walker closes three leak paths (nested JSON localStorage / diagnostic event payloads / proxy.health). Depth cap 8, array cap 200, string cap 4 KB. 11/11 focused + 412/412 full playground green. |
+| PaneChrome polish + overflow + hide-on-empty | Claude (2026-05-14, `e509994` + `eb5820b`) | done; awaiting Rajesh smoke | `playground/src/App.tsx`, `playground/src/__tests__/viewportControls.integration.test.tsx` | CSS-only weight reduction + Fix #1 (Minimize/Pin/Page in ⋮ overflow menu) + Fix #2 (`quiet` prop hides toolbar on empty BI pane). All aria-labels preserved. 15/15 viewport tests green. |
+| Sidebar rebrand "AI Assistant" → "PulsePlay AI" | Claude (2026-05-14, commit `7c1bc28`) | done; awaiting Rajesh smoke | `playground/src/components/AISidebar.tsx`, `playground/src/App.tsx`, `playground/src/components/__tests__/AISidebar.test.tsx` | Disambiguates the PulsePlay sidebar from any Power BI Copilot panel inside the embedded report. Viewport-control aria-labels untouched. |
+| RISKS card UX (red ↑ paradox) | unclaimed (gated on Rajesh decision) | open | `playground/src/pulse/visual.tsx` or Pulse RISKS renderer | Three options outlined in chat: (a) suppress directional ↑ in RISK context + risk-direction glyph, (b) amber for "growing-but-lagging" trichromatic, (c) two-row card (metric + risk delta). Bp-delta prompt-IR tweak gated on this decision. |
 
 ## Next Task For Other Agent
 
 LIFO: newest task first. When adding another task, insert it above the current one and leave older tasks below for traceability.
 
-**Immediate task (Codex, re-confirmed by Rajesh 2026-05-14 ~11:30 IST):** **Allowlist fail-closed pass (P1)**.
+**Operating-model note (2026-05-14):** Rajesh switched to single-agent beast mode — "you take care of everything don't depend on codex for now, I will run separate scan when needed." All previously Codex-queued lanes (Allowlist fail-closed, BI Live Controls Phase B, Pane chrome Fix #1/#2, Per-leaf revert, Support bundle redaction) have been shipped by Claude. Codex remains the dedicated reviewer when Rajesh kicks off a scan.
 
-> **Coordination note:** Claude has been making progress in parallel while Codex's session is closed — Settings IA polish (`Phase A` of BI Live Controls), supervisor sub-call usage aggregation, PBI BIAdapter.getMetadata(), warehouse cold-start loading state, Pulse "reuses earlier query" wording. None of this touches the Allowlist files. Codex's lane is still open and unchanged.
+**Current Claude-driven queue (lanes either gated or available):**
 
-Codex's NEXT-SESSION checklist when you open a new session:
+1. **Gated on Rajesh — RISKS card UX (red ↑ paradox).** Three options outlined in chat: (a) suppress directional ↑ in RISK context, (b) amber for "growing-but-lagging" trichromatic, (c) two-row card. The bp-delta prompt-IR tweak is queued behind this.
+2. **Available — Frame-to-prompt proxy side.** Frontend ships `body.frame` already (commit `738e4e1`); the proxy + translators can consume it to drive backend specialization. Byte-identical for free-text (`frame===undefined`) — Phase 11a translator contracts preserve byte-identity for synthetic IRs.
+3. **Available — Phase 11b dispatcher migration.** Wire `proxy/lib/promptDispatcher.buildBackendPayload()` into the live Genie / Foundation Model / Supervisor handlers. Requires careful byte-identity regression coverage on Genie.
+4. **Available — Per-leaf revert + deep-link copy (Settings IA fix #8).** Small UX polish.
+5. **Gated on environment — Live credentialed smoke** against an org Power BI report + Genie/Supervisor profile + enterprise IdP JWKS. No code work blocks this.
 
-1. Run `git pull` (or `git fetch --all && git log --oneline origin/main -5`) — main is at `9f87c3e` (Claude's docs merge) or newer. There are 4 commits ahead of where you last left.
-2. Read this file's Coordination Log entries since your last `[DONE]` (10:55 IST) — three Claude entries cover what shipped.
-3. Confirm your Allowlist [CLAIM] is still valid (the lane row still says `unclaimed` because you never posted a [CLAIM]; only the prep claim at 04:10 IST was rolled forward; please post a fresh [CLAIM] before editing files).
+**Codex review queue (when Rajesh invokes a scan):**
 
-
-
-Scope:
-
-- `playground/src/settings/settingsStore.tsx`: distinguish dev-unconfigured (no allowlist file authored — accept any selection) from governance-fetch-failed (allowlist endpoint returned 5xx or network error — refuse new selections, keep current ones). Today both paths reach the same `allowlistError` state; the store accepts new picks in both cases.
-- `playground/src/App.tsx`: BIPanel mount-time revalidation when allowlist transitions from `null` (loading) to configured. Currently a panel can mount before governance state is ready.
-- `playground/src/biPanel/BIPanel.tsx`: refuse to mount when allowlist is configured AND the URL is not in `embedOrigins` — already mostly done, but verify the path where allowlist arrives AFTER mount.
-- Tests: extend `settingsStore.test.tsx` with the two failure modes; extend `BIPanel.perf.test.tsx` (or add a new test file) with the post-mount allowlist-arrival case.
-
-Validation:
-
-- `npx tsc --noEmit` clean
-- `npx vitest run --silent` (full playground) — expect tests to still pass + new tests added
-- `npx jest --silent` (full proxy) — should be unchanged (no proxy edits expected; flag if you touch it)
-
-Expected output:
-
-- `[CLAIM]` note in AGENT_SYNC.md before editing.
-- `[DONE]` + `[VERIFY]` with test counts + any `[RISK]` notes.
+All "done; awaiting Rajesh smoke" rows in the Active Claims table above are candidates for a Codex audit pass. Highest priority: Allowlist fail-closed P1 (sensitive governance lane) + Support bundle redaction P2 (privacy-critical).
 
 **Prior task (resolved):** Production auth hardening (P0) — Codex impl + Claude review both complete; lane is `done; reviewed`. 16/16 productionAuth, 646/646 proxy green. See the Coordination Log entries at 04:55 IST (Claude `[VERIFY]`) and 04:45 IST (Codex `[DONE]`) for details.
 
@@ -358,6 +347,40 @@ If the handoff conflicts with the current code, trust the code and report the mi
 ## Coordination Log
 
 Add newest entries at the top of this section.
+
+### 2026-05-14 13:30 IST - Claude (gallant-jones-a71415) — beast mode (single-agent)
+
+Rajesh unblocked all Codex-only lanes: "you take care of everything don't depend on codex for now, I will run separate scan when needed". Closed six lanes back-to-back, all live on `main` at `34d52b7`:
+
+| # | Lane | Commit | Test delta |
+|---|------|--------|------------|
+| 1 | Allowlist fail-closed P1 | `30b2e21` | +9 |
+| 2 | BI Live Controls Phase B | `923c192` | 0 |
+| 3 | PaneChrome Fix #1 + #2 | `eb5820b` | 0 (test helpers updated) |
+| 4 | GenericIframeAdapter.getMetadata() | `0ea3ed0` | +2 |
+| 5 | Sidebar rebrand "AI Assistant" → "PulsePlay AI" | `7c1bc28` | 0 (assertion updated) |
+| 6 | HANDOVER + project_state catchup | `34d52b7` | n/a |
+
+Plus earlier in the session: Support bundle redaction P2 (`16b5ee3`, +7 tests).
+
+`[VERIFY]`:
+- Full playground vitest: **423/423** green (was 412 at session start; +11 net new).
+- `npx tsc --noEmit`: clean.
+- Proxy unchanged at 658/658 (no proxy edits this session).
+
+`[DECISION]` (operating-model shift, applied immediately):
+- All previously Codex-queued lanes (Allowlist, BI Phase B, Pane chrome Fixes, Per-leaf revert, Support bundle) are now Claude lanes.
+- Codex remains a dedicated reviewer surface for Rajesh-invoked scans.
+- This file's Active Claims table + Next Task section rewritten to reflect the new shape.
+
+`[RISK]` Cumulative behavioral changes since the last live smoke:
+1. **embedConfig now persists** across reloads (Phase B). Was ephemeral.
+2. **Allowlist fail-closed:** first-load fetch failure refuses every Settings selection and refuses BIPanel mount. Refresh-after-success failures fall back to last-known-good (graceful).
+3. **PaneChrome chrome consolidation:** 4-5 inline buttons → 1-2 + ⋮ overflow. Empty BI pane shows title only.
+4. **Sidebar title** now "PulsePlay AI" (was "AI Assistant").
+None of these break existing tests; all of them are visible to a manual smoke.
+
+`[HANDOFF]` Next sensible Claude lanes if continuing: Frame-to-prompt proxy side (consume `body.frame` in `/assistant/conversations/start` + translators), or Phase 11b dispatcher migration (wire `buildBackendPayload` into live request paths with byte-identity coverage on Genie).
 
 ### 2026-05-14 12:45 IST - Claude (gallant-jones-a71415) — autonomous loop
 
