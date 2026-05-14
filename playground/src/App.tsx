@@ -23,6 +23,7 @@ import { AISidebar } from "./components/AISidebar";
 import { VendorPicker } from "./components/VendorPicker";
 import { ConnectorPicker } from "./components/ConnectorPicker";
 import { EmbedConfigForm } from "./components/EmbedConfigForm";
+import { useEmbedConfig } from "./settings/embedConfigStore";
 import { TestConnectionPanel } from "./components/TestConnectionPanel";
 import { PackPicker } from "./components/PackPicker";
 import type { PackInfo, PackSelection } from "./components/PackPicker";
@@ -282,7 +283,27 @@ function PlaygroundApp(): React.ReactElement {
     // Both pickers are independent — any cell of the matrix is valid.
     const [activeVendor, setActiveVendor] = useState<string>(() => readInitialBiVendor());
     const [activeConnector, setActiveConnector] = useState<string>("");
-    const [embedConfig, setEmbedConfig] = useState<BIEmbedConfig>({});
+    // Phase B of BI Live Controls (Settings IA fix #6). The Power BI embed
+    // config now lives in a dedicated cross-tab store (`pulseplay:bi-embed-
+    // config`). Editing in Settings → BI → Embed live-updates this hook
+    // and the playground re-renders without a refresh. Phase A persisted
+    // separately; Phase B (this) is the App.tsx adoption.
+    const { embedConfig, setEmbedConfig: persistEmbedConfig, clearEmbedConfig } = useEmbedConfig();
+    // Stable wrapper preserving the existing setEmbedConfig({}) clear
+    // semantics so the rest of App.tsx doesn't need to know about the
+    // null-clears-store convention.
+    const setEmbedConfig = useCallback((next: BIEmbedConfig | ((prev: BIEmbedConfig) => BIEmbedConfig)) => {
+        if (typeof next === "function") {
+            const computed = (next as (p: BIEmbedConfig) => BIEmbedConfig)(embedConfig);
+            const isEmpty = !computed || Object.keys(computed).length === 0;
+            if (isEmpty) clearEmbedConfig();
+            else persistEmbedConfig(computed);
+            return;
+        }
+        const isEmpty = !next || Object.keys(next).length === 0;
+        if (isEmpty) clearEmbedConfig();
+        else persistEmbedConfig(next);
+    }, [embedConfig, persistEmbedConfig, clearEmbedConfig]);
     const [recentEvents, setRecentEvents] = useState<BIEvent[]>([]);
     // UI mode persists across reloads. Pulse is default — that's the
     // user-confirmed direction (port carries forward).
@@ -664,8 +685,6 @@ function PlaygroundApp(): React.ReactElement {
                                         activeVendor={activeVendor}
                                         embedConfig={embedConfig}
                                         hasEmbedConfig={hasEmbedConfig}
-                                        activeConnector={pulseAssistantProfile || activeConnector}
-                                        allowlist={allowlistState.allowlist}
                                         onVendorChange={(v) => {
                                             setActiveVendor(v);
                                             setEmbedConfig({});
@@ -673,7 +692,6 @@ function PlaygroundApp(): React.ReactElement {
                                             biAdaptersRef.current.clear();
                                             setPrimaryBIAdapter(null);
                                         }}
-                                        onEmbedConfigChange={setEmbedConfig}
                                     />
                                     <Suspense fallback={<PulseLoadingState />}>
                                         <PulseShell
@@ -1418,53 +1436,88 @@ function PulseLoadingState(): React.ReactElement {
     );
 }
 
+/**
+ * Phase B of BI Live Controls (Settings IA fix #6). Pulse mode no longer
+ * hosts an inline `EmbedConfigForm`; the canonical authoring surface is
+ * Settings → BI → Embed (`/settings/bi/embed`). This panel now reads from
+ * the shared `embedConfigStore` via `useEmbedConfig()` in App.tsx and
+ * surfaces a compact status row + deep-link to Settings.
+ *
+ * The vendor picker stays here — Pulse mode users still need to switch
+ * the active vendor without navigating to Settings, and vendor selection
+ * is governance-gated but not embed-config authoring.
+ */
 function PulseModeBISourcePanel(props: {
     vendors: ReturnType<typeof listVendors>;
     activeVendor: string;
     embedConfig: BIEmbedConfig;
     hasEmbedConfig: boolean;
-    activeConnector?: string;
-    allowlist?: PulsePlayAllowlist | null;
     onVendorChange: (vendor: string) => void;
-    onEmbedConfigChange: (next: BIEmbedConfig) => void;
 }) {
     const activeLabel = props.vendors.find(v => v.vendor === props.activeVendor)?.displayName || props.activeVendor;
+    // Surface the most useful identifier so the user can confirm at a
+    // glance which report / view is wired up. Falls back through the
+    // common embed-config shapes (Power BI report id, generic-iframe url,
+    // Tableau view path).
+    const summary = (() => {
+        if (!props.hasEmbedConfig) return null;
+        const cfg = props.embedConfig as Record<string, unknown>;
+        const reportId = typeof cfg.id === "string" ? cfg.id : typeof cfg.reportId === "string" ? cfg.reportId : null;
+        if (reportId) return `report ${reportId}`;
+        const url = typeof cfg.url === "string" ? cfg.url : typeof cfg.embedUrl === "string" ? cfg.embedUrl : null;
+        if (url) {
+            try { return new URL(url).hostname; }
+            catch { return url.slice(0, 48); }
+        }
+        return "configured";
+    })();
     return (
-        <details
+        <section
             className="pp-pulse-bi-source"
-            open={!props.hasEmbedConfig}
+            aria-label="BI source"
             style={{
                 flex: "0 0 auto",
                 borderBottom: "1px solid rgba(0,0,0,0.08)",
                 padding: "8px 10px",
                 background: "rgba(255,255,255,0.72)",
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
             }}
         >
-            <summary
-                style={{
-                    cursor: "pointer",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    listStyle: "revert",
-                }}
-            >
-                BI source: {activeLabel}{props.hasEmbedConfig ? " · ready" : " · setup"}
-            </summary>
-            <div style={{ marginTop: 8 }}>
-                <VendorPicker
-                    vendors={props.vendors}
-                    activeVendor={props.activeVendor}
-                    onChange={props.onVendorChange}
-                />
-                <EmbedConfigForm
-                    vendor={props.activeVendor}
-                    value={props.embedConfig}
-                    onChange={props.onEmbedConfigChange}
-                    assistantProfile={props.activeConnector}
-                    allowlist={props.allowlist}
-                />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    BI source: {activeLabel}
+                    {props.hasEmbedConfig ? (
+                        <span style={{ color: "#166534", marginLeft: 6, fontWeight: 500 }}>· ready ({summary})</span>
+                    ) : (
+                        <span style={{ color: "#7a5b00", marginLeft: 6, fontWeight: 500 }}>· not configured</span>
+                    )}
+                </div>
+                <button
+                    type="button"
+                    onClick={() => navigateToSettings("bi", "Embed")}
+                    style={{
+                        flex: "0 0 auto",
+                        fontSize: 11,
+                        padding: "3px 8px",
+                        border: "1px solid rgba(0,0,0,0.15)",
+                        background: "#fff",
+                        borderRadius: 4,
+                        cursor: "pointer",
+                        color: "#1d4ed8",
+                    }}
+                    title="Open Settings → BI → Embed (the canonical authoring surface)"
+                >
+                    {props.hasEmbedConfig ? "Edit in Settings ↗" : "Configure in Settings ↗"}
+                </button>
             </div>
-        </details>
+            <VendorPicker
+                vendors={props.vendors}
+                activeVendor={props.activeVendor}
+                onChange={props.onVendorChange}
+            />
+        </section>
     );
 }
 

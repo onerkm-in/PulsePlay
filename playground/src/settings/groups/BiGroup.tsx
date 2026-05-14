@@ -1,17 +1,13 @@
 // playground/src/settings/groups/BiGroup.tsx
 //
 // Phase 3 (BI Live Controls, fix #6 from the Settings IA review).
-// Settings is now the canonical AUTHORING surface for the Power BI
-// embed config. The Pulse sidebar will retire its inline form in
-// Phase B once Codex finishes the Allowlist fail-closed lane in
-// playground/src/settings/settingsStore.tsx (App.tsx then reads from
-// embedConfigStore.ts and the sidebar shows a status row instead of
-// the form).
-//
-// Until Phase B lands the form here writes to its own store
-// (embedConfigStore) and broadcasts a `pulseplay:embed-config-change`
-// event. The playground picks up the new config on next mount;
-// authors who want the running session to update can refresh.
+// Settings is the canonical AUTHORING surface for the Power BI embed
+// config. As of Phase B (2026-05-14) the Pulse sidebar's inline form
+// retired and App.tsx adopted `useEmbedConfig` from
+// `playground/src/settings/embedConfigStore.ts` — edits here live-update
+// the playground via the `pulseplay:embed-config-change` event without
+// a page refresh. Cross-tab edits also propagate via the `storage`
+// event.
 
 import { useSettings } from "../settingsStore";
 import { useEmbedConfig } from "../embedConfigStore";
@@ -43,7 +39,7 @@ export function BiGroup(): React.ReactElement {
             <Leaf
                 group="bi"
                 label="Embed"
-                helper="Power BI report / dashboard wiring. Three modes: Secure embed (paste an app.powerbi.com URL), AAD SSO (user identity), or Service principal (proxy mints the token). The Pulse sidebar's inline form will retire once Phase B activates bidirectional sync."
+                helper="Power BI report / dashboard wiring. Three modes: Secure embed (paste an app.powerbi.com URL), AAD SSO (user identity), or Service principal (proxy mints the token). Live-updates the playground in this tab and any other tab open on this origin."
             >
                 <div
                     role="note"
@@ -56,7 +52,7 @@ export function BiGroup(): React.ReactElement {
                         marginBottom: 8,
                     }}
                 >
-                    Changes save to <code>pulseplay:bi-embed-config</code> in local storage and broadcast a change event. The playground picks them up on next mount — refresh the page to apply to the running session until Phase B lands.
+                    Changes save to <code>pulseplay:bi-embed-config</code> and broadcast a <code>pulseplay:embed-config-change</code> event. App.tsx subscribes via <code>useEmbedConfig</code> so the BI canvas picks up edits live — no refresh required.
                 </div>
                 <EmbedConfigForm
                     vendor={biVendor || "powerbi"}
