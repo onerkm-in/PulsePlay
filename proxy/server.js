@@ -2359,7 +2359,17 @@ app.post('/assistant/conversations/start', async (req, res) => {
         return res.status(400).json({ error: 'Question content is required' });
     }
     const targetSpaceId = spaceId || resolved.profile.spaceId;
-    const baseContent = [contextText, content].filter(Boolean).join('\n\n');
+    // Phase 11b prep — accept `body.frame` from clients that picked an
+    // analysis frame in the FramePicker. The frontend's AISidebar
+    // already prefixes a `[Selected analysis frame]` block into
+    // `content`, but direct API callers (curl, future SDKs) may send
+    // only the structured field — `prependFrameContext` bridges that
+    // case and is a no-op when the frontend already prefixed.
+    const frame = validateFrame(req.body && req.body.frame);
+    const baseContent = prependFrameContext(
+        [contextText, content].filter(Boolean).join('\n\n'),
+        frame,
+    );
 
     // Cycle C — pack-context injection. Genie has no system-prompt API, so
     // we prepend the pack context as a fenced "Pack Context" header inside
@@ -2383,6 +2393,16 @@ app.post('/assistant/conversations/start', async (req, res) => {
             action: 'pack-context-inject',
             status: packResolved.resolved ? 'OK' : 'WARN',
             detail: JSON.stringify({ ...buildPackAuditDetail(packResolved), backend: 'genie' }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+    }
+    if (frame) {
+        auditLog(req, {
+            profileName: resolved.name,
+            spaceId: targetSpaceId,
+            action: 'frame-context-inject',
+            status: 'OK',
+            detail: JSON.stringify({ ...buildFrameAuditDetail(frame), backend: 'genie' }),
             spIdentityHash: spHashForProfile(resolved.profile),
         });
     }
@@ -2748,6 +2768,16 @@ const {
     wrapAsGenieUserMessage,
     buildAuditDetail: buildPackAuditDetail,
 } = require('./lib/packPromptInjector');
+// Phase 11b prep — proxy-side handling of the structured `body.frame`
+// field shipped by AISidebar (commit 738e4e1). Defense-in-depth
+// validation, idempotent content bridging for direct API callers, and
+// audit-log support. Byte-identical for free-text (frame === null /
+// invalid) per docs in proxy/lib/frameContext.js.
+const {
+    validateFrame,
+    prependFrameContext,
+    buildFrameAuditDetail,
+} = require('./lib/frameContext');
 
 app.post('/assistant/probe', async (req, res) => {
     const startedAt = Date.now();
