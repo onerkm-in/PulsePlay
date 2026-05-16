@@ -261,9 +261,40 @@ The Pulse-origin proxy ships with these defense-in-depth layers (mostly applicab
 
 For the internal-org security baseline (SSO, SCIM, vault, audit, allowlists), see [SECURITY.md](SECURITY.md).
 
+## First-run onboarding wizard
+
+When PulsePlay loads with no embed config + no AI connector configured, a full-bleed 4-step modal (`playground/src/components/FirstRunWizard.tsx`) appears in place of the empty placeholder. It's the user's first interaction with the 2-axis abstraction and is intentionally surface-agnostic + connector-agnostic.
+
+Step contract:
+
+| Step | Surface | Captures |
+|---|---|---|
+| 1 — Welcome & Persona | 4 persona cards (Analyst / Executive / Developer / Designer) | `persona: PersonaKey` |
+| 2 — Choose tools | Vendor cards (from `visibleVendors`) + Connector cards (from `/api/assistant/profiles`) | `vendor`, `connector` |
+| 3 — Connect | `<EmbedConfigForm>` + optional connectivity probe (`/api/assistant/probe`) | `embedConfig` |
+| 4 — Explore | `<PackPicker>` + pre-filled suggested-question textarea | `packSelection`, `suggestedQuestion`, `autoAsk` |
+
+Persona presets (`applyPersonaDefaults`) seed `uiMode` + `layoutMode` + a preferred connector type when the user picks a role. They are **surface- and connector-agnostic** — Analyst persona must work over any allowlisted (vendor × connector) pair. See ROADMAP.md Track 4 modularity guarantees #7 + #8.
+
+Persistence keys (all `pulseplay:*` namespace, redacted in support bundles):
+
+| Key | Lifetime | Purpose |
+|---|---|---|
+| `pulseplay:wizard-dismissed` | sticky | Sets on Done/Skip; suppresses wizard on subsequent loads |
+| `pulseplay:wizard-draft` | mid-flow | Step + persona + vendor + connector; resumes from furthest reached step. Schema-validated on load (RISK-P1 4.1 fix) |
+| `pulseplay:wizard-force` | single-use | Set by `forceWizard()` (Settings → "Re-run setup wizard"); consumed by `clearDraft()` on Done/Skip. Bypasses `hasEmbedConfig`/`hasConnector` gate (RISK-P1 4.5 fix) |
+| `pulseplay:last-persona` | sticky | Last persona on Done; pre-selected on next wizard run via `initialPersona` prop |
+
+Recovery surface: `<WizardErrorBoundary>` wraps the wizard subtree in App.tsx with `key={wizardForceTick}` so a Retry button bumps the remount key and the wizard re-mounts fresh. Skip falls through to the existing dismissal path.
+
+The wizard's "Done & ask →" finish action sets `autoSubmitQuestion` state in App.tsx, which propagates to `<AISidebar>` and fires `ask()` exactly once per unique value (de-duped via `autoSubmittedRef`). This is the magic-moment UX — user finishes the wizard, immediately sees an AI answer without typing.
+
+The Settings → System → "Re-run setup wizard" leaf calls `forceWizard()` to re-arm the flow at any time. Settings IA fix #8 adds a "🔗 Copy link" button next to every leaf header so users can deep-link to the exact section (`/settings/<group>/<slug>`).
+
 ## What's implemented vs still stubbed
 
 **Implemented today:**
+- 4-step first-run wizard with persona presets, draft persistence, `inert` focus trap, force-rerun flag, `WizardErrorBoundary`, autoAsk wiring, persona persistence across runs
 - Whole proxy stack — keep-alive, OAuth M2M, OpenAI/Bedrock/Foundation routes, Genie integration, validator framework, query history audit
 - `databricks-agents/supervisor/` Mosaic AI agent template
 - Power BI `powerbi-client` adapter with event and command mapping
