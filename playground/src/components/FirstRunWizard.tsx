@@ -30,7 +30,7 @@
 // Keyboard: focus-trap inside modal; Esc dismisses; Tab / Shift-Tab cycles.
 // Accessibility: aria-live step announcements; radio-group semantics on cards.
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from "react";
+import { Component, useCallback, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactElement, type ReactNode } from "react";
 import type { BIEmbedConfig } from "../biPanel/BIAdapter";
 import type { PulsePlayAllowlist } from "../types/allowlist";
 import type { PackInfo, PackSelection } from "./PackPicker";
@@ -1013,6 +1013,156 @@ function Step4Explore(props: {
             </div>
         </div>
     );
+}
+
+/* ─── Error boundary ────────────────────────────────────────────────── */
+
+interface WizardErrorBoundaryProps {
+    children: ReactNode;
+    /** Called when the user clicks "Retry" — typically App.tsx bumps a
+     *  remount key so the wizard's state is freshly initialised. */
+    onRetry?: () => void;
+    /** Called when the user clicks "Skip wizard" from the error fallback —
+     *  treat the same as a normal Skip (sets dismissal flag, dismisses). */
+    onSkip?:  () => void;
+}
+
+interface WizardErrorBoundaryState {
+    error: Error | null;
+}
+
+/**
+ * Catches render-time crashes inside the wizard subtree and renders a
+ * minimal recovery UI instead of taking the whole app down with a white
+ * screen.
+ *
+ * Why a class component: React still requires class components for
+ * `componentDidCatch` + `getDerivedStateFromError`. A 30-line class is
+ * cheaper than pulling in `react-error-boundary` as a dependency.
+ *
+ * The fallback offers two paths so the user is never trapped:
+ *   • Retry   — remount the wizard (App.tsx bumps a key)
+ *   • Skip    — dismiss the wizard, fall through to the rest of the app
+ *
+ * Errors are logged to the diagnostics buffer via a `console.error` call
+ * (the playground's monkey-patched console.error already routes into
+ * `pulseplay:bi-event` for the Support bundle export).
+ */
+export class WizardErrorBoundary extends Component<WizardErrorBoundaryProps, WizardErrorBoundaryState> {
+    state: WizardErrorBoundaryState = { error: null };
+
+    static getDerivedStateFromError(error: Error): WizardErrorBoundaryState {
+        return { error };
+    }
+
+    componentDidCatch(error: Error, info: ErrorInfo): void {
+        // Surfaced into the Support bundle via the playground's console.error patch.
+        // eslint-disable-next-line no-console
+        console.error("[FirstRunWizard] crashed:", error.message, info.componentStack);
+    }
+
+    private handleRetry = (): void => {
+        this.setState({ error: null });
+        this.props.onRetry?.();
+    };
+
+    private handleSkip = (): void => {
+        this.setState({ error: null });
+        this.props.onSkip?.();
+    };
+
+    render(): ReactNode {
+        if (!this.state.error) return this.props.children;
+        const msg = this.state.error.message || "Setup wizard hit an unexpected error.";
+        return (
+            <div
+                role="alert"
+                data-testid="pp-wizard-error-boundary"
+                style={{
+                    position:       "fixed",
+                    inset:          0,
+                    display:        "flex",
+                    alignItems:     "center",
+                    justifyContent: "center",
+                    background:     "rgba(15, 23, 42, 0.55)",
+                    backdropFilter: "blur(8px)",
+                    zIndex:         900,
+                    padding:        20,
+                }}
+            >
+                <div
+                    style={{
+                        width:        "100%",
+                        maxWidth:     480,
+                        background:   "#fff",
+                        borderRadius: 14,
+                        padding:      "26px 28px",
+                        boxShadow:    "0 20px 60px rgba(15,23,42,0.20)",
+                    }}
+                >
+                    <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0f172a" }}>
+                        Setup wizard hit a snag
+                    </h2>
+                    <p style={{ margin: "10px 0 16px", fontSize: 13, color: "#475569", lineHeight: 1.55 }}>
+                        Something went wrong while loading the wizard. You can retry — that
+                        usually clears it — or skip setup and configure things manually from
+                        the Settings page.
+                    </p>
+                    <details style={{ marginBottom: 16 }}>
+                        <summary style={{ fontSize: 11.5, color: "#64748b", cursor: "pointer" }}>
+                            Show technical details
+                        </summary>
+                        <pre style={{
+                            marginTop:   8,
+                            fontSize:    11,
+                            color:       "#7f1d1d",
+                            padding:     "8px 10px",
+                            background:  "rgba(127,29,29,0.05)",
+                            border:      "1px solid rgba(127,29,29,0.15)",
+                            borderRadius: 6,
+                            whiteSpace:  "pre-wrap",
+                            wordBreak:   "break-word",
+                        }}>{msg}</pre>
+                    </details>
+                    <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                        <button
+                            type="button"
+                            onClick={this.handleSkip}
+                            style={{
+                                fontSize:     12.5,
+                                padding:      "7px 16px",
+                                border:       "1px solid rgba(0,0,0,0.12)",
+                                background:   "transparent",
+                                color:        "#374151",
+                                borderRadius: 7,
+                                cursor:       "pointer",
+                                fontFamily:   "inherit",
+                            }}
+                        >
+                            Skip wizard
+                        </button>
+                        <button
+                            type="button"
+                            onClick={this.handleRetry}
+                            style={{
+                                fontSize:     12.5,
+                                padding:      "7px 18px",
+                                border:       "1px solid #2563eb",
+                                background:   "#2563eb",
+                                color:        "#fff",
+                                borderRadius: 7,
+                                cursor:       "pointer",
+                                fontWeight:   600,
+                                fontFamily:   "inherit",
+                            }}
+                        >
+                            Retry
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 }
 
 /* ─── UI primitives ──────────────────────────────────────────────────── */

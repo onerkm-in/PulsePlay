@@ -18,6 +18,7 @@ import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/re
 import type { ReactElement } from "react";
 import {
     FirstRunWizard,
+    WizardErrorBoundary,
     shouldShowWizard,
     resetWizardDismissal,
     forceWizard,
@@ -441,6 +442,80 @@ describe("Draft schema validation (4.1 — RISK-P1 fix)", () => {
         await renderWizard();
         // Falls back to step 0 cleanly.
         expect(screen.getByTestId("pp-first-run-wizard").getAttribute("data-step")).toBe("0");
+    });
+});
+
+/* ─── WizardErrorBoundary (LEAP 7c) ──────────────────────────────────── */
+
+describe("WizardErrorBoundary", () => {
+    /** A child that throws on render — simulates EmbedConfigForm /
+     *  PackPicker / connector loader exploding inside the wizard subtree. */
+    function CrashingChild(): React.ReactElement {
+        throw new Error("Synthetic crash for boundary test");
+    }
+
+    // Silence the expected React error log noise during this block —
+    // React always logs caught errors to console.error in tests.
+    let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+    beforeEach(() => {
+        consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    });
+    afterEach(() => {
+        consoleErrorSpy.mockRestore();
+    });
+
+    it("renders the fallback UI when a child throws during render", () => {
+        render(
+            <WizardErrorBoundary>
+                <CrashingChild />
+            </WizardErrorBoundary> as ReactElement,
+        );
+        const fallback = screen.getByTestId("pp-wizard-error-boundary");
+        expect(fallback).toBeTruthy();
+        expect(fallback.getAttribute("role")).toBe("alert");
+        expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
+        expect(screen.getByRole("button", { name: "Skip wizard" })).toBeTruthy();
+    });
+
+    it("Retry button calls onRetry and clears the error state", () => {
+        const onRetry = vi.fn();
+        render(
+            <WizardErrorBoundary onRetry={onRetry}>
+                <CrashingChild />
+            </WizardErrorBoundary> as ReactElement,
+        );
+        fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+        expect(onRetry).toHaveBeenCalledTimes(1);
+    });
+
+    it("Skip wizard button calls onSkip", () => {
+        const onSkip = vi.fn();
+        render(
+            <WizardErrorBoundary onSkip={onSkip}>
+                <CrashingChild />
+            </WizardErrorBoundary> as ReactElement,
+        );
+        fireEvent.click(screen.getByRole("button", { name: "Skip wizard" }));
+        expect(onSkip).toHaveBeenCalledTimes(1);
+    });
+
+    it("renders children normally when no error is thrown", () => {
+        render(
+            <WizardErrorBoundary>
+                <div data-testid="healthy-child">Hello</div>
+            </WizardErrorBoundary> as ReactElement,
+        );
+        expect(screen.getByTestId("healthy-child")).toBeTruthy();
+        expect(screen.queryByTestId("pp-wizard-error-boundary")).toBeNull();
+    });
+
+    it("technical details section contains the error message", () => {
+        render(
+            <WizardErrorBoundary>
+                <CrashingChild />
+            </WizardErrorBoundary> as ReactElement,
+        );
+        expect(screen.getByText(/Synthetic crash for boundary test/)).toBeTruthy();
     });
 });
 

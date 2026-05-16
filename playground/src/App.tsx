@@ -25,7 +25,7 @@ import { ConnectorPicker } from "./components/ConnectorPicker";
 import { EmbedConfigForm } from "./components/EmbedConfigForm";
 import { useEmbedConfig } from "./settings/embedConfigStore";
 import { warmGenieWarehouse, startWarehouseKeepalive, stopWarehouseKeepalive } from "./lib/warehouseWarmup";
-import { FirstRunWizard, shouldShowWizard, type PersonaKey } from "./components/FirstRunWizard";
+import { FirstRunWizard, WizardErrorBoundary, shouldShowWizard, type PersonaKey } from "./components/FirstRunWizard";
 import { TestConnectionPanel } from "./components/TestConnectionPanel";
 import { PackPicker } from "./components/PackPicker";
 import type { PackInfo, PackSelection } from "./components/PackPicker";
@@ -739,14 +739,20 @@ function PlaygroundApp(): React.ReactElement {
             )}
             <div style={{ flex: "1 1 auto", minHeight: 0, position: "relative" }}>
             {wizardShown ? (
-                <FirstRunWizard
-                    vendors={visibleVendors}
-                    allowlist={allowlistState.allowlist}
-                    availablePacks={availablePacks}
-                    initialPersona={lastPersona ?? undefined}
-                    onComplete={handleWizardComplete}
-                    onDismiss={handleWizardDismiss}
-                />
+                <WizardErrorBoundary
+                    key={wizardForceTick}
+                    onRetry={() => setWizardForceTick(t => t + 1)}
+                    onSkip={handleWizardDismiss}
+                >
+                    <FirstRunWizard
+                        vendors={visibleVendors}
+                        allowlist={allowlistState.allowlist}
+                        availablePacks={availablePacks}
+                        initialPersona={lastPersona ?? undefined}
+                        onComplete={handleWizardComplete}
+                        onDismiss={handleWizardDismiss}
+                    />
+                </WizardErrorBoundary>
             ) : (
             <SplitLayout
                 aiVisible={mountedAiVisible}
