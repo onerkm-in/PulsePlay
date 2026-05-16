@@ -105,7 +105,7 @@ export function SetupGroup(): React.ReactElement {
             <Leaf
                 group="setup"
                 label="Experience controls"
-                helper="How the workspace behaves after it is configured: visible panes, AI position, BI tiles, and focused-page use."
+                helper="How the workspace behaves after it is configured: visible panes, AI position, backend BI tile policy, and focused-page use."
             >
                 <CurrentValue label="Next action">
                     {readiness.ready
@@ -114,7 +114,7 @@ export function SetupGroup(): React.ReactElement {
                 </CurrentValue>
                 <div style={actionRowStyle}>
                     <SetupLinkButton label="Layout preferences" group="preferences" leaf="visible-panels" />
-                    <SetupLinkButton label="BI tile mode" group="preferences" leaf="canvas-tiles" />
+                    <SetupLinkButton label="Canvas policy" group="preferences" leaf="canvas-tiles" />
                     <SetupLinkButton label="System setup wizard" group="system" leaf="setup-wizard" />
                 </div>
             </Leaf>

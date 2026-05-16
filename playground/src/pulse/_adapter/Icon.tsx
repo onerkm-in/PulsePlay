@@ -17,7 +17,7 @@ import * as React from "react";
 export type IconName =
     | "copy" | "check" | "refresh" | "stop" | "code" | "settings"
     | "external-link" | "download" | "search" | "filter" | "x"
-    | "file-html" | "printer";
+    | "file-html" | "printer" | "maximize" | "minimize" | "restore";
 
 interface IconProps {
     name: IconName;
@@ -110,6 +110,28 @@ const PATHS: Record<IconName, React.ReactElement> = {
             <path d="M4 6V2.5h8V6" />
             <rect x="2.5" y="6" width="11" height="6" rx="1" />
             <rect x="4.5" y="9.5" width="7" height="4" />
+        </>
+    ),
+    // Maximize — pane focus.
+    maximize: (
+        <>
+            <path d="M6 2.5H2.5V6" />
+            <path d="M10 2.5h3.5V6" />
+            <path d="M13.5 10v3.5H10" />
+            <path d="M6 13.5H2.5V10" />
+            <path d="M5.5 5.5L2.5 2.5" />
+            <path d="M10.5 5.5l3-3" />
+            <path d="M10.5 10.5l3 3" />
+            <path d="M5.5 10.5l-3 3" />
+        </>
+    ),
+    // Minimize — collapse pane to dock.
+    minimize: <path d="M3 12.5h10" />,
+    // Restore — return from focused pane to split layout.
+    restore: (
+        <>
+            <rect x="3" y="5.5" width="7.5" height="7.5" rx="1" />
+            <path d="M6 3h7v7" />
         </>
     ),
 };

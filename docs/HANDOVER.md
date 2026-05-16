@@ -5,28 +5,35 @@
 
 ---
 
-## 2026-05-16 - Pulse BI source row made read-only
+## 2026-05-16 - Pulse primary surface streamlined + backend canvas policy
 
-**Range:** Rajesh pointed at the Pulse-mode BI Tool dropdown and challenged whether that setting still belongs in the AI pane now that Settings › Setup is the single configuration surface.
+**Range:** Rajesh pointed at the Pulse-mode BI Tool dropdown, the row-level `Open setup` button, the repeated BI source status, the visible `Console` button, the empty Pulse toolbar space, and the visible `BI tiles: 1 / 2 / 4` controls. The clarified IA: the top-right Setup pill and Settings/System surfaces own setup and operational review; the Pulse AI pane should stay focused on AI Insights and Chat, with compact pane actions available where the user is already looking.
 
 ### What shipped
 
-- Removed the editable BI vendor dropdown from the Pulse-mode BI source row in [App.tsx](../playground/src/App.tsx).
-- Kept the compact read-only BI source/status summary plus `Open setup` / `Review setup` action, so users can see what is active without changing configuration in two places.
-- Added a viewport regression assertion that the Pulse-mode BI source panel contains no `select` and routes edits to Settings › Setup.
+- Removed the entire Pulse-mode BI source row from [App.tsx](../playground/src/App.tsx). The BI pane subtitle and top-right Setup pill already communicate the active/missing BI state.
+- Removed the visible `Console` trigger from the Pulse visual header in [visual.tsx](../playground/src/pulse/visual.tsx). Developer Tools internals remain available to exceptional flows that open them programmatically, but they are no longer first-class viewer chrome.
+- Added a compact Pulse header action cluster next to AI Insights / Chat: Maximize or Restore, Minimize, Open in separate page, and Refresh AI pane. In Pulse mode the outer AI PaneChrome action toolbar stays quiet to avoid duplicate controls.
+- Removed the visible `BI tiles: 1 / 2 / 4` toolbar from the BI canvas. Tile count is now backend/admin policy via `allowlist.display.biTileMode` (`1`, `2`, or `4`; default `1`), surfaced read-only in Settings › BI/Preferences and documented in [SETTINGS_SPEC.md](SETTINGS_SPEC.md).
+- Updated the empty BI pane copy for Pulse mode so it points users to the top-right Setup pill instead of a non-existent left-side picker.
+- Added viewport regression assertions that the Pulse-mode surface contains no BI source row, no local setup text, no visible `Console` text, no visible BI tile toolbar, and the new AI pane icons.
 - Updated [AGENT_SYNC.md](AGENT_SYNC.md) so Claude reviews this as part of the setup/readiness IA consolidation.
 
 ### Validation
 
 - `playground`: `npm.cmd run lint` passed.
-- `playground`: focused `npm.cmd test -- viewportControls --silent` passed **19/19**.
+- `playground`: focused `npm.cmd test -- viewportControls SettingsShell leafLabels leafScrollAndChips --silent` passed **43/43**.
 - `playground`: full `npm.cmd test -- --silent` passed **503/503**.
 - `playground`: `npm.cmd run build` passed.
+- `proxy`: focused `npm.cmd test -- allowlist configValidator --runInBand` passed **22/22**.
+- `proxy`: focused `npm.cmd test -- server --runInBand` passed **119/119**.
+- `proxy`: full `npm.cmd test -- --runInBand` passed **675/675**.
 - Repo: `git diff --check` passed with only expected LF-to-CRLF working-copy warnings.
 
 ### Tripwire
 
-- Pulse mode should stay streamlined: configuration belongs in Settings › Setup, while the side pane can show current state and deep-link to the setup tree. Do not reintroduce local BI/AI setup controls here unless Settings stops being the source of truth.
+- Pulse mode should stay streamlined: configuration belongs in Settings › Setup, reached from the top-right setup pill. Do not reintroduce local BI source rows, local setup buttons, or visible Console chrome into the primary AI pane unless Settings stops being the source of truth.
+- BI tile count is not a casual viewer toggle. Keep it backend-governed unless Rajesh explicitly asks for an admin-only or author-only override workflow.
 
 ---
 

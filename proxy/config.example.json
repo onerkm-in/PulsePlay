@@ -18,6 +18,10 @@
         "supervisorProfiles": ["supervisor"],
         "packs": ["cpg-fmcg"],
         "knowledgeSources": [],
+        "display": {
+            "_doc": "Viewer-facing canvas policy. biTileMode controls how many BI frames render in the playground (1, 2, or 4). Keep 1 for most enterprise users; use 2/4 only for governed comparison deployments.",
+            "biTileMode": "1"
+        },
         "license": {
             "powerbi": {
                 "minTier": "Premium",

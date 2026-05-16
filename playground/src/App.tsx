@@ -48,7 +48,7 @@ const PulseShell = lazy(() =>
 );
 
 /** UI mode toggle — "pulse" mounts the full ported Pulse experience in
- *  the left panel (Insights tab + Chat tab + operational Console + all the
+ *  the left panel (Insights tab + Chat tab + all the
  *  iterated UX); "v0" mounts the Smart-Connect-flavoured v0 components
  *  we built in cycles B + C. Both modes keep the BI canvas on the right
  *  so the multi-BI host stays usable. Cycle F lets the panels be
@@ -71,17 +71,18 @@ const ENABLED_COMPONENTS_STORAGE_KEY = "pulseplay:enabled-components";
 type LayoutMode = "ai-left" | "ai-right" | "ai-top" | "ai-bottom";
 const LAYOUT_MODE_STORAGE_KEY = "pulseplay:layout-mode";
 
-/** Cycle K — how many BI tiles render inside the BI pane. Authors who
- *  want side-by-side comparison (same dashboard with different filters,
- *  or two views from a chained drill-down) pick 2 or 4. v1 ships SHARED
- *  embed config — all tiles render the same source. Per-tile content
- *  (different URL per tile, mixing vendors per tile) is a future cycle. */
+/** Cycle K — how many BI tiles render inside the BI pane. This used to be
+ *  an author-facing toolbar; it is now a backend display policy because tile
+ *  count changes the viewer's cognitive load and can create confusing
+ *  duplicate BI frames in controlled enterprise deployments. */
 type BiTileMode = "1" | "2" | "4";
-const BI_TILE_MODE_STORAGE_KEY = "pulseplay:bi-tile-mode";
 const BI_VENDOR_STORAGE_KEY = "pulseplay:bi-vendor";
 type ViewportPane = "ai" | "bi";
 type ViewportFocus = ViewportPane | null;
 const PINNED_VIEWPORT_PANE_STORAGE_KEY = "pulseplay:pinned-viewport-pane";
+const PULSEPLAY_VIEWPORT_ACTION_EVENT = "pulseplay:viewport-action";
+const PULSEPLAY_VIEWPORT_STATE_EVENT = "pulseplay:viewport-state";
+type PulsePlayViewportAction = "focus" | "restore" | "minimize" | "open-page" | "reload";
 
 interface PowerBIDeveloperSnapshot {
     vendor: "powerbi";
@@ -156,13 +157,13 @@ function readInitialLayoutMode(): LayoutMode {
     return "ai-left";
 }
 
-function readInitialBiTileMode(): BiTileMode {
-    if (typeof window === "undefined") return "1";
-    try {
-        const stored = window.localStorage.getItem(BI_TILE_MODE_STORAGE_KEY);
-        if (stored === "1" || stored === "2" || stored === "4") return stored;
-    } catch { /* swallow */ }
-    return "1";
+function normalizeBiTileMode(value: unknown): BiTileMode {
+    const asString = String(value ?? "").trim();
+    return asString === "2" || asString === "4" ? asString : "1";
+}
+
+function biTileModeFromPolicy(allowlist: PulsePlayAllowlist | null): BiTileMode {
+    return normalizeBiTileMode(allowlist?.display?.biTileMode);
 }
 
 function normalizeViewportPane(value: string | null): ViewportFocus {
@@ -316,7 +317,6 @@ function PlaygroundApp(): React.ReactElement {
         () => readInitialEnabledComponents(),
     );
     const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => readInitialLayoutMode());
-    const [biTileMode, setBiTileMode] = useState<BiTileMode>(() => readInitialBiTileMode());
     const [focusedPane, setFocusedPane] = useState<ViewportFocus>(() => readInitialViewportFocus());
     const [pinnedViewportPane, setPinnedViewportPane] = useState<ViewportFocus>(() => readInitialPinnedViewportPane());
     const biAdaptersRef = useRef<Map<number, BIAdapter>>(new Map());
@@ -441,6 +441,33 @@ function PlaygroundApp(): React.ReactElement {
     }, [handleEnabledComponentsChange]);
 
     useEffect(() => {
+        if (typeof window === "undefined") return;
+        const handler = (e: Event) => {
+            const detail = (e as CustomEvent<{ pane?: string; action?: string }>).detail;
+            const pane = detail?.pane;
+            const action = detail?.action as PulsePlayViewportAction | undefined;
+            if (pane !== "ai" && pane !== "bi") return;
+            if (action === "focus") applyViewportFocus(pane);
+            else if (action === "restore") handleViewportRestore();
+            else if (action === "minimize") handleViewportMinimize(pane);
+            else if (action === "open-page") handleViewportOpenPage(pane);
+            else if (action === "reload" && pane === "ai") {
+                setPulseAssistantProfile(readPulseAssistantProfile());
+                setPulseRenderToken(t => t + 1);
+            }
+        };
+        window.addEventListener(PULSEPLAY_VIEWPORT_ACTION_EVENT, handler as EventListener);
+        return () => window.removeEventListener(PULSEPLAY_VIEWPORT_ACTION_EVENT, handler as EventListener);
+    }, [applyViewportFocus, handleViewportRestore, handleViewportMinimize, handleViewportOpenPage]);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        window.dispatchEvent(new CustomEvent(PULSEPLAY_VIEWPORT_STATE_EVENT, {
+            detail: { focusedPane },
+        }));
+    }, [focusedPane]);
+
+    useEffect(() => {
         try { window.localStorage.setItem(BI_VENDOR_STORAGE_KEY, activeVendor); } catch { /* swallow */ }
     }, [activeVendor]);
 
@@ -465,8 +492,6 @@ function PlaygroundApp(): React.ReactElement {
                 setEnabledComponents(detail.value);
             } else if (detail.key === LAYOUT_MODE_STORAGE_KEY && (detail.value === "ai-left" || detail.value === "ai-right" || detail.value === "ai-top" || detail.value === "ai-bottom")) {
                 setLayoutMode(detail.value);
-            } else if (detail.key === BI_TILE_MODE_STORAGE_KEY && (detail.value === "1" || detail.value === "2" || detail.value === "4")) {
-                setBiTileMode(detail.value);
             }
         };
         window.addEventListener("pulseplay:display-change", handler as EventListener);
@@ -500,6 +525,7 @@ function PlaygroundApp(): React.ReactElement {
         : !focusedPane && enabledComponents === "aiOnly"
             ? "bi"
             : null;
+    const effectiveBiTileMode = biTileModeFromPolicy(allowlistState.allowlist);
     // Smart Connect state — populated by TestConnectionPanel's probe and the
     // user's pack confirmation (which may override the inferred suggestion).
     // See docs/CONNECTOR_PROBE_AND_SMART_CONNECT.md for the design.
@@ -780,6 +806,7 @@ function PlaygroundApp(): React.ReactElement {
                         onPinToggle={() => handleViewportPinToggle("ai")}
                         onOpenPage={() => handleViewportOpenPage("ai")}
                         onShowBoth={handleShowBothPanes}
+                        quiet={uiMode === "pulse"}
                     >
                         <aside className="pp-app__sidebar" style={panelInnerStyle()}>
                             {allowlistState.error && (
@@ -807,12 +834,6 @@ function PlaygroundApp(): React.ReactElement {
                             )}
                             {uiMode === "pulse" ? (
                                 <>
-                                    <PulseModeBISourcePanel
-                                        vendors={visibleVendors}
-                                        activeVendor={activeVendor}
-                                        embedConfig={embedConfig}
-                                        hasEmbedConfig={hasEmbedConfig}
-                                    />
                                     <Suspense fallback={<PulseLoadingState />}>
                                         <PulseShell
                                             renderToken={pulseRenderToken}
@@ -895,7 +916,6 @@ function PlaygroundApp(): React.ReactElement {
                         onShowBoth={handleShowBothPanes}
                     >
                         <main className="pp-app__canvas" style={{ ...panelInnerStyle(), display: "flex", flexDirection: "column" }}>
-                            <BITileModeToolbar value={biTileMode} />
                             <PowerBIDeveloperPanel
                                 activeVendor={activeVendor}
                                 hasEmbedConfig={hasEmbedConfig}
@@ -905,7 +925,7 @@ function PlaygroundApp(): React.ReactElement {
                             <div style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
                             {hasEmbedConfig ? (
                                 <BITileGrid
-                                    tileMode={biTileMode}
+                                    tileMode={effectiveBiTileMode}
                                     vendor={activeVendor}
                                     embedConfig={embedConfig}
                                     allowlist={allowlistState.allowlist}
@@ -920,9 +940,10 @@ function PlaygroundApp(): React.ReactElement {
                                             <h2>Pick a BI tool and supply embed config</h2>
                                             <p>
                                                 PulsePlay can host {visibleVendors.map(v => v.displayName).join(" · ") || "no allowlisted BI providers"} as guests.
-                                                Choose a vendor on the left, fill in its embed config, and the AI
-                                                assistant will reason about whatever you load. Drag the divider to
-                                                resize either pane; multi-frame BI is coming next.
+                                                {uiMode === "pulse"
+                                                    ? " Use the Setup pill to select the BI and AI verticals, fill in the embed config, and the AI assistant will reason about whatever you load."
+                                                    : " Choose a vendor on the left, fill in its embed config, and the AI assistant will reason about whatever you load."}
+                                                {" "}Drag the divider to resize either pane; multi-frame BI is coming next.
                                             </p>
                                             {uiMode === "pulse" && (
                                                 <p style={{ fontSize: 12, opacity: 0.7, marginTop: 12 }}>
@@ -1452,53 +1473,6 @@ function panelInnerStyle(): React.CSSProperties {
     };
 }
 
-/** Cycle K.1 toolbar — three buttons (1 / 2 / 4) at the top of the BI
- *  canvas so authors can flip between single-frame, side-by-side, and
- *  2×2 tile layouts without opening Settings. Writes the same localStorage
- *  key + dispatches the same window event Settings uses, so the toolbar and
- *  Settings › Preferences stay in sync. */
-function BITileModeToolbar(props: { value: BiTileMode }): React.ReactElement {
-    const apply = (next: BiTileMode) => {
-        try { window.localStorage.setItem(BI_TILE_MODE_STORAGE_KEY, next); } catch { /* swallow */ }
-        try {
-            window.dispatchEvent(new CustomEvent("pulseplay:display-change", {
-                detail: { key: BI_TILE_MODE_STORAGE_KEY, value: next },
-            }));
-        } catch { /* swallow */ }
-    };
-    const btn = (active: boolean): React.CSSProperties => ({
-        padding: "4px 10px",
-        border: "1px solid",
-        borderColor: active ? "#0078d4" : "rgba(0,0,0,0.16)",
-        background: active ? "#0078d4" : "transparent",
-        color: active ? "#fff" : "inherit",
-        borderRadius: 4,
-        cursor: "pointer",
-        fontSize: 12,
-        fontWeight: active ? 600 : 400,
-        lineHeight: 1.4,
-    });
-    return (
-        <div
-            role="group"
-            aria-label="BI tile layout"
-            style={{
-                display: "flex",
-                gap: 4,
-                alignItems: "center",
-                padding: "6px 12px",
-                borderBottom: "1px solid rgba(0,0,0,0.06)",
-                flex: "0 0 auto",
-                background: "transparent",
-            }}
-        >
-            <span style={{ fontSize: 11, opacity: 0.6, marginRight: 4 }}>BI tiles:</span>
-            <button type="button" style={btn(props.value === "1")} onClick={() => apply("1")} aria-pressed={props.value === "1"} title="Single frame">1</button>
-            <button type="button" style={btn(props.value === "2")} onClick={() => apply("2")} aria-pressed={props.value === "2"} title="Two side-by-side">2</button>
-            <button type="button" style={btn(props.value === "4")} onClick={() => apply("4")} aria-pressed={props.value === "4"} title="2 × 2 grid">4</button>
-        </div>
-    );
-}
 function PowerBIDeveloperPanel(props: {
     activeVendor: string;
     hasEmbedConfig: boolean;
@@ -1699,85 +1673,6 @@ function PulseLoadingState(): React.ReactElement {
         }}>
             Loading PulsePlay…
         </div>
-    );
-}
-
-/**
- * Phase B of BI Live Controls (Settings IA fix #6). Pulse mode no longer
- * hosts an inline `EmbedConfigForm`; the canonical authoring surface is
- * Settings → BI → Embed (`/settings/bi/embed`). This panel now reads from
- * the shared `embedConfigStore` via `useEmbedConfig()` in App.tsx and
- * surfaces a compact status row + deep-link to Settings.
- *
- * BI selection is intentionally read-only here. The single authoring
- * surface is Settings -> Setup, so Pulse mode does not expose a second
- * vendor picker that can drift from the setup tree.
- */
-function PulseModeBISourcePanel(props: {
-    vendors: ReturnType<typeof listVendors>;
-    activeVendor: string;
-    embedConfig: BIEmbedConfig;
-    hasEmbedConfig: boolean;
-}) {
-    const activeLabel = props.vendors.find(v => v.vendor === props.activeVendor)?.displayName || props.activeVendor;
-    // Surface the most useful identifier so the user can confirm at a
-    // glance which report / view is wired up. Falls back through the
-    // common embed-config shapes (Power BI report id, generic-iframe url,
-    // Tableau view path).
-    const summary = (() => {
-        if (!props.hasEmbedConfig) return null;
-        const cfg = props.embedConfig as Record<string, unknown>;
-        const reportId = typeof cfg.id === "string" ? cfg.id : typeof cfg.reportId === "string" ? cfg.reportId : null;
-        if (reportId) return `report ${reportId}`;
-        const url = typeof cfg.url === "string" ? cfg.url : typeof cfg.embedUrl === "string" ? cfg.embedUrl : null;
-        if (url) {
-            try { return new URL(url).hostname; }
-            catch { return url.slice(0, 48); }
-        }
-        return "configured";
-    })();
-    return (
-        <section
-            className="pp-pulse-bi-source"
-            aria-label="BI source"
-            style={{
-                flex: "0 0 auto",
-                borderBottom: "1px solid rgba(0,0,0,0.08)",
-                padding: "8px 10px",
-                background: "rgba(255,255,255,0.72)",
-                display: "flex",
-                flexDirection: "column",
-                gap: 6,
-            }}
-        >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    BI source: {activeLabel}
-                    {props.hasEmbedConfig ? (
-                        <span style={{ color: "#166534", marginLeft: 6, fontWeight: 500 }}>· ready ({summary})</span>
-                    ) : (
-                        <span style={{ color: "#7a5b00", marginLeft: 6, fontWeight: 500 }}>· not configured</span>
-                    )}
-                </div>
-                <button
-                    type="button"
-                    onClick={() => navigateToSettings("setup")}
-                    style={{
-                        flex: "0 0 auto",
-                        fontSize: 11,
-                        padding: "3px 8px",
-                        border: "1px solid rgba(0,0,0,0.15)",
-                        background: "#fff",
-                        borderRadius: 4,
-                        cursor: "pointer",
-                        color: "#1d4ed8",
-                    }}
-                    title="Open Settings → Setup"
-                >
-                    {props.hasEmbedConfig ? "Review setup ↗" : "Open setup ↗"}
-                </button>
-            </div>
-        </section>
     );
 }
 

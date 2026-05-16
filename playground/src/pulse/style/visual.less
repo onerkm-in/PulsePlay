@@ -1420,22 +1420,27 @@
     background: rgba(70, 145, 224, 0.25);
 }
 
-.gn-console-trigger {
+.gn-pane-action-cluster {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    min-height: 28px;
-    padding: 0 11px;
+    gap: 4px;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.gn-pane-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
     border: 1px solid @gn-border;
-    border-radius: @gn-radius-pill;
+    border-radius: 7px;
     background: @gn-surface-raised;
-    color: @gn-text;
-    font-family: @gn-font;
-    font-size: 12.5px;
-    font-weight: 600;
+    color: @gn-text-muted;
     cursor: pointer;
     transition: border-color @gn-t-base @gn-ease, background @gn-t-base @gn-ease, color @gn-t-base @gn-ease, box-shadow @gn-t-base @gn-ease;
-    flex-shrink: 0;
+    padding: 0;
 
     svg {
         width: 14px;
@@ -1455,19 +1460,12 @@
     }
 }
 
-.gn-console-trigger--active {
-    border-color: @gn-accent;
-    color: @gn-accent;
-    background: @gn-accent-subtle;
-}
-
-.gn-shell--dark .gn-console-trigger {
+.gn-shell--dark .gn-pane-action-btn {
     border-color: rgba(255, 255, 255, 0.25);
-    color: rgba(255, 255, 255, 0.92);
+    color: rgba(255, 255, 255, 0.86);
     background: rgba(255, 255, 255, 0.04);
 
-    &:hover,
-    &.gn-console-trigger--active {
+    &:hover {
         border-color: var(--gn-accent, #4691e0);
         color: #fff;
         background: rgba(70, 145, 224, 0.18);

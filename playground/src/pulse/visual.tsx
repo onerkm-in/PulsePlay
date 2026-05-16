@@ -210,6 +210,27 @@ function openPulsePlaySettings(group: "setup" | "bi" | "ai" | "preferences" | "s
     }
 }
 
+type PulsePlayViewportPane = "ai" | "bi";
+type PulsePlayViewportFocus = PulsePlayViewportPane | null;
+type PulsePlayViewportAction = "focus" | "restore" | "minimize" | "open-page" | "reload";
+
+function readPulsePlayViewportFocus(): PulsePlayViewportFocus {
+    if (typeof window === "undefined") return null;
+    try {
+        const focus = new URL(window.location.href).searchParams.get("focus");
+        return focus === "ai" || focus === "bi" ? focus : null;
+    } catch {
+        return null;
+    }
+}
+
+function dispatchPulsePlayViewportAction(action: PulsePlayViewportAction, pane: PulsePlayViewportPane = "ai"): void {
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(new CustomEvent("pulseplay:viewport-action", {
+        detail: { pane, action },
+    }));
+}
+
 interface InsightsRenderOptions {
     metricDirectionsJson?: string;
     legacyMetricDirectionRules?: string;
@@ -953,6 +974,16 @@ function App(props: AppProps) {
     const [question, setQuestion] = useState("");
     const [busy, setBusy] = useState(false);
     const [devPanel, setDevPanel] = useState<"" | "diagnostics" | "session" | "setup" | "genieQueries" | "display">("");
+    const [outerViewportFocus, setOuterViewportFocus] = useState<PulsePlayViewportFocus>(() => readPulsePlayViewportFocus());
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const detail = (e as CustomEvent<{ focusedPane?: string | null }>).detail;
+            const next = detail?.focusedPane;
+            setOuterViewportFocus(next === "ai" || next === "bi" ? next : null);
+        };
+        window.addEventListener("pulseplay:viewport-state", handler as EventListener);
+        return () => window.removeEventListener("pulseplay:viewport-state", handler as EventListener);
+    }, []);
     // Cycle 40 — Genie Query Audit panel state. Fetched on-demand from
     // proxy /admin/query-history. Genie-mode only (connectionMode = proxy
     // or direct). Gives the author / dev a copy-pasteable list of recent
@@ -3716,17 +3747,15 @@ function App(props: AppProps) {
         >
             <div className="gn-header gn-header--two-row">
                 {/* Row 1 — branding and optional multi-space switcher. Operational
-                    connection/scope state lives in the centered Console instead
-                    of the global top-right chrome. */}
+                    connection/scope state is kept out of the primary viewer
+                    chrome; Settings is the normal path for setup/system review. */}
                 <div className="gn-header-row gn-header-row--top">
                 {(() => {
                     // Logo + title only render when the author has set a header
                     // title AND the new Wave 30 `showHeader` toggle is ON
                     // (default). When OFF, the title block is suppressed but
-                    // the Console button in row 2 stays visible so viewers can
-                    // always reach diagnostics/status. Subtitle is opt-in (settings.headerSubtitle)
-                    // — never falls back to space label so a single bold line
-                    // is the norm.
+                    // Subtitle is opt-in (settings.headerSubtitle) — never
+                    // falls back to space label so a single bold line is the norm.
                     if (props.settings.showHeader === false) return null;
                     const title = (props.settings.headerTitle || "").trim();
                     const subtitle = (props.settings.headerSubtitle || "").trim();
@@ -3835,9 +3864,8 @@ function App(props: AppProps) {
                     </div>
                 )}
                 {/* Connection and scope status moved out of the global top
-                    right chrome. The Console button below opens the centered
-                    Developer Tools surface, where these operational chips now
-                    live with diagnostics and the Settings handoff. */}
+                    right chrome. The primary viewer surface stays focused on
+                    AI Insights / Chat; setup and system review live in Settings. */}
                 </div>
                 {/* Row 2 — surface controls + run state. Tabs + Adjust on the
                     left; meta strip (clock / copy / refresh) and the always-on
@@ -3946,20 +3974,44 @@ function App(props: AppProps) {
                             )}
                         </div>
                     )}
-                    <button
-                        type="button"
-                        className={`gn-console-trigger${showDevModal ? " gn-console-trigger--active" : ""}`}
-                        onClick={() => {
-                            setDevPanel(prev => prev || "diagnostics");
-                            setShowDevModal(true);
-                        }}
-                        title={`${connectionStatus.label} — ${connectionStatus.modeLabel}. Open the centered console for diagnostics, session logs, SQL trace, and Settings handoff.`}
-                        aria-label={`Open center console. Connection status: ${connectionStatus.label} — ${connectionStatus.modeLabel}.`}
-                        aria-pressed={showDevModal}
-                    >
-                        <Icon name="code" />
-                        <span>Console</span>
-                    </button>
+                    <div className="gn-pane-action-cluster" role="toolbar" aria-label="AI pane actions">
+                        <button
+                            type="button"
+                            className="gn-pane-action-btn"
+                            onClick={() => dispatchPulsePlayViewportAction(outerViewportFocus === "ai" ? "restore" : "focus")}
+                            title={outerViewportFocus === "ai" ? "Restore split layout" : "Maximize AI pane"}
+                            aria-label={outerViewportFocus === "ai" ? "Restore AI panel" : "Maximize AI panel"}
+                        >
+                            <Icon name={outerViewportFocus === "ai" ? "restore" : "maximize"} />
+                        </button>
+                        <button
+                            type="button"
+                            className="gn-pane-action-btn"
+                            onClick={() => dispatchPulsePlayViewportAction("minimize")}
+                            title="Minimize AI pane"
+                            aria-label="Minimize AI panel"
+                        >
+                            <Icon name="minimize" />
+                        </button>
+                        <button
+                            type="button"
+                            className="gn-pane-action-btn"
+                            onClick={() => dispatchPulsePlayViewportAction("open-page")}
+                            title="Open AI pane in a separate page"
+                            aria-label="Open AI panel in separate page"
+                        >
+                            <Icon name="external-link" />
+                        </button>
+                        <button
+                            type="button"
+                            className="gn-pane-action-btn"
+                            onClick={() => dispatchPulsePlayViewportAction("reload")}
+                            title="Refresh AI pane"
+                            aria-label="Refresh AI panel"
+                        >
+                            <Icon name="refresh" />
+                        </button>
+                    </div>
                     {/* Spacer to push the run-state cluster to the far right. */}
                     {activeTab === "insights" && <div className="gn-header-spacer" />}
                     {/* Insights run-state cluster: clock + copy + refresh, then

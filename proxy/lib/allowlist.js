@@ -24,6 +24,7 @@ const EMPTY_ALLOWLIST = Object.freeze({
     packs: [],
     knowledgeSources: [],
     license: {},
+    display: { biTileMode: '1' },
 });
 
 function asArray(value) {
@@ -86,6 +87,12 @@ function normalizeAiProfiles(value) {
     };
 }
 
+function normalizeDisplayPolicy(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return { biTileMode: '1' };
+    const tileMode = String(value.biTileMode || '').trim();
+    return { biTileMode: tileMode === '2' || tileMode === '4' ? tileMode : '1' };
+}
+
 function userGroups(req) {
     const user = req && req.user;
     const groups = [];
@@ -121,6 +128,7 @@ function normalizeAllowlist(config, env = process.env) {
         packs: identityList(raw.packs),
         knowledgeSources: identityList(raw.knowledgeSources),
         license: raw.license && typeof raw.license === 'object' ? raw.license : {},
+        display: normalizeDisplayPolicy(raw.display),
     };
 }
 
@@ -225,6 +233,7 @@ function buildVisibleAllowlist(config, req) {
         // License posture is org-visible (read-only). Includes the
         // Fabric capability flag MVP 0.2 deployments pin to `false`.
         license: normalized.license,
+        display: normalized.display,
         enforcement: normalized.enforcement,
     };
 }

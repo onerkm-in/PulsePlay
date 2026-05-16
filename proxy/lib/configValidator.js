@@ -97,6 +97,16 @@ function validateAllowlist(value, problems) {
     if (value.license !== undefined && !isPlainObject(value.license)) {
         problems.push(`config.allowlist.license must be an object (vendor → license posture)`);
     }
+    if (value.display !== undefined) {
+        if (!isPlainObject(value.display)) {
+            problems.push(`config.allowlist.display must be an object when present`);
+        } else if (
+            value.display.biTileMode !== undefined
+            && !['1', '2', '4'].includes(String(value.display.biTileMode))
+        ) {
+            problems.push(`config.allowlist.display.biTileMode must be one of "1", "2", or "4"`);
+        }
+    }
 }
 
 function validateProfiles(value, problems) {

@@ -1,24 +1,24 @@
 // playground/src/settings/groups/PreferencesGroup.tsx
 //
-// Phase 2: live controls for UI mode / Visible panels / AI position / BI
-// tiles already wired (they're the simplest end-to-end check that the
-// store + display-change event bus works correctly).
+// Phase 2: live controls for UI mode / Visible panels / AI position. BI tile
+// count is now read-only here because the canvas obeys the proxy-published
+// display policy for controlled enterprise deployments.
 
 import { useSettings } from "../settingsStore";
-import type { BiTileMode, EnabledComponents, LayoutMode, UiMode } from "../settingsStore";
-import { Leaf } from "./BiGroup";
+import type { EnabledComponents, LayoutMode, UiMode } from "../settingsStore";
+import { CurrentValue, Leaf } from "./BiGroup";
 
 export function PreferencesGroup(): React.ReactElement {
     const {
         uiMode,
         enabledComponents,
         layoutMode,
-        biTileMode,
+        allowlist,
         setUiMode,
         setEnabledComponents,
         setLayoutMode,
-        setBiTileMode,
     } = useSettings();
+    const backendBiTileMode = normalizeBackendBiTileMode(allowlist?.display?.biTileMode);
 
     return (
         <section aria-labelledby="settings-preferences-title">
@@ -65,19 +65,19 @@ export function PreferencesGroup(): React.ReactElement {
                 />
             </Leaf>
 
-            <Leaf group="preferences" label="Canvas tiles" helper="How many BI frames render in the BI pane. v1 shares one embed config across all tiles.">
-                <ButtonGroup<BiTileMode>
-                    value={biTileMode}
-                    onChange={setBiTileMode}
-                    options={[
-                        { value: "1", label: "1" },
-                        { value: "2", label: "2" },
-                        { value: "4", label: "4" },
-                    ]}
-                />
+            <Leaf group="preferences" label="Canvas tiles" helper="How many BI frames render in the BI pane. Managed by backend display policy, not a viewer toolbar.">
+                <CurrentValue label="Backend tile mode">{backendBiTileMode}</CurrentValue>
+                <p style={{ fontSize: 11, opacity: 0.65, margin: 0 }}>
+                    Set by <code>proxy/config.json</code> <code>allowlist.display.biTileMode</code>. Use 1 for the normal viewer experience; 2 or 4 only for governed comparison deployments.
+                </p>
             </Leaf>
         </section>
     );
+}
+
+function normalizeBackendBiTileMode(value: unknown): "1" | "2" | "4" {
+    const asString = String(value ?? "").trim();
+    return asString === "2" || asString === "4" ? asString : "1";
 }
 
 interface ButtonGroupProps<T extends string> {

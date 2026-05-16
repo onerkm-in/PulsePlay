@@ -14,6 +14,14 @@ export interface PulsePlayLicensePosture {
     [vendor: string]: unknown;
 }
 
+export type PulsePlayBiTileMode = "1" | "2" | "4";
+
+export interface PulsePlayDisplayPolicy {
+    /** Organization-defined BI tile count for the canvas. This is an
+     *  admin/deployment policy, not a casual end-user toggle. */
+    biTileMode?: PulsePlayBiTileMode;
+}
+
 export interface PulsePlayAllowlist {
     configured?: boolean;
     biProviders: string[];
@@ -28,6 +36,8 @@ export interface PulsePlayAllowlist {
     /** License posture per vendor (read-only). Surfaced by SystemGroup ›
      *  Security and by BI › Status. */
     license?: PulsePlayLicensePosture;
+    /** Read-only display policy supplied by the proxy/admin config. */
+    display?: PulsePlayDisplayPolicy;
     enforcement?: "strict" | "warn" | string;
     fetchedAt?: string;
 }

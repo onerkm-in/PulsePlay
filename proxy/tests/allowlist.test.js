@@ -29,6 +29,7 @@ describe('allowlist helpers', () => {
             supervisorProfiles: ['org-supervisor-v1'],
             packs: ['cpg-fmcg'],
             knowledgeSources: [],
+            display: { biTileMode: '2' },
         },
         allowlistEnforcement: 'strict',
     };
@@ -39,6 +40,7 @@ describe('allowlist helpers', () => {
         expect(normalized.biProviders).toEqual(['powerbi']);
         expect(normalized.embedOrigins.powerbi).toEqual(['app.powerbi.com']);
         expect(normalized.powerbiWorkspaces).toEqual(['wsp-1']);
+        expect(normalized.display).toEqual({ biTileMode: '2' });
     });
 
     test('production refuses to start without a configured allowlist', () => {
@@ -51,6 +53,7 @@ describe('allowlist helpers', () => {
         expect(buildVisibleAllowlist(config, req).aiProfiles).toEqual(
             expect.arrayContaining(['sales-genie', 'finance-genie', 'org-supervisor-v1']),
         );
+        expect(buildVisibleAllowlist(config, req).display).toEqual({ biTileMode: '2' });
         expect(isAiProfileAllowed(config, req, 'finance-genie').ok).toBe(true);
         expect(isAiProfileAllowed(config, { user: { groups: [] } }, 'finance-genie').ok).toBe(false);
     });

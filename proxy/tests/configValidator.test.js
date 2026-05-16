@@ -22,6 +22,7 @@ describe('validateConfigShape — top-level shape', () => {
                 aadTenants: ['tenant-1'],
                 aiProfiles: { default: ['default'], byGroup: {} },
                 packs: ['cpg-fmcg'],
+                display: { biTileMode: '1' },
             },
             profiles: {
                 default: { host: 'https://x', token: 'y' },
@@ -85,6 +86,22 @@ describe('validateConfigShape — allowlist', () => {
             profiles: {},
         });
         expect(errs[0]).toMatch(/byGroup must be an object/);
+    });
+
+    test('flags invalid display policy', () => {
+        const errs = validateConfigShape({
+            allowlist: { display: { biTileMode: '3' } },
+            profiles: {},
+        });
+        expect(errs[0]).toMatch(/display\.biTileMode must be one of/);
+    });
+
+    test('accepts numeric display tile policy', () => {
+        const errs = validateConfigShape({
+            allowlist: { display: { biTileMode: 4 } },
+            profiles: {},
+        });
+        expect(errs).toEqual([]);
     });
 });
 

@@ -164,7 +164,7 @@ A user opens the group whose question matches their intent. Most products that s
 2. **Connection pill** (when Pulse is mounted) — routes to `/settings/ai/connection-test`.
 3. **Keyboard shortcut** `Ctrl+,` (Linux/Windows) / `Cmd+,` (macOS) — opens at last-visited group.
 4. **URL deep link** — `/settings`, `/settings/<group>`, or `/settings/<group>/<leaf>`.
-5. **In-canvas shortcuts** (vendor picker, tile toolbar) — these stay as visible quick-switches; they DO read/write the same canonical store, they DO trigger preview, they DO NOT bypass the allowlist (§ 11).
+5. **In-canvas shortcuts** (viewer pane actions, vendor picker only when explicitly enabled) — these stay as visible quick-switches; they DO read/write the same canonical store when they change user preferences, they DO trigger preview, they DO NOT bypass the allowlist (§ 11). BI tile count is no longer a viewer shortcut; it is backend display policy.
 
 ### 3.4 Back to app
 
@@ -199,7 +199,7 @@ A user opens the group whose question matches their intent. Most products that s
 
 The Settings page **owns every `pulseplay:*` localStorage key** except those under the `pulseplay:visual-settings:*` prefix (those are Pulse's `persistProperties` contract; see [PulseHostStub.ts:35](../playground/src/pulse/_adapter/PulseHostStub.ts#L35) and [§ 4.4 out of scope](#44-out-of-scope-for-the-settings-store)).
 
-A new module — `playground/src/settings/settingsStore.ts` — is the single read/write path. In-canvas shortcuts (gear, vendor picker, connection pill, tile toolbar) call into this store; they never read or write localStorage directly. The existing `pulseplay:display-change` window event survives during migration and is dispatched by the store on every write so legacy listeners keep working.
+A new module — `playground/src/settings/settingsStore.ts` — is the single read/write path for user-owned preferences. In-canvas shortcuts (gear, vendor picker, connection pill) call into this store; they never read or write localStorage directly. Backend-owned display policy, including BI tile count, comes from `proxy/config.json` through `/assistant/allowlist`. The existing `pulseplay:display-change` window event survives during migration and is dispatched by the store on every write so legacy listeners keep working.
 
 ### 4.2 Storage key ownership
 
@@ -211,7 +211,7 @@ A new module — `playground/src/settings/settingsStore.ts` — is the single re
 | `pulseplay:ui-mode` | Preferences › (folded — see § 17) | App.tsx, Cycle H Display | Persists if `uiModeOverrideAllowed` |
 | `pulseplay:enabled-components` | Preferences › Panels | App.tsx | |
 | `pulseplay:layout-mode` | Preferences › Position | App.tsx | |
-| `pulseplay:bi-tile-mode` | BI › Canvas | App.tsx | |
+| `pulseplay:bi-tile-mode` | Legacy / ignored by canvas | Settings export only | Superseded by `allowlist.display.biTileMode` from the proxy. |
 | `pulseplay:split:<orientation>` | Preferences › Layout | react-resizable-panels | Autosave from PanelGroup |
 | `pulseplay:settings-last-group` | Settings shell (new) | SettingsShell | For "returning open" default landing |
 | `pulseplay:visual-settings:*` | **Pulse-owned** — out of scope | Pulse visual.tsx | NOT touched by SettingsStore |
@@ -223,7 +223,7 @@ A new module — `playground/src/settings/settingsStore.ts` — is the single re
 | Gear icon (top bar) | Opens Settings page at last-visited group | Read-only | n/a (open only) |
 | Connection pill | Routes to AI › Connection test | Read-only | n/a (open only) |
 | Vendor picker (top bar inline, when present) | Reads + writes `pulseplay:bi-vendor` via store | Read+write through `settingsStore.setBiVendor` | Filtered by allowlist; out-of-allowlist values rejected with toast |
-| Canvas tile toolbar | Reads + writes `pulseplay:bi-tile-mode` via store | Read+write through `settingsStore.setBiTileMode` | n/a (no allowlist on tile mode) |
+| Canvas tile count | No viewer toolbar. Reads `allowlist.display.biTileMode` from `/assistant/allowlist`. | Backend policy only | Validated by proxy config schema (`1`, `2`, or `4`; default `1`). |
 | Cycle H Display tab (Pulse Developer Tools) | DEPRECATED in Phase 2 — replaced by a "Open Settings" button | n/a | n/a |
 
 **Rule:** A shortcut MUST NOT be a parallel state owner. The shortcut is a thin view onto the SettingsStore. If a shortcut needs to write, it calls a setter that goes through the same validation + allowlist enforcement as the Settings page itself.
@@ -289,7 +289,7 @@ Some leaves can't be edited in the UI by an author. Show the current value (or i
 | Provider | BI provider | The BI tool PulsePlay embeds. **MVP 0.2: Power BI only.** Tableau / Qlik / Looker / generic iframe are deferred to v0.3+. |
 | Embed | Embed configuration | How PulsePlay obtains the Power BI embed. Four modes: **Secure-embed link** (works everywhere, preview-only), **AAD SSO** (requires Premium or PPU on the report's workspace; user's RLS applies), **Service principal** (requires Premium capacity + Embedded SKU consumed; SP identity applies), **Manual token** (dev/lab only — dev mode requires `PROXY_INLINE_CREDENTIALS_MODE` ≠ `off`). |
 | Authentication | Authentication & tenant | AAD tenant ID for SSO mode. **Locked to your organization's tenant via allowlist** — manual entry is disabled when the tenant allowlist contains one or more entries. AAD app client ID is also admin-published. |
-| Canvas | Canvas tiles | How many Power BI frames render side-by-side (1 / 2 / 4). All tiles share the same embed config in MVP 0.2. |
+| Canvas | Canvas tiles | How many Power BI frames render side-by-side (1 / 2 / 4). Admin-controlled by `allowlist.display.biTileMode`; all tiles share the same embed config in MVP 0.2. |
 | Status | Mount status & license posture | Live state of the embed: provider, mount mode, last load, recent events. **License posture readout:** Premium tier (P1 / P2 / P3 / PPU), embed-token availability (yes / requires SP secret / no), Fabric capability (**explicitly NO in MVP 0.2**), and the workspace ID that hosted the embed. |
 
 ### 6.1.2 Power BI Premium / license / governance specifics
@@ -511,6 +511,9 @@ Full shape (covers the whole 2-axis matrix — MVP 0.2 uses a tightened default 
     "supervisorProfiles": ["org-supervisor-v1"],
     "packs": ["cpg-fmcg"],
     "knowledgeSources": [],
+    "display": {
+      "biTileMode": "1"
+    },
     "license": {
       "powerbi": {
         "minTier": "Premium",

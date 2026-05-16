@@ -34,8 +34,28 @@ vi.mock("../lib/discoveryClient", () => ({
 
 // Pulse is lazy-loaded behind Suspense; replace with a stub so the AI pane
 // renders synchronously and we don't wait on chunk loading in jsdom.
-vi.mock("../pulse", () => ({
-    PulseShell: () => null,
+vi.mock("../components/PulseShell", () => ({
+    PulseShell: () => {
+        const focus = new URL(window.location.href).searchParams.get("focus");
+        const aiFocused = focus === "ai";
+        const fire = (action: string) => {
+            window.dispatchEvent(new CustomEvent("pulseplay:viewport-action", {
+                detail: { pane: "ai", action },
+            }));
+        };
+        return (
+            <div>
+                <button
+                    type="button"
+                    aria-label={aiFocused ? "Restore AI panel" : "Maximize AI panel"}
+                    onClick={() => fire(aiFocused ? "restore" : "focus")}
+                />
+                <button type="button" aria-label="Minimize AI panel" onClick={() => fire("minimize")} />
+                <button type="button" aria-label="Open AI panel in separate page" onClick={() => fire("open-page")} />
+                <button type="button" aria-label="Refresh AI panel" onClick={() => fire("reload")} />
+            </div>
+        );
+    },
 }));
 
 import { App } from "../App";
@@ -214,44 +234,39 @@ describe("App viewport controls — default split", () => {
         unmount(state);
     });
 
-    it("keeps Pulse mode BI source read-only and routes edits to Setup", () => {
+    it("keeps Pulse mode free of duplicate BI source and Console controls", () => {
         const state = mountApp();
         const sourcePanel = state.container.querySelector('section[aria-label="BI source"]');
-        expect(sourcePanel).toBeTruthy();
-        expect(sourcePanel?.textContent).toContain("BI source: Power BI");
-        expect(sourcePanel?.querySelector("select")).toBeNull();
-        expect(sourcePanel?.querySelector('button[title="Open Settings → Setup"]')).toBeTruthy();
+        expect(sourcePanel).toBeNull();
+        expect(state.container.textContent).not.toContain("BI source:");
+        expect(state.container.textContent).not.toContain("Open setup");
+        expect(state.container.textContent).not.toContain("Review setup");
+        expect(state.container.textContent).not.toContain("Console");
+        expect(state.container.textContent).not.toContain("BI tiles:");
+        expect(state.container.querySelector('[aria-label="BI tile layout"]')).toBeNull();
         unmount(state);
     });
 
-    it("exposes Maximize inline + Minimize/Pin/Page in the ⋮ overflow menu for each pane", () => {
+    it("exposes Pulse AI pane icons and keeps BI PaneChrome overflow actions", () => {
         const state = mountApp();
-        for (const pane of ["ai", "bi"] as const) {
-            // Maximize stays inline (primary action).
-            const max = state.container.querySelector(viewportControlControlSelector(pane, "Maximize"));
-            expect(max, `${pane} Maximize button (inline)`).toBeTruthy();
+        // Pulse mode moves AI pane actions into the Pulse row as icon buttons.
+        expect(state.container.querySelector(viewportControlControlSelector("ai", "Maximize"))).toBeTruthy();
+        expect(state.container.querySelector(viewportControlControlSelector("ai", "Minimize"))).toBeTruthy();
+        expect(state.container.querySelector('button[aria-label="Open AI panel in separate page"]')).toBeTruthy();
+        expect(state.container.querySelector('button[aria-label="Refresh AI panel"]')).toBeTruthy();
+        expect(state.container.querySelector('button[aria-label="More AI panel actions"]')).toBeNull();
 
-            // Overflow trigger present.
-            const overflow = state.container.querySelector(`button[aria-label="More ${pane === "ai" ? "AI" : "BI"} panel actions"]`);
-            expect(overflow, `${pane} overflow trigger`).toBeTruthy();
-
-            // Pre-overflow-open: Minimize/Pin/Page must NOT exist in the DOM
-            // (menu is closed; menuitems not rendered).
-            const minClosed = state.container.querySelector(viewportControlControlSelector(pane, "Minimize"));
-            expect(minClosed, `${pane} Minimize (menu closed → absent)`).toBeNull();
-
-            // Open the overflow menu for this pane.
-            openOverflowFor(state, pane);
-
-            // Now the overflow menuitems are mounted and reachable by the
-            // same aria-labels the integration contract requires.
-            const min = state.container.querySelector(viewportControlControlSelector(pane, "Minimize"));
-            const pin = state.container.querySelector(`button[aria-label="Pin layout"]`);
-            const openPage = state.container.querySelector(`button[aria-label="Open ${pane === "ai" ? "AI" : "BI"} panel in separate page"]`);
-            expect(min, `${pane} Minimize menuitem`).toBeTruthy();
-            expect(pin, `${pane} Pin menuitem`).toBeTruthy();
-            expect(openPage, `${pane} Open-in-separate-page menuitem`).toBeTruthy();
-        }
+        // BI pane still uses the generic PaneChrome menu.
+        const max = state.container.querySelector(viewportControlControlSelector("bi", "Maximize"));
+        expect(max, "bi Maximize button (inline)").toBeTruthy();
+        const overflow = state.container.querySelector('button[aria-label="More BI panel actions"]');
+        expect(overflow, "bi overflow trigger").toBeTruthy();
+        const minClosed = state.container.querySelector(viewportControlControlSelector("bi", "Minimize"));
+        expect(minClosed, "bi Minimize (menu closed -> absent)").toBeNull();
+        openOverflowFor(state, "bi");
+        expect(state.container.querySelector(viewportControlControlSelector("bi", "Minimize")), "bi Minimize menuitem").toBeTruthy();
+        expect(state.container.querySelector('button[aria-label="Pin layout"]'), "bi Pin menuitem").toBeTruthy();
+        expect(state.container.querySelector('button[aria-label="Open BI panel in separate page"]'), "bi Open-in-separate-page menuitem").toBeTruthy();
         unmount(state);
     });
 });
@@ -310,7 +325,7 @@ describe("App viewport controls — ?focus= URL", () => {
         unmount(state);
     });
 
-    it("keeps focused pane chrome compact now that connection status lives in the console", () => {
+    it("keeps focused AI chrome quiet while pane icons live in the Pulse row", () => {
         setLocation("?focus=ai");
         const state = mountApp();
 
@@ -318,15 +333,15 @@ describe("App viewport controls — ?focus= URL", () => {
         const controls = state.container.querySelector('[data-testid="pp-panel-controls-ai"]') as HTMLElement | null;
 
         expect(header, "focused AI chrome header").toBeTruthy();
-        expect(controls, "focused AI controls toolbar").toBeTruthy();
-        // The fixed top-right connection pill is gone; focused pane chrome should not
-        // reserve a large collision gutter anymore.
+        expect(controls, "focused AI controls toolbar is hidden in Pulse mode").toBeNull();
+        // The fixed top-right connection pill is gone, and Pulse mode does
+        // not need the outer AI PaneChrome controls because pane actions live
+        // beside AI Insights / Chat.
         const headerStyle = header?.getAttribute("style") || "";
         expect(headerStyle, "focused header padding stays compact")
             .toMatch(/padding:\s*5px\s+8px\s+5px\s+9px/);
         expect(headerStyle).not.toContain("min(200px, 50vw)");
-        expect(controls?.style.flexWrap).toBe("wrap");
-        expect(controls?.style.minWidth).toBe("0");
+        expect(state.container.querySelector('button[aria-label="Restore AI panel"]')).toBeTruthy();
 
         unmount(state);
     });
@@ -399,25 +414,25 @@ describe("App viewport controls — chrome buttons", () => {
     it("Pin → aria-pressed=true + localStorage write; toggle back unpins", () => {
         const state = mountApp();
 
-        // After Fix #1 (overflow menu), Pin/Unpin live inside the per-pane
-        // ⋮ overflow menu — open it first.
-        openOverflowFor(state, "ai");
-        const pinSelector = `${viewportControlPanelChromeSelector("ai")} ${viewportControlPinButtonSelector}`;
+        // Pulse mode moves AI pane actions into the Pulse row; pin/unpin
+        // remains covered through the generic BI PaneChrome overflow menu.
+        openOverflowFor(state, "bi");
+        const pinSelector = `${viewportControlPanelChromeSelector("bi")} ${viewportControlPinButtonSelector}`;
         const pinBtn = state.container.querySelector(pinSelector) as HTMLButtonElement | null;
-        expect(pinBtn, "AI pin button (in overflow)").toBeTruthy();
+        expect(pinBtn, "BI pin button (in overflow)").toBeTruthy();
         act(() => { pinBtn!.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
 
         const shell = state.container.querySelector(viewportControlShellSelector);
         expect(shell?.getAttribute("data-layout-pinned")).toBe("true");
         const persisted = window.localStorage.getItem("pulseplay:pinned-viewport-pane");
-        expect(persisted).toBe("ai");
+        expect(persisted).toBe("bi");
 
         // Re-open the menu (it auto-closed on selection) and click Unpin.
-        openOverflowFor(state, "ai");
+        openOverflowFor(state, "bi");
         const unpinBtn = state.container.querySelector(
-            `${viewportControlPanelChromeSelector("ai")} button[aria-label="Unpin layout"]`,
+            `${viewportControlPanelChromeSelector("bi")} button[aria-label="Unpin layout"]`,
         ) as HTMLButtonElement | null;
-        expect(unpinBtn, "AI unpin button after pinning").toBeTruthy();
+        expect(unpinBtn, "BI unpin button after pinning").toBeTruthy();
         act(() => { unpinBtn!.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
 
         const persistedAfter = window.localStorage.getItem("pulseplay:pinned-viewport-pane");

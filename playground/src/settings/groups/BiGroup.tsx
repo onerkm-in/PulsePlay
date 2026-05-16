@@ -110,18 +110,11 @@ export function BiGroup(): React.ReactElement {
             <Leaf
                 group="bi"
                 label="Canvas"
-                helper="How many Power BI frames render side-by-side. Controlled by the BI tile mode in the canvas toolbar; this view is read-only."
+                helper="How many Power BI frames render side-by-side. Controlled by backend display policy; this view is read-only."
             >
-                <CurrentValue label="Tile mode">
-                    {(() => {
-                        try {
-                            const stored = typeof window !== "undefined" ? window.localStorage.getItem("pulseplay:bi-tile-mode") : null;
-                            return stored || "1";
-                        } catch { return "1"; }
-                    })()}
-                </CurrentValue>
+                <CurrentValue label="Tile mode">{normalizeBiTileMode(allowlist?.display?.biTileMode)}</CurrentValue>
                 <p style={{ fontSize: 11, opacity: 0.6, margin: 0 }}>
-                    Click the 1 / 2 / 4 toggle above the BI canvas to change.
+                    Admin-controlled by <code>allowlist.display.biTileMode</code>. Use 1 for the normal viewer surface; 2 or 4 only for governed comparison deployments.
                 </p>
             </Leaf>
 
@@ -162,6 +155,11 @@ export function BiGroup(): React.ReactElement {
 }
 
 // ─── Shared leaf renderer + small helpers (used by every group) ──────────
+
+function normalizeBiTileMode(value: unknown): "1" | "2" | "4" {
+    const asString = String(value ?? "").trim();
+    return asString === "2" || asString === "4" ? asString : "1";
+}
 
 /** Convert a leaf label into a stable URL slug for deep linking.
  *  e.g. "AI Insights setup ↗" → "ai-insights-setup"
