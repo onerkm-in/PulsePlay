@@ -59,6 +59,13 @@ export interface AISidebarProps {
      *  not just from the pack KPIs. Optional — when null, discovery
      *  degrades to pack-only signals (today's behaviour). */
     biAdapter?: { getMetadata?(): Promise<unknown | null> } | null;
+    /** When set (non-null, non-empty), AISidebar auto-submits this
+     *  question exactly once on the next render. Used by the first-run
+     *  wizard's "Done & ask" finish action so the user sees a live AI
+     *  response the moment the wizard closes. Idempotent — repeated
+     *  renders with the same value do NOT re-submit; only a different
+     *  value triggers another submission. */
+    autoSubmitQuestion?: string | null;
 }
 
 export type AISidebarStatus =
@@ -283,6 +290,11 @@ export function AISidebar(props: AISidebarProps) {
      *  flight, so the elapsed-time counter updates in the UI. */
     const [, setNowTick] = useState(0);
 
+    /** Tracks the most recently auto-submitted question so the same value
+     *  flowing through props.autoSubmitQuestion doesn't re-fire ask().
+     *  Wizard's "Done & ask" → handleWizardComplete sets this on App state
+     *  → AISidebar consumes it once and remembers the value. */
+    const autoSubmittedRef = useRef<string | null>(null);
     /** Per-entry abort controllers for in-flight fetches. */
     const abortControllers = useRef<Map<number, AbortController>>(new Map());
     /** Per-entry polling interval timer ids. */
@@ -471,8 +483,25 @@ export function AISidebar(props: AISidebarProps) {
         pollTimers.current.set(entryId, timer);
     };
 
-    const ask = async () => {
-        const q = question.trim();
+    /** Auto-submit on prop change — wizard's "Done & ask" path. Fires
+     *  exactly once per unique props.autoSubmitQuestion value. Repeated
+     *  renders with the same value do not re-submit. */
+    useEffect(() => {
+        const q = (props.autoSubmitQuestion || "").trim();
+        if (!q) return;
+        if (autoSubmittedRef.current === q) return;
+        autoSubmittedRef.current = q;
+        // Fire-and-forget; ask() handles its own state + error paths.
+        void ask(q);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [props.autoSubmitQuestion]);
+
+    /** Question state that the input is bound to.
+     *  ask(overrideQ) lets the caller supply a question directly without
+     *  going through the input — used by the auto-submit effect below
+     *  for the wizard's "Done & ask" path. */
+    const ask = async (overrideQ?: string) => {
+        const q = (typeof overrideQ === "string" ? overrideQ : question).trim();
         if (!q) return;
         const entryId = nextEntryId++;
         const startedAt = Date.now();

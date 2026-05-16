@@ -444,6 +444,28 @@ describe("Draft schema validation (4.1 — RISK-P1 fix)", () => {
     });
 });
 
+describe("initialPersona prop (persona persistence)", () => {
+    it("pre-selects persona from initialPersona when no draft exists", async () => {
+        await renderWizard({ initialPersona: "developer" });
+        expect(screen.getByTestId("pp-first-run-persona-developer").getAttribute("aria-checked")).toBe("true");
+        expect(screen.getByTestId("pp-first-run-persona-analyst").getAttribute("aria-checked")).toBe("false");
+    });
+
+    it("draft state wins over initialPersona (mid-flow refresh)", async () => {
+        window.localStorage.setItem(WIZARD_DRAFT_KEY, JSON.stringify({
+            step: 1, persona: "executive",
+        }));
+        await renderWizard({ initialPersona: "developer" });
+        // Draft persona (executive) wins over initialPersona (developer).
+        expect(screen.getByTestId("pp-first-run-persona-executive").getAttribute("aria-checked")).toBe("true");
+    });
+
+    it("falls back to 'analyst' when neither draft nor initialPersona is set", async () => {
+        await renderWizard();
+        expect(screen.getByTestId("pp-first-run-persona-analyst").getAttribute("aria-checked")).toBe("true");
+    });
+});
+
 describe("forceWizard + shouldShowWizard force flag (4.5 — RISK-P1 fix)", () => {
     it("forceWizard sets WIZARD_FORCE_KEY and clears dismissal + draft", () => {
         window.localStorage.setItem(WIZARD_DISMISSED_KEY, "true");

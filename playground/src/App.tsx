@@ -629,6 +629,24 @@ function PlaygroundApp(): React.ReactElement {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [allowlistFailClosed, hasEmbedConfig, activeConnector, visibleVendors.length, wizardForceTick]);
 
+    /** Wizard "Done & ask" → AISidebar auto-submit. Captured here and
+     *  passed to AISidebar via the `autoSubmitQuestion` prop; AISidebar
+     *  fires `ask()` once per unique value (de-duped via ref). */
+    const [wizardAutoSubmit, setWizardAutoSubmit] = useState<string | null>(null);
+    /** Persona persistence — remembered across sessions so a re-run of
+     *  the wizard pre-selects the user's previous role. Stored in
+     *  localStorage to mirror the wizard's existing storage pattern
+     *  (dismissal flag / draft / force key). */
+    const [lastPersona, setLastPersona] = useState<PersonaKey | null>(() => {
+        try {
+            const raw = window.localStorage.getItem("pulseplay:last-persona");
+            if (raw === "analyst" || raw === "executive" || raw === "developer" || raw === "designer") {
+                return raw;
+            }
+        } catch { /* swallow */ }
+        return null;
+    });
+
     const handleWizardComplete = useCallback(
         (picks: {
             vendor:             string;
@@ -647,7 +665,18 @@ function PlaygroundApp(): React.ReactElement {
             setPackSelection(picks.packSelection);
             handleUiModeChange(picks.uiMode);
             handleLayoutModeChange(picks.layoutMode as LayoutMode);
-            // autoAsk + suggestedQuestion: wired into AISidebar auto-submit in a future cycle.
+            // Persona persistence: write through to localStorage so the
+            // next wizard run pre-selects this role.
+            setLastPersona(picks.persona);
+            try { window.localStorage.setItem("pulseplay:last-persona", picks.persona); } catch { /* swallow */ }
+            // "Done & ask" path: arm AISidebar to fire ask() once on the
+            // next render. Empty / falsy values clear the arm so a normal
+            // "Done" doesn't trigger a stale auto-submit.
+            if (picks.autoAsk && picks.suggestedQuestion && picks.suggestedQuestion.trim()) {
+                setWizardAutoSubmit(picks.suggestedQuestion.trim());
+            } else {
+                setWizardAutoSubmit(null);
+            }
             setWizardForceTick(t => t + 1);
         },
         [setEmbedConfig, handleUiModeChange, handleLayoutModeChange],
@@ -714,6 +743,7 @@ function PlaygroundApp(): React.ReactElement {
                     vendors={visibleVendors}
                     allowlist={allowlistState.allowlist}
                     availablePacks={availablePacks}
+                    initialPersona={lastPersona ?? undefined}
                     onComplete={handleWizardComplete}
                     onDismiss={handleWizardDismiss}
                 />
@@ -832,6 +862,7 @@ function PlaygroundApp(): React.ReactElement {
                                         recentEvents={recentEvents}
                                         packSelection={packSelection}
                                         biAdapter={primaryBIAdapter}
+                                        autoSubmitQuestion={wizardAutoSubmit}
                                     />
                                 </>
                             )}

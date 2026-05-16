@@ -100,6 +100,83 @@ describe("AISidebar", () => {
         unmount(state);
     });
 
+    it("autoSubmitQuestion fires ask() exactly once on mount without user typing", async () => {
+        const fetchMock = vi.fn().mockResolvedValue(
+            jsonResponse({ status: "COMPLETED", content: "auto-answer" }),
+        );
+        globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+        const state = mount(
+            <AISidebar
+                activeVendor="generic-iframe"
+                activeConnector="genie-default"
+                recentEvents={[]}
+                autoSubmitQuestion="What's our biggest risk this quarter?"
+            />,
+        );
+        // The auto-submit effect fires synchronously on first render;
+        // let the resulting ask() promise + setState chain flush.
+        await act(async () => { await Promise.resolve(); });
+        await act(async () => { await Promise.resolve(); });
+
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        const [url, init] = fetchMock.mock.calls[0];
+        expect(url).toBe("/api/assistant/conversations/start");
+        const body = JSON.parse((init as RequestInit).body as string);
+        expect(body.content).toContain("What's our biggest risk this quarter?");
+        unmount(state);
+    });
+
+    it("autoSubmitQuestion does not re-fire on subsequent renders with the same value", async () => {
+        const fetchMock = vi.fn().mockResolvedValue(
+            jsonResponse({ status: "COMPLETED", content: "answer" }),
+        );
+        globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+        const state = mount(
+            <AISidebar
+                activeVendor="generic-iframe"
+                activeConnector="genie-default"
+                recentEvents={[]}
+                autoSubmitQuestion="Repeat me"
+            />,
+        );
+        await act(async () => { await Promise.resolve(); });
+        await act(async () => { await Promise.resolve(); });
+        // Force a re-render with the SAME prop value — should not re-submit.
+        await act(async () => {
+            state.root.render(
+                <AISidebar
+                    activeVendor="generic-iframe"
+                    activeConnector="genie-default"
+                    recentEvents={[]}
+                    autoSubmitQuestion="Repeat me"
+                />,
+            );
+        });
+        await act(async () => { await Promise.resolve(); });
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        unmount(state);
+    });
+
+    it("autoSubmitQuestion null/empty does NOT trigger ask()", async () => {
+        const fetchMock = vi.fn();
+        globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+        const state = mount(
+            <AISidebar
+                activeVendor="generic-iframe"
+                activeConnector="genie-default"
+                recentEvents={[]}
+                autoSubmitQuestion={null}
+            />,
+        );
+        await act(async () => { await Promise.resolve(); });
+        await act(async () => { await Promise.resolve(); });
+        expect(fetchMock).not.toHaveBeenCalled();
+        unmount(state);
+    });
+
     it("includes pack and subVertical in the request body", async () => {
         const fetchMock = vi.fn().mockResolvedValue(
             jsonResponse({ status: "COMPLETED", content: "hi" }),

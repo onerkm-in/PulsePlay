@@ -150,6 +150,11 @@ export interface FirstRunWizardProps {
     availablePacks?:   PackInfo[];
     /** Injected connector loader — defaults to /api/assistant/profiles. */
     fetchConnectors?:  () => Promise<ConnectorOption[]>;
+    /** Persona to pre-select on Step 1 when no draft exists. Used by the
+     *  Settings → "Re-run setup wizard" path so the user's previously
+     *  chosen role survives across runs. Falls back to "analyst" when
+     *  unset. Draft state (mid-flow refresh) always wins over this. */
+    initialPersona?:   PersonaKey;
     /** Called when the wizard completes with all picks. */
     onComplete: (picks: {
         vendor:             string;
@@ -380,7 +385,7 @@ export function FirstRunWizard(props: FirstRunWizardProps): ReactElement {
     });
     const [direction, setDirection] = useState<"forward" | "back">("forward");
 
-    const [persona,   setPersona]   = useState<PersonaKey>(draft?.persona ?? "analyst");
+    const [persona,   setPersona]   = useState<PersonaKey>(draft?.persona ?? props.initialPersona ?? "analyst");
     const [vendor,    setVendor]    = useState<string>(draft?.vendor    ?? "");
     const [connector, setConnector] = useState<string>(draft?.connector ?? "");
 
