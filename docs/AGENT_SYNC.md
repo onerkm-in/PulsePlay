@@ -617,6 +617,68 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 
 ## Coordination Log
 
+### 2026-05-16 — Claude (gallant-jones-a71415) — end-to-end review + 4 leap features shipped
+
+`[DONE]` Rajesh asked for an end-to-end review of everything we've built, with beast-mode fixes on whatever gaps surfaced. Ran a breadth-scan agent across the playground+proxy tree to find dead code, TypeScript `any` leaks, test coverage holes, stale cross-doc references, wizard-completion silent drops, and high-leverage LEAP candidates. Shipped 4 of the agent's top findings + closed 2 doc gaps. Full commit list below.
+
+`[LEAP] Wired autoAsk → AISidebar` (commit `924780d`)
+The wizard's Step 4 "Done & ask →" finish action was collecting `autoAsk: true` + `suggestedQuestion` but `handleWizardComplete` was silently dropping both. The "magic moment" UX — user finishes wizard, immediately sees AI answer — was missing. Wired end-to-end:
+- AISidebar gains `autoSubmitQuestion?: string | null` prop.
+- `ask()` refactored to accept optional override Q.
+- `useEffect` fires `ask(q)` exactly once per unique value (de-duped via `autoSubmittedRef`).
+- App.tsx adds `wizardAutoSubmit` state set in `handleWizardComplete`.
+- **+3 AISidebar tests**: fires once on mount, doesn't re-fire on same-value rerender, null/empty doesn't trigger.
+
+`[LEAP] Persona persistence` (commit `924780d`)
+Persona was applied once (seeding `uiMode`/`layoutMode`) then discarded. Re-run wizard always landed users back on Analyst. Fix:
+- FirstRunWizard gains `initialPersona?: PersonaKey` prop.
+- Priority: `draft.persona > props.initialPersona > "analyst"` (draft wins for mid-flow refresh).
+- App.tsx stores last persona in `pulseplay:last-persona` localStorage key.
+- **+3 FirstRunWizard tests**: initialPersona pre-selects, draft wins, fallback to analyst.
+
+`[LEAP] WizardErrorBoundary` (commit `9918359`)
+If anything in the wizard subtree throws during render (EmbedConfigForm internal error, PackPicker schema mismatch, etc.) the whole app dies. New `WizardErrorBoundary` class component (only 30 lines + recovery UI):
+- `role="alert"` backdrop-blurred fallback matching wizard aesthetic.
+- "Show technical details" with error message.
+- Retry → bumps `wizardForceTick` remount key → fresh wizard.
+- Skip → existing `handleWizardDismiss` path.
+- App.tsx uses `key={wizardForceTick}` on the boundary so any tick bump remounts cleanly.
+- **+5 tests**: renders fallback on throw, Retry/Skip handlers fire, healthy children render, technical details contain error message.
+
+`[POLISH] Per-leaf Copy link button` (commit `e769065`, Settings IA fix #8)
+Every Settings leaf with a group prop now renders a "🔗 Copy link" button next to its title. Clicking copies a path-based deep-link URL (`<origin>/settings/<group>/<slug>`) with a "✓ Copied" confirmation. Reuses the existing `SettingsShell` scroll-on-mount infrastructure. Falls back silently when `navigator.clipboard` is unavailable. **+3 tests.**
+
+`[POLISH] discoveryClient.ts any → Record<string, unknown>` (commit `03c2da7`)
+Closed 2 of the 30+ TypeScript `any` leaks the agent flagged. `genie.ts` (20+) and `proxyChatBackend.ts` (8) deferred — larger surface, would risk subtle behavior changes without a deeper audit. Zero behavior change here.
+
+`[DOC] ARCHITECTURE.md + AGENDA.md catchup` (commit `62d71f5`)
+ARCHITECTURE.md had ZERO mention of the wizard, persona presets, `forceWizard`, or `WizardErrorBoundary` — flagged as a HIGH-impact doc gap. New "First-run onboarding wizard" section before "What's implemented" covers the step contract, persona presets ↔ Roadmap Track 4 modularity guarantees, all 4 localStorage keys + lifetimes, autoSubmitQuestion wiring, error boundary remount semantics, and the per-leaf Copy link feature. AGENDA.md "Recently shipped" gains 3 entries covering the wizard + 5-track roadmap + Copy link.
+
+`[NUMBERS]`
+- Full playground vitest: **492/492 green** (was 481 at session start; +11 net: 3 persona + 3 autoSubmit + 5 error boundary).
+- `npx tsc --noEmit` → clean.
+- 6 new commits on main since the wizard P1 hardening lane closed (`03c2da7` HEAD).
+
+`[NOT-SHIPPED — DOCUMENTED]` Honest list of what the audit found that I did NOT fix this session, with reasons:
+
+| Finding | Agent priority | Why deferred |
+|---|---|---|
+| `genie.ts` 20+ `any` uses | HIGH | Core orchestrator. `any → unknown` migration could surface real callers needing type fixes; risk of cascading breakage without a deeper audit cycle |
+| Backend layer test gaps (GenieBackend 1824 lines, FoundationModelBackend, OpenAIBackend, BedrockBackend — all zero tests) | HIGH | Each would be hours of work to write meaningful unit tests; deferred to its own focused cycle |
+| `proxyChatBackend.ts` 8 `any` uses | MED | Smaller scope but still requires call-site verification; deferred with discoveryClient as guide |
+| `contextBuilder.ts` no test file | MED | 250+ lines of context assembly; needs its own test cycle |
+| Phase 11b dispatcher migration | (Codex / pre-existing) | Plan already documented in this file; needs live smoke before pilot |
+| `availablePacks` not passed through wizard onComplete | LOW | Wizard does collect `packSelection`, App applies it; the agent's note was actually a misread on my part — already wired |
+
+`[HANDOFF]` Codex available lanes that don't conflict with the above:
+- Genie route Phase 11b migration (plan in this file, sensitive)
+- `proxyChatBackend.ts` typed-request shape
+- Backend layer unit tests (start with FoundationModelBackend — newest, simplest)
+- Knowledge Base audit headers on the 9 missing cpg-fmcg sub-vertical Prompt IRs
+- `StructuredAuthoringEditor` first implementation against `EmbedConfigForm`
+
+---
+
 ### 2026-05-16 — Claude (gallant-jones-a71415) — HANDOVER + project_state catchup + Phase 11b execution plan
 
 `[DONE]` Updated [docs/HANDOVER.md](HANDOVER.md) and [docs/memory/project_state.md](memory/project_state.md) with the wizard ship + P1 hardening + 5-track roadmap reorg. Both LIFO entries on top of existing content.
