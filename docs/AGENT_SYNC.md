@@ -52,6 +52,73 @@ Use these tags so another agent can scan quickly:
 
 Keep PulsePlay moving faster by coordinating work across agents without losing brutal honesty.
 
+## Strategic Planning Note — Option-Aware Databricks-Forward Posture
+
+**Status:** discussion draft for Rajesh + other agents, added 2026-05-16. Do not treat this as a canonical architecture decision until it is mirrored into `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, and `docs/SETTINGS_SPEC.md`.
+
+Rajesh clarified the enterprise direction: the company is currently reducing dependence on Power BI reports and promoting Databricks as the long-term analytics center. At the same time, direction can keep changing. PulsePlay must therefore be **progressive, modular, aggressive, expandable, defensible, and sync-safe** rather than hard-coded to any single tool posture.
+
+Use this working vocabulary for discussion:
+
+| Posture | Meaning | PulsePlay response |
+|---|---|---|
+| **Shift left** | Databricks-native destination: AI/BI Dashboards, Genie Spaces, Databricks Apps, Unity Catalog assets, SQL Warehouses | Make Databricks assets first-class surfaces; use Power BI only as bridge/legacy adapter. |
+| **Shift middle** | Hybrid transition: Databricks is strategic, but Power BI and other BI tools still exist in pockets | Preserve the adapter contract; add migration and comparison workflows; make current state usable without making it the north star. |
+| **Shift right** | Report-led external BI future | Not the forward plan. Support only as current-state/bridge where enterprise reality requires it. |
+
+### Directional Principle
+
+Power BI is **current state / transition bridge**, not the permanent product center. Databricks is the likely destination, but PulsePlay should not become brittle by assuming every deployment is Databricks-only on day one.
+
+The correct product statement is:
+
+> PulsePlay is a governed analytics experience layer that can run over Databricks-native assets first, while preserving adapter-based bridges to Power BI and other BI tools during transition.
+
+### Architecture Guardrails
+
+- Keep the two-axis independence, but start thinking in broader terms:
+  - **Insight surface axis:** Databricks AI/BI Dashboard, Genie Space, Databricks App, Unity Catalog table/view/metric, SQL query/notebook result, legacy Power BI report, legacy Tableau/Qlik/Looker iframe.
+  - **Reasoning axis:** Genie, Supervisor, Mosaic/Foundation Model, Azure OpenAI, Bedrock, future approved models.
+- Do not delete or devalue the existing `BIAdapter` contract immediately. Evolve it toward an `InsightSurfaceAdapter` concept through additive capabilities, not a breaking rename.
+- Every surface adapter should expose capability metadata: `getMetadata()`, available commands, event types, governance scope, lineage/provenance availability, and whether it can be introspected.
+- Knowledge must stay provider-neutral at the contract level, but Databricks/Unity Catalog should be the first enterprise implementation path for governance, lineage, metrics, and source discovery.
+- Settings should distinguish **native Databricks**, **hybrid bridge**, and **legacy external BI** rather than presenting all providers as equal future bets.
+- The roadmap should separate **transition support** from **destination investment**. Power BI hardening remains useful because it protects current state, but new differentiating work should bias toward Databricks-native experiences.
+
+### UX/Product Enhancements To Explore
+
+- Add a **PulsePlay Home / Launchpad** as the front door: recent Databricks assets, Genie Spaces, AI/BI Dashboards, Databricks Apps, active warehouse health, active pack, recent sessions, and recommended analysis frames.
+- Add a **Databricks Asset Browser**: AI/BI Dashboards, Genie Spaces, Apps, Unity Catalog assets, SQL Warehouses, and favorites/recent items. This becomes more important than a report-only picker.
+- Add a **Migration / Bridge mode** for current Power BI estates: inventory report, map report pages/KPIs to Unity Catalog/Databricks SQL/AI-BI Dashboard, generate Genie starter questions, and validate parity.
+- Make **Guided Analysis** the primary user path: executive brief, variance, risk scan, root cause, BCG/Pareto/RFM, supply chain, commercial, finance, HR, IT. Free-text chat remains available but should not be the only entry.
+- Make **Trust and Evidence** visible for every answer: source surface, active filters, selected frame, SQL/provenance, Unity Catalog lineage when available, pack/knowledge used, confidence/limitations, and audit/request id.
+- Make the experience role-aware:
+  - Business user: ask, guided analysis, recent assets, favorites, simple evidence.
+  - Analyst/author: setup, pack mapping, frame tuning, KPI validation, prompt/SQL inspection.
+  - Admin/governance: allowlists, IdP/JWKS, Unity Catalog permissions, warehouse health, audit, support bundles.
+  - Developer/support: traces, diagnostics, adapter capabilities, payload/export tools.
+
+### Defensibility Checklist
+
+Before any future lane claims "strategic alignment", verify it improves at least one of these:
+
+- Works in Databricks-native mode without Power BI.
+- Still works in hybrid mode while Power BI exists.
+- Makes migration away from Power BI easier, safer, or more measurable.
+- Preserves adapter boundaries and does not leak vendor logic across layers.
+- Improves governance, lineage, auditability, redaction, or access control.
+- Improves first-time usability for non-engineering users.
+- Creates evidence users can trust, not just prettier AI output.
+
+### Proposed Next Planning Tasks
+
+1. Draft a canonical `docs/DATABRICKS_FORWARD_STRATEGY.md` or update `docs/ARCHITECTURE.md` with the posture above.
+2. Update `docs/ROADMAP.md`: change v0.2/v0.3 language from "Genie + Power BI product cell" to "Databricks-forward with Power BI bridge", without pretending current PBI work was wasted.
+3. Update `docs/SETTINGS_SPEC.md`: introduce provider grouping: Native Databricks, Hybrid bridge, Legacy external BI.
+4. Add a design spec for **PulsePlay Home / Launchpad**.
+5. Add an adapter evolution note: `BIAdapter` today, `InsightSurfaceAdapter` concept tomorrow, additive migration only.
+6. Ask the other agent to review/challenge this planning block before code changes.
+
 **Operating model (locked 2026-05-14 by Rajesh):**
 
 - **Codex = primary implementer.** Codex picks up the next assigned lane and ships code + targeted tests + a `[DONE]` entry.
@@ -347,6 +414,25 @@ If the handoff conflicts with the current code, trust the code and report the mi
 ## Coordination Log
 
 Add newest entries at the top of this section.
+
+### 2026-05-16 14:10 IST - Codex
+
+`[DECISION-DRAFT]` Added **Strategic Planning Note — Option-Aware Databricks-Forward Posture** near the top of this file for Rajesh + other-agent discussion.
+
+Rajesh clarified: the company may shift left or middle; shift right is not the go-forward plan, even though Power BI/report-led workflows are current-state reality. Planning response:
+
+- Power BI = current-state bridge / transition support, not permanent north star.
+- Databricks-native assets = likely destination, but avoid a brittle hard pivot.
+- Preserve modularity through additive adapter evolution: `BIAdapter` today, broader `InsightSurfaceAdapter` concept tomorrow.
+- Bias new differentiating work toward Databricks AI/BI Dashboards, Genie Spaces, Databricks Apps, Unity Catalog assets, SQL Warehouses, governed knowledge, Launchpad/Home, migration/bridge workflows, and evidence-first answers.
+
+`[ASK]` Other agent: please review/challenge the planning note before we mirror it into canonical docs. Specific questions:
+
+1. Does the shift-left / shift-middle / shift-right vocabulary match Rajesh's intent?
+2. Is `InsightSurfaceAdapter` the right evolutionary concept, or should we keep `BIAdapter` as the public name and only broaden capability docs?
+3. Which canonical doc should be updated first: `ARCHITECTURE`, `ROADMAP`, `SETTINGS_SPEC`, or a new `DATABRICKS_FORWARD_STRATEGY.md`?
+4. What immediate code lanes become lower priority if Power BI is bridge-only?
+5. What Databricks-native lane should become the next anchor: Launchpad, Databricks Asset Browser, AI/BI Dashboard adapter, Unity Catalog asset browser, or migration assistant?
 
 ### 2026-05-14 13:30 IST - Claude (gallant-jones-a71415) — beast mode (single-agent)
 
