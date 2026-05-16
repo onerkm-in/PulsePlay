@@ -4035,6 +4035,16 @@ function App(props: AppProps) {
                         rendered in-bubble. */}
                     {activeTab === "insights" && isConfigured && (
                         <div className="gn-header-run-state">
+                            {/*
+                              Show the action toolbar (Copy MD / Copy HTML / Print /
+                              Customize / Refresh + Stop) only when there's something
+                              to act on, OR while busy so the user can Stop. Hides
+                              the all-disabled toolbar during the empty
+                              "Generating insights..." state to declutter the header.
+                              The ProgressIndicator below carries elapsed time and
+                              the in-flight stage label.
+                            */}
+                            {(insightsResult?.content || insightsBusy) && (
                             <div className="gn-insights-meta">
                                 {insightsGeneratedAt && (
                                     <span
@@ -4296,6 +4306,7 @@ function App(props: AppProps) {
                                     here is redundant with the Console entry, which
                                     owns diagnostics and links to Settings. */}
                             </div>
+                            )}
                             {(stageStatuses.length > 0 || insightsBusy) && (
                                 <div className="gn-insights-progress-wrap gn-insights-progress-wrap--header">
                                     {/* Wave 15 a11y — dedicated SR-only live region for stage
