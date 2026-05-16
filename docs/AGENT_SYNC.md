@@ -414,6 +414,83 @@ Run git status and git diff before acting.
 If the handoff conflicts with the current code, trust the code and report the mismatch in docs/AGENT_SYNC.md.
 ```
 
+### Strategy Review + Lane Claim Prompt — for Codex (2026-05-16)
+
+Paste this when Rajesh next opens a Codex scan. Replaces "what should I do" with a structured review pass that closes Claude's 2026-05-16 16:20 IST [REVIEW-RESPONSE] block and claims the next lane.
+
+```text
+You are joining PulsePlay as the reviewing AI agent. This is a structured scan, not a free-form task.
+
+Start by reading these in order — do NOT touch files until you have read all four:
+
+1. docs/AGENT_SYNC.md — full file, especially:
+   • "Strategic Planning Note — Option-Aware Databricks-Forward Posture" (the posture you drafted on 2026-05-16 14:10 IST)
+   • Claude's Coordination Log entry timestamped "2026-05-16 16:20 IST — wizard ship + strategy response"
+     which contains:
+       [DONE]            — 4-step wizard recap
+       [REVIEW-RESPONSE] — Claude's answers to your five strategic questions
+       [FEATURE-MAP]     — 17-row mapping of shipped features to their forward role
+       [ASK]             — three open questions for Rajesh (do NOT answer these for him)
+       [HANDOFF]         — five next-lane candidates
+2. CLAUDE.md
+3. docs/HANDOVER.md (top entry)
+4. docs/memory/project_state.md
+
+Then run:
+   python scripts/llm_onboard.py --terse
+   git status --short
+   git log --oneline -10
+   git diff HEAD~3..HEAD  # see the wizard + AGENT_SYNC commits
+
+Your job is three things, in order:
+
+═══ PART 1 — Challenge or accept Claude's REVIEW-RESPONSE (Q1–Q5) ═══
+
+For each of Claude's five answers, post one of:
+   [ACCEPT]    — agree, post a one-line confirmation
+   [CHALLENGE] — disagree, post the counter-position with evidence
+   [REFINE]    — partial agreement, propose the delta
+
+Particularly scrutinize:
+   • Q2 — Claude pushed back on the `InsightSurfaceAdapter` rename. Is the additive `getMetadata()` pattern enough, or does the strategy actually need a contract widening that justifies the rename churn? Read playground/src/biPanel/BIAdapter.ts before answering.
+   • Q5 — Claude picked Launchpad over Databricks AI/BI Dashboard adapter. Is that right when the AI/BI Dashboard adapter unlocks more concrete capability vs. Launchpad's "navigation polish"? Read the strategy's UX/Product Enhancements section and weigh.
+
+═══ PART 2 — Audit the FEATURE-MAP ═══
+
+The 17-row table claims every shipped feature has a forward role in the Databricks-forward posture. Verify:
+   • Pull the actual implementation file for each row's "Shipped feature" column.
+   • Confirm the "What it enables next" claim is realistic, not aspirational.
+   • Flag any feature Claude included that you'd actually [DEPRECATE] under the posture (Power BI brand polish? Pulse mode if Launchpad replaces it?).
+   • Add any shipped feature Claude MISSED. Likely candidates to grep: Sustainability indicator footer, FramePicker dropdown, Phase 11a Prompt IR translators, useEmbedConfig store, persona connector hint logic, draft-persistence schema, focus-trap wiring.
+
+Post findings as a [VERIFY] block with file:line citations.
+
+═══ PART 3 — Claim one open lane ═══
+
+Three unclaimed lanes are in the Active Claims table:
+   A. Databricks-Forward Strategy doc — pure docs, mirror the planning note into docs/DATABRICKS_FORWARD_STRATEGY.md.
+   B. PulsePlay Home / Launchpad — bigger feature, ~half-day, reuses persona system + useEmbedConfig.
+   C. Phase 11b dispatcher migration (existed before today; still open).
+
+Pick one with a [CLAIM] note. Include in the claim:
+   • Which lane and why (which 99.99 dimension does it move?)
+   • Files you expect to touch
+   • Files you explicitly will NOT touch (so Claude can work in parallel)
+   • Validation plan (test files you'll run, byte-identity if applicable)
+
+If you think NONE of A/B/C should be next — say so with a counter-proposal, but lock the counter-proposal to a Quality Scorecard dimension and cite the specific row.
+
+═══ Rules of engagement ═══
+
+   • Do NOT edit playground/src/components/FirstRunWizard.tsx or its test file without first posting a [CHALLENGE] explaining what's wrong with the shipped wizard. It just landed, has 30 passing tests, and is Rajesh's primary UX entry.
+   • Do NOT delete or rewrite Claude's [REVIEW-RESPONSE] / [FEATURE-MAP]. Append your reactions below them with your own dated [VERIFY] / [CHALLENGE] entries.
+   • If you find a security or governance issue while reading the wizard code or the AGENT_SYNC update, escalate it to a [RISK] entry immediately — do not bury it in a general review.
+   • Run the smallest validation that proves your claim. For Part 3, that means at minimum `npx tsc --noEmit` + the targeted vitest slice for any files you will touch.
+   • Brutally honest. If you think Claude over-promised in the FEATURE-MAP, say so. If you think the persona system is over-engineered for what it does, say so.
+```
+
+When Rajesh runs Codex with this prompt, Codex's output should be three blocks (Part 1 reactions / Part 2 audit / Part 3 claim) that Claude can then accept or counter in a follow-up Coordination Log entry.
+
 ## Coordination Log
 
 Add newest entries at the top of this section.
