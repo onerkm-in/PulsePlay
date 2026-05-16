@@ -617,6 +617,94 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 
 ## Coordination Log
 
+### 2026-05-16 — Claude (gallant-jones-a71415) — HANDOVER + project_state catchup + Phase 11b execution plan
+
+`[DONE]` Updated [docs/HANDOVER.md](HANDOVER.md) and [docs/memory/project_state.md](memory/project_state.md) with the wizard ship + P1 hardening + 5-track roadmap reorg. Both LIFO entries on top of existing content.
+
+`[PLAN]` **Phase 11b dispatcher migration — execution plan** (so next session can ship cleanly without re-discovering the sensitive parts):
+
+**Scope:** Migrate `proxy/server.js:2382` Genie route from `wrapAsGenieUserMessage(...)` to `buildBackendPayload(profile, request).payload.userMessage`. **Only the Genie route. Do not touch the OpenAI / Bedrock / Bedrock-RAG routes in the same commit.**
+
+**Why this is sensitive:** Today the Genie route always emits the legacy `[Pack Context: pack/sub-vertical]\n\n{markdown}\n\n[User Question]\n\n{question}` shape. The dispatcher uses the AUTHORED IR when one exists. Currently `cpg-fmcg/supply-chain` ships an authored `prompt-ir.yaml`. After migration, that pack's Genie prompt switches from the legacy markdown wrap to the structured `[Persona]` / `[Vocabulary]` / `[Guardrails]` / `[User Question]` shape from `proxy/lib/promptTranslators/genie.js`. **All other packs (synthetic path) remain byte-identical.**
+
+**Step-by-step migration recipe:**
+
+1. **Read these first:**
+   - `proxy/server.js:2360-2410` (current Genie route pack-context block)
+   - `proxy/lib/promptDispatcher.js` (the `buildBackendPayload` API)
+   - `proxy/lib/promptTranslators/genie.js` (both branches — synthetic vs authored)
+   - `proxy/tests/promptTranslator.genie.test.js:35-99` (byte-identity regression — must stay green)
+   - `proxy/tests/conversationsStartPackContext.test.js:155-200` (the route-level test that asserts the OLD shape for cpg-fmcg/supply-chain — this is the test that needs updating)
+
+2. **Code change (proxy/server.js around line 2378):**
+   ```js
+   // BEFORE:
+   const packResolved = resolvePackContext({ pack, subVertical });
+   let fullContent = baseContent;
+   if (packResolved.resolved && packResolved.content) {
+       fullContent = wrapAsGenieUserMessage(
+           packResolved.content,
+           packResolved.pack,
+           packResolved.subVertical,
+           baseContent,
+       );
+   }
+
+   // AFTER:
+   const packResolved = resolvePackContext({ pack, subVertical });  // keep for audit
+   const dispatched = buildBackendPayload(resolved.profile, {
+       pack: packResolved.pack || pack,
+       subVertical: packResolved.subVertical || subVertical,
+       userQuestion: baseContent,
+   });
+   let fullContent = baseContent;
+   if (dispatched && dispatched.irSource !== 'none' && dispatched.payload?.userMessage) {
+       fullContent = dispatched.payload.userMessage;
+   }
+   ```
+
+3. **Update audit detail (around line 2395)** to include `dispatched.irSource` for observability:
+   ```js
+   detail: JSON.stringify({
+       ...buildPackAuditDetail(packResolved),
+       backend: 'genie',
+       irSource: dispatched?.irSource ?? 'none',
+       translator: dispatched?.translator ?? null,
+   }),
+   ```
+
+4. **Add the import** at the top of server.js:
+   ```js
+   const { buildBackendPayload } = require('./lib/promptDispatcher');
+   ```
+
+5. **Update the route test in `proxy/tests/conversationsStartPackContext.test.js:176`:**
+   The current assertion `expect(parsed.content).toMatch(/^\[Pack Context: cpg-fmcg\/supply-chain\]/)` needs to split into TWO test cases:
+   - For an authored-IR pack (`cpg-fmcg/supply-chain`): assert the new authored shape (e.g. starts with `[Persona:` or contains `[Vocabulary]`)
+   - For a synthetic pack (`cpg-fmcg/sustainability`): assert the legacy `[Pack Context: ...]` prefix still works byte-identically
+   
+6. **Add a new test in `proxy/tests/dispatcherMigration.test.js`** (new file) that asserts:
+   - Migrated Genie route uses `buildBackendPayload` for ALL packs
+   - `irSource` is logged in the audit detail
+   - Foundation Model / OpenAI / Bedrock routes are NOT affected (they still use the legacy injector)
+
+7. **Validation gate:**
+   - `node --check proxy/server.js`
+   - `npx jest proxy/tests/conversationsStartPackContext.test.js` → must be green after test updates
+   - `npx jest proxy/tests/promptTranslator.genie.test.js` → byte-identity locked, MUST stay green
+   - `npx jest proxy/tests/promptDispatcher.test.js` → MUST stay green
+   - `npx jest` (full proxy suite) → MUST stay green
+   - `npx tsc --noEmit` (playground) → no playground change expected
+   - Manual smoke gate before pilot: run a curl against `/assistant/conversations/start` with `pack=cpg-fmcg`, `subVertical=supply-chain`, capture the Genie request body, eyeball the new structured shape. Confirm the model still answers reasonably.
+
+**Sensitivity flag:** This migration changes user-visible Genie output for the one pack with authored IR. If the new structured prompt produces worse answers than the legacy markdown wrap, we'd need to either fix the authored IR or roll back. **Recommendation: ship migration + same-cycle live smoke from Rajesh before declaring the lane done.**
+
+**Why not also migrate Foundation Model + OpenAI + Bedrock routes in the same commit:** Those routes use a different injection pattern (`[{ role: 'system', content: packContext }, { role: 'user', content }]`). The `foundationModel` translator emits a different payload shape than the current route code expects. Each non-Genie route migration is its own commit + tests + risk-window. Land Genie first, validate, then iterate.
+
+**Estimated time:** ~30 min code + 30 min tests + ~5 min smoke = ~1 hour focused work.
+
+---
+
 ### 2026-05-16 — Claude (gallant-jones-a71415) — wizard P1 hardening + Codex research review
 
 `[DONE]` **Wizard P1 security hardening** — commit `735eb87` on `main`. Closed all four P1 findings from Codex's Part 4 scan:

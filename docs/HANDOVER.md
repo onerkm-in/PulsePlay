@@ -5,6 +5,40 @@
 
 ---
 
+## 2026-05-16 - 4-step first-run wizard + P1 security hardening + 5-track roadmap
+
+**Range:** Rajesh asked to replace the empty-state placeholder with a proper progressive setup wizard ("more fun, work, trendy, and friendly for the author"), then for an end-to-end roadmap that keeps Databricks-forward without locking us into Databricks-only. Codex ran a parallel scan; the wizard P1 risks were closed in the same session.
+
+### What shipped
+
+- **`playground/src/components/FirstRunWizard.tsx`** (commit `4ba76b3`) — Full-bleed 4-step modal: Welcome+Persona / Choose tools / Connect+probe / Explore+suggested-Q. Persona presets (Analyst / Executive / Developer / Designer) seed `uiMode` + `layoutMode` + connector hint. Right-side step rail (done/active/future), CSS-only slide+fade transitions, draft persistence to `pulseplay:wizard-draft`, focus-trap, aria-live step announcements. "Just give me defaults" fast-lane. 30 new vitest cases.
+- **Settings → System → "Re-run setup wizard"** (commit `4ba76b3`, hardened in `735eb87`) — Re-arms the wizard from any user state. Now uses `forceWizard()` which sets `WIZARD_FORCE_KEY` so `shouldShowWizard()` bypasses the `hasEmbedConfig`/`hasConnector` gate.
+- **App.tsx handleWizardComplete** — persona seeds `uiMode` + `layoutMode` on Done. `autoAsk` + `suggestedQuestion` collected but not yet wired to `AISidebar.ask()` (deferred).
+- **P1 wizard security hardening** (commit `735eb87`) — closes 4 RISK-P1 findings from Codex's Part 4 scan:
+  - 4.1 Draft schema validation in `loadDraft()` — persona checked against `VALID_PERSONA_KEYS`, step clamped 0–3, vendor/connector must be non-empty strings.
+  - 4.3 Focus trap leakage — hidden StepPanes get `inert=""` attribute (descendants no longer in tab order).
+  - 4.4 Probe URL bypassing Vite proxy — always `POST /api/assistant/probe`, dropped the `GET /foundation/health` direct fetch.
+  - 4.5 Re-run wizard broken — new `WIZARD_FORCE_KEY` + `forceWizard()` export; force flag consumed by `clearDraft()` (Done/Skip).
+- **`docs/ROADMAP.md`** (commit `5a57e7c`) — reorganized around 5 parallel TRACKS (Foundation / Surface / Reasoning / Experience / Trust). Each track lists current DONE state, next milestones (parallel, no internal ordering), "What stays modular" rule, and an explicit "Non-Databricks proof point". 8 modularity guarantees codified at the bottom. Cross-track dependencies marked LOOSE vs HARD. Legacy v0.x version labels preserved at the bottom as backward-compat mapping.
+- **`docs/AGENT_SYNC.md`** updates — `[DONE]` entries for wizard + P1 hardening, `[REVIEW-RESPONSE]` to Codex's Q1–Q5 (most accepted; pushed back on `InsightSurfaceAdapter` rename; Codex accepted the pushback), 17-row FEATURE-MAP showing every shipped feature's forward role, Codex prompt with 4 structured parts (strategy review, feature-map audit, lane claim, security scan).
+- **Codex shipped in parallel** (commits `ecb41c2`, `9aac3f7`, `2521c6c`, `398ae65`, `bbff841`, `38ce270`): `DATABRICKS_FORWARD_STRATEGY.md`, `MODULAR_INTEGRATION_ARCHITECTURE.md`, `STRUCTURED_AUTHORING_STANDARD.md`, `CHAT_VISUALIZATION_KNOWLEDGE_BASE.md`, `KNOWLEDGE_BASE_SOURCE_GOVERNANCE.md`, `AI_CONTEXT_CONFIGURATION_MODEL.md`, `SETUP_SETTINGS_RELATIONSHIP_AUDIT.md`, plus textarea-depth polish in `FirstRunWizard.tsx`. Claude reviewed each and posted accept/refine/challenge positions in AGENT_SYNC.
+
+### Validation
+
+- `npx vitest run --silent` → **478/478** playground tests green (was 437 at session start).
+- `npx tsc --noEmit` → clean.
+- New devDep added: `@testing-library/react` + `@testing-library/user-event`.
+- `GROUP_LEAF_LABELS.system` updated to include `"Setup wizard"` (drift-prevention test green).
+
+### Tripwires
+
+- **Phase 11b dispatcher migration is still open** and is genuinely sensitive — migrating `proxy/server.js` Genie route at line 2382 from `wrapAsGenieUserMessage` to `buildBackendPayload` will change user-visible Genie output for `cpg-fmcg/supply-chain` (the one pack with authored `prompt-ir.yaml`). The route-level test at `proxy/tests/conversationsStartPackContext.test.js:176` asserts the OLD `[Pack Context: ...]` prefix, which the authored-IR translator path replaces with structured `[Persona]` / `[Vocabulary]` / `[Guardrails]` blocks. Migration requires updating that test AND live smoke before pilot. **Do not ship blind.**
+- The wizard's `autoAsk` + `suggestedQuestion` fields are collected on Done but currently dropped in `handleWizardComplete`. Wiring them through `AISidebar.ask()` is a separate cycle.
+- `WIZARD_FORCE_KEY` is single-use (consumed by `clearDraft()` on Done/Skip). If a user clicks "Re-run", refreshes mid-wizard without completing, then refreshes again, the wizard re-appears (force flag still set). This is by design — re-runs are sticky until the user finishes or explicitly skips.
+- Codex's research docs (`KNOWLEDGE_BASE_SOURCE_GOVERNANCE.md`, `MODULAR_INTEGRATION_ARCHITECTURE.md`, etc.) are planning baselines, NOT shipped runtime. Don't treat their proposals as built code.
+
+---
+
 ## 2026-05-16 - Knowledge Base source governance across all modules
 
 **Range:** Rajesh asked to validate source authenticity and extend credible, accountable provenance across all Knowledge Base modules, not only the Chat visualization KB.
