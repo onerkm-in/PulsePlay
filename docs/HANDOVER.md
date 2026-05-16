@@ -5,6 +5,34 @@
 
 ---
 
+## 2026-05-16 - Setup/settings relationship audit and control depth
+
+**Range:** Deep research pass on how setup options, connector choices, presets/templates, knowledge packs, and the Settings tree relate to each other, plus Rajesh's request to make dropdowns/textareas easier to see and pick from.
+
+### What shipped
+
+- Added [docs/SETUP_SETTINGS_RELATIONSHIP_AUDIT.md](SETUP_SETTINGS_RELATIONSHIP_AUDIT.md) as the relationship-map baseline for setup/settings UX, connector readiness, state ownership, and progressive setup flow.
+- Added subtle shared depth treatment for dropdowns, inputs, and textareas in [playground/src/styles.css](../playground/src/styles.css), including raised shadow, inset highlight, hover state, focus ring, and textarea writing-line background.
+- Updated the first-run wizard suggested-question textarea in [playground/src/components/FirstRunWizard.tsx](../playground/src/components/FirstRunWizard.tsx) with the same depth/focus direction.
+- Updated [docs/AGENT_SYNC.md](AGENT_SYNC.md) with a Claude handoff: review the audit, challenge the state-owner map, and pick either the BI Embed mode-card slice or the smallest setup/capability facade slice.
+
+### Validation
+
+- `git diff --check` passed; Git emitted expected LF-to-CRLF working-copy warnings only.
+- `playground`: `npm.cmd run lint` passed.
+- `playground`: focused `npx.cmd vitest run src/components/__tests__/FirstRunWizard.test.tsx --silent` passed **30/30** after repairing the local `node_modules` install with `npm.cmd install`.
+- `playground`: full `npm.cmd test -- --silent` passed **467/467**.
+- `playground`: `npm.cmd run build` passed.
+- Live Vite smoke: started `npm.cmd run dev -- --host 127.0.0.1`, verified `http://127.0.0.1:5173/` returned the root page, then shut the server down.
+
+### Tripwires
+
+- The audit is not an implementation of the new setup model. State ownership is still split across App, Settings, embed store, wizard draft state, and Pulse visual settings.
+- Power BI remains the only real BI SDK adapter today. Tableau/Qlik/Looker must still be presented as limited iframe fallbacks until their SDK/token routes graduate.
+- The depth styling is intentionally subtle. If future visual review says it is too heavy, tune the shared `--pp-control-*` variables rather than one-off overrides.
+
+---
+
 ## 2026-05-16 - Modular integration architecture research
 
 **Range:** Deep-research planning pass for Rajesh's "integrated yet modular, progressive, addable/removable building blocks" direction, plus the follow-up requirement that prompt/guidance textareas become structured, aesthetic, middleware-aligned authoring surfaces.

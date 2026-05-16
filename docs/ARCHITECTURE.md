@@ -323,6 +323,7 @@ Everything else is creativity surface area. See [AGENDA.md](AGENDA.md) for the o
 - [PACKS.md](PACKS.md) — pack architecture overview
 - [MODULAR_INTEGRATION_ARCHITECTURE.md](MODULAR_INTEGRATION_ARCHITECTURE.md) — integrated experience, modular capability fabric, block lifecycle, capability registry, and progressive spine/spectrum model
 - [STRUCTURED_AUTHORING_STANDARD.md](STRUCTURED_AUTHORING_STANDARD.md) — standard for prompt/guidance editors, required sections, parameter chips, validation, and compiled middleware previews
+- [SETUP_SETTINGS_RELATIONSHIP_AUDIT.md](SETUP_SETTINGS_RELATIONSHIP_AUDIT.md) — setup/settings dependency map, connector readiness gaps, progressive setup model, and first implementation slices
 - [KNOWLEDGE_BASE_ARCHITECTURE.md](KNOWLEDGE_BASE_ARCHITECTURE.md) — Knowledge plane, retrieval contracts, Knowledge Base IA
 - [SETTINGS_SPEC.md](SETTINGS_SPEC.md) — Settings page master spec: IA, layout, microcopy, state model, interaction rules, enterprise guardrails, security setup, maintenance, administration, loophole audit
 - [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md) — board-ready enterprise security audit

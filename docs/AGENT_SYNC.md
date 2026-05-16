@@ -195,6 +195,7 @@ Newest active/review lane first. Keep completed-but-reviewing work above older o
 
 | Lane | Owner | Status | Files / Area | Notes |
 |---|---|---|---|---|
+| Setup/settings relationship audit + control depth | Codex (2026-05-16) | done; awaiting Claude review | `docs/SETUP_SETTINGS_RELATIONSHIP_AUDIT.md`, `playground/src/styles.css`, `playground/src/components/FirstRunWizard.tsx` | Maps BI/AI/knowledge/settings dependencies, calls out state-owner drift and connector readiness gaps, and adds low-noise depth treatment to dropdowns/textareas. |
 | Structured prompt/guidance authoring standard | Codex (2026-05-16) | done; awaiting Claude review | `docs/STRUCTURED_AUTHORING_STANDARD.md`, `docs/MODULAR_INTEGRATION_ARCHITECTURE.md` | Standardizes prompt/guidance textareas as guided structured editors with required sections, parameter chips, validation, and compiled middleware preview. |
 | Modular integration architecture research | Codex (2026-05-16) | done; awaiting Claude review | `docs/MODULAR_INTEGRATION_ARCHITECTURE.md`, `docs/ARCHITECTURE.md`, doc hygiene | Defines stable spine + swappable blocks, capability registry, block manifest/lifecycle, linear-plus-spectrum roadmap, Databricks-native/bridge/knowledge/AI expansion lanes. |
 | Playground viewport controls | Codex (impl) + Claude (tests/review, 2026-05-14 03:05 IST) | done; reviewed | Codex: `playground/src/App.tsx`. Claude/Codex: `playground/src/__tests__/viewportControls.integration.test.tsx`. | [VERIFY] 354/354 playground green; viewport slice 16/16. Browser DOM smoke caught a duplicate restore-label issue; Codex fixed it and added regression coverage for minimize dock, Show both, popstate, and open-page URL. |
@@ -226,13 +227,14 @@ LIFO: newest task first. When adding another task, insert it above the current o
 
 **Current Claude-driven queue (lanes either gated or available):**
 
-1. **Available — Review/challenge structured authoring standard.** Read [STRUCTURED_AUTHORING_STANDARD.md](STRUCTURED_AUTHORING_STANDARD.md). Confirm whether the `StructuredAuthoringEditor` should land before Launchpad, and identify the first field to migrate: Settings AI guidance, Prompt IR authoring, wizard suggested-question textarea, or Knowledge Base notes.
-2. **Available — Review/challenge Codex modular integration architecture.** Read [MODULAR_INTEGRATION_ARCHITECTURE.md](MODULAR_INTEGRATION_ARCHITECTURE.md) and post `[VERIFY]` / `[CHALLENGE]` on: capability registry shape, block manifest lifecycle, linear spine order, Launchpad-first recommendation, typed Databricks asset config, and whether any current shipped block violates the add/remove protocol.
-3. **Gated on Rajesh — RISKS card UX (red ↑ paradox).** Three options outlined in chat: (a) suppress directional ↑ in RISK context, (b) amber for "growing-but-lagging" trichromatic, (c) two-row card. The bp-delta prompt-IR tweak is queued behind this.
-4. **Available — Frame-to-prompt proxy side.** Frontend ships `body.frame` already (commit `738e4e1`); the proxy + translators can consume it to drive backend specialization. Byte-identical for free-text (`frame===undefined`) — Phase 11a translator contracts preserve byte-identity for synthetic IRs.
-5. **Available — Phase 11b dispatcher migration.** Wire `proxy/lib/promptDispatcher.buildBackendPayload()` into the live Genie / Foundation Model / Supervisor handlers. Requires careful byte-identity regression coverage on Genie.
-6. **Available — Per-leaf revert + deep-link copy (Settings IA fix #8).** Small UX polish.
-7. **Gated on environment — Live credentialed smoke** against an org Power BI report + Genie/Supervisor profile + enterprise IdP JWKS. No code work blocks this.
+1. **Available — Review setup/settings relationship audit and pick the first implementation slice.** Read [SETUP_SETTINGS_RELATIONSHIP_AUDIT.md](SETUP_SETTINGS_RELATIONSHIP_AUDIT.md). Challenge the state-owner map, connector readiness claims, and implementation sequence. My proposed first slice is `EmbedConfigForm` + Settings BI Embed mode cards: Native / Hybrid / Legacy mode cards, prerequisite badges, extracted ID chips, inline validation, and capability-readiness copy. If architecture foundation must come first, counter-propose the smallest `SetupState` / capability-facade slice instead. Also review the new dropdown/textarea depth treatment for enterprise tone and accessibility.
+2. **Available — Review/challenge structured authoring standard.** Read [STRUCTURED_AUTHORING_STANDARD.md](STRUCTURED_AUTHORING_STANDARD.md). Confirm whether the `StructuredAuthoringEditor` should land before Launchpad, and identify the first field to migrate: Settings AI guidance, Prompt IR authoring, wizard suggested-question textarea, or Knowledge Base notes.
+3. **Available — Review/challenge Codex modular integration architecture.** Read [MODULAR_INTEGRATION_ARCHITECTURE.md](MODULAR_INTEGRATION_ARCHITECTURE.md) and post `[VERIFY]` / `[CHALLENGE]` on: capability registry shape, block manifest lifecycle, linear spine order, Launchpad-first recommendation, typed Databricks asset config, and whether any current shipped block violates the add/remove protocol.
+4. **Gated on Rajesh — RISKS card UX (red ↑ paradox).** Three options outlined in chat: (a) suppress directional ↑ in RISK context, (b) amber for "growing-but-lagging" trichromatic, (c) two-row card. The bp-delta prompt-IR tweak is queued behind this.
+5. **Available — Frame-to-prompt proxy side.** Frontend ships `body.frame` already (commit `738e4e1`); the proxy + translators can consume it to drive backend specialization. Byte-identical for free-text (`frame===undefined`) — Phase 11a translator contracts preserve byte-identity for synthetic IRs.
+6. **Available — Phase 11b dispatcher migration.** Wire `proxy/lib/promptDispatcher.buildBackendPayload()` into the live Genie / Foundation Model / Supervisor handlers. Requires careful byte-identity regression coverage on Genie.
+7. **Available — Per-leaf revert + deep-link copy (Settings IA fix #8).** Small UX polish.
+8. **Gated on environment — Live credentialed smoke** against an org Power BI report + Genie/Supervisor profile + enterprise IdP JWKS. No code work blocks this.
 
 **Codex review queue (when Rajesh invokes a scan):**
 
@@ -610,6 +612,25 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 ## Coordination Log
 
 Add newest entries at the top of this section.
+
+### 2026-05-16 - Codex — setup/settings relationship audit + control depth
+
+`[DONE]` Added [SETUP_SETTINGS_RELATIONSHIP_AUDIT.md](SETUP_SETTINGS_RELATIONSHIP_AUDIT.md) after Rajesh asked for a deep scan of setup relationships, connectors, preset/template flow, and the tree structure.
+
+Key findings:
+
+- The Settings IA is directionally right, but state ownership is still split across the first-run wizard, App shell, `settingsStore`, `embedConfigStore`, Pulse visual settings, and older inline setup controls.
+- Power BI is the only BI adapter with a real SDK + server-issued token path today. Tableau, Qlik, and Looker remain iframe fallbacks until their SDK/token routes graduate.
+- Non-Genie AI profiles exist in the proxy, but the v0 playground flow still risks overpromising runtime support because the sidebar path remains Genie-shaped.
+- The setup model should become progressive: Setup Home readiness cards -> guided setup -> detail settings -> advanced/support, all backed by one capability/readiness contract.
+- The first visible UX win should be `EmbedConfigForm` + BI Embed mode cards with prerequisite badges, extracted ID chips, inline validation, and plain "what this unlocks" copy.
+- The first architecture win should be a small `SetupState` / capability facade so settings pages stop duplicating ownership.
+
+`[DONE]` Added subtle depth treatment for dropdowns and textareas in `playground/src/styles.css`, plus the wizard suggested-question textarea in `FirstRunWizard.tsx`, so editable fields are easier to identify without turning the enterprise UI into heavy decoration.
+
+`[VERIFY]` `git diff --check` clean; `playground` lint clean; focused `FirstRunWizard` tests **30/30**; full playground tests **467/467**; playground build green; live Vite root smoke passed on `http://127.0.0.1:5173/`.
+
+`[HANDOFF]` Claude should review the audit and pick the first implementation slice. My default recommendation: ship the visible BI Embed mode-card slice first, then immediately pull the state/capability facade behind it so the UI does not become another hardcoded fork.
 
 ### 2026-05-16 - Codex — structured prompt/guidance authoring standard
 

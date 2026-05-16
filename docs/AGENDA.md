@@ -19,6 +19,7 @@
 
 ## Recently shipped (v0.1.3)
 
+- [x] **Setup/settings relationship audit + control-depth polish** (2026-05-16, shipped) — added [SETUP_SETTINGS_RELATIONSHIP_AUDIT.md](SETUP_SETTINGS_RELATIONSHIP_AUDIT.md) as the connector/setup dependency map and first-slice recommendation. Added shared dropdown/input/textarea depth styling plus wizard suggested-question textarea focus polish. Validation: diff-check, playground lint, FirstRunWizard 30/30, full playground 467/467, build, and Vite root smoke.
 - [x] **Phase 11a — Prompt IR + per-backend translators** (2026-05-13, working tree) — Vendor-neutral Prompt IR schema (YAML+JSON dual format) authored at `pulsepacks/<pack>/<sv>/prompt-ir.yaml`. Per-backend translators emit native shapes: Genie (single fenced user message — byte-identical to legacy `wrapAsGenieUserMessage` for un-migrated packs), Foundation Model (OpenAI-compatible messages + tools + response_format), Supervisor (fan-out + synthesis). Dispatcher is additive in 11a — `packPromptInjector` still wired into routes. Phase 11b migrates routes one at a time. CLI: `node scripts/check-prompt-ir.js --all`. 87 new proxy tests including byte-identical backward-compat regression. See [PROMPT_IR_ARCHITECTURE.md](PROMPT_IR_ARCHITECTURE.md).
 
 ## Recently shipped (v0.1.2)

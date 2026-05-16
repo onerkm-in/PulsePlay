@@ -178,6 +178,7 @@ Validation should be specific. Prefer "Missing required parameter `{{metric}}` i
 - Use regular readable text styling for guided mode.
 - Keep section cards shallow; do not nest cards inside cards.
 - Use chips for parameters and toggles/selects for options.
+- Dropdowns and textareas should use the shared depth treatment: subtle raised shadow, inset highlight, visible hover state, and strong focus ring. Textareas may use a faint writing-line background when it improves scanability.
 - Show errors inline next to the relevant section and in a compact validation list.
 - Keep the editor height stable; expanding validation should not push primary actions out of reach.
 - On small screens, section rail becomes tabs or a dropdown, and the parameter palette becomes an insert menu.

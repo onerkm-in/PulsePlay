@@ -907,16 +907,26 @@ function Step4Explore(props: {
                             fontSize:     13.5,
                             lineHeight:   1.55,
                             color:        "#0f172a",
-                            background:   "#fff",
-                            border:       "1px solid rgba(0,0,0,0.13)",
+                            background:   "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
+                            border:       "1px solid rgba(15,23,42,0.16)",
                             borderRadius: 8,
                             resize:       "vertical",
                             outline:      "none",
                             boxSizing:    "border-box",
                             fontFamily:   "inherit",
+                            boxShadow:    "0 1px 2px rgba(15,23,42,0.08), 0 7px 18px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,0.85)",
+                            transition:   "border-color 120ms ease, box-shadow 120ms ease, background 120ms ease",
                         }}
-                        onFocus={e => { (e.target as HTMLTextAreaElement).style.borderColor = "#2563eb"; }}
-                        onBlur={e  => { (e.target as HTMLTextAreaElement).style.borderColor = "rgba(0,0,0,0.13)"; }}
+                        onFocus={e => {
+                            const target = e.target as HTMLTextAreaElement;
+                            target.style.borderColor = "#2563eb";
+                            target.style.boxShadow = "0 0 0 3px rgba(37,99,235,0.16), 0 2px 5px rgba(15,23,42,0.12), inset 0 1px 0 rgba(255,255,255,0.85)";
+                        }}
+                        onBlur={e  => {
+                            const target = e.target as HTMLTextAreaElement;
+                            target.style.borderColor = "rgba(15,23,42,0.16)";
+                            target.style.boxShadow = "0 1px 2px rgba(15,23,42,0.08), 0 7px 18px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,0.85)";
+                        }}
                     />
                 </AxisGroup>
             </div>
