@@ -128,6 +128,29 @@ function readPulseAssistantProfile(): string {
     return "";
 }
 
+/**
+ * Read the active AI connector / assistant profile from the canonical
+ * settingsStore key (`pulseplay:active-ai-profile`). Falls back to the
+ * Pulse legacy genieSettings.assistantProfile slot so users who only ever
+ * configured via the Pulse Console (not Settings → AI → Provider) still
+ * end up with a non-empty profile.
+ *
+ * Pre-existing bug fix: before this, App.tsx initialised `activeConnector`
+ * to "" and only updated it via the wizard or in-app ConnectorPicker.
+ * Settings → AI → Provider writes to `pulseplay:active-ai-profile` but
+ * App.tsx never read it — so a Settings-only change was invisible to
+ * <AISidebar> and the AI request went out with an empty assistantProfile.
+ */
+function readInitialActiveConnector(): string {
+    if (typeof window === "undefined") return "";
+    try {
+        const primary = window.localStorage.getItem("pulseplay:active-ai-profile");
+        if (primary && primary.trim()) return primary.trim();
+    } catch { /* swallow */ }
+    // Fallback: Pulse legacy slot.
+    return readPulseAssistantProfile();
+}
+
 function readInitialUiMode(): UiMode {
     if (typeof window === "undefined") return "pulse";
     try {
@@ -287,7 +310,33 @@ function PlaygroundApp(): React.ReactElement {
     //   activeConnector = X-axis: which AI brain the sidebar talks to
     // Both pickers are independent — any cell of the matrix is valid.
     const [activeVendor, setActiveVendor] = useState<string>(() => readInitialBiVendor());
-    const [activeConnector, setActiveConnector] = useState<string>("");
+    // PRE-EXISTING BUG FIX: `activeConnector` was initialized to "" and only
+    // updated by the wizard's onComplete or the in-app ConnectorPicker.
+    // Settings → AI → Provider writes to `pulseplay:active-ai-profile` via
+    // settingsStore, but App.tsx never read that key — so a Settings-only
+    // change was invisible to <AISidebar>, which then submitted with empty
+    // assistantProfile and the proxy fell through. Hydrating from the
+    // canonical key on mount + subscribing to storage events closes the
+    // gap without forcing a full settingsStore migration of App.tsx state.
+    const [activeConnector, setActiveConnector] = useState<string>(() => readInitialActiveConnector());
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const sync = () => {
+            const fromStorage = readInitialActiveConnector();
+            setActiveConnector(prev => (fromStorage === prev ? prev : fromStorage));
+        };
+        // `storage` fires for cross-tab writes. The settingsStore's
+        // `persistAndBroadcast()` fires `pulseplay:display-change` for
+        // same-tab writes — same channel the Preferences group uses for
+        // live updates. We subscribe to both so Settings → AI → Provider
+        // immediately reaches App-level state.
+        window.addEventListener("storage", sync);
+        window.addEventListener("pulseplay:display-change", sync as EventListener);
+        return () => {
+            window.removeEventListener("storage", sync);
+            window.removeEventListener("pulseplay:display-change", sync as EventListener);
+        };
+    }, []);
     // Phase B of BI Live Controls (Settings IA fix #6). The Power BI embed
     // config now lives in a dedicated cross-tab store (`pulseplay:bi-embed-
     // config`). Editing in Settings → BI → Embed live-updates this hook
