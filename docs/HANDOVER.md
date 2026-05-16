@@ -5,6 +5,34 @@
 
 ---
 
+## 2026-05-16 - Knowledge Base source governance across all modules
+
+**Range:** Rajesh asked to validate source authenticity and extend credible, accountable provenance across all Knowledge Base modules, not only the Chat visualization KB.
+
+### What shipped
+
+- Engaged two read-only research agents:
+  - Chat visualization validation: checked chart rules against official Power BI, Tableau, Databricks, Vega/Vega-Lite, WCAG, and visualization research sources.
+  - Knowledge Base provenance: checked all current module types and recommended source-card, provenance, confidence, review-state, and linter requirements.
+- Added [docs/KNOWLEDGE_BASE_SOURCE_GOVERNANCE.md](KNOWLEDGE_BASE_SOURCE_GOVERNANCE.md) with source-card model, credibility tiers, module-by-module requirements, runtime metadata additions, reviewer workflow, and pack-linter baseline.
+- Updated [pulsepacks/PACK_SPECIFICATION.md](../pulsepacks/PACK_SPECIFICATION.md) so every KB module has explicit provenance expectations.
+- Updated [docs/KNOWLEDGE_BASE_ARCHITECTURE.md](KNOWLEDGE_BASE_ARCHITECTURE.md) to add owner/author/publisher/sourceIds/confidence/source-tier metadata to the conceptual runtime contracts.
+- Expanded [docs/CHAT_VISUALIZATION_KNOWLEDGE_BASE.md](CHAT_VISUALIZATION_KNOWLEDGE_BASE.md) with a richer source register, source-accountable Chat answer format, and stronger `ChartKnowledgeRule` fields.
+- Updated [pulsepacks/cpg-fmcg/knowledge-base/references.md](../pulsepacks/cpg-fmcg/knowledge-base/references.md) to demonstrate source-card tables for standards/identifiers and sustainability frameworks.
+- Updated [docs/AGENT_SYNC.md](AGENT_SYNC.md) with a Claude handoff and LIFO review task.
+
+### Validation
+
+- `git diff --check` passed with only expected LF-to-CRLF working-copy warnings.
+
+### Tripwires
+
+- This is a governance/documentation slice, not a runtime validator yet.
+- The CPG/FMCG reference file is only partially converted to source-card tables; remaining research sections still need conversion.
+- Do not let Chat/AI Insights treat chart rules, prompt IR, prompt context, or KPI formulas as runtime authority until source IDs or SME review state exist.
+
+---
+
 ## 2026-05-16 - Chat visualization knowledge base and Claude handoff add-on
 
 **Range:** Rajesh asked to add a Chat knowledge base covering rules for legacy and modern charts commonly used in current BI/AI dashboard solutions, and to communicate the same to Claude through `AGENT_SYNC.md`.

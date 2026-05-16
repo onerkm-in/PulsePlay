@@ -62,6 +62,7 @@ External reference anchors:
 - [WAI-ARIA Tabs Pattern](https://www.w3.org/WAI/ARIA/apg/patterns/tabs/)
 - [WAI-ARIA Accordion Pattern](https://www.w3.org/WAI/ARIA/apg/patterns/accordion/)
 - [WCAG 2.2 new criteria](https://www.w3.org/WAI/standards-guidelines/wcag/new-in-22/)
+- [Knowledge Base Source Governance](KNOWLEDGE_BASE_SOURCE_GOVERNANCE.md) for the module-by-module provenance contract.
 
 ## Non-Negotiable Principles
 
@@ -73,6 +74,7 @@ External reference anchors:
 6. **Author has final say.** Probe, inference, and AI suggestions can prefill. The author confirms every persisted pack, retrieval profile, source, or high-risk setting.
 7. **Settings is the control room. Knowledge Base is the content library.** Settings selects, validates, and resets. Knowledge Base explains, previews, tests, validates, and later authors.
 8. **Internal-first.** Public marketplace, signed pack registry, public conformance certification, and multi-tenant commercial posture stay in `PUBLIC_OSS_AGENDA.md`.
+9. **Every durable claim is accountable.** Pack content, prompt context, chart guidance, KPI formulas, and vendor capability claims must carry source IDs, owner, authoring body, review date, and confidence. See [KNOWLEDGE_BASE_SOURCE_GOVERNANCE.md](KNOWLEDGE_BASE_SOURCE_GOVERNANCE.md).
 
 ## Conceptual Architecture
 
@@ -158,6 +160,15 @@ interface KnowledgeSource {
         | "manual-upload"
         | "custom";
     owner?: string;
+    authors?: string[];
+    publisher?: string;
+    credibilityTier?:
+        | "tier-1-standard"
+        | "tier-2-official-product"
+        | "tier-3-research"
+        | "tier-4-industry-analysis"
+        | "tier-5-internal-sme"
+        | "tier-6-illustrative";
     status: "draft" | "active" | "paused" | "failed" | "deprecated";
     sensitivity: "public" | "internal" | "confidential" | "restricted";
     scope: {
@@ -177,6 +188,8 @@ interface KnowledgeSource {
     };
     aclRefs: string[];
     sourceUri?: string;
+    sourceRegisterUri?: string;
+    licenseOrUsageNote?: string;
 }
 ```
 
@@ -192,10 +205,16 @@ interface KnowledgeDocument {
     sourceType: KnowledgeSource["sourceType"];
     provenance: {
         system: string;
+        owner?: string;
+        authors?: string[];
+        publisher?: string;
         path?: string;
         version?: string;
         commit?: string;
         lastModifiedAt?: string;
+        lastReviewedAt?: string;
+        sourceIds?: string[];
+        confidence?: "draft" | "reviewed" | "sme-approved" | "deprecated";
     };
     biContext?: {
         vendor?: string;
@@ -243,6 +262,10 @@ interface KnowledgeChunk {
         label: string;
         uri?: string;
         locator?: string;
+        sourceId?: string;
+        credibilityTier?: KnowledgeSource["credibilityTier"];
+        author?: string;
+        publisher?: string;
     }>;
 }
 ```

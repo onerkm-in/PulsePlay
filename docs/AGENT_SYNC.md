@@ -195,7 +195,8 @@ Newest active/review lane first. Keep completed-but-reviewing work above older o
 
 | Lane | Owner | Status | Files / Area | Notes |
 |---|---|---|---|---|
-| Chat visualization knowledge base | Codex (2026-05-16) | done; awaiting Claude review | `docs/CHAT_VISUALIZATION_KNOWLEDGE_BASE.md`, `docs/ARCHITECTURE.md` | Adds Chat-facing rules for legacy and modern chart choice, critique, migration, dashboard composition, persona-aware guidance, and a proposed `ChartKnowledgeRule` runtime shape. |
+| KB source governance / provenance | Codex + research agents (2026-05-16) | done; awaiting Claude review | `docs/KNOWLEDGE_BASE_SOURCE_GOVERNANCE.md`, `pulsepacks/PACK_SPECIFICATION.md`, `docs/KNOWLEDGE_BASE_ARCHITECTURE.md`, `pulsepacks/cpg-fmcg/knowledge-base/references.md` | Defines source-card model, credibility tiers, per-module provenance requirements, runtime metadata additions, and pack-linter rule baseline across all Knowledge Base modules. |
+| Chat visualization knowledge base | Codex + research agent (2026-05-16) | done; awaiting Claude review | `docs/CHAT_VISUALIZATION_KNOWLEDGE_BASE.md`, `docs/ARCHITECTURE.md` | Adds Chat-facing rules for legacy and modern chart choice, critique, migration, dashboard composition, persona-aware guidance, proposed `ChartKnowledgeRule` runtime shape, source register, and source-accountable Chat answer format. |
 | Common AI context model | Codex (2026-05-16, commit `398ae65`) | done; awaiting Claude review | `docs/AI_CONTEXT_CONFIGURATION_MODEL.md`, `playground/src/pulse/setupStep5.tsx`, `playground/src/pulse/style/visual.less`, `setupStep5DomainPresets.test.ts` | Groups shared AI context separately from AI Insights output strategy and Chat-specific behavior; links domain, custom-section presets, and metric-rule presets through the same selected domain. Preferred next slice: runtime `DomainContextProfile` from active Knowledge Base pack/sub-vertical metadata. |
 | Setup/settings relationship audit + control depth | Codex (2026-05-16) | done; awaiting Claude review | `docs/SETUP_SETTINGS_RELATIONSHIP_AUDIT.md`, `playground/src/styles.css`, `playground/src/components/FirstRunWizard.tsx` | Maps BI/AI/knowledge/settings dependencies, calls out state-owner drift and connector readiness gaps, and adds low-noise depth treatment to dropdowns/textareas. |
 | Structured prompt/guidance authoring standard | Codex (2026-05-16) | done; awaiting Claude review | `docs/STRUCTURED_AUTHORING_STANDARD.md`, `docs/MODULAR_INTEGRATION_ARCHITECTURE.md` | Standardizes prompt/guidance textareas as guided structured editors with required sections, parameter chips, validation, and compiled middleware preview. |
@@ -229,16 +230,17 @@ LIFO: newest task first. When adding another task, insert it above the current o
 
 **Current Claude-driven queue (lanes either gated or available):**
 
-1. **Available — Review Chat visualization knowledge base and choose storage shape.** Read [CHAT_VISUALIZATION_KNOWLEDGE_BASE.md](CHAT_VISUALIZATION_KNOWLEDGE_BASE.md). Challenge the chart list, legacy-to-modern migration rules, persona defaults, and proposed `ChartKnowledgeRule` shape. Recommend whether the first implementation should be static `chartKnowledgeRules.ts`, PulsePack YAML, or a `DomainContextProfile.visualizationGuidance` block. Codex's bias: seed as data first, then have Chat consume it before any renderer work.
-2. **Available — Review commit `398ae65` common AI context model and choose the next runtime source-of-truth slice.** Read [AI_CONTEXT_CONFIGURATION_MODEL.md](AI_CONTEXT_CONFIGURATION_MODEL.md) and the Coordination Log handoff below. Verify the premise: Knowledge Base pack/sub-vertical should derive domain, custom-section presets, metric semantics, starter questions, Chat/Insights guidance, and prompt/formatting standards. Challenge the first code slice in `setupStep5.tsx`: Section A is now shared common context, preset lists prioritize selected-domain matches, metric presets can seed domain when blank, and `setupStep5DomainPresets.test.ts` locks visible domain/preset drift. Codex's recommendation: do `DomainContextProfile` from pack metadata first, then Chat carry-forward from AI Insights.
-3. **Available — Review setup/settings relationship audit and pick the first implementation slice.** Read [SETUP_SETTINGS_RELATIONSHIP_AUDIT.md](SETUP_SETTINGS_RELATIONSHIP_AUDIT.md). Challenge the state-owner map, connector readiness claims, and implementation sequence. My proposed first slice is `EmbedConfigForm` + Settings BI Embed mode cards: Native / Hybrid / Legacy mode cards, prerequisite badges, extracted ID chips, inline validation, and capability-readiness copy. If architecture foundation must come first, counter-propose the smallest `SetupState` / capability-facade slice instead. Also review the new dropdown/textarea depth treatment for enterprise tone and accessibility.
-4. **Available — Review/challenge structured authoring standard.** Read [STRUCTURED_AUTHORING_STANDARD.md](STRUCTURED_AUTHORING_STANDARD.md). Confirm whether the `StructuredAuthoringEditor` should land before Launchpad, and identify the first field to migrate: Settings AI guidance, Prompt IR authoring, wizard suggested-question textarea, or Knowledge Base notes.
-5. **Available — Review/challenge Codex modular integration architecture.** Read [MODULAR_INTEGRATION_ARCHITECTURE.md](MODULAR_INTEGRATION_ARCHITECTURE.md) and post `[VERIFY]` / `[CHALLENGE]` on: capability registry shape, block manifest lifecycle, linear spine order, Launchpad-first recommendation, typed Databricks asset config, and whether any current shipped block violates the add/remove protocol.
-6. **Gated on Rajesh — RISKS card UX (red ↑ paradox).** Three options outlined in chat: (a) suppress directional ↑ in RISK context, (b) amber for "growing-but-lagging" trichromatic, (c) two-row card. The bp-delta prompt-IR tweak is queued behind this.
-7. **Available — Frame-to-prompt proxy side.** Frontend ships `body.frame` already (commit `738e4e1`); the proxy + translators can consume it to drive backend specialization. Byte-identical for free-text (`frame===undefined`) — Phase 11a translator contracts preserve byte-identity for synthetic IRs.
-8. **Available — Phase 11b dispatcher migration.** Wire `proxy/lib/promptDispatcher.buildBackendPayload()` into the live Genie / Foundation Model / Supervisor handlers. Requires careful byte-identity regression coverage on Genie.
-9. **Available — Per-leaf revert + deep-link copy (Settings IA fix #8).** Small UX polish.
-10. **Gated on environment — Live credentialed smoke** against an org Power BI report + Genie/Supervisor profile + enterprise IdP JWKS. No code work blocks this.
+1. **Available — Review KB source governance and propose first pack-linter rules.** Read [KNOWLEDGE_BASE_SOURCE_GOVERNANCE.md](KNOWLEDGE_BASE_SOURCE_GOVERNANCE.md), [PACK_SPECIFICATION.md](../pulsepacks/PACK_SPECIFICATION.md), and the updated [cpg-fmcg references](../pulsepacks/cpg-fmcg/knowledge-base/references.md). Challenge the credibility tiers, module checklist, runtime metadata fields, and `KB-SRC-001`..`KB-SRC-010` linter baseline. Codex/research-agent recommendation: source-card + linter before runtime ingestion.
+2. **Available — Review Chat visualization knowledge base and choose storage shape.** Read [CHAT_VISUALIZATION_KNOWLEDGE_BASE.md](CHAT_VISUALIZATION_KNOWLEDGE_BASE.md). Challenge the chart list, legacy-to-modern migration rules, persona defaults, source register, and proposed `ChartKnowledgeRule` shape. Recommend whether the first implementation should be static `chartKnowledgeRules.ts`, PulsePack YAML, or a `DomainContextProfile.visualizationGuidance` block. Codex's bias: seed as data first, then have Chat consume it before any renderer work.
+3. **Available — Review commit `398ae65` common AI context model and choose the next runtime source-of-truth slice.** Read [AI_CONTEXT_CONFIGURATION_MODEL.md](AI_CONTEXT_CONFIGURATION_MODEL.md) and the Coordination Log handoff below. Verify the premise: Knowledge Base pack/sub-vertical should derive domain, custom-section presets, metric semantics, starter questions, Chat/Insights guidance, and prompt/formatting standards. Challenge the first code slice in `setupStep5.tsx`: Section A is now shared common context, preset lists prioritize selected-domain matches, metric presets can seed domain when blank, and `setupStep5DomainPresets.test.ts` locks visible domain/preset drift. Codex's recommendation: do `DomainContextProfile` from pack metadata first, then Chat carry-forward from AI Insights.
+4. **Available — Review setup/settings relationship audit and pick the first implementation slice.** Read [SETUP_SETTINGS_RELATIONSHIP_AUDIT.md](SETUP_SETTINGS_RELATIONSHIP_AUDIT.md). Challenge the state-owner map, connector readiness claims, and implementation sequence. My proposed first slice is `EmbedConfigForm` + Settings BI Embed mode cards: Native / Hybrid / Legacy mode cards, prerequisite badges, extracted ID chips, inline validation, and capability-readiness copy. If architecture foundation must come first, counter-propose the smallest `SetupState` / capability-facade slice instead. Also review the new dropdown/textarea depth treatment for enterprise tone and accessibility.
+5. **Available — Review/challenge structured authoring standard.** Read [STRUCTURED_AUTHORING_STANDARD.md](STRUCTURED_AUTHORING_STANDARD.md). Confirm whether the `StructuredAuthoringEditor` should land before Launchpad, and identify the first field to migrate: Settings AI guidance, Prompt IR authoring, wizard suggested-question textarea, or Knowledge Base notes.
+6. **Available — Review/challenge Codex modular integration architecture.** Read [MODULAR_INTEGRATION_ARCHITECTURE.md](MODULAR_INTEGRATION_ARCHITECTURE.md) and post `[VERIFY]` / `[CHALLENGE]` on: capability registry shape, block manifest lifecycle, linear spine order, Launchpad-first recommendation, typed Databricks asset config, and whether any current shipped block violates the add/remove protocol.
+7. **Gated on Rajesh — RISKS card UX (red ↑ paradox).** Three options outlined in chat: (a) suppress directional ↑ in RISK context, (b) amber for "growing-but-lagging" trichromatic, (c) two-row card. The bp-delta prompt-IR tweak is queued behind this.
+8. **Available — Frame-to-prompt proxy side.** Frontend ships `body.frame` already (commit `738e4e1`); the proxy + translators can consume it to drive backend specialization. Byte-identical for free-text (`frame===undefined`) — Phase 11a translator contracts preserve byte-identity for synthetic IRs.
+9. **Available — Phase 11b dispatcher migration.** Wire `proxy/lib/promptDispatcher.buildBackendPayload()` into the live Genie / Foundation Model / Supervisor handlers. Requires careful byte-identity regression coverage on Genie.
+10. **Available — Per-leaf revert + deep-link copy (Settings IA fix #8).** Small UX polish.
+11. **Gated on environment — Live credentialed smoke** against an org Power BI report + Genie/Supervisor profile + enterprise IdP JWKS. No code work blocks this.
 
 **Codex review queue (when Rajesh invokes a scan):**
 
@@ -616,6 +618,38 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 ## Coordination Log
 
 Add newest entries at the top of this section.
+
+### 2026-05-16 - Codex + research agents — Knowledge Base source governance for all modules
+
+`[DONE]` Engaged two read-only research agents:
+
+- Visualization validation agent: checked [CHAT_VISUALIZATION_KNOWLEDGE_BASE.md](CHAT_VISUALIZATION_KNOWLEDGE_BASE.md) against official Power BI, Tableau, Databricks, Vega-Lite, WCAG, and visualization research sources.
+- KB provenance agent: checked every current Knowledge Base module type and recommended source-card, provenance, confidence, review-state, and linter requirements.
+
+`[IMPLEMENTED]`
+
+- Added [KNOWLEDGE_BASE_SOURCE_GOVERNANCE.md](KNOWLEDGE_BASE_SOURCE_GOVERNANCE.md): module-by-module provenance checklist, source-card model, credibility tiers, runtime metadata additions, reviewer workflow, and pack-linter rule baseline.
+- Updated [PACK_SPECIFICATION.md](../pulsepacks/PACK_SPECIFICATION.md): every Knowledge Base module now has explicit source/provenance expectations.
+- Updated [KNOWLEDGE_BASE_ARCHITECTURE.md](KNOWLEDGE_BASE_ARCHITECTURE.md): KnowledgeSource, KnowledgeDocument, and KnowledgeChunk contracts now carry owner/author/publisher/sourceIds/confidence/source-tier metadata.
+- Updated [CHAT_VISUALIZATION_KNOWLEDGE_BASE.md](CHAT_VISUALIZATION_KNOWLEDGE_BASE.md): added richer source register, source-accountable Chat answer format, `ChartKnowledgeRule.sourceRefs[]`, claim strength/type, confidence, and modular rule-file recommendation.
+- Updated [PACKS.md](PACKS.md) and [ARCHITECTURE.md](ARCHITECTURE.md) to point pack authors and reviewers to the source-governance doc.
+- Converted the first part of [cpg-fmcg references](../pulsepacks/cpg-fmcg/knowledge-base/references.md) from bibliography bullets into source-card tables with stable source IDs for standards/identifiers and sustainability frameworks.
+
+`[RESEARCH-AGENT FINDINGS INCORPORATED]`
+
+- Source register must be machine-readable eventually; Markdown source-card tables are the v0.x bridge.
+- "Standard practice" is not audit-grade unless tied to source IDs or SME approval.
+- Product capability claims stale quickly; official vendor docs must be cited for Power BI, Databricks, Tableau, OpenAI/Azure/AWS retrieval behavior.
+- Prompt IR and prompt context are runtime-adjacent and need provenance before becoming hidden policy.
+- Demo configs must declare `illustrative` and `noRealCustomerClaim`.
+- Retrieved KB content must remain untrusted input; cite OWASP/NIST/AWS caveats when designing runtime controls.
+
+`[CLAUDE ASK]`
+
+1. Review the source governance model before extending runtime.
+2. Challenge credibility tiers and the proposed linter IDs `KB-SRC-001` through `KB-SRC-010`.
+3. Recommend the first implementation slice: convert the rest of `cpg-fmcg/references.md` to source-card rows, add audit headers to all Markdown KB modules, or add a docs-only pack-linter spec.
+4. Do not let Chat/AI Insights consume chart rules, prompt IR, or KPI formulas as runtime authority until source IDs or SME review state exist.
 
 ### 2026-05-16 - Codex — Chat visualization knowledge base add-on
 

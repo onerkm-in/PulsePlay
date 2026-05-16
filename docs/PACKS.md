@@ -80,6 +80,8 @@ For internal-org packs:
 - Lint pack against the spec on commit
 - Mark scaffolded content and SME review gaps explicitly in `MIGRATION_NOTES.md`
 - Require citations for standards, formulas, statistics, and external claims
+- Maintain a source register with stable source IDs, credibility tiers, owner/review metadata, and limitations for paywalled or partially verified sources. See [KNOWLEDGE_BASE_SOURCE_GOVERNANCE.md](KNOWLEDGE_BASE_SOURCE_GOVERNANCE.md).
+- Treat prompt-context, Prompt IR, chart rules, and KPI formulas as runtime-adjacent content. They need source IDs or SME approval before being treated as system authority.
 
 For (future) public packs:
 
@@ -96,6 +98,7 @@ Brutal honesty: PulsePlay currently has pack content plus prompt-context injecti
 ## Related docs
 
 - [pulsepacks/PACK_SPECIFICATION.md](../pulsepacks/PACK_SPECIFICATION.md) — the contract every pack implements
+- [KNOWLEDGE_BASE_SOURCE_GOVERNANCE.md](KNOWLEDGE_BASE_SOURCE_GOVERNANCE.md) — provenance, source-card, source-tier, and pack-linter baseline
 - [pulsepacks/cpg-fmcg/README.md](../pulsepacks/cpg-fmcg/README.md) — the first reference pack
 - [inherited/CPG_FMCG_ENTERPRISE_BLUEPRINT.md](inherited/CPG_FMCG_ENTERPRISE_BLUEPRINT.md) — inherited CPG/FMCG blueprint reference
 - [ARCHITECTURE.md](ARCHITECTURE.md) — how packs plug into the proxy and the playground

@@ -1,34 +1,60 @@
-# CPG-FMCG References
+# CPG-FMCG References And Source Register
 
-Authoritative external sources organised by sub-vertical and theme. URLs were checked at authoring time; entries that could not be verified end-to-end are marked `[unverified]`.
+> **Owner:** CPG/FMCG pack maintainers
+> **Author:** PulsePlay scaffold, SME review pending
+> **Last reviewed:** 2026-05-16
+> **Source register:** this file
+> **Confidence:** draft
+
+Authoritative external sources organised by sub-vertical and theme. Each durable pack claim should cite a stable source ID from this register. URLs were checked at authoring time; entries that could not be verified end-to-end are marked `[unverified]`, `[paywalled]`, `[partial]`, or `[requires-membership]`.
+
+## Source card format
+
+```yaml
+sourceId: "GS1-BARCODES"
+title: "GS1 barcodes and identification standards"
+publisher: "GS1"
+authors: ["GS1 standards body"]
+sourceType: "standard"
+url: "https://www.gs1.org/standards/barcodes"
+sourceDate: null
+lastVerifiedAt: "2026-05-16"
+credibilityTier: "tier-1-standard"
+usageNote: "Cite only; do not copy controlled standard text."
+claimScope: ["product identifiers", "GTIN", "GLN", "SSCC", "barcodes"]
+```
 
 ## Standards bodies and identifiers
 
-- **GS1 General Specifications** (GTIN, GLN, SSCC, EAN/UPC barcodes) — https://www.gs1.org/standards/barcodes
-- **GS1 Digital Link** — https://www.gs1.org/standards/gs1-digital-link
-- **ISA-95 / IEC 62264 enterprise-control system integration** — https://www.isa.org/standards-and-publications/isa-standards/isa-95-standard
-- **ISO 22400 manufacturing operations management KPIs** — https://www.iso.org/standard/56847.html
-- **OPC Foundation (OPC UA industrial interoperability)** — https://opcfoundation.org/
-- **Codex Alimentarius (HACCP)** — https://www.fao.org/fao-who-codexalimentarius/en/
-- **GFSI (food-safety scheme benchmarking)** — https://mygfsi.com/
-- **FSSC 22000** — https://www.fssc.com/
-- **BRCGS** — https://www.brcgs.com/
-- **SQF Institute** — https://www.sqfi.com/
+| Source ID | Organisation / publisher | Title | Source type | URL | Verified | Tier | Claim scope |
+|---|---|---|---|---|---|---|---|
+| `GS1-BARCODES` | GS1 | GS1 barcodes and identification standards | Standard | https://www.gs1.org/standards/barcodes | 2026-05-16 | `tier-1-standard` | GTIN, GLN, SSCC, EAN/UPC, product/location/logistics identifiers |
+| `GS1-DIGITAL-LINK` | GS1 | GS1 Digital Link | Standard | https://www.gs1.org/standards/gs1-digital-link | 2026-05-16 | `tier-1-standard` | Digital product identity and web-addressable product links |
+| `ISA-95` | International Society of Automation / IEC | ISA-95 / IEC 62264 enterprise-control system integration | Standard | https://www.isa.org/standards-and-publications/isa-standards/isa-95-standard | 2026-05-16 | `tier-1-standard` | Enterprise-control integration, manufacturing operations hierarchy |
+| `ISO-22400` | International Organization for Standardization | ISO 22400 manufacturing operations management KPIs | Standard | https://www.iso.org/standard/56847.html | 2026-05-16 | `tier-1-standard` | Manufacturing KPI definitions and formula authority |
+| `OPC-UA` | OPC Foundation | OPC UA industrial interoperability | Standard / technical specification | https://opcfoundation.org/ | 2026-05-16 | `tier-1-standard` | Industrial interoperability and plant-floor connectivity |
+| `CODEX-HACCP` | FAO / WHO Codex Alimentarius | HACCP and food-safety standards | Standard | https://www.fao.org/fao-who-codexalimentarius/en/ | 2026-05-16 | `tier-1-standard` | Food safety, hazard analysis, critical control points |
+| `GFSI` | Global Food Safety Initiative | Food-safety scheme benchmarking | Standard / benchmarking body | https://mygfsi.com/ | 2026-05-16 | `tier-1-standard` | Food safety scheme benchmarking |
+| `FSSC-22000` | Foundation FSSC | FSSC 22000 food safety management certification | Standard / certification scheme | https://www.fssc.com/ | 2026-05-16 | `tier-1-standard` | Food safety management certification |
+| `BRCGS` | BRCGS | Global standards for brand reputation and compliance | Standard / certification scheme | https://www.brcgs.com/ | 2026-05-16 | `tier-1-standard` | Food safety and consumer product compliance |
+| `SQFI` | SQF Institute | Safe Quality Food program | Standard / certification scheme | https://www.sqfi.com/ | 2026-05-16 | `tier-1-standard` | Food safety and quality certification |
 
 ## Sustainability frameworks
 
-- **GHG Protocol Corporate Standard** — https://ghgprotocol.org/corporate-standard
-- **GHG Protocol Scope 2 Guidance** — https://ghgprotocol.org/scope-2-guidance
-- **GHG Protocol Corporate Value Chain (Scope 3) Standard** — https://ghgprotocol.org/standards/scope-3-standard
-- **GRI Standards** — https://www.globalreporting.org/standards/
-- **SASB Standards** (now under IFRS Foundation) — https://sasb.ifrs.org/standards/
-- **TCFD Recommendations** — https://www.fsb-tcfd.org/recommendations/
-- **IFRS S2 Climate-related Disclosures** — https://www.ifrs.org/issued-standards/ifrs-sustainability-standards-navigator/ifrs-s2-climate-related-disclosures/
-- **EU Corporate Sustainability Reporting Directive (CSRD)** — https://finance.ec.europa.eu/capital-markets-union-and-financial-markets/company-reporting-and-auditing/company-reporting/corporate-sustainability-reporting_en
-- **EFRAG European Sustainability Reporting Standards (ESRS)** — https://www.efrag.org/
-- **CDP (environmental disclosure platform)** — https://www.cdp.net/
-- **Science Based Targets initiative (SBTi)** — https://sciencebasedtargets.org/
-- **SEC The Enhancement and Standardization of Climate-Related Disclosures (final rule, 2024)** — https://www.sec.gov/news/press-release/2024-31
+| Source ID | Organisation / publisher | Title | Source type | URL | Verified | Tier | Claim scope |
+|---|---|---|---|---|---|---|---|
+| `GHG-CORPORATE` | Greenhouse Gas Protocol | Corporate Standard | Standard | https://ghgprotocol.org/corporate-standard | 2026-05-16 | `tier-1-standard` | Scope 1/2 emissions accounting and corporate GHG inventory |
+| `GHG-SCOPE-2` | Greenhouse Gas Protocol | Scope 2 Guidance | Standard | https://ghgprotocol.org/scope-2-guidance | 2026-05-16 | `tier-1-standard` | Location-based and market-based Scope 2 accounting |
+| `GHG-SCOPE-3` | Greenhouse Gas Protocol | Corporate Value Chain (Scope 3) Standard | Standard | https://ghgprotocol.org/standards/scope-3-standard | 2026-05-16 | `tier-1-standard` | Scope 3 category accounting |
+| `GRI-STANDARDS` | Global Reporting Initiative | GRI Standards | Standard | https://www.globalreporting.org/standards/ | 2026-05-16 | `tier-1-standard` | Sustainability reporting topics and disclosures |
+| `SASB-IFRS` | IFRS Foundation / SASB Standards | SASB Standards | Standard | https://sasb.ifrs.org/standards/ | 2026-05-16 | `tier-1-standard` | Industry materiality and sustainability disclosure topics |
+| `TCFD` | Financial Stability Board / TCFD | TCFD Recommendations | Framework | https://www.fsb-tcfd.org/recommendations/ | 2026-05-16 | `tier-1-standard` | Climate governance, strategy, risk, metrics and targets |
+| `IFRS-S2` | IFRS Foundation / ISSB | IFRS S2 Climate-related Disclosures | Standard | https://www.ifrs.org/issued-standards/ifrs-sustainability-standards-navigator/ifrs-s2-climate-related-disclosures/ | 2026-05-16 | `tier-1-standard` | Climate-related disclosure requirements |
+| `EU-CSRD` | European Commission | Corporate Sustainability Reporting Directive | Regulation | https://finance.ec.europa.eu/capital-markets-union-and-financial-markets/company-reporting-and-auditing/company-reporting/corporate-sustainability-reporting_en | 2026-05-16 | `tier-1-standard` | EU sustainability reporting scope and obligations |
+| `EFRAG-ESRS` | EFRAG | European Sustainability Reporting Standards | Standard | https://www.efrag.org/ | 2026-05-16 | `tier-1-standard` | ESRS disclosure standards |
+| `CDP` | CDP | Environmental disclosure platform | Framework / platform | https://www.cdp.net/ | 2026-05-16 | `tier-1-standard` | Environmental disclosure and scoring context |
+| `SBTI` | Science Based Targets initiative | Science-based emissions targets | Framework | https://sciencebasedtargets.org/ | 2026-05-16 | `tier-1-standard` | Emissions target setting |
+| `SEC-CLIMATE-2024` | U.S. Securities and Exchange Commission | Enhancement and Standardization of Climate-Related Disclosures final rule press release | Regulation / official release | https://www.sec.gov/news/press-release/2024-31 | 2026-05-16 | `tier-1-standard` | U.S. climate disclosure rule context |
 
 ## Supply chain research
 
