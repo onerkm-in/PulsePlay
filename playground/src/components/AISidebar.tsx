@@ -62,10 +62,16 @@ export interface AISidebarProps {
     /** When set (non-null, non-empty), AISidebar auto-submits this
      *  question exactly once on the next render. Used by the first-run
      *  wizard's "Done & ask" finish action so the user sees a live AI
-     *  response the moment the wizard closes. Idempotent — repeated
-     *  renders with the same value do NOT re-submit; only a different
-     *  value triggers another submission. */
-    autoSubmitQuestion?: string | null;
+     *  response the moment the wizard closes. String values keep the
+     *  legacy "once per unique question" behavior; event values use
+     *  `id` so two separate wizard completions can submit the same
+     *  question intentionally. */
+    autoSubmitQuestion?: AutoSubmitQuestionEvent | string | null;
+}
+
+export interface AutoSubmitQuestionEvent {
+    id:       string | number;
+    question: string;
 }
 
 export type AISidebarStatus =
@@ -290,10 +296,10 @@ export function AISidebar(props: AISidebarProps) {
      *  flight, so the elapsed-time counter updates in the UI. */
     const [, setNowTick] = useState(0);
 
-    /** Tracks the most recently auto-submitted question so the same value
-     *  flowing through props.autoSubmitQuestion doesn't re-fire ask().
-     *  Wizard's "Done & ask" → handleWizardComplete sets this on App state
-     *  → AISidebar consumes it once and remembers the value. */
+    /** Tracks the most recently auto-submitted event signature so a
+     *  prop-only re-render doesn't re-fire ask(). Wizard completions pass
+     *  an incrementing id, which keeps a later same-question completion
+     *  distinct from an accidental same-prop render. */
     const autoSubmittedRef = useRef<string | null>(null);
     /** Per-entry abort controllers for in-flight fetches. */
     const abortControllers = useRef<Map<number, AbortController>>(new Map());
@@ -484,13 +490,16 @@ export function AISidebar(props: AISidebarProps) {
     };
 
     /** Auto-submit on prop change — wizard's "Done & ask" path. Fires
-     *  exactly once per unique props.autoSubmitQuestion value. Repeated
-     *  renders with the same value do not re-submit. */
+     *  once per legacy string value, or once per event id when the caller
+     *  supplies an event object. */
     useEffect(() => {
-        const q = (props.autoSubmitQuestion || "").trim();
+        const auto = props.autoSubmitQuestion;
+        if (!auto) return;
+        const q = (typeof auto === "string" ? auto : auto.question).trim();
         if (!q) return;
-        if (autoSubmittedRef.current === q) return;
-        autoSubmittedRef.current = q;
+        const signature = typeof auto === "string" ? `question:${q}` : `event:${String(auto.id)}`;
+        if (autoSubmittedRef.current === signature) return;
+        autoSubmittedRef.current = signature;
         // Fire-and-forget; ask() handles its own state + error paths.
         void ask(q);
         // eslint-disable-next-line react-hooks/exhaustive-deps

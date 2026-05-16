@@ -179,6 +179,7 @@ describe("Leaf Copy link button (Settings IA fix #8)", () => {
         for (const btn of Array.from(buttons)) {
             const aria = btn.getAttribute("aria-label");
             expect(aria).toMatch(/^Copy link to /);
+            expect(btn.textContent).toBe("Copy link");
         }
         unmount(state);
     });

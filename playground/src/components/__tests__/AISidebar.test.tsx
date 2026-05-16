@@ -159,6 +159,40 @@ describe("AISidebar", () => {
         unmount(state);
     });
 
+    it("autoSubmitQuestion event id allows a later wizard run to ask the same question again", async () => {
+        const fetchMock = vi.fn().mockResolvedValue(
+            jsonResponse({ status: "COMPLETED", content: "answer" }),
+        );
+        globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+        const state = mount(
+            <AISidebar
+                activeVendor="generic-iframe"
+                activeConnector="genie-default"
+                recentEvents={[]}
+                autoSubmitQuestion={{ id: 1, question: "Repeat me" }}
+            />,
+        );
+        await act(async () => { await Promise.resolve(); });
+        await act(async () => { await Promise.resolve(); });
+
+        await act(async () => {
+            state.root.render(
+                <AISidebar
+                    activeVendor="generic-iframe"
+                    activeConnector="genie-default"
+                    recentEvents={[]}
+                    autoSubmitQuestion={{ id: 2, question: "Repeat me" }}
+                />,
+            );
+        });
+        await act(async () => { await Promise.resolve(); });
+        await act(async () => { await Promise.resolve(); });
+
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        unmount(state);
+    });
+
     it("autoSubmitQuestion null/empty does NOT trigger ask()", async () => {
         const fetchMock = vi.fn();
         globalThis.fetch = fetchMock as unknown as typeof fetch;

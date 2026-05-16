@@ -178,10 +178,11 @@ export interface FirstRunWizardProps {
  * before mounting. Reads localStorage directly.
  *
  * Force flag: if `pulseplay:wizard-force` is set (written by `forceWizard()`),
- * the wizard shows regardless of hasEmbedConfig / hasConnector state.  This
- * is the "Re-run setup wizard" path — the user already has config but wants
- * to re-run the flow. The force flag is a single-use signal: it is consumed
- * here and must be cleared by the wizard's Done / Skip paths via clearDraft().
+ * the wizard shows regardless of hasEmbedConfig / hasConnector state, but only
+ * when there is at least one visible BI vendor. This is the "Re-run setup
+ * wizard" path — the user already has config but wants to re-run the flow. The
+ * force flag is a single-use signal: it is consumed here and must be cleared
+ * by the wizard's Done / Skip paths via clearDraft().
  */
 export function shouldShowWizard(args: {
     hasEmbedConfig:   boolean;
@@ -189,14 +190,16 @@ export function shouldShowWizard(args: {
     vendorsAvailable: boolean;
 }): boolean {
     if (typeof window === "undefined") return false;
+    if (!args.vendorsAvailable) return false;
     try {
-        // Force flag overrides everything — "Re-run setup wizard" path.
+        // Force flag overrides configured-state gates — "Re-run setup
+        // wizard" path. Vendor availability remains a hard prerequisite so
+        // the wizard cannot open into a dead-end Step 2.
         if (window.localStorage.getItem(WIZARD_FORCE_KEY) === "true") return true;
     } catch { /* swallow */ }
     try {
         if (window.localStorage.getItem(WIZARD_DISMISSED_KEY) === "true") return false;
     } catch { /* swallow */ }
-    if (!args.vendorsAvailable) return false;
     return !args.hasEmbedConfig && !args.hasConnector;
 }
 

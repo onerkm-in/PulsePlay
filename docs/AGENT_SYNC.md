@@ -195,6 +195,7 @@ Newest active/review lane first. Keep completed-but-reviewing work above older o
 
 | Lane | Owner | Status | Files / Area | Notes |
 |---|---|---|---|---|
+| Post-Claude review-gap closeout | Codex (2026-05-16) | done; awaiting Claude review | `App.tsx`, `AISidebar.tsx`, `FirstRunWizard.tsx`, `BiGroup.tsx`, focused tests, doc hygiene | `Done & ask` repeat-safe via event id; forced wizard still blocks zero-vendor states; settings copy-link labels use plain text. Validation: focused 73/73, lint, full playground 494/494, build. |
 | KB source governance / provenance | Codex + research agents (2026-05-16) | done; awaiting Claude review | `docs/KNOWLEDGE_BASE_SOURCE_GOVERNANCE.md`, `pulsepacks/PACK_SPECIFICATION.md`, `docs/KNOWLEDGE_BASE_ARCHITECTURE.md`, `pulsepacks/cpg-fmcg/knowledge-base/references.md` | Defines source-card model, credibility tiers, per-module provenance requirements, runtime metadata additions, and pack-linter rule baseline across all Knowledge Base modules. |
 | Chat visualization knowledge base | Codex + research agent (2026-05-16) | done; awaiting Claude review | `docs/CHAT_VISUALIZATION_KNOWLEDGE_BASE.md`, `docs/ARCHITECTURE.md` | Adds Chat-facing rules for legacy and modern chart choice, critique, migration, dashboard composition, persona-aware guidance, proposed `ChartKnowledgeRule` runtime shape, source register, and source-accountable Chat answer format. |
 | Common AI context model | Codex (2026-05-16, commit `398ae65`) | done; awaiting Claude review | `docs/AI_CONTEXT_CONFIGURATION_MODEL.md`, `playground/src/pulse/setupStep5.tsx`, `playground/src/pulse/style/visual.less`, `setupStep5DomainPresets.test.ts` | Groups shared AI context separately from AI Insights output strategy and Chat-specific behavior; links domain, custom-section presets, and metric-rule presets through the same selected domain. Preferred next slice: runtime `DomainContextProfile` from active Knowledge Base pack/sub-vertical metadata. |
@@ -230,6 +231,8 @@ LIFO: newest task first. When adding another task, insert it above the current o
 
 **Current Claude-driven queue (lanes either gated or available):**
 
+**LIFO review now on top:** Review Codex's post-Claude review-gap closeout in `App.tsx`, `AISidebar.tsx`, `FirstRunWizard.tsx`, `BiGroup.tsx`, and the focused tests. Confirm same suggested question can be asked again after a later wizard re-run, forced wizard stays hidden when zero BI vendors are visible, and Settings copy-link labels remain plain enterprise text. Validation claimed: focused 73/73, lint, full playground 494/494, build.
+
 1. **Available — Review KB source governance and propose first pack-linter rules.** Read [KNOWLEDGE_BASE_SOURCE_GOVERNANCE.md](KNOWLEDGE_BASE_SOURCE_GOVERNANCE.md), [PACK_SPECIFICATION.md](../pulsepacks/PACK_SPECIFICATION.md), and the updated [cpg-fmcg references](../pulsepacks/cpg-fmcg/knowledge-base/references.md). Challenge the credibility tiers, module checklist, runtime metadata fields, and `KB-SRC-001`..`KB-SRC-010` linter baseline. Codex/research-agent recommendation: source-card + linter before runtime ingestion.
 2. **Available — Review Chat visualization knowledge base and choose storage shape.** Read [CHAT_VISUALIZATION_KNOWLEDGE_BASE.md](CHAT_VISUALIZATION_KNOWLEDGE_BASE.md). Challenge the chart list, legacy-to-modern migration rules, persona defaults, source register, and proposed `ChartKnowledgeRule` shape. Recommend whether the first implementation should be static `chartKnowledgeRules.ts`, PulsePack YAML, or a `DomainContextProfile.visualizationGuidance` block. Codex's bias: seed as data first, then have Chat consume it before any renderer work.
 3. **Available — Review commit `398ae65` common AI context model and choose the next runtime source-of-truth slice.** Read [AI_CONTEXT_CONFIGURATION_MODEL.md](AI_CONTEXT_CONFIGURATION_MODEL.md) and the Coordination Log handoff below. Verify the premise: Knowledge Base pack/sub-vertical should derive domain, custom-section presets, metric semantics, starter questions, Chat/Insights guidance, and prompt/formatting standards. Challenge the first code slice in `setupStep5.tsx`: Section A is now shared common context, preset lists prioritize selected-domain matches, metric presets can seed domain when blank, and `setupStep5DomainPresets.test.ts` locks visible domain/preset drift. Codex's recommendation: do `DomainContextProfile` from pack metadata first, then Chat carry-forward from AI Insights.
@@ -239,7 +242,7 @@ LIFO: newest task first. When adding another task, insert it above the current o
 7. **Gated on Rajesh — RISKS card UX (red ↑ paradox).** Three options outlined in chat: (a) suppress directional ↑ in RISK context, (b) amber for "growing-but-lagging" trichromatic, (c) two-row card. The bp-delta prompt-IR tweak is queued behind this.
 8. **Available — Frame-to-prompt proxy side.** Frontend ships `body.frame` already (commit `738e4e1`); the proxy + translators can consume it to drive backend specialization. Byte-identical for free-text (`frame===undefined`) — Phase 11a translator contracts preserve byte-identity for synthetic IRs.
 9. **Available — Phase 11b dispatcher migration.** Wire `proxy/lib/promptDispatcher.buildBackendPayload()` into the live Genie / Foundation Model / Supervisor handlers. Requires careful byte-identity regression coverage on Genie.
-10. **Available — Per-leaf revert + deep-link copy (Settings IA fix #8).** Small UX polish.
+10. **Resolved 2026-05-16 — Per-leaf deep-link copy polish.** Deep-link copy is shipped; Codex closeout removed visible emoji labels and left the plain `Copy link` / `Copied` UI for Claude review.
 11. **Gated on environment — Live credentialed smoke** against an org Power BI report + Genie/Supervisor profile + enterprise IdP JWKS. No code work blocks this.
 
 **Codex review queue (when Rajesh invokes a scan):**
@@ -616,6 +619,20 @@ Then check each of these concerns. Post one finding per concern as [RISK] / [ACC
 When Rajesh runs Codex with this prompt, Codex's output should be three blocks (Part 1 reactions / Part 2 audit / Part 3 claim) that Claude can then accept or counter in a follow-up Coordination Log entry.
 
 ## Coordination Log
+
+### 2026-05-16 - Codex - post-Claude review-gap closure
+
+`[CLAIM]` Rajesh approved closing the three review gaps from the latest Codex scan. Scope: `playground/src/App.tsx`, `playground/src/components/AISidebar.tsx`, `playground/src/components/FirstRunWizard.tsx`, `playground/src/settings/groups/BiGroup.tsx`, focused tests, and doc hygiene. Intent: make wizard `Done & ask` repeat-safe via an event token, keep forced wizard hidden when zero BI vendors are available, remove emoji copy-link labels, then post `[DONE]` evidence here for Claude.
+
+`[DONE]` Closed all three gaps. Implementation summary:
+- `AISidebar` now accepts `AutoSubmitQuestionEvent { id, question }` as well as the legacy string shape; event ids de-dupe accidental same-prop renders while allowing a later same-question wizard completion to ask again.
+- `App.tsx` increments the wizard auto-submit event id for each `Done & ask` completion.
+- `shouldShowWizard()` keeps `vendorsAvailable=false` as a hard stop even when `WIZARD_FORCE_KEY` is present, so forced setup cannot open into a no-vendor dead end.
+- Settings BI leaf copy-link labels now render plain `Copy link` / `Copied`.
+
+`[VERIFY]` Focused `npm.cmd test -- FirstRunWizard AISidebar leafScrollAndChips --silent` passed **73/73**; `npm.cmd run lint` passed; full `npm.cmd test -- --silent` passed **494/494**; `npm.cmd run build` passed; `git diff --check` passed with only expected LF-to-CRLF working-copy warnings.
+
+`[HANDOFF]` Claude: please review this as the current LIFO item. No proxy files changed.
 
 ### 2026-05-16 — Claude (gallant-jones-a71415) — end-to-end review + 4 leap features shipped
 

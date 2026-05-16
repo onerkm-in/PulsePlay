@@ -19,7 +19,7 @@ import { BIPanel } from "./biPanel/BIPanel";
 import { listVendors } from "./biPanel/registry";
 import type { BIAdapter, BICapabilities, BICommand, BIEvent, BIEmbedConfig } from "./biPanel/BIAdapter";
 import type powerbi from "./pulse/_adapter/powerbi-visuals-api";
-import { AISidebar } from "./components/AISidebar";
+import { AISidebar, type AutoSubmitQuestionEvent } from "./components/AISidebar";
 import { VendorPicker } from "./components/VendorPicker";
 import { ConnectorPicker } from "./components/ConnectorPicker";
 import { EmbedConfigForm } from "./components/EmbedConfigForm";
@@ -630,9 +630,11 @@ function PlaygroundApp(): React.ReactElement {
     }, [allowlistFailClosed, hasEmbedConfig, activeConnector, visibleVendors.length, wizardForceTick]);
 
     /** Wizard "Done & ask" → AISidebar auto-submit. Captured here and
-     *  passed to AISidebar via the `autoSubmitQuestion` prop; AISidebar
-     *  fires `ask()` once per unique value (de-duped via ref). */
-    const [wizardAutoSubmit, setWizardAutoSubmit] = useState<string | null>(null);
+     *  passed to AISidebar via the `autoSubmitQuestion` prop. The event id
+     *  makes each wizard completion distinct, so intentionally asking the
+     *  same suggested question on a later re-run still fires. */
+    const wizardAutoSubmitSeqRef = useRef(0);
+    const [wizardAutoSubmit, setWizardAutoSubmit] = useState<AutoSubmitQuestionEvent | null>(null);
     /** Persona persistence — remembered across sessions so a re-run of
      *  the wizard pre-selects the user's previous role. Stored in
      *  localStorage to mirror the wizard's existing storage pattern
@@ -673,7 +675,12 @@ function PlaygroundApp(): React.ReactElement {
             // next render. Empty / falsy values clear the arm so a normal
             // "Done" doesn't trigger a stale auto-submit.
             if (picks.autoAsk && picks.suggestedQuestion && picks.suggestedQuestion.trim()) {
-                setWizardAutoSubmit(picks.suggestedQuestion.trim());
+                const question = picks.suggestedQuestion.trim();
+                wizardAutoSubmitSeqRef.current += 1;
+                setWizardAutoSubmit({
+                    id:       wizardAutoSubmitSeqRef.current,
+                    question,
+                });
             } else {
                 setWizardAutoSubmit(null);
             }

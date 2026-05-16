@@ -10,7 +10,7 @@
 // Not tested here (live / env-gated):
 //   • Real connector loading from /api/assistant/profiles
 //   • EmbedConfigForm server-side validation
-//   • autoAsk → AISidebar auto-submit (wired in a future cycle)
+//   • Full App-level wizard mount/unmount flow
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act } from "react";
@@ -73,6 +73,7 @@ afterEach(() => {
     cleanup();
     window.localStorage.removeItem(WIZARD_DISMISSED_KEY);
     window.localStorage.removeItem(WIZARD_DRAFT_KEY);
+    window.localStorage.removeItem(WIZARD_FORCE_KEY);
     vi.restoreAllMocks();
 });
 
@@ -559,6 +560,15 @@ describe("forceWizard + shouldShowWizard force flag (4.5 — RISK-P1 fix)", () =
             hasConnector:     true,
             vendorsAvailable: true,
         })).toBe(true);
+    });
+
+    it("shouldShowWizard keeps zero-vendor deployments hidden even when force flag is set", () => {
+        forceWizard();
+        expect(shouldShowWizard({
+            hasEmbedConfig:   true,
+            hasConnector:     true,
+            vendorsAvailable: false,
+        })).toBe(false);
     });
 
     it("force flag is cleared (consumed) after wizard Done or Skip", async () => {

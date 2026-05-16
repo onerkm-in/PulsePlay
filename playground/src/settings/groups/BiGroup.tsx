@@ -225,7 +225,7 @@ function LeafDeepLinkButton(props: { group: string; slug: string; label: string 
             onClick={handleClick}
             aria-label={`Copy link to ${props.label}`}
             data-testid={`pp-leaf-copy-link-${props.group}-${props.slug}`}
-            title={copied ? "Copied!" : "Copy link to this section"}
+            title={copied ? "Copied" : "Copy link to this section"}
             style={{
                 flexShrink:    0,
                 fontSize:      11,
@@ -239,7 +239,7 @@ function LeafDeepLinkButton(props: { group: string; slug: string; label: string 
                 transition:    "background-color 140ms ease, color 140ms ease",
             }}
         >
-            {copied ? "✓ Copied" : "🔗 Copy link"}
+            {copied ? "Copied" : "Copy link"}
         </button>
     );
 }

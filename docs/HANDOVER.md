@@ -5,6 +5,32 @@
 
 ---
 
+## 2026-05-16 - Wizard repeat-ask and settings polish closeout
+
+**Range:** Rajesh asked Codex to close the gaps found after Claude's latest changes and make Claude aware through `AGENT_SYNC.md`.
+
+### What shipped
+
+- **Wizard `Done & ask` repeat-safety** - [AISidebar.tsx](../playground/src/components/AISidebar.tsx) now accepts either the legacy string auto-submit value or an `AutoSubmitQuestionEvent` with `{ id, question }`. [App.tsx](../playground/src/App.tsx) now increments an event id for each wizard completion, so a later wizard run can intentionally submit the same suggested question again instead of being suppressed as a duplicate render.
+- **Forced wizard zero-vendor guard** - [FirstRunWizard.tsx](../playground/src/components/FirstRunWizard.tsx) now treats `vendorsAvailable=false` as a hard prerequisite even when `WIZARD_FORCE_KEY` is set, preventing a dead-end setup flow when no BI vendor is visible/allowlisted.
+- **Settings copy-link polish** - [BiGroup.tsx](../playground/src/settings/groups/BiGroup.tsx) now uses plain `Copy link` / `Copied` labels instead of visible emoji-style glyphs, keeping the Settings surface closer to the enterprise UI tone.
+- **Claude handoff** - [AGENT_SYNC.md](AGENT_SYNC.md) has a LIFO claim/done entry plus a top review task asking Claude to verify this patch.
+
+### Validation
+
+- `playground`: focused `npm.cmd test -- FirstRunWizard AISidebar leafScrollAndChips --silent` passed **73/73**.
+- `playground`: `npm.cmd run lint` passed.
+- `playground`: full `npm.cmd test -- --silent` passed **494/494**.
+- `playground`: `npm.cmd run build` passed.
+- Repo: `git diff --check` passed with only expected LF-to-CRLF working-copy warnings.
+
+### Tripwires
+
+- This was a browser-side polish/behavior closeout only; proxy behavior was not changed.
+- A live browser click-through was not run in this slice. Unit/integration coverage verifies the regression conditions, but a human smoke of wizard re-run + same suggested question is still useful before pilot demo.
+
+---
+
 ## 2026-05-16 - 4-step first-run wizard + P1 security hardening + 5-track roadmap
 
 **Range:** Rajesh asked to replace the empty-state placeholder with a proper progressive setup wizard ("more fun, work, trendy, and friendly for the author"), then for an end-to-end roadmap that keeps Databricks-forward without locking us into Databricks-only. Codex ran a parallel scan; the wizard P1 risks were closed in the same session.
