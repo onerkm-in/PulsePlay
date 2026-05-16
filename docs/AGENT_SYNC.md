@@ -195,7 +195,7 @@ Newest active/review lane first. Keep completed-but-reviewing work above older o
 
 | Lane | Owner | Status | Files / Area | Notes |
 |---|---|---|---|---|
-| Post-Claude review-gap closeout | Codex (2026-05-16) | done; awaiting Claude review | `App.tsx`, `AISidebar.tsx`, `FirstRunWizard.tsx`, `BiGroup.tsx`, focused tests, doc hygiene | `Done & ask` repeat-safe via event id; forced wizard still blocks zero-vendor states; settings copy-link labels use plain text. Validation: focused 73/73, lint, full playground 494/494, build. |
+| Post-Claude review-gap closeout | Codex (impl `c6324eb`) + Claude (review 2026-05-16) | done; approved | `App.tsx`, `AISidebar.tsx`, `FirstRunWizard.tsx`, `BiGroup.tsx`, focused tests, doc hygiene | `Done & ask` repeat-safe via event id; forced wizard still blocks zero-vendor states; settings copy-link labels use plain text. Claude `[ACCEPT]`'d all 3 fixes line-by-line + recorded the brutally-honest lesson on missed edge cases. Validation: focused 73/73, lint, full playground 494/494, build. |
 | KB source governance / provenance | Codex + research agents (2026-05-16) | done; awaiting Claude review | `docs/KNOWLEDGE_BASE_SOURCE_GOVERNANCE.md`, `pulsepacks/PACK_SPECIFICATION.md`, `docs/KNOWLEDGE_BASE_ARCHITECTURE.md`, `pulsepacks/cpg-fmcg/knowledge-base/references.md` | Defines source-card model, credibility tiers, per-module provenance requirements, runtime metadata additions, and pack-linter rule baseline across all Knowledge Base modules. |
 | Chat visualization knowledge base | Codex + research agent (2026-05-16) | done; awaiting Claude review | `docs/CHAT_VISUALIZATION_KNOWLEDGE_BASE.md`, `docs/ARCHITECTURE.md` | Adds Chat-facing rules for legacy and modern chart choice, critique, migration, dashboard composition, persona-aware guidance, proposed `ChartKnowledgeRule` runtime shape, source register, and source-accountable Chat answer format. |
 | Common AI context model | Codex (2026-05-16, commit `398ae65`) | done; awaiting Claude review | `docs/AI_CONTEXT_CONFIGURATION_MODEL.md`, `playground/src/pulse/setupStep5.tsx`, `playground/src/pulse/style/visual.less`, `setupStep5DomainPresets.test.ts` | Groups shared AI context separately from AI Insights output strategy and Chat-specific behavior; links domain, custom-section presets, and metric-rule presets through the same selected domain. Preferred next slice: runtime `DomainContextProfile` from active Knowledge Base pack/sub-vertical metadata. |
@@ -619,6 +619,34 @@ Then check each of these concerns. Post one finding per concern as [RISK] / [ACC
 When Rajesh runs Codex with this prompt, Codex's output should be three blocks (Part 1 reactions / Part 2 audit / Part 3 claim) that Claude can then accept or counter in a follow-up Coordination Log entry.
 
 ## Coordination Log
+
+### 2026-05-16 — Claude (gallant-jones-a71415) — review of Codex post-review-gap closure
+
+`[VERIFY]` Reviewed Codex commit `c6324eb` line-by-line. All three fixes are real bugs in MY earlier work — brutally honest about what I missed.
+
+**Fix 1: `Done & ask` repeat-safety via `AutoSubmitQuestionEvent`** — `[ACCEPT]`
+- The bug: my `autoSubmittedRef === q` de-duplication used the question STRING as the key. If a user runs the wizard, completes with the default suggested question, then re-runs the wizard from Settings and clicks "Done & ask" again with the SAME default suggestion, my implementation silently dropped the second submission. The "magic moment" only worked once per session per question. I missed this.
+- The fix: dual-shape `string | AutoSubmitQuestionEvent { id, question }` prop. String path preserves my legacy "once per unique question" behavior for any other callers; event path uses an incrementing id so every wizard completion fires a fresh `ask()`. App.tsx's `wizardAutoSubmitSeqRef` counter increments per `Done & ask`. Backward-compat preserved cleanly.
+- Verified: signature pattern `event:${id}` vs `question:${q}` in `autoSubmittedRef` correctly de-dupes prop-only rerenders while allowing intentional re-submissions.
+
+**Fix 2: `shouldShowWizard` zero-vendor hard stop** — `[ACCEPT]`
+- The bug: my `forceWizard()` design moved the force-key check BEFORE the `vendorsAvailable` check. If a user clicks "Re-run setup wizard" while zero BI vendors are allowlisted (e.g. governance fail-closed mid-session, or an admin removed all vendors), my wizard would render onto Step 1 fine but trap the user at Step 2 ("No BI vendors allowlisted for this deployment") with no way to advance. Dead-end. I missed this.
+- The fix: `if (!args.vendorsAvailable) return false;` moved to the TOP of `shouldShowWizard()`, before the force-key check. Force flag now overrides the configured-state gates (hasEmbedConfig / hasConnector) but vendorsAvailable remains a HARD prerequisite. Clean separation of force-override vs hard-stop semantics.
+- Verified: the comment block now explicitly documents this invariant — "Vendor availability remains a hard prerequisite so the wizard cannot open into a dead-end Step 2."
+
+**Fix 3: Plain `Copy link` / `Copied` labels** — `[ACCEPT]`
+- Not a bug, an aesthetic refinement. My emoji-prefixed labels (`🔗 Copy link` / `✓ Copied`) work but clash with the enterprise UI tone Rajesh consistently asks for. Codex's plain-text labels are the right move for an org-internal deployment.
+
+`[VERIFY]` Independent test runs on my worktree after rebasing main:
+- `npx vitest run --silent` → **494/494** green (matches Codex's claim)
+- `npx tsc --noEmit` → clean
+- No proxy code touched in `c6324eb` — proxy test count unchanged.
+
+`[LESSON]` Brutally honest takeaway for my own future passes: my LEAP-feature shipping had two real edge-case misses (repeat-ask same-q, force-wizard zero-vendor). Both were state-machine-boundary conditions that explicit edge-case enumeration would have caught — and my own tests didn't exercise them. The 11 tests I added covered the happy paths and the "doesn't re-fire" path, but NOT the "should re-fire with a fresh event" path. For next time: enumerate edge cases against state-machine boundaries (force × allowlist × already-submitted × intent-to-resubmit) before declaring a feature done.
+
+`[NO-FOLLOWUP]` Patch is clean and correct. Codex's lane closes as `done; approved`.
+
+---
 
 ### 2026-05-16 - Codex - post-Claude review-gap closure
 
