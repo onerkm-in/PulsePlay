@@ -30,7 +30,7 @@ import {
 } from "react";
 import type { PulsePlayAllowlist } from "../types/allowlist";
 import type { PackSelection } from "../components/PackPicker";
-import { writePulseAiVisualSettingsPatch } from "./pulseVisualSettingsStore";
+import { writePulseAiVisualSettingsPatch, writeRawGenieSettingsPatch } from "./pulseVisualSettingsStore";
 
 // ─── Storage keys (mirrors App.tsx + Pulse Cycle H) ───────────────────────
 
@@ -536,7 +536,27 @@ export function SettingsProvider(props: SettingsProviderProps): React.ReactEleme
             }
             if (trimmed) {
                 persistAndBroadcast(KEY.activeAiProfile, trimmed);
+                // Picking a profile via Settings → AI → Provider is the proxy-
+                // mediated path by definition (Settings only knows profile
+                // *names* — the proxy resolves host / spaceId / warehouseId
+                // server-side from proxy/config.json). Auto-populate the
+                // minimum genieSettings fields Pulse's `isConfigured` check
+                // expects so the AI Insights pane doesn't render its "Connect
+                // to Databricks" empty state for a Settings-only setup flow.
+                //
+                // - assistantProfile: the picked profile name
+                // - connectionMode:  "proxy" (was "auto" / unset by default)
+                // - apiBaseUrl:      same-origin in dev (Vite proxies /api/*);
+                //                    deployer should override in production
                 writePulseAiVisualSettingsPatch({ assistantProfile: trimmed });
+                // connectionMode + apiBaseUrl are not in the typed
+                // PulseAiVisualSettings surface — they live in the wider
+                // raw genieSettings JSON. Use the loose-typed helper so
+                // they get persisted + broadcast on the same event.
+                writeRawGenieSettingsPatch({
+                    connectionMode: "proxy",
+                    apiBaseUrl:     (typeof window !== "undefined" && window.location?.origin) || "http://127.0.0.1:8787",
+                });
             } else {
                 removeAndBroadcast(KEY.activeAiProfile);
                 writePulseAiVisualSettingsPatch({ assistantProfile: "" });

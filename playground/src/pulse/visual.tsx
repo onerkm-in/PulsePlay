@@ -2098,11 +2098,17 @@ function App(props: AppProps) {
 
     const activeGenieConfig = activeSpace?.genieConfig;
     const isSupervisorMode = props.settings.connectionMode === "supervisor";
+    // Proxy-mode hosts live in proxy/config.json server-side. The browser
+    // doesn't need to know the Databricks workspace host — it just needs
+    // a proxy URL + a profile name (or space ID). Requiring genieConfig.host
+    // in proxy mode was a leftover from when Pulse only had direct mode
+    // and forced "Connect to Databricks" empty-state on Settings-only flows.
+    // Direct mode still requires host + token + spaceId (no proxy fallback).
     const isConfigured = activeGenieConfig
         ? isSupervisorMode
             ? props.settings.apiBaseUrl.trim().length > 0
             : props.settings.apiBaseUrl.trim().length > 0
-                ? Boolean(activeGenieConfig.host.trim() && ((activeGenieConfig.assistantProfile ?? "").trim().length > 0 || (activeGenieConfig.spaceId ?? "").trim().length > 0))
+                ? Boolean((activeGenieConfig.assistantProfile ?? "").trim().length > 0 || (activeGenieConfig.spaceId ?? "").trim().length > 0)
                 : Boolean(activeGenieConfig.host.trim() && activeGenieConfig.token.trim() && (activeGenieConfig.spaceId ?? "").trim())
         : false;
 

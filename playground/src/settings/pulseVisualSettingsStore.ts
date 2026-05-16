@@ -146,6 +146,40 @@ export function writePulseAiVisualSettingsPatch(patch: Partial<PulseAiVisualSett
     return readPulseAiVisualSettings();
 }
 
+/**
+ * Write arbitrary genieSettings fields (NOT just the Insights-tab subset
+ * tracked by PulseAiVisualSettings). Used by settingsStore.setActiveAiProfile
+ * to auto-populate connectionMode + apiBaseUrl when the user picks an AI
+ * profile via Settings → AI → Provider — those fields aren't part of the
+ * typed Insights surface but Pulse's `isConfigured` check needs them set
+ * for the proxy-mode branch to activate.
+ *
+ * Patch keys flow into `pulseplay:visual-settings:genieSettings` directly;
+ * the function fires the same `pulseplay:visual-settings-change` event
+ * `writePulseAiVisualSettingsPatch` does, so consumers of either bridge
+ * stay in sync.
+ */
+export function writeRawGenieSettingsPatch(patch: Record<string, unknown>): void {
+    if (typeof window === "undefined") return;
+    const existing = readRawGenieSettings();
+    const next = { ...existing, ...patch };
+    try {
+        window.localStorage.setItem(PULSE_GENIE_SETTINGS_KEY, JSON.stringify(next));
+    } catch {
+        /* swallow */
+    }
+    try {
+        window.dispatchEvent(new CustomEvent(PULSE_SETTINGS_EVENT, {
+            detail: {
+                objectName: "genieSettings",
+                properties: patch,
+            },
+        }));
+    } catch {
+        /* swallow */
+    }
+}
+
 export function usePulseAiVisualSettings(): {
     value: PulseAiVisualSettings;
     update: (patch: Partial<PulseAiVisualSettings>) => void;
