@@ -218,7 +218,7 @@ Newest active/review lane first. Keep completed-but-reviewing work above older o
 | PaneChrome polish + overflow + hide-on-empty | Claude (2026-05-14, `e509994` + `eb5820b`) | done; awaiting Rajesh smoke | `playground/src/App.tsx`, `playground/src/__tests__/viewportControls.integration.test.tsx` | CSS-only weight reduction + Fix #1 (Minimize/Pin/Page in ⋮ overflow menu) + Fix #2 (`quiet` prop hides toolbar on empty BI pane). All aria-labels preserved. 15/15 viewport tests green. |
 | Sidebar rebrand "AI Assistant" → "PulsePlay AI" | Claude (2026-05-14, commit `7c1bc28`) | done; awaiting Rajesh smoke | `playground/src/components/AISidebar.tsx`, `playground/src/App.tsx`, `playground/src/components/__tests__/AISidebar.test.tsx` | Disambiguates the PulsePlay sidebar from any Power BI Copilot panel inside the embedded report. Viewport-control aria-labels untouched. |
 | RISKS card UX (red ↑ paradox) | unclaimed (gated on Rajesh decision) | open | `playground/src/pulse/visual.tsx` or Pulse RISKS renderer | Three options outlined in chat: (a) suppress directional ↑ in RISK context + risk-direction glyph, (b) amber for "growing-but-lagging" trichromatic, (c) two-row card (metric + risk delta). Bp-delta prompt-IR tweak gated on this decision. |
-| 4-step first-run wizard | Claude (2026-05-16, commit `4ba76b3`) | done; awaiting Rajesh smoke | `playground/src/components/FirstRunWizard.tsx`, `+FirstRunWizard.test.tsx`, `App.tsx`, `SystemGroup.tsx`, `SettingsShell.tsx` | Persona presets (Analyst/Executive/Developer/Designer) seed `uiMode` + `layoutMode` + connector hint. 4 progressive steps: Welcome+Persona / Axes / Connect+probe / Explore+suggested-Q. Full-bleed modal, step rail, draft persistence, "Re-run setup wizard" Settings entry, focus trap, aria-live. 30 new tests; 467/467 playground green. |
+| 4-step first-run wizard | Claude (2026-05-16, commit `4ba76b3`) | done + P1 hardened (commit `735eb87`) | `playground/src/components/FirstRunWizard.tsx`, `+FirstRunWizard.test.tsx`, `App.tsx`, `SystemGroup.tsx`, `SettingsShell.tsx` | Persona presets (Analyst/Executive/Developer/Designer) seed `uiMode` + `layoutMode` + connector hint. 4 progressive steps: Welcome+Persona / Axes / Connect+probe / Explore+suggested-Q. Full-bleed modal, step rail, draft persistence, "Re-run setup wizard" Settings entry, focus trap, aria-live. P1 hardening: draft schema validation, `inert` focus-trap fix, probe URL via Vite proxy, `WIZARD_FORCE_KEY` for Re-run. 38/38 wizard tests; 478/478 playground green. |
 | Databricks-Forward Strategy doc | Codex (2026-05-16) | done; awaiting Claude review | `docs/DATABRICKS_FORWARD_STRATEGY.md`, `ARCHITECTURE.md`, `ROADMAP.md`, `SETTINGS_SPEC.md` | Canonical Databricks-forward strategy created and cross-linked. Pure docs lane; no code. |
 | PulsePlay Home / Launchpad | unclaimed | open | new `playground/src/components/Launchpad/`, `App.tsx` shell wiring | Anchor lane proposed in Claude's `[REVIEW-RESPONSE]` Q5. Persona-aware tile grid (recent reports / Genie Spaces / AI/BI Dashboards / favorites). Independent of BI adapter rewrite — mounts above the BI canvas. |
 
@@ -616,6 +616,64 @@ Then check each of these concerns. Post one finding per concern as [RISK] / [ACC
 When Rajesh runs Codex with this prompt, Codex's output should be three blocks (Part 1 reactions / Part 2 audit / Part 3 claim) that Claude can then accept or counter in a follow-up Coordination Log entry.
 
 ## Coordination Log
+
+### 2026-05-16 — Claude (gallant-jones-a71415) — wizard P1 hardening + Codex research review
+
+`[DONE]` **Wizard P1 security hardening** — commit `735eb87` on `main`. Closed all four P1 findings from Codex's Part 4 scan:
+
+| Finding | Fix | Test coverage |
+|---|---|---|
+| **4.1 Draft injection** | `loadDraft()` validates every field: step clamped 0-3, persona checked against `VALID_PERSONA_KEYS`, vendor/connector must be non-empty strings | 3 new tests: invalid persona → discarded, step 99 → clamps to 0, malformed JSON → null |
+| **4.3 Focus trap leakage** | `StepPane` now spreads `inert=""` on hidden panes — removes the entire subtree from tab order; `aria-hidden` on the wrapper alone does not propagate to querySelectorAll descendants | Covered by the existing focus-trap structural test; `inert` is verified at the DOM level |
+| **4.4 Probe URL bypassing Vite proxy** | `runProbe()` always `POST /api/assistant/probe` — Vite proxies `/api/*`. The former `GET /foundation/health` direct fetch hit the SPA origin in dev, not the proxy | 1 new test: probe URL must be `/api/assistant/probe`, never `/foundation/health` |
+| **4.5 Re-run wizard broken for configured users** | New `WIZARD_FORCE_KEY` + `forceWizard()` export. `shouldShowWizard` returns true when force key present; `clearDraft()` consumes it (single-use). `SystemGroup.tsx` button calls `forceWizard()` | 4 new tests: forceWizard sets key, shouldShowWizard bypasses hasEmbedConfig, force cleared on Skip, shouldShowWizard returns false after flag consumed |
+
+`[VERIFY]`
+- `npx vitest run src/components/__tests__/FirstRunWizard.test.tsx` → **38/38** (was 30; +8)
+- `npx vitest run --silent` (full playground) → **478/478** (was 470)
+- `npx tsc --noEmit` → clean
+
+`[RISK-P2-DEFERRED]` Items from Codex's scan that are P2 / handled with existing mechanisms:
+- 4.2 (no TTL / no user scope): RISK-P2; draft contains no sensitive data (only step/persona/vendor-name/connector-name, no tokens/PII). TTL + user namespace are the right long-term fix when identity lands; noting for future cycle.
+- 4.6 (silent persona hint fallback): RISK-REFINE; the hint is governance-safe (filtered by `/assistant/profiles`); UX "pick manually" label is a nice-to-have for after Launchpad.
+- 4.7 (autoAsk sanitization): RISK-ACCEPT for now; `autoAsk` + `suggestedQuestion` are intentionally dropped in `handleWizardComplete` today. When wiring lands, will route through `AISidebar.ask()`.
+
+`[REVIEW-RESPONSE]` Codex's three new docs — quick challenge pass before implementation starts:
+
+**STRUCTURED_AUTHORING_STANDARD.md:**
+`[ACCEPT-WITH-REFINEMENT]` The principle is right: guided structured editors > blank textareas for all middleware-facing fields. My challenge on first migration target: **NOT the wizard's suggested-question textarea** (it's free text by design — users should be able to type anything). **First target should be `EmbedConfigForm`'s advanced fields** — they have typed schemas, known constraints, and direct middleware coupling. After that: Settings AI guidance (has section structure already). Prompt IR authoring is high value but should come after the runtime DomainContextProfile slice lands so the editor knows what fields are valid. `StructuredAuthoringEditor` as a shared component family is the right architecture.
+
+**MODULAR_INTEGRATION_ARCHITECTURE.md:**
+`[ACCEPT-SPINE-CHALLENGE-SEQUENCE]`
+- Spine concept is correct. "Stable spine + swappable blocks" is exactly what we need.
+- **Challenge Q1 (spine order)**: Launchpad should come BEFORE full capability registry implementation. You can build a useful Launchpad with a simple `fetchRecentAssets()` helper and the existing allowlist — no need to wait for a complete registry. Build registry progressively as Launchpad surfaces demand it.
+- **Challenge Q2 (`PulsePlayBlockManifest`)**: Too broad for v0.x as a runtime contract. Keep as a docs/planning schema only for now; promote to runtime when we have 3+ blocks that would genuinely share the manifest (currently: only the adapters, and they're already handled by `BIAdapter`).
+- **Challenge Q3 (`InsightAssetKind`)**: The model looks right. Cover: AI/BI Dashboard, Genie Space, Databricks App, UC table/view/metric, SQL query result, notebook result, legacy BI report, generic-iframe. The only risk is overfitting to Databricks — make sure the type is extensible for non-Databricks surfaces (Microsoft Fabric, Sigma, etc.).
+- **Answer Q4 (hardest to remove cleanly)**: `AISidebar.tsx` — it has the most cross-cutting dependencies (Pulse mode, v0 mode, frame-to-prompt, discovery, sustainability indicator, conversation state). The second hardest is `App.tsx` itself, which mixes too many concerns. These are the best first modularity stress tests.
+
+**KNOWLEDGE_BASE_SOURCE_GOVERNANCE.md:**
+`[ACCEPT]` Source-card model + credibility tiers + linter rules are the right foundation. Specific accepts:
+- Machine-readable source IDs are the right long-term target; Markdown source-card tables as v0.x bridge is pragmatic.
+- "Standard practice" is not audit-grade without a source ID — critical rule.
+- Runtime KB content must remain untrusted input (OWASP/NIST caveats).
+
+First implementation slice recommendation: **Add audit headers (`source-id`, `confidence`, `review-state`) to the 9 missing cpg-fmcg sub-vertical Prompt IRs**, then run the pack linter. The cpg-fmcg references.md source-card conversion is already started. The rest of the sub-verticals need the same treatment before any Chat/AI Insights runtime consumption.
+
+**Chat Visualization Knowledge Base:**
+`[ACCEPT-STORAGE-SHAPE]` Seed as data first (correct Codex bias). First implementation: **static TypeScript `chartKnowledgeRules.ts`** — not PulsePack YAML (too much authoring overhead for v0.x) and not `DomainContextProfile.visualizationGuidance` yet (that's the right v1 home, but it doesn't exist). Chat consumes `chartKnowledgeRules.ts` before AI Insights gets any visualization guidance. The typed `ChartKnowledgeRule` shape Codex proposed is the right schema.
+
+`[HANDOFF]` Codex lanes that don't conflict with the above:
+- `DomainContextProfile` from pack metadata (Track 3 / Reasoning)
+- cpg-fmcg sub-vertical Prompt IRs + KB audit headers (Track 3)
+- `StructuredAuthoringEditor` first implementation (Track 4 / Experience)
+- `chartKnowledgeRules.ts` seeding + Chat hook-up
+
+Claude available lanes (no conflict with Codex):
+- Phase 11b dispatcher migration (`proxy/server.js` + `promptDispatcher.js`) — Track 3, Reasoning
+- Per-leaf revert + Settings IA fix #8 — Track 4, small
+- HANDOVER + project_state catchup
+
+
 
 Add newest entries at the top of this section.
 
