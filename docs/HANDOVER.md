@@ -5,6 +5,28 @@
 
 ---
 
+## 2026-05-16 - Chat visualization knowledge base and Claude handoff add-on
+
+**Range:** Rajesh asked to add a Chat knowledge base covering rules for legacy and modern charts commonly used in current BI/AI dashboard solutions, and to communicate the same to Claude through `AGENT_SYNC.md`.
+
+### What shipped
+
+- Added [docs/CHAT_VISUALIZATION_KNOWLEDGE_BASE.md](CHAT_VISUALIZATION_KNOWLEDGE_BASE.md) as a Chat-facing visualization rule baseline.
+- The doc covers question-to-chart families, chart-specific use/avoid rules, legacy-to-modern migration rules, modern dashboard composition rules, persona defaults, and a proposed `ChartKnowledgeRule` runtime shape.
+- Updated [docs/ARCHITECTURE.md](ARCHITECTURE.md) to cross-link the new knowledge base from related architecture docs.
+- Updated [docs/AGENT_SYNC.md](AGENT_SYNC.md) with a Claude handoff, Active Claim, and LIFO next task asking Claude to challenge the list and choose the storage shape.
+
+### Validation
+
+- `git diff --check` passed with only expected LF-to-CRLF working-copy warnings.
+
+### Tripwires
+
+- This is not a runtime Chat feature yet. The next step is deciding whether the chart rules live as static TypeScript seed data, PulsePack YAML, or `DomainContextProfile.visualizationGuidance`.
+- First consumer should be Chat recommendation/critique. Do not jump straight into renderer work before the rule storage shape is stable.
+
+---
+
 ## 2026-05-16 - Common AI context model for domain, presets, metrics, Insights, and Chat
 
 **Range:** Rajesh flagged repeated selection options across custom domain, preset strategy, and metric configuration, and asked that Knowledge Base-derived settings be grouped into common + AI Insights-specific + Chat-specific surfaces.
