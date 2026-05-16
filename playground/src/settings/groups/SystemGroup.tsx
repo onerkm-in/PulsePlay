@@ -12,7 +12,7 @@ import { useSettings } from "../settingsStore";
 import { CurrentValue, Leaf } from "./BiGroup";
 import { useDiagnosticsBuffer } from "../diagnosticsBuffer";
 import { buildExportBundle, downloadExportBundle } from "../exportBundle";
-import { resetWizardDismissal, WIZARD_DRAFT_KEY } from "../../components/FirstRunWizard";
+import { forceWizard } from "../../components/FirstRunWizard";
 
 interface HealthResponse {
     ok?: boolean;
@@ -189,8 +189,11 @@ export function SystemGroup(): React.ReactElement {
                 <button
                     type="button"
                     onClick={() => {
-                        resetWizardDismissal();
-                        try { window.localStorage.removeItem(WIZARD_DRAFT_KEY); } catch { /* swallow */ }
+                        // forceWizard() sets WIZARD_FORCE_KEY + clears dismissal +
+                        // clears draft so shouldShowWizard returns true on the next
+                        // render even when embed config + connector already exist
+                        // (RISK-P1 4.5 fix — the old hard-reload path was broken).
+                        forceWizard();
                         window.location.href = "/";
                     }}
                     style={{

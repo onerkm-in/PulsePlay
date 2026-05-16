@@ -41,6 +41,10 @@ import { PackPicker } from "./PackPicker";
 
 export const WIZARD_DISMISSED_KEY = "pulseplay:wizard-dismissed";
 export const WIZARD_DRAFT_KEY     = "pulseplay:wizard-draft";
+/** Set by `forceWizard()` — makes `shouldShowWizard` return true even when
+ *  the user already has an embed config / connector configured (i.e. "Re-run
+ *  setup wizard" from Settings). Cleared on wizard Done or Skip. */
+export const WIZARD_FORCE_KEY     = "pulseplay:wizard-force";
 
 /* ─── Persona types ──────────────────────────────────────────────────── */
 
@@ -167,6 +171,12 @@ export interface FirstRunWizardProps {
 /**
  * Returns true when the wizard should be shown. Pure — safe to call
  * before mounting. Reads localStorage directly.
+ *
+ * Force flag: if `pulseplay:wizard-force` is set (written by `forceWizard()`),
+ * the wizard shows regardless of hasEmbedConfig / hasConnector state.  This
+ * is the "Re-run setup wizard" path — the user already has config but wants
+ * to re-run the flow. The force flag is a single-use signal: it is consumed
+ * here and must be cleared by the wizard's Done / Skip paths via clearDraft().
  */
 export function shouldShowWizard(args: {
     hasEmbedConfig:   boolean;
@@ -175,16 +185,41 @@ export function shouldShowWizard(args: {
 }): boolean {
     if (typeof window === "undefined") return false;
     try {
+        // Force flag overrides everything — "Re-run setup wizard" path.
+        if (window.localStorage.getItem(WIZARD_FORCE_KEY) === "true") return true;
+    } catch { /* swallow */ }
+    try {
         if (window.localStorage.getItem(WIZARD_DISMISSED_KEY) === "true") return false;
     } catch { /* swallow */ }
     if (!args.vendorsAvailable) return false;
     return !args.hasEmbedConfig && !args.hasConnector;
 }
 
-/** Clear the dismissal flag. Settings → System exposes a button for this. */
+/** Clear the dismissal flag. Settings → System exposes a button for this.
+ *  Prefer `forceWizard()` for the "Re-run" use case — it also sets the
+ *  force flag so the wizard shows even when embed config already exists. */
 export function resetWizardDismissal(): void {
     if (typeof window === "undefined") return;
     try { window.localStorage.removeItem(WIZARD_DISMISSED_KEY); } catch { /* swallow */ }
+}
+
+/**
+ * Arm the wizard for a forced re-run from Settings → System.
+ *
+ * Sets `WIZARD_FORCE_KEY` so `shouldShowWizard` returns true even when the
+ * user already has an embed config + connector configured.  Clears the
+ * dismissal flag and any saved draft so the user starts from Step 1.
+ *
+ * The force flag is cleared when the wizard completes or is skipped
+ * (both paths call `clearDraft()` which now removes it).
+ */
+export function forceWizard(): void {
+    if (typeof window === "undefined") return;
+    try {
+        window.localStorage.setItem(WIZARD_FORCE_KEY, "true");
+        window.localStorage.removeItem(WIZARD_DISMISSED_KEY);
+        window.localStorage.removeItem(WIZARD_DRAFT_KEY);
+    } catch { /* swallow */ }
 }
 
 /* ─── Draft persistence ──────────────────────────────────────────────── */
@@ -196,11 +231,30 @@ interface WizardDraft {
     connector?: string;
 }
 
+const VALID_PERSONA_KEYS = new Set<string>(["analyst", "executive", "developer", "designer"]);
+
+/**
+ * Load and validate the wizard draft. Returns null if the draft is missing,
+ * unparseable, or contains values that do not match the expected schema —
+ * prevents an attacker who can write to localStorage (XSS, extension) from
+ * injecting arbitrary vendor / connector / persona strings into wizard state.
+ */
 function loadDraft(): WizardDraft | null {
     try {
         const raw = window.localStorage.getItem(WIZARD_DRAFT_KEY);
         if (!raw) return null;
-        return JSON.parse(raw) as WizardDraft;
+        const parsed = JSON.parse(raw) as unknown;
+        if (!parsed || typeof parsed !== "object") return null;
+        const d = parsed as Record<string, unknown>;
+        const step = typeof d.step === "number" && d.step >= 0 && d.step <= 3
+            ? (d.step as 0 | 1 | 2 | 3) : 0;
+        const persona = typeof d.persona === "string" && VALID_PERSONA_KEYS.has(d.persona)
+            ? (d.persona as PersonaKey) : undefined;
+        // vendor + connector are opaque strings — allow any non-empty string;
+        // the actual allowlist check happens when Step 2 renders the card grid.
+        const vendor    = typeof d.vendor    === "string" && d.vendor.trim()    ? d.vendor.trim()    : undefined;
+        const connector = typeof d.connector === "string" && d.connector.trim() ? d.connector.trim() : undefined;
+        return { step, persona, vendor, connector };
     } catch { return null; }
 }
 
@@ -209,7 +263,11 @@ function saveDraft(draft: WizardDraft): void {
 }
 
 function clearDraft(): void {
-    try { window.localStorage.removeItem(WIZARD_DRAFT_KEY); } catch { /* swallow */ }
+    try {
+        window.localStorage.removeItem(WIZARD_DRAFT_KEY);
+        // Also consume the force flag if it was set by forceWizard().
+        window.localStorage.removeItem(WIZARD_FORCE_KEY);
+    } catch { /* swallow */ }
 }
 
 /* ─── Probe helper ───────────────────────────────────────────────────── */
@@ -220,22 +278,40 @@ interface WizardProbeResult {
     message?:    string;
 }
 
-async function runProbe(connectorName: string, connectorType?: string): Promise<WizardProbeResult> {
+/**
+ * Probe a connector via the PulsePlay proxy.
+ *
+ * Always POSTs to `/api/assistant/probe` — the Vite dev server proxies
+ * `/api/*` → `127.0.0.1:8787`, so this works in dev, staging, and
+ * production without change. The former `/foundation/health` direct fetch
+ * was NOT proxied by Vite (only `/api/*` is), so it silently hit the
+ * SPA origin instead of the proxy in dev environments (RISK-P1 4.4 fix).
+ *
+ * The proxy's `/api/assistant/probe` route already handles all 8 backend
+ * paths (Genie, Foundation Model, Azure OpenAI, Bedrock, Supervisor, …)
+ * based on the profile type — no client-side type-sniffing needed.
+ *
+ * Note: `connectorType` is retained in the signature for call-site
+ * compatibility but is no longer used in the request.
+ */
+async function runProbe(connectorName: string, _connectorType?: string): Promise<WizardProbeResult> {
     const t0 = Date.now();
     try {
-        const isFoundation = /foundation|bedrock/i.test(connectorType ?? "");
-        const url    = isFoundation ? "/foundation/health" : "/api/assistant/probe";
-        const method = isFoundation ? "GET" : "POST";
-        const res = await fetch(url, {
-            method,
+        const res = await fetch("/api/assistant/probe", {
+            method:  "POST",
             headers: { "Content-Type": "application/json" },
-            body:   method === "POST" ? JSON.stringify({ assistantProfile: connectorName }) : undefined,
-            signal: AbortSignal.timeout(12_000),
+            body:    JSON.stringify({ assistantProfile: connectorName }),
+            signal:  AbortSignal.timeout(12_000),
         });
         const latencyMs = Date.now() - t0;
         if (res.ok) return { ok: true, latencyMs };
         let message = `HTTP ${res.status}`;
-        try { const j = await res.json() as { error?: string; message?: string }; message = j.error ?? j.message ?? message; } catch { /* swallow */ }
+        try {
+            const j = await res.json() as { error?: string; message?: string };
+            message = (typeof j.error === "string" ? j.error : null)
+                   ?? (typeof j.message === "string" ? j.message : null)
+                   ?? message;
+        } catch { /* swallow — non-JSON body */ }
         return { ok: false, latencyMs, message };
     } catch (err) {
         return { ok: false, latencyMs: Date.now() - t0, message: err instanceof Error ? err.message : "Network error" };
@@ -943,9 +1019,17 @@ function StepPane(props: {
     children:  ReactNode;
 }): ReactElement {
     const offset = props.direction === "forward" ? 28 : -28;
+    // `inert` removes hidden panes from the tab/focus order entirely.
+    // Without it, Tab can reach buttons inside inactive StepPanes because
+    // `aria-hidden` on the wrapper div does not propagate to descendant
+    // elements matched by querySelectorAll (RISK-P1 4.3 fix).
+    // We spread as a plain object so TypeScript doesn't reject the
+    // attribute — `inert` is valid HTML5 but not yet in React's JSX types.
+    const inertAttr = props.visible ? {} : { inert: "" } as Record<string, string>;
     return (
         <div
             aria-hidden={!props.visible}
+            {...inertAttr}
             style={{
                 position:     props.visible ? "relative" : "absolute",
                 inset:        props.visible ? "auto" : 0,

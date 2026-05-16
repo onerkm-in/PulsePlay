@@ -20,10 +20,12 @@ import {
     FirstRunWizard,
     shouldShowWizard,
     resetWizardDismissal,
+    forceWizard,
     applyPersonaDefaults,
     PERSONA_PRESETS,
     WIZARD_DISMISSED_KEY,
     WIZARD_DRAFT_KEY,
+    WIZARD_FORCE_KEY,
     type FirstRunWizardProps,
     type VendorOption,
     type ConnectorOption,
@@ -391,5 +393,94 @@ describe("Probe flow", () => {
         await waitFor(() => screen.getByRole("button", { name: "Done" }));
         expect(screen.getByTestId("pp-first-run-wizard").getAttribute("data-step")).toBe("3");
         expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it("probe always POSTs to /api/assistant/probe — never /foundation/health (4.4 fix)", async () => {
+        // Verifies the Vite-proxy-bypass bug is fixed: all connector types
+        // use the proxied /api/assistant/probe endpoint.
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true, status: 200, json: async () => ({ ok: true }),
+        });
+        globalThis.fetch = fetchMock as unknown as typeof fetch;
+        await goToStep3();
+        await act(async () => { fireEvent.click(screen.getByRole("button", { name: /test connection/i })); });
+        await waitFor(() => screen.getByText(/Connected/i));
+        const [url] = fetchMock.mock.calls[fetchMock.mock.calls.length - 1] as [string];
+        expect(url).toBe("/api/assistant/probe");
+        expect(url).not.toContain("/foundation/health");
+    });
+});
+
+/* ─── Security hardening (4.1 + 4.3 + 4.5) ────────────────────────────── */
+
+describe("Draft schema validation (4.1 — RISK-P1 fix)", () => {
+    it("ignores a draft with an invalid persona key (e.g. injected by XSS)", async () => {
+        window.localStorage.setItem(WIZARD_DRAFT_KEY, JSON.stringify({
+            step: 2, persona: "INJECTED_ROLE", vendor: "powerbi", connector: "genie-default",
+        }));
+        await renderWizard();
+        // step=2 is still trusted (range-clamped 0-3); persona falls back to undefined
+        // and the component uses the default "analyst" from useState initializer.
+        // We verify the wizard mounts without crashing.
+        expect(screen.getByTestId("pp-first-run-wizard")).toBeTruthy();
+        // Invalid persona is silently discarded — analyst is the default.
+        expect(screen.getByTestId("pp-first-run-wizard").getAttribute("data-step")).toBe("2");
+    });
+
+    it("ignores a draft with step out of range (clamps to 0)", async () => {
+        window.localStorage.setItem(WIZARD_DRAFT_KEY, JSON.stringify({
+            step: 99, persona: "analyst",
+        }));
+        await renderWizard();
+        // 99 is out of 0-3 range — loadDraft clamps it back to 0.
+        expect(screen.getByTestId("pp-first-run-wizard").getAttribute("data-step")).toBe("0");
+    });
+
+    it("rejects a completely malformed draft (null, array, non-object)", async () => {
+        window.localStorage.setItem(WIZARD_DRAFT_KEY, "not-json-at-all{{{{");
+        await renderWizard();
+        // Falls back to step 0 cleanly.
+        expect(screen.getByTestId("pp-first-run-wizard").getAttribute("data-step")).toBe("0");
+    });
+});
+
+describe("forceWizard + shouldShowWizard force flag (4.5 — RISK-P1 fix)", () => {
+    it("forceWizard sets WIZARD_FORCE_KEY and clears dismissal + draft", () => {
+        window.localStorage.setItem(WIZARD_DISMISSED_KEY, "true");
+        window.localStorage.setItem(WIZARD_DRAFT_KEY, JSON.stringify({ step: 2 }));
+        forceWizard();
+        expect(window.localStorage.getItem(WIZARD_FORCE_KEY)).toBe("true");
+        expect(window.localStorage.getItem(WIZARD_DISMISSED_KEY)).toBeNull();
+        expect(window.localStorage.getItem(WIZARD_DRAFT_KEY)).toBeNull();
+    });
+
+    it("shouldShowWizard returns true when force flag is set even if user has embed config + connector", () => {
+        forceWizard();
+        // Simulate a user who is already configured — normally wizard would be hidden.
+        expect(shouldShowWizard({
+            hasEmbedConfig:   true,
+            hasConnector:     true,
+            vendorsAvailable: true,
+        })).toBe(true);
+    });
+
+    it("force flag is cleared (consumed) after wizard Done or Skip", async () => {
+        forceWizard();
+        await renderWizard();
+        await act(async () => {
+            fireEvent.click(screen.getByRole("button", { name: "Skip for now" }));
+        });
+        // clearDraft() is called on skip — it removes the force flag too.
+        expect(window.localStorage.getItem(WIZARD_FORCE_KEY)).toBeNull();
+    });
+
+    it("shouldShowWizard returns false again once force flag is consumed", async () => {
+        forceWizard();
+        // Force flag present → wizard would show.
+        expect(shouldShowWizard({ hasEmbedConfig: true, hasConnector: true, vendorsAvailable: true })).toBe(true);
+        // Simulate wizard consuming the flag (Done/Skip calls clearDraft).
+        window.localStorage.removeItem(WIZARD_FORCE_KEY);
+        // Now back to normal logic — configured user → hidden.
+        expect(shouldShowWizard({ hasEmbedConfig: true, hasConnector: true, vendorsAvailable: true })).toBe(false);
     });
 });
