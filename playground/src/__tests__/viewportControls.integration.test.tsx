@@ -214,6 +214,16 @@ describe("App viewport controls — default split", () => {
         unmount(state);
     });
 
+    it("keeps Pulse mode BI source read-only and routes edits to Setup", () => {
+        const state = mountApp();
+        const sourcePanel = state.container.querySelector('section[aria-label="BI source"]');
+        expect(sourcePanel).toBeTruthy();
+        expect(sourcePanel?.textContent).toContain("BI source: Power BI");
+        expect(sourcePanel?.querySelector("select")).toBeNull();
+        expect(sourcePanel?.querySelector('button[title="Open Settings → Setup"]')).toBeTruthy();
+        unmount(state);
+    });
+
     it("exposes Maximize inline + Minimize/Pin/Page in the ⋮ overflow menu for each pane", () => {
         const state = mountApp();
         for (const pane of ["ai", "bi"] as const) {

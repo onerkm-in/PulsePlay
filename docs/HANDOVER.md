@@ -5,6 +5,31 @@
 
 ---
 
+## 2026-05-16 - Pulse BI source row made read-only
+
+**Range:** Rajesh pointed at the Pulse-mode BI Tool dropdown and challenged whether that setting still belongs in the AI pane now that Settings › Setup is the single configuration surface.
+
+### What shipped
+
+- Removed the editable BI vendor dropdown from the Pulse-mode BI source row in [App.tsx](../playground/src/App.tsx).
+- Kept the compact read-only BI source/status summary plus `Open setup` / `Review setup` action, so users can see what is active without changing configuration in two places.
+- Added a viewport regression assertion that the Pulse-mode BI source panel contains no `select` and routes edits to Settings › Setup.
+- Updated [AGENT_SYNC.md](AGENT_SYNC.md) so Claude reviews this as part of the setup/readiness IA consolidation.
+
+### Validation
+
+- `playground`: `npm.cmd run lint` passed.
+- `playground`: focused `npm.cmd test -- viewportControls --silent` passed **19/19**.
+- `playground`: full `npm.cmd test -- --silent` passed **503/503**.
+- `playground`: `npm.cmd run build` passed.
+- Repo: `git diff --check` passed with only expected LF-to-CRLF working-copy warnings.
+
+### Tripwire
+
+- Pulse mode should stay streamlined: configuration belongs in Settings › Setup, while the side pane can show current state and deep-link to the setup tree. Do not reintroduce local BI/AI setup controls here unless Settings stops being the source of truth.
+
+---
+
 ## 2026-05-16 - Setup pill + Settings setup tree
 
 **Range:** Rajesh refined the previous IA direction: keep a single top-right pill, but make it a setup/readiness entry that opens one Settings setup tree. The old Pulse-owned `Not connected | Managed` status pill stays retired; the new app-owned pill is configuration readiness, not duplicate console chrome.

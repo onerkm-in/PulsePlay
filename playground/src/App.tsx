@@ -812,13 +812,6 @@ function PlaygroundApp(): React.ReactElement {
                                         activeVendor={activeVendor}
                                         embedConfig={embedConfig}
                                         hasEmbedConfig={hasEmbedConfig}
-                                        onVendorChange={(v) => {
-                                            setActiveVendor(v);
-                                            setEmbedConfig({});
-                                            setRecentEvents([]);
-                                            biAdaptersRef.current.clear();
-                                            setPrimaryBIAdapter(null);
-                                        }}
                                     />
                                     <Suspense fallback={<PulseLoadingState />}>
                                         <PulseShell
@@ -1716,16 +1709,15 @@ function PulseLoadingState(): React.ReactElement {
  * the shared `embedConfigStore` via `useEmbedConfig()` in App.tsx and
  * surfaces a compact status row + deep-link to Settings.
  *
- * The vendor picker stays here — Pulse mode users still need to switch
- * the active vendor without navigating to Settings, and vendor selection
- * is governance-gated but not embed-config authoring.
+ * BI selection is intentionally read-only here. The single authoring
+ * surface is Settings -> Setup, so Pulse mode does not expose a second
+ * vendor picker that can drift from the setup tree.
  */
 function PulseModeBISourcePanel(props: {
     vendors: ReturnType<typeof listVendors>;
     activeVendor: string;
     embedConfig: BIEmbedConfig;
     hasEmbedConfig: boolean;
-    onVendorChange: (vendor: string) => void;
 }) {
     const activeLabel = props.vendors.find(v => v.vendor === props.activeVendor)?.displayName || props.activeVendor;
     // Surface the most useful identifier so the user can confirm at a
@@ -1785,11 +1777,6 @@ function PulseModeBISourcePanel(props: {
                     {props.hasEmbedConfig ? "Review setup ↗" : "Open setup ↗"}
                 </button>
             </div>
-            <VendorPicker
-                vendors={props.vendors}
-                activeVendor={props.activeVendor}
-                onChange={props.onVendorChange}
-            />
         </section>
     );
 }

@@ -195,6 +195,7 @@ Newest active/review lane first. Keep completed-but-reviewing work above older o
 
 | Lane | Owner | Status | Files / Area | Notes |
 |---|---|---|---|---|
+| Pulse-mode BI source row read-only | Codex (2026-05-16) | done; awaiting Claude review | `playground/src/App.tsx`, `playground/src/__tests__/viewportControls.integration.test.tsx`, doc hygiene | Rajesh challenged the remaining Pulse AI pane `BI Tool` dropdown. Codex removed the duplicate editable selector, kept the read-only BI source/readiness summary + Setup handoff, and added a viewport regression that the panel has no `select`. Validation: playground lint, focused viewport controls 19/19, full playground 503/503, build, diff-check. |
 | Setup readiness pill + Settings setup tree | Codex (2026-05-16) | done; awaiting Claude review | `playground/src/App.tsx`, `playground/src/settings/`, `playground/src/pulse/visual.tsx`, settings/viewport tests, doc hygiene | Rajesh clarified the LIFO direction: keep a single top-right pill, but make it a Configure/Setup readiness entry that opens Settings. Shipped `/settings/setup`, shared readiness helper, app header pill, console handoffs to Setup, and removed the unused floating gear/toggle code. Validation: playground lint, focused 55/55, full playground 502/502, build, diff-check. |
 | Settings owns configuration; Console owns status | Codex (2026-05-16) | done; awaiting Claude review | `playground/src/pulse/visual.tsx`, `style/visual.less`, `settings.ts`, `PulseHostStub.ts`, `App.tsx`, `settings/pulseVisualSettingsStore.ts`, `settings/groups/AiGroup.tsx`, settings/viewport tests, doc hygiene | Rajesh rejected duplicated setup functionality and confirmed the full Settings page should own all configuration. Fixed global pill is gone; Console owns status/diagnostics/session/SQL trace + Settings handoff; reachable Console Setup/Display editors are retired; Settings › AI › AI Insights writes Pulse `genieSettings` directly. Canva reference design `DAHJ1oFh42k`. Validation: focused 40/40, lint, full playground 496/496, build, diff-check, Vite HTTP 200. |
 | Post-Claude review-gap closeout | Codex (impl `c6324eb`) + Claude (review 2026-05-16) | done; approved | `App.tsx`, `AISidebar.tsx`, `FirstRunWizard.tsx`, `BiGroup.tsx`, focused tests, doc hygiene | `Done & ask` repeat-safe via event id; forced wizard still blocks zero-vendor states; settings copy-link labels use plain text. Claude `[ACCEPT]`'d all 3 fixes line-by-line + recorded the brutally-honest lesson on missed edge cases. Validation: focused 73/73, lint, full playground 494/494, build. |
@@ -232,6 +233,8 @@ LIFO: newest task first. When adding another task, insert it above the current o
 **Operating-model note (2026-05-14):** Rajesh switched to single-agent beast mode — "you take care of everything don't depend on codex for now, I will run separate scan when needed." All previously Codex-queued lanes (Allowlist fail-closed, BI Live Controls Phase B, Pane chrome Fix #1/#2, Per-leaf revert, Support bundle redaction) have been shipped by Claude. Codex remains the dedicated reviewer when Rajesh kicks off a scan.
 
 **Current Claude-driven queue (lanes either gated or available):**
+
+**LIFO review now on top:** Review Codex's Pulse-mode BI source cleanup. Rajesh pointed at the `BI Tool` dropdown inside the Pulse AI pane and asked whether it belongs there after the Setup consolidation. Codex's answer: no — Pulse mode should show current BI source/readiness only, with changes routed to Settings › Setup. Verify [App.tsx](../playground/src/App.tsx) no longer renders `VendorPicker` inside `PulseModeBISourcePanel`, and [viewportControls.integration.test.tsx](../playground/src/__tests__/viewportControls.integration.test.tsx) asserts the BI source panel has no `select`. Validation claimed: playground lint, focused viewport controls 19/19, full playground 503/503, build, diff-check.
 
 **LIFO design/research item:** Review the interaction-workbench recommendation that came from Rajesh's follow-up on end-user freedom. Best-fit direction: keep the current pane controls as the foundation, then add a first-class **Explore Workbench** layer:
 
@@ -634,6 +637,16 @@ Then check each of these concerns. Post one finding per concern as [RISK] / [ACC
 When Rajesh runs Codex with this prompt, Codex's output should be three blocks (Part 1 reactions / Part 2 audit / Part 3 claim) that Claude can then accept or counter in a follow-up Coordination Log entry.
 
 ## Coordination Log
+
+### 2026-05-16 - Codex - Pulse-mode BI source row read-only
+
+`[CLAIM]` Rajesh challenged the remaining editable `BI Tool` dropdown inside the Pulse AI pane after the setup/readiness consolidation. Scope: `playground/src/App.tsx`, viewport regression test, and doc/agent-sync hygiene.
+
+`[DONE]` Removed `VendorPicker` from `PulseModeBISourcePanel`. The row now only displays current BI source/readiness plus `Open setup` / `Review setup`, so Settings › Setup remains the only configuration authoring path in Pulse mode.
+
+`[VERIFY]` `playground`: `npm.cmd run lint` passed. `playground`: focused `npm.cmd test -- viewportControls --silent` passed 19/19. `playground`: full `npm.cmd test -- --silent` passed 503/503. `playground`: `npm.cmd run build` passed. Repo: `git diff --check` passed with only expected LF-to-CRLF warnings.
+
+`[HANDOFF]` Claude should confirm this does not remove a necessary fast-switch workflow. My recommendation is to keep this read-only in Pulse mode; if fast-switching is needed later, add it as a Setup/Launchpad quick action that updates the same setup state rather than a local pane dropdown.
 
 ### 2026-05-16 - Codex - Setup readiness pill + interaction-workbench research
 
