@@ -32,7 +32,7 @@ import type { PackInfo, PackSelection } from "./components/PackPicker";
 import type { ConnectorProbeResult } from "./types/probe";
 import type { PulsePlayAllowlist } from "./types/allowlist";
 import { probeConnector } from "./lib/probeClient";
-import { SettingsProvider } from "./settings/settingsStore";
+import { SettingsProvider, useSettings } from "./settings/settingsStore";
 import { PULSE_VISUAL_SETTINGS_EVENT } from "./settings/pulseVisualSettingsStore";
 import { SettingsShell } from "./settings/SettingsShell";
 import { useSettingsRoute, navigateToSettings } from "./settings/settingsRoute";
@@ -284,6 +284,14 @@ function AppRouted(): React.ReactElement {
  *  the legacy storage keys for backward compatibility with Pulse Cycle H
  *  and the inline forms. Phase 5 retires those duplicates. */
 function PlaygroundApp(): React.ReactElement {
+    // settingsStore actions — needed by handleWizardComplete to actually
+    // persist the picked AI profile to `pulseplay:active-ai-profile` (which
+    // then mirrors to genieSettings.assistantProfile + auto-populates
+    // connectionMode + apiBaseUrl per settingsStore.setActiveAiProfile).
+    // Without this, the wizard wrote App.tsx local state only — Pulse-mode
+    // AI Insights kept showing "Connect to Databricks" because genieSettings
+    // stayed empty. Discovered by browser smoke test 2026-05-17.
+    const settings = useSettings();
     const vendors = useMemo(() => listVendors(), []);
     const [allowlistState, setAllowlistState] = useState<{
         allowlist: PulsePlayAllowlist | null;
@@ -760,6 +768,33 @@ function PlaygroundApp(): React.ReactElement {
             setPackSelection(picks.packSelection);
             handleUiModeChange(picks.uiMode);
             handleLayoutModeChange(picks.layoutMode as LayoutMode);
+            // ──── Persist AI profile to settingsStore (canonical key) ─────
+            // Without this the wizard only wrote App.tsx local state and
+            // Pulse-mode AI Insights stayed in the "Connect to Databricks"
+            // empty state because genieSettings was never populated. The
+            // settingsStore.setActiveAiProfile() call:
+            //   1. Writes `pulseplay:active-ai-profile`
+            //   2. Mirrors to genieSettings.assistantProfile
+            //   3. Auto-populates genieSettings.connectionMode = "proxy"
+            //      + genieSettings.apiBaseUrl = origin
+            //      (added 2026-05-17 in settingsStore for exactly this gap)
+            //   4. Fires `pulseplay:display-change` so subscribers re-render
+            // Browser smoke test 2026-05-17 caught this missing call.
+            if (picks.connector) {
+                const result = settings.setActiveAiProfile(picks.connector);
+                if (!result.ok) {
+                    // Allowlist refused (e.g. picked-in-wizard but governance
+                    // changed since). Log but don't block the wizard close —
+                    // the user can re-pick from Settings.
+                    // eslint-disable-next-line no-console
+                    console.warn("[handleWizardComplete] setActiveAiProfile refused:", result.reason);
+                }
+            }
+            // Mirror pack selection through settingsStore too so it survives
+            // refresh in the canonical key and triggers governance checks.
+            if (picks.packSelection) {
+                settings.setPackSelection(picks.packSelection);
+            }
             // Persona persistence: write through to localStorage so the
             // next wizard run pre-selects this role.
             setLastPersona(picks.persona);
@@ -779,7 +814,7 @@ function PlaygroundApp(): React.ReactElement {
             }
             setWizardForceTick(t => t + 1);
         },
-        [setEmbedConfig, handleUiModeChange, handleLayoutModeChange],
+        [setEmbedConfig, handleUiModeChange, handleLayoutModeChange, settings],
     );
     const handleWizardDismiss = useCallback(() => {
         // Dismissal flag is already set by FirstRunWizard's onDismiss path.
