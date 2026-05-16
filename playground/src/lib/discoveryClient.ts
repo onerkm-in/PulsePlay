@@ -57,7 +57,12 @@ export interface DiscoverySnapshot {
     expiresAt: string;
     cacheKey: string | null;
     sources: {
-        probe: any;
+        /** Connector probe result snapshot — schema mirrors the
+         *  ConnectorProbeResult from probeClient.ts but kept loose here
+         *  (Record<string, unknown>) so we don't import probe types into
+         *  the discovery contract. Discovery is pre-prompt; probe is
+         *  pre-flight; they're orthogonal. */
+        probe: Record<string, unknown> | null;
         biMetadata: BIMetadata | null;
         packKpis: PackKpi[];
     };
@@ -333,15 +338,16 @@ async function _sha256Hex(value: string): Promise<string> {
 
 function _isSnapshotShape(x: unknown): x is DiscoverySnapshot {
     if (!x || typeof x !== "object") return false;
-    const o = x as any;
+    const o = x as Record<string, unknown>;
     if (o.snapshotVersion !== 1) return false;
     if (typeof o.fetchedAt !== "string") return false;
     if (typeof o.expiresAt !== "string") return false;
     if (!o.sources || typeof o.sources !== "object") return false;
     if (!o.fused || typeof o.fused !== "object") return false;
-    if (!Array.isArray(o.fused.availableKpis)) return false;
-    if (!Array.isArray(o.fused.reachableFrames)) return false;
-    if (!Array.isArray(o.fused.unreachableFrames)) return false;
+    const fused = o.fused as Record<string, unknown>;
+    if (!Array.isArray(fused.availableKpis)) return false;
+    if (!Array.isArray(fused.reachableFrames)) return false;
+    if (!Array.isArray(fused.unreachableFrames)) return false;
     return true;
 }
 
