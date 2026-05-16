@@ -3,6 +3,8 @@
 > **Status:** v0.1.0 scaffold. The architecture below is the contract; the implementation is partial — see `docs/research/CODEBASE_AUDIT.md` for the brutal-honest gap analysis at HEAD.
 >
 > **Scope:** internal-org enabler. Path C — inner-source-first, public-OSS-later. This doc is for engineers and architects working inside the org that owns PulsePlay.
+>
+> **Strategic posture:** Databricks-forward, bridge-friendly, adapter-safe. See [DATABRICKS_FORWARD_STRATEGY.md](DATABRICKS_FORWARD_STRATEGY.md) for the canonical shift-left / shift-middle plan.
 
 ## One sentence
 

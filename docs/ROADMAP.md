@@ -1,6 +1,8 @@
 # PulsePlay Roadmap
 
 > Strategic direction: **Path C — inner-source-first, public-OSS-later.** Scope through v1.x is internal-org enabler. Public-OSS readiness items are tracked separately in [PUBLIC_OSS_AGENDA.md](PUBLIC_OSS_AGENDA.md) so they're not forgotten.
+>
+> Product posture: **Databricks-forward with Power BI as a governed bridge.** See [DATABRICKS_FORWARD_STRATEGY.md](DATABRICKS_FORWARD_STRATEGY.md) before prioritizing new roadmap lanes.
 
 ## v0.1.0 — Foundation (DONE)
 

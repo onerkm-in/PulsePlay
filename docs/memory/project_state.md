@@ -1,6 +1,6 @@
 ---
 name: PulsePlay current state
-description: As of 2026-05-14 (beast-mode catchup) - Allowlist fail-closed P1, BI Live Controls Phase A+B (App.tsx adopts useEmbedConfig), PaneChrome overflow menu + hide-on-empty, support bundle deep redaction, BIAdapter.getMetadata() across Power BI + iframe stubs, sidebar rebrand to "PulsePlay AI", production auth hardening, Power BI embed-token hardening, enterprise allowlist runtime, pack registry foundation, and agent sync doc
+description: As of 2026-05-16 - Databricks-forward strategy is canonical, with prior Allowlist fail-closed P1, BI Live Controls Phase A+B, PaneChrome overflow menu + hide-on-empty, support bundle deep redaction, BIAdapter.getMetadata() across Power BI + iframe stubs, sidebar rebrand to "PulsePlay AI", production auth hardening, Power BI embed-token hardening, enterprise allowlist runtime, pack registry foundation, and agent sync doc
 type: project
 originSessionId: current
 ---
@@ -33,6 +33,7 @@ originSessionId: current
 - **GenericIframeAdapter.getMetadata() = null (commit `0ea3ed0`).** Iframe-only adapters (generic-iframe + Tableau/Qlik/Looker stubs that extend it) now have an explicit `async getMetadata(): Promise<BIMetadata | null> { return null }`. TypeScript discoverability + honest contract documenting why these adapters can't introspect.
 - **Sidebar rebrand "AI Assistant" → "PulsePlay AI" (commit `7c1bc28`).** Disambiguates the PulsePlay sidebar from the Power BI Copilot that may render inside an embedded report. Title in AISidebar + PaneChrome subtitle updated. Viewport-control aria-labels untouched (they refer to the pane axis, not the product).
 - **Databricks-forward option strategy draft (commit `97b6b61`).** Added a discussion draft to [docs/AGENT_SYNC.md](../AGENT_SYNC.md), not canonical architecture yet. Planning frame: Power BI is current-state / transition bridge, Databricks-native assets are the likely destination, and PulsePlay should preserve shift-left and shift-middle optionality through additive adapter evolution rather than a brittle hard pivot.
+- **Databricks-forward canonical strategy (2026-05-16).** Added [docs/DATABRICKS_FORWARD_STRATEGY.md](../DATABRICKS_FORWARD_STRATEGY.md) and cross-linked it from Architecture, Roadmap, and Settings Spec. Codex also appended a strategy/feature-map review plus wizard P1 risk scan to [docs/AGENT_SYNC.md](../AGENT_SYNC.md). Key posture: Databricks-native first, Power BI as governed bridge, `BIAdapter` kept as implementation contract while the broader "insight surface" concept evolves additively.
 - Updated SETTINGS_SPEC § 15 (all HIGH closed; MEDIUM closed/accepted; LOW L17+L18 closed) + § 16 (Phase 6 ticked); updated HANDOVER 2026-05-13 entries (5 separate entries for the five beast-mode cycles); updated AGENDA phase markers; cross-referenced from feature_settings_spec.md.
 
 **Validation:**
@@ -57,6 +58,7 @@ originSessionId: current
 - `playground`: after Allowlist fail-closed P1, full `npx vitest run --silent` passed **421/421** (+9 new: 6 settingsStore + 3 BIPanel.failClosed).
 - `playground`: after PaneChrome Fix #1 + #2, full `npx vitest run --silent` still passed **421/421** (test-helper updates only, no new assertions).
 - `playground`: after GenericIframeAdapter.getMetadata + sidebar rebrand, full `npx vitest run --silent` passed **423/423** (+2 new getMetadata cases). `npx tsc --noEmit` clean.
+- `playground`: after Databricks-forward strategy docs, `npm.cmd run lint` passed clean. No code changed.
 
 **Current limitations / brutal honesty:**
 
@@ -80,8 +82,9 @@ originSessionId: current
 **Next recommended implementation cycle:**
 
 1. **Open UX decision (pending Rajesh):** RISKS card red ↑ paradox. Three options outlined: (a) suppress directional ↑ in RISK context and show only risk-direction glyph, (b) amber for "growing-but-lagging", (c) two-row card (metric + risk delta). Decision should land before any prompt-IR tweak adds bp delta inline.
-2. **Frame-to-prompt wiring — proxy side.** Frontend ships the structured `body.frame` field (commit `738e4e1`) and the `[Selected analysis frame]` content preamble. The proxy + Prompt IR translators can now consume `body.frame` to drive translator behavior (e.g. force the appropriate template variant or pre-filter the IR).
-3. **Live credentialed smoke** against an org Power BI report + Genie/Supervisor profile + enterprise IdP JWKS.
-4. **Phase 11b dispatcher migration** — wire `proxy/lib/promptDispatcher.js` into the live request paths (currently shipped as additive, byte-identical to legacy for Genie). Requires careful byte-identity regression coverage.
-5. **Tableau / Qlik / Looker SDK graduation** (v0.3+) — replace iframe stubs with real SDK adapters; `getMetadata()` becomes useful for those vendors too.
-6. **Strategy alignment:** review the Databricks-forward option strategy in `docs/AGENT_SYNC.md`; if accepted, mirror it into canonical architecture/roadmap/settings docs.
+2. **Wizard hardening P1 bundle.** Draft validation/TTL, focus-trap hidden-pane leakage, Settings re-run wizard force behavior, and foundation probe path/lifecycle are documented in [docs/AGENT_SYNC.md](../AGENT_SYNC.md). Fix before pilot.
+3. **PulsePlay Home / Launchpad.** Per [DATABRICKS_FORWARD_STRATEGY.md](../DATABRICKS_FORWARD_STRATEGY.md), Launchpad is the next product anchor for Databricks assets, recent sessions, warehouse health, packs, guided frames, and migration/bridge workflows.
+4. **Frame-to-prompt translator specialization.** Frontend and proxy already bridge `body.frame`; the next step is making Prompt IR translators specialize output by selected frame.
+5. **Live credentialed smoke** against an org Power BI report + Genie/Supervisor profile + enterprise IdP JWKS.
+6. **Phase 11b dispatcher migration** — wire `proxy/lib/promptDispatcher.js` into the live request paths (currently shipped as additive, byte-identical to legacy for Genie). Requires careful byte-identity regression coverage.
+7. **Tableau / Qlik / Looker SDK graduation** (v0.3+) — replace iframe stubs with real SDK adapters only when an org standardizes on one of those tools.

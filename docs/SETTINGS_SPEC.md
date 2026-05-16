@@ -2,7 +2,7 @@
 
 > **Single source of truth** for the `/settings` surface. Combines information architecture, layout, microcopy, state model, interaction rules, enterprise guardrails, security setup, maintenance, administration, and a loophole audit.
 >
-> **Companion docs:** [KNOWLEDGE_BASE_ARCHITECTURE.md](KNOWLEDGE_BASE_ARCHITECTURE.md), [SECURITY.md](SECURITY.md), [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md), [PROXY_REFERENCE.md](PROXY_REFERENCE.md), [ARCHITECTURE.md](ARCHITECTURE.md), [PACKS.md](PACKS.md).
+> **Companion docs:** [DATABRICKS_FORWARD_STRATEGY.md](DATABRICKS_FORWARD_STRATEGY.md), [KNOWLEDGE_BASE_ARCHITECTURE.md](KNOWLEDGE_BASE_ARCHITECTURE.md), [SECURITY.md](SECURITY.md), [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md), [PROXY_REFERENCE.md](PROXY_REFERENCE.md), [ARCHITECTURE.md](ARCHITECTURE.md), [PACKS.md](PACKS.md).
 >
 > **Last audit:** 2026-05-13. Anchored at HEAD `8fde791`.
 >
@@ -26,6 +26,8 @@ The 2-axis architecture stays intact — the spec, the adapter contracts, the al
 - **Treats Premium workspace + license posture as a first-class status surface** (System group). Authors must see what's licensed, what's not, and what's blocked by governance — without having to ask the admin.
 - **Treats Fabric as explicitly NOT available.** Settings copy and capability readouts call this out so authors don't expect Direct Lake / Dataflow Gen2 / etc.
 - **Treats the org admin/governance team as the authoritative source** for workspace allowlist, capacity allocation, license assignments, AAD app registration, SP secrets, and Genie space access. The Settings page shows status; it does not re-implement those controls.
+
+The forward posture is Databricks-native first with Power BI as a governed bridge. Provider presentation should evolve toward **Native Databricks**, **Hybrid bridge**, and **Legacy external BI** groupings as described in [DATABRICKS_FORWARD_STRATEGY.md](DATABRICKS_FORWARD_STRATEGY.md), without breaking the existing allowlist-filtered provider model.
 
 ### MVP 0.2 deferral list
 

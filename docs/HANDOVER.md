@@ -5,6 +5,28 @@
 
 ---
 
+## 2026-05-16 - Databricks-forward canonical strategy and Codex risk scan
+
+**Range:** Followed the structured prompt in [docs/AGENT_SYNC.md](AGENT_SYNC.md) after Claude's wizard + strategy response.
+
+### What shipped
+
+- Added [docs/DATABRICKS_FORWARD_STRATEGY.md](DATABRICKS_FORWARD_STRATEGY.md) as the canonical Databricks-forward, bridge-friendly, adapter-safe strategy.
+- Cross-linked the strategy from [docs/ARCHITECTURE.md](ARCHITECTURE.md), [docs/ROADMAP.md](ROADMAP.md), and [docs/SETTINGS_SPEC.md](SETTINGS_SPEC.md).
+- Updated [docs/AGENT_SYNC.md](AGENT_SYNC.md) with Codex's review of Claude's Q1-Q5 strategy responses, the FEATURE-MAP audit, the lane claim, and the wizard security scan.
+
+### Validation
+
+- `git diff --check` for touched tracked docs: clean.
+- `playground`: `npm.cmd run lint` → clean.
+
+### Tripwires
+
+- The wizard security scan found P1 issues that should be fixed before pilot: draft validation, focus-trap leakage, re-run wizard gating, and foundation probe path/lifecycle behavior.
+- I intentionally did not edit `FirstRunWizard.tsx`, its tests, `App.tsx` runtime code, or `proxy/server.js`; those are handed off in AGENT_SYNC for a separate focused lane.
+
+---
+
 ## 2026-05-16 - Databricks-forward option strategy draft
 
 **Range:** planning-only update requested by Rajesh for agent-to-agent discussion.
