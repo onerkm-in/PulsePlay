@@ -9,6 +9,7 @@
 // a page refresh. Cross-tab edits also propagate via the `storage`
 // event.
 
+import { useState } from "react";
 import { useSettings } from "../settingsStore";
 import { useEmbedConfig } from "../embedConfigStore";
 import { EmbedConfigForm } from "../../components/EmbedConfigForm";
@@ -186,10 +187,60 @@ export function Leaf(props: { label: string; helper: string; group?: string; chi
                 scrollMarginTop: 90, // leave room for the sticky search + status strip when scrolled into view
             }}
         >
-            <div style={{ fontWeight: 600, fontSize: 14 }}>{props.label}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div data-leaf-label="true" style={{ fontWeight: 600, fontSize: 14, flex: "1 1 auto" }}>{props.label}</div>
+                {props.group && <LeafDeepLinkButton group={props.group} slug={slug} label={props.label} />}
+            </div>
             <p style={{ margin: "2px 0 8px", fontSize: 12, opacity: 0.72, lineHeight: 1.4 }}>{props.helper}</p>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{props.children}</div>
         </article>
+    );
+}
+
+/**
+ * Tiny "Copy link" button next to each leaf header. Settings IA fix #8.
+ *
+ * Generates a path-based deep link (`/settings/<group>/<slug>`) and copies
+ * it to the clipboard. The slug-based scroll-on-mount in `SettingsShell`
+ * will land the recipient on this exact leaf when they paste the link.
+ *
+ * Falls back silently when `navigator.clipboard` is unavailable (older
+ * browsers / insecure context); the "Copied" confirmation is suppressed.
+ */
+function LeafDeepLinkButton(props: { group: string; slug: string; label: string }): React.ReactElement {
+    const [copied, setCopied] = useState(false);
+    const handleClick = async () => {
+        try {
+            const url = `${window.location.origin}/settings/${props.group}/${props.slug}`;
+            if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+                await navigator.clipboard.writeText(url);
+                setCopied(true);
+                window.setTimeout(() => setCopied(false), 1500);
+            }
+        } catch { /* swallow — clipboard blocked or unavailable */ }
+    };
+    return (
+        <button
+            type="button"
+            onClick={handleClick}
+            aria-label={`Copy link to ${props.label}`}
+            data-testid={`pp-leaf-copy-link-${props.group}-${props.slug}`}
+            title={copied ? "Copied!" : "Copy link to this section"}
+            style={{
+                flexShrink:    0,
+                fontSize:      11,
+                padding:       "3px 8px",
+                border:        "1px solid rgba(0,0,0,0.10)",
+                background:    copied ? "rgba(34,197,94,0.10)" : "transparent",
+                color:         copied ? "#166534" : "#64748b",
+                borderRadius:  5,
+                cursor:        "pointer",
+                fontFamily:    "inherit",
+                transition:    "background-color 140ms ease, color 140ms ease",
+            }}
+        >
+            {copied ? "✓ Copied" : "🔗 Copy link"}
+        </button>
     );
 }
 

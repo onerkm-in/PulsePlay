@@ -52,17 +52,18 @@ function unmount(state: MountState): void {
     state.container.remove();
 }
 
-/** Extract rendered leaf labels by scanning the DOM for the structure that
- *  `<Leaf label="…">` produces — a div with the leaf label as its only
- *  immediate child. The existing Leaf renderer (in BiGroup.tsx exports
- *  shared by every group) puts the label at the top of an `<article>`
- *  with `fontWeight: 600`. We use that as the selector. */
+/** Extract rendered leaf labels by scanning the DOM for the label div the
+ *  shared `Leaf` renderer (in BiGroup.tsx exports) marks with the
+ *  `data-leaf-label="true"` attribute. We use the attribute (not first-
+ *  element-child) because Settings IA fix #8 wrapped the label + Copy-link
+ *  button in a flex container, so the article's firstElementChild is now
+ *  that container, not the label itself. */
 function extractRenderedLeafLabels(container: HTMLElement): string[] {
     const out: string[] = [];
     container.querySelectorAll("article").forEach(article => {
-        const firstChild = article.firstElementChild as HTMLElement | null;
-        if (!firstChild) return;
-        const text = firstChild.textContent?.trim();
+        const labelEl = article.querySelector("[data-leaf-label='true']") as HTMLElement | null;
+        if (!labelEl) return;
+        const text = labelEl.textContent?.trim();
         if (text) out.push(text);
     });
     return out;

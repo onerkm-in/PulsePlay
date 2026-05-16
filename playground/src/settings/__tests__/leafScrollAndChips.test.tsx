@@ -166,3 +166,55 @@ describe("Leaf renders id=settings-<group>-<slug> when group prop is set", () =>
         unmount(state);
     });
 });
+
+/* ─── Settings IA fix #8 — Per-leaf Copy link ────────────────────────── */
+
+describe("Leaf Copy link button (Settings IA fix #8)", () => {
+    it("every leaf with a group has a Copy link button with the correct testId", () => {
+        const state = mount(<BiGroup />);
+        const buttons = state.container.querySelectorAll('button[data-testid^="pp-leaf-copy-link-bi-"]');
+        // BiGroup currently renders 5 leaves (Provider, Embed, Authentication, Canvas, Status).
+        // Each must have a Copy link button.
+        expect(buttons.length).toBeGreaterThanOrEqual(5);
+        for (const btn of Array.from(buttons)) {
+            const aria = btn.getAttribute("aria-label");
+            expect(aria).toMatch(/^Copy link to /);
+        }
+        unmount(state);
+    });
+
+    it("Copy link button writes the deep-link URL to clipboard on click", async () => {
+        const writeText = vi.fn().mockResolvedValue(undefined);
+        // jsdom doesn't ship a clipboard by default; stub it.
+        Object.defineProperty(navigator, "clipboard", {
+            configurable: true,
+            value: { writeText },
+        });
+
+        const state = mount(<BiGroup />);
+        const btn = state.container.querySelector(
+            'button[data-testid="pp-leaf-copy-link-bi-provider"]',
+        ) as HTMLButtonElement;
+        expect(btn).toBeTruthy();
+        await act(async () => { btn.click(); });
+
+        expect(writeText).toHaveBeenCalledTimes(1);
+        const [url] = writeText.mock.calls[0] as [string];
+        expect(url).toMatch(/\/settings\/bi\/provider$/);
+        unmount(state);
+    });
+
+    it("Copy link button does not throw when navigator.clipboard is unavailable", async () => {
+        Object.defineProperty(navigator, "clipboard", {
+            configurable: true,
+            value: undefined,
+        });
+        const state = mount(<BiGroup />);
+        const btn = state.container.querySelector(
+            'button[data-testid="pp-leaf-copy-link-bi-provider"]',
+        ) as HTMLButtonElement;
+        // Should not throw even though clipboard is undefined.
+        await act(async () => { btn.click(); });
+        unmount(state);
+    });
+});
