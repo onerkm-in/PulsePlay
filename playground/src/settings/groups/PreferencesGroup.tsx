@@ -6,7 +6,7 @@
 
 import { useSettings } from "../settingsStore";
 import type { EnabledComponents, LayoutMode, UiMode } from "../settingsStore";
-import { CurrentValue, Leaf } from "./BiGroup";
+import { CurrentValue, Leaf, SubSection } from "./BiGroup";
 
 export function PreferencesGroup(): React.ReactElement {
     const {
@@ -29,6 +29,11 @@ export function PreferencesGroup(): React.ReactElement {
                 </p>
             </header>
 
+            {/* ─── Tier 1: Mode ───────────────────────────────────────── */}
+            <SubSection
+                label="Mode"
+                helper="Choose which AI experience surface runs. Pulse is the rich ported experience; v0 is the lightweight sidebar."
+            >
             <Leaf group="preferences" label="UI mode" helper="Pulse is the ported PBI-heritage UI. v0 is the lightweight cycle-C sidebar.">
                 <ButtonGroup<UiMode>
                     value={uiMode}
@@ -39,7 +44,13 @@ export function PreferencesGroup(): React.ReactElement {
                     ]}
                 />
             </Leaf>
+            </SubSection>
 
+            {/* ─── Tier 2: Layout ─────────────────────────────────────── */}
+            <SubSection
+                label="Layout"
+                helper="Where the AI and BI panes live + which ones are visible. Live-updates immediately."
+            >
             <Leaf group="preferences" label="Visible panels" helper="Which surfaces this PulsePlay instance shows.">
                 <ButtonGroup<EnabledComponents>
                     value={enabledComponents}
@@ -64,13 +75,20 @@ export function PreferencesGroup(): React.ReactElement {
                     ]}
                 />
             </Leaf>
+            </SubSection>
 
+            {/* ─── Tier 3: Display policy ─────────────────────────────── */}
+            <SubSection
+                label="Display policy"
+                helper="Read-only canvas policy — set by your admin in the proxy allowlist."
+            >
             <Leaf group="preferences" label="Canvas tiles" helper="How many BI frames render in the BI pane. Managed by backend display policy, not a viewer toolbar.">
                 <CurrentValue label="Backend tile mode">{backendBiTileMode}</CurrentValue>
                 <p style={{ fontSize: 11, opacity: 0.65, margin: 0 }}>
                     Set by <code>proxy/config.json</code> <code>allowlist.display.biTileMode</code>. Use 1 for the normal viewer experience; 2 or 4 only for governed comparison deployments.
                 </p>
             </Leaf>
+            </SubSection>
         </section>
     );
 }

@@ -70,18 +70,112 @@ export function AdvancedGroup(): React.ReactElement {
 
 // ─── Local storage table ─────────────────────────────────────────────────
 
+/** Semantic categories for the local-storage inspector. Each key is placed
+ *  in the first bucket whose predicate matches; falls through to "other"
+ *  if nothing claims it. The order here is also the display order. */
+const STORAGE_BUCKETS: Array<{
+    id:       string;
+    label:    string;
+    helper:   string;
+    matches:  (key: string) => boolean;
+}> = [
+    {
+        id:      "wizard",
+        label:   "Wizard state",
+        helper:  "First-run setup wizard dismissal + draft + force flag + last-chosen persona.",
+        matches: k => k.startsWith("pulseplay:wizard-") || k === "pulseplay:last-persona",
+    },
+    {
+        id:      "bi",
+        label:   "BI selections",
+        helper:  "What you're looking at — vendor + embed config + SSO + canvas tile preference.",
+        matches: k => k === "pulseplay:bi-vendor"
+                   || k === "pulseplay:bi-embed-config"
+                   || k === "pulseplay:pbi-sso-config"
+                   || k === "pulseplay:bi-tile-mode",
+    },
+    {
+        id:      "ai",
+        label:   "AI selections",
+        helper:  "What's thinking — active profile, knowledge pack, and the full Pulse genieSettings JSON.",
+        matches: k => k === "pulseplay:active-ai-profile"
+                   || k === "pulseplay:pack-selection"
+                   || k === "pulseplay:active-connector"
+                   || k.startsWith("pulseplay:visual-settings:"),
+    },
+    {
+        id:      "layout",
+        label:   "Layout state",
+        helper:  "How the playground is laid out — UI mode, visible panels, AI position, pane focus.",
+        matches: k => k === "pulseplay:ui-mode"
+                   || k === "pulseplay:layout-mode"
+                   || k === "pulseplay:enabled-components"
+                   || k === "pulseplay:pinned-viewport-pane"
+                   || k.startsWith("pulseplay:split:"),
+    },
+    {
+        id:      "navigation",
+        label:   "Navigation memory",
+        helper:  "Where you were last in Settings; not a feature setting.",
+        matches: k => k === "pulseplay:settings-last-group",
+    },
+    {
+        id:      "other",
+        label:   "Other",
+        helper:  "Keys that don't fit a known bucket — usually new features or legacy entries.",
+        matches: () => true, // catch-all; must be last
+    },
+];
+
 function LocalStorageTable(props: { entries: Array<[string, string]> }): React.ReactElement {
     if (props.entries.length === 0) {
         return <div style={{ fontSize: 12, opacity: 0.5 }}>(no pulseplay:* keys persisted yet)</div>;
     }
+    // Bucket every key into the first matching category.
+    const bucketed = new Map<string, Array<[string, string]>>();
+    for (const bucket of STORAGE_BUCKETS) bucketed.set(bucket.id, []);
+    for (const [key, value] of props.entries) {
+        for (const bucket of STORAGE_BUCKETS) {
+            if (bucket.matches(key)) {
+                bucketed.get(bucket.id)!.push([key, value]);
+                break;
+            }
+        }
+    }
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11, fontFamily: "var(--pp-mono, monospace)" }}>
-            {props.entries.map(([key, value]) => (
-                <div key={key} style={{ display: "flex", gap: 12 }}>
-                    <span style={{ minWidth: 240, opacity: 0.6 }}>{key}</span>
-                    <span style={{ wordBreak: "break-all" }}>{truncate(value, 240)}</span>
-                </div>
-            ))}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {STORAGE_BUCKETS.map(bucket => {
+                const rows = bucketed.get(bucket.id) || [];
+                if (rows.length === 0) return null;
+                return (
+                    <div key={bucket.id} data-storage-bucket={bucket.id}>
+                        <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
+                            <h4 style={{
+                                margin:         0,
+                                fontSize:       11,
+                                fontWeight:     700,
+                                textTransform:  "uppercase",
+                                letterSpacing:  0.6,
+                                color:          "#475569",
+                            }}>
+                                {bucket.label}
+                            </h4>
+                            <span style={{ fontSize: 10.5, opacity: 0.5 }}>
+                                {rows.length} key{rows.length === 1 ? "" : "s"}
+                            </span>
+                        </div>
+                        <p style={{ margin: "0 0 6px", fontSize: 11, opacity: 0.6, lineHeight: 1.45 }}>{bucket.helper}</p>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11, fontFamily: "var(--pp-mono, monospace)" }}>
+                            {rows.map(([key, value]) => (
+                                <div key={key} style={{ display: "flex", gap: 12 }}>
+                                    <span style={{ minWidth: 240, opacity: 0.6 }}>{key}</span>
+                                    <span style={{ wordBreak: "break-all" }}>{truncate(value, 240)}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                );
+            })}
         </div>
     );
 }

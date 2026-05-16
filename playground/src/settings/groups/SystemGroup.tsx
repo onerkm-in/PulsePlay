@@ -9,7 +9,7 @@
 
 import { useEffect, useState } from "react";
 import { useSettings } from "../settingsStore";
-import { CurrentValue, Leaf } from "./BiGroup";
+import { CurrentValue, Leaf, SubSection } from "./BiGroup";
 import { useDiagnosticsBuffer } from "../diagnosticsBuffer";
 import { buildExportBundle, downloadExportBundle } from "../exportBundle";
 import { forceWizard } from "../../components/FirstRunWizard";
@@ -108,16 +108,32 @@ export function SystemGroup(): React.ReactElement {
             <header style={{ marginBottom: 20 }}>
                 <h2 id="settings-system-title" style={{ margin: 0, fontSize: 20 }}>System</h2>
                 <p style={{ margin: "4px 0 0", opacity: 0.7, fontSize: 13 }}>
-                    Is it safe, and is anything broken — proxy status, security posture, diagnostics, export bundle.
+                    Is it safe, and is anything broken — proxy health, governance, diagnostics, tools.
                 </p>
             </header>
 
-            {/* ── Proxy status ──────────────────────────────────────── */}
+            {/* ─── Tier 1: Health ───────────────────────────────────────── */}
+            <SubSection
+                label="Health"
+                helper="Live signal from the PulsePlay proxy + governance allowlist + auth posture."
+            >
+
             <Leaf group="system" label="Proxy status" helper="Live /health from the PulsePlay proxy. Polled every 10 seconds; click Re-run to refresh immediately.">
                 <ProxyStatusBlock state={health} onReload={health.reload} />
             </Leaf>
 
-            {/* ── Security posture (unchanged from Phase 3) ─────────── */}
+            <Leaf group="system" label="Network and auth" helper="Detected auth mode + how this proxy expects clients to authenticate. Read-only; configured via PROXY_AUTH_MODE / PROXY_IDP_* / PROXY_SHARED_KEY env vars on proxy startup.">
+                <NetworkAuthBlock state={health} />
+            </Leaf>
+
+            </SubSection>
+
+            {/* ─── Tier 2: Governance ─────────────────────────────────── */}
+            <SubSection
+                label="Governance"
+                helper="Allowlist contents + Power BI license posture. Read-only; configured by your admin in proxy/config.json."
+            >
+
             <Leaf group="system" label="Security posture" helper="Read-only view of the organization-controlled allowlist. Configured via proxy/config.json. Do not edit here.">
                 {allowlistLoading && <CurrentValue label="Status">Loading...</CurrentValue>}
                 {allowlistError && (
@@ -179,10 +195,29 @@ export function SystemGroup(): React.ReactElement {
                 )}
             </Leaf>
 
-            {/* ── Diagnostics ───────────────────────────────────────── */}
+            </SubSection>
+
+            {/* ─── Tier 3: Diagnostics ────────────────────────────────── */}
+            <SubSection
+                label="Diagnostics"
+                helper="What's been happening — proxy profiles, recent BI events, errors. Read-only; for troubleshooting."
+            >
+
+            <Leaf group="system" label="Profile inventory" helper="Connector profiles the proxy loaded from config.json. Each profile is a (name, type) pair the AI sidebar can target. Configured via proxy/config.json or PROXY_PROFILE_* env vars.">
+                <ProfileInventoryBlock profiles={health.response?.profiles ?? null} />
+            </Leaf>
+
             <Leaf group="system" label="Diagnostics" helper="Last 20 BI events + last 20 console errors. Use Export bundle below to save a redacted snapshot for support.">
                 <DiagnosticsBlock events={diagnostics.events} errors={diagnostics.errors} />
             </Leaf>
+
+            </SubSection>
+
+            {/* ─── Tier 4: Tools ──────────────────────────────────────── */}
+            <SubSection
+                label="Tools"
+                helper="Re-run setup, export a support bundle. Non-destructive."
+            >
 
             {/* ── Re-run setup wizard ───────────────────────────────── */}
             <Leaf group="system" label="Setup wizard" helper="Re-run the first-run setup wizard to change your BI vendor, AI connector, persona, or knowledge pack. Clears the dismissal flag and any saved draft so you start fresh.">
@@ -240,7 +275,60 @@ export function SystemGroup(): React.ReactElement {
                     pulseplay:* localStorage keys (tokens redacted), browser info. Approx 10-50 KB.
                 </div>
             </Leaf>
+
+            </SubSection>
         </section>
+    );
+}
+
+// ─── Network and auth sub-block ─────────────────────────────────────────
+
+function NetworkAuthBlock(props: { state: HealthState }): React.ReactElement {
+    const r = props.state.response;
+    if (!r) {
+        return <div style={{ fontSize: 12, opacity: 0.6 }}>(proxy unreachable — see Proxy status above)</div>;
+    }
+    return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <CurrentValue label="Auth mode">{r.authMode || "(unknown)"}</CurrentValue>
+            <CurrentValue label="Databricks App">{r.databricksApp ? "yes" : "no"}</CurrentValue>
+            {r.appName && <CurrentValue label="App name">{r.appName}</CurrentValue>}
+            <CurrentValue label="Config source">{r.configSource || "(unknown)"}</CurrentValue>
+            <div style={{ fontSize: 11, opacity: 0.55, marginTop: 4, lineHeight: 1.5 }}>
+                Detailed IdP fields (JWKS URL, issuer, audience, required) are configured via
+                <code style={{ background: "rgba(0,0,0,0.05)", padding: "1px 5px", borderRadius: 3, margin: "0 3px" }}>PROXY_IDP_*</code>
+                env vars on proxy startup and are not exposed by the <code>/health</code> route for security reasons.
+                See <code style={{ background: "rgba(0,0,0,0.05)", padding: "1px 5px", borderRadius: 3 }}>docs/SECURITY.md</code>.
+            </div>
+        </div>
+    );
+}
+
+// ─── Profile inventory sub-block ────────────────────────────────────────
+
+function ProfileInventoryBlock(props: { profiles: string[] | null }): React.ReactElement {
+    if (!props.profiles) {
+        return <div style={{ fontSize: 12, opacity: 0.6 }}>(proxy unreachable — see Proxy status above)</div>;
+    }
+    if (props.profiles.length === 0) {
+        return <div style={{ fontSize: 12, opacity: 0.6 }}>(no profiles configured in proxy/config.json)</div>;
+    }
+    return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <CurrentValue label="Count">{props.profiles.length}</CurrentValue>
+            <div style={{ marginTop: 4 }}>
+                <div style={{ fontSize: 11, opacity: 0.6, marginBottom: 4 }}>Profiles:</div>
+                <ul style={{ margin: 0, padding: "0 0 0 16px", fontSize: 12, fontFamily: "var(--pp-mono, monospace)" }}>
+                    {props.profiles.map(name => (
+                        <li key={name} style={{ marginBottom: 2 }}>{name}</li>
+                    ))}
+                </ul>
+            </div>
+            <div style={{ fontSize: 11, opacity: 0.55, marginTop: 6, lineHeight: 1.5 }}>
+                Per-profile details (type, space ID, warehouse ID, host) live in proxy/config.json and
+                are not exposed by the <code>/health</code> route. See <code style={{ background: "rgba(0,0,0,0.05)", padding: "1px 5px", borderRadius: 3 }}>docs/PROXY_REFERENCE.md</code>.
+            </div>
+        </div>
     );
 }
 

@@ -19,7 +19,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSettings } from "../settingsStore";
-import { CurrentValue, Leaf, OrphanBanner } from "./BiGroup";
+import { CurrentValue, Leaf, OrphanBanner, SubSection } from "./BiGroup";
 import { TestConnectionPanel } from "../../components/TestConnectionPanel";
 import { PackPicker, type PackInfo, type PackSelection } from "../../components/PackPicker";
 import { probeConnector } from "../../lib/probeClient";
@@ -132,9 +132,15 @@ export function AiGroup(): React.ReactElement {
             <header style={{ marginBottom: 20 }}>
                 <h2 id="settings-ai-title" style={{ margin: 0, fontSize: 20 }}>AI</h2>
                 <p style={{ margin: "4px 0 0", opacity: 0.7, fontSize: 13 }}>
-                    What's thinking, and what it knows. MVP 0.2: Databricks Genie + Supervisor only.
+                    What's thinking, and what it knows — provider, model, knowledge, behavior. MVP 0.2: Databricks Genie + Supervisor only.
                 </p>
             </header>
+
+            {/* ─── Tier 1: Configure ──────────────────────────────────── */}
+            <SubSection
+                label="Configure"
+                helper="Pick the AI brain and the knowledge bundle it grounds answers in."
+            >
 
             {/* ── Provider ──────────────────────────────────────────── */}
             <Leaf
@@ -196,29 +202,6 @@ export function AiGroup(): React.ReactElement {
                 )}
             </Leaf>
 
-            {/* ── Connection test ───────────────────────────────────── */}
-            <Leaf
-                group="ai"
-                label="Connection test"
-                helper={
-                    isSupervisor
-                        ? "Per-space probes run in parallel with a 2-second stagger between launches (per ADR-0003). Partial failures are visible — the rest still answer."
-                        : "Live probe against the proxy. Shows reachability, schema hints, and the inferred pack."
-                }
-            >
-                {!activeAiProfile && (
-                    <div style={{ fontSize: 12, opacity: 0.6 }}>
-                        Pick a provider first.
-                    </div>
-                )}
-                {activeAiProfile && !isSupervisor && (
-                    <TestConnectionPanel profile={activeAiProfile} autoRun={false} />
-                )}
-                {activeAiProfile && isSupervisor && activeProfileMeta?.spaces && (
-                    <SupervisorProbeMatrix spaces={activeProfileMeta.spaces} />
-                )}
-            </Leaf>
-
             {/* ── Knowledge pack ────────────────────────────────────── */}
             <Leaf
                 group="ai"
@@ -243,6 +226,45 @@ export function AiGroup(): React.ReactElement {
                 )}
                 {packOrphan && <OrphanBanner reason={packOrphan.reason} />}
             </Leaf>
+
+            </SubSection>
+
+            {/* ─── Tier 2: Verify ─────────────────────────────────────── */}
+            <SubSection
+                label="Verify"
+                helper="Probe the active connector. Fast + safe — uses the same path the AI sidebar's discovery loop uses on every conversation start."
+            >
+
+            {/* ── Connection test ───────────────────────────────────── */}
+            <Leaf
+                group="ai"
+                label="Connection test"
+                helper={
+                    isSupervisor
+                        ? "Per-space probes run in parallel with a 2-second stagger between launches (per ADR-0003). Partial failures are visible — the rest still answer."
+                        : "Live probe against the proxy. Shows reachability, schema hints, and the inferred pack."
+                }
+            >
+                {!activeAiProfile && (
+                    <div style={{ fontSize: 12, opacity: 0.6 }}>
+                        Pick a provider first.
+                    </div>
+                )}
+                {activeAiProfile && !isSupervisor && (
+                    <TestConnectionPanel profile={activeAiProfile} autoRun={false} />
+                )}
+                {activeAiProfile && isSupervisor && activeProfileMeta?.spaces && (
+                    <SupervisorProbeMatrix spaces={activeProfileMeta.spaces} />
+                )}
+            </Leaf>
+
+            </SubSection>
+
+            {/* ─── Tier 3: Behavior ───────────────────────────────────── */}
+            <SubSection
+                label="Behavior"
+                helper="How the AI talks back — prompt strategy, domain guidance, sections, metric semantics. Saves to Pulse genieSettings; live-updates the playground."
+            >
 
             {/* ── AI Insights configuration ────────────────────────── */}
             <Leaf
@@ -272,6 +294,8 @@ export function AiGroup(): React.ReactElement {
                     }}
                 />
             </Leaf>
+
+            </SubSection>
         </section>
     );
 }

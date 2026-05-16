@@ -25,9 +25,15 @@ export function BiGroup(): React.ReactElement {
             <header style={{ marginBottom: 20 }}>
                 <h2 id="settings-bi-title" style={{ margin: 0, fontSize: 20 }}>BI</h2>
                 <p style={{ margin: "4px 0 0", opacity: 0.7, fontSize: 13 }}>
-                    What you're looking at — provider, embed configuration, authentication, canvas, status.
+                    What you're looking at — the BI surface, its embed config, and the governance + license posture around it.
                 </p>
             </header>
+
+            {/* ─── Tier 1: At a glance ─────────────────────────────────── */}
+            <SubSection
+                label="At a glance"
+                helper="Active provider + allowlist; the rest of this group either configures it or shows what governs it."
+            >
 
             <Leaf group="bi" label="Provider" helper="The BI tool PulsePlay embeds. Restricted to the providers your organization allows.">
                 <CurrentValue label="Active">{biVendor}</CurrentValue>
@@ -36,6 +42,14 @@ export function BiGroup(): React.ReactElement {
                 </CurrentValue>
                 {biOrphan && <OrphanBanner reason={biOrphan.reason} />}
             </Leaf>
+
+            </SubSection>
+
+            {/* ─── Tier 2: Configure ──────────────────────────────────── */}
+            <SubSection
+                label="Configure"
+                helper="Author the embed wiring — vendor connection, token mode, workspace/report IDs. Edits live-update without refresh."
+            >
 
             <Leaf
                 group="bi"
@@ -107,6 +121,14 @@ export function BiGroup(): React.ReactElement {
                 </CurrentValue>
             </Leaf>
 
+            </SubSection>
+
+            {/* ─── Tier 3: Manage ─────────────────────────────────────── */}
+            <SubSection
+                label="Manage"
+                helper="Read-only governance + license posture surrounding the active provider. Admin-configured; surfaced here so you know what to ask for."
+            >
+
             <Leaf
                 group="bi"
                 label="Canvas"
@@ -150,6 +172,8 @@ export function BiGroup(): React.ReactElement {
                     <PhaseStub phase={3} />
                 )}
             </Leaf>
+
+            </SubSection>
         </section>
     );
 }
@@ -170,6 +194,63 @@ export function leafSlug(label: string): string {
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-+|-+$/g, "");
+}
+
+/**
+ * Visual sub-section divider for progressive grouping inside a Settings
+ * group. NOT a Leaf — does NOT participate in the GROUP_LEAF_LABELS drift
+ * dictionary. Used when a single Settings group has too many leaves for a
+ * flat sibling list and needs the lifecycle pattern (At a glance / Configure /
+ * Verify / Manage).
+ *
+ * Visual contract:
+ *   - Stronger top divider than Leaf's borderTop (signals a new section)
+ *   - Uppercase small-caps label (less prominent than the group <h2>,
+ *     more prominent than the Leaf <h*> bold label)
+ *   - Optional helper paragraph below the label
+ *   - Children render below; they're typically a sequence of <Leaf>s
+ *
+ * The drift-prevention test extracts labels from `data-leaf-label="true"`;
+ * SubSection uses `data-subsection-label="true"` so it's identifiable but
+ * not treated as a leaf for the dictionary check.
+ */
+export function SubSection(props: {
+    label:    string;
+    helper?:  string;
+    children: React.ReactNode;
+}): React.ReactElement {
+    return (
+        <div
+            data-subsection={props.label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}
+            style={{
+                marginTop:  10,
+                paddingTop: 14,
+                borderTop:  "2px solid var(--pp-border-strong, rgba(0,0,0,0.10))",
+            }}
+        >
+            <header style={{ padding: "0 16px 8px" }}>
+                <h3
+                    data-subsection-label="true"
+                    style={{
+                        margin:        0,
+                        fontSize:      11,
+                        fontWeight:    700,
+                        color:         "#475569",
+                        textTransform: "uppercase",
+                        letterSpacing: 0.6,
+                    }}
+                >
+                    {props.label}
+                </h3>
+                {props.helper && (
+                    <p style={{ margin: "3px 0 0", fontSize: 11.5, opacity: 0.7, lineHeight: 1.45 }}>
+                        {props.helper}
+                    </p>
+                )}
+            </header>
+            {props.children}
+        </div>
+    );
 }
 
 export function Leaf(props: { label: string; helper: string; group?: string; children: React.ReactNode }): React.ReactElement {
