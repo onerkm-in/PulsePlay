@@ -4,7 +4,7 @@
 >
 > **Scope:** internal-org enabler. Path C — inner-source-first, public-OSS-later. This doc is for engineers and architects working inside the org that owns PulsePlay.
 >
-> **Strategic posture:** Databricks-forward, bridge-friendly, adapter-safe. See [DATABRICKS_FORWARD_STRATEGY.md](DATABRICKS_FORWARD_STRATEGY.md) for the canonical shift-left / shift-middle plan.
+> **Strategic posture:** Databricks-forward, bridge-friendly, adapter-safe. See [DATABRICKS_FORWARD_STRATEGY.md](DATABRICKS_FORWARD_STRATEGY.md) for the canonical shift-left / shift-middle plan, and [MODULAR_INTEGRATION_ARCHITECTURE.md](MODULAR_INTEGRATION_ARCHITECTURE.md) for the addable/removable building-block model.
 
 ## One sentence
 
@@ -321,6 +321,8 @@ Everything else is creativity surface area. See [AGENDA.md](AGENDA.md) for the o
 - [AGENDA.md](AGENDA.md) — open-work tracker (active items)
 - [PUBLIC_OSS_AGENDA.md](PUBLIC_OSS_AGENDA.md) — what gets done IF/WHEN we go public-OSS
 - [PACKS.md](PACKS.md) — pack architecture overview
+- [MODULAR_INTEGRATION_ARCHITECTURE.md](MODULAR_INTEGRATION_ARCHITECTURE.md) — integrated experience, modular capability fabric, block lifecycle, capability registry, and progressive spine/spectrum model
+- [STRUCTURED_AUTHORING_STANDARD.md](STRUCTURED_AUTHORING_STANDARD.md) — standard for prompt/guidance editors, required sections, parameter chips, validation, and compiled middleware previews
 - [KNOWLEDGE_BASE_ARCHITECTURE.md](KNOWLEDGE_BASE_ARCHITECTURE.md) — Knowledge plane, retrieval contracts, Knowledge Base IA
 - [SETTINGS_SPEC.md](SETTINGS_SPEC.md) — Settings page master spec: IA, layout, microcopy, state model, interaction rules, enterprise guardrails, security setup, maintenance, administration, loophole audit
 - [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md) — board-ready enterprise security audit

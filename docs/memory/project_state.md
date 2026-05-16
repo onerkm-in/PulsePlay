@@ -1,15 +1,17 @@
 ---
 name: PulsePlay current state
-description: As of 2026-05-16 - Databricks-forward strategy is canonical, with prior Allowlist fail-closed P1, BI Live Controls Phase A+B, PaneChrome overflow menu + hide-on-empty, support bundle deep redaction, BIAdapter.getMetadata() across Power BI + iframe stubs, sidebar rebrand to "PulsePlay AI", production auth hardening, Power BI embed-token hardening, enterprise allowlist runtime, pack registry foundation, and agent sync doc
+description: As of 2026-05-16 - Databricks-forward strategy, modular integration architecture, and structured authoring standard are canonical planning baselines, with prior Allowlist fail-closed P1, BI Live Controls Phase A+B, PaneChrome overflow menu + hide-on-empty, support bundle deep redaction, BIAdapter.getMetadata() across Power BI + iframe stubs, sidebar rebrand to "PulsePlay AI", production auth hardening, Power BI embed-token hardening, enterprise allowlist runtime, pack registry foundation, and agent sync doc
 type: project
 originSessionId: current
 ---
 
-**Branch:** `claude/gallant-jones-a71415` at `7c1bc28` (main fast-forwarded to same SHA via the primary worktree). Cycle started from `main` at `8fde791` (2026-05-13 knowledge-base architecture session).
+**Branch:** `main` at `ecb41c2` before the current modular-architecture docs pass. Earlier work was merged from `claude/gallant-jones-a71415`; main is the active worktree now.
 
 **Current session work:**
 
 - **Agent coordination scratchpad.** Added [docs/AGENT_SYNC.md](../AGENT_SYNC.md) as a repo-tracked communication file for Codex and other agents to align on operating instructions, claims, blockers, handoffs, review risks, missing gaps, copy-paste prompts, and open questions. It is intentionally non-canonical; durable decisions still move into HANDOVER, AGENDA, ADRs, or focused feature docs.
+- **Modular integration architecture (current docs pass).** Added [docs/MODULAR_INTEGRATION_ARCHITECTURE.md](../MODULAR_INTEGRATION_ARCHITECTURE.md) as the planning baseline for "integrated experience, modular capability fabric." It defines the stable spine, swappable block catalog, block manifest/lifecycle, capability registry, add/remove protocol, linear-plus-wide-spectrum roadmap, and memory/state position. [ARCHITECTURE.md](../ARCHITECTURE.md), [HANDOVER.md](../HANDOVER.md), and [AGENT_SYNC.md](../AGENT_SYNC.md) now point other agents to the same plan.
+- **Structured authoring standard (current docs pass).** Added [docs/STRUCTURED_AUTHORING_STANDARD.md](../STRUCTURED_AUTHORING_STANDARD.md) so prompt/guidance textareas evolve into guided structured editors with required sections, parameter chips, validation, and compiled middleware previews. This should become one reusable component family, not separate one-off textareas.
 - **Phase 1 (allowlist runtime).** Added `proxy/lib/allowlist.js`, production startup validation, filtered `/assistant/allowlist` + `/assistant/profiles`, route guards, rejection audit events, Power BI workspace/report/tenant checks, and MVP 0.2 `proxy/config.example.json`.
 - **Phase 7 (pack registry, pulled forward).** Added `proxy/lib/packRegistry.js` + `GET /assistant/knowledge/packs`, filtered by `allowlist.packs`.
 - **Playground governance wiring.** Vendor/packs are filtered, `EmbedConfigForm` validates embed origins/workspace/report/tenant, and `BIPanel` refuses to mount a non-allowlisted URL.
@@ -81,10 +83,12 @@ originSessionId: current
 
 **Next recommended implementation cycle:**
 
-1. **Open UX decision (pending Rajesh):** RISKS card red ↑ paradox. Three options outlined: (a) suppress directional ↑ in RISK context and show only risk-direction glyph, (b) amber for "growing-but-lagging", (c) two-row card (metric + risk delta). Decision should land before any prompt-IR tweak adds bp delta inline.
-2. **Wizard hardening P1 bundle.** Draft validation/TTL, focus-trap hidden-pane leakage, Settings re-run wizard force behavior, and foundation probe path/lifecycle are documented in [docs/AGENT_SYNC.md](../AGENT_SYNC.md). Fix before pilot.
-3. **PulsePlay Home / Launchpad.** Per [DATABRICKS_FORWARD_STRATEGY.md](../DATABRICKS_FORWARD_STRATEGY.md), Launchpad is the next product anchor for Databricks assets, recent sessions, warehouse health, packs, guided frames, and migration/bridge workflows.
-4. **Frame-to-prompt translator specialization.** Frontend and proxy already bridge `body.frame`; the next step is making Prompt IR translators specialize output by selected frame.
-5. **Live credentialed smoke** against an org Power BI report + Genie/Supervisor profile + enterprise IdP JWKS.
-6. **Phase 11b dispatcher migration** — wire `proxy/lib/promptDispatcher.js` into the live request paths (currently shipped as additive, byte-identical to legacy for Genie). Requires careful byte-identity regression coverage.
-7. **Tableau / Qlik / Looker SDK graduation** (v0.3+) — replace iframe stubs with real SDK adapters only when an org standardizes on one of those tools.
+1. **Capability registry / block manifest spine.** Start with `GET /assistant/capabilities` backed by allowlist/profile/pack data and a simple manifest schema. This is the highest-leverage modularity foundation from [MODULAR_INTEGRATION_ARCHITECTURE.md](../MODULAR_INTEGRATION_ARCHITECTURE.md).
+2. **StructuredAuthoringEditor first slice.** Pick Settings AI guidance or Prompt IR authoring first. Implement required sections, parameter insert controls, validation, and compiled middleware preview per [STRUCTURED_AUTHORING_STANDARD.md](../STRUCTURED_AUTHORING_STANDARD.md).
+3. **Open UX decision (pending Rajesh):** RISKS card red ↑ paradox. Three options outlined: (a) suppress directional ↑ in RISK context and show only risk-direction glyph, (b) amber for "growing-but-lagging", (c) two-row card (metric + risk delta). Decision should land before any prompt-IR tweak adds bp delta inline.
+4. **Wizard hardening P1 bundle.** Draft validation/TTL, focus-trap hidden-pane leakage, Settings re-run wizard force behavior, and foundation probe path/lifecycle are documented in [docs/AGENT_SYNC.md](../AGENT_SYNC.md). Fix before pilot.
+5. **PulsePlay Home / Launchpad.** Per [DATABRICKS_FORWARD_STRATEGY.md](../DATABRICKS_FORWARD_STRATEGY.md), Launchpad is the next product anchor for Databricks assets, recent sessions, warehouse health, packs, guided frames, and migration/bridge workflows. It should consume capability-registry decisions rather than hardcoded provider assumptions.
+6. **Frame-to-prompt translator specialization.** Frontend and proxy already bridge `body.frame`; the next step is making Prompt IR translators specialize output by selected frame.
+7. **Live credentialed smoke** against an org Power BI report + Genie/Supervisor profile + enterprise IdP JWKS.
+8. **Phase 11b dispatcher migration** — wire `proxy/lib/promptDispatcher.js` into the live request paths (currently shipped as additive, byte-identical to legacy for Genie). Requires careful byte-identity regression coverage.
+9. **Tableau / Qlik / Looker SDK graduation** (v0.3+) — replace iframe stubs with real SDK adapters only when an org standardizes on one of those tools.

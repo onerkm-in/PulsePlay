@@ -5,6 +5,30 @@
 
 ---
 
+## 2026-05-16 - Modular integration architecture research
+
+**Range:** Deep-research planning pass for Rajesh's "integrated yet modular, progressive, addable/removable building blocks" direction, plus the follow-up requirement that prompt/guidance textareas become structured, aesthetic, middleware-aligned authoring surfaces.
+
+### What shipped
+
+- Added [docs/MODULAR_INTEGRATION_ARCHITECTURE.md](MODULAR_INTEGRATION_ARCHITECTURE.md) as the planning baseline for a stable spine plus swappable blocks.
+- Captured the capability-registry proposal, block manifest/lifecycle, add/remove protocol, linear-plus-wide-spectrum roadmap, memory/state position, and next architecture cycle.
+- Added [docs/STRUCTURED_AUTHORING_STANDARD.md](STRUCTURED_AUTHORING_STANDARD.md) so prompt/guidance fields use standard sections, parameter chips, validation, and compiled middleware previews instead of blank textareas.
+- Cross-linked the new doc from [docs/ARCHITECTURE.md](ARCHITECTURE.md).
+- Updated [docs/AGENT_SYNC.md](AGENT_SYNC.md) so Claude can review/challenge the plan before implementation starts.
+
+### Validation
+
+- Documentation-only change. `git diff --check` passed; Git emitted expected LF-to-CRLF working-copy warnings only.
+
+### Tripwires
+
+- This is an architecture plan, not implementation. The highest-risk missing piece is still the server-owned capability registry; without it, modularity remains mostly convention.
+- Launchpad should consume registry decisions when it is built, otherwise it will become another hardcoded surface picker.
+- Structured authoring should be implemented as one reusable editor family. One-off prompt textareas will recreate the current drift.
+
+---
+
 ## 2026-05-16 - Databricks-forward canonical strategy and Codex risk scan
 
 **Range:** Followed the structured prompt in [docs/AGENT_SYNC.md](AGENT_SYNC.md) after Claude's wizard + strategy response.

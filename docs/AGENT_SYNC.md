@@ -195,6 +195,8 @@ Newest active/review lane first. Keep completed-but-reviewing work above older o
 
 | Lane | Owner | Status | Files / Area | Notes |
 |---|---|---|---|---|
+| Structured prompt/guidance authoring standard | Codex (2026-05-16) | done; awaiting Claude review | `docs/STRUCTURED_AUTHORING_STANDARD.md`, `docs/MODULAR_INTEGRATION_ARCHITECTURE.md` | Standardizes prompt/guidance textareas as guided structured editors with required sections, parameter chips, validation, and compiled middleware preview. |
+| Modular integration architecture research | Codex (2026-05-16) | done; awaiting Claude review | `docs/MODULAR_INTEGRATION_ARCHITECTURE.md`, `docs/ARCHITECTURE.md`, doc hygiene | Defines stable spine + swappable blocks, capability registry, block manifest/lifecycle, linear-plus-spectrum roadmap, Databricks-native/bridge/knowledge/AI expansion lanes. |
 | Playground viewport controls | Codex (impl) + Claude (tests/review, 2026-05-14 03:05 IST) | done; reviewed | Codex: `playground/src/App.tsx`. Claude/Codex: `playground/src/__tests__/viewportControls.integration.test.tsx`. | [VERIFY] 354/354 playground green; viewport slice 16/16. Browser DOM smoke caught a duplicate restore-label issue; Codex fixed it and added regression coverage for minimize dock, Show both, popstate, and open-page URL. |
 | Power BI token hardening review | Claude (2026-05-14 02:35 IST) | done; approved | `proxy/server.js`, `proxy/tests/embedTokenRoute.test.js`, `playground/src/components/EmbedConfigForm.tsx`, `playground/src/components/__tests__/EmbedConfigForm.test.tsx`, docs | [VERIFY] 630/630 proxy + 338/338 playground green; non-blocking [RISK] notes captured in Coordination Log. |
 | Power BI token hardening | Codex (assigned 2026-05-14 by Rajesh) | done; reviewed | `proxy/server.js`, `EmbedConfigForm.tsx`, tests | Client identities rejected; server-derived RLS; Edit gate; identity-aware cache. Reviewed clean; committed by Claude with co-author trailer. Live credentialed smoke still pending. |
@@ -224,11 +226,13 @@ LIFO: newest task first. When adding another task, insert it above the current o
 
 **Current Claude-driven queue (lanes either gated or available):**
 
-1. **Gated on Rajesh — RISKS card UX (red ↑ paradox).** Three options outlined in chat: (a) suppress directional ↑ in RISK context, (b) amber for "growing-but-lagging" trichromatic, (c) two-row card. The bp-delta prompt-IR tweak is queued behind this.
-2. **Available — Frame-to-prompt proxy side.** Frontend ships `body.frame` already (commit `738e4e1`); the proxy + translators can consume it to drive backend specialization. Byte-identical for free-text (`frame===undefined`) — Phase 11a translator contracts preserve byte-identity for synthetic IRs.
-3. **Available — Phase 11b dispatcher migration.** Wire `proxy/lib/promptDispatcher.buildBackendPayload()` into the live Genie / Foundation Model / Supervisor handlers. Requires careful byte-identity regression coverage on Genie.
-4. **Available — Per-leaf revert + deep-link copy (Settings IA fix #8).** Small UX polish.
-5. **Gated on environment — Live credentialed smoke** against an org Power BI report + Genie/Supervisor profile + enterprise IdP JWKS. No code work blocks this.
+1. **Available — Review/challenge structured authoring standard.** Read [STRUCTURED_AUTHORING_STANDARD.md](STRUCTURED_AUTHORING_STANDARD.md). Confirm whether the `StructuredAuthoringEditor` should land before Launchpad, and identify the first field to migrate: Settings AI guidance, Prompt IR authoring, wizard suggested-question textarea, or Knowledge Base notes.
+2. **Available — Review/challenge Codex modular integration architecture.** Read [MODULAR_INTEGRATION_ARCHITECTURE.md](MODULAR_INTEGRATION_ARCHITECTURE.md) and post `[VERIFY]` / `[CHALLENGE]` on: capability registry shape, block manifest lifecycle, linear spine order, Launchpad-first recommendation, typed Databricks asset config, and whether any current shipped block violates the add/remove protocol.
+3. **Gated on Rajesh — RISKS card UX (red ↑ paradox).** Three options outlined in chat: (a) suppress directional ↑ in RISK context, (b) amber for "growing-but-lagging" trichromatic, (c) two-row card. The bp-delta prompt-IR tweak is queued behind this.
+4. **Available — Frame-to-prompt proxy side.** Frontend ships `body.frame` already (commit `738e4e1`); the proxy + translators can consume it to drive backend specialization. Byte-identical for free-text (`frame===undefined`) — Phase 11a translator contracts preserve byte-identity for synthetic IRs.
+5. **Available — Phase 11b dispatcher migration.** Wire `proxy/lib/promptDispatcher.buildBackendPayload()` into the live Genie / Foundation Model / Supervisor handlers. Requires careful byte-identity regression coverage on Genie.
+6. **Available — Per-leaf revert + deep-link copy (Settings IA fix #8).** Small UX polish.
+7. **Gated on environment — Live credentialed smoke** against an org Power BI report + Genie/Supervisor profile + enterprise IdP JWKS. No code work blocks this.
 
 **Codex review queue (when Rajesh invokes a scan):**
 
@@ -606,6 +610,41 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 ## Coordination Log
 
 Add newest entries at the top of this section.
+
+### 2026-05-16 - Codex — structured prompt/guidance authoring standard
+
+`[DONE]` Added [STRUCTURED_AUTHORING_STANDARD.md](STRUCTURED_AUTHORING_STANDARD.md) after Rajesh clarified that prompt/guidance textareas need a cleaner aesthetic and interactive pathway.
+
+The proposed standard:
+
+- No important prompt/guidance field should be a blank free-form textarea.
+- The UI should show required middleware sections, parameter chips, option controls, validation, and a compiled preview.
+- Guided mode, structured text mode, and raw YAML/JSON mode should share one underlying payload.
+- The compiled object should be middleware-aligned; legacy string routes can be supported by compiling from validated sections.
+- One reusable `StructuredAuthoringEditor` family should serve Settings, wizard, Knowledge Base, Prompt IR, and guided analysis frames.
+
+`[HANDOFF]` Claude should challenge the first migration target. My recommendation: Settings AI guidance or Prompt IR authoring first, because both are middleware-facing and easier to validate than the wizard auto-send path.
+
+### 2026-05-16 - Codex — modular integration architecture research
+
+`[DONE]` Added [MODULAR_INTEGRATION_ARCHITECTURE.md](MODULAR_INTEGRATION_ARCHITECTURE.md) as the deep-research planning baseline for Rajesh's "integrated yet modular, progressive, addable/removable building blocks" direction.
+
+Key decisions proposed for Claude review:
+
+- Keep the user journey integrated while technical edges become modular blocks.
+- Build a stable spine first: identity, policy, capability registry, surface context, Prompt IR, GroundingBundle, evidence, conformance.
+- Expand wider spectrum lanes only through the spine: Databricks-native surfaces, bridge BI, AI connectors, knowledge providers, guided frames, evidence collectors.
+- Add a server-owned capability registry so UI/actions are rendered from policy-aware capability decisions, not hardcoded provider assumptions.
+- Treat project memory as repo-local docs; treat user/session memory as a separate governed runtime block only if enterprise policy allows it.
+
+`[HANDOFF]` Claude should review/challenge the new doc before implementation starts. Highest-value review questions:
+
+1. Is the linear spine order right, or should Launchpad precede registry implementation?
+2. Is `PulsePlayBlockManifest` too broad for v0.x, or useful as a planning/schema target?
+3. Does the typed `InsightAssetKind` model cover Databricks Apps, AI/BI Dashboards, Genie Spaces, UC metric views, SQL queries, and legacy BI without overfitting?
+4. Which current shipped feature would be hardest to remove cleanly? That is the best first modularity stress test.
+
+Validation was doc-only: `git diff --check` passed with expected LF-to-CRLF working-copy warnings; no runtime code changed.
 
 ### 2026-05-16 - Codex — strategy review, feature-map audit, wizard risk scan, lane claim
 

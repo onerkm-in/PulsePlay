@@ -3,6 +3,8 @@
 > **Status:** Canonical planning baseline as of 2026-05-16. This supersedes the discussion draft in `docs/AGENT_SYNC.md` and should guide roadmap, settings IA, and future adapter work.
 >
 > **Scope:** Internal enterprise deployment. PulsePlay is an experience and orchestration layer over enterprise-approved analytics assets, AI connectors, and governed knowledge. It is not trying to become a BI product, an LLM platform, or a public commercial marketplace.
+>
+> **Companion architecture:** [MODULAR_INTEGRATION_ARCHITECTURE.md](MODULAR_INTEGRATION_ARCHITECTURE.md) explains how this Databricks-forward posture stays addable, removable, and future-proof through a stable spine plus swappable capability blocks.
 
 ## Executive Position
 
