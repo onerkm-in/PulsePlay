@@ -325,22 +325,17 @@ describe("App viewport controls — ?focus= URL", () => {
         unmount(state);
     });
 
-    it("keeps focused AI chrome quiet while pane icons live in the Pulse row", () => {
+    it("hides the outer AI chrome header in Pulse mode while pane icons live in the Pulse row", () => {
         setLocation("?focus=ai");
         const state = mountApp();
 
         const header = state.container.querySelector('[data-testid="pp-panel-chrome-header-ai"]') as HTMLElement | null;
         const controls = state.container.querySelector('[data-testid="pp-panel-controls-ai"]') as HTMLElement | null;
 
-        expect(header, "focused AI chrome header").toBeTruthy();
+        expect(header, "focused AI chrome header").toBeNull();
         expect(controls, "focused AI controls toolbar is hidden in Pulse mode").toBeNull();
-        // The fixed top-right connection pill is gone, and Pulse mode does
-        // not need the outer AI PaneChrome controls because pane actions live
-        // beside AI Insights / Chat.
-        const headerStyle = header?.getAttribute("style") || "";
-        expect(headerStyle, "focused header padding stays compact")
-            .toMatch(/padding:\s*5px\s+8px\s+5px\s+9px/);
-        expect(headerStyle).not.toContain("min(200px, 50vw)");
+        // Pulse mode does not need the outer AI PaneChrome title/control row
+        // because pane actions live beside AI Insights / Chat.
         expect(state.container.querySelector('button[aria-label="Restore AI panel"]')).toBeTruthy();
 
         unmount(state);

@@ -3740,6 +3740,11 @@ function App(props: AppProps) {
         props.settings.insightsPrompt
     ]);
 
+    const showPulseHeaderTitle = props.settings.showHeader !== false
+        && !!(props.settings.headerTitle || "").trim();
+    const showPulseHeaderSpaces = !!(props.settings.multiSpaceEnabled && activeSpaces.length > 1);
+    const showPulseHeaderTopRow = showPulseHeaderTitle || showPulseHeaderSpaces;
+
     return (
         <div
             className={`gn-shell${props.settings.darkMode ? " gn-shell--dark" : " gn-shell--light"}${compact ? " gn-compact" : ""}`}
@@ -3748,7 +3753,10 @@ function App(props: AppProps) {
             <div className="gn-header gn-header--two-row">
                 {/* Row 1 — branding and optional multi-space switcher. Operational
                     connection/scope state is kept out of the primary viewer
-                    chrome; Settings is the normal path for setup/system review. */}
+                    chrome; Settings is the normal path for setup/system review.
+                    Collapse the row entirely when no branding or space switcher
+                    is present so the primary tabs do not sit under blank chrome. */}
+                {showPulseHeaderTopRow && (
                 <div className="gn-header-row gn-header-row--top">
                 {(() => {
                     // Logo + title only render when the author has set a header
@@ -3867,6 +3875,7 @@ function App(props: AppProps) {
                     right chrome. The primary viewer surface stays focused on
                     AI Insights / Chat; setup and system review live in Settings. */}
                 </div>
+                )}
                 {/* Row 2 — surface controls + run state. Tabs + Adjust on the
                     left; meta strip (clock / copy / refresh) and the always-on
                     ProgressIndicator on the right. All transient/run-state UI

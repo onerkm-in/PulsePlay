@@ -648,6 +648,8 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 
 `[HANDOFF]` Claude: please review the IA decision and implementation. Key checks: no normal-user path lost because Settings/Setup remains the only setup entry; Refresh is non-destructive (rerenders Pulse, does not reset settings); tile count is admin/deployment policy rather than viewer preference; Canva reference was used only as compact utility-control inspiration because the board still reflected the old Console concept.
 
+`[FOLLOW-UP]` Rajesh challenged the remaining blank band above AI Insights / Chat. Codex collapsed the outer AI PaneChrome header in Pulse mode and collapses Pulse row 1 when no branding or space switcher is present. The progress/run-state slot still appears only when Insights is configured and running.
+
 ### 2026-05-16 - Codex - Pulse primary surface duplicate chrome removed
 
 `[CLAIM]` Rajesh challenged the remaining editable `BI Tool` dropdown inside the Pulse AI pane after the setup/readiness consolidation, then the row-level `Open setup` button, then clarified that the visible `Console` affordance is also redundant with the Setup/Settings path for normal users. Scope: `playground/src/App.tsx`, `playground/src/pulse/visual.tsx`, viewport regression test, and doc/agent-sync hygiene.

@@ -807,6 +807,7 @@ function PlaygroundApp(): React.ReactElement {
                         onOpenPage={() => handleViewportOpenPage("ai")}
                         onShowBoth={handleShowBothPanes}
                         quiet={uiMode === "pulse"}
+                        hideHeader={uiMode === "pulse"}
                     >
                         <aside className="pp-app__sidebar" style={panelInnerStyle()}>
                             {allowlistState.error && (
@@ -1066,6 +1067,9 @@ function PaneChrome(props: {
      *  (e.g. BI pane with no embedConfig). Keeps the title for context
      *  but stops painting Maximize/Pin/Page on top of an empty pane. */
     quiet?: boolean;
+    /** Pulse mode owns its own AI row (AI Insights / Chat + icons). Hiding
+     *  the outer AI title row removes duplicate vertical chrome. */
+    hideHeader?: boolean;
     children: React.ReactNode;
 }): React.ReactElement {
     const label = props.pane === "ai" ? "AI" : "BI";
@@ -1140,42 +1144,43 @@ function PaneChrome(props: {
                 background: "#fff",
             }}
         >
-            <div
-                data-testid={`pp-panel-chrome-header-${props.pane}`}
-                style={{
-                    flex: "0 0 auto",
-                    display: "flex",
-                    alignItems: "flex-start",
-                    justifyContent: "space-between",
-                    gap: 8,
-                    padding: `5px ${focusedHeaderRightReserve} 5px 9px`,
-                    borderBottom: "1px solid rgba(0,0,0,0.06)",
-                    background: props.isFocused ? "#f8fafc" : "rgba(248,250,252,0.6)",
-                }}
-            >
-                <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 11.5, fontWeight: 600, lineHeight: 1.2, letterSpacing: 0.1 }}>{props.title}</div>
-                    <div style={{ fontSize: 10.5, opacity: 0.6, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {props.subtitle}
+            {!props.hideHeader && (
+                <div
+                    data-testid={`pp-panel-chrome-header-${props.pane}`}
+                    style={{
+                        flex: "0 0 auto",
+                        display: "flex",
+                        alignItems: "flex-start",
+                        justifyContent: "space-between",
+                        gap: 8,
+                        padding: `5px ${focusedHeaderRightReserve} 5px 9px`,
+                        borderBottom: "1px solid rgba(0,0,0,0.06)",
+                        background: props.isFocused ? "#f8fafc" : "rgba(248,250,252,0.6)",
+                    }}
+                >
+                    <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 11.5, fontWeight: 600, lineHeight: 1.2, letterSpacing: 0.1 }}>{props.title}</div>
+                        <div style={{ fontSize: 10.5, opacity: 0.6, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {props.subtitle}
+                        </div>
                     </div>
-                </div>
-                {!props.quiet && (
-                    <div
-                        role="toolbar"
-                        data-testid={`pp-panel-controls-${props.pane}`}
-                        aria-label={`${label} panel controls`}
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 4,
-                            flex: "1 1 auto",
-                            flexWrap: "wrap",
-                            justifyContent: "flex-end",
-                            maxWidth: "100%",
-                            minWidth: 0,
-                            position: "relative",
-                        }}
-                    >
+                    {!props.quiet && (
+                        <div
+                            role="toolbar"
+                            data-testid={`pp-panel-controls-${props.pane}`}
+                            aria-label={`${label} panel controls`}
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 4,
+                                flex: "1 1 auto",
+                                flexWrap: "wrap",
+                                justifyContent: "flex-end",
+                                maxWidth: "100%",
+                                minWidth: 0,
+                                position: "relative",
+                            }}
+                        >
                         {/* Primary action: state-relevant focus toggle. */}
                         {props.isFocused ? (
                             <button
@@ -1288,9 +1293,10 @@ function PaneChrome(props: {
                                 </div>
                             )}
                         </div>
-                    </div>
-                )}
-            </div>
+                        </div>
+                    )}
+                </div>
+            )}
             <div
                 aria-hidden={props.isBackgrounded ? true : undefined}
                 style={{ flex: "1 1 auto", minHeight: 0, minWidth: 0, overflow: "hidden" }}

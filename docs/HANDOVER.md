@@ -13,7 +13,7 @@
 
 - Removed the entire Pulse-mode BI source row from [App.tsx](../playground/src/App.tsx). The BI pane subtitle and top-right Setup pill already communicate the active/missing BI state.
 - Removed the visible `Console` trigger from the Pulse visual header in [visual.tsx](../playground/src/pulse/visual.tsx). Developer Tools internals remain available to exceptional flows that open them programmatically, but they are no longer first-class viewer chrome.
-- Added a compact Pulse header action cluster next to AI Insights / Chat: Maximize or Restore, Minimize, Open in separate page, and Refresh AI pane. In Pulse mode the outer AI PaneChrome action toolbar stays quiet to avoid duplicate controls.
+- Added a compact Pulse header action cluster next to AI Insights / Chat: Maximize or Restore, Minimize, Open in separate page, and Refresh AI pane. In Pulse mode the outer AI PaneChrome action toolbar stays quiet to avoid duplicate controls, and the right-side run-state/progress slot remains reserved for configured Insights runs.
 - Removed the visible `BI tiles: 1 / 2 / 4` toolbar from the BI canvas. Tile count is now backend/admin policy via `allowlist.display.biTileMode` (`1`, `2`, or `4`; default `1`), surfaced read-only in Settings › BI/Preferences and documented in [SETTINGS_SPEC.md](SETTINGS_SPEC.md).
 - Updated the empty BI pane copy for Pulse mode so it points users to the top-right Setup pill instead of a non-existent left-side picker.
 - Added viewport regression assertions that the Pulse-mode surface contains no BI source row, no local setup text, no visible `Console` text, no visible BI tile toolbar, and the new AI pane icons.
