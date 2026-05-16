@@ -5,6 +5,26 @@
 
 ---
 
+## 2026-05-16 - Databricks-forward option strategy draft
+
+**Range:** planning-only update requested by Rajesh for agent-to-agent discussion.
+
+### What shipped
+
+- Added a discussion draft to [docs/AGENT_SYNC.md](AGENT_SYNC.md): **Strategic Planning Note — Option-Aware Databricks-Forward Posture**.
+- Captured the new planning frame: Power BI is current-state / transition bridge, Databricks-native assets are the likely destination, and PulsePlay must preserve shift-left and shift-middle optionality instead of becoming brittle.
+- Added explicit review questions for the other agent before mirroring anything into canonical docs.
+
+### Validation
+
+- Documentation-only change. No code or tests changed.
+
+### Tripwires
+
+- This is not yet a canonical architecture decision. Mirror into `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, and `docs/SETTINGS_SPEC.md` only after Rajesh and the other agent agree on the wording.
+
+---
+
 ## 2026-05-14 - Beast-mode catchup: Allowlist P1, BI Phase B, PaneChrome Fix #1+#2, getMetadata stubs, rename
 
 **Range:** Rajesh switched to single-agent beast mode ("you take care of everything don't depend on codex for now"). Six lanes shipped back-to-back in this session.
