@@ -195,6 +195,8 @@ Newest active/review lane first. Keep completed-but-reviewing work above older o
 
 | Lane | Owner | Status | Files / Area | Notes |
 |---|---|---|---|---|
+| Setup readiness pill + Settings setup tree | Codex (2026-05-16) | done; awaiting Claude review | `playground/src/App.tsx`, `playground/src/settings/`, `playground/src/pulse/visual.tsx`, settings/viewport tests, doc hygiene | Rajesh clarified the LIFO direction: keep a single top-right pill, but make it a Configure/Setup readiness entry that opens Settings. Shipped `/settings/setup`, shared readiness helper, app header pill, console handoffs to Setup, and removed the unused floating gear/toggle code. Validation: playground lint, focused 55/55, full playground 502/502, build, diff-check. |
+| Settings owns configuration; Console owns status | Codex (2026-05-16) | done; awaiting Claude review | `playground/src/pulse/visual.tsx`, `style/visual.less`, `settings.ts`, `PulseHostStub.ts`, `App.tsx`, `settings/pulseVisualSettingsStore.ts`, `settings/groups/AiGroup.tsx`, settings/viewport tests, doc hygiene | Rajesh rejected duplicated setup functionality and confirmed the full Settings page should own all configuration. Fixed global pill is gone; Console owns status/diagnostics/session/SQL trace + Settings handoff; reachable Console Setup/Display editors are retired; Settings › AI › AI Insights writes Pulse `genieSettings` directly. Canva reference design `DAHJ1oFh42k`. Validation: focused 40/40, lint, full playground 496/496, build, diff-check, Vite HTTP 200. |
 | Post-Claude review-gap closeout | Codex (impl `c6324eb`) + Claude (review 2026-05-16) | done; approved | `App.tsx`, `AISidebar.tsx`, `FirstRunWizard.tsx`, `BiGroup.tsx`, focused tests, doc hygiene | `Done & ask` repeat-safe via event id; forced wizard still blocks zero-vendor states; settings copy-link labels use plain text. Claude `[ACCEPT]`'d all 3 fixes line-by-line + recorded the brutally-honest lesson on missed edge cases. Validation: focused 73/73, lint, full playground 494/494, build. |
 | KB source governance / provenance | Codex + research agents (2026-05-16) | done; awaiting Claude review | `docs/KNOWLEDGE_BASE_SOURCE_GOVERNANCE.md`, `pulsepacks/PACK_SPECIFICATION.md`, `docs/KNOWLEDGE_BASE_ARCHITECTURE.md`, `pulsepacks/cpg-fmcg/knowledge-base/references.md` | Defines source-card model, credibility tiers, per-module provenance requirements, runtime metadata additions, and pack-linter rule baseline across all Knowledge Base modules. |
 | Chat visualization knowledge base | Codex + research agent (2026-05-16) | done; awaiting Claude review | `docs/CHAT_VISUALIZATION_KNOWLEDGE_BASE.md`, `docs/ARCHITECTURE.md` | Adds Chat-facing rules for legacy and modern chart choice, critique, migration, dashboard composition, persona-aware guidance, proposed `ChartKnowledgeRule` runtime shape, source register, and source-accountable Chat answer format. |
@@ -231,7 +233,20 @@ LIFO: newest task first. When adding another task, insert it above the current o
 
 **Current Claude-driven queue (lanes either gated or available):**
 
-**LIFO review now on top:** Review Codex's post-Claude review-gap closeout in `App.tsx`, `AISidebar.tsx`, `FirstRunWizard.tsx`, `BiGroup.tsx`, and the focused tests. Confirm same suggested question can be asked again after a later wizard re-run, forced wizard stays hidden when zero BI vendors are visible, and Settings copy-link labels remain plain enterprise text. Validation claimed: focused 73/73, lint, full playground 494/494, build.
+**LIFO design/research item:** Review the interaction-workbench recommendation that came from Rajesh's follow-up on end-user freedom. Best-fit direction: keep the current pane controls as the foundation, then add a first-class **Explore Workbench** layer:
+
+- **Shell controls:** keep pane maximize/minimize/restore/pin/open-new-tab; add collapsible side rails and saved workspace layouts after the setup tree settles.
+- **Chart / frame focus:** add a focused-review surface where AI can summarize, critique, explain drivers, generate follow-up questions, and show evidence for one selected BI visual/frame. This should consume `BIAdapter.getMetadata()` and the existing FramePicker contract.
+- **Semantic-data mode:** add a parallel surface adapter that queries governed data/semantic layers and renders PulsePlay-native charts instead of embedding a full BI report. Databricks should be first-class here via Unity Catalog / SQL Statement Execution / Metric Views; Power BI semantic model querying can be a bridge, not the strategic center.
+- **Security guardrails:** Databricks embedded dashboards support shared vs individual data permissions and external embedding, but Ask Genie is not supported for external-user embedding; Databricks Apps user authorization can act on the user's behalf and enforce Unity Catalog row filters/column masks. Power BI Execute Queries requires dataset Read+Build permissions, tenant enablement, and has RLS/service-principal and row/size/rate limits. Treat semantic mode as proxy-only with audited allowlists, not browser-side credentials.
+- **Design references:** reuse the Canva board from the prior sidecar (`DAHJ1oFh42k`) and compare against Hex-style interactive chart selection/filtering, Tableau/Qlik embedded custom controls/selections, and Databricks AI/BI embedding constraints before changing layout visuals.
+- Sources to verify: Databricks dashboard embedding (`https://docs.databricks.com/aws/en/dashboards/embedding`), Databricks Apps auth (`https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/auth`), Databricks Statement Execution API (`https://learn.microsoft.com/en-us/azure/databricks/dev-tools/sql-execution-tutorial`), Databricks local metric views (`https://docs.databricks.com/gcp/en/dashboards/manage/data-modeling/local-metric-views`), Power BI Execute Queries (`https://learn.microsoft.com/en-us/rest/api/power-bi/datasets/execute-queries`), Power BI visual exportData (`https://learn.microsoft.com/en-us/javascript/api/overview/powerbi/export-data`), Tableau Embedding API v3 (`https://help.tableau.com/current/api/embedding_api/en-us/index.html`), Qlik embed parameters/selections (`https://qlik.dev/embed/qlik-embed/parameters/`), Hex chart interactions (`https://learn.hex.tech/docs/explore-data/cells/visualization-cells/chart-cells`).
+
+**LIFO review now on top:** Review Codex's Setup readiness pill + Settings setup tree. Rajesh refined the prior direction: the top-right affordance should remain, but it should be a single Configure/Setup readiness pill in app chrome, not a duplicate Pulse status/control surface. It opens Settings › Setup where readiness requires at least one BI vertical (provider + embed config) and at least one AI vertical (provider/profile). Console remains diagnostics/session/SQL/status only. Validation claimed: playground lint, focused 55/55, full playground 502/502, build, diff-check.
+
+**Previous review item:** Review Codex's Settings/Console IA consolidation in `playground/src/pulse/visual.tsx`, `playground/src/pulse/style/visual.less`, `playground/src/pulse/settings.ts`, `playground/src/pulse/_adapter/PulseHostStub.ts`, `playground/src/App.tsx`, `playground/src/settings/pulseVisualSettingsStore.ts`, `playground/src/settings/groups/AiGroup.tsx`, `playground/src/settings/settingsStore.tsx`, and focused tests. Confirm the old fixed top-right `Not connected | Managed` / scope pills no longer render as Pulse-owned chrome, Console opens status/diagnostics/session/SQL trace plus a Settings handoff, reachable Console Setup/Display editing paths are retired, Settings › AI › AI Insights edits Pulse `genieSettings` directly, and provider selection mirrors to runtime `assistantProfile`. Canva reference board from sidecar: view `https://www.canva.com/d/HXhoCHxftKjXL2H`, edit `https://www.canva.com/d/I36eapmNBwl0UTq`, design `DAHJ1oFh42k`. Validation claimed: focused 40/40, lint, full playground 496/496, build, diff-check, Vite HTTP 200. Known limitation: no Browser screenshot from Codex because Browser automation tooling was not exposed in this session.
+
+**Previous review item:** Review Codex's post-Claude review-gap closeout in `App.tsx`, `AISidebar.tsx`, `FirstRunWizard.tsx`, `BiGroup.tsx`, and the focused tests. Confirm same suggested question can be asked again after a later wizard re-run, forced wizard stays hidden when zero BI vendors are visible, and Settings copy-link labels remain plain enterprise text. Validation claimed: focused 73/73, lint, full playground 494/494, build.
 
 1. **Available — Review KB source governance and propose first pack-linter rules.** Read [KNOWLEDGE_BASE_SOURCE_GOVERNANCE.md](KNOWLEDGE_BASE_SOURCE_GOVERNANCE.md), [PACK_SPECIFICATION.md](../pulsepacks/PACK_SPECIFICATION.md), and the updated [cpg-fmcg references](../pulsepacks/cpg-fmcg/knowledge-base/references.md). Challenge the credibility tiers, module checklist, runtime metadata fields, and `KB-SRC-001`..`KB-SRC-010` linter baseline. Codex/research-agent recommendation: source-card + linter before runtime ingestion.
 2. **Available — Review Chat visualization knowledge base and choose storage shape.** Read [CHAT_VISUALIZATION_KNOWLEDGE_BASE.md](CHAT_VISUALIZATION_KNOWLEDGE_BASE.md). Challenge the chart list, legacy-to-modern migration rules, persona defaults, source register, and proposed `ChartKnowledgeRule` shape. Recommend whether the first implementation should be static `chartKnowledgeRules.ts`, PulsePack YAML, or a `DomainContextProfile.visualizationGuidance` block. Codex's bias: seed as data first, then have Chat consume it before any renderer work.
@@ -619,6 +634,61 @@ Then check each of these concerns. Post one finding per concern as [RISK] / [ACC
 When Rajesh runs Codex with this prompt, Codex's output should be three blocks (Part 1 reactions / Part 2 audit / Part 3 claim) that Claude can then accept or counter in a follow-up Coordination Log entry.
 
 ## Coordination Log
+
+### 2026-05-16 - Codex - Setup readiness pill + interaction-workbench research
+
+`[CLAIM]` Rajesh refined the earlier IA: keep one top-right affordance, but make it a Configure/Setup readiness pill in app chrome. The pill should open a single Settings setup section; Settings should organize the setup tree with at least one BI vertical and one AI vertical required for ready state.
+
+`[DONE]` Shipped the code slice:
+
+- Added `playground/src/settings/setupReadiness.ts`.
+- Added `playground/src/settings/groups/SetupGroup.tsx`.
+- Added `setup` to `SettingsGroupId`, `SETTINGS_GROUP_IDS`, `GROUP_LABELS`, descriptions, and `GROUP_LEAF_LABELS`.
+- Made `/settings` default to Setup instead of BI.
+- Added the app header setup pill in `playground/src/App.tsx`.
+- Repointed Pulse Console and Pulse BI source handoffs to `/settings/setup`.
+- Removed unused floating settings gear/toggle functions from `App.tsx`.
+- Added focused tests for setup readiness, Settings setup leaf drift/ids, route default, and the top-right pill opening Settings › Setup.
+
+`[VERIFY]` `playground`: `npm.cmd run lint` passed; focused `npm.cmd test -- settingsRoute SettingsShell leafLabels leafScrollAndChips setupReadiness viewportControls --silent` passed **55/55**; full `npm.cmd test -- --silent` passed **502/502**; `npm.cmd run build` passed; `git diff --check` passed.
+
+`[RESEARCH]` Interaction-workbench recommendation:
+
+- Keep pane controls as the foundation: maximize, restore, minimize, pin, open in page.
+- Add collapsible rails and saved layout presets only after the setup tree settles.
+- Add chart/frame focus mode next: AI explanation, critique, driver scan, suggested follow-ups, evidence/provenance, and selected-frame prompt specialization.
+- Add semantic-data mode as a separate adapter family. Databricks-native path should query governed data through Unity Catalog / SQL Statement Execution / Metric Views and render PulsePlay-native charts. Power BI semantic model querying can be a bridge through Execute Queries or visual export APIs, but not the strategic center.
+- Guardrail: all semantic data access must be proxy-side with allowlists, audit ids, query caps, and per-user/security-mode clarity.
+
+`[SOURCES]` Reviewed official/current references: Databricks dashboard embedding, Databricks Apps user authorization, Databricks SQL Statement Execution, Databricks local metric views, Power BI Execute Queries, Power BI visual `exportData`, Tableau Embedding API v3, Qlik embed selections/snapshots, and Hex interactive chart selection/filtering.
+
+`[HANDOFF]` Claude should review the code slice first, then challenge the interaction-workbench recommendation. Most important design question: do we introduce a new `InsightSurfaceAdapter` concept now, or keep it as an additive capability set on `BIAdapter` until Databricks semantic mode actually lands?
+
+### 2026-05-16 - Codex - Settings/Console IA consolidation
+
+`[CLAIM]` Rajesh first asked whether the floating top-right `Not connected | Managed` setup/status affordance should move into the center console, then clarified that duplicated setup functionality should be streamlined into the full Settings page. I treated this as a scoped IA lane touching `playground/src/pulse/visual.tsx`, `playground/src/pulse/style/visual.less`, `playground/src/pulse/settings.ts`, `playground/src/pulse/_adapter/PulseHostStub.ts`, `playground/src/App.tsx`, Settings AI files, focused tests, and doc hygiene.
+
+`[DONE]` Split responsibilities cleanly:
+
+- Removed the fixed global `gn-header-right` status/scope pills from Pulse chrome.
+- Added an in-pane `Console` trigger in the Pulse header row that opens Developer Tools and defaults to Diagnostics when needed.
+- Moved connection status and scope guardrail chips into the Developer Tools modal header via `gn-console-status-cluster`.
+- Retired the reachable Console Setup/Display editing buttons; Console now owns status, diagnostics, session log, SQL trace, and Settings handoff.
+- Added `settings/pulseVisualSettingsStore.ts` to let Settings write Pulse's legacy `genieSettings` namespace.
+- Replaced Settings `AI Insights setup ↗` with a real `Settings › AI › AI Insights` editor for prompt/domain/sections/stages/metric rules/provenance/cache.
+- Updated `settingsStore.setActiveAiProfile()` to mirror provider selection into Pulse runtime `genieSettings.assistantProfile`.
+- Updated Settings/Pulse copy from "Setup tab" to "Settings" where user-facing.
+- Removed the old focused-pane right reserve that existed only to avoid the fixed pill collision; the viewport regression now asserts compact focused chrome.
+- Engaged one sidecar agent for Canva reference. Result: view `https://www.canva.com/d/HXhoCHxftKjXL2H`, edit `https://www.canva.com/d/I36eapmNBwl0UTq`, design ID `DAHJ1oFh42k`.
+- Updated [HANDOVER.md](HANDOVER.md), [AGENDA.md](AGENDA.md), and [project_state.md](memory/project_state.md).
+
+`[VERIFY]` Focused `npm.cmd test -- AiGroup leafLabels viewportControls PulseShell --silent` passed **40/40**; `npm.cmd run lint` passed; full `npm.cmd test -- --silent` passed **496/496**; `npm.cmd run build` passed; `git diff --check` passed with only expected LF-to-CRLF working-copy warnings; `Invoke-WebRequest -UseBasicParsing http://127.0.0.1:5173/` returned HTTP **200**.
+
+`[RISK]` Browser automation tooling was not exposed in this session, so I could not attach a fresh visual screenshot. The change is covered by DOM/style focused regression, lint, full tests, build, and HTTP smoke.
+
+`[RISK]` The legacy Pulse setup components still exist in `visual.tsx` as compatibility/dead-code fallback, but the reachable UI path is retired. Once Settings covers every long-tail field, Claude can take a cleanup lane to delete the old SetupPanel/SetupEditFlow code.
+
+`[HANDOFF]` Claude should review the files above and specifically verify that the old fixed top-right pill cannot overlap the pane controls anymore, the `Console` button remains discoverable in the Pulse pane, users reach Settings for configuration, and Settings › AI › AI Insights is sufficient for the high-value prompt/domain/metric setup fields.
 
 ### 2026-05-16 — Claude (gallant-jones-a71415) — review of Codex post-review-gap closure
 

@@ -7,7 +7,7 @@ import FormattingSettingsGroup = formattingSettings.Group;
 
 /**
  * Dropdown items derived from the connector registry. The format-pane
- * dropdown and the Setup tab pick from the same source — to add a new
+ * dropdown and Settings page pick from the same source — to add a new
  * connector mode, declare it in connectorRegistry.ts and it appears in
  * both UIs automatically.
  */
@@ -154,8 +154,8 @@ export interface GenieVisualSettings {
     runtimeForbiddenColumns: string;
     runtimeMandatoryRowFilter: string;
     runtimeReadOnlyEnforced: boolean;
-    // Wave 38 Phase 1 — Setup tab access allowlist (UX gate; comma-separated
-    // emails / UPNs / role labels). Empty string ⇒ legacy `showSetupAccess`
+    // Legacy setup access allowlist (UX gate; comma-separated emails / UPNs
+    // / role labels). Empty string ⇒ legacy `showSetupAccess`.
     // toggle behaviour preserved.
     setupAccessAllowedUsers: string;
     // Wave 21 — SQL configuration (CTE preamble + forbidden tables + RLS template)
@@ -256,9 +256,8 @@ export interface GenieVisualSettings {
     showSetupAccess: boolean;
     /** Wave 30 — when ON (default), the visual's title row (icon + headerTitle
      *  + headerSubtitle) renders. When OFF, the title block is hidden and the
-     *  toolbar starts at the connection-status row. The "Connected | Managed"
-     *  pill stays visible in both states so viewers can always see the
-     *  connection state and reach Developer Tools. */
+     *  toolbar becomes the first visible row. The Console button stays visible
+     *  in both states so viewers can always reach Developer Tools. */
     showHeader: boolean;
     /** Wave 30 cycle 3 — header icon picker. Authors pick one of 6 inline
      *  SVG presets (no remote loads, no file upload — keeps the PBI sandbox
@@ -294,16 +293,16 @@ class ConnectionGroup extends FormattingSettingsGroup {
     name = "connection";
     displayName = "🔌 1 · Connection";
     description = "Choose how this visual reaches its AI backend. Start with Connection Mode — the fields that matter will depend on your choice. Proxy is recommended for production deployments.";
-    visible = false; // Operational settings live in the in-visual Setup tab — kept in the model so values still persist + load.
+    visible = false; // Operational settings live in PulsePlay Settings — kept in the model so values still persist + load.
 
     // Dropdown items are derived from the connector registry so the format
-    // pane and the Setup tab share a single source of truth. To add a new
+    // pane and the Settings page share a single source of truth. To add a new
     // connector, declare it in connectorRegistry.ts — it shows up here
     // automatically. (No connector-specific strings hardcoded in this file.)
     connectionMode = new formattingSettings.ItemDropdown({
         name: "connectionMode",
         displayName: "Connection Mode",
-        description: "Connector type. Auto picks Proxy when an API Base URL is configured, otherwise Direct. See the Setup tab for per-connector configuration and Test Connection.",
+        description: "Connector type. Auto picks Proxy when an API Base URL is configured, otherwise Direct. Use PulsePlay Settings for per-connector configuration and Test Connection.",
         items: CONNECTOR_DROPDOWN_ITEMS,
         value: CONNECTOR_DROPDOWN_DEFAULT,
     });
@@ -497,9 +496,9 @@ class SecurityGroup extends FormattingSettingsGroup {
         value: false
     });
 
-    // Wave 38 Phase 1 — Setup tab access allowlist (UX gate, NOT an
+    // Legacy setup access allowlist (UX gate, NOT an
     // authorization gate). Comma-separated emails / UPNs / role labels;
-    // when non-empty the Setup tab is visible ONLY to viewers whose bound
+    // when non-empty the retired Setup tab was visible ONLY to viewers whose bound
     // User Role / User Identity measure matches one of these entries.
     // Leave blank to fall through to the legacy `showSetupAccess` toggle
     // (Header & Layout group). PBI Desktop edit mode always bypasses this
@@ -507,7 +506,7 @@ class SecurityGroup extends FormattingSettingsGroup {
     setupAccessAllowedUsers = new formattingSettings.TextArea({
         name: "setupAccessAllowedUsers",
         displayName: "Setup Access Allowlist (optional)",
-        description: "Comma-separated emails / UPNs / role labels. When non-empty, the Setup tab is visible ONLY to viewers whose bound User Role measure matches one of these entries. Leave blank to fall back to the setupAccessEnabled toggle.",
+        description: "Legacy comma-separated emails / UPNs / role labels for the retired in-Console Setup tab. PulsePlay Settings is the active configuration surface.",
         placeholder: "alice@org.com, bob@org.com, GenieAuthors",
         value: ""
     });
@@ -636,7 +635,7 @@ class InsightsGroup extends FormattingSettingsGroup {
     });
 
     // IDEA-043 (Session 56) — universal-stage visibility + per-stage prompt
-    // override. Authors edit these from the in-visual Setup tab via the
+    // override. Authors edit these from PulsePlay Settings via the
     // "## HEADLINE / ## TRENDS / ## RISKS / ## RECOMMENDED ACTIONS" cards
     // (same Edit/Hide UI as custom sections). Persisted here so format-pane
     // round-trip preserves the values. Defaults preserve current behaviour:
@@ -644,25 +643,25 @@ class InsightsGroup extends FormattingSettingsGroup {
     insightsShowHeadline = new formattingSettings.ToggleSwitch({
         name: "insightsShowHeadline",
         displayName: "Include HEADLINE + KPI SNAPSHOT stage",
-        description: "When OFF, the AI Insights pipeline skips the HEADLINE + KPI SNAPSHOT stage. Edit from the Setup tab.",
+        description: "When OFF, the AI Insights pipeline skips the HEADLINE + KPI SNAPSHOT stage. Edit from PulsePlay Settings.",
         value: true
     });
     insightsShowTrends = new formattingSettings.ToggleSwitch({
         name: "insightsShowTrends",
         displayName: "Include TRENDS stage",
-        description: "When OFF, the AI Insights pipeline skips the TRENDS stage. Edit from the Setup tab.",
+        description: "When OFF, the AI Insights pipeline skips the TRENDS stage. Edit from PulsePlay Settings.",
         value: true
     });
     insightsShowRisks = new formattingSettings.ToggleSwitch({
         name: "insightsShowRisks",
         displayName: "Include RISKS stage",
-        description: "When OFF, the AI Insights pipeline skips the RISKS stage. Edit from the Setup tab.",
+        description: "When OFF, the AI Insights pipeline skips the RISKS stage. Edit from PulsePlay Settings.",
         value: true
     });
     insightsShowActions = new formattingSettings.ToggleSwitch({
         name: "insightsShowActions",
         displayName: "Include RECOMMENDED ACTIONS stage",
-        description: "When OFF, the AI Insights pipeline skips the RECOMMENDED ACTIONS stage. Edit from the Setup tab.",
+        description: "When OFF, the AI Insights pipeline skips the RECOMMENDED ACTIONS stage. Edit from PulsePlay Settings.",
         value: true
     });
     insightsHeadlineOverride = new formattingSettings.TextArea({
@@ -738,12 +737,12 @@ class InsightsGroup extends FormattingSettingsGroup {
     // IDEA-022: top-level feature gate. When only one feature is enabled
     // the header tab strip is hidden entirely; in chatOnly the auto-fire
     // insights effect is skipped so we don't spend Genie calls on a tab
-    // that won't render. Edited from the Setup tab Section 0 (radio); kept
+    // that won't render. Edited from Settings › AI › AI Insights; kept
     // here so the format-pane round-trip preserves the value.
     enabledFeatures = new formattingSettings.ItemDropdown({
         name: "enabledFeatures",
         displayName: "Enabled features",
-        description: "Which user-facing tabs the visual exposes. Both: AI Insights + Chat (default). AI Insights only: auto-generated analytics on load, no chat. Chat only: conversational Q&A, no auto-insights. Edited from the Setup tab; the format-pane field is the persisted store.",
+        description: "Which user-facing tabs the visual exposes. Both: AI Insights + Chat (default). AI Insights only: auto-generated analytics on load, no chat. Chat only: conversational Q&A, no auto-insights. Edited from Settings › AI › AI Insights; the format-pane field is the persisted store.",
         items: [
             { value: "both",         displayName: "Both — AI Insights + Chat (default)" },
             { value: "insightsOnly", displayName: "AI Insights only — no Chat tab" },
@@ -977,21 +976,21 @@ class HeaderGroup extends FormattingSettingsGroup {
 
     showSetupAccess = new formattingSettings.ToggleSwitch({
         name: "showSetupAccess",
-        displayName: "Show Setup in Status Panel",
-        description: "When ON, the Connected / status capsule opens a Setup tab inside Developer Tools. Use this for authors and managed-service operators who need access to connection, proxy, credential, and validation settings. Keep OFF for clutter-free consumer reports.",
+        displayName: "Legacy setup gate",
+        description: "Legacy flag for the retired in-Console Setup tab. PulsePlay Settings is now the canonical configuration surface.",
         value: false
     });
 
     // Wave 30 — show/hide the visual's internal title row (icon + Header Title
     // + Header Subtitle). Default ON for backward-compat. When OFF, the title
-    // block is suppressed; the connection-status pill, Adjust dropdown,
+    // block is suppressed; the Console button, Adjust dropdown,
     // toolbar (CSV / refresh / step indicator), and tab strip all remain
     // visible. Useful when the report already has a card title above the
     // visual and the duplicate header looks cluttered.
     showHeader = new formattingSettings.ToggleSwitch({
         name: "showHeader",
         displayName: "Show Visual Header",
-        description: "When ON (default), the visual shows its own title row (icon + Header Title + Header Subtitle) at the top. When OFF, that block is hidden — useful when the surrounding report already provides a title. The connection status pill, toolbar, and tab strip stay visible in both states.",
+        description: "When ON (default), the visual shows its own title row (icon + Header Title + Header Subtitle) at the top. When OFF, that block is hidden — useful when the surrounding report already provides a title. The Console button, toolbar, and tab strip stay visible in both states.",
         value: true
     });
 
@@ -1179,17 +1178,17 @@ class AdvancedGroup extends FormattingSettingsGroup {
 // Local edits to upstream Genie space text_instructions / sample_questions /
 // example_question_sqls — round-tripped through persistProperties as JSON
 // strings because the format pane only accepts primitives. Edited from the
-// Setup tab Section G; never shown in the format pane (visible: false).
+// Former Setup Section G; never shown in the format pane (visible: false).
 class GenieSpaceSyncGroup extends FormattingSettingsGroup {
     name = "genieSpaceSync";
     displayName = "🔁 8 · AI Workspace Sync";
-    description = "Local edits to the upstream AI workspace (text instructions, sample questions, trusted SQL examples). Edited from the Setup tab Section G. Stored as JSON strings.";
+    description = "Local edits to the upstream AI workspace (text instructions, sample questions, trusted SQL examples). Stored as JSON strings.";
     visible = false;
 
     genieTextInstructionsJson = new formattingSettings.TextInput({
         name: "genieTextInstructionsJson",
         displayName: "AI text instructions (JSON)",
-        description: "JSON-stringified array of {id, content[]} entries. Edited via Setup tab Section G.1.",
+        description: "JSON-stringified array of {id, content[]} entries.",
         placeholder: "[]",
         value: ""
     });
@@ -1197,7 +1196,7 @@ class GenieSpaceSyncGroup extends FormattingSettingsGroup {
     genieSampleQuestionsJson = new formattingSettings.TextInput({
         name: "genieSampleQuestionsJson",
         displayName: "AI sample questions (JSON)",
-        description: "JSON-stringified array of {id, question[]} entries. Edited via Setup tab Section G.2.",
+        description: "JSON-stringified array of {id, question[]} entries.",
         placeholder: "[]",
         value: ""
     });
@@ -1205,7 +1204,7 @@ class GenieSpaceSyncGroup extends FormattingSettingsGroup {
     genieExampleSqlsJson = new formattingSettings.TextInput({
         name: "genieExampleSqlsJson",
         displayName: "AI example SQLs (JSON)",
-        description: "JSON-stringified array of trusted SQL example entries. Edited via Setup tab Section G.3.",
+        description: "JSON-stringified array of trusted SQL example entries.",
         placeholder: "[]",
         value: ""
     });
@@ -1243,14 +1242,14 @@ class MultiSpaceGroup extends FormattingSettingsGroup {
     });
 
     // IDEA-011: count picker for additional helper slots. The primary
-    // space is always present; this drives how many extras are revealed
-    // by the in-visual Setup form. Values above the configured count are
+    // space is always present; this drives how many extras are active
+    // in Settings-backed multi-space configuration. Values above the configured count are
     // ignored at runtime even if their fields are populated, so toggling
     // the count down doesn't lose configured slot data.
     multiSpaceCount = new formattingSettings.ItemDropdown({
         name: "multiSpaceCount",
         displayName: "Additional Spaces (count)",
-        description: "How many additional AI workspaces to expose (1-9, primary excluded). The Setup form reveals only the matching number of slots so authors aren't overwhelmed with empty fields. Defaults to 3 for compatibility with existing reports.",
+        description: "How many additional AI workspaces to expose (1-9, primary excluded). Settings reveals only the matching number of slots so authors aren't overwhelmed with empty fields. Defaults to 3 for compatibility with existing reports.",
         items: [
             { value: "1", displayName: "1 additional" },
             { value: "2", displayName: "2 additional" },
@@ -1495,7 +1494,7 @@ class GenieSettingsCard extends FormattingSettingsCompositeCard {
     // All groups must stay in this array so the Power BI formatting service walks
     // them when populating values from the dataView. Operational groups are
     // marked `visible = false` on the class so they're hidden from the format
-    // pane (the in-visual Setup tab edits them via host.persistProperties).
+    // pane (Settings edits them via the Pulse visual-settings bridge).
     groups = [
         this.connection,
         this.multiSpace,
@@ -1551,7 +1550,7 @@ export function toGenieVisualSettings(model: VisualFormattingSettingsModel): Gen
         insightsMetricDirections: g.aiInsights.insightsMetricDirections.value,
         insightsShowProvenanceFooter: g.aiInsights.insightsShowProvenanceFooter.value,
         // IDEA-043 universal-stage controls. Persisted in the format-pane
-        // backing slices but typically edited from the in-visual Setup tab.
+        // backing slices but typically edited from Settings › AI › AI Insights.
         insightsShowHeadline:  g.aiInsights.insightsShowHeadline.value,
         insightsShowTrends:    g.aiInsights.insightsShowTrends.value,
         insightsShowRisks:     g.aiInsights.insightsShowRisks.value,

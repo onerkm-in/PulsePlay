@@ -189,14 +189,7 @@ import { renderInsightsAsEmailHtml } from "./_adapter/exportInsightsAsHtml";
 import { METRIC_DIRECTION_PRESETS as PP_METRIC_DIRECTION_PRESETS } from "./insightsPresetLibrary";
 import { createBackend } from "./backend/BackendFactory";
 import type { AnyBackend } from "./backend/BackendAdapter";
-// Wave 38 Phase 1 — Setup tab access allowlist (UX gate, not authorization).
-// Empty allowlist preserves the legacy `showSetupAccess` toggle behaviour.
-import {
-    parseAllowedUsers,
-    getViewerIdentity,
-    shouldShowSetupTab,
-} from "./setupAccessControl";
-
+import { parseAllowedUsers } from "./setupAccessControl";
 import IViewport = powerbi.IViewport;
 import IVisual = powerbi.extensibility.visual.IVisual;
 import IVisualHost = powerbi.extensibility.visual.IVisualHost;
@@ -205,6 +198,18 @@ import VisualUpdateOptions = powerbi.extensibility.visual.VisualUpdateOptions;
 type MessageRole = "assistant" | "user" | "system";
 type StageStatus = "idle" | "pending" | "running" | "done" | "error";
 type SessionLogLevel = "INFO" | "WARN" | "ERROR";
+
+function openPulsePlaySettings(group: "setup" | "bi" | "ai" | "preferences" | "system" | "advanced" = "setup", leaf?: string): void {
+    if (typeof window === "undefined") return;
+    const suffix = leaf ? `/${encodeURIComponent(leaf)}` : "";
+    window.history.pushState({}, "", `/settings/${group}${suffix}`);
+    try {
+        window.dispatchEvent(new CustomEvent("pulseplay:settings-navigate"));
+    } catch {
+        /* swallow */
+    }
+}
+
 interface InsightsRenderOptions {
     metricDirectionsJson?: string;
     legacyMetricDirectionRules?: string;
@@ -596,11 +601,10 @@ interface AppProps {
     configWarnings: string[];
     hostPalette: Record<string, any> | null;
     /**
-     * Wave 38 Phase 1 — true when PBI Desktop reports the viewer is editing
-     * the report (`options.viewMode === ViewMode.Edit | InFocusEdit`).
-     * Authors editing the report ALWAYS see the Setup tab regardless of the
-     * Setup Access Allowlist, so they can't lock themselves out by typo'ing
-     * their own email. Defaults to false in published-report / View mode.
+     * True when PBI Desktop reports the viewer is editing the report
+     * (`options.viewMode === ViewMode.Edit | InFocusEdit`). Retained for
+     * legacy Setup-gate compatibility; PulsePlay Settings is the active
+     * authoring surface.
      */
     isAuthorEditing: boolean;
 }
@@ -727,9 +731,9 @@ export class Visual implements IVisual {
             }
         }
 
-        // Wave 38 Phase 1 — detect Desktop edit/in-focus-edit mode so the
-        // Setup tab access gate can ALWAYS allow authors editing the report,
-        // even when their own email isn't on the Setup Access Allowlist.
+        // Detect Desktop edit/in-focus-edit mode. The signal is retained for
+        // legacy Setup-gate compatibility; PulsePlay Settings now owns active
+        // configuration.
         // ViewMode.View === 0, Edit === 1, InFocusEdit === 2 (see
         // node_modules/powerbi-visuals-api/src/visuals-api.d.ts).
         const isAuthorEditing = (options as any).viewMode === 1 || (options as any).viewMode === 2;
@@ -833,7 +837,7 @@ function App(props: AppProps) {
     // matched a full-PBI-visual width; here Pulse runs inside a resizable
     // split pane (cycle J) that's commonly ~35% of viewport — well under
     // 600 px on a 1280 px screen. That triggered compact in normal use and
-    // turned the connection pill into a bare dot. Lowered to 380 px so
+    // turned the old status pill into a bare dot. Lowered to 380 px so
     // compact only kicks in when the pane is genuinely squeezed (mobile-
     // narrow or aggressively-resized). Authors can still force-on or
     // force-off via settings.compactMode.
@@ -1543,28 +1547,30 @@ function App(props: AppProps) {
     const [historyBusy, setHistoryBusy] = useState(false);
     const [historyError, setHistoryError] = useState("");
     const [historyIncludeAll, setHistoryIncludeAll] = useState(false);
-    // Wave 38 Phase 1 — layered Setup tab access gate (UX, not authorization).
-    //   • Author editing in PBI Desktop → ALWAYS allowed.
-    //   • setupAccessAllowedUsers non-empty → strict allowlist match against
-    //     the bound User Identity / User Role measure; overrides the legacy
-    //     showSetupAccess toggle.
-    //   • Allowlist empty → preserve the legacy showSetupAccess toggle.
-    // Identical to today's behaviour when the new field is left blank.
-    const viewerIdentityForGate = getViewerIdentity(props);
-    const setupAccessGranted = shouldShowSetupTab({
-        showSetupAccess: opSettings.showSetupAccess,
-        allowlistRaw: opSettings.setupAccessAllowedUsers || "",
-        viewerIdentity: viewerIdentityForGate,
-        isAuthorEditing: props.isAuthorEditing,
-    });
-    // Detect "denied by allowlist" — non-empty allowlist + viewer NOT on it
-    // and NOT an editing author. Used to render a small inline note in
-    // place of the (now hidden) Setup tab and Developer-Tools entry points.
-    const setupAccessDeniedByAllowlist =
-        !setupAccessGranted &&
-        !props.isAuthorEditing &&
-        parseAllowedUsers(opSettings.setupAccessAllowedUsers || "").length > 0;
-    const setupPanelVisible = setupAccessGranted && devPanel === "setup";
+    // PulsePlay Settings is now the single setup/configuration surface.
+    // The Console stays operational only: status, diagnostics, session logs,
+    // and SQL trace. The old in-Console Setup/Display editors are retired to
+    // avoid duplicated controls and state drift.
+    const setupPanelVisible = false;
+    const connectionStatus = computeConnectionStatus(
+        props.settings,
+        props.configIssues,
+        props.configWarnings
+    );
+    const scopeGuardrailTags = (() => {
+        const cte = String(props.settings.sqlCtePreamble || "").trim();
+        const forbidden = String(props.settings.runtimeForbiddenColumns || "").trim();
+        const rowFilter = String(props.settings.runtimeMandatoryRowFilter || "").trim();
+        const tags: string[] = [];
+        if (cte) tags.push("SQL prefix");
+        if (forbidden) tags.push("column filter");
+        if (rowFilter) tags.push("row filter");
+        return tags;
+    })();
+    const scopeGuardrailLabel = scopeGuardrailTags.length === 1
+        ? scopeGuardrailTags[0]
+        : `${scopeGuardrailTags.length} active`;
+    const scopeGuardrailDetail = scopeGuardrailTags.join(" · ");
 
 
     // Setup panel state lifted to App so it survives tab switches inside the
@@ -1751,7 +1757,7 @@ function App(props: AppProps) {
         const space = activeSpaces.find(s => s.key === spaceKey);
         // Runtime Adjust box takes precedence; fall back to the settings-level
         // insightsPrompt + 49.17 hybrid fields (insightsDomain + insightsCustomSections)
-        // so any Setup tab change busts the cache and triggers a fresh run.
+        // so any Settings change busts the cache and triggers a fresh run.
         //
         // IDEA-039 Phase 1 — close cache-key parity gap via shared fingerprint
         // helper. Embeds `domainGuidance`, `genieFields`, `sendContextToGenie`,
@@ -3709,17 +3715,16 @@ function App(props: AppProps) {
             style={themeStyle}
         >
             <div className="gn-header gn-header--two-row">
-                {/* Row 1 — branding + status capsules. Title block on the left,
-                    connection pill on the right. Multi-space switcher (when
-                    enabled) sits between title and right-side status. */}
+                {/* Row 1 — branding and optional multi-space switcher. Operational
+                    connection/scope state lives in the centered Console instead
+                    of the global top-right chrome. */}
                 <div className="gn-header-row gn-header-row--top">
                 {(() => {
                     // Logo + title only render when the author has set a header
                     // title AND the new Wave 30 `showHeader` toggle is ON
                     // (default). When OFF, the title block is suppressed but
-                    // the connection-status pill on the right stays visible
-                    // so viewers can always see connection state + reach
-                    // Developer Tools. Subtitle is opt-in (settings.headerSubtitle)
+                    // the Console button in row 2 stays visible so viewers can
+                    // always reach diagnostics/status. Subtitle is opt-in (settings.headerSubtitle)
                     // — never falls back to space label so a single bold line
                     // is the norm.
                     if (props.settings.showHeader === false) return null;
@@ -3829,96 +3834,10 @@ function App(props: AppProps) {
                         )}
                     </div>
                 )}
-                <div
-                    className="gn-header-right"
-                    style={{
-                        // PulsePlay cycle K — pin the connection pill to the
-                        // viewport's top-right corner so it lands inside the
-                        // App.tsx top bar (which holds the PulsePlay brand
-                        // on the left). `fixed` rather than `absolute` makes
-                        // it independent of whichever pane Pulse mounts in:
-                        // in Both mode the pill stays at the viewport corner
-                        // instead of disappearing into the AI pane's corner.
-                        position: "fixed",
-                        top: 14,
-                        right: 16,
-                        zIndex: 60,
-                    }}
-                >
-                    {/* Scope-only / UC-enforced badge removed (49.10) — the
-                        security-posture detail is still reachable via the
-                        Connected pill, which opens the same Developer Tools
-                        modal where the full posture is documented. */}
-                    {/* IDEA-003: gn-info-btn removed; the diagnostics modal is reachable
-                        from the connection status pill below.
-                        The status pill's tooltip already says 'Click for diagnostics.' */}
-                    {(() => {
-                        const status = computeConnectionStatus(
-                            props.settings,
-                            props.configIssues,
-                            props.configWarnings
-                        );
-                        return (
-                            <button
-                                type="button"
-                                className={`gn-status gn-status--${status.level}`}
-                                title={status.tooltip}
-                                aria-label={`Connection status: ${status.label} — ${status.modeLabel}. Click for diagnostics.`}
-                                onClick={() => setShowDevModal(true)}
-                            >
-                                <span className="gn-status-dot" aria-hidden="true" />
-                                {/* PulsePlay: the pill lives in the global top
-                                  * bar via `position: fixed`, so its compact
-                                  * decision shouldn't depend on Pulse's pane
-                                  * width. Force the labels visible — inline
-                                  * style wins over the `.gn-compact .gn-status-label
-                                  * { display: none }` rule that fires when the
-                                  * AI pane is narrow. */}
-                                <span className="gn-status-label" style={{ display: "inline-block" }}>{status.label}</span>
-                                <span className="gn-status-mode" style={{ display: "inline-block" }}>{status.modeLabel}</span>
-                            </button>
-                        );
-                    })()}
-                    {/* BUG-017: Confidence indicator removed from the header strip.
-                        It was misleadingly prominent — viewers saw "40% confidence"
-                        without context for *why*. Now lives inside the Developer Tools
-                        modal (Connect-pill popup) above the tab buttons, where it's
-                        accessible to authors/testers without putting a misleading
-                        signal in front of every report viewer. */}
-                    {/* Wave 30 cycle 6 — viewer-facing Scope pill. Closes the
-                        PEPPULSE_NARRATIVE_AUDIT.md gap "governance not visible
-                        to viewers" without re-introducing the misleading
-                        full posture badge. Renders ONLY when at least one
-                        scope guardrail is active (Section H CTE prefix /
-                        Section C forbidden columns / runtime row filter).
-                        Click opens the same Developer Tools modal where the
-                        full scope posture is documented. */}
-                    {(() => {
-                        const cte = String(props.settings.sqlCtePreamble || "").trim();
-                        const forbidden = String(props.settings.runtimeForbiddenColumns || "").trim();
-                        const rowFilter = String(props.settings.runtimeMandatoryRowFilter || "").trim();
-                        const tags: string[] = [];
-                        if (cte) tags.push("SQL prefix");
-                        if (forbidden) tags.push("column filter");
-                        if (rowFilter) tags.push("row filter");
-                        if (tags.length === 0) return null;
-                        const label = tags.length === 1 ? tags[0] : `${tags.length} active`;
-                        const detail = tags.join(" · ");
-                        return (
-                            <button
-                                type="button"
-                                className="gn-status gn-status--scope"
-                                title={`Active scope guardrails: ${detail}. Data the AI sees is constrained by these rules. Click for details.`}
-                                aria-label={`Scope guardrails active: ${detail}. Click to open Developer Tools.`}
-                                onClick={() => setShowDevModal(true)}
-                            >
-                                <span className="gn-status-dot" aria-hidden="true" />
-                                <span className="gn-status-label">Scoped</span>
-                                <span className="gn-status-mode">{label}</span>
-                            </button>
-                        );
-                    })()}
-                </div>
+                {/* Connection and scope status moved out of the global top
+                    right chrome. The Console button below opens the centered
+                    Developer Tools surface, where these operational chips now
+                    live with diagnostics and the Settings handoff. */}
                 </div>
                 {/* Row 2 — surface controls + run state. Tabs + Adjust on the
                     left; meta strip (clock / copy / refresh) and the always-on
@@ -4027,6 +3946,20 @@ function App(props: AppProps) {
                             )}
                         </div>
                     )}
+                    <button
+                        type="button"
+                        className={`gn-console-trigger${showDevModal ? " gn-console-trigger--active" : ""}`}
+                        onClick={() => {
+                            setDevPanel(prev => prev || "diagnostics");
+                            setShowDevModal(true);
+                        }}
+                        title={`${connectionStatus.label} — ${connectionStatus.modeLabel}. Open the centered console for diagnostics, session logs, SQL trace, and Settings handoff.`}
+                        aria-label={`Open center console. Connection status: ${connectionStatus.label} — ${connectionStatus.modeLabel}.`}
+                        aria-pressed={showDevModal}
+                    >
+                        <Icon name="code" />
+                        <span>Console</span>
+                    </button>
                     {/* Spacer to push the run-state cluster to the far right. */}
                     {activeTab === "insights" && <div className="gn-header-spacer" />}
                     {/* Insights run-state cluster: clock + copy + refresh, then
@@ -4293,10 +4226,8 @@ function App(props: AppProps) {
                                     </button>
                                 )}
                                 {/* IDEA-039 step 1.3 — the standalone Configure pill
-                                    here was redundant with the existing top-right
-                                    "Connected | Managed" status capsule, which also
-                                    opens the Developer Tools drawer. Removed to
-                                    avoid two entry points for the same surface. */}
+                                    here is redundant with the Console entry, which
+                                    owns diagnostics and links to Settings. */}
                             </div>
                             {(stageStatuses.length > 0 || insightsBusy) && (
                                 <div className="gn-insights-progress-wrap gn-insights-progress-wrap--header">
@@ -4444,25 +4375,13 @@ function App(props: AppProps) {
                                         >
                                             Refresh
                                         </button>
-                                        {/* Wave 38 Phase 1 — gated by the layered allowlist + showSetupAccess. */}
-                                        {setupAccessGranted && (
-                                            <button
-                                                type="button"
-                                                className="gn-btn gn-btn--compact gn-btn--outline"
-                                                onClick={() => {
-                                                    setDevPanel("setup");
-                                                    setShowDevModal(true);
-                                                }}
-                                            >
-                                                Adjust filters
-                                            </button>
-                                        )}
-                                        {/* Wave 38 Phase 1 — explicit deny note for restricted viewers. */}
-                                        {setupAccessDeniedByAllowlist && (
-                                            <span className="gn-setup-access-denied" title="The report author restricted Setup access to a named allowlist.">
-                                                Setup access restricted to authorized users
-                                            </span>
-                                        )}
+                                        <button
+                                            type="button"
+                                            className="gn-btn gn-btn--compact gn-btn--outline"
+                                            onClick={() => openPulsePlaySettings("setup")}
+                                        >
+                                            Open Settings
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -5269,9 +5188,9 @@ function App(props: AppProps) {
                         } : {
                             // PulsePlay default — large centered popup, not
                             // the inherited narrow drawer. Authors mostly
-                            // open this to tweak Setup / Display / read
-                            // diagnostics, and the narrow drawer cropped
-                            // multi-column Setup forms.
+                            // open this to read diagnostics/session/SQL trace.
+                            // Configuration edits live in the full Settings
+                            // page to avoid duplicated setup surfaces.
                             position: "relative",
                             width: "88vw",
                             height: "86vh",
@@ -5282,7 +5201,30 @@ function App(props: AppProps) {
                         }}
                     >
                         <div className="gn-modal-header">
-                            <span className="gn-modal-title" id="gn-modal-title">Developer Tools</span>
+                            <div className="gn-modal-title-group">
+                                <span className="gn-modal-title" id="gn-modal-title">Developer Tools</span>
+                                <div className="gn-console-status-cluster" aria-label="Console status">
+                                    <span
+                                        className={`gn-status gn-status--${connectionStatus.level} gn-status--static`}
+                                        title={connectionStatus.tooltip}
+                                        role="status"
+                                    >
+                                        <span className="gn-status-dot" aria-hidden="true" />
+                                        <span className="gn-status-label">{connectionStatus.label}</span>
+                                        <span className="gn-status-mode">{connectionStatus.modeLabel}</span>
+                                    </span>
+                                    {scopeGuardrailTags.length > 0 && (
+                                        <span
+                                            className="gn-status gn-status--scope gn-status--static"
+                                            title={`Active scope guardrails: ${scopeGuardrailDetail}. Data the AI sees is constrained by these rules.`}
+                                        >
+                                            <span className="gn-status-dot" aria-hidden="true" />
+                                            <span className="gn-status-label">Scoped</span>
+                                            <span className="gn-status-mode">{scopeGuardrailLabel}</span>
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
                             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                                 {/* PulsePlay — maximize / restore toggle. Sits
                                     immediately left of the close ✕ so it doesn't
@@ -5302,8 +5244,8 @@ function App(props: AppProps) {
                                     ref={devModalCloseRef}
                                     className="gn-modal-close"
                                     onClick={() => setShowDevModal(false)}
-                                    title={setupPanelVisible ? "Close setup drawer" : "Close Developer Tools"}
-                                    aria-label={setupPanelVisible ? "Close AI Insights setup drawer" : "Close Developer Tools"}
+                                    title="Close Developer Tools"
+                                    aria-label="Close Developer Tools"
                                 >
                                     <span aria-hidden="true">✕</span>
                                 </button>
@@ -5395,33 +5337,14 @@ function App(props: AppProps) {
                                     </button>
                                 );
                             })()}
-                            {/* Wave 38 Phase 1 — Setup tab gated by layered allowlist + showSetupAccess. */}
-                            {setupAccessGranted && (
-                                <button
-                                    className={`gn-dev-btn${devPanel === "setup" ? " gn-dev-btn--active" : ""}`}
-                                    onClick={() => setDevPanel(prev => prev === "setup" ? "" : "setup")}
-                                    title="Configure AI Insights"
-                                    aria-label="Open AI Insights setup drawer"
-                                >
-                                    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M7 1h2l.35 1.65c.36.12.7.26 1.02.43l1.42-.91 1.42 1.42-.91 1.42c.17.32.31.66.43 1.02L14.38 6v2l-1.65.35c-.12.36-.26.7-.43 1.02l.91 1.42-1.42 1.42-1.42-.91c-.32.17-.66.31-1.02.43L9 13.38H7l-.35-1.65a5.5 5.5 0 0 1-1.02-.43l-1.42.91-1.42-1.42.91-1.42a5.5 5.5 0 0 1-.43-1.02L1.62 8V6l1.65-.35c.12-.36.26-.7.43-1.02l-.91-1.42 1.42-1.42 1.42.91c.32-.17.66-.31 1.02-.43L7 1zm1 4a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg>
-                                    Setup
-                                </button>
-                            )}
-                            {/* PulsePlay cycle H — Display tab. Folds the App-
-                                level outer toggles (Pulse/v0, AI/BI/Both, layout
-                                position) into the same Developer Tools modal so
-                                the connection pill is the single global entry
-                                point. State persists via localStorage keys read
-                                by App.tsx; toggle clicks dispatch a custom event
-                                that App.tsx listens for to update React state. */}
                             <button
-                                className={`gn-dev-btn${devPanel === "display" ? " gn-dev-btn--active" : ""}`}
-                                onClick={() => setDevPanel(prev => prev === "display" ? "" : "display")}
-                                title="PulsePlay app-level display options (UI mode, panels, layout)"
-                                aria-label="Open PulsePlay display settings"
+                                className="gn-dev-btn"
+                                onClick={() => openPulsePlaySettings("setup")}
+                                title="Open the canonical PulsePlay Settings page"
+                                aria-label="Open PulsePlay Settings"
                             >
-                                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 3h12v8H2V3zm1 1v6h10V4H3zm-1 8h12v1H2v-1z"/></svg>
-                                Display
+                                <Icon name="settings" />
+                                Settings
                             </button>
                         </div>
                         <div className="gn-modal-body">
@@ -5921,11 +5844,9 @@ function App(props: AppProps) {
                             {devPanel === "display" && (
                                 <PulsePlayDisplayPanel />
                             )}
-                            {/* Wave 38 Phase 1 — hint mirrors the layered Setup gate so the
-                                "or Setup" affordance is hidden whenever Setup is hidden. */}
-                            {(!devPanel || (devPanel === "setup" && !setupAccessGranted)) && (
+                            {!devPanel && (
                                 <p className="gn-modal-hint">
-                                    Select Diagnostics, Session Log, Display{setupAccessGranted ? ", or Setup" : ""} above.
+                                    Select Diagnostics, Session Log, SQL Trace, or open Settings above.
                                 </p>
                             )}
                         </div>
@@ -6072,12 +5993,12 @@ function ColorRulesBanner(props: {
     );
 }
 
-// PulsePlay cycle H — Display panel.
+// Retired Display panel.
 //
-// The three App.tsx-owned toggles (UI mode, enabled-components, layout)
-// used to live in a floating gear popover at the top-right of the
-// viewport. Cycle H folds them into Pulse's Developer Tools modal so the
-// connection pill is the single global settings entry point.
+// The App.tsx-owned toggles (UI mode, enabled-components, layout, BI tiles)
+// now live in Settings › Preferences. The Console keeps this lightweight
+// deep-link component only as a defensive fallback if an old state path ever
+// opens `devPanel === "display"`.
 //
 // State contract:
 //   - localStorage keys are owned by App.tsx ("pulseplay:ui-mode",

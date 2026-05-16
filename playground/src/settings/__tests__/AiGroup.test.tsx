@@ -126,10 +126,38 @@ describe("AiGroup — Phase 4 wiring", () => {
         unmount(state);
     });
 
+    it("selecting a provider mirrors the Pulse runtime assistantProfile", async () => {
+        const state = mount();
+        await flushAll();
+        const supervisorBtn = Array.from(state.container.querySelectorAll<HTMLButtonElement>("button"))
+            .find(b => (b.textContent || "").includes("PulsePlay Supervisor"));
+        expect(supervisorBtn).toBeDefined();
+        await act(async () => {
+            supervisorBtn!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+            await Promise.resolve();
+        });
+        const raw = window.localStorage.getItem("pulseplay:visual-settings:genieSettings");
+        expect(raw).toBeTruthy();
+        expect(JSON.parse(raw || "{}").assistantProfile).toBe("supervisor");
+        unmount(state);
+    });
+
     it("renders the knowledge pack picker with allowlist-filtered packs", async () => {
         const state = mount();
         await flushAll();
         expect(state.container.textContent || "").toContain("CPG / FMCG");
+        unmount(state);
+    });
+
+    it("renders canonical AI Insights settings on the Settings page", async () => {
+        const state = mount();
+        await flushAll();
+        const text = state.container.textContent || "";
+        expect(text).toContain("AI Insights");
+        expect(text).toContain("Custom insights prompt");
+        expect(text).toContain("Domain guidance");
+        expect(text).toContain("Metric direction rules");
+        expect(text).not.toContain("Open Pulse Setup");
         unmount(state);
     });
 

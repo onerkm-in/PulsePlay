@@ -5,8 +5,8 @@
 //
 //   - Header strip: brand + Back-to-app button + Esc to close
 //   - Search box (Cmd/Ctrl+/ to focus, Phase 2 filters by leaf label)
-//   - Status strip: 5 chips with quick state — BI · AI · Pack · Proxy · Security
-//   - Left rail: 5 groups (BI, AI, Preferences, System, Advanced)
+//   - Status strip: setup/readiness + BI · AI · Pack · Proxy · Security
+//   - Left rail: Setup + BI + AI + Preferences + System + Advanced
 //   - Content pane: renders the active group
 //
 // Search is intentionally lightweight in Phase 2 (substring match on group
@@ -23,13 +23,17 @@ import {
     type SettingsGroupId,
 } from "./settingsRoute";
 import { useSettings } from "./settingsStore";
+import { useEmbedConfig } from "./embedConfigStore";
+import { getSetupReadiness } from "./setupReadiness";
 import { BiGroup, leafSlug } from "./groups/BiGroup";
+import { SetupGroup } from "./groups/SetupGroup";
 import { AiGroup } from "./groups/AiGroup";
 import { PreferencesGroup } from "./groups/PreferencesGroup";
 import { SystemGroup } from "./groups/SystemGroup";
 import { AdvancedGroup } from "./groups/AdvancedGroup";
 
 const GROUP_LABELS: Record<SettingsGroupId, string> = {
+    setup: "Setup",
     bi: "BI",
     ai: "AI",
     preferences: "Preferences",
@@ -38,6 +42,7 @@ const GROUP_LABELS: Record<SettingsGroupId, string> = {
 };
 
 const GROUP_DESCRIPTIONS: Record<SettingsGroupId, string> = {
+    setup: "Make BI + AI ready",
     bi: "What you're looking at",
     ai: "What's thinking",
     preferences: "How the playground is laid out",
@@ -51,8 +56,9 @@ const GROUP_DESCRIPTIONS: Record<SettingsGroupId, string> = {
 // every leaf appears here. If you add or rename a Leaf in one of the
 // groups, update this dictionary or the test will fail.
 export const GROUP_LEAF_LABELS: Record<SettingsGroupId, string[]> = {
+    setup: ["Readiness", "BI vertical", "AI vertical", "Experience controls"],
     bi: ["Provider", "Embed", "Authentication", "Canvas", "Status"],
-    ai: ["Provider", "Model / Agent", "Connection test", "Knowledge pack", "AI Insights setup ↗", "Browse library ↗"],
+    ai: ["Provider", "Model / Agent", "Connection test", "Knowledge pack", "AI Insights", "Browse library ↗"],
     preferences: ["UI mode", "Visible panels", "AI position", "Canvas tiles"],
     system: ["Proxy status", "Security posture", "License posture", "Diagnostics", "Setup wizard", "Export support bundle"],
     advanced: ["Local storage inspector", "Reset section", "Reset all", "Danger zone"],
@@ -177,7 +183,7 @@ function SettingsHeader(): React.ReactElement {
             <div>
                 <h1 style={{ margin: 0, fontSize: 18, lineHeight: 1.1 }}>PulsePlay Settings</h1>
                 <p style={{ margin: "2px 0 0", fontSize: 11, opacity: 0.6 }}>
-                    Single source of truth for BI · AI · Preferences · System · Advanced
+                    Single source of truth for Setup · BI · AI · Preferences · System · Advanced
                 </p>
             </div>
             <button
@@ -250,14 +256,20 @@ function SettingsSearchBar(props: SettingsSearchBarProps): React.ReactElement {
 // ─── Status strip ────────────────────────────────────────────────────────
 
 function SettingsStatusStrip(): React.ReactElement {
-    const { allowlist, allowlistLoading, allowlistError, biVendor, packSelection, orphans } = useSettings();
+    const { allowlist, allowlistLoading, allowlistError, biVendor, packSelection, activeAiProfile, orphans } = useSettings();
+    const { embedConfig } = useEmbedConfig();
+    const setupReadiness = getSetupReadiness({ biVendor, embedConfig, activeAiProfile });
 
     const biStatus = orphans.some(o => o.key === "pulseplay:bi-vendor")
         ? "warn"
-        : biVendor
+        : setupReadiness.biReady
             ? "ok"
             : "missing";
-    const aiStatus = allowlist?.aiProfiles?.length ? "ok" : "missing";
+    const aiStatus = orphans.some(o => o.key === "pulseplay:active-ai-profile")
+        ? "warn"
+        : setupReadiness.aiReady
+            ? "ok"
+            : "missing";
     const packStatus = orphans.some(o => o.key === "pulseplay:pack-selection")
         ? "warn"
         : packSelection
@@ -279,8 +291,9 @@ function SettingsStatusStrip(): React.ReactElement {
                 flexWrap: "wrap",
             }}
         >
+            <Chip label="Setup" status={setupReadiness.ready ? "ok" : "warn"} detail={setupReadiness.pillDetail} group="setup" />
             <Chip label="BI" status={biStatus} detail={biVendor || "(none)"} group="bi" />
-            <Chip label="AI" status={aiStatus} detail={allowlist?.aiProfiles?.[0] || "(none)"} group="ai" />
+            <Chip label="AI" status={aiStatus} detail={activeAiProfile || "(none)"} group="ai" />
             <Chip label="Pack" status={packStatus} detail={packSelection?.pack || "(none)"} group="ai" leaf="knowledge-pack" />
             <Chip label="Proxy" status={proxyStatus} detail={allowlistError || (allowlistLoading ? "loading" : "ok")} group="system" leaf="proxy-status" />
             <Chip label="Security" status={securityStatus} detail={allowlist?.enforcement || "(unknown)"} group="system" leaf="security-posture" />
@@ -361,7 +374,7 @@ function SettingsLeftRail(props: SettingsLeftRailProps): React.ReactElement {
         >
             {props.visibleGroups.map(id => {
                 const active = id === props.activeGroup;
-                const setupNeeded = id === "system" && props.hasOrphans;
+                const setupNeeded = (id === "setup" || id === "system") && props.hasOrphans;
                 return (
                     <button
                         key={id}
@@ -428,6 +441,8 @@ function SettingsLeftRail(props: SettingsLeftRailProps): React.ReactElement {
 
 function ActiveGroup(props: { group: SettingsGroupId }): React.ReactElement {
     switch (props.group) {
+        case "setup":
+            return <SetupGroup />;
         case "bi":
             return <BiGroup />;
         case "ai":
@@ -439,7 +454,7 @@ function ActiveGroup(props: { group: SettingsGroupId }): React.ReactElement {
         case "advanced":
             return <AdvancedGroup />;
         default:
-            return <BiGroup />;
+            return <SetupGroup />;
     }
 }
 

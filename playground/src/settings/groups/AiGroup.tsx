@@ -14,11 +14,8 @@
 //   - Knowledge pack: PackPicker rendered inline with allowlist filter
 //     applied — author confirms selection; result writes to the same
 //     `pulseplay:pack-selection` localStorage key used elsewhere
-//   - AI Insights setup ↗ + Browse library ↗ stay as Phase 8 placeholders
-//
-// Out of scope: editing the underlying Pulse `genieSettings.assistantProfile`
-// (still owned by Pulse persistProperties). The store mirrors it on load
-// so a returning Pulse user lands on their existing selection.
+//   - AI Insights settings are edited here directly; the Pulse Console
+//     links here instead of hosting a duplicate setup form.
 
 import { useEffect, useMemo, useState } from "react";
 import { useSettings } from "../settingsStore";
@@ -27,6 +24,12 @@ import { TestConnectionPanel } from "../../components/TestConnectionPanel";
 import { PackPicker, type PackInfo, type PackSelection } from "../../components/PackPicker";
 import { probeConnector } from "../../lib/probeClient";
 import type { ConnectorProbeResult } from "../../types/probe";
+import {
+    usePulseAiVisualSettings,
+    type PulseAiVisualSettings,
+    type PulseEnabledFeatures,
+    type PulseInsightsAuthoringMode,
+} from "../pulseVisualSettingsStore";
 
 interface ProfileMetadata {
     name: string;
@@ -46,6 +49,7 @@ interface PacksPayload {
 export function AiGroup(): React.ReactElement {
     const settings = useSettings();
     const { allowlist, activeAiProfile, packSelection, orphans, setActiveAiProfile, setPackSelection } = settings;
+    const pulseAi = usePulseAiVisualSettings();
     const aiOrphan = orphans.find(o => o.key === "pulseplay:active-ai-profile");
     const packOrphan = orphans.find(o => o.key === "pulseplay:pack-selection");
 
@@ -240,13 +244,17 @@ export function AiGroup(): React.ReactElement {
                 {packOrphan && <OrphanBanner reason={packOrphan.reason} />}
             </Leaf>
 
-            {/* ── Deep-link rows (unchanged) ────────────────────────── */}
-            <Leaf group="ai" label="AI Insights setup ↗" helper="Open Pulse Setup for detailed prompt, KPI rule, and validator configuration.">
-                <DeepLinkButton label="Open Pulse Setup" onClick={() => {
-                    // Phase 5 wires this to a Pulse Setup hash route. For
-                    // now navigate to / and rely on the user opening Pulse.
-                    window.location.pathname = "/";
-                }} />
+            {/* ── AI Insights configuration ────────────────────────── */}
+            <Leaf
+                group="ai"
+                label="AI Insights"
+                helper="Canonical setup for AI Insights and Chat behavior: prompt strategy, domain guidance, section schema, metric semantics, and evidence display. Saves to Pulse genieSettings and live-updates the playground."
+            >
+                <PulseAiInsightsSettingsPanel
+                    value={pulseAi.value}
+                    onChange={pulseAi.update}
+                    activeAiProfile={activeAiProfile}
+                />
             </Leaf>
 
             <Leaf group="ai" label="Browse library ↗" helper="Open the Knowledge Base content browser — glossary, ontology, KPIs, sample questions per pack.">
@@ -267,6 +275,278 @@ export function AiGroup(): React.ReactElement {
         </section>
     );
 }
+
+// ─── AI Insights settings editor ────────────────────────────────────────
+
+function PulseAiInsightsSettingsPanel(props: {
+    value: PulseAiVisualSettings;
+    onChange: (patch: Partial<PulseAiVisualSettings>) => void;
+    activeAiProfile: string;
+}): React.ReactElement {
+    const { value, onChange } = props;
+    return (
+        <div style={{ display: "grid", gap: 14 }}>
+            <div
+                role="note"
+                style={{
+                    fontSize: 11,
+                    opacity: 0.74,
+                    background: "rgba(0,0,0,0.035)",
+                    padding: "8px 10px",
+                    borderRadius: 5,
+                    lineHeight: 1.45,
+                }}
+            >
+                This replaces the old Pulse Console setup tab. Provider selection above writes the same
+                <code> genieSettings.assistantProfile </code> value used by Pulse at runtime.
+            </div>
+
+            <CurrentValue label="Runtime profile">
+                {value.assistantProfile || props.activeAiProfile || "(provider not selected)"}
+            </CurrentValue>
+
+            <SettingsSelect<PulseEnabledFeatures>
+                label="Available AI surfaces"
+                value={value.enabledFeatures}
+                onChange={enabledFeatures => onChange({ enabledFeatures })}
+                options={[
+                    { value: "both", label: "Both — AI Insights + Chat" },
+                    { value: "insightsOnly", label: "AI Insights only" },
+                    { value: "chatOnly", label: "Chat only" },
+                ]}
+            />
+
+            <SettingsSelect<PulseInsightsAuthoringMode>
+                label="Authoring mode"
+                value={value.insightsAuthoringMode}
+                onChange={insightsAuthoringMode => onChange({ insightsAuthoringMode })}
+                options={[
+                    { value: "preset", label: "Preset — pick domain + sections" },
+                    { value: "ai-assisted", label: "AI-assisted — infer from data" },
+                    { value: "manual", label: "Manual — write prompt" },
+                ]}
+            />
+
+            <SettingsTextInput
+                label="Analytics domain"
+                value={value.insightsDomain}
+                placeholder="Example: cpg-fmcg, finance, supply-chain"
+                onChange={insightsDomain => onChange({ insightsDomain })}
+            />
+
+            <SettingsTextarea
+                label="Custom insights prompt"
+                value={value.insightsPrompt}
+                placeholder={"## Objective\nExplain what the AI should prioritize.\n\n## Required output\n- HEADLINE\n- TRENDS\n- RISKS\n- ACTIONS"}
+                rows={5}
+                onChange={insightsPrompt => onChange({ insightsPrompt })}
+            />
+
+            <SettingsTextarea
+                label="Domain guidance"
+                value={value.insightsDomainGuidance}
+                placeholder={"## Business rules\nDefine KPI semantics and exception handling.\n\n## Formatting standards\nMetric | Format | Direction"}
+                rows={5}
+                onChange={insightsDomainGuidance => onChange({ insightsDomainGuidance })}
+            />
+
+            <SettingsTextarea
+                label="Custom sections JSON"
+                value={value.insightsCustomSections}
+                placeholder={'[{"id":"headline","title":"HEADLINE","instruction":"Summarize the key movement."}]'}
+                rows={4}
+                mono
+                onChange={insightsCustomSections => onChange({ insightsCustomSections })}
+            />
+
+            <div style={{ display: "grid", gap: 8 }}>
+                <div style={{ fontSize: 12, fontWeight: 600 }}>Included stages</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    <SettingsCheckbox
+                        label="HEADLINE"
+                        checked={value.insightsShowHeadline}
+                        onChange={insightsShowHeadline => onChange({ insightsShowHeadline })}
+                    />
+                    <SettingsCheckbox
+                        label="TRENDS"
+                        checked={value.insightsShowTrends}
+                        onChange={insightsShowTrends => onChange({ insightsShowTrends })}
+                    />
+                    <SettingsCheckbox
+                        label="RISKS"
+                        checked={value.insightsShowRisks}
+                        onChange={insightsShowRisks => onChange({ insightsShowRisks })}
+                    />
+                    <SettingsCheckbox
+                        label="ACTIONS"
+                        checked={value.insightsShowActions}
+                        onChange={insightsShowActions => onChange({ insightsShowActions })}
+                    />
+                </div>
+            </div>
+
+            <SettingsTextarea
+                label="Metric direction rules"
+                value={value.metricDirectionRules}
+                placeholder={"Revenue: higher is better\nReturns: lower is better\nInventory days: lower is better"}
+                rows={3}
+                onChange={metricDirectionRules => onChange({ metricDirectionRules })}
+            />
+
+            <SettingsTextarea
+                label="Metric direction map JSON"
+                value={value.insightsMetricDirections}
+                placeholder={'{"Revenue":{"good":"up"},"Returns":{"good":"down"}}'}
+                rows={3}
+                mono
+                onChange={insightsMetricDirections => onChange({ insightsMetricDirections })}
+            />
+
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
+                <SettingsCheckbox
+                    label="Show provenance footer"
+                    checked={value.insightsShowProvenanceFooter}
+                    onChange={insightsShowProvenanceFooter => onChange({ insightsShowProvenanceFooter })}
+                />
+                <SettingsSelect<number>
+                    label="Cache TTL"
+                    value={value.insightsCacheTtlMinutes}
+                    onChange={insightsCacheTtlMinutes => onChange({ insightsCacheTtlMinutes })}
+                    options={[
+                        { value: 0, label: "Disabled" },
+                        { value: 5, label: "5 minutes" },
+                        { value: 15, label: "15 minutes" },
+                        { value: 30, label: "30 minutes" },
+                        { value: 60, label: "1 hour" },
+                        { value: 120, label: "2 hours" },
+                    ]}
+                />
+            </div>
+
+            <details>
+                <summary style={{ cursor: "pointer", fontSize: 12, fontWeight: 600 }}>Stage-specific instruction overrides</summary>
+                <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
+                    <SettingsTextarea label="HEADLINE override" value={value.insightsHeadlineOverride} rows={3} onChange={insightsHeadlineOverride => onChange({ insightsHeadlineOverride })} />
+                    <SettingsTextarea label="TRENDS override" value={value.insightsTrendsOverride} rows={3} onChange={insightsTrendsOverride => onChange({ insightsTrendsOverride })} />
+                    <SettingsTextarea label="RISKS override" value={value.insightsRisksOverride} rows={3} onChange={insightsRisksOverride => onChange({ insightsRisksOverride })} />
+                    <SettingsTextarea label="ACTIONS override" value={value.insightsActionsOverride} rows={3} onChange={insightsActionsOverride => onChange({ insightsActionsOverride })} />
+                </div>
+            </details>
+        </div>
+    );
+}
+
+function SettingsTextInput(props: {
+    label: string;
+    value: string;
+    placeholder?: string;
+    onChange: (next: string) => void;
+}): React.ReactElement {
+    return (
+        <label style={{ display: "grid", gap: 4 }}>
+            <span style={{ fontSize: 12, fontWeight: 600 }}>{props.label}</span>
+            <input
+                value={props.value}
+                placeholder={props.placeholder}
+                onChange={e => props.onChange(e.target.value)}
+                style={settingsInputStyle}
+            />
+        </label>
+    );
+}
+
+function SettingsTextarea(props: {
+    label: string;
+    value: string;
+    rows?: number;
+    mono?: boolean;
+    placeholder?: string;
+    onChange: (next: string) => void;
+}): React.ReactElement {
+    return (
+        <label style={{ display: "grid", gap: 4 }}>
+            <span style={{ fontSize: 12, fontWeight: 600 }}>{props.label}</span>
+            <textarea
+                value={props.value}
+                rows={props.rows ?? 4}
+                placeholder={props.placeholder}
+                onChange={e => props.onChange(e.target.value)}
+                style={{
+                    ...settingsInputStyle,
+                    minHeight: 72,
+                    resize: "vertical",
+                    fontFamily: props.mono ? "var(--pp-mono, ui-monospace, SFMono-Regular, Consolas, monospace)" : "inherit",
+                    lineHeight: 1.45,
+                }}
+            />
+        </label>
+    );
+}
+
+function SettingsSelect<T extends string | number>(props: {
+    label: string;
+    value: T;
+    options: Array<{ value: T; label: string }>;
+    onChange: (next: T) => void;
+}): React.ReactElement {
+    return (
+        <label style={{ display: "grid", gap: 4, minWidth: 220 }}>
+            <span style={{ fontSize: 12, fontWeight: 600 }}>{props.label}</span>
+            <select
+                value={String(props.value)}
+                onChange={e => {
+                    const match = props.options.find(opt => String(opt.value) === e.target.value);
+                    if (match) props.onChange(match.value);
+                }}
+                style={settingsInputStyle}
+            >
+                {props.options.map(opt => (
+                    <option key={String(opt.value)} value={String(opt.value)}>{opt.label}</option>
+                ))}
+            </select>
+        </label>
+    );
+}
+
+function SettingsCheckbox(props: {
+    label: string;
+    checked: boolean;
+    onChange: (checked: boolean) => void;
+}): React.ReactElement {
+    return (
+        <label
+            style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: 12,
+                padding: "6px 10px",
+                border: "1px solid var(--pp-border, rgba(0,0,0,0.14))",
+                borderRadius: 5,
+                background: props.checked ? "rgba(0,120,212,0.08)" : "transparent",
+            }}
+        >
+            <input
+                type="checkbox"
+                checked={props.checked}
+                onChange={e => props.onChange(e.target.checked)}
+            />
+            {props.label}
+        </label>
+    );
+}
+
+const settingsInputStyle: React.CSSProperties = {
+    width: "100%",
+    boxSizing: "border-box",
+    padding: "8px 10px",
+    border: "1px solid var(--pp-border, rgba(0,0,0,0.18))",
+    borderRadius: 5,
+    background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.98))",
+    boxShadow: "inset 0 1px 2px rgba(15, 23, 42, 0.07), 0 1px 2px rgba(15, 23, 42, 0.04)",
+    color: "inherit",
+    fontSize: 12,
+};
 
 // ─── Provider picker ────────────────────────────────────────────────────
 

@@ -18,6 +18,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { SettingsProvider } from "../settingsStore";
+import { SetupGroup } from "../groups/SetupGroup";
 import { BiGroup, leafSlug } from "../groups/BiGroup";
 import { PreferencesGroup } from "../groups/PreferencesGroup";
 import { AdvancedGroup } from "../groups/AdvancedGroup";
@@ -106,6 +107,16 @@ describe("leafSlug helper", () => {
 /* ─── Leaf id contract (fix #2 enabler) ───────────────────────────── */
 
 describe("Leaf renders id=settings-<group>-<slug> when group prop is set", () => {
+    it("SetupGroup leaves render the expected ids", () => {
+        const state = mount(<SetupGroup />);
+        for (const label of GROUP_LEAF_LABELS.setup) {
+            const expectedId = `settings-setup-${leafSlug(label)}`;
+            const node = state.container.querySelector(`[id="${expectedId}"]`);
+            expect(node, `<Leaf label="${label}"> in Setup group should have id="${expectedId}"`).toBeTruthy();
+        }
+        unmount(state);
+    });
+
     it("BiGroup leaves render the expected ids", () => {
         const state = mount(<BiGroup />);
         // Build expected ids from the dictionary (cross-checked against the

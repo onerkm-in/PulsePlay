@@ -5,6 +5,68 @@
 
 ---
 
+## 2026-05-16 - Setup pill + Settings setup tree
+
+**Range:** Rajesh refined the previous IA direction: keep a single top-right pill, but make it a setup/readiness entry that opens one Settings setup tree. The old Pulse-owned `Not connected | Managed` status pill stays retired; the new app-owned pill is configuration readiness, not duplicate console chrome.
+
+### What shipped
+
+- Added [setupReadiness.ts](../playground/src/settings/setupReadiness.ts), a shared BI+AI readiness model used by the app header and Settings.
+- Added [SetupGroup.tsx](../playground/src/settings/groups/SetupGroup.tsx) and made `/settings` default to `/settings/setup`. The tree now has **Setup / BI / AI / Preferences / System / Advanced**.
+- Added a compact top-right setup pill in [App.tsx](../playground/src/App.tsx). It shows `Ready` or `Setup needed`, names the missing BI/AI items, and opens Settings › Setup.
+- Repointed Pulse Console handoffs and the Pulse BI source row to Settings › Setup, so Console remains operational: diagnostics, session log, SQL trace, status.
+- Removed the unused floating settings gear/toggle code from [App.tsx](../playground/src/App.tsx) to match the visible IA: one setup entry, no duplicate configuration popovers.
+- Added regression coverage for the readiness helper, Settings setup leaf dictionary/scroll ids, default settings route, and the top-right setup pill.
+- Researched the next interaction-workbench lane and added it to [AGENT_SYNC.md](AGENT_SYNC.md): pane controls, chart-focus mode, AI-assisted focused review, custom visual rendering over governed semantic data, and Databricks/Power BI security constraints.
+
+### Validation
+
+- `playground`: `npm.cmd run lint` passed.
+- `playground`: focused `npm.cmd test -- settingsRoute SettingsShell leafLabels leafScrollAndChips setupReadiness viewportControls --silent` passed **55/55**.
+- `playground`: full `npm.cmd test -- --silent` passed **502/502**.
+- `playground`: `npm.cmd run build` passed.
+- Repo: `git diff --check` passed after removing a trailing blank line at EOF in [App.tsx](../playground/src/App.tsx).
+
+### Tripwires
+
+- The new pill is app chrome, not Pulse visual chrome. Do not re-add `gn-header-right` fixed status pills inside Pulse; that was the overlap source.
+- The semantic-layer/custom-visual idea is feasible, but only as a governed data mode. Databricks is the stronger strategic path; Power BI semantic-model querying is useful as a bridge but has Build-permission, RLS, service-principal, tenant-setting, row-count, and API-limit constraints.
+
+---
+
+## 2026-05-16 - Settings owns configuration; Console owns status
+
+**Range:** Rajesh first pointed at the floating top-right `Not connected | Managed` pill and suggested moving it into the center console. Then he clarified the stronger IA rule: do not keep duplicated setup functionality; the full-page Settings surface is the best organized place, so configuration should live there.
+
+### What shipped
+
+- Removed the Pulse status/scope pills from the global top-right chrome in [visual.tsx](../playground/src/pulse/visual.tsx). The outer [App.tsx](../playground/src/App.tsx) header is now just product branding; no fixed Pulse pill competes with pane controls.
+- Added an in-pane **Console** trigger in the Pulse header row. It opens the centered Developer Tools surface for connection status, scope chips, diagnostics, session log, SQL trace, and a handoff to Settings.
+- Retired the Console **Setup** and **Display** editing paths from the reachable UI. Console is now observe/debug; Settings is now change/configure.
+- Added [pulseVisualSettingsStore.ts](../playground/src/settings/pulseVisualSettingsStore.ts) so Settings can read/write Pulse's legacy `pulseplay:visual-settings:genieSettings` namespace without routing users through the old Pulse setup form.
+- Replaced the old Settings `AI Insights setup ↗` placeholder with a real **Settings › AI › AI Insights** editor for enabled surfaces, authoring mode, domain, custom prompt, domain guidance, custom sections JSON, stage toggles, metric direction rules, metric direction JSON, provenance footer, cache TTL, and stage overrides.
+- Updated the Settings provider picker so `activeAiProfile` also mirrors to Pulse runtime `genieSettings.assistantProfile`; App listens for `pulseplay:visual-settings-change` and refreshes PulseShell.
+- Removed the old focused-pane right-side collision reserve that only existed for the fixed pill; viewport regression now asserts compact focused chrome.
+- Captured the Canva sidecar reference board for review: view `https://www.canva.com/d/HXhoCHxftKjXL2H`, edit `https://www.canva.com/d/I36eapmNBwl0UTq`, design ID `DAHJ1oFh42k`.
+- Updated [AGENT_SYNC.md](AGENT_SYNC.md) so Claude can review the IA consolidation as the current LIFO item.
+
+### Validation
+
+- `playground`: focused `npm.cmd test -- AiGroup leafLabels viewportControls PulseShell --silent` passed **40/40**.
+- `playground`: `npm.cmd run lint` passed.
+- `playground`: full `npm.cmd test -- --silent` passed **496/496**.
+- `playground`: `npm.cmd run build` passed.
+- Repo: `git diff --check` passed with only expected LF-to-CRLF working-copy warnings.
+- Dev server smoke: `http://127.0.0.1:5173/` returned HTTP **200**.
+
+### Tripwires
+
+- Browser automation tooling was not exposed in this session, so this slice has code/test/build/HTTP smoke but not an attached screenshot.
+- The old Pulse setup components still exist in `visual.tsx` as compatibility code, but the reachable UI path is retired. A later dead-code cleanup can delete the legacy setup editor once Settings covers every long-tail field.
+- The Console trigger is inside the Pulse pane. If the AI pane is hidden, users use Settings › Preferences or the fixed Settings entry point to restore it.
+
+---
+
 ## 2026-05-16 - Wizard repeat-ask and settings polish closeout
 
 **Range:** Rajesh asked Codex to close the gaps found after Claude's latest changes and make Claude aware through `AGENT_SYNC.md`.

@@ -1,6 +1,6 @@
 // playground/src/settings/__tests__/SettingsShell.test.tsx
 //
-// Integration coverage for SettingsShell: renders the five groups, the
+// Integration coverage for SettingsShell: renders the setup tree + groups, the
 // status strip reflects current state, the search box filters the rail,
 // and Esc returns the URL to "/".
 
@@ -56,7 +56,7 @@ afterEach(() => {
 });
 
 describe("SettingsShell — render", () => {
-    it("renders all five group buttons in the left rail", async () => {
+    it("renders all group buttons in the left rail", async () => {
         const state = mount("/settings");
         await act(async () => { await Promise.resolve(); });
         const buttons = state.container.querySelectorAll<HTMLButtonElement>("nav button");
@@ -64,18 +64,18 @@ describe("SettingsShell — render", () => {
         // just need to confirm each canonical group name appears somewhere
         // inside one of the rail buttons.
         const text = Array.from(buttons).map(b => b.textContent || "").join(" | ");
-        for (const label of ["BI", "AI", "Preferences", "System", "Advanced"]) {
+        for (const label of ["Setup", "BI", "AI", "Preferences", "System", "Advanced"]) {
             expect(text).toContain(label);
         }
-        expect(buttons.length).toBe(5);
+        expect(buttons.length).toBe(6);
         unmount(state);
     });
 
-    it("renders BiGroup by default when no group in URL", async () => {
+    it("renders SetupGroup by default when no group in URL", async () => {
         const state = mount("/settings");
         await act(async () => { await Promise.resolve(); });
-        const heading = state.container.querySelector("#settings-bi-title");
-        expect(heading?.textContent).toBe("BI");
+        const heading = state.container.querySelector("#settings-setup-title");
+        expect(heading?.textContent).toBe("Setup");
         unmount(state);
     });
 

@@ -928,8 +928,8 @@
     z-index: 10;
     min-height: 44px;
 }
-// 49.10 — two-row variant. Row 1 carries branding + status capsules; row 2
-// carries the surface controls (tabs + Adjust). Total stacked height ~80px.
+// 49.10 — two-row variant. Row 1 carries branding; row 2 carries the
+// surface controls plus Console. Operational status chips live in Console.
 .gn-header--two-row {
     flex-direction: column;
     align-items: stretch;
@@ -1259,18 +1259,15 @@
     .gn-status-dot { animation: gn-status-pulse 1.2s ease-in-out infinite; }
 }
 
+.gn-status--scope {
+    color: #5b5bd6;
+    border-color: #5b5bd6;
+    background: rgba(91, 91, 214, 0.08);
+}
+
 @keyframes gn-status-pulse {
     0%, 100% { box-shadow: 0 0 0 0 currentColor; opacity: 1; }
     50%      { box-shadow: 0 0 0 4px transparent; opacity: 0.55; }
-}
-
-.gn-header-right {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 8px;
-    flex: 1 1 0%;
-    min-width: 0;
 }
 
 .gn-badge {
@@ -1421,6 +1418,60 @@
     border-color: var(--gn-accent, #4691e0);
     color: #fff;
     background: rgba(70, 145, 224, 0.25);
+}
+
+.gn-console-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 28px;
+    padding: 0 11px;
+    border: 1px solid @gn-border;
+    border-radius: @gn-radius-pill;
+    background: @gn-surface-raised;
+    color: @gn-text;
+    font-family: @gn-font;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color @gn-t-base @gn-ease, background @gn-t-base @gn-ease, color @gn-t-base @gn-ease, box-shadow @gn-t-base @gn-ease;
+    flex-shrink: 0;
+
+    svg {
+        width: 14px;
+        height: 14px;
+    }
+
+    &:hover {
+        border-color: @gn-accent;
+        color: @gn-accent;
+        background: @gn-accent-subtle;
+        box-shadow: @gn-shadow-xs;
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--gn-accent, #1a6fd4);
+        outline-offset: 2px;
+    }
+}
+
+.gn-console-trigger--active {
+    border-color: @gn-accent;
+    color: @gn-accent;
+    background: @gn-accent-subtle;
+}
+
+.gn-shell--dark .gn-console-trigger {
+    border-color: rgba(255, 255, 255, 0.25);
+    color: rgba(255, 255, 255, 0.92);
+    background: rgba(255, 255, 255, 0.04);
+
+    &:hover,
+    &.gn-console-trigger--active {
+        border-color: var(--gn-accent, #4691e0);
+        color: #fff;
+        background: rgba(70, 145, 224, 0.18);
+    }
 }
 .gn-shell--dark .gn-header-tab {
     color: rgba(255, 255, 255, 0.72);
@@ -3825,8 +3876,49 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 12px;
     padding: 12px 16px;
     border-bottom: 1px solid @gn-border-subtle;
+}
+
+.gn-modal-title-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+}
+
+.gn-console-status-cluster {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    flex-wrap: wrap;
+
+    .gn-status {
+        min-height: 24px;
+        padding: 3px 9px;
+    }
+
+    .gn-status-label,
+    .gn-status-mode {
+        display: inline-block;
+    }
+}
+
+.gn-status--static {
+    cursor: default;
+
+    &:hover {
+        filter: none;
+        box-shadow: none;
+    }
+
+    &:active {
+        transform: none;
+    }
 }
 
 // BUG-017: confidence indicator demoted into the dev modal. Renders below

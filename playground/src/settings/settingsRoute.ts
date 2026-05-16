@@ -5,7 +5,7 @@
 //
 // Routes:
 //   /                              → playground (default)
-//   /settings                      → SettingsShell at default group (last-visited or "bi")
+//   /settings                      → SettingsShell at default group (last-visited or "setup")
 //   /settings/<group>              → SettingsShell at named group
 //   /settings/<group>/<leaf>       → SettingsShell at named group, scroll to leaf
 //
@@ -14,9 +14,10 @@
 
 import { useEffect, useState } from "react";
 
-export type SettingsGroupId = "bi" | "ai" | "preferences" | "system" | "advanced";
+export type SettingsGroupId = "setup" | "bi" | "ai" | "preferences" | "system" | "advanced";
 
 export const SETTINGS_GROUP_IDS: ReadonlyArray<SettingsGroupId> = [
+    "setup",
     "bi",
     "ai",
     "preferences",
@@ -27,7 +28,7 @@ export const SETTINGS_GROUP_IDS: ReadonlyArray<SettingsGroupId> = [
 export interface SettingsRouteState {
     /** True when the URL starts with /settings. */
     isSettingsRoute: boolean;
-    /** Active group from the URL (defaults to "bi" if /settings has no group). */
+    /** Active group from the URL (defaults to "setup" if /settings has no group). */
     group: SettingsGroupId;
     /** Optional leaf segment (e.g., "provider" for /settings/bi/provider). */
     leaf: string | null;
@@ -41,14 +42,14 @@ function isValidGroup(value: string): value is SettingsGroupId {
 }
 
 function readLastGroup(): SettingsGroupId {
-    if (typeof window === "undefined") return "bi";
+    if (typeof window === "undefined") return "setup";
     try {
         const raw = window.localStorage.getItem(LAST_GROUP_KEY);
         if (raw && isValidGroup(raw)) return raw;
     } catch {
         /* swallow */
     }
-    return "bi";
+    return "setup";
 }
 
 function writeLastGroup(group: SettingsGroupId): void {
@@ -84,7 +85,7 @@ export function useSettingsRoute(): SettingsRouteState {
     const [state, setState] = useState<SettingsRouteState>(() =>
         typeof window !== "undefined"
             ? parseSettingsRoute(window.location.pathname)
-            : { isSettingsRoute: false, group: "bi", leaf: null }
+            : { isSettingsRoute: false, group: "setup", leaf: null }
     );
 
     useEffect(() => {

@@ -19,6 +19,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { GROUP_LEAF_LABELS } from "../SettingsShell";
+import { SetupGroup } from "../groups/SetupGroup";
 import { BiGroup } from "../groups/BiGroup";
 import { AiGroup } from "../groups/AiGroup";
 import { PreferencesGroup } from "../groups/PreferencesGroup";
@@ -88,6 +89,16 @@ afterEach(() => {
 });
 
 describe("GROUP_LEAF_LABELS dictionary drift prevention", () => {
+    it("Setup: every rendered Leaf appears in GROUP_LEAF_LABELS.setup", () => {
+        const state = mount(<SetupGroup />);
+        const rendered = extractRenderedLeafLabels(state.container);
+        expect(rendered.length).toBeGreaterThan(0);
+        for (const label of rendered) {
+            expect(GROUP_LEAF_LABELS.setup).toContain(label);
+        }
+        unmount(state);
+    });
+
     it("BI: every rendered Leaf appears in GROUP_LEAF_LABELS.bi", () => {
         const state = mount(<BiGroup />);
         const rendered = extractRenderedLeafLabels(state.container);
@@ -144,6 +155,7 @@ describe("GROUP_LEAF_LABELS dictionary drift prevention", () => {
         // for leaves that were removed but never cleaned up from the
         // search dictionary).
         const cases: Array<[keyof typeof GROUP_LEAF_LABELS, React.ReactNode]> = [
+            ["setup", <SetupGroup key="setup" />],
             ["bi", <BiGroup key="bi" />],
             ["ai", <AiGroup key="ai" />],
             ["preferences", <PreferencesGroup key="pref" />],

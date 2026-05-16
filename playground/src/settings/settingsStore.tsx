@@ -7,15 +7,17 @@
 // silent selections).
 //
 // Coexistence with existing code: the playground today writes some keys
-// directly (App.tsx, Pulse Cycle H Display tab). The store mirrors those
+// directly (App.tsx, small canvas toolbar). The store mirrors those
 // keys via the existing `pulseplay:display-change` window event AND its
 // own setters dispatch that same event. Net effect: store and legacy
 // paths stay in sync during Phase 2-3 migration. Phase 5 retires the
 // legacy paths.
 //
-// Out of scope: the `pulseplay:visual-settings:*` namespace remains
-// owned by Pulse via PulseHostStub.persistProperties. This store never
-// touches those keys.
+// The broader `pulseplay:visual-settings:*` namespace is bridged by
+// `pulseVisualSettingsStore.ts` so the full Settings page can be the
+// single authoring surface. This store only mirrors the active AI profile
+// into Pulse's `genieSettings.assistantProfile` so the provider picker and
+// Pulse runtime stop drifting.
 
 import {
     createContext,
@@ -28,6 +30,7 @@ import {
 } from "react";
 import type { PulsePlayAllowlist } from "../types/allowlist";
 import type { PackSelection } from "../components/PackPicker";
+import { writePulseAiVisualSettingsPatch } from "./pulseVisualSettingsStore";
 
 // ─── Storage keys (mirrors App.tsx + Pulse Cycle H) ───────────────────────
 
@@ -533,8 +536,10 @@ export function SettingsProvider(props: SettingsProviderProps): React.ReactEleme
             }
             if (trimmed) {
                 persistAndBroadcast(KEY.activeAiProfile, trimmed);
+                writePulseAiVisualSettingsPatch({ assistantProfile: trimmed });
             } else {
                 removeAndBroadcast(KEY.activeAiProfile);
+                writePulseAiVisualSettingsPatch({ assistantProfile: "" });
             }
             dispatch({ type: "set/activeAiProfile", value: trimmed });
             return { ok: true };

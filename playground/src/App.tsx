@@ -33,8 +33,10 @@ import type { ConnectorProbeResult } from "./types/probe";
 import type { PulsePlayAllowlist } from "./types/allowlist";
 import { probeConnector } from "./lib/probeClient";
 import { SettingsProvider } from "./settings/settingsStore";
+import { PULSE_VISUAL_SETTINGS_EVENT } from "./settings/pulseVisualSettingsStore";
 import { SettingsShell } from "./settings/SettingsShell";
 import { useSettingsRoute, navigateToSettings } from "./settings/settingsRoute";
+import { getSetupReadiness, type SetupReadiness } from "./settings/setupReadiness";
 import { KnowledgeShell } from "./knowledge/KnowledgeShell";
 import { useKnowledgeRoute } from "./knowledge/knowledgeRoute";
 // PERF — lazy-load PulseShell so the 642 KB pulse chunk isn't on the
@@ -46,7 +48,7 @@ const PulseShell = lazy(() =>
 );
 
 /** UI mode toggle — "pulse" mounts the full ported Pulse experience in
- *  the left panel (Insights tab + Chat tab + SetupPanel + all the
+ *  the left panel (Insights tab + Chat tab + operational Console + all the
  *  iterated UX); "v0" mounts the Smart-Connect-flavoured v0 components
  *  we built in cycles B + C. Both modes keep the BI canvas on the right
  *  so the multi-BI host stays usable. Cycle F lets the panels be
@@ -449,11 +451,10 @@ function PlaygroundApp(): React.ReactElement {
         }
     }, [activeVendor, visibleVendors]);
 
-    // Cycle H — the Display tab inside Pulse's Developer Tools modal writes
-    // the same three localStorage keys this component owns and dispatches a
-    // `pulseplay:display-change` window event. We listen and sync React
-    // state so toggles from the Display tab take effect immediately without
-    // a reload.
+    // Settings is the canonical source for app display preferences. It writes
+    // the same localStorage keys this component owns and dispatches a
+    // `pulseplay:display-change` event, so Settings changes apply immediately
+    // without a reload.
     useEffect(() => {
         const handler = (e: Event) => {
             const detail = (e as CustomEvent<{ key?: string; value?: string }>).detail;
@@ -476,6 +477,18 @@ function PlaygroundApp(): React.ReactElement {
         const handler = () => setFocusedPane(readViewportFocusFromUrl());
         window.addEventListener("popstate", handler);
         return () => window.removeEventListener("popstate", handler);
+    }, []);
+
+    // Settings also owns Pulse's legacy `genieSettings` namespace now. When a
+    // Settings control writes to that namespace, re-run PulseShell.update()
+    // so the embedded Pulse UI picks up the new prompt/domain/runtime config.
+    useEffect(() => {
+        const handler = () => {
+            setPulseAssistantProfile(readPulseAssistantProfile());
+            setPulseRenderToken(t => t + 1);
+        };
+        window.addEventListener(PULSE_VISUAL_SETTINGS_EVENT, handler as EventListener);
+        return () => window.removeEventListener(PULSE_VISUAL_SETTINGS_EVENT, handler as EventListener);
     }, []);
 
     const aiVisible = enabledComponents === "aiOnly" || enabledComponents === "both";
@@ -601,6 +614,11 @@ function PlaygroundApp(): React.ReactElement {
     }, []);
 
     const hasEmbedConfig = Object.keys(embedConfig).length > 0;
+    const setupReadiness = getSetupReadiness({
+        biVendor: activeVendor,
+        embedConfig,
+        activeAiProfile: pulseAssistantProfile || activeConnector,
+    });
     const probeSuggested: PackSelection | undefined =
         probeResult?.inference?.suggestedPack
             ? {
@@ -702,11 +720,9 @@ function PlaygroundApp(): React.ReactElement {
             data-layout-pinned={pinnedViewportPane ? "true" : "false"}
             style={{ position: "relative", width: "100%", height: "100vh", overflow: "hidden", display: "flex", flexDirection: "column" }}
         >
-            {/* PulsePlay top bar — full-width header strip. Branding on
-              * the left; the connection pill (rendered by Pulse via
-              * position: fixed) lands on the right inline with this
-              * branding. Replaces the in-AI-pane brand block so the
-              * header reads as a single horizontal row across the app. */}
+            {/* PulsePlay top bar — full-width header strip. The right pill is
+              * the single configuration entry: it opens Settings > Setup,
+              * where BI + AI readiness are shown together. */}
             <header
                 className="pp-top-bar"
                 style={{
@@ -725,25 +741,8 @@ function PlaygroundApp(): React.ReactElement {
                         AI playground · multi-BI host
                     </p>
                 </div>
-                {/* Right slot — the pill drops in here visually via
-                  *  `position: fixed` from inside Pulse. We leave the slot
-                  *  empty so when the pill ISN'T mounted (v0 mode, or
-                  *  biOnly without Pulse) the bar stays clean. */}
-                <div style={{ minWidth: 1 }} aria-hidden="true" />
+                <SetupStatusPill readiness={setupReadiness} />
             </header>
-            {/* Floating gear — shown when the pill won't be available:
-              * v0 mode (no Pulse), or biOnly mode (Pulse not mounted).
-              * Otherwise the pill in the top bar is the single entry. */}
-            {!focusedPane && (uiMode === "v0" || !aiVisible) && (
-                <PulsePlaySettingsGear
-                    uiMode={uiMode}
-                    onUiModeChange={handleUiModeChange}
-                    enabledComponents={enabledComponents}
-                    onEnabledComponentsChange={handleEnabledComponentsChange}
-                    layoutMode={layoutMode}
-                    onLayoutModeChange={handleLayoutModeChange}
-                />
-            )}
             <div style={{ flex: "1 1 auto", minHeight: 0, position: "relative" }}>
             {wizardShown ? (
                 <WizardErrorBoundary
@@ -934,8 +933,8 @@ function PlaygroundApp(): React.ReactElement {
                                             </p>
                                             {uiMode === "pulse" && (
                                                 <p style={{ fontSize: 12, opacity: 0.7, marginTop: 12 }}>
-                                                    Pulse UI is active in the AI pane. Configure the connection
-                                                    via its Setup tab; the embedded BI surface will appear here.
+                                                    Pulse UI is active in the AI pane. Configure BI and AI in
+                                                    Settings; the embedded BI surface will appear here.
                                                 </p>
                                             )}
                                         </>
@@ -945,7 +944,7 @@ function PlaygroundApp(): React.ReactElement {
                                             <p>
                                                 AI components are hidden. Embed any BI URL below — PulsePlay is acting
                                                 as a thin multi-vendor BI host. Switch back to "Both" or "AI only" via
-                                                the Display tab to re-enable Pulse / v0.
+                                                Settings › Preferences to re-enable Pulse / v0.
                                             </p>
                                             <p style={{ marginTop: 12 }}>
                                                 Vendors: {visibleVendors.map(v => v.displayName).join(" · ") || "none allowlisted"}
@@ -962,7 +961,7 @@ function PlaygroundApp(): React.ReactElement {
                     <main className="pp-app__canvas">
                         <div className="pp-app__empty">
                             <h2>Both panels hidden</h2>
-                            <p>Re-enable AI or BI via the Display tab (open via the connection pill).</p>
+                            <p>Re-enable AI or BI via Settings › Preferences.</p>
                         </div>
                     </main>
                 )}
@@ -976,6 +975,61 @@ function PlaygroundApp(): React.ReactElement {
             )}
             </div>
         </div>
+    );
+}
+function SetupStatusPill(props: { readiness: SetupReadiness }): React.ReactElement {
+    const ready = props.readiness.ready;
+    const dot = ready ? "#22c55e" : "#f59e0b";
+    const fg = ready ? "#166534" : "#7a5b00";
+    const bg = ready ? "rgba(34, 197, 94, 0.08)" : "rgba(250, 204, 21, 0.12)";
+    const border = ready ? "rgba(34, 197, 94, 0.32)" : "rgba(245, 158, 11, 0.34)";
+    return (
+        <button
+            type="button"
+            aria-label={ready ? "Open setup readiness in Settings" : `Open setup in Settings. Missing ${props.readiness.pillDetail}`}
+            title="Open Settings → Setup"
+            onClick={() => navigateToSettings("setup")}
+            style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 7,
+                maxWidth: "min(48vw, 360px)",
+                padding: "5px 10px",
+                border: `1px solid ${border}`,
+                borderRadius: 999,
+                background: bg,
+                color: fg,
+                cursor: "pointer",
+                fontSize: 12,
+                fontWeight: 600,
+                lineHeight: 1.2,
+                whiteSpace: "nowrap",
+                boxShadow: "0 1px 2px rgba(15, 23, 42, 0.05)",
+            }}
+        >
+            <span
+                aria-hidden="true"
+                style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    background: dot,
+                    display: "inline-block",
+                    flex: "0 0 auto",
+                }}
+            />
+            <span>{props.readiness.pillLabel}</span>
+            <span
+                style={{
+                    opacity: 0.78,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    minWidth: 0,
+                }}
+            >
+                {props.readiness.pillDetail}
+            </span>
+        </button>
     );
 }
 
@@ -1040,7 +1094,7 @@ function PaneChrome(props: {
         color: "#1d4ed8",
         fontWeight: 600,
     };
-    const focusedHeaderRightReserve = props.isFocused ? "min(200px, 50vw)" : 8;
+    const focusedHeaderRightReserve = "8px";
     const overflowItemStyle: React.CSSProperties = {
         display: "block",
         width: "100%",
@@ -1407,10 +1461,9 @@ function panelInnerStyle(): React.CSSProperties {
 
 /** Cycle K.1 toolbar — three buttons (1 / 2 / 4) at the top of the BI
  *  canvas so authors can flip between single-frame, side-by-side, and
- *  2×2 tile layouts without opening the Display tab. Writes the same
- *  localStorage key + dispatches the same window event that Pulse's
- *  Display tab uses, so toggling here propagates to that tab (and vice
- *  versa) instantly via the cycle-H bridge. */
+ *  2×2 tile layouts without opening Settings. Writes the same localStorage
+ *  key + dispatches the same window event Settings uses, so the toolbar and
+ *  Settings › Preferences stay in sync. */
 function BITileModeToolbar(props: { value: BiTileMode }): React.ReactElement {
     const apply = (next: BiTileMode) => {
         try { window.localStorage.setItem(BI_TILE_MODE_STORAGE_KEY, next); } catch { /* swallow */ }
@@ -1453,7 +1506,6 @@ function BITileModeToolbar(props: { value: BiTileMode }): React.ReactElement {
         </div>
     );
 }
-
 function PowerBIDeveloperPanel(props: {
     activeVendor: string;
     hasEmbedConfig: boolean;
@@ -1717,7 +1769,7 @@ function PulseModeBISourcePanel(props: {
                 </div>
                 <button
                     type="button"
-                    onClick={() => navigateToSettings("bi", "Embed")}
+                    onClick={() => navigateToSettings("setup")}
                     style={{
                         flex: "0 0 auto",
                         fontSize: 11,
@@ -1728,9 +1780,9 @@ function PulseModeBISourcePanel(props: {
                         cursor: "pointer",
                         color: "#1d4ed8",
                     }}
-                    title="Open Settings → BI → Embed (the canonical authoring surface)"
+                    title="Open Settings → Setup"
                 >
-                    {props.hasEmbedConfig ? "Edit in Settings ↗" : "Configure in Settings ↗"}
+                    {props.hasEmbedConfig ? "Review setup ↗" : "Open setup ↗"}
                 </button>
             </div>
             <VendorPicker
@@ -1855,201 +1907,6 @@ function BITileGrid(props: {
                     />
                 </div>
             ))}
-        </div>
-    );
-}
-
-/** Cycle F — AI panel position picker. Four split modes (left/right/
- *  top/bottom). Floating + drag-to-reposition is a follow-up. */
-function LayoutModeToggle(props: { value: LayoutMode; onChange: (next: LayoutMode) => void }) {
-    const baseBtn: React.CSSProperties = {
-        padding: "3px 7px",
-        fontSize: 10,
-        border: "1px solid var(--pp-border, #ccc)",
-        background: "transparent",
-        cursor: "pointer",
-        borderRadius: 3,
-        minWidth: 36,
-    };
-    const activeBtn: React.CSSProperties = {
-        ...baseBtn,
-        background: "var(--pp-accent, #0078d4)",
-        color: "white",
-        borderColor: "var(--pp-accent, #0078d4)",
-    };
-    const modes: { value: LayoutMode; label: string; title: string }[] = [
-        { value: "ai-left",   label: "Left",   title: "AI on the left, BI on the right (default)" },
-        { value: "ai-right",  label: "Right",  title: "AI on the right, BI on the left" },
-        { value: "ai-top",    label: "Top",    title: "AI on top (full width), BI underneath" },
-        { value: "ai-bottom", label: "Bottom", title: "BI on top, AI on the bottom" },
-    ];
-    return (
-        <div role="group" aria-label="AI panel position" style={{ display: "inline-flex", flexWrap: "wrap", gap: 3 }}>
-            {modes.map(m => (
-                <button
-                    key={m.value}
-                    type="button"
-                    style={props.value === m.value ? activeBtn : baseBtn}
-                    onClick={() => props.onChange(m.value)}
-                    aria-pressed={props.value === m.value}
-                    title={m.title}
-                >
-                    {m.label}
-                </button>
-            ))}
-        </div>
-    );
-}
-
-/** Cycle E.3 — outer-panel enabled-components toggle (AI / BI / Both).
- *  Parallel to Pulse's existing "Insights / Chat / Both" feature toggle
- *  but at a layer above: this hides the entire AI side or the entire
- *  BI canvas. Persists in localStorage. Cycle F replaces this with a
- *  positionable layout that subsumes the binary toggle. */
-function EnabledComponentsToggle(props: { value: EnabledComponents; onChange: (next: EnabledComponents) => void }) {
-    const baseBtn: React.CSSProperties = {
-        padding: "3px 7px",
-        fontSize: 10,
-        border: "1px solid var(--pp-border, #ccc)",
-        background: "transparent",
-        cursor: "pointer",
-        borderRadius: 3,
-    };
-    const activeBtn: React.CSSProperties = {
-        ...baseBtn,
-        background: "var(--pp-accent, #0078d4)",
-        color: "white",
-        borderColor: "var(--pp-accent, #0078d4)",
-    };
-    return (
-        <div role="group" aria-label="Enabled components" style={{ display: "inline-flex", gap: 3 }}>
-            <span style={{ fontSize: 10, opacity: 0.6, marginRight: 4, alignSelf: "center" }}>show:</span>
-            <button
-                type="button"
-                style={props.value === "aiOnly" ? activeBtn : baseBtn}
-                onClick={() => props.onChange("aiOnly")}
-                aria-pressed={props.value === "aiOnly"}
-                title="Show only the AI panel"
-            >
-                AI
-            </button>
-            <button
-                type="button"
-                style={props.value === "biOnly" ? activeBtn : baseBtn}
-                onClick={() => props.onChange("biOnly")}
-                aria-pressed={props.value === "biOnly"}
-                title="Show only the BI canvas"
-            >
-                BI
-            </button>
-            <button
-                type="button"
-                style={props.value === "both" ? activeBtn : baseBtn}
-                onClick={() => props.onChange("both")}
-                aria-pressed={props.value === "both"}
-                title="Show both AI and BI panels"
-            >
-                Both
-            </button>
-        </div>
-    );
-}
-
-/** Floating gear in the viewport corner. Phase 5 retirement — the
- *  inline popover with UI / panels / position toggles is gone; the gear
- *  now navigates directly to /settings (the canonical surface). The
- *  inline toggles live inside Settings › Preferences. Kept as a fixed
- *  fall-through entry point so biOnly (no sidebar) and aiOnly (no top
- *  bar pill) layouts still expose Settings. */
-function PulsePlaySettingsGear(_props: {
-    uiMode: UiMode;
-    onUiModeChange: (next: UiMode) => void;
-    enabledComponents: EnabledComponents;
-    onEnabledComponentsChange: (next: EnabledComponents) => void;
-    layoutMode: LayoutMode;
-    onLayoutModeChange: (next: LayoutMode) => void;
-}) {
-    void _props;
-    return (
-        <div
-            style={{
-                position: "fixed",
-                top: 12,
-                right: 12,
-                zIndex: 1000,
-            }}
-        >
-            <button
-                type="button"
-                aria-label="Open PulsePlay settings"
-                title="Open Settings (Cmd/Ctrl+,)"
-                onClick={() => navigateToSettings()}
-                style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: "50%",
-                    border: "1px solid var(--pp-border, #ccc)",
-                    background: "rgba(255,255,255,0.92)",
-                    color: "inherit",
-                    cursor: "pointer",
-                    boxShadow: "0 1px 4px rgba(0,0,0,0.12)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 16,
-                    padding: 0,
-                }}
-            >
-                ⚙
-            </button>
-        </div>
-    );
-}
-
-// Retired (Phase 5) — the old PulsePlaySettingsGear popover that hosted
-// inline UI/Panels/Position toggles. Those toggles now live inside
-// Settings › Preferences and the gear above just navigates to /settings.
-// The old popover code lives in `git log` if anyone needs to compare.
-
-/** Small top-right toggle to flip between the ported Pulse UI and the
- *  v0 Smart-Connect-flavoured components from cycles B + C. Persists
- *  via UI_MODE_STORAGE_KEY in localStorage so the choice survives
- *  reloads. Cycle F replaces this with a free-floating layout. */
-function UiModeToggle(props: { value: UiMode; onChange: (next: UiMode) => void }) {
-    const baseBtn: React.CSSProperties = {
-        padding: "4px 8px",
-        fontSize: 11,
-        border: "1px solid var(--pp-border, #ccc)",
-        background: "transparent",
-        cursor: "pointer",
-        borderRadius: 3,
-    };
-    const activeBtn: React.CSSProperties = {
-        ...baseBtn,
-        background: "var(--pp-accent, #0078d4)",
-        color: "white",
-        borderColor: "var(--pp-accent, #0078d4)",
-    };
-    return (
-        <div role="group" aria-label="UI mode" style={{ display: "inline-flex", gap: 4 }}>
-            <button
-                type="button"
-                style={props.value === "pulse" ? activeBtn : baseBtn}
-                onClick={() => props.onChange("pulse")}
-                aria-pressed={props.value === "pulse"}
-                title="Use the ported Pulse UI (Setup + Insights + Chat)"
-            >
-                Pulse
-            </button>
-            <button
-                type="button"
-                style={props.value === "v0" ? activeBtn : baseBtn}
-                onClick={() => props.onChange("v0")}
-                aria-pressed={props.value === "v0"}
-                title="Use the v0 Smart-Connect components from cycles B + C"
-            >
-                v0
-            </button>
         </div>
     );
 }

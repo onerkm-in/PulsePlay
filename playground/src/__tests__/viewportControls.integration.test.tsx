@@ -54,6 +54,7 @@ interface MountState {
 
 function setLocation(search: string): void {
     const url = new URL(window.location.href);
+    url.pathname = "/";
     url.search = search;
     window.history.replaceState(null, "", url.toString());
 }
@@ -197,6 +198,22 @@ describe("App viewport controls — default split", () => {
         unmount(state);
     });
 
+    it("shows a single top-right setup readiness pill that opens Settings > Setup", async () => {
+        const state = mountApp();
+        const pill = state.container.querySelector('button[title="Open Settings → Setup"]') as HTMLButtonElement | null;
+        expect(pill).toBeTruthy();
+        expect(pill?.textContent).toContain("Setup needed");
+
+        await act(async () => {
+            pill!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+            await Promise.resolve();
+        });
+
+        expect(window.location.pathname).toBe("/settings/setup");
+        expect(state.container.querySelector("#settings-setup-title")?.textContent).toBe("Setup");
+        unmount(state);
+    });
+
     it("exposes Maximize inline + Minimize/Pin/Page in the ⋮ overflow menu for each pane", () => {
         const state = mountApp();
         for (const pane of ["ai", "bi"] as const) {
@@ -283,7 +300,7 @@ describe("App viewport controls — ?focus= URL", () => {
         unmount(state);
     });
 
-    it("reserves right-side chrome space in focused mode so the fixed connection pill cannot overlap controls", () => {
+    it("keeps focused pane chrome compact now that connection status lives in the console", () => {
         setLocation("?focus=ai");
         const state = mountApp();
 
@@ -292,13 +309,12 @@ describe("App viewport controls — ?focus= URL", () => {
 
         expect(header, "focused AI chrome header").toBeTruthy();
         expect(controls, "focused AI controls toolbar").toBeTruthy();
-        // The chrome reserves a clamped right-side gutter (min(Xpx, 50vw)) in focused
-        // mode so the fixed top-right connection pill cannot overlap the toolbar.
-        // Exact pixel values are intentionally not asserted (visual tuning lane);
-        // contract is that the gutter exists and is clamped against the viewport.
+        // The fixed top-right connection pill is gone; focused pane chrome should not
+        // reserve a large collision gutter anymore.
         const headerStyle = header?.getAttribute("style") || "";
-        expect(headerStyle, "focused header padding reserves clamped right gutter")
-            .toMatch(/padding:\s*\d+px\s+min\(\d+px,\s*50vw\)\s+\d+px\s+\d+px/);
+        expect(headerStyle, "focused header padding stays compact")
+            .toMatch(/padding:\s*5px\s+8px\s+5px\s+9px/);
+        expect(headerStyle).not.toContain("min(200px, 50vw)");
         expect(controls?.style.flexWrap).toBe("wrap");
         expect(controls?.style.minWidth).toBe("0");
 

@@ -22,7 +22,7 @@ describe("parseSettingsRoute", () => {
     it("returns isSettingsRoute=true with default group for bare /settings", () => {
         const state = parseSettingsRoute("/settings");
         expect(state.isSettingsRoute).toBe(true);
-        expect(state.group).toBe("bi"); // first group, last-visited never set
+        expect(state.group).toBe("setup"); // first group, last-visited never set
         expect(state.leaf).toBeNull();
     });
 
