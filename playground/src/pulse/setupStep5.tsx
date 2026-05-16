@@ -64,7 +64,13 @@ import { getDescriptor } from "./backend/connectorRegistry";
 // when authors apply SWOT / BCG / Pareto / Variance / Anomaly presets. The
 // domains are silently written into the field today; promoting them to the
 // dropdown closes the inconsistency surfaced in ANALYTICS_DOMAIN_TAXONOMY.md.
-export const DOMAIN_PRESETS: string[] = [
+//
+// PulsePlay 2026-05-16 — keep the visible domain list related to the preset
+// libraries. The runtime Knowledge Base is the future source of truth; until
+// that loader drives setup directly, custom-section and metric-rule preset
+// domains are appended here so the domain picker, preset picker, and metric
+// editor no longer drift apart.
+const CORE_DOMAIN_PRESETS: string[] = [
     "Sales Performance",
     "Marketing Analytics",
     "Operations & Logistics",
@@ -81,6 +87,47 @@ export const DOMAIN_PRESETS: string[] = [
     "Financial Analysis",
     "Quality / Risk"
 ];
+
+function uniqueDomains(values: string[]): string[] {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const value of values) {
+        const trimmed = value.trim();
+        const key = trimmed.toLowerCase();
+        if (!trimmed || seen.has(key)) continue;
+        seen.add(key);
+        out.push(trimmed);
+    }
+    return out;
+}
+
+export const DOMAIN_PRESETS: string[] = uniqueDomains([
+    ...CORE_DOMAIN_PRESETS,
+    ...CUSTOM_SECTION_PRESETS.map(p => p.domain),
+    ...METRIC_DIRECTION_PRESETS.map(p => p.domain),
+]);
+
+const DOMAIN_STOPWORDS = new Set([
+    "analytics", "analysis", "performance", "operations", "operation",
+    "strategic", "quality", "risk", "cpg", "fmcg"
+]);
+
+function domainTokens(value: string): string[] {
+    return value
+        .toLowerCase()
+        .split(/[^a-z0-9]+/u)
+        .map(t => t.trim())
+        .filter(t => t.length > 2 && !DOMAIN_STOPWORDS.has(t));
+}
+
+export function isDomainRelated(currentDomain: string, presetDomain: string): boolean {
+    const current = currentDomain.trim().toLowerCase();
+    const preset = presetDomain.trim().toLowerCase();
+    if (!current || !preset) return false;
+    if (current === preset) return true;
+    const presetTokens = new Set(domainTokens(presetDomain));
+    return domainTokens(currentDomain).some(t => presetTokens.has(t));
+}
 
 // ────────────────────────────────────────────────────────────────────────
 // Public types
@@ -621,6 +668,18 @@ export function SectionToolbar(props: { children: ReactNode }) {
     return <div className="gn-setup-section-toolbar">{props.children}</div>;
 }
 
+function SetupSubgroup(props: { title: string; description: ReactNode; children?: ReactNode }) {
+    return (
+        <div className="gn-setup-subgroup">
+            <div className="gn-setup-subgroup-head">
+                <strong>{props.title}</strong>
+                <span>{props.description}</span>
+            </div>
+            {props.children}
+        </div>
+    );
+}
+
 /**
  * Presets dropdown rendered inside a SectionToolbar. Lists every preset
  * registered for the section in setupStep5Validation. Click → applies
@@ -1080,6 +1139,12 @@ export function CustomSectionPresetPicker(props: {
     // switching preset doesn't carry stale numbers from a previous one.
     const [paramValues, setParamValues] = React.useState<Record<string, string>>({});
     const selected = CUSTOM_SECTION_PRESETS.find(p => p.id === selectedId);
+    const relatedPresets = props.currentDomain.trim()
+        ? CUSTOM_SECTION_PRESETS.filter(p => isDomainRelated(props.currentDomain, p.domain))
+        : [];
+    const otherPresets = relatedPresets.length
+        ? CUSTOM_SECTION_PRESETS.filter(p => !isDomainRelated(props.currentDomain, p.domain))
+        : CUSTOM_SECTION_PRESETS;
     React.useEffect(() => {
         if (selected && selected.params) {
             setParamValues(defaultParamValues(selected));
@@ -1125,9 +1190,18 @@ export function CustomSectionPresetPicker(props: {
                 title="Apply a generated custom-section preset"
             >
                 <option value="">Choose a custom-section preset</option>
-                {CUSTOM_SECTION_PRESETS.map(p => (
-                    <option key={p.id} value={p.id}>{p.label}</option>
-                ))}
+                {relatedPresets.length > 0 && (
+                    <optgroup label={`Recommended for ${props.currentDomain.trim()}`}>
+                        {relatedPresets.map(p => (
+                            <option key={p.id} value={p.id}>{p.label}</option>
+                        ))}
+                    </optgroup>
+                )}
+                <optgroup label={relatedPresets.length > 0 ? "Other presets" : "All presets"}>
+                    {otherPresets.map(p => (
+                        <option key={p.id} value={p.id}>{p.label}</option>
+                    ))}
+                </optgroup>
             </select>
             <button
                 type="button"
@@ -1210,6 +1284,12 @@ export function MetricDirectionPresetPicker(props: {
 }) {
     const [selectedId, setSelectedId] = React.useState("");
     const selected = METRIC_DIRECTION_PRESETS.find(p => p.id === selectedId);
+    const relatedPresets = props.currentDomain.trim()
+        ? METRIC_DIRECTION_PRESETS.filter(p => isDomainRelated(props.currentDomain, p.domain))
+        : [];
+    const otherPresets = relatedPresets.length
+        ? METRIC_DIRECTION_PRESETS.filter(p => !isDomainRelated(props.currentDomain, p.domain))
+        : METRIC_DIRECTION_PRESETS;
     const apply = (preset: MetricDirectionPreset | undefined) => {
         if (!preset) return;
         if (!props.currentDomain.trim()) props.onApplyDomain(preset.domain);
@@ -1224,9 +1304,18 @@ export function MetricDirectionPresetPicker(props: {
                 title="Apply generated metric direction rules"
             >
                 <option value="">Choose a metric-rules preset</option>
-                {METRIC_DIRECTION_PRESETS.map(p => (
-                    <option key={p.id} value={p.id}>{p.label}</option>
-                ))}
+                {relatedPresets.length > 0 && (
+                    <optgroup label={`Recommended for ${props.currentDomain.trim()}`}>
+                        {relatedPresets.map(p => (
+                            <option key={p.id} value={p.id}>{p.label}</option>
+                        ))}
+                    </optgroup>
+                )}
+                <optgroup label={relatedPresets.length > 0 ? "Other presets" : "All presets"}>
+                    {otherPresets.map(p => (
+                        <option key={p.id} value={p.id}>{p.label}</option>
+                    ))}
+                </optgroup>
             </select>
             <button
                 type="button"
@@ -1257,8 +1346,10 @@ export function MetricDirectionPresetPicker(props: {
  * source so the form is the single source going forward.
  */
 export function MetricKnowledgeBaseEditor(props: {
+    currentDomain?: string;
     legacyText: string;
     legacyJson: string;
+    onApplyDomain?: (domain: string) => void;
     onApplyText: (text: string) => void;
     onApplyJson: (json: string) => void;
     /** Wave 41 cycle 12 — per-card suggest callback. Hosts (the SetupPanel
@@ -1332,8 +1423,8 @@ export function MetricKnowledgeBaseEditor(props: {
                 </div>
             )}
             <MetricDirectionPresetPicker
-                currentDomain=""
-                onApplyDomain={() => { /* domain handled at the FieldRow level */ }}
+                currentDomain={props.currentDomain || ""}
+                onApplyDomain={props.onApplyDomain || (() => { /* optional */ })}
                 onApplyRules={prose => {
                     // Preset library still emits prose; convert to rules and
                     // funnel through the form's state so JSON + prose stay in
@@ -3419,23 +3510,26 @@ export function SetupStep5(props: SetupStep5Props) {
                 const fRefresh = findMeta("refreshInsights");
                 const authoringMode = (draft.insightsAuthoringMode || "preset") as "manual" | "preset" | "ai-assisted";
                 return (
-                    <details className="gn-setup-advanced-section gn-affinity-insights" data-affinity="ai-insights" open={isOpen("A")} onToggle={onSectionToggle("A")}>
-                        <summary title="Groups the main AI settings: domain guidance, fields, context sharing, authoring mode, custom sections, refresh behavior, and cache timing. Use when shaping generated insight content.">
-                            A. AI Insights authoring
+                    <details className="gn-setup-advanced-section gn-affinity-shared" data-affinity="shared" open={isOpen("A")} onToggle={onSectionToggle("A")}>
+                        <summary title="Groups common AI context first, then the AI Insights-specific output strategy. Chat inherits the common context and keeps its specific controls in the Chat sections.">
+                            A. Common AI context
                             <SectionStatus state={sectionA_state} />
-                            <span className="gn-setup-advanced-summary-hint">Set guidance and insight behavior</span>
+                            <span className="gn-setup-advanced-summary-hint">Shared grounding first; output-specific controls below</span>
                         </summary>
                         <div className="gn-setup-advanced-body">
 
-                            <SectionIntro audience="Data steward / lead analyst — anyone who knows the report's KPIs, definitions, and join paths.">
-                                Teach the AI about your data. Field-name hints catch binding drift; domain instructions
-                                shape every AI answer; the AI Insights prompt steers the auto-analytics view.
-                                These are the highest-leverage settings in Step 5. Small edits here often outweigh
-                                everything in Sections B-F.
+                            <SectionIntro audience="Data steward / lead analyst — anyone who knows the report's KPIs, definitions, join paths, and answer standards.">
+                                Start with the context that both AI Insights and Chat should share: field names, BI context sharing,
+                                domain guidance, metric definitions, and formatting standards. Then tune only the surface-specific
+                                behavior that needs to differ.
                             </SectionIntro>
 
                             {renderSectionTools("A")}
 
+                            <SetupSubgroup
+                                title="Common AI context"
+                                description="Single source of truth for field vocabulary, business rules, KPI definitions, formatting standards, and BI-scope sharing. Applies to both AI Insights and Chat."
+                            >
                             <FieldRow
                                 name={fGenieFields.name as string}
                                 label={fGenieFields.label}
@@ -3503,7 +3597,20 @@ export function SetupStep5(props: SetupStep5Props) {
                                     onChange={e => setBool("sendContextToGenie", e.target.checked)}
                                 />
                             </FieldRow>
+                            </SetupSubgroup>
 
+                            {activeTab === "chat" && (
+                                <SetupSubgroup
+                                    title="Chat behavior"
+                                    description="Chat inherits the common context above plus the shared Knowledge Base toggles below. Chat-specific connection, memory/history, multi-space, and sync controls live in the Chat sections on this tab."
+                                />
+                            )}
+
+                            {activeTab !== "chat" && (
+                            <SetupSubgroup
+                                title="AI Insights output strategy"
+                                description="Controls the generated briefing shape: authoring mode, domain label, preset sections, universal stages, metric color semantics, provenance, cache, and refresh behavior."
+                            >
                             {/* 49.19 / IDEA-037 phase 3 — Authoring mode radio.
                                 Drives which fields are visible AND which path
                                 the runInsights pipeline takes at runtime. All
@@ -3776,8 +3883,10 @@ export function SetupStep5(props: SetupStep5Props) {
                                 }
                             >
                                 <MetricKnowledgeBaseEditor
+                                    currentDomain={draft.insightsDomain || ""}
                                     legacyText={draft.metricDirectionRules}
                                     legacyJson={draft.insightsMetricDirections}
+                                    onApplyDomain={d => setField("insightsDomain", d)}
                                     onApplyText={text => setField("metricDirectionRules", text)}
                                     onApplyJson={json => setField("insightsMetricDirections", json)}
                                     onSuggestForCard={onSuggestMetricRuleForCard}
@@ -3857,6 +3966,9 @@ export function SetupStep5(props: SetupStep5Props) {
                                     onChange={e => setBool("refreshInsights", e.target.checked)}
                                 />
                             </FieldRow>
+
+                            </SetupSubgroup>
+                            )}
 
                         </div>
                     </details>

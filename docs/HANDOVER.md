@@ -5,6 +5,36 @@
 
 ---
 
+## 2026-05-16 - Common AI context model for domain, presets, metrics, Insights, and Chat
+
+**Range:** Rajesh flagged repeated selection options across custom domain, preset strategy, and metric configuration, and asked that Knowledge Base-derived settings be grouped into common + AI Insights-specific + Chat-specific surfaces.
+
+### What shipped
+
+- Added [docs/AI_CONTEXT_CONFIGURATION_MODEL.md](AI_CONTEXT_CONFIGURATION_MODEL.md) as the canonical planning note for one Knowledge Base-derived domain context feeding AI Insights and Chat.
+- Updated [playground/src/pulse/setupStep5.tsx](../playground/src/pulse/setupStep5.tsx) so domain options are derived from core domains plus custom-section preset domains plus metric-rule preset domains.
+- `CustomSectionPresetPicker` and `MetricDirectionPresetPicker` now group presets related to the selected domain ahead of other presets.
+- `MetricKnowledgeBaseEditor` now receives the current domain and can let a metric preset seed `insightsDomain` when the author has not picked one.
+- Section A in advanced setup is now shared `Common AI context`, with a common-context subgroup and an AI Insights output-strategy subgroup; the Chat tab sees the shared context and a Chat inheritance note instead of hiding the shared guidance under AI Insights.
+- Added small subgroup styling in [playground/src/pulse/style/visual.less](../playground/src/pulse/style/visual.less).
+- Added [setupStep5DomainPresets.test.ts](../playground/src/pulse/__tests__/setupStep5DomainPresets.test.ts) so future preset-pack changes cannot silently drift away from the visible domain picker.
+- Updated [docs/AGENT_SYNC.md](AGENT_SYNC.md) with a Claude handoff: review the model and choose whether the next slice should be `DomainContextProfile` from pack metadata or Chat carry-forward from AI Insights.
+
+### Validation
+
+- `git diff --check` passed with only expected LF-to-CRLF working-copy warnings.
+- `playground`: focused `npx vitest run src/pulse/__tests__/setupStep5DomainPresets.test.ts --silent` passed **3/3**.
+- `playground`: `npm.cmd run lint` passed.
+- `playground`: full `npm.cmd test -- --silent` passed **470/470**.
+- `playground`: `npm.cmd run build` passed.
+
+### Tripwires
+
+- This is still not a runtime Knowledge Base source of truth. The UI now derives from existing preset libraries; the next step is a real `DomainContextProfile` built from active pack/sub-vertical metadata.
+- Chat should borrow AI Insights strengths, but it should not be forced through the AI Insights staged-briefing pipeline. Chat stays conversational; both surfaces share context.
+
+---
+
 ## 2026-05-16 - Setup/settings relationship audit and control depth
 
 **Range:** Deep research pass on how setup options, connector choices, presets/templates, knowledge packs, and the Settings tree relate to each other, plus Rajesh's request to make dropdowns/textareas easier to see and pick from.

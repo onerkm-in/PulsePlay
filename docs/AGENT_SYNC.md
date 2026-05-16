@@ -195,6 +195,7 @@ Newest active/review lane first. Keep completed-but-reviewing work above older o
 
 | Lane | Owner | Status | Files / Area | Notes |
 |---|---|---|---|---|
+| Common AI context model | Codex (2026-05-16) | done; awaiting Claude review | `docs/AI_CONTEXT_CONFIGURATION_MODEL.md`, `playground/src/pulse/setupStep5.tsx`, `playground/src/pulse/style/visual.less` | Groups shared AI context separately from AI Insights output strategy and Chat-specific behavior; links domain, custom-section presets, and metric-rule presets through the same selected domain. |
 | Setup/settings relationship audit + control depth | Codex (2026-05-16) | done; awaiting Claude review | `docs/SETUP_SETTINGS_RELATIONSHIP_AUDIT.md`, `playground/src/styles.css`, `playground/src/components/FirstRunWizard.tsx` | Maps BI/AI/knowledge/settings dependencies, calls out state-owner drift and connector readiness gaps, and adds low-noise depth treatment to dropdowns/textareas. |
 | Structured prompt/guidance authoring standard | Codex (2026-05-16) | done; awaiting Claude review | `docs/STRUCTURED_AUTHORING_STANDARD.md`, `docs/MODULAR_INTEGRATION_ARCHITECTURE.md` | Standardizes prompt/guidance textareas as guided structured editors with required sections, parameter chips, validation, and compiled middleware preview. |
 | Modular integration architecture research | Codex (2026-05-16) | done; awaiting Claude review | `docs/MODULAR_INTEGRATION_ARCHITECTURE.md`, `docs/ARCHITECTURE.md`, doc hygiene | Defines stable spine + swappable blocks, capability registry, block manifest/lifecycle, linear-plus-spectrum roadmap, Databricks-native/bridge/knowledge/AI expansion lanes. |
@@ -227,14 +228,15 @@ LIFO: newest task first. When adding another task, insert it above the current o
 
 **Current Claude-driven queue (lanes either gated or available):**
 
-1. **Available — Review setup/settings relationship audit and pick the first implementation slice.** Read [SETUP_SETTINGS_RELATIONSHIP_AUDIT.md](SETUP_SETTINGS_RELATIONSHIP_AUDIT.md). Challenge the state-owner map, connector readiness claims, and implementation sequence. My proposed first slice is `EmbedConfigForm` + Settings BI Embed mode cards: Native / Hybrid / Legacy mode cards, prerequisite badges, extracted ID chips, inline validation, and capability-readiness copy. If architecture foundation must come first, counter-propose the smallest `SetupState` / capability-facade slice instead. Also review the new dropdown/textarea depth treatment for enterprise tone and accessibility.
-2. **Available — Review/challenge structured authoring standard.** Read [STRUCTURED_AUTHORING_STANDARD.md](STRUCTURED_AUTHORING_STANDARD.md). Confirm whether the `StructuredAuthoringEditor` should land before Launchpad, and identify the first field to migrate: Settings AI guidance, Prompt IR authoring, wizard suggested-question textarea, or Knowledge Base notes.
-3. **Available — Review/challenge Codex modular integration architecture.** Read [MODULAR_INTEGRATION_ARCHITECTURE.md](MODULAR_INTEGRATION_ARCHITECTURE.md) and post `[VERIFY]` / `[CHALLENGE]` on: capability registry shape, block manifest lifecycle, linear spine order, Launchpad-first recommendation, typed Databricks asset config, and whether any current shipped block violates the add/remove protocol.
-4. **Gated on Rajesh — RISKS card UX (red ↑ paradox).** Three options outlined in chat: (a) suppress directional ↑ in RISK context, (b) amber for "growing-but-lagging" trichromatic, (c) two-row card. The bp-delta prompt-IR tweak is queued behind this.
-5. **Available — Frame-to-prompt proxy side.** Frontend ships `body.frame` already (commit `738e4e1`); the proxy + translators can consume it to drive backend specialization. Byte-identical for free-text (`frame===undefined`) — Phase 11a translator contracts preserve byte-identity for synthetic IRs.
-6. **Available — Phase 11b dispatcher migration.** Wire `proxy/lib/promptDispatcher.buildBackendPayload()` into the live Genie / Foundation Model / Supervisor handlers. Requires careful byte-identity regression coverage on Genie.
-7. **Available — Per-leaf revert + deep-link copy (Settings IA fix #8).** Small UX polish.
-8. **Gated on environment — Live credentialed smoke** against an org Power BI report + Genie/Supervisor profile + enterprise IdP JWKS. No code work blocks this.
+1. **Available — Review common AI context model and choose the next runtime source-of-truth slice.** Read [AI_CONTEXT_CONFIGURATION_MODEL.md](AI_CONTEXT_CONFIGURATION_MODEL.md). Verify the premise: Knowledge Base pack/sub-vertical should derive domain, custom-section presets, metric semantics, starter questions, and Chat/Insights guidance. Challenge the first code slice in `setupStep5.tsx`: Section A is now shared common context, preset lists prioritize selected-domain matches, and metric presets can seed domain when blank. Recommend whether the next slice should be `DomainContextProfile` from pack metadata or Chat starter-question/renderer carry-forward.
+2. **Available — Review setup/settings relationship audit and pick the first implementation slice.** Read [SETUP_SETTINGS_RELATIONSHIP_AUDIT.md](SETUP_SETTINGS_RELATIONSHIP_AUDIT.md). Challenge the state-owner map, connector readiness claims, and implementation sequence. My proposed first slice is `EmbedConfigForm` + Settings BI Embed mode cards: Native / Hybrid / Legacy mode cards, prerequisite badges, extracted ID chips, inline validation, and capability-readiness copy. If architecture foundation must come first, counter-propose the smallest `SetupState` / capability-facade slice instead. Also review the new dropdown/textarea depth treatment for enterprise tone and accessibility.
+3. **Available — Review/challenge structured authoring standard.** Read [STRUCTURED_AUTHORING_STANDARD.md](STRUCTURED_AUTHORING_STANDARD.md). Confirm whether the `StructuredAuthoringEditor` should land before Launchpad, and identify the first field to migrate: Settings AI guidance, Prompt IR authoring, wizard suggested-question textarea, or Knowledge Base notes.
+4. **Available — Review/challenge Codex modular integration architecture.** Read [MODULAR_INTEGRATION_ARCHITECTURE.md](MODULAR_INTEGRATION_ARCHITECTURE.md) and post `[VERIFY]` / `[CHALLENGE]` on: capability registry shape, block manifest lifecycle, linear spine order, Launchpad-first recommendation, typed Databricks asset config, and whether any current shipped block violates the add/remove protocol.
+5. **Gated on Rajesh — RISKS card UX (red ↑ paradox).** Three options outlined in chat: (a) suppress directional ↑ in RISK context, (b) amber for "growing-but-lagging" trichromatic, (c) two-row card. The bp-delta prompt-IR tweak is queued behind this.
+6. **Available — Frame-to-prompt proxy side.** Frontend ships `body.frame` already (commit `738e4e1`); the proxy + translators can consume it to drive backend specialization. Byte-identical for free-text (`frame===undefined`) — Phase 11a translator contracts preserve byte-identity for synthetic IRs.
+7. **Available — Phase 11b dispatcher migration.** Wire `proxy/lib/promptDispatcher.buildBackendPayload()` into the live Genie / Foundation Model / Supervisor handlers. Requires careful byte-identity regression coverage on Genie.
+8. **Available — Per-leaf revert + deep-link copy (Settings IA fix #8).** Small UX polish.
+9. **Gated on environment — Live credentialed smoke** against an org Power BI report + Genie/Supervisor profile + enterprise IdP JWKS. No code work blocks this.
 
 **Codex review queue (when Rajesh invokes a scan):**
 
@@ -612,6 +614,26 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 ## Coordination Log
 
 Add newest entries at the top of this section.
+
+### 2026-05-16 - Codex — common AI context model
+
+`[DONE]` Added [AI_CONTEXT_CONFIGURATION_MODEL.md](AI_CONTEXT_CONFIGURATION_MODEL.md) after Rajesh flagged repeated selections across custom domain, preset strategy, and metric configuration.
+
+`[DONE]` First implementation slice in `playground/src/pulse/setupStep5.tsx`:
+
+- Domain options are derived from the core domain list plus custom-section preset domains plus metric-rule preset domains.
+- `CustomSectionPresetPicker` and `MetricDirectionPresetPicker` now group selected-domain-related presets first.
+- `MetricKnowledgeBaseEditor` now receives the current domain and can let metric presets seed `insightsDomain` when blank.
+- Section A is now a shared `Common AI context` section visible from both AI Insights and Chat tabs, with common context separated from AI Insights output strategy.
+- Chat tab now sees the common context and a short Chat behavior note, while AI Insights-specific authoring controls stay under the AI Insights tab.
+- Added `playground/src/pulse/__tests__/setupStep5DomainPresets.test.ts` to lock the relationship between visible domain options, custom-section preset domains, and metric-rule preset domains.
+
+`[VALIDATED]` `git diff --check`, focused domain-preset **3/3**, `playground` lint, full playground **470/470**, and `playground` build passed.
+
+`[HANDOFF]` Claude should review whether the next runtime slice should be:
+
+1. `DomainContextProfile` builder from active pack/sub-vertical metadata, or
+2. Chat carry-forward slice: starter questions + metric semantics + renderer/provenance reuse from AI Insights.
 
 ### 2026-05-16 - Codex — setup/settings relationship audit + control depth
 

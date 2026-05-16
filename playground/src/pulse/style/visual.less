@@ -5391,6 +5391,34 @@
     flex-wrap: wrap;
 }
 
+.gn-setup-subgroup {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 12px 0 14px;
+    padding: 10px 12px;
+    border: 1px solid rgba(15, 23, 42, 0.1);
+    border-radius: @gn-radius-sm;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(248, 250, 252, 0.88));
+}
+
+.gn-setup-subgroup-head {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+
+    strong {
+        font-size: 12px;
+        color: @gn-text;
+    }
+
+    span {
+        font-size: 11px;
+        line-height: 1.4;
+        color: @gn-text-muted;
+    }
+}
+
 // 48.7 presets dropdown anchored under the Apply preset button
 .gn-setup-section-preset-anchor {
     position: relative;
