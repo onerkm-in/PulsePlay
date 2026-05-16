@@ -12,6 +12,7 @@ import { useSettings } from "../settingsStore";
 import { CurrentValue, Leaf } from "./BiGroup";
 import { useDiagnosticsBuffer } from "../diagnosticsBuffer";
 import { buildExportBundle, downloadExportBundle } from "../exportBundle";
+import { resetWizardDismissal, WIZARD_DRAFT_KEY } from "../../components/FirstRunWizard";
 
 interface HealthResponse {
     ok?: boolean;
@@ -181,6 +182,35 @@ export function SystemGroup(): React.ReactElement {
             {/* ── Diagnostics ───────────────────────────────────────── */}
             <Leaf group="system" label="Diagnostics" helper="Last 20 BI events + last 20 console errors. Use Export bundle below to save a redacted snapshot for support.">
                 <DiagnosticsBlock events={diagnostics.events} errors={diagnostics.errors} />
+            </Leaf>
+
+            {/* ── Re-run setup wizard ───────────────────────────────── */}
+            <Leaf group="system" label="Setup wizard" helper="Re-run the first-run setup wizard to change your BI vendor, AI connector, persona, or knowledge pack. Clears the dismissal flag and any saved draft so you start fresh.">
+                <button
+                    type="button"
+                    onClick={() => {
+                        resetWizardDismissal();
+                        try { window.localStorage.removeItem(WIZARD_DRAFT_KEY); } catch { /* swallow */ }
+                        window.location.href = "/";
+                    }}
+                    style={{
+                        padding:       "6px 14px",
+                        fontSize:      13,
+                        fontWeight:    600,
+                        border:        "1px solid rgba(0,0,0,0.18)",
+                        background:    "transparent",
+                        color:         "#0f172a",
+                        borderRadius:  4,
+                        cursor:        "pointer",
+                        alignSelf:     "flex-start",
+                    }}
+                >
+                    Re-run setup wizard
+                </button>
+                <div style={{ fontSize: 11, opacity: 0.6, marginTop: 4 }}>
+                    Takes you back to the Welcome screen. Your existing embed config and connector are preserved in localStorage — the wizard
+                    just re-applies whatever you pick on Done.
+                </div>
             </Leaf>
 
             {/* ── Export bundle ─────────────────────────────────────── */}

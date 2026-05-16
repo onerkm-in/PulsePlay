@@ -25,6 +25,7 @@ import { ConnectorPicker } from "./components/ConnectorPicker";
 import { EmbedConfigForm } from "./components/EmbedConfigForm";
 import { useEmbedConfig } from "./settings/embedConfigStore";
 import { warmGenieWarehouse, startWarehouseKeepalive, stopWarehouseKeepalive } from "./lib/warehouseWarmup";
+import { FirstRunWizard, shouldShowWizard, type PersonaKey } from "./components/FirstRunWizard";
 import { TestConnectionPanel } from "./components/TestConnectionPanel";
 import { PackPicker } from "./components/PackPicker";
 import type { PackInfo, PackSelection } from "./components/PackPicker";
@@ -608,6 +609,55 @@ function PlaygroundApp(): React.ReactElement {
               }
             : undefined;
 
+    // First-run wizard gating. Renders only when the user has no embed config
+    // AND no AI connector picked, governance is healthy (vendors available +
+    // not fail-closed), and the dismissal flag hasn't been set. The fail-
+    // closed banner takes precedence so the wizard does not paint over a
+    // governance-error state. Dismissal lives in localStorage under
+    // `pulseplay:wizard-dismissed`; Settings → System exposes a re-run button.
+    const [wizardForceTick, setWizardForceTick] = useState(0); // bump to re-eval after dismissal
+    const wizardShown = useMemo(() => {
+        if (allowlistFailClosed) return false;
+        return shouldShowWizard({
+            hasEmbedConfig,
+            hasConnector: !!activeConnector,
+            vendorsAvailable: visibleVendors.length > 0,
+        });
+        // wizardForceTick is the cache-buster; intentional dep so the memo
+        // re-runs after `resetWizardDismissal()` or `Skip for now` mutates
+        // localStorage out-of-band.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [allowlistFailClosed, hasEmbedConfig, activeConnector, visibleVendors.length, wizardForceTick]);
+
+    const handleWizardComplete = useCallback(
+        (picks: {
+            vendor:             string;
+            connector:          string;
+            embedConfig:        BIEmbedConfig;
+            packSelection:      PackSelection | null;
+            persona:            PersonaKey;
+            uiMode:             "pulse" | "v0";
+            layoutMode:         "ai-left" | "ai-right" | "ai-top";
+            suggestedQuestion?: string;
+            autoAsk?:           boolean;
+        }) => {
+            setActiveVendor(picks.vendor);
+            setActiveConnector(picks.connector);
+            setEmbedConfig(picks.embedConfig);
+            setPackSelection(picks.packSelection);
+            handleUiModeChange(picks.uiMode);
+            handleLayoutModeChange(picks.layoutMode as LayoutMode);
+            // autoAsk + suggestedQuestion: wired into AISidebar auto-submit in a future cycle.
+            setWizardForceTick(t => t + 1);
+        },
+        [setEmbedConfig, handleUiModeChange, handleLayoutModeChange],
+    );
+    const handleWizardDismiss = useCallback(() => {
+        // Dismissal flag is already set by FirstRunWizard's onDismiss path.
+        // We just need to re-eval shouldShowWizard so the wizard unmounts.
+        setWizardForceTick(t => t + 1);
+    }, []);
+
     return (
         <div
             className="pp-app"
@@ -659,6 +709,15 @@ function PlaygroundApp(): React.ReactElement {
                 />
             )}
             <div style={{ flex: "1 1 auto", minHeight: 0, position: "relative" }}>
+            {wizardShown ? (
+                <FirstRunWizard
+                    vendors={visibleVendors}
+                    allowlist={allowlistState.allowlist}
+                    availablePacks={availablePacks}
+                    onComplete={handleWizardComplete}
+                    onDismiss={handleWizardDismiss}
+                />
+            ) : (
             <SplitLayout
                 aiVisible={mountedAiVisible}
                 biVisible={mountedBiVisible}
@@ -864,6 +923,7 @@ function PlaygroundApp(): React.ReactElement {
                     </main>
                 )}
             />
+            )}
             {minimizedPane && (
                 <MinimizedPaneDock
                     pane={minimizedPane}
