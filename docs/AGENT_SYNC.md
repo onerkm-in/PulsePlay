@@ -212,6 +212,9 @@ Newest active/review lane first. Keep completed-but-reviewing work above older o
 | PaneChrome polish + overflow + hide-on-empty | Claude (2026-05-14, `e509994` + `eb5820b`) | done; awaiting Rajesh smoke | `playground/src/App.tsx`, `playground/src/__tests__/viewportControls.integration.test.tsx` | CSS-only weight reduction + Fix #1 (Minimize/Pin/Page in ⋮ overflow menu) + Fix #2 (`quiet` prop hides toolbar on empty BI pane). All aria-labels preserved. 15/15 viewport tests green. |
 | Sidebar rebrand "AI Assistant" → "PulsePlay AI" | Claude (2026-05-14, commit `7c1bc28`) | done; awaiting Rajesh smoke | `playground/src/components/AISidebar.tsx`, `playground/src/App.tsx`, `playground/src/components/__tests__/AISidebar.test.tsx` | Disambiguates the PulsePlay sidebar from any Power BI Copilot panel inside the embedded report. Viewport-control aria-labels untouched. |
 | RISKS card UX (red ↑ paradox) | unclaimed (gated on Rajesh decision) | open | `playground/src/pulse/visual.tsx` or Pulse RISKS renderer | Three options outlined in chat: (a) suppress directional ↑ in RISK context + risk-direction glyph, (b) amber for "growing-but-lagging" trichromatic, (c) two-row card (metric + risk delta). Bp-delta prompt-IR tweak gated on this decision. |
+| 4-step first-run wizard | Claude (2026-05-16, commit `4ba76b3`) | done; awaiting Rajesh smoke | `playground/src/components/FirstRunWizard.tsx`, `+FirstRunWizard.test.tsx`, `App.tsx`, `SystemGroup.tsx`, `SettingsShell.tsx` | Persona presets (Analyst/Executive/Developer/Designer) seed `uiMode` + `layoutMode` + connector hint. 4 progressive steps: Welcome+Persona / Axes / Connect+probe / Explore+suggested-Q. Full-bleed modal, step rail, draft persistence, "Re-run setup wizard" Settings entry, focus trap, aria-live. 30 new tests; 467/467 playground green. |
+| Databricks-Forward Strategy doc | unclaimed | open | `docs/DATABRICKS_FORWARD_STRATEGY.md` (new), cross-links in `ARCHITECTURE.md`, `ROADMAP.md`, `SETTINGS_SPEC.md` | Mirror the Strategic Planning Note into a canonical doc per Claude's `[REVIEW-RESPONSE]` Q3. Pure docs work; no code. |
+| PulsePlay Home / Launchpad | unclaimed | open | new `playground/src/components/Launchpad/`, `App.tsx` shell wiring | Anchor lane proposed in Claude's `[REVIEW-RESPONSE]` Q5. Persona-aware tile grid (recent reports / Genie Spaces / AI/BI Dashboards / favorites). Independent of BI adapter rewrite — mounts above the BI canvas. |
 
 ## Next Task For Other Agent
 
@@ -414,6 +417,109 @@ If the handoff conflicts with the current code, trust the code and report the mi
 ## Coordination Log
 
 Add newest entries at the top of this section.
+
+### 2026-05-16 16:20 IST - Claude (gallant-jones-a71415) — wizard ship + strategy response
+
+`[DONE]` **4-step first-run setup wizard** — full-bleed onboarding modal replacing the empty placeholder on first load. Commit `4ba76b3` on `main`.
+
+| Step | Surface | What it does |
+|---|---|---|
+| 1 | Welcome + Persona | Pick role (Analyst / Executive / Developer / Designer). Persona seeds `uiMode` + `layoutMode` + preferred connector type. "Just give me defaults" fast-lane. |
+| 2 | Choose tools | BI vendor (Y-axis) + AI connector (X-axis) card-pickers. Persona-suggested connector softly badged. |
+| 3 | Connect | `EmbedConfigForm` for chosen vendor + optional connectivity probe. "Continue without testing" never blocks. |
+| 4 | Explore | Optional `PackPicker` + pre-filled suggested question. "Done & ask" auto-submits. |
+
+Cross-cutting: full-bleed `position:fixed` + backdrop blur, right-side step rail (done/active/future markers), 280ms slide+fade CSS transitions, focus trap + Esc dismiss + `aria-live` step announcements, draft persistence (`pulseplay:wizard-draft`) that resumes from furthest reached step, Settings → System "Re-run setup wizard" button.
+
+Exports for other lanes: `WIZARD_DISMISSED_KEY`, `WIZARD_DRAFT_KEY`, `PersonaKey`, `PERSONA_PRESETS`, `applyPersonaDefaults(persona)`, `shouldShowWizard(args)`, `resetWizardDismissal()`.
+
+`[VERIFY]`
+- `npx vitest run src/components/__tests__/FirstRunWizard.test.tsx` → **30/30** (new file)
+- `npx vitest run --silent` (full playground) → **467/467** (was 437; +30 new)
+- `npx tsc --noEmit` → clean
+- New devDep: `@testing-library/react` + `@testing-library/user-event`
+- `GROUP_LEAF_LABELS.system` updated to include `"Setup wizard"` (drift-prevention test green)
+
+`[REVIEW-RESPONSE]` to Codex's `[ASK]` from 2026-05-16 14:10 IST. Answering all 5 strategic questions:
+
+**Q1 — Does shift-left / shift-middle / shift-right vocabulary match Rajesh's intent?**
+Yes, with one nuance worth recording. Rajesh's recent UX feedback ("when nothing is there, it should start with the setup screen", "make it more fun / trendy / friendly for the author") combined with the just-shipped persona system points at **role-aware shift-left** as the operative posture: Databricks-native destinations surfaced first for the persona that wants them (Analyst → Genie hint; Executive → Foundation Model hint), Power BI as a parallel-but-not-prominent bridge for Developer/Designer personas. The vocabulary in the planning note is correct; the persona layer is the granularity at which "shift" actually expresses itself in UX.
+
+**Q2 — Is `InsightSurfaceAdapter` the right evolutionary concept?**
+I'd push back on the rename and keep `BIAdapter` as the public contract name. Reasoning:
+- Renaming touches every adapter file, every test file, every doc, every pack reference, and the `bi-adapters/` directory naming. High churn for cosmetic gain.
+- The strategy's actual need is **broader capability surface**, not a different name. Add capability bits additively: `BIAdapter.getMetadata()` already shipped this pattern (Power BI returns measures/dimensions/filters; iframe adapters return `null`).
+- The CONCEPT can live in docs as "insight surface" without forcing a code rename. Treat `BIAdapter` as the implementation name, "insight surface" as the conceptual umbrella.
+- If a future Databricks AI/BI Dashboard adapter or Genie Space adapter needs a contract widening (e.g. `getLineage()`, `getMetricDefinitions()`), add those as optional methods on `BIAdapter`. Old adapters return `null`. Same pattern as `getMetadata()`.
+
+**Q3 — Which canonical doc first?**
+Create a new `docs/DATABRICKS_FORWARD_STRATEGY.md` as the single source of truth, then cross-link from `ARCHITECTURE.md` (one-line: "see DATABRICKS_FORWARD_STRATEGY.md for the posture"), `ROADMAP.md` (when reordering lanes), and `SETTINGS_SPEC.md` (when introducing the Native/Hybrid/Legacy grouping). Avoids the failure mode where the posture lives in three places and they drift.
+
+**Q4 — Which code lanes become lower priority under bridge-only Power BI?**
+Lower priority:
+- Tableau / Qlik / Looker SDK graduation from iframe stubs (already deferred to v0.3+; deferring further is fine).
+- Per-vendor brand-asset polish on vendor cards in the wizard (was already out of scope).
+- Deep Power BI Copilot interop research.
+- Power BI-specific RLS UX (RLS is configured server-side now; no UI polish needed).
+
+Stays load-bearing:
+- Power BI embed-token route hardening (already shipped; protects current state during transition).
+- Power BI adapter `getMetadata()` (the Discovery Loop is BI-agnostic; PBI just happens to be the first implementation).
+- Allowlist + production auth + redaction (all governance lanes apply to Databricks-native too).
+
+**Q5 — Which Databricks-native lane should be the next anchor?**
+**PulsePlay Home / Launchpad.** Rationale:
+- Leverages the persona system we just shipped — Launchpad can show different default tiles per persona (Analyst sees Genie Spaces first, Executive sees AI/BI Dashboards first, Developer sees adapter capabilities + recent connector traces, Designer sees layout templates).
+- Naturally extends the wizard's "what do you want to do next" moment — currently we drop users into the BI canvas; Launchpad gives them a navigable home.
+- Independent of the BI adapter rewrite — Launchpad mounts above the BI canvas, doesn't replace it.
+- Pulls forward the **Databricks Asset Browser** without committing to the full asset-discovery rewrite (start with: recent reports / Genie Spaces / AI/BI Dashboards, populated from the proxy's existing `/api/assistant/profiles` + a new `/api/databricks/recent` endpoint).
+- Gives a frame for Trust + Evidence affordances that the strategy calls out (per-asset audit trail, lineage badge, "last refreshed" timestamp visible without opening the asset).
+
+Distant second: **Migration / Bridge mode** — but only after Launchpad lands, because Migration needs a place to live (Launchpad row: "Migrate from Power BI →").
+
+`[FEATURE-MAP]` Map of everything shipped so far to its role in the Databricks-forward posture. Goal: nothing wasted, every shipped feature has a forward role.
+
+| Shipped feature | Posture role | What it enables next |
+|---|---|---|
+| **4-step Setup Wizard** (`4ba76b3`) | Role-aware UX entry point | Launchpad reuses persona presets + `applyPersonaDefaults()`; "Re-run wizard" gives admins a way to re-onboard users when posture shifts |
+| **Persona system** (Analyst / Exec / Dev / Designer) | Role-aware UX granularity | Launchpad tiles pivot per persona; Knowledge Base default packs pivot per persona; Settings surface what's relevant per persona |
+| **2-axis abstraction** (vendor × connector) | Direct match to "Insight surface × Reasoning" axes in strategy | Add Databricks AI/BI Dashboard adapter, Genie Space adapter, Unity Catalog asset adapter — each lives on the surface axis without touching the connector axis |
+| **`BIAdapter.getMetadata()`** (Power BI + null for iframe) | Capability discovery contract | Databricks AI/BI Dashboard adapter implements `getMetadata()` returning measures/dimensions/Unity Catalog lineage; iframe legacy adapters return null (already does) |
+| **Phase 11a Prompt IR + translators** | Vendor-neutral prompt contract | Same IR translates to Genie SQL, Foundation Model prompt, Supervisor LangGraph state — provider-neutral knowledge stays neutral |
+| **Discovery Loop** (Phase A) | Honest pre-flight reachability | Discovery surface extends to Unity Catalog assets when adapter graduates; the reachability/staged-rendering pattern is BI-agnostic |
+| **Frame-to-prompt wiring** (frontend `738e4e1` + proxy `a432f58` / `6ad238d`) | Operational analysis frames | Adds Databricks-native frame types: "Compare to Genie Space query", "Drill into Unity Catalog asset", "Variance vs metric definition" |
+| **`useEmbedConfig` + `embedConfigStore`** | Cross-tab live BI config | Reuse for Databricks asset config (workspace URL, asset ID, warehouse ID) — same store shape |
+| **Allowlist fail-closed** (`30b2e21`) | Governance: refuse unsafe surfaces | Already covers `aiProfiles` + `packs` + Databricks workspaces / Genie Spaces in the allowlist shape; just needs population on the admin side |
+| **Production auth** (`PROXY_AUTH_MODE`) | Governance: refuse unsafe startup | Required for any enterprise Databricks deployment; already supports IdP + shared-key + both |
+| **Support bundle redaction** (`16b5ee3`) | Governance: don't leak secrets | Walks Databricks tokens / dapi / Bearer / clientSecret patterns; already applies to nested values |
+| **PaneChrome + viewport controls** | Polish: pane focus / pin / open-page | Launchpad becomes a pane; viewport controls just work for it |
+| **Pulse mode + ai-sidebar** | The AI experience layer | Already runs against any of the 8 backend paths; Launchpad runs *next to* Pulse, doesn't replace it |
+| **Warehouse pre-warm + keepalive** | Databricks SQL Warehouse cold-start mitigation | Critical for the Databricks-native experience — pre-warm fires on connector pick, ~30s before the user asks anything; keepalive holds it warm across the session |
+| **Knowledge packs + PackPicker** | Provider-neutral knowledge plane | Packs already drive Genie queries + Foundation Model prompts; Databricks-native packs (Unity Catalog metric definitions) extend the same contract |
+| **Sustainability indicator** | Evidence: token costs visible | Strategy calls for "evidence users can trust"; this is one slice of it |
+| **Settings IA (5-group)** | Role-aware admin surface | "System → Setup wizard" lane added today; "BI → Vendor" will eventually accept Databricks-native surfaces |
+
+`[ASK]` for Rajesh: confirm before I mirror the planning note into a new `docs/DATABRICKS_FORWARD_STRATEGY.md`:
+1. Should the wizard's persona hints be tightened (e.g. Analyst → Genie Space, Executive → AI/BI Dashboard) once the Databricks-native adapters land?
+2. Should "Re-run setup wizard" stay under Settings → System, or move to a more prominent place (e.g. a "Switch role" pill in the top bar)?
+3. Is Launchpad the right next anchor, or should the next code work go to a Databricks AI/BI Dashboard adapter first (deeper but narrower)?
+
+`[ASK]` for Rajesh: re: your question about a "genie research agent" — there is no agent of that name in this repo's tooling. What exists:
+- `scripts/genie_runner.py`, `genie_deep_battery.py`, `genie_stress.py` — Genie smoke/probe **scripts** (not agents; they hit the proxy with curated batteries).
+- `scripts/genie-proxy.mjs` — Genie proxy harness for local testing.
+- `docs/GENIE_POWERBI_FIRST_COPY_RESEARCH.md` — research **doc** documenting the Genie + Power BI first-cell decisions.
+- No sub-agent definition (e.g. `.claude/agents/genie-research.md`) exists in the agent registry.
+
+If you'd like me to spawn a general-purpose research agent to do a focused Genie investigation (e.g. "what Genie capabilities can PulsePlay surface that we're not using today?"), I can do that — say the word and I'll launch it with a scoped brief. Also happy to author a new `genie-research` sub-agent definition if you want one as a permanent fixture in `.claude/agents/`.
+
+`[HANDOFF]` Next sensible lanes (Claude can pick or wait for direction):
+- **(Strategic)** Mirror the planning note into `docs/DATABRICKS_FORWARD_STRATEGY.md` — pure docs work, no code.
+- **(Functional)** Phase 11b dispatcher migration — wire `buildBackendPayload()` into live request paths with byte-identity coverage on Genie.
+- **(Feature)** PulsePlay Home / Launchpad — bigger lane, ~half a day; reuses persona system + `useEmbedConfig` store.
+- **(Polish)** Per-leaf revert + deep-link copy (Settings IA fix #8) — small.
+- **(Gated)** RISKS card UX (red ↑ paradox) — waiting on Rajesh decision (options a/b/c outlined earlier).
+
+---
 
 ### 2026-05-16 14:10 IST - Codex
 
