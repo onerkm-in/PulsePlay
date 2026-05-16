@@ -480,6 +480,117 @@ Pick one with a [CLAIM] note. Include in the claim:
 
 If you think NONE of A/B/C should be next — say so with a counter-proposal, but lock the counter-proposal to a Quality Scorecard dimension and cite the specific row.
 
+═══ PART 4 — Security scan on the wizard's localStorage + state surfaces ═══
+
+The wizard just landed. Before it gets etched into muscle memory, run a focused security pass on its trust boundaries. Read these files first:
+
+   playground/src/components/FirstRunWizard.tsx           (full file)
+   playground/src/App.tsx                                 (lines around handleWizardComplete + wizardShown memo)
+   playground/src/settings/groups/SystemGroup.tsx         (the "Re-run setup wizard" leaf)
+
+Then check each of these concerns. Post one finding per concern as [RISK] / [ACCEPT] / [REFINE]:
+
+   4.1  localStorage draft injection
+        The wizard reads `pulseplay:wizard-draft` via JSON.parse with try/catch + a type-coerce
+        on `step` (clamp 0-3) + `persona` (fallback to "analyst" via PERSONA_PRESETS[0]).
+        Confirm:
+          (a) Can an attacker who controls localStorage (e.g. XSS in a sibling route, malicious
+              browser extension, shared kiosk) inject `vendor` / `connector` values that bypass
+              the allowlist when the wizard's onComplete fires?
+          (b) The self-healing effect in App.tsx (line ~446: "if (!visibleVendors.some(...)) setActiveVendor(...)")
+              catches disallowed vendors AFTER the fact. Is there a window between
+              setActiveVendor(draft.vendor) and the next render where a disallowed vendor
+              could trigger a BI adapter mount? Trace through useEffect order to confirm.
+          (c) The draft schema has no version field. If the schema changes (e.g. add encrypted
+              embed-config), a stale draft from before the change is parsed into an unexpected
+              shape and trusted.
+
+   4.2  Draft expiry + scope
+        Confirm:
+          (a) There is NO expiry on the draft. A draft from 6 months ago is still loaded on next mount.
+              Is this acceptable, or should it have a `savedAt` timestamp + 30-day TTL?
+          (b) The draft persists across user logout. If PulsePlay later gains per-user identity,
+              the draft must be namespaced to the user (e.g. `pulseplay:wizard-draft:<userId>`)
+              or cleared on logout.
+          (c) The draft is shared across tabs (localStorage is origin-wide). Two PulsePlay tabs
+              open simultaneously with different personas would race on saveDraft. Is the
+              last-write-wins behavior acceptable?
+
+   4.3  Focus trap leakage
+        The wizard's focus trap (useEffect in FirstRunWizard around lines 280-310)
+        queries `dialog.querySelectorAll('button:not([disabled]):not([aria-hidden="true"]), …')`.
+        But the inactive StepPane elements are wrapped in a div with `aria-hidden={!visible}`
+        — that attribute is on the WRAPPER, not on each focusable child. So children of
+        an aria-hidden StepPane may STILL appear in the focus trap's selector results,
+        which would let Tab move focus into a visually hidden step.
+
+        Verify by:
+          (a) Reading the StepPane component definition.
+          (b) Confirming whether the wrapper's aria-hidden propagates to children's
+              selector match in `:not([aria-hidden="true"])`.
+          (c) If leaking: post [RISK] with a recommended fix (add `inert` attribute to
+              non-visible StepPane, OR add `tabindex="-1"` to all focusables inside
+              inactive panes, OR scope the focusables query with `:not([aria-hidden="true"] *)`).
+
+   4.4  Probe endpoint surface
+        Step 3's `runProbe` POSTs `{ assistantProfile: connector }` to `/api/assistant/probe`
+        OR GETs `/foundation/health` depending on connector type regex.
+
+        Confirm:
+          (a) The connector type detection regex (/foundation|bedrock/i) is anchored to the
+              connectorType field, NOT the connector name. A connector NAMED "foundation-fake-genie"
+              with type "genie" should still POST to /api/assistant/probe. Trace the code.
+          (b) The connector name flows into the request body. Is there any path where the
+              name flows into a URL? (There shouldn't be — but confirm there's no Power BI-style
+              path interpolation creeping in.)
+          (c) The 12s AbortSignal.timeout is not tied to component lifecycle. If the user
+              clicks "Continue without testing" while a probe is in-flight, does the dangling
+              fetch leak? Is the abort handler robust?
+          (d) Probe failure messages are rendered as plain text via `{props.probeResult?.message}`.
+              React escapes this by default, but confirm the message can't be a structured
+              object that React stringifies in a leaky way (e.g. dumps `{toString: () => "<script>"}`).
+
+   4.5  "Re-run setup wizard" + navigation
+        SystemGroup.tsx's button calls `resetWizardDismissal()` + clears `WIZARD_DRAFT_KEY` +
+        `window.location.href = "/"`.
+
+        Confirm:
+          (a) Setting `window.location.href` to a hard-coded "/" is safe (no open-redirect risk
+              since it's a literal). But it does cause a full page reload, blowing away any
+              in-flight AI conversation. Is this the right UX, or should it use the soft
+              router (navigateToApp from settingsRoute.ts)?
+          (b) The button clears dismissal but NOT activeVendor / activeConnector / embedConfig
+              from their respective stores. So the wizard reopens with the user's prior picks
+              still active in the underlying state — and shouldShowWizard returns FALSE
+              because hasEmbedConfig is still true. Trace: does clicking "Re-run" actually
+              show the wizard, or does shouldShowWizard skip it?
+
+   4.6  Persona connector hint reachability
+        Step 2's `recommendedConnector` is computed by:
+            connectors.find(c => c.type?.toLowerCase().includes(recommendedConnectorType))?.name
+            ?? connectors[0]?.name ?? ""
+
+        Confirm:
+          (a) If the allowlist filters out the persona's preferred connector type entirely,
+              the hint silently falls back to connectors[0]. This is intentional fallback but
+              could surprise an admin who restricted connectors. Should there be a [no
+              recommended connector — pick manually] state instead of a silent fallback?
+          (b) The "Suggested" badge only shows when `c.name === props.recommendedConnector
+              && !props.connector` — i.e. it disappears the moment the user picks anything,
+              even the suggested one. UX bug or by design?
+
+   4.7  Suggested-question content path
+        Step 4's `suggestQuestion(packName)` does an `includes(key)` against a hard-coded
+        map. Confirm:
+          (a) No user input is concatenated into the suggestion (eliminating XSS / prompt
+              injection from pack-name manipulation).
+          (b) When the user edits the suggested question in the textarea, the value flows
+              into `onComplete({suggestedQuestion, autoAsk})`. Today autoAsk is unwired
+              (handleWizardComplete drops both fields per the inline comment). When it gets
+              wired, confirm the auto-submitted question goes through the same sanitization
+              path as a typed-in question (i.e. AISidebar's `ask()`), not a backdoor that
+              skips the existing escaping.
+
 ═══ Rules of engagement ═══
 
    • Do NOT edit playground/src/components/FirstRunWizard.tsx or its test file without first posting a [CHALLENGE] explaining what's wrong with the shipped wizard. It just landed, has 30 passing tests, and is Rajesh's primary UX entry.
@@ -487,6 +598,7 @@ If you think NONE of A/B/C should be next — say so with a counter-proposal, bu
    • If you find a security or governance issue while reading the wizard code or the AGENT_SYNC update, escalate it to a [RISK] entry immediately — do not bury it in a general review.
    • Run the smallest validation that proves your claim. For Part 3, that means at minimum `npx tsc --noEmit` + the targeted vitest slice for any files you will touch.
    • Brutally honest. If you think Claude over-promised in the FEATURE-MAP, say so. If you think the persona system is over-engineered for what it does, say so.
+   • For Part 4 findings, separate "must fix before pilot" from "nice-to-have hardening" using [RISK-P0] / [RISK-P1] / [RISK-P2] tagging so Rajesh can triage at a glance.
 ```
 
 When Rajesh runs Codex with this prompt, Codex's output should be three blocks (Part 1 reactions / Part 2 audit / Part 3 claim) that Claude can then accept or counter in a follow-up Coordination Log entry.
