@@ -639,6 +639,38 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 
 ## Coordination Log
 
+### 2026-05-17 — Claude — [DECISION] Drop Pulse-PBI mental model; PulsePlay is host, not guest
+
+`[CONTEXT]` Across several recent turns I (Claude) carried Pulse-PBI sandbox constraints into PulsePlay reasoning — citing the wrong tripwire to argue against react-query, treating the XHR-only style as a PulsePlay constraint rather than a Pulse-PBI compat surface, etc. Rajesh corrected this twice: (1) PulsePlay has its own playground in a real browser, (2) PulsePlay is the iframe HOST, not the guest, and the modern web platform is fully available.
+
+`[DECISION-LOCKED]` Formally retiring the conflation. PulsePlay is a top-level-origin React + TypeScript application; it embeds BI vendor surfaces inside sandbox iframes it defines. The Pulse PBI custom-visual sibling is a CONSUMER of the same proxy with stricter constraints; PulsePlay does NOT inherit those constraints.
+
+`[DELIVERABLE]` New canonical document [docs/PULSE_PORT_DETANGLING.md](PULSE_PORT_DETANGLING.md) — captures the inheritance inventory in three categories:
+
+- **A — Hard-coupled compat surface** (kept until Pulse PBI sibling sunsets): Genie response shape, legacy `error` field, localStorage namespaces, conversation-id pass-through, BUG-003 fix, `/assistant/*` route names
+- **B — Soft-coupled modernization candidates** (PulsePlay grows native parallels, Pulse-port stays for sibling compat): XHR-only HTTP layer, `gn-*` CSS vocabulary, dark-theme model, Insights section taxonomy, Customize/Adjust interaction model, `v0` UI mode hedge, the whole `playground/src/pulse/*` directory
+- **C — Accidental baggage** (retire on touch): `LEGACY_DEMO_*` constants, `scrubInternalJargon` regex, lazy-chunk pre-warm probe references, 350 KB bundle cap awareness, Pulse-shaped sandbox-workaround prose, vestigial `DwD`/`PepPulse`/`UniBridge` name references
+
+`[TRIPWIRES-UPDATED]` [CLAUDE.md](../CLAUDE.md) and [AGENTS.md](../AGENTS.md) tripwires sections refactored to:
+- Strengthen the host-vs-guest framing ("PulsePlay is NOT captured inside any iframe")
+- Split tripwires into "DO apply to PulsePlay" vs "ONLY apply to the Pulse-ported compat surface"
+- Point at PULSE_PORT_DETANGLING.md as the source of truth for the inheritance inventory
+- Fix the stale "Eight backend paths" tripwire in AGENTS.md → "Nine" (drift from the d5e6ebf responses-agent hotfix)
+
+`[RETIRED-TRIPWIRES]` Eight Pulse-PBI mental tripwires explicitly retired from agent reasoning:
+1. "XHR-only because PBI sandbox" — applies only to ported code
+2. "350 KB bundle cap" — does not apply to PulsePlay
+3. "No streaming / Web Workers / fetch / Web Speech / DuckDB-WASM" — none apply
+4. "Cross-origin restrictions matter at HOST level" — wrong direction; PulsePlay IS the origin
+5. "Identity propagation needs PBI's pattern" — modern BFF + PKCE works fine
+6. "PNG/Excel/PDF exports require server help" — browser-native is fine
+7. "Bundle larger libraries cautiously" — code-split + lazy-load is the answer
+8. "Inherited section taxonomy is canonical law" — it's Pulse-PBI's vocabulary, not natural law
+
+`[NEXT]` This unlocks the upcoming `docs/ENTERPRISE_MODERNIZATION_CHARTER.md` work (deferred to a separate cycle) — the charter can now be drafted against PulsePlay-native constraints, not Pulse-PBI baggage. Phase 0 cleanup (broken Slice 1d + debris files) is also still pending; Rajesh's call on order.
+
+`[HANDOFF]` Codex: please challenge any item in PULSE_PORT_DETANGLING.md categorization where you think the assignment is wrong. Especially: anything currently in B that you believe is actually hard-coupled (move to A), or anything in A that you believe could be soft-coupled with proper API versioning (move to B).
+
 ### 2026-05-17 — Claude — [SHIPPED] Slice 1c complete — OAuth normalization + streaming in-band errors
 
 `[DONE]` Both items in Slice 1c shipped per Codex's two-commit split plan.

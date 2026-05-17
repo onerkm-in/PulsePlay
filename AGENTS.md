@@ -128,8 +128,17 @@ The Vite dev server proxies `/api/*` to `http://127.0.0.1:8787` (the proxy's bin
 
 ## Tripwires
 
-**No PBI Desktop sandbox here**
-DwD_AI_Assistant_for_PBI's biggest constraints (no `fetch`, no PNG/Excel exports, no streaming, no Web Workers, no Web Speech, no DuckDB-WASM lazy chunks) DO NOT APPLY in PulsePlay. The playground runs in a real browser. Use modern web APIs freely. See "The unconstrained roadmap" section in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+### Read this first — PulsePlay is the host, not the guest
+
+**PulsePlay is NOT captured inside any iframe.** It runs at top-level origin in a real modern browser. It HOSTS BI vendor surfaces (Power BI / Tableau / Qlik / Looker / generic-iframe) inside narrowed sandbox iframes that PulsePlay itself defines.
+
+The sister **Pulse PBI custom visual** project is the iframe *guest* — it's the one constrained by the Power BI Desktop sandbox. Code ported from Pulse into PulsePlay (under `playground/src/pulse/*`) inherits Pulse's constraints inside that file tree; PulsePlay-native code does NOT.
+
+**Modern web platform features are available by default in PulsePlay**: `fetch`, native NDJSON/SSE streaming, Web Workers, Service Workers, Web Speech, DuckDB-WASM lazy chunks, WebGPU, IndexedDB at full quota, native PDF/PNG/Excel generation, View Transitions, popups, File System Access. No bundle cap (code-split + lazy-load are the right answer to bundle pressure).
+
+The full inheritance inventory — what's hard-coupled Pulse-PBI compat surface vs what PulsePlay can shed — is locked in [docs/PULSE_PORT_DETANGLING.md](docs/PULSE_PORT_DETANGLING.md). **Read it before assuming any Pulse-PBI constraint applies to PulsePlay.**
+
+### Tripwires that DO apply to PulsePlay
 
 **Vendor adapter stubs are NOT production**
 Every adapter except `generic-iframe` currently extends `GenericIframeAdapter`. They render an iframe with the URL you give them — no event bridge, no command bridge, no vendor SDK. v1 wires real SDKs (powerbi-client, Tableau Embedding API v3, qlik-embed, @looker/embed-sdk). Don't claim "PowerBI integration" until that's done.
@@ -140,8 +149,8 @@ Carried over tripwire from DwD. Tests can't rely on in-memory mutations to `prof
 **Genie Agent Mode is UI-only**
 Carried over from DwD's Session 76 tripwire. Verified definitively via 20+ probes — public REST API silently swallows the `force_deep_research_planning` flag. The Foundation Model serving endpoint path (proxy `/foundation/section`) is the workaround. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) "Genie Agent Mode is UI-only" callout.
 
-**Eight backend paths, not six**
-Earlier docs (`MULTI_BI_ARCHITECTURE.md`, `README.md`) said the proxy supports six backends. The 2026-05-10 codebase audit confirmed eight. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) "Eight runtime backend paths" for the corrected table.
+**Nine backend paths, not six/eight**
+Earlier docs (`MULTI_BI_ARCHITECTURE.md`, `README.md`) said the proxy supports six backends. The 2026-05-10 codebase audit confirmed eight, and the 2026-05-17 ResponsesAgent connector made nine. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) "Nine runtime backend paths" for the corrected table.
 
 **Supervisor stagger is 2000 ms, not 800 ms**
 [ADR-0003](docs/adr/0003-supervisor-stagger-800ms.md) title says 800 ms. Actual code at [proxy/server.js:3556](proxy/server.js#L3556) is 2000 ms. ADR title rename pending.
@@ -152,12 +161,23 @@ Default sandbox in `GenericIframeAdapter`: `allow-scripts allow-same-origin allo
 **Embed tokens are server-side only**
 Power BI embed tokens, Tableau trusted tickets, Qlik OAuth tokens, Looker signed URLs — ALL get issued by the proxy. Power BI is implemented through `/assistant/embed-token/powerbi`; other vendors should mirror that server-side pattern. Never put credentials in the browser bundle. Never embed an embed-token issuance secret in the React app.
 
+### Tripwires that apply ONLY to the Pulse-ported compat surface
+
+These constraints travel with the code under `playground/src/pulse/*` because Pulse PBI sibling actively consumes the same patterns. They do NOT apply to PulsePlay-native code outside that directory. Full categorization in [docs/PULSE_PORT_DETANGLING.md](docs/PULSE_PORT_DETANGLING.md).
+
+- XHR-only HTTP layer in `pulse/backend/*` and `pulse/genie.ts` — new PulsePlay code uses `fetch` + React Query (when adopted)
+- `gn-*` CSS class vocabulary throughout `pulse/style/visual.less` — new design system applies only to non-Pulse-port code
+- Pulse-shaped Insights section taxonomy (HEADLINE / TRENDS / RISKS / OPPORTUNITIES / RECOMMENDED ACTIONS) — extensible in PulsePlay-native
+- `v0` UI mode hedge in `settingsStore` — schedule for removal in PulsePlay-native UX
+- Legacy `error: <string>` field on proxy problem envelopes — kept indefinitely for Pulse sibling compatibility (locked in `docs/ERROR_HANDLING_STRATEGY.md` "Migration note")
+
 ## What's NOT in this project (intentionally)
 
-- No PBI custom visual package (`pbiviz`, `capabilities.json`, or Power BI deployment target). The reusable Pulse source was ported under `playground/src/pulse`.
+- No PBI custom visual package (`pbiviz`, `capabilities.json`, or Power BI deployment target). The reusable Pulse source was ported under `playground/src/pulse` as a compatibility shim — see [docs/PULSE_PORT_DETANGLING.md](docs/PULSE_PORT_DETANGLING.md).
 - No `pbiviz` build pipeline (Vite is the bundler here)
-- No Power BI Desktop sandbox concerns (we run in a real browser)
+- No Power BI Desktop sandbox concerns (we run in a real browser, top-level origin)
 - No `capabilities.json` schema (no PBI custom visual to declare to Power BI)
+- No bundle-size cap on PulsePlay itself (the 350 KB `.pbiviz` cap applies to the sibling Pulse project, not us)
 
 ## Status
 
