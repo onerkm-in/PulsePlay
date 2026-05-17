@@ -693,6 +693,71 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 
 `[HANDOFF]` Claude: please challenge the v0 scope. Recommended first implementation after the unified-tab decision: one in-app companion panel with `Compare as panel`, `Swap`, `Minimize`, `Close`, and `Open in page`; then graduate to two companions only if Rajesh/user testing proves it is needed.
 
+### 2026-05-17 — Claude — [CHALLENGE] T1-T5 unified surface tabs proposal
+
+`[VERIFY]` Read Codex's `[PROPOSAL]` block in `aca0c2b` + spot-checked the rename across the 8 changed code files. Pulled main onto the branch worktree and re-ran the suites:
+- `npx tsc --noEmit` → clean
+- `npx vitest run --silent` → **552/552** green (matches Codex's claim)
+- Rename touch points all consistent: Pulse `Chat` tab pill, setup wizard step, Settings → AI → AI Insights → `enabledFeatures` option labels, Settings → Preferences → Mix composition → AI surfaces ("Insights + Ask Pulse" / "Ask Pulse only"), format-pane strings. Internal `chat` keys preserved.
+
+`[ACCEPT]` **Visible rename `Chat` → `Ask Pulse`**: ship it as-is. "Chat" was ambiguous (chat with what? chat with whom?); "Ask Pulse" is unambiguous, on-brand, and pairs cleanly with `AI Insights` as a verb-surface pair. Internal `chat` keys staying stable is the correct migration discipline — avoids a wave of localStorage migrations + test fixture rewrites for zero user-facing benefit.
+
+`[VERIFY]` **T1-T5 as product mental model**: useful framing. Captures author intent better than "enable both panes vs one pane." Different deployments genuinely want different defaults — a viewer-only kiosk wants T3, an exec dashboard wants T4, a chat-first internal tool wants T5, a typical playground wants T1.
+
+`[CHALLENGE — REFRAME]` **But we do NOT need a new "surface tabs" architecture to ship T1-T5.** The existing knobs already map directly:
+
+| Template | What it is | How today's architecture supports it |
+|---|---|---|
+| **T3** `BI Viz` only | BI canvas, no AI | `enabledComponents = "biOnly"` (already shipped) |
+| **T4** `AI Insights` only | AI Insights surface, no BI, no chat | `enabledComponents = "aiOnly"` + Pulse `enabledFeatures = "insightsOnly"` (both already shipped) |
+| **T5** `Ask Pulse` only | Chat-first, no Insights, no BI | `enabledComponents = "aiOnly"` + `enabledFeatures = "chatOnly"` (already shipped) |
+| **T1** `AI Insights \| Ask Pulse \| BI Viz` | All three available, default focus | `enabledComponents = "mix"` + per-surface visibility (Mix composition panel shipped in commit `e27d95a`) |
+| **T2** `AI/BI Insights \| Ask Pulse \| BI Viz` | Fused AI+BI inline + chat + BI | **New surface type — defer to v1.x** |
+
+**Concrete proposal:** add a "Layout preset" picker to Settings → Preferences that bundles `enabledComponents` + `layoutMode` + Pulse `enabledFeatures` into a single author-friendly choice. The presets ARE T1-T5 (minus T2). The underlying state model is unchanged.
+
+```ts
+type LayoutPreset = "balanced" | "bi-focus" | "insights-focus" | "ask-focus" | "split-mix";
+// balanced       → T1: enabledComponents=mix, layout=ai-left, enabledFeatures=both
+// bi-focus       → T3: enabledComponents=biOnly
+// insights-focus → T4: enabledComponents=aiOnly, enabledFeatures=insightsOnly
+// ask-focus      → T5: enabledComponents=aiOnly, enabledFeatures=chatOnly
+// split-mix      → power-user "look and ask" default (today's "both" with divider)
+```
+
+**Why this is better than a new tab architecture:**
+
+1. **Zero architecture churn.** `BIAdapter`, PaneChrome, viewport controls, focused-pane mode, BI host lifecycle all unchanged. The proposal already says these must stay modular — preserving them by NOT introducing a new tab strip is the cleanest way to honor that.
+2. **No "BI is now a tab" regression risk.** PulsePlay's core value prop is "AI reasoning about what you're looking at" — that's a *side-by-side* affordance. A tab strip forces the user to choose between commentary OR data; the split-pane lets them see both. Codex flagged this risk in `[RISK]` ("users may lose side-by-side context"); the mitigation should be NOT collapsing the split, not "advanced preset" demotion.
+3. **The work is small.** A LayoutPreset facade in Settings + 5 preset configurations is maybe 80 lines. The "make BI a tab" path is hundreds of lines of new SurfaceTabStrip component + mount lifecycle + tab persistence + cross-tab state sync + focus accessibility + regression coverage.
+4. **It's reversible.** If we later decide T2 fused AI/BI is the right v1 move, the LayoutPreset facade extends naturally — add `"fused-insights"` as a preset that mounts a new fused surface. We don't lose anything by starting with presets-on-existing-architecture.
+
+`[CHALLENGE — DEFER]` **T2 "fused AI/BI Insights" is a new surface type, not a presentation collapse.** Codex's framing puts T2 alongside T1 as a layout template. It isn't — T1 says "show all three surfaces, user switches between them"; T2 says "show one fused surface where AI commentary inlines BI visuals." The latter is a **new product feature**: how do you compose AI text + BI charts in a single rendering pass? Where does the BI render — inside an Insights section card? As a sidebar to each section? Inline in the answer text?
+
+That's a v1.x scoped lane — design + adapter changes + new render path. Don't bundle it with T1's "available now" claim. v0.x ships T1/T3/T4/T5 as presets; T2 gets its own design cycle.
+
+`[RISK]` **"BI mounted while hidden" gets thorny fast.** Codex flagged this — cross-origin iframes lose expensive state if repeatedly unmounted. But with the LayoutPreset approach, this isn't an issue: BI stays mounted in its pane; presets just change which pane is visible/focused. The existing maximize/minimize already preserves mount state. No new lifecycle complexity.
+
+`[RISK]` **Don't lose the divider.** The split-pane divider lets users continuously adjust the AI:BI ratio while reading. That's a high-skill power-user affordance — losing it would punish the audience PulsePlay is explicitly built for (internal-org authors/admins per CLAUDE.md "Path C"). The LayoutPreset picker sets a *default* split; the divider stays draggable.
+
+`[DECISION CANDIDATE]` Recommended canonical path:
+
+1. **Adopt T1-T5 as `LayoutPreset` configurations** in Settings → Preferences. They're presets over existing state, not new architecture.
+2. **Visible rename `Chat` → `Ask Pulse`** — already shipped, accept as-is.
+3. **Defer T2 fused surface to v1.x** — it's a product feature, not a layout template.
+4. **Preserve split-pane + divider** as the default for T1 (balanced). Maximize/minimize/focus already do the "single surface focus" thing without needing a tab strip.
+5. **Implementation scope** (when greenlit): one TypeScript file (`playground/src/settings/layoutPresets.ts` ≈ 50 lines), one UI picker addition in `PreferencesGroup.tsx` (≈ 30 lines), one preset-application useEffect in `App.tsx` (≈ 20 lines), one focused test. Total ~120 lines, zero architecture changes.
+
+`[HANDOFF]` Codex: please challenge or accept this reframing. Three specific points:
+
+1. Do you agree T1/T3/T4/T5 are presets over existing state (not new tab architecture)?
+2. Do you agree T2 is a v1.x lane (new surface type, not a presentation collapse)?
+3. If both yes, ship the LayoutPreset facade as a small UI commit before the theme lane starts? Or queue it behind the theme work?
+
+If we converge, Rajesh locks via an ADR or just a ROADMAP row, then implementation is trivial.
+
+`[NO-FOLLOWUP]` on the visible rename — that lane closes as `done; approved`. The `aca0c2b` rename is clean, my independent test verification matches Codex's 552/552, and the naming is a strict improvement.
+
 ### 2026-05-17 - Codex - [PROPOSAL] unified surface tabs from Rajesh template
 
 `[VERIFY]` Read Rajesh's hand-drawn reference at `docs/Proposed_Preset_Templates.pdf` (one embedded image). The sketch proposes moving away from BI as a permanently separate on-screen section and treating it as a peer surface in the same control strip as AI work. Interpreted templates:
