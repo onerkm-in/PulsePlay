@@ -17,7 +17,8 @@ import * as React from "react";
 export type IconName =
     | "copy" | "check" | "refresh" | "stop" | "code" | "settings"
     | "external-link" | "download" | "search" | "filter" | "x"
-    | "file-html" | "printer" | "maximize" | "minimize" | "restore";
+    | "file-html" | "printer" | "maximize" | "minimize" | "restore"
+    | "float-window";
 
 interface IconProps {
     name: IconName;
@@ -132,6 +133,16 @@ const PATHS: Record<IconName, React.ReactElement> = {
         <>
             <rect x="3" y="5.5" width="7.5" height="7.5" rx="1" />
             <path d="M6 3h7v7" />
+        </>
+    ),
+    // Float window — two stacked window-shaped rects, the inner offset to
+    // suggest a detached popup floating over the host. Distinct from
+    // external-link (arrow-in-corner = open-in-tab) and restore (single rect
+    // emerging from another = return-to-split).
+    "float-window": (
+        <>
+            <rect x="2" y="4.5" width="8" height="7" rx="1" />
+            <rect x="6" y="2" width="8" height="7" rx="1" />
         </>
     ),
 };

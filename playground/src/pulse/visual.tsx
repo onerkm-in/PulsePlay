@@ -212,7 +212,7 @@ function openPulsePlaySettings(group: "setup" | "bi" | "ai" | "preferences" | "s
 
 type PulsePlayViewportPane = "ai" | "bi";
 type PulsePlayViewportFocus = PulsePlayViewportPane | null;
-type PulsePlayViewportAction = "focus" | "restore" | "minimize" | "open-page" | "reload";
+type PulsePlayViewportAction = "focus" | "restore" | "minimize" | "open-page" | "float" | "reload";
 
 function readPulsePlayViewportFocus(): PulsePlayViewportFocus {
     if (typeof window === "undefined") return null;
@@ -4013,6 +4013,15 @@ function App(props: AppProps) {
                             aria-label="Open AI panel in separate page"
                         >
                             <Icon name="external-link" />
+                        </button>
+                        <button
+                            type="button"
+                            className="gn-pane-action-btn"
+                            onClick={() => dispatchPulsePlayViewportAction("float")}
+                            title="Float AI pane as a popup window you can keep alongside the main app"
+                            aria-label="Float AI panel in popup window"
+                        >
+                            <Icon name="float-window" />
                         </button>
                         <button
                             type="button"

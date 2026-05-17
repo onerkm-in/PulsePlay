@@ -82,7 +82,7 @@ type ViewportFocus = ViewportPane | null;
 const PINNED_VIEWPORT_PANE_STORAGE_KEY = "pulseplay:pinned-viewport-pane";
 const PULSEPLAY_VIEWPORT_ACTION_EVENT = "pulseplay:viewport-action";
 const PULSEPLAY_VIEWPORT_STATE_EVENT = "pulseplay:viewport-state";
-type PulsePlayViewportAction = "focus" | "restore" | "minimize" | "open-page" | "reload";
+type PulsePlayViewportAction = "focus" | "restore" | "minimize" | "open-page" | "float" | "reload";
 
 interface PowerBIDeveloperSnapshot {
     vendor: "powerbi";
@@ -491,6 +491,39 @@ function PlaygroundApp(): React.ReactElement {
         window.open(url, "_blank", "noopener,noreferrer");
     }, []);
 
+    /** Float the pane as a popup window (smaller, always-on-top-ish detached
+     *  window). Distinct from "Open in separate page" — that opens a normal
+     *  browser tab. Float gives you a small windowed pane you can keep open
+     *  alongside the main app. The popup feature string asks the browser
+     *  for a chromeless window; modern Chrome/Edge honour `popup=yes` even
+     *  in tabbed mode by spawning a minimal window. Falls back to a normal
+     *  tab if the browser ignores the popup hint.
+     */
+    const handleViewportFloat = useCallback((pane: ViewportPane) => {
+        const url = buildFocusedPaneUrl(pane);
+        if (!url) return;
+        const width = 920;
+        const height = 720;
+        const left = typeof window !== "undefined"
+            ? Math.max(0, Math.round((window.screen?.availWidth ?? width) - width - 40))
+            : 0;
+        const top = typeof window !== "undefined"
+            ? Math.max(0, Math.round(((window.screen?.availHeight ?? height) - height) / 2))
+            : 0;
+        const features = [
+            "popup=yes",
+            "noopener",
+            "noreferrer",
+            `width=${width}`,
+            `height=${height}`,
+            `left=${left}`,
+            `top=${top}`,
+        ].join(",");
+        // Distinct window name per pane so a second "Float" press for the
+        // same pane re-uses the existing window instead of stacking duplicates.
+        window.open(url, `pp-float-${pane}`, features);
+    }, []);
+
     const handleShowBothPanes = useCallback(() => {
         setFocusedPane(null);
         writeViewportFocusToUrl(null);
@@ -508,6 +541,7 @@ function PlaygroundApp(): React.ReactElement {
             else if (action === "restore") handleViewportRestore();
             else if (action === "minimize") handleViewportMinimize(pane);
             else if (action === "open-page") handleViewportOpenPage(pane);
+            else if (action === "float") handleViewportFloat(pane);
             else if (action === "reload" && pane === "ai") {
                 setPulseAssistantProfile(readPulseAssistantProfile());
                 setPulseRenderToken(t => t + 1);
@@ -515,7 +549,7 @@ function PlaygroundApp(): React.ReactElement {
         };
         window.addEventListener(PULSEPLAY_VIEWPORT_ACTION_EVENT, handler as EventListener);
         return () => window.removeEventListener(PULSEPLAY_VIEWPORT_ACTION_EVENT, handler as EventListener);
-    }, [applyViewportFocus, handleViewportRestore, handleViewportMinimize, handleViewportOpenPage]);
+    }, [applyViewportFocus, handleViewportRestore, handleViewportMinimize, handleViewportOpenPage, handleViewportFloat]);
 
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -889,6 +923,7 @@ function PlaygroundApp(): React.ReactElement {
                         onMinimize={() => handleViewportMinimize("ai")}
                         onPinToggle={() => handleViewportPinToggle("ai")}
                         onOpenPage={() => handleViewportOpenPage("ai")}
+                        onFloat={() => handleViewportFloat("ai")}
                         onShowBoth={handleShowBothPanes}
                         quiet={uiMode === "pulse"}
                         hideHeader={uiMode === "pulse"}
@@ -989,15 +1024,22 @@ function PlaygroundApp(): React.ReactElement {
                         isBackgrounded={focusedPane === "ai"}
                         isPinned={pinnedViewportPane === "bi"}
                         canShowBoth={!focusedPane && enabledComponents !== "both"}
-                        // Fix #2 — hide the controls toolbar while the BI pane
-                        // has nothing to operate on. The title bar stays so the
-                        // user sees which vendor would mount once configured.
-                        quiet={!hasEmbedConfig}
+                        // Earlier this pane went `quiet` whenever there was no
+                        // embed config — the rationale being "nothing to operate
+                        // on". User feedback flipped that: viewport controls
+                        // (Maximize / Minimize / Open in tab / Float) are
+                        // pane-level affordances, not content affordances, and
+                        // should be available on BOTH panes regardless of
+                        // whether the content is populated. The empty BI state
+                        // still floats as a window if the author wants the
+                        // setup prompt visible alongside their main view.
+                        quiet={false}
                         onFocus={() => applyViewportFocus("bi")}
                         onRestore={handleViewportRestore}
                         onMinimize={() => handleViewportMinimize("bi")}
                         onPinToggle={() => handleViewportPinToggle("bi")}
                         onOpenPage={() => handleViewportOpenPage("bi")}
+                        onFloat={() => handleViewportFloat("bi")}
                         onShowBoth={handleShowBothPanes}
                     >
                         <main className="pp-app__canvas" style={{ ...panelInnerStyle(), display: "flex", flexDirection: "column" }}>
@@ -1145,6 +1187,7 @@ function PaneChrome(props: {
     onMinimize: () => void;
     onPinToggle: () => void;
     onOpenPage: () => void;
+    onFloat: () => void;
     onShowBoth: () => void;
     /** Fix #2 — when true, render only the title/subtitle row without the
      *  controls toolbar. Used when the pane has nothing to operate on
@@ -1373,6 +1416,16 @@ function PaneChrome(props: {
                                         style={overflowItemStyle}
                                     >
                                         Open in separate page
+                                    </button>
+                                    <button
+                                        type="button"
+                                        role="menuitem"
+                                        aria-label={`Float ${label} panel in popup window`}
+                                        title={`Float ${label} panel as a detached popup window you can keep alongside the main app`}
+                                        onClick={() => { props.onFloat(); setOverflowOpen(false); }}
+                                        style={overflowItemStyle}
+                                    >
+                                        Float window
                                     </button>
                                 </div>
                             )}
