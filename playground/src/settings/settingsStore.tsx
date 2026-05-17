@@ -553,9 +553,19 @@ export function SettingsProvider(props: SettingsProviderProps): React.ReactEleme
                 // PulseAiVisualSettings surface — they live in the wider
                 // raw genieSettings JSON. Use the loose-typed helper so
                 // they get persisted + broadcast on the same event.
+                // apiBaseUrl needs the `/api` prefix because Vite's dev
+                // server proxies `/api/*` → proxy (strips the `/api`). Pulse's
+                // GenieClient.getBaseUrl() appends `/assistant` to whatever we
+                // give it; without the `/api` prefix the request hits Vite
+                // directly at `/assistant/*` and 404s. Browser smoke test
+                // 2026-05-17 caught this — Pulse's auto-fire-on-mount POST
+                // /assistant/home returned 404 because URL was
+                // http://localhost:5173/assistant/home (no /api prefix).
                 writeRawGenieSettingsPatch({
                     connectionMode: "proxy",
-                    apiBaseUrl:     (typeof window !== "undefined" && window.location?.origin) || "http://127.0.0.1:8787",
+                    apiBaseUrl: typeof window !== "undefined" && window.location?.origin
+                        ? `${window.location.origin}/api`
+                        : "http://127.0.0.1:8787",
                 });
             } else {
                 removeAndBroadcast(KEY.activeAiProfile);
