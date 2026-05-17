@@ -70,7 +70,7 @@ State file is `.pulseplay-session.state.json` at the repo root. The legacy `.dwd
 | Axis | What varies | Where it lives |
 |---|---|---|
 | **Y: BI vendor** | What the user is LOOKING AT | `bi-adapters/<vendor>/` — frontend adapters implementing `BIAdapter` interface |
-| **X: AI connector** | What the AI brain IS | `proxy/` profile types — Genie, Azure OpenAI, Bedrock, Foundation Model, Supervisor (8 backend paths total) |
+| **X: AI connector** | What the AI brain IS | `proxy/` profile types — Genie, Azure OpenAI, Bedrock, Foundation Model, Supervisor, ResponsesAgent (9 backend paths total) |
 
 ANY combination of (vendor, connector) is valid. Switching either is independent. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full architecture.
 
