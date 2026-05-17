@@ -7,13 +7,14 @@
 
 ## 2026-05-17 - Ask Pulse label + unified surface-tabs proposal
 
-**Range:** Rajesh proposed treating BI as a peer surface beside AI work instead of a permanently separate default pane, using [Proposed_Preset_Templates.pdf](Proposed_Preset_Templates.pdf) as the sketch reference. The low-risk copy change shipped now; the BI-as-tab architecture is intentionally captured for review before code changes.
+**Range:** Rajesh proposed treating BI as a peer surface beside AI work instead of a permanently separate default pane, using [Proposed_Preset_Templates.pdf](Proposed_Preset_Templates.pdf) as the sketch reference. He then added a Grammarly-style floating-bubble reference for keeping AI/Ask/BI helpers reachable while scrolling. The low-risk copy change shipped now; the BI-as-tab, companion-panel, and Pulse Bubble architecture are intentionally captured for review before code changes.
 
 ### What shipped
 
 - Renamed the visible **Chat** surface to **Ask Pulse** across the Pulse viewer tab, setup wizard, Settings AI/Preferences selectors, and Power BI format-pane display strings. Internal `chat` keys are unchanged to avoid migration churn.
 - Added a new [AGENT_SYNC.md](AGENT_SYNC.md) proposal entry mapping Rajesh's templates: T1 `AI Insights | Ask Pulse | BI Viz`, T2 future fused `AI/BI Insights | Ask Pulse | BI Viz`, T3 BI-only, T4 AI-Insights-only, and T5 Ask-Pulse-only.
 - Added a follow-up AGENT_SYNC addendum for Rajesh's floating comparison idea: any primary tab should be able to show another surface as an in-app companion panel, distinct from the existing detached browser-popup `Float` action.
+- Added a research-backed AGENT_SYNC decision candidate for a persistent **Pulse Bubble** launcher: a small right-edge/bottom-right helper that expands to `AI Insights`, `Ask Pulse`, `BI Viz`, and `Compare` actions while the user scrolls. It is a launcher, not another permanent toolbar and not the companion panel itself.
 - Recommended collapsing the default **presentation** into a unified surface strip while keeping the BI adapter axis, AI connector axis, viewport controls, focused-page mode, and BI host lifecycle modular.
 
 ### Validation
@@ -26,6 +27,7 @@
 
 - No BI architecture changed in this slice. The proposal still needs Claude/Rajesh review before introducing `BI Viz` as a unified surface tab.
 - The floating comparison layer is proposal-stage only. Existing `Float` still means detached browser popup; no in-app overlay manager exists yet.
+- The Pulse Bubble is proposal-stage only. If implemented, it must snap to safe anchors, avoid the text composer/setup pill/BI controls, support keyboard and Escape behavior, honor reduced motion/high contrast, and never obscure focused content.
 - If BI becomes tabbed, do not unmount cross-origin iframes casually; preserve adapter state or keep the BI surface mounted while hidden.
 - Keep split/focus review as an advanced preset because users still need side-by-side "ask while looking" workflows.
 

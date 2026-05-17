@@ -639,6 +639,37 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 
 ## Coordination Log
 
+### 2026-05-17 - Codex - [RESEARCH] persistent Pulse Bubble launcher for scroll context
+
+`[VERIFY]` Rajesh's Grammarly-style screenshots are pointing at a different pattern than the existing pane toolbar or the proposed companion panel. The right fit is a **persistent launcher bubble**: small, docked, available while scrolling, and expandable into surface actions only when the user asks. This keeps `AI Insights`, `Ask Pulse`, and `BI Viz` reachable without adding another permanent section to the screen.
+
+`[SOURCES]` Cross-checked the pattern against Material Design's floating action button guidance, W3C WCAG 2.2 focus-not-obscured guidance, and Grammarly's own Windows/Mac user guide describing the floating widget. Relevant links for Claude/source review:
+
+- Material Design FAB guidance: https://m1.material.io/components/buttons-floating-action-button.html
+- W3C WCAG 2.2 Focus Not Obscured (Minimum): https://www.w3.org/WAI/WCAG22/Understanding/focus-not-obscured-minimum
+- Grammarly for Windows/Mac user guide: https://support.grammarly.com/hc/en-us/articles/4412816078349-Grammarly-for-Windows-and-Grammarly-for-Mac-user-guide
+
+`[TOOLING]` Figma FigJam diagram generation was attempted, but the connector required a `planKey` and no usable `whoami` tool was exposed in this session. Canva was not exposed by tool search in this session. Do not block the product decision on that; regenerate a wireframe later when a design connector is available.
+
+`[ACCEPT]` Add a `PulseBubble` / `SurfaceLauncherBubble` concept as the **launcher** for companion experiences. It is not the companion panel itself. Relationship model:
+
+1. Unified surface tabs answer: "What is my primary surface right now?"
+2. Pulse Bubble answers: "What helper surface can I summon without losing scroll/context?"
+3. Floating companion panel answers: "What secondary surface am I comparing against the primary?"
+
+`[DECISION CANDIDATE]` First implementation shape:
+
+1. Desktop default anchor: right edge lower-middle or bottom-right safe area, with collision avoidance for setup pill, send/compose controls, pane chrome, scrollbars, and active modals. Do not glue it blindly to the extreme corner if that covers a primary action.
+2. Narrow/mobile fallback: bottom-right safe area or bottom sheet launcher; never cover the text composer, primary submit, or browser safe-area inset.
+3. While scrolling: collapsed 40-48 px bubble with one clear icon and optional meaningful badge. Badge means "new insights/actions available" or "review count"; no decorative mystery numbers.
+4. On hover/focus/click: expand into a compact pill/radial menu with `AI Insights`, `Ask Pulse`, `BI Viz`, `Compare`, and `Hide for this session`. Keyboard activation must expose the same menu.
+5. Context-aware default action: in `BI Viz`, primary quick action should favor `Ask Pulse` or `AI Insights`; in `Ask Pulse`, it should favor `BI Viz` or `AI Insights`; in `AI Insights`, it should favor `Ask Pulse` or `BI Viz`.
+6. Persist per-user placement and collapsed/hidden state locally, with admin policy able to disable the bubble for controlled enterprise deployments.
+
+`[RISK]` The bubble can become annoying fast if treated as decoration. Guardrails before code is accepted: Escape closes the menu, focus returns to the launcher, tab order is predictable, reduced-motion is honored, high-contrast has a non-color cue, 400% zoom/reflow does not obscure core actions, and the bubble never traps pointer events over cross-origin BI iframes except inside its own hit area.
+
+`[HANDOFF]` Claude: please challenge two details before implementation: (1) should v0 support draggable free placement or only 3-4 snap anchors, and (2) should the first badge represent unread AI output, available suggestions, or no badge until real signal exists? Codex recommendation: snap anchors only, and no badge until the count has a trustworthy meaning.
+
 ### 2026-05-17 - Codex - [ADDENDUM] floating comparison layer for unified surfaces
 
 `[VERIFY]` Current PulsePlay already has a `float` viewport action, but it opens a detached browser popup via `window.open(..., pp-float-<pane>, popup=yes, ...)`. That is useful, but it is **not** the same as Rajesh's new ask. The new ask is an in-app floating comparison layer: while the user is in any primary tab, they can show/hide another surface as a movable popup section inside the playground.
