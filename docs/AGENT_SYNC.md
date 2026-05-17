@@ -639,6 +639,27 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 
 ## Coordination Log
 
+### 2026-05-18 00:13 IST — Codex — [VERIFY/FIX] React Query foundation external-patch audit
+
+`[VERIFY]` Audited Rajesh/Copilot commit `5b51fc2` (`feat: phase 1 react query foundation [AGENT_SYNC]`) per the external-LLM diff rule. Baseline claim was mostly true: `@tanstack/react-query` was installed, `apiFetch()` and `queryClient` were added, `App` moved allowlist/packs fetches to `useAllowlist()` / `usePacks()`, and the playground suite/build passed. Codex independently reran focused validation before edits: lint passed, `appGovernance` 1/1 passed, `viewportControls.integration` 18/18 passed, full playground 579/579 passed, build passed.
+
+`[RISK]` Three acceptance gaps were found before accepting the slice:
+- React Query Devtools were imported/rendered unconditionally from `App.tsx`, so the production bundle pulled in devtools despite the charter challenge saying devtools should be dev-only.
+- `packsLoaded` changed from "loaded after success or failure" to `isSuccess`, which could leave pack-selection cleanup waiting forever after a packs endpoint failure.
+- The new appGovernance test only asserted fetch calls; it did not lock fail-closed governance behavior.
+
+`[FIX]` Follow-up patch keeps the React Query foundation and closes those gaps:
+- `ReactQueryDevtoolsHost` dynamically loads devtools only in Vite dev mode and skips test mode; `@tanstack/react-query-devtools` moved to `devDependencies`.
+- Added `src/vite-env.d.ts` so `import.meta.env` is typed and Vite can erase the devtools dynamic import in production.
+- `useAllowlist()` disables retries so governance failures fail closed promptly instead of waiting through 5xx retries.
+- `packsLoaded` now treats either packs success or packs error as loaded, preserving the pre-React-Query behavior.
+- `apiFetch()` now has a request-id fallback when `crypto.randomUUID` is unavailable.
+- `appGovernance.integration.test.tsx` now has 2 tests: query cache population and failed allowlist -> fail-closed alert.
+
+`[VERIFY]` Follow-up validation: `npm run lint` passed; focused `npm run test -- appGovernance --silent` passed 2/2; focused `npm run test -- viewportControls.integration --silent` passed 18/18; full `npm run test -- --silent` passed 580/580; `npm run build` passed; production `dist/assets/*.js` contains no `react-query-devtools` / `ReactQueryDevtools` / `Query Devtools` strings; Vite smoke at `http://127.0.0.1:5173/` returned HTTP 200 with `#root`.
+
+`[NEXT]` This is an acceptable Phase 1 proof slice after the follow-up fix, but it is not "fully achieved Phase 1 modernization" in the charter sense. It proves the server-state foundation on allowlist/packs only. Next Phase 1 gates remain: document the query contract in an ADR/canonical note, decide the state-ownership inventory before zustand, and avoid starting broad App decomposition until Playwright/axe smoke coverage is in place.
+
 ### 2026-05-17 23:46 IST — Codex — [CHALLENGE] Enterprise Modernization Charter pillars after Path A reset
 
 `[VERIFY]` Rajesh reset `main` to `89da8ec` to drop the broken follow-on commits (`f20946c`, `49810ea`) and return to the drafted charter only. Codex ran `python scripts/llm_onboard.py --terse`, re-read this file, `docs/ENTERPRISE_MODERNIZATION_CHARTER.md`, `docs/PULSE_PORT_DETANGLING.md`, `docs/memory/project_state.md`, package manifests, route hooks, and confirmed `git diff HEAD --stat` is clean. This entry is a challenge note only: no ADR, no canonical lock, no package install, no code.

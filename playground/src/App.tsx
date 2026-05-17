@@ -14,11 +14,11 @@
 // model) we proved out in DwD_AI_Assistant_for_PBI cycles 1-47.
 
 import { QueryClientProvider } from '@tanstack/react-query';
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { queryClient } from './lib/queryClient';
 import { usePacks } from "./features/config/usePacks";
 import { useAllowlist } from "./features/config/useAllowlist";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ComponentType } from "react";
 import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
 import { BIPanel } from "./biPanel/BIPanel";
 import { listVendors } from "./biPanel/registry";
@@ -257,9 +257,24 @@ export function App(): React.ReactElement {
             <SettingsProvider>
                 <AppRouted />
             </SettingsProvider>
-            <ReactQueryDevtools initialIsOpen={false} />
+            <ReactQueryDevtoolsHost />
         </QueryClientProvider>
     );
+}
+
+function ReactQueryDevtoolsHost(): React.ReactElement | null {
+    const [Devtools, setDevtools] = useState<ComponentType<{ initialIsOpen?: boolean }> | null>(null);
+
+    useEffect(() => {
+        if (!import.meta.env.DEV || import.meta.env.MODE === "test") return;
+        let cancelled = false;
+        void import("@tanstack/react-query-devtools").then((mod) => {
+            if (!cancelled) setDevtools(() => mod.ReactQueryDevtools);
+        });
+        return () => { cancelled = true; };
+    }, []);
+
+    return Devtools ? <Devtools initialIsOpen={false} /> : null;
 }
 
 /** Renders <SettingsShell /> when the URL is /settings*, <KnowledgeShell />
@@ -333,7 +348,9 @@ function PlaygroundApp(): React.ReactElement {
         allowlist: allowlistRes ?? null,
         error: allowlistError?.message || ""
     };
-    const { data: availablePacks = [], isSuccess: packsLoaded } = usePacks();
+    const packsQuery = usePacks();
+    const availablePacks = packsQuery.data ?? [];
+    const packsLoaded = packsQuery.isSuccess || packsQuery.isError;
     const visibleVendors = useMemo(() => {
         if (!allowlistState.allowlist?.configured) return vendors;
         const allowed = allowlistState.allowlist.biProviders || [];

@@ -7,6 +7,7 @@ export const allowlistQueryKey = ['config', 'allowlist'] as const;
 export function useAllowlist() {
     return useQuery<PulsePlayAllowlist, Error>({
         queryKey: allowlistQueryKey,
+        retry: false,
         queryFn: async () => {
             const resp = await apiFetch("/api/assistant/allowlist");
             return resp.json();

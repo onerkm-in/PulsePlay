@@ -5,6 +5,38 @@
 
 ---
 
+## 2026-05-18 - Review/fix: React Query foundation proof slice
+
+**Range:** Rajesh/Copilot committed `5b51fc2` as the Phase 1 React Query foundation. Codex audited it under the external-LLM diff rule, kept the useful foundation, and patched the acceptance gaps.
+
+### What changed
+
+- Moved React Query Devtools to dev-only behavior in [App.tsx](../playground/src/App.tsx): dynamic import only in Vite dev mode, skipped in test mode, and `@tanstack/react-query-devtools` moved to `devDependencies`.
+- Added [vite-env.d.ts](../playground/src/vite-env.d.ts) so `import.meta.env` is typed and production builds can erase the devtools dynamic import.
+- Preserved governance behavior in [useAllowlist.ts](../playground/src/features/config/useAllowlist.ts) by disabling retries; allowlist failures fail closed promptly instead of waiting through retry delays.
+- Preserved prior pack behavior in [App.tsx](../playground/src/App.tsx): `packsLoaded` is true on success or error, matching the old "loaded after fetch attempt" semantics.
+- Hardened [apiClient.ts](../playground/src/lib/apiClient.ts) with a fallback request id when `crypto.randomUUID` is unavailable.
+- Strengthened [appGovernance.integration.test.tsx](../playground/src/__tests__/appGovernance.integration.test.tsx): it now verifies query cache population and failed allowlist -> fail-closed alert.
+
+### Validation
+
+- Before fixes: Codex independently verified the committed slice with playground lint, focused `appGovernance` **1/1**, focused `viewportControls.integration` **18/18**, full playground **579/579**, and build.
+- After fixes: `npm run lint` passed.
+- Focused `npm run test -- appGovernance --silent` passed **2/2**.
+- Focused `npm run test -- viewportControls.integration --silent` passed **18/18**.
+- Full `npm run test -- --silent` passed **580/580**.
+- `npm run build` passed.
+- Production bundle scan found no `react-query-devtools` / `ReactQueryDevtools` / `Query Devtools` strings.
+- Vite smoke at `http://127.0.0.1:5173/` returned HTTP **200** with `#root`.
+
+### Tripwires
+
+- This accepts the React Query proof slice for allowlist/packs only. It does **not** mean the whole Phase 1 modernization charter is complete.
+- Next durable step should be an ADR/canonical query contract: query key shape, request-id propagation, Problem Details mapping, retry policy, stale/cache policy, and devtools dev-only rule.
+- Do not start broad `App.tsx` decomposition until the Playwright/axe smoke gate from the challenge note is either accepted or explicitly deferred.
+
+---
+
 ## 2026-05-17 - Challenge: Enterprise modernization pillars
 
 **Range:** Rajesh chose Path A and reset `main` to `89da8ec`, dropping the broken post-charter commits before any architectural lock or code work continued. This pass stayed in coordination mode.

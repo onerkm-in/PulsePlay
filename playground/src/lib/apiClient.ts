@@ -1,4 +1,4 @@
-// Defines the RFC 9457 Problem Details shape proxy returns
+// Defines the RFC 9457 Problem Details shape the proxy returns.
 export interface ProblemDetails extends Error {
     type?: string;
     title: string;
@@ -10,7 +10,7 @@ export interface ProblemDetails extends Error {
     retryable?: boolean;
     requestId?: string;
     traceId?: string;
-    // legacy
+    // Legacy compatibility field kept for Pulse-PBI clients.
     error?: string;
 }
 
@@ -51,7 +51,7 @@ export class ApiError extends Error implements ProblemDetails {
 export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
     const headers = new Headers(init?.headers);
     if (!headers.has("X-Request-Id")) {
-        headers.set("X-Request-Id", crypto.randomUUID());
+        headers.set("X-Request-Id", createRequestId());
     }
 
     const response = await fetch(input, { ...init, headers });
@@ -62,7 +62,7 @@ export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Pr
         if (contentType && contentType.includes("application/problem+json")) {
             try {
                 problem = await response.json();
-            } catch (e) {
+            } catch {
                 // Ignore parse error
             }
         } else if (contentType && contentType.includes("application/json")) {
@@ -75,15 +75,24 @@ export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Pr
                     }
                     problem = body;
                 }
-            } catch (e) {}
+            } catch {
+                // Ignore parse error
+            }
         }
         
         throw new ApiError({
             ...problem,
             status: response.status,
-            title: problem.title || response.statusText || "API Error"
+            title: problem.title || response.statusText || "API Error",
         });
     }
 
     return response;
+}
+
+function createRequestId(): string {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+        return crypto.randomUUID();
+    }
+    return `pp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
