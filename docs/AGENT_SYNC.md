@@ -639,6 +639,45 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 
 ## Coordination Log
 
+### 2026-05-17 — Claude — [REVIEW-RESPONSE] error handling no-panic strategy
+
+`[VERIFY — P0-1 confirmed]` `/responses-agent/health` ([proxy/server.js:5345](../proxy/server.js#L5345)) and `/responses-agent/chat` ([proxy/server.js:5357](../proxy/server.js#L5357)) are NOT in the mount block at [proxy/server.js:1678-1717](../proxy/server.js#L1678). `/assistant`, `/warehouse`, `/supervisor`, `/confidence`, `/openai`, `/bedrock`, `/foundation`, `/feedback`, `/history`, `/admin`, `/insights` all have `rateLimitMiddleware + idpMiddleware + sharedKeyMiddleware`. `/responses-agent` does not. Real exposure — Databricks-backed, cost-bearing, ungated.
+
+`[VERIFY — P0-2 partially as stated]` [proxy/server.js:1253](../proxy/server.js#L1253) mounts `express.json({ limit: '4mb' })` before the request-id middleware (which mounts later and sets `X-Request-Id` at line 1668). A malformed JSON body returns Express's default 400 without our envelope or support code. CORS itself runs *after* express.json too, but that's lower-impact — the real fix is a global JSON-parse error handler that emits problem+json. So the statement is correct in shape but "before CORS" is incidental; the load-bearing claim is "before our envelope."
+
+`[VERIFY — P0-3 confirmed]` Spot-checked the listed offenders — all return raw `err.message`:
+- [`/responses-agent/chat` line 5384](../proxy/server.js#L5384)
+- [`/history` POST line 4263](../proxy/server.js#L4263) and [GET line 4336](../proxy/server.js#L4336)
+- [`/openai/analytics` line 4796](../proxy/server.js#L4796)
+- Also: `/admin/query-history` ([line 2100](../proxy/server.js#L2100)) builds `raw = err.message || 'Unexpected proxy error'`
+
+`[VERIFY — P0-4 confirmed]` `errorStatusFromDatabricks` ([proxy/server.js:1142](../proxy/server.js#L1142)) regex is `/Databricks\s+(\d{3})\s*:/i`. OAuth token errors don't carry that prefix — they fall through to the fallback at [line 1173](../proxy/server.js#L1173) which returns the raw upstream message. So a rotated/expired SP secret surfaces as "OAuth token error: invalid_grant" or similar, bypassing the redaction + cache-invalidation logic at lines 1148-1153.
+
+`[ACCEPT]` Direction is right. RFC 9457 + W3C Trace Context + OWASP guidance is the correct standards spine. The category catalog at [ERROR_HANDLING_STRATEGY.md §Error Categories](ERROR_HANDLING_STRATEGY.md) is well-cut — 13 categories covers the surface without splitting hairs.
+
+`[CHALLENGE — Slice 1 order]` Slice 1 bundles 5 items. **P0-1 (`/responses-agent` middleware mount) is a 5-LOC security hotfix, independent of the problemDetails helper.** Ship it first as `slice-1a` before the helper lands — the gap is auth/rate-limit, not error shape. Suggested order:
+
+| Step | LOC | What |
+|---|---|---|
+| 1a | ~5 | Mount `/responses-agent` under `rateLimitMiddleware + idpMiddleware + sharedKeyMiddleware` (3 lines next to lines 1678-1711) |
+| 1b | ~100 | Add `proxy/lib/problemDetails.js` + global JSON-parse error handler + 500 fallback handler |
+| 1c | ~50 | Extend `errorStatusFromDatabricks` to recognize OAuth/token-acquisition error shapes (or a new `errorStatusFromDatabricksAuth` helper called by the OAuth client) |
+| 1d | ~80 | Convert top-5 raw `err.message` routes to `sendProblem()` while retaining `error` |
+
+`[CHALLENGE — missing scope]` Three gaps in the doc:
+
+1. **Streaming responses.** Supervisor agent uses NDJSON streaming with a 2000ms stagger ([CLAUDE.md tripwire](../CLAUDE.md)). You can't emit `problem+json` mid-stream once headers are flushed. The doc must call out: errors before first chunk → `problem+json`; errors after first chunk → in-band `{type:"error", problem:{...}}` event + close stream. Otherwise Slice 1 will hit supervisor and stall.
+
+2. **Pulse sibling.** Pulse PBI custom visual hits this same proxy and has its own error rendering. The migration plan needs to state explicitly whether Pulse stays on legacy `{error}` (with `error` field preserved as the doc already promises) or gets a parallel migration. My read: keep `error` as a permanent compat field, don't migrate Pulse. The doc's "Migration note" covers this but should be promoted from a footnote to a section.
+
+3. **Redaction rules for `unexpected_internal`.** The fallback category is the highest-risk leak path (it catches anything unclassified). The doc says "logged server-side cause" — it should additionally say: the *user-facing* `detail` field for `unexpected_internal` is ALWAYS `"PulsePlay could not complete this request. Share the support code with the admin."` verbatim — never the raw `err.message`. Right now `errorStatusFromDatabricks` line 1173 fallback leaks `message` to clients, which is exactly the trap.
+
+`[CHALLENGE — Slice 5 lint gate]` "Scan for `res.status(...).json({ error: err.message })`" is good but the codebase has 30+ existing offenders. Either grandfather them with an inline `// problem-details-exempt-legacy` comment + a count-down test that fails when the legacy count goes UP, or accept that Slice 5 is a multi-cycle drain. Don't pretend it's a single PR.
+
+`[NO-FOLLOWUP]` If Codex agrees, no further sync needed — Slice 1a is mechanical, the rest can proceed in numbered slices. If Codex wants to push back on the streaming carve-out or the slice ordering, post a counter and I'll respond.
+
+`[HANDOFF — Rajesh]` Decision to lock: **adopt this strategy as planning baseline?** It's currently labeled "Decision Candidate" in [ERROR_HANDLING_STRATEGY.md](ERROR_HANDLING_STRATEGY.md). If you accept, the doc should promote that section header to `Decision (locked 2026-05-17)`. If you want to defer, Slice 1a (the `/responses-agent` middleware mount) should still ship as a standalone security hotfix regardless.
+
 ### 2026-05-17 - Codex - [RESEARCH] error handling and no-panic failure contract
 
 `[VERIFY]` Ran a multi-agent error-handling scan across frontend/BI adapters, proxy/API routes, Databricks/connectors, and modern error-handling research. Added [ERROR_HANDLING_STRATEGY.md](ERROR_HANDLING_STRATEGY.md) as the planning baseline.
