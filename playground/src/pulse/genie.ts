@@ -148,6 +148,34 @@ export interface GenieMessage {
     trace?: string[];
     route?: AssistantRouteMeta;
     suggestedActions?: AssistantAction[];
+    /**
+     * Genie Research Agent / Agent Mode reasoning trace.
+     *
+     * As of 2026-04-16, Databricks Genie surfaces `attachments[].reasoning_traces`
+     * on the Get-message endpoint when a message was started in Agent Mode
+     * (in the Databricks Genie UI — REST API still cannot trigger Agent Mode
+     * as of 2026-05; see docs/ARCHITECTURE.md "Genie Agent Mode is UI-only").
+     *
+     * Each trace entry is a step the Research Agent took (planning, sub-query,
+     * synthesis). Shape from Databricks API:
+     *   { type: "planning" | "query" | "synthesis", description: string, ... }
+     *
+     * We flatten attachments[].reasoning_traces[] into this top-level array
+     * when building the GenieMessage so consumers don't have to walk
+     * attachments. Undefined when the message was a normal (non-agent-mode)
+     * run, which is most messages today.
+     */
+    reasoningTraces?: GenieReasoningTraceEntry[];
+}
+
+/** One step from a Genie Research Agent / Agent Mode reasoning trace.
+ *  Field shape mirrors Databricks' API; `kind` is a normalized version of
+ *  their `type` so consumers can switch on it safely.
+ */
+export interface GenieReasoningTraceEntry {
+    kind: "planning" | "query" | "synthesis" | "other";
+    description?: string;
+    detail?: unknown;
 }
 
 export interface GenieFeedbackPayload {
@@ -614,6 +642,43 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
             if (!Array.isArray(res.sqlQueries) || res.sqlQueries.length === 0) {
                 res.sqlQueries = collectedSql;
             }
+        }
+
+        // 2026-05 — Databricks Genie Research Agent / Agent Mode reasoning trace.
+        // Released 2026-04-16. When a message was started in Agent Mode (only
+        // possible via the Databricks Genie UI today — REST API still cannot
+        // trigger it as of 2026-05; see docs/ARCHITECTURE.md), the response
+        // attachments carry a `reasoning_traces` array describing the agent's
+        // planning / sub-query / synthesis steps. Flatten across attachments
+        // into a top-level array on the GenieMessage so consumers don't have to
+        // walk attachments. Skipped silently when the field is absent (most
+        // messages today, since Agent Mode is an opt-in toggle in the Genie
+        // UI). Shape-tolerant — Databricks may evolve the field structure,
+        // so we accept either array-of-strings or array-of-step-objects.
+        const flatTraces: any[] = [];
+        for (const att of attachments) {
+            const raw = att?.reasoning_traces;
+            if (!Array.isArray(raw)) continue;
+            for (const entry of raw) {
+                if (typeof entry === "string") {
+                    flatTraces.push({ kind: "other", description: entry });
+                    continue;
+                }
+                if (entry && typeof entry === "object") {
+                    const t = String(entry.type ?? entry.kind ?? "").toLowerCase();
+                    const kind: "planning" | "query" | "synthesis" | "other" =
+                        t === "planning" || t === "query" || t === "synthesis" ? t : "other";
+                    flatTraces.push({
+                        kind,
+                        description: typeof entry.description === "string" ? entry.description
+                            : (typeof entry.text === "string" ? entry.text : undefined),
+                        detail: entry,
+                    });
+                }
+            }
+        }
+        if (flatTraces.length > 0 && !Array.isArray(res.reasoningTraces)) {
+            res.reasoningTraces = flatTraces;
         }
     }
 

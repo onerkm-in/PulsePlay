@@ -47,7 +47,19 @@ const KEY = {
 // ─── State shape ─────────────────────────────────────────────────────────
 
 export type UiMode = "pulse" | "v0";
-export type EnabledComponents = "aiOnly" | "biOnly" | "both";
+/**
+ * Pane composition mode (set by the AUTHOR in Settings → Preferences → Visible
+ * panels). End users see only what the author wired:
+ *   - aiOnly : AI pane only (no BI canvas) — chat / agent-only deployments
+ *   - biOnly : BI pane only (no AI surface) — pure dashboard view
+ *   - both   : default split-pane, AI + BI side by side
+ *   - mix    : same panes as "both", PLUS the Mix composition sub-panel where
+ *              the author can cherry-pick individual AI surfaces (Insights /
+ *              Chat / Research Agent traces / managed-agent surface) and BI
+ *              composition (full canvas / per-tile cherry-pick — phase 2)
+ *              to build a custom layout that blends both verticals.
+ */
+export type EnabledComponents = "aiOnly" | "biOnly" | "both" | "mix";
 export type LayoutMode = "ai-left" | "ai-right" | "ai-top" | "ai-bottom";
 export type BiTileMode = "1" | "2" | "4";
 
@@ -140,7 +152,7 @@ function readEnabledComponents(): EnabledComponents {
     if (typeof window === "undefined") return "both";
     try {
         const v = window.localStorage.getItem(KEY.enabledComponents);
-        if (v === "aiOnly" || v === "biOnly" || v === "both") return v;
+        if (v === "aiOnly" || v === "biOnly" || v === "both" || v === "mix") return v;
     } catch { /* swallow */ }
     return "both";
 }
@@ -342,7 +354,7 @@ function applyExternalSync(state: SettingsState, key: string, value: string): Se
             if (value === "pulse" || value === "v0") return { ...state, uiMode: value };
             return state;
         case KEY.enabledComponents:
-            if (value === "aiOnly" || value === "biOnly" || value === "both") {
+            if (value === "aiOnly" || value === "biOnly" || value === "both" || value === "mix") {
                 return { ...state, enabledComponents: value };
             }
             return state;

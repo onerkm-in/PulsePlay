@@ -4704,6 +4704,34 @@ function App(props: AppProps) {
                                                     The always-on indicator now lives in the
                                                     header row 2 (right side) so the bubble
                                                     contains only narrative content. */}
+                                                {/* Research Agent / Genie Agent Mode reasoning trace.
+                                                 *
+                                                 * Renders only when:
+                                                 *  - the message carries reasoning_traces (Databricks Genie
+                                                 *    populates this field only when Agent Mode was activated;
+                                                 *    Agent Mode is currently UI-only — REST API can't trigger
+                                                 *    it as of 2026-05 — so this surfaces traces that originated
+                                                 *    from a Genie-UI session sharing the same space)
+                                                 *  - the author hasn't opted out via Settings → Preferences →
+                                                 *    Mix composition → Research Agent traces. Default ON.
+                                                 *
+                                                 * Collapsed by default with <details> so it doesn't dominate
+                                                 * the main narrative. */}
+                                                {Array.isArray(insightsResult.reasoningTraces) && insightsResult.reasoningTraces.length > 0 && props.settings.insightsShowResearchTraces !== false && (
+                                                    <details className="gn-insights-research-traces" style={{ marginBottom: 12, padding: "8px 12px", border: "1px solid rgba(124, 58, 237, 0.30)", borderRadius: 6, background: "rgba(245, 243, 255, 0.6)" }}>
+                                                        <summary style={{ cursor: "pointer", fontSize: 12, fontWeight: 600, color: "#5b21b6" }}>
+                                                            🔬 Research Agent reasoning ({insightsResult.reasoningTraces.length} {insightsResult.reasoningTraces.length === 1 ? "step" : "steps"})
+                                                        </summary>
+                                                        <ol style={{ marginTop: 8, paddingLeft: 20, fontSize: 12, lineHeight: 1.5 }}>
+                                                            {insightsResult.reasoningTraces.map((trace, i) => (
+                                                                <li key={i} style={{ marginBottom: 4 }}>
+                                                                    <strong style={{ textTransform: "uppercase", fontSize: 10, letterSpacing: 0.4, color: "#7c3aed", marginRight: 6 }}>{trace.kind}</strong>
+                                                                    <span>{trace.description || "(no description)"}</span>
+                                                                </li>
+                                                            ))}
+                                                        </ol>
+                                                    </details>
+                                                )}
                                                 {renderInsightsSections(insightsResult.content || "", {
                                                     metricDirectionsJson: props.settings.insightsMetricDirections,
                                                     legacyMetricDirectionRules: props.settings.metricDirectionRules,

@@ -37,6 +37,16 @@ export interface PulseAiVisualSettings {
     insightsTrendsOverride: string;
     insightsRisksOverride: string;
     insightsActionsOverride: string;
+    /** When true and a Genie message's `attachments[].reasoning_traces` field
+     *  is populated (Databricks added this field 2026-04-16 — it's the first
+     *  programmatic surface for Genie Agent Mode / Research Agent output),
+     *  Pulse renders a "Research Agent reasoning" section above the regular
+     *  message body. PulsePlay does not trigger Agent Mode itself (REST API
+     *  still doesn't expose that), but surfaces the trace when present.
+     *  Default true so the trace appears automatically when available;
+     *  authors who want to hide it can opt out in Settings → Preferences →
+     *  Mix composition. */
+    insightsShowResearchTraces: boolean;
 }
 
 const DEFAULTS: PulseAiVisualSettings = {
@@ -59,6 +69,7 @@ const DEFAULTS: PulseAiVisualSettings = {
     insightsTrendsOverride: "",
     insightsRisksOverride: "",
     insightsActionsOverride: "",
+    insightsShowResearchTraces: true,
 };
 
 function readRawGenieSettings(): Record<string, unknown> {
@@ -121,6 +132,7 @@ export function readPulseAiVisualSettings(): PulseAiVisualSettings {
         insightsTrendsOverride: asString(raw.insightsTrendsOverride, DEFAULTS.insightsTrendsOverride),
         insightsRisksOverride: asString(raw.insightsRisksOverride, DEFAULTS.insightsRisksOverride),
         insightsActionsOverride: asString(raw.insightsActionsOverride, DEFAULTS.insightsActionsOverride),
+        insightsShowResearchTraces: asBool(raw.insightsShowResearchTraces, DEFAULTS.insightsShowResearchTraces),
     };
 }
 

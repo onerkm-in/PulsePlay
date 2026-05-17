@@ -62,7 +62,7 @@ const UI_MODE_STORAGE_KEY = "pulseplay:ui-mode";
  *  chat-only deployment); "biOnly" hides the AI side (handy when
  *  embedding PulsePlay as a BI viewer in another shell); "both"
  *  (default) keeps everything visible. Persists in localStorage. */
-type EnabledComponents = "aiOnly" | "biOnly" | "both";
+type EnabledComponents = "aiOnly" | "biOnly" | "both" | "mix";
 const ENABLED_COMPONENTS_STORAGE_KEY = "pulseplay:enabled-components";
 
 /** Cycle F — author-picked layout. Where the AI panel sits relative to
@@ -164,7 +164,7 @@ function readInitialEnabledComponents(): EnabledComponents {
     if (typeof window === "undefined") return "both";
     try {
         const stored = window.localStorage.getItem(ENABLED_COMPONENTS_STORAGE_KEY);
-        if (stored === "aiOnly" || stored === "biOnly" || stored === "both") return stored;
+        if (stored === "aiOnly" || stored === "biOnly" || stored === "both" || stored === "mix") return stored;
     } catch { /* swallow */ }
     return "both";
 }
@@ -579,7 +579,7 @@ function PlaygroundApp(): React.ReactElement {
             if (!detail || typeof detail.value !== "string") return;
             if (detail.key === UI_MODE_STORAGE_KEY && (detail.value === "pulse" || detail.value === "v0")) {
                 setUiMode(detail.value);
-            } else if (detail.key === ENABLED_COMPONENTS_STORAGE_KEY && (detail.value === "aiOnly" || detail.value === "biOnly" || detail.value === "both")) {
+            } else if (detail.key === ENABLED_COMPONENTS_STORAGE_KEY && (detail.value === "aiOnly" || detail.value === "biOnly" || detail.value === "both" || detail.value === "mix")) {
                 setEnabledComponents(detail.value);
             } else if (detail.key === LAYOUT_MODE_STORAGE_KEY && (detail.value === "ai-left" || detail.value === "ai-right" || detail.value === "ai-top" || detail.value === "ai-bottom")) {
                 setLayoutMode(detail.value);
@@ -607,8 +607,12 @@ function PlaygroundApp(): React.ReactElement {
         return () => window.removeEventListener(PULSE_VISUAL_SETTINGS_EVENT, handler as EventListener);
     }, []);
 
-    const aiVisible = enabledComponents === "aiOnly" || enabledComponents === "both";
-    const biVisible = enabledComponents === "biOnly" || enabledComponents === "both";
+    // "mix" composition includes both panes (same as "both" at the
+    // pane-visibility level). The Mix surface adds per-feature cherry-pick
+    // controls in Settings → Preferences → Mix composition, but at the
+    // outer layout level there's no difference from "both".
+    const aiVisible = enabledComponents === "aiOnly" || enabledComponents === "both" || enabledComponents === "mix";
+    const biVisible = enabledComponents === "biOnly" || enabledComponents === "both" || enabledComponents === "mix";
     const mountedAiVisible = focusedPane ? focusedPane === "ai" || aiVisible : aiVisible;
     const mountedBiVisible = focusedPane ? focusedPane === "bi" || biVisible : biVisible;
     const minimizedPane: ViewportFocus = !focusedPane && enabledComponents === "biOnly"
