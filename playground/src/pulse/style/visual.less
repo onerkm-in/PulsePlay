@@ -1496,7 +1496,11 @@
 .gn-pane-action-btn--stop {
     /* Stop is a wider text+icon button — let it grow horizontally
      *  while keeping the square minimum so it sits on the same
-     *  baseline as the icon-only buttons. */
+     *  baseline as the icon-only buttons. The error/danger palette is
+     *  expressed via CSS custom properties so it picks up theme
+     *  overrides; we cannot use less's `fade()` on a `var()` reference,
+     *  so the soft-bg uses a literal rgba derived from the same hex
+     *  fallback (#c8202a) that backs --gn-error. */
     width: auto;
     min-width: 28px;
     padding: 0 10px;
@@ -1506,7 +1510,7 @@
     border-color: @gn-error;
 
     &:hover {
-        background: fade(@gn-error, 12%);
+        background: rgba(200, 32, 42, 0.12);
         border-color: @gn-error;
         color: @gn-error;
         box-shadow: @gn-shadow-xs;
