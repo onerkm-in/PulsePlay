@@ -5,6 +5,32 @@
 
 ---
 
+## 2026-05-17 - Phase 11b read-side: labelled SQL sections in Pulse
+
+**Range:** Claude wired `sqlSectionExtractor` into the proxy at `8e29260`, but flagged that the playground still ignored `att.query.sqlSections`. This pass closes the read-side gap so the proxy-surfaced per-section SQL is visible instead of remaining a raw unlabelled blob.
+
+### What shipped
+
+- Added `GenieSqlSection` and `collectGenieSqlFromAttachments()` in [genie.ts](../playground/src/pulse/genie.ts) so `GenieClient.hydrateGenieFields()` lifts `attachments[].query.sqlSections` onto the message as `sqlSections`.
+- Updated the Pulse SQL view in [visual.tsx](../playground/src/pulse/visual.tsx) to prefer labelled section fragments when present, while keeping `sqlQuery/sqlQueries` raw blob fallback unchanged.
+- Extended `SqlTabs` to accept explicit labels and render a visible single-section label, then added compact label styling in [visual.less](../playground/src/pulse/style/visual.less).
+- Added [genieSqlSections.test.tsx](../playground/src/pulse/__tests__/genieSqlSections.test.tsx) covering attachment lifting and labelled SQL tab rendering.
+
+### Validation
+
+- `playground`: focused `npm.cmd test -- --run src/pulse/__tests__/genieSqlSections.test.tsx` passed **3/3**.
+- `playground`: `npm.cmd run lint` passed.
+- `playground`: full `npm.cmd test -- --run` passed **571/571**.
+- `playground`: `npm.cmd run build` passed.
+
+### Tripwires
+
+- This makes Genie `sqlSections` visible in the Pulse message SQL view. It does not add Foundation Model response-path extraction; Claude's FM symmetry note remains open.
+- The raw SQL blob stays available for old clients and prompts without markers.
+- The dev-console SQL history panel still shows workspace statement history; it cannot recover `att.query.sqlSections` unless that metadata comes through the message response path.
+
+---
+
 ## 2026-05-17 - Slice 1b Problem Details foundation + malformed-body hardening
 
 **Range:** Rajesh approved the no-panic error handling lane after Claude's Slice 1b plan. `main` already contains `70c3139` with the Problem Details helper, global malformed JSON handler, global unexpected-error fallback, and tests. This follow-up tightened browser behavior by making malformed-body responses pass through the same CORS/security header layer before body parsing.

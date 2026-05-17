@@ -20,6 +20,13 @@ export type OutputMode = "narrative" | "chart" | "table" | "sql" | "trace";
 
 export type ConnectionMode = "auto" | "proxy" | "direct" | "gateway" | "azure-openai" | "bedrock" | "supervisor" | "foundation-model";
 
+export interface GenieSqlSection {
+    sectionId: string;
+    cteName?: string;
+    sqlFragment: string;
+    startOffset?: number;
+}
+
 export interface AssistantProfileMetadata {
     /** Internal proxy profile key — never displayed to end users. */
     name: string;
@@ -143,6 +150,14 @@ export interface GenieMessage {
      * view tabs across `sqlQueries` when length > 1.
      */
     sqlQueries?: string[];
+    /**
+     * Phase 11b read-side — proxy normalizeGenieResponse augments Genie query
+     * attachments with parsed `sqlSections` when the generated SQL contains
+     * `/* Section: X *\/` or `-- Section: X` markers. The playground lifts
+     * those fragments here so the SQL view can show labelled section tabs
+     * while retaining `sqlQuery/sqlQueries` as the raw fallback.
+     */
+    sqlSections?: GenieSqlSection[];
     queryResult?: { columns: string[]; rows: any[][] };
     error?: string;
     trace?: string[];
@@ -186,6 +201,30 @@ export interface GenieReasoningTraceEntry {
     kind: "planning" | "query" | "synthesis" | "other";
     description?: string;
     detail?: unknown;
+}
+
+export function collectGenieSqlFromAttachments(attachments: any[] | undefined | null): { queries: string[]; sections: GenieSqlSection[] } {
+    const queries: string[] = [];
+    const sections: GenieSqlSection[] = [];
+    const list = Array.isArray(attachments) ? attachments : [];
+    for (const att of list) {
+        const q = att?.query;
+        if (!q) continue;
+        const sql = (typeof q.query === "string" && q.query.trim())
+            ? q.query.trim()
+            : (typeof q.text === "string" && q.text.trim() ? q.text.trim() : "");
+        if (sql) queries.push(sql);
+        const rawSections = Array.isArray(q.sqlSections) ? q.sqlSections : [];
+        for (const raw of rawSections) {
+            const sectionId = typeof raw?.sectionId === "string" ? raw.sectionId.trim() : "";
+            const sqlFragment = typeof raw?.sqlFragment === "string" ? raw.sqlFragment.trim() : "";
+            if (!sectionId || !sqlFragment) continue;
+            const cteName = typeof raw?.cteName === "string" && raw.cteName.trim() ? raw.cteName.trim() : undefined;
+            const startOffset = Number.isFinite(Number(raw?.startOffset)) ? Number(raw.startOffset) : undefined;
+            sections.push({ sectionId, cteName, sqlFragment, startOffset });
+        }
+    }
+    return { queries, sections };
 }
 
 export interface GenieFeedbackPayload {
@@ -616,23 +655,26 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
     // the message object before we hand it back to the caller.
     private hydrateGenieFields(res: any): void {
         if (!res) return;
-        // Already fully populated (proxy did it for us, including the
-        // multi-query array). Nothing to do.
-        if (res.sqlQuery && Array.isArray(res.sqlQueries) && res.sqlQueries.length > 0) return;
         const attachments = Array.isArray(res?.attachments) ? res.attachments : [];
+        const collected = collectGenieSqlFromAttachments(attachments);
+        // Already fully populated (proxy did it for us, including the
+        // multi-query array). Keep going only when Phase 11b sqlSections
+        // are present in attachments but not lifted yet.
+        if (
+            res.sqlQuery
+            && Array.isArray(res.sqlQueries)
+            && res.sqlQueries.length > 0
+            && (Array.isArray(res.sqlSections) || collected.sections.length === 0)
+        ) return;
         // Cycle 47.8 — collect ALL non-empty SQL attachments so the SQL
         // view can tab across them. Pre-cycle behaviour kept only the
         // first; a Genie response with multiple queries silently dropped
         // the rest. `sqlQuery` still holds the first for legacy callers
         // (insightsCache, copy-icon fallback, etc.).
-        const collectedSql: string[] = [];
+        const collectedSql = collected.queries;
         for (const att of attachments) {
             const q = att?.query;
             if (!q) continue;
-            const sql = (typeof q.query === "string" && q.query.trim())
-                ? q.query.trim()
-                : (typeof q.text === "string" && q.text.trim() ? q.text.trim() : "");
-            if (sql) collectedSql.push(sql);
             // queryResult — keep the first complete table only (UI doesn't
             // tab data tables this cycle; that's a separate UX decision).
             const result = q.result;
@@ -652,6 +694,9 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
             if (!Array.isArray(res.sqlQueries) || res.sqlQueries.length === 0) {
                 res.sqlQueries = collectedSql;
             }
+        }
+        if (collected.sections.length > 0 && !Array.isArray(res.sqlSections)) {
+            res.sqlSections = collected.sections;
         }
 
         // 2026-05 — Databricks Genie Research Agent / Agent Mode reasoning trace.

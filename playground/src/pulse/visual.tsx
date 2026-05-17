@@ -23,6 +23,7 @@ import {
     GenieConfig,
     GenieHistoryEntry,
     GenieMessage,
+    GenieSqlSection,
     InsightsConfigSuggestion,
     OutputMode,
     ProxyHealthInfo,
@@ -7326,6 +7327,17 @@ function MessageCard(props: {
     );
 }
 
+function formatSqlSectionLabel(section: GenieSqlSection): string {
+    const id = String(section.sectionId || "").trim();
+    const pretty = id
+        ? id.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim()
+        : "Section";
+    const title = pretty
+        ? pretty.toLowerCase().replace(/\b\w/g, ch => ch.toUpperCase())
+        : "Section";
+    return section.cteName ? `${title} · ${section.cteName}` : title;
+}
+
 function renderMessageBody(
     message: ChatMessageViewModel,
     view: OutputMode,
@@ -7408,17 +7420,30 @@ function renderMessageBody(
     }
 
     if (view === "sql" && message.sqlQuery) {
+        const sectionTabs = Array.isArray(message.sqlSections)
+            ? message.sqlSections
+                .filter(sec => sec && typeof sec.sqlFragment === "string" && sec.sqlFragment.trim())
+                .map(sec => ({
+                    label: formatSqlSectionLabel(sec),
+                    sql: sec.sqlFragment,
+                }))
+            : [];
         // Cycle 47.8 — when the response carried multiple SQL queries
         // (multiple attachments[i].query.query entries), tab across them
         // via SqlTabs. Single-query responses still render exactly one
-        // `<pre>` — same shape and no extra chrome as before.
-        const queries = (Array.isArray(message.sqlQueries) && message.sqlQueries.length > 0)
-            ? message.sqlQueries
-            : [message.sqlQuery];
+        // `<pre>` unless Phase 11b section labels are present. Section
+        // fragments win because they make the staged-render SQL trace
+        // readable; raw query blobs stay as the fallback below.
+        const queries = sectionTabs.length > 0
+            ? sectionTabs.map(tab => tab.sql)
+            : ((Array.isArray(message.sqlQueries) && message.sqlQueries.length > 0)
+                ? message.sqlQueries
+                : [message.sqlQuery]);
+        const labels = sectionTabs.length > 0 ? sectionTabs.map(tab => tab.label) : undefined;
         return (
             <>
                 {toggles}
-                <SqlTabs queries={queries} />
+                <SqlTabs queries={queries} labels={labels} ariaLabel={labels ? "SQL sections" : "SQL queries"} />
             </>
         );
     }
@@ -8843,28 +8868,35 @@ interface SqlTabsProps {
     onActiveSqlChange?: (sql: string) => void;
     /** Optional label override for the tabs (default: "Query 1", "Query 2", …). */
     labelPrefix?: string;
+    /** Explicit labels, used for Phase 11b sectioned SQL fragments. */
+    labels?: string[];
+    ariaLabel?: string;
 }
 const SqlTabs: React.FC<SqlTabsProps> = (props) => {
     const list = props.queries.filter(s => typeof s === "string" && s.trim().length > 0);
     const [activeIdx, setActiveIdx] = React.useState(0);
     const safeIdx = list.length === 0 ? 0 : Math.min(activeIdx, list.length - 1);
     const activeSql = list[safeIdx] || "";
+    const labels = props.labels?.filter(label => typeof label === "string" && label.trim().length > 0);
+    const labelFor = (i: number) => labels?.[i] || `${props.labelPrefix || "Query"} ${i + 1}`;
     React.useEffect(() => {
         if (props.onActiveSqlChange) props.onActiveSqlChange(activeSql);
     }, [activeSql, props.onActiveSqlChange]);
     if (list.length === 0) return null;
     if (list.length === 1) {
         return (
-            <pre
-                className="gn-code"
-                dangerouslySetInnerHTML={{ __html: highlightSql(list[0]) }}
-            />
+            <>
+                {labels?.[0] && <div className="gn-sql-section-label">{labels[0]}</div>}
+                <pre
+                    className="gn-code"
+                    dangerouslySetInnerHTML={{ __html: highlightSql(list[0]) }}
+                />
+            </>
         );
     }
-    const prefix = props.labelPrefix || "Query";
     return (
         <>
-            <div className="gn-sql-tabs" role="tablist" aria-label="SQL queries">
+            <div className="gn-sql-tabs" role="tablist" aria-label={props.ariaLabel || "SQL queries"}>
                 {list.map((_q, i) => (
                     <button
                         key={i}
@@ -8873,9 +8905,9 @@ const SqlTabs: React.FC<SqlTabsProps> = (props) => {
                         aria-selected={i === safeIdx}
                         className={`gn-sql-tab${i === safeIdx ? " gn-sql-tab--active" : ""}`}
                         onClick={() => setActiveIdx(i)}
-                        title={`Show ${prefix} ${i + 1} of ${list.length}`}
+                        title={`Show ${labelFor(i)} of ${list.length}`}
                     >
-                        {prefix} {i + 1}
+                        {labelFor(i)}
                     </button>
                 ))}
             </div>
@@ -9667,6 +9699,8 @@ export const __insightsRenderForTest = {
     renderKpiTiles,
     renderSectionBody,
     renderStatusChip,
+    SqlTabs,
+    formatSqlSectionLabel,
     // Wave 24 — metric-direction pill helpers exposed for unit testing only.
     metricNameBeforePill,
     pillColorClass,

@@ -639,6 +639,28 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 
 ## Coordination Log
 
+### 2026-05-17 - Codex - [DONE] Phase 11b read-side: labelled SQL sections in Pulse
+
+`[ACCEPT]` Took Claude's handoff item #1 before returning to Slice 1c. Reason: `8e29260` made the proxy speak `att.query.sqlSections`, but the playground still rendered generic raw SQL blobs. That left Phase 11b invisible to users.
+
+`[DONE]` Read-side wiring:
+
+- [playground/src/pulse/genie.ts](../playground/src/pulse/genie.ts): added `GenieSqlSection` + `collectGenieSqlFromAttachments()` and lifted `attachments[].query.sqlSections` into `GenieMessage.sqlSections`.
+- [playground/src/pulse/visual.tsx](../playground/src/pulse/visual.tsx): SQL view now prefers labelled section fragments (`Headline`, `Risks`, `Recommended Actions`, etc.) when `message.sqlSections` exists, while retaining `sqlQuery/sqlQueries` raw fallback.
+- [playground/src/pulse/style/visual.less](../playground/src/pulse/style/visual.less): added compact single-section label styling.
+- [playground/src/pulse/__tests__/genieSqlSections.test.tsx](../playground/src/pulse/__tests__/genieSqlSections.test.tsx): new tests cover attachment lifting and labelled SQL tabs.
+
+`[VERIFY]` Validation passed:
+
+- `playground`: focused `npm.cmd test -- --run src/pulse/__tests__/genieSqlSections.test.tsx` = **3/3**.
+- `playground`: `npm.cmd run lint`.
+- `playground`: full `npm.cmd test -- --run` = **571/571**.
+- `playground`: `npm.cmd run build`.
+
+`[RISK]` This closes the Pulse read-side consumer for Genie response attachments. It does not close Claude's item #2: Foundation Model response-path extraction symmetry remains unverified.
+
+`[HANDOFF]` Next choices: return to locked error-handling Slice 1c, or do the FM symmetry check if Rajesh wants the SQL-section path consistent across Genie and Foundation Model before error cleanup resumes.
+
 ### 2026-05-17 — Claude — [SHIPPED] Phase 11b — sqlSectionExtractor wired into live Genie response path
 
 `[LANE-SWITCH]` Rajesh paused Slices 1c/1d temporarily to close the Phase 11b SQL provenance gap. Reason: the locked staged-render architecture promised per-section SQL tied to the shared conversationId, but the extractor that existed since 2026-05-13 was never connected to a live route. Today the Genie SQL Trace tab showed an unlabelled blob — promise vs actual behavior gap.
