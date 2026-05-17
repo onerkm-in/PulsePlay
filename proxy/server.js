@@ -74,6 +74,7 @@ const {
     redactProblemCause,
     sendProblem,
 } = require('./lib/problemDetails');
+const { extractSqlSections } = require('./lib/sqlSectionExtractor');
 
 // ── Supervisor strategy registry ─────────────────────────────────────────────
 // All supervisor-flavour profile `type` values live in one place so adding a
@@ -2909,6 +2910,30 @@ function normalizeGenieResponse(data) {
             parts.push(text.trim());
         } else if (text && typeof text === 'object' && text.content && String(text.content).trim()) {
             parts.push(String(text.content).trim());
+        }
+        // Phase 11b — surface per-section SQL provenance. When the SQL
+        // contains `/* Section: X */` or `-- Section: X` markers (emitted
+        // by the Genie + Foundation Model translators when an IR has
+        // structured-sections output), expose the parsed sections so the
+        // SQL Trace tab can label HEADLINE / TRENDS / RISKS / ACTIONS
+        // fragments. The raw SQL blob stays at `att.query.query` as the
+        // fallback for legacy clients and for prompts that don't emit
+        // markers. Each section also carries `startOffset` so the UI can
+        // build per-section anchor links into the raw blob view.
+        //
+        // Conversation/message association: this function is called per
+        // Genie poll response so `data.conversation_id` + `data.message_id`
+        // already join the sections back to the parent briefing in the
+        // 1-conversation/4-message staged-render contract from
+        // docs/STAGED_RENDERING.md.
+        const sqlBlob = att?.query?.query;
+        if (typeof sqlBlob === 'string' && sqlBlob.length > 0) {
+            try {
+                const sections = extractSqlSections(sqlBlob);
+                if (sections.length > 0) {
+                    att.query.sqlSections = sections;
+                }
+            } catch { /* never let extraction break response normalization */ }
         }
     }
     data.content = parts.length ? parts.join('\n\n') : '';

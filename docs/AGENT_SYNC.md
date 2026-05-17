@@ -639,6 +639,37 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 
 ## Coordination Log
 
+### 2026-05-17 — Claude — [SHIPPED] Phase 11b — sqlSectionExtractor wired into live Genie response path
+
+`[LANE-SWITCH]` Rajesh paused Slices 1c/1d temporarily to close the Phase 11b SQL provenance gap. Reason: the locked staged-render architecture promised per-section SQL tied to the shared conversationId, but the extractor that existed since 2026-05-13 was never connected to a live route. Today the Genie SQL Trace tab showed an unlabelled blob — promise vs actual behavior gap.
+
+`[DONE]` Wired `extractSqlSections` from `proxy/lib/sqlSectionExtractor.js` into `normalizeGenieResponse()` ([proxy/server.js:2902](../proxy/server.js#L2902)). Every Genie poll response now passes through:
+
+1. Each `attachments[].query.query` is scanned for `/* Section: X */` and `-- Section: X` markers
+2. When markers are present, parsed sections land at `att.query.sqlSections` as an array of `{ sectionId, cteName, sqlFragment, startOffset }`
+3. The raw SQL blob stays at `att.query.query` as the fallback for legacy clients and prompts that don't emit markers
+4. Extraction failures are silently swallowed so malformed markers can't break response normalization
+
+`[CONTRACT]` The conversation/message join is preserved by pass-through: `data.conversation_id` + `data.message_id` are already untouched by `normalizeGenieResponse`. So when the staged-render flow fires HEADLINE on `/start` + TRENDS/RISKS/ACTIONS as `/follow-up` (all on the same conversationId), each message's response carries its own section's SQL parsed and labelled. The playground can stitch them by conversationId.
+
+`[TESTS]` 748/748 proxy green (was 740, +8 new tests in `proxy/tests/genieSqlSections.test.js`):
+- HEADLINE marker on a `/start` response surfaces correctly
+- TRENDS marker on a `/follow-up` response (different message_id, same conversation_id) surfaces correctly
+- Single-call structured response with all 4 sections in one SQL blob (Foundation Model path) yields 4 sections in order
+- Missing markers → no `sqlSections` field (clean fallback)
+- Malformed markers (invalid sectionId regex) silently ignored, normalization continues
+- Cross-message join: 4 mock poll responses sharing one conversationId, each with one section marker → assembled per-section SQL set is `{HEADLINE, TRENDS, RISKS, ACTIONS}`
+- BUG-003 regression coverage (system-prompt leak fix coexists with new extractor)
+- Attachment object identity preserved (no clone — downstream rendering keeps refs)
+
+`[STILL-OPEN]` Two follow-up lanes for someone (Codex if you want to grab them):
+
+1. **Playground SQL Trace tab** — needs to read `att.query.sqlSections` when present and render labelled per-section fragments; fall back to the raw blob view when absent. Lives in the Pulse `visual.tsx` SQL Trace panel. Without this read-side change the proxy-side surfacing is invisible to users.
+
+2. **Foundation Model translator path symmetry** — same extractor wire-up should be confirmed in the `/foundation/section` response path so FM-backed deployments get the same per-section SQL labelling. The translator at [proxy/lib/promptTranslators/foundationModel.js](../proxy/lib/promptTranslators/foundationModel.js) already injects the `[SQL provenance]` directive; the response normalization for FM may need an analogous extractor call. (Not verified in this slice — flagging.)
+
+`[NEXT]` Returning to the locked error-handling lane: Slice 1c (OAuth normalization in `errorStatusFromDatabricks` + streaming in-band errors for `/supervisor/confidence` phase 2) → Slice 1d (raw `err.message` route drain). Rajesh's call on order.
+
 ### 2026-05-17 - Codex - [DONE] Slice 1b Problem Details foundation + malformed-body header hardening
 
 `[DONE]` Slice 1b is shipped on `main`. Base commit `70c3139` added `proxy/lib/problemDetails.js`, `handleJsonParseProblem`, `handleUnexpectedProxyError`, and the helper/integration/server tests. Codex follow-up moved `express.json()` after the CORS/security header middleware so malformed JSON/body-too-large responses still carry browser-visible headers instead of looking like a CORS mystery.
