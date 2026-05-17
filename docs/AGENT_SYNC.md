@@ -639,6 +639,43 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 
 ## Coordination Log
 
+### 2026-05-17 — Claude — [SHIPPED] Beast-mode triple: Phase 0 cleanup + Slice 1d + Enterprise Modernization Charter draft
+
+Three commits in this beast-mode cycle, sequenced per the agreed plan ("1 then 3 then 2" — locked decision first, then cleanup, then charter):
+
+**1. Phase 0 cleanup** (no commit — just shell work):
+- Reverted uncommitted scaffold from the abandoned UI/UX modernization scope-creep: package.json + package-lock (zustand + react-query install), empty `playground/src/features/{canvas,sidebar,onboarding,config}/` directories, untracked `playground/src/stores/{layoutStore,integrationStore}.ts` stubs
+- Deleted 10 debris files: `playground/lint_output*.txt` (x4), `playground/src/{fixLayout,fixTypes,transformApp}.mjs`, `proxy/fix.py`, `proxy/replace_script.js`
+- Worktree is clean
+
+**2. Slice 1d shipped** ([`36a8c11`](../proxy/server.js)) — closes the last open item from the locked Error Intelligence Layer:
+- Converted 13 raw `err.message` 500 returns to `sendProblem()` + `createProblem()`: /history POST + GET, /openai/analytics + start + send, /bedrock/analytics + direct/start + start + direct/send + send, /responses-agent/chat, /foundation/section, /supervisor/start
+- Stable per-route codes for support triage (`OPENAI_ANALYTICS_FAILED`, `BEDROCK_RAG_START_FAILED`, etc.); all use `category: unexpected_internal` + verbatim safe sentinel
+- Extended `sendProblem(res, problem, extras)` with optional `extras` arg so /history routes preserve their legacy `ok: false` + `table` fields; envelope keys WIN on collision (security-relevant fields can't be overridden by extras)
+- Fixed 3 stale tests that pinned the old fallback behavior (locked in Slice 1c for exactly this Slice-1d intentional update):
+  - `errorStatusFromDatabricks — fallback › unrecognised shape` now expects sentinel + adds token-shaped-substring defence test
+  - `server.test.js token validation › rejects template-style token` no longer leaks `@azure/identity` module name
+  - `server.test.js URL validation › rejects profiles with non-URL hosts` no longer leaks `Invalid target URL: not a url`
+- New source-level invariant test (`proxy/tests/rawErrLeakInvariant.test.js`, 5 tests) — same pattern as BUG-015 auth-middleware invariant. Scans server.js source for raw `err.message` leak patterns; any future drift fails the test loudly. Catches all variants: bare 500, `ok:false` 500, return-prefixed 500. Also pins that `errorStatusFromDatabricks` fallback uses `UNEXPECTED_INTERNAL_SENTINEL` (not raw message) and that `sendProblem` call count is ≥ 15.
+- 787/787 proxy green (was 781).
+
+**3. Enterprise Modernization Charter drafted** ([docs/ENTERPRISE_MODERNIZATION_CHARTER.md](ENTERPRISE_MODERNIZATION_CHARTER.md)) — the contract for the broader UI/UX modernization arc, freed from the wrong constraints (per the Pulse-port detangling lock at `02eb301`):
+- Section 3 — 10 architecture pillars open for [CHALLENGE]: state library (zustand recommended), server-state (React Query for new code only), routing (keep react-router for v1), forms (react-hook-form + zod), design system (Tailwind + Radix recommended, alternatives Mantine/Chakra/formalize-gn-* called out), component slicing (feature-sliced), test pyramid (Vitest + Playwright + axe + Chromatic + Lighthouse), observability (Sentry + Web Vitals + RID propagation), security hardening (CSP tighten, Trusted Types, Dependabot), Pulse-port phasing (already locked)
+- Section 4 — 6-phase migration plan, each phase shippable with real commits + real tests + AGENT_SYNC entry. No empty scaffolds.
+- Section 5 — open decisions queued table for the [CHALLENGE] cycle
+- Section 6 — out-of-scope (public-OSS deferrals + adjacent concerns)
+- Section 8 — status checklist tracking the lock progression
+
+`[HANDOFF — Codex]` Two asks:
+
+1. **Challenge any of the 10 Section 3 pillars** where you have a different read. Especially: any pillar where my recommendation is wrong (e.g., maybe you think TanStack Router IS worth the migration cost, or formalize-gn-* IS the right move over Tailwind+Radix). Use the AGENT_SYNC [CHALLENGE] block format we've been using all session.
+
+2. **Check the Pulse-port categorization in PULSE_PORT_DETANGLING.md** (locked at `02eb301`) — any item where you think the A/B/C assignment is wrong. Particularly anything in B you believe is actually hard-coupled (move to A), or anything in A you believe could be soft-coupled with proper API versioning (move to B).
+
+After your [CHALLENGE] responses, each pillar gets a per-ADR file under `docs/adr/`, the AGENT_SYNC [DECISION] block locks it, and Phase 1 (state + server-state foundation) kicks off against the first concrete vertical.
+
+`[NEXT]` Charter [CHALLENGE] cycle. No code work until pillars 3.1 + 3.2 lock (those gate Phase 1).
+
 ### 2026-05-17 — Claude — [DECISION] Drop Pulse-PBI mental model; PulsePlay is host, not guest
 
 `[CONTEXT]` Across several recent turns I (Claude) carried Pulse-PBI sandbox constraints into PulsePlay reasoning — citing the wrong tripwire to argue against react-query, treating the XHR-only style as a PulsePlay constraint rather than a Pulse-PBI compat surface, etc. Rajesh corrected this twice: (1) PulsePlay has its own playground in a real browser, (2) PulsePlay is the iframe HOST, not the guest, and the modern web platform is fully available.
