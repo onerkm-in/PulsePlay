@@ -9,6 +9,12 @@ import type { EnabledComponents, LayoutMode, UiMode } from "../settingsStore";
 import { usePulseAiVisualSettings } from "../pulseVisualSettingsStore";
 import type { PulseEnabledFeatures } from "../pulseVisualSettingsStore";
 import { CurrentValue, Leaf, SubSection } from "./BiGroup";
+import {
+    LAYOUT_PRESETS,
+    LAYOUT_PRESET_ORDER,
+    detectActivePreset,
+    type LayoutPreset,
+} from "../layoutPresets";
 
 export function PreferencesGroup(): React.ReactElement {
     const {
@@ -20,6 +26,17 @@ export function PreferencesGroup(): React.ReactElement {
         setEnabledComponents,
         setLayoutMode,
     } = useSettings();
+    const { value: pulseSettings, update: updatePulse } = usePulseAiVisualSettings();
+    const activePreset = detectActivePreset({
+        enabledComponents,
+        enabledFeatures: pulseSettings.enabledFeatures,
+    });
+    const applyPreset = (next: LayoutPreset): void => {
+        const cfg = LAYOUT_PRESETS[next];
+        setEnabledComponents(cfg.state.enabledComponents);
+        setLayoutMode(cfg.state.layoutMode);
+        updatePulse({ enabledFeatures: cfg.state.enabledFeatures });
+    };
     const backendBiTileMode = normalizeBackendBiTileMode(allowlist?.display?.biTileMode);
 
     return (
@@ -53,6 +70,55 @@ export function PreferencesGroup(): React.ReactElement {
                 label="Layout"
                 helper="Where the AI and BI panes live + which ones are visible. Live-updates immediately."
             >
+
+            {/* 2026-05-17 — Layout preset picker. Maps Rajesh's T1-T5
+             *  templates from docs/Proposed_Preset_Templates.pdf to bundles
+             *  of (enabledComponents + layoutMode + Pulse enabledFeatures).
+             *  Facade over existing state — picking a preset writes through
+             *  to the underlying knobs below. Selecting "Custom" is not an
+             *  option; "Custom" only shows when the underlying knobs don't
+             *  match any preset (user hand-tuned a combination). */}
+            <Leaf
+                group="preferences"
+                label="Layout preset"
+                helper={`Pick a starting shape, then fine-tune below if needed. ${LAYOUT_PRESETS[activePreset === "custom" ? "balanced" : activePreset]?.description || ""}`}
+            >
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <div role="group" style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
+                        {LAYOUT_PRESET_ORDER.map(key => {
+                            const cfg = LAYOUT_PRESETS[key];
+                            const active = activePreset === key;
+                            return (
+                                <button
+                                    key={key}
+                                    type="button"
+                                    onClick={() => applyPreset(key)}
+                                    aria-pressed={active}
+                                    title={cfg.description}
+                                    style={{
+                                        padding: "6px 12px",
+                                        fontSize: 12,
+                                        border: "1px solid var(--pp-border, rgba(0,0,0,0.18))",
+                                        background: active ? "var(--pp-accent, #0078d4)" : "transparent",
+                                        color: active ? "white" : "inherit",
+                                        borderRadius: 4,
+                                        cursor: "pointer",
+                                        fontWeight: active ? 600 : 400,
+                                    }}
+                                >
+                                    {cfg.label}
+                                </button>
+                            );
+                        })}
+                    </div>
+                    {activePreset === "custom" && (
+                        <div style={{ fontSize: 11, opacity: 0.65, fontStyle: "italic" }}>
+                            Current settings don't match a preset — you've hand-tuned a combination. Pick a preset above to snap back, or leave as-is.
+                        </div>
+                    )}
+                </div>
+            </Leaf>
+
             <Leaf group="preferences" label="Visible panels" helper="Author choice: which surfaces this PulsePlay instance shows to end users. AI/BI verticals are independent — pick what you've wired up. End users only see what's selected here.">
                 <ButtonGroup<EnabledComponents>
                     value={enabledComponents}

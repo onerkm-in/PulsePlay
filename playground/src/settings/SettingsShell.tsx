@@ -62,7 +62,7 @@ export const GROUP_LEAF_LABELS: Record<SettingsGroupId, string[]> = {
     setup: ["Readiness", "BI vertical", "AI vertical", "Experience controls"],
     bi: ["Provider", "Embed", "Authentication", "Canvas", "Status"],
     ai: ["Provider", "Model / Agent", "Knowledge pack", "Vector Search KB", "Connection test", "AI Insights", "UC Metric View", "Browse library ↗"],
-    preferences: ["UI mode", "Visible panels", "AI position", "Canvas tiles"],
+    preferences: ["UI mode", "Layout preset", "Visible panels", "AI position", "Canvas tiles"],
     system: ["Proxy status", "Network and auth", "Security posture", "License posture", "Profile inventory", "Diagnostics", "Setup wizard", "Export support bundle"],
     advanced: ["Local storage inspector", "Reset section", "Reset all", "Danger zone"],
 };
