@@ -3554,24 +3554,21 @@ function App(props: AppProps) {
         // and we'd just spend Genie calls.
         if (enabledFeatures === "chatOnly") return;
 
-        // IDEA-039 anomaly #8 — DataView race. PBI fires the visual's update()
-        // multiple times during page-load: the first call typically arrives
-        // with an empty/sparse DataView before measures and dimensions have
-        // been populated. Auto-firing in that window made Stage 1 see zero
-        // values while Stage 2 (running ~2s later after the inter-batch pause)
-        // saw real data — producing a "$0 vs $2.30M" hard contradiction in
-        // the rendered narrative. Defer the run until contextBuilder reports
-        // at least one bound measure or dimension. The effect re-runs on every
-        // settings/context change so this resolves automatically once PBI's
-        // DataView pump completes.
-        const measCount = Object.keys(props.context?.measures ?? {}).length;
-        const dimCount = Object.keys(props.context?.dimensions ?? {}).length;
-        if (measCount === 0 && dimCount === 0) {
-            // Don't set insightsFiredRef yet — we want this effect to retry
-            // when context populates on a later render.
-            return;
-        }
-
+        // PulsePlay principle — AI and BI are independent verticals. AI Insights
+        // should fire whenever AI is configured, regardless of whether a BI
+        // surface has been wired up. Teams using PulsePlay for AI-only workflows
+        // (Genie / Foundation Model / Supervisor without any embedded BI tool)
+        // would otherwise sit on a stuck "Generating insights…" forever.
+        //
+        // Historical context (IDEA-039 anomaly #8 from the Pulse-in-PowerBI
+        // sandbox): PBI fires the visual's update() multiple times during
+        // page-load and the first call typically arrives with an empty/sparse
+        // DataView, producing $0-vs-$2.30M contradictions when stages ran 2s
+        // apart. That guard lives in the sister project's PBI-custom-visual
+        // build. In PulsePlay (browser playground, no PBI host), there is no
+        // multi-batch DataView pump — context is whatever the BI adapter has
+        // emitted, period. So we drop the empty-context return here and let
+        // the pipeline run with whatever grounding it has (which may be none).
         const cacheKey = computeInsightsCacheKey(activeSpaceKey);
         const ttlMs = (props.settings.insightsCacheTtlMinutes ?? 30) * 60 * 1000;
         const cached = readInsightsCache(cacheKey, undefined, ttlMs);
@@ -4396,31 +4393,20 @@ function App(props: AppProps) {
                             </div>
                         );
                     })()}
-                    {!insightsResult && !insightsBusy ? (() => {
-                        // IDEA-039 anomaly #8 auto-fire guard mirror: if AI is
-                        // configured but there's no BI context (zero measures +
-                        // zero dimensions), runInsights() is intentionally
-                        // suppressed until the BI pane has loaded data. The
-                        // earlier copy lied with "Generating insights…" in this
-                        // state because the placeholder didn't know the guard
-                        // was blocking. Three-state copy: not-configured,
-                        // configured-but-no-context, ready.
-                        const measCount = Object.keys(props.context?.measures  ?? {}).length;
-                        const dimCount  = Object.keys(props.context?.dimensions ?? {}).length;
-                        const hasBiContext = measCount > 0 || dimCount > 0;
-                        const copy = !isConfigured
-                            ? "Connect to Databricks to generate AI Insights."
-                            : !hasBiContext
-                                ? "Pick a BI tool and load data — AI Insights need a BI surface to reason about."
-                                : "Generating insights…";
-                        return (
-                            <div className="gn-insights-placeholder">
-                                <span className="gn-insights-icon">✨</span>
-                                <h3>AI Insights</h3>
-                                <p>{copy}</p>
-                            </div>
-                        );
-                    })() : (!insightsResult || (insightsResult.status === "RUNNING" && !(insightsResult.content || "").trim())) ? (
+                    {!insightsResult && !insightsBusy ? (
+                        // AI and BI are independent verticals (PulsePlay design
+                        // principle): the only thing that gates AI Insights is
+                        // whether AI is configured. BI is optional grounding.
+                        // - !isConfigured → ask the author to wire AI
+                        // - isConfigured  → brief "Generating…" flash before
+                        //                   insightsBusy flips true and the
+                        //                   running state takes over rendering
+                        <div className="gn-insights-placeholder">
+                            <span className="gn-insights-icon">✨</span>
+                            <h3>AI Insights</h3>
+                            <p>{isConfigured ? "Generating insights…" : "Configure an AI connector in Settings → AI to generate insights."}</p>
+                        </div>
+                    ) : (!insightsResult || (insightsResult.status === "RUNNING" && !(insightsResult.content || "").trim())) ? (
                         // No content yet — the always-on ProgressIndicator above
                         // already covers the running state. 49.16 — but if the run
                         // has settled (busy=false AND all stages reached a terminal
