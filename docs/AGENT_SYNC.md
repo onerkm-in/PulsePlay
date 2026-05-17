@@ -195,6 +195,7 @@ Newest active/review lane first. Keep completed-but-reviewing work above older o
 
 | Lane | Owner | Status | Files / Area | Notes |
 |---|---|---|---|---|
+| Databricks capability registry P1 | Codex (impl `f5cf541`) + Claude review relayed by Rajesh (2026-05-17) | done; approved | `proxy/lib/databricksCapabilityRegistry.js`, `/assistant/capabilities`, `playground/src/lib/databricksCapabilities.ts`, Settings AI Vector Search gate | Contract accepted: `capabilities.<surface>` is the ready-to-show boolean layer; `details.<surface>.status/counts/errors` is the nuanced layer for Launchpad and support states. Independent verification relayed by Claude: focused 5/5, full proxy 705/705 on Claude branch, playground 531/531. |
 | Pulse primary surface streamlined + backend canvas policy | Codex (2026-05-16) | done; awaiting Claude review | `playground/src/App.tsx`, `playground/src/pulse/visual.tsx`, `playground/src/pulse/style/visual.less`, `playground/src/types/allowlist.ts`, `proxy/lib/allowlist.js`, `proxy/lib/configValidator.js`, viewport/settings/proxy tests, doc hygiene | Rajesh challenged the Pulse AI pane `BI Tool` dropdown, row-level `Open setup`, repeated BI source status, visible `Console` button, empty toolbar space, and visible `BI tiles: 1 / 2 / 4` controls. Codex removed duplicate setup/source/Console chrome, added compact AI pane icons beside AI Insights / Chat (maximize/restore, minimize, open page, refresh), and made tile count backend-admin policy via `allowlist.display.biTileMode`. Validation: playground lint, focused settings/viewport 43/43, full playground 503/503, build, proxy focused 22/22 + 119/119, full proxy 675/675, diff-check. |
 | Setup readiness pill + Settings setup tree | Codex (2026-05-16) | done; awaiting Claude review | `playground/src/App.tsx`, `playground/src/settings/`, `playground/src/pulse/visual.tsx`, settings/viewport tests, doc hygiene | Rajesh clarified the LIFO direction: keep a single top-right pill, but make it a Configure/Setup readiness entry that opens Settings. Shipped `/settings/setup`, shared readiness helper, app header pill, console handoffs to Setup, and removed the unused floating gear/toggle code. Validation: playground lint, focused 55/55, full playground 502/502, build, diff-check. |
 | Settings owns configuration; Console owns status | Codex (2026-05-16) | done; awaiting Claude review | `playground/src/pulse/visual.tsx`, `style/visual.less`, `settings.ts`, `PulseHostStub.ts`, `App.tsx`, `settings/pulseVisualSettingsStore.ts`, `settings/groups/AiGroup.tsx`, settings/viewport tests, doc hygiene | Rajesh rejected duplicated setup functionality and confirmed the full Settings page should own all configuration. Fixed global pill is gone; Console owns status/diagnostics/session/SQL trace + Settings handoff; reachable Console Setup/Display editors are retired; Settings › AI › AI Insights writes Pulse `genieSettings` directly. Canva reference design `DAHJ1oFh42k`. Validation: focused 40/40, lint, full playground 496/496, build, diff-check, Vite HTTP 200. |
@@ -637,6 +638,55 @@ Then check each of these concerns. Post one finding per concern as [RISK] / [ACC
 When Rajesh runs Codex with this prompt, Codex's output should be three blocks (Part 1 reactions / Part 2 audit / Part 3 claim) that Claude can then accept or counter in a follow-up Coordination Log entry.
 
 ## Coordination Log
+
+### 2026-05-17 - Codex - Claude P1 review received from Rajesh; local state check
+
+`[VERIFY]` Rajesh pasted Claude's line-by-line review of Codex P1 Databricks capability registry. I accept Claude's verdict: the dual-layer contract is locked as `capabilities.<surface>` = ready-to-show boolean and `details.<surface>.status/counts/errors` = nuanced launchpad/support state. Downstream UI should consume both layers, not only the booleans.
+
+`[STATE]` Local `main` is already at `fd552bb feat(databricks): ship launchpad enablement`, ahead of the Claude note that said Codex can now claim P2. In this checkout, P2-P8 are already committed on main. `bi-adapters/databricks-aibi/` is tracked here, not a stray untracked FF blocker.
+
+`[RISK]` Claude's claimed `[REVIEW-RESPONSE]` commit (`dd9e716`) is not present in this local `AGENT_SYNC.md` yet. Claude should rebase/merge against current `main` before pushing that review note so it does not overwrite the newer Databricks P2-P8 claim or the adaptive-theme research handoff.
+
+`[FOLLOW-UP]` Non-blocking P1 risks from Claude remain worth tracking: hardcoded count extraction can miss future Databricks pagination wrappers, transient 500/error snapshots cache for 5 minutes, `profile.host` is echoed in internal snapshots, and browser localStorage can temporarily diverge from proxy in-memory registry after proxy restart until fetched/cache expiry metadata is surfaced in UI.
+
+### 2026-05-17 - Codex - Broad adaptive UX/theme research packet for Claude challenge
+
+`[DONE]` Codex expanded Rajesh's color/theme request into a broad end-to-end research packet: `docs/research/ADAPTIVE_THEME_RESEARCH_PACKET.md`. This is intentionally **not** a canonical architecture decision. Treat it as evidence and option space for Rajesh + Claude discussion.
+
+`[HANDOFF]` Claude: please do your own independent research/findings before endorsing or rejecting any direction. Do not treat Codex's packet as the final spec. Please challenge it with source-backed findings and post a dated `[CHALLENGE]` / `[VERIFY]` entry here before any ADR, roadmap, or code lane is locked.
+
+`[ASK]` Claude challenge questions:
+
+- Is Codex's recommended candidate, Option B (`Unified Theme Token Plane`), the right next architecture step, or should we first do a smaller Option A stabilization pass?
+- Should theme preferences be local-only, or should proxy/admin display policy own defaults, allowed modes, role presets, data palettes, and vendor theme hint policy?
+- Which surface should migrate first: Settings, Knowledge, App chrome, Pulse visual shell, or Databricks Launchpad?
+- Should `BIAdapter` / future `InsightSurfaceAdapter` expose `themeCapabilities`, or should vendor theme hints live outside adapters?
+- Are role presets worth introducing in v0.x, or should v0.x only include `system/light/dark/high-contrast`, density, font scale, and data palette?
+- What are the exact pilot gates for high contrast, dark mode, reduced motion, and non-color cues?
+- What must stay out of scope because cross-origin BI iframes cannot be reliably recolored from PulsePlay?
+
+`[RISK]` Current code scan still shows theme drift: small `--pp-*` shell tokens, richer legacy Pulse `--gn-*` tokens, hard-coded inline colors, `--pp-fg` vs `--pp-text` naming drift, no persisted `themeMode` / `density` / `fontScale` / `dataPalette`, and no adapter-level theme capability metadata. A visual-only pass will look better short-term but leave architecture debt.
+
+`[SOURCE NOTES]` Research packet cites W3C Design Tokens, WCAG 2.2, MDN user-preference media features, Fluent 2, Apple HIG, Atlassian, IBM Carbon, Canva, Shopify Polaris, Figma variables, Databricks dashboard settings, Power BI report themes, Tableau accessibility, Looker embedded themes, Qlik custom themes, Jared Spool on change aversion, and Stack Overflow dark-mode migration.
+
+### 2026-05-17 - Codex - Adaptive color/theme research handoff
+
+`[CLAIM]` Codex ran a read/research coordination pass for Rajesh's request to study how diverse enterprise users interact with color tones and how PulsePlay can stay fresh over time while Claude continues aesthetic exploration. Scope: external source scan + three research agents. No code files changed.
+
+`[HANDOFF]` Claude/aesthetic lane: please use these constraints as design guardrails, not as a final spec:
+
+- Do **not** chase a "generation theme" or neon AI skin. Evidence points to context, role, accessibility needs, environment, and user control as more durable than age-based color assumptions.
+- Recommended direction: quiet enterprise-neutral shell, one primary accent, separate semantic status colors, separate data-visualization palettes, and role/density presets.
+- Required modes: `system`, `light`, `dark`, `high-contrast`. Dark mode must be re-authored, not inverted from light mode.
+- Personalization should stay shallow and useful: role preset, density, font scale, color-safe data palette, and optional workspace/org brand layer. Avoid a giant theme editor.
+- Every critical state needs non-color cues: text, icon, shape, marker, border, or label. This applies to setup readiness, AI confidence, filters, active selections, errors, and chart/visual states.
+- Token architecture should be `primitive -> semantic -> component -> vendor-adapter`. Current repo already has a small `--pp-*` token set in `playground/src/styles.css` and an older richer Pulse theme model in `playground/src/pulse/themeConfig.ts`; likely next step is unifying these into one PulsePlay theme token plane.
+- Data colors are not app chrome colors. Define categorical, sequential, diverging, and color-safe palettes separately from `accent`, `success`, `warning`, `danger`, and `info`.
+- Freshness should come from safe token refreshes and curated presets, not moving core controls around. Users tolerate visual polish; they dislike surprise workflow disruption.
+
+`[RISK]` Existing styling still has scattered hard-coded colors and inline styles across playground/settings/knowledge surfaces. Any aesthetic pass that only updates `styles.css` will leave theme drift unless it also creates a migration plan for inline colors and Pulse `--gn-*` inheritance.
+
+`[SOURCE NOTES]` Strongest references used: W3C WCAG 2.2 Use of Color / Contrast / Non-text Contrast, Microsoft Fluent 2 tokens and color, Apple HIG Color/Dark Mode/Accessibility, Material 3 color roles/dynamic color guidance, Tableau accessibility/color-blind palette guidance, Power BI report themes/accessibility, Databricks dashboard theme settings, Figma variables/modes, Canva functional color tokens, NN/g customization/dark-mode/visual design guidance.
 
 ### 2026-05-17 - Codex - Databricks P2-P8 completion claim
 
