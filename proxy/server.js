@@ -5297,6 +5297,94 @@ app.post('/foundation/section', async (req, res) => {
     }
 });
 
+// ── Mosaic AI ResponsesAgent (Agent Framework managed agent) ──────────────────
+//
+// 2025/2026 — Databricks' managed-agent successor to the legacy ChatAgent.
+// Distinct from PulsePlay's hand-rolled Supervisor template (which uses
+// LangGraph + create_react_agent and PulsePlay deploys itself). The
+// ResponsesAgent runtime is managed by Databricks Model Serving and uses
+// the OpenAI Responses API request/response shape (`input` not `messages`;
+// `output` not `choices[]`; `custom_inputs` / `custom_outputs` for free-form
+// agent metadata).
+//
+// Use this connector when:
+//   - The org has Agent Bricks deployed (Knowledge Assistant / Supervisor GA)
+//   - You want managed runtime (auth + scaling + observability) rather than
+//     rolling your own agent serving endpoint
+//
+// Profile shape (in config.json profiles section):
+//   "agent-managed": {
+//       "type": "responses-agent",                       // identifies this as a ResponsesAgent profile
+//       "host": "https://dbc-xxx...",                    // Databricks workspace
+//       "token": "dapi...",                              // PAT with CAN QUERY on the endpoint
+//       "responsesAgentEndpoint": "knowledge-assistant-prod", // serving endpoint name
+//       "agentName": "Knowledge Assistant"               // display label (optional)
+//   }
+const { callResponsesAgent } = require('./lib/responsesAgentClient');
+
+function isResponsesAgentProfile(profile) {
+    return profile && profile.type === 'responses-agent' && !!profile.responsesAgentEndpoint;
+}
+
+function resolveResponsesAgentProfile(body, headers, req) {
+    const explicitName = body?.profile || body?.assistantProfile || headers?.['x-assistant-profile'];
+    if (explicitName) {
+        const resolved = profileByName(explicitName, req);
+        const p = resolved?.profile;
+        if (p && isResponsesAgentProfile(p)) return { name: resolved.name, profile: p };
+        return null;
+    }
+    // Auto-select the first configured ResponsesAgent profile.
+    for (const [name, profile] of profileRegistry.entries()) {
+        if (!profileAllowedForRequest(name, profile, req)) continue;
+        if (isResponsesAgentProfile(profile)) return { name, profile };
+    }
+    return null;
+}
+
+app.get('/responses-agent/health', (req, res) => {
+    const resolved = resolveResponsesAgentProfile({}, {}, req);
+    const configured = profileRegistry.entries()
+        .filter(([n, p]) => profileAllowedForRequest(n, p, req) && isResponsesAgentProfile(p))
+        .map(([n, p]) => ({ profile: n, endpoint: p.responsesAgentEndpoint, host: p.host, agentName: p.agentName || null }));
+    res.json({
+        ok: configured.length > 0,
+        configuredProfiles: configured,
+        defaultProfile: resolved?.name || null,
+    });
+});
+
+app.post('/responses-agent/chat', async (req, res) => {
+    const resolved = resolveResponsesAgentProfile(req.body, req.headers, req);
+    if (!resolved) {
+        return sendNoMatchingProfile(req, res, 400, 'No ResponsesAgent profile configured. Add one with type "responses-agent" + responsesAgentEndpoint to proxy/config.json.');
+    }
+    const { input, messages, instructions, customInputs, temperature, maxOutputTokens, extra } = req.body || {};
+    if (!input && !messages) {
+        return res.status(400).json({ error: 'input[] (or messages[]) is required.' });
+    }
+    try {
+        const result = await callResponsesAgent(databricksRequest, resolved.profile, {
+            input, messages, instructions, customInputs,
+            temperature: typeof temperature === 'number' ? temperature : 0.2,
+            maxOutputTokens: typeof maxOutputTokens === 'number' ? maxOutputTokens : 2048,
+            extra,
+            requestId: req.requestId,
+        });
+        console.log(`[responses-agent/chat] profile=${resolved.name} endpoint=${resolved.profile.responsesAgentEndpoint} customOutputs=${result.customOutputs ? 'yes' : 'no'}`);
+        res.json({
+            content: result.content,
+            customOutputs: result.customOutputs || null,
+            usage: result.usage || null,
+            endpoint: resolved.profile.responsesAgentEndpoint,
+            profile: resolved.name,
+        });
+    } catch (err) {
+        console.error('[responses-agent/chat]', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ── Supervisor Agent (Databricks Mosaic AI serving endpoint) ──────────────────
 // The supervisor is a Mosaic AI Agent registered as a Databricks serving endpoint.
 // It receives a plain chat message and internally decides which Genie spaces to
