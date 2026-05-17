@@ -5,6 +5,32 @@
 
 ---
 
+## 2026-05-17 - Navigation styling pass: unified surface switcher rail
+
+**Range:** Rajesh asked to improve styling, starting with navigation. The visible issue was that AI Insights looked like a primary blue pill while Ask Pulse and BI Viz read as loose text labels, even though all three are now peer surfaces.
+
+### What shipped
+
+- Wrapped AI Insights, Ask Pulse, and BI Viz in one `gn-surface-switcher` rail so the controls read as a single navigation system.
+- Kept AI Insights / Ask Pulse as accessible tabs, while BI Viz stays a button that focuses the BI surface through the existing viewport event.
+- Added consistent icon wells, inactive button affordances, hover elevation, active gradient/shadow, dark-mode treatment, compact wrapping, and forced-colors borders.
+- Checked the available Figma/Canva tool surfaces: Canva returned no matching brand templates for `dashboard navigation ui`; the available Figma team library returned no segmented navigation components, so the implementation stayed local to PulsePlay's existing design language.
+
+### Validation
+
+- `playground`: `npm.cmd run lint` passed.
+- `playground`: focused `npm.cmd test -- --run src/__tests__/viewportControls.integration.test.tsx` passed **18/18**.
+- `playground`: `npm.cmd run build` passed after replacing a Less `fade()` token that could not compile.
+- `playground`: full `npm.cmd test -- --run` passed **568/568**.
+- Browser smoke on `http://127.0.0.1:5176/`: nav rendered as one grouped rail with `AI Insights`, `Ask Pulse`, and `BI Viz`; no permanent BI pane in fresh unified mode.
+
+### Tripwires
+
+- This is navigation styling only. It does not implement the floating comparison layer or Pulse Bubble.
+- Figma capture can be used next if Rajesh wants a design artifact saved into the team library, but that requires choosing the capture destination. Runtime code does not need that step.
+
+---
+
 ## 2026-05-17 - Error handling baseline locked + ResponsesAgent middleware hotfix
 
 **Range:** Rajesh accepted the error-handling strategy lane and Claude independently confirmed the P0 `/responses-agent/*` middleware gap. This pass locks the planning baseline and closes only the standalone Slice 1a security/supportability gap.

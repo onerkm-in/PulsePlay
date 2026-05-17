@@ -3885,72 +3885,75 @@ function App(props: AppProps) {
                     stays in this row so the content area below is pure narrative. */}
                 <div className="gn-header-row gn-header-row--bottom">
                     {enabledFeatures === "both" && (
-                        <div className="gn-header-tabs" role="tablist" aria-label="Visual surface">
+                        <div className="gn-surface-switcher" aria-label="Visual surfaces">
+                            <div className="gn-header-tabs" role="tablist" aria-label="AI surfaces">
+                                <button
+                                    role="tab"
+                                    id="gn-tab-insights"
+                                    aria-selected={activeTab === "insights"}
+                                    aria-controls="gn-tabpanel-insights"
+                                    tabIndex={activeTab === "insights" ? 0 : -1}
+                                    className={`gn-header-tab${activeTab === "insights" ? " gn-header-tab--active" : ""}`}
+                                    onClick={() => setActiveTab("insights")}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+                                            e.preventDefault();
+                                            setActiveTab("chat");
+                                            // Move focus to the now-active tab so screen readers announce it.
+                                            const next = document.getElementById("gn-tab-chat") as HTMLButtonElement | null;
+                                            next?.focus();
+                                        } else if (e.key === "Home") {
+                                            e.preventDefault();
+                                            setActiveTab("insights");
+                                        } else if (e.key === "End") {
+                                            e.preventDefault();
+                                            setActiveTab("chat");
+                                            document.getElementById("gn-tab-chat")?.focus();
+                                        }
+                                    }}
+                                >
+                                    <span className="gn-header-tab-icon" aria-hidden="true">✨</span>
+                                    <span>AI Insights</span>
+                                </button>
+                                <button
+                                    role="tab"
+                                    id="gn-tab-chat"
+                                    aria-selected={activeTab === "chat"}
+                                    aria-controls="gn-tabpanel-chat"
+                                    tabIndex={activeTab === "chat" ? 0 : -1}
+                                    className={`gn-header-tab${activeTab === "chat" ? " gn-header-tab--active" : ""}`}
+                                    onClick={() => setActiveTab("chat")}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+                                            e.preventDefault();
+                                            setActiveTab("insights");
+                                            const prev = document.getElementById("gn-tab-insights") as HTMLButtonElement | null;
+                                            prev?.focus();
+                                        } else if (e.key === "Home") {
+                                            e.preventDefault();
+                                            setActiveTab("insights");
+                                            document.getElementById("gn-tab-insights")?.focus();
+                                        } else if (e.key === "End") {
+                                            e.preventDefault();
+                                            setActiveTab("chat");
+                                        }
+                                    }}
+                                >
+                                    <span className="gn-header-tab-icon" aria-hidden="true">💬</span>
+                                    <span>Ask Pulse</span>
+                                </button>
+                            </div>
                             <button
-                                role="tab"
-                                id="gn-tab-insights"
-                                aria-selected={activeTab === "insights"}
-                                aria-controls="gn-tabpanel-insights"
-                                tabIndex={activeTab === "insights" ? 0 : -1}
-                                className={`gn-header-tab${activeTab === "insights" ? " gn-header-tab--active" : ""}`}
-                                onClick={() => setActiveTab("insights")}
-                                onKeyDown={(e) => {
-                                    if (e.key === "ArrowRight" || e.key === "ArrowDown") {
-                                        e.preventDefault();
-                                        setActiveTab("chat");
-                                        // Move focus to the now-active tab so screen readers announce it.
-                                        const next = document.getElementById("gn-tab-chat") as HTMLButtonElement | null;
-                                        next?.focus();
-                                    } else if (e.key === "Home") {
-                                        e.preventDefault();
-                                        setActiveTab("insights");
-                                    } else if (e.key === "End") {
-                                        e.preventDefault();
-                                        setActiveTab("chat");
-                                        document.getElementById("gn-tab-chat")?.focus();
-                                    }
-                                }}
+                                type="button"
+                                className="gn-header-tab gn-header-tab--surface-action"
+                                onClick={() => dispatchPulsePlayViewportAction("focus", "bi")}
+                                aria-label="Open BI Viz surface"
+                                title="Open BI Viz surface"
                             >
-                                <span aria-hidden="true">✨ </span>AI Insights
-                            </button>
-                            <button
-                                role="tab"
-                                id="gn-tab-chat"
-                                aria-selected={activeTab === "chat"}
-                                aria-controls="gn-tabpanel-chat"
-                                tabIndex={activeTab === "chat" ? 0 : -1}
-                                className={`gn-header-tab${activeTab === "chat" ? " gn-header-tab--active" : ""}`}
-                                onClick={() => setActiveTab("chat")}
-                                onKeyDown={(e) => {
-                                    if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
-                                        e.preventDefault();
-                                        setActiveTab("insights");
-                                        const prev = document.getElementById("gn-tab-insights") as HTMLButtonElement | null;
-                                        prev?.focus();
-                                    } else if (e.key === "Home") {
-                                        e.preventDefault();
-                                        setActiveTab("insights");
-                                        document.getElementById("gn-tab-insights")?.focus();
-                                    } else if (e.key === "End") {
-                                        e.preventDefault();
-                                        setActiveTab("chat");
-                                    }
-                                }}
-                            >
-                                <span aria-hidden="true">💬 </span>Ask Pulse
+                                <span className="gn-header-tab-icon gn-header-tab-icon--bi" aria-hidden="true">BI</span>
+                                <span>BI Viz</span>
                             </button>
                         </div>
-                    )}
-                    {enabledFeatures === "both" && (
-                        <button
-                            type="button"
-                            className="gn-header-tab"
-                            onClick={() => dispatchPulsePlayViewportAction("focus", "bi")}
-                            aria-label="Open BI Viz surface"
-                            title="Open BI Viz surface"
-                        >
-                            BI Viz
-                        </button>
                     )}
                     {activeTab === "insights" && isConfigured && (
                         <div

@@ -639,6 +639,24 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 
 ## Coordination Log
 
+### 2026-05-17 - Codex - [DONE] navigation styling first pass
+
+`[DONE]` Rajesh asked to improve styling starting with navigation. The visible Pulse surface row now uses one `gn-surface-switcher` rail for `AI Insights`, `Ask Pulse`, and `BI Viz` instead of one strong active pill plus two loose text labels.
+
+`[DETAIL]` AI Insights / Ask Pulse remain semantic tabs with their existing keyboard behavior. `BI Viz` remains a button that dispatches the existing viewport focus event, but it is now visually grouped as the third peer surface. Styling added icon wells, inactive affordances, hover elevation, active gradient/shadow, dark-mode treatment, compact wrapping, and forced-colors borders.
+
+`[VERIFY]` Tool/design check: Canva brand-template search for `dashboard navigation ui` returned no matching reusable templates; Figma team library search for `segmented control navigation tabs pill dashboard` returned no matching components/styles/variables. Implementation stayed local to PulsePlay's existing design language.
+
+`[VERIFY]` Validation passed:
+
+- `playground`: `npm.cmd run lint`.
+- `playground`: focused `npm.cmd test -- --run src/__tests__/viewportControls.integration.test.tsx` = **18/18**.
+- `playground`: `npm.cmd run build`.
+- `playground`: full `npm.cmd test -- --run` = **568/568**.
+- Browser smoke on `http://127.0.0.1:5176/` confirmed the grouped rail renders and fresh unified mode keeps BI off the permanent split pane.
+
+`[HANDOFF]` Claude: next styling lane can move outward from this stable nav rail to the adjacent action buttons / run-state row. This did not implement floating comparison or Pulse Bubble.
+
 ### 2026-05-17 - Codex - [DONE] error handling baseline + ResponsesAgent Slice 1a
 
 `[ACCEPT]` Rajesh accepted the error-handling lane. Codex locked [ERROR_HANDLING_STRATEGY.md](ERROR_HANDLING_STRATEGY.md) as **Decision (locked 2026-05-17)** and folded in Claude's challenge: standalone Slice 1a first, streaming carve-out, legacy `error` compatibility, and audit gates that prevent new raw-error regressions.

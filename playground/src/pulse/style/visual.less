@@ -1314,45 +1314,103 @@
     letter-spacing: 0.01em;
 }
 
-/* ── Header tabs (Chat / Agent / AI Insights) ── */
+/* ── Header surface switcher (AI Insights / Ask Pulse / BI Viz) ── */
+
+.gn-surface-switcher {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    max-width: 100%;
+    min-width: 0;
+    padding: 3px;
+    border: 1px solid rgba(15, 23, 42, 0.10);
+    border-radius: @gn-radius-pill;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.92));
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.88),
+        0 8px 22px rgba(15, 23, 42, 0.08);
+    flex: 0 1 auto;
+}
 
 .gn-header-tabs {
     display: flex;
-    gap: 4px;
+    gap: 3px;
     flex: 0 1 auto;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     min-width: 0;
-    /* Center the tab group horizontally between the left and right zones. */
-    justify-content: center;
+    justify-content: flex-start;
 }
 
 .gn-header-tab {
-    min-height: 28px;
-    padding: 0 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 0 13px;
     border: 1px solid transparent;
-    border-radius: @gn-radius-pill;
+    border-radius: 999px;
     background: transparent;
     color: @gn-text-muted;
     font-family: @gn-font;
-    font-size: 12.5px;
-    font-weight: 600;
+    font-size: 12px;
+    font-weight: 650;
     cursor: pointer;
-    letter-spacing: 0.01em;
-    transition: all @gn-t-base @gn-ease;
+    letter-spacing: 0;
+    line-height: 1;
+    white-space: nowrap;
+    transition:
+        background @gn-t-base @gn-ease,
+        border-color @gn-t-base @gn-ease,
+        box-shadow @gn-t-base @gn-ease,
+        color @gn-t-base @gn-ease,
+        transform @gn-t-base @gn-ease;
+}
+
+.gn-header-tab-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.06);
+    color: currentColor;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    flex: 0 0 auto;
+}
+
+.gn-header-tab-icon--bi {
+    font-size: 9.5px;
+    letter-spacing: 0;
 }
 
 .gn-header-tab:hover:not(:disabled) {
-    color: @gn-accent;
-    background: @gn-accent-subtle;
+    color: @gn-text;
+    background: rgba(255, 255, 255, 0.82);
+    border-color: rgba(15, 23, 42, 0.10);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+    transform: translateY(-1px);
 }
 
-// Active tab — solid filled accent pill (matches reference design).
+// Active tab — solid filled accent pill inside a shared segmented rail.
 .gn-header-tab--active,
 .gn-header-tab--active:hover:not(:disabled) {
-    background: var(--gn-accent, #1a6fd4);
+    background:
+        linear-gradient(180deg, #2b82e8, var(--gn-accent, #1a6fd4));
     border-color: var(--gn-accent, #1a6fd4);
     color: #fff;
-    box-shadow: 0 1px 3px rgba(26, 111, 212, 0.35);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.26),
+        0 8px 16px rgba(26, 111, 212, 0.28);
+    transform: none;
+}
+
+.gn-header-tab--active .gn-header-tab-icon {
+    background: rgba(255, 255, 255, 0.22);
 }
 
 .gn-header-tab:disabled {
@@ -1369,7 +1427,7 @@
 .gn-space-tab:focus-visible {
     outline: 2px solid var(--gn-accent, #1a6fd4);
     outline-offset: 2px;
-    border-radius: 6px;
+    border-radius: 999px;
 }
 
 // 49.8 — Adjust pill peers with the tab group on the same row. Visually
@@ -1526,13 +1584,39 @@
         color: #fff;
     }
 }
+.gn-shell--dark .gn-surface-switcher {
+    border-color: rgba(255, 255, 255, 0.14);
+    background:
+        linear-gradient(180deg, rgba(17, 24, 39, 0.92), rgba(11, 18, 32, 0.92));
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 10px 24px rgba(0, 0, 0, 0.28);
+}
+
 .gn-shell--dark .gn-header-tab {
     color: rgba(255, 255, 255, 0.72);
 
     &:hover:not(:disabled) {
         color: #fff;
-        background: rgba(255, 255, 255, 0.06);
+        background: rgba(255, 255, 255, 0.08);
+        border-color: rgba(255, 255, 255, 0.14);
+        box-shadow: 0 5px 14px rgba(0, 0, 0, 0.28);
     }
+}
+
+.gn-shell--dark .gn-header-tab-icon {
+    background: rgba(255, 255, 255, 0.10);
+}
+
+.gn-shell--dark .gn-header-tab--active,
+.gn-shell--dark .gn-header-tab--active:hover:not(:disabled) {
+    background:
+        linear-gradient(180deg, var(--gn-accent, #4691e0), #246db7);
+    border-color: rgba(255, 255, 255, 0.18);
+    color: #fff;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.22),
+        0 8px 18px rgba(36, 109, 183, 0.34);
 }
 
 /* ── Space selector (multi-space mode) ── */
@@ -3518,12 +3602,30 @@
     padding: 4px 7px;
 }
 
+/* Surface switcher stays grouped at compact widths, but can wrap inside
+ * its rail before pushing the content down. */
+.gn-compact .gn-surface-switcher {
+    flex-wrap: wrap;
+    border-radius: 18px;
+}
+
+.gn-compact .gn-header-tabs {
+    flex-wrap: wrap;
+}
+
 /* Tabs become icon-emphasised at compact widths (label still visible to
  * keep accessibility, just at smaller font). */
 .gn-compact .gn-header-tab {
-    font-size: 11.5px;
-    padding: 0 10px;
-    min-height: 26px;
+    font-size: 11px;
+    padding: 0 9px;
+    min-height: 30px;
+    gap: 5px;
+}
+
+.gn-compact .gn-header-tab-icon {
+    width: 16px;
+    height: 16px;
+    font-size: 10px;
 }
 
 .gn-compact .gn-header-row--bottom {
@@ -9894,6 +9996,7 @@
     .gn-btn,
     .gn-send,
     .gn-feedback-btn,
+    .gn-surface-switcher,
     .gn-header-tab,
     .gn-modal,
     .gn-setup-step-modal,
