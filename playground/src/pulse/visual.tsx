@@ -4018,8 +4018,8 @@ function App(props: AppProps) {
                             type="button"
                             className="gn-pane-action-btn"
                             onClick={() => dispatchPulsePlayViewportAction("float")}
-                            title="Float AI pane as a popup window you can keep alongside the main app"
-                            aria-label="Float AI panel in popup window"
+                            title="Pop out AI pane as a detached browser window you can keep alongside the main app"
+                            aria-label="Pop out AI panel as window"
                         >
                             <Icon name="float-window" />
                         </button>

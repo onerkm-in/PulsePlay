@@ -1417,11 +1417,15 @@ function PaneChrome(props: {
                             <Icon name="external-link" />
                         </button>
 
-                        {/* Float window — detached popup */}
+                        {/* Pop out window — detached browser window. Renamed
+                         *  from "Float" 2026-05-17 to free up the "Float" /
+                         *  "Compare as panel" naming for the future in-app
+                         *  floating-companion surface (gated on Option B
+                         *  three-piece architecture; see AGENT_SYNC.md). */}
                         <button
                             type="button"
-                            aria-label={`Float ${label} panel in popup window`}
-                            title={`Float ${label} panel as a detached popup window you can keep alongside the main app`}
+                            aria-label={`Pop out ${label} panel as window`}
+                            title={`Pop out ${label} panel as a detached browser window you can keep alongside the main app`}
                             onClick={props.onFloat}
                             style={iconButtonStyle}
                         >

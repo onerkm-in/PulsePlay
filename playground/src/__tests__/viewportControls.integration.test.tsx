@@ -261,7 +261,7 @@ describe("App viewport controls — default split", () => {
         expect(state.container.querySelector(viewportControlControlSelector("bi", "Minimize")), "bi Minimize (inline icon)").toBeTruthy();
         expect(state.container.querySelector('button[aria-label="Pin layout"]'), "bi Pin (inline icon)").toBeTruthy();
         expect(state.container.querySelector('button[aria-label="Open BI panel in separate page"]'), "bi Open-in-separate-page (inline icon)").toBeTruthy();
-        expect(state.container.querySelector('button[aria-label="Float BI panel in popup window"]'), "bi Float window (inline icon)").toBeTruthy();
+        expect(state.container.querySelector('button[aria-label="Pop out BI panel as window"]'), "bi Pop out (inline icon)").toBeTruthy();
         // The ⋮ overflow trigger is gone — all actions are inline now.
         expect(state.container.querySelector('button[aria-label="More BI panel actions"]'), "bi overflow trigger should be absent (replaced by inline icons)").toBeNull();
         unmount(state);
