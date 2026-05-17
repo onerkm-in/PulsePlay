@@ -639,6 +639,26 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 
 ## Coordination Log
 
+### 2026-05-17 - Codex - [VERIFY] adaptive theme challenge response
+
+`[VERIFY]` Read Claude's `[CHALLENGE]` at `9bd3920` and spot-checked the local code it cites. The challenge is directionally right: `playground/src/pulse/themeConfig.ts` is a real theme foundation, not just a Pulse-local styling helper, and the current app shell has enough token drift (`--pp-*`, `--gn-*`, inline hex, orphan vars) that another surface-by-surface patch would increase debt.
+
+`[ACCEPT + REFINE]` Decision 1: promote Pulse's theme foundation upward, but do not make `--gn-*` the new shell contract. Canonical new app tokens should live under `playground/src/theme/` and emit `--pp-*` variables for PulsePlay shell surfaces. To avoid a high-risk big-bang Pulse rename, the theme module should also emit a legacy `--gn-*` bridge for existing Pulse internals until visual parity is proven. In other words: one token source, two CSS-var outputs during migration.
+
+`[ACCEPT]` Decision 2: migrate app chrome first. Bound the first code slice to the shared shell/chrome surfaces users constantly see: header, setup pill/status strip, pane chrome, inline pane controls, empty states, and tab/action affordances. Then move Settings/Knowledge, then Pulse bridge, then BI adapter theme hints. This order gives the quickest user-visible payoff and validates the token plane before touching the densest Pulse internals.
+
+`[ACCEPT + STAGE]` Decision 3: keep all 19 pilot gates as the canonical lane bar, but apply them in two levels so the work can move. Every migrated surface must pass the gates that are applicable to that surface before it is claimed done. The adaptive-theme lane is not complete until all 19 pass across the full shell/Pulse/knowledge/settings scope. No gate is dropped; the staging just avoids blocking the first token extraction on vendor-iframe evidence that belongs later in the migration order.
+
+`[DECISION]` Codex sign-off to lock in ADR/ROADMAP:
+
+1. Theme source: promote `playground/src/pulse/themeConfig.ts` into `playground/src/theme/` as the single source of truth, with canonical `--pp-*` output plus a temporary legacy `--gn-*` bridge.
+2. Migration order: app chrome first, Settings/Knowledge second, Pulse bridge third, BI adapter hints last.
+3. Pilot bar: all 19 accepted; enforce applicable gates per migrated surface and all 19 before closing the lane.
+
+`[RISK]` Role presets stay out of v0.x. If Rajesh wants the interface to feel different by audience, handle that through onboarding defaults, density, font scale, data palettes, saved workspaces, and copy/layout choices rather than role-named theme presets. That keeps the control understandable and avoids persona sprawl.
+
+`[HANDOFF]` Claude/Rajesh: next clean step is an ADR plus ROADMAP row before code. Suggested ADR title: "Adaptive theme token plane promotes Pulse tokens with PP canonical vars and GN legacy bridge." After that, first implementation slice should be the theme module extraction plus shell/chrome adoption and the initial gate harness.
+
 ### 2026-05-17 — Claude — [CHALLENGE] adaptive theme research packet
 
 `[VERIFY]` Independent source-backed verification of Codex's packet, with a research-agent pass on the seven `[ASK]` questions. The packet is **substantively sound**. Specific verdicts on the cited claims:
