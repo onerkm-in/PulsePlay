@@ -74,7 +74,7 @@ const {
     redactProblemCause,
     sendProblem,
 } = require('./lib/problemDetails');
-const { extractSqlSections } = require('./lib/sqlSectionExtractor');
+const { extractSqlSections, extractSqlSectionsFromMarkdown } = require('./lib/sqlSectionExtractor');
 
 // ── Supervisor strategy registry ─────────────────────────────────────────────
 // All supervisor-flavour profile `type` values live in one place so adding a
@@ -5367,7 +5367,27 @@ app.post('/foundation/section', async (req, res) => {
             if (md && md.trim()) renderedContent = md;
         }
 
-        console.log(`[foundation/section] profile=${resolved.name} endpoint=${resolved.profile.foundationModelEndpoint} title=${upperTitle || '-'} structured=${!!effectiveResponseFormat}`);
+        // Phase 11b FM symmetry — extract per-section SQL provenance from
+        // any ```sql fences in the FM response. The FM prompt translator
+        // injects the `/* Section: X */` marker directive when the IR has
+        // structured-sections output; this surfaces the parsed sections
+        // alongside the markdown content so the playground can render
+        // labelled SQL tabs the same way it does for Genie responses.
+        // Raw markdown stays untouched at `content` / `rawContent` as the
+        // fallback for clients that don't read sqlSections yet, and when
+        // no markers are present we omit the field entirely (clean
+        // fallback rather than empty array).
+        //
+        // Scope: we scan `result.content` ONLY — that's the raw LLM output
+        // where any SQL fence the model emitted naturally lives. The
+        // renderer-derived `renderedContent` is a markdown reformat of
+        // parsedJson (action lists, risk lists) and would never introduce
+        // new SQL fences; including it in the scan only risks double-
+        // counting sections from a renderer that decided to echo the raw
+        // SQL.
+        const sqlSections = extractSqlSectionsFromMarkdown(result.content || '');
+
+        console.log(`[foundation/section] profile=${resolved.name} endpoint=${resolved.profile.foundationModelEndpoint} title=${upperTitle || '-'} structured=${!!effectiveResponseFormat} sqlSections=${sqlSections.length}`);
         res.json({
             content: renderedContent,
             rawContent: result.content,
@@ -5375,6 +5395,7 @@ app.post('/foundation/section', async (req, res) => {
             endpoint: resolved.profile.foundationModelEndpoint,
             profile: resolved.name,
             structured: !!effectiveResponseFormat,
+            ...(sqlSections.length > 0 ? { sqlSections } : {}),
         });
     } catch (err) {
         console.error('[foundation/section]', err.message);

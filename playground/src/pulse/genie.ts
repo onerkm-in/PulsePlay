@@ -203,6 +203,47 @@ export interface GenieReasoningTraceEntry {
     detail?: unknown;
 }
 
+/**
+ * Phase 11b FM symmetry — lift `sqlSections` from a Foundation Model
+ * `/foundation/section` response (or any backend that surfaces sections
+ * at the top level rather than wrapped in Genie-style `attachments[]`).
+ *
+ * Returns the same `GenieSqlSection[]` shape `collectGenieSqlFromAttachments`
+ * yields, so callers can feed both Genie and FM responses through the
+ * same `SqlTabs` render path. Defensive: silently drops entries with a
+ * missing sectionId or empty sqlFragment, and tolerates the field being
+ * absent (clean fallback to raw markdown rendering).
+ *
+ * The proxy's `/foundation/section` route emits `sqlSections` at the
+ * top level only when `/* Section: X *\/` markers are present inside a
+ * ```sql code fence in the LLM output. When the field is missing, FM
+ * responses fall back to whatever `content`/`rawContent` rendering the
+ * caller does today.
+ */
+export function liftFmSqlSections(response: unknown): GenieSqlSection[] {
+    if (!response || typeof response !== "object") return [];
+    const raw = (response as { sqlSections?: unknown }).sqlSections;
+    if (!Array.isArray(raw)) return [];
+    const out: GenieSqlSection[] = [];
+    for (const entry of raw) {
+        const sectionId = typeof (entry as { sectionId?: unknown })?.sectionId === "string"
+            ? (entry as { sectionId: string }).sectionId.trim()
+            : "";
+        const sqlFragment = typeof (entry as { sqlFragment?: unknown })?.sqlFragment === "string"
+            ? (entry as { sqlFragment: string }).sqlFragment.trim()
+            : "";
+        if (!sectionId || !sqlFragment) continue;
+        const cteName = typeof (entry as { cteName?: unknown })?.cteName === "string"
+            && (entry as { cteName: string }).cteName.trim()
+            ? (entry as { cteName: string }).cteName.trim()
+            : undefined;
+        const offsetRaw = (entry as { startOffset?: unknown })?.startOffset;
+        const startOffset = Number.isFinite(Number(offsetRaw)) ? Number(offsetRaw) : undefined;
+        out.push({ sectionId, cteName, sqlFragment, startOffset });
+    }
+    return out;
+}
+
 export function collectGenieSqlFromAttachments(attachments: any[] | undefined | null): { queries: string[]; sections: GenieSqlSection[] } {
     const queries: string[] = [];
     const sections: GenieSqlSection[] = [];

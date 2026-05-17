@@ -639,6 +639,31 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 
 ## Coordination Log
 
+### 2026-05-17 — Claude — [SHIPPED] Phase 11b — Foundation Model response-path symmetry
+
+`[DONE]` FM responses now surface per-section SQL provenance the same way Genie does, closing the second half of the Phase 11b promise. All five acceptance criteria Rajesh locked are met:
+
+1. **`extractSqlSections` applied to FM response SQL blobs** ✓ — new helper `extractSqlSectionsFromMarkdown()` in [proxy/lib/sqlSectionExtractor.js](../proxy/lib/sqlSectionExtractor.js) finds every ```sql / ```SQL fence and runs the existing per-fence extractor, translating offsets back into the source markdown. Wired into [proxy/server.js](../proxy/server.js) `/foundation/section` route which scans `result.content` (the raw LLM output) only — not `renderedContent`, which avoided a double-extraction bug caught during the first test run.
+
+2. **Raw SQL fallback preserved** ✓ — `content` and `rawContent` unchanged. The `sqlSections` field is OMITTED entirely when no markers are found (clean fallback rather than empty array, so legacy consumers that branch on `!sqlSections` keep working).
+
+3. **Labelled sections render through the same `SqlTabs` path** ✓ — new playground helper `liftFmSqlSections()` in [playground/src/pulse/genie.ts](../playground/src/pulse/genie.ts) lifts top-level `sqlSections` from FM responses into the same `GenieSqlSection[]` shape `collectGenieSqlFromAttachments` produces. Both paths feed the same `SqlTabs` UI — symmetry test asserts identical labelled-tab rendering for Genie-lifted vs FM-lifted sections.
+
+4. **Focused proxy/playground tests** ✓:
+   - Proxy unit: 7 new tests in [proxy/tests/sqlSectionExtractor.test.js](../proxy/tests/sqlSectionExtractor.test.js) for the new markdown helper (single fence, multiple fences, single-fence-multi-section, no markers, non-sql fences, empty input, empty fence)
+   - Proxy route: 5 new tests in [proxy/tests/foundationSqlSections.test.js](../proxy/tests/foundationSqlSections.test.js) — mocks `callFoundationModel`, hits `/foundation/section` via supertest, asserts the response shape including `sqlSections`, the fallback contract, and the "no scan inside non-sql fences" defence
+   - Playground: 5 new tests in [playground/src/pulse/__tests__/genieSqlSections.test.tsx](../playground/src/pulse/__tests__/genieSqlSections.test.tsx) — lift contract, malformed-entry handling, defensive non-object inputs, and the `SqlTabs` render symmetry test
+
+5. **AGENT_SYNC + HANDOVER** — this entry; HANDOVER picked up next pass.
+
+`[TESTS]` 760/760 proxy green (was 748, +12); 578/578 playground green (was 572, +6).
+
+`[SCOPE-NOTE]` The `/foundation/section` route isn't yet called from any playground UI consumer — this slice ships forward-compatible plumbing so when the FM staged-render path is wired client-side (separate cycle), per-section SQL labelling works out of the box. The Genie path remains the only one currently rendering labelled tabs in production, which is fine — `e21c691` already covers that user-facing surface.
+
+`[BUG-CAUGHT]` First test run revealed an 8-section count when 4 was expected: the route initially scanned `result.content + renderedContent` which double-scanned when `renderedContent` was a copy of `result.content` (the common case when no `parsedJson` is returned). Fixed by scanning only `result.content` — the raw LLM output is the single source of truth for SQL fences; the renderer transforms `parsedJson` into markdown and never introduces SQL.
+
+`[NEXT]` Returning to the locked error-handling lane per Rajesh's plan: **Slice 1c** (OAuth-error normalization in `errorStatusFromDatabricks` closing P0-4 + streaming in-band error events for `/supervisor/confidence` phase-2 silent catch). Slice 1d (raw `err.message` route drain) follows.
+
 ### 2026-05-17 - Codex - [DONE] KPI delta cue for metric-direction semantics
 
 `[DONE]` Rajesh flagged Return Rate and Profit Margin KPI tiles where the delta read as amber/watch only. The fix separates overall KPI status from delta-direction tone: a card can remain `watch`, but the delta itself becomes red/down when the movement is unfavorable for the metric direction.

@@ -123,7 +123,57 @@ function annotateAgainstIR(sections, outputSpec) {
     };
 }
 
+const SQL_FENCE_RE = /```(?:sql|SQL)\s*\r?\n([\s\S]*?)```/g;
+
+/**
+ * extractSqlSectionsFromMarkdown — Phase 11b FM symmetry helper.
+ *
+ * Foundation Model responses (and any other backend that returns markdown
+ * rather than Genie-style `attachments[].query.query`) embed SQL inside
+ * ```sql fences. The FM prompt translator already injects the same
+ * `/* Section: X *​/` directive that the Genie translator uses, so the
+ * markers can appear anywhere inside an FM-emitted SQL fence.
+ *
+ * This helper finds every ```sql / ```SQL fence in the markdown, runs
+ * extractSqlSections() on each fence body, and returns the union of all
+ * sections in document order. Empty when no fences contain markers.
+ *
+ * Why not just run extractSqlSections() on the full markdown:
+ *   - The fragment substring would include markdown prose around the SQL
+ *   - The CTE-name detection would fire on natural-language words like
+ *     "AS" inside narrative text
+ * Fence-scoping keeps the extractor's contract clean.
+ *
+ * @param {string} markdown
+ * @returns {SqlSection[]}
+ */
+function extractSqlSectionsFromMarkdown(markdown) {
+    if (typeof markdown !== 'string' || markdown.length === 0) return [];
+    /** @type {SqlSection[]} */
+    const out = [];
+    SQL_FENCE_RE.lastIndex = 0;
+    let match;
+    while ((match = SQL_FENCE_RE.exec(markdown)) !== null) {
+        const fenceBody = match[1];
+        if (typeof fenceBody !== 'string' || fenceBody.length === 0) continue;
+        const sections = extractSqlSections(fenceBody);
+        if (sections.length === 0) continue;
+        // Offset each section's startOffset into the original markdown so
+        // consumers can resolve back to the source if they want to (e.g.,
+        // for "jump to source" navigation in a diagnostic view).
+        const fenceContentStart = match.index + match[0].indexOf(fenceBody);
+        for (const sec of sections) {
+            out.push({
+                ...sec,
+                startOffset: fenceContentStart + sec.startOffset,
+            });
+        }
+    }
+    return out;
+}
+
 module.exports = {
     extractSqlSections,
+    extractSqlSectionsFromMarkdown,
     annotateAgainstIR,
 };
