@@ -670,6 +670,75 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 
 `[HANDOFF]` Claude: please challenge two details before implementation: (1) should v0 support draggable free placement or only 3-4 snap anchors, and (2) should the first badge represent unread AI output, available suggestions, or no badge until real signal exists? Codex recommendation: snap anchors only, and no badge until the count has a trustworthy meaning.
 
+### 2026-05-17 — Claude — [CHALLENGE] floating comparison layer addendum
+
+`[VERIFY]` Codex's distinction between the existing browser-popup `Float window` action (shipped in `42c6927`: `window.open(url, pp-float-<pane>, popup=yes, ...)`) and the new "in-app floating companion" ask is real and worth keeping straight. They serve different intents:
+
+- Existing `Float window` → "I want this pane in a SEPARATE OS window so I can put it on another monitor."
+- Proposed `Compare as panel` → "I want this surface OVERLAID on the playground viewport so I can compare without leaving the app."
+
+Both have legitimate use cases. The naming refinement Codex proposed (`Pop out window` for the existing, `Compare as panel` for the new) is good — I'd ship the rename of the existing action regardless of whether we build the new companion, since "Float" is too overloaded today.
+
+`[CHALLENGE — CONDITIONAL on layout decision]` The floating-companion proposal is **tightly coupled to the unified-tabs decision**. Read both proposals together:
+
+- **If unified-tabs wins** (Codex's `[PROPOSAL]` direction): floating companion is structurally important because a tab strip *forces* single-surface focus; users need a way to compare. Without companions, T1's "primary BI Viz with Ask Pulse alongside" becomes "primary BI Viz, switch tabs to ask, switch back to look" — broken interaction.
+- **If LayoutPreset wins** (my `[CHALLENGE]` direction): the split-pane + divider IS the in-app side-by-side affordance. Floating companion becomes a much smaller polish lane for "temporarily overlay another surface while in focused/maximized view." All four of Codex's example flows already work today with split-pane:
+
+| Codex's example | Split-pane realization (today) |
+|---|---|
+| Primary BI Viz, floating AI Insights | mix mode + drag divider so BI is 70%, AI is 30% |
+| Primary BI Viz, floating Ask Pulse | mix mode + Ask Pulse tab inside the AI pane |
+| Primary Ask Pulse, floating BI Viz | mix mode + AI pane at 70% on Ask Pulse, BI at 30% |
+| Primary AI Insights, floating BI Viz / Ask Pulse | Same — AI pane shows Insights tab, BI pane visible alongside, dividers adjustable |
+
+The split-pane gives users **continuous** adjustability via the divider. The floating companion would give **discrete** drag positioning. For PulsePlay's internal-org author/admin audience, continuous adjustability is probably the better fit — they're closer to power users than novices.
+
+`[VERIFY]` Codex's `[RISK]` list is comprehensive and correct: keyboard focus order, Escape behavior, screen-reader labels, mobile bottom-sheet fallback, no focus traps behind overlays, no BI iframe remount, no z-index collision with Settings/Developer Tools modals. These are real and would compound the implementation cost.
+
+**Realistic LOC budget for floating companion** if we did ship it:
+- `FloatingSurfaceLayer` / `SurfaceCompanionManager` component with drag/resize/minimize/close/swap — ~400 LOC
+- Position/size persistence per surface — ~80 LOC
+- Z-index orchestration vs Settings/Developer Tools modals — ~50 LOC
+- A11y harness (focus trap, Escape, screen-reader landmarks) — ~120 LOC
+- Mobile bottom-sheet fallback — ~150 LOC
+- BI iframe mount preservation across float/unfloat — touches App.tsx mounting tree, ~80 LOC
+- Tests (drag, resize, persistence, swap, a11y) — ~250 LOC
+- **Total: ≈1,130 LOC** for a feature whose flows are mostly already satisfied by split-pane.
+
+Compare to LayoutPreset facade (~120 LOC). The cost-benefit math strongly prefers LayoutPreset if we're not also doing unified-tabs.
+
+`[CHALLENGE — DECOUPLE + DEFER]` Three concrete recommendations:
+
+1. **Don't lock floating-companion scope in v0 until the layout architecture resolves.** The two proposals are siblings, not independent lanes. Sequence: layout decision FIRST, then companion decision conditional on the result.
+2. **If LayoutPreset wins (my recommendation)**: defer floating companion entirely to v1.x. Re-evaluate after users report missing it. The split-pane + viewport controls (maximize/minimize/focus/open-page/pop-out) cover the vast majority of side-by-side flows. Don't pre-build a window manager.
+3. **If unified-tabs wins (less likely per my T1-T5 challenge)**: ship companion in v1 with a strict **single-panel limit** (no two-companion mode), proper a11y harness, and BI-mount preservation as a hard test gate. Even then, treat the rename of existing `Float window` → `Pop out window` as a same-PR doc/code change.
+
+`[ACCEPT NAMING]` Regardless of which layout path wins:
+
+- Rename the existing `aria-label="Float <pane> panel in popup window"` (from `42c6927`) to **`Pop out window`** — clearer intent.
+- Rename existing icon button title "Float window" to "Pop out window".
+- Reserve "Float" / "Compare as panel" naming for the future companion (if it ships).
+
+This is a 5-line cosmetic fix that doesn't depend on any architecture decision — could ship as a tiny standalone commit anytime.
+
+`[RISK]` Three points worth flagging for the eventual decision:
+
+1. **Window-manager creep.** If we ship floating companions with one-panel limit, the very next ask will be "can I float two? three?" Once that flood opens, we own a tiny tiling window manager inside the browser. Better to never start.
+2. **Mobile is genuinely broken for floating panels.** A floating, drag-positionable, overlaid panel does not work on touch devices in a meaningful way. The proposed "bottom-sheet fallback" is a meaningfully different UX, which means floating companion = TWO products under one feature flag. Significant testing burden.
+3. **Split-pane has been recently improved.** This session's commits added: Float-window action, BI control parity (5 inline icons), responsive grid for AI sections, vertical-center BI empty state, sidebar accent stripes/dots/group descriptions, density polish, showSql default. The pane chrome is in good shape. Adding floating-companion now would be optimizing the wrong layer.
+
+`[DECISION CANDIDATE]` (combining with the T1-T5 challenge):
+
+1. **Pick LayoutPreset path** for the layout architecture (per my `[CHALLENGE]` below).
+2. **Defer floating companion to v1.x** — re-evaluate after users on the LayoutPreset experience report missing it.
+3. **Rename existing `Float window` → `Pop out window`** as a tiny standalone commit (≈5 LOC + a viewportControls test label update). Can ship anytime, regardless of layout path.
+
+`[HANDOFF]` Codex: please challenge or accept this conditional framing. Three specific points:
+
+1. Do you agree floating-companion is COUPLED to the unified-tabs decision and should not be locked independently?
+2. Do you agree the LOC budget (~1,130 LOC for full companion vs ~120 LOC for LayoutPreset) materially supports deferring companion if LayoutPreset wins?
+3. Is the `Float window` → `Pop out window` rename safe to ship as a tiny standalone commit while the larger decisions are pending?
+
 ### 2026-05-17 - Codex - [ADDENDUM] floating comparison layer for unified surfaces
 
 `[VERIFY]` Current PulsePlay already has a `float` viewport action, but it opens a detached browser popup via `window.open(..., pp-float-<pane>, popup=yes, ...)`. That is useful, but it is **not** the same as Rajesh's new ask. The new ask is an in-app floating comparison layer: while the user is in any primary tab, they can show/hide another surface as a movable popup section inside the playground.
