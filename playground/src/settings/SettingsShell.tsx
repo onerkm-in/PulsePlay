@@ -241,6 +241,21 @@ interface SettingsSearchBarProps {
 
 function SettingsSearchBar(props: SettingsSearchBarProps): React.ReactElement {
     const { value, onChange, resultsCount, inputRef } = props;
+    const [focused, setFocused] = useState(false);
+    // Sum of all leaves across all groups so the placeholder gives a concrete
+    // surface estimate rather than a generic prompt. Cheap to compute — the
+    // counts are static + tiny.
+    const totalLeafCount = useMemo(
+        () => SETTINGS_GROUP_IDS.reduce((sum, id) => sum + GROUP_LEAF_LABELS[id].length, 0),
+        [],
+    );
+    // Mac vs non-Mac kbd hint — visible inside the input to make Cmd/Ctrl+/
+    // discoverable. Falls back to "Ctrl" anywhere we can't read userAgent.
+    const isMac = useMemo(() => {
+        if (typeof navigator === "undefined") return false;
+        return /Mac|iPad|iPhone|iPod/.test(navigator.platform || navigator.userAgent || "");
+    }, []);
+    const kbdHint = isMac ? "⌘ /" : "Ctrl /";
     return (
         <div
             style={{
@@ -252,25 +267,70 @@ function SettingsSearchBar(props: SettingsSearchBarProps): React.ReactElement {
                 borderBottom: "1px solid var(--pp-border, rgba(0,0,0,0.08))",
             }}
         >
-            <input
-                ref={inputRef}
-                type="search"
-                placeholder="Search settings… (Cmd/Ctrl+/)"
-                value={value}
-                onChange={e => onChange(e.target.value)}
-                aria-label="Search settings"
+            <div
                 style={{
                     flex: "1 1 auto",
-                    padding: "6px 10px",
-                    fontSize: 13,
-                    border: "1px solid var(--pp-border, rgba(0,0,0,0.18))",
-                    borderRadius: 4,
-                    outline: "none",
-                    background: "var(--pp-input-bg, #fff)",
+                    position: "relative",
+                    display: "flex",
+                    alignItems: "center",
                 }}
-            />
+            >
+                <span
+                    aria-hidden="true"
+                    style={{
+                        position: "absolute",
+                        left: 12,
+                        fontSize: 13,
+                        opacity: 0.5,
+                        pointerEvents: "none",
+                    }}
+                >
+                    🔍
+                </span>
+                <input
+                    ref={inputRef}
+                    type="search"
+                    placeholder={`Search ${totalLeafCount} settings across 6 groups…`}
+                    value={value}
+                    onChange={e => onChange(e.target.value)}
+                    onFocus={() => setFocused(true)}
+                    onBlur={() => setFocused(false)}
+                    aria-label="Search settings"
+                    style={{
+                        flex: "1 1 auto",
+                        width: "100%",
+                        padding: "8px 64px 8px 32px",
+                        fontSize: 13,
+                        fontWeight: focused || value ? 500 : 400,
+                        border: `1px solid ${focused ? "var(--pp-accent, #0078d4)" : "var(--pp-border, rgba(0,0,0,0.18))"}`,
+                        borderRadius: 6,
+                        outline: "none",
+                        background: "var(--pp-input-bg, #fff)",
+                        boxShadow: focused ? "0 0 0 3px rgba(0, 120, 212, 0.12)" : "none",
+                        transition: "border-color 0.12s ease, box-shadow 0.12s ease, font-weight 0.12s ease",
+                    }}
+                />
+                <kbd
+                    aria-hidden="true"
+                    style={{
+                        position: "absolute",
+                        right: 10,
+                        padding: "2px 6px",
+                        fontSize: 11,
+                        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+                        background: "var(--pp-border, rgba(0,0,0,0.06))",
+                        border: "1px solid rgba(0,0,0,0.08)",
+                        borderRadius: 3,
+                        opacity: focused ? 0 : 0.7,
+                        pointerEvents: "none",
+                        transition: "opacity 0.12s ease",
+                    }}
+                >
+                    {kbdHint}
+                </kbd>
+            </div>
             {value && (
-                <span style={{ fontSize: 12, opacity: 0.6 }}>
+                <span style={{ fontSize: 12, opacity: 0.65, whiteSpace: "nowrap" }}>
                     {resultsCount} group{resultsCount === 1 ? "" : "s"} matched
                 </span>
             )}
@@ -402,6 +462,21 @@ const READINESS_DOT_LABEL: Record<"ready" | "needed" | "info", string> = {
     info:   "Informational",
 };
 
+// Subtle per-group accent rendered as a 3px left border on the inactive rail
+// row. Gives the eye a stable anchor when scanning groups — readiness dot
+// answers "what's the status?", accent answers "which group is this?".
+// Picked indigo for Setup (not green) so the accent doesn't fight the
+// "ready" dot color. Active row hides the accent because the blue active
+// fill takes over the left edge.
+const GROUP_ACCENT_COLOR: Record<SettingsGroupId, string> = {
+    setup:       "#6366f1",   // indigo — distinct from the green "ready" dot
+    bi:          "#0ea5e9",   // sky
+    ai:          "#7c3aed",   // violet
+    preferences: "#f59e0b",   // amber
+    system:      "#64748b",   // slate
+    advanced:    "#6b7280",   // gray
+};
+
 function SettingsLeftRail(props: SettingsLeftRailProps): React.ReactElement {
     return (
         <nav
@@ -430,12 +505,19 @@ function SettingsLeftRail(props: SettingsLeftRailProps): React.ReactElement {
                             padding: "10px 12px",
                             margin: "2px 0",
                             border: 0,
+                            // 3px left accent for visual group identity. Hidden
+                            // on the active row (blue fill takes over). Inactive
+                            // row keeps the accent so the eye registers the
+                            // group by its color stripe even when scanning fast.
+                            borderLeft: active ? "3px solid transparent" : `3px solid ${GROUP_ACCENT_COLOR[id]}`,
+                            paddingLeft: 9,
                             borderRadius: 6,
                             background: active ? "var(--pp-accent, #0078d4)" : "transparent",
                             color: active ? "white" : "inherit",
                             cursor: "pointer",
                             fontSize: 13,
                             fontWeight: active ? 600 : 500,
+                            transition: "background 0.12s ease",
                         }}
                     >
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
