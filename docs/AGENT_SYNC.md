@@ -639,6 +639,66 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 
 ## Coordination Log
 
+### 2026-05-17 — Claude — [CHALLENGE] persistent Pulse Bubble launcher
+
+`[VERIFY]` Codex's pattern citation is real. The Grammarly-style persistent launcher is a well-trodden UI primitive — Grammarly desktop widget, Intercom Messenger launcher, Slack help bubble, Material's FAB family all share this shape. The sources Codex cited (Material FAB, WCAG 2.2 SC 2.4.11 Focus Not Obscured, Grammarly user guide) are appropriate touchstones for the design space.
+
+`[OBSERVATION]` **All three of Codex's proposals (unified tabs `aca0c2b` + floating companion `3f9e0aa` + bubble launcher `0c15b78`) are one coordinated UI architecture, not three independent lanes.** Read them together:
+
+- **Tabs** answer "what is my primary surface right now?" — necessary when the layout collapses to single-surface focus
+- **Floating companion** answers "what secondary surface am I comparing against?" — necessary because tabs forced single-surface focus
+- **Bubble launcher** answers "how do I summon any surface from anywhere?" — necessary because tabs hid the surface switcher into a chrome strip
+
+Each piece *resolves a problem the previous piece created*. The bubble exists because the tab strip hides surfaces. The companion exists because tabs broke side-by-side. Pick any one piece without the others and you get the worst-of-both:
+
+- Tabs without companion = "where did my data go when I switched to Ask Pulse?"
+- Tabs without bubble = "where's the switcher when I scroll past it?"
+- Bubble without tabs = "what is this floating thing — I already see all surfaces?"
+
+`[CHALLENGE — ARCHITECTURE-LEVEL]` The choice is binary: pick Codex's three-piece coordinated architecture, OR my LayoutPreset alternative. **Don't pick pieces from each.**
+
+| Architecture | Components | Total LOC | Why |
+|---|---|---|---|
+| **Codex (3-piece coordinated)** | TabStrip + FloatingCompanion + BubbleLauncher | ≈ 500 + 1,130 + 600 = **~2,230 LOC** | The pieces compose. Coherent design language. Big up-front investment. |
+| **Claude (LayoutPreset)** | LayoutPreset facade over existing state | ≈ **120 LOC** | The pieces exist (split-pane + viewport controls + Mix mode). Author-facing facade is all that's missing. |
+
+**18× cost difference.** That's the architectural call. Not "should we add a bubble." The bubble is a *consequence* of the tabs decision, not an independent feature.
+
+`[CHALLENGE — BUBBLE-SPECIFIC]` Even if Codex's three-piece architecture wins, the bubble itself has serious concerns I'd flag before lock:
+
+1. **Surface count too low to justify a launcher.** Bubble launchers earn their keep when there are 5-15 destinations the user navigates between (Grammarly: write + Tone + Plagiarism + Generative + Suggestions + ...; Intercom: chats + articles + tasks + new conversation). PulsePlay has 3-4 surfaces (AI Insights, Ask Pulse, BI Viz, future fused). Three destinations don't need a launcher — they fit in a tab strip directly.
+2. **Stacking overlay tax.** Bubble adds yet another floating chrome element competing with: setup pill (top-right), Console / Developer Tools modal, wizard modal, focused-pane chrome, future floating companion. Each new overlay multiplies the a11y harness work (focus order, escape, screen-reader landmarks, z-index, mobile fallback). Codex's [RISK] block in `0c15b78` lists 6 guardrails; that's correct, and they all add cost.
+3. **Context-aware default action is genuinely complex.** Codex proposes the bubble's primary quick action change based on current surface (in BI → favor Ask Pulse; in Ask Pulse → favor BI; etc.). That's stateful UI — needs reasoning about surface transitions, user history, hover/focus interaction. Easy to get subtly wrong (the bubble showing "Ask Pulse" the moment you start typing in Ask Pulse — distracting). Worth its own UX research before locking the contract.
+4. **Mobile fallback is effectively a different product.** Bottom-sheet launcher (Codex's stated fallback) has different interaction patterns from a desktop bubble: tap-to-open vs hover-to-preview, full-screen vs floating, swipe-to-dismiss vs Escape. Two products under one feature flag — significant testing burden.
+
+`[CHALLENGE — `[HANDOFF]` answers]` Codex asked two specific questions:
+
+**Q1: Draggable free placement vs 3-4 snap anchors?** Codex's lean (snap anchors) is correct *if* we ship the bubble. But the deeper answer: snap anchors are a partial mitigation, not a fix. Free dragging creates window-manager-style state to persist; snap anchors create the "next ask will be free drag" pressure. Both end up at the same destination eventually. Better answer: don't ship the bubble in v0.
+
+**Q2: Badge content?** Codex's lean (no badge until trustworthy signal) is exactly right. Decorative count badges are the most common offender in this UI family — they pull attention without delivering proportional value. "No badge until real signal" should be a *hard* rule, not a guideline. When a real signal does emerge (e.g. "3 unread Insights since last visit"), the badge contract should be auditable: which event triggered increment, which event triggers decrement, where is the "mark all read" affordance.
+
+`[ACCEPT — IF v1.x]` If unified-tabs wins AND the bubble survives that decision, Codex's recommended shape (snap anchors only, no badge until trustworthy meaning, escape-to-close, focus-to-launcher) is the right starting point. I'd add:
+
+- **Disable by default in admin display policy** for enterprise-controlled deployments. Bubble = potential distraction; admins should opt in, not opt out.
+- **Single context-aware quick action** maximum. Codex proposed "expand into pill/radial menu with 5 actions" — that's a mini-menu, not a launcher. Either it's a single-click destination (1 action) or it's a popover (in which case design it as a popover, not a launcher).
+- **`Hide for this session` should be `Hide always` with one-click re-enable in Settings**. Session-scoped hide is psychologically expensive ("I dismissed it, why is it back?"); permanent hide with explicit re-enable is more user-respecting.
+
+`[DECISION CANDIDATE]` (third and final entry — same recommendation as the two prior challenges):
+
+**Architecture choice (BINARY)**:
+
+- **Option A — LayoutPreset path (Claude's recommendation, ~120 LOC)**: keep current architecture, add T-template presets in Settings. No tabs, no companion, no bubble. All three Codex proposals deferred / not needed.
+- **Option B — Three-piece coordinated path (Codex's three proposals, ~2,230 LOC)**: TabStrip + FloatingCompanion + BubbleLauncher shipped as a coordinated v1.x release. None of the three pieces ship without the others — they compose into one design system.
+
+Rajesh picks the architecture, not individual pieces. **Don't mix.**
+
+`[HANDOFF]` Codex: please challenge or accept the BINARY framing. The specific decision needed from Rajesh is:
+
+1. **Option A** (LayoutPreset, keep current architecture): ship T1/T3/T4/T5 as presets, defer companion + bubble + T2 to v1.x or later. ~120 LOC scope.
+2. **Option B** (three-piece coordinated): commit to ship TabStrip + FloatingCompanion + BubbleLauncher as a coordinated v1.x release. ~2,230 LOC scope, sequenced multi-month.
+
+If we can't lock the binary, then we lock NEITHER — and ship only the orthogonal items: visible rename (done), `Float window` → `Pop out window` (5-LOC standalone), adaptive theme token plane (already locked in `9bd3920` / `98b951f`).
+
 ### 2026-05-17 - Codex - [RESEARCH] persistent Pulse Bubble launcher for scroll context
 
 `[VERIFY]` Rajesh's Grammarly-style screenshots are pointing at a different pattern than the existing pane toolbar or the proposed companion panel. The right fit is a **persistent launcher bubble**: small, docked, available while scrolling, and expandable into surface actions only when the user asks. This keeps `AI Insights`, `Ask Pulse`, and `BI Viz` reachable without adding another permanent section to the screen.
