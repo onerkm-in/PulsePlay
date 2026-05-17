@@ -2,7 +2,7 @@
 
 > **Audience:** engineers wiring the proxy, IT/InfoSec teams reviewing what it calls, future contributors adding new connectors.
 >
-> **Scope:** the 8 backend paths the proxy supports today, every external API it touches, OAuth/M2M setup for production, and the route table the playground talks to. Pulse-specific user-identity propagation and PBI-sandbox limitations have been removed — they are archived at [inherited/API_AUTH_AND_LIMITATIONS_FULL.md](inherited/API_AUTH_AND_LIMITATIONS_FULL.md).
+> **Scope:** the 9 backend paths the proxy supports today, every external API it touches, OAuth/M2M setup for production, and the route table the playground talks to. Pulse-specific user-identity propagation and PBI-sandbox limitations have been removed — they are archived at [inherited/API_AUTH_AND_LIMITATIONS_FULL.md](inherited/API_AUTH_AND_LIMITATIONS_FULL.md).
 
 ## 1. APIs the proxy calls
 
@@ -65,7 +65,15 @@ The agent definition lives in [databricks-agents/supervisor/](../databricks-agen
 
 No new endpoints — proxy fans out to N Genie spaces (1.1 row 2-4 above) in parallel, then synthesizes via either Foundation Model (1.5) or OpenAI (1.2).
 
-### 1.8 Localhost only (playground -> proxy)
+### 1.8 Mosaic AI ResponsesAgent (`profile.type === 'responses-agent'`)
+
+| HTTP | Endpoint | Used by |
+|---|---|---|
+| POST | `https://<workspace>/serving-endpoints/{responsesAgentEndpoint}/invocations` | Managed Agent Framework / ResponsesAgent invocation |
+
+See [proxy/lib/responsesAgentClient.js](../proxy/lib/responsesAgentClient.js). The public proxy routes are `/responses-agent/health` and `/responses-agent/chat`; both inherit the same rate-limit, IdP, shared-key, and allowlist posture as the other cost-bearing AI connector paths.
+
+### 1.9 Localhost only (playground -> proxy)
 
 | HTTP | Endpoint | Used by |
 |---|---|---|
@@ -86,6 +94,8 @@ No new endpoints — proxy fans out to N Genie spaces (1.1 row 2-4 above) in par
 | POST | `/bedrock/invoke` | Direct Bedrock InvokeModel |
 | POST | `/supervisor/run` | Real Supervisor Agent invocation |
 | POST | `/supervisor-local/run` | Proxy-side fan-out |
+| GET | `/responses-agent/health` | Managed ResponsesAgent profile discovery/health |
+| POST | `/responses-agent/chat` | Managed ResponsesAgent invocation |
 
 The Vite dev server proxies `/api/*` from the playground at `http://127.0.0.1:5173` to the proxy at `http://127.0.0.1:8787`. So the React app fetches `/api/assistant/conversations/start` and the proxy receives it at `/assistant/conversations/start`.
 

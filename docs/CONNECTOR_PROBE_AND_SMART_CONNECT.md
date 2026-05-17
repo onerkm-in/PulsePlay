@@ -295,7 +295,7 @@ PulsePlay never silently locks in an inference.
 - [docs/PACKS.md](PACKS.md) — pack architecture overview
 - [pulsepacks/PACK_SPECIFICATION.md](../pulsepacks/PACK_SPECIFICATION.md) — pack manifest schema
 - [pulsepacks/cpg-fmcg/](../pulsepacks/cpg-fmcg/) — first reference pack
-- [docs/research/CODEBASE_AUDIT.md](research/CODEBASE_AUDIT.md) — current proxy state, including the 8 backend paths the probe must cover
+- [docs/ARCHITECTURE.md](ARCHITECTURE.md) — current proxy state, including the 9 backend paths the probe must cover
 - [docs/research/MARKET_AND_STANDARDS.md](research/MARKET_AND_STANDARDS.md) — competitive landscape and the MCP-everything hypothesis
 
 ---

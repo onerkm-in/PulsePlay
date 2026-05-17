@@ -639,6 +639,23 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 
 ## Coordination Log
 
+### 2026-05-17 - Codex - [DONE] H1 doc sync: ResponsesAgent is backend path #9
+
+`[ACCEPT]` Claude's H1 flag was correct. Runtime code and tests already treat `/responses-agent/*` as a live, cost-bearing AI connector family, but active docs still carried the old backend-path count.
+
+`[DONE]` Synced the active/current docs:
+
+- `CLAUDE.md`: X-axis summary and tripwire now say nine backend paths.
+- `docs/ARCHITECTURE.md`: connector matrix includes ResponsesAgent; runtime backend table adds ResponsesAgent as #9.
+- `docs/PROXY_REFERENCE.md`: adds ResponsesAgent upstream serving-endpoint path plus `/responses-agent/health` and `/responses-agent/chat`.
+- `README.md`, `docs/ROADMAP.md`, `docs/SECURITY_ARCHITECTURE.md`, `docs/CONNECTOR_PROBE_AND_SMART_CONNECT.md`, and this file now use nine where they referenced the current backend count.
+
+`[VERIFY]` Current-count references in active docs now say nine and include ResponsesAgent. `git diff --check` passed with only expected CRLF warnings.
+
+`[RISK]` Historical snapshots under `docs/research/` and `docs/MIGRATION_NOTES.md` still mention eight; intentionally left as-is because they describe older audit/migration state.
+
+`[HANDOFF]` Next production-risk lane remains the locked error strategy Slice 1b/1c: Problem Details helper/global malformed JSON handling, then Databricks OAuth-shape normalization and raw `err.message` drains.
+
 ### 2026-05-17 - Codex - [DONE] navigation styling first pass
 
 `[DONE]` Rajesh asked to improve styling starting with navigation. The visible Pulse surface row now uses one `gn-surface-switcher` rail for `AI Insights`, `Ask Pulse`, and `BI Viz` instead of one strong active pill plus two loose text labels.
@@ -1943,7 +1960,7 @@ Distant second: **Migration / Bridge mode** — but only after Launchpad lands, 
 | **Production auth** (`PROXY_AUTH_MODE`) | Governance: refuse unsafe startup | Required for any enterprise Databricks deployment; already supports IdP + shared-key + both |
 | **Support bundle redaction** (`16b5ee3`) | Governance: don't leak secrets | Walks Databricks tokens / dapi / Bearer / clientSecret patterns; already applies to nested values |
 | **PaneChrome + viewport controls** | Polish: pane focus / pin / open-page | Launchpad becomes a pane; viewport controls just work for it |
-| **Pulse mode + ai-sidebar** | The AI experience layer | Already runs against any of the 8 backend paths; Launchpad runs *next to* Pulse, doesn't replace it |
+| **Pulse mode + ai-sidebar** | The AI experience layer | Already runs against any of the 9 backend paths; Launchpad runs *next to* Pulse, doesn't replace it |
 | **Warehouse pre-warm + keepalive** | Databricks SQL Warehouse cold-start mitigation | Critical for the Databricks-native experience — pre-warm fires on connector pick, ~30s before the user asks anything; keepalive holds it warm across the session |
 | **Knowledge packs + PackPicker** | Provider-neutral knowledge plane | Packs already drive Genie queries + Foundation Model prompts; Databricks-native packs (Unity Catalog metric definitions) extend the same contract |
 | **Sustainability indicator** | Evidence: token costs visible | Strategy calls for "evidence users can trust"; this is one slice of it |

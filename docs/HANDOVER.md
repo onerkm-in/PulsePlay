@@ -5,6 +5,29 @@
 
 ---
 
+## 2026-05-17 - H1 doc sync: ResponsesAgent is the ninth backend path
+
+**Range:** Claude's review correctly flagged that the code had shipped `/responses-agent/*` but active docs still carried the old runtime-backend count. This pass updates the current/canonical docs only; historical audit and migration snapshots are left untouched.
+
+### What shipped
+
+- Updated [CLAUDE.md](../CLAUDE.md) to describe nine backend paths and include ResponsesAgent in the X-axis summary.
+- Updated [ARCHITECTURE.md](ARCHITECTURE.md): the connector matrix now includes ResponsesAgent, and the runtime backend table adds Mosaic AI ResponsesAgent as path #9.
+- Updated [PROXY_REFERENCE.md](PROXY_REFERENCE.md) with the ResponsesAgent upstream serving-endpoint route and public proxy routes `/responses-agent/health` + `/responses-agent/chat`.
+- Synced active docs that still said eight: [README.md](../README.md), [ROADMAP.md](ROADMAP.md), [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md), [CONNECTOR_PROBE_AND_SMART_CONNECT.md](CONNECTOR_PROBE_AND_SMART_CONNECT.md), and [AGENT_SYNC.md](AGENT_SYNC.md).
+
+### Validation
+
+- Current-count references in active docs now say nine and include ResponsesAgent.
+- `git diff --check` passed with only expected CRLF warnings.
+
+### Tripwires
+
+- Historical docs under `docs/research/` and `docs/MIGRATION_NOTES.md` still mention eight because they preserve older audit snapshots. Do not rewrite those unless explicitly creating a new audit revision.
+- This is H1 docs only. It does not start Slice 1b/1c of the error-handling strategy.
+
+---
+
 ## 2026-05-17 - Navigation styling pass: unified surface switcher rail
 
 **Range:** Rajesh asked to improve styling, starting with navigation. The visible issue was that AI Insights looked like a primary blue pill while Ask Pulse and BI Viz read as loose text labels, even though all three are now peer surfaces.

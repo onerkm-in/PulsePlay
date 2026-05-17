@@ -81,10 +81,10 @@ The "Power BI + Azure OpenAI" deployment from Track 1 must still pass Discovery 
 
 ## Track 3 — Reasoning (AI Connectors / the X-axis)
 
-What does the **reasoning**. 8 backend paths today; the dispatcher pattern makes adding more cheap.
+What does the **reasoning**. 9 backend paths today; the dispatcher pattern makes adding more cheap.
 
 **Current state (DONE):**
-- **8 backend paths** in `proxy/server.js` — Genie, Foundation Model, Azure OpenAI, Bedrock-direct, Bedrock-RAG, Supervisor, Supervisor-stream, plus the dispatcher layer
+- **9 backend paths** in `proxy/server.js` — Genie, Foundation Model, Azure OpenAI, Bedrock-direct, Bedrock-RAG, Supervisor, Supervisor-local, ResponsesAgent, plus the dispatcher layer
 - **Phase 11a Prompt IR** — vendor-neutral prompt contract + per-backend translators (Genie / FM / Supervisor) with byte-identity coverage on Genie
 - **Frame-to-prompt wiring** — frontend `body.frame` + proxy `validateFrame` + `prependFrameContext` + audit log across all 5 start routes
 - **Discovery Loop Phase A** — pre-flight reachability fusion (schema + KPI + reachability)
@@ -106,7 +106,7 @@ What does the **reasoning**. 8 backend paths today; the dispatcher pattern makes
 - Warehouse pre-warm is opt-in by profile (proxy returns 400 when no `warehouseId`; the warmer treats this as `no-warehouse`, not an error).
 
 **Non-Databricks proof point:**
-Same "Power BI + Azure OpenAI" deployment. Among the 8 backend paths is Azure OpenAI; the Prompt IR translates equally to OpenAI prompts. Pulse Insights pipeline, Discovery Loop, and Frame-to-prompt all work without a single Databricks call.
+Same "Power BI + Azure OpenAI" deployment. Among the 9 backend paths is Azure OpenAI; the Prompt IR translates equally to OpenAI prompts. Pulse Insights pipeline, Discovery Loop, and Frame-to-prompt all work without a single Databricks call.
 
 ---
 

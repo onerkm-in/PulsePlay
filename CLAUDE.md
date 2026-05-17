@@ -70,7 +70,7 @@ State file is `.pulseplay-session.state.json` at the repo root. The legacy `.dwd
 | Axis | What varies | Where it lives |
 |---|---|---|
 | **Y: BI vendor** | What the user is LOOKING AT | `bi-adapters/<vendor>/` — frontend adapters implementing `BIAdapter` interface |
-| **X: AI connector** | What the AI brain IS | `proxy/` profile types — Genie, Azure OpenAI, Bedrock, Foundation Model, Supervisor (8 backend paths total) |
+| **X: AI connector** | What the AI brain IS | `proxy/` profile types — Genie, Azure OpenAI, Bedrock, Foundation Model, Supervisor, ResponsesAgent (9 backend paths total) |
 
 ANY combination of (vendor, connector) is valid. Switching either is independent. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full architecture.
 
@@ -143,8 +143,8 @@ Carried over tripwire from DwD. Tests can't rely on in-memory mutations to `prof
 **Genie Agent Mode is UI-only**
 Carried over from DwD's Session 76 tripwire. Verified definitively via 20+ probes — public REST API silently swallows the `force_deep_research_planning` flag. The Foundation Model serving endpoint path (proxy `/foundation/section`) is the workaround. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) "Genie Agent Mode is UI-only" callout.
 
-**Eight backend paths, not six**
-Earlier docs (`MULTI_BI_ARCHITECTURE.md`, `README.md`) said the proxy supports six backends. The 2026-05-10 codebase audit confirmed eight. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) "Eight runtime backend paths" for the corrected table.
+**Nine backend paths, not six/eight**
+Earlier docs (`MULTI_BI_ARCHITECTURE.md`, `README.md`) said the proxy supports six backends. The 2026-05-10 codebase audit confirmed eight, and the 2026-05-17 ResponsesAgent connector made nine. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) "Nine runtime backend paths" for the corrected table.
 
 **Supervisor stagger is 2000 ms, not 800 ms**
 [ADR-0003](docs/adr/0003-supervisor-stagger-800ms.md) title says 800 ms. Actual code at [proxy/server.js:3556](proxy/server.js#L3556) is 2000 ms. ADR title rename pending.

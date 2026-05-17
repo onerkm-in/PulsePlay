@@ -31,13 +31,13 @@ PulsePlay's defining design decision is independence between two axes:
 
 Any cell of the matrix is valid:
 
-|                          | Genie (Databricks) | Azure OpenAI | AWS Bedrock | Foundation Model | Supervisor |
-|--------------------------|--------------------|--------------|-------------|------------------|------------|
-| **Power BI**             | yes (Pulse pattern)| yes          | yes         | yes              | yes        |
-| **Tableau**              | yes                | yes          | yes         | yes              | yes        |
-| **Qlik Sense / View**    | yes                | yes          | yes         | yes              | yes        |
-| **Looker**               | yes                | yes          | yes         | yes              | yes        |
-| **Generic iframe**       | yes                | yes          | yes         | yes              | yes        |
+|                          | Genie (Databricks) | Azure OpenAI | AWS Bedrock | Foundation Model | Supervisor | ResponsesAgent |
+|--------------------------|--------------------|--------------|-------------|------------------|------------|----------------|
+| **Power BI**             | yes (Pulse pattern)| yes          | yes         | yes              | yes        | yes            |
+| **Tableau**              | yes                | yes          | yes         | yes              | yes        | yes            |
+| **Qlik Sense / View**    | yes                | yes          | yes         | yes              | yes        | yes            |
+| **Looker**               | yes                | yes          | yes         | yes              | yes        | yes            |
+| **Generic iframe**       | yes                | yes          | yes         | yes              | yes        | yes            |
 
 The user picks both axes independently in the sidebar. Switching either does not disturb the other.
 
@@ -121,9 +121,9 @@ The host can issue `BICommand` instances back into the embedded view. Adapters i
 
 Independent of which BI tool is loaded, the AI sidebar talks to **one connector at a time**. Connector profiles are configured in `proxy/config.json` (or via `PROXY_PROFILE_*` env vars) and listed via `GET /assistant/profiles`. The user picks one in the `ConnectorPicker`; subsequent prompts include `assistantProfile: <name>` so the proxy routes to the right backend.
 
-### Eight runtime backend paths
+### Nine runtime backend paths
 
-The `MULTI_BI_ARCHITECTURE.md` predecessor of this doc and the README claimed six. The 2026-05-10 codebase audit confirmed eight. Listed here in the order the proxy detects them, with the file:line that hosts each.
+The `MULTI_BI_ARCHITECTURE.md` predecessor of this doc and the README claimed six. The 2026-05-10 codebase audit confirmed eight; the 2026-05-17 ResponsesAgent connector made nine. Listed here in the order the proxy detects them, with the file:line that hosts each.
 
 | # | Backend | Detection | Code path | Source |
 |---|---|---|---|---|
@@ -135,8 +135,9 @@ The `MULTI_BI_ARCHITECTURE.md` predecessor of this doc and the README claimed si
 | 6 | Mosaic AI Foundation Model | `profile.type === 'foundation-model'` + `foundationModelEndpoint` | `callFoundationModel` | [foundationModelClient.js:125-155](../proxy/lib/foundationModelClient.js#L125) |
 | 7 | Supervisor (real Mosaic AI agent endpoint) | `profile.type === 'supervisor'` | inline `https.request` against `host + endpoint` | [server.js:4054-4078](../proxy/server.js#L4054) |
 | 8 | Supervisor-local (proxy-side fan-out) | `profile.type === 'supervisor-local'` | `runLocalSupervisor` -> `askGenieProfile x N + synthesizeSupervisorAnswer` | [server.js:3509-3588](../proxy/server.js#L3509) |
+| 9 | Mosaic AI ResponsesAgent (managed Agent Framework endpoint) | `profile.type === 'responses-agent'` + `responsesAgentEndpoint` | `callResponsesAgent` via `/responses-agent/chat` | [server.js:5311-5389](../proxy/server.js#L5311), [responsesAgentClient.js](../proxy/lib/responsesAgentClient.js) |
 
-Eight, not six. The README and prior architecture doc were wrong; this one is the corrected reference.
+Nine, not six or eight. Older audit/migration notes may still say eight because they are historical snapshots; this doc is the corrected reference.
 
 ### The orchestrator
 

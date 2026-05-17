@@ -14,7 +14,7 @@ PulsePlay is a **defense-in-depth orchestration layer**, not a fortress. It sits
 
 ## 1. Identity & Authentication Flows
 
-PulsePlay supports **eight backend identity paths** (multi-AI × multi-BI). Each routes credentials predictably:
+PulsePlay supports **nine backend identity paths** (multi-AI × multi-BI). Each routes credentials predictably:
 
 | Path | Credential | Lives | Blast radius if leaked |
 |---|---|---|---|
