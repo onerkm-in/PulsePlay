@@ -98,7 +98,7 @@ export function SetupGroup(): React.ReactElement {
                 <div style={actionRowStyle}>
                     <SetupLinkButton label={activeAiProfile ? "Change AI profile" : "Choose AI profile"} group="ai" leaf="provider" primary={!activeAiProfile} />
                     <SetupLinkButton label="Knowledge pack" group="ai" leaf="knowledge-pack" />
-                    <SetupLinkButton label="AI Insights and Chat" group="ai" leaf="ai-insights" />
+                    <SetupLinkButton label="AI Insights and Ask Pulse" group="ai" leaf="ai-insights" />
                 </div>
             </Leaf>
 

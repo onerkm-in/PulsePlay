@@ -143,9 +143,9 @@ function MixCompositionPanel(): React.ReactElement {
                     value={pulseSettings.enabledFeatures}
                     onChange={(v) => updatePulse({ enabledFeatures: v })}
                     options={[
-                        { value: "both", label: "Insights + Chat" },
+                        { value: "both", label: "Insights + Ask Pulse" },
                         { value: "insightsOnly", label: "Insights only" },
-                        { value: "chatOnly", label: "Chat only" },
+                        { value: "chatOnly", label: "Ask Pulse only" },
                     ]}
                 />
             </Leaf>

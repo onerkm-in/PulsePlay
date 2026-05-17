@@ -3937,7 +3937,7 @@ function App(props: AppProps) {
                                     }
                                 }}
                             >
-                                <span aria-hidden="true">💬 </span>Chat
+                                <span aria-hidden="true">💬 </span>Ask Pulse
                             </button>
                         </div>
                     )}

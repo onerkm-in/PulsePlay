@@ -311,7 +311,7 @@ export function AiGroup(): React.ReactElement {
             <Leaf
                 group="ai"
                 label="AI Insights"
-                helper="Canonical setup for AI Insights and Chat behavior: prompt strategy, domain guidance, section schema, metric semantics, and evidence display. Saves to Pulse genieSettings and live-updates the playground."
+                helper="Canonical setup for AI Insights and Ask Pulse behavior: prompt strategy, domain guidance, section schema, metric semantics, and evidence display. Saves to Pulse genieSettings and live-updates the playground."
             >
                 <PulseAiInsightsSettingsPanel
                     value={pulseAi.value}
@@ -387,9 +387,9 @@ function PulseAiInsightsSettingsPanel(props: {
                 value={value.enabledFeatures}
                 onChange={enabledFeatures => onChange({ enabledFeatures })}
                 options={[
-                    { value: "both", label: "Both — AI Insights + Chat" },
+                    { value: "both", label: "Both — AI Insights + Ask Pulse" },
                     { value: "insightsOnly", label: "AI Insights only" },
-                    { value: "chatOnly", label: "Chat only" },
+                    { value: "chatOnly", label: "Ask Pulse only" },
                 ]}
             />
 

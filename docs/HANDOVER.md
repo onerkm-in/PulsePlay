@@ -5,6 +5,30 @@
 
 ---
 
+## 2026-05-17 - Ask Pulse label + unified surface-tabs proposal
+
+**Range:** Rajesh proposed treating BI as a peer surface beside AI work instead of a permanently separate default pane, using [Proposed_Preset_Templates.pdf](Proposed_Preset_Templates.pdf) as the sketch reference. The low-risk copy change shipped now; the BI-as-tab architecture is intentionally captured for review before code changes.
+
+### What shipped
+
+- Renamed the visible **Chat** surface to **Ask Pulse** across the Pulse viewer tab, setup wizard, Settings AI/Preferences selectors, and Power BI format-pane display strings. Internal `chat` keys are unchanged to avoid migration churn.
+- Added a new [AGENT_SYNC.md](AGENT_SYNC.md) proposal entry mapping Rajesh's templates: T1 `AI Insights | Ask Pulse | BI Viz`, T2 future fused `AI/BI Insights | Ask Pulse | BI Viz`, T3 BI-only, T4 AI-Insights-only, and T5 Ask-Pulse-only.
+- Recommended collapsing the default **presentation** into a unified surface strip while keeping the BI adapter axis, AI connector axis, viewport controls, focused-page mode, and BI host lifecycle modular.
+
+### Validation
+
+- `playground`: `npm run lint` passed (`tsc --noEmit`).
+- `playground`: full `npm run test -- --run` passed **552/552**.
+- Repo: `git diff --check` passed with only expected LF-to-CRLF working-copy warnings.
+
+### Tripwires
+
+- No BI architecture changed in this slice. The proposal still needs Claude/Rajesh review before introducing `BI Viz` as a unified surface tab.
+- If BI becomes tabbed, do not unmount cross-origin iframes casually; preserve adapter state or keep the BI surface mounted while hidden.
+- Keep split/focus review as an advanced preset because users still need side-by-side "ask while looking" workflows.
+
+---
+
 ## 2026-05-17 - Databricks Launchpad + P2-P8 enablement
 
 **Range:** Rajesh asked Codex to finish Claude's Databricks-centric P2-P8 handoff and to validate against the live Databricks workspace, not only against docs. This pass keeps PulsePlay as an enablement layer: discover and surface Databricks-native assets, but do not replace Databricks dashboards, Genie, SQL, Apps, Vector Search, or Unity Catalog.

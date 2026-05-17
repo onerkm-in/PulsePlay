@@ -47,7 +47,7 @@ const GROUP_LABELS: Record<SettingsGroupId, string> = {
 const GROUP_DESCRIPTIONS: Record<SettingsGroupId, string> = {
     setup: "Get PulsePlay ready in two short steps",
     bi: "Pick a BI tool and wire its embed",
-    ai: "Configure the assistant powering Insights and Chat",
+    ai: "Configure the assistant powering Insights and Ask Pulse",
     preferences: "Layout, visible panels, and display policy",
     system: "Network, governance, and diagnostics",
     advanced: "Developer tools and reset utilities",

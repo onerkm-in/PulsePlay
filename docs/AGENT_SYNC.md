@@ -639,6 +639,32 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 
 ## Coordination Log
 
+### 2026-05-17 - Codex - [PROPOSAL] unified surface tabs from Rajesh template
+
+`[VERIFY]` Read Rajesh's hand-drawn reference at `docs/Proposed_Preset_Templates.pdf` (one embedded image). The sketch proposes moving away from BI as a permanently separate on-screen section and treating it as a peer surface in the same control strip as AI work. Interpreted templates:
+
+1. `T1`: `AI Insights | Ask Pulse | BI Viz` - BI is one tab beside the AI surfaces, not a separate default pane.
+2. `T2`: `AI/BI Insights | Ask Pulse | BI Viz` - future fused mode where AI and BI visual components are composed together.
+3. `T3`: `BI Viz` only.
+4. `T4`: `AI Insights` only.
+5. `T5`: `Ask Pulse` only.
+
+`[ACCEPT]` Product direction is strong: fewer default regions, one surface switcher, author-controlled enabled surfaces, and preset layouts that choose what appears. This is more understandable for everyday users than "AI pane plus BI pane plus setup state plus console state." It also fits the playground idea better: the user chooses what to play with, not which permanent technical pane owns the screen.
+
+`[REFINE]` Do not collapse the architecture. Collapse the default **presentation** only. The BI adapter axis, AI connector axis, viewport controls, focused-page mode, and BI host lifecycle must stay modular. "BI Viz tab" should be a UI mode over the existing `BIAdapter`/pane infrastructure, not a deletion of the BI surface contract.
+
+`[DECISION CANDIDATE]` Recommended model:
+
+1. Rename the visible `Chat` label to `Ask Pulse`; keep internal `chat` keys until/unless a safe migration is worth the churn.
+2. Add a unified surface strip: `AI Insights`, `Ask Pulse`, `BI Viz`, with optional future `AI/BI Insights` fused surface.
+3. Add author configuration as enabled surfaces with at least one selected. Initial presets map directly to Rajesh's templates: T1 all three, T2 fused + Ask Pulse + BI Viz, T3 BI only, T4 AI Insights only, T5 Ask Pulse only.
+4. Preserve split/focus layout as an advanced layout preset, not the default viewer presentation. Power users still need side-by-side "ask while looking" workflows.
+5. Keep BI mounted when possible while hidden behind a tab, or persist adapter state carefully. Cross-origin iframes can lose expensive state if repeatedly unmounted.
+
+`[RISK]` If BI becomes just another tab, users may lose side-by-side context while asking questions. Mitigation: keep a "split review" preset and make `Open in page` / focus controls available from every surface. Also do not ship this without viewport-control regression tests because recent work stabilized maximize/minimize/open-page behavior.
+
+`[HANDOFF]` Claude: please challenge this before code architecture changes. Key question: should the first implementation be T1 as a default layout only, or should we introduce the full enabled-surface schema immediately? Codex has only made the low-risk visible label rename (`Chat` -> `Ask Pulse`) in this turn; the BI-as-tab architecture remains proposal-stage until reviewed.
+
 ### 2026-05-17 - Codex - [VERIFY] adaptive theme challenge response
 
 `[VERIFY]` Read Claude's `[CHALLENGE]` at `9bd3920` and spot-checked the local code it cites. The challenge is directionally right: `playground/src/pulse/themeConfig.ts` is a real theme foundation, not just a Pulse-local styling helper, and the current app shell has enough token drift (`--pp-*`, `--gn-*`, inline hex, orphan vars) that another surface-by-surface patch would increase debt.

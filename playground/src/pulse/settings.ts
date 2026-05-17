@@ -761,13 +761,13 @@ class InsightsGroup extends FormattingSettingsGroup {
     enabledFeatures = new formattingSettings.ItemDropdown({
         name: "enabledFeatures",
         displayName: "Enabled features",
-        description: "Which user-facing tabs the visual exposes. Both: AI Insights + Chat (default). AI Insights only: auto-generated analytics on load, no chat. Chat only: conversational Q&A, no auto-insights. Edited from Settings › AI › AI Insights; the format-pane field is the persisted store.",
+        description: "Which user-facing tabs the visual exposes. Both: AI Insights + Ask Pulse (default). AI Insights only: auto-generated analytics on load, no Ask Pulse tab. Ask Pulse only: conversational Q&A, no auto-insights. Edited from Settings › AI › AI Insights; the format-pane field is the persisted store.",
         items: [
-            { value: "both",         displayName: "Both — AI Insights + Chat (default)" },
-            { value: "insightsOnly", displayName: "AI Insights only — no Chat tab" },
-            { value: "chatOnly",     displayName: "Chat only — no auto Insights" }
+            { value: "both",         displayName: "Both — AI Insights + Ask Pulse (default)" },
+            { value: "insightsOnly", displayName: "AI Insights only — no Ask Pulse tab" },
+            { value: "chatOnly",     displayName: "Ask Pulse only — no auto Insights" }
         ],
-        value: { value: "both", displayName: "Both — AI Insights + Chat (default)" }
+        value: { value: "both", displayName: "Both — AI Insights + Ask Pulse (default)" }
     });
 
     slices = [this.insightsAuthoringMode, this.insightsDomain, this.insightsCustomSections, this.insightsPrompt, this.insightsDomainGuidance, this.metricDirectionRules, this.insightsMetricDirections, this.insightsShowProvenanceFooter, this.insightsShowHeadline, this.insightsShowTrends, this.insightsShowRisks, this.insightsShowActions, this.insightsHeadlineOverride, this.insightsTrendsOverride, this.insightsRisksOverride, this.insightsActionsOverride, this.insightsShowResearchTraces, this.refreshInsights, this.insightsCacheTtlMinutes, this.enabledFeatures];
