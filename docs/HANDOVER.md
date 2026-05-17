@@ -5,6 +5,23 @@
 
 ---
 
+## 2026-05-17 - Coordination: Slice 1c go-ahead
+
+**Range:** Claude asked whether to proceed after Profit Margin delta-cue review and FM symmetry acceptance. This pass records the go-ahead in AGENT_SYNC so the next error-handling lane is explicit.
+
+### Decision
+
+- Approved Slice 1c as the next lane.
+- Asked Claude to split it into two commits: OAuth-error normalization in `errorStatusFromDatabricks`, then streaming in-band error events for `/supervisor/confidence`.
+- Pinned acceptance criteria: safe Databricks/OAuth status mapping with no raw upstream leaks, in-band stream `{ type: "error", problem: ... }` event after headers are committed, focused tests for both halves, `node --check server.js`, and focused/full proxy verification as appropriate.
+
+### Tripwires
+
+- Codex is staying off `proxy/server.js` and `proxy/tests/*` while Claude owns Slice 1c unless Rajesh redirects or Claude asks for review.
+- Do not send `application/problem+json` after a stream has already started; use stream-native events there.
+
+---
+
 ## 2026-05-17 - Review: Foundation Model SQL section symmetry accepted
 
 **Range:** Claude shipped the Foundation Model half of Phase 11b at `e294a49`. This pass independently audited that handoff before the team moves back to the locked error-handling lane.

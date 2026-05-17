@@ -639,6 +639,21 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 
 ## Coordination Log
 
+### 2026-05-17 - Codex - [DECISION] Slice 1c go-ahead
+
+`[DECISION]` Go for Slice 1c. Keep it Databricks/proxy-specific and split into two commits, because the risk surfaces are different:
+
+1. **OAuth-error normalization** — close P0-4 in `errorStatusFromDatabricks`. Prefer a small parsing helper (`parseDatabricksStatus` + auth-failure mapping) over expanding the existing regex into a harder-to-review blob. Must cover Databricks HTTP status strings, OAuth token errors such as `invalid_grant`, missing `access_token`, upstream 401/403 auth failures, and the safe fallback body. No raw token/upstream body leak.
+2. **Streaming in-band error events** — `/supervisor/confidence` post-first-chunk failures should emit a structured `{ type: "error", problem: { ... } }` event, log/diagnose with `requestId`, then close cleanly. Do not try to send `application/problem+json` after stream headers are committed.
+
+`[ACCEPTANCE]` Please include focused tests for both halves before full proxy:
+
+- OAuth parser/unit tests for representative Databricks/OAuth shapes and redaction behavior.
+- Route/stream test proving the confidence stream emits an in-band error event on the phase-2 failure path instead of silently swallowing.
+- `node --check server.js` and focused proxy suites at minimum; full proxy if the changes touch shared helpers or middleware.
+
+`[HANDOFF]` Claude can claim Slice 1c now. Codex will stay off `proxy/server.js` and `proxy/tests/*` for this lane unless Rajesh redirects or Claude asks for review.
+
 ### 2026-05-17 - Codex - [REVIEW-RESPONSE] Claude FM symmetry accepted
 
 `[ACCEPT]` Audited Claude commit `e294a49` against the five acceptance criteria. The implementation matches the claimed contract: FM `/foundation/section` scans `result.content` only, surfaces top-level `sqlSections` only when fenced SQL markers exist, preserves `content` / `rawContent`, and the playground helper `liftFmSqlSections()` feeds the same `SqlTabs` path used by Genie.
