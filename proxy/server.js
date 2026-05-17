@@ -1681,6 +1681,10 @@ app.use('/supervisor', rateLimitMiddleware, idpMiddleware);
 app.use('/confidence', rateLimitMiddleware, idpMiddleware);
 app.use('/openai', rateLimitMiddleware, idpMiddleware);
 app.use('/bedrock', rateLimitMiddleware, idpMiddleware);
+// Managed Databricks ResponsesAgent endpoints are cost-bearing serving
+// endpoints, so they inherit the same auth/rate-limit posture as the other
+// AI connector families.
+app.use('/responses-agent', rateLimitMiddleware, idpMiddleware);
 // Cycle 47.6 — Foundation Model serving endpoint (Mosaic AI Model Serving).
 // Same cost + auth posture as the other LLM paths.
 app.use('/foundation', rateLimitMiddleware, idpMiddleware);
@@ -1708,6 +1712,7 @@ app.use('/supervisor', sharedKeyMiddleware);
 app.use('/confidence', sharedKeyMiddleware);
 app.use('/openai', sharedKeyMiddleware);
 app.use('/bedrock', sharedKeyMiddleware);
+app.use('/responses-agent', sharedKeyMiddleware);
 app.use('/foundation', sharedKeyMiddleware);
 // Wave 41 PREP — /insights/* is the AI-assisted introspection family. Today
 // it hosts /insights/suggest-metric-rules; future cycles will fold in the
@@ -1894,6 +1899,7 @@ app.use('/warehouse', allowlistGuard);
 app.use('/history', allowlistGuard);
 app.use('/openai', allowlistGuard);
 app.use('/bedrock', allowlistGuard);
+app.use('/responses-agent', allowlistGuard);
 app.use('/foundation', allowlistGuard);
 app.use('/supervisor', allowlistGuard);
 app.use('/confidence', allowlistGuard);

@@ -1,6 +1,6 @@
 # PulsePlay Error Handling Strategy
 
-> Status: planning baseline, added 2026-05-17 after multi-agent scan.
+> Status: locked planning baseline, accepted 2026-05-17 after Codex scan + Claude challenge.
 > Scope: proxy API responses, playground UX, BI adapters, Databricks enablement, connector probes, diagnostics, and operator runbooks.
 
 ## Goal
@@ -14,7 +14,7 @@ Every failure should answer four questions:
 3. What can the user or admin do next?
 4. What support code joins the UI, proxy logs, and upstream provider logs?
 
-## Decision Candidate
+## Decision (locked 2026-05-17)
 
 Adopt an **Error Intelligence Layer** across PulsePlay:
 
@@ -23,6 +23,13 @@ Adopt an **Error Intelligence Layer** across PulsePlay:
 - Operator details are available through disclosure, Evidence Drawer, Diagnostics, or support bundle, not dumped into the main user message.
 - All errors map to a known category, or to `unexpected_internal` with a request id and logged server-side cause.
 - Raw upstream errors, tokens, tenant secrets, SQL/schema internals, stack traces, and full provider bodies never reach viewer-facing copy.
+
+The roadmap is accepted with Claude's 2026-05-17 challenge folded in:
+
+- Slice 1a is a standalone security/supportability hotfix: mount `/responses-agent/*` under the same rate-limit, IdP, shared-key, and allowlist posture as the other cost-bearing AI connector paths.
+- Streaming routes cannot always return `application/problem+json` after headers are flushed; later slices must use in-band stream error events for post-first-chunk failures.
+- Pulse sibling clients keep the safe legacy `error` compatibility field while PulsePlay migrates to Problem Details.
+- New lint/audit gates should prevent the raw-error count from increasing before attempting a full one-PR cleanup of every legacy offender.
 
 ## Source-Backed Baseline
 
@@ -145,7 +152,7 @@ For setup/configuration errors:
 
 ### P0 - Security / Supportability Gaps
 
-1. `/responses-agent/*` is a cost-bearing Databricks-backed route family but is not mounted under the same auth/rate-limit/shared-key middleware family as `/assistant`, `/openai`, `/bedrock`, `/foundation`, and `/supervisor`.
+1. `/responses-agent/*` was a cost-bearing Databricks-backed route family not mounted under the same auth/rate-limit/shared-key middleware family as `/assistant`, `/openai`, `/bedrock`, `/foundation`, and `/supervisor`. **Closed in Slice 1a (2026-05-17):** `/responses-agent` now inherits rate-limit, IdP, shared-key, and allowlist middleware.
 2. `express.json()` currently mounts before request-id/CORS/security middleware. Malformed JSON can fall through to non-standard Express error bodies without a PulsePlay support code.
 3. Several older connector routes return raw `err.message` to clients, including Azure OpenAI, Bedrock, Foundation Model, ResponsesAgent, Supervisor, and history SQL paths.
 4. Databricks OAuth token acquisition errors are not normalized by `errorStatusFromDatabricks`, whose parser only handles `Databricks NNN:` messages.
@@ -168,7 +175,12 @@ For setup/configuration errors:
 
 ## Implementation Roadmap
 
-### Slice 1 - Backend Guardrail And Contract Foundation
+### Slice 1a - ResponsesAgent Middleware Hotfix
+
+- Mount `/responses-agent` under rate limit, IdP, shared key, and allowlist posture.
+- Add structural and behavioral tests proving the prefix cannot drift out of auth/rate-limit coverage.
+
+### Slice 1b - Backend Guardrail And Contract Foundation
 
 - Add `proxy/lib/problemDetails.js` with helpers:
   - `createProblem()`
@@ -177,9 +189,8 @@ For setup/configuration errors:
   - `mapUpstreamError()`
   - `redactProblemCause()`
 - Mount request-id/CORS before body parsing where possible, and add JSON parse/global error middleware.
-- Mount `/responses-agent` under rate limit, IdP, shared key, and allowlist posture.
 - Convert high-risk raw `err.message` routes to `sendProblem()` while retaining legacy `error`.
-- Add tests for malformed JSON, protected `/responses-agent`, redaction, and problem shape.
+- Add tests for malformed JSON, redaction, and problem shape.
 
 ### Slice 2 - Frontend Problem Reader And Error Card
 
@@ -221,4 +232,3 @@ For setup/configuration errors:
 - Critical errors are not auto-dismissed.
 - All new error categories have negative tests.
 - `unexpected_internal` is allowed only as a safe fallback with support code and server-side log detail.
-

@@ -639,6 +639,27 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 
 ## Coordination Log
 
+### 2026-05-17 - Codex - [DONE] error handling baseline + ResponsesAgent Slice 1a
+
+`[ACCEPT]` Rajesh accepted the error-handling lane. Codex locked [ERROR_HANDLING_STRATEGY.md](ERROR_HANDLING_STRATEGY.md) as **Decision (locked 2026-05-17)** and folded in Claude's challenge: standalone Slice 1a first, streaming carve-out, legacy `error` compatibility, and audit gates that prevent new raw-error regressions.
+
+`[DONE]` Closed only P0-1 in code:
+
+- `/responses-agent` is now mounted under `rateLimitMiddleware + idpMiddleware`.
+- `/responses-agent` is now mounted under `sharedKeyMiddleware`.
+- `/responses-agent` is now mounted under `allowlistGuard`.
+- `server.test.js` now structurally asserts rate-limit, shared-key, and allowlist coverage for the prefix, plus a behavioral missing-shared-key check on `/responses-agent/health`.
+
+`[VERIFY]` Validation passed:
+
+- `proxy`: `node --check server.js`.
+- `proxy`: focused `npm.cmd test -- server --runInBand` = **133/133**.
+- `proxy`: full `npx.cmd jest --runInBand --verbose` = **723/723**.
+
+`[RISK]` This is not the full no-panic error layer yet. P0-2 malformed JSON/no support code, P0-3 raw `err.message` leaks, and P0-4 Databricks OAuth error normalization remain open. The Problem Details helper/global envelope is Slice 1b, not part of this hotfix.
+
+`[HANDOFF]` Claude: please review the Slice 1a hotfix as a narrow security/supportability patch. If accepted, the next backend lane should be Slice 1b: `problemDetails` helper, JSON parse/global fallback handlers, and the first safe `sendProblem()` conversions while preserving legacy `error`.
+
 ### 2026-05-17 - Codex - [DONE] BI Viz unified surface correction
 
 `[VERIFY]` Rajesh was right: the prior `Option A` LayoutPreset facade did **not** make BI a peer surface in the viewer. It only added author presets while `enabledComponents="mix"` still rendered the same permanent AI+BI split as `both`.

@@ -1285,10 +1285,11 @@ describe('env-var profile layering — overrides config.json fields per-profile'
 describe('BUG-015 — cost-bearing route gating invariants', () => {
     // The full set of prefixes that must carry rateLimitMiddleware. Update
     // this list when adding a new cost-bearing backend (e.g. /vertex).
-    const RATE_LIMITED_PREFIXES = ['/assistant', '/warehouse', '/supervisor', '/confidence', '/openai', '/bedrock'];
+    const RATE_LIMITED_PREFIXES = ['/assistant', '/warehouse', '/supervisor', '/confidence', '/openai', '/bedrock', '/responses-agent'];
     // The full set of prefixes that must carry sharedKeyMiddleware. /feedback
     // and /history are not rate-limited but are still gated.
-    const SHARED_KEY_PREFIXES = ['/assistant', '/warehouse', '/supervisor', '/confidence', '/openai', '/bedrock', '/feedback', '/history'];
+    const SHARED_KEY_PREFIXES = ['/assistant', '/warehouse', '/supervisor', '/confidence', '/openai', '/bedrock', '/responses-agent', '/feedback', '/history'];
+    const ALLOWLISTED_PREFIXES = ['/assistant', '/warehouse', '/history', '/openai', '/bedrock', '/responses-agent', '/foundation', '/supervisor', '/confidence', '/sql', '/insights'];
 
     // Walk the Express app's router stack and collect every (prefix, layer-name)
     // pair from `app.use(prefix, middleware)` mounts. Express stores prefix
@@ -1333,6 +1334,11 @@ describe('BUG-015 — cost-bearing route gating invariants', () => {
             const found = mounts.some(m => m.prefix === prefix && m.handleName === 'sharedKeyMiddleware');
             expect(found).toBe(true);
         });
+
+        it.each(ALLOWLISTED_PREFIXES)('allowlistGuard mounted at %s', (prefix) => {
+            const found = mounts.some(m => m.prefix === prefix && m.handleName === 'allowlistGuard');
+            expect(found).toBe(true);
+        });
     });
 
     describe('behavioural — sharedKey gating actually fires on each cost-bearing path', () => {
@@ -1354,6 +1360,7 @@ describe('BUG-015 — cost-bearing route gating invariants', () => {
             { method: 'post', url: '/confidence', body: { question: 'q', attachments: [] } },
             { method: 'post', url: '/openai/chat', body: { messages: [] } },
             { method: 'post', url: '/bedrock/retrieve', body: { input: 'q' } },
+            { method: 'get',  url: '/responses-agent/health' },
             { method: 'post', url: '/feedback', body: { rating: 'up' } },
             { method: 'post', url: '/history', body: { conversationId: 'x' } },
         ];

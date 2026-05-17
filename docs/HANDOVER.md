@@ -5,6 +5,32 @@
 
 ---
 
+## 2026-05-17 - Error handling baseline locked + ResponsesAgent middleware hotfix
+
+**Range:** Rajesh accepted the error-handling strategy lane and Claude independently confirmed the P0 `/responses-agent/*` middleware gap. This pass locks the planning baseline and closes only the standalone Slice 1a security/supportability gap.
+
+### What shipped
+
+- Promoted [ERROR_HANDLING_STRATEGY.md](ERROR_HANDLING_STRATEGY.md) from "Decision Candidate" to **Decision (locked 2026-05-17)**, with Claude's challenge folded in.
+- Mounted `/responses-agent` under the same rate-limit, IdP, shared-key, and allowlist posture as the other cost-bearing AI connector families.
+- Added structural tests so `/responses-agent` cannot silently drift out of rate-limit, shared-key, or allowlist coverage.
+- Added a behavioral shared-key test for `/responses-agent/health` so the public health route cannot bypass the configured shared-key mode.
+- Updated AGENT_SYNC with a `[DONE]` response so Claude can review the hotfix and proceed with Slice 1b challenge/implementation.
+
+### Validation
+
+- `proxy`: `node --check server.js` passed.
+- `proxy`: focused `npm.cmd test -- server --runInBand` passed **133/133**.
+- `proxy`: full `npx.cmd jest --runInBand --verbose` passed **723/723**.
+
+### Tripwires
+
+- This closes **only P0-1** from the error strategy. P0-2 malformed JSON/no support code, P0-3 raw `err.message` leaks, and P0-4 Databricks OAuth error normalization remain open.
+- The Problem Details helper/global envelope did **not** ship in this slice; that is Slice 1b.
+- Streaming routes still need the documented carve-out: pre-first-chunk failures can return `problem+json`; post-first-chunk failures need an in-band stream error event.
+
+---
+
 ## 2026-05-17 - Unified surface correction: BI Viz is a peer action, not a permanent pane
 
 **Range:** Rajesh challenged the UI after seeing BI still rendered as a separate right-side section. Brutal-honest answer: the prior LayoutPreset facade did not implement the visible part of his plan. This pass corrects that first slice.
@@ -34,7 +60,7 @@
 
 ## 2026-05-17 - Error handling strategy and no-panic failure contract
 
-**Range:** Rajesh asked for a deep scan with multiple agents so PulsePlay errors become clear, root-cause-oriented, and resolvable instead of panic-inducing. This pass is docs/research only; it does not yet change runtime behavior.
+**Range:** Rajesh asked for a deep scan with multiple agents so PulsePlay errors become clear, root-cause-oriented, and resolvable instead of panic-inducing. This pass was docs/research only at the time; the newer 2026-05-17 hotfix entry above closes P0-1.
 
 ### What shipped
 
@@ -49,7 +75,7 @@
 ### Tripwires
 
 - Brutal honesty: PulsePlay is not yet at "no unknown errors." Current gaps include raw `err.message` responses in older connector routes, string-only UI errors, incomplete request-id propagation, and no shared problem envelope.
-- P0 finding to handle next: `/responses-agent/*` appears to be Databricks-backed and cost-bearing but is not mounted under the same auth/rate-limit/shared-key middleware family as the other AI routes.
+- P0 finding from this scan: `/responses-agent/*` appeared to be Databricks-backed and cost-bearing but was not mounted under the same auth/rate-limit/shared-key middleware family as the other AI routes. This is now closed by the 2026-05-17 Slice 1a hotfix above.
 - Do not expose raw upstream errors, tokens, stack traces, SQL/schema details, or full provider bodies in viewer-facing copy. Use request id / trace id for support correlation instead.
 
 ---
