@@ -1096,8 +1096,8 @@ class DeveloperGroup extends FormattingSettingsGroup {
     showSql = new formattingSettings.ToggleSwitch({
         name: "showSql",
         displayName: "Show Generated SQL",
-        description: "Displays the SQL query the AI generated for each answer beneath the response. Useful for analysts and developers verifying query accuracy. Has no effect when Connection Mode is Azure OpenAI or AWS Bedrock.",
-        value: false
+        description: "Renders the </> View SQL icon on each AI Insights section card. Opens a collapsible panel beneath the section with the SQL Genie generated. PulsePlay defaults this ON because the playground audience is authors debugging connectors and demoing the assistant; hide it via this toggle if you're embedding for end-users who shouldn't see raw SQL. Has no effect when Connection Mode is Azure OpenAI or AWS Bedrock.",
+        value: true
     });
 
     showTrace = new formattingSettings.ToggleSwitch({
