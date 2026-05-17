@@ -4034,15 +4034,14 @@ function App(props: AppProps) {
                         >
                             <Icon name="float-window" />
                         </button>
-                        <button
-                            type="button"
-                            className="gn-pane-action-btn"
-                            onClick={() => dispatchPulsePlayViewportAction("reload")}
-                            title="Refresh AI pane"
-                            aria-label="Refresh AI panel"
-                        >
-                            <Icon name="refresh" />
-                        </button>
+                        {/* 2026-05-17 — the pane-level "Refresh" was removed.
+                         *  It dispatched a wholesale remount that users almost
+                         *  never want, and visually duplicated the Insights
+                         *  run-state refresh below (which clears the cache +
+                         *  re-runs the pipeline — what users actually mean by
+                         *  "refresh"). Keeping a single Refresh control prevents
+                         *  the "two reload buttons" trap Rajesh flagged in the
+                         *  2026-05-17 review. */}
                     </div>
                     {/* Spacer to push the run-state cluster to the far right. */}
                     {activeTab === "insights" && <div className="gn-header-spacer" />}
@@ -4073,7 +4072,7 @@ function App(props: AppProps) {
                                 )}
                                 <button
                                     type="button"
-                                    className={`gn-pill gn-pill--compact${copiedFlash["insights"] ? " gn-pill--copied" : ""}`}
+                                    className={`gn-pane-action-btn${copiedFlash["insights"] ? " gn-pane-action-btn--copied" : ""}`}
                                     disabled={insightsBusy || !insightsResult?.content}
                                     title="Copy as markdown"
                                     aria-label="Copy the current AI Insights output as markdown"
@@ -4101,7 +4100,7 @@ function App(props: AppProps) {
                                   * permission denied). */}
                                 <button
                                     type="button"
-                                    className={`gn-pill gn-pill--compact${copiedFlash["insights-html"] ? " gn-pill--copied" : ""}`}
+                                    className={`gn-pane-action-btn${copiedFlash["insights-html"] ? " gn-pane-action-btn--copied" : ""}`}
                                     disabled={insightsBusy || !insightsResult?.content}
                                     title="Copy as rich HTML (paste into Outlook / Slack / Notion)"
                                     aria-label="Copy as rich HTML"
@@ -4145,7 +4144,7 @@ function App(props: AppProps) {
                                   * "Selection" option in the print dialog. */}
                                 <button
                                     type="button"
-                                    className="gn-pill gn-pill--compact"
+                                    className="gn-pane-action-btn"
                                     disabled={insightsBusy || !insightsResult?.content}
                                     title="Print or save as PDF"
                                     aria-label="Open the print dialog to save as PDF"
@@ -4205,7 +4204,7 @@ function App(props: AppProps) {
                                         <button
                                             type="button"
                                             ref={customizeTriggerRef}
-                                            className={`gn-pill gn-pill--compact gn-pill--icon-only${customizeOpen ? " gn-pill--active" : ""}`}
+                                            className={`gn-pane-action-btn${customizeOpen ? " gn-pane-action-btn--active" : ""}`}
                                             disabled={insightsBusy && !insightsResult?.content}
                                             title="Show or hide author-defined custom sections"
                                             aria-haspopup="dialog"
@@ -4291,7 +4290,7 @@ function App(props: AppProps) {
                                     Wave 35 author-defined SQL-section export. */}
                                 <button
                                     type="button"
-                                    className="gn-pill gn-pill--compact"
+                                    className="gn-pane-action-btn"
                                     disabled={insightsBusy}
                                     title="Refresh insights"
                                     aria-label="Refresh AI Insights for the current report context"
@@ -4311,7 +4310,7 @@ function App(props: AppProps) {
                                 {insightsBusy && (
                                     <button
                                         type="button"
-                                        className="gn-pill gn-pill--compact gn-pill--stop"
+                                        className="gn-pane-action-btn gn-pane-action-btn--stop"
                                         title="Stop the in-flight AI Insights run"
                                         aria-label="Stop the current AI Insights run"
                                         onClick={() => stopInsights()}

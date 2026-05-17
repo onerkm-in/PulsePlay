@@ -1471,6 +1471,57 @@
         background: rgba(70, 145, 224, 0.18);
     }
 }
+
+/* 2026-05-17 — visual league unification. The run-state cluster
+ * (Copy MD / Copy HTML / Print / Customize ⚙ / Refresh / Stop) was
+ * previously rendered as `gn-pill gn-pill--compact` buttons, which
+ * sat next to the square-outline `gn-pane-action-btn` cluster and
+ * read as a different design language. Migrating those buttons to
+ * `gn-pane-action-btn` gives the AI pane a single button vocabulary.
+ * These modifiers preserve the per-state visual feedback the pill
+ * variants used to carry. */
+.gn-pane-action-btn--copied,
+.gn-pane-action-btn--copied:hover {
+    background: @gn-success !important;
+    border-color: @gn-success !important;
+    color: #fff !important;
+    transform: scale(1.04);
+}
+.gn-pane-action-btn--active,
+.gn-pane-action-btn--active:hover {
+    background: @gn-accent-subtle;
+    border-color: @gn-accent;
+    color: @gn-accent;
+}
+.gn-pane-action-btn--stop {
+    /* Stop is a wider text+icon button — let it grow horizontally
+     *  while keeping the square minimum so it sits on the same
+     *  baseline as the icon-only buttons. */
+    width: auto;
+    min-width: 28px;
+    padding: 0 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: @gn-error;
+    border-color: @gn-error;
+
+    &:hover {
+        background: fade(@gn-error, 12%);
+        border-color: @gn-error;
+        color: @gn-error;
+        box-shadow: @gn-shadow-xs;
+    }
+}
+.gn-shell--dark .gn-pane-action-btn--stop {
+    color: #ff8b8b;
+    border-color: rgba(255, 139, 139, 0.55);
+
+    &:hover {
+        background: rgba(255, 139, 139, 0.16);
+        border-color: #ff8b8b;
+        color: #fff;
+    }
+}
 .gn-shell--dark .gn-header-tab {
     color: rgba(255, 255, 255, 0.72);
 

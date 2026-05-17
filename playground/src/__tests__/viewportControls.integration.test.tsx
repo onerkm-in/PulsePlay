@@ -53,7 +53,6 @@ vi.mock("../components/PulseShell", () => ({
                 />
                 <button type="button" aria-label="Minimize AI panel" onClick={() => fire("minimize")} />
                 <button type="button" aria-label="Open AI panel in separate page" onClick={() => fire("open-page")} />
-                <button type="button" aria-label="Refresh AI panel" onClick={() => fire("reload")} />
                 <button
                     type="button"
                     aria-label="Open BI Viz surface"
@@ -275,7 +274,11 @@ describe("App viewport controls — default unified Mix surface", () => {
         expect(state.container.querySelector(viewportControlControlSelector("ai", "Maximize"))).toBeTruthy();
         expect(state.container.querySelector(viewportControlControlSelector("ai", "Minimize"))).toBeTruthy();
         expect(state.container.querySelector('button[aria-label="Open AI panel in separate page"]')).toBeTruthy();
-        expect(state.container.querySelector('button[aria-label="Refresh AI panel"]')).toBeTruthy();
+        // 2026-05-17 — the pane-level "Refresh AI panel" was removed to
+        // eliminate the duplicate with the content-aware Insights refresh
+        // in the run-state cluster below. See refactor(pulse): drop
+        // duplicate Refresh + unify run-state icon league.
+        expect(state.container.querySelector('button[aria-label="Refresh AI panel"]')).toBeNull();
         expect(state.container.querySelector('button[aria-label="More AI panel actions"]')).toBeNull();
 
         // BI pane now renders the same inline icon cluster — Maximize / Minimize
