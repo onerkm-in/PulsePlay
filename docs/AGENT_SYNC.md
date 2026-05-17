@@ -639,20 +639,20 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 
 ## Coordination Log
 
-### 2026-05-17 - Codex - [DONE] KPI delta cue for lower-is-better metrics
+### 2026-05-17 - Codex - [DONE] KPI delta cue for metric-direction semantics
 
-`[DONE]` Rajesh flagged a Return Rate KPI tile where `+0.4pp` read as amber/watch only. The fix separates overall KPI status from delta-direction tone: a card can remain `watch`, but the delta itself becomes red/down when a lower-is-better metric increased.
+`[DONE]` Rajesh flagged Return Rate and Profit Margin KPI tiles where the delta read as amber/watch only. The fix separates overall KPI status from delta-direction tone: a card can remain `watch`, but the delta itself becomes red/down when the movement is unfavorable for the metric direction.
 
 `[DETAIL]` Runtime changes:
 
 - [playground/src/pulse/rendering/metricDirections.ts](../playground/src/pulse/rendering/metricDirections.ts): `getMetricTone()` now returns `deltaTone` in addition to `semanticTone`.
 - [playground/src/pulse/visual.tsx](../playground/src/pulse/visual.tsx): KPI tile deltas now use `deltaTone`, expose `data-delta-tone` / `data-delta-cue`, and add a semantic glyph when the AI omitted one.
 - [playground/src/pulse/style/visual.less](../playground/src/pulse/style/visual.less): KPI delta pills now use inline-flex spacing for the cue glyph.
-- [playground/src/pulse/__tests__/insightsRendererPolish.test.tsx](../playground/src/pulse/__tests__/insightsRendererPolish.test.tsx): regression covers Return Rate `5.9%` vs `5.5%`, `+0.4pp`, `🟡 Watch`, and `higherIsBetter: false`.
+- [playground/src/pulse/__tests__/insightsRendererPolish.test.tsx](../playground/src/pulse/__tests__/insightsRendererPolish.test.tsx): regressions cover Return Rate `5.9%` vs `5.5%`, `+0.4pp`, `🟡 Watch`, and `higherIsBetter: false`, plus Profit Margin `12.7%` vs `13.4%`, `-0.7pp`, `🟡 Watch`, and `higherIsBetter: true`.
 
 `[VERIFY]` Validation passed:
 
-- `playground`: focused `npm.cmd test -- --run src/pulse/__tests__/insightsRendererPolish.test.tsx` = **4/4**.
+- `playground`: focused `npm.cmd test -- --run src/pulse/__tests__/insightsRendererPolish.test.tsx` = **5/5**.
 - `playground`: `npm.cmd run lint`.
 - `playground`: full `npm.cmd test -- --run` = **572/572**.
 - `playground`: `npm.cmd run build`.

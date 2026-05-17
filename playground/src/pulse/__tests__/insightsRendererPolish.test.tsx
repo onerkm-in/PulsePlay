@@ -67,4 +67,28 @@ describe("insights narrative polish", () => {
         expect(html).toContain("+0.4pp");
         expect(html).toContain("higher is unfavorable");
     });
+
+    it("uses a red down cue for higher-is-better KPI decreases even when status is watch", () => {
+        const node = __insightsRenderForTest.renderKpiTiles(
+            [
+                "| KPI | Current | Prior | Δ pp | Status |",
+                "| --- | --- | --- | --- | --- |",
+                "| Profit Margin | 12.7% | 13.4% | -0.7pp | 🟡 Watch |",
+            ].join("\n"),
+            "KPI SNAPSHOT",
+            {
+                metricDirectionsJson: JSON.stringify([
+                    { name: "Profit Margin", higherIsBetter: true, amberPct: 22, redPct: 12 },
+                ]),
+            },
+        );
+        const html = renderToStaticMarkup(<>{node}</>);
+
+        expect(html).toContain("gn-kpi-tile--warn");
+        expect(html).toContain("gn-kpi-tile-delta--bad");
+        expect(html).toContain('data-delta-cue="down"');
+        expect(html).toContain("▼");
+        expect(html).toContain("-0.7pp");
+        expect(html).toContain("KPI decreased from the prior period");
+    });
 });

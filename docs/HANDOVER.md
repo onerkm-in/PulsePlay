@@ -5,20 +5,20 @@
 
 ---
 
-## 2026-05-17 - KPI delta cues respect lower-is-better metrics
+## 2026-05-17 - KPI delta cues respect metric direction
 
-**Range:** Rajesh flagged a Return Rate KPI tile where `+0.4pp` was shown as an amber neutral/watch pill. For lower-is-better metrics, a positive delta should still show the raw numeric increase, but the performance cue needs to read as negative: red with a down cue.
+**Range:** Rajesh flagged KPI tiles where the delta cue inherited the amber/watch feel from the card status. For lower-is-better metrics like Return Rate, a positive delta should still show the raw numeric increase, but the performance cue needs to read as negative: red with a down cue. For higher-is-better metrics like Profit Margin, a negative delta needs the same red/down cue even when the card status is watch.
 
 ### What shipped
 
 - Split overall KPI tile status from delta-direction tone in [metricDirections.ts](../playground/src/pulse/rendering/metricDirections.ts): a tile can remain `watch`/amber while its delta pill is `bad`/red.
 - Updated [visual.tsx](../playground/src/pulse/visual.tsx) so KPI tile deltas add a semantic cue glyph when the AI did not emit one. Example: Return Rate `+0.4pp` under a lower-is-better rule renders as `▼ +0.4pp`, colored red.
 - Added compact cue styling in [visual.less](../playground/src/pulse/style/visual.less).
-- Added a regression case in [insightsRendererPolish.test.tsx](../playground/src/pulse/__tests__/insightsRendererPolish.test.tsx) for Return Rate `5.9%` vs `5.5%`, `+0.4pp`, `🟡 Watch`, and `higherIsBetter: false`.
+- Added regression cases in [insightsRendererPolish.test.tsx](../playground/src/pulse/__tests__/insightsRendererPolish.test.tsx) for Return Rate `5.9%` vs `5.5%`, `+0.4pp`, `🟡 Watch`, and `higherIsBetter: false`, plus Profit Margin `12.7%` vs `13.4%`, `-0.7pp`, `🟡 Watch`, and `higherIsBetter: true`.
 
 ### Validation
 
-- `playground`: focused `npm.cmd test -- --run src/pulse/__tests__/insightsRendererPolish.test.tsx` passed **4/4**.
+- `playground`: focused `npm.cmd test -- --run src/pulse/__tests__/insightsRendererPolish.test.tsx` passed **5/5**.
 - `playground`: `npm.cmd run lint` passed.
 - `playground`: full `npm.cmd test -- --run` passed **572/572**.
 - `playground`: `npm.cmd run build` passed.
