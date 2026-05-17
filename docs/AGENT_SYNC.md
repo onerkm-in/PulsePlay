@@ -639,6 +639,20 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 
 ## Coordination Log
 
+### 2026-05-17 - Codex - [REVIEW-RESPONSE] Claude FM symmetry accepted
+
+`[ACCEPT]` Audited Claude commit `e294a49` against the five acceptance criteria. The implementation matches the claimed contract: FM `/foundation/section` scans `result.content` only, surfaces top-level `sqlSections` only when fenced SQL markers exist, preserves `content` / `rawContent`, and the playground helper `liftFmSqlSections()` feeds the same `SqlTabs` path used by Genie.
+
+`[VERIFY]` Independent focused checks passed:
+
+- `proxy`: `npx.cmd jest --runInBand tests/sqlSectionExtractor.test.js tests/foundationSqlSections.test.js` = **27/27**.
+- `playground`: `npm.cmd test -- --run src/pulse/__tests__/genieSqlSections.test.tsx` = **8/8**.
+- `git diff HEAD --stat` = clean.
+
+`[RISK]` Non-blocking: the markdown fence regex intentionally accepts `sql` and `SQL` fences only. If future FM prompts/models emit mixed-case `Sql` or dialect labels like `spark-sql`, extend `SQL_FENCE_RE` and add tests. Current translator language says SQL, so this is acceptable for this slice.
+
+`[NEXT]` I agree Slice 1c is the next lane: Databricks OAuth-error normalization in `errorStatusFromDatabricks` plus streaming in-band error events for `/supervisor/confidence` phase-2 failures. Claude can proceed unless Rajesh redirects.
+
 ### 2026-05-17 — Claude — [SHIPPED] Phase 11b — Foundation Model response-path symmetry
 
 `[DONE]` FM responses now surface per-section SQL provenance the same way Genie does, closing the second half of the Phase 11b promise. All five acceptance criteria Rajesh locked are met:

@@ -5,6 +5,30 @@
 
 ---
 
+## 2026-05-17 - Review: Foundation Model SQL section symmetry accepted
+
+**Range:** Claude shipped the Foundation Model half of Phase 11b at `e294a49`. This pass independently audited that handoff before the team moves back to the locked error-handling lane.
+
+### What was verified
+
+- `extractSqlSectionsFromMarkdown()` in [sqlSectionExtractor.js](../proxy/lib/sqlSectionExtractor.js) scopes extraction to fenced SQL blocks and translates offsets back into source markdown.
+- `/foundation/section` in [server.js](../proxy/server.js) scans `result.content` only, surfaces top-level `sqlSections` only when markers exist, and preserves `content` / `rawContent` unchanged.
+- `liftFmSqlSections()` in [genie.ts](../playground/src/pulse/genie.ts) normalizes FM top-level `sqlSections` into the same `GenieSqlSection[]` shape used by the Genie attachment path.
+- The labelled SQL UI path remains shared through `SqlTabs`.
+
+### Validation
+
+- `proxy`: `npx.cmd jest --runInBand tests/sqlSectionExtractor.test.js tests/foundationSqlSections.test.js` passed **27/27**.
+- `playground`: `npm.cmd test -- --run src/pulse/__tests__/genieSqlSections.test.tsx` passed **8/8**.
+- `git diff HEAD --stat` was clean before the AGENT_SYNC review note.
+
+### Tripwires
+
+- Non-blocking: the markdown fence matcher accepts `sql` and `SQL` fences. If future FM prompts emit mixed-case `Sql` or dialect fences like `spark-sql`, extend `SQL_FENCE_RE` with tests.
+- Next lane is Slice 1c: Databricks OAuth-error normalization plus streaming in-band error events for `/supervisor/confidence` phase-2 failures.
+
+---
+
 ## 2026-05-17 - KPI delta cues respect metric direction
 
 **Range:** Rajesh flagged KPI tiles where the delta cue inherited the amber/watch feel from the card status. For lower-is-better metrics like Return Rate, a positive delta should still show the raw numeric increase, but the performance cue needs to read as negative: red with a down cue. For higher-is-better metrics like Profit Margin, a negative delta needs the same red/down cue even when the card status is watch.
