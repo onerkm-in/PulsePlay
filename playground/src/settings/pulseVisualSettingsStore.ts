@@ -37,6 +37,8 @@ export interface PulseAiVisualSettings {
     insightsTrendsOverride: string;
     insightsRisksOverride: string;
     insightsActionsOverride: string;
+    kbVectorSearchIndex: string;
+    ucMetricView: string;
     /** When true and a Genie message's `attachments[].reasoning_traces` field
      *  is populated (Databricks added this field 2026-04-16 — it's the first
      *  programmatic surface for Genie Agent Mode / Research Agent output),
@@ -69,6 +71,8 @@ const DEFAULTS: PulseAiVisualSettings = {
     insightsTrendsOverride: "",
     insightsRisksOverride: "",
     insightsActionsOverride: "",
+    kbVectorSearchIndex: "",
+    ucMetricView: "",
     insightsShowResearchTraces: true,
 };
 
@@ -132,6 +136,8 @@ export function readPulseAiVisualSettings(): PulseAiVisualSettings {
         insightsTrendsOverride: asString(raw.insightsTrendsOverride, DEFAULTS.insightsTrendsOverride),
         insightsRisksOverride: asString(raw.insightsRisksOverride, DEFAULTS.insightsRisksOverride),
         insightsActionsOverride: asString(raw.insightsActionsOverride, DEFAULTS.insightsActionsOverride),
+        kbVectorSearchIndex: asString(raw.kbVectorSearchIndex, DEFAULTS.kbVectorSearchIndex),
+        ucMetricView: asString(raw.ucMetricView, DEFAULTS.ucMetricView),
         insightsShowResearchTraces: asBool(raw.insightsShowResearchTraces, DEFAULTS.insightsShowResearchTraces),
     };
 }

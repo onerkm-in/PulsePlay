@@ -21,6 +21,7 @@ interface HealthResponse {
     configSource?: string;
     databricksApp?: boolean;
     appName?: string | null;
+    appResources?: Record<string, string>;
     authMode?: "sharedKey" | "anonymous" | string;
 }
 
@@ -293,6 +294,11 @@ function NetworkAuthBlock(props: { state: HealthState }): React.ReactElement {
             <CurrentValue label="Auth mode">{r.authMode || "(unknown)"}</CurrentValue>
             <CurrentValue label="Databricks App">{r.databricksApp ? "yes" : "no"}</CurrentValue>
             {r.appName && <CurrentValue label="App name">{r.appName}</CurrentValue>}
+            {r.appResources && Object.keys(r.appResources).length > 0 && (
+                <CurrentValue label="App resources">
+                    {Object.keys(r.appResources).length} configured
+                </CurrentValue>
+            )}
             <CurrentValue label="Config source">{r.configSource || "(unknown)"}</CurrentValue>
             <div style={{ fontSize: 11, opacity: 0.55, marginTop: 4, lineHeight: 1.5 }}>
                 Detailed IdP fields (JWKS URL, issuer, audience, required) are configured via

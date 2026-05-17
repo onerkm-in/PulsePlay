@@ -66,6 +66,7 @@ const CONFIG_PATH = path.join(__dirname, 'config.json');
 const allowlist = require('./lib/allowlist');
 const { listInstalledPacks, loadPackDetail, loadSubVerticalDetail } = require('./lib/packRegistry');
 const databricksCapabilityRegistry = require('./lib/databricksCapabilityRegistry');
+const databricksEnablement = require('./lib/databricksEnablement');
 
 // ── Supervisor strategy registry ─────────────────────────────────────────────
 // All supervisor-flavour profile `type` values live in one place so adding a
@@ -114,6 +115,7 @@ function envConfig() {
         spaceId: process.env.GENIE_SPACE_ID || process.env.DATABRICKS_GENIE_SPACE_ID || '',
         warehouseId,
     };
+    Object.assign(profile, databricksAppResourceProfilePatch(process.env));
     /** @type {Record<string, ProfileConfig>} */
     const profiles = { [profileName]: profile };
     if (profileName !== 'default') profiles.default = profile;
@@ -148,6 +150,47 @@ function envConfig() {
         profiles,
         configSource: 'environment',
     };
+}
+
+function databricksAppResourceProfilePatch(env = process.env) {
+    const patch = {};
+    const pick = (...keys) => {
+        for (const key of keys) {
+            const value = env[key];
+            if (typeof value === 'string' && value.trim()) return value.trim();
+        }
+        return '';
+    };
+    const warehouse = pick('APP_RESOURCE_SQL_WAREHOUSE', 'APP_RESOURCE_WAREHOUSE_ID', 'DATABRICKS_APP_SQL_WAREHOUSE_ID');
+    const genieSpace = pick('APP_RESOURCE_GENIE_SPACE', 'APP_RESOURCE_GENIE_SPACE_ID', 'DATABRICKS_APP_GENIE_SPACE_ID');
+    const vectorIndex = pick('APP_RESOURCE_VECTOR_SEARCH_INDEX', 'APP_RESOURCE_VECTOR_INDEX');
+    const metricView = pick('APP_RESOURCE_METRIC_VIEW', 'APP_RESOURCE_UC_METRIC_VIEW');
+    const catalog = pick('APP_RESOURCE_CATALOG', 'DATABRICKS_CATALOG');
+    const schema = pick('APP_RESOURCE_SCHEMA', 'DATABRICKS_SCHEMA');
+    const aibiDashboardId = pick('APP_RESOURCE_AIBI_DASHBOARD_ID', 'APP_RESOURCE_DASHBOARD_ID');
+    const aibiWorkspaceId = pick('APP_RESOURCE_AIBI_WORKSPACE_ID', 'APP_RESOURCE_WORKSPACE_ID');
+    if (warehouse) patch.warehouseId = warehouse;
+    if (genieSpace) patch.spaceId = genieSpace;
+    if (vectorIndex) patch.vectorSearchIndex = vectorIndex;
+    if (metricView) patch.metricView = metricView;
+    if (catalog) patch.catalog = catalog;
+    if (schema) patch.schema = schema;
+    if (aibiDashboardId) patch.aibiDashboardId = aibiDashboardId;
+    if (aibiWorkspaceId) patch.aibiWorkspaceId = aibiWorkspaceId;
+    return patch;
+}
+
+function visibleDatabricksAppResources(env = process.env) {
+    const keys = Object.keys(env)
+        .filter(key => key.startsWith('APP_RESOURCE_') || key.startsWith('DATABRICKS_APP_'))
+        .sort();
+    const out = {};
+    for (const key of keys) {
+        const value = env[key];
+        if (typeof value !== 'string' || !value.trim()) continue;
+        out[key] = /SECRET|TOKEN|PASSWORD|KEY/i.test(key) ? '[configured]' : value;
+    }
+    return out;
 }
 
 /**
@@ -193,6 +236,30 @@ const ENV_PROFILE_FIELDS = {
     SYNTHESISENDPOINT: 'synthesisEndpoint',
     SPACES: 'spaces',
     TYPE: 'type',
+    AUTH_MODE: 'authMode',
+    AUTHMODE: 'authMode',
+    CLIENT_ID: 'clientId',
+    CLIENTID: 'clientId',
+    CLIENT_SECRET: 'clientSecret',
+    CLIENTSECRET: 'clientSecret',
+    CATALOG: 'catalog',
+    DATABRICKS_CATALOG: 'databricksCatalog',
+    DATABRICKSCATALOG: 'databricksCatalog',
+    SCHEMA: 'schema',
+    DATABRICKS_SCHEMA: 'databricksSchema',
+    DATABRICKSSCHEMA: 'databricksSchema',
+    AIBI_DASHBOARD_ID: 'aibiDashboardId',
+    AIBIDASHBOARDID: 'aibiDashboardId',
+    AIBI_WORKSPACE_ID: 'aibiWorkspaceId',
+    AIBIWORKSPACEID: 'aibiWorkspaceId',
+    AIBI_EXTERNAL_VIEWER_ID: 'aibiExternalViewerId',
+    AIBIEXTERNALVIEWERID: 'aibiExternalViewerId',
+    AIBI_EXTERNAL_VALUE: 'aibiExternalValue',
+    AIBIEXTERNALVALUE: 'aibiExternalValue',
+    VECTOR_SEARCH_INDEX: 'vectorSearchIndex',
+    VECTORSEARCHINDEX: 'vectorSearchIndex',
+    METRIC_VIEW: 'metricView',
+    METRICVIEW: 'metricView',
     SUGGESTED_QUESTIONS: 'suggestedQuestions',
     SUGGESTEDQUESTIONS: 'suggestedQuestions',
     // Cycle 47.6 — Foundation Model serving endpoint name. Lets a
@@ -253,6 +320,11 @@ function loadEnvProfiles(env = process.env) {
 
 function mergeConfigWithEnvironment(config) {
     const profiles = { ...(config.profiles || {}) };
+    const appResourcePatch = databricksAppResourceProfilePatch(process.env);
+    if (Object.keys(appResourcePatch).length > 0) {
+        const name = process.env.ASSISTANT_PROFILE || 'default';
+        profiles[name] = { ...(profiles[name] || {}), ...appResourcePatch };
+    }
 
     // Generic env-var profile layer (IDEA-016 phase 2). Per-field merge:
     // env wins for any field it sets; config.json values for unset fields
@@ -1842,6 +1914,7 @@ app.get('/health', (_req, res) => {
         configSource: c.configSource || 'config.json',
         databricksApp: Boolean(process.env.DATABRICKS_APP_NAME),
         appName: process.env.DATABRICKS_APP_NAME || null,
+        appResources: visibleDatabricksAppResources(process.env),
         authMode,
     });
 });
@@ -2110,6 +2183,234 @@ app.get('/assistant/capabilities', async (req, res) => {
     } catch (err) {
         console.warn('[assistant/capabilities]', err.message);
         res.status(500).json({ error: 'Capability registry internal error' });
+    }
+});
+
+async function handleDatabricksList(req, res, options) {
+    const resolved = resolveProfile({}, req.query, req.headers, req);
+    if (!resolved) return sendNoMatchingProfile(req, res, 404, 'No matching profile configured. Check config.json.');
+    try {
+        const payload = await databricksRequest(resolved.profile, 'GET', options.path(req, resolved), undefined, req.requestId);
+        const rawItems = databricksEnablement.arrayFromPayload(payload, options.arrayKeys);
+        const items = rawItems.map(item => options.normalize(item, resolved.profile.host));
+        auditLog(req, {
+            profileName: resolved.name,
+            action: options.action,
+            status: 200,
+            detail: JSON.stringify({ count: items.length }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+        return res.json(databricksEnablement.buildLaunchpadPayload({
+            items,
+            sourcePath: options.sourcePath || options.path(req, resolved),
+            profileName: resolved.name,
+            host: resolved.profile.host,
+            raw: { count: rawItems.length },
+        }));
+    } catch (err) {
+        const mapped = errorStatusFromDatabricks(err, 502, resolved.profile);
+        auditLog(req, {
+            profileName: resolved.name,
+            action: options.action,
+            status: mapped.status,
+            detail: mapped.error,
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+        return res.status(mapped.status).json({ ok: false, error: mapped.error });
+    }
+}
+
+app.get('/assistant/genie/spaces', async (req, res) => {
+    return handleDatabricksList(req, res, {
+        action: 'databricks.launchpad.genie-spaces',
+        sourcePath: '/api/2.0/genie/spaces',
+        path: () => '/api/2.0/genie/spaces',
+        arrayKeys: ['spaces'],
+        normalize: databricksEnablement.normalizeGenieSpace,
+    });
+});
+
+app.get('/assistant/lakeview/dashboards', async (req, res) => {
+    return handleDatabricksList(req, res, {
+        action: 'databricks.launchpad.lakeview-dashboards',
+        sourcePath: '/api/2.0/lakeview/dashboards',
+        path: () => '/api/2.0/lakeview/dashboards',
+        arrayKeys: ['dashboards'],
+        normalize: databricksEnablement.normalizeLakeviewDashboard,
+    });
+});
+
+app.get('/assistant/serving-endpoints', async (req, res) => {
+    return handleDatabricksList(req, res, {
+        action: 'databricks.launchpad.serving-endpoints',
+        sourcePath: '/api/2.0/serving-endpoints',
+        path: () => '/api/2.0/serving-endpoints',
+        arrayKeys: ['endpoints'],
+        normalize: databricksEnablement.normalizeServingEndpoint,
+    });
+});
+
+app.get('/assistant/apps', async (req, res) => {
+    return handleDatabricksList(req, res, {
+        action: 'databricks.launchpad.apps',
+        sourcePath: '/api/2.0/apps',
+        path: () => '/api/2.0/apps',
+        arrayKeys: ['apps'],
+        normalize: databricksEnablement.normalizeDatabricksApp,
+    });
+});
+
+app.get('/assistant/sql/warehouses', async (req, res) => {
+    return handleDatabricksList(req, res, {
+        action: 'databricks.launchpad.sql-warehouses',
+        sourcePath: '/api/2.0/sql/warehouses',
+        path: () => '/api/2.0/sql/warehouses',
+        arrayKeys: ['warehouses'],
+        normalize: databricksEnablement.normalizeSqlWarehouse,
+    });
+});
+
+app.get('/assistant/uc/metric-views', async (req, res) => {
+    const resolved = resolveProfile({}, req.query, req.headers, req);
+    if (!resolved) return sendNoMatchingProfile(req, res, 404, 'No matching profile configured. Check config.json.');
+    const catalog = String(req.query.catalog || resolved.profile.catalog || resolved.profile.databricksCatalog || '').trim();
+    const schema = String(req.query.schema || resolved.profile.schema || resolved.profile.databricksSchema || '').trim();
+    if (!catalog || !schema) {
+        return res.status(400).json({
+            ok: false,
+            error: 'catalog and schema are required. Configure profile.catalog/profile.schema or pass ?catalog=&schema=.',
+        });
+    }
+    const params = new URLSearchParams({
+        catalog_name: catalog,
+        schema_name: schema,
+        omit_columns: 'true',
+    });
+    try {
+        const payload = await databricksRequest(
+            resolved.profile,
+            'GET',
+            `/api/2.1/unity-catalog/tables?${params.toString()}`,
+            undefined,
+            req.requestId,
+        );
+        const rawItems = databricksEnablement
+            .arrayFromPayload(payload, ['tables'])
+            .filter(databricksEnablement.isMetricView);
+        const items = rawItems.map(databricksEnablement.normalizeMetricView);
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'databricks.uc.metric-views',
+            status: 200,
+            detail: JSON.stringify({ catalog, schema, count: items.length }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+        return res.json({
+            ok: true,
+            assistantProfile: resolved.name,
+            catalog,
+            schema,
+            count: items.length,
+            items,
+            fetchedAt: new Date().toISOString(),
+        });
+    } catch (err) {
+        const mapped = errorStatusFromDatabricks(err, 502, resolved.profile);
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'databricks.uc.metric-views',
+            status: mapped.status,
+            detail: mapped.error,
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+        return res.status(mapped.status).json({ ok: false, error: mapped.error });
+    }
+});
+
+app.get('/assistant/uc/metric-views/:fullName', async (req, res) => {
+    const resolved = resolveProfile({}, req.query, req.headers, req);
+    if (!resolved) return sendNoMatchingProfile(req, res, 404, 'No matching profile configured. Check config.json.');
+    const fullName = String(req.params.fullName || '').trim();
+    if (!/^[A-Za-z0-9_.$-]+$/.test(fullName) || fullName.split('.').length !== 3) {
+        return res.status(400).json({ ok: false, error: 'fullName must be a three-part Unity Catalog name: catalog.schema.metric_view.' });
+    }
+    try {
+        const table = await databricksRequest(
+            resolved.profile,
+            'GET',
+            `/api/2.1/unity-catalog/tables/${encodeURIComponent(fullName)}`,
+            undefined,
+            req.requestId,
+        );
+        const normalized = databricksEnablement.normalizeMetricView(table);
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'databricks.uc.metric-view-detail',
+            status: 200,
+            detail: fullName,
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+        return res.json({
+            ok: true,
+            assistantProfile: resolved.name,
+            item: normalized,
+            fetchedAt: new Date().toISOString(),
+        });
+    } catch (err) {
+        const mapped = errorStatusFromDatabricks(err, 502, resolved.profile);
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'databricks.uc.metric-view-detail',
+            status: mapped.status,
+            detail: mapped.error,
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+        return res.status(mapped.status).json({ ok: false, error: mapped.error });
+    }
+});
+
+app.post('/assistant/vector-search/query', async (req, res) => {
+    const resolved = resolveProfile(req.body, {}, req.headers, req);
+    if (!resolved) return sendNoMatchingProfile(req, res, 404, 'No matching profile configured. Check config.json.');
+    const { indexName, queryText, payload } = databricksEnablement.sanitizeVectorSearchQuery(
+        req.body || {},
+        resolved.profile.vectorSearchIndex,
+    );
+    if (!indexName) return res.status(400).json({ ok: false, error: 'indexName is required or profile.vectorSearchIndex must be configured.' });
+    if (!queryText) return res.status(400).json({ ok: false, error: 'queryText is required.' });
+    try {
+        const result = await databricksRequest(
+            resolved.profile,
+            'GET',
+            `/api/2.0/vector-search/indexes/${encodeURIComponent(indexName)}/query`,
+            payload,
+            req.requestId,
+        );
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'databricks.vector-search.query',
+            status: 200,
+            detail: JSON.stringify({ indexName, numResults: payload.num_results }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+        return res.json({
+            ok: true,
+            assistantProfile: resolved.name,
+            indexName,
+            queryText,
+            result,
+            fetchedAt: new Date().toISOString(),
+        });
+    } catch (err) {
+        const mapped = errorStatusFromDatabricks(err, 502, resolved.profile);
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'databricks.vector-search.query',
+            status: mapped.status,
+            detail: mapped.error,
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+        return res.status(mapped.status).json({ ok: false, error: mapped.error });
     }
 });
 
@@ -3275,11 +3576,176 @@ let _powerBiFetchImpl = null;
 function _setPowerBiFetchImplForTests(impl) { _powerBiFetchImpl = impl; }
 function _resetPowerBiTokenCacheForTests() { _powerBiTokenCache.clear(); }
 
+let _aibiFetchImpl = null;
+function _setAibiFetchImplForTests(impl) { _aibiFetchImpl = impl; }
+
+function _databricksAibiCreds(profile) {
+    return {
+        clientId: profile?.clientId || process.env.DATABRICKS_CLIENT_ID || '',
+        clientSecret: profile?.clientSecret || process.env.DATABRICKS_CLIENT_SECRET || '',
+    };
+}
+
+async function _aibiFetchJson(url, init, fetchImpl) {
+    const resp = await fetchImpl(url, {
+        ...init,
+        signal: init?.signal || AbortSignal.timeout(10000),
+    });
+    const text = await resp.text();
+    let data = {};
+    try { data = text ? JSON.parse(text) : {}; }
+    catch { data = { raw: text }; }
+    if (!resp.ok) {
+        const err = new Error(`Databricks AI/BI token request failed (${resp.status}): ${text.slice(0, 300)}`);
+        err.statusCode = resp.status;
+        throw err;
+    }
+    return data;
+}
+
+async function mintDatabricksAibiToken({ profile, dashboardId, externalViewerId, externalValue, fetchImpl }) {
+    const host = String(profile?.host || '').replace(/\/+$/, '');
+    const { clientId, clientSecret } = _databricksAibiCreds(profile);
+    if (!host) {
+        const err = new Error('Databricks AI/BI embed-token issuance requires profile.host.');
+        err.statusCode = 400;
+        throw err;
+    }
+    if (!clientId || !clientSecret) {
+        const err = new Error('Databricks AI/BI embed-token issuance requires Databricks service-principal clientId/clientSecret on the profile or DATABRICKS_CLIENT_ID/DATABRICKS_CLIENT_SECRET env vars.');
+        err.statusCode = 503;
+        throw err;
+    }
+    const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    const tokenHeaders = {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: `Basic ${basicAuth}`,
+    };
+    const broadToken = await _aibiFetchJson(`${host}/oidc/v1/token`, {
+        method: 'POST',
+        headers: tokenHeaders,
+        body: new URLSearchParams({
+            grant_type: 'client_credentials',
+            scope: 'all-apis',
+        }).toString(),
+    }, fetchImpl);
+    const tokenInfoUrl = new URL(`${host}/api/2.0/lakeview/dashboards/${encodeURIComponent(dashboardId)}/published/tokeninfo`);
+    tokenInfoUrl.searchParams.set('external_viewer_id', externalViewerId);
+    tokenInfoUrl.searchParams.set('external_value', externalValue);
+    const tokenInfo = await _aibiFetchJson(tokenInfoUrl.toString(), {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${broadToken.access_token}` },
+    }, fetchImpl);
+    const { authorization_details: authorizationDetails, ...params } = tokenInfo;
+    const scopedParamEntries = Object.entries(params)
+        .filter(([, v]) => v !== undefined && v !== null)
+        .map(([k, v]) => [k, typeof v === 'string' ? v : JSON.stringify(v)]);
+    const scopedParams = new URLSearchParams({
+        grant_type: 'client_credentials',
+        ...Object.fromEntries(scopedParamEntries),
+        authorization_details: JSON.stringify(authorizationDetails),
+    });
+    const scopedToken = await _aibiFetchJson(`${host}/oidc/v1/token`, {
+        method: 'POST',
+        headers: tokenHeaders,
+        body: scopedParams.toString(),
+    }, fetchImpl);
+    const expiresInMs = Math.max(1, Number(scopedToken.expires_in || 3600)) * 1000;
+    return {
+        accessToken: scopedToken.access_token,
+        expiresAt: Date.now() + expiresInMs,
+    };
+}
+
 app.post('/assistant/embed-token/:vendor', async (req, res) => {
     const vendor = String(req.params.vendor || '').toLowerCase();
     const startedAt = Date.now();
 
-    // v0 only handles Power BI. Future vendors slot in here.
+    if (vendor === 'aibi' || vendor === 'databricks-aibi') {
+        const resolved = resolveProfile(req.body, {}, req.headers, req);
+        if (!resolved) {
+            auditLog(req, {
+                profileName: req.body?.assistantProfile || null,
+                action: 'embed-token',
+                status: 400,
+                detail: 'no-matching-profile',
+            });
+            return sendNoMatchingProfile(req, res);
+        }
+        const profile = resolved.profile;
+        const dashboardId = String(req.body?.dashboardId || profile.aibiDashboardId || '').trim();
+        const workspaceId = String(req.body?.workspaceId || profile.aibiWorkspaceId || process.env.DATABRICKS_WORKSPACE_ID || '').trim();
+        const externalViewerId = String(req.body?.externalViewerId || profile.aibiExternalViewerId || req.user?.sub || 'internal-viewer').trim();
+        const externalValue = String(req.body?.externalValue || profile.aibiExternalValue || externalViewerId).trim();
+        if (!dashboardId || !workspaceId) {
+            auditLog(req, {
+                profileName: resolved.name,
+                action: 'embed-token',
+                status: 400,
+                detail: 'missing-dashboardId-or-workspaceId',
+            });
+            return res.status(400).json({ error: 'dashboardId and workspaceId are required for Databricks AI/BI SDK embedding.' });
+        }
+        try {
+            const token = await mintDatabricksAibiToken({
+                profile,
+                dashboardId,
+                externalViewerId,
+                externalValue,
+                fetchImpl: _aibiFetchImpl || fetch,
+            });
+            auditLog(req, {
+                profileName: resolved.name,
+                action: 'embed-token',
+                status: 200,
+                detail: JSON.stringify({
+                    vendor,
+                    dashboardId,
+                    workspaceId,
+                    durationMs: Date.now() - startedAt,
+                    spIdHash: hashServicePrincipalId(_databricksAibiCreds(profile).clientId),
+                }),
+                spIdentityHash: spHashForProfile(profile),
+            });
+            const instanceUrl = String(profile.host || '').replace(/\/+$/, '');
+            return res.json({
+                ok: true,
+                vendor: 'databricks-aibi',
+                embedToken: token.accessToken,
+                token: token.accessToken,
+                instanceUrl,
+                workspaceUrl: instanceUrl,
+                workspaceId,
+                dashboardId,
+                expiry: new Date(token.expiresAt).toISOString(),
+                cached: false,
+            });
+        } catch (err) {
+            const upstreamStatus = typeof err?.statusCode === 'number' ? err.statusCode : 500;
+            const clientStatus = upstreamStatus === 401 || upstreamStatus === 403
+                ? upstreamStatus
+                : (upstreamStatus >= 400 && upstreamStatus < 500 ? 400 : 502);
+            const detail = _redactForEmbedTokenLog(err?.message || String(err));
+            auditLog(req, {
+                profileName: resolved.name,
+                action: 'embed-token',
+                status: clientStatus,
+                detail: JSON.stringify({
+                    vendor,
+                    dashboardId,
+                    error: detail.slice(0, 200),
+                    durationMs: Date.now() - startedAt,
+                    spIdHash: hashServicePrincipalId(_databricksAibiCreds(profile).clientId),
+                }),
+                spIdentityHash: spHashForProfile(profile),
+            });
+            return res.status(clientStatus).json({
+                error: 'Databricks AI/BI embed-token issuance failed',
+                detail: detail.slice(0, 300),
+            });
+        }
+    }
+
     if (vendor !== 'powerbi') {
         auditLog(req, {
             profileName: req.body?.assistantProfile || null,
@@ -6062,4 +6528,8 @@ module.exports = {
     _setPowerBiFetchImplForTests,
     _resetPowerBiTokenCacheForTests,
     _powerBiTokenCache,
+    _setAibiFetchImplForTests,
+    mintDatabricksAibiToken,
+    databricksAppResourceProfilePatch,
+    visibleDatabricksAppResources,
 };

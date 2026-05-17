@@ -24,6 +24,7 @@ import { TestConnectionPanel } from "../../components/TestConnectionPanel";
 import { PackPicker, type PackInfo, type PackSelection } from "../../components/PackPicker";
 import { probeConnector } from "../../lib/probeClient";
 import { useDatabricksCapabilities } from "../../lib/databricksCapabilities";
+import { listMetricViews, type MetricViewSummary } from "../../lib/databricksAssets";
 import type { ConnectorProbeResult } from "../../types/probe";
 import {
     usePulseAiVisualSettings,
@@ -235,13 +236,35 @@ export function AiGroup(): React.ReactElement {
                 <Leaf
                     group="ai"
                     label="Vector Search KB"
-                    helper="Databricks Vector Search grounding is available for this profile. Configure the approved index before wiring it into AI Insights."
+                    helper="Databricks Vector Search grounding is available for this profile. Configure the approved index for retrieval-augmented answers."
                 >
                     <CurrentValue label="Status">Available</CurrentValue>
                     <CurrentValue label="Endpoints">{String(vectorSearchDetail?.count || 0)}</CurrentValue>
-                    <div style={{ fontSize: 12, color: "#58616f" }}>
-                        P1 gates this entry point from live Databricks capabilities. P6 wires the actual retrieval provider.
+                    <SettingsTextInput
+                        label="Vector Search index"
+                        value={pulseAi.value.kbVectorSearchIndex}
+                        placeholder="catalog.schema.index_name"
+                        onChange={kbVectorSearchIndex => pulseAi.update({ kbVectorSearchIndex })}
+                    />
+                    <div style={{ fontSize: 11, color: "#58616f" }}>
+                        Queries go through the proxy route <code>/assistant/vector-search/query</code>; no Databricks token is exposed in the browser.
                     </div>
+                </Leaf>
+            )}
+            {!vectorSearchReady && (
+                <Leaf
+                    group="ai"
+                    label="Vector Search KB"
+                    helper="Databricks Vector Search is not currently live in this workspace. Keep the target index here so the feature wakes up cleanly when an endpoint is enabled."
+                >
+                    <CurrentValue label="Status">Hibernating</CurrentValue>
+                    <CurrentValue label="Endpoints">{String(vectorSearchDetail?.count || 0)}</CurrentValue>
+                    <SettingsTextInput
+                        label="Planned Vector Search index"
+                        value={pulseAi.value.kbVectorSearchIndex}
+                        placeholder="catalog.schema.index_name"
+                        onChange={kbVectorSearchIndex => pulseAi.update({ kbVectorSearchIndex })}
+                    />
                 </Leaf>
             )}
 
@@ -294,6 +317,18 @@ export function AiGroup(): React.ReactElement {
                     value={pulseAi.value}
                     onChange={pulseAi.update}
                     activeAiProfile={activeAiProfile}
+                />
+            </Leaf>
+
+            <Leaf
+                group="ai"
+                label="UC Metric View"
+                helper="Discover governed Databricks metric views and use one as the semantic source for AI Insights."
+            >
+                <MetricViewPicker
+                    activeAiProfile={activeAiProfile}
+                    value={pulseAi.value.ucMetricView}
+                    onChange={ucMetricView => pulseAi.update({ ucMetricView })}
                 />
             </Leaf>
 
@@ -575,6 +610,106 @@ function SettingsCheckbox(props: {
             />
             {props.label}
         </label>
+    );
+}
+
+function MetricViewPicker(props: {
+    activeAiProfile: string;
+    value: string;
+    onChange: (next: string) => void;
+}): React.ReactElement {
+    const [catalog, setCatalog] = useState("workspace");
+    const [schema, setSchema] = useState("databrickspractice");
+    const [items, setItems] = useState<MetricViewSummary[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+
+    const runDiscovery = async () => {
+        setLoading(true);
+        setError("");
+        try {
+            const data = await listMetricViews({
+                assistantProfile: props.activeAiProfile || "default",
+                catalog,
+                schema,
+            });
+            setItems(Array.isArray(data.items) ? data.items : []);
+        } catch (err) {
+            setItems([]);
+            setError(err instanceof Error ? err.message : String(err));
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        void runDiscovery();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    return (
+        <div style={{ display: "grid", gap: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr)) auto", gap: 8, alignItems: "end" }}>
+                <SettingsTextInput label="Catalog" value={catalog} onChange={setCatalog} />
+                <SettingsTextInput label="Schema" value={schema} onChange={setSchema} />
+                <button
+                    type="button"
+                    onClick={() => void runDiscovery()}
+                    disabled={loading || !catalog.trim() || !schema.trim()}
+                    style={{
+                        minHeight: 34,
+                        padding: "7px 12px",
+                        border: "1px solid var(--pp-accent, #0078d4)",
+                        background: "var(--pp-accent, #0078d4)",
+                        color: "white",
+                        borderRadius: 4,
+                        cursor: loading ? "wait" : "pointer",
+                        fontSize: 12,
+                        fontWeight: 600,
+                    }}
+                >
+                    {loading ? "Discovering" : "Discover"}
+                </button>
+            </div>
+            <SettingsTextInput
+                label="Selected metric view"
+                value={props.value}
+                placeholder="catalog.schema.metric_view"
+                onChange={props.onChange}
+            />
+            {error && <div role="alert" style={{ color: "#a01828", fontSize: 12 }}>{error}</div>}
+            {!error && items.length === 0 && (
+                <div style={{ fontSize: 12, opacity: 0.62 }}>
+                    No metric views returned for this catalog/schema.
+                </div>
+            )}
+            {items.length > 0 && (
+                <div style={{ display: "grid", gap: 6 }}>
+                    {items.map(item => (
+                        <button
+                            key={item.fullName || item.id}
+                            type="button"
+                            onClick={() => props.onChange(item.fullName || item.id)}
+                            aria-pressed={props.value === (item.fullName || item.id)}
+                            style={{
+                                display: "grid",
+                                gap: 2,
+                                padding: "8px 10px",
+                                textAlign: "left",
+                                border: "1px solid var(--pp-border, rgba(0,0,0,0.14))",
+                                borderRadius: 5,
+                                background: props.value === (item.fullName || item.id) ? "rgba(0,120,212,0.08)" : "transparent",
+                                cursor: "pointer",
+                                color: "inherit",
+                            }}
+                        >
+                            <strong style={{ fontSize: 12 }}>{item.fullName || item.id}</strong>
+                            {item.comment && <span style={{ fontSize: 11, opacity: 0.65 }}>{item.comment}</span>}
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
     );
 }
 

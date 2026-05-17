@@ -33,6 +33,7 @@ import { FramePicker } from "./FramePicker";
 import { getDiscoverySnapshot, type DiscoverySnapshot, type ReachableFrame } from "../lib/discoveryClient";
 import { SustainabilityIndicator } from "./SustainabilityIndicator";
 import { recordResponse as recordUsageResponse } from "../lib/usageTracker";
+import { EvidenceDrawer, type EvidenceItem } from "./EvidenceDrawer";
 
 /** Hard upper bound on how long we poll before giving up. */
 export const MAX_POLL_DURATION_MS = 60_000;
@@ -715,6 +716,20 @@ export function AISidebar(props: AISidebarProps) {
 function AnswerEntryView(props: { entry: AnswerEntry; onStop: () => void; onRetry: () => void }) {
     const { entry } = props;
     const elapsedMs = (entry.finishedAt ?? Date.now()) - entry.startedAt;
+    const evidenceItems: EvidenceItem[] = [
+        ...(entry.sqlQuery ? [{
+            kind: "sql" as const,
+            label: "Generated query",
+            value: entry.sqlQuery,
+            source: "Proxy response field: sqlQuery",
+        }] : []),
+        ...(entry.validationDiagnostics ? [{
+            kind: "source" as const,
+            label: "Validation diagnostics",
+            value: JSON.stringify(entry.validationDiagnostics, null, 2),
+            source: "Proxy response field: validationDiagnostics",
+        }] : []),
+    ];
 
     return (
         <article className="pp-ai-sidebar__entry" data-testid={`pp-ai-entry-${entry.id}`} data-status={entry.status}>
@@ -792,6 +807,8 @@ function AnswerEntryView(props: { entry: AnswerEntry; onStop: () => void; onRetr
             {entry.validationDiagnostics && (
                 <ValidationFooter diagnostics={entry.validationDiagnostics} />
             )}
+
+            <EvidenceDrawer items={evidenceItems} />
 
             {entry.status === "failed" && (
                 <div className="pp-ai-sidebar__error" data-testid={`pp-ai-error-${entry.id}`}>

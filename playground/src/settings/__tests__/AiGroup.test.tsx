@@ -189,10 +189,14 @@ describe("AiGroup — Phase 4 wiring", () => {
         unmount(state);
     });
 
-    it("hides Vector Search KB when Databricks capability has zero endpoints", async () => {
+    it("shows Vector Search KB as hibernating when Databricks capability has zero endpoints", async () => {
         const state = mount();
         await flushAll();
-        expect(state.container.textContent || "").not.toContain("Vector Search KB");
+        const text = state.container.textContent || "";
+        expect(text).toContain("Vector Search KB");
+        expect(text).toContain("Hibernating");
+        expect(text).toContain("Endpoints");
+        expect(text).toContain("0");
         unmount(state);
     });
 

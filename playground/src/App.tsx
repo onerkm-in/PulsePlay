@@ -39,6 +39,8 @@ import { useSettingsRoute, navigateToSettings } from "./settings/settingsRoute";
 import { getSetupReadiness, type SetupReadiness } from "./settings/setupReadiness";
 import { KnowledgeShell } from "./knowledge/KnowledgeShell";
 import { useKnowledgeRoute } from "./knowledge/knowledgeRoute";
+import { LaunchpadShell } from "./launchpad/LaunchpadShell";
+import { useLaunchpadRoute } from "./launchpad/launchpadRoute";
 // PERF — lazy-load PulseShell so the 642 KB pulse chunk isn't on the
 // first-paint critical path. The brand strip + top bar render
 // instantly while pulse fetches in parallel. v0 mode (which doesn't
@@ -256,6 +258,7 @@ export function App(): React.ReactElement {
 function AppRouted(): React.ReactElement {
     const settingsRoute = useSettingsRoute();
     const knowledgeRoute = useKnowledgeRoute();
+    const launchpadRoute = useLaunchpadRoute();
 
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -271,6 +274,27 @@ function AppRouted(): React.ReactElement {
 
     if (knowledgeRoute.isKnowledgeRoute) {
         return <KnowledgeShell />;
+    }
+    if (launchpadRoute.isLaunchpadRoute) {
+        return (
+            <LaunchpadShell
+                activeAiProfile={readInitialActiveConnector() || "default"}
+                onUseAiSource={(profile) => {
+                    try {
+                        window.localStorage.setItem("pulseplay:active-ai-profile", profile);
+                        window.dispatchEvent(new CustomEvent("pulseplay:display-change", {
+                            detail: { key: "pulseplay:active-ai-profile", value: profile },
+                        }));
+                    } catch { /* swallow */ }
+                }}
+                onUseBiSource={(vendor) => {
+                    try {
+                        window.localStorage.setItem(BI_VENDOR_STORAGE_KEY, vendor);
+                        window.dispatchEvent(new CustomEvent("pulseplay:bi-vendor-change", { detail: { vendor } }));
+                    } catch { /* swallow */ }
+                }}
+            />
+        );
     }
     if (settingsRoute.isSettingsRoute) {
         return <SettingsShell />;
@@ -594,6 +618,20 @@ function PlaygroundApp(): React.ReactElement {
         window.addEventListener("popstate", handler);
         return () => window.removeEventListener("popstate", handler);
     }, []);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const syncBiVendor = () => {
+            const next = readInitialBiVendor();
+            if (next && next !== activeVendor) setActiveVendor(next);
+        };
+        window.addEventListener("storage", syncBiVendor);
+        window.addEventListener("pulseplay:bi-vendor-change", syncBiVendor as EventListener);
+        return () => {
+            window.removeEventListener("storage", syncBiVendor);
+            window.removeEventListener("pulseplay:bi-vendor-change", syncBiVendor as EventListener);
+        };
+    }, [activeVendor]);
 
     // Settings also owns Pulse's legacy `genieSettings` namespace now. When a
     // Settings control writes to that namespace, re-run PulseShell.update()

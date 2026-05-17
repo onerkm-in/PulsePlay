@@ -1,0 +1,16 @@
+command: ["sh", "-c", "cd proxy && npm run start"]
+env:
+  - name: ASSISTANT_PROFILE
+    value: "default"
+  - name: SUPERVISOR_ENABLED
+    value: "false"
+  - name: APP_RESOURCE_SQL_WAREHOUSE
+    valueFrom: sql_warehouse
+  - name: APP_RESOURCE_GENIE_SPACE
+    valueFrom: genie_space
+  - name: APP_RESOURCE_AIBI_DASHBOARD_ID
+    valueFrom: aibi_dashboard
+  - name: APP_RESOURCE_VECTOR_SEARCH_INDEX
+    valueFrom: vector_search_index
+  - name: APP_RESOURCE_METRIC_VIEW
+    valueFrom: metric_view

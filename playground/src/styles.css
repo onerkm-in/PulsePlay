@@ -138,6 +138,20 @@ html, body, #root {
     color: var(--pp-text-muted);
     line-height: 1.4;
 }
+.pp-embed-config__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 8px;
+}
+.pp-embed-config__grid label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    font-size: 11px;
+    color: var(--pp-text-muted);
+}
 .pp-embed-config__apply {
     margin-top: 6px;
     padding: 6px 12px;
@@ -149,6 +163,16 @@ html, body, #root {
     cursor: pointer;
 }
 .pp-embed-config__apply:hover { filter: brightness(1.05); }
+.pp-embed-config__apply:disabled {
+    opacity: 0.62;
+    cursor: wait;
+}
+.pp-embed-config__error {
+    margin: 6px 0 0;
+    font-size: 11px;
+    color: var(--pp-error);
+    line-height: 1.4;
+}
 
 .pp-ai-sidebar {
     margin-top: auto;
@@ -324,4 +348,246 @@ html, body, #root {
     .pp-pbi-dev__grid {
         grid-template-columns: 1fr;
     }
+    .pp-embed-config__grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.pp-launchpad {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    background: var(--pp-bg);
+    color: var(--pp-text);
+}
+
+.pp-launchpad__header {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 22px;
+    border-bottom: 1px solid var(--pp-border);
+    background: var(--pp-surface);
+}
+
+.pp-launchpad__header h1 {
+    margin: 0;
+    font-size: 20px;
+}
+
+.pp-launchpad__header p {
+    margin: 3px 0 0;
+    font-size: 12px;
+    color: var(--pp-text-muted);
+}
+
+.pp-launchpad__header button,
+.pp-launchpad__actions button {
+    min-height: 30px;
+    padding: 5px 10px;
+    border: 1px solid var(--pp-border);
+    border-radius: 4px;
+    background: var(--pp-surface);
+    color: var(--pp-text);
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.pp-launchpad__actions button:hover,
+.pp-launchpad__header button:hover {
+    border-color: var(--pp-accent);
+}
+
+.pp-launchpad__note {
+    flex: 0 0 auto;
+    padding: 8px 22px;
+    border-bottom: 1px solid rgba(26, 111, 212, 0.18);
+    background: rgba(26, 111, 212, 0.08);
+    color: #0f3b66;
+    font-size: 12px;
+}
+
+.pp-launchpad__main {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    padding: 18px 22px 40px;
+    display: grid;
+    gap: 16px;
+}
+
+.pp-launchpad__section {
+    border-bottom: 1px solid var(--pp-border);
+    padding-bottom: 18px;
+}
+
+.pp-launchpad__section > header {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.pp-launchpad__section h2 {
+    margin: 0;
+    font-size: 17px;
+}
+
+.pp-launchpad__section p {
+    margin: 3px 0 0;
+    color: var(--pp-text-muted);
+    font-size: 12px;
+}
+
+.pp-launchpad__section header span {
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    border-radius: 999px;
+    padding: 3px 8px;
+    font-size: 11px;
+    color: #5f4700;
+    background: rgba(250, 204, 21, 0.13);
+}
+
+.pp-launchpad__section header span[data-ready="true"] {
+    color: #06623b;
+    background: rgba(34, 197, 94, 0.12);
+}
+
+.pp-launchpad__cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 10px;
+}
+
+.pp-launchpad__card {
+    min-width: 0;
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    border-radius: 6px;
+    background: var(--pp-surface);
+    padding: 12px;
+    box-shadow: var(--pp-control-shadow);
+}
+
+.pp-launchpad__card h3 {
+    margin: 0;
+    font-size: 14px;
+}
+
+.pp-launchpad__card p {
+    min-height: 34px;
+    margin: 5px 0 8px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--pp-text-muted);
+}
+
+.pp-launchpad__card dl {
+    display: grid;
+    gap: 4px;
+    margin: 0 0 10px;
+    font-size: 11px;
+}
+
+.pp-launchpad__card dl div {
+    display: grid;
+    grid-template-columns: 70px minmax(0, 1fr);
+    gap: 8px;
+}
+
+.pp-launchpad__card dt {
+    color: var(--pp-text-muted);
+}
+
+.pp-launchpad__card dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.pp-launchpad__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.pp-launchpad__empty,
+.pp-launchpad__error {
+    padding: 10px 12px;
+    border: 1px solid var(--pp-border);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.66);
+    color: var(--pp-text-muted);
+    font-size: 12px;
+}
+
+.pp-launchpad__error {
+    color: var(--pp-error);
+    background: rgba(255, 245, 245, 0.9);
+}
+
+.pp-evidence {
+    margin-top: 6px;
+}
+
+.pp-evidence__toggle {
+    padding: 3px 8px;
+    border: 1px solid var(--pp-border);
+    border-radius: 4px;
+    background: var(--pp-surface);
+    color: var(--pp-text-muted);
+    cursor: pointer;
+    font-size: 11px;
+}
+
+.pp-evidence__toggle:hover {
+    border-color: var(--pp-accent);
+    color: var(--pp-text);
+}
+
+.pp-evidence__drawer {
+    display: grid;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.pp-evidence__item {
+    border: 1px solid var(--pp-border);
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.68);
+    overflow: hidden;
+}
+
+.pp-evidence__item header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 5px 7px;
+    border-bottom: 1px solid var(--pp-border);
+    font-size: 11px;
+}
+
+.pp-evidence__item header span {
+    color: var(--pp-text-muted);
+}
+
+.pp-evidence__item pre {
+    margin: 0;
+    max-height: 220px;
+    overflow: auto;
+    padding: 7px;
+    font-size: 11px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+}
+
+.pp-evidence__item p {
+    margin: 0;
+    padding: 0 7px 7px;
+    color: var(--pp-text-muted);
+    font-size: 10px;
 }

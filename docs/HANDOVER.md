@@ -5,6 +5,44 @@
 
 ---
 
+## 2026-05-17 - Databricks Launchpad + P2-P8 enablement
+
+**Range:** Rajesh asked Codex to finish Claude's Databricks-centric P2-P8 handoff and to validate against the live Databricks workspace, not only against docs. This pass keeps PulsePlay as an enablement layer: discover and surface Databricks-native assets, but do not replace Databricks dashboards, Genie, SQL, Apps, Vector Search, or Unity Catalog.
+
+### What shipped
+
+- Added live Databricks enablement routes in [server.js](../proxy/server.js): Genie Spaces, AI/BI Lakeview dashboards, serving endpoints, Databricks Apps, SQL warehouses, UC metric views, metric-view detail, Vector Search query, and `databricks-aibi` embed-token flow. Normalization lives in [databricksEnablement.js](../proxy/lib/databricksEnablement.js).
+- Added `/launchpad` with [LaunchpadShell.tsx](../playground/src/launchpad/LaunchpadShell.tsx): live asset cards for AI/BI dashboards, Genie Spaces, serving endpoints, Databricks Apps, and SQL warehouses. A Lakeview dashboard can be promoted into the active `databricks-aibi` BI surface.
+- Added `databricks-aibi` and `databricks-genie` adapters in [bi-adapters](../bi-adapters). AI/BI supports iframe fallback plus optional `@databricks/aibi-client` runtime use when the SDK is installed and a scoped token is issued. Genie uses Databricks-generated iframe/src and sets `allow="clipboard-write"`.
+- Added Settings › AI fields for Databricks Vector Search KB and UC Metric View. Vector Search now shows **Hibernating** when the workspace has zero endpoints so admins can preconfigure the target index.
+- Added the first Evidence Drawer slice in [EvidenceDrawer.tsx](../playground/src/components/EvidenceDrawer.tsx): answer SQL and validation diagnostics are now inspectable in the AI sidebar.
+- Added root [app.yaml](../app.yaml) and [DEPLOY_DATABRICKS_APP.md](DEPLOY_DATABRICKS_APP.md) for Databricks Apps resource-mode deployment.
+
+### Live discovery
+
+- Live workspace returned: **7 Genie Spaces**, **2 AI/BI dashboards**, **13 serving endpoints**, **1 Databricks App**, **1 SQL warehouse**, **0 Vector Search endpoints**, and metric views at `workspace.databrickspractice.vw_metric_superstore_analysis_flat` plus `main.dbdemos_aibi_customer_support.cost_metrics`.
+- Live route smoke passed with `NODE_OPTIONS=--use-system-ca`: `/assistant/lakeview/dashboards`, `/assistant/genie/spaces`, `/assistant/serving-endpoints`, `/assistant/apps`, `/assistant/sql/warehouses`, and `/assistant/uc/metric-views`.
+- Databricks CLI exists locally (`0.297.2`), but the configured auth profile was not valid. REST coverage was sufficient, so no CLI bridge was added.
+
+### Validation
+
+- `proxy`: `node --check server.js` passed.
+- `proxy`: full `npm.cmd test -- --runInBand` passed **684/684**.
+- `playground`: `npm.cmd run lint` passed.
+- `playground`: focused `npm.cmd test -- LaunchpadShell --silent` passed **2/2**.
+- `playground`: full `npm.cmd test -- --silent` passed **552/552**.
+- `playground`: `npm.cmd run build` passed.
+- Browser smoke: current worktree served at `http://127.0.0.1:5174/launchpad`; page rendered `Databricks Launchpad` with live Databricks dashboard and Genie cards.
+
+### Tripwires
+
+- AI/BI external embedding is server-token-first. Service-principal secrets stay in the proxy; the browser only receives the user-scoped token.
+- Genie iframe embedding is a Databricks beta/preview path. The list-spaces REST response did **not** return an embed URL in Rajesh's workspace, so PulsePlay requires the Databricks-generated Share › Embed iframe/src until Databricks exposes a stable embeddable URL in API results.
+- Vector Search is intentionally hibernating in the live workspace because endpoint count is zero. The proxy route and Settings field are ready, but retrieval is not enabled until an approved index exists.
+- Evidence Drawer is a first slice: SQL and diagnostics only. Dashboard widget SQL, UC lineage, metric-view YAML/details, and vector-source citations are still future work.
+
+---
+
 ## 2026-05-17 - Databricks capability registry P1
 
 **Range:** Picked up Claude's Databricks-native enablement handoff from `.claude/worktrees/gallant-jones-a71415/docs/CODEX_TASK_DATABRICKS_LAUNCHPAD.md` because the task file was not yet present in main `docs/`. Scoped this pass to P1 only: live capability discovery and one downstream UI gate.

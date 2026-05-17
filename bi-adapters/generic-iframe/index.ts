@@ -29,6 +29,8 @@ interface GenericConfig extends BIEmbedConfig {
      *  allow-scripts + allow-same-origin (needed for most vendor SDKs that
      *  load inside the iframe to talk to their own backend). */
     sandbox?: string;
+    /** Optional iframe allow attribute, e.g. "clipboard-write" for embedded Genie. */
+    allow?: string;
     /** Defense-in-depth allowlist of permitted iframe hostnames. When
      *  non-empty, the adapter refuses to mount any URL whose hostname is
      *  not in this list — closes the L2 cleanup loophole where a caller
@@ -96,6 +98,7 @@ export class GenericIframeAdapter implements BIAdapter {
         iframe.src = cfg.url;
         iframe.title = cfg.title || `Embedded view (${new URL(cfg.url).host})`;
         iframe.setAttribute("sandbox", cfg.sandbox || this.defaultSandbox);
+        if (cfg.allow) iframe.setAttribute("allow", cfg.allow);
         iframe.setAttribute("loading", "lazy");
         iframe.style.width = "100%";
         iframe.style.height = "100%";

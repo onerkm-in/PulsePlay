@@ -186,6 +186,12 @@ export function EmbedConfigForm(props: EmbedConfigFormProps) {
     if (props.vendor === "powerbi") {
         return <PowerBIEmbedForm {...props} />;
     }
+    if (props.vendor === "databricks-aibi") {
+        return <DatabricksAibiEmbedForm {...props} />;
+    }
+    if (props.vendor === "databricks-genie") {
+        return <DatabricksGenieEmbedForm {...props} />;
+    }
     return <GenericUrlForm {...props} />;
 }
 
@@ -666,6 +672,200 @@ function hydratePbiState(value: BIEmbedConfig): PowerBIFormState {
         aadClientId: persistedSso.aadClientId || "",
         aadTenantId: persistedSso.aadTenantId || "",
     };
+}
+
+// ── Databricks-native vendors ────────────────────────────────────────────
+
+function iframeSrc(input: string): string {
+    const raw = input.trim();
+    const srcMatch = raw.match(/\bsrc\s*=\s*["']([^"']+)["']/i);
+    return (srcMatch?.[1] || raw).trim().replace(/&amp;/g, "&");
+}
+
+function buildAibiUrl(workspaceUrl: string, dashboardId: string, orgId: string): string {
+    const base = workspaceUrl.trim().replace(/\/+$/, "");
+    const params = new URLSearchParams();
+    if (orgId.trim()) params.set("o", orgId.trim());
+    const query = params.toString();
+    return `${base}/embed/dashboardsv3/${encodeURIComponent(dashboardId.trim())}${query ? `?${query}` : ""}`;
+}
+
+function DatabricksAibiEmbedForm(props: EmbedConfigFormProps) {
+    const [mode, setMode] = useState<"basic" | "sdk">(
+        props.value.accessToken || props.value.token ? "sdk" : "basic",
+    );
+    const [url, setUrl] = useState<string>((props.value.url as string) || "");
+    const [workspaceUrl, setWorkspaceUrl] = useState<string>(
+        (props.value.workspaceUrl as string) || (props.value.instanceUrl as string) || "",
+    );
+    const [workspaceId, setWorkspaceId] = useState<string>((props.value.workspaceId as string) || "");
+    const [dashboardId, setDashboardId] = useState<string>((props.value.dashboardId as string) || "");
+    const [orgId, setOrgId] = useState<string>((props.value.orgId as string) || "");
+    const [externalViewerId, setExternalViewerId] = useState<string>((props.value.externalViewerId as string) || "");
+    const [externalValue, setExternalValue] = useState<string>((props.value.externalValue as string) || "");
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState("");
+
+    const resolvedUrl = url.trim() || (workspaceUrl.trim() && dashboardId.trim()
+        ? buildAibiUrl(workspaceUrl, dashboardId, orgId)
+        : "");
+
+    const apply = async () => {
+        setError("");
+        if (!resolvedUrl) {
+            setError("Paste a dashboard embed URL or enter workspace URL + dashboard ID.");
+            return;
+        }
+        if (!isEmbedOriginAllowed(props.allowlist, "databricks-aibi", resolvedUrl)) {
+            setError(`Databricks dashboard hostname is not allowed by your organization. Allowed: ${(props.allowlist?.embedOrigins?.["databricks-aibi"] || []).join(", ") || "none configured"}.`);
+            return;
+        }
+        if (mode === "basic") {
+            props.onChange({
+                url: resolvedUrl,
+                workspaceUrl: workspaceUrl.trim() || undefined,
+                dashboardId: dashboardId.trim() || undefined,
+                orgId: orgId.trim() || undefined,
+            });
+            return;
+        }
+        if (!workspaceUrl.trim() || !workspaceId.trim() || !dashboardId.trim()) {
+            setError("SDK mode requires workspace URL, workspace ID, and dashboard ID.");
+            return;
+        }
+        setBusy(true);
+        try {
+            const res = await fetch(`${props.apiBaseUrl || "/api"}/assistant/embed-token/databricks-aibi`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    assistantProfile: props.assistantProfile || undefined,
+                    dashboardId: dashboardId.trim(),
+                    workspaceId: workspaceId.trim(),
+                    externalViewerId: externalViewerId.trim() || undefined,
+                    externalValue: externalValue.trim() || undefined,
+                }),
+            });
+            const data = await res.json() as Record<string, unknown>;
+            if (!res.ok) throw new Error(String(data.detail || data.error || `HTTP ${res.status}`));
+            props.onChange({
+                url: resolvedUrl,
+                workspaceUrl: workspaceUrl.trim(),
+                instanceUrl: workspaceUrl.trim(),
+                workspaceId: workspaceId.trim(),
+                dashboardId: dashboardId.trim(),
+                orgId: orgId.trim() || undefined,
+                accessToken: data.embedToken || data.token,
+                token: data.token || data.embedToken,
+                externalViewerId: externalViewerId.trim() || undefined,
+                externalValue: externalValue.trim() || undefined,
+                mode: "sdk",
+            });
+        } catch (err) {
+            setError(err instanceof Error ? err.message : String(err));
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    return (
+        <section className="pp-embed-config">
+            <label className="pp-embed-config__label">Databricks AI/BI mode</label>
+            <select
+                className="pp-embed-config__input"
+                value={mode}
+                onChange={e => setMode(e.target.value === "sdk" ? "sdk" : "basic")}
+            >
+                <option value="basic">Basic iframe - workspace-authenticated users</option>
+                <option value="sdk">External embedding SDK - server-issued scoped token</option>
+            </select>
+            <label htmlFor="pp-aibi-url" className="pp-embed-config__label">Embed URL or iframe src</label>
+            <input
+                id="pp-aibi-url"
+                type="url"
+                className="pp-embed-config__input"
+                value={url}
+                onChange={e => setUrl(iframeSrc(e.target.value))}
+                placeholder="https://<workspace>/embed/dashboardsv3/<dashboard-id>"
+            />
+            <div className="pp-embed-config__grid">
+                <label>
+                    Workspace URL
+                    <input className="pp-embed-config__input" value={workspaceUrl} onChange={e => setWorkspaceUrl(e.target.value)} placeholder="https://adb-...azuredatabricks.net" />
+                </label>
+                <label>
+                    Dashboard ID
+                    <input className="pp-embed-config__input" value={dashboardId} onChange={e => setDashboardId(e.target.value)} placeholder="dashboard UUID" />
+                </label>
+                <label>
+                    Workspace ID
+                    <input className="pp-embed-config__input" value={workspaceId} onChange={e => setWorkspaceId(e.target.value)} placeholder="required for SDK mode" />
+                </label>
+                <label>
+                    Org ID
+                    <input className="pp-embed-config__input" value={orgId} onChange={e => setOrgId(e.target.value)} placeholder="optional ?o= value" />
+                </label>
+            </div>
+            {mode === "sdk" && (
+                <div className="pp-embed-config__grid">
+                    <label>
+                        External viewer ID
+                        <input className="pp-embed-config__input" value={externalViewerId} onChange={e => setExternalViewerId(e.target.value)} placeholder="non-PII audit identifier" />
+                    </label>
+                    <label>
+                        External value
+                        <input className="pp-embed-config__input" value={externalValue} onChange={e => setExternalValue(e.target.value)} placeholder="optional dashboard filter value" />
+                    </label>
+                </div>
+            )}
+            <button type="button" className="pp-embed-config__apply" onClick={() => void apply()} disabled={busy}>
+                {busy ? "Issuing token..." : "Load Databricks AI/BI"}
+            </button>
+            {error && <p className="pp-embed-config__error" role="alert">{error}</p>}
+            <p className="pp-embed-config__hint">
+                Use basic iframe for internal workspace users. Use SDK mode only when the proxy profile has Databricks service-principal credentials.
+            </p>
+        </section>
+    );
+}
+
+function DatabricksGenieEmbedForm(props: EmbedConfigFormProps) {
+    const [iframe, setIframe] = useState<string>((props.value.iframe as string) || (props.value.url as string) || "");
+    const [error, setError] = useState("");
+
+    const apply = () => {
+        setError("");
+        const resolved = iframeSrc(iframe);
+        if (!resolved) {
+            setError("Paste the Databricks-generated Genie iframe or iframe src.");
+            return;
+        }
+        if (!isEmbedOriginAllowed(props.allowlist, "databricks-genie", resolved)) {
+            setError(`Genie hostname is not allowed by your organization. Allowed: ${(props.allowlist?.embedOrigins?.["databricks-genie"] || []).join(", ") || "none configured"}.`);
+            return;
+        }
+        props.onChange({ iframe, url: resolved, allow: "clipboard-write" });
+    };
+
+    return (
+        <section className="pp-embed-config">
+            <label htmlFor="pp-genie-iframe" className="pp-embed-config__label">Genie iframe</label>
+            <textarea
+                id="pp-genie-iframe"
+                className="pp-embed-config__input pp-embed-config__input--textarea"
+                value={iframe}
+                onChange={e => setIframe(e.target.value)}
+                placeholder={'<iframe src="https://<workspace>/..." allow="clipboard-write"></iframe>'}
+            />
+            <button type="button" className="pp-embed-config__apply" onClick={apply}>
+                Load Genie Space
+            </button>
+            {error && <p className="pp-embed-config__error" role="alert">{error}</p>}
+            <p className="pp-embed-config__hint">
+                Databricks requires admins to enable Genie iframe embedding and approve this PulsePlay domain before the iframe will render.
+            </p>
+        </section>
+    );
 }
 
 // ── Generic / non-PBI vendors ─────────────────────────────────────────────
