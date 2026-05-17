@@ -18,7 +18,7 @@ export type IconName =
     | "copy" | "check" | "refresh" | "stop" | "code" | "settings"
     | "external-link" | "download" | "search" | "filter" | "x"
     | "file-html" | "printer" | "maximize" | "minimize" | "restore"
-    | "float-window";
+    | "float-window" | "pin";
 
 interface IconProps {
     name: IconName;
@@ -143,6 +143,17 @@ const PATHS: Record<IconName, React.ReactElement> = {
         <>
             <rect x="2" y="4.5" width="8" height="7" rx="1" />
             <rect x="6" y="2" width="8" height="7" rx="1" />
+        </>
+    ),
+    // Pin — thumbtack-style head + needle. Tilted slightly so it reads as
+    // "pin" rather than "lollipop". Used on PaneChrome's Pin/Unpin toggle
+    // for the focused-pane layout-persistence affordance.
+    pin: (
+        <>
+            <path d="M9.5 2.5l4 4" />
+            <path d="M11 4l-5.5 5.5" />
+            <path d="M6 8l-3 5 5-3" />
+            <path d="M3 13l3.5-3.5" />
         </>
     ),
 };

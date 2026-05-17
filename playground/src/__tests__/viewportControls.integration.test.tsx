@@ -103,17 +103,14 @@ function unmount(state: MountState): void {
     state.container.remove();
 }
 
-/** Click a button by its aria-label.
+/** Open the per-pane ⋮ overflow menu, if one exists.
  *
- * After Fix #1 (overflow menu consolidation), Minimize / Pin / Unpin /
- * "Open … in separate page" live inside the per-pane ⋮ overflow menu and
- * are only mounted while the menu is open. To keep test bodies stable
- * across the contract change, this helper transparently opens the
- * relevant overflow menu when the target button isn't immediately found.
- *
- * The pane the action belongs to is derived from the aria-label suffix
- * ("…AI panel" → ai, "…BI panel" → bi); the Pin/Unpin labels are pane-
- * agnostic and fall back to opening AI's overflow first, then BI's. */
+ * Historical context: PaneChrome used to tuck Minimize / Pin / Open-in-
+ * separate-page into a ⋮ overflow menu. As of 2026-05 those actions are
+ * inline icon buttons (visual parity with the AI-side Pulse cluster), so
+ * the overflow trigger no longer renders. This helper is now defensively
+ * a no-op when called against the current shape — preserved so older
+ * test bodies that pre-opened the menu still pass without rewrite. */
 function openOverflowFor(state: MountState, pane: "ai" | "bi"): void {
     const overflowBtn = state.container.querySelector(
         `button[aria-label="More ${pane === "ai" ? "AI" : "BI"} panel actions"]`,
@@ -247,7 +244,7 @@ describe("App viewport controls — default split", () => {
         unmount(state);
     });
 
-    it("exposes Pulse AI pane icons and keeps BI PaneChrome overflow actions", () => {
+    it("exposes Pulse AI pane icons and BI PaneChrome inline icons", () => {
         const state = mountApp();
         // Pulse mode moves AI pane actions into the Pulse row as icon buttons.
         expect(state.container.querySelector(viewportControlControlSelector("ai", "Maximize"))).toBeTruthy();
@@ -256,17 +253,17 @@ describe("App viewport controls — default split", () => {
         expect(state.container.querySelector('button[aria-label="Refresh AI panel"]')).toBeTruthy();
         expect(state.container.querySelector('button[aria-label="More AI panel actions"]')).toBeNull();
 
-        // BI pane still uses the generic PaneChrome menu.
-        const max = state.container.querySelector(viewportControlControlSelector("bi", "Maximize"));
-        expect(max, "bi Maximize button (inline)").toBeTruthy();
-        const overflow = state.container.querySelector('button[aria-label="More BI panel actions"]');
-        expect(overflow, "bi overflow trigger").toBeTruthy();
-        const minClosed = state.container.querySelector(viewportControlControlSelector("bi", "Minimize"));
-        expect(minClosed, "bi Minimize (menu closed -> absent)").toBeNull();
-        openOverflowFor(state, "bi");
-        expect(state.container.querySelector(viewportControlControlSelector("bi", "Minimize")), "bi Minimize menuitem").toBeTruthy();
-        expect(state.container.querySelector('button[aria-label="Pin layout"]'), "bi Pin menuitem").toBeTruthy();
-        expect(state.container.querySelector('button[aria-label="Open BI panel in separate page"]'), "bi Open-in-separate-page menuitem").toBeTruthy();
+        // BI pane now renders the same inline icon cluster — Maximize / Minimize
+        // / Pin / Open-in-separate-page / Float all sit in the chrome bar
+        // directly (no ⋮ overflow trigger). Matches the visual treatment on
+        // the AI side per user feedback 2026-05.
+        expect(state.container.querySelector(viewportControlControlSelector("bi", "Maximize")), "bi Maximize (inline icon)").toBeTruthy();
+        expect(state.container.querySelector(viewportControlControlSelector("bi", "Minimize")), "bi Minimize (inline icon)").toBeTruthy();
+        expect(state.container.querySelector('button[aria-label="Pin layout"]'), "bi Pin (inline icon)").toBeTruthy();
+        expect(state.container.querySelector('button[aria-label="Open BI panel in separate page"]'), "bi Open-in-separate-page (inline icon)").toBeTruthy();
+        expect(state.container.querySelector('button[aria-label="Float BI panel in popup window"]'), "bi Float window (inline icon)").toBeTruthy();
+        // The ⋮ overflow trigger is gone — all actions are inline now.
+        expect(state.container.querySelector('button[aria-label="More BI panel actions"]'), "bi overflow trigger should be absent (replaced by inline icons)").toBeNull();
         unmount(state);
     });
 });
