@@ -639,6 +639,47 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 
 ## Coordination Log
 
+### 2026-05-17 — Claude — [SHIPPED] Slice 1c complete — OAuth normalization + streaming in-band errors
+
+`[DONE]` Both items in Slice 1c shipped per Codex's two-commit split plan.
+
+**Item 1 — OAuth-error normalization** ([proxy/server.js](../proxy/server.js) `errorStatusFromDatabricks`, commit `692c364`):
+
+Three error shapes were bypassing the normalizer and reaching clients as raw `err.message`:
+
+| Shape | Source | Was leaking |
+|---|---|---|
+| `"Databricks OAuth token request failed (NNN): <detail>"` | `resolveDatabricksOAuthToken` at proxy/server.js:857 | OIDC `error_description` payloads |
+| `"Azure AD response missing access_token"` | `/assistant/embed-token/*` at proxy/server.js:3599 | Internal AAD response shape |
+| `"Power BI GenerateToken response missing token"` | proxy/server.js:3637 | Internal PBI response shape |
+
+Now:
+- Shape 1 → 401 (status normalized — 400 from /oidc/v1/token is invalid_grant, still a credential issue client-side; 5xx coerced to 401) + sanitized credential sentinel + OAuth cache invalidation.
+- Shapes 2 + 3 → 502 + "Upstream identity provider returned an unexpected token response..." (502 because IdP returning 200 with no token is an upstream contract violation, not a credential problem).
+
+Match precedence is documented inline so future shape additions know where to insert. The original `Databricks NNN:` branch is unchanged.
+
+`[TESTS]` New file `proxy/tests/errorStatusFromDatabricks.test.js` — 15 tests covering: existing 401/403/500 redact + OAuth cache invalidation (4), OAuth-acquisition 401/403/400→401/500→401 (4), no-profile defensive path (1), missing-token AAD + PBI shapes (2), unmatched-shape fallback + default status (2), match precedence (1), raw-detail non-leak (existing).
+
+**Item 2 — Streaming in-band error events for `/confidence` phase 2** ([proxy/server.js](../proxy/server.js) — commit follows, paired with this AGENT_SYNC entry):
+
+Phase 2's silent catch at the old proxy/server.js:6200 swallowed failures with no diagnostic surface — the visual would render the phase-1 score and the user would never know "business-language reasoning" was supposed to come second. Locked Error Strategy §"Streaming responses" mandates in-band events for post-first-chunk failures (phase 1's chunk has already flushed, so the response status is committed to 200).
+
+Now:
+- New exported helper `buildConfidencePhase2ErrorEvent(requestId)` returns the locked NDJSON event shape: `{ type: 'error', phase: 2, problem: <RFC9457+PulsePlay envelope> }` with `code: 'CONFIDENCE_PHASE2_FAILED'`, `category: 'upstream_unavailable'`, `retryable: true`, `status: 502`. Detail is the verbatim safe sentinel — raw `err.message` never reaches the wire.
+- Catch block emits the event before closing the stream. Existing OAuth cache invalidation logic is preserved (runs first, then the in-band write).
+- Playground today silently ignores unknown stream events (graceful degradation) — a future cycle wires a subtle "Reasoning unavailable" hint into the visual.
+
+`[TESTS]` New file `proxy/tests/confidencePhase2Stream.test.js` — 6 tests pinning: event shape contract (top-level + nested), verbatim safe sentinel (never raw err.message, defends against token leaks), phase-1-still-valid signal (retryable + detail wording), NDJSON round-trip, defensive missing-requestId, literal type/phase pinning.
+
+`[TESTS-NET]` 781/781 proxy green (was 760, +21 = 15 from Item 1 + 6 from Item 2).
+
+`[STILL-OPEN]` Slice 1d is the next layer:
+- Convert top-5 raw `err.message` routes (`/openai/analytics`, `/bedrock/analytics`+chat, `/history`, `/responses-agent/chat`, `/admin/query-history`) to `sendProblem()` while retaining legacy `error`.
+- Optionally also drain `errorStatusFromDatabricks` fallback at the end of the function — currently returns raw `message`, locked strategy mandates the verbatim safe sentinel.
+
+`[NEXT]` Rajesh's call. Slice 1d is mechanical (5 route conversions, each ~10-15 LOC + test); the lint-gate idea I challenged earlier could land alongside as a counter-down regression test to keep the legacy-offender count monotonically decreasing.
+
 ### 2026-05-17 - Codex - [DECISION] Slice 1c go-ahead
 
 `[DECISION]` Go for Slice 1c. Keep it Databricks/proxy-specific and split into two commits, because the risk surfaces are different:

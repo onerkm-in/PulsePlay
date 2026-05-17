@@ -6134,6 +6134,33 @@ function structuralConfidence(attachments, profileName) {
     return { score, level, signals };
 }
 
+/**
+ * Slice 1c Item 2 — build the NDJSON in-band error event that the
+ * /confidence stream emits when phase 2 (business-language reasoning)
+ * fails after the phase-1 score has already been written. Exported for
+ * testing so the locked event shape can be pinned without standing up
+ * the full https.request mock harness.
+ *
+ * The locked Error Strategy §"Streaming responses" mandates in-band
+ * structured error events for post-first-chunk failures — we can't
+ * retroactively change the response status once 200 + the phase-1
+ * chunk has been flushed. The playground today silently ignores
+ * unknown stream events (graceful degradation); a future cycle wires
+ * a subtle "Reasoning unavailable" hint into the visual.
+ */
+function buildConfidencePhase2ErrorEvent(requestId) {
+    const problem = createProblem({
+        status: 502,
+        code: 'CONFIDENCE_PHASE2_FAILED',
+        title: 'Confidence reasoning unavailable',
+        detail: 'PulsePlay could not retrieve the business-language reasoning for this confidence score. The phase 1 score above is unaffected.',
+        category: 'upstream_unavailable',
+        requestId,
+        retryable: true,
+    });
+    return { type: 'error', phase: 2, problem };
+}
+
 app.post('/confidence', async (req, res) => {
     const { attachments, profileName, conversationId, question } = req.body || {};
 
@@ -6198,8 +6225,7 @@ app.post('/confidence', async (req, res) => {
                 res.write(JSON.stringify({ phase: 2, businessReason }) + '\n');
             }
         } catch (_err) {
-            // Phase 2 failure is silent — Phase 1 score already sent.
-            // Tier B Day 4 — but if upstream surfaced a 401, invalidate the
+            // Tier B Day 4 — if upstream surfaced a 401, invalidate the
             // OAuth cache so the next /confidence call re-auths cleanly.
             // (No-op when the resolved profile is PAT-based, but cheap.)
             try {
@@ -6209,6 +6235,18 @@ app.post('/confidence', async (req, res) => {
                     if (r?.profile) invalidateOAuthCacheForProfile(r.profile);
                 }
             } catch { /* invalidation must never throw */ }
+
+            // Slice 1c Item 2 — emit an in-band error event for the
+            // phase-2 failure instead of silently swallowing. Phase 1's
+            // score chunk has already been flushed, so we can't change
+            // the response status; the locked Error Strategy mandates
+            // structured in-band events for post-first-chunk failures.
+            // Raw err.message NEVER reaches the wire — the event carries
+            // a verbatim safe sentinel via createProblem.
+            try {
+                const evt = buildConfidencePhase2ErrorEvent(req.requestId);
+                res.write(JSON.stringify(evt) + '\n');
+            } catch { /* error emission must never throw */ }
         }
     }
 
@@ -6822,4 +6860,5 @@ module.exports = {
     visibleDatabricksAppResources,
     handleJsonParseProblem,
     handleUnexpectedProxyError,
+    buildConfidencePhase2ErrorEvent,
 };
