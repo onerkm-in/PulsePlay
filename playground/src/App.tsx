@@ -13,6 +13,11 @@
 // the same proxy backend (Genie / Azure OpenAI / Bedrock / foundation
 // model) we proved out in DwD_AI_Assistant_for_PBI cycles 1-47.
 
+import { QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import { queryClient } from './lib/queryClient';
+import { usePacks } from "./features/config/usePacks";
+import { useAllowlist } from "./features/config/useAllowlist";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
 import { BIPanel } from "./biPanel/BIPanel";
@@ -248,9 +253,12 @@ function buildFocusedPaneUrl(pane: ViewportPane): string {
  *  either the Settings page or the playground based on the route. */
 export function App(): React.ReactElement {
     return (
-        <SettingsProvider>
-            <AppRouted />
-        </SettingsProvider>
+        <QueryClientProvider client={queryClient}>
+            <SettingsProvider>
+                <AppRouted />
+            </SettingsProvider>
+            <ReactQueryDevtools initialIsOpen={false} />
+        </QueryClientProvider>
     );
 }
 
@@ -320,12 +328,12 @@ function PlaygroundApp(): React.ReactElement {
     // stayed empty. Discovered by browser smoke test 2026-05-17.
     const settings = useSettings();
     const vendors = useMemo(() => listVendors(), []);
-    const [allowlistState, setAllowlistState] = useState<{
-        allowlist: PulsePlayAllowlist | null;
-        error: string;
-    }>({ allowlist: null, error: "" });
-    const [availablePacks, setAvailablePacks] = useState<PackInfo[]>([]);
-    const [packsLoaded, setPacksLoaded] = useState(false);
+    const { data: allowlistRes, error: allowlistError } = useAllowlist();
+    const allowlistState = {
+        allowlist: allowlistRes ?? null,
+        error: allowlistError?.message || ""
+    };
+    const { data: availablePacks = [], isSuccess: packsLoaded } = usePacks();
     const visibleVendors = useMemo(() => {
         if (!allowlistState.allowlist?.configured) return vendors;
         const allowed = allowlistState.allowlist.biProviders || [];
@@ -410,40 +418,7 @@ function PlaygroundApp(): React.ReactElement {
     const [pulseRenderToken, setPulseRenderToken] = useState(0);
     const [pulseAssistantProfile, setPulseAssistantProfile] = useState<string>(() => readPulseAssistantProfile());
 
-    useEffect(() => {
-        let cancelled = false;
-        async function loadGovernanceState() {
-            try {
-                const [allowlistResp, packsResp] = await Promise.all([
-                    fetch("/api/assistant/allowlist"),
-                    fetch("/api/assistant/knowledge/packs"),
-                ]);
-                const nextAllowlist = allowlistResp.ok
-                    ? await allowlistResp.json() as PulsePlayAllowlist
-                    : null;
-                const nextPacksPayload = packsResp.ok
-                    ? await packsResp.json() as { packs?: PackInfo[] }
-                    : { packs: [] };
-                if (cancelled) return;
-                setAllowlistState({
-                    allowlist: nextAllowlist,
-                    error: nextAllowlist ? "" : `Allowlist unavailable (HTTP ${allowlistResp.status}).`,
-                });
-                setAvailablePacks(Array.isArray(nextPacksPayload.packs) ? nextPacksPayload.packs : []);
-                setPacksLoaded(true);
-            } catch (err) {
-                if (cancelled) return;
-                setAllowlistState({
-                    allowlist: null,
-                    error: err instanceof Error ? err.message : String(err),
-                });
-                setAvailablePacks([]);
-                setPacksLoaded(true);
-            }
-        }
-        void loadGovernanceState();
-        return () => { cancelled = true; };
-    }, []);
+
 
     // Pre-warm the Databricks SQL warehouse for the active Genie profile so
     // the user's first Pulse / AI ask doesn't pay 30–60s of cold-start.
