@@ -1270,11 +1270,13 @@ function PaneChrome(props: {
     };
     // Icon-only buttons used by the inline action cluster. Same ghost base
     // as text buttons but square-ish for visual rhythm with the Pulse
-    // gn-pane-action-cluster on the AI side.
+    // gn-pane-action-cluster on the AI side. Tight padding so 6 icons +
+    // the title block fit in a narrow split pane without truncating the
+    // vendor subtitle.
     const iconButtonStyle: React.CSSProperties = {
         ...buttonStyle,
-        minWidth: 26,
-        padding: "0 5px",
+        minWidth: 22,
+        padding: "0 3px",
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
@@ -1319,9 +1321,9 @@ function PaneChrome(props: {
                         background: props.isFocused ? "#f8fafc" : "rgba(248,250,252,0.6)",
                     }}
                 >
-                    <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 11.5, fontWeight: 600, lineHeight: 1.2, letterSpacing: 0.1 }}>{props.title}</div>
-                        <div style={{ fontSize: 10.5, opacity: 0.6, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div style={{ minWidth: 0, flex: "1 1 auto", overflow: "hidden" }}>
+                        <div style={{ fontSize: 11.5, fontWeight: 600, lineHeight: 1.2, letterSpacing: 0.1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{props.title}</div>
+                        <div style={{ fontSize: 10.5, opacity: 0.6, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={props.subtitle}>
                             {props.subtitle}
                         </div>
                     </div>
@@ -1333,11 +1335,10 @@ function PaneChrome(props: {
                             style={{
                                 display: "flex",
                                 alignItems: "center",
-                                gap: 4,
-                                flex: "1 1 auto",
-                                flexWrap: "wrap",
+                                gap: 2,
+                                flex: "0 0 auto",
+                                flexWrap: "nowrap",
                                 justifyContent: "flex-end",
-                                maxWidth: "100%",
                                 minWidth: 0,
                                 position: "relative",
                             }}
@@ -1416,20 +1417,23 @@ function PaneChrome(props: {
                             <Icon name="float-window" />
                         </button>
 
-                        {/* "Both" is a distinct intent from the focus toggle (one
-                         *  pane is enabled instead of split). Keep visible when
-                         *  applicable as a small text affordance — no clean
-                         *  icon equivalent. The integration test asserts the
-                         *  aria-label "Show both panels". */}
+                        {/* Show both panels — distinct intent from the focus
+                         *  toggle (return to split layout when one pane has
+                         *  been exclusively focused). aria-label "Show both
+                         *  panels" preserved verbatim per the integration-test
+                         *  contract. Now an icon (two side-by-side rects =
+                         *  "two panes") so the chrome is purely iconographic
+                         *  and the vendor subtitle stops getting truncated
+                         *  in narrow split panes. */}
                         {props.canShowBoth && (
                             <button
                                 type="button"
                                 aria-label="Show both panels"
                                 title="Show both panels"
                                 onClick={props.onShowBoth}
-                                style={buttonStyle}
+                                style={iconButtonStyle}
                             >
-                                Both
+                                <Icon name="show-both" />
                             </button>
                         )}
                         </div>

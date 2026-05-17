@@ -18,7 +18,7 @@ export type IconName =
     | "copy" | "check" | "refresh" | "stop" | "code" | "settings"
     | "external-link" | "download" | "search" | "filter" | "x"
     | "file-html" | "printer" | "maximize" | "minimize" | "restore"
-    | "float-window" | "pin";
+    | "float-window" | "pin" | "show-both";
 
 interface IconProps {
     name: IconName;
@@ -154,6 +154,14 @@ const PATHS: Record<IconName, React.ReactElement> = {
             <path d="M11 4l-5.5 5.5" />
             <path d="M6 8l-3 5 5-3" />
             <path d="M3 13l3.5-3.5" />
+        </>
+    ),
+    // Show both — two equal-height rects side by side, suggesting two panes
+    // returning to the split layout. Used on the "Show both panels" action.
+    "show-both": (
+        <>
+            <rect x="2.5" y="4" width="4.5" height="8" rx="0.5" />
+            <rect x="9"   y="4" width="4.5" height="8" rx="0.5" />
         </>
     ),
 };
