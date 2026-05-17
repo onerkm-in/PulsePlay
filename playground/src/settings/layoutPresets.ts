@@ -14,8 +14,10 @@
 //   T5  Ask Pulse only                       — chat-first internal tool
 //
 // Claude's [CHALLENGE] in `0a85fb5` argued these are PRESETS over existing
-// state, not a new "surface tab" architecture. Each T-template maps directly
-// to a combination of three settings we already have:
+// state. Rajesh's follow-up clarified the visible experience still must be a
+// unified surface by default: BI should not occupy a permanent separate pane
+// unless the author explicitly chooses Split + Mix. Each T-template maps
+// directly to a combination of three settings we already have:
 //
 //   enabledComponents : "aiOnly" | "biOnly" | "both" | "mix"
 //   layoutMode        : "ai-left" | "ai-right" | "ai-top" | "ai-bottom"
@@ -64,7 +66,7 @@ export interface LayoutPresetConfig {
 export const LAYOUT_PRESETS: Record<LayoutPreset, LayoutPresetConfig> = {
     "balanced": {
         label: "Balanced",
-        description: "AI Insights, Ask Pulse, and BI side by side. Default for the typical playground deployment — author and end-user both see the full surface.",
+        description: "Unified default. AI Insights, Ask Pulse, and BI Viz are peer surfaces; BI opens on demand instead of taking a permanent second section.",
         template: "T1",
         state: {
             enabledComponents: "mix",

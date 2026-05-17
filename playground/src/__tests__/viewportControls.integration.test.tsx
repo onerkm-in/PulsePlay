@@ -10,7 +10,8 @@
 // Coverage:
 //   - `?focus=ai` and `?focus=bi` URL params hydrate the shell's
 //     data-viewport-focus attribute.
-//   - Default (no URL focus) renders both PaneChrome instances in `split`.
+//   - Default (no URL focus) renders the unified Mix surface: AI is visible,
+//     BI opens on demand through the peer `BI Viz` action.
 //   - Each panel exposes Maximize / Minimize / Pin / Page buttons with the
 //     correct aria-labels from the contract.
 //   - Clicking Maximize swaps to data-viewport-focus=<pane>; Restore swaps
@@ -53,6 +54,13 @@ vi.mock("../components/PulseShell", () => ({
                 <button type="button" aria-label="Minimize AI panel" onClick={() => fire("minimize")} />
                 <button type="button" aria-label="Open AI panel in separate page" onClick={() => fire("open-page")} />
                 <button type="button" aria-label="Refresh AI panel" onClick={() => fire("reload")} />
+                <button
+                    type="button"
+                    aria-label="Open BI Viz surface"
+                    onClick={() => window.dispatchEvent(new CustomEvent("pulseplay:viewport-action", {
+                        detail: { pane: "bi", action: "focus" },
+                    }))}
+                />
             </div>
         );
     },
@@ -192,9 +200,9 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
-/* ─── Default split layout ───────────────────────────────────────── */
+/* ─── Default unified layout ─────────────────────────────────────── */
 
-describe("App viewport controls — default split", () => {
+describe("App viewport controls — default unified Mix surface", () => {
     it("renders the shell with data-viewport-focus=split when no URL focus is set", () => {
         const state = mountApp();
         const shell = state.container.querySelector(viewportControlShellSelector);
@@ -204,14 +212,30 @@ describe("App viewport controls — default split", () => {
         unmount(state);
     });
 
-    it("renders both AI and BI panel chrome nodes with data-panel-state=normal", () => {
+    it("renders AI as the primary surface and does not keep BI as a permanent second section", () => {
         const state = mountApp();
         const aiChrome = state.container.querySelector(viewportControlPanelChromeSelector("ai"));
         const biChrome = state.container.querySelector(viewportControlPanelChromeSelector("bi"));
         expect(aiChrome).toBeTruthy();
-        expect(biChrome).toBeTruthy();
+        expect(biChrome).toBeNull();
         expect(aiChrome?.getAttribute("data-panel-state")).toBe("normal");
-        expect(biChrome?.getAttribute("data-panel-state")).toBe("normal");
+        unmount(state);
+    });
+
+    it("opens BI as a peer surface through the BI Viz action without changing the permanent layout", () => {
+        const state = mountApp();
+
+        clickByLabel(state, "Open BI Viz surface");
+
+        const shell = state.container.querySelector(viewportControlShellSelector);
+        const biChrome = state.container.querySelector(viewportControlPanelChromeSelector("bi"));
+        expect(shell?.getAttribute("data-viewport-focus")).toBe("bi");
+        expect(biChrome?.getAttribute("data-panel-state")).toBe("maximized");
+        expect(window.localStorage.getItem("pulseplay:enabled-components")).toBeNull();
+
+        clickByLabel(state, "Restore BI panel");
+        expect(state.container.querySelector(viewportControlPanelChromeSelector("bi"))).toBeNull();
+
         unmount(state);
     });
 
@@ -245,6 +269,7 @@ describe("App viewport controls — default split", () => {
     });
 
     it("exposes Pulse AI pane icons and BI PaneChrome inline icons", () => {
+        window.localStorage.setItem("pulseplay:enabled-components", "both");
         const state = mountApp();
         // Pulse mode moves AI pane actions into the Pulse row as icon buttons.
         expect(state.container.querySelector(viewportControlControlSelector("ai", "Maximize"))).toBeTruthy();
@@ -272,6 +297,7 @@ describe("App viewport controls — default split", () => {
 
 describe("App viewport controls — ?focus= URL", () => {
     it("hydrates focused-AI state when ?focus=ai is set before mount", () => {
+        window.localStorage.setItem("pulseplay:enabled-components", "both");
         setLocation("?focus=ai");
         const state = mountApp();
         const shell = state.container.querySelector(viewportControlShellSelector);
@@ -342,6 +368,10 @@ describe("App viewport controls — ?focus= URL", () => {
 /* ─── Click-driven transitions ───────────────────────────────────── */
 
 describe("App viewport controls — chrome buttons", () => {
+    beforeEach(() => {
+        window.localStorage.setItem("pulseplay:enabled-components", "both");
+    });
+
     it("Maximize → focused, Restore → split, both panels stay mounted", () => {
         const state = mountApp();
 

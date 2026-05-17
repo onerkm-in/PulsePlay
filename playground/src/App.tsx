@@ -63,8 +63,10 @@ const UI_MODE_STORAGE_KEY = "pulseplay:ui-mode";
  *  enabled-features toggle, but at the OUTER playground level: which
  *  panels render at all. "aiOnly" hides the BI canvas (handy for a
  *  chat-only deployment); "biOnly" hides the AI side (handy when
- *  embedding PulsePlay as a BI viewer in another shell); "both"
- *  (default) keeps everything visible. Persists in localStorage. */
+ *  embedding PulsePlay as a BI viewer in another shell); "both" is the
+ *  explicit split-pane power-user view; "mix" is the default unified
+ *  surface mode where BI is available as a peer surface action instead
+ *  of occupying a permanent second section. Persists in localStorage. */
 type EnabledComponents = "aiOnly" | "biOnly" | "both" | "mix";
 const ENABLED_COMPONENTS_STORAGE_KEY = "pulseplay:enabled-components";
 
@@ -164,12 +166,12 @@ function readInitialUiMode(): UiMode {
 }
 
 function readInitialEnabledComponents(): EnabledComponents {
-    if (typeof window === "undefined") return "both";
+    if (typeof window === "undefined") return "mix";
     try {
         const stored = window.localStorage.getItem(ENABLED_COMPONENTS_STORAGE_KEY);
         if (stored === "aiOnly" || stored === "biOnly" || stored === "both" || stored === "mix") return stored;
     } catch { /* swallow */ }
-    return "both";
+    return "mix";
 }
 
 function readInitialLayoutMode(): LayoutMode {
@@ -646,12 +648,12 @@ function PlaygroundApp(): React.ReactElement {
         return () => window.removeEventListener(PULSE_VISUAL_SETTINGS_EVENT, handler as EventListener);
     }, []);
 
-    // "mix" composition includes both panes (same as "both" at the
-    // pane-visibility level). The Mix surface adds per-feature cherry-pick
-    // controls in Settings → Preferences → Mix composition, but at the
-    // outer layout level there's no difference from "both".
+    // "mix" is the unified default: AI Insights / Ask Pulse own the main
+    // surface and BI is reachable as a peer action ("BI Viz") that focuses
+    // the BI pane on demand. Authors who want a permanent second BI section
+    // use the explicit "both" / Split + Mix preset.
     const aiVisible = enabledComponents === "aiOnly" || enabledComponents === "both" || enabledComponents === "mix";
-    const biVisible = enabledComponents === "biOnly" || enabledComponents === "both" || enabledComponents === "mix";
+    const biVisible = enabledComponents === "biOnly" || enabledComponents === "both";
     const mountedAiVisible = focusedPane ? focusedPane === "ai" || aiVisible : aiVisible;
     const mountedBiVisible = focusedPane ? focusedPane === "bi" || biVisible : biVisible;
     const minimizedPane: ViewportFocus = !focusedPane && enabledComponents === "biOnly"

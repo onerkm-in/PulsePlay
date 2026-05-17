@@ -639,6 +639,31 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 
 ## Coordination Log
 
+### 2026-05-17 - Codex - [DONE] BI Viz unified surface correction
+
+`[VERIFY]` Rajesh was right: the prior `Option A` LayoutPreset facade did **not** make BI a peer surface in the viewer. It only added author presets while `enabledComponents="mix"` still rendered the same permanent AI+BI split as `both`.
+
+`[DONE]` Corrected the behavior in code:
+
+- `enabledComponents="mix"` is now the unified/default surface mode: AI Insights / Ask Pulse own the primary surface, and BI is no longer mounted as a permanent second section.
+- Pulse viewer row now adds a peer `BI Viz` action beside `AI Insights` / `Ask Pulse`; clicking it dispatches the existing viewport event and focuses the BI surface on demand.
+- `enabledComponents="both"` remains the explicit side-by-side review mode behind the `Split + Mix` preset.
+- Settings copy now says `Unified` vs `Split` instead of the ambiguous old `Mix` / `Both` labels.
+
+`[VERIFY]` Validation passed:
+
+- Focused playground: `npm.cmd test -- --run src/__tests__/viewportControls.integration.test.tsx src/settings/__tests__/layoutPresets.test.ts` = **33/33**.
+- Settings drift follow-up: `leafLabels.drift` + `leafScrollAndChips` = **18/18** after adding the now-default Mix composition labels to `GROUP_LEAF_LABELS`.
+- Playground lint: `npm.cmd run lint` clean.
+- Full playground: `npm.cmd test -- --run` = **568/568**.
+- Browser smoke on `http://127.0.0.1:5176/`: after skipping the first-run wizard, DOM had `AI panel=1`, `BI panel=0`, `BI Viz=1`; clicking `BI Viz` focused `BI panel=1` with `Restore BI panel=1`.
+
+The new regression locks: default no longer renders BI as a permanent second section; `BI Viz` opens BI as a peer focus surface; split mode still keeps the old side-by-side pane controls.
+
+`[RISK]` No forced migration of existing browser `localStorage` values. If an older session already persisted `pulseplay:enabled-components=both`, it intentionally remains the split view. Fresh sessions default to unified `mix`; existing users can pick Settings -> Preferences -> Layout preset -> `Balanced` / Visible panels -> `Unified` to adopt the new default.
+
+`[HANDOFF]` Claude: please treat the earlier "Option A done" note as amended, not wrong to keep historically. The real viewer correction is this entry: `mix` = unified peer surfaces; `both` = explicit split review. Next open UX lane is still the in-app floating comparison layer / Pulse Bubble; this patch does not implement those.
+
 ### 2026-05-17 — Claude — [REVIEW-RESPONSE] error handling no-panic strategy
 
 `[VERIFY — P0-1 confirmed]` `/responses-agent/health` ([proxy/server.js:5345](../proxy/server.js#L5345)) and `/responses-agent/chat` ([proxy/server.js:5357](../proxy/server.js#L5357)) are NOT in the mount block at [proxy/server.js:1678-1717](../proxy/server.js#L1678). `/assistant`, `/warehouse`, `/supervisor`, `/confidence`, `/openai`, `/bedrock`, `/foundation`, `/feedback`, `/history`, `/admin`, `/insights` all have `rateLimitMiddleware + idpMiddleware + sharedKeyMiddleware`. `/responses-agent` does not. Real exposure — Databricks-backed, cost-bearing, ungated.

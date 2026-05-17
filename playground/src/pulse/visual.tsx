@@ -3941,6 +3941,17 @@ function App(props: AppProps) {
                             </button>
                         </div>
                     )}
+                    {enabledFeatures === "both" && (
+                        <button
+                            type="button"
+                            className="gn-header-tab"
+                            onClick={() => dispatchPulsePlayViewportAction("focus", "bi")}
+                            aria-label="Open BI Viz surface"
+                            title="Open BI Viz surface"
+                        >
+                            BI Viz
+                        </button>
+                    )}
                     {activeTab === "insights" && isConfigured && (
                         <div
                             className="gn-adjust-menu gn-export-skip"

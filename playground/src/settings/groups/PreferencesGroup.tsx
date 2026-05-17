@@ -119,20 +119,20 @@ export function PreferencesGroup(): React.ReactElement {
                 </div>
             </Leaf>
 
-            <Leaf group="preferences" label="Visible panels" helper="Author choice: which surfaces this PulsePlay instance shows to end users. AI/BI verticals are independent — pick what you've wired up. End users only see what's selected here.">
+            <Leaf group="preferences" label="Visible panels" helper="Author choice: unified surface, split review, or focused single-surface deployments. AI/BI verticals stay independent — pick what you've wired up.">
                 <ButtonGroup<EnabledComponents>
                     value={enabledComponents}
                     onChange={setEnabledComponents}
                     options={[
                         { value: "aiOnly", label: "AI only" },
                         { value: "biOnly", label: "BI only" },
-                        { value: "both", label: "Both" },
-                        { value: "mix", label: "Mix" },
+                        { value: "mix", label: "Unified" },
+                        { value: "both", label: "Split" },
                     ]}
                 />
             </Leaf>
 
-            <Leaf group="preferences" label="AI position" helper="Where the AI panel sits relative to the BI canvas. Only applies when both panels are enabled.">
+            <Leaf group="preferences" label="AI position" helper="Where the AI panel sits relative to the BI canvas. Applies to the explicit Split preset, not the unified default.">
                 <ButtonGroup<LayoutMode>
                     value={layoutMode}
                     onChange={setLayoutMode}

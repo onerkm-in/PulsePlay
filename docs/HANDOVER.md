@@ -5,6 +5,33 @@
 
 ---
 
+## 2026-05-17 - Unified surface correction: BI Viz is a peer action, not a permanent pane
+
+**Range:** Rajesh challenged the UI after seeing BI still rendered as a separate right-side section. Brutal-honest answer: the prior LayoutPreset facade did not implement the visible part of his plan. This pass corrects that first slice.
+
+### What shipped
+
+- `enabledComponents="mix"` now means the unified default surface: AI Insights / Ask Pulse own the main surface and BI does not render as a permanent second section.
+- Added a Pulse-row **BI Viz** action beside AI Insights / Ask Pulse that focuses the BI surface through the existing viewport event system.
+- Kept `enabledComponents="both"` as the explicit split-pane mode for the `Split + Mix` preset, so side-by-side review remains available when the author chooses it.
+- Settings Preferences now labels the choice as `Unified` vs `Split` instead of ambiguous `Mix` vs `Both`, and the Balanced preset copy now describes BI as on-demand.
+- Updated AGENT_SYNC with a `[DONE]` correction entry so Claude does not treat the earlier Option A note as the final viewer behavior.
+
+### Validation
+
+- `playground`: focused `npm.cmd test -- --run src/__tests__/viewportControls.integration.test.tsx src/settings/__tests__/layoutPresets.test.ts` passed **33/33**.
+- `playground`: Settings drift follow-up `leafLabels.drift` + `leafScrollAndChips` passed **18/18**.
+- `playground`: `npm.cmd run lint` passed.
+- `playground`: full `npm.cmd test -- --run` passed **568/568**.
+- Browser smoke on `http://127.0.0.1:5176/`: fresh-origin unified view rendered `AI panel=1`, `BI panel=0`, `BI Viz=1`; clicking `BI Viz` focused the BI surface with a visible `Restore BI panel` control.
+
+### Tripwires
+
+- Existing browsers with `pulseplay:enabled-components=both` in localStorage intentionally stay in split mode. Fresh sessions default to unified `mix`; existing users can switch through Settings -> Preferences -> Layout preset -> `Balanced` or Visible panels -> `Unified`.
+- This does not implement the floating comparison layer or Pulse Bubble launcher yet. It only corrects the default BI-as-peer-surface behavior.
+
+---
+
 ## 2026-05-17 - Error handling strategy and no-panic failure contract
 
 **Range:** Rajesh asked for a deep scan with multiple agents so PulsePlay errors become clear, root-cause-oriented, and resolvable instead of panic-inducing. This pass is docs/research only; it does not yet change runtime behavior.
