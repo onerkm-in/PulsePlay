@@ -78,7 +78,8 @@ jest.mock('../lib/databricksCapabilityRegistry', () => ({
 }));
 
 const request = require('supertest');
-const { app, conversationMap, normalizeGenieResponse, loadEnvProfiles, isTransientNetError } = require('../server');
+const { app, conversationMap, normalizeGenieResponse, loadEnvProfiles, isTransientNetError, handleUnexpectedProxyError } = require('../server');
+const { UNEXPECTED_INTERNAL_SENTINEL } = require('../lib/problemDetails');
 const fs = require('fs');
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -232,6 +233,83 @@ describe('CORS headers', () => {
     it('handles OPTIONS preflight with 204', async () => {
         const res = await request(app).options('/assistant/capabilities');
         expect(res.status).toBe(204);
+    });
+});
+
+// ── Problem Details foundation (Slice 1b) ────────────────────────────────────
+describe('Problem Details foundation', () => {
+    it('returns application/problem+json for malformed JSON before auth runs', async () => {
+        const res = await request(app)
+            .post('/assistant/conversations/start')
+            .set('Content-Type', 'application/json')
+            .set('X-Request-Id', 'bad id<>')
+            .send('{"content":');
+
+        expect(res.status).toBe(400);
+        expect(res.headers['content-type']).toMatch(/application\/problem\+json/);
+        expect(res.headers['x-request-id']).toBe('badid');
+        expect(res.body).toMatchObject({
+            type: 'https://pulseplay.local/problems/invalid-json',
+            title: 'Invalid JSON body',
+            status: 400,
+            code: 'INVALID_JSON',
+            category: 'validation',
+            requestId: 'badid',
+            error: 'The request body is not valid JSON. Fix the JSON syntax and try again.',
+        });
+        expect(res.body.supportCode).toMatch(/^INVALID_JSON-/);
+    });
+
+    it('keeps the unexpected fallback as the final Express middleware', () => {
+        const stack = (app._router && app._router.stack) || (app.router && app.router.stack) || [];
+        const finalLayer = stack[stack.length - 1];
+        expect(finalLayer.handle.name).toBe('handleUnexpectedProxyError');
+    });
+
+    it('turns uncaught errors into a safe 500 problem envelope', () => {
+        const err = new Error('boom dapi12345678901234567890 client_secret=do-not-leak');
+        const req = {
+            headers: { 'x-request-id': 'rid-500' },
+            method: 'POST',
+            originalUrl: '/assistant/fail',
+        };
+        const problemPayloads = [];
+        const res = {
+            headersSent: false,
+            setHeader: jest.fn(),
+            status: jest.fn().mockReturnThis(),
+            type: jest.fn().mockReturnThis(),
+            json: jest.fn(body => { problemPayloads.push(body); return body; }),
+        };
+        const next = jest.fn();
+
+        handleUnexpectedProxyError(err, req, res, next);
+
+        expect(next).not.toHaveBeenCalled();
+        expect(res.status).toHaveBeenCalledWith(500);
+        expect(res.type).toHaveBeenCalledWith('application/problem+json');
+        expect(problemPayloads[0]).toMatchObject({
+            title: 'Unexpected proxy error',
+            status: 500,
+            code: 'UNEXPECTED_PROXY_ERROR',
+            category: 'unexpected_internal',
+            detail: UNEXPECTED_INTERNAL_SENTINEL,
+            error: UNEXPECTED_INTERNAL_SENTINEL,
+            requestId: 'rid-500',
+        });
+        expect(JSON.stringify(problemPayloads[0])).not.toContain('do-not-leak');
+        expect(JSON.stringify(problemPayloads[0])).not.toContain('dapi12345678901234567890');
+    });
+
+    it('passes streaming failures through when headers were already sent', () => {
+        const err = new Error('stream already started');
+        const req = { headers: {}, method: 'GET', originalUrl: '/supervisor/stream' };
+        const res = { headersSent: true };
+        const next = jest.fn();
+
+        handleUnexpectedProxyError(err, req, res, next);
+
+        expect(next).toHaveBeenCalledWith(err);
     });
 });
 

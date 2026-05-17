@@ -67,6 +67,13 @@ const allowlist = require('./lib/allowlist');
 const { listInstalledPacks, loadPackDetail, loadSubVerticalDetail } = require('./lib/packRegistry');
 const databricksCapabilityRegistry = require('./lib/databricksCapabilityRegistry');
 const databricksEnablement = require('./lib/databricksEnablement');
+const {
+    UNEXPECTED_INTERNAL_SENTINEL,
+    createProblem,
+    ensureRequestId,
+    redactProblemCause,
+    sendProblem,
+} = require('./lib/problemDetails');
 
 // ── Supervisor strategy registry ─────────────────────────────────────────────
 // All supervisor-flavour profile `type` values live in one place so adding a
@@ -1251,6 +1258,52 @@ async function ensureWarehouseRunning(profile) {
 // ── App ───────────────────────────────────────────────────────────────────────
 const app = express();
 app.use(express.json({ limit: '4mb' }));
+app.use(handleJsonParseProblem);
+
+function isJsonParseError(err) {
+    return Boolean(
+        err
+        && err.type === 'entity.parse.failed'
+        && err.status === 400
+        && err instanceof SyntaxError
+    );
+}
+
+function isBodyTooLargeError(err) {
+    return Boolean(err && err.type === 'entity.too.large' && Number(err.status) === 413);
+}
+
+function handleJsonParseProblem(err, req, res, next) {
+    if (!isJsonParseError(err) && !isBodyTooLargeError(err)) return next(err);
+    const requestId = ensureRequestId(req, res);
+    const tooLarge = isBodyTooLargeError(err);
+    const problem = createProblem({
+        status: tooLarge ? 413 : 400,
+        code: tooLarge ? 'REQUEST_BODY_TOO_LARGE' : 'INVALID_JSON',
+        title: tooLarge ? 'Request body too large' : 'Invalid JSON body',
+        detail: tooLarge
+            ? 'The request body is larger than the 4 MB proxy limit. Reduce the payload and try again.'
+            : 'The request body is not valid JSON. Fix the JSON syntax and try again.',
+        category: 'validation',
+        severity: 'warning',
+        retryable: false,
+        requestId,
+        instance: req.originalUrl || req.url || '',
+        userAction: tooLarge
+            ? 'Send a smaller payload, reduce embedded context, or split the request into smaller calls.'
+            : 'Check for missing commas, unclosed quotes, or trailing characters in the JSON body.',
+        operatorAction: tooLarge
+            ? 'Check whether the client is sending oversized BI context or accidental binary content.'
+            : 'Use the request id to find the rejected request if the client keeps sending malformed JSON.',
+        cause: {
+            method: req.method,
+            route: req.originalUrl || req.url || '',
+            status: tooLarge ? 413 : 400,
+            code: tooLarge ? 'REQUEST_BODY_TOO_LARGE' : 'INVALID_JSON',
+        },
+    });
+    return sendProblem(res, problem);
+}
 
 // CORS — permissive by default for development, pinned by env var for
 // production. Both PulsePlay (browser host) and Pulse (the sibling
@@ -6485,6 +6538,46 @@ app.get('/supervisor/conversations/:conversationId/messages/:messageId', (req, r
     });
 });
 
+if (process.env.NODE_ENV === 'test') {
+    app.post('/__test__/problem-envelope/throw-sync', () => {
+        throw new Error('synchronous problem-envelope test failure');
+    });
+}
+
+function handleUnexpectedProxyError(err, req, res, next) {
+    if (res.headersSent) return next(err);
+    const requestId = ensureRequestId(req, res);
+    const route = req.originalUrl || req.url || '';
+    console.error('[problem-details] unexpected_internal', {
+        requestId,
+        method: req.method,
+        route,
+        error: redactProblemCause(err?.message || String(err || '')),
+    });
+    const problem = createProblem({
+        status: 500,
+        code: 'UNEXPECTED_PROXY_ERROR',
+        title: 'Unexpected proxy error',
+        detail: UNEXPECTED_INTERNAL_SENTINEL,
+        category: 'unexpected_internal',
+        severity: 'error',
+        retryable: false,
+        requestId,
+        instance: route,
+        userAction: 'Share the support code with your administrator. Do not retry repeatedly if the same support code keeps appearing.',
+        operatorAction: 'Search proxy logs by requestId/supportCode, then inspect the upstream connector, profile, and route-specific configuration.',
+        cause: {
+            method: req.method,
+            route,
+            status: 500,
+            code: 'UNEXPECTED_PROXY_ERROR',
+        },
+    });
+    return sendProblem(res, problem);
+}
+
+app.use(handleUnexpectedProxyError);
+
 // ── Start ─────────────────────────────────────────────────────────────────────
 if (require.main === module) {
     const config = cfg();
@@ -6626,4 +6719,6 @@ module.exports = {
     mintDatabricksAibiToken,
     databricksAppResourceProfilePatch,
     visibleDatabricksAppResources,
+    handleJsonParseProblem,
+    handleUnexpectedProxyError,
 };
