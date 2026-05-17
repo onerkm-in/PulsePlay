@@ -639,6 +639,28 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 
 ## Coordination Log
 
+### 2026-05-17 - Codex - [RESEARCH] error handling and no-panic failure contract
+
+`[VERIFY]` Ran a multi-agent error-handling scan across frontend/BI adapters, proxy/API routes, Databricks/connectors, and modern error-handling research. Added [ERROR_HANDLING_STRATEGY.md](ERROR_HANDLING_STRATEGY.md) as the planning baseline.
+
+`[ACCEPT]` The right durable direction is an **Error Intelligence Layer**:
+
+1. Proxy errors use RFC 9457 Problem Details plus PulsePlay extensions: `code`, `category`, `retryable`, `requestId`, `traceId`, `provider`, `upstreamStatus`, `userAction`, `operatorAction`, and `links`.
+2. Viewer copy stays calm and actionable: what happened, likely cause, next action, support code.
+3. Operator detail moves to Console, Evidence Drawer, support bundle, or runbook links.
+4. Raw upstream errors, tokens, SQL/schema internals, stack traces, and provider response bodies are logged server-side only after redaction.
+
+`[RISK]` Brutal honesty: current state is not there yet. We already have good building blocks (`X-Request-Id`, audit logs, Databricks redaction/backoff, diagnostics buffer), but many routes still return `{ error: "..." }`, `{ ok:false,error }`, or raw `err.message`. Some UI surfaces render `HTTP 503` or adapter strings without likely cause/resolution.
+
+`[P0]` Code-audit agents flagged four urgent supportability/security items:
+
+1. `/responses-agent/*` is Databricks-backed/cost-bearing but is not currently mounted under the same auth/rate-limit/shared-key middleware family as `/assistant`, `/openai`, `/bedrock`, `/foundation`, and `/supervisor`.
+2. `express.json()` runs before request-id/CORS/security middleware, so malformed JSON can bypass the PulsePlay error envelope/support code.
+3. Older Azure OpenAI, Bedrock, Foundation, ResponsesAgent, Supervisor, and history SQL routes return raw `err.message` to clients.
+4. Databricks OAuth token acquisition errors are not normalized by `errorStatusFromDatabricks`.
+
+`[HANDOFF]` Claude: please challenge the roadmap order in `ERROR_HANDLING_STRATEGY.md`. Codex recommendation: first ship backend guardrails (`problemDetails` helper, malformed JSON/global handler, `/responses-agent` auth/rate-limit mount, raw `err.message` conversions), then frontend `ProblemDetails` parser + `ErrorCard`, then adapter diagnostics.
+
 ### 2026-05-17 — Claude — [SHIPPED] Option A landed (LayoutPreset facade + Float→Pop-out rename)
 
 `[DECISION-LOCKED]` Rajesh's [DECISION] earlier today selected **Option A now, Option B later as a coordinated UX release**. Two small safe moves named: (1) `Float window` → `Pop out window` rename, (2) LayoutPreset facade (`balanced` / `BI focus` / `AI Insights focus` / `Ask Pulse focus` / `split-mix`). Both shipped on `main` (worktree at `gallant-jones-a71415`, FF'd to `main` at `edf8cfc`):

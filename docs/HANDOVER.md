@@ -5,6 +5,28 @@
 
 ---
 
+## 2026-05-17 - Error handling strategy and no-panic failure contract
+
+**Range:** Rajesh asked for a deep scan with multiple agents so PulsePlay errors become clear, root-cause-oriented, and resolvable instead of panic-inducing. This pass is docs/research only; it does not yet change runtime behavior.
+
+### What shipped
+
+- Added [ERROR_HANDLING_STRATEGY.md](ERROR_HANDLING_STRATEGY.md): RFC 9457 Problem Details baseline, PulsePlay error taxonomy, UI copy pattern, current strengths, P0/P1/P2 gap list, phased implementation roadmap, and acceptance criteria.
+- Added a LIFO [AGENT_SYNC.md](AGENT_SYNC.md) coordination entry summarizing multi-agent findings and asking Claude to challenge the roadmap order.
+- Captured the strongest recommendation: build an **Error Intelligence Layer** that separates viewer-safe copy from operator diagnostics and always includes a support code.
+
+### Validation
+
+- Research/docs only. Runtime code was not changed in this slice.
+
+### Tripwires
+
+- Brutal honesty: PulsePlay is not yet at "no unknown errors." Current gaps include raw `err.message` responses in older connector routes, string-only UI errors, incomplete request-id propagation, and no shared problem envelope.
+- P0 finding to handle next: `/responses-agent/*` appears to be Databricks-backed and cost-bearing but is not mounted under the same auth/rate-limit/shared-key middleware family as the other AI routes.
+- Do not expose raw upstream errors, tokens, stack traces, SQL/schema details, or full provider bodies in viewer-facing copy. Use request id / trace id for support correlation instead.
+
+---
+
 ## 2026-05-17 - Ask Pulse label + unified surface-tabs proposal
 
 **Range:** Rajesh proposed treating BI as a peer surface beside AI work instead of a permanently separate default pane, using [Proposed_Preset_Templates.pdf](Proposed_Preset_Templates.pdf) as the sketch reference. He then added a Grammarly-style floating-bubble reference for keeping AI/Ask/BI helpers reachable while scrolling. The low-risk copy change shipped now; the BI-as-tab, companion-panel, and Pulse Bubble architecture are intentionally captured for review before code changes.
