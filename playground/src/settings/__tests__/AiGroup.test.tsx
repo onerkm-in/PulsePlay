@@ -45,8 +45,33 @@ const PACKS_RESPONSE = {
     ],
 };
 
+let capabilitiesResponse: Record<string, unknown>;
+
 beforeEach(() => {
     window.localStorage.clear();
+    capabilitiesResponse = {
+        ok: true,
+        assistantProfile: "default",
+        capabilities: {
+            genie: true,
+            lakeview: true,
+            servingEndpoints: true,
+            apps: true,
+            vectorSearch: false,
+            jobs: true,
+        },
+        details: {
+            vectorSearch: {
+                key: "vectorSearch",
+                path: "/api/2.0/vector-search/endpoints",
+                status: "available",
+                available: true,
+                ready: false,
+                count: 0,
+            },
+        },
+        counts: { vectorSearch: 0 },
+    };
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
         const url = String(input);
         if (url.endsWith("/api/assistant/profiles")) {
@@ -54,6 +79,9 @@ beforeEach(() => {
         }
         if (url.endsWith("/api/assistant/knowledge/packs")) {
             return new Response(JSON.stringify(PACKS_RESPONSE), { status: 200 });
+        }
+        if (url.includes("/api/assistant/capabilities")) {
+            return new Response(JSON.stringify(capabilitiesResponse), { status: 200 });
         }
         return new Response("not found", { status: 404 });
     });
@@ -158,6 +186,39 @@ describe("AiGroup — Phase 4 wiring", () => {
         expect(text).toContain("Domain guidance");
         expect(text).toContain("Metric direction rules");
         expect(text).not.toContain("Open Pulse Setup");
+        unmount(state);
+    });
+
+    it("hides Vector Search KB when Databricks capability has zero endpoints", async () => {
+        const state = mount();
+        await flushAll();
+        expect(state.container.textContent || "").not.toContain("Vector Search KB");
+        unmount(state);
+    });
+
+    it("shows Vector Search KB only when the capability registry reports endpoints", async () => {
+        capabilitiesResponse = {
+            ...capabilitiesResponse,
+            capabilities: { ...(capabilitiesResponse.capabilities as Record<string, boolean>), vectorSearch: true },
+            details: {
+                ...(capabilitiesResponse.details as Record<string, unknown>),
+                vectorSearch: {
+                    key: "vectorSearch",
+                    path: "/api/2.0/vector-search/endpoints",
+                    status: "available",
+                    available: true,
+                    ready: true,
+                    count: 2,
+                },
+            },
+            counts: { vectorSearch: 2 },
+        };
+        const state = mount();
+        await flushAll();
+        const text = state.container.textContent || "";
+        expect(text).toContain("Vector Search KB");
+        expect(text).toContain("Endpoints");
+        expect(text).toContain("2");
         unmount(state);
     });
 

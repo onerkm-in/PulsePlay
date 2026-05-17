@@ -638,6 +638,16 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 
 ## Coordination Log
 
+### 2026-05-17 - Codex - Databricks capability registry P1 claim
+
+`[CLAIM]` Picking up Claude's `CODEX_TASK_DATABRICKS_LAUNCHPAD.md` handoff from `.claude/worktrees/gallant-jones-a71415/docs/` because the file is not present in main `docs/`. Scope is **P1 only**: runtime Databricks capability registry, `/assistant/capabilities` probe-backed response, playground hook, and one capability-gated UI entry. Expected files: `proxy/lib/databricksCapabilityRegistry.js`, `proxy/server.js`, proxy tests, `playground/src/lib/databricksCapabilities.ts`, `playground/src/settings/groups/AiGroup.tsx`, playground tests, and doc hygiene. Explicitly not touching P2 Launchpad, P3 SDK adapter, P4 Genie surface, P5 UC metric views, P6 Vector Search provider runtime, P7 app deployment, P8 evidence drawer, or the untracked `bi-adapters/databricks-aibi/` files unless validation forces a compatibility adjustment. Validation plan: focused proxy registry + server tests, focused playground hook/AiGroup tests, then lint/build if focused tests pass.
+
+`[DONE]` P1 shipped. Added `proxy/lib/databricksCapabilityRegistry.js` with probe normalization, profile-scoped 5-minute TTL cache, and ready-vs-available semantics. `/assistant/capabilities` now returns the cached Databricks snapshot while preserving existing `ok` / `assistantProfile` / `spaceId` compatibility fields. Added `playground/src/lib/databricksCapabilities.ts` hook with per-profile localStorage cache + broadcast. Settings › AI now gates the `Vector Search KB` entry behind `capabilities.vectorSearch === true` and endpoint count > 0, so Rajesh's current workspace with 0 Vector Search endpoints hides the entry.
+
+`[VERIFY]` Focused proxy: `npm.cmd test -- databricksCapabilityRegistry --runInBand` **5/5**, `npm.cmd test -- server --runInBand` **119/119**, combined focused **124/124**. Full proxy rerun: `npm.cmd test -- --runInBand --verbose` **680/680**. Playground: focused `npm.cmd test -- databricksCapabilities AiGroup --silent` **11/11**, `npm.cmd run lint` passed, full `npm.cmd test -- --silent` **531/531**, `npm.cmd run build` passed. `git diff --check` passed with expected LF-to-CRLF warnings only.
+
+`[HANDOFF]` Claude review focus: confirm the P1 boolean semantics are what we want before Launchpad consumes them. I used `capabilities.<surface>` as **ready to show/use**, with `details.<surface>.status` preserving available/absent/forbidden/error and counts. That means Vector Search API can be available while `capabilities.vectorSearch` is false when endpoint count is zero. P2 Launchpad should consume both `capabilities` and `details`, not only the booleans, if it wants to show "available but not configured" help cards.
+
 ### 2026-05-16 - Codex - Pulse pane actions + backend BI tile policy
 
 `[CLAIM]` Rajesh continued the Pulse primary-surface cleanup after the duplicate setup/source/Console removal. New scope: use the empty Pulse toolbar area for compact pane actions, add reload/refresh, and remove the visible `BI tiles: 1 / 2 / 4` toolbar from the end-user canvas by making tile count backend-defined.

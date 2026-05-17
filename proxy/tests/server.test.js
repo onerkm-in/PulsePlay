@@ -45,6 +45,38 @@ jest.mock('fs', () => {
 // @azure/identity is optional — mock it as absent (PAT-only mode for tests).
 jest.mock('@azure/identity', () => { throw new Error('not installed'); }, { virtual: true });
 
+const mockGetCapabilities = jest.fn(async ({ profile, profileName }) => ({
+    ok: true,
+    assistantProfile: profileName || 'default',
+    spaceId: profile?.spaceId || '',
+    profile: {
+        name: profileName || 'default',
+        host: profile?.host || '',
+        spaceId: profile?.spaceId || '',
+        warehouseId: profile?.warehouseId || '',
+        type: profile?.type || 'genie',
+    },
+    capabilities: {
+        genie: true,
+        lakeview: false,
+        servingEndpoints: false,
+        apps: false,
+        vectorSearch: false,
+        jobs: false,
+    },
+    details: {},
+    counts: {},
+    ttlMs: 300000,
+    fetchedAt: '2026-05-17T00:00:00.000Z',
+    cacheExpiresAt: '2026-05-17T00:05:00.000Z',
+    cached: false,
+}));
+
+jest.mock('../lib/databricksCapabilityRegistry', () => ({
+    getCapabilities: mockGetCapabilities,
+    reset: jest.fn(),
+}));
+
 const request = require('supertest');
 const { app, conversationMap, normalizeGenieResponse, loadEnvProfiles, isTransientNetError } = require('../server');
 const fs = require('fs');
@@ -211,6 +243,8 @@ describe('GET /assistant/capabilities', () => {
         expect(res.status).toBe(200);
         expect(res.body.ok).toBe(true);
         expect(res.body.spaceId).toBe('space-default-123');
+        expect(res.body.capabilities.genie).toBe(true);
+        expect(res.body.capabilities.vectorSearch).toBe(false);
     });
 
     it('returns profile info for named analytics profile', async () => {

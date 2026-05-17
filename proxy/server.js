@@ -65,6 +65,7 @@ try {
 const CONFIG_PATH = path.join(__dirname, 'config.json');
 const allowlist = require('./lib/allowlist');
 const { listInstalledPacks, loadPackDetail, loadSubVerticalDetail } = require('./lib/packRegistry');
+const databricksCapabilityRegistry = require('./lib/databricksCapabilityRegistry');
 
 // ── Supervisor strategy registry ─────────────────────────────────────────────
 // All supervisor-flavour profile `type` values live in one place so adding a
@@ -2089,10 +2090,27 @@ app.post('/assistant/validate-composite', (req, res) => {
     }
 });
 
-app.get('/assistant/capabilities', (req, res) => {
+app.get('/assistant/capabilities', async (req, res) => {
     const resolved = resolveProfile({}, req.query, req.headers, req);
     if (!resolved) return sendNoMatchingProfile(req, res, 404, 'No matching profile configured. Check config.json.');
-    res.json({ assistantProfile: req.query.assistantProfile || 'default', spaceId: resolved.profile.spaceId, ok: true });
+    try {
+        const assistantProfile = String(req.query.assistantProfile || resolved.name || 'default');
+        const snapshot = await databricksCapabilityRegistry.getCapabilities({
+            profile: resolved.profile,
+            profileName: assistantProfile,
+            databricksRequest,
+            requestId: req.requestId,
+        });
+        res.json({
+            ...snapshot,
+            assistantProfile,
+            spaceId: resolved.profile.spaceId || resolved.profile.genieSpaceId || '',
+            ok: true,
+        });
+    } catch (err) {
+        console.warn('[assistant/capabilities]', err.message);
+        res.status(500).json({ error: 'Capability registry internal error' });
+    }
 });
 
 app.get('/assistant/allowlist', (req, res) => {

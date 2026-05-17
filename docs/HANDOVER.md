@@ -5,6 +5,38 @@
 
 ---
 
+## 2026-05-17 - Databricks capability registry P1
+
+**Range:** Picked up Claude's Databricks-native enablement handoff from `.claude/worktrees/gallant-jones-a71415/docs/CODEX_TASK_DATABRICKS_LAUNCHPAD.md` because the task file was not yet present in main `docs/`. Scoped this pass to P1 only: live capability discovery and one downstream UI gate.
+
+### What shipped
+
+- Added [databricksCapabilityRegistry.js](../proxy/lib/databricksCapabilityRegistry.js), a 5-minute TTL registry that probes Databricks Genie spaces, AI/BI Lakeview dashboards, serving endpoints, Databricks Apps, Vector Search endpoints, and jobs through the existing server-side `databricksRequest` helper.
+- Replaced the placeholder [server.js](../proxy/server.js) `/assistant/capabilities` response with a probe-backed snapshot while preserving the old `ok`, `assistantProfile`, and `spaceId` fields for existing callers.
+- Added [databricksCapabilities.ts](../playground/src/lib/databricksCapabilities.ts), a playground hook that fetches `/api/assistant/capabilities`, caches per-profile snapshots in `localStorage`, and broadcasts updates for other consumers.
+- Gated Settings › AI › **Vector Search KB** in [AiGroup.tsx](../playground/src/settings/groups/AiGroup.tsx): it only renders when the capability registry says Vector Search is ready and endpoint count is greater than zero. On Rajesh's live workspace, the earlier probe found zero Vector Search endpoints, so the entry remains hidden.
+- Added focused proxy and playground coverage for status normalization, profile-scoped TTL caching, route compatibility, hook caching/broadcast, and the Vector Search UI gate.
+
+### Validation
+
+- `proxy`: focused `npm.cmd test -- databricksCapabilityRegistry --runInBand` passed **5/5**.
+- `proxy`: focused `npm.cmd test -- server --runInBand` passed **119/119**.
+- `proxy`: combined focused `npm.cmd test -- databricksCapabilityRegistry server --runInBand` passed **124/124**.
+- `proxy`: full `npm.cmd test -- --runInBand --verbose` passed **680/680**.
+- `playground`: focused `npm.cmd test -- databricksCapabilities AiGroup --silent` passed **11/11**.
+- `playground`: `npm.cmd run lint` passed.
+- `playground`: full `npm.cmd test -- --silent` passed **531/531**.
+- `playground`: `npm.cmd run build` passed.
+- Repo: `git diff --check` passed with only expected LF-to-CRLF working-copy warnings.
+
+### Tripwires
+
+- This is P1 only. Launchpad, SDK-based AI/BI dashboard embed, Genie-as-surface, UC metric views, Vector Search retrieval, Databricks Apps deployment, and Evidence Drawer are still unshipped.
+- The capability boolean represents “ready to show/use,” not merely “API route exists.” Example: Vector Search can have an available API but `capabilities.vectorSearch === false` when endpoint count is zero.
+- The untracked `bi-adapters/databricks-aibi/` directory from Claude's branch was preserved and not folded into this P1 commit.
+
+---
+
 ## 2026-05-16 - Pulse primary surface streamlined + backend canvas policy
 
 **Range:** Rajesh pointed at the Pulse-mode BI Tool dropdown, the row-level `Open setup` button, the repeated BI source status, the visible `Console` button, the empty Pulse toolbar space, and the visible `BI tiles: 1 / 2 / 4` controls. The clarified IA: the top-right Setup pill and Settings/System surfaces own setup and operational review; the Pulse AI pane should stay focused on AI Insights and Chat, with compact pane actions available where the user is already looking.

@@ -23,6 +23,7 @@ import { CurrentValue, Leaf, OrphanBanner, SubSection } from "./BiGroup";
 import { TestConnectionPanel } from "../../components/TestConnectionPanel";
 import { PackPicker, type PackInfo, type PackSelection } from "../../components/PackPicker";
 import { probeConnector } from "../../lib/probeClient";
+import { useDatabricksCapabilities } from "../../lib/databricksCapabilities";
 import type { ConnectorProbeResult } from "../../types/probe";
 import {
     usePulseAiVisualSettings,
@@ -50,6 +51,7 @@ export function AiGroup(): React.ReactElement {
     const settings = useSettings();
     const { allowlist, activeAiProfile, packSelection, orphans, setActiveAiProfile, setPackSelection } = settings;
     const pulseAi = usePulseAiVisualSettings();
+    const databricksCapabilities = useDatabricksCapabilities(activeAiProfile || "default");
     const aiOrphan = orphans.find(o => o.key === "pulseplay:active-ai-profile");
     const packOrphan = orphans.find(o => o.key === "pulseplay:pack-selection");
 
@@ -126,6 +128,8 @@ export function AiGroup(): React.ReactElement {
 
     const isSupervisor =
         !!activeProfileMeta && (activeProfileMeta.type === "supervisor" || activeProfileMeta.type === "supervisor-local");
+    const vectorSearchDetail = databricksCapabilities.details.vectorSearch;
+    const vectorSearchReady = databricksCapabilities.capabilities.vectorSearch === true && (vectorSearchDetail?.count || 0) > 0;
 
     return (
         <section aria-labelledby="settings-ai-title">
@@ -226,6 +230,20 @@ export function AiGroup(): React.ReactElement {
                 )}
                 {packOrphan && <OrphanBanner reason={packOrphan.reason} />}
             </Leaf>
+
+            {vectorSearchReady && (
+                <Leaf
+                    group="ai"
+                    label="Vector Search KB"
+                    helper="Databricks Vector Search grounding is available for this profile. Configure the approved index before wiring it into AI Insights."
+                >
+                    <CurrentValue label="Status">Available</CurrentValue>
+                    <CurrentValue label="Endpoints">{String(vectorSearchDetail?.count || 0)}</CurrentValue>
+                    <div style={{ fontSize: 12, color: "#58616f" }}>
+                        P1 gates this entry point from live Databricks capabilities. P6 wires the actual retrieval provider.
+                    </div>
+                </Leaf>
+            )}
 
             </SubSection>
 
