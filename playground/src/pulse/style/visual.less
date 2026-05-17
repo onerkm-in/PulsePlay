@@ -7438,7 +7438,11 @@
 .gn-insights-content {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    /* 2026-05 density pass — was 12. Diagnostic showed AI Insights content
+     * was 3.4× the visible pane height at typical preview viewports;
+     * tightening inter-block gap shaves vertical without losing
+     * readability. */
+    gap: 10px;
     min-width: 0;
     max-width: 100%;
 }
@@ -7454,7 +7458,8 @@
      * stays dense. */
     display: grid;
     grid-template-columns: 1fr;
-    gap: 10px;
+    /* 2026-05 density pass — was 10. */
+    gap: 8px;
     min-width: 0;
 }
 
@@ -7462,7 +7467,10 @@
     background: @gn-surface;
     border: 1px solid @gn-border-subtle;
     border-radius: @gn-radius-sm;
-    padding: 12px 16px;
+    /* 2026-05 density pass — was 12px 16px. Cuts ~8 px of vertical per card
+     * (×5 sections ≈ 40 px) plus a small horizontal reduction so the card
+     * doesn't feel airy at narrow widths. */
+    padding: 8px 14px;
     opacity: 0;
     transform: translateY(6px);
     animation: gn-section-reveal 300ms @gn-ease forwards;
@@ -7492,7 +7500,8 @@
 }
 
 .gn-insights-section-title {
-    margin: 0 0 6px;
+    /* 2026-05 density pass — was 0 0 6px. */
+    margin: 0 0 4px;
     font-size: 13px;
     font-weight: 600;
     text-transform: uppercase;
@@ -7512,7 +7521,8 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 8px;
-    margin: 0 0 6px;
+    /* 2026-05 density pass — was 0 0 6px. */
+    margin: 0 0 4px;
     min-width: 0;
     .gn-insights-section-title {
         margin: 0;
