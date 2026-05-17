@@ -1062,7 +1062,16 @@ function PlaygroundApp(): React.ReactElement {
                     <PaneChrome
                         pane="bi"
                         title="BI"
-                        subtitle={visibleVendors.find(v => v.vendor === activeVendor)?.displayName || activeVendor}
+                        // Subtitle intentionally empty. Previously hardcoded the
+                        // vendor display name from a static registry, which
+                        // duplicated information the embedded dashboard already
+                        // makes obvious (you see Power BI / Tableau / etc.
+                        // rendering in the pane). When no embed is configured,
+                        // the pane body's empty-state copy already tells the
+                        // user what to do, so the subtitle was double-noise
+                        // either way. Title "BI" stands alone — clean chrome,
+                        // more room for the icon cluster on narrow splits.
+                        subtitle=""
                         isFocused={focusedPane === "bi"}
                         isBackgrounded={focusedPane === "ai"}
                         isPinned={pinnedViewportPane === "bi"}
@@ -1323,9 +1332,11 @@ function PaneChrome(props: {
                 >
                     <div style={{ minWidth: 0, flex: "1 1 auto", overflow: "hidden" }}>
                         <div style={{ fontSize: 11.5, fontWeight: 600, lineHeight: 1.2, letterSpacing: 0.1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{props.title}</div>
-                        <div style={{ fontSize: 10.5, opacity: 0.6, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={props.subtitle}>
-                            {props.subtitle}
-                        </div>
+                        {props.subtitle && (
+                            <div style={{ fontSize: 10.5, opacity: 0.6, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={props.subtitle}>
+                                {props.subtitle}
+                            </div>
+                        )}
                     </div>
                     {!props.quiet && (
                         <div
