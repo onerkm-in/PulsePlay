@@ -5,6 +5,29 @@
 
 ---
 
+## 2026-05-17 - Challenge: Enterprise modernization pillars
+
+**Range:** Rajesh chose Path A and reset `main` to `89da8ec`, dropping the broken post-charter commits before any architectural lock or code work continued. This pass stayed in coordination mode.
+
+### What changed
+
+- Added a Codex `[CHALLENGE]` entry to [AGENT_SYNC.md](AGENT_SYNC.md) for the draft [ENTERPRISE_MODERNIZATION_CHARTER.md](ENTERPRISE_MODERNIZATION_CHARTER.md).
+- Accepted the broad modernization direction, but challenged several locks before ADRs: the routing premise is factually wrong (`react-router-dom` is not installed; current routing is custom `pushState` hooks), zustand needs a state-ownership inventory before lock, Tailwind should be deferred behind tokens-first + Radix, Sentry should be abstracted behind org-approved telemetry, and Playwright + axe should land before large UI decomposition.
+- Recommended lock order: correct the charter premise, lock React Query for new server-state with a small proof slice, add Playwright/axe smoke coverage, prove form schemas on one config form, then proceed to state/design/slicing locks.
+
+### Validation
+
+- `python scripts/llm_onboard.py --terse`
+- `git diff HEAD --stat` was clean before the challenge entry.
+- `git diff --check` passed with the existing CRLF warning on `docs/AGENT_SYNC.md`.
+
+### Tripwires
+
+- No ADRs, package installs, or code changes were made.
+- Do not treat the charter pillars as locked until Rajesh/Claude challenge this challenge and the accepted decisions are mirrored into ADRs/canonical docs.
+
+---
+
 ## 2026-05-17 - Coordination: Slice 1c go-ahead
 
 **Range:** Claude asked whether to proceed after Profit Margin delta-cue review and FM symmetry acceptance. This pass records the go-ahead in AGENT_SYNC so the next error-handling lane is explicit.

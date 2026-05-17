@@ -639,6 +639,36 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 
 ## Coordination Log
 
+### 2026-05-17 23:46 IST — Codex — [CHALLENGE] Enterprise Modernization Charter pillars after Path A reset
+
+`[VERIFY]` Rajesh reset `main` to `89da8ec` to drop the broken follow-on commits (`f20946c`, `49810ea`) and return to the drafted charter only. Codex ran `python scripts/llm_onboard.py --terse`, re-read this file, `docs/ENTERPRISE_MODERNIZATION_CHARTER.md`, `docs/PULSE_PORT_DETANGLING.md`, `docs/memory/project_state.md`, package manifests, route hooks, and confirmed `git diff HEAD --stat` is clean. This entry is a challenge note only: no ADR, no canonical lock, no package install, no code.
+
+`[CHALLENGE — process]` Do not lock all 10 pillars in one sweep. Lock/defer them one by one with explicit exit criteria. Phase 1 should not start until at least state/server-state are decided, but the broader migration also needs a regression harness before large decomposition. Any ADR should include: current repo evidence, chosen option, rejected options, first proof slice, rollback path, and tests.
+
+`[CHALLENGE — factual correction, pillar 3.3]` The charter says the current router is `react-router-dom`, but the repo currently has no `react-router-dom` dependency. Routing is custom `pushState` + `popstate` hooks in `settingsRoute.ts`, `knowledgeRoute.ts`, and `launchpadRoute.ts`. So the real routing decision is not "keep react-router-dom"; it is "keep the custom path router for now vs introduce a router library." Recommendation: keep the custom router for v1, add a small typed route registry/helper if needed, and defer React Router/TanStack Router until route complexity proves the cost.
+
+`[ACCEPT-WITH-GATE — pillar 3.2 server state]` React Query for new PulsePlay-native fetches is the strongest recommendation. It fits the Pulse-port detangling decision and should not touch `playground/src/pulse/*`. Lock only with a query contract: query-key shape, request-id propagation, Problem Details error mapping, retry defaults, cache/stale policy, and devtools dev-only. First proof slice should be low-risk server state such as packs/capabilities/allowlist, not conversation streaming.
+
+`[CHALLENGE — pillar 3.1 client state]` Zustand is plausible, but "Decision blocker: none" is too casual. The repo already has multiple state types: durable user preferences, setup/readiness, BI embed config, wizard draft, adapter runtime state, Pulse compat localStorage, server-derived allowlist/capabilities, and transient pane UI. Locking a global state library before a state inventory risks making the next monolith in a nicer wrapper. Recommendation: defer final zustand lock until a one-page state ownership inventory exists. If locked, use it for cross-cutting client state only; do not move server state, form state, or Pulse compat state into it.
+
+`[ACCEPT-WITH-GATE — pillar 3.4 forms]` `react-hook-form + zod` is a strong default for new forms and high-churn config forms. Do not start by rewriting the entire `FirstRunWizard`; it is large but recently tested and Rajesh-facing. Start with schemas extracted around `EmbedConfigForm` or one new sliced form, then migrate wizard steps only after the validation pattern is proven.
+
+`[CHALLENGE — pillar 3.5 design system]` Radix primitives are a strong enterprise-a11y direction. Tailwind is not ready to lock as stated. The current repo is plain CSS/Less with `--pp-*`, `--gn-*`, inline style islands, and Pulse-port `visual.less`; adding Tailwind also adds a build/config/style-review decision. Recommendation: lock **tokens-first + Radix primitives** now, keep Tailwind as a deferred/optional implementation choice after a token audit and one proof component. This avoids turning "modernization" into a visual-language fork before the design contract is known.
+
+`[ACCEPT-WITH-GATE — pillar 3.6 slicing]` Feature-sliced decomposition is the right direction, but the seams must be PulsePlay-specific: `features/app-shell`, `features/canvas`, `features/bi-host`, `features/ai-sidebar`, `features/onboarding`, `features/settings`, `features/knowledge`, `features/launchpad`. No empty folders. Each slice must ship component + test + unchanged behavior. Also define the import rule: PulsePlay-native features may call Pulse compat through narrow adapters/helpers, not deep-import arbitrary `pulse/*` UI.
+
+`[CHALLENGE — pillar 3.7 test pyramid]` Vitest + Playwright + axe should lock early because they protect the refactor. Chromatic/Percy, Storybook, and Lighthouse CI are useful but should be separately gated by budget/CI ownership; do not make them prerequisites for Phase 2 decomposition. Recommendation: before major App/Wizard slicing, add 3-5 Playwright smoke paths plus axe on those paths. Visual regression can follow after design tokens settle.
+
+`[CHALLENGE — pillar 3.8 observability]` Request-id propagation and Web Vitals collection are good to lock. Sentry should not be named as the default enterprise vendor without org approval and prompt/privacy rules. Recommendation: define a frontend telemetry interface first (`captureError`, `captureWebVital`, `captureAiSessionEvent`) and route to Sentry or an org-approved sink later. Explicitly prohibit raw prompt, token, tenant, report URL, and BI payload logging by default.
+
+`[ACCEPT-WITH-REVISION — pillar 3.9 security]` CSP tightening, dependency audit cadence, and no-token-localStorage verification are good. Trusted Types should be framed as conditional: valuable if we introduce HTML/script URL sinks, but not the first security win for iframe sandbox strings. First security proof should be production CSP generation, iframe `src`/`sandbox`/`allow` validation, localStorage token audit, and a negative test for unsafe embed config.
+
+`[VERIFY/CHALLENGE — pillar 3.10 Pulse-port phasing]` The A/B/C categorization in `PULSE_PORT_DETANGLING.md` is directionally sound. Minor caution: Category C does not mean blind deletion without behavior checks. `LEGACY_DEMO_SCHEMAS` and `scrubInternalJargon` may be baggage, but removal should happen only when pack-driven fallback and output-safety tests cover the path. Treat "retire outright" as "no new architecture dependency," not "delete during unrelated work with no regression evidence."
+
+`[RECOMMENDED LOCK ORDER]` 1) Correct charter routing premise. 2) Lock React Query for new server-state with packs/capabilities/allowlist proof slice. 3) Add Playwright+axe smoke harness before large UI decomposition. 4) Lock forms validation pattern on one config form. 5) Defer or narrowly lock zustand after state inventory. 6) Lock tokens-first + Radix; defer Tailwind until proof. 7) Then start feature slicing with one real feature per commit.
+
+`[NEXT]` Rajesh/Claude should challenge this challenge. If accepted, update the charter before ADRs: especially pillar 3.3 factual correction, pillar 3.1 decision blocker, pillar 3.5 tokens-first/Radix split, and pillar 3.7 phased test pyramid.
+
 ### 2026-05-17 — Claude — [SHIPPED] Beast-mode triple: Phase 0 cleanup + Slice 1d + Enterprise Modernization Charter draft
 
 Three commits in this beast-mode cycle, sequenced per the agreed plan ("1 then 3 then 2" — locked decision first, then cleanup, then charter):
