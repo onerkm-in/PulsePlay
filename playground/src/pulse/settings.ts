@@ -142,6 +142,13 @@ export interface GenieVisualSettings {
     insightsTrendsOverride: string;
     insightsRisksOverride: string;
     insightsActionsOverride: string;
+    /** When true and a Genie message carries `attachments[].reasoning_traces`
+     *  (Databricks added this field 2026-04-16 — first programmatic surface
+     *  for Agent Mode / Research Agent output), Pulse renders a collapsible
+     *  "Research Agent reasoning" section above the regular content. Default
+     *  true so the trace appears automatically when available; opt out in
+     *  Settings → Preferences → Mix composition → Research Agent traces. */
+    insightsShowResearchTraces: boolean;
     refreshInsights: boolean;
     /** IDEA-009: AI Insights cache TTL in minutes. 0 = disabled. */
     insightsCacheTtlMinutes: number;
@@ -693,6 +700,18 @@ class InsightsGroup extends FormattingSettingsGroup {
         value: ""
     });
 
+    /** 2026 — Show Genie Research Agent / Agent Mode reasoning traces when the
+     *  response carries them. Databricks added `attachments[].reasoning_traces`
+     *  on 2026-04-16; the visual surfaces it as a collapsible section above
+     *  the regular content. Author can opt out via Settings → Preferences →
+     *  Mix composition → Research Agent traces. Default true. */
+    insightsShowResearchTraces = new formattingSettings.ToggleSwitch({
+        name: "insightsShowResearchTraces",
+        displayName: "Show Research Agent reasoning when present",
+        description: "When a Genie message carries Research Agent / Agent Mode reasoning traces (Databricks 2026 API addition), render a collapsible section above the content. Off hides the section even when traces are present.",
+        value: true
+    });
+
     // 49.19 / IDEA-037 phase 3 — Authoring mode radio. Drives which authoring
     // path the AI Insights pipeline takes: manual / preset / ai-assisted.
     insightsAuthoringMode = new formattingSettings.ItemDropdown({
@@ -751,7 +770,7 @@ class InsightsGroup extends FormattingSettingsGroup {
         value: { value: "both", displayName: "Both — AI Insights + Chat (default)" }
     });
 
-    slices = [this.insightsAuthoringMode, this.insightsDomain, this.insightsCustomSections, this.insightsPrompt, this.insightsDomainGuidance, this.metricDirectionRules, this.insightsMetricDirections, this.insightsShowProvenanceFooter, this.insightsShowHeadline, this.insightsShowTrends, this.insightsShowRisks, this.insightsShowActions, this.insightsHeadlineOverride, this.insightsTrendsOverride, this.insightsRisksOverride, this.insightsActionsOverride, this.refreshInsights, this.insightsCacheTtlMinutes, this.enabledFeatures];
+    slices = [this.insightsAuthoringMode, this.insightsDomain, this.insightsCustomSections, this.insightsPrompt, this.insightsDomainGuidance, this.metricDirectionRules, this.insightsMetricDirections, this.insightsShowProvenanceFooter, this.insightsShowHeadline, this.insightsShowTrends, this.insightsShowRisks, this.insightsShowActions, this.insightsHeadlineOverride, this.insightsTrendsOverride, this.insightsRisksOverride, this.insightsActionsOverride, this.insightsShowResearchTraces, this.refreshInsights, this.insightsCacheTtlMinutes, this.enabledFeatures];
 }
 
 // ─── Group 5 · Appearance & Theme ────────────────────────────────────────────
@@ -1559,6 +1578,7 @@ export function toGenieVisualSettings(model: VisualFormattingSettingsModel): Gen
         insightsTrendsOverride:   g.aiInsights.insightsTrendsOverride.value,
         insightsRisksOverride:    g.aiInsights.insightsRisksOverride.value,
         insightsActionsOverride:  g.aiInsights.insightsActionsOverride.value,
+        insightsShowResearchTraces: g.aiInsights.insightsShowResearchTraces.value,
         refreshInsights:       g.aiInsights.refreshInsights.value,
         insightsCacheTtlMinutes: Math.max(0, parseInt(String(g.aiInsights.insightsCacheTtlMinutes.value?.value ?? "30"), 10) || 30),
         enabledFeatures:       (g.aiInsights.enabledFeatures.value?.value ?? "both") as EnabledFeatures,

@@ -4826,6 +4826,55 @@ function App(props: AppProps) {
                                 so the Insights pane stays clean and ends on
                                 RECOMMENDED ACTIONS. Removed alongside the explicit
                                 "Ask a follow-up" CTA — chat is one tab-click away. */}
+
+                            {/* 2026 — Genie native suggested follow-ups (separate from
+                             *  IDEA-032 clarifiers). Genie's 2026 conversation API GA
+                             *  populates `attachments[].suggested_questions` on
+                             *  COMPLETED messages with confident next-step questions.
+                             *  Render as compact chip row; click fires runInsights
+                             *  with the chip as a custom prompt. Defensive: only
+                             *  renders when the field is present and non-empty —
+                             *  silent for older workspace versions or messages
+                             *  where Genie didn't suggest any. */}
+                            {Array.isArray(insightsResult?.suggestedFollowUps) && insightsResult.suggestedFollowUps.length > 0 && !insightsBusy && (
+                                <div
+                                    className="gn-insights-follow-ups"
+                                    role="group"
+                                    aria-label="Suggested follow-up questions"
+                                    style={{
+                                        display: "flex",
+                                        flexWrap: "wrap",
+                                        gap: 6,
+                                        margin: "12px 0 4px",
+                                        padding: "8px 12px",
+                                        background: "rgba(239, 246, 255, 0.55)",
+                                        border: "1px solid rgba(37, 99, 235, 0.18)",
+                                        borderRadius: 6,
+                                    }}
+                                >
+                                    <span style={{ fontSize: 11, fontWeight: 600, color: "#1d4ed8", marginRight: 4, alignSelf: "center" }}>✨ Try asking:</span>
+                                    {insightsResult.suggestedFollowUps.map((q, i) => (
+                                        <button
+                                            key={`${i}-${q.slice(0, 12)}`}
+                                            type="button"
+                                            className="gn-pill"
+                                            onClick={() => runInsights(q, "Follow-up")}
+                                            disabled={insightsBusy}
+                                            style={{
+                                                fontSize: 11,
+                                                padding: "4px 10px",
+                                                background: "white",
+                                                border: "1px solid rgba(37, 99, 235, 0.40)",
+                                                color: "#1d4ed8",
+                                                borderRadius: 999,
+                                                cursor: insightsBusy ? "not-allowed" : "pointer",
+                                            }}
+                                        >
+                                            {q.length > 90 ? q.slice(0, 87) + "…" : q}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                             {/* Copilot-style custom prompt compose box. Sends a free-form
                                 instruction as the new insights prompt, letting the user
                                 tune tone or focus without leaving the Insights tab. */}

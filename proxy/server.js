@@ -3555,7 +3555,11 @@ function rotateFeedbackLog(logPath) {
     }
 }
 
-app.post('/feedback', (req, res) => {
+app.post('/feedback', async (req, res) => {
+    // Local log write (existing behaviour) — kept for cross-connector
+    // feedback observability since the local log captures feedback for
+    // every backend (Genie, Foundation Model, Supervisor, Bedrock, OpenAI),
+    // not just Databricks.
     try {
         const c = cfg();
         if (c.feedbackLog) {
@@ -3568,7 +3572,75 @@ app.post('/feedback', (req, res) => {
     } catch (err) {
         console.warn('[feedback] log write failed:', err.message);
     }
+
+    // Native Databricks Genie feedback push-back (2026 conversation API GA).
+    // When the payload carries conversationId + messageId + a Genie-backed
+    // profile, also POST the rating to Databricks Genie's native feedback
+    // endpoint so the workspace's feedback dashboards see it. Defensive:
+    // only fires when all required fields are present, swallows errors so
+    // the local log path is never blocked by an upstream hiccup, and the
+    // endpoint path is the documented 2026 GA shape — workspaces on older
+    // Databricks runtimes will see a 404 here which we log and ignore.
+    try {
+        const { conversationId, messageId, rating } = req.body || {};
+        if (conversationId && messageId && (rating === 'up' || rating === 'down')) {
+            const resolved = resolveProfile(req.body, {}, req.headers, req);
+            const profile = resolved?.profile;
+            const spaceId = profile?.spaceId;
+            if (profile?.databricksHost && profile?.databricksToken && spaceId) {
+                const nativeBody = {
+                    feedback: rating === 'up' ? 'POSITIVE' : 'NEGATIVE',
+                    comment: String(req.body.comment || req.body.feedbackComment || req.body.feedbackReason || '').slice(0, 4000) || undefined,
+                };
+                try {
+                    await databricksRequest(
+                        profile, 'POST',
+                        `/api/2.0/genie/spaces/${encodeURIComponent(spaceId)}/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}/feedback`,
+                        nativeBody
+                    );
+                } catch (nativeErr) {
+                    // Common cases: 404 (older workspace runtime), 403 (PAT
+                    // lacks feedback scope). Don't surface to user — we
+                    // already logged locally. Log warn for ops visibility.
+                    console.warn('[feedback] native Genie push failed (local log preserved):', nativeErr.message);
+                }
+            }
+        }
+    } catch (err) {
+        console.warn('[feedback] native push setup failed:', err.message);
+    }
+
     res.json({ ok: true });
+});
+
+// ── List Genie conversations for a space ─────────────────────────────────────
+// 2026 conversation API GA exposed conversation listing on the existing
+// `/api/2.0/genie/spaces/{id}/conversations` path. Wraps it through the
+// proxy so the playground gets the same auth + profile resolution as every
+// other Genie call. Useful for a future "history" / "switch conversation"
+// view in PulsePlay — surfaces conversations started both in PulsePlay AND
+// in the Databricks Genie web UI (since they share the space).
+//
+// GET /assistant/conversations?assistantProfile=<name>&limit=<n>
+app.get('/conversations', async (req, res) => {
+    const resolved = resolveProfile({}, req.query, req.headers, req);
+    if (!resolved) return sendNoMatchingProfile(req, res);
+    const spaceId = resolved.profile.spaceId;
+    if (!spaceId) {
+        return res.status(400).json({ error: `Profile '${resolved.name}' has no spaceId configured.` });
+    }
+    const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
+    try {
+        const data = await databricksRequest(
+            resolved.profile, 'GET',
+            `/api/2.0/genie/spaces/${encodeURIComponent(spaceId)}/conversations?page_size=${limit}`
+        );
+        res.json(data);
+    } catch (err) {
+        console.error('[conversations]', err.message);
+        const mapped = errorStatusFromDatabricks(err, 500);
+        res.status(mapped.status).json({ error: mapped.error });
+    }
 });
 
 // ── Chat history storage ─────────────────────────────────────────────────────

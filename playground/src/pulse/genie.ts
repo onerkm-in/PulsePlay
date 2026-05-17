@@ -166,6 +166,16 @@ export interface GenieMessage {
      * run, which is most messages today.
      */
     reasoningTraces?: GenieReasoningTraceEntry[];
+    /**
+     * Suggested follow-up questions for this message — typically rendered as
+     * chips below the assistant's response so the user can drill deeper with
+     * one click. Databricks Genie's 2026 conversation API GA started populating
+     * `attachments[].suggested_questions` (and/or `attachments[].follow_ups`)
+     * on the Get-message endpoint when Genie has confident next-step questions.
+     * We extract here so consumers don't have to walk attachments. Empty/
+     * undefined when Genie didn't suggest any.
+     */
+    suggestedFollowUps?: string[];
 }
 
 /** One step from a Genie Research Agent / Agent Mode reasoning trace.
@@ -679,6 +689,38 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
         }
         if (flatTraces.length > 0 && !Array.isArray(res.reasoningTraces)) {
             res.reasoningTraces = flatTraces;
+        }
+
+        // 2026 Genie GA — suggested follow-up questions. Genie now populates
+        // `attachments[].suggested_questions` (or the legacy `follow_ups` field
+        // in some workspace versions) with short next-step questions the user
+        // can click to drill deeper. Walk all attachments, dedupe by string
+        // identity, cap at 6 entries (more than that and chip row wraps badly).
+        const followUps: string[] = [];
+        const seenFollowUps = new Set<string>();
+        for (const att of attachments) {
+            const candidates = [
+                att?.suggested_questions,
+                att?.suggestedQuestions,
+                att?.follow_ups,
+                att?.followUps,
+            ].filter(v => Array.isArray(v));
+            for (const list of candidates) {
+                for (const q of list) {
+                    const text = typeof q === "string" ? q.trim()
+                        : (q && typeof q.text === "string" ? q.text.trim()
+                        : (q && typeof q.question === "string" ? q.question.trim() : ""));
+                    if (!text || seenFollowUps.has(text)) continue;
+                    seenFollowUps.add(text);
+                    followUps.push(text);
+                    if (followUps.length >= 6) break;
+                }
+                if (followUps.length >= 6) break;
+            }
+            if (followUps.length >= 6) break;
+        }
+        if (followUps.length > 0 && !Array.isArray(res.suggestedFollowUps)) {
+            res.suggestedFollowUps = followUps;
         }
     }
 
