@@ -4395,10 +4395,23 @@ SELECT
         console.log(`[history] POST id=${id} OK`);
         res.json({ ok: true, id, storage: table });
     } catch (err) {
-        // BUG-009: surface the actual cause to the visual so authors can act
-        // (table missing, permission denied, warehouse not running, etc.).
+        // Slice 1d — Problem Details envelope replaces the raw err.message.
+        // BUG-009 originally wanted the cause surfaced so authors could act;
+        // the locked Error Strategy moves operator detail server-side via
+        // the audit log + this console.warn line. Viewer-facing copy gets
+        // the verbatim safe sentinel. The legacy `ok: false` + `table`
+        // fields are preserved so existing /history clients (history panel,
+        // Pulse sibling) keep their happy-path branching working.
         console.warn(`[history] POST id=${id} table=${table} FAILED: ${err.message}`);
-        res.status(500).json({ ok: false, error: err.message, table });
+        sendProblem(res, createProblem({
+            status: 500,
+            code: 'HISTORY_WRITE_FAILED',
+            title: 'History write failed',
+            detail: UNEXPECTED_INTERNAL_SENTINEL,
+            category: 'unexpected_internal',
+            requestId: req.requestId,
+            retryable: false,
+        }), { ok: false, table });
     }
 });
 
@@ -4470,8 +4483,17 @@ LIMIT ${limit}
         });
         res.json({ ok: true, items, canSeeAll });
     } catch (err) {
+        // Slice 1d — viewer-safe envelope; raw err.message stays server-side.
         console.warn('[history] read failed:', err.message);
-        res.status(500).json({ ok: false, error: err.message });
+        sendProblem(res, createProblem({
+            status: 500,
+            code: 'HISTORY_READ_FAILED',
+            title: 'History read failed',
+            detail: UNEXPECTED_INTERNAL_SENTINEL,
+            category: 'unexpected_internal',
+            requestId: req.requestId,
+            retryable: false,
+        }), { ok: false });
     }
 });
 
@@ -4930,8 +4952,17 @@ app.post('/openai/conversations/start', async (req, res) => {
             console.log(`[openai/analytics] profile=${resolved.name} conv=${convId} status=${result.status} attempts=${attempts} retried=${retried}`);
             return res.json(responsePayload);
         } catch (err) {
+            // Slice 1d — viewer-safe envelope; raw err.message stays in console.
             console.error('[openai/analytics]', err.message);
-            return res.status(500).json({ error: err.message });
+            return sendProblem(res, createProblem({
+                status: 500,
+                code: 'OPENAI_ANALYTICS_FAILED',
+                title: 'Azure OpenAI analytics request failed',
+                detail: UNEXPECTED_INTERNAL_SENTINEL,
+                category: 'unexpected_internal',
+                requestId: req.requestId,
+                retryable: false,
+            }));
         }
     }
 
@@ -4961,7 +4992,15 @@ app.post('/openai/conversations/start', async (req, res) => {
         res.json(responsePayload);
     } catch (err) {
         console.error('[openai/start]', err.message);
-        res.status(500).json({ error: err.message });
+        sendProblem(res, createProblem({
+            status: 500,
+            code: 'OPENAI_START_FAILED',
+            title: 'Azure OpenAI conversation start failed',
+            detail: UNEXPECTED_INTERNAL_SENTINEL,
+            category: 'unexpected_internal',
+            requestId: req.requestId,
+            retryable: false,
+        }));
     }
 });
 
@@ -4986,7 +5025,15 @@ app.post('/openai/conversations/:conversationId/messages', async (req, res) => {
         res.json({ conversation_id: conversationId, message_id: msgId, status: 'COMPLETED', content: answer });
     } catch (err) {
         console.error('[openai/send]', err.message);
-        res.status(500).json({ error: err.message });
+        sendProblem(res, createProblem({
+            status: 500,
+            code: 'OPENAI_SEND_FAILED',
+            title: 'Azure OpenAI follow-up message failed',
+            detail: UNEXPECTED_INTERNAL_SENTINEL,
+            category: 'unexpected_internal',
+            requestId: req.requestId,
+            retryable: false,
+        }));
     }
 });
 
@@ -5171,7 +5218,15 @@ app.post('/bedrock/conversations/start', async (req, res) => {
             return res.json(responsePayload);
         } catch (err) {
             console.error('[bedrock/analytics]', err.message);
-            return res.status(500).json({ error: err.message });
+            return sendProblem(res, createProblem({
+                status: 500,
+                code: 'BEDROCK_ANALYTICS_FAILED',
+                title: 'Bedrock analytics request failed',
+                detail: UNEXPECTED_INTERNAL_SENTINEL,
+                category: 'unexpected_internal',
+                requestId: req.requestId,
+                retryable: false,
+            }));
         }
     }
 
@@ -5194,7 +5249,15 @@ app.post('/bedrock/conversations/start', async (req, res) => {
             return res.json({ conversation_id: convId, message_id: msgId, status: 'COMPLETED', content: answer, ...(usage ? { usage } : {}) });
         } catch (err) {
             console.error('[bedrock/direct/start]', err.message);
-            return res.status(500).json({ error: err.message });
+            return sendProblem(res, createProblem({
+                status: 500,
+                code: 'BEDROCK_DIRECT_START_FAILED',
+                title: 'Bedrock direct chat start failed',
+                detail: UNEXPECTED_INTERNAL_SENTINEL,
+                category: 'unexpected_internal',
+                requestId: req.requestId,
+                retryable: false,
+            }));
         }
     }
 
@@ -5215,7 +5278,15 @@ app.post('/bedrock/conversations/start', async (req, res) => {
         res.json({ conversation_id: convId, message_id: msgId, status: 'COMPLETED', content: answer });
     } catch (err) {
         console.error('[bedrock/start]', err.message);
-        res.status(500).json({ error: err.message });
+        sendProblem(res, createProblem({
+            status: 500,
+            code: 'BEDROCK_RAG_START_FAILED',
+            title: 'Bedrock RAG conversation start failed',
+            detail: UNEXPECTED_INTERNAL_SENTINEL,
+            category: 'unexpected_internal',
+            requestId: req.requestId,
+            retryable: false,
+        }));
     }
 });
 
@@ -5239,7 +5310,15 @@ app.post('/bedrock/conversations/:conversationId/messages', async (req, res) => 
             return res.json({ conversation_id: conversationId, message_id: msgId, status: 'COMPLETED', content: answer });
         } catch (err) {
             console.error('[bedrock/direct/send]', err.message);
-            return res.status(500).json({ error: err.message });
+            return sendProblem(res, createProblem({
+                status: 500,
+                code: 'BEDROCK_DIRECT_SEND_FAILED',
+                title: 'Bedrock direct chat follow-up failed',
+                detail: UNEXPECTED_INTERNAL_SENTINEL,
+                category: 'unexpected_internal',
+                requestId: req.requestId,
+                retryable: false,
+            }));
         }
     }
 
@@ -5254,7 +5333,15 @@ app.post('/bedrock/conversations/:conversationId/messages', async (req, res) => 
         res.json({ conversation_id: conversationId, message_id: msgId, status: 'COMPLETED', content: answer });
     } catch (err) {
         console.error('[bedrock/send]', err.message);
-        res.status(500).json({ error: err.message });
+        sendProblem(res, createProblem({
+            status: 500,
+            code: 'BEDROCK_RAG_SEND_FAILED',
+            title: 'Bedrock RAG follow-up message failed',
+            detail: UNEXPECTED_INTERNAL_SENTINEL,
+            category: 'unexpected_internal',
+            requestId: req.requestId,
+            retryable: false,
+        }));
     }
 });
 
@@ -5452,7 +5539,15 @@ app.post('/foundation/section', async (req, res) => {
         });
     } catch (err) {
         console.error('[foundation/section]', err.message);
-        res.status(500).json({ error: err.message });
+        sendProblem(res, createProblem({
+            status: 500,
+            code: 'FOUNDATION_SECTION_FAILED',
+            title: 'Foundation Model section request failed',
+            detail: UNEXPECTED_INTERNAL_SENTINEL,
+            category: 'unexpected_internal',
+            requestId: req.requestId,
+            retryable: false,
+        }));
     }
 });
 
@@ -5540,7 +5635,15 @@ app.post('/responses-agent/chat', async (req, res) => {
         });
     } catch (err) {
         console.error('[responses-agent/chat]', err.message);
-        res.status(500).json({ error: err.message });
+        sendProblem(res, createProblem({
+            status: 500,
+            code: 'RESPONSES_AGENT_CHAT_FAILED',
+            title: 'ResponsesAgent chat request failed',
+            detail: UNEXPECTED_INTERNAL_SENTINEL,
+            category: 'unexpected_internal',
+            requestId: req.requestId,
+            retryable: false,
+        }));
     }
 });
 
@@ -6639,7 +6742,15 @@ app.post('/supervisor/conversations/start', async (req, res) => {
                 invalidateOAuthCacheForProfile(resolved.profile);
             }
         } catch { /* invalidation must never throw */ }
-        res.status(500).json({ error: err.message });
+        sendProblem(res, createProblem({
+            status: 500,
+            code: 'SUPERVISOR_START_FAILED',
+            title: 'Supervisor conversation start failed',
+            detail: UNEXPECTED_INTERNAL_SENTINEL,
+            category: 'unexpected_internal',
+            requestId: req.requestId,
+            retryable: false,
+        }));
     }
 });
 

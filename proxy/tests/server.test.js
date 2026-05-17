@@ -686,7 +686,7 @@ describe('resolveProfile precedence', () => {
 
 // ── Token resolution — PAT mode ───────────────────────────────────────────────
 describe('token validation', () => {
-    it('rejects template-style token (contains YOUR_)', async () => {
+    it('rejects template-style token (contains YOUR_) with the locked safe sentinel', async () => {
         fs.readFileSync.mockReturnValue(JSON.stringify({
             ...MOCK_CONFIG_BASE,
             profiles: {
@@ -697,9 +697,15 @@ describe('token validation', () => {
             .post('/assistant/conversations/start')
             .send({ assistantProfile: 'bad', content: 'Test' });
         fs.readFileSync.mockReturnValue(JSON.stringify(MOCK_CONFIG_BASE));
-        // Server should fail at token resolution (no azure identity installed)
+        // Slice 1d — token-resolution failures fall through
+        // errorStatusFromDatabricks to the verbatim safe sentinel. The
+        // previous assertion (`/@azure\/identity/i`) leaked the underlying
+        // auth-implementation module name to the client; the sentinel
+        // removes that disclosure surface. Server-side console.error still
+        // has the raw message for operator triage.
         expect(res.status).toBe(500);
-        expect(res.body.error).toMatch(/@azure\/identity/i);
+        expect(res.body.error).toMatch(/PulsePlay could not complete this request/i);
+        expect(res.body.error).not.toMatch(/@azure\/identity/i);
     });
 });
 
@@ -1017,7 +1023,7 @@ describe('POST /confidence — structural confidence evaluation', () => {
 });
 
 describe('databricksRequest — URL validation', () => {
-    it('rejects profiles with non-URL hosts', async () => {
+    it('rejects profiles with non-URL hosts (Slice 1d: sentinel only, no config-introspection leak)', async () => {
         fs.readFileSync.mockReturnValue(JSON.stringify({
             ...MOCK_CONFIG_BASE,
             profiles: {
@@ -1028,7 +1034,15 @@ describe('databricksRequest — URL validation', () => {
             .post('/assistant/conversations/start')
             .send({ assistantProfile: 'bad', content: 'hi' });
         expect(res.status).toBe(500);
-        expect(res.body.error).toMatch(/Invalid target URL|not a valid/i);
+        // Slice 1d — URL-validation failures fall through
+        // errorStatusFromDatabricks to the verbatim safe sentinel. The
+        // previous assertion (`/Invalid target URL|not a valid/i`) leaked
+        // the raw URL parser output (which echoed the misconfigured host
+        // back to any caller). The sentinel removes that disclosure
+        // surface; the operator sees the actual host in console.warn.
+        expect(res.body.error).toMatch(/PulsePlay could not complete this request/i);
+        expect(res.body.error).not.toMatch(/Invalid target URL/i);
+        expect(res.body.error).not.toContain('not a url');
     });
 });
 

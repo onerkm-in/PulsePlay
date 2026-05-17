@@ -135,7 +135,7 @@ function createProblem(options = {}) {
  * future route migrations onto sendProblem() must do the same OR
  * accept this `false` return and emit an in-band event themselves.
  */
-function sendProblem(res, problem) {
+function sendProblem(res, problem, extras) {
     if (!res || typeof res.status !== 'function') {
         throw new TypeError('sendProblem requires an Express response');
     }
@@ -143,10 +143,18 @@ function sendProblem(res, problem) {
         return false;
     }
     const status = Number(problem?.status || 500);
+    // Slice 1d — `extras` lets routes preserve legacy response fields
+    // alongside the problem envelope (e.g. /history routes carry
+    // `ok: false` and `table`). Extras are written FIRST so the problem
+    // envelope wins on any key collision — `error`, `status`, etc. always
+    // come from the canonical envelope, never from a route-local override.
+    const body = (extras && typeof extras === 'object')
+        ? { ...extras, ...problem }
+        : problem;
     return res
         .status(status)
         .type('application/problem+json')
-        .json(problem);
+        .json(body);
 }
 
 function statusFromUpstreamError(err) {

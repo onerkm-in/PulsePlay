@@ -154,19 +154,39 @@ describe('errorStatusFromDatabricks — Slice 1c missing-token contract violatio
     });
 });
 
-describe('errorStatusFromDatabricks — fallback', () => {
-    test('unrecognised shape falls through to fallbackStatus (Slice 1d territory)', () => {
-        // Sentinel-detail enforcement is Slice 1d — Slice 1c only locks the
-        // OAuth shapes. This test pins the current behaviour so a Slice 1d
-        // change to redact this path shows up as an intentional test update.
+describe('errorStatusFromDatabricks — fallback (Slice 1d locked)', () => {
+    test('unrecognised shape returns the verbatim safe sentinel — never the raw err.message', () => {
+        // Slice 1d locked the fallback redact. Anything not matching the
+        // OAuth-acquisition, missing-token, or "Databricks NNN:" shapes
+        // returns UNEXPECTED_INTERNAL_SENTINEL ("PulsePlay could not
+        // complete this request...") instead of the raw err.message.
+        // The previous behaviour leaked arbitrary upstream text to the
+        // client; the new behaviour pushes operator detail server-side
+        // via console.error / auditLog while keeping the client surface
+        // viewer-safe.
         const out = errorStatusFromDatabricks(new Error('totally unrelated error string'), 503);
         expect(out.status).toBe(503);
-        expect(out.error).toBe('totally unrelated error string');
+        expect(out.error).toMatch(/PulsePlay could not complete this request/i);
+        expect(out.error).not.toContain('totally unrelated');
     });
 
-    test('default fallbackStatus is 500', () => {
+    test('default fallbackStatus is 500 + sentinel', () => {
         const out = errorStatusFromDatabricks(new Error('some other error'));
         expect(out.status).toBe(500);
+        expect(out.error).toMatch(/PulsePlay could not complete this request/i);
+    });
+
+    test('redaction works even when the raw error contains token-shaped substrings', () => {
+        // Defence-in-depth: even if upstream surfaces a dapi/Bearer in the
+        // unmatched shape, the sentinel replaces it entirely. The raw
+        // message is never substring-matched into the response.
+        const out = errorStatusFromDatabricks(
+            new Error('Unmatched error containing Bearer dapi12345678901234567890 sensitive material'),
+            500,
+        );
+        expect(out.error).not.toContain('dapi');
+        expect(out.error).not.toContain('Bearer');
+        expect(out.error).not.toContain('sensitive');
     });
 });
 
