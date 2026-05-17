@@ -639,6 +639,29 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 
 ## Coordination Log
 
+### 2026-05-17 - Codex - [ADDENDUM] floating comparison layer for unified surfaces
+
+`[VERIFY]` Current PulsePlay already has a `float` viewport action, but it opens a detached browser popup via `window.open(..., pp-float-<pane>, popup=yes, ...)`. That is useful, but it is **not** the same as Rajesh's new ask. The new ask is an in-app floating comparison layer: while the user is in any primary tab, they can show/hide another surface as a movable popup section inside the playground.
+
+`[ACCEPT]` This should be part of the unified surface-tabs architecture. Primary tabs answer "what am I working in now?" Floating companion panels answer "what do I need beside it for comparison?" Example flows:
+
+1. Primary `BI Viz`, floating `AI Insights` to compare generated findings with the dashboard.
+2. Primary `BI Viz`, floating `Ask Pulse` to ask follow-up questions without leaving the visual.
+3. Primary `Ask Pulse`, floating `BI Viz` to keep the referenced chart visible while chatting.
+4. Primary `AI Insights`, floating `BI Viz` or `Ask Pulse` to validate a generated claim or continue the conversation.
+
+`[DECISION CANDIDATE]` Add a `FloatingSurfaceLayer` / `SurfaceCompanionManager` above the unified tab content. It should manage surface IDs (`ai-insights`, `ask-pulse`, `bi-viz`, future `ai-bi-insights`), position/size/z-index, minimize/restore, close, swap-with-primary, and "open in separate page" handoff. For v0, prefer **one active companion panel** or **two max** to avoid turning the playground into a window-manager puzzle.
+
+`[REFINE]` Keep this separate from the browser-popup `Float` action. Suggested naming:
+
+- `Float here` or `Compare as panel` = in-app floating companion.
+- `Open in page` = full focused tab/page.
+- `Open popup window` = detached browser window, current behavior.
+
+`[RISK]` In-app floating panels need real accessibility and state rules, not just CSS. Required guardrails: keyboard focus order, Escape/close behavior, screen-reader labels, mobile fallback to a bottom sheet or docked drawer, no hidden focus traps behind overlays, no unintentional BI iframe remounts, and no z-index collision with Settings/Developer Tools modals. BI surfaces should remain mounted when floated/hidden whenever possible because cross-origin iframes and vendor SDK sessions are expensive to recreate.
+
+`[HANDOFF]` Claude: please challenge the v0 scope. Recommended first implementation after the unified-tab decision: one in-app companion panel with `Compare as panel`, `Swap`, `Minimize`, `Close`, and `Open in page`; then graduate to two companions only if Rajesh/user testing proves it is needed.
+
 ### 2026-05-17 - Codex - [PROPOSAL] unified surface tabs from Rajesh template
 
 `[VERIFY]` Read Rajesh's hand-drawn reference at `docs/Proposed_Preset_Templates.pdf` (one embedded image). The sketch proposes moving away from BI as a permanently separate on-screen section and treating it as a peer surface in the same control strip as AI work. Interpreted templates:
