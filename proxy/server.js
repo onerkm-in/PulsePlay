@@ -1147,8 +1147,62 @@ async function databricksRequest(profile, method, urlPath, body, requestId) {
 
 // Normalize upstream Databricks auth failures so clients can distinguish
 // invalid/expired credentials from generic transport errors.
+//
+// Recognised error shapes (in match-precedence order):
+//
+//   1. "Databricks OAuth token request failed (NNN): <detail>"
+//        Thrown by resolveDatabricksOAuthToken() when /oidc/v1/token returns
+//        a non-2xx response. NNN is the OIDC endpoint's HTTP status.
+//        Closes Slice 1c P0-4: this shape was previously falling through to
+//        the raw-message fallback, exposing the client_id / detail prefix.
+//   2. "Azure AD response missing access_token"
+//   3. "Power BI GenerateToken response missing token"
+//        Thrown by /assistant/embed-token/* paths when the upstream IDP
+//        returns 200 but no token payload. Treated as 502 (upstream contract
+//        violation) with a safe sentinel.
+//   4. "Databricks NNN: <detail>"
+//        Original shape from databricksRequest() generic upstream errors.
+//        Existing 401/403 → auth-failure response + OAuth cache invalidation;
+//        other 4xx/5xx → redacted message preserving status.
+//
+// Anything not matching the above falls through to the raw message at
+// fallbackStatus. That fallback path is itself a Slice 1d candidate — the
+// locked strategy says unexpected_internal detail must be the verbatim safe
+// sentinel, never raw err.message. Out of scope for 1c.
 function errorStatusFromDatabricks(err, fallbackStatus = 500, profile) {
     const message = String(err?.message || 'Unexpected proxy error');
+
+    // Slice 1c — OAuth-acquisition error shape from resolveDatabricksOAuthToken.
+    // /oidc/v1/token failures are always credential issues from the client's
+    // perspective: bad SP client_id / client_secret, revoked SP, or invalid
+    // grant. Normalize to 401 so the playground's auth-error UX kicks in
+    // regardless of whether the OIDC endpoint returned 400, 401, or 403.
+    const oauthAcquisitionMatch = message.match(
+        /Databricks\s+OAuth\s+token\s+request\s+failed\s+\((\d{3})\)/i,
+    );
+    if (oauthAcquisitionMatch) {
+        const oidcStatus = Number(oauthAcquisitionMatch[1]);
+        if (profile) {
+            try { invalidateOAuthCacheForProfile(profile); } catch { /* ignore */ }
+        }
+        return {
+            status: (oidcStatus === 401 || oidcStatus === 403) ? oidcStatus : 401,
+            error: 'Databricks OAuth token acquisition failed. Check the service principal client_id / client_secret on the selected profile.',
+        };
+    }
+
+    // Slice 1c — missing-token shapes from /assistant/embed-token/* paths.
+    // Upstream identity provider returned 200 but with no token payload —
+    // an upstream contract violation, not a credential issue. 502 with a
+    // safe sentinel; never leak the raw IdP response shape.
+    if (/Azure AD response missing access_token/i.test(message)
+        || /Power BI GenerateToken response missing token/i.test(message)) {
+        return {
+            status: 502,
+            error: 'Upstream identity provider returned an unexpected token response. Retry; if persistent, check provider status and the configured profile credentials.',
+        };
+    }
+
     const m = message.match(/Databricks\s+(\d{3})\s*:/i);
     if (m) {
         const status = Number(m[1]);
