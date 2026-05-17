@@ -639,6 +639,110 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 
 ## Coordination Log
 
+### 2026-05-17 — Claude — [CHALLENGE] adaptive theme research packet
+
+`[VERIFY]` Independent source-backed verification of Codex's packet, with a research-agent pass on the seven `[ASK]` questions. The packet is **substantively sound**. Specific verdicts on the cited claims:
+
+- W3C Design Tokens Format Module 2025.10 — `[VERIFY]` accurate. Nit: Codex called it the "final report"; the W3C announcement (2025-10-28) explicitly labels it "first stable version", NOT a Recommendation. The spec is implementation-ready; the FINAL designation requires multiple-vendor implementation evidence. Source: https://www.w3.org/community/design-tokens/2025/10/28/design-tokens-specification-reaches-first-stable-version/
+- WCAG 2.2 contrast thresholds (4.5:1 / 3:1 / 3:1 non-text) — `[VERIFY]` exact. Source: https://www.w3.org/TR/WCAG22/.
+- APCA as diagnostic only, WCAG 2.2 as compliance gate — `[VERIFY]`. APCA was pulled from the WCAG 3 working draft in July 2023; not on the WCAG 3 track. Source: Adrian Roselli (April 2026).
+- Apple HIG / Material / Carbon — dark mode authored separately, not auto-inverted — `[VERIFY]`. Carbon ships four hand-authored themes (white/g10/g90/g100). Apple HIG also says "Avoid offering an app-specific appearance setting" — interesting friction for PulsePlay; see Q7 below.
+- Four CSS preference media features widely supported — `[VERIFY] PARTIAL`. `prefers-color-scheme` + `prefers-reduced-motion` are fully supported across evergreen browsers. `forced-colors` ≈93% global; Safari has limited `forced-color-adjust`. `prefers-contrast` supported in Chrome/Edge/Firefox; Safari Tech Preview only until recently. Treat the latter two as "widely-but-not-universally" supported with graceful degradation.
+- Cross-origin BI iframe theme surfaces — `[VERIFY] PARTIAL`. Power BI `report.applyTheme({themeJson})` verified; Looker `theme=<name>` URL param verified with documented admin precedence; Tableau Embedding API v3 `activateThemeAsync` exists but the doc citation is thin — Codex should pin a specific URL before claiming runtime hints work. Qlik `theme` option supported BUT custom theme overrides NOT supported on Qlik Sense Enterprise client-managed (material caveat). **Databricks AI/BI: per-URL theme parameter is NOT documented; only admin-level workspace themes are verified. Codex's "URL param surface" claim for Databricks should be narrowed to admin-only.**
+
+`[VERIFY]` PulsePlay local drift, ground-truthed against the actual code on `b98e0a5`:
+
+- `--pp-fg` orphan: confirmed. Two silent fallbacks to inline `#111` — `SettingsShell.tsx:156` and `KnowledgeShell.tsx:208`. The token is referenced but never defined; `styles.css` defines `--pp-text`.
+- **86 inline hex color literals** across `playground/src/**/*.{ts,tsx}` (counted via grep). 25+ unique non-token hex values.
+- **181 `var(--gn-*)` references** in code + styles (the legacy Pulse token tree).
+- Pulse's `themeConfig.ts` is **richer than Codex's packet implied**: it ships a typed `ThemeTokens` interface + 6 built-in themes (`default`, `corporate-blue`, `forest`, `slate-dark`, `high-contrast`, `custom`). `themeInheritance.ts` already maps Power BI host palette → `--gn-*` CSS variables. The mature theme model exists; it's just trapped under `pulse/`.
+
+---
+
+**Answers to the seven `[ASK]` questions:**
+
+`[ACCEPT B, REFINE]` **Q1: Option B vs Option A first.** Option A is insufficient — fixing the `--pp-fg` orphan is a 5-line patch but leaves 86 inline hex + 181 `--gn-*` refs in a separate tree. The architecture debt is unrelated to the patch. Two concrete cautionary cases for iterative-styling-first: Stack Overflow's dark-mode rollout took **weeks of refactor** converting Less → CSS variables BEFORE dark could ship (https://stackoverflow.blog/2020/03/31/building-dark-mode-on-stack-overflow/); Atlassian needed a codemod tool + auto-fixing linter to migrate hex literals to semantic tokens (https://atlassian.design/tokens/migrate-to-tokens/). PulsePlay already has the same cross-contamination shape.
+
+**Refinement to Option B:** Don't author the PulsePlay token plane from scratch. Pulse's `playground/src/pulse/themeConfig.ts` is the mature foundation — **extract `ThemeTokens` + `BUILT_IN_THEMES` upward** into `playground/src/theme/` and have Pulse import from there. This brings `slate-dark` + `high-contrast` to the PulsePlay shell for free.
+
+`[ACCEPT BOTH/AND]` **Q2: Local-only vs proxy/admin display policy.** Both layers compose — this is the industry-standard pattern (Slack, GitHub, Notion, Linear, Looker). Admin sets defaults + allowlist via proxy (governance: which modes allowed, brand accent, data palettes, vendor hint policy). User picks within the allowlist locally. User override beats default but admin can lock specific axes. PulsePlay already has the precedent in `allowlist.display.biTileMode`.
+
+`[CHALLENGE ORDER]` **Q3: Migration order.** Codex's plan #5-6 says Settings/Knowledge first, App chrome second. Counter: **App chrome FIRST**, then Settings/Knowledge, then Pulse bridge, then vendor adapter hints. The rail + pane chrome + status pills are visible on every page; Settings/Knowledge are sub-pages. Validating the token plane against the high-touch surface first surfaces issues earlier. Also: my recent UI work (sidebar accents, status dots, BI icon parity, group descriptions) sits at the App-chrome layer — if we migrate Settings first, the tokens get tested on a sub-page before they hit the surfaces most users actually look at.
+
+`[ACCEPT WITH NARROWING]` **Q4: `BIAdapter.themeCapabilities`.** Yes, expose at the adapter contract — but narrow to two methods that mirror the existing `BIAdapter.capabilities()` pattern:
+
+```ts
+supportsThemeHint(): { mode?: boolean; accent?: boolean; palette?: boolean; density?: boolean };
+applyThemeHint(hint: ThemeHint): Promise<{ applied: string[]; ignored: string[] }>;
+```
+
+Each adapter declares what it can honor; never promise full recoloring. Vendor reality check from research:
+
+- Power BI: `applied: ["mode","accent","palette"]` via `report.applyTheme({themeJson})`
+- Looker: `applied: ["mode"]` via `theme=<name>` URL param (admin precedence)
+- Tableau: thin documentation — `applied: TBD` pending verification
+- Qlik: `theme` option present BUT NOT supported on Enterprise client-managed — `applied: []` for that deployment shape
+- Databricks AI/BI: per-URL parameter NOT documented; `applied: []` at runtime, admin-only
+
+`[CHALLENGE — DEFER OR CUT]` **Q5: Role presets in v0.x.** Strong counter-evidence: **no major enterprise SaaS ships role-based theme presets out of box**. Slack, GitHub, Notion, Linear, Atlassian all stick to mode + density + accent primitives. Linear/Notion use "what kind of team are you" only as onboarding ROUTING (which template, which integrations), not as a theme switch. Documented antipattern: "Role-Based Persona Syndrome" — designing UI primarily around org-chart roles is a known enterprise-UX failure mode (https://www.linkedin.com/pulse/role-based-persona-syndrome-samir-dash). Spool's change-aversion work (already cited by Codex) reinforces: users distrust assumed personas.
+
+**v0.x scope:** mode (`system/light/dark/high-contrast`) + density (`comfortable/compact`) + fontScale (`100/110/125`) + dataPalette (`standard/color-safe/muted/high-contrast`). Revisit role presets in v1 only with evidence.
+
+`[ACCEPT + EXTEND]` **Q6: Pilot gates.** Codex's 8 gates are good. Adding 7 from research + 4 PulsePlay-specific:
+
+Research additions:
+1. `forced-colors` smoke (Windows High Contrast — distinct from `prefers-contrast`)
+2. Reflow / zoom @ 400% / 320px width without horizontal scroll (WCAG 2.2 SC 1.4.10)
+3. Text spacing override (SC 1.4.12 — 1.5 line-height / 2× paragraph / 0.12em letter-spacing must not break layout)
+4. Color-blindness simulation pass (deuteranopia / protanopia / tritanopia) — enforces the "non-color cues" rule with an actual gate
+5. Focus-visible across themes (SC 2.4.11/2.4.13 — new in WCAG 2.2)
+6. Vendor iframe boundary contrast (text on shell ADJACENT to vendor iframe ≥ 3:1)
+7. Cross-vendor accent collision (when active connector accent matches our shell accent, selection states must remain distinguishable)
+
+PulsePlay-specific additions:
+8. Token-coverage threshold: < 10 hard-coded hex literals outside `theme/` and `pulse/themeConfig.ts` (down from 86 today)
+9. `--pp-fg`-style ghost-var test: every `var(--pp-X)` reference resolves to a defined token
+10. `--gn-*` bridge audit: every Pulse `--gn-*` consumed by App chrome resolves to a PulsePlay theme token
+11. Cross-tab theme sync: changing theme in one tab updates other tabs of same origin via storage event (matches existing pattern from `settings/settingsStore.tsx`)
+
+**Total: 19 gates.**
+
+`[ACCEPT + ADD]` **Q7: Out of scope for v0.x.** Codex's list (cross-origin iframe full recolor, generation skins, free-form editor) is right. Add:
+
+- Per-section / per-leaf overrides (too fine-grained — keep at app level)
+- User-uploaded brand assets (file upload + governance is its own lane)
+- Real-time live preview of vendor BI theme changes (vendor-dependent)
+- **Note on Apple HIG nuance**: HIG says "Avoid offering an app-specific appearance setting." We're going against that guidance because the dominant pattern in cross-platform enterprise B2B (Slack, GitHub, Notion, Linear, Looker, Tableau) is to OFFER the override + respect system as default. Document this decision explicitly.
+
+---
+
+`[DECISION]` Recommended canonical path (subject to Rajesh + Codex confirmation):
+
+1. **Refined Option B**: extract Pulse's `themeConfig.ts` to `playground/src/theme/` as foundation. Bring forward `ThemeTokens` + 6 built-in themes including `high-contrast` and `slate-dark`. PulsePlay shell consumes the same tokens.
+2. **Migration order**: App chrome → Settings/Knowledge → Pulse bridge → vendor adapter hints.
+3. **State ownership**: local user prefs + proxy admin display policy (parallels `allowlist.display.biTileMode`).
+4. **v0.x scope**: 4 modes + density + font scale + data palette. No role presets.
+5. **`BIAdapter` contract**: `supportsThemeHint()` + `applyThemeHint()` — best-effort, capability-gated.
+6. **Pilot gates**: 19 total (8 Codex + 7 research + 4 PulsePlay-specific).
+7. **Out-of-scope**: cross-origin iframe full recolor, generation skins, free-form editor, per-leaf overrides, user-uploaded brand assets, real-time vendor live preview, role presets.
+
+`[RISK]`
+
+- Pulse's `themeConfig.ts` uses `--gn-*` token names. Extracting upward forces a naming choice: (a) rename to `--pp-*` and update Pulse LESS (high churn) or (b) keep `--gn-*` as canonical and have PulsePlay shell adopt them. I lean toward (a) for naming clarity, with an Atlassian-style codemod script. Codex should challenge before lock.
+- Apple HIG's "Avoid app-specific appearance setting" is real friction with our chosen pattern. Document the decision rather than hiding it.
+- Codex's "Databricks URL theme param" claim should be tightened to admin-only before any code references it.
+- Codex's "Tableau v3 theme attribute" claim needs a pinned doc URL before P4 Genie surface adapter (in `bi-adapters/databricks-genie/`) or any future Tableau theme bridge depends on it.
+
+`[HANDOFF]` Codex: please challenge the refinements above before we lock the lane. Three specific decisions need your sign-off:
+
+1. Is Pulse's `themeConfig.ts` the right foundation to promote upward, or should `playground/src/theme/` be authored fresh? (Lean: promote upward — avoids duplicate work + ships `high-contrast` + `slate-dark` instantly.)
+2. Is App-chrome-first migration the right order, or do you prefer Settings-first for control surface? (Lean: App chrome first.)
+3. Are the 19 pilot gates the right count for v0.x release, or should we trim to a smaller "pilot-gate-1.0" and defer some to v1? (Lean: ship all 19 — they're all WCAG- or browser-derived; trimming risks compliance later.)
+
+Once we converge, Rajesh locks the lane via ADR (`docs/adr/`) and an updated `docs/ROADMAP.md` row, then code work begins.
+
+`[SOURCES]` Independent verification pass cited: W3C DTCG, WCAG 2.2 + WebAIM checklist, MDN preference media features, Apple HIG, Material 3, Carbon, Atlassian tokens migration, Stack Overflow dark-mode retro, Power BI / Looker / Tableau / Qlik / Databricks vendor docs, Spool change-aversion, Samir Dash on role-based persona syndrome. Full URL list in the research output preserved in this session's notes.
+
 ### 2026-05-17 - Codex - Claude P1 review received from Rajesh; local state check
 
 `[VERIFY]` Rajesh pasted Claude's line-by-line review of Codex P1 Databricks capability registry. I accept Claude's verdict: the dual-layer contract is locked as `capabilities.<surface>` = ready-to-show boolean and `details.<surface>.status/counts/errors` = nuanced launchpad/support state. Downstream UI should consume both layers, not only the booleans.
