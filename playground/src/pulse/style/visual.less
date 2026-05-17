@@ -7449,15 +7449,24 @@
 
 /* ── Insights sections (paginated cards with staggered reveal) ── */
 .gn-insights-sections {
-    /* Session 53 — single-column horizontal stack. The earlier 2-column body
-     * grid (IDEA-039 step 1.4) caused uneven card heights when sections like
-     * RISKS and OPPORTUNITIES had different content lengths, plus trailing
-     * unheaded paragraphs would dump into one column making it overflow.
-     * Single-column keeps every section full-width and predictable. KPI tile
-     * grid above the sections still uses auto-fit columns so the lead row
-     * stays dense. */
+    /* 2026-05 responsive pass — auto-fit columns so the section cards
+     * reflow horizontally when the AI pane is wide enough.
+     *
+     *   Pane width  → columns
+     *   < 660 px    → 1 column (single-stack, original Session-53 behavior)
+     *   660-979 px  → 2 columns
+     *   ≥ 980 px    → 3 columns
+     *
+     * minmax(320px, 1fr) means each column claims at least 320 px before a
+     * second column appears, so cards never get crunched. CSS Grid handles
+     * the uneven-height alignment that broke the old 2-column body grid
+     * (IDEA-039 step 1.4) — sections grow independently in their column
+     * without forcing siblings to match height.
+     *
+     * KPI tile grid above the sections has its own auto-fit columns
+     * (.gn-insights-kpis) and keeps its independent density. */
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
     /* 2026-05 density pass — was 10. */
     gap: 8px;
     min-width: 0;

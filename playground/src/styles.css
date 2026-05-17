@@ -62,8 +62,28 @@ html, body, #root {
     color: var(--pp-text-muted);
 }
 .pp-app__empty {
+    /* 2026-05 responsive pass — center vertically + horizontally within
+     * the parent scroll region instead of top-anchoring. When the BI
+     * pane has no embed configured, the empty-state copy used to leave a
+     * huge vertical gap below it; centering frames the surrounding
+     * whitespace as intentional rather than wasted. Same logic applies
+     * to the global "Both panels hidden" frame.
+     *
+     *   - min-height: 100% claims the parent's full height (parent uses
+     *     flex:1; overflow:auto, so it expands to fill the pane).
+     *   - flex-direction: column + justify-content: center vertically
+     *     centers the h2 + paragraphs within the claimed height.
+     *   - margin: 0 auto + max-width caps + centers horizontally inside
+     *     the wider parent.
+     */
     padding: 32px 40px;
     max-width: 600px;
+    margin: 0 auto;
+    min-height: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
     color: var(--pp-text-muted);
 }
 .pp-app__empty h2 { color: var(--pp-text); margin-top: 0; font-size: 18px; }
