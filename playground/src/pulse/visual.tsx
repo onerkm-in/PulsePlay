@@ -4396,13 +4396,31 @@ function App(props: AppProps) {
                             </div>
                         );
                     })()}
-                    {!insightsResult && !insightsBusy ? (
-                        <div className="gn-insights-placeholder">
-                            <span className="gn-insights-icon">✨</span>
-                            <h3>AI Insights</h3>
-                            <p>{isConfigured ? "Generating insights..." : "Connect to Databricks to generate AI Insights."}</p>
-                        </div>
-                    ) : (!insightsResult || (insightsResult.status === "RUNNING" && !(insightsResult.content || "").trim())) ? (
+                    {!insightsResult && !insightsBusy ? (() => {
+                        // IDEA-039 anomaly #8 auto-fire guard mirror: if AI is
+                        // configured but there's no BI context (zero measures +
+                        // zero dimensions), runInsights() is intentionally
+                        // suppressed until the BI pane has loaded data. The
+                        // earlier copy lied with "Generating insights…" in this
+                        // state because the placeholder didn't know the guard
+                        // was blocking. Three-state copy: not-configured,
+                        // configured-but-no-context, ready.
+                        const measCount = Object.keys(props.context?.measures  ?? {}).length;
+                        const dimCount  = Object.keys(props.context?.dimensions ?? {}).length;
+                        const hasBiContext = measCount > 0 || dimCount > 0;
+                        const copy = !isConfigured
+                            ? "Connect to Databricks to generate AI Insights."
+                            : !hasBiContext
+                                ? "Pick a BI tool and load data — AI Insights need a BI surface to reason about."
+                                : "Generating insights…";
+                        return (
+                            <div className="gn-insights-placeholder">
+                                <span className="gn-insights-icon">✨</span>
+                                <h3>AI Insights</h3>
+                                <p>{copy}</p>
+                            </div>
+                        );
+                    })() : (!insightsResult || (insightsResult.status === "RUNNING" && !(insightsResult.content || "").trim())) ? (
                         // No content yet — the always-on ProgressIndicator above
                         // already covers the running state. 49.16 — but if the run
                         // has settled (busy=false AND all stages reached a terminal
