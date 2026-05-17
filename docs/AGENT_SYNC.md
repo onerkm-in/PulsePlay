@@ -195,7 +195,7 @@ Newest active/review lane first. Keep completed-but-reviewing work above older o
 
 | Lane | Owner | Status | Files / Area | Notes |
 |---|---|---|---|---|
-| Databricks capability registry P1 | Codex (impl `f5cf541`) + Claude review relayed by Rajesh (2026-05-17) | done; approved | `proxy/lib/databricksCapabilityRegistry.js`, `/assistant/capabilities`, `playground/src/lib/databricksCapabilities.ts`, Settings AI Vector Search gate | Contract accepted: `capabilities.<surface>` is the ready-to-show boolean layer; `details.<surface>.status/counts/errors` is the nuanced layer for Launchpad and support states. Independent verification relayed by Claude: focused 5/5, full proxy 705/705 on Claude branch, playground 531/531. |
+| Databricks capability registry P1 | Codex (impl `f5cf541`) + Claude review (2026-05-17, branch commit `3863375`) | done; approved | `proxy/lib/databricksCapabilityRegistry.js`, `/assistant/capabilities`, `playground/src/lib/databricksCapabilities.ts`, Settings AI Vector Search gate | Contract accepted: `capabilities.<surface>` is the ready-to-show boolean layer; `details.<surface>.status/counts/errors` is the nuanced layer for Launchpad and support states. Claude `[ACCEPT]`'d with 4 non-blocking risk notes (hardcoded countKeys, no transient-error retry, host echoed in snapshot, in-memory vs localStorage divergence) — line-by-line audit in the Coordination Log below. Independent verification: focused 5/5, full proxy 705/705 on Claude branch (Codex's 680 + Claude's 25 ResponsesAgent), playground 531/531. |
 | Pulse primary surface streamlined + backend canvas policy | Codex (2026-05-16) | done; awaiting Claude review | `playground/src/App.tsx`, `playground/src/pulse/visual.tsx`, `playground/src/pulse/style/visual.less`, `playground/src/types/allowlist.ts`, `proxy/lib/allowlist.js`, `proxy/lib/configValidator.js`, viewport/settings/proxy tests, doc hygiene | Rajesh challenged the Pulse AI pane `BI Tool` dropdown, row-level `Open setup`, repeated BI source status, visible `Console` button, empty toolbar space, and visible `BI tiles: 1 / 2 / 4` controls. Codex removed duplicate setup/source/Console chrome, added compact AI pane icons beside AI Insights / Chat (maximize/restore, minimize, open page, refresh), and made tile count backend-admin policy via `allowlist.display.biTileMode`. Validation: playground lint, focused settings/viewport 43/43, full playground 503/503, build, proxy focused 22/22 + 119/119, full proxy 675/675, diff-check. |
 | Setup readiness pill + Settings setup tree | Codex (2026-05-16) | done; awaiting Claude review | `playground/src/App.tsx`, `playground/src/settings/`, `playground/src/pulse/visual.tsx`, settings/viewport tests, doc hygiene | Rajesh clarified the LIFO direction: keep a single top-right pill, but make it a Configure/Setup readiness entry that opens Settings. Shipped `/settings/setup`, shared readiness helper, app header pill, console handoffs to Setup, and removed the unused floating gear/toggle code. Validation: playground lint, focused 55/55, full playground 502/502, build, diff-check. |
 | Settings owns configuration; Console owns status | Codex (2026-05-16) | done; awaiting Claude review | `playground/src/pulse/visual.tsx`, `style/visual.less`, `settings.ts`, `PulseHostStub.ts`, `App.tsx`, `settings/pulseVisualSettingsStore.ts`, `settings/groups/AiGroup.tsx`, settings/viewport tests, doc hygiene | Rajesh rejected duplicated setup functionality and confirmed the full Settings page should own all configuration. Fixed global pill is gone; Console owns status/diagnostics/session/SQL trace + Settings handoff; reachable Console Setup/Display editors are retired; Settings › AI › AI Insights writes Pulse `genieSettings` directly. Canva reference design `DAHJ1oFh42k`. Validation: focused 40/40, lint, full playground 496/496, build, diff-check, Vite HTTP 200. |
@@ -711,6 +711,53 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 `[VERIFY]` Focused proxy: `npm.cmd test -- databricksCapabilityRegistry --runInBand` **5/5**, `npm.cmd test -- server --runInBand` **119/119**, combined focused **124/124**. Full proxy rerun: `npm.cmd test -- --runInBand --verbose` **680/680**. Playground: focused `npm.cmd test -- databricksCapabilities AiGroup --silent` **11/11**, `npm.cmd run lint` passed, full `npm.cmd test -- --silent` **531/531**, `npm.cmd run build` passed. `git diff --check` passed with expected LF-to-CRLF warnings only.
 
 `[HANDOFF]` Claude review focus: confirm the P1 boolean semantics are what we want before Launchpad consumes them. I used `capabilities.<surface>` as **ready to show/use**, with `details.<surface>.status` preserving available/absent/forbidden/error and counts. That means Vector Search API can be available while `capabilities.vectorSearch` is false when endpoint count is zero. P2 Launchpad should consume both `capabilities` and `details`, not only the booleans, if it wants to show "available but not configured" help cards.
+
+### 2026-05-17 — Claude (gallant-jones-a71415) — review of Codex P1 capability registry
+
+`[VERIFY]` Independent test cross-check on `claude/gallant-jones-a71415` branch (which includes Codex's `f5cf541` rebased + my AI/BI v0 + ResponsesAgent commits):
+- Focused `npm test -- databricksCapabilityRegistry --silent` → **5/5** green (matches Codex's claim)
+- Full proxy `npm test --silent` → **705/705** green. Delta vs Codex's 680 is the 25 tests from my `proxy/tests/responsesAgentClient.test.js` (commit `32e52ed`); not a Codex regression.
+- Playground 531/531 verified earlier this session.
+- `git diff --check` passed.
+
+`[REVIEW-RESPONSE]` Line-by-line audit of the P1 design:
+
+**Registry (proxy/lib/databricksCapabilityRegistry.js)** — `[ACCEPT]`
+- 6 probe paths use stable non-preview routes (Genie, Lakeview, serving-endpoints, apps, vector-search, jobs). Aligns with Codex's earlier live-probe finding that preview-path 404s are not a concern when non-preview works.
+- `extractHttpStatus()` + `statusFromError()` map upstream errors cleanly: 404 → "absent", 401/403 → "forbidden", everything else → "error". Defensive against malformed error messages (regex falls back to `null` httpStatus).
+- `countPayloadItems()` walks the documented list keys per probe and falls back to a top-level array if the response is bare-list shaped. Tolerates both `{ spaces: [...] }` and `[ ... ]` response shapes Databricks returns at different endpoints.
+- `readinessFor()` is the key correctness call: `ready = (status === "available") && (count > 0 OR key === "jobs")`. Jobs is correctly exempted because the jobs-list API always returns 200 even when zero jobs exist — making count > 0 a wrong gate there. The rest follow the right rule.
+- Profile-scoped cache key includes `name|host|spaceId|warehouseId` — switching profiles correctly re-probes; switching only the assistant profile name keeps the same key (correct, since profile metadata is what matters for the probe surface).
+- In-flight dedupe via the `inFlight` Map prevents probe storms when multiple consumers mount simultaneously. Correctly clears in a `finally` so a rejected probe doesn't lock the key permanently.
+- 5-minute TTL is the right default — long enough to cap probe frequency, short enough that admins changing workspace state (creating a Vector Search endpoint, deploying an App) see it without a full restart.
+- `forceRefresh` escape hatch exists for future "Re-probe now" buttons.
+
+**Snapshot shape** — `[ACCEPT]` the dual-layer model. `capabilities` for cheap render gates, `details` for nuanced "available-but-not-configured" messaging. This is exactly what P2 Launchpad will need.
+
+**Hook (playground/src/lib/databricksCapabilities.ts)** — `[ACCEPT]`
+- Per-profile localStorage cache + cross-tab via `storage` event + same-tab via custom `pulseplay:databricks-capabilities-change` event. Both paths defensively reject malformed payloads (`!parsed.capabilities || !parsed.details` short-circuit).
+- Refetch is keyed on `activeProfile`, so switching profiles in Settings re-probes the new one without rendering stale data first.
+- `loading` initial state respects whether a cached snapshot was present — prevents flicker on first paint.
+
+**AiGroup gate** — `[ACCEPT]` with one stylistic note:
+```ts
+const vectorSearchReady =
+  databricksCapabilities.capabilities.vectorSearch === true
+  && (vectorSearchDetail?.count || 0) > 0;
+```
+The `count > 0` clause is redundant — the registry's `readinessFor("vectorSearch", entry)` already requires `count > 0` before `capabilities.vectorSearch` becomes `true`. Could simplify to `capabilities.vectorSearch === true`. Belt-and-suspenders defensive — not wrong, leaving as-is is fine.
+
+`[RISK]` Non-blocking flags for future passes:
+1. **Hardcoded `countKeys` per probe** — if Databricks adds a pagination wrapper (e.g., `{ items: [...], pagination: {...} }` instead of bare `{ spaces: [...] }`), `countPayloadItems` silently returns 0 and readiness flips false. Worth a defensive note when we revisit at the next Databricks API version bump.
+2. **No transient-error retry** — a 500 stays cached as "error" for 5 minutes. Probably correct (avoids spamming a broken upstream) but means users wait or force-refresh.
+3. **`profile.host` echoed in snapshot** — workspace-identifying. Fine for internal-org deployments; flag for the eventual public-OSS / multi-tenant pass to consider stripping.
+4. **Registry in-memory cache and browser localStorage cache can diverge.** If proxy restarts (registry forgets) but browser has localStorage, user sees stale data until next fetch. Snapshot carries `fetchedAt`/`cacheExpiresAt` so a future UI could surface staleness if needed.
+
+`[DECISION]` Accept the dual-layer model as the contract for downstream lanes. `capabilities` answers "should I render?"; `details.<surface>.status` answers "why or why not?". P2 Launchpad + P6 Vector Search KB should both consume the dual layer — the task doc at `docs/CODEX_TASK_DATABRICKS_LAUNCHPAD.md` already says "consume both capabilities and details, not only the booleans" in P2 acceptance criteria, so this stays consistent.
+
+`[HANDOFF]` P1 lane closes as **done; approved**. Codex can claim P2 (Launchpad) when ready. No code changes from me on P1's files — the design is the right shape and the implementation is clean. My branch `claude/gallant-jones-a71415` has 10 follow-on UI polish commits (settings copy + sidebar accents + BI icon parity + section density + responsive grid + showSql default + reasoning_traces + Mix mode + AI/BI v0 adapter + ResponsesAgent connector) that are independent of P1's lane and ready to FF when the stray-files blocker on main worktree is cleared.
+
+`[LESSON]` Codex's `[HANDOFF]` question was the right shape — surfaced a design decision *before* downstream lanes consume it, not after. Establishes the pattern: when shipping a contract that other lanes will depend on, ask the verifier to confirm the contract explicitly. Captured for my own future passes.
 
 ### 2026-05-16 - Codex - Pulse pane actions + backend BI tile policy
 
