@@ -144,6 +144,7 @@ For setup/configuration errors:
 
 - `X-Request-Id` middleware and audit log correlation already exist in [proxy/server.js](../proxy/server.js).
 - `databricksRequest` already redacts token patterns, retries transient GET network errors, backs off for 429s, and can propagate `X-Request-Id`.
+- `proxy/lib/problemDetails.js` now provides the backend Problem Details foundation: `createProblem()`, `sendProblem()`, `mapUpstreamError()`, `redactProblemCause()`, and `ensureRequestId()`.
 - SQL preview already has targeted validation and redaction in [sqlSectionPreview.js](../proxy/lib/sqlSectionPreview.js).
 - Diagnostics buffer and export bundle already capture recent BI events and console errors with redaction in [diagnosticsBuffer.ts](../playground/src/settings/diagnosticsBuffer.ts) and [exportBundle.ts](../playground/src/settings/exportBundle.ts).
 - Newer Databricks enablement routes are closer to the desired pattern than older connector routes because they map upstream statuses and audit each failure.
@@ -153,7 +154,7 @@ For setup/configuration errors:
 ### P0 - Security / Supportability Gaps
 
 1. `/responses-agent/*` was a cost-bearing Databricks-backed route family not mounted under the same auth/rate-limit/shared-key middleware family as `/assistant`, `/openai`, `/bedrock`, `/foundation`, and `/supervisor`. **Closed in Slice 1a (2026-05-17):** `/responses-agent` now inherits rate-limit, IdP, shared-key, and allowlist middleware.
-2. `express.json()` currently mounts before request-id/CORS/security middleware. Malformed JSON can fall through to non-standard Express error bodies without a PulsePlay support code.
+2. `express.json()` previously mounted before request-id/CORS/security middleware, so malformed JSON could fall through to non-standard Express error bodies without a PulsePlay support code. **Closed in Slice 1b (2026-05-17):** malformed JSON and body-too-large failures now return `application/problem+json` with request id/support code; body parsing runs after the CORS/security header layer.
 3. Several older connector routes return raw `err.message` to clients, including Azure OpenAI, Bedrock, Foundation Model, ResponsesAgent, Supervisor, and history SQL paths.
 4. Databricks OAuth token acquisition errors are not normalized by `errorStatusFromDatabricks`, whose parser only handles `Databricks NNN:` messages.
 
@@ -182,15 +183,27 @@ For setup/configuration errors:
 
 ### Slice 1b - Backend Guardrail And Contract Foundation
 
-- Add `proxy/lib/problemDetails.js` with helpers:
+- **Shipped 2026-05-17.** Add `proxy/lib/problemDetails.js` with helpers:
   - `createProblem()`
   - `sendProblem()`
-  - `mapDatabricksError()`
   - `mapUpstreamError()`
   - `redactProblemCause()`
-- Mount request-id/CORS before body parsing where possible, and add JSON parse/global error middleware.
+  - `ensureRequestId()`
+- Mount body parsing after the CORS/security header layer, then add malformed JSON/body-too-large and global unexpected-error middleware.
+- Preserve legacy `error` in every problem envelope while clients migrate.
+- Add tests for malformed JSON, body-too-large status preservation, sync throw fallback, request-id echo, redaction, streaming `headersSent` carve-out, and problem shape.
+
+### Slice 1c - Upstream Classification And Streaming Carve-Outs
+
+- Normalize Databricks OAuth/token error shapes in `errorStatusFromDatabricks`.
+- Define pre-first-chunk vs post-first-chunk streaming behavior for `/supervisor` and similar NDJSON/SSE paths.
+- Add in-band stream error events for post-first-chunk failures.
+
+### Slice 1d - Legacy Route Migration
+
 - Convert high-risk raw `err.message` routes to `sendProblem()` while retaining legacy `error`.
-- Add tests for malformed JSON, redaction, and problem shape.
+- Drain Azure OpenAI, Bedrock, Foundation Model, ResponsesAgent, Supervisor, and history SQL paths first.
+- Add grandfathered lint/audit gates so new raw-error leaks cannot be introduced while existing offenders are migrated.
 
 ### Slice 2 - Frontend Problem Reader And Error Card
 

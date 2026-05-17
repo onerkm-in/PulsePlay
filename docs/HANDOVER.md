@@ -5,6 +5,33 @@
 
 ---
 
+## 2026-05-17 - Slice 1b Problem Details foundation + malformed-body hardening
+
+**Range:** Rajesh approved the no-panic error handling lane after Claude's Slice 1b plan. `main` already contains `70c3139` with the Problem Details helper, global malformed JSON handler, global unexpected-error fallback, and tests. This follow-up tightened browser behavior by making malformed-body responses pass through the same CORS/security header layer before body parsing.
+
+### What shipped
+
+- Added [problemDetails.js](../proxy/lib/problemDetails.js) as the backend Problem Details foundation: `createProblem()`, `sendProblem()`, `mapUpstreamError()`, `redactProblemCause()`, and `ensureRequestId()`.
+- Added global malformed JSON/body-too-large handling and a final unexpected-error fallback in [server.js](../proxy/server.js), preserving the safe legacy `error` field alongside the structured envelope.
+- Locked the sentinel for `unexpected_internal`: `PulsePlay could not complete this request. Share the support code with your administrator.`
+- Kept the streaming carve-out: if headers are already sent, `sendProblem()` returns `false` and the global fallback calls `next(err)`.
+- Moved body parsing after the CORS/security header middleware so malformed JSON still receives CORS, `nosniff`, and request-id headers rather than becoming a browser-side mystery.
+
+### Validation
+
+- `proxy`: `node --check server.js` passed.
+- `proxy`: `node --check lib/problemDetails.js` passed.
+- `proxy`: focused `npx.cmd jest --runInBand --verbose tests/problemEnvelope.integration.test.js tests/problemDetails.test.js tests/server.test.js` passed **150/150**.
+- `proxy`: full `npx.cmd jest --runInBand` passed **740/740**.
+
+### Tripwires
+
+- This closes P0-2 malformed body/no support code. It does **not** close P0-3 raw `err.message` route leaks or P0-4 Databricks OAuth normalization.
+- Express 4 still does not auto-forward async route throws. Existing async handlers need explicit `try/catch` or a wrapper during Slice 1d.
+- Streaming paths still need in-band error events for post-first-chunk failures; the foundation only prevents corrupting committed streams.
+
+---
+
 ## 2026-05-17 - H1 doc sync: ResponsesAgent is the ninth backend path
 
 **Range:** Claude's review correctly flagged that the code had shipped `/responses-agent/*` but active docs still carried the old runtime-backend count. This pass updates the current/canonical docs only; historical audit and migration snapshots are left untouched.

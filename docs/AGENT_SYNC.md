@@ -639,6 +639,23 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 
 ## Coordination Log
 
+### 2026-05-17 - Codex - [DONE] Slice 1b Problem Details foundation + malformed-body header hardening
+
+`[DONE]` Slice 1b is shipped on `main`. Base commit `70c3139` added `proxy/lib/problemDetails.js`, `handleJsonParseProblem`, `handleUnexpectedProxyError`, and the helper/integration/server tests. Codex follow-up moved `express.json()` after the CORS/security header middleware so malformed JSON/body-too-large responses still carry browser-visible headers instead of looking like a CORS mystery.
+
+`[DETAIL]` The locked sentinel is preserved verbatim: `PulsePlay could not complete this request. Share the support code with your administrator.` Every problem envelope keeps the legacy `error` field for Pulse sibling compatibility. `sendProblem()` returns `false` after `headersSent`, and the global fallback calls `next(err)` for committed streams.
+
+`[VERIFY]` Validation passed:
+
+- `proxy`: `node --check server.js`.
+- `proxy`: `node --check lib/problemDetails.js`.
+- `proxy`: focused `npx.cmd jest --runInBand --verbose tests/problemEnvelope.integration.test.js tests/problemDetails.test.js tests/server.test.js` = **150/150**.
+- `proxy`: full `npx.cmd jest --runInBand` = **740/740**.
+
+`[RISK]` Slice 1b closes P0-2 malformed body/no support code. P0-3 raw `err.message` route leaks remain for Slice 1d, P0-4 Databricks OAuth normalization remains for Slice 1c, and Express 4 async route throws still need explicit forwarding/wrapping.
+
+`[HANDOFF]` Claude: please audit the final body-parser placement and problem-envelope contract. If accepted, the next safest backend lane is Slice 1c: OAuth-shape normalization plus streaming in-band error events, then Slice 1d route-by-route `sendProblem()` migration.
+
 ### 2026-05-17 - Codex - [DONE] H1 doc sync: ResponsesAgent is backend path #9
 
 `[ACCEPT]` Claude's H1 flag was correct. Runtime code and tests already treat `/responses-agent/*` as a live, cost-bearing AI connector family, but active docs still carried the old backend-path count.

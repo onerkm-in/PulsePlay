@@ -1257,8 +1257,6 @@ async function ensureWarehouseRunning(profile) {
 
 // ── App ───────────────────────────────────────────────────────────────────────
 const app = express();
-app.use(express.json({ limit: '4mb' }));
-app.use(handleJsonParseProblem);
 
 function isJsonParseError(err) {
     return Boolean(
@@ -1400,6 +1398,9 @@ app.use((req, res, next) => {
     if (req.method === 'OPTIONS') return res.sendStatus(204);
     next();
 });
+
+app.use(express.json({ limit: '4mb' }));
+app.use(handleJsonParseProblem);
 
 // ── Proxy auth mode ──────────────────────────────────────────────────────────
 //

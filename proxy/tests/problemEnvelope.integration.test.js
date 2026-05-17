@@ -23,6 +23,16 @@ const { app, handleUnexpectedProxyError } = require('../server');
 const { sendProblem, createProblem, UNEXPECTED_INTERNAL_SENTINEL } = require('../lib/problemDetails');
 
 describe('Slice 1b — global Problem Details envelopes', () => {
+    let consoleErrorSpy;
+
+    beforeAll(() => {
+        consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    });
+
+    afterAll(() => {
+        consoleErrorSpy?.mockRestore();
+    });
+
     describe('Malformed JSON → INVALID_JSON problem', () => {
         it('returns 400 application/problem+json for an unparseable body', async () => {
             // /assistant routes are gated by auth, but the JSON parse error
@@ -35,6 +45,8 @@ describe('Slice 1b — global Problem Details envelopes', () => {
 
             expect(res.status).toBe(400);
             expect(res.type).toBe('application/problem+json');
+            expect(res.headers['access-control-allow-origin']).toBe('*');
+            expect(res.headers['x-content-type-options']).toBe('nosniff');
             expect(res.body.code).toBe('INVALID_JSON');
             expect(res.body.category).toBe('validation');
             expect(res.body.title).toMatch(/Invalid JSON/i);
