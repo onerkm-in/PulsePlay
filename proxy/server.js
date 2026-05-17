@@ -1165,10 +1165,9 @@ async function databricksRequest(profile, method, urlPath, body, requestId) {
 //        Existing 401/403 → auth-failure response + OAuth cache invalidation;
 //        other 4xx/5xx → redacted message preserving status.
 //
-// Anything not matching the above falls through to the raw message at
-// fallbackStatus. That fallback path is itself a Slice 1d candidate — the
-// locked strategy says unexpected_internal detail must be the verbatim safe
-// sentinel, never raw err.message. Out of scope for 1c.
+// Anything not matching the above falls through to fallbackStatus with the
+// shared unexpected-internal sentinel. Never return raw err.message from this
+// chokepoint; routes that need operator diagnostics should log them server-side.
 function errorStatusFromDatabricks(err, fallbackStatus = 500, profile) {
     const message = String(err?.message || 'Unexpected proxy error');
 
@@ -1232,7 +1231,7 @@ function errorStatusFromDatabricks(err, fallbackStatus = 500, profile) {
             return { status, error: redacted };
         }
     }
-    return { status: fallbackStatus, error: message };
+    return { status: fallbackStatus, error: UNEXPECTED_INTERNAL_SENTINEL };
 }
 
 // ── Warehouse auto-start ──────────────────────────────────────────────────────
