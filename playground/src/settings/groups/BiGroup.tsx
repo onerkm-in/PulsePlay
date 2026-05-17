@@ -29,10 +29,10 @@ export function BiGroup(): React.ReactElement {
                 </p>
             </header>
 
-            {/* ─── Tier 1: At a glance ─────────────────────────────────── */}
+            {/* ─── Tier 1: Current state ──────────────────────────────── */}
             <SubSection
-                label="At a glance"
-                helper="Active provider + allowlist; the rest of this group either configures it or shows what governs it."
+                label="Current state"
+                helper="Active provider and allowlist. The sections below either configure them or surface the policy that governs them."
             >
 
             <Leaf group="bi" label="Provider" helper="The BI tool PulsePlay embeds. Restricted to the providers your organization allows.">
@@ -45,10 +45,10 @@ export function BiGroup(): React.ReactElement {
 
             </SubSection>
 
-            {/* ─── Tier 2: Configure ──────────────────────────────────── */}
+            {/* ─── Tier 2: Connect and embed ──────────────────────────── */}
             <SubSection
-                label="Configure"
-                helper="Author the embed wiring — vendor connection, token mode, workspace/report IDs. Edits live-update without refresh."
+                label="Connect and embed"
+                helper="Wire the vendor connection, token mode, and workspace/report IDs. Edits live-update without a refresh."
             >
 
             <Leaf
@@ -123,10 +123,10 @@ export function BiGroup(): React.ReactElement {
 
             </SubSection>
 
-            {/* ─── Tier 3: Manage ─────────────────────────────────────── */}
+            {/* ─── Tier 3: Governance and policy ──────────────────────── */}
             <SubSection
-                label="Manage"
-                helper="Read-only governance + license posture surrounding the active provider. Admin-configured; surfaced here so you know what to ask for."
+                label="Governance and policy"
+                helper="Read-only governance and license posture surrounding the active provider. Admin-configured, surfaced here so you know what to ask for."
             >
 
             <Leaf

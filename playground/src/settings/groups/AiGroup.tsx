@@ -141,9 +141,9 @@ export function AiGroup(): React.ReactElement {
                 </p>
             </header>
 
-            {/* ─── Tier 1: Configure ──────────────────────────────────── */}
+            {/* ─── Tier 1: Connect and test ───────────────────────────── */}
             <SubSection
-                label="Configure"
+                label="Connect and test"
                 helper="Pick the AI brain and the knowledge bundle it grounds answers in."
             >
 
@@ -270,10 +270,10 @@ export function AiGroup(): React.ReactElement {
 
             </SubSection>
 
-            {/* ─── Tier 2: Verify ─────────────────────────────────────── */}
+            {/* ─── Tier 2: Test and validate ──────────────────────────── */}
             <SubSection
-                label="Verify"
-                helper="Probe the active connector. Fast + safe — uses the same path the AI sidebar's discovery loop uses on every conversation start."
+                label="Test and validate"
+                helper="Probe the active connector. Fast and safe — uses the same path the AI sidebar's discovery loop runs on every conversation start."
             >
 
             {/* ── Connection test ───────────────────────────────────── */}
@@ -301,10 +301,10 @@ export function AiGroup(): React.ReactElement {
 
             </SubSection>
 
-            {/* ─── Tier 3: Behavior ───────────────────────────────────── */}
+            {/* ─── Tier 3: Generation behavior ────────────────────────── */}
             <SubSection
-                label="Behavior"
-                helper="How the AI talks back — prompt strategy, domain guidance, sections, metric semantics. Saves to Pulse genieSettings; live-updates the playground."
+                label="Generation behavior"
+                helper="How the AI talks back — prompt strategy, domain guidance, sections, metric semantics. Saves to Pulse genieSettings and live-updates the playground."
             >
 
             {/* ── AI Insights configuration ────────────────────────── */}

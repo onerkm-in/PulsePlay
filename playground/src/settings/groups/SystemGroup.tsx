@@ -113,10 +113,10 @@ export function SystemGroup(): React.ReactElement {
                 </p>
             </header>
 
-            {/* ─── Tier 1: Health ───────────────────────────────────────── */}
+            {/* ─── Tier 1: Status ───────────────────────────────────────── */}
             <SubSection
-                label="Health"
-                helper="Live signal from the PulsePlay proxy + governance allowlist + auth posture."
+                label="Status"
+                helper="Live signal from the PulsePlay proxy, governance allowlist, and auth posture."
             >
 
             <Leaf group="system" label="Proxy status" helper="Live /health from the PulsePlay proxy. Polled every 10 seconds; click Re-run to refresh immediately.">
@@ -129,10 +129,10 @@ export function SystemGroup(): React.ReactElement {
 
             </SubSection>
 
-            {/* ─── Tier 2: Governance ─────────────────────────────────── */}
+            {/* ─── Tier 2: Policy ─────────────────────────────────────── */}
             <SubSection
-                label="Governance"
-                helper="Allowlist contents + Power BI license posture. Read-only; configured by your admin in proxy/config.json."
+                label="Policy"
+                helper="Allowlist contents and Power BI license posture. Read-only — configured by your admin in proxy/config.json."
             >
 
             <Leaf group="system" label="Security posture" helper="Read-only view of the organization-controlled allowlist. Configured via proxy/config.json. Do not edit here.">
@@ -198,10 +198,10 @@ export function SystemGroup(): React.ReactElement {
 
             </SubSection>
 
-            {/* ─── Tier 3: Diagnostics ────────────────────────────────── */}
+            {/* ─── Tier 3: Logs and traces ────────────────────────────── */}
             <SubSection
-                label="Diagnostics"
-                helper="What's been happening — proxy profiles, recent BI events, errors. Read-only; for troubleshooting."
+                label="Logs and traces"
+                helper="What's been happening — proxy profiles, recent BI events, and errors. Read-only, for troubleshooting."
             >
 
             <Leaf group="system" label="Profile inventory" helper="Connector profiles the proxy loaded from config.json. Each profile is a (name, type) pair the AI sidebar can target. Configured via proxy/config.json or PROXY_PROFILE_* env vars.">
@@ -214,10 +214,10 @@ export function SystemGroup(): React.ReactElement {
 
             </SubSection>
 
-            {/* ─── Tier 4: Tools ──────────────────────────────────────── */}
+            {/* ─── Tier 4: Actions ────────────────────────────────────── */}
             <SubSection
-                label="Tools"
-                helper="Re-run setup, export a support bundle. Non-destructive."
+                label="Actions"
+                helper="Re-run setup or export a support bundle. Non-destructive."
             >
 
             {/* ── Re-run setup wizard ───────────────────────────────── */}

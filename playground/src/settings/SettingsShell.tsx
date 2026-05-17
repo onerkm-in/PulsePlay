@@ -41,13 +41,16 @@ const GROUP_LABELS: Record<SettingsGroupId, string> = {
     advanced: "Advanced",
 };
 
+// Sidebar subtitle copy. Voice is consistent: action-leading, sentence case,
+// no questions or definitions. Authors should be able to scan the rail and
+// know what each group is for without opening it.
 const GROUP_DESCRIPTIONS: Record<SettingsGroupId, string> = {
-    setup: "Make BI + AI ready",
-    bi: "What you're looking at",
-    ai: "What's thinking",
-    preferences: "How the playground is laid out",
-    system: "Is it safe, is anything broken",
-    advanced: "Reset + destructive",
+    setup: "Get PulsePlay ready in two short steps",
+    bi: "Pick a BI tool and wire its embed",
+    ai: "Configure the assistant powering Insights and Chat",
+    preferences: "Layout, visible panels, and display policy",
+    system: "Network, governance, and diagnostics",
+    advanced: "Developer tools and reset utilities",
 };
 
 // Leaf labels must match the `<Leaf label="…">` props rendered in each
@@ -67,8 +70,29 @@ export const GROUP_LEAF_LABELS: Record<SettingsGroupId, string[]> = {
 export function SettingsShell(): React.ReactElement {
     const route = useSettingsRoute();
     const settings = useSettings();
+    const { embedConfig } = useEmbedConfig();
     const searchInputRef = useRef<HTMLInputElement | null>(null);
     const [search, setSearch] = useState("");
+
+    // Lift the readiness model so the left rail can render per-group status
+    // dots. Same computation that drives the existing Setup pill in the
+    // header status strip, just consumed in two places now.
+    const readiness = useMemo(
+        () => getSetupReadiness({
+            biVendor: settings.biVendor,
+            embedConfig,
+            activeAiProfile: settings.activeAiProfile,
+        }),
+        [settings.biVendor, embedConfig, settings.activeAiProfile],
+    );
+    const readinessByGroup: Record<SettingsGroupId, "ready" | "needed" | "info"> = useMemo(() => ({
+        setup:       readiness.ready ? "ready" : "needed",
+        bi:          readiness.biReady ? "ready" : "needed",
+        ai:          readiness.aiReady ? "ready" : "needed",
+        preferences: "info",
+        system:      "info",
+        advanced:    "info",
+    }), [readiness.ready, readiness.biReady, readiness.aiReady]);
 
     // Esc to close, Cmd/Ctrl+/ to focus search.
     useEffect(() => {
@@ -149,6 +173,7 @@ export function SettingsShell(): React.ReactElement {
                     visibleGroups={filteredGroups}
                     settingsLoaded={!settings.allowlistLoading}
                     hasOrphans={settings.orphans.length > 0}
+                    readinessByGroup={readinessByGroup}
                 />
                 <main
                     style={{
@@ -183,7 +208,7 @@ function SettingsHeader(): React.ReactElement {
             <div>
                 <h1 style={{ margin: 0, fontSize: 18, lineHeight: 1.1 }}>PulsePlay Settings</h1>
                 <p style={{ margin: "2px 0 0", fontSize: 11, opacity: 0.6 }}>
-                    Single source of truth for Setup · BI · AI · Preferences · System · Advanced
+                    Configure how PulsePlay looks, what it embeds, and how it reasons.
                 </p>
             </div>
             <button
@@ -358,7 +383,24 @@ interface SettingsLeftRailProps {
     visibleGroups: ReadonlyArray<SettingsGroupId>;
     settingsLoaded: boolean;
     hasOrphans: boolean;
+    /** Per-group readiness signal driving the sidebar status dot.
+     *   - "ready"   → green dot (configured + no missing inputs)
+     *   - "needed"  → red dot   (required inputs missing)
+     *   - "info"    → gray dot  (no readiness concept — Preferences / System / Advanced) */
+    readinessByGroup: Record<SettingsGroupId, "ready" | "needed" | "info">;
 }
+
+const READINESS_DOT_COLOR: Record<"ready" | "needed" | "info", string> = {
+    ready:  "#10b981",                 // emerald
+    needed: "#ef4444",                 // red
+    info:   "rgba(0, 0, 0, 0.20)",    // muted gray
+};
+
+const READINESS_DOT_LABEL: Record<"ready" | "needed" | "info", string> = {
+    ready:  "Ready",
+    needed: "Setup needed",
+    info:   "Informational",
+};
 
 function SettingsLeftRail(props: SettingsLeftRailProps): React.ReactElement {
     return (
@@ -397,21 +439,40 @@ function SettingsLeftRail(props: SettingsLeftRailProps): React.ReactElement {
                         }}
                     >
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                            <span>{GROUP_LABELS[id]}</span>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                                <span
+                                    aria-label={READINESS_DOT_LABEL[props.readinessByGroup[id]]}
+                                    title={READINESS_DOT_LABEL[props.readinessByGroup[id]]}
+                                    style={{
+                                        width: 8,
+                                        height: 8,
+                                        borderRadius: "50%",
+                                        background: active ? "rgba(255,255,255,0.85)" : READINESS_DOT_COLOR[props.readinessByGroup[id]],
+                                        flex: "0 0 8px",
+                                        // Soft ring around informational gray so it doesn't read as
+                                        // "disabled". Required + ready dots are saturated enough
+                                        // to need no ring.
+                                        boxShadow: !active && props.readinessByGroup[id] === "info"
+                                            ? "0 0 0 1px rgba(0,0,0,0.10)" : "none",
+                                    }}
+                                />
+                                <span>{GROUP_LABELS[id]}</span>
+                            </span>
                             {setupNeeded && (
                                 <span
-                                    aria-label="Setup needed"
+                                    aria-label="Orphaned settings present"
+                                    title="Orphaned localStorage keys detected — see Advanced → Local storage inspector"
                                     style={{
                                         fontSize: 9,
                                         padding: "1px 6px",
-                                        background: active ? "rgba(255,255,255,0.25)" : "rgba(220, 53, 69, 0.15)",
-                                        color: active ? "white" : "#a01828",
+                                        background: active ? "rgba(255,255,255,0.25)" : "rgba(245, 158, 11, 0.18)",
+                                        color: active ? "white" : "#92400e",
                                         borderRadius: 8,
                                         fontWeight: 600,
                                         textTransform: "uppercase",
                                     }}
                                 >
-                                    Setup
+                                    Orphans
                                 </span>
                             )}
                         </div>
