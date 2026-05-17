@@ -43,4 +43,28 @@ describe("insights narrative polish", () => {
         expect(html).toContain("gn-headline-card");
         expect(html).toContain("<strong>6.2%</strong>");
     });
+
+    it("uses a red down cue for lower-is-better KPI increases even when status is watch", () => {
+        const node = __insightsRenderForTest.renderKpiTiles(
+            [
+                "| KPI | Current | Prior | Δ pp | Status |",
+                "| --- | --- | --- | --- | --- |",
+                "| Return Rate | 5.9% | 5.5% | +0.4pp | 🟡 Watch |",
+            ].join("\n"),
+            "KPI SNAPSHOT",
+            {
+                metricDirectionsJson: JSON.stringify([
+                    { name: "Return Rate", higherIsBetter: false, amberPct: 4, redPct: 8 },
+                ]),
+            },
+        );
+        const html = renderToStaticMarkup(<>{node}</>);
+
+        expect(html).toContain("gn-kpi-tile--warn");
+        expect(html).toContain("gn-kpi-tile-delta--bad");
+        expect(html).toContain('data-delta-cue="down"');
+        expect(html).toContain("▼");
+        expect(html).toContain("+0.4pp");
+        expect(html).toContain("higher is unfavorable");
+    });
 });

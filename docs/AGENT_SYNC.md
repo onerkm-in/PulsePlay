@@ -639,6 +639,27 @@ When Rajesh runs Codex with this prompt, Codex's output should be three blocks (
 
 ## Coordination Log
 
+### 2026-05-17 - Codex - [DONE] KPI delta cue for lower-is-better metrics
+
+`[DONE]` Rajesh flagged a Return Rate KPI tile where `+0.4pp` read as amber/watch only. The fix separates overall KPI status from delta-direction tone: a card can remain `watch`, but the delta itself becomes red/down when a lower-is-better metric increased.
+
+`[DETAIL]` Runtime changes:
+
+- [playground/src/pulse/rendering/metricDirections.ts](../playground/src/pulse/rendering/metricDirections.ts): `getMetricTone()` now returns `deltaTone` in addition to `semanticTone`.
+- [playground/src/pulse/visual.tsx](../playground/src/pulse/visual.tsx): KPI tile deltas now use `deltaTone`, expose `data-delta-tone` / `data-delta-cue`, and add a semantic glyph when the AI omitted one.
+- [playground/src/pulse/style/visual.less](../playground/src/pulse/style/visual.less): KPI delta pills now use inline-flex spacing for the cue glyph.
+- [playground/src/pulse/__tests__/insightsRendererPolish.test.tsx](../playground/src/pulse/__tests__/insightsRendererPolish.test.tsx): regression covers Return Rate `5.9%` vs `5.5%`, `+0.4pp`, `🟡 Watch`, and `higherIsBetter: false`.
+
+`[VERIFY]` Validation passed:
+
+- `playground`: focused `npm.cmd test -- --run src/pulse/__tests__/insightsRendererPolish.test.tsx` = **4/4**.
+- `playground`: `npm.cmd run lint`.
+- `playground`: full `npm.cmd test -- --run` = **572/572**.
+- `playground`: `npm.cmd run build`.
+- Browser smoke: `http://127.0.0.1:5173/` opened cleanly.
+
+`[RISK]` This preserves raw delta text (`+0.4pp`) and uses arrow/color for business performance direction. If no author/preset metric-direction rule binds the KPI name, behavior intentionally falls back to physical direction.
+
 ### 2026-05-17 - Codex - [DONE] Phase 11b read-side: labelled SQL sections in Pulse
 
 `[ACCEPT]` Took Claude's handoff item #1 before returning to Slice 1c. Reason: `8e29260` made the proxy speak `att.query.sqlSections`, but the playground still rendered generic raw SQL blobs. That left Phase 11b invisible to users.

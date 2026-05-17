@@ -12,6 +12,7 @@ export interface MetricToneResult {
     direction: TrendDirection;
     statusTone: Tone;
     semanticTone: Tone;
+    deltaTone: Tone;
     matchedRule?: MetricDirectionRule;
 }
 
@@ -126,6 +127,12 @@ function parsePercentValue(raw: string): number | null {
     return Number.isFinite(parsed) ? parsed : null;
 }
 
+function directionTone(direction: TrendDirection, rule?: MetricDirectionRule): Tone {
+    if (direction === "up") return rule?.higherIsBetter === false ? "bad" : "good";
+    if (direction === "down") return rule?.higherIsBetter === false ? "good" : "bad";
+    return "neutral";
+}
+
 export function getMetricTone(args: {
     metricName: string;
     deltaText?: string;
@@ -137,24 +144,25 @@ export function getMetricTone(args: {
     const direction = getTrendDirectionFromDelta(args.deltaText || "");
     const statusTone = getStatusTone(args.statusText || "");
     const matchedRule = resolveMetricDirection(args.metricName, args.structuredJson, args.legacyText);
+    const deltaTone = directionTone(direction, matchedRule);
 
     if (statusTone !== "neutral") {
-        return { direction, statusTone, semanticTone: statusTone, matchedRule };
+        return { direction, statusTone, semanticTone: statusTone, deltaTone, matchedRule };
     }
 
     if (matchedRule) {
         const value = parsePercentValue(args.valueText || "");
         const toneFromThreshold = value === null ? null : thresholdTone(value, matchedRule);
         if (toneFromThreshold) {
-            return { direction, statusTone, semanticTone: toneFromThreshold, matchedRule };
+            return { direction, statusTone, semanticTone: toneFromThreshold, deltaTone, matchedRule };
         }
         if (direction === "up") {
-            return { direction, statusTone, semanticTone: matchedRule.higherIsBetter ? "good" : "bad", matchedRule };
+            return { direction, statusTone, semanticTone: matchedRule.higherIsBetter ? "good" : "bad", deltaTone, matchedRule };
         }
         if (direction === "down") {
-            return { direction, statusTone, semanticTone: matchedRule.higherIsBetter ? "bad" : "good", matchedRule };
+            return { direction, statusTone, semanticTone: matchedRule.higherIsBetter ? "bad" : "good", deltaTone, matchedRule };
         }
     }
 
-    return { direction, statusTone, semanticTone: getSemanticTone(direction, statusTone), matchedRule };
+    return { direction, statusTone, semanticTone: getSemanticTone(direction, statusTone), deltaTone, matchedRule };
 }

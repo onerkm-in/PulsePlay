@@ -5,6 +5,32 @@
 
 ---
 
+## 2026-05-17 - KPI delta cues respect lower-is-better metrics
+
+**Range:** Rajesh flagged a Return Rate KPI tile where `+0.4pp` was shown as an amber neutral/watch pill. For lower-is-better metrics, a positive delta should still show the raw numeric increase, but the performance cue needs to read as negative: red with a down cue.
+
+### What shipped
+
+- Split overall KPI tile status from delta-direction tone in [metricDirections.ts](../playground/src/pulse/rendering/metricDirections.ts): a tile can remain `watch`/amber while its delta pill is `bad`/red.
+- Updated [visual.tsx](../playground/src/pulse/visual.tsx) so KPI tile deltas add a semantic cue glyph when the AI did not emit one. Example: Return Rate `+0.4pp` under a lower-is-better rule renders as `▼ +0.4pp`, colored red.
+- Added compact cue styling in [visual.less](../playground/src/pulse/style/visual.less).
+- Added a regression case in [insightsRendererPolish.test.tsx](../playground/src/pulse/__tests__/insightsRendererPolish.test.tsx) for Return Rate `5.9%` vs `5.5%`, `+0.4pp`, `🟡 Watch`, and `higherIsBetter: false`.
+
+### Validation
+
+- `playground`: focused `npm.cmd test -- --run src/pulse/__tests__/insightsRendererPolish.test.tsx` passed **4/4**.
+- `playground`: `npm.cmd run lint` passed.
+- `playground`: full `npm.cmd test -- --run` passed **572/572**.
+- `playground`: `npm.cmd run build` passed.
+- Browser smoke: `http://127.0.0.1:5173/` opened cleanly in the in-app browser.
+
+### Tripwires
+
+- The raw delta text is intentionally preserved (`+0.4pp` stays `+0.4pp`) because it describes the numeric movement. The arrow/color describe business performance direction.
+- This relies on metric-direction rules (`higherIsBetter: false`) from the author/preset. If no rule is present, deltas fall back to physical direction as before.
+
+---
+
 ## 2026-05-17 - Phase 11b read-side: labelled SQL sections in Pulse
 
 **Range:** Claude wired `sqlSectionExtractor` into the proxy at `8e29260`, but flagged that the playground still ignored `att.query.sqlSections`. This pass closes the read-side gap so the proxy-surfaced per-section SQL is visible instead of remaining a raw unlabelled blob.

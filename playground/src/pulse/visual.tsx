@@ -9235,6 +9235,18 @@ function dedupePipeTableRows(rows: string[][]): string[][] {
     return order.map(key => seen.get(key)!.row);
 }
 
+function deltaCueDirection(deltaTone: Tone, physicalDirection: "up" | "down" | "neutral"): "up" | "down" | "neutral" {
+    if (deltaTone === "good") return "up";
+    if (deltaTone === "bad") return "down";
+    return physicalDirection;
+}
+
+function deltaCueGlyph(direction: "up" | "down" | "neutral"): string {
+    if (direction === "up") return "▲";
+    if (direction === "down") return "▼";
+    return "";
+}
+
 /**
  * IDEA-039 step 1.1 — KPI tile grid. Detects the `## KPI SNAPSHOT` pipe
  * table and renders each row as a discrete tile (P1 design pattern from
@@ -9289,9 +9301,13 @@ function renderKpiTiles(body: string, sectionTitle?: string, options?: InsightsR
         const dir = tone.direction;
         const statusTone = tone.statusTone;
         const semanticTone = tone.semanticTone;
+        const deltaTone = tone.deltaTone === "neutral" ? semanticTone : tone.deltaTone;
+        const deltaCue = deltaCueDirection(deltaTone, dir);
         const hasSemanticStatus = Boolean(status.trim()) && statusTone !== "neutral";
-        const deltaA11y = getDeltaPillA11y(dir, semanticTone);
+        const deltaA11y = getDeltaPillA11y(dir, deltaTone);
         const deltaDisplay = stripLeadingDirectionGlyphs(delta);
+        const deltaHasGlyph = /^[▲▼↔]/.test(normaliseDirectionalGlyphs(delta).trim());
+        const deltaGlyph = deltaHasGlyph ? "" : deltaCueGlyph(deltaCue);
         const isUnknownPrior = /^N\/A|no prior data|—|^-$/i.test(prior.replace(/\*\*/g, "").trim());
         return (
             <div
@@ -9312,11 +9328,14 @@ function renderKpiTiles(body: string, sectionTitle?: string, options?: InsightsR
                     <div className="gn-kpi-tile-foot">
                         {deltaText ? (
                             <span
-                                className={`gn-kpi-tile-delta gn-kpi-tile-delta--${semanticTone}${hasSemanticStatus ? " gn-kpi-tile-delta--plain" : ""}`}
+                                className={`gn-kpi-tile-delta gn-kpi-tile-delta--${deltaTone}${hasSemanticStatus ? " gn-kpi-tile-delta--plain" : ""}`}
                                 title={deltaA11y.title}
                                 aria-label={deltaA11y.ariaLabel}
                                 data-source={tone.matchedRule ? "visual" : "ai"}
+                                data-delta-tone={deltaTone}
+                                data-delta-cue={deltaCue}
                             >
+                                {deltaGlyph ? <span className="gn-kpi-tile-delta-cue" aria-hidden="true">{deltaGlyph}</span> : null}
                                 {inlineFormat(deltaDisplay || delta, sectionTitle)}
                             </span>
                         ) : null}
