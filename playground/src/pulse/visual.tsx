@@ -1433,6 +1433,14 @@ function App(props: AppProps) {
     const [visibilityVersion, setVisibilityVersion] = useState(0); // bump to force re-read on toggle/reset
     const customizeMenuRef = React.useRef<HTMLDivElement | null>(null);
     const customizeTriggerRef = React.useRef<HTMLButtonElement | null>(null);
+    // Phase C — secondary action overflow. Houses Copy MD / Copy HTML /
+    // Print PDF so the primary toolbar row keeps only the high-signal
+    // controls (Timestamp / Customize / Refresh / Stop). Mirror of the
+    // customize popover pattern: outside-click + Esc close, focus
+    // returns to the trigger on Esc.
+    const [overflowOpen, setOverflowOpen] = useState(false);
+    const overflowMenuRef = React.useRef<HTMLDivElement | null>(null);
+    const overflowTriggerRef = React.useRef<HTMLButtonElement | null>(null);
     useEffect(() => {
         if (!customizeOpen) return;
         const onDocClick = (e: MouseEvent) => {
@@ -1453,6 +1461,27 @@ function App(props: AppProps) {
             document.removeEventListener("keydown", onKey);
         };
     }, [customizeOpen]);
+
+    // Phase C — overflow popover lifecycle (mirror of the customize handlers).
+    useEffect(() => {
+        if (!overflowOpen) return;
+        const onDocClick = (e: MouseEvent) => {
+            const root = overflowMenuRef.current;
+            if (root && !root.contains(e.target as Node)) setOverflowOpen(false);
+        };
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "Escape") {
+                setOverflowOpen(false);
+                try { overflowTriggerRef.current?.focus(); } catch { /* best-effort */ }
+            }
+        };
+        document.addEventListener("mousedown", onDocClick);
+        document.addEventListener("keydown", onKey);
+        return () => {
+            document.removeEventListener("mousedown", onDocClick);
+            document.removeEventListener("keydown", onKey);
+        };
+    }, [overflowOpen]);
     // Wave 37 — derive the report key for viewer-side visibility persistence.
     // Matches the spaceId|assistantProfile pattern used by insightsCacheKey;
     // `activeSpaceKey` ("space1"/"space2"/...) is a stable fallback when the
@@ -4083,96 +4112,120 @@ function App(props: AppProps) {
                                         {new Date(insightsGeneratedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }).toLowerCase()}
                                     </span>
                                 )}
-                                <button
-                                    type="button"
-                                    className={`gn-pane-action-btn${copiedFlash["insights"] ? " gn-pane-action-btn--copied" : ""}`}
-                                    disabled={insightsBusy || !insightsResult?.content}
-                                    title="Copy as markdown"
-                                    aria-label="Copy the current AI Insights output as markdown"
-                                    onClick={() => {
-                                        if (insightsResult?.content) {
-                                            // IDEA-039 — clean trailing prose before copying so
-                                            // the clipboard matches what's rendered on screen.
-                                            // Without this, "Bottom Line Up Front..." and similar
-                                            // wrap-ups bleed through to the copied text even
-                                            // though the renderer drops them.
-                                            flashCopy("insights", cleanInsightsContent(insightsResult.content));
-                                            logSession("INFO", "AI Insights copied to clipboard as markdown.");
-                                        }
-                                    }}
+                                {/* Phase C 2026-05-18 — secondary actions overflow.
+                                  * Copy MD / Copy HTML / Print PDF used to sit as
+                                  * three peer pill buttons next to Refresh; Rajesh's
+                                  * toolbar-noise direction collapses them into a
+                                  * single ⋮ trigger that opens a popover. Primary
+                                  * controls (timestamp, customize, refresh, stop)
+                                  * stay visible. Popover mirrors the customize
+                                  * popover pattern: outside-click + Esc close,
+                                  * focus returns to the trigger on Esc. */}
+                                <div
+                                    className="gn-insights-overflow gn-export-skip"
+                                    ref={overflowMenuRef}
+                                    style={{ position: "relative", display: "inline-flex" }}
                                 >
-                                    <Icon name={copiedFlash["insights"] ? "check" : "copy"} />
-                                </button>
-                                {/* PulsePlay — Copy as rich HTML. Walks the
-                                  * rendered insights container's outerHTML and
-                                  * writes it to the clipboard via Clipboard API
-                                  * so a paste into Outlook / Slack / Notion
-                                  * keeps headings, tables, bold, lists.
-                                  * Falls back to plain markdown when the
-                                  * Clipboard API rejects (older browsers /
-                                  * permission denied). */}
-                                <button
-                                    type="button"
-                                    className={`gn-pane-action-btn${copiedFlash["insights-html"] ? " gn-pane-action-btn--copied" : ""}`}
-                                    disabled={insightsBusy || !insightsResult?.content}
-                                    title="Copy as rich HTML (paste into Outlook / Slack / Notion)"
-                                    aria-label="Copy as rich HTML"
-                                    onClick={async () => {
-                                        if (!insightsResult?.content) return;
-                                        try {
-                                            const containerEl = document.querySelector(".gn-insights-content")
-                                                || document.querySelector("[data-pp-insights-root]");
-                                            const html = renderInsightsAsEmailHtml(
-                                                cleanInsightsContent(insightsResult.content),
-                                                containerEl instanceof HTMLElement ? containerEl.innerHTML : undefined,
-                                            );
-                                            if (navigator.clipboard && typeof (window as unknown as { ClipboardItem?: unknown }).ClipboardItem === "function") {
-                                                const blob = new Blob([html], { type: "text/html" });
-                                                const text = new Blob([cleanInsightsContent(insightsResult.content)], { type: "text/plain" });
-                                                const ClipboardItemCtor = (window as unknown as { ClipboardItem: new (init: Record<string, Blob>) => unknown }).ClipboardItem;
-                                                await navigator.clipboard.write([new ClipboardItemCtor({ "text/html": blob, "text/plain": text }) as unknown as ClipboardItem]);
-                                                flashCopy("insights-html", "");
-                                                logSession("INFO", "AI Insights copied to clipboard as rich HTML.");
-                                            } else {
-                                                // Fallback — write plain text containing the HTML.
-                                                flashCopy("insights-html", html);
-                                                logSession("WARN", "Clipboard API unavailable — copied raw HTML as plain text.");
-                                            }
-                                        } catch (err) {
-                                            const msg = err instanceof Error ? err.message : String(err);
-                                            logSession("ERROR", `Copy as HTML failed: ${msg}`);
-                                            // Fallback to plain markdown so the click isn't wasted.
-                                            flashCopy("insights", cleanInsightsContent(insightsResult.content));
-                                        }
-                                    }}
-                                >
-                                    <Icon name={copiedFlash["insights-html"] ? "check" : "file-html"} />
-                                </button>
-                                {/* PulsePlay — Print to PDF. Triggers the browser's
-                                  * native print dialog with "Save as PDF" as a
-                                  * destination. Zero deps; cross-browser. Future
-                                  * cycle could add a print-specific stylesheet
-                                  * that strips the chrome and prints only the
-                                  * insights area; for now the user picks the
-                                  * "Selection" option in the print dialog. */}
-                                <button
-                                    type="button"
-                                    className="gn-pane-action-btn"
-                                    disabled={insightsBusy || !insightsResult?.content}
-                                    title="Print or save as PDF"
-                                    aria-label="Open the print dialog to save as PDF"
-                                    onClick={() => {
-                                        try {
-                                            window.print();
-                                            logSession("INFO", "AI Insights print dialog opened (PDF target).");
-                                        } catch (err) {
-                                            const msg = err instanceof Error ? err.message : String(err);
-                                            logSession("ERROR", `Print dialog failed: ${msg}`);
-                                        }
-                                    }}
-                                >
-                                    <Icon name="printer" />
-                                </button>
+                                    <button
+                                        type="button"
+                                        ref={overflowTriggerRef}
+                                        className={`gn-pane-action-btn${overflowOpen ? " gn-pane-action-btn--active" : ""}`}
+                                        disabled={insightsBusy && !insightsResult?.content}
+                                        title="More actions (Copy, Print)"
+                                        aria-haspopup="menu"
+                                        aria-expanded={overflowOpen}
+                                        aria-label="More actions: Copy as markdown, Copy as rich HTML, Print or save as PDF"
+                                        data-testid="gn-insights-overflow-trigger"
+                                        onClick={() => setOverflowOpen(v => !v)}
+                                    >
+                                        <Icon name="more-vertical" />
+                                    </button>
+                                    {overflowOpen && (
+                                        <div
+                                            className="gn-insights-overflow-pop"
+                                            role="menu"
+                                            aria-label="Insights secondary actions"
+                                            data-testid="gn-insights-overflow-pop"
+                                        >
+                                            <button
+                                                type="button"
+                                                role="menuitem"
+                                                className={`gn-insights-overflow-item${copiedFlash["insights"] ? " gn-insights-overflow-item--copied" : ""}`}
+                                                disabled={insightsBusy || !insightsResult?.content}
+                                                data-testid="gn-insights-overflow-item-copy-md"
+                                                onClick={() => {
+                                                    if (insightsResult?.content) {
+                                                        // IDEA-039 — clean trailing prose before copying so
+                                                        // the clipboard matches what's rendered on screen.
+                                                        flashCopy("insights", cleanInsightsContent(insightsResult.content));
+                                                        logSession("INFO", "AI Insights copied to clipboard as markdown.");
+                                                    }
+                                                    setOverflowOpen(false);
+                                                }}
+                                            >
+                                                <Icon name={copiedFlash["insights"] ? "check" : "copy"} />
+                                                <span className="gn-insights-overflow-item-label">Copy as markdown</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                role="menuitem"
+                                                className={`gn-insights-overflow-item${copiedFlash["insights-html"] ? " gn-insights-overflow-item--copied" : ""}`}
+                                                disabled={insightsBusy || !insightsResult?.content}
+                                                data-testid="gn-insights-overflow-item-copy-html"
+                                                onClick={async () => {
+                                                    setOverflowOpen(false);
+                                                    if (!insightsResult?.content) return;
+                                                    try {
+                                                        const containerEl = document.querySelector(".gn-insights-content")
+                                                            || document.querySelector("[data-pp-insights-root]");
+                                                        const html = renderInsightsAsEmailHtml(
+                                                            cleanInsightsContent(insightsResult.content),
+                                                            containerEl instanceof HTMLElement ? containerEl.innerHTML : undefined,
+                                                        );
+                                                        if (navigator.clipboard && typeof (window as unknown as { ClipboardItem?: unknown }).ClipboardItem === "function") {
+                                                            const blob = new Blob([html], { type: "text/html" });
+                                                            const text = new Blob([cleanInsightsContent(insightsResult.content)], { type: "text/plain" });
+                                                            const ClipboardItemCtor = (window as unknown as { ClipboardItem: new (init: Record<string, Blob>) => unknown }).ClipboardItem;
+                                                            await navigator.clipboard.write([new ClipboardItemCtor({ "text/html": blob, "text/plain": text }) as unknown as ClipboardItem]);
+                                                            flashCopy("insights-html", "");
+                                                            logSession("INFO", "AI Insights copied to clipboard as rich HTML.");
+                                                        } else {
+                                                            flashCopy("insights-html", html);
+                                                            logSession("WARN", "Clipboard API unavailable — copied raw HTML as plain text.");
+                                                        }
+                                                    } catch (err) {
+                                                        const msg = err instanceof Error ? err.message : String(err);
+                                                        logSession("ERROR", `Copy as HTML failed: ${msg}`);
+                                                        flashCopy("insights", cleanInsightsContent(insightsResult.content));
+                                                    }
+                                                }}
+                                            >
+                                                <Icon name={copiedFlash["insights-html"] ? "check" : "file-html"} />
+                                                <span className="gn-insights-overflow-item-label">Copy as rich HTML</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                role="menuitem"
+                                                className="gn-insights-overflow-item"
+                                                disabled={insightsBusy || !insightsResult?.content}
+                                                data-testid="gn-insights-overflow-item-print"
+                                                onClick={() => {
+                                                    setOverflowOpen(false);
+                                                    try {
+                                                        window.print();
+                                                        logSession("INFO", "AI Insights print dialog opened (PDF target).");
+                                                    } catch (err) {
+                                                        const msg = err instanceof Error ? err.message : String(err);
+                                                        logSession("ERROR", `Print dialog failed: ${msg}`);
+                                                    }
+                                                }}
+                                            >
+                                                <Icon name="printer" />
+                                                <span className="gn-insights-overflow-item-label">Print or save as PDF</span>
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
                                 {/* Cycle 26 — global "Export ▾" dropdown removed
                                     along with the per-section kebab ⋮ menus.
                                     The toolbar Copy 📋 button (above) still

@@ -7644,27 +7644,99 @@
 
 /* ── Insights sections (paginated cards with staggered reveal) ── */
 .gn-insights-sections {
-    /* 2026-05 responsive pass — auto-fit columns so the section cards
-     * reflow horizontally when the AI pane is wide enough.
+    /* Phase D 2026-05-18 — locked information hierarchy for the briefing:
      *
-     *   Pane width  → columns
-     *   < 660 px    → 1 column (single-stack, original Session-53 behavior)
-     *   660-979 px  → 2 columns
-     *   ≥ 980 px    → 3 columns
+     *   Row 1: HEADLINE  (full-width — "Executive Brief")
+     *   Row 2: KPI SNAPSHOT  |  TRENDS  ("What Changed")
+     *   Row 3: RISKS  |  RECOMMENDED ACTIONS  ("Next Best Actions" — accent)
+     *   Tail:  OPPORTUNITIES + author-custom sections (full-width)
      *
-     * minmax(320px, 1fr) means each column claims at least 320 px before a
-     * second column appears, so cards never get crunched. CSS Grid handles
-     * the uneven-height alignment that broke the old 2-column body grid
-     * (IDEA-039 step 1.4) — sections grow independently in their column
-     * without forcing siblings to match height.
+     * The data-section attribute (set by the renderer in Phase B) is the
+     * hook each section uses for grid placement. Order matches the stream
+     * sequence so stagger-delay still fires in arrival order.
      *
-     * KPI tile grid above the sections has its own auto-fit columns
-     * (.gn-insights-kpis) and keeps its independent density. */
+     * Narrow viewports (< 720 px) fall back to a single column so the
+     * cards keep their full width and the briefing scrolls naturally.
+     * The 720 px breakpoint covers both the side-pane mix layout and
+     * the full-canvas focused mode without crunch. */
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    /* Default (narrow): single-column flow. */
+    grid-template-columns: minmax(0, 1fr);
     /* 2026-05 density pass — was 10. */
     gap: 8px;
     min-width: 0;
+}
+
+@media (min-width: 720px) {
+    .gn-insights-sections {
+        /* Wide: two equal columns. CSS Grid keeps row heights
+         * independent so cards grow without forcing siblings to match. */
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+    /* Default section position — any section without a hierarchy hint
+     * (custom sections, INSIGHTS preamble, ad-hoc author cards) sits
+     * after the named ones so the briefing layout stays predictable. */
+    .gn-insights-sections > .gn-insights-section {
+        order: 10;
+    }
+    /* Row 1: HEADLINE — full width across both columns. */
+    .gn-insights-sections > .gn-insights-section[data-section="HEADLINE"] {
+        grid-column: 1 / -1;
+        order: 1;
+    }
+    /* Row 2 left: KPI SNAPSHOT. */
+    .gn-insights-sections > .gn-insights-section[data-section="KPI SNAPSHOT"] {
+        grid-column: 1 / 2;
+        order: 2;
+    }
+    /* Row 2 right: TRENDS / "What Changed". */
+    .gn-insights-sections > .gn-insights-section[data-section="TRENDS"] {
+        grid-column: 2 / 3;
+        order: 3;
+    }
+    /* Row 3 left: RISKS / "What Needs Attention". */
+    .gn-insights-sections > .gn-insights-section[data-section="RISKS"] {
+        grid-column: 1 / 2;
+        order: 4;
+    }
+    /* Row 3 right: RECOMMENDED ACTIONS / "Next Best Actions" — the
+     * briefing's one accent moment. Visual prominence applied below. */
+    .gn-insights-sections > .gn-insights-section[data-section="RECOMMENDED ACTIONS"],
+    .gn-insights-sections > .gn-insights-section[data-section="ACTIONS"],
+    .gn-insights-sections > .gn-insights-section[data-section="NEXT STEPS"],
+    .gn-insights-sections > .gn-insights-section[data-section="NEXT BEST ACTIONS"] {
+        grid-column: 2 / 3;
+        order: 5;
+    }
+    /* Tail: OPPORTUNITIES — full width below the action pair. */
+    .gn-insights-sections > .gn-insights-section[data-section="OPPORTUNITIES"] {
+        grid-column: 1 / -1;
+        order: 6;
+    }
+}
+
+/* Next Best Actions prominence — the briefing's single accent moment.
+ * Restrained: thin accent border + very low-alpha accent tint + a
+ * slightly warmer shadow. Stays subtle in both dark and light themes;
+ * never competes with the validator status (Verified badge) or with
+ * the surface switcher's active gradient — that's the "one accent
+ * moment per screen" rule from docs/AI_BRIEFING_DESIGN_DIRECTION.md. */
+.gn-insights-section[data-section="RECOMMENDED ACTIONS"],
+.gn-insights-section[data-section="ACTIONS"],
+.gn-insights-section[data-section="NEXT STEPS"],
+.gn-insights-section[data-section="NEXT BEST ACTIONS"] {
+    border-color: rgba(26, 111, 212, 0.32);
+    background: linear-gradient(180deg, rgba(26, 111, 212, 0.05), @gn-surface);
+    box-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.04),
+        0 8px 22px rgba(26, 111, 212, 0.08);
+}
+.gn-shell--light .gn-insights-section[data-section="RECOMMENDED ACTIONS"],
+.gn-shell--light .gn-insights-section[data-section="ACTIONS"],
+.gn-shell--light .gn-insights-section[data-section="NEXT STEPS"],
+.gn-shell--light .gn-insights-section[data-section="NEXT BEST ACTIONS"] {
+    border-color: rgba(26, 111, 212, 0.40);
+    background: linear-gradient(180deg, rgba(26, 111, 212, 0.04), #fff);
 }
 
 .gn-insights-section {
@@ -8942,6 +9014,61 @@
     padding-top: 4px;
     border-top: 1px solid @gn-border;
 }
+
+/* Phase C 2026-05-18 — secondary actions overflow (Pulse toolbar noise
+ * reduction). Wraps the ⋮ trigger; popover mirrors the customize popover
+ * shape, with menuitem rows showing an icon + label. Keeps the design
+ * grammar aligned (8/6/10 spacing, 6px row radius, accent-subtle hover). */
+.gn-insights-overflow {
+    position: relative;
+    display: inline-flex;
+}
+.gn-insights-overflow-pop {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    min-width: 220px;
+    z-index: 30;
+    background: @gn-surface-raised;
+    border: 1px solid @gn-border;
+    border-radius: 10px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+.gn-insights-overflow-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 12px;
+    color: @gn-text;
+    background: transparent;
+    border: none;
+    text-align: left;
+    line-height: 1.3;
+    transition: background-color 120ms;
+    &:hover:not(:disabled) { background: @gn-accent-subtle; }
+    &:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+    }
+    &.gn-insights-overflow-item--copied {
+        color: #15803d;
+    }
+}
+.gn-insights-overflow-item-label {
+    flex: 1 1 auto;
+}
+
+/* Press feedback on the overflow trigger matches the existing toolbar
+ * grammar (60ms scale snap-back). Inherits the sugar-candy press rule
+ * for .gn-pane-action-btn applied at the end of visual.less. */
 .gn-insights-compose {
     display: flex;
     gap: 6px;
@@ -10663,11 +10790,14 @@ body[theme="dark"] .gn-save-reminder-toast,
     }
 }
 
-/* 3. Press feedback for surface switcher tabs + Adjust + sibling pill controls.
- *    Snap-back is the satisfying half — short on press, gentle return. */
+/* 3. Press feedback for surface switcher tabs + Adjust + pane action btns
+ *    (including the Phase C overflow trigger ⋮). Snap-back is the
+ *    satisfying half — short on press, gentle return. */
 @media (prefers-reduced-motion: no-preference) {
     .gn-header-tab:not(:disabled):active,
-    .gn-header-adjust:not(:disabled):active {
+    .gn-header-adjust:not(:disabled):active,
+    .gn-pane-action-btn:not(:disabled):active,
+    .gn-insights-overflow-item:not(:disabled):active {
         transform: scale(0.97);
         transition: transform 60ms ease-out;
     }

@@ -18,7 +18,7 @@ export type IconName =
     | "copy" | "check" | "refresh" | "stop" | "code" | "settings"
     | "external-link" | "download" | "search" | "filter" | "x"
     | "file-html" | "printer" | "maximize" | "minimize" | "restore"
-    | "float-window" | "pin" | "show-both";
+    | "float-window" | "pin" | "show-both" | "more-vertical";
 
 interface IconProps {
     name: IconName;
@@ -162,6 +162,15 @@ const PATHS: Record<IconName, React.ReactElement> = {
         <>
             <rect x="2.5" y="4" width="4.5" height="8" rx="0.5" />
             <rect x="9"   y="4" width="4.5" height="8" rx="0.5" />
+        </>
+    ),
+    // Three vertical dots — secondary actions overflow trigger.
+    // Phase C 2026-05-18 — Pulse toolbar noise reduction.
+    "more-vertical": (
+        <>
+            <circle cx="8" cy="3.5" r="1.25" fill="currentColor" />
+            <circle cx="8" cy="8"   r="1.25" fill="currentColor" />
+            <circle cx="8" cy="12.5" r="1.25" fill="currentColor" />
         </>
     ),
 };
