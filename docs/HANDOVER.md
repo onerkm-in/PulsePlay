@@ -5,6 +5,119 @@
 
 ---
 
+## 2026-05-18 - Workbench Step 6 — additive Pulse asset extraction (`a2bd729`)
+
+**Range:** Wrapped Pulse-port pure-domain helpers into workbench-facing modules so the workbench gains three new behaviors driven by Pulse-proven logic: composer-input sanitization, labelled SQL sections, and Genie-supplied follow-up question chips. **Additive only** per [PULSE_PORT_DETANGLING.md](PULSE_PORT_DETANGLING.md) — no file inside `playground/src/pulse/*` was modified by Step 6; the Pulse-PBI sibling continues to consume that directory as-is.
+
+### What was extracted (re-export, no modification)
+
+- [pulse/promptRedaction.ts](../playground/src/pulse/promptRedaction.ts) → wrapped via new [playground/src/workbench/composerInput.ts](../playground/src/workbench/composerInput.ts) which exports `sanitizeComposerInput()` returning the sanitized text plus diagnostic hit lists (`secretsHit` / `injectionHit`). Composes Pulse's `detectAuthorPromptSecrets` + `detectInstructionKeywords` + `safeAuthorPrompt` (= `redactAuthorPrompt` + `stripInstructionKeywords`).
+- [pulse/genie.ts](../playground/src/pulse/genie.ts) `collectGenieSqlFromAttachments()` → reused verbatim from [playground/src/workbench/genieResponseMapper.ts](../playground/src/workbench/genieResponseMapper.ts) to lift Phase 11b `attachments[].query.sqlSections` into a workbench-shaped `ArtifactSqlSection[]`.
+
+### New types
+
+- [playground/src/types/assistant.ts](../playground/src/types/assistant.ts) — `ArtifactSqlSection` (`sectionId`, `sqlFragment`, `cteName?`). Added as optional `WorkbenchArtifact.sqlSections?: ReadonlyArray<ArtifactSqlSection>`. Purely additive — existing artifacts without sections render the canonical `sql` field via the original code path.
+
+### Validator changes
+
+- [playground/src/lib/artifactValidator.ts](../playground/src/lib/artifactValidator.ts) — `CandidateArtifact` accepts the new optional `sqlSections`; finalizer preserves it (non-empty arrays only) on the validated artifact. **No status logic changed** — `sqlSections` is presentation, not provenance, and does NOT count toward grounding decisions.
+
+### Mapper changes
+
+- [playground/src/workbench/genieResponseMapper.ts](../playground/src/workbench/genieResponseMapper.ts) — `mapGenieMessageToCandidate()` now returns `{ candidate, suggestedQuestions, sqlSections }` (was just the candidate). `suggestedQuestions` is extracted from `attachments[].suggested_questions.questions` (collected across all attachments, whitespace-only / non-string entries dropped). `sqlSections` is collected via Pulse's `collectGenieSqlFromAttachments` then projected onto the workbench shape. The mapper **NEVER fabricates** either; both fields are `[]` when Genie didn't return them.
+
+### Hook changes
+
+- [playground/src/workbench/useConversation.ts](../playground/src/workbench/useConversation.ts) — new result fields: `suggestedQuestions: ReadonlyArray<string>`, `lastSanitization: SanitizedComposerInput | null`. `ask(content)` now sanitizes the input BEFORE posting to `/assistant/conversations/start`, sets `lastSanitization` so the UI can surface what was redacted/stripped, and submits the sanitized text. The proxy and downstream LLM never see the original raw secret/injection text.
+
+### UI changes
+
+- [playground/src/components/workbench/ArtifactTabs.tsx](../playground/src/components/workbench/ArtifactTabs.tsx) `SqlTab` — accepts `{ sql, sections }`. Empty/absent sections → single `<pre><code>` fallback (zero regression vs Step 3 behavior). Sections present → subtab strip with "Full SQL" first (when `sql` is provided) followed by one tab per labelled section (`SECTION_ID (cteName)` when cteName is set). Malformed sections dropped defensively.
+- [playground/src/components/workbench/ArtifactCard.tsx](../playground/src/components/workbench/ArtifactCard.tsx) — passes `artifact.sqlSections` to `SqlTab`.
+- [playground/src/components/workbench/FollowUpQuestions.tsx](../playground/src/components/workbench/FollowUpQuestions.tsx) — new component: chip per Genie-supplied question (max 5 default, overridable), `onAsk` on click, disabled when hook is mid-flight.
+- [playground/src/workbench/UnifiedWorkbench.tsx](../playground/src/workbench/UnifiedWorkbench.tsx) — `WorkbenchComposer` renders an amber `role=status` sanitization banner when input was mutated; Verified + Hybrid panes render `<FollowUpQuestions>` below the artifact card wired to `conversation.ask` for one-click follow-up submission.
+- [playground/src/workbench/workbench.css](../playground/src/workbench/workbench.css) — composer sanitization banner, SQL section subtab strip, follow-up chip strip styles, all using existing `:root` tokens.
+
+### Tests — 38 new across 5 files
+
+- `composerInput.test.ts` (12) — passthrough, Databricks PAT / GitHub PAT / OpenAI key / email redaction, `ignore-prior` / `reveal-system` / `developer-mode` stripping, combined hits.
+- `genieResponseMapper.test.ts` (+7, now 19) — existing 12 updated to destructure `{ candidate }`; +4 suggested-questions; +3 sqlSections.
+- `useConversation.test.tsx` (+4, now 10) — +2 sanitization; +2 suggested-questions.
+- `SqlTabSections.test.tsx` (8) — fallback rendering, empty state, labelled subtab strip, subtab click swap, malformed dropping, sections-only mode.
+- `FollowUpQuestions.test.tsx` (7) — empty/whitespace render-nothing, chips with onAsk, maxChips clamp + override, disabled propagation.
+
+### Validation
+
+- `npm run lint` clean.
+- `npm run test` — **801/801** across 64 files (was 763 + 38 Step-6 new + Codex's 6 KPI delta test updates landed alongside).
+- `npm run build` clean (36.58 s).
+- `git diff --check` clean except expected Windows LF/CRLF warnings.
+- Live Vite smoke: `http://127.0.0.1:5174/workbench` HTTP 200; HMR picked up the new `FollowUpQuestions` import and `sanitization` field references.
+
+### What was NOT touched (per Step-6 constraints)
+
+- No file inside `playground/src/pulse/*` was modified by Step 6.
+- Artifact validator status contract unchanged; `sqlSections` is purely additive presentation.
+- Genie native iframe sandbox stays at `allow-scripts allow-same-origin`.
+- ECharts imports remain modular.
+- BI Viz peer-surface semantics in `mix` mode unchanged.
+
+### Tripwires
+
+- The validator stays the only authority for artifact status. `sqlSections` does NOT count toward grounding — adding sections to a candidate without a data-bearing citation will NOT promote it to verified.
+- The mapper still **never fabricates**. If Genie returns no `suggested_questions`, the hook surfaces `[]`; if no `sqlSections`, the SqlTab falls back to canonical `sql`.
+- `sanitizeComposerInput` is called inside `ask()` — bypass would be a regression. Future caller sites (history replay, share-link "ask this question") must run through the same gate.
+- `FollowUpQuestions` chips call `ask(q)` directly, which goes through the sanitizer like any other input. A Genie-emitted "ignore previous instructions" chip would get neutralized before sending. Tests do not assert this end-to-end yet; the next session-extension that wants Genie-emitted follow-ups in production should pin it.
+- When Step 7 (theme) replaces the inline styles, keep the SQL-section subtab strip and follow-up chip layout aria-correct (role=tablist + role=tab; chips as buttons with title=full-text).
+
+---
+
+## 2026-05-18 - Legacy split layout no longer keeps blank BI pane visible
+
+**Scope:** Rajesh still saw the blank BI pane beside AI Insights even though `BI Viz` is now a top surface action. Root cause: browsers with older localStorage had `pulseplay:enabled-components=both`, which means explicit split-pane mode. The app honored that saved value, so the old blank BI canvas stayed visible.
+
+### What changed
+
+- Added a one-time migration in [App.tsx](../playground/src/App.tsx): legacy saved `both` state is converted to unified `mix` unless the migration marker already exists.
+- Added the same read/set behavior in [settingsStore.tsx](../playground/src/settings/settingsStore.tsx) so Settings and App agree.
+- Explicit Split + Mix still works: choosing/showing both panes marks the migration complete, so future reloads preserve the user's deliberate split choice.
+- Updated [viewportControls.integration.test.tsx](../playground/src/__tests__/viewportControls.integration.test.tsx) to cover the legacy `both` -> `mix` migration and keep explicit split coverage intact.
+
+### Validation
+
+- `npm.cmd test -- viewportControls.integration --silent` -> **19/19**.
+- `npm.cmd run lint` -> clean.
+
+### Tripwire
+
+- Default/unified mode should not render the blank BI setup canvas beside AI. The BI pane is visible only via the `BI Viz` peer surface, focused BI URLs, BI-only, or explicit Split + Mix.
+
+---
+
+## 2026-05-18 - KPI delta arrows are physical; tone carries business meaning
+
+**Scope:** Rajesh clarified the KPI card behavior using Return Rate: if returns increased, the arrow must point up because the number increased. The color should follow the model/status/business cue (amber for `🟡 Watch`), not force a down arrow just because the movement is unfavorable for a lower-is-better metric.
+
+### What changed
+
+- Updated [visual.tsx](../playground/src/pulse/visual.tsx) so KPI delta cue direction is always physical movement (`up` / `down` / `neutral` from the delta text).
+- KPI delta tone now follows explicit status tone when present (`🟡 Watch` -> amber), and only falls back to metric-direction business tone when no explicit status exists.
+- Updated [insightsRendererPolish.test.tsx](../playground/src/pulse/__tests__/insightsRendererPolish.test.tsx):
+  - Return Rate `+0.4pp (▲ +6.3%)` with `🟡 Watch` renders an up cue with amber delta tone.
+  - Profit Margin `-0.7pp` with `🟡 Watch` renders a down cue with amber delta tone.
+  - Return Rate increase with no status still falls back to metric-direction tone (`bad`) while keeping the up cue.
+
+### Validation
+
+- `npm.cmd test -- insightsRendererPolish --silent` -> **6/6**.
+- `npm.cmd run lint` -> clean.
+
+### Tripwire
+
+- Do not use business favorability to flip arrow direction. Arrow direction is numeric movement; color/tone is status or metric-direction meaning.
+
+---
+
 ## 2026-05-18 - Workbench real Genie conversation wiring (`useConversation` + composer)
 
 **Range:** After Codex's Playwright + unified BI Viz + metric-cue commit (`5623808`), built the real conversation loop into the workbench preview surface and replaced the demo Superstore fixture with live data behind the existing preview flag. Demo stays as the first-paint fallback until a question is submitted.
@@ -326,7 +439,9 @@
 
 ## 2026-05-17 - KPI delta cues respect metric direction
 
-**Range:** Rajesh flagged KPI tiles where the delta cue inherited the amber/watch feel from the card status. For lower-is-better metrics like Return Rate, a positive delta should still show the raw numeric increase, but the performance cue needs to read as negative: red with a down cue. For higher-is-better metrics like Profit Margin, a negative delta needs the same red/down cue even when the card status is watch.
+**Range:** Rajesh flagged KPI tiles where the delta cue inherited the amber/watch feel from the card status. This initial slice separated overall KPI tile status from metric-direction delta tone.
+
+> **Superseded clarification (2026-05-18):** arrow direction is physical movement, not business favorability. The updated behavior is documented in the top entry: Return Rate increasing shows an up arrow; `🟡 Watch` drives amber tone.
 
 ### What shipped
 

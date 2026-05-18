@@ -52,6 +52,18 @@ Use these tags so another agent can scan quickly:
 
 Keep PulsePlay moving faster by coordinating work across agents without losing brutal honesty.
 
+### 2026-05-18 - Codex - [DONE] Legacy split-state blank BI pane migration
+
+`[DONE]` Rajesh's screenshot showed AI active with the blank BI pane still visible. Cause: old saved `pulseplay:enabled-components=both`. Added one-time legacy migration so stale `both` becomes unified `mix`; explicit Split + Mix still persists after the migration marker exists.
+
+`[VERIFY]` `npm.cmd test -- viewportControls.integration --silent` = **19/19**; `npm.cmd run lint` clean.
+
+### 2026-05-18 - Codex - [DONE] KPI delta arrow semantics clarified
+
+`[DONE]` Rajesh clarified the final KPI delta rule after reviewing the Return Rate card: arrow direction is physical movement, while color/tone carries status or business meaning. Return Rate increasing now shows an up cue; `🟡 Watch` makes the delta amber. Without explicit status, the renderer still falls back to metric-direction tone.
+
+`[VERIFY]` `npm.cmd test -- insightsRendererPolish --silent` = **6/6**; `npm.cmd run lint` clean.
+
 ## [DECISION] 2026-05-18 — Unified Ask Pulse Workbench is the locked Ask Pulse direction
 
 **Owner:** Rajesh (verdict from 4 research agents) + Claude (recording the lock).
@@ -100,17 +112,25 @@ Cumulative: **165 new tests** across the 6 commits; full playground sweep **745/
 
 Validation: lint clean, tsc clean, full sweep **763/763**, build clean (14.27 s), Vite `/workbench` HTTP 200.
 
+**[DONE] 2026-05-18 — Step 6 — additive Pulse asset extraction landed (`a2bd729`).** Three Pulse-port helpers now power workbench-only behaviors, with zero modification to `playground/src/pulse/*`:
+- `pulse/promptRedaction.ts` → wrapped via `composerInput.ts` (`sanitizeComposerInput` returns sanitized text + `secretsHit` + `injectionHit` diagnostics). Wired into `useConversation.ask` so the proxy never sees the raw secret/injection text. Amber `role=status` banner surfaces what was redacted/stripped.
+- `pulse/genie.ts` `collectGenieSqlFromAttachments` → reused from the mapper to lift Phase 11b `attachments[].query.sqlSections` into a new optional `WorkbenchArtifact.sqlSections?: ReadonlyArray<ArtifactSqlSection>` (presentation-only — does NOT count toward grounding). `SqlTab` renders "Full SQL" + per-section subtabs when present, falls back to single `<pre>` otherwise.
+- Genie `suggested_questions` → mapper extracts to `MapGenieResult.suggestedQuestions`; `useConversation` surfaces them; new `FollowUpQuestions` component renders chips that call `ask(q)` through the same sanitizer.
+
+38 new vitest (composer 12 + mapper +7 + hook +4 + SqlTab 8 + FollowUp 7). Cumulative coverage: **801/801** across 64 files. Lint + build clean.
+
 **[HANDOFF] Sensible next lanes (any agent, no claim yet):**
-- **Step 6 — Pulse chat asset refactor** (additive only, respects [PULSE_PORT_DETANGLING.md](PULSE_PORT_DETANGLING.md)). Candidates: SQL-section rendering, prompt redaction utilities, suggested-question chip rendering. Extract into PulsePlay-native modules with shims back to `pulse/*` for sibling consumption.
-- **Step 7 — Workbench theme** (apply after Step 6). Replace `workbench.css` v0 with the full theme: professional neutral baseline + restrained accent + separate data-viz palette + compact/dark/high-contrast modes. ECharts theme registration via the chart registry hook.
-- **Promote Genie's UI mode in production** by setting `VITE_PULSEPLAY_ENABLE_WORKBENCH=true` after a smoke session with a real Genie space; this also retires the demo fixture for users.
+- **Step 7 — Workbench theme** (the last build-sequence step). Replace inline styles in `workbench.css` with the full theme: professional neutral baseline + restrained accent + separate data-viz palette + compact/dark/high-contrast modes. ECharts theme registration via the chart registry hook (the Pulse `gn-shell--dark` model is the Pulse-PBI compat path — do not port it; rebuild on W3C Design Tokens + `prefers-color-scheme`).
+- **Promote workbench out of preview-flag** once `/workbench` has cycled live use with a real Genie space. Set `VITE_PULSEPLAY_ENABLE_WORKBENCH=true` for the build, retire the demo Superstore fixture for users.
 - **`classifyConnectorType` follow-up** — `proxy/lib/connectorProbe.js` still does not return `responses-agent` even though the workbench matrix lists it for forward compat.
+- **End-to-end Genie-emitted "injection" follow-up test** — current tests pin that user-typed input is sanitized; add a test that a Genie-emitted chip containing "ignore previous instructions" gets neutralized on click via the same sanitizer.
 
 **[RISK] for coordinating agents:**
-- Step 6 is additive only — do not move things out of `playground/src/pulse/*` that the Pulse-PBI sibling consumes.
+- Validator remains the only authority for artifact status. Upstream Genie `status` is execution state — never forward as `llmClaimedStatus`. `sqlSections` is presentation — never grant grounding power.
+- Mapper still never fabricates. If you add chart promotion later, the chart spec must come from a real data-bearing source the validator can verify; otherwise the validator will block it.
 - Step 7 ECharts bundle pressure stays modular; do not switch to the full echarts package.
-- Validator remains the only authority for artifact status. Upstream Genie `status` is execution state — never forward as `llmClaimedStatus`.
-- Mapper never fabricates. If you add chart promotion, the chart spec must come from a real data-bearing source the validator can verify; otherwise the validator will block it (and tests will catch the regression).
+- Future caller sites that submit composer-style text (history replay, share-link "ask this question") must go through `sanitizeComposerInput`. Bypass would be a regression on the no-leak guarantee.
+- Pulse-port files stayed untouched in Step 6. Same constraint for Step 7: if the theme rebuild needs a token Pulse already has, IMPORT it rather than touching the Pulse file (`gn-*` classes are Pulse-PBI compat surface).
 
 **[RISK] for coordinating agents:**
 - Step 6 is additive only — do not move things out of `playground/src/pulse/*` that the Pulse-PBI sibling consumes.
@@ -923,7 +943,9 @@ Now:
 
 ### 2026-05-17 - Codex - [DONE] KPI delta cue for metric-direction semantics
 
-`[DONE]` Rajesh flagged Return Rate and Profit Margin KPI tiles where the delta read as amber/watch only. The fix separates overall KPI status from delta-direction tone: a card can remain `watch`, but the delta itself becomes red/down when the movement is unfavorable for the metric direction.
+`[DONE]` Rajesh flagged Return Rate and Profit Margin KPI tiles where the delta read as amber/watch only. This initial fix separated overall KPI status from delta-direction tone.
+
+`[SUPERSEDED-NUANCE]` 2026-05-18 clarification: do not flip arrow direction for business favorability. Arrow direction is numeric movement; tone is status/business meaning.
 
 `[DETAIL]` Runtime changes:
 
