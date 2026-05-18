@@ -8396,6 +8396,10 @@ function pillColorClass(physicalDir: "up" | "down" | "flat", text: string, pillI
     }
     if (tone.semanticTone === "good") return `${dirClass} gn-trend-tone-good`;
     if (tone.semanticTone === "bad") return `${dirClass} gn-trend-tone-bad`;
+    // Watch / at-risk semantic tone (e.g. explicit 🟡 status, amber threshold
+    // hit). Without this branch the warn case fell through to dirClass and
+    // the watch CSS class was dead code — see Codex audit 2026-05-18.
+    if (tone.semanticTone === "warn") return `${dirClass} gn-trend-tone-watch`;
     return dirClass;
 }
 
@@ -8618,12 +8622,17 @@ function inlineFormat(text: string, sectionTitle?: string, metricRules?: InlineM
                 // indicator the model emits for at-risk values, NOT a directional
                 // delta. Previous fallback painted yellow as green-up which was
                 // factually wrong (e.g., a 13.43%→12.74% margin DECLINE rendered
-                // as TWO green ▲ pills). Now: 🟡 → flat (neutral grey pill,
-                // flat glyph). 🟢 → up, 🔴 → down (unchanged).
+                // as TWO green ▲ pills). 🟡 stays flat (no movement implied)
+                // but with watch amber tone — was grey before the 2026-05-18
+                // design direction lock (Codex audit caught the gap).
+                // 🟢 → up + good tone; 🔴 → down + bad tone; 🟡 → flat + watch tone.
                 const dir: "up" | "down" | "flat" = match[8] === "🟢" ? "up" : match[8] === "🔴" ? "down" : "flat";
+                const toneClass = match[8] === "🟢" ? "gn-trend-tone-good"
+                    : match[8] === "🔴" ? "gn-trend-tone-bad"
+                    : "gn-trend-tone-watch";
                 // Author-emitted emoji is an explicit semantic signal — keep
                 // its color literal, do not let metric-rules re-interpret it.
-                const cls = `gn-trend-pill gn-trend-${dir}`;
+                const cls = `gn-trend-pill gn-trend-${dir} ${toneClass}`;
                 parts.push(
                     <React.Fragment key={match.index}>
                         <span className={cls} data-source="ai"><TrendPyramid direction={dir} />{match[9]}</span>

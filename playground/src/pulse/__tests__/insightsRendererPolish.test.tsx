@@ -241,6 +241,92 @@ describe("inline trend pill semantic cue consistency", () => {
         expect(html).toContain("gn-trend-tone-neutral");
     });
 
+    it("Watch tone (amber) when a rule's amber threshold fires for a lower-is-better metric", () => {
+        // Codex audit 2026-05-18: gn-trend-tone-watch was defined in CSS but
+        // pillColorClass never emitted it. This pins the fix: a Return Rate
+        // value in the amber band (between amberPct and redPct, lower-is-better)
+        // should drive the watch tone even though physical movement is up.
+        const watchRules = {
+            structured: JSON.stringify([
+                { name: "Return Rate", higherIsBetter: false, amberPct: 3, redPct: 6, aliases: ["return rate"] },
+            ]),
+        };
+        const node = __insightsRenderForTest.renderNarrative(
+            "Return rate up 4pp this period.",
+            "TRENDS",
+            watchRules,
+        );
+        const html = renderToStaticMarkup(<>{node}</>);
+
+        // Direction class stays UP (numeric movement).
+        expect(html).toContain("gn-trend-up");
+        // Tone class is WATCH (amber) because 4 is between amberPct=3 and redPct=6.
+        expect(html).toContain("gn-trend-tone-watch");
+        expect(html).not.toContain("gn-trend-tone-good");
+        expect(html).not.toContain("gn-trend-tone-bad");
+    });
+
+    // The emoji G8/G9 path inside inlineFormat is gated to KPI-style
+    // sections (KPI SNAPSHOT / KPI / METRICS / SCORECARD / PERFORMANCE).
+    // Other sections strip status emojis before the regex runs (see
+    // `statusGlyphsBelongInThisSection` in visual.tsx). The tests below use
+    // KPI SNAPSHOT so the emoji actually reaches the inline pill path.
+
+    it("Emoji 🟢 inline path (KPI section): up direction + good tone (green)", () => {
+        const node = __insightsRenderForTest.renderNarrative(
+            "Sales 🟢 12.4pp this period.",
+            "KPI SNAPSHOT",
+        );
+        const html = renderToStaticMarkup(<>{node}</>);
+
+        expect(html).toContain("gn-trend-pill");
+        expect(html).toContain("gn-trend-up");
+        expect(html).toContain("gn-trend-tone-good");
+    });
+
+    it("Emoji 🔴 inline path (KPI section): down direction + bad tone (red)", () => {
+        const node = __insightsRenderForTest.renderNarrative(
+            "Sales 🔴 8.1pp this period.",
+            "KPI SNAPSHOT",
+        );
+        const html = renderToStaticMarkup(<>{node}</>);
+
+        expect(html).toContain("gn-trend-pill");
+        expect(html).toContain("gn-trend-down");
+        expect(html).toContain("gn-trend-tone-bad");
+    });
+
+    it("Emoji 🟡 inline path (KPI section): flat direction + watch tone (amber)", () => {
+        // Codex audit 2026-05-18: 🟡 used to map to flat+grey, which was
+        // the right fix at Wave 29 (prevent green-as-up) but now misses the
+        // amber signal the model intended. Fix: keep flat direction (no
+        // movement signal), add watch tone for amber color.
+        const node = __insightsRenderForTest.renderNarrative(
+            "Return rate 🟡 5.5pp this period.",
+            "KPI SNAPSHOT",
+        );
+        const html = renderToStaticMarkup(<>{node}</>);
+
+        expect(html).toContain("gn-trend-pill");
+        expect(html).toContain("gn-trend-flat");
+        expect(html).toContain("gn-trend-tone-watch");
+        // Crucially: not grey/neutral anymore — the watch tone wins.
+        expect(html).not.toContain("gn-trend-tone-neutral");
+    });
+
+    it("Non-KPI sections still strip status emojis (no emoji pill in TRENDS)", () => {
+        // Documents the pre-existing gate so the next agent doesn't try
+        // to "fix" what isn't broken. The TRENDS section intentionally
+        // strips 🟢/🟡/🔴 before INLINE_REGEX runs.
+        const node = __insightsRenderForTest.renderNarrative(
+            "Return rate 🟡 5.5pp this period.",
+            "TRENDS",
+        );
+        const html = renderToStaticMarkup(<>{node}</>);
+        expect(html).not.toContain("🟡");
+        expect(html).not.toContain("gn-trend-tone-watch");
+    });
+
     it("Known follow-up: % suffix is a pre-existing INLINE_REGEX blind spot (no pill renders)", () => {
         // Pulse's regex requires a word boundary after the captured number.
         // "12%" ends with a non-word char, and natural English text never
