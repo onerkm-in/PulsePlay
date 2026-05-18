@@ -5,6 +5,53 @@
 
 ---
 
+## 2026-05-18 - Watch-tone emission fix (`337253f`) — Codex audit follow-up
+
+**Range:** Codex audited the Phase A sugar-candy work and caught two real gaps. Earlier commit `1e04a31` documented "watch" as a supported inline tone, and `99292ac` added the `gn-trend-tone-watch` CSS class, but `pillColorClass` never emitted the class and the emoji 🟡 path mapped to flat grey instead of watch amber. That overstated the coverage. This commit corrects the implementation and pins both behaviors with focused tests.
+
+### What was overstated
+
+- The Phase A commit message + tone-class table in `gn-trend-tone-watch` implied watch coverage was wired end-to-end. It was not — `pillColorClass` only handled `semanticTone === "good"` and `"bad"`, so any `warn` semanticTone (from explicit status or amber threshold) fell through to dirClass and the watch CSS was dead code.
+- The 99292ac CSS added `.gn-trend-pill.gn-trend-tone-watch` but no rule path emitted that class until this commit.
+- The emoji 🟡 inline path correctly stayed flat (no movement implied) per the Wave 29 cycle 2 fix, but the Wave 29 fix only addressed "don't render green-as-up" — it never restored an amber signal. So 🟡 status emojis rendered as neutral grey instead of watch amber.
+
+### What changed (`337253f`)
+
+- **`playground/src/pulse/visual.tsx` `pillColorClass`**: new branch `if (tone.semanticTone === "warn") return ${dirClass} gn-trend-tone-watch` immediately after good/bad. No change to the fuzzy-alias fallback or the no-rule path.
+- **`playground/src/pulse/visual.tsx` emoji G8/G9 path**: symmetric tone map alongside the existing direction map. 🟢 → up + tone-good; 🔴 → down + tone-bad; 🟡 → flat + tone-watch. Wave 29 comment updated to point at the design-direction lock + Codex audit reference.
+- **`playground/src/pulse/__tests__/insightsRendererPolish.test.tsx`**: +5 cases (now 20 total):
+  - Watch tone via rule: Return Rate up 4pp with `{ amberPct: 3, redPct: 6, higherIsBetter: false }` → `gn-trend-up` + `gn-trend-tone-watch` (NOT good/bad).
+  - 🟢 in KPI SNAPSHOT → `gn-trend-up` + `gn-trend-tone-good`.
+  - 🔴 in KPI SNAPSHOT → `gn-trend-down` + `gn-trend-tone-bad`.
+  - 🟡 in KPI SNAPSHOT → `gn-trend-flat` + `gn-trend-tone-watch` (NOT `gn-trend-tone-neutral`).
+  - **Non-KPI section guard**: TRENDS still strips 🟡 before the regex runs. Documents the pre-existing `statusGlyphsBelongInThisSection` gate so the next agent doesn't try to "fix" it without understanding why.
+
+### Important nuance Codex's finding didn't capture
+
+The emoji G8/G9 path is **gated to KPI-style sections** (KPI SNAPSHOT / KPI / METRICS / SCORECARD / PERFORMANCE) by `inlineFormat`'s `statusGlyphsBelongInThisSection` check at [visual.tsx:8498](../playground/src/pulse/visual.tsx#L8498). Other sections strip 🟢/🟡/🔴 from the source text before INLINE_REGEX runs. So this fix only takes effect for inline narrative WITHIN KPI-style sections. For TRENDS / RISKS / RECOMMENDED ACTIONS, status emojis are stripped before they ever reach the pill path — that's intentional, kept as-is, and now pinned by the non-KPI-strip guard test.
+
+### Validation
+
+- `npm run lint` clean.
+- Focused polish suite **20/20** (was 15; +5 new cases).
+- Full sweep **829/829** across 65 files (was 824; +5 new cases).
+- `npm run build` clean (18.31 s).
+- Vite HMR at `http://127.0.0.1:5174/` HTTP 200; two new `gn-trend-tone-watch` references reach the served `visual.tsx` module (rule path + emoji path).
+
+### Doc-tracking process note
+
+Codex's audit also noted `docs/AI_BRIEFING_DESIGN_DIRECTION.md` was untracked. Verified locally: the file IS tracked in commit `99292ac` (`git ls-files` confirms; `git log -- docs/AI_BRIEFING_DESIGN_DIRECTION.md` returns the commit). The audit may have been run from a stale checkout or a sibling worktree. Worth confirming when picking up: `git log --oneline -- docs/AI_BRIEFING_DESIGN_DIRECTION.md` should return at minimum `99292ac feat(pulse): "sugar candy" delight layer …`. If it doesn't, the local checkout is behind.
+
+### Tripwires (carry forward)
+
+- The validator stays the only authority for artifact status. Tone classes are presentation; status badge motion is presentation. Neither overrides what the validator emitted.
+- The non-KPI section emoji-strip gate is intentional and must stay. The fix only addresses the in-section path; it does not unstrip emojis for prose sections.
+- The watch threshold path requires `amberPct` AND `redPct` on the rule. Rules without thresholds still fall through to the directional fallback (existing behavior unchanged).
+- `prefers-reduced-motion` guards from the proof slice remain mandatory for any new motion added in Phases C/D.
+- One accent moment per screen still applies — the watch amber is a tone signal, not a new accent.
+
+---
+
 ## 2026-05-18 - AI briefing "sugar candy" — design direction locked + proof slice (`99292ac`)
 
 **Range:** Rajesh sent additional design intent on top of the earlier 4-priority brief: the briefing should feel like *sugar candy* — premium, trustworthy, executive-grade foundation with a magnetic, subtly delightful interaction layer that makes others feel the hard work that went into it. Not cartoonish, not gimmicky, not noisy. This pass captures the direction as a canonical doc and ships a small restrained proof slice that demonstrates the grammar without restructuring anything.

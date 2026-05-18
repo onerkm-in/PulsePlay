@@ -112,6 +112,14 @@ Cumulative: **165 new tests** across the 6 commits; full playground sweep **745/
 
 Validation: lint clean, tsc clean, full sweep **763/763**, build clean (14.27 s), Vite `/workbench` HTTP 200.
 
+**[DONE] 2026-05-18 — Watch-tone emission fix (`337253f`).** Codex audited Phase A and caught a real gap: `gn-trend-tone-watch` was defined in CSS (in `99292ac`) but `pillColorClass` only emitted `good`/`bad`, so any `warn` semanticTone (explicit status, amber threshold) fell through to dirClass and the watch class was dead code. The emoji 🟡 path mapped to flat grey instead of watch amber. Earlier commit messages overstated the watch coverage.
+
+Fix: `pillColorClass` now has a `warn → gn-trend-tone-watch` branch; the emoji G8/G9 path emits symmetric tone classes (🟢 → up + tone-good, 🔴 → down + tone-bad, 🟡 → flat + tone-watch). 5 new vitest cases pin the rule-path watch tone, all three emoji paths, AND the pre-existing non-KPI-section emoji-strip gate so future agents don't try to "fix" the intentional strip. 829/829 sweep clean.
+
+**Nuance:** the emoji path is gated by `statusGlyphsBelongInThisSection` (KPI SNAPSHOT / KPI / METRICS / SCORECARD / PERFORMANCE only). Other sections strip status emojis before the regex runs — this is intentional and stays. The fix only takes effect for inline narrative within KPI-style sections.
+
+**Doc-tracking note:** Codex's audit said `docs/AI_BRIEFING_DESIGN_DIRECTION.md` was untracked. Verified locally — it IS tracked in `99292ac`. If the audit's local checkout was behind, `git log --oneline -- docs/AI_BRIEFING_DESIGN_DIRECTION.md` should confirm `99292ac` is present.
+
 **[DONE] 2026-05-18 — AI briefing "sugar candy" design direction locked + proof slice (`99292ac`).** Rajesh's additional design intent: premium / magnetic / restrained, NOT cartoonish. Canonical doc at [AI_BRIEFING_DESIGN_DIRECTION.md](AI_BRIEFING_DESIGN_DIRECTION.md) with motion + depth + colour grammar tables, Phase C/D layout sketches, and tripwires (one accent moment per screen, reduced-motion mandatory, semantic accuracy always wins over decoration). Proof slice ships five additive CSS micro-interactions in `playground/src/pulse/style/visual.less` (section card stagger 60ms/index, reduced-motion collapse for existing reveal, surface switcher + Adjust press feedback 60ms scale 0.97, KPI status badge 220ms scale-in pop, follow-up chip hover lift). Zero JS, zero structural change, ~70 lines CSS. Build +~0.3 KB pulse chunk; 824/824 tests unchanged.
 
 **[DONE] 2026-05-18 — AI briefing redesign Phases A + B landed (`1e04a31` + `e87bae0`).** Pulse production AI Insights surface:
