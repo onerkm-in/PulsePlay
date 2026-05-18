@@ -44,7 +44,7 @@ describe("insights narrative polish", () => {
         expect(html).toContain("<strong>6.2%</strong>");
     });
 
-    it("uses a red down cue for lower-is-better KPI increases even when status is watch", () => {
+    it("uses a physical up cue and amber status tone for lower-is-better KPI increases when status is watch", () => {
         const node = __insightsRenderForTest.renderKpiTiles(
             [
                 "| KPI | Current | Prior | Δ pp | Status |",
@@ -61,16 +61,17 @@ describe("insights narrative polish", () => {
         const html = renderToStaticMarkup(<>{node}</>);
 
         expect(html).toContain("gn-kpi-tile--warn");
-        expect(html).toContain("gn-kpi-tile-delta--bad");
-        expect(html).toContain('data-delta-cue="down"');
-        expect(html).toContain("▼");
+        expect(html).toContain("gn-kpi-tile-delta--warn");
+        expect(html).toContain('data-delta-cue="up"');
+        expect(html).toContain("▲");
+        expect(html).not.toContain("▼");
         expect(html).toContain("+0.4pp");
         expect(html).toContain("▲ +6.3%");
         expect(html).not.toContain("gn-trend-pill--good");
-        expect(html).toContain("higher is unfavorable");
+        expect(html).toContain("KPI increased from the prior period");
     });
 
-    it("uses a red down cue for higher-is-better KPI decreases even when status is watch", () => {
+    it("uses a physical down cue and amber status tone for higher-is-better KPI decreases when status is watch", () => {
         const node = __insightsRenderForTest.renderKpiTiles(
             [
                 "| KPI | Current | Prior | Δ pp | Status |",
@@ -87,10 +88,33 @@ describe("insights narrative polish", () => {
         const html = renderToStaticMarkup(<>{node}</>);
 
         expect(html).toContain("gn-kpi-tile--warn");
-        expect(html).toContain("gn-kpi-tile-delta--bad");
+        expect(html).toContain("gn-kpi-tile-delta--warn");
         expect(html).toContain('data-delta-cue="down"');
         expect(html).toContain("▼");
         expect(html).toContain("-0.7pp");
         expect(html).toContain("KPI decreased from the prior period");
+    });
+
+    it("falls back to metric-direction tone when a KPI movement has no explicit status", () => {
+        const node = __insightsRenderForTest.renderKpiTiles(
+            [
+                "| KPI | Current | Prior | Δ pp |",
+                "| --- | --- | --- | --- |",
+                "| Return Rate | 6.2% | 5.9% | +0.3pp |",
+            ].join("\n"),
+            "KPI SNAPSHOT",
+            {
+                metricDirectionsJson: JSON.stringify([
+                    { name: "Return Rate", higherIsBetter: false, amberPct: 4, redPct: 8 },
+                ]),
+            },
+        );
+        const html = renderToStaticMarkup(<>{node}</>);
+
+        expect(html).toContain("gn-kpi-tile-delta--bad");
+        expect(html).toContain('data-delta-cue="up"');
+        expect(html).toContain("▲");
+        expect(html).toContain("+0.3pp");
+        expect(html).toContain("higher is unfavorable");
     });
 });

@@ -9244,10 +9244,9 @@ function dedupePipeTableRows(rows: string[][]): string[][] {
     return order.map(key => seen.get(key)!.row);
 }
 
-function deltaCueDirection(deltaTone: Tone, physicalDirection: "up" | "down" | "neutral"): "up" | "down" | "neutral" {
-    if (deltaTone === "good") return "up";
-    if (deltaTone === "bad") return "down";
-    return physicalDirection;
+function deltaToneForKpi(statusTone: Tone, semanticTone: Tone, movementTone: Tone): Tone {
+    if (statusTone !== "neutral") return statusTone;
+    return movementTone === "neutral" ? semanticTone : movementTone;
 }
 
 function deltaCueGlyph(direction: "up" | "down" | "neutral"): string {
@@ -9310,8 +9309,12 @@ function renderKpiTiles(body: string, sectionTitle?: string, options?: InsightsR
         const dir = tone.direction;
         const statusTone = tone.statusTone;
         const semanticTone = tone.semanticTone;
-        const deltaTone = tone.deltaTone === "neutral" ? semanticTone : tone.deltaTone;
-        const deltaCue = deltaCueDirection(deltaTone, dir);
+        // Direction is physical movement; tone is business meaning. A
+        // lower-is-better metric that increased should still show an up
+        // arrow, with the pill color following the explicit status when the
+        // model provided one.
+        const deltaTone = deltaToneForKpi(statusTone, semanticTone, tone.deltaTone);
+        const deltaCue = dir;
         const hasSemanticStatus = Boolean(status.trim()) && statusTone !== "neutral";
         const deltaA11y = getDeltaPillA11y(dir, deltaTone);
         const deltaDisplay = stripLeadingDirectionGlyphs(deltaText || delta).trim();
