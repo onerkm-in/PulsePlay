@@ -4757,7 +4757,10 @@ function App(props: AppProps) {
                                           * indicators. Picking a preset persists via
                                           * host.persistProperties → triggers a re-render;
                                           * the next Refresh applies the colors. */}
-                                        {!props.settings.metricDirectionRules?.trim() && (insightsResult?.content || "").trim() && (
+                                        {!props.settings.metricDirectionRules?.trim()
+                                            && (insightsResult?.content || "").trim()
+                                            && !briefingHasStatusColors(insightsResult?.content || "")
+                                            && (
                                             <ColorRulesBanner
                                                 host={props.host}
                                                 currentDomain={props.settings.insightsDomain || ""}
@@ -6099,6 +6102,13 @@ function App(props: AppProps) {
             )}
         </div>
     );
+}
+
+// Returns true when the briefing content already contains LLM-emitted
+// status emoji (🟢 / 🟡 / 🔴) — in which case the "No status colors"
+// banner is incorrect and must stay hidden.
+function briefingHasStatusColors(content: string): boolean {
+    return content.includes("🟢") || content.includes("🟡") || content.includes("🔴");
 }
 
 // PulsePlay — one-click metric-direction preset banner shown above
@@ -8424,7 +8434,8 @@ function metricNameBeforePill(text: string, pillIndex: number, hint?: string): s
  */
 function pillColorClass(physicalDir: "up" | "down" | "flat", text: string, pillIndex: number, deltaText: string, rules?: InlineMetricRules, metricNameHint?: string): string {
     const dirClass = `gn-trend-pill gn-trend-${physicalDir}`;
-    if (physicalDir === "flat" || !rules || (!rules.structured && !rules.legacy)) {
+    // Flat direction never carries a semantic tone — the value didn't move.
+    if (physicalDir === "flat") {
         return dirClass;
     }
     const metricName = metricNameBeforePill(text, pillIndex, metricNameHint);
@@ -8447,8 +8458,12 @@ function pillColorClass(physicalDir: "up" | "down" | "flat", text: string, pillI
         metricName,
         deltaText: signedDeltaText,
         valueText: deltaText,
-        structuredJson: rules.structured,
-        legacyText: rules.legacy,
+        // Pass author rules when available; resolveMetricDirection falls back
+        // to BUILTIN_LOWER_IS_BETTER_RULES when no author rule matches, so
+        // metrics like Return Rate get the correct amber tone even without
+        // explicit author configuration. Phase E 2026-05-18.
+        structuredJson: rules?.structured,
+        legacyText: rules?.legacy,
     });
     // Wave 33 — fuzzy alias fallback. When the metric name didn't bind to a
     // concrete rule but it reads like a well-known delta phrase ("YoY %",
@@ -9876,4 +9891,6 @@ export const __insightsRenderForTest = {
     // normalization (heading-inside-bullet → inline bold).
     renderNarrative,
     demoteBulletStyleHeadings,
+    // Phase E — banner guard helper exposed for unit testing.
+    briefingHasStatusColors,
 };

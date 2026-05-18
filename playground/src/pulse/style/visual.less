@@ -7956,6 +7956,30 @@
     opacity: 0.9;
 }
 
+/* Phase E 2026-05-18 — tone-driven left bar for cards that carry a
+ * toned inline pill. The section-specific overrides above (RISKS red,
+ * RECOMMENDED ACTIONS blue, OPPORTUNITIES green) have higher specificity
+ * and win for those named sections. This :has() rule fires for all other
+ * sections — most importantly TRENDS ("What Changed") — so each card's
+ * bar reflects the actual metric direction rather than staying muted gray.
+ * :has() is baseline-supported in Chromium 105+, Firefox 121+, Safari 15.4+;
+ * PulsePlay runs in a real browser so no polyfill needed.
+ * Section-override specificity: (0,2,1). :has() specificity: (0,1,1) — safe. */
+@supports selector(:has(*)) {
+    .gn-insight-card:has(.gn-trend-tone-bad)::before {
+        background: #b22020;
+        opacity: 0.85;
+    }
+    .gn-insight-card:has(.gn-trend-tone-watch)::before {
+        background: #8a5c00;
+        opacity: 0.85;
+    }
+    .gn-insight-card:has(.gn-trend-tone-good)::before {
+        background: #1a7f37;
+        opacity: 0.8;
+    }
+}
+
 .gn-insight-card-label {
     margin-bottom: 5px;
     color: @gn-text;

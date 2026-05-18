@@ -5,6 +5,42 @@
 
 ---
 
+## 2026-05-18 — Phase E: three live briefing gaps closed — banner, builtin metric defaults, card border tone (`HEAD`)
+
+**Range:** Fixes for three gaps Rajesh spotted in the live Pulse AI briefing screenshots (Return Rate ▲ green pill, stale "No status colors" banner, inconsistent card left-border treatment).
+
+### Gap 1 — Return Rate ▲ now shows amber (builtin lower-is-better defaults)
+
+- Added `BUILTIN_LOWER_IS_BETTER_RULES` in [`rendering/metricDirections.ts`](../playground/src/pulse/rendering/metricDirections.ts): 10 metric patterns (Return Rate, Churn Rate, Defect Rate, Error Rate, Complaint Rate, Cancellation Rate, Refund Rate, Bounce Rate, Cost Per, Shrinkage) that carry `higherIsBetter: false, unfavorableMovementTone: "warn"`.
+- These fire **only** when no author rule matches — author rules always win.
+- `resolveMetricDirection` updated to check builtins as a last resort after author rules.
+- **`pillColorClass` short-circuit fixed**: previously bailed out when `!rules` (no author metric rules), so builtins were unreachable. Now only bails on `physicalDir === "flat"`. The existing `!tone.matchedRule → return dirClass` guard handles unknown metrics correctly — no spurious coloring.
+- Author rules override builtins: `unfavorableMovementTone: "bad"` → red; `"warn"` (builtin default) → amber.
+
+### Gap 2 — "No status colors" banner hides when LLM already emitted 🟢/🟡/🔴
+
+- Added `briefingHasStatusColors(content)` helper in [`visual.tsx`](../playground/src/pulse/visual.tsx).
+- Banner condition now also checks `!briefingHasStatusColors(content)` so it stays hidden when the LLM included status indicators in its prose — the banner was incorrectly showing even when KPI cards had amber/green dots.
+- `briefingHasStatusColors` exported via `__insightsRenderForTest` for unit testing.
+
+### Gap 3 — Card left-bar color reflects pill tone (CSS `:has()`)
+
+- Added `@supports selector(:has(*))` block in [`style/visual.less`](../playground/src/pulse/style/visual.less): cards with `gn-trend-tone-bad` get a red bar, `gn-trend-tone-watch` amber, `gn-trend-tone-good` green.
+- Specificity ordering: section-level overrides (RISKS red, RECOMMENDED ACTIONS blue, OPPORTUNITIES green) use `(0,2,1)` vs `:has()` at `(0,1,1)` — named-section colors always win.
+- TRENDS ("What Changed") cards now show a toned bar matching the metric direction of the pill inside them — closes the visual inconsistency Rajesh spotted between WHAT CHANGED (plain) and WHAT NEEDS ATTENTION (colored bar).
+- Guarded by `@supports` — graceful fallback to default gray bar in older browsers.
+
+### Tests — 26 new (896 total, all passing)
+
+- **`rendering/__tests__/metricDirectionsBuiltins.test.ts`** (12): builtin rule shape, frozen array, per-metric resolution for 11 known lower-is-better names, author-rule-wins, case-insensitive match.
+- **`__tests__/insightsBriefingGaps.test.tsx`** (14): `briefingHasStatusColors` (6 cases), Return Rate builtin amber end-to-end (inlineFormat + section render), author override to red, Sales ▲ no-builtin stays neutral.
+
+### Gap 4 — noted but not fixed
+
+"Profit Growth Lag" card (green pills inside WHAT NEEDS ATTENTION) is a semantic tension between section context and metric direction — the pills are technically correct (Profit Growth up = good) but read oddly inside an "attention" section. Real fix is LLM prompt quality (don't place recovering metrics in RISKS). CSS suppression of good-tone in RISKS would misrepresent recovering data. Tracked in AGENDA.
+
+---
+
 ## 2026-05-18 - AI briefing Phases C + D landed — toolbar overflow + grid hierarchy + Next Best Actions accent (`681a4fd`)
 
 **Range:** Beast-mode close-out of the two queued lanes from [AI_BRIEFING_DESIGN_DIRECTION.md](AI_BRIEFING_DESIGN_DIRECTION.md). Single commit covers both phases plus the sugar-candy press grammar extension.
