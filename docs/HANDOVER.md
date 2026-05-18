@@ -5,6 +5,53 @@
 
 ---
 
+## 2026-05-18 - AI briefing "sugar candy" — design direction locked + proof slice (`99292ac`)
+
+**Range:** Rajesh sent additional design intent on top of the earlier 4-priority brief: the briefing should feel like *sugar candy* — premium, trustworthy, executive-grade foundation with a magnetic, subtly delightful interaction layer that makes others feel the hard work that went into it. Not cartoonish, not gimmicky, not noisy. This pass captures the direction as a canonical doc and ships a small restrained proof slice that demonstrates the grammar without restructuring anything.
+
+### What changed
+
+- **[docs/AI_BRIEFING_DESIGN_DIRECTION.md](AI_BRIEFING_DESIGN_DIRECTION.md)** — canonical design direction. Concrete Do / Don't list, motion grammar table (durations + easings), depth grammar table (resting / hover / press shadows), colour grammar ("one accent moment per screen"), information hierarchy sketch for Phase D, toolbar sketch for Phase C, and tripwires (semantic accuracy first, readability first, no permanent BI pane, no validator / sandbox changes, no "100% hallucination-free" wording, stagger respects streaming order).
+- **[playground/src/pulse/style/visual.less](../playground/src/pulse/style/visual.less)** — five additive CSS additions, ~70 lines total, all gated by `prefers-reduced-motion: no-preference` (and the existing section reveal gets a `reduce` collapse-to-instant guard):
+  1. **Section card arrival stagger** — `:nth-child(N)` animation-delay of `60ms × index` (capped at 420ms for the 8th+). The existing `gn-section-reveal` keyframe is unchanged; we only delay the start so a 5-section briefing reads as composed rather than mass-arrived. Streaming order is preserved because delays attach by DOM position and the validator emits sections in the locked HEADLINE / KPI / TRENDS / RISKS / OPPORTUNITIES / ACTIONS order.
+  2. **Reduced-motion guard** for the existing section reveal — collapses to instant for vestibular users.
+  3. **Surface switcher + Adjust press feedback** — 60ms `scale(0.97)` snap-back on `:active`. Hover behavior unchanged.
+  4. **KPI tile status badge first-render pop** — 220ms `scale(0.94 → 1)` with cubic-bezier(.2,.9,.2,1). Newly-emitted statuses read as "earned" rather than playful. Re-triggers on subsequent re-renders (intentional — status changes feel "newly verified").
+  5. **Follow-up chip hover lift parity** — translateY(-1px) + soft shadow on `:hover`, matching the KPI tile hover grammar.
+
+### What this proves (and what it deliberately doesn't do)
+
+- Demonstrates the motion grammar (260–300ms eased animations, 60ms stagger, 60ms press snap) without committing to the Phase D layout restructure.
+- Demonstrates the "sense of reward" on status badges without changing what status the validator emits.
+- Five small additions, ~70 lines of CSS, zero JS, zero structural change.
+- Does NOT touch the workbench, no pulse/* TypeScript file, no gradients on backgrounds, no celebration bursts, no oversized chrome.
+
+### Validation
+
+- `npm run lint` clean.
+- `npm run test` **824/824** across 65 files (unchanged — CSS additions have no test surface).
+- `npm run build` clean (19.67 s); pulse chunk +~0.3 KB.
+- Vite HMR at `http://127.0.0.1:5174/` serves the updated `visual.less`; HTTP 200; new identifiers reach the bundle.
+
+### Tripwires (must honor for Phase C + D)
+
+- **Sugar candy is restraint, not loudness.** Five small additions per phase, not fifty. Pulse drifted into "loud gradient" territory before; do not regress.
+- **One accent moment per screen.** Surface switcher is the accent in the Pulse view; Verified badge is the accent in the artifact card; Ask button is the accent in the composer. Don't add a fourth accent.
+- **`prefers-reduced-motion: reduce` is non-negotiable.** Every new animation needs the guard. Vestibular users get a static briefing.
+- **Semantic accuracy first.** Tone classes always win over decorative color; status badge motion is presentation only and never overrides what status the validator emitted.
+- **No permanent BI pane.** BI Viz stays peer same-canvas in `mix` mode.
+- **Validator + sandbox untouched.** No "100% hallucination-free" wording.
+- **Internal section IDs stay.** Display labels (Executive Brief / What Changed / What Needs Attention / Next Best Actions) are user-facing only.
+- **Pulse-PBI sibling stylesheet is forked.** Additive CSS here does not automatically propagate; the sibling renders the additions only if it later syncs and the matching elements exist.
+
+### What's next
+
+- **Phase C — toolbar noise reduction.** Use the overflow grammar in [AI_BRIEFING_DESIGN_DIRECTION.md](AI_BRIEFING_DESIGN_DIRECTION.md). Keep visible: surface switcher + Adjust + status. Move copy/code/diagnostics into `⋮`.
+- **Phase D — information hierarchy + visual calming.** Use the layout sketch (top Executive Brief, middle KPI + What Changed, lower What Needs Attention + Next Best Actions, Actions gets prominence). Reduce nested containers per the design doc.
+- These phases inherit the "sugar candy" direction. Anything Phase C/D ships must respect the tripwires above.
+
+---
+
 ## 2026-05-18 - AI briefing redesign — Phases A+B landed; C+D queued
 
 **Range:** Rajesh sent a design direction for the Pulse AI Insights production surface (unified mix screen). Four priorities: (1) semantic cue consistency across inline pills, (2) toolbar noise reduction, (3) information hierarchy, (4) calmer visual system. Plus four section label renames. This session shipped Phases A + B; Phases C + D are scoped and queued for the next session because they're larger UX surgery that benefits from review between landings.
