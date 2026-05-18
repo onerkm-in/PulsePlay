@@ -152,7 +152,7 @@ function renderTab(tab: WorkbenchTab, artifact: WorkbenchArtifact): React.ReactN
         case 'table':
             return <TableTab table={artifact.table} />;
         case 'sql':
-            return <SqlTab sql={artifact.sql} />;
+            return <SqlTab sql={artifact.sql} sections={artifact.sqlSections} />;
         case 'evidence':
             return <EvidenceTab citations={artifact.citations} />;
         case 'reasoning':

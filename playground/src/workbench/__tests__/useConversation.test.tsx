@@ -243,7 +243,95 @@ describe('useConversation — terminal FAILED upstream', () => {
     });
 });
 
-// ─── 5. No-ungrounded-artifacts behavior ───────────────────────────────
+// ─── 5a. Composer-input sanitization (Step 6 wrap) ────────────────────
+
+describe('useConversation — composer-input sanitization', () => {
+    it('redacts secrets in the submitted question before posting to /start', async () => {
+        installFetchStub({
+            start: () => jsonResponse({ conversation_id: 'conv-1', message_id: 'msg-1' }),
+            polls: [() => jsonResponse(SUPERSTORE_COMPLETED)],
+        });
+
+        mounted = mount(
+            <TestHarness onResult={captureResult} profile="default" askOnMount="lookup dapi1234567890abcdef1234567890abcdef please" />,
+        );
+        await flush();
+        await flush();
+        await flush();
+
+        // Confirm the fetch body was sanitized before being sent.
+        const calls = (globalThis.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+        const startCall = calls.find((c) => typeof c[0] === 'string' && (c[0] as string).includes('/conversations/start'))!;
+        const init = startCall[1] as RequestInit;
+        const body = JSON.parse(init.body as string);
+        expect(body.content).toContain('[redacted]');
+        expect(body.content).not.toMatch(/dapi[0-9a-f]{32}/);
+
+        expect(lastResult?.lastSanitization?.mutated).toBe(true);
+        expect(lastResult?.lastSanitization?.secretsHit).toContain('databricks-pat');
+    });
+
+    it('passes a clean question through unmodified', async () => {
+        installFetchStub({
+            start: () => jsonResponse({ conversation_id: 'conv-1', message_id: 'msg-1' }),
+            polls: [() => jsonResponse(SUPERSTORE_COMPLETED)],
+        });
+
+        mounted = mount(
+            <TestHarness onResult={captureResult} profile="default" askOnMount="What were the top 3 categories?" />,
+        );
+        await flush();
+        await flush();
+        await flush();
+
+        const calls = (globalThis.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+        const startCall = calls.find((c) => typeof c[0] === 'string' && (c[0] as string).includes('/conversations/start'))!;
+        const init = startCall[1] as RequestInit;
+        const body = JSON.parse(init.body as string);
+        expect(body.content).toBe('What were the top 3 categories?');
+        expect(lastResult?.lastSanitization?.mutated).toBe(false);
+    });
+});
+
+// ─── 5b. Suggested follow-up questions ────────────────────────────────
+
+describe('useConversation — suggested follow-up questions', () => {
+    it('exposes Genie-supplied follow-ups via suggestedQuestions', async () => {
+        installFetchStub({
+            start: () => jsonResponse({ conversation_id: 'conv-1', message_id: 'msg-1' }),
+            polls: [() => jsonResponse({
+                ...SUPERSTORE_COMPLETED,
+                attachments: [
+                    ...SUPERSTORE_COMPLETED.attachments,
+                    { suggested_questions: { questions: ['By region?', 'YoY change?'] } },
+                ],
+            })],
+        });
+
+        mounted = mount(<TestHarness onResult={captureResult} profile="default" askOnMount="?" />);
+        await flush();
+        await flush();
+        await flush();
+
+        expect(lastResult?.suggestedQuestions).toEqual(['By region?', 'YoY change?']);
+    });
+
+    it('returns an empty suggestedQuestions array when Genie supplies none', async () => {
+        installFetchStub({
+            start: () => jsonResponse({ conversation_id: 'conv-1', message_id: 'msg-1' }),
+            polls: [() => jsonResponse(SUPERSTORE_COMPLETED)],
+        });
+
+        mounted = mount(<TestHarness onResult={captureResult} profile="default" askOnMount="?" />);
+        await flush();
+        await flush();
+        await flush();
+
+        expect(lastResult?.suggestedQuestions).toEqual([]);
+    });
+});
+
+// ─── 6. No-ungrounded-artifacts behavior ───────────────────────────────
 
 describe('useConversation — no ungrounded artifacts', () => {
     it('answer-only Genie response validates to suggestion (never verified)', async () => {

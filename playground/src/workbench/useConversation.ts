@@ -14,11 +14,12 @@
 // Apple-tree note: tests stub apiFetch by monkey-patching globalThis.fetch.
 // The hook itself never imports anything that prevents tree-shaking.
 
-import { useMemo } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient, type UseMutationResult } from '@tanstack/react-query';
 import { apiFetch } from '../lib/apiClient';
 import { validateArtifact, type ValidationResult } from '../lib/artifactValidator';
 import { GENIE_TERMINAL_STATUSES, isGenieTerminal, mapGenieMessageToCandidate, type GenieMessage } from './genieResponseMapper';
+import { sanitizeComposerInput, type SanitizedComposerInput } from './composerInput';
 import type { ConnectorType } from '../types/assistant';
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -73,6 +74,10 @@ export interface UseConversationResult {
     readonly error: Error | null;
     /** True after a terminal poll, regardless of validator outcome. */
     readonly isTerminal: boolean;
+    /** Genie-supplied follow-up question strings; never fabricated. */
+    readonly suggestedQuestions: ReadonlyArray<string>;
+    /** Diagnostics from the last call to ask() so the UI can surface what was redacted/stripped. */
+    readonly lastSanitization: SanitizedComposerInput | null;
 }
 
 const DEFAULT_POLL_INTERVAL_MS = 2000;
@@ -86,6 +91,9 @@ export function useConversation(opts: UseConversationOptions): UseConversationRe
     const connectorType: ConnectorType = opts.connectorType ?? 'genie';
     const pollIntervalMs = opts.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
     const queryClient = useQueryClient();
+
+    const [lastSanitization, setLastSanitization] = useState<SanitizedComposerInput | null>(null);
+    const suggestedRef = useRef<ReadonlyArray<string>>([]);
 
     const startMutation: UseMutationResult<StartConversationResponse, Error, string> = useMutation({
         mutationFn: async (content: string): Promise<StartConversationResponse> => {
@@ -131,6 +139,7 @@ export function useConversation(opts: UseConversationOptions): UseConversationRe
             // the UI can render the same Blocked treatment used for the
             // chart-without-data path. We pass a minimally synthesized
             // candidate to the validator so the contract stays uniform.
+            suggestedRef.current = [];
             const blockedResult = validateArtifact({
                 id: pollQuery.data.id ?? pollQuery.data.message_id ?? 'conversation-failure',
                 sourceProfile: profile,
@@ -141,8 +150,9 @@ export function useConversation(opts: UseConversationOptions): UseConversationRe
             });
             return blockedResult;
         }
-        const candidate = mapGenieMessageToCandidate({ message: pollQuery.data, profile, connectorType });
-        return validateArtifact(candidate);
+        const mapped = mapGenieMessageToCandidate({ message: pollQuery.data, profile, connectorType });
+        suggestedRef.current = mapped.suggestedQuestions;
+        return validateArtifact(mapped.candidate);
     }, [pollQuery.data, isTerminal, upstreamStatus, profile, connectorType]);
 
     const startError = startMutation.error;
@@ -163,8 +173,14 @@ export function useConversation(opts: UseConversationOptions): UseConversationRe
                     queryKey: ['workbench', 'conversation-message', profile, handle.conversationId, handle.messageId],
                 });
             }
+            // Sanitize via the Pulse-port redactor + injection-keyword stripper
+            // BEFORE the proxy round-trip. Diagnostics are surfaced via
+            // lastSanitization so the UI can show what was redacted/stripped.
+            const sanitized = sanitizeComposerInput(content);
+            setLastSanitization(sanitized);
+            suggestedRef.current = [];
             startMutation.reset();
-            startMutation.mutate(content);
+            startMutation.mutate(sanitized.sanitized);
         },
         reset: () => {
             if (handle) {
@@ -172,6 +188,8 @@ export function useConversation(opts: UseConversationOptions): UseConversationRe
                     queryKey: ['workbench', 'conversation-message', profile, handle.conversationId, handle.messageId],
                 });
             }
+            setLastSanitization(null);
+            suggestedRef.current = [];
             startMutation.reset();
         },
         isStarting,
@@ -180,5 +198,7 @@ export function useConversation(opts: UseConversationOptions): UseConversationRe
         result,
         error,
         isTerminal,
+        suggestedQuestions: suggestedRef.current,
+        lastSanitization,
     };
 }

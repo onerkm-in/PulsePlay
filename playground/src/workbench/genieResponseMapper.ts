@@ -12,8 +12,10 @@ import type { CandidateArtifact } from '../lib/artifactValidator';
 import type {
     ArtifactCitation,
     ArtifactResultTable,
+    ArtifactSqlSection,
     ConnectorType,
 } from '../types/assistant';
+import { collectGenieSqlFromAttachments, type GenieSqlSection } from '../pulse/genie';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Genie message shape (only the fields we read; everything else ignored)
@@ -42,6 +44,17 @@ export interface GenieQueryAttachment {
     readonly query_result_metadata?: { readonly row_count?: number };
     readonly thoughts?: ReadonlyArray<GenieThought>;
     readonly result?: GenieQueryResult;
+    /**
+     * Phase 11b labelled SQL sections, when the prompt IR requested
+     * structured-sections output and the proxy `sqlSectionExtractor`
+     * parsed `/* Section: ID *\/` markers back. Optional.
+     */
+    readonly sqlSections?: ReadonlyArray<{
+        readonly sectionId?: string;
+        readonly cteName?: string;
+        readonly sqlFragment?: string;
+        readonly startOffset?: number;
+    }>;
 }
 
 export interface GenieAttachment {
@@ -80,7 +93,22 @@ export interface MapGenieToCandidateInput {
     readonly connectorType?: ConnectorType; // defaults to 'genie'
 }
 
-export function mapGenieMessageToCandidate(input: MapGenieToCandidateInput): CandidateArtifact {
+/**
+ * Result of mapping a Genie message. The candidate is what the validator
+ * consumes; suggestedQuestions and sqlSections are propagated separately
+ * because they are sibling concerns:
+ *   - suggestedQuestions are follow-up affordances, not artifact content.
+ *   - sqlSections are an additive enrichment of the artifact's SQL view;
+ *     they live on the artifact (via the validator), so this field exists
+ *     mostly for ergonomic standalone access.
+ */
+export interface MapGenieResult {
+    readonly candidate: CandidateArtifact;
+    readonly suggestedQuestions: ReadonlyArray<string>;
+    readonly sqlSections: ReadonlyArray<ArtifactSqlSection>;
+}
+
+export function mapGenieMessageToCandidate(input: MapGenieToCandidateInput): MapGenieResult {
     const { message, profile } = input;
     const connectorType: ConnectorType = input.connectorType ?? 'genie';
 
@@ -112,6 +140,9 @@ export function mapGenieMessageToCandidate(input: MapGenieToCandidateInput): Can
             : undefined;
     const messageId = message.id ?? message.message_id ?? `genie-${Date.now()}`;
 
+    const sqlSections = extractSqlSections(attachments);
+    const suggestedQuestions = extractSuggestedQuestions(attachments);
+
     const candidate: CandidateArtifact = {
         id: messageId,
         // The upstream `status` is the Genie execution state, NOT an artifact
@@ -122,6 +153,7 @@ export function mapGenieMessageToCandidate(input: MapGenieToCandidateInput): Can
         ...(answerMarkdown ? { answer: { markdown: answerMarkdown } } : {}),
         ...(table ? { table } : {}),
         ...(sql ? { sql } : {}),
+        ...(sqlSections.length > 0 ? { sqlSections } : {}),
         ...(citations.length > 0 ? { citations } : {}),
         ...(reasoningSteps.length > 0 ? { reasoning: { steps: reasoningSteps } } : {}),
         ...(typeof rowCount === 'number' ? { rowCount } : {}),
@@ -130,7 +162,30 @@ export function mapGenieMessageToCandidate(input: MapGenieToCandidateInput): Can
         sourceConnectorType: connectorType,
     };
 
-    return candidate;
+    return { candidate, suggestedQuestions, sqlSections };
+}
+
+function extractSqlSections(attachments: ReadonlyArray<unknown>): ArtifactSqlSection[] {
+    // Reuse Pulse's collector verbatim. Pure function, no UI deps. Categorized
+    // as Category-B "extract pure domain logic" in docs/PULSE_PORT_DETANGLING.md.
+    const collected = collectGenieSqlFromAttachments(attachments as unknown[]);
+    return collected.sections.map((s: GenieSqlSection): ArtifactSqlSection => ({
+        sectionId: s.sectionId,
+        sqlFragment: s.sqlFragment,
+        ...(s.cteName ? { cteName: s.cteName } : {}),
+    }));
+}
+
+function extractSuggestedQuestions(attachments: ReadonlyArray<GenieAttachment>): string[] {
+    const out: string[] = [];
+    for (const att of attachments) {
+        const questions = att?.suggested_questions?.questions;
+        if (!Array.isArray(questions)) continue;
+        for (const q of questions) {
+            if (typeof q === 'string' && q.trim().length > 0) out.push(q.trim());
+        }
+    }
+    return out;
 }
 
 function extractResultTable(result: GenieQueryResult | undefined): ArtifactResultTable | undefined {

@@ -12,11 +12,13 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { ArtifactCard } from '../components/workbench/ArtifactCard';
 import { GenieNativeEmbed } from '../components/workbench/GenieNativeEmbed';
+import { FollowUpQuestions } from '../components/workbench/FollowUpQuestions';
 import { buildGenieDescriptor } from '../lib/workbenchDescriptors';
 import { resolveAssistantMode } from '../lib/connectorCapabilities';
 import { setWorkbenchPreviewEnabled } from './workbenchRoute';
 import { buildSuperstoreDemoArtifact } from './demoArtifact';
 import { useConversation } from './useConversation';
+import type { SanitizedComposerInput } from './composerInput';
 import type { AssistantConnectorDescriptor, AssistantMode, WorkbenchArtifact } from '../types/assistant';
 
 export interface UnifiedWorkbenchProps {
@@ -112,8 +114,14 @@ export const UnifiedWorkbench: React.FC<UnifiedWorkbenchProps> = ({ descriptor }
                             composerRef={composerRef}
                             onReset={() => conversation.reset()}
                             livePromoted={livePromoted}
+                            sanitization={conversation.lastSanitization}
                         />
                         <ArtifactCard artifact={visibleArtifact} />
+                        <FollowUpQuestions
+                            questions={conversation.suggestedQuestions}
+                            onAsk={(q) => conversation.ask(q)}
+                            disabled={conversation.isStarting || conversation.isPolling}
+                        />
                     </section>
                 ) : null}
 
@@ -133,8 +141,14 @@ export const UnifiedWorkbench: React.FC<UnifiedWorkbenchProps> = ({ descriptor }
                                 composerRef={composerRef}
                                 onReset={() => conversation.reset()}
                                 livePromoted={livePromoted}
+                                sanitization={conversation.lastSanitization}
                             />
                             <ArtifactCard artifact={visibleArtifact} />
+                            <FollowUpQuestions
+                                questions={conversation.suggestedQuestions}
+                                onAsk={(q) => conversation.ask(q)}
+                                disabled={conversation.isStarting || conversation.isPolling}
+                            />
                         </section>
                     </>
                 ) : null}
@@ -159,6 +173,7 @@ interface WorkbenchComposerProps {
     readonly onReset: () => void;
     readonly composerRef: React.MutableRefObject<HTMLTextAreaElement | null>;
     readonly livePromoted: boolean;
+    readonly sanitization: SanitizedComposerInput | null;
 }
 
 const WorkbenchComposer: React.FC<WorkbenchComposerProps> = ({
@@ -171,6 +186,7 @@ const WorkbenchComposer: React.FC<WorkbenchComposerProps> = ({
     onReset,
     composerRef,
     livePromoted,
+    sanitization,
 }) => {
     const [draft, setDraft] = useState('');
     const submit = () => {
@@ -230,6 +246,14 @@ const WorkbenchComposer: React.FC<WorkbenchComposerProps> = ({
             {error ? (
                 <div className="workbench-composer-error" role="alert" data-testid="workbench-composer-error">
                     {error.message || 'Conversation failed. See diagnostics.'}
+                </div>
+            ) : null}
+            {sanitization && sanitization.mutated ? (
+                <div className="workbench-composer-sanitization" role="status" data-testid="workbench-composer-sanitization">
+                    Input was sanitized before send:
+                    {sanitization.secretsHit.length > 0 ? <> redacted {sanitization.secretsHit.length} secret{sanitization.secretsHit.length === 1 ? '' : 's'} ({sanitization.secretsHit.join(', ')})</> : null}
+                    {sanitization.injectionHit.length > 0 ? <> stripped {sanitization.injectionHit.length} injection keyword{sanitization.injectionHit.length === 1 ? '' : 's'} ({sanitization.injectionHit.join(', ')})</> : null}
+                    .
                 </div>
             ) : null}
         </div>

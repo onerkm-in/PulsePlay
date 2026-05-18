@@ -173,6 +173,19 @@ export interface MarkdownPayload {
 }
 
 /**
+ * Labelled SQL section emitted by the Phase 11b prompt translators
+ * (Genie / Foundation Model inject `/* Section: ID *\/` CTE-comment
+ * markers; the proxy `sqlSectionExtractor` parses them back). The
+ * workbench SQL tab renders one labelled subtab per section when present;
+ * the canonical `sql` field stays as the fallback.
+ */
+export interface ArtifactSqlSection {
+    readonly sectionId: string;
+    readonly sqlFragment: string;
+    readonly cteName?: string;
+}
+
+/**
  * Reasoning trace as the connector reported it. Free-form per step.
  * Validator does NOT promote any reasoning step into a `Verified` claim.
  */
@@ -203,6 +216,12 @@ export interface WorkbenchArtifact {
     readonly table?: ArtifactResultTable;
     /** SQL or DAX shown in the SQL tab. */
     readonly sql?: string;
+    /**
+     * Labelled SQL sections (Phase 11b). When present, the SQL tab renders
+     * one labelled subtab per section AND keeps `sql` as the canonical
+     * fallback view. Empty/absent => SQL tab renders `sql` only.
+     */
+    readonly sqlSections?: ReadonlyArray<ArtifactSqlSection>;
     /** Evidence chain shown in the Evidence tab. */
     readonly citations?: ReadonlyArray<ArtifactCitation>;
     /** Reasoning steps shown in the Reasoning tab. */

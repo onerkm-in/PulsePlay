@@ -16,6 +16,7 @@
 import type {
     ArtifactCitation,
     ArtifactResultTable,
+    ArtifactSqlSection,
     ArtifactStatus,
     ChartSpec,
     ConnectorType,
@@ -42,6 +43,7 @@ export interface CandidateArtifact {
     readonly chart?: ChartSpec;
     readonly table?: ArtifactResultTable;
     readonly sql?: string;
+    readonly sqlSections?: ReadonlyArray<ArtifactSqlSection>;
     readonly citations?: ReadonlyArray<ArtifactCitation>;
     readonly reasoning?: ReasoningTrace;
     readonly executionTimeMs?: number;
@@ -224,6 +226,7 @@ function finalize(
         ...(candidate.chart && !chartBlocked ? { chart: candidate.chart } : {}),
         ...(candidate.table && !tableBlocked ? { table: candidate.table } : {}),
         ...(candidate.sql ? { sql: candidate.sql } : {}),
+        ...(candidate.sqlSections && candidate.sqlSections.length > 0 ? { sqlSections: candidate.sqlSections } : {}),
         ...(candidate.citations ? { citations: candidate.citations } : {}),
         ...(candidate.reasoning ? { reasoning: candidate.reasoning } : {}),
         ...(typeof candidate.executionTimeMs === 'number' ? { executionTimeMs: candidate.executionTimeMs } : {}),

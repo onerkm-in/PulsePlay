@@ -11,10 +11,11 @@
 // Every renderer is pure — no state, no effects. Easy to test, swap, and
 // portable into other surfaces (history scrolls, evidence drawers, exports).
 
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import type {
     ArtifactCitation,
     ArtifactResultTable,
+    ArtifactSqlSection,
     ChartSpec,
     MarkdownPayload,
     ReasoningTrace,
@@ -105,14 +106,60 @@ function formatCell(value: string | number | null): string {
 
 // ─── SQL tab ───────────────────────────────────────────────────────────
 
-export const SqlTab: React.FC<{ sql: string | undefined }> = ({ sql }) => {
-    if (!sql || !sql.trim()) {
+export interface SqlTabProps {
+    readonly sql: string | undefined;
+    readonly sections?: ReadonlyArray<ArtifactSqlSection>;
+}
+
+export const SqlTab: React.FC<SqlTabProps> = ({ sql, sections }) => {
+    const sectionList = useMemo(() => Array.isArray(sections) ? sections.filter((s) => s && s.sectionId && s.sqlFragment) : [], [sections]);
+    const hasSql = !!sql && sql.trim().length > 0;
+    const hasSections = sectionList.length > 0;
+    // Subtab state: 0 = canonical SQL, 1..N = section[i-1].
+    const [activeIdx, setActiveIdx] = useState(0);
+
+    if (!hasSql && !hasSections) {
         return <div className="workbench-tab-empty">No SQL attached.</div>;
     }
+    if (!hasSections) {
+        return (
+            <pre className="workbench-tab-sql" data-testid="artifact-tab-sql">
+                <code>{sql}</code>
+            </pre>
+        );
+    }
+
+    // Render section subtab strip + body. Index 0 is always the canonical SQL
+    // when present so the labelled sections never hide the raw fallback.
+    const tabs: Array<{ key: string; label: string; body: string }> = [];
+    if (hasSql) tabs.push({ key: 'canonical', label: 'Full SQL', body: sql! });
+    sectionList.forEach((s) => {
+        const label = s.cteName ? `${s.sectionId} (${s.cteName})` : s.sectionId;
+        tabs.push({ key: `section-${s.sectionId}`, label, body: s.sqlFragment });
+    });
+    const active = tabs[Math.min(activeIdx, tabs.length - 1)] ?? tabs[0];
+
     return (
-        <pre className="workbench-tab-sql" data-testid="artifact-tab-sql">
-            <code>{sql}</code>
-        </pre>
+        <div className="workbench-tab-sql-sectioned" data-testid="artifact-tab-sql">
+            <nav className="workbench-sql-section-strip" role="tablist" aria-label="SQL sections">
+                {tabs.map((t, i) => (
+                    <button
+                        key={t.key}
+                        type="button"
+                        role="tab"
+                        aria-selected={i === activeIdx}
+                        className={`workbench-sql-section-btn${i === activeIdx ? ' workbench-sql-section-btn-active' : ''}`}
+                        onClick={() => setActiveIdx(i)}
+                        data-testid={`artifact-sql-section-btn-${t.key}`}
+                    >
+                        {t.label}
+                    </button>
+                ))}
+            </nav>
+            <pre className="workbench-tab-sql" data-testid={`artifact-sql-section-body-${active.key}`}>
+                <code>{active.body}</code>
+            </pre>
+        </div>
     );
 };
 
