@@ -18,6 +18,7 @@
 - [ ] **Phase C — Auto-derived params** (2-3d, queued). Slider/stepper/multi-select UI upgrade driven by data distribution from Phase A's availableKpis + biDimensions.
 - [ ] **Phase D — Staged "1-then-3" rendering** (3-4d, queued). SectionedOrchestrator + SSE streaming + SectionedAnswer UI; HEADLINE first, then parallel TRENDS/RISKS/ACTIONS.
 - [ ] **BIAdapter.getMetadata() extension** — makes BCG / RFM reachability honest by exposing visible measures + dimensions from the active BI view. Power BI implements via powerbi-client; iframe adapters return null.
+- [ ] **Theme Studio** (locked 2026-05-18, [THEME_STUDIO.md](THEME_STUDIO.md)). First-class no-code visual customisation for the AI briefing + workbench. Phase 1: `PulsePlayThemeTokens` contract, CSS variable mapping, 4–6 built-in presets, Settings → Preferences → Theme Studio with live preview, localStorage persistence. Phase 2: JSON/W3C design-token import + export + contrast validation. Phase 3: Figma file/key import via proxy relay. Phase 4: image upload → client-side palette extraction → AI-suggested theme. Hard tripwires: preview-then-confirm always; WCAG AA mandatory; `colorGood/Warn/Bad` must remain semantically unambiguous.
 - See [DISCOVERY_LOOP.md](DISCOVERY_LOOP.md) + [STAGED_RENDERING.md](STAGED_RENDERING.md).
 
 ## Recently shipped (v0.1.3)

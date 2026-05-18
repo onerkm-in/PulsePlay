@@ -134,6 +134,12 @@ How the user **interacts**. Independent of which surface + connector they pick.
 4. **Trust + Evidence panel** — source surface, active filters, frame, SQL, lineage, pack, confidence/limitations. (Cross-track with Track 5.)
 5. **Per-leaf revert + deep-link copy** (Settings IA fix #8) — small UX polish.
 6. **RISKS card red-↑ paradox resolution** — three options outlined; gated on Rajesh decision.
+7. **Theme Studio** — first-class no-code visual customisation for the AI briefing + workbench. See [THEME_STUDIO.md](THEME_STUDIO.md) for the full spec. Four-phase roadmap:
+   - **Phase 1:** `PulsePlayThemeTokens` contract, CSS variable mapping, 4–6 built-in presets, Settings → Preferences → Theme Studio with live preview, localStorage persistence.
+   - **Phase 2:** JSON / W3C design-token import + export, per-token contrast validation, fallback-default fill.
+   - **Phase 3:** Figma file/key import via proxy relay — variables/styles extraction, name-match heuristic, diff-table review before apply.
+   - **Phase 4:** Image upload → client-side palette extraction → AI-suggested theme via proxy (`/theme/suggest`), user confirms before apply.
+   - **Hard tripwires (all phases):** preview-then-confirm on every import; WCAG AA mandatory; semantic colors (`colorGood`/`colorWarn`/`colorBad`) cannot become ambiguous; import is data not code; reset always works.
 
 **What stays modular:**
 - Personas seed UX defaults (uiMode, layoutMode, connector hint) but are **not bound** to any specific surface or connector. Analyst can drive PBI+Genie OR Tableau+Azure OpenAI equally.
