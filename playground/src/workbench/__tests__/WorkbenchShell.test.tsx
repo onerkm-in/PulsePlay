@@ -3,21 +3,26 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type React from 'react';
 import { WorkbenchShell } from '../WorkbenchShell';
 import { setWorkbenchPreviewEnabled } from '../workbenchRoute';
 
-interface MountState { container: HTMLElement; root: Root; }
+interface MountState { container: HTMLElement; root: Root; queryClient: QueryClient; }
 function mount(ui: React.ReactNode): MountState {
     const container = document.createElement('div');
     document.body.appendChild(container);
     const root = createRoot(container);
-    act(() => { root.render(ui); });
-    return { container, root };
+    const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    act(() => { root.render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>); });
+    return { container, root, queryClient };
 }
 function unmount(state: MountState) {
     act(() => { state.root.unmount(); });
     state.container.remove();
+    state.queryClient.clear();
 }
 let mounted: MountState | null = null;
 beforeEach(() => {

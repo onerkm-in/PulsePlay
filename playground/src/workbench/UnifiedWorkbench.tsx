@@ -3,20 +3,21 @@
 // Preview shell that wires the workbench primitives together:
 //   - mode resolver picks native-embed / verified / hybrid from descriptor
 //   - native-embed mode renders GenieNativeEmbed
-//   - verified mode renders the artifact card
+//   - verified mode renders the artifact card (live via useConversation;
+//     demo Superstore fixture is fallback when no question has been asked)
 //   - hybrid mode renders both, side-by-side, with the rails on the right
 //
-// Step 6 wiring slice; the actual conversation flow + composer wiring is
-// downstream. This component is feature-flagged (see workbenchRoute.ts).
+// Preview-gated via workbenchRoute.ts.
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { ArtifactCard } from '../components/workbench/ArtifactCard';
 import { GenieNativeEmbed } from '../components/workbench/GenieNativeEmbed';
 import { buildGenieDescriptor } from '../lib/workbenchDescriptors';
 import { resolveAssistantMode } from '../lib/connectorCapabilities';
 import { setWorkbenchPreviewEnabled } from './workbenchRoute';
 import { buildSuperstoreDemoArtifact } from './demoArtifact';
-import type { AssistantConnectorDescriptor, AssistantMode } from '../types/assistant';
+import { useConversation } from './useConversation';
+import type { AssistantConnectorDescriptor, AssistantMode, WorkbenchArtifact } from '../types/assistant';
 
 export interface UnifiedWorkbenchProps {
     /**
@@ -40,6 +41,18 @@ export const UnifiedWorkbench: React.FC<UnifiedWorkbenchProps> = ({ descriptor }
 
     const demoArtifact = useMemo(() => buildSuperstoreDemoArtifact(), []);
     const mode = resolution.mode;
+    const composerRef = useRef<HTMLTextAreaElement | null>(null);
+
+    const conversation = useConversation({
+        profile: activeDescriptor.profile,
+        connectorType: activeDescriptor.connectorType,
+    });
+
+    // Live artifact replaces the demo as soon as a real conversation has
+    // produced a validated result. Until then the demo Superstore artifact
+    // shows so the preview surface is non-empty on first load.
+    const visibleArtifact: WorkbenchArtifact = conversation.result?.artifact ?? demoArtifact;
+    const livePromoted = conversation.result !== null;
 
     return (
         <div className="workbench-shell" data-testid="workbench-shell">
@@ -76,6 +89,7 @@ export const UnifiedWorkbench: React.FC<UnifiedWorkbenchProps> = ({ descriptor }
                 <div className="workbench-mode-status" data-testid="workbench-mode-status">
                     Active mode: <strong>{mode ? MODE_LABEL[mode] : 'unavailable'}</strong>{' '}
                     (reason: <code>{resolution.reason}</code>)
+                    {livePromoted ? <span className="workbench-mode-source" data-testid="workbench-source-live"> · source: live</span> : <span className="workbench-mode-source" data-testid="workbench-source-demo"> · source: demo fixture</span>}
                 </div>
             </header>
 
@@ -88,7 +102,18 @@ export const UnifiedWorkbench: React.FC<UnifiedWorkbenchProps> = ({ descriptor }
 
                 {mode === 'verified' ? (
                     <section className="workbench-pane workbench-pane-verified">
-                        <ArtifactCard artifact={demoArtifact} />
+                        <WorkbenchComposer
+                            disabled={conversation.isStarting || conversation.isPolling}
+                            isStarting={conversation.isStarting}
+                            isPolling={conversation.isPolling}
+                            upstreamStatus={conversation.upstreamStatus}
+                            error={conversation.error}
+                            onAsk={(question) => conversation.ask(question)}
+                            composerRef={composerRef}
+                            onReset={() => conversation.reset()}
+                            livePromoted={livePromoted}
+                        />
+                        <ArtifactCard artifact={visibleArtifact} />
                     </section>
                 ) : null}
 
@@ -98,7 +123,18 @@ export const UnifiedWorkbench: React.FC<UnifiedWorkbenchProps> = ({ descriptor }
                             <GenieNativeEmbed descriptor={activeDescriptor} />
                         </section>
                         <section className="workbench-pane workbench-pane-rails">
-                            <ArtifactCard artifact={demoArtifact} />
+                            <WorkbenchComposer
+                                disabled={conversation.isStarting || conversation.isPolling}
+                                isStarting={conversation.isStarting}
+                                isPolling={conversation.isPolling}
+                                upstreamStatus={conversation.upstreamStatus}
+                                error={conversation.error}
+                                onAsk={(question) => conversation.ask(question)}
+                                composerRef={composerRef}
+                                onReset={() => conversation.reset()}
+                                livePromoted={livePromoted}
+                            />
+                            <ArtifactCard artifact={visibleArtifact} />
                         </section>
                     </>
                 ) : null}
@@ -109,6 +145,93 @@ export const UnifiedWorkbench: React.FC<UnifiedWorkbenchProps> = ({ descriptor }
                     </section>
                 ) : null}
             </main>
+        </div>
+    );
+};
+
+interface WorkbenchComposerProps {
+    readonly disabled: boolean;
+    readonly isStarting: boolean;
+    readonly isPolling: boolean;
+    readonly upstreamStatus: string | undefined;
+    readonly error: Error | null;
+    readonly onAsk: (question: string) => void;
+    readonly onReset: () => void;
+    readonly composerRef: React.MutableRefObject<HTMLTextAreaElement | null>;
+    readonly livePromoted: boolean;
+}
+
+const WorkbenchComposer: React.FC<WorkbenchComposerProps> = ({
+    disabled,
+    isStarting,
+    isPolling,
+    upstreamStatus,
+    error,
+    onAsk,
+    onReset,
+    composerRef,
+    livePromoted,
+}) => {
+    const [draft, setDraft] = useState('');
+    const submit = () => {
+        const trimmed = draft.trim();
+        if (!trimmed || disabled) return;
+        onAsk(trimmed);
+    };
+
+    useEffect(() => {
+        if (composerRef.current && !disabled) {
+            // Keep focus on the composer after a submission so follow-ups stay fast.
+            composerRef.current.focus();
+        }
+    }, [disabled, composerRef]);
+
+    return (
+        <div className="workbench-composer" data-testid="workbench-composer">
+            <label className="workbench-composer-label" htmlFor="workbench-composer-input">Ask Pulse</label>
+            <textarea
+                id="workbench-composer-input"
+                ref={composerRef}
+                className="workbench-composer-input"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                        e.preventDefault();
+                        submit();
+                    }
+                }}
+                placeholder="Ask a grounded question about your data. Cmd/Ctrl+Enter to submit."
+                disabled={disabled}
+                rows={3}
+                data-testid="workbench-composer-input"
+            />
+            <div className="workbench-composer-actions">
+                <button
+                    type="button"
+                    onClick={submit}
+                    disabled={disabled || draft.trim().length === 0}
+                    className="workbench-composer-submit"
+                    data-testid="workbench-composer-submit"
+                >
+                    {isStarting ? 'Starting…' : isPolling ? `Polling${upstreamStatus ? ` (${upstreamStatus})` : '…'}` : 'Ask'}
+                </button>
+                {livePromoted ? (
+                    <button
+                        type="button"
+                        onClick={() => { setDraft(''); onReset(); }}
+                        className="workbench-composer-reset"
+                        data-testid="workbench-composer-reset"
+                    >
+                        Reset to demo
+                    </button>
+                ) : null}
+            </div>
+            {error ? (
+                <div className="workbench-composer-error" role="alert" data-testid="workbench-composer-error">
+                    {error.message || 'Conversation failed. See diagnostics.'}
+                </div>
+            ) : null}
         </div>
     );
 };
