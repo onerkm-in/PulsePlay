@@ -19,6 +19,8 @@ import type {
     MarkdownPayload,
     ReasoningTrace,
 } from '../../types/assistant';
+import { compileVegaLiteToECharts, type VegaLiteSpec } from '../../lib/vegaLiteToECharts';
+import { EChartsRenderer } from './EChartsRenderer';
 
 // ─── Answer tab ────────────────────────────────────────────────────────
 
@@ -39,24 +41,27 @@ export const AnswerTab: React.FC<{ payload: MarkdownPayload | undefined }> = ({ 
 // ─── Chart tab ─────────────────────────────────────────────────────────
 
 /**
- * Step 3 ships a Vega-Lite-spec preview only. Step 5 plugs the ECharts
- * adapter into this slot via a registry. Don't render the JSON in
- * production — for now we surface the spec mark + a stable placeholder.
+ * Compiles the Vega-Lite spec to an ECharts option via the chart registry
+ * (Step 5). If the compiler cannot render the spec, surfaces the reason
+ * inline rather than a generic empty state.
  */
 export const ChartTab: React.FC<{ spec: ChartSpec | undefined }> = ({ spec }) => {
     if (!spec) {
         return <div className="workbench-tab-empty">No chart spec attached.</div>;
     }
-    const mark = (spec as Record<string, unknown>).mark;
-    const markLabel = typeof mark === 'string' ? mark : (typeof mark === 'object' && mark !== null && 'type' in mark ? String((mark as { type: unknown }).type) : 'unknown');
+    const result = compileVegaLiteToECharts(spec as unknown as VegaLiteSpec);
+    if (!result.ok || !result.option) {
+        return (
+            <div className="workbench-tab-chart" data-testid="artifact-tab-chart">
+                <div className="workbench-chart-unsupported" data-testid="artifact-chart-unsupported">
+                    Chart spec could not be rendered: {result.reason ?? 'unknown reason'}
+                </div>
+            </div>
+        );
+    }
     return (
         <div className="workbench-tab-chart" data-testid="artifact-tab-chart">
-            <div className="workbench-chart-placeholder" data-testid="artifact-chart-placeholder">
-                Chart renderer pending Step 5 (ECharts adapter).
-            </div>
-            <div className="workbench-chart-spec-meta">
-                <strong>Spec mark:</strong> {markLabel}
-            </div>
+            <EChartsRenderer option={result.option} />
         </div>
     );
 };

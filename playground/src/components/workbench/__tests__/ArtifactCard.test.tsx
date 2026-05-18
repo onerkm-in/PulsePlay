@@ -144,16 +144,34 @@ describe('ArtifactCard — per-tab content', () => {
         expect(empty?.textContent).toBe('No answer available.');
     });
 
-    it('Chart tab surfaces a placeholder + spec mark', () => {
-        mounted = mount(<ArtifactCard artifact={artifact({ tabs: ['chart'], chart: { mark: 'bar', data: {}, encoding: {} } })} />);
-        expect(mounted.container.querySelector('[data-testid="artifact-chart-placeholder"]')).not.toBeNull();
-        expect(mounted.container.textContent).toContain('Spec mark:');
-        expect(mounted.container.textContent).toContain('bar');
+    it('Chart tab compiles a real bar spec into an ECharts host', () => {
+        mounted = mount(<ArtifactCard artifact={artifact({
+            tabs: ['chart'],
+            chart: {
+                mark: 'bar',
+                data: { values: [{ x: 'Tech', y: 836154 }, { x: 'Furniture', y: 741999 }] },
+                encoding: { x: { field: 'x', type: 'nominal' }, y: { field: 'y', type: 'quantitative' } },
+            },
+        })} />);
+        expect(mounted.container.querySelector('[data-testid="echarts-host"]')).not.toBeNull();
     });
 
-    it('Chart tab handles object-shaped mark', () => {
-        mounted = mount(<ArtifactCard artifact={artifact({ tabs: ['chart'], chart: { mark: { type: 'line' }, data: {}, encoding: {} } })} />);
-        expect(mounted.container.textContent).toContain('line');
+    it('Chart tab compiles an object-shaped line mark', () => {
+        mounted = mount(<ArtifactCard artifact={artifact({
+            tabs: ['chart'],
+            chart: {
+                mark: { type: 'line' },
+                data: { values: [{ x: 'Jan', y: 1 }, { x: 'Feb', y: 2 }] },
+                encoding: { x: { field: 'x' }, y: { field: 'y' } },
+            },
+        })} />);
+        expect(mounted.container.querySelector('[data-testid="echarts-host"]')).not.toBeNull();
+    });
+
+    it('Chart tab surfaces unsupported reason when spec has no data', () => {
+        mounted = mount(<ArtifactCard artifact={artifact({ tabs: ['chart'], chart: { mark: 'bar', data: {}, encoding: {} } })} />);
+        expect(mounted.container.querySelector('[data-testid="artifact-chart-unsupported"]')).not.toBeNull();
+        expect(mounted.container.querySelector('[data-testid="echarts-host"]')).toBeNull();
     });
 
     it('Table tab renders columns + rows', () => {
