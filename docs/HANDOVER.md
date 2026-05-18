@@ -5,6 +5,52 @@
 
 ---
 
+## 2026-05-18 — Phase D: Foundation Model SSE streaming — section-by-section progressive render (`HEAD`)
+
+**Range:** Beast-mode implementation of the "1-then-3" staged rendering for the Foundation Model connector path. Genie remains batch (API constraint); Foundation Model now streams tokens via NDJSON and renders each section as it completes — first section appears in ~3-5s instead of 60-90s.
+
+### Proxy — `/foundation/conversations/start-stream`
+
+- New route in [`proxy/server.js`](../proxy/server.js) that accepts the same body as `/foundation/section` but streams the LLM response as NDJSON.
+- Sets `stream: true` in the OpenAI-compatible request body; uses raw `https.request` with `resp.on('data')` to pipe SSE tokens without buffering.
+- NDJSON protocol: `{"t":"token"}` per token, `{"s":"SECTIONNAME"}` on detected `\n# ` boundary, `{"done":true,"content":"...","usage":{...}}` on completion, `{"error":"..."}` on failure.
+- Section boundary detection: scans accumulated content for `\n#{1,2} UPPERCASE` pattern, emits section events so the frontend can flip skeleton placeholders to live content per section.
+- Client disconnect tears down upstream request (`res.on('close')` → `upstreamReq.destroy()`).
+- `buildFoundationModelBody` exported from [`proxy/lib/foundationModelClient.js`](../proxy/lib/foundationModelClient.js) so the route can build the streaming body.
+
+### Frontend — `FoundationModelStreamBackend`
+
+- New [`playground/src/pulse/backend/FoundationModelStreamBackend.ts`](../playground/src/pulse/backend/FoundationModelStreamBackend.ts): `SingleSpaceBackend` that hits `/foundation/conversations/start-stream` via XHR `onprogress` (XHR kept for PBI sandbox compat, not fetch).
+- `startConversation` packs the prompt into a JSON messageId and returns immediately.
+- `waitForMessageWithProgress` opens the streaming XHR, parses NDJSON lines from progressive `responseText`, calls `onContentChunk(accumulated)` on every token and resolves on `{"done":true}`.
+- `cancel()` aborts the inflight XHR.
+
+### BackendAdapter — `ContentChunkCallback`
+
+- New `ContentChunkCallback = (accumulatedContent: string) => void` type in [`BackendAdapter.ts`](../playground/src/pulse/backend/BackendAdapter.ts).
+- `waitForMessageWithProgress` signature extended with optional 4th param `onContentChunk?`. All existing backends ignore it — backwards-compatible.
+
+### visual.tsx — progressive section render
+
+- `runStage` now passes `onContentChunk` as 4th argument to `waitForMessageWithProgress`.
+- On each token: writes `partialContent` to `contentParts[index]`, re-joins all parts, and calls `setSpaceInsightsResult` with the updated content — section renders progressively as tokens arrive.
+- No-op for Genie/OpenAI/Bedrock backends (they never call the callback).
+
+### Connector registry
+
+- `"foundation-stream"` added to `ConnectionMode` union in [`genie.ts`](../playground/src/pulse/genie.ts).
+- `FOUNDATION_STREAM_DESCRIPTOR` added to [`connectorRegistry.ts`](../playground/src/pulse/backend/connectorRegistry.ts) — status `"preview"`, `streaming: true`, factory returns `FoundationModelStreamBackend`.
+
+### Honest gap
+
+The `foundation-stream` connector is not yet selectable in the Settings UI ConnectorPicker (the picker lists `CONNECTOR_REGISTRY` but the label filter may need updating). Wire it up manually via `assistantProfile` + `connectionMode: "foundation-stream"` in Settings for now. Full UI picker integration is a follow-up.
+
+### Genie latency — remains unchanged
+
+Genie is poll-based (API constraint). The 30-90s wait before first content is intrinsic to the Genie API. The `foundation-stream` connector is the recommended path for latency-sensitive use cases.
+
+---
+
 ## 2026-05-18 — Phase E: three live briefing gaps closed — banner, builtin metric defaults, card border tone (`HEAD`)
 
 **Range:** Fixes for three gaps Rajesh spotted in the live Pulse AI briefing screenshots (Return Rate ▲ green pill, stale "No status colors" banner, inconsistent card left-border treatment).

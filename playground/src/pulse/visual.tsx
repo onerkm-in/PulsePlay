@@ -3099,16 +3099,6 @@ function App(props: AppProps) {
                     setSpaceInsightsResult(spaceKey, prev => {
                         if (!prev) return prev;
                         const elapsed = Math.floor((Date.now() - (insightsStartTimeRef.current[spaceKey] ?? Date.now())) / 1000);
-                        // Cycle 35 (rev'd cycle 36) — header line format.
-                        // Original cycle 35 added "{Ns} ({label})" but the user
-                        // pointed out the timer is already shown on the meta
-                        // row beneath as "Stage X of Y | Ns". Final format
-                        // is now just:
-                        //   <Section name> (<streaming info>)
-                        // — the indicator wraps liveStatus in parens itself,
-                        // so we contribute just the polished verb here.
-                        // (elapsed kept in case we need it later for telemetry
-                        // or alternative renderings — currently unused.)
                         void elapsed;
                         const stageLabel = prompts.length > 1 ? label : label;
                         const steps = prev.statusSteps ?? [];
@@ -3116,6 +3106,23 @@ function App(props: AppProps) {
                             return { ...prev, currentStatus: stageLabel, statusSteps: [...steps, stageLabel] };
                         }
                         return { ...prev, currentStatus: stageLabel };
+                    });
+                },
+                // Phase D — streaming content callback. Fires on every token for
+                // streaming backends (foundation-stream). Writes the partial
+                // content into this stage's slot and re-joins all parts so the
+                // section renders progressively as tokens arrive rather than
+                // waiting for the full response. No-op for poll-based backends.
+                (partialContent: string) => {
+                    contentParts[index] = partialContent;
+                    const assembled = joinParts();
+                    setSpaceInsightsResult(spaceKey, prev => {
+                        if (!prev) return prev;
+                        return {
+                            ...prev,
+                            status: "RUNNING",
+                            content: assembled,
+                        };
                     });
                 }
             );

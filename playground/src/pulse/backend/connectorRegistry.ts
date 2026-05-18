@@ -40,6 +40,7 @@ import { GenieClient, GenieConfig } from "../genie";
 import { OpenAIBackend } from "./OpenAIBackend";
 import { BedrockBackend } from "./BedrockBackend";
 import { FoundationModelBackend } from "./FoundationModelBackend";
+import { FoundationModelStreamBackend } from "./FoundationModelStreamBackend";
 
 /** Health probe result — returned by ConnectorDescriptor.health(). */
 export interface HealthResult {
@@ -413,6 +414,32 @@ const FOUNDATION_MODEL_DESCRIPTOR: ConnectorDescriptor = {
     factory: (config) => new FoundationModelBackend(config) as unknown as AnyBackend,
 };
 
+const FOUNDATION_STREAM_DESCRIPTOR: ConnectorDescriptor = {
+    id: "foundation-stream",
+    label: "Databricks Foundation Model (streaming)",
+    noun: FOUNDATION_MODEL_NOUN,
+    kind: "single-space",
+    // This connector IS the streaming connector — tokens arrive via XHR
+    // onprogress and sections render as they complete (first section in ~3-5s).
+    streaming: true,
+    status: "preview",
+    fields: [F_API_BASE, F_PROFILE, F_PROXY_KEY],
+    health: async (config) => {
+        if (!config.apiBaseUrl?.trim()) {
+            return { ok: false, detail: "Proxy API base URL required.", fieldErrors: { apiBaseUrl: "Required" } };
+        }
+        const base = config.apiBaseUrl.replace(/\/$/, "");
+        try {
+            const resp = await probeXhr(`${base}/foundation/health`);
+            if (resp.status >= 200 && resp.status < 300) return { ok: true, detail: "Foundation Model streaming route reachable." };
+            return { ok: false, detail: `Foundation Model route returned HTTP ${resp.status}.` };
+        } catch (err: any) {
+            return { ok: false, detail: err?.message || "Network error" };
+        }
+    },
+    factory: (config) => new FoundationModelStreamBackend(config) as unknown as AnyBackend,
+};
+
 // ── The registry ────────────────────────────────────────────────────────
 
 export const CONNECTOR_REGISTRY: ConnectorDescriptor[] = [
@@ -424,6 +451,7 @@ export const CONNECTOR_REGISTRY: ConnectorDescriptor[] = [
     AZURE_OPENAI_DESCRIPTOR,
     BEDROCK_DESCRIPTOR,
     FOUNDATION_MODEL_DESCRIPTOR,
+    FOUNDATION_STREAM_DESCRIPTOR,
 ];
 
 /** Look up a descriptor by mode id. Returns the AUTO descriptor as a safe

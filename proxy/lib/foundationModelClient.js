@@ -321,6 +321,7 @@ const SECTION_RENDERERS = Object.freeze({
 
 module.exports = {
     callFoundationModel,
+    buildFoundationModelBody,   // exported so server.js streaming route can build the body
     extractUsage,
     RESPONSE_SCHEMAS,
     SECTION_RENDERERS,

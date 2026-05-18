@@ -5398,6 +5398,7 @@ if (process.env.NODE_ENV !== 'test') {
 
 const {
     callFoundationModel,
+    buildFoundationModelBody,
     RESPONSE_SCHEMAS: FOUNDATION_RESPONSE_SCHEMAS,
     SECTION_RENDERERS: FOUNDATION_SECTION_RENDERERS,
 } = require('./lib/foundationModelClient');
@@ -5549,6 +5550,201 @@ app.post('/foundation/section', async (req, res) => {
             retryable: false,
         }));
     }
+});
+
+// ── Foundation Model SSE streaming ───────────────────────────────────────────
+//
+// POST /foundation/conversations/start-stream
+//
+// Same profile + prompt contract as /foundation/section but streams tokens
+// back as NDJSON (newline-delimited JSON) so the frontend can render content
+// progressively section-by-section instead of waiting for the full response.
+//
+// Response format (one JSON object per line):
+//   {"t":"token text"}                        — content token (may be multiple chars)
+//   {"s":"SECTION NAME"}                      — section boundary detected in stream
+//   {"done":true,"content":"...","usage":{}}  — terminal event, full content
+//   {"error":"message"}                       — failure, stream ends
+//
+// Section detection: the LLM is prompted to use `# SECTIONNAME` markdown headers.
+// The accumulator scans for `\n# ` or `\n## ` patterns and emits {"s":...} events
+// when a new section starts — the frontend uses these to flip skeleton placeholders
+// to live content per section rather than waiting for the whole response.
+//
+// Auth + profile resolution: identical to /foundation/section.
+// Timeout: 120s (covers the full streaming generation window).
+//
+app.post('/foundation/conversations/start-stream', async (req, res) => {
+    const resolved = resolveFoundationModelProfile(req.body, req.headers, req);
+    if (!resolved) {
+        return res.status(400).json({
+            error: 'No foundation-model profile configured.',
+            code: 'NO_FM_PROFILE',
+        });
+    }
+
+    const { userPrompt, systemPrompt, temperature, maxTokens } = req.body || {};
+    if (!userPrompt || typeof userPrompt !== 'string' || !userPrompt.trim()) {
+        return res.status(400).json({ error: 'userPrompt is required.' });
+    }
+
+    const messages = [
+        {
+            role: 'system',
+            content: (typeof systemPrompt === 'string' && systemPrompt.trim())
+                ? systemPrompt
+                : 'You are a concise analytics assistant. Respond with structured markdown sections using # SECTIONNAME headers. Never ask clarifying questions.',
+        },
+        { role: 'user', content: userPrompt },
+    ];
+
+    // Build request body with stream:true injected.
+    let body;
+    try {
+        body = buildFoundationModelBody({
+            messages,
+            temperature: typeof temperature === 'number' ? temperature : 0.2,
+            maxTokens: typeof maxTokens === 'number' ? maxTokens : 2048,
+            extra: { stream: true },
+        });
+    } catch (buildErr) {
+        return res.status(400).json({ error: String(buildErr.message) });
+    }
+
+    // NDJSON streaming headers. X-Accel-Buffering: no prevents nginx from
+    // buffering the stream and defeating the progressive-render goal.
+    res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.setHeader('Transfer-Encoding', 'chunked');
+    res.flushHeaders();
+
+    const writeNDJSON = (obj) => {
+        if (!res.writableEnded) {
+            try { res.write(JSON.stringify(obj) + '\n'); } catch { /* client gone */ }
+        }
+    };
+
+    let token;
+    try {
+        token = await resolveToken(resolved.profile);
+    } catch (tokenErr) {
+        writeNDJSON({ error: `Auth failed: ${String(tokenErr.message).slice(0, 200)}` });
+        return res.end();
+    }
+
+    const endpoint = resolved.profile.foundationModelEndpoint;
+    const base = (resolved.profile.host || '').replace(/\/$/, '');
+    const urlPath = `/serving-endpoints/${encodeURIComponent(endpoint)}/invocations`;
+    let fullUrl;
+    try {
+        fullUrl = new URL(base + urlPath);
+    } catch {
+        writeNDJSON({ error: `Invalid profile host: ${base}` });
+        return res.end();
+    }
+
+    const bodyStr = JSON.stringify(body);
+    const isHttps = fullUrl.protocol === 'https:';
+    const lib = isHttps ? https : http;
+
+    let accumulated = '';
+    let lastSectionScanOffset = 0;
+    // Pattern: newline followed by 1-2 # chars, space, then uppercase section name.
+    const SECTION_HEADER_RE = /\n#{1,2} ([A-Z][A-Z\s\-/]+?)(?=\n|$)/g;
+
+    const upstreamReq = lib.request({
+        hostname: fullUrl.hostname,
+        port: fullUrl.port || (isHttps ? 443 : 80),
+        path: fullUrl.pathname + fullUrl.search,
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(bodyStr),
+            'Accept': 'text/event-stream',
+            ...(req.requestId ? { 'X-Request-Id': String(req.requestId).slice(0, 80) } : {}),
+        },
+        timeout: 120000,
+        agent: isHttps ? keepAliveAgent : undefined,
+    }, (upstreamResp) => {
+        if (upstreamResp.statusCode < 200 || upstreamResp.statusCode >= 300) {
+            const errChunks = [];
+            upstreamResp.on('data', c => errChunks.push(c));
+            upstreamResp.on('end', () => {
+                const raw = Buffer.concat(errChunks).toString('utf8').slice(0, 400);
+                writeNDJSON({ error: `FM endpoint ${upstreamResp.statusCode}: ${raw}` });
+                res.end();
+            });
+            return;
+        }
+
+        let sseBuffer = '';
+        let usageBlock = null;
+
+        upstreamResp.on('data', (chunk) => {
+            sseBuffer += chunk.toString('utf8');
+            // SSE lines end with \n; double-newline separates events.
+            const lines = sseBuffer.split('\n');
+            sseBuffer = lines.pop() ?? ''; // keep incomplete last line
+
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed || trimmed === 'data: [DONE]') continue;
+                if (!trimmed.startsWith('data: ')) continue;
+                try {
+                    const data = JSON.parse(trimmed.slice(6));
+                    const tokenText = data.choices?.[0]?.delta?.content;
+                    if (tokenText) {
+                        accumulated += tokenText;
+                        writeNDJSON({ t: tokenText });
+
+                        // Scan for new section headers in newly accumulated text.
+                        const scanWindow = accumulated.slice(lastSectionScanOffset);
+                        SECTION_HEADER_RE.lastIndex = 0;
+                        let match;
+                        while ((match = SECTION_HEADER_RE.exec(scanWindow)) !== null) {
+                            const sectionName = match[1].trim().toUpperCase();
+                            writeNDJSON({ s: sectionName });
+                            lastSectionScanOffset = lastSectionScanOffset + match.index + match[0].length;
+                        }
+                    }
+                    if (data.usage) usageBlock = data.usage;
+                } catch { /* malformed SSE line — skip */ }
+            }
+        });
+
+        upstreamResp.on('end', () => {
+            const finalUsage = usageBlock
+                ? { prompt_tokens: usageBlock.prompt_tokens, completion_tokens: usageBlock.completion_tokens, total_tokens: usageBlock.total_tokens }
+                : null;
+            writeNDJSON({ done: true, content: accumulated, ...(finalUsage ? { usage: finalUsage } : {}) });
+            console.log(`[foundation/stream] profile=${resolved.name} endpoint=${endpoint} chars=${accumulated.length}`);
+            res.end();
+        });
+
+        upstreamResp.on('error', (err) => {
+            writeNDJSON({ error: `Upstream read error: ${err.message}` });
+            res.end();
+        });
+    });
+
+    upstreamReq.on('error', (err) => {
+        writeNDJSON({ error: `Request error: ${err.message}` });
+        if (!res.writableEnded) res.end();
+    });
+
+    upstreamReq.on('timeout', () => {
+        upstreamReq.destroy(new Error('FM stream timed out after 120s'));
+    });
+
+    // Tear down upstream when client disconnects mid-stream.
+    res.on('close', () => {
+        if (!upstreamReq.destroyed) upstreamReq.destroy();
+    });
+
+    upstreamReq.write(bodyStr);
+    upstreamReq.end();
 });
 
 // ── Mosaic AI ResponsesAgent (Agent Framework managed agent) ──────────────────

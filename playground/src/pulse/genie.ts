@@ -18,7 +18,7 @@ export type AssistantIntent =
     | "summary";
 export type OutputMode = "narrative" | "chart" | "table" | "sql" | "trace";
 
-export type ConnectionMode = "auto" | "proxy" | "direct" | "gateway" | "azure-openai" | "bedrock" | "supervisor" | "foundation-model";
+export type ConnectionMode = "auto" | "proxy" | "direct" | "gateway" | "azure-openai" | "bedrock" | "supervisor" | "foundation-model" | "foundation-stream";
 
 export interface GenieSqlSection {
     sectionId: string;
