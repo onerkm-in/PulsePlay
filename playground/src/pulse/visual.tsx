@@ -8975,13 +8975,40 @@ const SqlTabs: React.FC<SqlTabsProps> = (props) => {
  * map 1:1 to Genie's per-stage SQL; preamble "INSIGHTS" sections fall
  * back to no SQL.
  */
+/**
+ * Display label map for Pulse section titles (2026-05-18 design lock).
+ * Internal IDs (HEADLINE / TRENDS / RISKS / RECOMMENDED ACTIONS /
+ * OPPORTUNITIES / KPI SNAPSHOT) drive prompts, validators, visibility
+ * state, exports, and the `data-section` attribute used for testing
+ * and stage SQL lookup. Display labels are user-facing only and follow
+ * Rajesh's briefing direction. Unknown titles pass through unchanged
+ * so custom author sections stay readable.
+ */
+const SECTION_DISPLAY_LABELS: Readonly<Record<string, string>> = Object.freeze({
+    "HEADLINE": "Executive Brief",
+    "TRENDS": "What Changed",
+    "RISKS": "What Needs Attention",
+    "RECOMMENDED ACTIONS": "Next Best Actions",
+});
+
+/** Map an internal section title to its user-facing display label.
+ *  Returns the title unchanged when no mapping is registered. */
+export function displaySectionTitle(internal: string | undefined | null): string {
+    if (!internal) return "";
+    const upper = internal.trim().toUpperCase();
+    return SECTION_DISPLAY_LABELS[upper] ?? internal;
+}
+
 function InsightsSectionHeader(props: { title: string }): React.ReactElement {
     // Cycle 32 — header is title-only. The cycle-20 SQL toggle pill moved
     // to the footer (InsightsSectionFooter) where it sits alongside the new
     // 📋 Copy button. Single action surface per card, predictable position.
+    const display = displaySectionTitle(props.title);
     return (
         <div className="gn-insights-section-head gn-export-skip">
-            {props.title && <h3 className="gn-insights-section-title">{props.title}</h3>}
+            {props.title && (
+                <h3 className="gn-insights-section-title" data-section-title={props.title}>{display}</h3>
+            )}
         </div>
     );
 }
@@ -8992,15 +9019,18 @@ function InsightsSectionHeader(props: { title: string }): React.ReactElement {
 // stage completes, its placeholder is replaced by the rendered content.
 function InsightsSectionPlaceholder(props: { title: string; status?: string }): React.ReactElement {
     const upperTitle = (props.title || "").trim().toUpperCase();
+    const display = displaySectionTitle(upperTitle);
     return (
         <section
             className="gn-insights-section gn-insights-section--placeholder"
             data-section={upperTitle}
             aria-busy="true"
-            aria-label={`${upperTitle} stage in progress`}
+            aria-label={`${display} stage in progress`}
         >
             <div className="gn-insights-section-head gn-export-skip">
-                {upperTitle && <h3 className="gn-insights-section-title">{upperTitle}</h3>}
+                {upperTitle && (
+                    <h3 className="gn-insights-section-title" data-section-title={upperTitle}>{display}</h3>
+                )}
             </div>
             <div className="gn-insights-section-body">
                 <div className="gn-insights-skeleton-line" style={{ width: "92%" }} />
