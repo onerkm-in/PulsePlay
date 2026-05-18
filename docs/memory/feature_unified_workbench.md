@@ -14,5 +14,5 @@ ativeChatEmbed.
 - [x] 3. Create artifact card shell with Answer | Chart | Table | SQL | Evidence | Reasoning.
 - [x] 4. Add verified artifact model and validation gates.
 - [x] 5. Add ECharts renderer + chart registry.
-- [ ] 6. Refactor current Pulse chat assets out of huge isual.tsx.
-- [ ] 7. Apply the cleaner workbench theme.
+- [x] 6. Refactor current Pulse chat assets out of huge isual.tsx.
+- [x] 7. Apply the cleaner workbench theme.
