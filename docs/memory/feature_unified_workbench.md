@@ -11,8 +11,8 @@
 - [ ] 1. Add UnifiedAssistantSurface architecture and connector capability model.
 - [ ] 2. Move Genie iframe from i-adapters or elsewhere into assistant connector mode as 
 ativeChatEmbed.
-- [x] 3. Create artifact card shell with Answer | Chart | Table | SQL | Evidence | Reasoning.
-- [x] 4. Add verified artifact model and validation gates.
-- [x] 5. Add ECharts renderer + chart registry.
+- [ ] 3. Create artifact card shell with Answer | Chart | Table | SQL | Evidence | Reasoning.
+- [ ] 4. Add verified artifact model and validation gates.
+- [ ] 5. Add ECharts renderer + chart registry.
 - [ ] 6. Refactor current Pulse chat assets out of huge isual.tsx.
 - [ ] 7. Apply the cleaner workbench theme.
