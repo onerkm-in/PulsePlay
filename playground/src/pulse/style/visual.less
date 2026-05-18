@@ -1720,7 +1720,20 @@
     margin-bottom: 4px;
 }
 
-/* ── Chat Area ── */
+/* ── Chat Panel + Chat Area ── */
+
+/* Wrapper for the full chat tab — must be a flex column that fills the
+ * remaining shell height so gn-chat-area can flex:1 and gn-compose stays
+ * pinned at the bottom. Without this the tabpanel div is display:block,
+ * gn-chat-area expands to its full content height, and the compose input
+ * is pushed off-screen below the chart. */
+.gn-chat-panel {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+}
 
 .gn-chat-area {
     flex: 1;
@@ -3178,6 +3191,11 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+    /* Cap chart height inside chat messages so a tall bar chart can't expand
+     * the gn-chat-area beyond the viewport and push gn-compose off screen.
+     * The chart itself is scrollable within this cap. */
+    max-height: 420px;
+    overflow: hidden;
 }
 
 .gn-chart-type-bar {

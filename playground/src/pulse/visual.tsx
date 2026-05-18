@@ -5000,6 +5000,7 @@ function App(props: AppProps) {
 
             {activeTab === "chat" && (
                 <div
+                    className="gn-chat-panel"
                     role={enabledFeatures === "both" ? "tabpanel" : undefined}
                     id={enabledFeatures === "both" ? "gn-tabpanel-chat" : undefined}
                     aria-labelledby={enabledFeatures === "both" ? "gn-tab-chat" : undefined}
