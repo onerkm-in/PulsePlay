@@ -2885,6 +2885,44 @@
     text-decoration-color: rgba(102, 102, 102, 0.45);
 }
 
+/* Design lock (2026-05-18) — semantic cue consistency across the whole
+ * insights surface. Arrow direction stays physical (▲ for + / ▼ for -);
+ * tone class drives color so a Return Rate increase reads RED on an UP
+ * arrow when the rule says higher is unfavorable. Tone classes win on
+ * specificity over the direction classes that already exist. The SVG
+ * icon inherits via `currentColor` from .gn-trend-icon path/circle. */
+.gn-trend-pill.gn-trend-tone-good {
+    color: #36d97f;
+    .gn-trend-icon path { fill: currentColor; }
+    .gn-trend-icon circle { fill: currentColor; }
+}
+.gn-shell--light .gn-trend-pill.gn-trend-tone-good { color: #147230; font-weight: 600; }
+
+.gn-trend-pill.gn-trend-tone-bad {
+    color: #ff6b6b;
+    .gn-trend-icon path { fill: currentColor; }
+    .gn-trend-icon circle { fill: currentColor; }
+}
+.gn-shell--light .gn-trend-pill.gn-trend-tone-bad { color: #971a1a; font-weight: 600; }
+
+/* New amber tone — used when the model emits an explicit watch status
+ * (e.g. 🟡) and the inline pill renderer wants to mirror that signal
+ * inline rather than fall back to green/red. KPI tiles already render
+ * amber via their own status badge; this brings inline pills in line. */
+.gn-trend-pill.gn-trend-tone-watch {
+    color: #fbbf24;
+    .gn-trend-icon path { fill: currentColor; }
+    .gn-trend-icon circle { fill: currentColor; }
+}
+.gn-shell--light .gn-trend-pill.gn-trend-tone-watch { color: #92400e; font-weight: 600; }
+
+.gn-trend-pill.gn-trend-tone-neutral {
+    color: #aaa;
+    .gn-trend-icon path { fill: currentColor; }
+    .gn-trend-icon circle { fill: currentColor; }
+}
+.gn-shell--light .gn-trend-pill.gn-trend-tone-neutral { color: #666; }
+
 /* ── Bar chart ── */
 
 .gn-chart-bars {

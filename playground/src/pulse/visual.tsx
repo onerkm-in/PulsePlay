@@ -8340,18 +8340,45 @@ function metricNameBeforePill(text: string, pillIndex: number): string {
     return filtered.slice(-3).join(" ");
 }
 
-// Resolve color class from the physical pill direction + the metric tone.
-// When tone is good → green (gn-trend-up); when tone is bad → red (gn-trend-down).
-// When no rule matches → fall back to glyph direction (existing behavior).
+/**
+ * Resolve the pill class string from the physical pill direction + matched
+ * metric tone. The contract Rajesh locked across the whole insights surface:
+ *
+ *   - Arrow direction = numeric movement (always physical).
+ *   - Color / tone    = business meaning (status/metric-direction rule).
+ *
+ * So a Return Rate increase keeps an UP arrow because the number went up,
+ * but the pill renders red because the rule says higher Return Rate is
+ * unfavorable. The direction class drives the SVG-arrow color slot (which
+ * is then overridden by the tone class via CSS specificity); the tone class
+ * drives the final pill color. Both classes are emitted so the markup keeps
+ * the direction signal AND the tone signal available to readers, tests,
+ * and downstream styling.
+ */
 function pillColorClass(physicalDir: "up" | "down" | "flat", text: string, pillIndex: number, deltaText: string, rules?: InlineMetricRules): string {
+    const dirClass = `gn-trend-pill gn-trend-${physicalDir}`;
     if (physicalDir === "flat" || !rules || (!rules.structured && !rules.legacy)) {
-        return `gn-trend-pill gn-trend-${physicalDir}`;
+        return dirClass;
     }
     const metricName = metricNameBeforePill(text, pillIndex);
-    if (!metricName) return `gn-trend-pill gn-trend-${physicalDir}`;
+    if (!metricName) return dirClass;
+    // Pulse's INLINE_REGEX captures the trend word ("up", "down", "rose",
+    // "fell") and the number separately for the G6/G7 path, so deltaText
+    // arrives WITHOUT a sign. getMetricTone derives direction from the
+    // delta text's sign / glyph, which means an unsigned "0.4pp" reads as
+    // neutral and the rule's higherIsBetter never resolves a concrete
+    // semantic tone. pillColorClass is the only caller that already knows
+    // the physical direction independently of the delta sign, so we
+    // re-attach the sign here before the tone lookup. This keeps the
+    // contract "arrow = movement, color = meaning" honest for prose pills.
+    const signedDeltaText = /^[+-]/.test(deltaText)
+        ? deltaText
+        : physicalDir === "up" ? `+${deltaText}`
+        : physicalDir === "down" ? `-${deltaText}`
+        : deltaText;
     const tone = getMetricTone({
         metricName,
-        deltaText,
+        deltaText: signedDeltaText,
         valueText: deltaText,
         structuredJson: rules.structured,
         legacyText: rules.legacy,
@@ -8360,17 +8387,16 @@ function pillColorClass(physicalDir: "up" | "down" | "flat", text: string, pillI
     // concrete rule but it reads like a well-known delta phrase ("YoY %",
     // "change vs plan", "variance %"), render with a low-confidence neutral
     // pill so the reader sees CONSISTENT pill chrome across the section even
-    // though the semantic tone is unknown. Existing rule-matched and no-rule
-    // physical-mapping paths are unchanged.
+    // though the semantic tone is unknown.
     if (!tone.matchedRule) {
         if (matchesFuzzyAlias(metricName) || matchesFuzzyAlias(text.slice(Math.max(0, pillIndex - 60), pillIndex))) {
-            return "gn-trend-pill gn-trend-flat";
+            return `${dirClass} gn-trend-tone-neutral`;
         }
-        return `gn-trend-pill gn-trend-${physicalDir}`;
+        return dirClass;
     }
-    if (tone.semanticTone === "good") return "gn-trend-pill gn-trend-up";
-    if (tone.semanticTone === "bad") return "gn-trend-pill gn-trend-down";
-    return `gn-trend-pill gn-trend-${physicalDir}`;
+    if (tone.semanticTone === "good") return `${dirClass} gn-trend-tone-good`;
+    if (tone.semanticTone === "bad") return `${dirClass} gn-trend-tone-bad`;
+    return dirClass;
 }
 
 // Wave 33 — extract every metric name + alias from the rules sources, ready
