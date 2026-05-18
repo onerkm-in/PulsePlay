@@ -47,6 +47,8 @@ import { KnowledgeShell } from "./knowledge/KnowledgeShell";
 import { useKnowledgeRoute } from "./knowledge/knowledgeRoute";
 import { LaunchpadShell } from "./launchpad/LaunchpadShell";
 import { useLaunchpadRoute } from "./launchpad/launchpadRoute";
+import { WorkbenchShell } from "./workbench/WorkbenchShell";
+import { useWorkbenchRoute } from "./workbench/workbenchRoute";
 // PERF — lazy-load PulseShell so the 642 KB pulse chunk isn't on the
 // first-paint critical path. The brand strip + top bar render
 // instantly while pulse fetches in parallel. v0 mode (which doesn't
@@ -285,6 +287,7 @@ function AppRouted(): React.ReactElement {
     const settingsRoute = useSettingsRoute();
     const knowledgeRoute = useKnowledgeRoute();
     const launchpadRoute = useLaunchpadRoute();
+    const workbenchRoute = useWorkbenchRoute();
 
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -298,6 +301,9 @@ function AppRouted(): React.ReactElement {
         return () => window.removeEventListener("keydown", handler);
     }, []);
 
+    if (workbenchRoute.isWorkbenchRoute) {
+        return <WorkbenchShell />;
+    }
     if (knowledgeRoute.isKnowledgeRoute) {
         return <KnowledgeShell />;
     }
