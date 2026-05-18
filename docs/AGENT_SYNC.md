@@ -112,6 +112,20 @@ Cumulative: **165 new tests** across the 6 commits; full playground sweep **745/
 
 Validation: lint clean, tsc clean, full sweep **763/763**, build clean (14.27 s), Vite `/workbench` HTTP 200.
 
+**[DONE] 2026-05-18 — AI briefing Phases C + D landed (`681a4fd`).** Beast-mode close-out of both queued lanes:
+
+**Phase C — toolbar noise reduction**. Pulse Insights toolbar keeps only high-signal controls visible (Timestamp / Customize ⚙ / Refresh / Stop). Copy MD / Copy HTML / Print PDF collapse into a `⋮` overflow popover (outside-click + Esc close; Esc returns focus to trigger; each menuitem closes on click). New `more-vertical` Icon registered.
+
+**Phase D — information hierarchy + visual calming**. `.gn-insights-sections` restructured to a 2-column CSS Grid driven by `data-section`: HEADLINE full-width row 1, KPI + TRENDS row 2, RISKS + RECOMMENDED ACTIONS row 3, OPPORTUNITIES tail. Narrow viewports collapse to single column. RECOMMENDED ACTIONS gets the briefing's one accent moment (thin accent border + low-alpha tint + warmer shadow; light-mode tuned). `order` re-arranges visually while DOM order preserves stagger animation.
+
+**Sugar-candy press grammar extended** to `gn-pane-action-btn` + `gn-insights-overflow-item` so the new toolbar buttons + overflow menuitems snap with the same 60ms scale(0.97) feedback.
+
+13 new vitest (4 Icon registry + 9 grid contract). Full sweep **868/868**.
+
+**[HONEST GAP for next agent]:** No App-mount toolbar test for the overflow popover state. The existing Pulse harness uses only `__insightsRenderForTest` (pure render functions); mounting the full `App` requires `PulseHostStub` + settings provider + many other fixtures. Overflow behavior is covered by `tsc` + Vite smoke + the popover's outside-click/Esc handlers mirror the production-verified Customize popover code path. A proper App-mount harness (could share with Codex's Playwright Chromium pattern from `5623808`) would unlock testing the surface switcher, Adjust, customize popover, AND the overflow popover from one fixture. Worth ~1-2 hr in a future cycle.
+
+**[HANDOFF] Workbench Step 7 (theme)** is now the last queued sequence item. Sugar-candy grammar (motion + depth + colour) already in place; Step 7 swaps inline workbench styles for the full theme + adds `prefers-color-scheme` for dark/compact/high-contrast modes. The Pulse `gn-shell--dark` model is the Pulse-PBI compat path — do NOT port; rebuild on W3C Design Tokens + `prefers-color-scheme`.
+
 **[DONE] 2026-05-18 — MetricRule.unfavorableMovementTone — amber as first-class direction option (`9811464`).** Rajesh's architecture call: trust the author-defined "metric formatter" (`MetricRule` + `MetricRuleForm` in `playground/src/pulse/metricRulesEngine.ts` + `metricRuleForm.tsx`) over heuristics. He also flagged that direction-only tone logic was binary (red/green only — amber unreachable without threshold bands that bracket the actual value).
 
 Fix: optional `unfavorableMovementTone?: "warn" | "bad"` on `MetricRule` and `MetricDirectionRule`. Default omitted = "bad" (backward compat — no existing rule's behavior changes). Authors set "warn" per metric for "watch" semantics on any unfavorable nudge (e.g. Return Rate, NPS, retention). Threshold bands still take precedence when defined; `statusTone` (🟡/⚠/"watch") still takes precedence over both.

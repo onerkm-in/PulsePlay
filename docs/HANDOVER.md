@@ -5,6 +5,64 @@
 
 ---
 
+## 2026-05-18 - AI briefing Phases C + D landed — toolbar overflow + grid hierarchy + Next Best Actions accent (`681a4fd`)
+
+**Range:** Beast-mode close-out of the two queued lanes from [AI_BRIEFING_DESIGN_DIRECTION.md](AI_BRIEFING_DESIGN_DIRECTION.md). Single commit covers both phases plus the sugar-candy press grammar extension.
+
+### Phase C — toolbar noise reduction
+
+- Pulse Insights toolbar keeps only the high-signal controls visible: **Timestamp, Customize ⚙, Refresh, Stop**.
+- Copy MD / Copy HTML / Print PDF collapse into a single **`⋮`** overflow trigger that opens a popover menu. Same handlers, same flash-copy state, same Clipboard API + fallback. Each menuitem closes the popover on click; outside-click + Esc both close it; Esc returns focus to the trigger.
+- New `more-vertical` Icon (three vertical dots) registered in [pulse/_adapter/Icon.tsx](../playground/src/pulse/_adapter/Icon.tsx). PATHS map kept in sync with the union; the new Icon test catches the "added to union, forgot PATHS" regression.
+
+### Phase D — information hierarchy + visual calming
+
+- `.gn-insights-sections` restructured to the locked sketch:
+  - **Row 1**: HEADLINE (full-width — "Executive Brief")
+  - **Row 2**: KPI SNAPSHOT | TRENDS ("What Changed")
+  - **Row 3**: RISKS ("What Needs Attention") | RECOMMENDED ACTIONS ("Next Best Actions")
+  - **Tail**: OPPORTUNITIES (full-width), then custom sections
+- Wide viewports (≥ 720 px) use a 2-column CSS grid with placement driven entirely by the `data-section` attribute (Phase B contract). `order` is set per section so visual layout follows the hierarchy WHILE DOM order stays in stream sequence — the existing `gn-section-reveal` stagger animation (60ms × `:nth-child(N)`) still fires in arrival order.
+- Narrow viewports (< 720 px) collapse to a single column for natural scrolling.
+- **RECOMMENDED ACTIONS** (+ 3 aliases ACTIONS / NEXT STEPS / NEXT BEST ACTIONS) gets the briefing's **one accent moment**: thin accent border `rgba(26,111,212,0.32)`, very low-alpha accent tint gradient (5% → 0%), slightly warmer shadow. Light-mode tuned separately. Restrained, not loud.
+
+### Sugar-candy press grammar extension
+
+- The existing 60ms `scale(0.97)` press feedback (was scoped to `gn-header-tab` + `gn-header-adjust`) now also covers `gn-pane-action-btn` (Maximize / Minimize / Open-page / Float / Customize / Refresh / Stop / new ⋮ overflow trigger) and `gn-insights-overflow-item` (popover menuitems). Same `prefers-reduced-motion` gate; identical timing curve.
+
+### Tests — 13 new
+
+- **`pulse/_adapter/__tests__/Icon.test.tsx`** (4): every IconName in the union renders a non-empty `<svg>`; `more-vertical` renders three circles; size prop honored; default 14 px.
+- **`pulse/__tests__/insightsGridContract.test.tsx`** (9): each of the 6 hierarchy `data-section` values is emitted by the renderer so Phase D CSS hooks resolve; full briefing renders all 6 in DOM source order (stagger still fires by arrival); custom author sections carry `data-section` too (CSS defaults them to `order: 10` → tail).
+
+### Honest gap I'm flagging
+
+**No App-mount toolbar test for the overflow popover state.** The existing Pulse test harness uses only `__insightsRenderForTest` (pure render functions); mounting the full Pulse `App` requires a `PulseHostStub` + settings provider + many other fixtures, which is out of scope for this commit. Overflow behavior is covered by:
+- `tsc --noEmit` (signature + handler wiring)
+- Vite HMR smoke (HTTP 200; 13× `gn-insights-overflow` references reach the served `visual.tsx`)
+- Mirror to the existing Customize popover pattern (which has the same outside-click + Esc + focus-return code path that's been live for cycles)
+
+The right follow-up is a Pulse `App` test harness — would unlock testing the surface switcher, Adjust, customize popover, AND the new overflow popover with a single fixture. Could share with Codex's Playwright Chromium smoke pattern from `5623808`. Worth ~1-2 hr in a future cycle.
+
+### Validation
+
+- `npm run lint` clean.
+- Focused suites: `insightsGridContract` 9/9, `Icon` 4/4, `insightsRendererPolish` 24/24.
+- Full sweep **868/868** across 69 files (was 855; +13 net).
+- `npm run build` clean (16.84 s).
+- Vite HMR at `http://127.0.0.1:5174/` HTTP 200; new selectors reach the served bundle.
+
+### Tripwires (carry forward)
+
+- **One accent moment per screen** still holds: Next Best Actions accent is the briefing's accent; surface switcher gradient is the page's accent; Verified badge is the artifact's accent. Don't add a fourth.
+- **Internal section IDs are load-bearing** for the Phase D grid. `data-section="HEADLINE"` etc. is the CSS hook; renaming the constants (not just display labels) would silently break the grid.
+- **`order` reorders visually, not in DOM.** Stagger animation delays use `:nth-child(N)` which is DOM-order. Keep them aligned: if you ever change DOM order (e.g. for a "headline-only" mode), re-confirm stagger still feels right.
+- **Press feedback selector list is now long** — `gn-header-tab + gn-header-adjust + gn-pane-action-btn + gn-insights-overflow-item`. Add new toolbar button classes to that list when you introduce them, or break the design grammar.
+- **Overflow popover state is local to `App`.** If you ever extract toolbar to its own component, lift the `overflowOpen` state + refs OR re-test the outside-click/Esc handlers against the new mount.
+- **Workbench Step 7 (theme)** is the last queued sequence item. Sugar-candy grammar (motion + depth + colour) already in place; Step 7 swaps inline workbench styles for the full theme + adds `prefers-color-scheme` for dark/compact/high-contrast modes.
+
+---
+
 ## 2026-05-18 - MetricRule.unfavorableMovementTone — amber as first-class direction option (`9811464`)
 
 **Range:** Rajesh's read on the architecture: trust author-defined rules (the "metric formatter") over heuristics or LLM hints. He also noted that the direction-only tone logic was binary (red/green only — amber excluded) — the threshold path produces all three tones, but threshold-only color requires `amberPct` AND `redPct` AND a value that crosses the band; tiny deltas like Return Rate `+0.3pp` skip the bands entirely. This commit brings amber into the direction equation as an opt-in author preference, end-to-end.
