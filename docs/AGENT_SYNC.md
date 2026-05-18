@@ -112,6 +112,12 @@ Cumulative: **165 new tests** across the 6 commits; full playground sweep **745/
 
 Validation: lint clean, tsc clean, full sweep **763/763**, build clean (14.27 s), Vite `/workbench` HTTP 200.
 
+**[DONE] 2026-05-18 — Card-label hint resolves rule for insight-card body pills (`24c7e6d`).** Rajesh shipped a screenshot showing a Trends card "Return Rate increase" with body "rose to 6.2%, up ▲ +0.3pp..." rendering green. The Phase A rule path only worked when the metric name was in the same prose window as the pill. In real insight cards, the metric name is in the LABEL; the body has only explanatory prose, leaving `metricNameBeforePill`'s 60-char window scan with connective leftovers ("to") — truthy enough to skip the rule lookup but useless for resolution.
+
+Fix: optional `metricNameHint` threaded through `inlineFormat` → `pillColorClass` → `metricNameBeforePill`. Hint wins over the window scan when supplied (the caller's explicit context signal beats a heuristic). Insight-card body call site passes `card.label`. `resolveMetricDirection`'s substring matching handles label noise ("Return Rate increase" → matches "Return Rate"). 3 new vitest, polish suite 23/23, full sweep 832/832.
+
+**Note on amber:** the fix activates the rule path; final color depends on rule shape. Without `amberPct`/`redPct` thresholds, a Return Rate increase on `higherIsBetter: false` resolves to **bad → red**. With thresholds, a value in the amber band resolves to **warn → amber**. Rajesh's screenshot delta (+0.3pp) is too small to hit typical amber bands; surfacing amber for any unfavorable-direction movement (not just threshold breach) needs a new rule-shape flag — separate change.
+
 **[DONE] 2026-05-18 — Watch-tone emission fix (`337253f`).** Codex audited Phase A and caught a real gap: `gn-trend-tone-watch` was defined in CSS (in `99292ac`) but `pillColorClass` only emitted `good`/`bad`, so any `warn` semanticTone (explicit status, amber threshold) fell through to dirClass and the watch class was dead code. The emoji 🟡 path mapped to flat grey instead of watch amber. Earlier commit messages overstated the watch coverage.
 
 Fix: `pillColorClass` now has a `warn → gn-trend-tone-watch` branch; the emoji G8/G9 path emits symmetric tone classes (🟢 → up + tone-good, 🔴 → down + tone-bad, 🟡 → flat + tone-watch). 5 new vitest cases pin the rule-path watch tone, all three emoji paths, AND the pre-existing non-KPI-section emoji-strip gate so future agents don't try to "fix" the intentional strip. 829/829 sweep clean.

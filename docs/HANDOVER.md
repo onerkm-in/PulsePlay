@@ -5,6 +5,40 @@
 
 ---
 
+## 2026-05-18 - Card-label hint resolves rule for insight-card body pills (`24c7e6d`)
+
+**Range:** Rajesh shipped a screenshot showing a Trends card with label "Return Rate increase" and body "rose to 6.2%, up ▲ +0.3pp, could signal product or service issues." rendering GREEN. The Phase A fix (`1e04a31`) wired `pillColorClass` tone classes correctly, but only when the metric name appeared in the same prose window as the pill. In real insight cards the metric name lives in the **card label**, not the body — and `metricNameBeforePill`'s 60-char window scan finds only connective leftovers ("to"), which are truthy enough to skip the rule lookup but useless for resolving any rule. So the pill fell back to physical-direction color (green for up).
+
+### What changed
+
+- **`playground/src/pulse/visual.tsx`** — added optional `metricNameHint` parameter threaded through `inlineFormat` → `pillColorClass` → `metricNameBeforePill`. When supplied, the hint takes precedence over the body-window scan — the caller's explicit context signal beats a heuristic. `resolveMetricDirection`'s substring matching handles label noise like "Return Rate increase" → matches rule "Return Rate" via `metric.includes(name)`.
+- **Insight-card body call site** ([visual.tsx:7958](../playground/src/pulse/visual.tsx#L7958)) now passes `card.label` as the hint. Inline comment names the audit reference so the next agent doesn't drop it.
+- **3 new vitest cases** in `insightsRendererPolish.test.tsx` (suite now 23) — exact screenshot scenario (Return Rate increase + up pill → tone-bad), Profit Margin compression (down + bad), and a defensive case where the body has NO metric name at all but the hint resolves the rule.
+
+### Why "hint wins" instead of "fallback when window scan empty"
+
+Initially tried the fallback-when-empty version. The window scan returned `"to"` for "rose to 6.2%, up 0.3pp" — truthy, but useless. Hint-wins is simpler and more predictable: the card label IS the metric context. If a future card has mismatched label/body, that's a card-author concern; the renderer trusts the explicit signal.
+
+### Validation
+
+- `npm run lint` clean.
+- Focused polish suite **23/23** (was 20; +3 new).
+- Full sweep **832/832** across 65 files (was 829; +3 new).
+- `npm run build` clean (12.80 s).
+- Vite HMR at `http://127.0.0.1:5174/` HTTP 200; `metricNameHint` identifier reaches the served `visual.tsx` (7 references = signature + 4 call sites + 2 comments).
+
+### Note on amber vs red
+
+The fix activates the rule path; what color the pill renders next depends on the rule shape. Without `amberPct`/`redPct` thresholds, a Return Rate increase on a `higherIsBetter: false` rule resolves to **bad → red**. With thresholds (e.g. `{ amberPct: 3, redPct: 6 }`), a value in the 3–6 band resolves to **warn → amber**. Rajesh's screenshot shows `+0.3pp` — small delta; if a threshold-configured rule were loaded, the value (0.3 < amberPct=3) would still be `good`. To get amber for any unfavorable-direction movement (not just threshold breach), the rule shape would need a new `amberOnUnfavorableDirection` flag — separate change worth its own discussion.
+
+### Tripwires
+
+- The hint takes precedence over the window scan when supplied. If a future caller passes an inappropriate hint (e.g. a section title that contains no metric name), the rule lookup will fail gracefully (no match → dirClass fallback) — but the test suite doesn't pin that today; consider adding a guard if the hint surface expands.
+- Insight-card body is the only call site passing a hint today. If you add `card.label` propagation to other contexts (table cells, bullet items), prefer running validation first — the heuristic of "caller knows best" is most reliable when the caller IS the card-shape author.
+- This fix doesn't change the validator authority, the iframe sandbox, the BI Viz semantics, or the ECharts integration.
+
+---
+
 ## 2026-05-18 - Watch-tone emission fix (`337253f`) — Codex audit follow-up
 
 **Range:** Codex audited the Phase A sugar-candy work and caught two real gaps. Earlier commit `1e04a31` documented "watch" as a supported inline tone, and `99292ac` added the `gn-trend-tone-watch` CSS class, but `pillColorClass` never emitted the class and the emoji 🟡 path mapped to flat grey instead of watch amber. That overstated the coverage. This commit corrects the implementation and pins both behaviors with focused tests.
