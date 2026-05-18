@@ -112,6 +112,20 @@ Cumulative: **165 new tests** across the 6 commits; full playground sweep **745/
 
 Validation: lint clean, tsc clean, full sweep **763/763**, build clean (14.27 s), Vite `/workbench` HTTP 200.
 
+**[DONE] 2026-05-18 — MetricRule.unfavorableMovementTone — amber as first-class direction option (`9811464`).** Rajesh's architecture call: trust the author-defined "metric formatter" (`MetricRule` + `MetricRuleForm` in `playground/src/pulse/metricRulesEngine.ts` + `metricRuleForm.tsx`) over heuristics. He also flagged that direction-only tone logic was binary (red/green only — amber unreachable without threshold bands that bracket the actual value).
+
+Fix: optional `unfavorableMovementTone?: "warn" | "bad"` on `MetricRule` and `MetricDirectionRule`. Default omitted = "bad" (backward compat — no existing rule's behavior changes). Authors set "warn" per metric for "watch" semantics on any unfavorable nudge (e.g. Return Rate, NPS, retention). Threshold bands still take precedence when defined; `statusTone` (🟡/⚠/"watch") still takes precedence over both.
+
+End-to-end:
+- Schema: new field on `MetricRule`. `rulesToJson` writes ONLY when value is "warn"; `jsonToRules` reads both verbatim, rejects invalid to undefined.
+- Renderer: `MetricDirectionRule` matched; `parseMetricDirectionsJson` reads it; `directionTone` honors it for unfavorable direction; `getMetricTone` direction-only branches collapsed to `deltaTone` (single source of truth).
+- Form: new per-card select "On unfavorable movement (no threshold breach)" with red/amber options.
+- Tests: 23 new across 3 files — matrix (favorable/unfavorable × default/bad/warn × up/down), threshold + statusText precedence, schema round-trip, Pulse-render integration that pins the exact Return-Rate-amber screenshot scenario.
+
+855/855 sweep, build clean.
+
+**Architecture note for next agent:** the "trust author-defined rules" principle Rajesh locked here applies broadly. When facing a "the renderer should infer X" temptation, first check whether `MetricRule` (or another author-surface) can be the source of truth. Heuristics like the card-label hint (`24c7e6d`) are valuable fallbacks that help the rule path find metrics, not substitutes for the rule.
+
 **[DONE] 2026-05-18 — Card-label hint resolves rule for insight-card body pills (`24c7e6d`).** Rajesh shipped a screenshot showing a Trends card "Return Rate increase" with body "rose to 6.2%, up ▲ +0.3pp..." rendering green. The Phase A rule path only worked when the metric name was in the same prose window as the pill. In real insight cards, the metric name is in the LABEL; the body has only explanatory prose, leaving `metricNameBeforePill`'s 60-char window scan with connective leftovers ("to") — truthy enough to skip the rule lookup but useless for resolution.
 
 Fix: optional `metricNameHint` threaded through `inlineFormat` → `pillColorClass` → `metricNameBeforePill`. Hint wins over the window scan when supplied (the caller's explicit context signal beats a heuristic). Insight-card body call site passes `card.label`. `resolveMetricDirection`'s substring matching handles label noise ("Return Rate increase" → matches "Return Rate"). 3 new vitest, polish suite 23/23, full sweep 832/832.

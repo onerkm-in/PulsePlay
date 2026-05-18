@@ -5,6 +5,54 @@
 
 ---
 
+## 2026-05-18 - MetricRule.unfavorableMovementTone — amber as first-class direction option (`9811464`)
+
+**Range:** Rajesh's read on the architecture: trust author-defined rules (the "metric formatter") over heuristics or LLM hints. He also noted that the direction-only tone logic was binary (red/green only — amber excluded) — the threshold path produces all three tones, but threshold-only color requires `amberPct` AND `redPct` AND a value that crosses the band; tiny deltas like Return Rate `+0.3pp` skip the bands entirely. This commit brings amber into the direction equation as an opt-in author preference, end-to-end.
+
+### What changed
+
+- **`playground/src/pulse/metricRulesEngine.ts`** — `MetricRule` gains optional `unfavorableMovementTone?: "warn" | "bad"` field. Default omitted = "bad" (backward compat). `rulesToJson` writes the field only when value is "warn" — keeps JSON payloads clean for the default case. `jsonToRules` reads "warn" and "bad" verbatim; rejects invalid values (foo, null, number) to undefined.
+- **`playground/src/pulse/rendering/metricDirections.ts`** — matching field on `MetricDirectionRule`. `normaliseRule` propagates it. `parseMetricDirectionsJson` reads it (only "warn"/"bad", else undefined). `directionTone` honors it: when movement is unfavorable AND `rule.unfavorableMovementTone === "warn"`, returns "warn" instead of "bad". Favorable direction unaffected. Threshold-band path unchanged (still wins).
+- **`getMetricTone` direction-only branches** — formerly duplicated the inverse-`higherIsBetter` logic, now collapsed to `semanticTone: deltaTone` so semanticTone and deltaTone agree end-to-end and both honor the new field. Single-source-of-truth for direction tone.
+- **`playground/src/pulse/metricRuleForm.tsx`** — new per-card select "On unfavorable movement (no threshold breach)" with options "Red — treat as critical (default)" / "Amber — treat as watch". Wired through `updateRule`. `data-testid="metric-rule-unfavorable-tone-{idx}"` for test access.
+
+### Tone resolution order (locked, all paths converge through `getMetricTone`)
+
+1. `statusText` carries an explicit signal (🟢/🟡/🔴/✅/⚠/❌/"on-track"/"watch"/etc.) → that tone wins.
+2. `thresholdTone` fires (rule has `amberPct` AND `redPct` AND value parses into a band) → that tone wins.
+3. Direction-only fallback (rule matched, no threshold band hit) → `directionTone` returns `good` for favorable direction, and `bad` OR `warn` for unfavorable direction per `rule.unfavorableMovementTone`.
+4. No rule matched → `getSemanticTone` fallback (binary good/bad from physical direction).
+
+### How to use it (author flow)
+
+In Settings → Pulse → Setup → Section B (Metric direction rules), the per-card row "On unfavorable movement (no threshold breach)" defaults to "Red — treat as critical." Authors who want "Return Rate `+0.3pp` reads as 🟡 watch, not 🔴 critical" change it to "Amber — treat as watch" on the Return Rate card. The change is opt-in per rule; no global flag, no regression for any other metric.
+
+### Tests — 23 new across 3 files
+
+- **`metricDirectionsUnfavorableTone.test.ts`** (13): favorable + unfavorable × default/bad/warn × up/down matrix; threshold-band precedence over the new field; `statusTone` precedence over both; no-rule-matched fallback unaffected; `parseMetricDirectionsJson` round-trip for valid/invalid values.
+- **`metricRulesEngineUnfavorableTone.test.ts`** (9): `rulesToJson` omits default + explicit-bad; writes only "warn"; `jsonToRules` reads warn/bad; rejects invalid values to undefined; round-trip preserves "warn"; intentional asymmetry where explicit "bad" becomes undefined on round-trip (renderer treats both identically — no behavior difference).
+- **`insightsRendererPolish.test.tsx`** (+1, now 24): exact screenshot scenario — Return Rate increase insight card with `unfavorableMovementTone: "warn"` on the rule renders `gn-trend-up` + `gn-trend-tone-watch` (amber on up arrow). This is the test that pins Rajesh's "+0.3pp Return Rate should be amber" intuition.
+
+### Validation
+
+- `npm run lint` clean.
+- Focused suites **46/46**.
+- Full sweep **855/855** across 67 files (was 832; +23 net).
+- `npm run build` clean (17.46 s).
+- Vite HMR at `http://127.0.0.1:5174/` HTTP 200; `metricRulesEngine.ts` serves 3 `unfavorableMovementTone` references.
+
+### Tripwires
+
+- **Default stays "bad" (red).** No regression for any existing rule. The field is opt-in per rule.
+- **Threshold bands always win** when defined and value crosses them. The new field is a fallback for the direction-only case.
+- **`statusTone` always wins** (explicit 🟡/⚠/"watch" in the source overrides both threshold and direction).
+- **Favorable direction is unaffected** by the field. A Return Rate DECREASE on a lower-is-better rule still emits "good" (green) regardless of `unfavorableMovementTone`.
+- **JSON asymmetry is intentional**: `rulesToJson` omits both undefined and explicit "bad" because they produce identical renderer behavior. Form state preserves the explicit "bad" pick across React renders; only the serialized JSON drops it.
+- **Direction-tone refactor in `getMetricTone`** collapses the inline `if (direction === "up")` / `if (direction === "down")` branches to use `deltaTone`. Existing semantics preserved (verified by Phase A's polish suite still passing). If a future agent wants to fork those branches again, they'll need to thread the new field through both arms instead of leaning on `directionTone`.
+- **Author-defined rules are the trustworthy source** — that's the architecture Rajesh asked for. The card-label hint (`24c7e6d`) helps the rule path find the metric even when prose drops the name; the rule itself dictates the tone. Heuristics serve the formatter, not the other way around.
+
+---
+
 ## 2026-05-18 - Card-label hint resolves rule for insight-card body pills (`24c7e6d`)
 
 **Range:** Rajesh shipped a screenshot showing a Trends card with label "Return Rate increase" and body "rose to 6.2%, up ▲ +0.3pp, could signal product or service issues." rendering GREEN. The Phase A fix (`1e04a31`) wired `pillColorClass` tone classes correctly, but only when the metric name appeared in the same prose window as the pill. In real insight cards the metric name lives in the **card label**, not the body — and `metricNameBeforePill`'s 60-char window scan finds only connective leftovers ("to"), which are truthy enough to skip the rule lookup but useless for resolving any rule. So the pill fell back to physical-direction color (green for up).
