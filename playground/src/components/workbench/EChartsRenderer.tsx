@@ -14,26 +14,52 @@ import {
     LineChart,
     PieChart,
     ScatterChart,
+    HeatmapChart,
+    TreemapChart,
+    FunnelChart,
+    GaugeChart,
+    RadarChart,
+    SunburstChart,
+    SankeyChart,
+    PictorialBarChart,
 } from 'echarts/charts';
 import {
     GridComponent,
     LegendComponent,
     TitleComponent,
     TooltipComponent,
+    VisualMapComponent,
+    DataZoomComponent,
+    MarkLineComponent,
+    MarkPointComponent,
 } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
 import type { EChartsOption } from 'echarts';
 import React, { useEffect, useRef } from 'react';
 
 echarts.use([
+    // Charts
     BarChart,
     LineChart,
     PieChart,
     ScatterChart,
+    HeatmapChart,
+    TreemapChart,
+    FunnelChart,
+    GaugeChart,
+    RadarChart,
+    SunburstChart,
+    SankeyChart,
+    PictorialBarChart,
+    // Components
     GridComponent,
     LegendComponent,
     TitleComponent,
     TooltipComponent,
+    VisualMapComponent,
+    DataZoomComponent,
+    MarkLineComponent,
+    MarkPointComponent,
     CanvasRenderer,
 ]);
 

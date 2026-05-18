@@ -85,7 +85,17 @@ export interface ChartRange {
     zeroRatio: number;
 }
 
-export type ChartKind = "bar" | "clustered-bar" | "line" | "donut" | "area";
+// ChartKind now includes all renderable chart types from chartRegistry.ts.
+// The legacy 5-type union is preserved for backwards compat; new types are
+// added from the full KB so the Ask Pulse chart picker shows every chart
+// the ECharts renderer can produce.
+export type ChartKind =
+    | "bar" | "column" | "clustered-bar" | "line" | "area" | "sparkline"
+    | "scatter" | "bubble"
+    | "pie" | "donut"
+    | "heatmap" | "treemap" | "funnel" | "waterfall" | "kpi"
+    | "gauge" | "radar" | "sunburst"
+    | "lollipop" | "pareto" | "sankey";
 
 export interface DataShape {
     series: ChartSeriesPoint[];
@@ -105,12 +115,35 @@ export interface FormatRule {
 
 /* ── Constants ───────────────────────────────────────────────────── */
 
-export const CHART_OPTIONS: { value: ChartKind; label: string; supported: boolean }[] = [
-    { value: "bar", label: "Bar", supported: true },
-    { value: "clustered-bar", label: "Clustered Bar", supported: true },
-    { value: "line", label: "Line", supported: true },
-    { value: "donut", label: "Donut", supported: true },
-    { value: "area", label: "Area", supported: true },
+// Chart options grouped by tier — matches the chartRegistry.ts tier structure.
+// The selector in GenieChart renders these as <optgroup> sections so users
+// can find chart types quickly. All entries with supported:true are backed by
+// buildEChartsOption in lib/buildEChartsOption.ts.
+export const CHART_OPTIONS: { value: ChartKind; label: string; supported: boolean; group: string }[] = [
+    // Core — standard BI charts
+    { value: "kpi",          label: "KPI Tile",          supported: true,  group: "Core" },
+    { value: "column",       label: "Column (Vertical)",  supported: true,  group: "Core" },
+    { value: "bar",          label: "Bar (Horizontal)",   supported: true,  group: "Core" },
+    { value: "clustered-bar",label: "Clustered Bar",      supported: true,  group: "Core" },
+    { value: "line",         label: "Line",               supported: true,  group: "Core" },
+    { value: "area",         label: "Area",               supported: true,  group: "Core" },
+    { value: "pie",          label: "Pie",                supported: true,  group: "Core" },
+    { value: "donut",        label: "Donut",              supported: true,  group: "Core" },
+    { value: "scatter",      label: "Scatter",            supported: true,  group: "Core" },
+    { value: "bubble",       label: "Bubble",             supported: true,  group: "Core" },
+    { value: "heatmap",      label: "Heat Map",           supported: true,  group: "Core" },
+    { value: "treemap",      label: "Tree Map",           supported: true,  group: "Core" },
+    { value: "funnel",       label: "Funnel",             supported: true,  group: "Core" },
+    { value: "waterfall",    label: "Waterfall",          supported: true,  group: "Core" },
+    // Advanced
+    { value: "pareto",       label: "Pareto",             supported: true,  group: "Advanced" },
+    { value: "lollipop",     label: "Lollipop",           supported: true,  group: "Advanced" },
+    { value: "sparkline",    label: "Sparkline",          supported: true,  group: "Advanced" },
+    { value: "sankey",       label: "Sankey Flow",        supported: true,  group: "Advanced" },
+    // Statistical / shaped
+    { value: "radar",        label: "Radar / Spider",     supported: true,  group: "Shaped" },
+    { value: "gauge",        label: "Gauge",              supported: true,  group: "Shaped" },
+    { value: "sunburst",     label: "Sunburst",           supported: true,  group: "Shaped" },
 ];
 
 export const ALL_FILTER_VALUE = "__all__";

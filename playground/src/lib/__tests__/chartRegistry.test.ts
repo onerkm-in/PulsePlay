@@ -74,9 +74,20 @@ describe('CHART_REGISTRY — tier policy invariants', () => {
         }
     });
 
-    it('Legacy + Future entries are NOT marked renderable today', () => {
-        for (const entry of [...chartsByTier('legacy'), ...chartsByTier('future')]) {
+    it('Future tier entries are NOT renderable today', () => {
+        for (const entry of chartsByTier('future')) {
             expect(entry.renderable).toBe(false);
+        }
+    });
+
+    it('ECharts-backed legacy charts (gauge, radar) are renderable; others are not', () => {
+        const ECHARTS_LEGACY = new Set(['gauge', 'radar']);
+        for (const entry of chartsByTier('legacy')) {
+            if (ECHARTS_LEGACY.has(entry.id)) {
+                expect(entry.renderable).toBe(true);
+            } else {
+                expect(entry.renderable).toBe(false);
+            }
         }
     });
 });

@@ -191,6 +191,8 @@ import { METRIC_DIRECTION_PRESETS as PP_METRIC_DIRECTION_PRESETS } from "./insig
 import { createBackend } from "./backend/BackendFactory";
 import type { AnyBackend } from "./backend/BackendAdapter";
 import { parseAllowedUsers } from "./setupAccessControl";
+import { EChartsRenderer } from '../components/workbench/EChartsRenderer';
+import { buildEChartsOption } from '../lib/buildEChartsOption';
 import IViewport = powerbi.IViewport;
 import IVisual = powerbi.extensibility.visual.IVisual;
 import IVisualHost = powerbi.extensibility.visual.IVisualHost;
@@ -7631,24 +7633,20 @@ function GenieTable(props: { columns: string[]; rows: any[][]; isNarrative?: boo
 function GenieChart(props: { columns: string[]; rows: any[][]; preferredChart?: ChartKind }) {
     const dataShape = useMemo(() => analyzeDataShape(props.columns, props.rows), [props.columns, props.rows]);
     const recommended = dataShape.recommended;
-    // If the question carried an explicit chart-type cue ("show me a bar
-    // chart of …") the parent passes preferredChart, which beats the
-    // auto-recommendation. Otherwise we use the recommendation.
     const initial: ChartKind = props.preferredChart ?? recommended;
     const [chartType, setChartType] = useState<ChartKind>(initial);
 
-    // Reset chart type when recommendation OR the preferred override
-    // changes (new query, or a different question with a different
-    // explicit chart ask).
     useEffect(() => { setChartType(initial); }, [initial]);
 
-    if (!dataShape.series.length && !dataShape.clustered.length) {
-        return <div className="gn-msg-body">This result does not contain a chartable series. Switch to table or narrative view.</div>;
-    }
-
-    const series = dataShape.series;
-    const clustered = dataShape.clustered;
-    const chartRange = getChartRange(series.length ? series : clustered.flatMap(c => c.values.map(v => ({ label: v.name, value: v.value }))));
+    // Group CHART_OPTIONS into optgroup sections for the picker.
+    const grouped = useMemo(() => {
+        const map = new Map<string, typeof CHART_OPTIONS>();
+        for (const opt of CHART_OPTIONS) {
+            if (!map.has(opt.group)) map.set(opt.group, []);
+            map.get(opt.group)!.push(opt);
+        }
+        return map;
+    }, []);
 
     return (
         <div className="gn-chart-container">
@@ -7658,67 +7656,54 @@ function GenieChart(props: { columns: string[]; rows: any[][]; preferredChart?: 
                     value={chartType}
                     onChange={e => setChartType(e.target.value as ChartKind)}
                 >
-                    {CHART_OPTIONS.map(opt => (
-                        <option key={opt.value} value={opt.value} disabled={!opt.supported}>
-                            {opt.label}{opt.value === recommended ? " ★" : ""}{!opt.supported ? " (coming soon)" : ""}
-                        </option>
+                    {Array.from(grouped.entries()).map(([group, opts]) => (
+                        <optgroup key={group} label={group}>
+                            {opts.map(opt => (
+                                <option key={opt.value} value={opt.value}>
+                                    {opt.label}{opt.value === recommended ? " ★" : ""}
+                                </option>
+                            ))}
+                        </optgroup>
                     ))}
                 </select>
             </div>
-            {renderChartBody(chartType, series, clustered, chartRange, dataShape)}
+            {renderEChartsBody(chartType, props.columns, props.rows, dataShape)}
         </div>
     );
 }
 
-function renderChartBody(
+function renderEChartsBody(
     chartType: ChartKind,
-    series: ChartSeriesPoint[],
-    clustered: ClusteredSeriesPoint[],
-    chartRange: ChartRange,
-    dataShape: DataShape
+    columns: string[],
+    rows: any[][],
+    dataShape: DataShape,
 ): React.ReactNode {
-    const CAP = 12;
-    const visibleSeries = series.slice(0, CAP);
-    const capWarning = series.length > CAP
-        ? <div className="gn-chart-cap-warning">Showing first {CAP} of {series.length} data points</div>
-        : null;
-
-    if (chartType === "clustered-bar" && clustered.length > 0) {
-        return <ClusteredBarChart clustered={clustered} />;
-    }
-
-    if (chartType === "donut" && visibleSeries.length > 0) {
-        return <>{capWarning}<DonutChart series={visibleSeries} /></>;
-    }
-
-    if (chartType === "area" && visibleSeries.length > 0) {
-        return <>{capWarning}<LineAreaChart series={visibleSeries} chartRange={chartRange} filled={true} /></>;
-    }
-
-    if (chartType === "line" && visibleSeries.length > 0) {
-        return <>{capWarning}<LineAreaChart series={visibleSeries} chartRange={chartRange} filled={false} /></>;
-    }
-
-    // Default: bar
-    return (
-        <>
-            {capWarning}
-            <div className="gn-chart-bars">
-                {visibleSeries.map(point => (
-                    <div key={point.label} className="gn-bar-row">
-                        <div className="gn-bar-label">{point.label}</div>
-                        <div className="gn-bar-track">
-                            <div className="gn-bar-axis" style={{ left: `${chartRange.zeroRatio * 100}%` }} />
-                            <div className="gn-bar-fill" style={buildBarStyle(point.value, chartRange)}>
-                                <span className="gn-bar-fill-label">{formatNumber(point.value)}</span>
-                            </div>
-                        </div>
-                        <div className="gn-bar-value">{formatNumber(point.value)}</div>
-                    </div>
-                ))}
+    // KPI tile — single prominent metric, no ECharts needed.
+    if (chartType === "kpi") {
+        const firstNumericIdx = columns.findIndex((_, i) => rows[0] && !isNaN(Number(rows[0][i])));
+        const labelIdx = firstNumericIdx > 0 ? 0 : -1;
+        const valueIdx = firstNumericIdx >= 0 ? firstNumericIdx : 0;
+        const value = rows[0]?.[valueIdx];
+        const label = labelIdx >= 0 ? String(rows[0]?.[labelIdx] ?? columns[labelIdx]) : columns[valueIdx];
+        return (
+            <div className="gn-kpi-chart-tile">
+                <div className="gn-kpi-chart-value">{formatNumber(Number(value))}</div>
+                <div className="gn-kpi-chart-label">{label}</div>
             </div>
-        </>
-    );
+        );
+    }
+
+    // All other types — ECharts.
+    const option = buildEChartsOption(chartType, columns, rows);
+    if (!option) {
+        return (
+            <div className="gn-msg-body gn-chart-no-data">
+                Not enough data to render a <strong>{chartType}</strong> chart.
+                Try switching to Bar or Table view.
+            </div>
+        );
+    }
+    return <EChartsRenderer option={option} height={320} />;
 }
 
 const CLUSTERED_COLORS = ["#4793f8", "#f97316", "#22c55e", "#ef4444", "#a855f7", "#eab308"];

@@ -3215,6 +3215,40 @@
     cursor: pointer;
 }
 
+/* ── KPI chart tile (single-value render inside Ask Pulse chart pane) ── */
+
+.gn-kpi-chart-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 24px;
+    gap: 8px;
+}
+
+.gn-kpi-chart-value {
+    font-size: 48px;
+    font-weight: 700;
+    line-height: 1;
+    color: @gn-text;
+    letter-spacing: -1px;
+}
+
+.gn-kpi-chart-label {
+    font-size: 13px;
+    color: @gn-text-muted;
+    text-align: center;
+}
+
+/* ── No-data message inside chart container ── */
+
+.gn-chart-no-data {
+    padding: 20px;
+    text-align: center;
+    color: @gn-text-muted;
+    font-size: 13px;
+}
+
 /* ── Clustered bar chart ── */
 
 .gn-clustered-chart {
