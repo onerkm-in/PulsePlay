@@ -9,7 +9,7 @@
 
 **Sequence**:
 - [ ] 1. Add UnifiedAssistantSurface architecture and connector capability model.
-- [x] 2. Move Genie iframe from i-adapters or elsewhere into assistant connector mode as 
+- [ ] 2. Move Genie iframe from i-adapters or elsewhere into assistant connector mode as 
 ativeChatEmbed.
 - [x] 3. Create artifact card shell with Answer | Chart | Table | SQL | Evidence | Reasoning.
 - [x] 4. Add verified artifact model and validation gates.
