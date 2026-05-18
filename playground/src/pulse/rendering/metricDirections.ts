@@ -6,6 +6,15 @@ export interface MetricDirectionRule {
     aliases?: string[];
     redPct?: number;
     amberPct?: number;
+    /**
+     * Tone for unfavorable-direction movement when no threshold band fires.
+     * Default omitted = "bad" (red, current behavior). Authors set this to
+     * "warn" (amber) for metrics where any nudge in the wrong direction
+     * should read as "watch" rather than "critical" — e.g. Return Rate,
+     * NPS-style metrics, retention rates. Wired from
+     * `MetricRule.unfavorableMovementTone` in `metricRulesEngine.ts`.
+     */
+    unfavorableMovementTone?: "warn" | "bad";
 }
 
 export interface MetricToneResult {
@@ -28,6 +37,9 @@ function normaliseMetricName(value: string): string {
 function normaliseRule(rule: MetricDirectionRule): MetricDirectionRule | null {
     const name = (rule.name || "").trim();
     if (!name) return null;
+    const unfavorableTone = rule.unfavorableMovementTone === "warn" ? "warn"
+        : rule.unfavorableMovementTone === "bad" ? "bad"
+        : undefined;
     return {
         name,
         higherIsBetter: rule.higherIsBetter !== false,
@@ -35,7 +47,8 @@ function normaliseRule(rule: MetricDirectionRule): MetricDirectionRule | null {
             ? rule.aliases.map(a => String(a).trim()).filter(Boolean)
             : undefined,
         redPct: typeof rule.redPct === "number" && Number.isFinite(rule.redPct) ? rule.redPct : undefined,
-        amberPct: typeof rule.amberPct === "number" && Number.isFinite(rule.amberPct) ? rule.amberPct : undefined
+        amberPct: typeof rule.amberPct === "number" && Number.isFinite(rule.amberPct) ? rule.amberPct : undefined,
+        ...(unfavorableTone ? { unfavorableMovementTone: unfavorableTone } : {})
     };
 }
 
@@ -51,7 +64,10 @@ export function parseMetricDirectionsJson(raw?: string): MetricDirectionRule[] {
                 higherIsBetter: item?.higherIsBetter !== false && item?.direction !== "lowerIsBetter",
                 aliases: Array.isArray(item?.aliases) ? item.aliases : undefined,
                 redPct: typeof item?.redPct === "number" ? item.redPct : undefined,
-                amberPct: typeof item?.amberPct === "number" ? item.amberPct : undefined
+                amberPct: typeof item?.amberPct === "number" ? item.amberPct : undefined,
+                unfavorableMovementTone: item?.unfavorableMovementTone === "warn" ? "warn"
+                    : item?.unfavorableMovementTone === "bad" ? "bad"
+                    : undefined
             }))
             .filter((item): item is MetricDirectionRule => Boolean(item));
     } catch {
@@ -128,8 +144,14 @@ function parsePercentValue(raw: string): number | null {
 }
 
 function directionTone(direction: TrendDirection, rule?: MetricDirectionRule): Tone {
-    if (direction === "up") return rule?.higherIsBetter === false ? "bad" : "good";
-    if (direction === "down") return rule?.higherIsBetter === false ? "good" : "bad";
+    // Unfavorable-direction tone defaults to "bad" (red). Authors can opt
+    // into "warn" (amber) via MetricRule.unfavorableMovementTone for metrics
+    // they want to track as "watch" rather than "critical" on any nudge in
+    // the wrong direction. Threshold bands still take precedence in
+    // getMetricTone — this only fires when no band hit.
+    const unfavorable: Tone = rule?.unfavorableMovementTone === "warn" ? "warn" : "bad";
+    if (direction === "up") return rule?.higherIsBetter === false ? unfavorable : "good";
+    if (direction === "down") return rule?.higherIsBetter === false ? "good" : unfavorable;
     return "neutral";
 }
 
@@ -156,11 +178,11 @@ export function getMetricTone(args: {
         if (toneFromThreshold) {
             return { direction, statusTone, semanticTone: toneFromThreshold, deltaTone, matchedRule };
         }
-        if (direction === "up") {
-            return { direction, statusTone, semanticTone: matchedRule.higherIsBetter ? "good" : "bad", deltaTone, matchedRule };
-        }
-        if (direction === "down") {
-            return { direction, statusTone, semanticTone: matchedRule.higherIsBetter ? "bad" : "good", deltaTone, matchedRule };
+        // No threshold band hit — fall back to direction tone, which honors
+        // matchedRule.unfavorableMovementTone (so authors can opt unfavorable
+        // direction into "warn" instead of the default "bad").
+        if (direction === "up" || direction === "down") {
+            return { direction, statusTone, semanticTone: deltaTone, deltaTone, matchedRule };
         }
     }
 

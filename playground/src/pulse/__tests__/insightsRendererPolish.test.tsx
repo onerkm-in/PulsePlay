@@ -395,6 +395,41 @@ describe("inline trend pill semantic cue consistency", () => {
         expect(html).toContain("gn-trend-tone-bad");
     });
 
+    it("Author opts Return Rate into 'watch' tone via unfavorableMovementTone='warn' → amber pill on +0.3pp increase (the screenshot scenario)", () => {
+        // 2026-05-18 — Rajesh's screenshot showed Return Rate +0.3pp
+        // rendering green. After Phase A + card-label hint fix the rule
+        // path resolves correctly, but the default direction-only tone
+        // for unfavorable movement is "bad" (red). Authors who want
+        // "watch" (amber) for any unfavorable nudge on a lower-is-better
+        // metric set unfavorableMovementTone="warn" on the rule. This
+        // pins the end-to-end render: card label hint resolves Return
+        // Rate, no threshold band fires (no amberPct/redPct set), the
+        // new field overrides the default direction tone to "warn", and
+        // the inline pill renders gn-trend-tone-watch (amber) on the up
+        // arrow.
+        const node = __insightsRenderForTest.renderInsightsSections(
+            [
+                "# TRENDS",
+                "- **Return Rate increase:** rose to 6.2%, up 0.3pp, could signal product or service issues.",
+                "- **Profit Margin steady:** holds at 12.7%, down 0.1pp, monitor.",
+            ].join("\n"),
+            { metricDirectionsJson: JSON.stringify([
+                { name: "Return Rate", higherIsBetter: false, aliases: ["return rate"], unfavorableMovementTone: "warn" },
+                { name: "Profit Margin", higherIsBetter: true, aliases: ["profit margin"] },
+            ]) },
+        );
+        const html = renderToStaticMarkup(<>{node}</>);
+
+        // Return Rate up = unfavorable + watch tone preference → amber.
+        expect(html).toContain("gn-trend-up");
+        expect(html).toContain("gn-trend-tone-watch");
+        // Crucial: no bad tone on the Return Rate pill (would be the
+        // pre-flag behavior). The Profit Margin pill is also bad —
+        // because no flag — so we can't simply assert absence of
+        // gn-trend-tone-bad globally. The "up + watch" pairing is the
+        // proof the flag fired.
+    });
+
     it("Known follow-up: % suffix is a pre-existing INLINE_REGEX blind spot (no pill renders)", () => {
         // Pulse's regex requires a word boundary after the captured number.
         // "12%" ends with a non-word char, and natural English text never
