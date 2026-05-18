@@ -90,11 +90,17 @@ function clearStorage(): void {
     try {
         window.localStorage.removeItem("pulseplay:pinned-viewport-pane");
         window.localStorage.removeItem("pulseplay:enabled-components");
+        window.localStorage.removeItem("pulseplay:enabled-components:legacy-both-migrated");
         window.localStorage.removeItem("pulseplay:layout-mode");
         window.localStorage.removeItem("pulseplay:bi-tile-mode");
         window.localStorage.removeItem("pulseplay:bi-vendor");
         window.localStorage.removeItem("pulseplay:ui-mode");
     } catch { /* swallow */ }
+}
+
+function seedExplicitSplitLayout(): void {
+    window.localStorage.setItem("pulseplay:enabled-components", "both");
+    window.localStorage.setItem("pulseplay:enabled-components:legacy-both-migrated", "true");
 }
 
 function mountApp(): MountState {
@@ -221,6 +227,18 @@ describe("App viewport controls — default unified Mix surface", () => {
         unmount(state);
     });
 
+    it("migrates legacy saved split state back to unified mix once", () => {
+        window.localStorage.setItem("pulseplay:enabled-components", "both");
+        const state = mountApp();
+
+        expect(window.localStorage.getItem("pulseplay:enabled-components")).toBe("mix");
+        expect(window.localStorage.getItem("pulseplay:enabled-components:legacy-both-migrated")).toBe("true");
+        expect(state.container.querySelector(viewportControlPanelChromeSelector("ai"))).toBeTruthy();
+        expect(state.container.querySelector(viewportControlPanelChromeSelector("bi"))).toBeNull();
+
+        unmount(state);
+    });
+
     it("opens BI Viz as the unified primary surface without entering focused-pane mode", () => {
         const state = mountApp();
 
@@ -271,7 +289,7 @@ describe("App viewport controls — default unified Mix surface", () => {
     });
 
     it("exposes Pulse AI pane icons and BI PaneChrome inline icons", () => {
-        window.localStorage.setItem("pulseplay:enabled-components", "both");
+        seedExplicitSplitLayout();
         const state = mountApp();
         // Pulse mode moves AI pane actions into the Pulse row as icon buttons.
         expect(state.container.querySelector(viewportControlControlSelector("ai", "Maximize"))).toBeTruthy();
@@ -303,7 +321,7 @@ describe("App viewport controls — default unified Mix surface", () => {
 
 describe("App viewport controls — ?focus= URL", () => {
     it("hydrates focused-AI state when ?focus=ai is set before mount", () => {
-        window.localStorage.setItem("pulseplay:enabled-components", "both");
+        seedExplicitSplitLayout();
         setLocation("?focus=ai");
         const state = mountApp();
         const shell = state.container.querySelector(viewportControlShellSelector);
@@ -375,7 +393,7 @@ describe("App viewport controls — ?focus= URL", () => {
 
 describe("App viewport controls — chrome buttons", () => {
     beforeEach(() => {
-        window.localStorage.setItem("pulseplay:enabled-components", "both");
+        seedExplicitSplitLayout();
     });
 
     it("Maximize → focused, Restore → split, both panels stay mounted", () => {

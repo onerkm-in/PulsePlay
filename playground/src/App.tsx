@@ -76,6 +76,7 @@ const UI_MODE_STORAGE_KEY = "pulseplay:ui-mode";
  *  of occupying a permanent second section. Persists in localStorage. */
 type EnabledComponents = "aiOnly" | "biOnly" | "both" | "mix";
 const ENABLED_COMPONENTS_STORAGE_KEY = "pulseplay:enabled-components";
+const ENABLED_COMPONENTS_LEGACY_BOTH_MIGRATION_KEY = "pulseplay:enabled-components:legacy-both-migrated";
 
 /** Cycle F — author-picked layout. Where the AI panel sits relative to
  *  the BI canvas. Floating mode (drag-to-position) is a future iteration;
@@ -178,6 +179,12 @@ function readInitialEnabledComponents(): EnabledComponents {
     if (typeof window === "undefined") return "mix";
     try {
         const stored = window.localStorage.getItem(ENABLED_COMPONENTS_STORAGE_KEY);
+        if (stored === "both"
+            && window.localStorage.getItem(ENABLED_COMPONENTS_LEGACY_BOTH_MIGRATION_KEY) !== "true") {
+            window.localStorage.setItem(ENABLED_COMPONENTS_STORAGE_KEY, "mix");
+            window.localStorage.setItem(ENABLED_COMPONENTS_LEGACY_BOTH_MIGRATION_KEY, "true");
+            return "mix";
+        }
         if (stored === "aiOnly" || stored === "biOnly" || stored === "both" || stored === "mix") return stored;
     } catch { /* swallow */ }
     return "mix";
@@ -477,7 +484,12 @@ function PlaygroundApp(): React.ReactElement {
     }, []);
     const handleEnabledComponentsChange = useCallback((next: EnabledComponents) => {
         setEnabledComponents(next);
-        try { window.localStorage.setItem(ENABLED_COMPONENTS_STORAGE_KEY, next); } catch { /* swallow */ }
+        try {
+            window.localStorage.setItem(ENABLED_COMPONENTS_STORAGE_KEY, next);
+            if (next === "both") {
+                window.localStorage.setItem(ENABLED_COMPONENTS_LEGACY_BOTH_MIGRATION_KEY, "true");
+            }
+        } catch { /* swallow */ }
     }, []);
     const handleLayoutModeChange = useCallback((next: LayoutMode) => {
         setLayoutMode(next);

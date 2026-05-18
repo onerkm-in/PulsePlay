@@ -44,6 +44,8 @@ const KEY = {
     activeAiProfile: "pulseplay:active-ai-profile",
 } as const;
 
+const ENABLED_COMPONENTS_LEGACY_BOTH_MIGRATION_KEY = "pulseplay:enabled-components:legacy-both-migrated";
+
 // ─── State shape ─────────────────────────────────────────────────────────
 
 export type UiMode = "pulse" | "v0";
@@ -152,6 +154,12 @@ function readEnabledComponents(): EnabledComponents {
     if (typeof window === "undefined") return "mix";
     try {
         const v = window.localStorage.getItem(KEY.enabledComponents);
+        if (v === "both"
+            && window.localStorage.getItem(ENABLED_COMPONENTS_LEGACY_BOTH_MIGRATION_KEY) !== "true") {
+            window.localStorage.setItem(KEY.enabledComponents, "mix");
+            window.localStorage.setItem(ENABLED_COMPONENTS_LEGACY_BOTH_MIGRATION_KEY, "true");
+            return "mix";
+        }
         if (v === "aiOnly" || v === "biOnly" || v === "both" || v === "mix") return v;
     } catch { /* swallow */ }
     return "mix";
@@ -518,6 +526,9 @@ export function SettingsProvider(props: SettingsProviderProps): React.ReactEleme
     const setEnabledComponents = useCallback<SettingsActions["setEnabledComponents"]>(
         (value) => {
             persistAndBroadcast(KEY.enabledComponents, value);
+            if (value === "both" && typeof window !== "undefined") {
+                try { window.localStorage.setItem(ENABLED_COMPONENTS_LEGACY_BOTH_MIGRATION_KEY, "true"); } catch { /* swallow */ }
+            }
             dispatch({ type: "set/enabledComponents", value });
         },
         [],
