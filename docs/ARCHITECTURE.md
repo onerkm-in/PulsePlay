@@ -346,6 +346,7 @@ Everything else is creativity surface area. See [AGENDA.md](AGENDA.md) for the o
 
 ## Related docs
 
+- [UNIFIED_ASK_PULSE_WORKBENCH.md](UNIFIED_ASK_PULSE_WORKBENCH.md) — locked Ask Pulse strategy: 3-mode workbench (Native Embed / PulsePlay Verified / Hybrid), no-ungrounded-artifacts contract, ECharts + Vega-Lite stack, 7-step build sequence
 - [ROADMAP.md](ROADMAP.md) — sequenced plan v0.1 through v1.2
 - [SECURITY.md](SECURITY.md) — internal-scoped security guardrails
 - [PROXY_REFERENCE.md](PROXY_REFERENCE.md) — proxy API surface, scopes, route table

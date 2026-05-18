@@ -52,6 +52,39 @@ Use these tags so another agent can scan quickly:
 
 Keep PulsePlay moving faster by coordinating work across agents without losing brutal honesty.
 
+## [DECISION] 2026-05-18 — Unified Ask Pulse Workbench is the locked Ask Pulse direction
+
+**Owner:** Rajesh (verdict from 4 research agents) + Claude (recording the lock).
+**Canonical doc:** [UNIFIED_ASK_PULSE_WORKBENCH.md](UNIFIED_ASK_PULSE_WORKBENCH.md).
+**Status:** locked. Mirrored into HANDOVER, ARCHITECTURE, AGENDA, and memory.
+
+**Three-mode workbench** replaces the current Ask Pulse surface:
+1. **Native Embed** — Genie iframe + future vendor-native chat UIs, PulsePlay owns outer chrome/auth/governance only.
+2. **PulsePlay Verified** — API + artifact contract; PulsePlay owns chart quality, evidence, exports, theme, BI context, accuracy gates.
+3. **Hybrid** — Genie native UX inside the artifact canvas with PulsePlay rails (BI context, SQL/evidence, validation, export, chart promotion, source scope).
+
+**No ungrounded artifacts** is the accuracy promise. Four statuses (`Verified`, `Grounded draft`, `Suggestion`, `Blocked`) are emitted by the artifact validation gate, **not** declared by the LLM.
+
+**Visualization stack**: ECharts primary, Vega-Lite spec/validation grammar, Plotly lazy-loaded for specialist visuals. Chart tiers Core/Advanced/Trendy/Legacy/Future with auto-pick policy.
+
+**Build sequence (sequential 1→3, parallel 4+5, then 6+7):**
+1. `UnifiedAssistantSurface` architecture + connector capability model (TypeScript contract, no UI change).
+2. Genie iframe move to assistant axis as `nativeChatEmbed` (keep BI-axis presentation too).
+3. Artifact card shell with `Answer / Chart / Table / SQL / Evidence / Reasoning` tabs.
+4. Verified artifact model + validation gates (Zod schemas, status mapping, Blocked → Problem Details).
+5. ECharts renderer + chart registry.
+6. Pulse chat asset refactor — **additive only**, respects [PULSE_PORT_DETANGLING.md](PULSE_PORT_DETANGLING.md).
+7. Workbench theme — after structure is right.
+
+**Supersedes:** the 2026-05-17 "unified surface tabs" proposal earlier in this file as the canonical Ask Pulse direction. The floating-comparison-layer and Pulse-Bubble-launcher proposals remain under research and do not block the workbench.
+
+**[HANDOFF]:** Step 1 is unclaimed. Whoever picks it up writes the TypeScript capability model + an ADR for the per-connector capability flags. Coordinate on `[CLAIM]` before starting; the contract decision touches every assistant connector path.
+
+**[RISK] for coordinating agents:**
+- Step 6 is additive only — do not move things out of `playground/src/pulse/*` that the Pulse-PBI sibling consumes.
+- Step 4 validation gate may surface gaps in Genie response shapes; coordinate before extending the proxy response contract.
+- Step 5 ECharts bundle pressure — modular build is the default; flag if Vite cold start regresses measurably.
+
 ## Strategic Planning Note — Option-Aware Databricks-Forward Posture
 
 **Status:** discussion draft for Rajesh + other agents, added 2026-05-16. Do not treat this as a canonical architecture decision until it is mirrored into `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, and `docs/SETTINGS_SPEC.md`.

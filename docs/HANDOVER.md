@@ -5,6 +5,37 @@
 
 ---
 
+## 2026-05-18 - Strategy lock: Unified Ask Pulse Workbench
+
+**Range:** After live no-creds + credentialed smoke confirmed the proxy + playground stack works end-to-end against the org Databricks workspace (7 Genie spaces, 2 Lakeview dashboards, Sample Superstore Sales Performance probe returns rich metadata, live Genie question completed in ~39s), Rajesh ran 4 research agents over the Ask Pulse direction. This pass records their verdict as a canonical strategy lock.
+
+### What changed
+
+- Added [UNIFIED_ASK_PULSE_WORKBENCH.md](UNIFIED_ASK_PULSE_WORKBENCH.md) as the locked strategy. Three modes inside one chat surface: **Native Embed** (Genie iframe), **PulsePlay Verified** (API + artifact contract), **Hybrid** (Genie inside artifact canvas with PulsePlay rails).
+- Locked the accuracy posture: do not promise "100% no hallucination"; promise **no ungrounded artifacts** — every answer carries one of four statuses (`Verified` / `Grounded draft` / `Suggestion` / `Blocked`) emitted by an artifact validation gate, not chosen by the LLM.
+- Locked the visualization stack: **ECharts** primary runtime, **Vega-Lite** neutral spec/validation grammar, Plotly lazy-loaded for scientific/3D/financial specialist visuals. Chart tiers: Core auto-pick, Advanced heuristic auto-pick, Trendy opt-in, Legacy never-auto, Future roadmap.
+- Locked the build sequence: (1) `UnifiedAssistantSurface` architecture + connector capability model, (2) Genie iframe promotion to assistant axis, (3) artifact card shell with `Answer / Chart / Table / SQL / Evidence / Reasoning` tabs, (4) verified artifact model + validation gates, (5) ECharts renderer + chart registry, (6) Pulse chat asset refactor (additive only, respecting Pulse-port detangling), (7) workbench theme.
+- Recorded supersession: the workbench replaces the 2026-05-17 AGENT_SYNC "unified surface tabs" proposal as the canonical Ask Pulse direction. AI Insights remains a sibling pane; the floating comparison layer and Pulse Bubble launcher remain under research and do not block.
+- Cross-linked [ARCHITECTURE.md](ARCHITECTURE.md), [AGENDA.md](AGENDA.md), [AGENT_SYNC.md](AGENT_SYNC.md). Memory mirrored as `feature_unified_workbench`, `feature_no_ungrounded_artifacts`, and `feature_visualization_stack`.
+
+### Validation
+
+- Doc-only commit; no code change.
+- Live smoke that preceded the strategy: proxy `/health` ok, `/assistant/profiles` returns `default` + `supervisor`, `/assistant/capabilities` reports genie/lakeview/servingEndpoints/apps/jobs available + vectorSearch absent, `/assistant/genie/spaces` returns 7 spaces, `/assistant/lakeview/dashboards` returns 2, `/assistant/probe` (default profile) returns rich metadata in 436 ms, `/assistant/conversations/start` + poll completes a real Genie question in ~39 s with top-3-categories SQL on `workspace.databrickspractice.vw_genie_sales_performance`. Vite root HTTP 200; Vite `/api/*` proxy passes through cleanly.
+- `git diff --check` expected clean except for CRLF warnings (Windows shell).
+
+### Tripwires
+
+- The build sequence is **sequential through Step 3**; Steps 4 + 5 can land in parallel; Steps 6 + 7 follow. Do not start Step 6 (Pulse chat asset refactor) before Step 3 because the artifact card shell defines the extraction targets.
+- Step 6 is **additive only**. The Pulse-PBI sibling still consumes `playground/src/pulse/*` patterns. Anything moved out must be re-exported or shimmed so the sibling does not break.
+- Validation gates in Step 4 use the locked Problem Details envelope from [ERROR_HANDLING_STRATEGY.md](ERROR_HANDLING_STRATEGY.md). `Blocked` artifacts return `application/problem+json` shaped responses with category, support code, and operator detail.
+- The artifact status is emitted by the validator, **not** declared by the LLM. Test fixtures must include an LLM trying to self-declare `Verified` on an unsupported claim and the validator overriding to `Grounded draft` or `Blocked`.
+- ECharts bundle pressure is a known live risk. Default plan is modular build (`echarts/core` + per-chart registers). Re-decide if the bundle measurably regresses Vite cold start.
+- Do not deprecate `bi-adapters/databricks-genie/`. Step 2 adds an assistant-axis presentation; the BI-axis presentation stays. A Genie space is legitimately both a BI surface and a chat surface.
+- The capability model from Step 1 is a TypeScript contract. No UI changes until Step 2 lands and Step 3 starts wiring real renderers.
+
+---
+
 ## 2026-05-18 - Review/fix: React Query foundation proof slice
 
 **Range:** Rajesh/Copilot committed `5b51fc2` as the Phase 1 React Query foundation. Codex audited it under the external-LLM diff rule, kept the useful foundation, and patched the acceptance gaps.
