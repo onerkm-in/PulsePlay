@@ -10620,3 +10620,79 @@ body[theme="dark"] .gn-save-reminder-toast,
         color: @gn-text;
     }
 }
+
+/* ─── Design direction 2026-05-18 — "sugar candy" delight layer ──────────
+ *
+ * Restrained micro-interactions per docs/AI_BRIEFING_DESIGN_DIRECTION.md.
+ * Additive only — no existing rule is overridden; everything here either
+ * enhances an existing transition or adds a new one. Everything respects
+ * `prefers-reduced-motion: reduce`.
+ *
+ * What this adds:
+ *   1. Section card arrival is choreographed (60ms stagger per card) so
+ *      a briefing reads as composed rather than dumped. Existing
+ *      gn-section-reveal animation is unchanged; we only delay each
+ *      card.
+ *   2. Surface switcher tabs + Adjust button get a 60ms scale(.97) press
+ *      feedback that snaps back. Hover behavior is untouched.
+ *   3. KPI tile status badge first-render scale-in. The 220ms pop is
+ *      small enough to read as "earned" rather than playful.
+ *   4. Follow-up chip hover lift parity with the rest of the system.
+ *   5. Reduced-motion guards collapse all of the above to instant so
+ *      vestibular users get a static briefing.
+ */
+
+/* 1. Section card stagger — only when reduced motion is OFF. */
+@media (prefers-reduced-motion: no-preference) {
+    .gn-insights-sections > .gn-insights-section:nth-child(1)  { animation-delay: 0ms; }
+    .gn-insights-sections > .gn-insights-section:nth-child(2)  { animation-delay: 60ms; }
+    .gn-insights-sections > .gn-insights-section:nth-child(3)  { animation-delay: 120ms; }
+    .gn-insights-sections > .gn-insights-section:nth-child(4)  { animation-delay: 180ms; }
+    .gn-insights-sections > .gn-insights-section:nth-child(5)  { animation-delay: 240ms; }
+    .gn-insights-sections > .gn-insights-section:nth-child(6)  { animation-delay: 300ms; }
+    .gn-insights-sections > .gn-insights-section:nth-child(7)  { animation-delay: 360ms; }
+    .gn-insights-sections > .gn-insights-section:nth-child(n+8) { animation-delay: 420ms; }
+}
+
+/* 2. Reduced motion — collapse existing reveal to instant. */
+@media (prefers-reduced-motion: reduce) {
+    .gn-insights-section {
+        animation: none !important;
+        opacity: 1 !important;
+        transform: none !important;
+    }
+}
+
+/* 3. Press feedback for surface switcher tabs + Adjust + sibling pill controls.
+ *    Snap-back is the satisfying half — short on press, gentle return. */
+@media (prefers-reduced-motion: no-preference) {
+    .gn-header-tab:not(:disabled):active,
+    .gn-header-adjust:not(:disabled):active {
+        transform: scale(0.97);
+        transition: transform 60ms ease-out;
+    }
+}
+
+/* 4. KPI tile status badge first-render pop. Uses the existing
+ *    gn-kpi-tile-status selector so EVERY status reads as "this just
+ *    landed" without needing JS to trigger. The animation runs once on
+ *    mount; subsequent re-renders (e.g. status change) re-trigger it,
+ *    which is the desired "newly verified" effect. */
+@keyframes gn-status-badge-pop {
+    from { transform: scale(0.94); opacity: 0.5; }
+    to   { transform: scale(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: no-preference) {
+    .gn-kpi-tile-status {
+        animation: gn-status-badge-pop 220ms cubic-bezier(.2, .9, .2, 1) both;
+    }
+}
+
+/* 5. Follow-up chip hover lift parity (consistent with KPI tile hover). */
+@media (prefers-reduced-motion: no-preference) {
+    .gn-followup-chip:not(:disabled):hover {
+        transform: translateY(-1px);
+        transition: transform 180ms @gn-ease, box-shadow 180ms @gn-ease;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+    }
+}
