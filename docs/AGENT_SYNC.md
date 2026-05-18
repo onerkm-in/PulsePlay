@@ -92,8 +92,25 @@ Cumulative: **165 new tests** across the 6 commits; full playground sweep **745/
 - **Step 6 — Pulse chat asset refactor**. ADDITIVE ONLY. The Pulse-PBI sibling still consumes `playground/src/pulse/*` patterns — anything extracted must be re-exported or shimmed so the sibling does not break. Per [PULSE_PORT_DETANGLING.md](PULSE_PORT_DETANGLING.md). Candidate extractions: SQL-section tab rendering (consumed by the new ArtifactCard `sql` tab in a more general shape), prompt redaction utilities, suggested-question chip rendering. Do not touch `visual.tsx` directly; lift the helpers it uses into PulsePlay-native modules.
 - **Step 7 — Workbench theme**. Apply after Step 6 so the structure is stable. Replace the v0 inline tokens in `workbench.css` with the full theme — professional neutral baseline, restrained accent, separate data-viz palette, compact / dark / high-contrast modes. The chart registry already has the data-viz hook (ECharts theme registration); register one PulsePlay theme + ensure all renderable Core tier charts read from it.
 
-**Beyond the build sequence (next sensible lane):**
-- Wire the real Genie Conversation API into the workbench: a `useConversation()` React Query hook that drives `/assistant/conversations/start` + polling, maps the Genie response shape into a `CandidateArtifact`, runs `validateArtifact()`, renders the result in the artifact card. This closes the loop end-to-end and lets the demo Superstore artifact retire.
+**[DONE] 2026-05-18 — Real Genie conversation wiring landed (`c709578`).** The "next sensible lane" called out in the previous handoff is now committed:
+- `playground/src/workbench/genieResponseMapper.ts` — pure mapping Genie message → `CandidateArtifact`. Never fabricates: no chart synthesis, no synthetic citations, no LLM-claimed-status forwarding.
+- `playground/src/workbench/useConversation.ts` — React Query composition (start + poll until terminal + map + validate). Poll halts on COMPLETED/FAILED/CANCELLED via state-driven refetchInterval. FAILED upstream surfaces a validator-blocked result via the empty-candidate path so the UI uses the same Blocked treatment as chart-without-data.
+- `playground/src/workbench/UnifiedWorkbench.tsx` — composer (textarea + Cmd/Ctrl+Enter) in Verified + Hybrid modes; live `conversation.result.artifact` replaces the demo Superstore fixture once a result lands; "source: live" / "source: demo fixture" badge makes data origin obvious; "Reset to demo" returns to the fixture without a reload.
+- 18 new vitest (12 mapper + 6 hook): success / polling progression / start failure / terminal FAILED upstream / two no-ungrounded-behavior cases (answer-only → suggestion; injected ungrounded chart overridden to blocked even with `llmClaimedStatus: 'verified'`). Existing WorkbenchShell tests now mount inside a `QueryClientProvider`.
+
+Validation: lint clean, tsc clean, full sweep **763/763**, build clean (14.27 s), Vite `/workbench` HTTP 200.
+
+**[HANDOFF] Sensible next lanes (any agent, no claim yet):**
+- **Step 6 — Pulse chat asset refactor** (additive only, respects [PULSE_PORT_DETANGLING.md](PULSE_PORT_DETANGLING.md)). Candidates: SQL-section rendering, prompt redaction utilities, suggested-question chip rendering. Extract into PulsePlay-native modules with shims back to `pulse/*` for sibling consumption.
+- **Step 7 — Workbench theme** (apply after Step 6). Replace `workbench.css` v0 with the full theme: professional neutral baseline + restrained accent + separate data-viz palette + compact/dark/high-contrast modes. ECharts theme registration via the chart registry hook.
+- **Promote Genie's UI mode in production** by setting `VITE_PULSEPLAY_ENABLE_WORKBENCH=true` after a smoke session with a real Genie space; this also retires the demo fixture for users.
+- **`classifyConnectorType` follow-up** — `proxy/lib/connectorProbe.js` still does not return `responses-agent` even though the workbench matrix lists it for forward compat.
+
+**[RISK] for coordinating agents:**
+- Step 6 is additive only — do not move things out of `playground/src/pulse/*` that the Pulse-PBI sibling consumes.
+- Step 7 ECharts bundle pressure stays modular; do not switch to the full echarts package.
+- Validator remains the only authority for artifact status. Upstream Genie `status` is execution state — never forward as `llmClaimedStatus`.
+- Mapper never fabricates. If you add chart promotion, the chart spec must come from a real data-bearing source the validator can verify; otherwise the validator will block it (and tests will catch the regression).
 
 **[RISK] for coordinating agents:**
 - Step 6 is additive only — do not move things out of `playground/src/pulse/*` that the Pulse-PBI sibling consumes.

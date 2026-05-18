@@ -40,13 +40,10 @@ Sequential through 3 (done). Steps 4 + 5 landed in parallel (done). Wiring lande
 
 ## Beyond the build sequence
 
-The workbench surface is up; the **next sensible lane** is wiring the real Genie Conversation API into it:
-- `useConversation()` React Query hook that drives `/assistant/conversations/start` + polling.
-- Map the Genie response shape into a `CandidateArtifact`.
-- Run `validateArtifact()`.
-- Render the result in the artifact card.
-
-This closes the loop end-to-end and lets `demoArtifact.ts` retire.
+- [x] **Real Genie conversation wiring** (landed 2026-05-18, `c709578`). `useConversation()` React Query hook + `genieResponseMapper.ts` pure mapping + composer in `UnifiedWorkbench`. Live result replaces the demo fixture as soon as a question completes; demo stays as first-paint fallback. FAILED/CANCELLED upstream → validator-blocked via empty-candidate path. 18 new vitest covering success / polling / failure / blocked / no-ungrounded.
+- [ ] **Promote workbench out of preview-flag** once `/workbench` has cycled live use with a real Genie space. Set `VITE_PULSEPLAY_ENABLE_WORKBENCH=true` for the build and retire the demo fixture for users.
+- [ ] **`classifyConnectorType` proxy follow-up** to surface `responses-agent` from the probe classifier; the workbench matrix already lists it for forward compatibility.
+- [ ] **Conversation history** — `ask()` currently CLEARS the prior poll cache so each new turn starts clean. If history view is wanted later, change the cache strategy to APPEND.
 
 ## Capability matrix (current)
 

@@ -5,6 +5,39 @@
 
 ---
 
+## 2026-05-18 - Workbench real Genie conversation wiring (`useConversation` + composer)
+
+**Range:** After Codex's Playwright + unified BI Viz + metric-cue commit (`5623808`), built the real conversation loop into the workbench preview surface and replaced the demo Superstore fixture with live data behind the existing preview flag. Demo stays as the first-paint fallback until a question is submitted.
+
+### What changed
+
+- **`playground/src/workbench/genieResponseMapper.ts`** — pure mapping function `mapGenieMessageToCandidate({ message, profile, connectorType })` turning a Databricks Genie message response into a `CandidateArtifact`. **Never fabricates**: no chart synthesis (chart promotion is downstream), no synthetic citations, no LLM-claimed-status forwarding. Upstream `status` is Genie execution state, not an artifact claim — the validator's authority covers artifact correctness only. Extracts answer markdown, SQL, table (columns + data_table), citations (`sql` + `result-rows` when both present), reasoning steps (`THOUGHT_TYPE_*` → Intent / Sources / Plan / SQL plan), rowCount, executionTimeMs (timestamp delta), source profile + connector type. Defensive cell normalization (null/number/string/non-string). Exports `GENIE_TERMINAL_STATUSES` + `isGenieTerminal`.
+- **`playground/src/workbench/useConversation.ts`** — React Query composition. `useConversation({ profile, connectorType?, pollIntervalMs? })` returns `{ ask, reset, isStarting, isPolling, upstreamStatus, result, error, isTerminal }`. Internally composes `useMutation` for `POST /api/assistant/conversations/start` and `useQuery` with a state-driven `refetchInterval` predicate for `GET /api/assistant/conversations/:cid/messages/:mid?profile=...`. Poll halts on COMPLETED / FAILED / CANCELLED. `result` is the `ValidationResult` from `validateArtifact()` over the mapped candidate. FAILED / CANCELLED upstream surfaces a validator-blocked artifact (empty-candidate path) plus a meaningful error, so the UI uses the same Blocked treatment as a chart-without-data block. `ask()` clears prior poll cache before submitting so back-to-back questions stay clean.
+- **`playground/src/workbench/UnifiedWorkbench.tsx`** — adds `WorkbenchComposer` (sticky textarea with submit + Cmd/Ctrl+Enter; disabled while starting/polling; surfaces upstream Genie status in the submit button label) in Verified and Hybrid modes. `visibleArtifact = conversation.result?.artifact ?? demoArtifact` so the Superstore fixture remains first-paint until a real result lands. "source: live" / "source: demo fixture" badge in the mode-status line makes the data origin obvious. "Reset to demo" only renders after a live result.
+- **`playground/src/workbench/workbench.css`** — composer styling using existing `:root` tokens (label, textarea, submit/reset buttons, error banner, source badge).
+- **`playground/src/workbench/__tests__/genieResponseMapper.test.ts`** (12) — `isGenieTerminal` cases, happy-path validation (verified status + correct tabs + citation ordering + reasoning labels), text-attachment fallback, never-fabricates guarantees (no chart, no synthetic citations, answer-only → suggestion), defensive coding (stable id fallback, empty thoughts skipped, inverted timestamps omit executionTimeMs, cell type normalization).
+- **`playground/src/workbench/__tests__/useConversation.test.tsx`** (6) — success path (start + COMPLETED → verified), polling progression (SUBMITTED → EXECUTING → COMPLETED across fake timers), start failure (500 from POST surfaces error, never polls), terminal FAILED upstream (validator-blocked + error mentioning "failed upstream", `workbench.validation` category), and two no-ungrounded-behavior cases (answer-only Genie → suggestion; injected ungrounded chart overridden to blocked even when `llmClaimedStatus: 'verified'`).
+- **`playground/src/workbench/__tests__/WorkbenchShell.test.tsx`** — existing 8 tests now mount inside a `QueryClientProvider` with retry disabled and a per-test `QueryClient` so `useQueryClient()` resolves and cache state is isolated.
+
+### Validation
+
+- `tsc --noEmit` clean.
+- `npm run lint` clean.
+- `npm run test` **763/763** (745 baseline + 18 new across the mapper + hook).
+- `npm run build` clean (14.27 s).
+- Live Vite smoke: `http://127.0.0.1:5174/workbench` returns HTTP 200.
+
+### Tripwires
+
+- The validator stays the only authority for artifact status. `useConversation` deliberately does NOT forward Genie's upstream `status` as `llmClaimedStatus` — the upstream status is execution state, not an artifact claim. Tests pin this with an injected-chart override case so the contract is exercised at the validator boundary the hook depends on.
+- The mapper **never fabricates**. No chart synthesis. No synthetic citations. If Genie returns answer-only, the validator emits `suggestion`. If Genie returns FAILED, the validator emits `blocked` via the empty-candidate path.
+- No iframe sandbox widened. ECharts imports unchanged (modular `echarts/core` + per-chart registers). BI Viz semantics in mix mode unchanged.
+- Demo fixture stays as fallback. Do not remove it until a real `/workbench` surface has cycled at least a week of live use; first-paint with no data is a worse UX than first-paint with a demo.
+- The composer's Cmd/Ctrl+Enter shortcut is the only keyboard submit. Don't add Enter-only submit until users have asked for it; jsdom auto-submits on Enter happen often and would break demos.
+- `ask()` clears the prior poll cache. If a future slice wants conversation history, change that pattern to APPEND rather than CLEAR; otherwise history is lost on each new turn.
+
+---
+
 ## 2026-05-18 - Playwright browser smoke enabled for unified BI Viz
 
 **Scope:** Rajesh asked to install whatever was needed after the previous handover honestly recorded that real browser automation could not run because Playwright was unavailable in the exposed runtime.
