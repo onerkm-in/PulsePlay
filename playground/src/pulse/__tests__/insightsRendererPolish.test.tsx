@@ -327,6 +327,74 @@ describe("inline trend pill semantic cue consistency", () => {
         expect(html).not.toContain("gn-trend-tone-watch");
     });
 
+    it("Insight card body picks up metric name from card LABEL (Return Rate increase, lower-is-better → bad tone, NOT green)", () => {
+        // Codex audit follow-up 2026-05-18: Rajesh shipped a screenshot
+        // showing a Trends card with label "Return Rate increase" and body
+        // "rose to 6.2%, up ▲ +0.3pp, could signal product or service issues."
+        // rendering GREEN. The bug: pillColorClass calls metricNameBeforePill
+        // which scans only 60 chars BEFORE the pill in the same body text;
+        // the metric name "Return Rate" lives in the card LABEL, not the
+        // body prose, so no rule ever matched and pillColorClass fell back
+        // to the physical-direction (green for up). Fix threads card.label
+        // as a metricNameHint through inlineFormat → pillColorClass.
+        const node = __insightsRenderForTest.renderInsightsSections(
+            [
+                "# TRENDS",
+                "- **Return Rate increase:** rose to 6.2%, up 0.3pp, could signal product or service issues.",
+                "- **Profit Margin compression:** fell to 12.7%, down 0.5pp, watch for resilience.",
+            ].join("\n"),
+            { metricDirectionsJson: JSON.stringify([
+                { name: "Return Rate", higherIsBetter: false, aliases: ["return rate"] },
+                { name: "Profit Margin", higherIsBetter: true, aliases: ["profit margin"] },
+            ]) },
+        );
+        const html = renderToStaticMarkup(<>{node}</>);
+
+        // Direction class for the Return Rate pill is UP (physical movement).
+        expect(html).toContain("gn-trend-up");
+        // Tone class is BAD because higher Return Rate is unfavorable. THIS
+        // is the line that was missing pre-fix — the rule never matched, so
+        // tone-bad was never emitted and the pill rendered green.
+        expect(html).toContain("gn-trend-tone-bad");
+    });
+
+    it("Insight card body picks up metric name from card LABEL (Profit Margin compression → bad tone on down direction)", () => {
+        const node = __insightsRenderForTest.renderInsightsSections(
+            [
+                "# TRENDS",
+                "- **Profit Margin compression:** fell to 12.7%, down 0.7pp, watch resilience.",
+                "- **Return Rate steady:** holds at 5.9%, up 0.1pp, monitor.",
+            ].join("\n"),
+            { metricDirectionsJson: JSON.stringify([
+                { name: "Profit Margin", higherIsBetter: true, aliases: ["profit margin"] },
+                { name: "Return Rate", higherIsBetter: false, aliases: ["return rate"] },
+            ]) },
+        );
+        const html = renderToStaticMarkup(<>{node}</>);
+
+        // Profit Margin down: physical direction = down, semantic = bad
+        // (higher-is-better; decrease is unfavorable).
+        expect(html).toContain("gn-trend-down");
+        expect(html).toContain("gn-trend-tone-bad");
+    });
+
+    it("Insight card body inherits hint even when body prose has no metric name at all", () => {
+        // Defensive: an insight card whose body is ALL adjectives + numbers
+        // should still resolve the rule via the label hint.
+        const node = __insightsRenderForTest.renderInsightsSections(
+            [
+                "# TRENDS",
+                "- **Return Rate:** holding above expectations, up 0.4pp this period.",
+                "- **Some other metric:** trending lower.",
+            ].join("\n"),
+            { metricDirectionsJson: JSON.stringify([
+                { name: "Return Rate", higherIsBetter: false, aliases: ["return rate"] },
+            ]) },
+        );
+        const html = renderToStaticMarkup(<>{node}</>);
+        expect(html).toContain("gn-trend-tone-bad");
+    });
+
     it("Known follow-up: % suffix is a pre-existing INLINE_REGEX blind spot (no pill renders)", () => {
         // Pulse's regex requires a word boundary after the captured number.
         // "12%" ends with a non-word char, and natural English text never

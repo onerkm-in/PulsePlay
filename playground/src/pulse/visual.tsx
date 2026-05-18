@@ -7951,7 +7951,11 @@ function renderNarrative(text: string, sectionTitle?: string, metricRules?: Inli
                                     className={`gn-insight-card${card.generatedLabel ? " gn-insight-card--plain" : ""}`}
                                 >
                                     <div className="gn-insight-card-label">{inlineFormat(card.label, sectionTitle, metricRules)}</div>
-                                    <div className="gn-insight-card-body">{inlineFormat(card.body, sectionTitle, metricRules)}</div>
+                                    {/* Card body inline pills resolve metric rules via card.label as the
+                                        context hint — without this, the body prose ("rose to 6.2%, up ▲ +0.3pp,
+                                        ...") doesn't contain the metric name and the rule path never fires.
+                                        Codex audit follow-up 2026-05-18. */}
+                                    <div className="gn-insight-card-body">{inlineFormat(card.body, sectionTitle, metricRules, card.label)}</div>
                                 </article>
                             );
                         })}
@@ -8322,7 +8326,7 @@ function matchesFuzzyAlias(metricName: string): boolean {
 // punctuation, returns the last 1-3 words. Cheap and correct for the
 // common cases ("Return Rate ▼ 5%", "Days to Ship dropped 1.2 days",
 // "Sales increased by 12%").
-function metricNameBeforePill(text: string, pillIndex: number): string {
+function metricNameBeforePill(text: string, pillIndex: number, hint?: string): string {
     const window = text.slice(Math.max(0, pillIndex - 60), pillIndex);
     const cleaned = window
         .replace(/[*_`~()[\]{}]/g, " ")
@@ -8337,7 +8341,17 @@ function metricNameBeforePill(text: string, pillIndex: number): string {
         "increased", "decreased", "rose", "fell", "dropped", "climbed", "grew", "declined",
         "up", "down", "more", "less", "than", "vs", "versus"]);
     const filtered = words.filter(w => !STOP.has(w.toLowerCase()));
-    return filtered.slice(-3).join(" ");
+    const fromWindow = filtered.slice(-3).join(" ");
+
+    // Caller-supplied context hint (e.g. the insight-card label) takes
+    // precedence when supplied. The card label is an explicit metric-context
+    // signal that overrides body-window heuristics — body prose like "rose
+    // to 6.2%, up 0.3pp" leaves only weak leftovers ("to") that don't
+    // resolve to a rule. If a card's label and body discuss different
+    // metrics, that's a card-author concern; the renderer trusts the
+    // explicit label. Codex audit follow-up 2026-05-18.
+    if (hint && hint.trim()) return hint.trim();
+    return fromWindow;
 }
 
 /**
@@ -8355,12 +8369,12 @@ function metricNameBeforePill(text: string, pillIndex: number): string {
  * the direction signal AND the tone signal available to readers, tests,
  * and downstream styling.
  */
-function pillColorClass(physicalDir: "up" | "down" | "flat", text: string, pillIndex: number, deltaText: string, rules?: InlineMetricRules): string {
+function pillColorClass(physicalDir: "up" | "down" | "flat", text: string, pillIndex: number, deltaText: string, rules?: InlineMetricRules, metricNameHint?: string): string {
     const dirClass = `gn-trend-pill gn-trend-${physicalDir}`;
     if (physicalDir === "flat" || !rules || (!rules.structured && !rules.legacy)) {
         return dirClass;
     }
-    const metricName = metricNameBeforePill(text, pillIndex);
+    const metricName = metricNameBeforePill(text, pillIndex, metricNameHint);
     if (!metricName) return dirClass;
     // Pulse's INLINE_REGEX captures the trend word ("up", "down", "rose",
     // "fell") and the number separately for the G6/G7 path, so deltaText
@@ -8493,7 +8507,7 @@ function decorateNeutralRulePills(slice: string, ruleNames: string[]): React.Rea
     return <>{out}</>;
 }
 
-function inlineFormat(text: string, sectionTitle?: string, metricRules?: InlineMetricRules): React.ReactNode {
+function inlineFormat(text: string, sectionTitle?: string, metricRules?: InlineMetricRules, metricNameHint?: string): React.ReactNode {
     const upperTitle = sectionTitle ? sectionTitle.trim().toUpperCase() : "";
     const statusGlyphsBelongInThisSection = /^(KPI SNAPSHOT|KPI|METRICS?|SCORECARD|PERFORMANCE)$/i.test(upperTitle);
     const sourceText = statusGlyphsBelongInThisSection
@@ -8550,7 +8564,7 @@ function inlineFormat(text: string, sectionTitle?: string, metricRules?: InlineM
                     : <React.Fragment key={match.index}>{parseBold(match[0])}</React.Fragment>);
             } else {
                 const dir = POS_RE.test(match[2]) ? "up" : "down";
-                const cls = pillColorClass(dir, sourceText, match.index, match[1], metricRules);
+                const cls = pillColorClass(dir, sourceText, match.index, match[1], metricRules, metricNameHint);
                 parts.push(
                     <React.Fragment key={match.index}>
                         <span className={cls} data-source="ai"><TrendPyramid direction={dir} />{match[1]}</span>
@@ -8569,7 +8583,7 @@ function inlineFormat(text: string, sectionTitle?: string, metricRules?: InlineM
                     : <React.Fragment key={match.index}>{parseBold(match[0])}</React.Fragment>);
             } else {
                 const dir = POS_RE.test(match[3]) ? "up" : "down";
-                const cls = pillColorClass(dir, sourceText, match.index, match[4], metricRules);
+                const cls = pillColorClass(dir, sourceText, match.index, match[4], metricRules, metricNameHint);
                 // Recover the connective ("of" or "by") from the original match.
                 const connective = /\b(of|by)\b/i.exec(match[0])?.[1] ?? "by";
                 parts.push(
@@ -8589,7 +8603,7 @@ function inlineFormat(text: string, sectionTitle?: string, metricRules?: InlineM
                     : <React.Fragment key={match.index}>{parseBold(match[0])}</React.Fragment>);
             } else {
                 const dir = match[5].startsWith("+") ? "up" : "down";
-                const cls = pillColorClass(dir, sourceText, match.index, match[5], metricRules);
+                const cls = pillColorClass(dir, sourceText, match.index, match[5], metricRules, metricNameHint);
                 parts.push(<span key={match.index} className={cls} data-source="ai"><TrendPyramid direction={dir} />{match[5]}</span>);
             }
         } else if (match[6] !== undefined && match[7] !== undefined) {
@@ -8603,7 +8617,7 @@ function inlineFormat(text: string, sectionTitle?: string, metricRules?: InlineM
                     : <React.Fragment key={match.index}>{parseBold(match[0])}</React.Fragment>);
             } else {
                 const dir = POS_RE.test(match[6]) ? "up" : "down";
-                const cls = pillColorClass(dir, sourceText, match.index, match[7], metricRules);
+                const cls = pillColorClass(dir, sourceText, match.index, match[7], metricRules, metricNameHint);
                 parts.push(
                     <React.Fragment key={match.index}>
                         {match[6]}{" "}
