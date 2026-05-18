@@ -1200,7 +1200,9 @@ function PlaygroundApp(): React.ReactElement {
                         onShowBoth={handleShowBothPanes}
                     >
                         <main className="pp-app__canvas" style={{ ...panelInnerStyle(), display: "flex", flexDirection: "column" }}>
-                            {enabledComponents === "mix" && (
+                            {/* Suppress surface nav when AI is floating — the background
+                              * BI canvas should be clean, navigation lives in the float. */}
+                            {enabledComponents === "mix" && !floatedPane && (
                                 <UnifiedSurfaceTabs
                                     active="bi"
                                     onOpenInsights={() => handleMixSurfaceSelect("ai", "insights")}
