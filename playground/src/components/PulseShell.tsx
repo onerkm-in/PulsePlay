@@ -14,7 +14,7 @@
 //   3. Calls visual.update({ viewport, dataViews: [] }) to render
 //   4. Re-calls update() when container resizes or settings re-render is requested
 //
-// On unmount: calls visual.destroy() if defined; tears down the React root.
+// On unmount: schedules visual.destroy() if defined; tears down the React root.
 //
 // What this does NOT yet do (queued for later cycles):
 //   - Wire BIAdapter events into Pulse's prompt context (Cycle F: contextBuilder
@@ -59,11 +59,15 @@ export interface PulseShellProps {
     /** Vendor identifier used as the queryName prefix when synthesising
      *  filter targets (e.g. `powerbi`, `tableau`). Default `bi`. */
     biVendor?: string;
+    /** App-owned surface navigation can request the internal Pulse tab
+     *  after returning from BI Viz in unified mode. */
+    activeTabRequest?: "insights" | "chat";
 }
 
 export function PulseShell(props: PulseShellProps) {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const visualRef = useRef<Visual | null>(null);
+    const pendingDestroyRef = useRef<{ timer: number; visual: Visual } | null>(null);
 
     // Cycle L — derive a synthetic `categorical` block from the most recent
     // BI vendor events so Pulse's `contextBuilder.buildContext()` populates
@@ -85,14 +89,20 @@ export function PulseShell(props: PulseShellProps) {
         // settings already exist in localStorage.
         seedPulsePlayDefaults();
 
-        const host = new PulseHostStub({
-            onApplyFilter: props.onApplyFilter,
-            onPersist: () => props.onSettingsChange?.(),
-        });
-
-        // The Visual constructor calls createRoot(container) internally —
-        // we just hand it our container.
-        const visual = new Visual({ element: container, host });
+        const pendingDestroy = pendingDestroyRef.current;
+        const visual = pendingDestroy
+            ? pendingDestroy.visual
+            : new Visual({
+                element: container,
+                host: new PulseHostStub({
+                    onApplyFilter: props.onApplyFilter,
+                    onPersist: () => props.onSettingsChange?.(),
+                }),
+            });
+        if (pendingDestroy) {
+            window.clearTimeout(pendingDestroy.timer);
+            pendingDestroyRef.current = null;
+        }
         visualRef.current = visual;
 
         // Cycle E.4 + Cycle L — synthetic dataView carrying the persisted
@@ -120,12 +130,25 @@ export function PulseShell(props: PulseShellProps) {
 
         return () => {
             ro?.disconnect();
-            try {
-                visual.destroy?.();
-            } catch (err) {
-                console.warn("[PulseShell] visual.destroy() failed:", err);
-            }
+            const visualToDestroy = visualRef.current;
             visualRef.current = null;
+            if (!visualToDestroy) return;
+            // Pulse owns a nested React root. Defer its unmount until the
+            // parent React commit finishes so surface switching stays quiet
+            // in real-browser smoke runs. If React dev StrictMode immediately
+            // remounts the effect, the next mount flushes this first.
+            const timer = window.setTimeout(() => {
+                try {
+                    visualToDestroy.destroy?.();
+                } catch (err) {
+                    console.warn("[PulseShell] visual.destroy() failed:", err);
+                } finally {
+                    if (pendingDestroyRef.current?.visual === visualToDestroy) {
+                        pendingDestroyRef.current = null;
+                    }
+                }
+            }, 0);
+            pendingDestroyRef.current = { timer, visual: visualToDestroy };
         };
         // Intentional one-shot mount: callbacks are read via closure-of-props
         // (re-renders on prop change land via the renderToken effect below).
@@ -144,6 +167,13 @@ export function PulseShell(props: PulseShellProps) {
             dataViews: [buildSyntheticDataView(biCategorical)],
         });
     }, [props.renderToken, props.viewport, biCategorical]);
+
+    useEffect(() => {
+        if (!props.activeTabRequest) return;
+        window.dispatchEvent(new CustomEvent("pulseplay:pulse-surface-tab", {
+            detail: { tab: props.activeTabRequest },
+        }));
+    }, [props.activeTabRequest, props.renderToken]);
 
     return (
         <div

@@ -5,6 +5,62 @@
 
 ---
 
+## 2026-05-18 - Playwright browser smoke enabled for unified BI Viz
+
+**Scope:** Rajesh asked to install whatever was needed after the previous handover honestly recorded that real browser automation could not run because Playwright was unavailable in the exposed runtime.
+
+### What changed
+
+- Installed `@playwright/test` in [playground/package.json](../playground/package.json), updating [playground/package-lock.json](../playground/package-lock.json).
+- Installed the Playwright Chromium runtime locally via `npx.cmd playwright install chromium`.
+- Fixed the first-run wizard hidden-pane `inert` spread in [FirstRunWizard.tsx](../playground/src/components/FirstRunWizard.tsx) so React receives a real boolean attribute instead of an empty string.
+- Hardened [PulseShell.tsx](../playground/src/components/PulseShell.tsx) nested-root cleanup: real unmounts defer `Visual.destroy()` so React does not warn during surface switching, while React dev StrictMode cancels that pending destroy and reuses the existing Pulse visual during its simulated remount.
+
+### Validation
+
+- Real Chromium smoke at `http://127.0.0.1:5173/`: `AI Insights` surface -> `BI Viz` surface -> `AI Insights` surface, `focus=split`, BI panel `data-status="ready"`, 1 secure Power BI iframe mounted, 0 console errors, 0 page errors.
+- `npm.cmd test -- viewportControls.integration insightsRendererPolish --silent` -> **23/23**.
+- `npm.cmd run lint` -> clean.
+- `npm.cmd test -- --silent` -> **745/745** across 59 files.
+- `git diff --check` -> clean except expected Windows LF-to-CRLF warnings.
+
+### Tripwires
+
+- The previous browser-smoke limitation is closed for this workspace. Use `@playwright/test` from the playground package for future real-browser smoke runs.
+- PulseShell hosts a nested React root owned by the ported Pulse visual. Cleanup must stay StrictMode-aware; destroying synchronously inside React's parent commit brings back the browser warning, while always deferring without reuse brings back duplicate `createRoot()` warnings in dev.
+
+---
+
+## 2026-05-18 - Unified BI Viz tab + metric-direction cue cleanup
+
+**Scope:** Rajesh clarified the intended unified layout: `AI Insights`, `Ask Pulse`, and `BI Viz` are peer navigation surfaces in one primary canvas. `BI Viz` is the existing BI pane, not a separate split/focused screen by default. He also re-flagged that lower-is-better metric movement must drive every visual cue, not only surrounding text.
+
+### What changed
+
+- Updated [playground/src/App.tsx](../playground/src/App.tsx) so `enabledComponents="mix"` treats `BI Viz` as a same-canvas surface switch:
+  - Clicking the Pulse `BI Viz` action no longer writes `?focus=bi` or enters focused-pane mode.
+  - The primary canvas swaps from the AI pane to the BI pane while keeping `pulseplay:enabled-components` unchanged.
+  - The BI surface now includes a compact `AI Insights | Ask Pulse | BI Viz` surface switcher so users can return to AI Insights or Ask Pulse without opening a separate screen.
+  - Explicit maximize/focus, split mode, separate page, and float behavior remain available through existing pane controls.
+- Added a light bridge from [PulseShell.tsx](../playground/src/components/PulseShell.tsx) to [visual.tsx](../playground/src/pulse/visual.tsx) so the host can request the internal Pulse `AI Insights` or `Ask Pulse` tab after returning from the BI surface.
+- Tightened KPI delta rendering in [visual.tsx](../playground/src/pulse/visual.tsx): once the renderer has assigned the semantic delta pill tone, the delta text is rendered plain inside that pill. This prevents nested text like `▲ +6.3%` from being re-formatted as a green inner trend pill when the metric is lower-is-better and the movement is unfavorable.
+- Updated focused coverage in [viewportControls.integration.test.tsx](../playground/src/__tests__/viewportControls.integration.test.tsx) and [insightsRendererPolish.test.tsx](../playground/src/pulse/__tests__/insightsRendererPolish.test.tsx).
+
+### Validation
+
+- `npm.cmd test -- viewportControls.integration insightsRendererPolish --silent` → **23/23**.
+- `npm.cmd run lint` → clean.
+- `git diff --check` → clean except expected Windows LF-to-CRLF warnings.
+- Follow-up 2026-05-18 installed Playwright and closed the real-browser smoke gap; see the entry above.
+
+### Tripwires
+
+- `mix` is now a same-canvas surface switch, not "AI pane plus hidden BI pane until focus." Do not reintroduce `BI Viz` as a default focused-pane shortcut.
+- The old split/focus machinery remains valid for explicit power-user actions only (`Split + Mix`, maximize, open page, float).
+- KPI delta content inside `gn-kpi-tile-delta` should stay plain text unless the inner formatter can inherit the metric-direction context. Otherwise lower-is-better deltas can produce contradictory nested green pills.
+
+---
+
 ## 2026-05-18 - Workbench Steps 2–5 + /workbench wiring landed
 
 **Range:** Continued the build sequence after Step 1 (`cc33dca`). Steps 2, 3, 4, 5 and the route wiring are now on `main`, all shipped as separate small commits with focused tests per slice and a final full-sweep validation.

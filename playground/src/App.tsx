@@ -91,6 +91,8 @@ type BiTileMode = "1" | "2" | "4";
 const BI_VENDOR_STORAGE_KEY = "pulseplay:bi-vendor";
 type ViewportPane = "ai" | "bi";
 type ViewportFocus = ViewportPane | null;
+type PulseSurfaceTab = "insights" | "chat";
+type MixSurface = "ai" | "bi";
 const PINNED_VIEWPORT_PANE_STORAGE_KEY = "pulseplay:pinned-viewport-pane";
 const PULSEPLAY_VIEWPORT_ACTION_EVENT = "pulseplay:viewport-action";
 const PULSEPLAY_VIEWPORT_STATE_EVENT = "pulseplay:viewport-state";
@@ -433,6 +435,8 @@ function PlaygroundApp(): React.ReactElement {
     );
     const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => readInitialLayoutMode());
     const [focusedPane, setFocusedPane] = useState<ViewportFocus>(() => readInitialViewportFocus());
+    const [mixSurface, setMixSurface] = useState<MixSurface>("ai");
+    const [requestedPulseTab, setRequestedPulseTab] = useState<PulseSurfaceTab>("insights");
     const [pinnedViewportPane, setPinnedViewportPane] = useState<ViewportFocus>(() => readInitialPinnedViewportPane());
     const biAdaptersRef = useRef<Map<number, BIAdapter>>(new Map());
     const [primaryBIAdapter, setPrimaryBIAdapter] = useState<BIAdapter | null>(null);
@@ -492,12 +496,23 @@ function PlaygroundApp(): React.ReactElement {
     const handleViewportMinimize = useCallback((pane: ViewportPane) => {
         setFocusedPane(null);
         writeViewportFocusToUrl(null);
+        if (enabledComponents === "mix") {
+            setMixSurface(pane === "ai" ? "bi" : "ai");
+            return;
+        }
         handleEnabledComponentsChange(pane === "ai" ? "biOnly" : "aiOnly");
         if (pinnedViewportPane === pane) {
             setPinnedViewportPane(null);
             try { window.localStorage.removeItem(PINNED_VIEWPORT_PANE_STORAGE_KEY); } catch { /* swallow */ }
         }
-    }, [handleEnabledComponentsChange, pinnedViewportPane]);
+    }, [enabledComponents, handleEnabledComponentsChange, pinnedViewportPane]);
+
+    const handleMixSurfaceSelect = useCallback((surface: MixSurface, pulseTab?: PulseSurfaceTab) => {
+        setFocusedPane(null);
+        writeViewportFocusToUrl(null);
+        setMixSurface(surface);
+        if (pulseTab) setRequestedPulseTab(pulseTab);
+    }, []);
 
     const handleViewportPinToggle = useCallback((pane: ViewportPane) => {
         setPinnedViewportPane(prev => {
@@ -562,7 +577,13 @@ function PlaygroundApp(): React.ReactElement {
             const pane = detail?.pane;
             const action = detail?.action as PulsePlayViewportAction | undefined;
             if (pane !== "ai" && pane !== "bi") return;
-            if (action === "focus") applyViewportFocus(pane);
+            if (action === "focus") {
+                if (enabledComponents === "mix" && pane === "bi" && !focusedPane) {
+                    handleMixSurfaceSelect("bi");
+                } else {
+                    applyViewportFocus(pane);
+                }
+            }
             else if (action === "restore") handleViewportRestore();
             else if (action === "minimize") handleViewportMinimize(pane);
             else if (action === "open-page") handleViewportOpenPage(pane);
@@ -574,7 +595,7 @@ function PlaygroundApp(): React.ReactElement {
         };
         window.addEventListener(PULSEPLAY_VIEWPORT_ACTION_EVENT, handler as EventListener);
         return () => window.removeEventListener(PULSEPLAY_VIEWPORT_ACTION_EVENT, handler as EventListener);
-    }, [applyViewportFocus, handleViewportRestore, handleViewportMinimize, handleViewportOpenPage, handleViewportFloat]);
+    }, [applyViewportFocus, enabledComponents, focusedPane, handleMixSurfaceSelect, handleViewportRestore, handleViewportMinimize, handleViewportOpenPage, handleViewportFloat]);
 
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -646,12 +667,12 @@ function PlaygroundApp(): React.ReactElement {
         return () => window.removeEventListener(PULSE_VISUAL_SETTINGS_EVENT, handler as EventListener);
     }, []);
 
-    // "mix" is the unified default: AI Insights / Ask Pulse own the main
-    // surface and BI is reachable as a peer action ("BI Viz") that focuses
-    // the BI pane on demand. Authors who want a permanent second BI section
-    // use the explicit "both" / Split + Mix preset.
-    const aiVisible = enabledComponents === "aiOnly" || enabledComponents === "both" || enabledComponents === "mix";
-    const biVisible = enabledComponents === "biOnly" || enabledComponents === "both";
+    // "mix" is the unified default: AI Insights / Ask Pulse / BI Viz are
+    // peer surfaces in one primary canvas. Authors who want a permanent
+    // second BI section use the explicit "both" / Split + Mix preset.
+    const mixBiSurfaceActive = enabledComponents === "mix" && mixSurface === "bi" && !focusedPane;
+    const aiVisible = enabledComponents === "aiOnly" || enabledComponents === "both" || (enabledComponents === "mix" && !mixBiSurfaceActive);
+    const biVisible = enabledComponents === "biOnly" || enabledComponents === "both" || mixBiSurfaceActive;
     const mountedAiVisible = focusedPane ? focusedPane === "ai" || aiVisible : aiVisible;
     const mountedBiVisible = focusedPane ? focusedPane === "bi" || biVisible : biVisible;
     const minimizedPane: ViewportFocus = !focusedPane && enabledComponents === "biOnly"
@@ -1000,6 +1021,7 @@ function PlaygroundApp(): React.ReactElement {
                                     <Suspense fallback={<PulseLoadingState />}>
                                         <PulseShell
                                             renderToken={pulseRenderToken}
+                                            activeTabRequest={requestedPulseTab}
                                             onSettingsChange={() => setPulseRenderToken(t => t + 1)}
                                             onApplyFilter={handlePulseApplyFilter}
                                             biEvents={recentEvents}
@@ -1095,6 +1117,14 @@ function PlaygroundApp(): React.ReactElement {
                         onShowBoth={handleShowBothPanes}
                     >
                         <main className="pp-app__canvas" style={{ ...panelInnerStyle(), display: "flex", flexDirection: "column" }}>
+                            {enabledComponents === "mix" && (
+                                <UnifiedSurfaceTabs
+                                    active="bi"
+                                    onOpenInsights={() => handleMixSurfaceSelect("ai", "insights")}
+                                    onOpenAskPulse={() => handleMixSurfaceSelect("ai", "chat")}
+                                    onOpenBi={() => handleMixSurfaceSelect("bi")}
+                                />
+                            )}
                             <PowerBIDeveloperPanel
                                 activeVendor={activeVendor}
                                 hasEmbedConfig={hasEmbedConfig}
@@ -1170,6 +1200,92 @@ function PlaygroundApp(): React.ReactElement {
         </div>
     );
 }
+
+function UnifiedSurfaceTabs(props: {
+    active: "insights" | "chat" | "bi";
+    onOpenInsights: () => void;
+    onOpenAskPulse: () => void;
+    onOpenBi: () => void;
+}): React.ReactElement {
+    const items: Array<{
+        key: "insights" | "chat" | "bi";
+        label: string;
+        icon: string;
+        ariaLabel: string;
+        onClick: () => void;
+    }> = [
+        { key: "insights", label: "AI Insights", icon: "AI", ariaLabel: "Open AI Insights surface", onClick: props.onOpenInsights },
+        { key: "chat", label: "Ask Pulse", icon: "Ask", ariaLabel: "Open Ask Pulse surface", onClick: props.onOpenAskPulse },
+        { key: "bi", label: "BI Viz", icon: "BI", ariaLabel: "Open BI Viz surface", onClick: props.onOpenBi },
+    ];
+    return (
+        <div
+            role="tablist"
+            aria-label="PulsePlay surfaces"
+            style={{
+                flex: "0 0 auto",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                alignSelf: "flex-start",
+                margin: "16px 18px 10px",
+                padding: 4,
+                border: "1px solid rgba(148, 163, 184, 0.35)",
+                borderRadius: 999,
+                background: "rgba(255, 255, 255, 0.82)",
+                boxShadow: "0 10px 24px rgba(15, 23, 42, 0.08)",
+            }}
+        >
+            {items.map(item => {
+                const active = props.active === item.key;
+                return (
+                    <button
+                        key={item.key}
+                        type="button"
+                        role="tab"
+                        aria-selected={active}
+                        aria-label={item.ariaLabel}
+                        onClick={item.onClick}
+                        style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 7,
+                            minHeight: 32,
+                            padding: item.key === "bi" ? "6px 12px" : "6px 14px",
+                            borderRadius: 999,
+                            border: active ? "1px solid rgba(37, 99, 235, 0.75)" : "1px solid transparent",
+                            background: active ? "linear-gradient(180deg, #3b82f6, #1d4ed8)" : "transparent",
+                            color: active ? "#fff" : "#475569",
+                            fontWeight: 700,
+                            fontSize: 13,
+                            cursor: "pointer",
+                            boxShadow: active ? "0 8px 20px rgba(37, 99, 235, 0.22)" : "none",
+                        }}
+                    >
+                        <span
+                            aria-hidden="true"
+                            style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                width: item.key === "chat" ? 28 : 18,
+                                height: 18,
+                                borderRadius: "50%",
+                                fontSize: item.key === "bi" ? 10 : 12,
+                                fontWeight: 800,
+                                background: active ? "rgba(255,255,255,0.2)" : "rgba(148,163,184,0.16)",
+                            }}
+                        >
+                            {item.icon}
+                        </span>
+                        <span>{item.label}</span>
+                    </button>
+                );
+            })}
+        </div>
+    );
+}
+
 function SetupStatusPill(props: { readiness: SetupReadiness }): React.ReactElement {
     const ready = props.readiness.ready;
     const dot = ready ? "#22c55e" : "#f59e0b";

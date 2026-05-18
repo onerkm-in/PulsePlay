@@ -1056,6 +1056,15 @@ function App(props: AppProps) {
         if (enabledFeatures === "insightsOnly" && activeTab !== "insights") setActiveTab("insights");
         if (enabledFeatures === "chatOnly" && activeTab !== "chat") setActiveTab("chat");
     }, [enabledFeatures, activeTab]);
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const tab = (e as CustomEvent<{ tab?: string }>).detail?.tab;
+            if (tab === "insights" && enabledFeatures !== "chatOnly") setActiveTab("insights");
+            if (tab === "chat" && enabledFeatures !== "insightsOnly") setActiveTab("chat");
+        };
+        window.addEventListener("pulseplay:pulse-surface-tab", handler as EventListener);
+        return () => window.removeEventListener("pulseplay:pulse-surface-tab", handler as EventListener);
+    }, [enabledFeatures]);
     const [insightsCustomPrompt, setInsightsCustomPrompt] = useState("");
     const [insightsActivePromptId, setInsightsActivePromptId] = useState<string | null>(null);
     // Wave 35 Phase 3 — Custom SQL section results, keyed by `${spaceKey}|${sectionTitle}`.
@@ -9305,7 +9314,7 @@ function renderKpiTiles(body: string, sectionTitle?: string, options?: InsightsR
         const deltaCue = deltaCueDirection(deltaTone, dir);
         const hasSemanticStatus = Boolean(status.trim()) && statusTone !== "neutral";
         const deltaA11y = getDeltaPillA11y(dir, deltaTone);
-        const deltaDisplay = stripLeadingDirectionGlyphs(delta);
+        const deltaDisplay = stripLeadingDirectionGlyphs(deltaText || delta).trim();
         const deltaHasGlyph = /^[▲▼↔]/.test(normaliseDirectionalGlyphs(delta).trim());
         const deltaGlyph = deltaHasGlyph ? "" : deltaCueGlyph(deltaCue);
         const isUnknownPrior = /^N\/A|no prior data|—|^-$/i.test(prior.replace(/\*\*/g, "").trim());
@@ -9336,7 +9345,7 @@ function renderKpiTiles(body: string, sectionTitle?: string, options?: InsightsR
                                 data-delta-cue={deltaCue}
                             >
                                 {deltaGlyph ? <span className="gn-kpi-tile-delta-cue" aria-hidden="true">{deltaGlyph}</span> : null}
-                                {inlineFormat(deltaDisplay || delta, sectionTitle)}
+                                {deltaDisplay || deltaText || delta}
                             </span>
                         ) : null}
                         {!isUnknownPrior && prior ? <span className="gn-kpi-tile-prior">vs {inlineFormat(prior, sectionTitle)}</span> : null}

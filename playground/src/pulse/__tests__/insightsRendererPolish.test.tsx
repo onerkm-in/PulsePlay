@@ -49,7 +49,7 @@ describe("insights narrative polish", () => {
             [
                 "| KPI | Current | Prior | Δ pp | Status |",
                 "| --- | --- | --- | --- | --- |",
-                "| Return Rate | 5.9% | 5.5% | +0.4pp | 🟡 Watch |",
+                "| Return Rate | 5.9% | 5.5% | +0.4pp (▲ +6.3%) | 🟡 Watch |",
             ].join("\n"),
             "KPI SNAPSHOT",
             {
@@ -65,6 +65,8 @@ describe("insights narrative polish", () => {
         expect(html).toContain('data-delta-cue="down"');
         expect(html).toContain("▼");
         expect(html).toContain("+0.4pp");
+        expect(html).toContain("▲ +6.3%");
+        expect(html).not.toContain("gn-trend-pill--good");
         expect(html).toContain("higher is unfavorable");
     });
 

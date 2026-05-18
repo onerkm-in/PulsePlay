@@ -1182,8 +1182,8 @@ function StepPane(props: {
     // `aria-hidden` on the wrapper div does not propagate to descendant
     // elements matched by querySelectorAll (RISK-P1 4.3 fix).
     // We spread as a plain object so TypeScript doesn't reject the
-    // attribute — `inert` is valid HTML5 but not yet in React's JSX types.
-    const inertAttr = props.visible ? {} : { inert: "" } as Record<string, string>;
+    // attribute — `inert` is valid HTML5 but not yet in every JSX type set.
+    const inertAttr = props.visible ? {} : { inert: true } as Record<string, boolean>;
     return (
         <div
             aria-hidden={!props.visible}

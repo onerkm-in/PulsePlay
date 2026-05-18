@@ -221,18 +221,21 @@ describe("App viewport controls — default unified Mix surface", () => {
         unmount(state);
     });
 
-    it("opens BI as a peer surface through the BI Viz action without changing the permanent layout", () => {
+    it("opens BI Viz as the unified primary surface without entering focused-pane mode", () => {
         const state = mountApp();
 
         clickByLabel(state, "Open BI Viz surface");
 
         const shell = state.container.querySelector(viewportControlShellSelector);
         const biChrome = state.container.querySelector(viewportControlPanelChromeSelector("bi"));
-        expect(shell?.getAttribute("data-viewport-focus")).toBe("bi");
-        expect(biChrome?.getAttribute("data-panel-state")).toBe("maximized");
+        const aiChrome = state.container.querySelector(viewportControlPanelChromeSelector("ai"));
+        expect(shell?.getAttribute("data-viewport-focus")).toBe("split");
+        expect(aiChrome).toBeNull();
+        expect(biChrome?.getAttribute("data-panel-state")).toBe("normal");
         expect(window.localStorage.getItem("pulseplay:enabled-components")).toBeNull();
 
-        clickByLabel(state, "Restore BI panel");
+        clickByLabel(state, "Open AI Insights surface");
+        expect(state.container.querySelector(viewportControlPanelChromeSelector("ai"))).toBeTruthy();
         expect(state.container.querySelector(viewportControlPanelChromeSelector("bi"))).toBeNull();
 
         unmount(state);
