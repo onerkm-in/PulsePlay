@@ -1053,7 +1053,7 @@ function PlaygroundApp(): React.ReactElement {
             )}
             <SplitLayout
                 aiVisible={floatedPane === "ai" ? false : mountedAiVisible}
-                biVisible={mountedBiVisible}
+                biVisible={floatedPane === "ai" ? true : mountedBiVisible}
                 layoutMode={layoutMode}
                 focusedPane={focusedPane}
                 aiContent={(
@@ -1766,7 +1766,7 @@ function FloatingPanel(props: {
 
     return (
         <div
-            role="dialog"
+            role="complementary"
             aria-label={props.title}
             style={{
                 position: "fixed",
@@ -1782,6 +1782,7 @@ function FloatingPanel(props: {
                 borderRadius: 10,
                 boxShadow: "0 12px 40px rgba(0,0,0,0.22), 0 2px 10px rgba(0,0,0,0.12)",
                 border: "1px solid rgba(0,0,0,0.10)",
+                outline: "none",
                 overflow: "hidden",
                 background: "#ffffff",
                 resize: "both",
