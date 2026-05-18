@@ -78,18 +78,22 @@ Keep PulsePlay moving faster by coordinating work across agents without losing b
 
 **Supersedes:** the 2026-05-17 "unified surface tabs" proposal earlier in this file as the canonical Ask Pulse direction. The floating-comparison-layer and Pulse-Bubble-launcher proposals remain under research and do not block the workbench.
 
-**[DONE] 2026-05-18 — Step 1 landed.** Real Step 1 implemented on `main` after reverting 5 stub commits (audit findings in HANDOVER). Files:
-- `playground/src/types/assistant.ts` — type contract (3 modes, 10 connector types, 5 capability flags, 4 artifact statuses, 6 workbench tabs, 6 citation kinds, frozen registries, no `any`).
-- `playground/src/lib/connectorCapabilities.ts` — `CONNECTOR_CAPABILITIES` matrix + `resolveAssistantMode()` with capability/preference/forced-verified/forced-native-embed/no-mode-available reason codes.
-- `playground/src/lib/__tests__/connectorCapabilities.test.ts` — 35/35 vitest cases including matrix exhaustiveness, cross-capability invariants ("only Genie does hybrid today", "chat-only never advertises grounded SQL"), and resolver edge cases.
-- `docs/adr/0008-unified-assistant-surface.md` — ADR.
-- `docs/memory/feature_unified_workbench.md` — repo-local feature memory with checklist.
+**[DONE] 2026-05-18 — Steps 1-5 + `/workbench` wiring landed.** Cumulative on `main`:
+- **Step 1** `cc33dca` — type contract (3 modes / 10 connector types / 5 capability flags / 4 artifact statuses / 6 workbench tabs / 6 citation kinds, no `any`, frozen registries) + `CONNECTOR_CAPABILITIES` matrix + `resolveAssistantMode()` + 35 vitest. ADR-0008.
+- **Step 2** `840ecf7` — `GenieNativeEmbed` (narrow sandbox: `allow-scripts allow-same-origin`, never `allow-forms`/`allow-popups`; clipboard via `allow="clipboard-write"`) + `buildGenieDescriptor()`/`buildConnectorDescriptor()` (reuses `buildGenieEmbedUrl()` from the BI adapter for single-source-of-URL-truth) + 22 vitest. BI adapter stays alive.
+- **Step 3** `908621d` — `ArtifactCard` shell + 6 tab renderers (`Answer`/`Chart`/`Table`/`SQL`/`Evidence`/`Reasoning`) + 32 vitest. Aria-tab semantics; status badge per status; renderer never decides tab availability — only the validator does.
+- **Step 4** `b1dbeda` — `validateArtifact()` is the sole authority for status; the LLM cannot self-declare (`llmClaimedStatus` is recorded but never read for the authoritative status). All four statuses (`verified`/`grounded-draft`/`suggestion`/`blocked`) with 25 vitest including 5 LLM-self-declare override cases. Frontend `problemDetails.ts` mirrors the proxy shape; blocked → 422 + `workbench.validation` category + `blockedTabs` extension. `sanitizeMarkdown()` strips `<script>`/`<iframe>`/on*/javascript: as defense in depth.
+- **Step 5** `b192164` — `chartRegistry.ts` (43 entries across Core/Advanced/Trendy/Legacy/Future tiers with locked per-tier auto-pick policy) + `vegaLiteToECharts.ts` (bar/line/area/point/arc with numeric coercion, em-dash null dimensions) + `EChartsRenderer.tsx` (modular `echarts/core` + per-chart registers — NOT the full echarts package) + canvas shim in `vitest.setup.ts`. 36 new vitest + 3 updated ArtifactCard. echarts@^5.5 added as runtime dep.
+- **Wiring** `1920531` — `/workbench` path-based router slice + preview-flag (`VITE_PULSEPLAY_ENABLE_WORKBENCH` build-time or `localStorage.pulseplay:workbench-preview` runtime) + `WorkbenchShell` (opt-in gate when disabled) + `UnifiedWorkbench` (Genie default descriptor, mode resolver wired into UI controls, mode-status line surfaces the resolver's reason) + `demoArtifact.ts` (Superstore Top-3 fixture fed through validator) + `workbench.css` (minimal v0 styling using existing `:root` tokens). 15 new vitest.
 
-**[HANDOFF] Step 2** is unclaimed. Promote Genie iframe from "BI vendor surface only" into assistant connector mode as `nativeChatEmbed`. Coordinate on `[CLAIM]` before starting.
-- Add a `GenieNativeEmbed` component that consumes `nativeEmbedUrl` from `AssistantConnectorDescriptor`. Sandbox must be narrowed from the default — `allow-scripts` alone if the Embed Genie surface allows it.
-- Keep `bi-adapters/databricks-genie/` alive. A Genie space is legitimately both a BI surface and a chat surface; the workbench adds an assistant-axis presentation alongside the existing BI-axis presentation.
-- Settings → BI → Embed leaf for the Genie iframe/src must work; the workbench's mode resolver consumes the resulting `nativeEmbedUrl`.
-- Do NOT touch `App.tsx` or `pulse/visual.tsx` in this step. Wiring into the playground is Step 3 (artifact shell).
+Cumulative: **165 new tests** across the 6 commits; full playground sweep **745/745**; build clean.
+
+**[HANDOFF] Steps 6 + 7** are unclaimed.
+- **Step 6 — Pulse chat asset refactor**. ADDITIVE ONLY. The Pulse-PBI sibling still consumes `playground/src/pulse/*` patterns — anything extracted must be re-exported or shimmed so the sibling does not break. Per [PULSE_PORT_DETANGLING.md](PULSE_PORT_DETANGLING.md). Candidate extractions: SQL-section tab rendering (consumed by the new ArtifactCard `sql` tab in a more general shape), prompt redaction utilities, suggested-question chip rendering. Do not touch `visual.tsx` directly; lift the helpers it uses into PulsePlay-native modules.
+- **Step 7 — Workbench theme**. Apply after Step 6 so the structure is stable. Replace the v0 inline tokens in `workbench.css` with the full theme — professional neutral baseline, restrained accent, separate data-viz palette, compact / dark / high-contrast modes. The chart registry already has the data-viz hook (ECharts theme registration); register one PulsePlay theme + ensure all renderable Core tier charts read from it.
+
+**Beyond the build sequence (next sensible lane):**
+- Wire the real Genie Conversation API into the workbench: a `useConversation()` React Query hook that drives `/assistant/conversations/start` + polling, maps the Genie response shape into a `CandidateArtifact`, runs `validateArtifact()`, renders the result in the artifact card. This closes the loop end-to-end and lets the demo Superstore artifact retire.
 
 **[RISK] for coordinating agents:**
 - Step 6 is additive only — do not move things out of `playground/src/pulse/*` that the Pulse-PBI sibling consumes.

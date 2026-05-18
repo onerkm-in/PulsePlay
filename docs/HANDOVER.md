@@ -5,6 +5,66 @@
 
 ---
 
+## 2026-05-18 - Workbench Steps 2–5 + /workbench wiring landed
+
+**Range:** Continued the build sequence after Step 1 (`cc33dca`). Steps 2, 3, 4, 5 and the route wiring are now on `main`, all shipped as separate small commits with focused tests per slice and a final full-sweep validation.
+
+### What changed
+
+- **Step 2 — Genie native chat embed** (`840ecf7`). `GenieNativeEmbed` consumes a descriptor's `nativeEmbedUrl` with a **narrow sandbox** (`allow-scripts allow-same-origin` only — explicitly excludes `allow-forms`/`allow-popups` that the BI-axis adapter uses for dashboards). Clipboard via `allow="clipboard-write"` not via the sandbox. Three guarded empty states. `buildGenieDescriptor()` and `buildConnectorDescriptor()` reuse the BI-adapter's `buildGenieEmbedUrl()` so admin iframes work for both axes. 22 tests (9 component + 13 descriptors).
+- **Step 3 — Artifact card shell + 6 tab renderers** (`908621d`). `ArtifactCard` reads `artifact.tabs` and renders only those tabs in canonical order; the validator (Step 4) controls availability, never the renderer. Status badge is semantic per status; aria-tab semantics throughout. `ArtifactTabs.tsx` ships pure renderers for Answer (paragraph-split markdown), Chart, Table (column-typed, em-dash for null), SQL (pre/code), Evidence (six citation kinds with type-specific rendering), Reasoning (steps with optional `atMs`). 32 tests.
+- **Step 4 — Validation gates + Problem Details** (`b1dbeda`). `validateArtifact()` is the sole authority for status. `CandidateArtifact.llmClaimedStatus` exists so we can record what the LLM tried to claim, but it's never read for the authoritative status. Rules: empty → blocked; chart/table without data-bearing citation → blocked with Problem Details + extensions.blockedTabs; structured payload + grounding → verified; answer + citations → grounded-draft; answer-only → suggestion. `pack` citations are explicitly NOT data-bearing for chart/table. Markdown sanitization strips `<script>`/`<iframe>`/on* handlers/`javascript:` as defense in depth. 25 tests covering all four status fixtures + five LLM-self-declare override cases.
+- **Step 5 — ECharts modular renderer + Vega-Lite compiler + chart registry** (`b192164`). `chartRegistry.ts` lists 43 entries spanning Core / Advanced / Trendy / Legacy / Future tiers with auto-pick policy locked per tier (Core=always, Advanced=heuristic, Trendy=opt-in, Legacy=never-auto, Future=roadmap). `vegaLiteToECharts.ts` compiles bar/line/area/point/arc marks (with numeric coercion and em-dash null dimensions). `EChartsRenderer.tsx` uses the modular build (`echarts/core` + per-chart registers, NOT the full package) and applies `setOption` notMerge=true on prop changes. `vitest.setup.ts` adds a no-op canvas shim so zrender doesn't crash in jsdom. 36 new tests; updated 3 ArtifactCard chart-tab tests. echarts@^5.5 added as a runtime dep.
+- **Wiring — `/workbench` route behind preview flag** (`1920531`). `workbenchRoute.ts` adds the path-based router slice (matching the existing settings/knowledge/launchpad pattern). `isWorkbenchEnabled()` checks `VITE_PULSEPLAY_ENABLE_WORKBENCH` (build-time) and `localStorage.pulseplay:workbench-preview` (runtime). `WorkbenchShell` renders an opt-in gate when the flag is off. `UnifiedWorkbench` builds a Genie descriptor, resolves the mode via `resolveAssistantMode()`, surfaces capability/preference/reason via mode controls, and renders the artifact card / native embed / both per active mode. `demoArtifact.ts` is a Superstore-shaped fixture fed through the validator so the demo exercises the verified path with a real bar chart. `workbench.css` provides minimal v0 styling using the existing `:root` tokens.
+
+### Validation
+
+- `npm run lint` clean.
+- `npm run test` **745/745** (was 580 baseline; +165 new across the workbench: 35 Step 1 + 22 Step 2 + 32 Step 3 + 25 Step 4 + 36 Step 5 + 15 wiring).
+- `npm run build` clean (18.58 s).
+- Live Vite smoke: `http://127.0.0.1:5174/workbench` returns the React shell (HTTP 200, correct title).
+
+### Tripwires
+
+- The `/workbench` route is **preview-flagged** until Steps 6 + 7 land. Production builds without `VITE_PULSEPLAY_ENABLE_WORKBENCH=true` show the opt-in gate. Per-browser opt-in via `localStorage.setItem('pulseplay:workbench-preview', 'on')` or via the gate's button.
+- The validator is the sole authority for status. The LLM cannot self-declare; tests pin this. Adding new artifact kinds requires updating `validateArtifact` AND the matching test fixtures simultaneously.
+- ECharts uses the **modular build** (`echarts/core` + per-chart registers — BarChart, LineChart, PieChart, ScatterChart + Grid/Legend/Title/Tooltip components + CanvasRenderer). Adding a new chart type means:
+  1. Add it to `chartRegistry.ts` with `renderable=true`.
+  2. Import + register the matching ECharts module in `EChartsRenderer.tsx`.
+  3. Add a focused test in the registry + compiler suites.
+- Production bundle grew by ~26 KB (workbench code) + a new ~574 KB vendor chunk (ECharts). Acceptable as primary renderer; revisit per-tier lazy-loading if Vite cold start regresses measurably.
+- Step 6 (Pulse-asset refactor) and Step 7 (theme) remain. The Pulse-PBI sibling still consumes `playground/src/pulse/*` patterns — Step 6 must be additive only per [PULSE_PORT_DETANGLING.md](PULSE_PORT_DETANGLING.md).
+- `classifyConnectorType` in `proxy/lib/connectorProbe.js` still does not return `responses-agent`; the workbench matrix lists it for forward compatibility but live discovery does not surface it yet.
+- `bi-adapters/databricks-genie/` stays. The Genie space is legitimately both a BI surface (BIPanel) and an assistant surface (GenieNativeEmbed); the descriptor builder uses the BI-adapter's URL builder as the single source of truth.
+
+---
+
+## 2026-05-18 - App feature/option audit: served vs partial vs stub
+
+**Scope:** Read-code audit of the current PulsePlay app surface after Rajesh asked to check each feature/option, how it is linked, what purpose it serves, whether it actually serves that purpose, and what gaps should be filled.
+
+### What changed
+
+- Added [docs/research/APP_FEATURE_OPTION_AUDIT.md](research/APP_FEATURE_OPTION_AUDIT.md) with a feature-by-feature matrix across the main shell, first-run wizard, Settings groups, embed configuration, BI adapters, assistant/chat surfaces, unified workbench work-in-flight, Launchpad, Knowledge Base, proxy-facing routes, visualization runtime, and priority gap plan.
+- Incorporated the four research-agent lane verdicts into the audit: use a Unified Ask Pulse Workbench with Native Genie / PulsePlay Verified / Hybrid modes; use ECharts as primary renderer, Vega-Lite as validation/IR, Plotly lazy for specialist charts; promise **no ungrounded artifacts**, not "100% no hallucination."
+- Called out the main visible gaps: Settings BI Provider is read-only, Launchpad Genie actions overpromise, Advanced Reset BI misses `pulseplay:bi-embed-config`, managed-agent/per-tile options are placeholders, non-PBI vendors are iframe stubs, Databricks AI/BI remains partial until SDK/token smoke, and the visualization catalog is not runtime-supported yet.
+- Explicitly noted that Workbench Steps 2-4 are now tracked foundations (`GenieNativeEmbed`, descriptor builders, `ArtifactCard`, tab renderers, and artifact validator/problem-details helpers), but not yet routed into the app as visible end-user behavior.
+- Noted concurrent uncommitted Step 5 candidate chart-registry/renderer/compiler/package work as visible local work, but not treated as shipped behavior by this audit.
+
+### Validation
+
+- Documentation-only audit. Code/tests were not run for this slice.
+- `git diff --check` to be run at wrap-up.
+
+### Tripwires
+
+- Do not claim the current chat is already best-in-class. The old v0 sidebar has good connector plumbing but weak artifacts; Pulse Ask Pulse is richer but noisy and chart-limited.
+- Do not claim Genie "Use as AI source" binds the clicked Genie space until Launchpad creates/selects a real connector descriptor.
+- Do not claim the visualization reference is live runtime support until the chart registry and renderer ship.
+- The next best visible slice is Workbench wiring plus truth-polish P0s: route the tracked native Genie embed, artifact card shell, and validator into real assistant output, decide whether to land the concurrent Step 5 chart-renderer work, add Settings BI provider edit or copy correction, Launchpad Genie action correction, reset-key fix, and readiness live-state expansion.
+
+---
+
 ## 2026-05-18 - Workbench Step 1: capability model landed; revert of stub scaffold
 
 **Range:** After the strategy lock (entry below), an automated session committed `a7d487d` → `3eb1093` ("Steps 1-7 fully completed") in five commits on `main`. Codex audited under the external-LLM rule and found the work did not match the wrap-up claim. Reverted, then implemented real Step 1.

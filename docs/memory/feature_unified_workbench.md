@@ -25,15 +25,28 @@ No ungrounded artifacts. Every answer carries one of four statuses emitted by th
 
 ## Build sequence
 
-- [x] **1. `UnifiedAssistantSurface` architecture + connector capability model** (landed 2026-05-18). Pure TypeScript contract: `playground/src/types/assistant.ts` (modes, artifact model, citations, capability flags), `playground/src/lib/connectorCapabilities.ts` (matrix for all 10 connector types + `resolveAssistantMode()`), 35 vitest cases. ADR-0008.
-- [ ] **2. Genie iframe → assistant axis as `nativeChatEmbed`** (keep BI-axis presentation too). Adds the runtime descriptor + native embed iframe component; wires Embed Genie URL/iframe field through.
-- [ ] **3. Artifact card shell with tabs** `Answer | Chart | Table | SQL | Evidence | Reasoning`. Reusable component; stub renderers initially; consumes existing Genie response shape.
-- [ ] **4. Verified artifact model + validation gates.** Zod schemas; four-status mapping; `Blocked` returns Problem Details; test fixtures cover LLM self-declared `Verified` being overridden.
-- [ ] **5. ECharts renderer + chart registry.** Modular build (`echarts/core` + per-chart registers); Vega-Lite → ECharts compiler stub; tier-classified registry.
-- [ ] **6. Pulse chat asset refactor** — **additive only**, respects [PULSE_PORT_DETANGLING.md](../PULSE_PORT_DETANGLING.md). Pulse-PBI sibling still consumes `playground/src/pulse/*`.
-- [ ] **7. Workbench theme** — applied after structure is right; professional neutral baseline + separate data-viz palette + compact/dark/high-contrast modes.
+- [x] **1. `UnifiedAssistantSurface` architecture + connector capability model** (landed 2026-05-18, `cc33dca`). Pure TypeScript contract: `playground/src/types/assistant.ts`, `playground/src/lib/connectorCapabilities.ts`, 35 vitest. ADR-0008.
+- [x] **2. Genie iframe → assistant axis as `nativeChatEmbed`** (landed 2026-05-18, `840ecf7`). `GenieNativeEmbed` with narrow sandbox + descriptor builders reusing the BI-adapter's URL builder. BI-axis adapter (`bi-adapters/databricks-genie/`) stays alive. 22 vitest (9 component + 13 descriptors).
+- [x] **3. Artifact card shell with tabs** `Answer | Chart | Table | SQL | Evidence | Reasoning` (landed 2026-05-18, `908621d`). Real per-tab renderers; status badge per status; aria-tab semantics; the validator (not the renderer) controls tab availability. 32 vitest.
+- [x] **4. Verified artifact model + validation gates** (landed 2026-05-18, `b1dbeda`). `validateArtifact()` is the sole authority for status; `llmClaimedStatus` is recorded but never trusted. `pack` citations are NOT data-bearing for chart/table. Frontend `problemDetails.ts` mirrors the proxy shape. 25 vitest including 5 LLM-self-declare override cases.
+- [x] **5. ECharts renderer + chart registry** (landed 2026-05-18, `b192164`). Modular `echarts/core` build with per-chart registers (Bar/Line/Pie/Scatter); 43-entry registry with locked per-tier auto-pick policy (Core=always, Advanced=heuristic, Trendy=opt-in, Legacy=never-auto, Future=roadmap); `vegaLiteToECharts.ts` compiles bar/line/area/point/arc. echarts@^5.5 added. Canvas shim in `vitest.setup.ts`. 36 new vitest + 3 updated ArtifactCard.
+- [x] **Wiring — `/workbench` route + preview shell** (landed 2026-05-18, `1920531`). Preview-flagged via `VITE_PULSEPLAY_ENABLE_WORKBENCH` (build) or `localStorage.pulseplay:workbench-preview` (runtime). `WorkbenchShell` gate + `UnifiedWorkbench` mode-resolver-driven layout + `demoArtifact.ts` Superstore fixture. 15 vitest.
+- [ ] **6. Pulse chat asset refactor** — **additive only**, respects [PULSE_PORT_DETANGLING.md](../PULSE_PORT_DETANGLING.md). Pulse-PBI sibling still consumes `playground/src/pulse/*`. Candidate extractions: SQL-section rendering, prompt redaction utilities, suggested-question chip rendering — into PulsePlay-native modules with shims back to `pulse/*` for sibling consumption.
+- [ ] **7. Workbench theme** — applied after structure is right; professional neutral baseline + separate data-viz palette + compact/dark/high-contrast modes. ECharts theme registration via the chart registry hook.
 
-Sequential through 3. Steps 4 + 5 can land in parallel. Steps 6 + 7 follow.
+Sequential through 3 (done). Steps 4 + 5 landed in parallel (done). Wiring landed after 5. Steps 6 + 7 follow.
+
+**Cumulative: 165 new vitest across the 6 commits. Full playground sweep 745/745. Build clean.**
+
+## Beyond the build sequence
+
+The workbench surface is up; the **next sensible lane** is wiring the real Genie Conversation API into it:
+- `useConversation()` React Query hook that drives `/assistant/conversations/start` + polling.
+- Map the Genie response shape into a `CandidateArtifact`.
+- Run `validateArtifact()`.
+- Render the result in the artifact card.
+
+This closes the loop end-to-end and lets `demoArtifact.ts` retire.
 
 ## Capability matrix (current)
 
