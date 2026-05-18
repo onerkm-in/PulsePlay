@@ -97,7 +97,7 @@ type MixSurface = "ai" | "bi";
 const PINNED_VIEWPORT_PANE_STORAGE_KEY = "pulseplay:pinned-viewport-pane";
 const PULSEPLAY_VIEWPORT_ACTION_EVENT = "pulseplay:viewport-action";
 const PULSEPLAY_VIEWPORT_STATE_EVENT = "pulseplay:viewport-state";
-type PulsePlayViewportAction = "focus" | "restore" | "minimize" | "open-page" | "float" | "reload";
+type PulsePlayViewportAction = "focus" | "restore" | "minimize" | "open-page" | "float" | "dock" | "reload";
 
 interface PowerBIDeveloperSnapshot {
     vendor: "powerbi";
@@ -451,6 +451,10 @@ function PlaygroundApp(): React.ReactElement {
     // used after settings save events from PulseHostStub.persistProperties.
     const [pulseRenderToken, setPulseRenderToken] = useState(0);
     const [pulseAssistantProfile, setPulseAssistantProfile] = useState<string>(() => readPulseAssistantProfile());
+    // In-app float state — when floatedPane is set the AI pane renders in a
+    // fixed-position draggable overlay instead of the split layout slot.
+    const [floatedPane, setFloatedPane] = useState<ViewportPane | null>(null);
+    const [floatPos, setFloatPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
 
 
@@ -543,37 +547,29 @@ function PlaygroundApp(): React.ReactElement {
         window.open(url, "_blank", "noopener,noreferrer");
     }, []);
 
-    /** Float the pane as a popup window (smaller, always-on-top-ish detached
-     *  window). Distinct from "Open in separate page" — that opens a normal
-     *  browser tab. Float gives you a small windowed pane you can keep open
-     *  alongside the main app. The popup feature string asks the browser
-     *  for a chromeless window; modern Chrome/Edge honour `popup=yes` even
-     *  in tabbed mode by spawning a minimal window. Falls back to a normal
-     *  tab if the browser ignores the popup hint.
+    /** Float the pane as an in-app draggable overlay panel. Keeps the user
+     *  in the same browser tab, same auth session, same origin — no separate
+     *  window means no cross-window message bridge needed and interactions
+     *  stay seamless. The panel is sized to 520px wide and 80vh tall by
+     *  default, positioned at the right edge; the user can drag and
+     *  CSS-resize it freely. "Dock ↙" in the panel header collapses it
+     *  back into the split layout.
      */
     const handleViewportFloat = useCallback((pane: ViewportPane) => {
-        const url = buildFocusedPaneUrl(pane);
-        if (!url) return;
-        const width = 920;
-        const height = 720;
-        const left = typeof window !== "undefined"
-            ? Math.max(0, Math.round((window.screen?.availWidth ?? width) - width - 40))
-            : 0;
-        const top = typeof window !== "undefined"
-            ? Math.max(0, Math.round(((window.screen?.availHeight ?? height) - height) / 2))
-            : 0;
-        const features = [
-            "popup=yes",
-            "noopener",
-            "noreferrer",
-            `width=${width}`,
-            `height=${height}`,
-            `left=${left}`,
-            `top=${top}`,
-        ].join(",");
-        // Distinct window name per pane so a second "Float" press for the
-        // same pane re-uses the existing window instead of stacking duplicates.
-        window.open(url, `pp-float-${pane}`, features);
+        const panelW = 520;
+        const panelH = Math.min(
+            typeof window !== "undefined" ? window.innerHeight * 0.8 : 640,
+            700,
+        );
+        setFloatPos({
+            x: Math.max(0, (typeof window !== "undefined" ? window.innerWidth : 1200) - panelW - 20),
+            y: Math.max(20, ((typeof window !== "undefined" ? window.innerHeight : 800) - panelH) / 2),
+        });
+        setFloatedPane(pane);
+    }, []);
+
+    const handleViewportDock = useCallback(() => {
+        setFloatedPane(null);
     }, []);
 
     const handleShowBothPanes = useCallback(() => {
@@ -600,6 +596,7 @@ function PlaygroundApp(): React.ReactElement {
             else if (action === "minimize") handleViewportMinimize(pane);
             else if (action === "open-page") handleViewportOpenPage(pane);
             else if (action === "float") handleViewportFloat(pane);
+            else if (action === "dock") handleViewportDock();
             else if (action === "reload" && pane === "ai") {
                 setPulseAssistantProfile(readPulseAssistantProfile());
                 setPulseRenderToken(t => t + 1);
@@ -607,7 +604,7 @@ function PlaygroundApp(): React.ReactElement {
         };
         window.addEventListener(PULSEPLAY_VIEWPORT_ACTION_EVENT, handler as EventListener);
         return () => window.removeEventListener(PULSEPLAY_VIEWPORT_ACTION_EVENT, handler as EventListener);
-    }, [applyViewportFocus, enabledComponents, focusedPane, handleMixSurfaceSelect, handleViewportRestore, handleViewportMinimize, handleViewportOpenPage, handleViewportFloat]);
+    }, [applyViewportFocus, enabledComponents, focusedPane, handleMixSurfaceSelect, handleViewportRestore, handleViewportMinimize, handleViewportOpenPage, handleViewportFloat, handleViewportDock]);
 
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -979,9 +976,83 @@ function PlaygroundApp(): React.ReactElement {
                         onDismiss={handleWizardDismiss}
                     />
                 </WizardErrorBoundary>
-            ) : (
+            ) : (<>
+            {/* In-app floating AI panel — rendered when the user clicks
+              * the float button. The panel is draggable and CSS-resizable.
+              * State is reset on float/dock (acceptable tradeoff vs a
+              * separate browser window losing auth + events). */}
+            {floatedPane === "ai" && (
+                <FloatingPanel
+                    pos={floatPos}
+                    onPosChange={setFloatPos}
+                    onDock={handleViewportDock}
+                    title="AI Insights — floating"
+                >
+                    <PaneChrome
+                        pane="ai"
+                        title="PulsePlay AI"
+                        subtitle={uiMode === "pulse" ? "Pulse mode" : "v0 mode"}
+                        isFocused={false}
+                        isBackgrounded={false}
+                        isPinned={false}
+                        canShowBoth={false}
+                        onFocus={() => {}}
+                        onRestore={handleViewportDock}
+                        onMinimize={handleViewportDock}
+                        onPinToggle={() => {}}
+                        onOpenPage={() => handleViewportOpenPage("ai")}
+                        onFloat={handleViewportDock}
+                        onShowBoth={handleViewportDock}
+                        quiet={uiMode === "pulse"}
+                        hideHeader={uiMode === "pulse"}
+                    >
+                        <aside className="pp-app__sidebar" style={panelInnerStyle()}>
+                            {allowlistState.error && (
+                                <div
+                                    role={allowlistFailClosed ? "alert" : "status"}
+                                    style={{
+                                        padding: "8px 10px",
+                                        borderBottom: "1px solid rgba(120,0,0,0.18)",
+                                        background: "rgba(255,245,245,0.86)",
+                                        color: "#7f1d1d",
+                                        fontSize: 12,
+                                        lineHeight: 1.4,
+                                    }}
+                                >
+                                    {allowlistFailClosed
+                                        ? <><strong>Governance allowlist unreachable — fail-closed.</strong> Check the proxy.</>
+                                        : <>Governance config unavailable. Pickers may be incomplete.</>
+                                    }
+                                </div>
+                            )}
+                            {uiMode === "pulse" ? (
+                                <>
+                                    <Suspense fallback={<PulseLoadingState />}>
+                                        <PulseShell
+                                            renderToken={pulseRenderToken}
+                                            activeTabRequest={requestedPulseTab}
+                                            onSettingsChange={() => setPulseRenderToken(t => t + 1)}
+                                            onApplyFilter={handlePulseApplyFilter}
+                                            biEvents={recentEvents}
+                                            biVendor={activeVendor}
+                                        />
+                                    </Suspense>
+                                </>
+                            ) : (
+                                <AISidebar
+                                    activeVendor={activeVendor}
+                                    activeConnector={activeConnector}
+                                    recentEvents={recentEvents}
+                                    packSelection={packSelection}
+                                    autoSubmitQuestion={wizardAutoSubmit}
+                                />
+                            )}
+                        </aside>
+                    </PaneChrome>
+                </FloatingPanel>
+            )}
             <SplitLayout
-                aiVisible={mountedAiVisible}
+                aiVisible={floatedPane === "ai" ? false : mountedAiVisible}
                 biVisible={mountedBiVisible}
                 layoutMode={layoutMode}
                 focusedPane={focusedPane}
@@ -1201,7 +1272,7 @@ function PlaygroundApp(): React.ReactElement {
                     </main>
                 )}
             />
-            )}
+            </>)}
             {minimizedPane && (
                 <MinimizedPaneDock
                     pane={minimizedPane}
@@ -1642,6 +1713,129 @@ function MinimizedPaneDock(props: {
                 Restore
             </button>
         </section>
+    );
+}
+
+// In-app floating panel — an alternative to window.open() for the
+// "float AI pane" action. Renders as a fixed-position draggable overlay
+// so the user can keep the AI panel visible while scrolling/interacting
+// with the BI surface below, without leaving the app or losing auth state.
+// Drag is handled by tracking clientX/Y delta from the mousedown anchor
+// to avoid jitter from event batching. CSS `resize: both` gives free
+// corner-resize without additional JS. The panel is not modal — the BI
+// canvas behind it remains interactive.
+function FloatingPanel(props: {
+    pos: { x: number; y: number };
+    onPosChange: (pos: { x: number; y: number }) => void;
+    onDock: () => void;
+    title: string;
+    children: React.ReactNode;
+}): React.ReactElement {
+    // Store drag-start state in a ref (not React state) so mousemove
+    // handlers always read the value at capture time without stale closures.
+    const dragAnchor = useRef<{
+        startClientX: number; startClientY: number;
+        startPosX: number; startPosY: number;
+    } | null>(null);
+
+    const onDragHandleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        dragAnchor.current = {
+            startClientX: e.clientX,
+            startClientY: e.clientY,
+            startPosX: props.pos.x,
+            startPosY: props.pos.y,
+        };
+        const onMove = (ev: MouseEvent) => {
+            const a = dragAnchor.current;
+            if (!a) return;
+            props.onPosChange({
+                x: Math.max(0, a.startPosX + ev.clientX - a.startClientX),
+                y: Math.max(0, a.startPosY + ev.clientY - a.startClientY),
+            });
+        };
+        const onUp = () => {
+            dragAnchor.current = null;
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+        };
+        document.addEventListener("mousemove", onMove);
+        document.addEventListener("mouseup", onUp);
+    }, [props]);
+
+    return (
+        <div
+            role="dialog"
+            aria-label={props.title}
+            style={{
+                position: "fixed",
+                left: props.pos.x,
+                top: props.pos.y,
+                width: 520,
+                height: "80vh",
+                minWidth: 300,
+                minHeight: 220,
+                zIndex: 1200,
+                display: "flex",
+                flexDirection: "column",
+                borderRadius: 10,
+                boxShadow: "0 12px 40px rgba(0,0,0,0.22), 0 2px 10px rgba(0,0,0,0.12)",
+                border: "1px solid rgba(0,0,0,0.10)",
+                overflow: "hidden",
+                background: "#ffffff",
+                resize: "both",
+            }}
+        >
+            {/* Drag handle strip — the only chrome added by the float container.
+              * Keep it minimal: title + dock button. The Pulse panel's own
+              * AI Insights / Ask Pulse toolbar handles everything else. */}
+            <div
+                onMouseDown={onDragHandleMouseDown}
+                style={{
+                    flex: "0 0 auto",
+                    height: 34,
+                    background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
+                    borderBottom: "1px solid rgba(0,0,0,0.07)",
+                    display: "flex",
+                    alignItems: "center",
+                    padding: "0 10px 0 12px",
+                    cursor: "grab",
+                    userSelect: "none",
+                    gap: 8,
+                }}
+            >
+                {/* Drag affordance dots */}
+                <span aria-hidden="true" style={{ fontSize: 12, color: "rgba(0,0,0,0.28)", letterSpacing: 1 }}>⠿</span>
+                <span style={{ flex: "1 1 auto", fontSize: 11.5, fontWeight: 600, color: "#374151", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {props.title}
+                </span>
+                <button
+                    type="button"
+                    onClick={props.onDock}
+                    title="Dock back to split layout"
+                    aria-label="Dock panel back to split layout"
+                    style={{
+                        border: "1px solid rgba(0,0,0,0.12)",
+                        borderRadius: 5,
+                        background: "rgba(255,255,255,0.82)",
+                        color: "#374151",
+                        cursor: "pointer",
+                        padding: "2px 9px",
+                        fontSize: 11,
+                        fontWeight: 500,
+                        lineHeight: "18px",
+                        flexShrink: 0,
+                    }}
+                >
+                    Dock ↙
+                </button>
+            </div>
+            {/* Panel content fills remaining height */}
+            <div style={{ flex: "1 1 auto", minHeight: 0, overflow: "hidden" }}>
+                {props.children}
+            </div>
+        </div>
     );
 }
 
