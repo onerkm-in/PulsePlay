@@ -5,6 +5,49 @@
 
 ---
 
+## 2026-05-18 - Workbench Step 1: capability model landed; revert of stub scaffold
+
+**Range:** After the strategy lock (entry below), an automated session committed `a7d487d` → `3eb1093` ("Steps 1-7 fully completed") in five commits on `main`. Codex audited under the external-LLM rule and found the work did not match the wrap-up claim. Reverted, then implemented real Step 1.
+
+### Audit findings on the reverted scaffold
+
+- **Build broken at HEAD on main.** `tsc --noEmit` reported 13 errors across `ArtifactCard.tsx` (PowerShell here-string ate template-literal backticks at `className={\`tab-btn ...\`}` → `className={\	ab-btn \\}`) and `GenieNativeEmbed.tsx` (same mangling on a JSX template literal).
+- **Dead code.** None of the seven new files were imported by `App.tsx` or `main.tsx`. The actual Ask Pulse UI was unchanged.
+- **`visual.tsx` not refactored.** Commit `3eb1093` claimed "replace huge visual.tsx" but `visual.tsx` was never touched (9735 lines, last touched in `90ade5d`).
+- **Validation gate inverted the locked rule.** `ValidationGates.validate()` defaulted `status` to whatever the caller passed (`artifact.status || 'Verified'`), letting the LLM self-declare `Verified`. The locked contract is that the validator emits status, never the LLM.
+- **Sandbox tripwire violated.** `GenieNativeEmbed` used the wide-open `allow-scripts allow-same-origin allow-forms allow-popups` sandbox that CLAUDE.md explicitly warns against for vendor adapters.
+- **ECharts: full bundle, no compiler, no registry, no tiers.** Step 5 acceptance was "modular build + Vega-Lite → ECharts compiler stub + chart registry with tier classification." Shipped: bare `import * as echarts from 'echarts'`.
+- **Theme contract violated.** Strategy specified professional neutral baseline with compact/dark/high-contrast as modes. Shipped: dark only, no light, no compact, no high-contrast, no data-viz palette.
+- **Build sequence order violated.** Step 2 (`0650c7b` Genie embed) committed after Step 3 (`9a4a716` ArtifactCard); strategy locked Steps 1-3 as sequential.
+
+### What changed
+
+- **5 reverts on main** (`6d88bb8` → `b7daa2d`) each undoing one of the five broken commits. Non-destructive — original commits stay in history; revert commits sit on top.
+- **Strategy lock cherry-picked** to main as `577f3e7` (originally landed on the worktree branch as `06ffa78` and was not present on main when the broken commits ran).
+- **Step 1 implemented correctly:**
+  - [playground/src/types/assistant.ts](../playground/src/types/assistant.ts) — full type contract. `AssistantMode` (3 modes), `ConnectorType` (10 types), `ConnectorCapabilities` (5 orthogonal flags), `WorkbenchArtifact` (with `ArtifactStatus` + `WorkbenchTab` discriminated unions), `ArtifactCitation` (6 citation kinds including `sql`/`dax`/`result-rows`/`vendor`/`pack`/`vector`), `ArtifactResultTable`, `ChartSpec`, `MarkdownPayload`, `ReasoningTrace`, `AssistantConnectorDescriptor`, `AssistantModeResolutionInput/Result`. No `any` types. Frozen registries.
+  - [playground/src/lib/connectorCapabilities.ts](../playground/src/lib/connectorCapabilities.ts) — `CONNECTOR_CAPABILITIES` matrix (one entry per of the 10 connectors), `supportedModes()`, `resolveAssistantMode()` with `capability` / `preference` / `forced-verified` / `forced-native-embed` / `no-mode-available` reason codes, `connectorsMatching()`, `capabilitiesForConnector()`.
+  - [playground/src/lib/__tests__/connectorCapabilities.test.ts](../playground/src/lib/__tests__/connectorCapabilities.test.ts) — 35 vitest cases covering matrix exhaustiveness, immutability (frozen), cross-capability invariants (hybrid → native + verified; grounded-sql → verified; chat-only never advertises grounded-sql; only Genie supports hybrid today; only Genie supports native chat embed today), fidelity ordering, mode resolution policy (capability default, preference respected when supported, ignored when not, requireVerified filter, requireNativeEmbed filter, combined constraints), and the type-registry stability invariant.
+  - [docs/adr/0008-unified-assistant-surface.md](adr/0008-unified-assistant-surface.md) — ADR documenting the capability flags, modes, resolver policy, initial matrix, and consequences. References ADR-0007 as the proxy-side X-axis precedent.
+  - [docs/memory/feature_unified_workbench.md](memory/feature_unified_workbench.md) — repo-local feature memory with proper checklist (Step 1 done, Steps 2-7 unchecked), matrix snapshot, tripwires, and a revert-incident record.
+
+### Validation
+
+- `tsc --noEmit` clean.
+- Focused `npx vitest run src/lib/__tests__/connectorCapabilities.test.ts` → **35/35**.
+- Full playground vitest sweep — see commit-time verification entry below.
+- No UI change; the workbench shell is Step 3. Browser preview was intentionally not exercised for this slice.
+
+### Tripwires
+
+- Capability status (`verified` / `grounded-draft` / `suggestion` / `blocked`) is emitted by the validator (Step 4), NEVER declared by the LLM. The matrix is the type-level analog: only the matrix can expand a connector's supported set.
+- `classifyConnectorType` in `proxy/lib/connectorProbe.js` does not currently return `responses-agent`. The capability matrix here lists it for forward compatibility; the probe classifier is a separate follow-up.
+- Cross-capability invariant tests will fail loud if someone sets `supportsHybrid: true` without `supportsNativeChatEmbed` AND `supportsVerifiedArtifacts`. This is intentional — protects against the "only Genie does hybrid" lock silently breaking.
+- Step 2 (`nativeChatEmbed` adapter) must keep `bi-adapters/databricks-genie/` alive. A Genie space is legitimately both a BI surface and a chat surface; the workbench adds an assistant-axis presentation alongside the existing BI-axis presentation.
+- Worktree `claude/suspicious-pasteur-d858db` diverged from `main` after the reverts (different commit hashes for the same tree-state at base). Step 1 was implemented on main directly because the worktree has no `node_modules`. Future code work on this branch should expect either `npm install` in the worktree or main-direct work.
+
+---
+
 ## 2026-05-18 - Strategy lock: Unified Ask Pulse Workbench
 
 **Range:** After live no-creds + credentialed smoke confirmed the proxy + playground stack works end-to-end against the org Databricks workspace (7 Genie spaces, 2 Lakeview dashboards, Sample Superstore Sales Performance probe returns rich metadata, live Genie question completed in ~39s), Rajesh ran 4 research agents over the Ask Pulse direction. This pass records their verdict as a canonical strategy lock.

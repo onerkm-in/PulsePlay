@@ -78,12 +78,25 @@ Keep PulsePlay moving faster by coordinating work across agents without losing b
 
 **Supersedes:** the 2026-05-17 "unified surface tabs" proposal earlier in this file as the canonical Ask Pulse direction. The floating-comparison-layer and Pulse-Bubble-launcher proposals remain under research and do not block the workbench.
 
-**[HANDOFF]:** Step 1 is unclaimed. Whoever picks it up writes the TypeScript capability model + an ADR for the per-connector capability flags. Coordinate on `[CLAIM]` before starting; the contract decision touches every assistant connector path.
+**[DONE] 2026-05-18 — Step 1 landed.** Real Step 1 implemented on `main` after reverting 5 stub commits (audit findings in HANDOVER). Files:
+- `playground/src/types/assistant.ts` — type contract (3 modes, 10 connector types, 5 capability flags, 4 artifact statuses, 6 workbench tabs, 6 citation kinds, frozen registries, no `any`).
+- `playground/src/lib/connectorCapabilities.ts` — `CONNECTOR_CAPABILITIES` matrix + `resolveAssistantMode()` with capability/preference/forced-verified/forced-native-embed/no-mode-available reason codes.
+- `playground/src/lib/__tests__/connectorCapabilities.test.ts` — 35/35 vitest cases including matrix exhaustiveness, cross-capability invariants ("only Genie does hybrid today", "chat-only never advertises grounded SQL"), and resolver edge cases.
+- `docs/adr/0008-unified-assistant-surface.md` — ADR.
+- `docs/memory/feature_unified_workbench.md` — repo-local feature memory with checklist.
+
+**[HANDOFF] Step 2** is unclaimed. Promote Genie iframe from "BI vendor surface only" into assistant connector mode as `nativeChatEmbed`. Coordinate on `[CLAIM]` before starting.
+- Add a `GenieNativeEmbed` component that consumes `nativeEmbedUrl` from `AssistantConnectorDescriptor`. Sandbox must be narrowed from the default — `allow-scripts` alone if the Embed Genie surface allows it.
+- Keep `bi-adapters/databricks-genie/` alive. A Genie space is legitimately both a BI surface and a chat surface; the workbench adds an assistant-axis presentation alongside the existing BI-axis presentation.
+- Settings → BI → Embed leaf for the Genie iframe/src must work; the workbench's mode resolver consumes the resulting `nativeEmbedUrl`.
+- Do NOT touch `App.tsx` or `pulse/visual.tsx` in this step. Wiring into the playground is Step 3 (artifact shell).
 
 **[RISK] for coordinating agents:**
 - Step 6 is additive only — do not move things out of `playground/src/pulse/*` that the Pulse-PBI sibling consumes.
 - Step 4 validation gate may surface gaps in Genie response shapes; coordinate before extending the proxy response contract.
 - Step 5 ECharts bundle pressure — modular build is the default; flag if Vite cold start regresses measurably.
+- The 2026-05-18 stub commits demonstrated four anti-patterns to avoid: (1) PowerShell here-string mangling of template literals — never paste TypeScript through `@"..."@`; (2) the wide-open iframe sandbox `allow-scripts allow-same-origin allow-forms allow-popups` violates CLAUDE.md tripwires; (3) `ValidationGates.status ?? 'Verified'` lets the LLM self-declare status — the validator must EMIT the status; (4) committing without running `tsc`/`vitest` once. The new vitest invariants catch (3); future code review must catch (1), (2), and (4).
+- `classifyConnectorType` in `proxy/lib/connectorProbe.js` does not currently return `responses-agent`. The capability matrix here lists it for forward compatibility; the probe classifier is a separate follow-up.
 
 ## Strategic Planning Note — Option-Aware Databricks-Forward Posture
 
