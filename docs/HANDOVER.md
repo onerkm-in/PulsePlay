@@ -5,6 +5,46 @@
 
 ---
 
+## 2026-05-18 - AI briefing redesign — Phases A+B landed; C+D queued
+
+**Range:** Rajesh sent a design direction for the Pulse AI Insights production surface (unified mix screen). Four priorities: (1) semantic cue consistency across inline pills, (2) toolbar noise reduction, (3) information hierarchy, (4) calmer visual system. Plus four section label renames. This session shipped Phases A + B; Phases C + D are scoped and queued for the next session because they're larger UX surgery that benefits from review between landings.
+
+### What changed
+
+- **Phase A — inline pill semantic cue consistency** (`1e04a31`). The `arrow=movement, color=meaning` rule Codex locked for KPI tiles (commit `e433e0b`) now applies to inline trend pills across Trends / Risks / Recommended Actions / arbitrary narrative. Two coupled bugs fixed: (i) `pillColorClass` returned `gn-trend-down` for `semanticTone="bad"` regardless of physical direction — now returns `gn-trend-pill gn-trend-{dir} gn-trend-tone-{good|bad|watch|neutral}` so direction stays honest and tone carries color via CSS specificity. (ii) `pillColorClass` called `getMetricTone` with the unsigned number captured by INLINE_REGEX G6/G7 (`"up 0.4pp"` → number=`"0.4pp"`), so direction came back neutral and the rule's `higherIsBetter` branch never fired. The function now re-attaches the sign from `physicalDir` before the tone lookup so the rule resolves to a concrete semantic tone. Four new CSS tone classes (`gn-trend-tone-good/bad/watch/neutral`) ride on top of the existing direction classes. 7 new vitest cases covering all 4 direction × tone combinations plus unmatched-metric, no-rules-supplied, fuzzy-alias-neutral, and flat-movement cases; 1 explicit guard for a pre-existing INLINE_REGEX blind spot where `%` suffix at end-of-prose never matches (regex requires `\b` after the number, `%` followed by space/punctuation never crosses a word boundary).
+
+- **Phase B — section label renames** (`e87bae0`). Display-only rename of the four primary insight sections:
+  - HEADLINE → **Executive Brief**
+  - TRENDS → **What Changed**
+  - RISKS → **What Needs Attention**
+  - RECOMMENDED ACTIONS → **Next Best Actions**
+
+  Internal IDs (HEADLINE / TRENDS / RISKS / RECOMMENDED ACTIONS) stay everywhere — prompts, validators, visibility state, exports, stage SQL lookup, the Pulse-PBI sibling's response shape. New `displaySectionTitle()` helper + `SECTION_DISPLAY_LABELS` map. `InsightsSectionHeader` and `InsightsSectionPlaceholder` render the display label in `<h3>`, with `data-section-title="<INTERNAL>"` on the heading so tests/exports/stage SQL can still address sections by canonical ID. Unknown/custom author sections pass through unchanged. 13 vitest cases.
+
+### What's queued for next session (Phases C + D)
+
+- **Phase C — toolbar noise reduction**. Keep visible: surface switcher (AI Insights / Ask Pulse / BI Viz), Adjust, run/status chip, possibly refresh/export if truly primary. Move copy/code/diagnostics into a compact overflow/action menu.
+- **Phase D — information hierarchy + visual calming**. Target layout: top Executive Brief (full-width or 60/40 with KPI Snapshot); middle KPI Snapshot + What Changed; lower/right What Needs Attention + Next Best Actions. Make Next Best Actions more prominent. Reduce nested borders/shadows/repeated footers/competing chrome. Pulse currently feels like cards-inside-cards; use fewer visual containers and clearer hierarchy.
+
+### Validation
+
+- `npm run lint` clean.
+- `npm run test` **824/824** across 65 files (was 801; +23 net across the two phases: 7 inline-pill cases + 1 %-blind-spot guard + 13 section-label cases + 2 from a parallel agent's lane).
+- Live Vite smoke at `http://127.0.0.1:5174/` returns HTTP 200; HMR confirms both new tone classes and new section display labels reach the browser.
+
+### Tripwires (next session must honor)
+
+- **Do not reintroduce the permanent BI pane.** BI Viz stays a peer same-canvas surface in `mix` mode (locked by `df22e9f` legacy-state migration + Codex's earlier same-canvas behavior).
+- **Do not make BI Viz a focused-pane default.** Explicit Split + Mix for power users still works.
+- **Do not change the artifact validator** or no-ungrounded-artifacts contract. Phase A/B touched presentation only; the validator authority and Genie sandbox stay locked.
+- **Do not make "100% hallucination-free" claims.** PulsePlay's promise is "no ungrounded artifacts are rendered as verified."
+- **Do not switch ECharts to the full bundle** (modular import stays).
+- **Internal section IDs are load-bearing** — prompts, validators, exports, stage SQL lookup, and the Pulse-PBI sibling all read HEADLINE / TRENDS / RISKS / RECOMMENDED ACTIONS verbatim. Display labels are user-facing only; do not rename the constants.
+- **Known follow-up — `%`-suffix pill regex blind spot.** Real Pulse prose like "spend up 12% this period" doesn't render a pill because the INLINE_REGEX `\b` after the number capture never crosses a word boundary when `%` is followed by space/punctuation. Tracked as a Pulse follow-up (not a Phase-A regression). Real prose typically uses `pp` for percentage-point deltas; the common case works.
+- **`data-section-title`** on `<h3>` is now load-bearing for any future test/export logic that needs the canonical section ID after Phase B. Don't strip it when restructuring layout in Phase D.
+
+---
+
 ## 2026-05-18 - Workbench Step 6 — additive Pulse asset extraction (`a2bd729`)
 
 **Range:** Wrapped Pulse-port pure-domain helpers into workbench-facing modules so the workbench gains three new behaviors driven by Pulse-proven logic: composer-input sanitization, labelled SQL sections, and Genie-supplied follow-up question chips. **Additive only** per [PULSE_PORT_DETANGLING.md](PULSE_PORT_DETANGLING.md) — no file inside `playground/src/pulse/*` was modified by Step 6; the Pulse-PBI sibling continues to consume that directory as-is.
