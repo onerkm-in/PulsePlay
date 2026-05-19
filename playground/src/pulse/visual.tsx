@@ -4763,14 +4763,74 @@ function App(props: AppProps) {
                         // AI and BI are independent verticals (PulsePlay design
                         // principle): the only thing that gates AI Insights is
                         // whether AI is configured. BI is optional grounding.
-                        // - !isConfigured → ask the author to wire AI
+                        // - !isConfigured → ask the author to wire AI + show
+                        //                   what AI Insights will do once it
+                        //                   IS configured, so the surface
+                        //                   doesn't feel dead pre-config
+                        //                   (audit P2-1 — parity with Ask Pulse
+                        //                   empty state's Quick-start chips).
                         // - isConfigured  → brief "Generating…" flash before
                         //                   insightsBusy flips true and the
                         //                   running state takes over rendering
                         <div className="gn-insights-placeholder">
-                            <span className="gn-insights-icon">✨</span>
+                            <span className="gn-insights-icon" aria-hidden="true">✨</span>
                             <h3>AI Insights</h3>
-                            <p>{isConfigured ? "Generating insights…" : "Configure an AI connector in Settings → AI to generate insights."}</p>
+                            {isConfigured ? (
+                                <p role="status" aria-live="polite">Generating insights…</p>
+                            ) : (
+                                <>
+                                    <p style={{ margin: "0 0 14px" }}>
+                                        Connect an AI assistant and PulsePlay will auto-generate a
+                                        briefing across whatever you're looking at.
+                                    </p>
+                                    <ul style={{
+                                        textAlign: "left",
+                                        listStyle: "none",
+                                        padding: 0,
+                                        margin: "0 0 18px",
+                                        display: "inline-block",
+                                        fontSize: 12,
+                                        lineHeight: 1.65,
+                                        color: "var(--gn-text-muted)",
+                                    }}>
+                                        <li>• Headline — what changed and by how much</li>
+                                        <li>• Trends — what's moving, with grounded SQL</li>
+                                        <li>• Risks &amp; opportunities — flagged with evidence</li>
+                                        <li>• Recommended actions — tied to your KPIs</li>
+                                    </ul>
+                                    <div style={{
+                                        display: "flex",
+                                        gap: 8,
+                                        justifyContent: "center",
+                                        flexWrap: "wrap",
+                                    }}>
+                                        <button
+                                            type="button"
+                                            className="gn-cta-primary"
+                                            onClick={() => {
+                                                try {
+                                                    window.history.pushState({}, "", "/settings/ai");
+                                                    window.dispatchEvent(new CustomEvent("pulseplay:settings-navigate"));
+                                                } catch { /* swallow */ }
+                                            }}
+                                        >
+                                            Connect AI assistant →
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="gn-cta-secondary"
+                                            onClick={() => {
+                                                try {
+                                                    window.history.pushState({}, "", "/knowledge");
+                                                    window.dispatchEvent(new PopStateEvent("popstate"));
+                                                } catch { /* swallow */ }
+                                            }}
+                                        >
+                                            Browse knowledge packs
+                                        </button>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     ) : (!insightsResult || (insightsResult.status === "RUNNING" && !(insightsResult.content || "").trim())) ? (
                         // No content yet — the always-on ProgressIndicator above
@@ -7525,8 +7585,12 @@ function WelcomeSection(props: {
                     ))}
                 </div>
             ) : props.kpiLoading ? (
-                <p className="gn-welcome-caption" style={{ color: "var(--gn-text-muted)" }}>
-                    <span style={{ animation: "gn-progress-spin 1.2s linear infinite", display: "inline-block", marginRight: 6 }}>↻</span>
+                // Audit 2026-05-19 P2-11: role=status + aria-live so screen
+                // readers announce "Analysing your data…" while the KPI fetch
+                // is in flight. The animated ↻ glyph is aria-hidden so it
+                // doesn't get re-announced on every spin frame.
+                <p className="gn-welcome-caption" role="status" aria-live="polite" style={{ color: "var(--gn-text-muted)" }}>
+                    <span aria-hidden="true" style={{ animation: "gn-progress-spin 1.2s linear infinite", display: "inline-block", marginRight: 6 }}>↻</span>
                     Analysing your data…
                 </p>
             ) : (

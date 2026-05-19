@@ -145,6 +145,26 @@ function readPulseAssistantProfile(): string {
 }
 
 /**
+ * Audit 2026-05-19 P2-13: read the configured PulsePlay-proxy base URL so
+ * user-facing error copy ("Check the proxy is running on …") shows the
+ * actual deployed origin, not a stale hardcoded `127.0.0.1:8787`. Reads
+ * from the genieSettings JSON the settingsStore writes; falls back to the
+ * local dev default when no override is set.
+ */
+function readConfiguredProxyBase(): string {
+    if (typeof window === "undefined") return "http://127.0.0.1:8787";
+    try {
+        const raw = window.localStorage.getItem("pulseplay:visual-settings:genieSettings");
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            const v = parsed?.apiBaseUrl;
+            if (typeof v === "string" && v.trim()) return v.trim();
+        }
+    } catch { /* swallow */ }
+    return "http://127.0.0.1:8787";
+}
+
+/**
  * Read the active AI connector / assistant profile from the canonical
  * settingsStore key (`pulseplay:active-ai-profile`). Falls back to the
  * Pulse legacy genieSettings.assistantProfile slot so users who only ever
@@ -1109,7 +1129,18 @@ function PlaygroundApp(): React.ReactElement {
                                         <>
                                             <strong>Governance allowlist unreachable — fail-closed.</strong>{" "}
                                             BI surfaces will not mount and selections are refused until the proxy responds.
-                                            Check the proxy is running on <code>http://127.0.0.1:8787</code> and reload.
+                                            {/* Audit 2026-05-19 P2-13: was a hardcoded
+                                              * http://127.0.0.1:8787 — fine for local dev,
+                                              * misleading on any other deploy. Derive the
+                                              * displayed proxy URL from the configured
+                                              * apiBaseUrl (stored in the genieSettings
+                                              * JSON the settings store writes), falling
+                                              * back to the local default only when no
+                                              * override is set. */}
+                                            {(() => {
+                                                const base = readConfiguredProxyBase();
+                                                return <> Check the proxy is running on <code>{base}</code> and reload.</>;
+                                            })()}
                                         </>
                                     ) : (
                                         <>Governance config unavailable. Pickers may be incomplete until the proxy responds.</>

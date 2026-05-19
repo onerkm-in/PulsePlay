@@ -25,6 +25,7 @@ import {
     type KnowledgeSection,
 } from "./knowledgeRoute";
 import { useSettings } from "../settings/settingsStore";
+import { navigateToSettings } from "../settings/settingsRoute";
 
 interface PackSummary {
     name: string;
@@ -184,14 +185,15 @@ export function KnowledgeShell(): React.ReactElement {
     }, [route.pack, route.subVertical]);
 
     // Esc returns to /settings (back-to-app from the Knowledge page).
+    // Audit 2026-05-19 P2-15: was an imperative `history.pushState` +
+    // custom-event dispatch reimplementing what `navigateToSettings()` does
+    // for free. Using the helper means if the routing module changes its
+    // event name or URL shape, Esc here stays in sync automatically.
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
             if (e.key === "Escape") {
                 e.preventDefault();
-                if (typeof window !== "undefined") {
-                    window.history.pushState({}, "", "/settings");
-                    window.dispatchEvent(new CustomEvent("pulseplay:settings-navigate"));
-                }
+                navigateToSettings();
             }
         };
         window.addEventListener("keydown", handler);

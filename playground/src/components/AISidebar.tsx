@@ -35,6 +35,7 @@ import { SustainabilityIndicator } from "./SustainabilityIndicator";
 import { recordResponse as recordUsageResponse } from "../lib/usageTracker";
 import { EvidenceDrawer, type EvidenceItem } from "./EvidenceDrawer";
 import { dumpRun, resetRun, stageEnd, stageStart } from "../lib/perfInstrumentation";
+import { renderMarkdown } from "../lib/renderMarkdown";
 
 // 2026-05-19 Codex post-UAT-1840 follow-up: wire the perf instrumentation
 // utility (added in b71270f) into the actual Ask Pulse pipeline so DevTools
@@ -767,7 +768,16 @@ function AnswerEntryView(props: { entry: AnswerEntry; onStop: () => void; onRetr
             <div className="pp-ai-sidebar__q"><strong>You:</strong> {entry.question}</div>
 
             {entry.status === "submitting" && (
-                <div className="pp-ai-sidebar__pending">Submitting…</div>
+                // Audit 2026-05-19 P2-11: aria-live so screen-reader users
+                // hear that work is in flight; without it the spinner state
+                // was invisible to assistive tech.
+                <div
+                    className="pp-ai-sidebar__pending"
+                    role="status"
+                    aria-live="polite"
+                >
+                    Submitting…
+                </div>
             )}
             {entry.status === "polling" && (() => {
                 const detail = describePollStatus(entry.pollStatus);
@@ -776,6 +786,12 @@ function AnswerEntryView(props: { entry: AnswerEntry; onStop: () => void; onRetr
                         className="pp-ai-sidebar__pending"
                         data-testid={`pp-ai-poll-${entry.id}`}
                         data-poll-status={(entry.pollStatus || "").toUpperCase()}
+                        // Audit 2026-05-19 P2-11: aria-live so the rotating
+                        // "Warming warehouse → Asking the AI → Running the SQL"
+                        // copy gets announced as it changes. polite (not
+                        // assertive) — these are status updates, not alerts.
+                        role="status"
+                        aria-live="polite"
                     >
                         <div style={{ fontWeight: 500 }}>
                             {detail ? detail.label : "Thinking…"} <span style={{ opacity: 0.6, fontWeight: 400 }}>(elapsed: {formatElapsed(elapsedMs)})</span>
@@ -792,11 +808,15 @@ function AnswerEntryView(props: { entry: AnswerEntry; onStop: () => void; onRetr
             {entry.answer && (
                 <div className="pp-ai-sidebar__a">
                     <strong>AI:</strong>
-                    <div
-                        className="pp-ai-sidebar__narrative"
-                        style={{ whiteSpace: "pre-wrap", marginTop: 4 }}
-                    >
-                        {entry.answer}
+                    {/* Audit 2026-05-19 P2-2: was `whiteSpace: pre-wrap` + raw
+                      * text — every backend that emits Markdown (Genie /
+                      * Foundation Model / Supervisor / Bedrock) leaked `**`,
+                      * `|`, and `#` characters into the chat. The minimal
+                      * renderer in lib/renderMarkdown is safe-by-construction
+                      * (no innerHTML, link protocols vetted) and covers the
+                      * subset of Markdown those backends actually use. */}
+                    <div className="pp-ai-sidebar__narrative pp-md" style={{ marginTop: 4 }}>
+                        {renderMarkdown(entry.answer)}
                     </div>
                 </div>
             )}

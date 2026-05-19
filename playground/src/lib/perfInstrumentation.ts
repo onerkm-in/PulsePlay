@@ -24,6 +24,30 @@
 
 const ENABLED = typeof window !== "undefined" && typeof performance !== "undefined" && typeof performance.mark === "function";
 
+/**
+ * Audit 2026-05-19 P2-14: the `dumpRun` console.table + log lines now fire
+ * for every Ask Pulse / AI Insights run, including production. They are
+ * useful for developers but pollute end-user consoles. Gate behind a dev
+ * check OR an explicit opt-in (`window.__pulseplayPerfDump = true`) so a
+ * deployer can flip it on in a pinch without rebuilding.
+ *
+ * `import.meta.env.DEV` is true under Vite dev/test, false in `npm run build`
+ * output. The `as any` cast keeps this file usable in environments that
+ * don't have Vite's typed env (we still degrade to "off" cleanly).
+ */
+const CONSOLE_DUMP_ENABLED: boolean = (() => {
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const env = (import.meta as any)?.env;
+        if (env && env.DEV) return true;
+    } catch { /* swallow */ }
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return !!((window as any).__pulseplayPerfDump);
+    } catch { /* swallow */ }
+    return false;
+})();
+
 const NS = "pulseplay";
 
 /** Emit a Performance API mark. Visible in DevTools Performance tab as a
@@ -98,6 +122,11 @@ export function stageEnd(runId: string, stage: string): void {
 export function dumpRun(runId: string, label?: string): StageTiming[] {
     const arr = _timings.get(runId) ?? [];
     if (!ENABLED || arr.length === 0) return arr;
+    // Audit 2026-05-19 P2-14: only print to console in dev or when the user
+    // explicitly opts in via window.__pulseplayPerfDump. The marks are still
+    // emitted to the Performance API entry buffer in every build, so DevTools
+    // Performance recording continues to show the bands.
+    if (!CONSOLE_DUMP_ENABLED) return arr;
     try {
         // Friendly summary table for DevTools console.
         // eslint-disable-next-line no-console
