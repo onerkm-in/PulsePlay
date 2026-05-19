@@ -350,6 +350,13 @@
 }
 .pp-settings-rail__item--active .pp-settings-rail__desc { color: rgba(37,99,235,0.7); }
 
+.pp-settings-rail__glyph {
+    margin-right: 8px;
+    font-family: "Segoe UI Symbol", "Apple Symbols", sans-serif;
+    opacity: 0.75;
+    flex-shrink: 0;
+}
+
 .pp-settings-rail__loading {
     font-size: 11px;
     color: var(--pp-text-subtle, #94a3b8);

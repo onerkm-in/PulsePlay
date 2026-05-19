@@ -1,0 +1,281 @@
+# PulsePlay Naming + UI Copy Audit - 2026-05-19 13:20 IST
+
+## Scope
+
+Rajesh asked for a visible UI pass focused on section names, tool names, special characters, and whether machine-ish labels such as `AI-generated` can be made more human-friendly.
+
+This is a capture/handoff only. No production UI code was changed in this pass.
+
+## Evidence
+
+- Raw route/control capture: [evidence/naming-audit-2026-05-19-1320/naming-audit.json](evidence/naming-audit-2026-05-19-1320/naming-audit.json)
+- Screenshots: [evidence/naming-audit-2026-05-19-1320/](evidence/naming-audit-2026-05-19-1320/)
+- Routes checked visibly:
+  - `/`
+  - `/settings/setup`
+  - `/settings/bi`
+  - `/settings/ai`
+  - `/settings/preferences`
+  - `/settings/system`
+  - `/settings/advanced`
+  - `/knowledge`
+  - `/launchpad`
+  - `/workbench`
+
+## Verdict
+
+PulsePlay has a strong information architecture direction, but the copy layer is still uneven. The biggest problem is not one bad label; it is that the UI mixes polished product language, internal implementation terms, decorative symbols, raw ids, and accessibility-visible glyphs in the same surfaces.
+
+The fix should be a deliberate naming/copy pass, not one-off string edits.
+
+## Purpose Model To Preserve
+
+Claude should preserve the purpose of each surface before changing labels or grouping settings:
+
+| Surface | Purpose | User mental model |
+|---|---|---|
+| `AI Insights` | Proactive briefing. PulsePlay looks at the current BI/data context and generates a structured executive readout: headline, KPIs, what changed, what needs attention, next best actions, evidence. | "Tell me what matters before I ask." |
+| `Ask Pulse` | Conversational follow-up. The user asks targeted questions, clarifies doubts, explores why something happened, and asks for drill-downs or next questions. | "Let me ask about what I am seeing." |
+| `BI Viz` | Observed business surface. The dashboard/report/canvas the user is inspecting and filtering. | "Show me the source view." |
+
+The product should feel unified because AI Insights and Ask Pulse are two interaction modes over the same assistant. They should share:
+
+- Assistant profile / connector
+- Domain knowledge / pack
+- Domain guidance
+- Metric semantics and lower-is-better rules
+- Grounding sources such as Knowledge Base, Vector Search, and UC Metric View
+- Provenance, validation, and evidence posture
+- Output tone and formatting rules
+
+They should differ only where the interaction genuinely differs:
+
+- AI Insights: auto-run, cache, briefing stages, section visibility, executive brief structure.
+- Ask Pulse: chat suggestions, conversation behavior, filter/context bar, follow-up affordances.
+
+This is the core reason the current `AI Insights` settings leaf is confusing: it stores common assistant behavior but is named like it belongs only to the proactive briefing surface.
+
+## Priority Fixes For Claude
+
+1. **Remove decorative emoji/glyphs from visible and accessible labels.**
+   - Current examples: `⚙ Settings`, `✨ AI Insights`, `💬 Ask Pulse`, `⚡ Test proxy`.
+   - Desired behavior: use real icon components with `aria-hidden="true"` where decorative, and keep the accessible name clean: `Settings`, `AI Insights`, `Ask Pulse`, `Test proxy`.
+
+2. **Fix duplicated `BI BI Viz` everywhere.**
+   - Current: the surface switcher exposes `BI BI Viz`.
+   - Recommendation: show an icon-only `BI` mark plus text `BI Viz`, but make the accessible name `BI Viz` exactly once.
+   - Better long-term label candidates: `BI View`, `Dashboard`, or `BI Surface`. If keeping `BI Viz`, keep it consistent and non-duplicated.
+
+3. **Rename user-facing internal terms.**
+   - `AI brain` -> `AI assistant` or `Assistant profile`.
+   - `Knowledge pack` -> `Domain knowledge` or `Knowledge source`.
+   - `Pack (none)` -> `No knowledge source`.
+   - `AI (none)` -> `AI not configured`.
+   - `BI powerbi` -> `BI: Power BI`.
+   - `Proxy ok` -> `Proxy connected`.
+   - `Security strict` -> `Security enforced`.
+
+4. **Replace text arrows in buttons with icon affordances or cleaner verbs.**
+   - Current examples: `← Back to app`, `Full embed form →`, `Tune Insights behavior →`, `Browse library ↗`, `Browse Knowledge Base →`.
+   - Recommendation: visible text should read `Back to app`, `Open full embed settings`, `Tune Insights`, `Browse library`, `Open Knowledge Base`. Directional icons can remain as decorative icon components.
+
+5. **Convert Settings section headings from all-caps to product Title Case.**
+   - Current examples: `CURRENT STATE`, `CONNECT AND EMBED`, `GOVERNANCE AND POLICY`, `TEST AND VALIDATE`, `GENERATION BEHAVIOR`, `MIX COMPOSITION`, `DISPLAY POLICY`.
+   - Recommendation: `Current State`, `Connect & Embed`, `Governance & Policy`, `Test & Validate`, `Generation Behavior`, `Surface Mix`, `Display Policy`.
+
+6. **Humanize generated-output provenance.**
+   - Current pattern: `AI-generated · Source: default · 19 min ago`.
+   - Recommendation: keep honesty, but make it warmer and more useful:
+     - `Generated by PulsePlay`
+     - `Grounded draft`
+     - `Verified with data`
+     - `Source: Sales Team profile`
+     - `Updated 19 min ago`
+   - Avoid raw profile names such as `default` in primary UI. Map them to configured display names.
+
+7. **Hide raw backend ids from primary surfaces.**
+   - Current Launchpad example: `test-superuser-genie-powerbi` appears as a heading and repeated card text.
+   - Recommendation: show a friendly display name first, with the technical id in a secondary metadata row or tooltip.
+
+8. **Keep meaningful data symbols, but make them accessible.**
+   - Trend arrows such as `▲` / `▼` are valid when they communicate movement.
+   - They should carry text equivalents such as `increased` / `decreased`, and color must continue to represent semantic tone, not physical movement.
+
+9. **Regroup shared AI settings so AI Insights and Ask Pulse feel like one assistant, not two products.**
+   - Current code already hints at this: the `AI Insights` leaf helper says it is the canonical setup for both AI Insights and Ask Pulse behavior, but the leaf label still says `AI Insights`.
+   - Knowledge pack, domain guidance, metric direction rules, UC Metric View, Vector Search grounding, provenance/validation policy, and output tone are common assistant context. They should not appear to belong only to AI Insights.
+   - Recommendation: rename the shared leaf to `Assistant behavior` or `Response behavior`, and split common grounding from surface-specific controls.
+
+## Route Findings
+
+| Route | Main Copy Issue | Examples |
+|---|---|---|
+| `/` | Surface switcher mixes decorative emoji and duplicate BI label | `✨ AI Insights`, `💬 Ask Pulse`, `BI BI Viz` |
+| `/settings/setup` | Setup labels mix friendly terms with jargon and symbols | `AI brain`, `BI powerbi`, `Proxy ok`, `Security strict`, `⚡ Test proxy` |
+| `/settings/bi` | Section labels are heavy and status chips expose raw vendor key | `CURRENT STATE`, `CONNECT AND EMBED`, `BI powerbi`, `Active: powerbi` |
+| `/settings/ai` | AI terminology is uneven; external/link arrows are visible text | `AI brain`, `Browse library ↗`, `Browse Knowledge Base →` |
+| `/settings/preferences` | Internal mode language leaks into user flow | `v0`, `Pulse mode`, `cycle-C sidebar`, `MIX COMPOSITION` |
+| `/settings/system` | Status copy is mostly good, but heading style and nav chips need cleanup | `STATUS`, `POLICY`, `Proxy ok`, `Security strict` |
+| `/settings/advanced` | Expected to expose raw keys, but labels can still be softened | `BI SELECTIONS`, `AI SELECTIONS`, raw `pulseplay:*` keys |
+| `/knowledge` | Mostly acceptable; back arrow should be iconized | `← Back to app` |
+| `/launchpad` | Raw workspace object ids appear as product headings | `test-superuser-genie-powerbi` |
+| `/workbench` | Preview copy is honest but still engineering-shaped | `Unified Ask Pulse Workbench — preview`, `Steps 1-5...` |
+
+## Recommended Naming System
+
+### Top-Level Surfaces
+
+| Current | Recommended |
+|---|---|
+| `AI Insights` | Keep |
+| `Ask Pulse` | Keep |
+| `BI Viz` | Keep only if made consistent; otherwise consider `Dashboard` or `BI View` |
+| `Unified Ask Pulse Workbench — preview` | `Ask Pulse Workbench Preview` |
+
+### Setup / Settings
+
+| Current | Recommended |
+|---|---|
+| `BI tool` | `BI surface` or `Dashboard source` |
+| `AI brain` | `AI assistant` or `Assistant profile` |
+| `Knowledge pack` | `Domain knowledge` |
+| `Provider` | Keep, but clarify with helper text |
+| `Pack` | `Knowledge source` |
+| `FINE-TUNE FURTHER` | `Continue setup` or `More settings` |
+
+### Progressive Settings Tree
+
+Recommended parent/child flow:
+
+```text
+Setup
+  BI surface
+  AI assistant
+  Domain knowledge
+
+BI
+  Source
+  Embed
+  Authentication
+  Governance
+  Status
+
+AI
+  Assistant
+    Provider
+    Model / Agent
+    Connection test
+  Shared context
+    Domain knowledge
+    Domain guidance
+    Metric semantics
+    Knowledge Base
+    Vector Search
+    UC Metric View
+  Response behavior
+    Available AI surfaces
+    Authoring mode
+    Sections
+    Evidence and provenance
+    Research traces
+  Surface-specific behavior
+    AI Insights auto-run / cache / briefing stages
+    Ask Pulse chat suggestions / filter bar / conversation behavior
+
+Preferences
+  Layout
+  Surface switcher
+  Appearance
+  Display policy
+
+System
+  Proxy
+  Security
+  License
+  Diagnostics
+
+Advanced
+  Local storage
+  Reset
+  Developer-only tools
+```
+
+The key move: `AI Insights` and `Ask Pulse` are surfaces. `Assistant`, `Shared context`, and `Response behavior` are the shared engine underneath them.
+
+### Common vs Surface-Specific Settings
+
+| Setting | Scope | Recommended Home |
+|---|---|---|
+| AI profile / assistant connector | Common | `AI > Assistant` |
+| Knowledge pack / domain knowledge | Common | `AI > Shared context` |
+| Domain guidance | Common by default | `AI > Shared context` |
+| Metric direction / semantic rules | Common | `AI > Shared context` |
+| Visualization/chart guidance | Common | `AI > Shared context` or `AI > Response behavior` |
+| UC Metric View | Common semantic source | `AI > Shared context` |
+| Vector Search grounding | Common retrieval source | `AI > Shared context` |
+| Available AI surfaces | Common display policy | `AI > Response behavior` or `Preferences > Surface switcher` with one source of truth |
+| AI Insights stage toggles | AI Insights only | `AI > Surface-specific behavior` |
+| AI Insights cache / auto-run | AI Insights only | `AI > Surface-specific behavior` |
+| Ask Pulse suggestions/filter bar/conversation UX | Ask Pulse only | `AI > Surface-specific behavior` |
+| Split/mix/layout placement | UI only | `Preferences` |
+
+### Status Chips
+
+| Current | Recommended |
+|---|---|
+| `Setup needed AI profile` | `AI profile needed` |
+| `BI powerbi` | `BI: Power BI` |
+| `AI (none)` | `AI not configured` |
+| `Pack (none)` | `No knowledge source` |
+| `Proxy ok` | `Proxy connected` |
+| `Security strict` | `Security enforced` |
+
+### Generated Output Footer
+
+Recommended shape:
+
+```text
+Generated by PulsePlay · Verified with data · Source: Sales Team profile · Updated 19 min ago
+```
+
+Fallback when validation is weaker:
+
+```text
+Generated by PulsePlay · Grounded draft · Source: Sales Team profile · Updated 19 min ago
+```
+
+Blocked/unsafe:
+
+```text
+Blocked by validation · Missing data evidence · Updated just now
+```
+
+## Copy Rules To Lock
+
+1. Visible copy should be words, not decorative symbols.
+2. Icons should come from the icon system and should be `aria-hidden` when decorative.
+3. Accessible names must not include decorative glyphs or duplicated words.
+4. Title Case for section headings; avoid all-caps except tiny status labels where the design system explicitly requires it.
+5. User-facing copy should not expose raw enum values (`powerbi`, `default`, `v0`) as primary labels.
+6. Technical ids are allowed in Advanced, Developer Tools, export bundles, and metadata rows, but not as card titles.
+7. Keep honest AI provenance, but make it readable: generated by whom, validated how, sourced from where, updated when.
+8. Use the same surface names everywhere. Do not alternate between `BI pane`, `BI Viz`, `BI-only mode`, `dashboard`, and `canvas` for the same action.
+
+## Acceptance Criteria For The Fix Pass
+
+- No visible control text contains decorative emoji/glyphs unless the glyph is semantically required data.
+- Surface switcher exposes exactly three clean accessible names: `AI Insights`, `Ask Pulse`, `BI Viz` (or the chosen replacement).
+- Settings nav chips display friendly status labels and formatted vendor names.
+- Settings group headings use Title Case.
+- Generated-output footers no longer show raw `AI-generated · Source: default` as the main provenance pattern.
+- Launchpad cards prefer friendly names and demote raw Databricks ids.
+- A focused test or axe/name snapshot verifies that decorative icons are not part of accessible names.
+
+## Suggested Implementation Order
+
+1. Surface switcher labels and accessible names.
+2. Settings shell nav chips and all-caps group headings.
+3. Setup group terminology (`AI brain`, `Knowledge pack`, status chips).
+4. AI output provenance footer.
+5. Launchpad friendly-name fallback.
+6. Accessibility/name snapshot tests.

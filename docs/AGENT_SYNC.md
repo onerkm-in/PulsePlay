@@ -52,6 +52,23 @@ Use these tags so another agent can scan quickly:
 
 Keep PulsePlay moving faster by coordinating work across agents without losing brutal honesty.
 
+### 2026-05-19 - Codex - [VERIFY] Tough visible UI run v2
+
+`[VERIFY]` Ran Claude's v2 tough visible plan in the open in-app browser at `http://127.0.0.1:5174`, per Rajesh's request to watch the UI test live. Pre-flight clean: proxy health OK, dev server OK, playground **920/920**, `npm run lint` clean.
+
+`[VERIFY]` Result artifact: `docs/TOUGH_TEST_RESULTS_2026-05-19-1253.md`; evidence folder: `docs/evidence/tough-test-2026-05-19-1253/`. Executed **83 visible scenarios**: **71 PASS / 5 FAIL / 1 SKIPPED / 6 N/A**. No Critical product failures in this visible slice.
+
+`[RISK]` Failures for Claude follow-up:
+- `BI BI Viz` duplicate switcher text still appears (`P1-13`, `EL-SWITCHER-COPY`).
+- Quick Setup proxy test reports 2 profiles, but AI profile select remains unpopulated/not selectable (`P3-07`, `P3-08`).
+- Applying the autoAuth Power BI fixture URL can lead BI Viz to `BI_EMBED_FAILED: powerbi adapter requires { id, embedUrl, accessToken }`; this is an embed/setup contract gap, not the old `BI-only mode` copy.
+
+`[RISK]` Tool-limited items intentionally marked N/A/skipped: direct localStorage inspection/mutation, support-bundle download grep, 390x844 viewport emulation, screen reader lab, and proxy stop/restart recovery.
+
+`[VERIFY]` Tooltip/instruction audit added after Rajesh flagged the gap: `docs/TOOLTIP_AUDIT_2026-05-19-1310.md`, evidence in `docs/evidence/tooltip-audit-2026-05-19-1310/`. Setup HelpTips open semantically (7/7), but the bubble can clip in compact width, the AI profile tooltip includes an interactive docs link inside a non-interactive `role="tooltip"`, and the profile tooltip does not explain why the select remains empty even after proxy health reports 2 profiles.
+
+`[VERIFY]` Naming/copy audit added after Rajesh flagged section/tool naming and special-character polish: `docs/NAMING_AND_COPY_AUDIT_2026-05-19-1320.md`, evidence in `docs/evidence/naming-audit-2026-05-19-1320/`. Main Claude handoff: remove decorative glyphs from visible/accessibility labels, fix `BI BI Viz`, replace user-facing internal terms (`AI brain`, `powerbi`, `Proxy ok`, `Security strict`, `v0`, `cycle-C sidebar`), title-case Settings sections, and humanize generated-output provenance from `AI-generated · Source: default` to source/status language users can trust. Rajesh also flagged the Settings IA issue: Knowledge Pack / domain guidance / metric semantics are common to AI Insights and Ask Pulse; avoid burying them under a leaf named only `AI Insights`. Purpose model locked in the audit: AI Insights = proactive briefing ("tell me what matters before I ask"), Ask Pulse = conversational follow-up ("let me ask about what I am seeing"), BI Viz = observed source surface. Recommended tree: `AI > Assistant`, `AI > Shared context`, `AI > Response behavior`, `AI > Surface-specific behavior`.
+
 ### 2026-05-19 - Codex - [HANDOFF] Unified surface UX + component-scoped companion fixes
 
 `[VERIFY]` Visible in-app browser E2E slice ran against `http://127.0.0.1:5174` after Rajesh asked to observe testing in the open screen only. Pre-flight was clean: proxy health OK, dev server OK, playground **918/918**, `npm run lint` clean. Catalog count audit found scenario files parse to **2,604**, not the pasted **2,544**.

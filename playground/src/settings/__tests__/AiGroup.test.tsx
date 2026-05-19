@@ -177,11 +177,17 @@ describe("AiGroup — Phase 4 wiring", () => {
         unmount(state);
     });
 
-    it("renders canonical AI Insights settings on the Settings page", async () => {
+    it("renders the shared assistant response-behavior settings on the Settings page", async () => {
+        // Codex 2026-05-19 naming audit: the leaf label was renamed from
+        // "AI Insights" to "Response behavior" because the underlying settings
+        // (prompt strategy, domain guidance, metric semantics) flow through to
+        // BOTH AI Insights and Ask Pulse — they are shared assistant context,
+        // not Insights-specific. Helper text + label both reflect the change.
         const state = mount();
         await flushAll();
         const text = state.container.textContent || "";
-        expect(text).toContain("AI Insights");
+        expect(text).toContain("Response behavior");
+        expect(text).toContain("Shared with both AI Insights and Ask Pulse");
         expect(text).toContain("Custom insights prompt");
         expect(text).toContain("Domain guidance");
         expect(text).toContain("Metric direction rules");

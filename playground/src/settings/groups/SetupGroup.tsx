@@ -189,8 +189,8 @@ export function SetupGroup(): React.ReactElement {
             {/* ── Step 1 · BI ───────────────────────────────────────── */}
             <FieldCard
                 step={1}
-                title="BI tool"
-                subtitle="The dashboard, report, or canvas users look at."
+                title="BI surface"
+                subtitle="The dashboard, report, or canvas users will look at."
                 status={{ tone: biStatus, label: biStatus === "ok" ? "Configured" : biStatus === "warn" ? "Needs embed" : "Not picked" }}
                 tip={
                     <>
@@ -213,7 +213,7 @@ export function SetupGroup(): React.ReactElement {
                         onChange={e => setBiVendor(e.target.value)}
                         disabled={allowlistLoading}
                     >
-                        <option value="">— Pick a BI tool —</option>
+                        <option value="">— Pick a dashboard tool —</option>
                         {allowedBiVendors.map(v => (
                             <option key={v.vendor} value={v.vendor}>
                                 {v.displayName}
@@ -268,8 +268,8 @@ export function SetupGroup(): React.ReactElement {
             {/* ── Step 2 · AI ───────────────────────────────────────── */}
             <FieldCard
                 step={2}
-                title="AI brain"
-                subtitle="The assistant powering AI Insights and Ask Pulse."
+                title="AI assistant"
+                subtitle="One assistant powers both AI Insights and Ask Pulse — pick its profile here."
                 status={{ tone: aiStatus, label: aiStatus === "ok" ? "Configured" : "Not picked" }}
                 tip={
                     <>
@@ -318,11 +318,11 @@ export function SetupGroup(): React.ReactElement {
                 </div>
             </FieldCard>
 
-            {/* ── Step 3 · Knowledge pack ───────────────────────────── */}
+            {/* ── Step 3 · Domain knowledge ─────────────────────────── */}
             <FieldCard
                 step={3}
-                title="Knowledge pack"
-                subtitle="Domain vocabulary the assistant uses to interpret your data."
+                title="Domain knowledge"
+                subtitle="Industry vocabulary the assistant uses to interpret your data."
                 status={{ tone: packStatus, label: packSelection ? "Selected" : "Optional" }}
                 tip={
                     <>
@@ -367,7 +367,7 @@ export function SetupGroup(): React.ReactElement {
 
             {/* ── Footer · jump to advanced groups ──────────────────── */}
             <div className="pp-setup__footer">
-                <p className="pp-setup__footer-label">Fine-tune further</p>
+                <p className="pp-setup__footer-label">Continue setup</p>
                 <div className="pp-setup__footer-links">
                     <FooterLink label="Layout & display" group="preferences" />
                     <FooterLink label="Proxy & diagnostics" group="system" />

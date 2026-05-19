@@ -58,6 +58,10 @@ const GROUP_ICONS: Record<SettingsGroupId, string> = {
     advanced:    "⚙",
 };
 
+// Decorative rail glyph CSS spacing — rendered via the .pp-settings-rail__glyph
+// class so the visible label keeps a clean accessible name. Inline margin is
+// kept here rather than the CSS file to avoid pulling settings.css on every
+// rail render; tiny enough to inline.
 // Accent color for the readiness dot on each rail item.
 const READINESS_DOT: Record<"ready" | "needed" | "info", string> = {
     ready:  "#10b981",
@@ -77,7 +81,7 @@ export const GROUP_LEAF_LABELS: Record<SettingsGroupId, string[]> = {
     // group label + description.
     setup: [],
     bi: ["Provider", "Embed", "Authentication", "Canvas", "Status", "Governance"],
-    ai: ["Provider", "Model / Agent", "Knowledge pack", "Knowledge Base", "Vector Search KB", "Connection test", "AI Insights", "Supervisor Fusion", "UC Metric View", "Browse library ↗"],
+    ai: ["Provider", "Model / Agent", "Knowledge pack", "Knowledge Base", "Vector Search KB", "Connection test", "Response behavior", "Supervisor Fusion", "UC Metric View", "Browse library"],
     preferences: [
         "UI mode",
         "Layout preset",
@@ -281,11 +285,11 @@ function SettingsStatusStrip(): React.ReactElement {
     return (
         <div className="pp-settings-status">
             <Chip label="Setup"    status={setupReadiness.ready ? "ok" : "warn"} detail={setupReadiness.pillDetail} group="setup" />
-            <Chip label="BI"       status={biStatus}       detail={biVendor || "(none)"}            group="bi" />
-            <Chip label="AI"       status={aiStatus}       detail={activeAiProfile || "(none)"}     group="ai" />
-            <Chip label="Pack"     status={packStatus}     detail={packSelection?.pack || "(none)"} group="ai" leaf="knowledge-pack" />
-            <Chip label="Proxy"    status={proxyStatus}    detail={allowlistError || (allowlistLoading ? "loading" : "ok")} group="system" leaf="proxy-status" />
-            <Chip label="Security" status={securityStatus} detail={allowlist?.enforcement || "(unknown)"} group="system" leaf="security-posture" />
+            <Chip label="BI"       status={biStatus}       detail={biVendor ? formatVendorName(biVendor) : "Not configured"}    group="bi" />
+            <Chip label="AI"       status={aiStatus}       detail={activeAiProfile ? formatProfileName(activeAiProfile) : "Not configured"} group="ai" />
+            <Chip label="Pack"     status={packStatus}     detail={packSelection?.pack ? formatPackName(packSelection.pack) : "No knowledge source"} group="ai" leaf="knowledge-pack" />
+            <Chip label="Proxy"    status={proxyStatus}    detail={allowlistError ? "Unreachable" : (allowlistLoading ? "Checking…" : "Connected")} group="system" leaf="proxy-status" />
+            <Chip label="Security" status={securityStatus} detail={allowlist?.enforcement === "strict" ? "Enforced" : allowlist?.enforcement === "permissive" ? "Permissive" : "Unknown"} group="system" leaf="security-posture" />
         </div>
     );
 }
@@ -343,7 +347,11 @@ function SettingsLeftRail(props: SettingsLeftRailProps & { activeLeaf?: string |
                                         title={READINESS_LABEL[readiness]}
                                         style={{ background: active ? undefined : READINESS_DOT[readiness] }}
                                     />
-                                    <span>{GROUP_ICONS[id]}&nbsp;&nbsp;{GROUP_LABELS[id]}</span>
+                                    {/* Decorative glyph hidden from screen readers; visible label
+                                  * carries the accessible name. Codex 2026-05-19 naming audit:
+                                  * "use real icon components with aria-hidden where decorative". */}
+                                <span aria-hidden="true" className="pp-settings-rail__glyph">{GROUP_ICONS[id]}</span>
+                                <span>{GROUP_LABELS[id]}</span>
                                 </span>
                                 {showOrphan && (
                                     <span className="pp-settings-rail__orphan-badge" aria-label="Orphaned settings">
@@ -391,6 +399,42 @@ function leafSlugify(label: string): string {
         .replace(/[↗→]/g, "")
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-+|-+$/g, "");
+}
+
+// Codex 2026-05-19 naming audit: status chips were exposing raw enum keys
+// like `powerbi`, `default`, `strict`, `ok` as primary visible copy. These
+// helpers map them to friendly product names so the strip reads like a
+// status summary, not a debug dump.
+const VENDOR_DISPLAY: Record<string, string> = {
+    "powerbi":          "Power BI",
+    "databricks-aibi":  "Databricks AI/BI",
+    "databricks-genie": "Databricks Genie",
+    "tableau":          "Tableau",
+    "qlik":             "Qlik Sense",
+    "looker":           "Looker",
+    "generic-iframe":   "Generic iframe",
+};
+
+function formatVendorName(vendor: string): string {
+    return VENDOR_DISPLAY[vendor] ?? vendor;
+}
+
+function formatProfileName(profile: string): string {
+    // Profile keys are user-facing slugs (default / supervisor / foundation-stream).
+    // Map known internal names to friendlier display; otherwise capitalize words.
+    const known: Record<string, string> = {
+        "default":           "Default profile",
+        "supervisor":        "Supervisor",
+        "foundation-stream": "Foundation Model",
+    };
+    if (known[profile]) return known[profile];
+    return profile.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function formatPackName(pack: string): string {
+    // Pack names are usually slug-cased (cpg-fmcg, retail, financial-services).
+    // Title-case them; consumers can override with allowlist.packs metadata later.
+    return pack.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 // ─── Active group resolver ───────────────────────────────────────

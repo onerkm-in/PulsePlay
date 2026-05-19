@@ -307,11 +307,21 @@ export function AiGroup(): React.ReactElement {
                 helper="How the AI talks back — prompt strategy, domain guidance, sections, metric semantics. Saves to Pulse genieSettings and live-updates the playground."
             >
 
-            {/* ── AI Insights configuration ────────────────────────── */}
+            {/* ── Shared assistant behavior (used by BOTH AI Insights and Ask Pulse) ─
+              * 2026-05-19 Codex naming audit:
+              *   "rename the shared leaf to 'Response behavior'; split common
+              *    grounding from surface-specific controls."
+              * Label was "AI Insights" which implied it only affected the
+              * proactive-briefing surface. The actual scope is broader: prompt
+              * strategy, domain guidance, metric semantics, evidence display,
+              * sections — all of these flow through to Ask Pulse responses too.
+              * The full IA restructure (Assistant / Shared context / Response
+              * behavior / Surface-specific) is queued for a follow-up cycle;
+              * this rename clarifies the scope without the deeper refactor. */}
             <Leaf
                 group="ai"
-                label="AI Insights"
-                helper="Canonical setup for AI Insights and Ask Pulse behavior: prompt strategy, domain guidance, section schema, metric semantics, and evidence display. Saves to Pulse genieSettings and live-updates the playground."
+                label="Response behavior"
+                helper="Shared with both AI Insights and Ask Pulse. Controls prompt strategy, domain guidance, section schema, metric semantics, and evidence display. Saves to Pulse genieSettings and live-updates the playground."
             >
                 <PulseAiInsightsSettingsPanel
                     value={pulseAi.value}
@@ -332,7 +342,7 @@ export function AiGroup(): React.ReactElement {
                 />
             </Leaf>
 
-            <Leaf group="ai" label="Browse library ↗" helper="Open the Knowledge Base content browser — glossary, ontology, KPIs, sample questions per pack.">
+            <Leaf group="ai" label="Browse library" helper="Open the Knowledge Base content browser — glossary, ontology, KPIs, sample questions per pack.">
                 <DeepLinkButton
                     label={packSelection?.pack ? `Browse ${packSelection.pack}` : "Browse Knowledge Base"}
                     onClick={() => {

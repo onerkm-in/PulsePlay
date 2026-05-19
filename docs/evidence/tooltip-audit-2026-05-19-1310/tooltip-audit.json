@@ -1,0 +1,1087 @@
+{
+  "stamp": "2026-05-19-1310",
+  "evidence": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\tooltip-audit-2026-05-19-1310",
+  "summaries": [
+    {
+      "route": "/settings/setup",
+      "label": "settings-setup",
+      "helpTipCount": 7,
+      "helpTips": [
+        {
+          "route": "/settings/setup",
+          "label": "settings-setup",
+          "index": 0,
+          "status": "PASS",
+          "triggerText": "i",
+          "tooltipText": "PulsePlay hosts the BI surface — it doesn't replace it. Pick the vendor your team already uses, then paste the embed URL.",
+          "screenshot": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\tooltip-audit-2026-05-19-1310\\001-settings-setup-tooltip-0.png",
+          "error": null
+        },
+        {
+          "route": "/settings/setup",
+          "label": "settings-setup",
+          "index": 1,
+          "status": "PASS",
+          "triggerText": "i",
+          "tooltipText": "Microsoft Power BI. Embed reports via the official powerbi-client SDK. Requires an embed URL, workspace ID, and report ID. Authentication can be SSO (AAD), service principal, or a paste-in secure embed link.",
+          "screenshot": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\tooltip-audit-2026-05-19-1310\\002-settings-setup-tooltip-1.png",
+          "error": null
+        },
+        {
+          "route": "/settings/setup",
+          "label": "settings-setup",
+          "index": 2,
+          "status": "PASS",
+          "triggerText": "i",
+          "tooltipText": "For complex flows like Power BI SSO, backend service principal, or per-tile picking — use the full form on the BI → Embed page. This inline field handles the 80% case of a single URL or paste-in iframe.",
+          "screenshot": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\tooltip-audit-2026-05-19-1310\\003-settings-setup-tooltip-2.png",
+          "error": null
+        },
+        {
+          "route": "/settings/setup",
+          "label": "settings-setup",
+          "index": 3,
+          "status": "PASS",
+          "triggerText": "i",
+          "tooltipText": "PulsePlay orchestrates AI — it doesn't run the model. Pick a profile your proxy already knows about (Genie, Foundation Model, Supervisor, Azure OpenAI, etc.).",
+          "screenshot": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\tooltip-audit-2026-05-19-1310\\004-settings-setup-tooltip-3.png",
+          "error": null
+        },
+        {
+          "route": "/settings/setup",
+          "label": "settings-setup",
+          "index": 4,
+          "status": "PASS",
+          "triggerText": "i",
+          "tooltipText": "A profile is a named backend the proxy knows how to call. Common types: genie, foundation-stream, supervisor, azure-openai, bedrock. Databricks docs ↗",
+          "screenshot": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\tooltip-audit-2026-05-19-1310\\005-settings-setup-tooltip-4.png",
+          "error": null
+        },
+        {
+          "route": "/settings/setup",
+          "label": "settings-setup",
+          "index": 5,
+          "status": "PASS",
+          "triggerText": "i",
+          "tooltipText": "A pack is a bundle of domain terms, metric definitions, and guidance prompts. Without a pack the assistant uses generic vocabulary; with one it speaks your industry's language (CPG, retail, finance, etc.).",
+          "screenshot": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\tooltip-audit-2026-05-19-1310\\006-settings-setup-tooltip-5.png",
+          "error": null
+        },
+        {
+          "route": "/settings/setup",
+          "label": "settings-setup",
+          "index": 6,
+          "status": "PASS",
+          "triggerText": "i",
+          "tooltipText": "You can browse pack content at /knowledge/<pack> after selecting.",
+          "screenshot": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\tooltip-audit-2026-05-19-1310\\007-settings-setup-tooltip-6.png",
+          "error": null
+        }
+      ],
+      "titleRecords": [
+        {
+          "index": 0,
+          "tag": "button",
+          "text": "← Back to app",
+          "title": "Return to the playground (Esc)",
+          "visible": true
+        },
+        {
+          "index": 1,
+          "tag": "button",
+          "text": "Setup AI profile",
+          "title": "Jump to Setup group",
+          "visible": true
+        },
+        {
+          "index": 2,
+          "tag": "button",
+          "text": "BI powerbi",
+          "title": "Jump to BI group",
+          "visible": true
+        },
+        {
+          "index": 3,
+          "tag": "button",
+          "text": "AI (none)",
+          "title": "Jump to AI group",
+          "visible": true
+        },
+        {
+          "index": 4,
+          "tag": "button",
+          "text": "Pack (none)",
+          "title": "Jump to ai › Pack",
+          "visible": true
+        },
+        {
+          "index": 5,
+          "tag": "button",
+          "text": "Proxy ok",
+          "title": "Jump to system › Proxy",
+          "visible": true
+        },
+        {
+          "index": 6,
+          "tag": "button",
+          "text": "Security strict",
+          "title": "Jump to system › Security",
+          "visible": true
+        },
+        {
+          "index": 7,
+          "tag": "span",
+          "text": "Setup needed",
+          "title": "Setup needed",
+          "visible": false
+        },
+        {
+          "index": 8,
+          "tag": "span",
+          "text": "Ready",
+          "title": "Ready",
+          "visible": false
+        },
+        {
+          "index": 9,
+          "tag": "span",
+          "text": "Setup needed",
+          "title": "Setup needed",
+          "visible": false
+        },
+        {
+          "index": 10,
+          "tag": "span",
+          "text": "Informational",
+          "title": "Informational",
+          "visible": false
+        },
+        {
+          "index": 11,
+          "tag": "span",
+          "text": "Informational",
+          "title": "Informational",
+          "visible": false
+        },
+        {
+          "index": 12,
+          "tag": "span",
+          "text": "Informational",
+          "title": "Informational",
+          "visible": false
+        },
+        {
+          "index": 13,
+          "tag": "button",
+          "text": "⚡ Test selected profile",
+          "title": "Pick a profile first",
+          "visible": true
+        }
+      ],
+      "text": "⚙ Settings Configure how PulsePlay looks, what it embeds, and how it reasons. ← Back to app 🔍 Ctrl / Setup AI profile BI powerbi AI (none) Pack (none) Proxy ok Security strict Setup Three short steps to get PulsePlay running. Each card configures one axis inline; deeper tuning lives in the BI, AI, and Preferences pages. Setup needed Missing: AI profile 1 BI tool i The dashboard, report, or canvas users look at. Configured Provider * i — Pick a BI tool — Databricks AI/BI Databricks Genie Power BI Tableau Qlik Sense Looker Generic iframe The BI vendor PulsePlay will embed in the canvas pane. Embed URL or iframe HTML i Paste the full embed URL (Power BI / Tableau / generic) OR the iframe HTML from Databricks Genie Share → Embed. Apply embed Clear Full embed form → 2 AI brain i The assistant powering AI Insights and Ask Pulse. Not picked ⚡ Test proxy AI profile * i — Pick an AI profile — Maps to a profile in proxy/config.json. The proxy holds all credentials — your browser never sees a token. ⚡ Test selected profile Tune Insights behavior → 3 Knowledge pack i Domain vocabulary the assistant uses to interpret your data. Optional Pack i — No pack (generic vocabulary) — Optional but recommended. Picks vocab + metric direction rules tuned for the industry. FINE-TUNE FURTHER Layout & display → Proxy & diagnostics → Advanced / reset →",
+      "screenshot": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\tooltip-audit-2026-05-19-1310\\008-settings-setup-route.png"
+    },
+    {
+      "route": "/settings/bi",
+      "label": "settings-bi",
+      "helpTipCount": 0,
+      "helpTips": [],
+      "titleRecords": [
+        {
+          "index": 0,
+          "tag": "button",
+          "text": "← Back to app",
+          "title": "Return to the playground (Esc)",
+          "visible": true
+        },
+        {
+          "index": 1,
+          "tag": "button",
+          "text": "Setup AI profile",
+          "title": "Jump to Setup group",
+          "visible": true
+        },
+        {
+          "index": 2,
+          "tag": "button",
+          "text": "BI powerbi",
+          "title": "Jump to BI group",
+          "visible": true
+        },
+        {
+          "index": 3,
+          "tag": "button",
+          "text": "AI (none)",
+          "title": "Jump to AI group",
+          "visible": true
+        },
+        {
+          "index": 4,
+          "tag": "button",
+          "text": "Pack (none)",
+          "title": "Jump to ai › Pack",
+          "visible": true
+        },
+        {
+          "index": 5,
+          "tag": "button",
+          "text": "Proxy ok",
+          "title": "Jump to system › Proxy",
+          "visible": true
+        },
+        {
+          "index": 6,
+          "tag": "button",
+          "text": "Security strict",
+          "title": "Jump to system › Security",
+          "visible": true
+        },
+        {
+          "index": 7,
+          "tag": "span",
+          "text": "Setup needed",
+          "title": "Setup needed",
+          "visible": false
+        },
+        {
+          "index": 8,
+          "tag": "span",
+          "text": "Ready",
+          "title": "Ready",
+          "visible": false
+        },
+        {
+          "index": 9,
+          "tag": "span",
+          "text": "Setup needed",
+          "title": "Setup needed",
+          "visible": false
+        },
+        {
+          "index": 10,
+          "tag": "span",
+          "text": "Informational",
+          "title": "Informational",
+          "visible": false
+        },
+        {
+          "index": 11,
+          "tag": "span",
+          "text": "Informational",
+          "title": "Informational",
+          "visible": false
+        },
+        {
+          "index": 12,
+          "tag": "span",
+          "text": "Informational",
+          "title": "Informational",
+          "visible": false
+        },
+        {
+          "index": 13,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "index": 14,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "index": 15,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "index": 16,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "index": 17,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        }
+      ],
+      "text": "⚙ Settings Configure how PulsePlay looks, what it embeds, and how it reasons. ← Back to app 🔍 Ctrl / Setup AI profile BI powerbi AI (none) Pack (none) Proxy ok Security strict BI What you're looking at — the BI surface, its embed config, and the governance + license posture around it. CURRENT STATE Active provider and allowlist. The sections below either configure them or surface the policy that governs them. Provider Copy link The BI tool PulsePlay embeds. Restricted to the providers your organization allows. Active: powerbi Allowed: (allowlist unavailable) CONNECT AND EMBED Wire the vendor connection, token mode, and workspace/report IDs. Edits live-update without a refresh. Embed Copy link Power BI report / dashboard wiring. Three modes: Secure embed (paste an app.powerbi.com URL), AAD SSO (user identity), or Service principal (proxy mints the token). Live-updates the playground in this tab and any other tab open on this origin. Changes save to pulseplay:bi-embed-config and broadcast a pulseplay:embed-config-change event. App.tsx subscribes via useEmbedConfig so the BI canvas picks up edits live — no refresh required. Power BI embed EMBED MODE Secure embed link - quick preview AAD SSO — Embed for your organization (seamless) Service principal — Embed for your customers (proxy) SECURE EMBED LINK OR IFRAME Quick preview uses Power BI's website/portal embed. Viewers authenticate with Power BI, but SDK commands such as AI-applied filters and page navigation need AAD SSO or service-principal mode. Load secure embed Clear embed config Authentication Copy link Sign-in mode + tenant. Tenant is locked to your organization's allowlist. Choose your AAD sign-in flow in the Embed leaf above; this view is read-only governance state. Allowed AAD tenants: (allowlist unavailable) Token mode: secure Workspace (groupId): (unset) Report ID: (unset) GOVERNANCE AND POLICY Read-only governance and license posture surrounding the active provider. Admin-configured, surfaced here so you know what to ask for. Canvas Copy link How many Power BI frames render side-by-side. Controlled by backend display policy; this view is read-only. Tile mode: 1 Admin-controlled by allowlist.display.biTileMode. Use 1 for the normal viewer surface; 2 or 4 only for governed comparison deployments. Status Copy link Live state of the embed: mount mode, last load, recent events, license posture (Premium tier, embed-token availability, Fabric capability). Live control lands in Phase 3. Current value is read-only above. Unsaved changes Discard Save changes",
+      "screenshot": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\tooltip-audit-2026-05-19-1310\\009-settings-bi-route.png"
+    },
+    {
+      "route": "/settings/ai",
+      "label": "settings-ai",
+      "helpTipCount": 0,
+      "helpTips": [],
+      "titleRecords": [
+        {
+          "index": 0,
+          "tag": "button",
+          "text": "← Back to app",
+          "title": "Return to the playground (Esc)",
+          "visible": true
+        },
+        {
+          "index": 1,
+          "tag": "button",
+          "text": "Setup AI profile",
+          "title": "Jump to Setup group",
+          "visible": true
+        },
+        {
+          "index": 2,
+          "tag": "button",
+          "text": "BI powerbi",
+          "title": "Jump to BI group",
+          "visible": true
+        },
+        {
+          "index": 3,
+          "tag": "button",
+          "text": "AI (none)",
+          "title": "Jump to AI group",
+          "visible": true
+        },
+        {
+          "index": 4,
+          "tag": "button",
+          "text": "Pack (none)",
+          "title": "Jump to ai › Pack",
+          "visible": true
+        },
+        {
+          "index": 5,
+          "tag": "button",
+          "text": "Proxy ok",
+          "title": "Jump to system › Proxy",
+          "visible": true
+        },
+        {
+          "index": 6,
+          "tag": "button",
+          "text": "Security strict",
+          "title": "Jump to system › Security",
+          "visible": true
+        },
+        {
+          "index": 7,
+          "tag": "span",
+          "text": "Setup needed",
+          "title": "Setup needed",
+          "visible": false
+        },
+        {
+          "index": 8,
+          "tag": "span",
+          "text": "Ready",
+          "title": "Ready",
+          "visible": false
+        },
+        {
+          "index": 9,
+          "tag": "span",
+          "text": "Setup needed",
+          "title": "Setup needed",
+          "visible": false
+        },
+        {
+          "index": 10,
+          "tag": "span",
+          "text": "Informational",
+          "title": "Informational",
+          "visible": false
+        },
+        {
+          "index": 11,
+          "tag": "span",
+          "text": "Informational",
+          "title": "Informational",
+          "visible": false
+        },
+        {
+          "index": 12,
+          "tag": "span",
+          "text": "Informational",
+          "title": "Informational",
+          "visible": false
+        },
+        {
+          "index": 13,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "index": 14,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "index": 15,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "index": 16,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "index": 17,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "index": 18,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "index": 19,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "index": 20,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        }
+      ],
+      "text": "⚙ Settings Configure how PulsePlay looks, what it embeds, and how it reasons. ← Back to app 🔍 Ctrl / Setup AI profile BI powerbi AI (none) Pack (none) Proxy ok Security strict AI What's thinking, and what it knows — provider, model, knowledge, behavior. MVP 0.2: Databricks Genie + Supervisor only. CONNECT AND TEST Pick the AI brain and the knowledge bundle it grounds answers in. Provider Copy link The AI brain that answers your questions. Restricted to the providers your organization allows. DefaultSales Team SupervisorGenie Supervisor Agent SUPERVISOR · 0 SPACES Model / Agent Copy link For Genie: the single Genie space this profile is bound to. Configured server-side via proxy/config.json. Pick a provider above to see the model / agent details. Knowledge pack Copy link Vertical domain bundle the AI uses for vocabulary, KPIs, and starter questions. Restricted to packs your organization installs. Pack Pack — Select a pack — CPG / FMCG Sub-vertical — Pick a pack first — Vector Search KB Copy link Databricks Vector Search is not currently live in this workspace. Keep the target index here so the feature wakes up cleanly when an endpoint is enabled. Status: Hibernating Endpoints: 0 Planned Vector Search index TEST AND VALIDATE Probe the active connector. Fast and safe — uses the same path the AI sidebar's discovery loop runs on every conversation start. Connection test Copy link Live probe against the proxy. Shows reachability, schema hints, and the inferred pack. Pick a provider first. GENERATION BEHAVIOR How the AI talks back — prompt strategy, domain guidance, sections, metric semantics. Saves to Pulse genieSettings and live-updates the playground. AI Insights Copy link Canonical setup for AI Insights and Ask Pulse behavior: prompt strategy, domain guidance, section schema, metric semantics, and evidence display. Saves to Pulse genieSettings and live-updates the playground. This replaces the old Pulse Console setup tab. Provider selection above writes the same genieSettings.assistantProfile value used by Pulse at runtime. Runtime profile: (provider not selected) Available AI surfaces Both — AI Insights + Ask Pulse AI Insights only Ask Pulse only Authoring mode Preset — pick domain + sections AI-assisted — infer from data Manual — write prompt Analytics domain Custom insights prompt Domain guidance Custom sections JSON Included stages HEADLINE TRENDS RISKS ACTIONS Metric direction rules Metric direction map JSON Show provenance footer Cache TTL Disabled 5 minutes 15 minutes 30 minutes 1 hour 2 hours Stage-specific instruction overrides UC Metric View Copy link Discover governed Databricks metric views and use one as the semantic source for AI Insights. Catalog Schema Discovering Selected metric view No metric views returned for this catalog/schema. Browse library ↗ Copy link Open the Knowledge Base content browser — glossary, ontology, KPIs, sample questions per pack. Browse Knowledge Base → Unsaved changes Discard Save changes",
+      "screenshot": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\tooltip-audit-2026-05-19-1310\\010-settings-ai-route.png"
+    },
+    {
+      "route": "/settings/preferences",
+      "label": "settings-preferences",
+      "helpTipCount": 0,
+      "helpTips": [],
+      "titleRecords": [
+        {
+          "index": 0,
+          "tag": "button",
+          "text": "← Back to app",
+          "title": "Return to the playground (Esc)",
+          "visible": true
+        },
+        {
+          "index": 1,
+          "tag": "button",
+          "text": "Setup AI profile",
+          "title": "Jump to Setup group",
+          "visible": true
+        },
+        {
+          "index": 2,
+          "tag": "button",
+          "text": "BI powerbi",
+          "title": "Jump to BI group",
+          "visible": true
+        },
+        {
+          "index": 3,
+          "tag": "button",
+          "text": "AI (none)",
+          "title": "Jump to AI group",
+          "visible": true
+        },
+        {
+          "index": 4,
+          "tag": "button",
+          "text": "Pack (none)",
+          "title": "Jump to ai › Pack",
+          "visible": true
+        },
+        {
+          "index": 5,
+          "tag": "button",
+          "text": "Proxy ok",
+          "title": "Jump to system › Proxy",
+          "visible": true
+        },
+        {
+          "index": 6,
+          "tag": "button",
+          "text": "Security strict",
+          "title": "Jump to system › Security",
+          "visible": true
+        },
+        {
+          "index": 7,
+          "tag": "span",
+          "text": "Setup needed",
+          "title": "Setup needed",
+          "visible": false
+        },
+        {
+          "index": 8,
+          "tag": "span",
+          "text": "Ready",
+          "title": "Ready",
+          "visible": false
+        },
+        {
+          "index": 9,
+          "tag": "span",
+          "text": "Setup needed",
+          "title": "Setup needed",
+          "visible": false
+        },
+        {
+          "index": 10,
+          "tag": "span",
+          "text": "Informational",
+          "title": "Informational",
+          "visible": false
+        },
+        {
+          "index": 11,
+          "tag": "span",
+          "text": "Informational",
+          "title": "Informational",
+          "visible": false
+        },
+        {
+          "index": 12,
+          "tag": "span",
+          "text": "Informational",
+          "title": "Informational",
+          "visible": false
+        },
+        {
+          "index": 13,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "index": 14,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "index": 15,
+          "tag": "button",
+          "text": "Balanced",
+          "title": "Unified default. AI Insights, Ask Pulse, and BI Viz are peer surfaces; BI opens on demand instead of taking a permanent second section.",
+          "visible": true
+        },
+        {
+          "index": 16,
+          "tag": "button",
+          "text": "Split + Mix",
+          "title": "Both AI and BI panes visible with draggable divider. Power-user side-by-side view — best for the \"look and ask\" workflow PulsePlay was originally designed for.",
+          "visible": true
+        },
+        {
+          "index": 17,
+          "tag": "button",
+          "text": "BI focus",
+          "title": "Show only the BI canvas. AI is hidden. For viewer-only kiosks or governed dashboards where AI is disabled by policy.",
+          "visible": true
+        },
+        {
+          "index": 18,
+          "tag": "button",
+          "text": "AI Insights focus",
+          "title": "Auto-generated AI Insights only. No BI canvas, no Ask Pulse tab. For exec dashboards where the briefing IS the product.",
+          "visible": true
+        },
+        {
+          "index": 19,
+          "tag": "button",
+          "text": "Ask Pulse focus",
+          "title": "Chat-first. Ask Pulse only — no Insights tab, no BI canvas. For internal tools where users come in with specific questions.",
+          "visible": true
+        },
+        {
+          "index": 20,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "index": 21,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "index": 22,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "index": 23,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "index": 24,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "index": 25,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "index": 26,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        }
+      ],
+      "text": "⚙ Settings Configure how PulsePlay looks, what it embeds, and how it reasons. ← Back to app 🔍 Ctrl / Setup AI profile BI powerbi AI (none) Pack (none) Proxy ok Security strict Preferences How the playground is laid out — UI mode, visible panels, AI position, canvas tiles. MODE Choose which AI experience surface runs. Pulse is the rich ported experience; v0 is the lightweight sidebar. UI mode Copy link Pulse is the ported PBI-heritage UI. v0 is the lightweight cycle-C sidebar. Pulse v0 LAYOUT Where the AI and BI panes live + which ones are visible. Live-updates immediately. Layout preset Copy link Pick a starting shape, then fine-tune below if needed. Unified default. AI Insights, Ask Pulse, and BI Viz are peer surfaces; BI opens on demand instead of taking a permanent second section. Balanced Split + Mix BI focus AI Insights focus Ask Pulse focus Visible panels Copy link Author choice: unified surface, split review, or focused single-surface deployments. AI/BI verticals stay independent — pick what you've wired up. AI only BI only Unified Split AI position Copy link Where the AI panel sits relative to the BI canvas. Applies to the explicit Split preset, not the unified default. Left Right Top Bottom MIX COMPOSITION Cherry-pick which AI surfaces and BI composition modes render. Author choice — end users only see what's checked. AI surfaces Copy link Which AI views to expose. Cross-linked with Settings → AI → AI Insights (changes here update there). Insights + Ask Pulse Insights only Ask Pulse only Research Agent traces Copy link When Genie's Agent Mode runs on a message (started in the Databricks Genie UI), render its reasoning trace as a separate section. PulsePlay does not start Agent Mode itself — Databricks' REST API doesn't expose that trigger — but we surface the trace when it's present in the message response (new Genie field, 2026-04-16). Show when present Hide Managed agent surface Copy link (Coming next cycle — wires Mosaic AI ResponsesAgent serving endpoints as a dedicated agentic pane. Distinct from the existing Supervisor connector template.) Available when ResponsesAgent connector is configured BI composition Copy link How BI surfaces render in Mix mode. Per-tile cherry-pick (selecting specific Power BI tiles / Tableau worksheets / Qlik objects / Looker tiles) requires vendor-SDK work and lands in the next cycle. Full canvas Per-tile cherry-pick (coming next cycle) DISPLAY POLICY Read-only canvas policy — set by your admin in the proxy allowlist. Canvas tiles Copy link How many BI frames render in the BI pane. Managed by backend display policy, not a viewer toolbar. Backend tile mode: 1 Set by proxy/config.json allowlist.display.biTileMode. Use 1 for the normal viewer experience; 2 or 4 only for governed comparison deployments. Unsaved changes Discard Save changes",
+      "screenshot": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\tooltip-audit-2026-05-19-1310\\011-settings-preferences-route.png"
+    },
+    {
+      "route": "/settings/system",
+      "label": "settings-system",
+      "helpTipCount": 0,
+      "helpTips": [],
+      "titleRecords": [
+        {
+          "index": 0,
+          "tag": "button",
+          "text": "← Back to app",
+          "title": "Return to the playground (Esc)",
+          "visible": true
+        },
+        {
+          "index": 1,
+          "tag": "button",
+          "text": "Setup AI profile",
+          "title": "Jump to Setup group",
+          "visible": true
+        },
+        {
+          "index": 2,
+          "tag": "button",
+          "text": "BI powerbi",
+          "title": "Jump to BI group",
+          "visible": true
+        },
+        {
+          "index": 3,
+          "tag": "button",
+          "text": "AI (none)",
+          "title": "Jump to AI group",
+          "visible": true
+        },
+        {
+          "index": 4,
+          "tag": "button",
+          "text": "Pack (none)",
+          "title": "Jump to ai › Pack",
+          "visible": true
+        },
+        {
+          "index": 5,
+          "tag": "button",
+          "text": "Proxy ok",
+          "title": "Jump to system › Proxy",
+          "visible": true
+        },
+        {
+          "index": 6,
+          "tag": "button",
+          "text": "Security strict",
+          "title": "Jump to system › Security",
+          "visible": true
+        },
+        {
+          "index": 7,
+          "tag": "span",
+          "text": "Setup needed",
+          "title": "Setup needed",
+          "visible": false
+        },
+        {
+          "index": 8,
+          "tag": "span",
+          "text": "Ready",
+          "title": "Ready",
+          "visible": false
+        },
+        {
+          "index": 9,
+          "tag": "span",
+          "text": "Setup needed",
+          "title": "Setup needed",
+          "visible": false
+        },
+        {
+          "index": 10,
+          "tag": "span",
+          "text": "Informational",
+          "title": "Informational",
+          "visible": false
+        },
+        {
+          "index": 11,
+          "tag": "span",
+          "text": "Informational",
+          "title": "Informational",
+          "visible": false
+        },
+        {
+          "index": 12,
+          "tag": "span",
+          "text": "Informational",
+          "title": "Informational",
+          "visible": false
+        },
+        {
+          "index": 13,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "index": 14,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "index": 15,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "index": 16,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "index": 17,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "index": 18,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "index": 19,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "index": 20,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        }
+      ],
+      "text": "⚙ Settings Configure how PulsePlay looks, what it embeds, and how it reasons. ← Back to app 🔍 Ctrl / Setup AI profile BI powerbi AI (none) Pack (none) Proxy ok Security strict System Is it safe, and is anything broken — proxy health, governance, diagnostics, tools. STATUS Live signal from the PulsePlay proxy, governance allowlist, and auth posture. Proxy status Copy link Live /health from the PulsePlay proxy. Polled every 10 seconds; click Re-run to refresh immediately. Reachable 82ms Re-run Profiles configured: 2 Config source: config.json Auth mode: none Port: 8787 Last checked: 13:06:52 Network and auth Copy link Detected auth mode + how this proxy expects clients to authenticate. Read-only; configured via PROXY_AUTH_MODE / PROXY_IDP_* / PROXY_SHARED_KEY env vars on proxy startup. Auth mode: none Databricks App: no Config source: config.json Detailed IdP fields (JWKS URL, issuer, audience, required) are configured viaPROXY_IDP_*env vars on proxy startup and are not exposed by the /health route for security reasons. See docs/SECURITY.md. POLICY Allowlist contents and Power BI license posture. Read-only — configured by your admin in proxy/config.json. Security posture Copy link Read-only view of the organization-controlled allowlist. Configured via proxy/config.json. Do not edit here. Enforcement: strict BI providers: (empty) AAD tenants: (empty) AI profiles: (empty) Packs: (empty) PBI workspaces: (any) Genie spaces: (any) Fetched at: 2026-05-19T07:36:52.234Z License posture Copy link What's licensed in this deployment. Read-only; configured by the admin via proxy/config.json allowlist.license. License: (no license block in allowlist) LOGS AND TRACES What's been happening — proxy profiles, recent BI events, and errors. Read-only, for troubleshooting. Profile inventory Copy link Connector profiles the proxy loaded from config.json. Each profile is a (name, type) pair the AI sidebar can target. Configured via proxy/config.json or PROXY_PROFILE_* env vars. Count: 2 Profiles: default supervisor Per-profile details (type, space ID, warehouse ID, host) live in proxy/config.json and are not exposed by the /health route. See docs/PROXY_REFERENCE.md. Diagnostics Copy link Last 20 BI events + last 20 console errors. Use Export bundle below to save a redacted snapshot for support. Recent BI events (0) No events captured yet. Load a BI report to start receiving events. Last errors (0) No errors captured this session. ACTIONS Re-run setup or export a support bundle. Non-destructive. Setup wizard Copy link Re-run the first-run setup wizard to change your BI vendor, AI connector, persona, or knowledge pack. Clears the dismissal flag and any saved draft so you start fresh. Re-run setup wizard Takes you back to the Welcome screen. Your existing embed config and connector are preserved in localStorage — the wizard just re-applies whatever you pick on Done. Export support bundle Copy link Download a redacted JSON snapshot of state for support tickets. Tokens and secrets are masked before download. Download support bundle (.json) Contains: settings, allowlist contents, proxy health, last 20 BI events, last 20 errors, pulseplay:* localStorage keys (tokens redacted), browser info. Approx 10-50 KB. Unsaved changes Discard Save changes",
+      "screenshot": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\tooltip-audit-2026-05-19-1310\\012-settings-system-route.png"
+    },
+    {
+      "route": "/settings/advanced",
+      "label": "settings-advanced",
+      "helpTipCount": 0,
+      "helpTips": [],
+      "titleRecords": [
+        {
+          "index": 0,
+          "tag": "button",
+          "text": "← Back to app",
+          "title": "Return to the playground (Esc)",
+          "visible": true
+        },
+        {
+          "index": 1,
+          "tag": "button",
+          "text": "Setup AI profile",
+          "title": "Jump to Setup group",
+          "visible": true
+        },
+        {
+          "index": 2,
+          "tag": "button",
+          "text": "BI powerbi",
+          "title": "Jump to BI group",
+          "visible": true
+        },
+        {
+          "index": 3,
+          "tag": "button",
+          "text": "AI (none)",
+          "title": "Jump to AI group",
+          "visible": true
+        },
+        {
+          "index": 4,
+          "tag": "button",
+          "text": "Pack (none)",
+          "title": "Jump to ai › Pack",
+          "visible": true
+        },
+        {
+          "index": 5,
+          "tag": "button",
+          "text": "Proxy ok",
+          "title": "Jump to system › Proxy",
+          "visible": true
+        },
+        {
+          "index": 6,
+          "tag": "button",
+          "text": "Security strict",
+          "title": "Jump to system › Security",
+          "visible": true
+        },
+        {
+          "index": 7,
+          "tag": "span",
+          "text": "Setup needed",
+          "title": "Setup needed",
+          "visible": false
+        },
+        {
+          "index": 8,
+          "tag": "span",
+          "text": "Ready",
+          "title": "Ready",
+          "visible": false
+        },
+        {
+          "index": 9,
+          "tag": "span",
+          "text": "Setup needed",
+          "title": "Setup needed",
+          "visible": false
+        },
+        {
+          "index": 10,
+          "tag": "span",
+          "text": "Informational",
+          "title": "Informational",
+          "visible": false
+        },
+        {
+          "index": 11,
+          "tag": "span",
+          "text": "Informational",
+          "title": "Informational",
+          "visible": false
+        },
+        {
+          "index": 12,
+          "tag": "span",
+          "text": "Informational",
+          "title": "Informational",
+          "visible": false
+        },
+        {
+          "index": 13,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "index": 14,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "index": 15,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "index": 16,
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        }
+      ],
+      "text": "⚙ Settings Configure how PulsePlay looks, what it embeds, and how it reasons. ← Back to app 🔍 Ctrl / Setup AI profile BI powerbi AI (none) Pack (none) Proxy ok Security strict Advanced Destructive + maintenance actions. Each requires typing the action name to confirm. Local storage inspector Copy link Every PulsePlay localStorage key on this origin. Read-only. WIZARD STATE 1 key First-run setup wizard dismissal + draft + force flag + last-chosen persona. pulseplay:wizard-dismissed true BI SELECTIONS 2 keys What you're looking at — vendor + embed config + SSO + canvas tile preference. pulseplay:bi-embed-config {\"vendor\":\"powerbi\",\"mode\":\"secure\",\"secureLink\":\"https://app.powerbi.com/reportEmbed?reportId=c6afe35e-5dba-453a-9720-871d48f0ad0a&autoAuth=true&ctid=2b983dc1-08a4-4b13-87d9-065f8db8f99b&actionBarEnabled=true\"} pulseplay:bi-vendor powerbi AI SELECTIONS 1 key What's thinking — active profile, knowledge pack, and the full Pulse genieSettings JSON. pulseplay:visual-settings:genieSettings {\"showSetupAccess\":false,\"themeName\":\"default\"} NAVIGATION MEMORY 1 key Where you were last in Settings; not a feature setting. pulseplay:settings-last-group system OTHER 1 key Keys that don't fit a known bucket — usually new features or legacy entries. pulseplay:databricks-capabilities:default {\"ok\":true,\"assistantProfile\":\"default\",\"spaceId\":\"01f13fe275b515608abb4182d0a37373\",\"profile\":{\"name\":\"default\",\"host\":\"https://dbc-f88d29ce-4aa2.cloud.databricks.com\",\"spaceId\":\"01f13fe275b515608abb4182d0a37373\",\"warehouseId\":\"6510da5032… Reset section Copy link Clear localStorage keys owned by one settings group. The other groups keep their state. Section to reset: BI (3 keys) AI (2 keys) Preferences (5 keys) Keys to clear: pulseplay:bi-vendor, pulseplay:pbi-sso-config, pulseplay:bi-tile-mode Type Reset bi to enable: Clear 3 keys Reset all Copy link Clear every PulsePlay setting on this origin. The app's BI and AI selections, layout, and pack will all be gone. Pulse's persisted visual-settings keys also clear. Type Reset all to enable: Clear all PulsePlay settings Danger zone Copy link Sign out of Power BI and clear cached MSAL sessions. The browser drops the AAD session — you'll need to sign in again to embed. Sign out of Power BI (clears MSAL sessionStorage): Sign out Power BI Type Clear Pulse settings to enable: Clear Pulse persisted settings Unsaved changes Discard Save changes",
+      "screenshot": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\tooltip-audit-2026-05-19-1310\\013-settings-advanced-route.png"
+    },
+    {
+      "route": "/",
+      "label": "root-shell",
+      "helpTipCount": 0,
+      "helpTips": [],
+      "titleRecords": [
+        {
+          "index": 0,
+          "tag": "button",
+          "text": "Setup needed AI profile",
+          "title": "Open Settings → Setup",
+          "visible": true
+        },
+        {
+          "index": 1,
+          "tag": "button",
+          "text": "BI BI Viz",
+          "title": "Open BI Viz surface",
+          "visible": true
+        },
+        {
+          "index": 2,
+          "tag": "button",
+          "text": "Maximize AI panel",
+          "title": "Maximize AI pane",
+          "visible": true
+        },
+        {
+          "index": 3,
+          "tag": "button",
+          "text": "Minimize AI panel",
+          "title": "Minimize AI pane",
+          "visible": true
+        },
+        {
+          "index": 4,
+          "tag": "button",
+          "text": "Open AI panel in separate page",
+          "title": "Open AI pane in a separate page",
+          "visible": true
+        },
+        {
+          "index": 5,
+          "tag": "button",
+          "text": "Pop out AI panel as window",
+          "title": "Pop out AI pane as a detached browser window you can keep alongside the main app",
+          "visible": true
+        }
+      ],
+      "text": "PulsePlay AI playground · multi-BI host Setup needed AI profile ✨ AI Insights 💬 Ask Pulse BI BI Viz ✨ AI Insights Configure an AI connector in Settings → AI to generate insights.",
+      "screenshot": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\tooltip-audit-2026-05-19-1310\\014-root-shell-route.png"
+    }
+  ],
+  "records": [
+    {
+      "route": "/settings/setup",
+      "label": "settings-setup",
+      "index": 0,
+      "status": "PASS",
+      "triggerText": "i",
+      "tooltipText": "PulsePlay hosts the BI surface — it doesn't replace it. Pick the vendor your team already uses, then paste the embed URL.",
+      "screenshot": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\tooltip-audit-2026-05-19-1310\\001-settings-setup-tooltip-0.png",
+      "error": null
+    },
+    {
+      "route": "/settings/setup",
+      "label": "settings-setup",
+      "index": 1,
+      "status": "PASS",
+      "triggerText": "i",
+      "tooltipText": "Microsoft Power BI. Embed reports via the official powerbi-client SDK. Requires an embed URL, workspace ID, and report ID. Authentication can be SSO (AAD), service principal, or a paste-in secure embed link.",
+      "screenshot": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\tooltip-audit-2026-05-19-1310\\002-settings-setup-tooltip-1.png",
+      "error": null
+    },
+    {
+      "route": "/settings/setup",
+      "label": "settings-setup",
+      "index": 2,
+      "status": "PASS",
+      "triggerText": "i",
+      "tooltipText": "For complex flows like Power BI SSO, backend service principal, or per-tile picking — use the full form on the BI → Embed page. This inline field handles the 80% case of a single URL or paste-in iframe.",
+      "screenshot": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\tooltip-audit-2026-05-19-1310\\003-settings-setup-tooltip-2.png",
+      "error": null
+    },
+    {
+      "route": "/settings/setup",
+      "label": "settings-setup",
+      "index": 3,
+      "status": "PASS",
+      "triggerText": "i",
+      "tooltipText": "PulsePlay orchestrates AI — it doesn't run the model. Pick a profile your proxy already knows about (Genie, Foundation Model, Supervisor, Azure OpenAI, etc.).",
+      "screenshot": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\tooltip-audit-2026-05-19-1310\\004-settings-setup-tooltip-3.png",
+      "error": null
+    },
+    {
+      "route": "/settings/setup",
+      "label": "settings-setup",
+      "index": 4,
+      "status": "PASS",
+      "triggerText": "i",
+      "tooltipText": "A profile is a named backend the proxy knows how to call. Common types: genie, foundation-stream, supervisor, azure-openai, bedrock. Databricks docs ↗",
+      "screenshot": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\tooltip-audit-2026-05-19-1310\\005-settings-setup-tooltip-4.png",
+      "error": null
+    },
+    {
+      "route": "/settings/setup",
+      "label": "settings-setup",
+      "index": 5,
+      "status": "PASS",
+      "triggerText": "i",
+      "tooltipText": "A pack is a bundle of domain terms, metric definitions, and guidance prompts. Without a pack the assistant uses generic vocabulary; with one it speaks your industry's language (CPG, retail, finance, etc.).",
+      "screenshot": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\tooltip-audit-2026-05-19-1310\\006-settings-setup-tooltip-5.png",
+      "error": null
+    },
+    {
+      "route": "/settings/setup",
+      "label": "settings-setup",
+      "index": 6,
+      "status": "PASS",
+      "triggerText": "i",
+      "tooltipText": "You can browse pack content at /knowledge/<pack> after selecting.",
+      "screenshot": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\tooltip-audit-2026-05-19-1310\\007-settings-setup-tooltip-6.png",
+      "error": null
+    }
+  ]
+}
