@@ -162,11 +162,14 @@ export const STATIC_ACTIONS: AssistantAction[] = [
     { id: "scenario", label: "Run what-if", kind: "ask", prompt: "Run a simple what-if analysis and explain the likely trade-offs and impact.", intent: "scenario" }
 ];
 
+// 2026-05-19 PulsePlay rebrand: replaced Pulse-PBI heritage copy that
+// referenced "inside Power BI" and hardcoded Databricks Genie. PulsePlay
+// is a multi-BI / multi-AI platform — no single vendor is assumed.
 const ROLE_SUBTITLES: Record<string, string> = {
-    executive: "Board-ready snapshot, top risks, top opportunities, and leadership summaries with Databricks Genie behind the scenes.",
-    analyst: "Guided exploration with Databricks-native SQL, table, and trace views available on demand.",
-    frontline: "Action-oriented investigations with guided filters, fast drill-ins, and practical next steps.",
-    manager: "Guided-first business exploration with Databricks Genie Chat inside Power BI."
+    executive: "Board-ready briefings, top risks, and leadership summaries — powered by your connected AI across any BI surface.",
+    analyst: "Full SQL, data trace, and drill-down access across your BI surfaces and AI connectors — on demand.",
+    frontline: "Action-oriented investigation with guided filters, fast drill-ins, and practical next steps.",
+    manager: "Guided business exploration across your BI and AI surfaces — insights without writing SQL."
 };
 
 export const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}(?:T[\d:.]+Z?)?$/;
@@ -627,7 +630,7 @@ export function normalizeUserMode(userMode: string): UserMode {
 }
 
 export function getRoleSubtitle(userMode: UserMode): string {
-    return ROLE_SUBTITLES[userMode] ?? `Databricks Genie assistant — ${userMode} view.`;
+    return ROLE_SUBTITLES[userMode] ?? `PulsePlay AI assistant — ${userMode} view.`;
 }
 
 /* ── Home model ──────────────────────────────────────────────────── */
