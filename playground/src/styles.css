@@ -138,7 +138,14 @@ html, body, #root {
     max-width: 100%;
     overflow: hidden;
     position: relative;
-    background: var(--pp-bg);
+    /* 2026-05-19: was `var(--pp-bg)` (page gray-blue), but the canvas
+     * always sits INSIDE a panel chrome which paints itself white. The
+     * mismatch made the BI pane look "out of this world" — a sharp gray
+     * canvas inside a white panel, with an empty-state card floating on
+     * the gray. Inherit transparent so the panel's white shows through
+     * and the surfaces fuse. The AI panel already renders its content
+     * directly on white the same way. */
+    background: transparent;
 }
 
 .pp-app__brand h1 {
@@ -162,22 +169,22 @@ html, body, #root {
 /* 2026-05-19: empty state used to center vertically with min-height: 100%,
  * which made the content "float in the middle of empty space" when the
  * containing pane was large (e.g. maximized BI Viz on a wide viewport).
- * Pull content to the top of the pane, wrap it in a subtle card so it
- * doesn't feel orphaned, and let the pane grow without dragging the copy
- * around. The card chrome also gives the SurfaceSwitcher pill above it
- * something to visually anchor to. */
+ * Pull content to the top, and style it as a SECTION using the same
+ * border vocabulary as AI Insights' section bubbles (border color
+ * #e4e9ef, subtle 1px-2px shadow) so the empty state reads as a peer to
+ * the populated AI Insights briefing instead of a foreign white card. */
 .pp-app__empty {
-    padding: var(--pp-s6, 24px) var(--pp-s8, 32px);
-    max-width: 620px;
-    margin: 32px auto 0;
+    padding: 20px 24px 22px;
+    max-width: 640px;
+    margin: 24px auto 0;
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
     color: var(--pp-text-muted);
     background: #ffffff;
-    border: 1px solid rgba(15, 23, 42, 0.08);
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+    border: 1px solid #e4e9ef;
+    border-radius: 6px;
+    box-shadow: rgba(0, 0, 0, 0.04) 0px 1px 2px 0px;
 }
 .pp-app__empty h2 {
     color: var(--pp-text);
@@ -710,12 +717,11 @@ html, body, #root {
     padding: 12px 18px;
     flex: 0 0 auto;
     display: flex;
-    /* 2026-05-19: subtle tint + bottom rule so the surface switcher visually
-     * anchors to the pane header above it instead of floating loose in the
-     * canvas. Previously it sat on the white empty-state background with no
-     * separation, making the maximized BI pane feel detached. */
-    background: linear-gradient(180deg, rgba(248, 250, 252, 0.6) 0%, rgba(248, 250, 252, 0) 100%);
-    border-bottom: 1px solid rgba(15, 23, 42, 0.04);
+    /* 2026-05-19: bottom hairline rule anchors the switcher to the pane
+     * header above. No background tint — the canvas below is now white
+     * (matches the panel), so a tint would just create a stripe instead
+     * of fusing. The hairline alone is enough separation. */
+    border-bottom: 1px solid #f0f3f7;
 }
 
 .pp-surface-switcher {
