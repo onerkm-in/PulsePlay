@@ -1069,12 +1069,14 @@
 
 ## Tally
 
-- **Total scenarios:** ~520 (target was 500+)
-- **AUTO** (automated browser / unit / integration): ~340
-- **LIVE** (needs real Databricks workspace + AAD session): ~140
-- **MANUAL** (visual or human judgement): ~80
+> **2026-05-19 reconciliation:** Codex parser counted **647 scenario rows** end-to-end; my original estimate of "~520" undercounted. Authoritative count below (verified via row-shape grep against the table syntax).
 
-> An automation tool can attack the ~340 AUTO scenarios solo. The ~140 LIVE scenarios need credentials and a live workspace — pair with a human or pre-stage fixtures. The ~80 MANUAL scenarios should be reviewed by a designer / human reviewer.
+- **Total scenarios:** ~647 (target was 500+ — well over)
+- **AUTO** (automated browser / unit / integration): ~400
+- **LIVE** (needs real Databricks workspace + AAD session): ~169
+- **MANUAL** (visual or human judgement): ~78
+
+> An automation tool can attack the ~400 AUTO scenarios solo. The ~169 LIVE scenarios need credentials and a live workspace — pair with a human or pre-stage fixtures. The ~78 MANUAL scenarios should be reviewed by a designer / human reviewer.
 
 ---
 
