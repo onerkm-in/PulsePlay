@@ -24,6 +24,8 @@ import {
 } from "./settingsRoute";
 import { useSettings } from "./settingsStore";
 import { useEmbedConfig } from "./embedConfigStore";
+import { useSettingsDraft } from "./useSettingsDraft";
+import { SettingsSaveBar } from "./SettingsSaveBar";
 import { getSetupReadiness } from "./setupReadiness";
 import { BiGroup, leafSlug } from "./groups/BiGroup";
 import { SetupGroup } from "./groups/SetupGroup";
@@ -81,6 +83,7 @@ export function SettingsShell(): React.ReactElement {
     const route = useSettingsRoute();
     const settings = useSettings();
     const { embedConfig } = useEmbedConfig();
+    const draft = useSettingsDraft();
     const searchInputRef = useRef<HTMLInputElement | null>(null);
     const [search, setSearch] = useState("");
 
@@ -169,6 +172,13 @@ export function SettingsShell(): React.ReactElement {
                 zIndex: 1000,
             }}
         >
+            {/* Pulse animation for the unsaved-changes dot in SettingsSaveBar */}
+            <style>{`
+                @keyframes pp-save-pulse {
+                    0%, 100% { opacity: 1; transform: scale(1); }
+                    50% { opacity: 0.5; transform: scale(1.35); }
+                }
+            `}</style>
             <SettingsHeader />
             <SettingsSearchBar
                 inputRef={searchInputRef}
@@ -197,6 +207,7 @@ export function SettingsShell(): React.ReactElement {
                     <ActiveGroup group={route.group} />
                 </main>
             </div>
+            <SettingsSaveBar draft={draft} />
         </div>
     );
 }
