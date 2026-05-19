@@ -1,16 +1,18 @@
 // playground/src/components/SustainabilityIndicator.tsx
 //
 // "Green leaf" indicator at the bottom of the AISidebar showing how
-// efficient (token-wise) the current session is. Hover to see the
-// detailed breakdown.
+// efficient (token-wise) the current session is.
 //
 // Motto: fewer tokens, better accuracy — the lean-and-mean solution.
 //
-// The component is presentation-only: it subscribes to usageTracker and
-// re-renders when usage changes. Recording responses is the AISidebar's
-// job (it calls usageTracker.recordResponse() on each completed turn).
+// 2026-05-19 UX pass:
+//   - Tier-matched animations: calm breathing (lean/green), quickening
+//     pulse + warmth drift (moderate/heavy), stress shimmer (very-heavy).
+//   - Click to pin/unpin the panel (works on touch too, not just hover).
+//   - Human-readable panel copy — no raw token counts as the headline.
+//   - Outside-click to dismiss.
 
-import { useEffect, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import {
     getSessionUsage,
     subscribeUsage,
@@ -21,16 +23,102 @@ import {
     tierFace,
     tierTagline,
     type SessionUsage,
+    type GreennessTier,
 } from "../lib/usageTracker";
 
 export interface SustainabilityIndicatorProps {
-    /** Override the live tracker subscription with a static value. Used
-     *  by tests + Storybook to render specific states. */
     override?: SessionUsage | null;
-    /** Compact mode shrinks padding + drops the bar visualisation. */
     compact?: boolean;
-    /** Show a "↻ reset" affordance to start a fresh conversation. */
     showReset?: boolean;
+}
+
+// ── Animation keyframes injected once ────────────────────────────────────
+// Each tier gets its own animation so the indicator "feels" different
+// at each stage. All are CSS-only — no JS timers.
+
+const KEYFRAMES = `
+@keyframes si-breathe-lean {
+    0%, 100% { transform: scale(1);    opacity: 1; }
+    50%       { transform: scale(1.18); opacity: 0.85; }
+}
+@keyframes si-breathe-green {
+    0%, 100% { transform: scale(1);    opacity: 1; }
+    50%       { transform: scale(1.12); opacity: 0.9; }
+}
+@keyframes si-breathe-moderate {
+    0%, 100% { transform: scale(1);    opacity: 1; }
+    40%       { transform: scale(1.08); opacity: 0.9; }
+}
+@keyframes si-pulse-heavy {
+    0%, 100% { transform: scale(1) rotate(0deg);   opacity: 1;    }
+    30%       { transform: scale(1.1)  rotate(-3deg); opacity: 0.85; }
+    60%       { transform: scale(0.95) rotate(2deg);  opacity: 0.9; }
+}
+@keyframes si-stress {
+    0%, 100% { transform: translateX(0)    scale(1);    filter: brightness(1); }
+    15%       { transform: translateX(-2px) scale(1.05); filter: brightness(1.15); }
+    35%       { transform: translateX(2px)  scale(0.98); filter: brightness(1.2); }
+    55%       { transform: translateX(-1px) scale(1.04); filter: brightness(1.1); }
+    75%       { transform: translateX(1px)  scale(0.97); filter: brightness(1.18); }
+}
+`;
+
+/** Leaf animation spec per tier. */
+function leafAnimation(tier: GreennessTier): string {
+    switch (tier) {
+        case "ready":     return "none";
+        case "lean":      return "si-breathe-lean 3s ease-in-out infinite";
+        case "green":     return "si-breathe-green 4s ease-in-out infinite";
+        case "moderate":  return "si-breathe-moderate 2.2s ease-in-out infinite";
+        case "heavy":     return "si-pulse-heavy 1.6s ease-in-out infinite";
+        case "very-heavy":return "si-stress 0.9s ease-in-out infinite";
+    }
+}
+
+/** Human-readable headline for each tier. */
+function tierHeadline(tier: GreennessTier, questionCount: number): string {
+    if (questionCount === 0) {
+        return "Ready when you are";
+    }
+    switch (tier) {
+        case "lean":      return "Thriving — very efficient";
+        case "green":     return "Healthy — good efficiency";
+        case "moderate":  return "Warming up — growing cost";
+        case "heavy":     return "Getting heavy — consider a fresh start";
+        case "very-heavy":return "Overloaded — best to start a new conversation";
+        default:          return "Idle";
+    }
+}
+
+/** Human explanation shown in the panel body. No raw token counts. */
+function tierExplanation(tier: GreennessTier, questionCount: number): string {
+    if (questionCount === 0) {
+        return "Ask your first question. PulsePlay keeps prompts lean so you get accurate answers at low cost.";
+    }
+    switch (tier) {
+        case "lean":
+            return "Short, focused questions are working well. This is the sweet spot — the AI has just enough context to reason accurately without excess.";
+        case "green":
+            return "Conversation is in good shape. A little more context has accumulated but it's still well within efficient range.";
+        case "moderate":
+            return "The conversation is getting longer. This is fine for complex analysis, but if answers start feeling slower or less precise, try a fresh start.";
+        case "heavy":
+            return "A lot of context is in play. Very long conversations can make the AI less precise and cost more per answer. Consider clicking Reset to start fresh.";
+        case "very-heavy":
+            return "The session has accumulated a very large amount of context. Starting a new conversation will give you faster, sharper answers right away.";
+        default:
+            return "";
+    }
+}
+
+let _styleInjected = false;
+
+function injectStyles() {
+    if (_styleInjected || typeof document === "undefined") return;
+    _styleInjected = true;
+    const style = document.createElement("style");
+    style.textContent = KEYFRAMES;
+    document.head.appendChild(style);
 }
 
 export function SustainabilityIndicator(props: SustainabilityIndicatorProps): ReactElement {
@@ -38,6 +126,12 @@ export function SustainabilityIndicator(props: SustainabilityIndicatorProps): Re
         props.override ?? getSessionUsage(),
     );
     const [hover, setHover] = useState(false);
+    const [pinned, setPinned] = useState(false);
+
+    const rootRef = useRef<HTMLDivElement>(null);
+
+    // Inject keyframes once.
+    injectStyles();
 
     useEffect(() => {
         if (props.override) {
@@ -45,37 +139,59 @@ export function SustainabilityIndicator(props: SustainabilityIndicatorProps): Re
             return;
         }
         const unsubscribe = subscribeUsage(setUsage);
-        // Snapshot on mount in case the tracker fired before subscribe ran.
         setUsage(getSessionUsage());
         return unsubscribe;
     }, [props.override]);
+
+    // Close on outside click when pinned.
+    const handleOutsideClick = useCallback((e: MouseEvent) => {
+        if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+            setPinned(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (pinned) {
+            document.addEventListener("pointerdown", handleOutsideClick);
+            return () => document.removeEventListener("pointerdown", handleOutsideClick);
+        }
+    }, [pinned, handleOutsideClick]);
+
+    const isOpen = hover || pinned;
 
     const color = tierColor(usage.tier);
     const leaf = tierEmoji(usage.tier);
     const face = tierFace(usage.tier);
     const label = tierLabel(usage.tier);
     const tagline = tierTagline(usage.tier);
+    const anim = leafAnimation(usage.tier);
 
-    // Bar fills proportionally up to a soft 50k cap (the "very-heavy"
-    // threshold). Past that we cap at 100% to avoid layout overflow.
     const barPct = Math.min(100, Math.round((usage.totalTokens / 50_000) * 100));
 
-    const tokenDisplayPrimary = usage.questionCount === 0
-        ? "0 tokens"
-        : `${usage.hasEstimates && !usage.hasRealData ? "~" : ""}${_formatTokens(usage.totalTokens)} tokens`;
+    const tokenNote = usage.questionCount === 0
+        ? null
+        : `${usage.hasEstimates && !usage.hasRealData ? "~" : ""}${_formatTokens(usage.totalTokens)} tokens · ${usage.questionCount} question${usage.questionCount === 1 ? "" : "s"}`;
 
     return (
         <div
+            ref={rootRef}
             className="pp-sustainability"
             data-testid="pp-sustainability"
             data-tier={usage.tier}
             onMouseEnter={() => setHover(true)}
             onMouseLeave={() => setHover(false)}
             onFocus={() => setHover(true)}
-            onBlur={() => setHover(false)}
+            onBlur={(e) => {
+                // Only close on blur if focus moved outside the component.
+                if (!rootRef.current?.contains(e.relatedTarget as Node)) {
+                    setHover(false);
+                }
+            }}
+            onClick={() => setPinned(p => !p)}
             tabIndex={0}
             role="status"
-            aria-label={`Session sustainability: ${label}, ${tokenDisplayPrimary}`}
+            aria-label={`Session sustainability: ${label}`}
+            aria-expanded={isOpen}
             style={{
                 position: "relative",
                 padding: props.compact ? "4px 8px" : "6px 10px",
@@ -86,20 +202,25 @@ export function SustainabilityIndicator(props: SustainabilityIndicatorProps): Re
                 display: "flex",
                 alignItems: "center",
                 gap: 8,
-                cursor: "default",
+                cursor: "pointer",
                 userSelect: "none",
             }}
         >
             <span
                 aria-hidden="true"
                 style={{
-                    fontSize: 14,
+                    fontSize: 16,
                     lineHeight: 1,
-                    color,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 2,
+                    animation: anim,
+                    transformOrigin: "center bottom",
+                    willChange: anim !== "none" ? "transform, opacity" : "auto",
                 }}
             >
                 {leaf}
-                <span style={{ marginLeft: 2 }}>{face}</span>
+                <span style={{ fontSize: 13 }}>{face}</span>
             </span>
             <span
                 className="pp-sustainability__label"
@@ -108,18 +229,21 @@ export function SustainabilityIndicator(props: SustainabilityIndicatorProps): Re
             >
                 {label}
             </span>
+            {/* Compact token count — still in the bar for scanability */}
             <span
                 className="pp-sustainability__tokens"
                 data-testid="pp-sustainability-tokens"
-                style={{ color: "var(--pp-text-muted, #6b7280)" }}
+                style={{ color: "var(--pp-text-muted, #6b7280)", fontSize: 10 }}
             >
-                · {tokenDisplayPrimary}
+                {usage.questionCount === 0
+                    ? "0 tokens"
+                    : `${usage.hasEstimates && !usage.hasRealData ? "~" : ""}${_formatTokens(usage.totalTokens)} tokens`}
             </span>
             {!props.compact && (
                 <span
                     className="pp-sustainability__bar"
                     aria-hidden="true"
-                    title={`${barPct}% of soft session cap`}
+                    title={`${barPct}% of session budget used`}
                     style={{
                         flex: 1,
                         height: 4,
@@ -135,7 +259,7 @@ export function SustainabilityIndicator(props: SustainabilityIndicatorProps): Re
                             width: `${barPct}%`,
                             height: "100%",
                             background: color,
-                            transition: "width 200ms ease-out, background 200ms ease-out",
+                            transition: "width 400ms ease-out, background 600ms ease-out",
                         }}
                     />
                 </span>
@@ -144,7 +268,7 @@ export function SustainabilityIndicator(props: SustainabilityIndicatorProps): Re
                 <button
                     type="button"
                     className="pp-sustainability__reset"
-                    onClick={(e) => { e.stopPropagation(); resetSessionUsage(); }}
+                    onClick={(e) => { e.stopPropagation(); resetSessionUsage(); setPinned(false); }}
                     style={{
                         marginLeft: 4,
                         padding: "2px 6px",
@@ -155,12 +279,9 @@ export function SustainabilityIndicator(props: SustainabilityIndicatorProps): Re
                         cursor: "pointer",
                         color: "var(--pp-text-muted, #6b7280)",
                     }}
-                    title="Reset session usage"
-                    aria-label="Reset session usage"
+                    title="Start a fresh conversation"
+                    aria-label="Start a fresh conversation (reset session usage)"
                 >
-                    {/* 2026-05-19 post-UAT-1840: replaced U+21BB text
-                      *  glyph with an inline SVG refresh icon (consistent
-                      *  with the Pulse footer cluster). */}
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <path d="M3 12a9 9 0 0 1 15.5-6.36L21 8" />
                         <path d="M21 3v5h-5" />
@@ -169,72 +290,114 @@ export function SustainabilityIndicator(props: SustainabilityIndicatorProps): Re
                     </svg>
                 </button>
             )}
-            {hover && usage.questionCount > 0 && (
-                <Tooltip usage={usage} label={label} tagline={tagline} />
-            )}
-            {hover && usage.questionCount === 0 && (
-                <Tooltip usage={usage} label="Ready" tagline={tagline} />
+            {isOpen && (
+                <Panel
+                    usage={usage}
+                    label={label}
+                    tagline={tagline}
+                    color={color}
+                    leaf={leaf}
+                    face={face}
+                    tokenNote={tokenNote}
+                />
             )}
         </div>
     );
 }
 
-/* ─── Tooltip ────────────────────────────────────────────────────────── */
+/* ─── Panel ──────────────────────────────────────────────────────────── */
 
-function Tooltip(props: { usage: SessionUsage; label: string; tagline: string }): ReactElement {
-    const { usage, label, tagline } = props;
+function Panel(props: {
+    usage: SessionUsage;
+    label: string;
+    tagline: string;
+    color: string;
+    leaf: string;
+    face: string;
+    tokenNote: string | null;
+}): ReactElement {
+    const { usage, label, color, leaf, face, tokenNote } = props;
+    const headline = tierHeadline(usage.tier, usage.questionCount);
+    const explanation = tierExplanation(usage.tier, usage.questionCount);
+
     return (
         <div
-            className="pp-sustainability__tooltip"
+            className="pp-sustainability__panel"
             data-testid="pp-sustainability-tooltip"
             role="tooltip"
             style={{
                 position: "absolute",
-                bottom: "100%",
-                left: 8,
-                right: 8,
-                marginBottom: 6,
-                padding: "10px 12px",
+                bottom: "calc(100% + 8px)",
+                left: 0,
+                right: 0,
+                padding: "12px 14px",
                 background: "var(--pp-surface, #ffffff)",
-                border: "1px solid var(--pp-border, #e5e7eb)",
+                border: `1px solid ${color}44`,
+                borderLeft: `3px solid ${color}`,
                 borderRadius: 6,
-                boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                boxShadow: "0 4px 16px rgba(0,0,0,0.10)",
                 color: "var(--pp-text, #111827)",
-                fontSize: 11,
+                fontSize: 12,
                 lineHeight: 1.5,
-                zIndex: 50,
+                zIndex: 60,
                 pointerEvents: "none",
             }}
         >
-            <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                Session sustainability — {label}
+            {/* Header: big icon + headline */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 22, lineHeight: 1 }} aria-hidden="true">
+                    {leaf}<span style={{ fontSize: 18 }}>{face}</span>
+                </span>
+                <div>
+                    <div style={{ fontWeight: 700, color, fontSize: 13, lineHeight: 1.2 }}>
+                        {headline}
+                    </div>
+                    <div style={{ color: "var(--pp-text-muted, #6b7280)", fontSize: 11, marginTop: 1 }}>
+                        {label} · {_statusLine(usage)}
+                    </div>
+                </div>
             </div>
-            <div data-testid="pp-sustainability-tooltip-counts">
-                <strong>{_formatTokens(usage.totalTokens)}</strong> tokens · {usage.questionCount} question{usage.questionCount === 1 ? "" : "s"}
-            </div>
-            {(usage.inputTokens > 0 || usage.outputTokens > 0) && (
-                <div style={{ color: "var(--pp-text-muted, #6b7280)", marginTop: 2 }}>
-                    {_formatTokens(usage.inputTokens)} in · {_formatTokens(usage.outputTokens)} out
+
+            {/* Body: human explanation */}
+            <p style={{ margin: 0, color: "var(--pp-text, #374151)", lineHeight: 1.55 }}>
+                {explanation}
+            </p>
+
+            {/* Token detail — small, muted, optional */}
+            {tokenNote && (
+                <div style={{
+                    marginTop: 8,
+                    paddingTop: 8,
+                    borderTop: "1px solid var(--pp-border, #e5e7eb)",
+                    color: "var(--pp-text-muted, #9ca3af)",
+                    fontSize: 10,
+                    display: "flex",
+                    justifyContent: "space-between",
+                }}>
+                    <span>{tokenNote}</span>
+                    {(usage.hasEstimates && !usage.hasRealData) && (
+                        <span title="Estimated from text length — backend doesn't report token counts directly">
+                            est.
+                        </span>
+                    )}
                 </div>
             )}
-            {usage.hasEstimates && !usage.hasRealData && (
-                <div style={{ color: "var(--pp-text-muted, #6b7280)", marginTop: 2, fontStyle: "italic" }}>
-                    Estimated from text length (current backend doesn't expose token counts).
-                </div>
-            )}
-            {usage.hasEstimates && usage.hasRealData && (
-                <div style={{ color: "var(--pp-text-muted, #6b7280)", marginTop: 2, fontStyle: "italic" }}>
-                    Mix of real + estimated counts (some backends don't expose tokens).
-                </div>
-            )}
-            <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px solid var(--pp-border, #e5e7eb)", color: "var(--pp-text-muted, #6b7280)" }}>
-                {tagline}
+
+            {/* Click-hint */}
+            <div style={{ marginTop: 6, fontSize: 10, color: "var(--pp-text-muted, #9ca3af)" }}>
+                Click the indicator to pin or dismiss this panel.
             </div>
         </div>
     );
 }
 
-/* ─── Formatting ─────────────────────────────────────────────────────── */
+/* ─── Helpers ────────────────────────────────────────────────────────── */
+
+function _statusLine(usage: SessionUsage): string {
+    if (usage.questionCount === 0) return "no questions yet";
+    const q = `${usage.questionCount} question${usage.questionCount === 1 ? "" : "s"}`;
+    return q;
+}
 
 function _formatTokens(n: number): string {
     if (n < 1_000) return String(n);

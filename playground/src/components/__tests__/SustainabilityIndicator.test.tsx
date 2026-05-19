@@ -137,44 +137,45 @@ describe("SustainabilityIndicator — tooltip", () => {
         unmount(state);
     });
 
-    it("appears on mouseenter and shows the token breakdown", () => {
+    it("appears on focus and shows token note + question count", () => {
         const state = mount(<SustainabilityIndicator override={leanUsage()} />);
         const root = state.container.querySelector("[data-testid='pp-sustainability']") as HTMLElement;
         act(() => { root.focus(); });
         const tt = state.container.querySelector("[data-testid='pp-sustainability-tooltip']");
         expect(tt).not.toBeNull();
+        // Token note in the panel's muted footer section
         expect(tt!.textContent || "").toMatch(/1\.5k.*tokens/);
         expect(tt!.textContent || "").toMatch(/2 questions/);
         unmount(state);
     });
 
-    it("includes input/output split when both are non-zero", () => {
+    it("shows human-readable headline in the panel", () => {
         const state = mount(<SustainabilityIndicator override={leanUsage()} />);
         const root = state.container.querySelector("[data-testid='pp-sustainability']") as HTMLElement;
         act(() => { root.focus(); });
         const tt = state.container.querySelector("[data-testid='pp-sustainability-tooltip']")!;
-        expect(tt.textContent || "").toMatch(/1\.2k in/);
-        expect(tt.textContent || "").toMatch(/300 out/);
+        // New headline copy for the lean tier
+        expect(tt.textContent || "").toMatch(/Thriving|efficient/i);
         unmount(state);
     });
 
-    it("calls out estimation when hasEstimates is true and hasRealData false", () => {
+    it("shows 'est.' marker when counts are estimates only", () => {
         const estimated: SessionUsage = { ...leanUsage(), hasRealData: false, hasEstimates: true };
         const state = mount(<SustainabilityIndicator override={estimated} />);
         const root = state.container.querySelector("[data-testid='pp-sustainability']") as HTMLElement;
         act(() => { root.focus(); });
         const tt = state.container.querySelector("[data-testid='pp-sustainability-tooltip']")!;
-        expect(tt.textContent || "").toMatch(/Estimated from text length/);
+        // 'est.' badge replaces the old long-form explanation
+        expect(tt.textContent || "").toMatch(/est\./);
         unmount(state);
     });
 
-    it("calls out mixed real+estimated state", () => {
-        const mixed: SessionUsage = { ...leanUsage(), hasRealData: true, hasEstimates: true };
-        const state = mount(<SustainabilityIndicator override={mixed} />);
+    it("does NOT show 'est.' when all counts are real", () => {
+        const state = mount(<SustainabilityIndicator override={leanUsage()} />);
         const root = state.container.querySelector("[data-testid='pp-sustainability']") as HTMLElement;
         act(() => { root.focus(); });
         const tt = state.container.querySelector("[data-testid='pp-sustainability-tooltip']")!;
-        expect(tt.textContent || "").toMatch(/Mix of real \+ estimated/);
+        expect(tt.textContent || "").not.toMatch(/est\.\s*$/);
         unmount(state);
     });
 
