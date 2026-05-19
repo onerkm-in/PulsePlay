@@ -5,6 +5,26 @@
 
 ---
 
+## 2026-05-19 — Visible extreme E2E partial + unified companion UX handoff (`HEAD`)
+
+**Range:** Rajesh asked Codex to run the new extreme E2E catalog in the visible in-app browser so the automation could be observed. Pre-flight passed: proxy health OK, dev server OK, playground **918/918**, `npm run lint` clean. Catalog audit found the files parse to **2,604** scenarios, not the pasted **2,544**.
+
+**Result artifact:** [`docs/EXTREME_E2E_RESULTS_2026-05-19-1146.md`](EXTREME_E2E_RESULTS_2026-05-19-1146.md) plus evidence screenshots under [`docs/evidence/visible-e2e-2026-05-19-1146/`](evidence/visible-e2e-2026-05-19-1146/). This was a partial visible run, not a full 2,604-scenario sweep.
+
+**Claude handoff:** focused backlog [`docs/CLAUDE_FOCUSED_GAP_BACKLOG_2026-05-19.md`](CLAUDE_FOCUSED_GAP_BACKLOG_2026-05-19.md) plus copy-paste prompt [`docs/CODEX_TO_CLAUDE_SURFACE_UX_PROMPT_2026-05-19.md`](CODEX_TO_CLAUDE_SURFACE_UX_PROMPT_2026-05-19.md).
+
+**Extended visible pass:** Screenshots `04`-`20` and `extended-visible-audit.json` now cover Settings Setup/BI/AI/Preferences/System/Advanced, Knowledge, Launchpad, Workbench, root AI Insights, root Ask Pulse, and root BI Viz. The in-app browser panel was constrained to ~599x694, so these are compact-layout observations, not full-desktop certification.
+
+**Findings locked for follow-up:**
+
+- `BI Viz` still feels like a mode/layout jump and can show `BI-only mode` grammar instead of a peer BI surface inside the same stable shell.
+- `BI Viz` icon/label treatment feels bolted on; make `AI Insights`, `Ask Pulse`, and `BI Viz` one smooth, non-duplicative segmented surface switcher.
+- Mobile floating companion at 390px width puts Dock offscreen.
+- Dock/undock must be **component/surface scoped**, not pane scoped: popping out `AI Insights` should detach only `AI Insights`, while the main shell and other surfaces remain intact.
+- Companion launch must be **cross-surface and global**: from any screen, users should be able to open any other surface or relevant context as an in-app companion without losing their place. Applies to Settings, Setup, Governance, Developer Tools, Knowledge, Workbench, Launchpad, BI surfaces, and AI surfaces.
+
+---
+
 ## 2026-05-18 — Phase D: Foundation Model SSE streaming — section-by-section progressive render (`HEAD`)
 
 **Range:** Beast-mode implementation of the "1-then-3" staged rendering for the Foundation Model connector path. Genie remains batch (API constraint); Foundation Model now streams tokens via NDJSON and renders each section as it completes — first section appears in ~3-5s instead of 60-90s.

@@ -32,6 +32,7 @@ import { EmbedConfigForm } from "./components/EmbedConfigForm";
 import { useEmbedConfig } from "./settings/embedConfigStore";
 import { warmGenieWarehouse, startWarehouseKeepalive, stopWarehouseKeepalive } from "./lib/warehouseWarmup";
 import { FirstRunWizard, WizardErrorBoundary, shouldShowWizard, type PersonaKey } from "./components/FirstRunWizard";
+import { SurfaceSwitcher } from "./components/SurfaceSwitcher";
 import { TestConnectionPanel } from "./components/TestConnectionPanel";
 import { PackPicker } from "./components/PackPicker";
 import type { PackInfo, PackSelection } from "./components/PackPicker";
@@ -550,21 +551,37 @@ function PlaygroundApp(): React.ReactElement {
     /** Float the pane as an in-app draggable overlay panel. Keeps the user
      *  in the same browser tab, same auth session, same origin — no separate
      *  window means no cross-window message bridge needed and interactions
-     *  stay seamless. The panel is sized to 520px wide and 80vh tall by
-     *  default, positioned at the right edge; the user can drag and
-     *  CSS-resize it freely. "Dock ↙" in the panel header collapses it
-     *  back into the split layout.
+     *  stay seamless.
+     *
+     *  Sizing:
+     *  - Desktop (≥ 640 px viewport): 520 px wide, 80 vh tall (cap 700 px),
+     *    positioned ~right edge with a 20 px margin so the panel doesn't kiss
+     *    the viewport edge.
+     *  - Mobile (< 640 px viewport): clamp panel WIDTH to the viewport width
+     *    minus a 16 px margin on each side. The 2026-05-19 visible E2E pass
+     *    found the dock control offscreen at 390 px because a 520 px panel
+     *    couldn't fit. Position is clamped inside the viewport so both Dock
+     *    and Close stay reachable.
+     *
+     *  "Dock ↙" in the panel header collapses back into the split layout.
      */
     const handleViewportFloat = useCallback((pane: ViewportPane) => {
-        const panelW = 520;
-        const panelH = Math.min(
-            typeof window !== "undefined" ? window.innerHeight * 0.8 : 640,
-            700,
-        );
-        setFloatPos({
-            x: Math.max(0, (typeof window !== "undefined" ? window.innerWidth : 1200) - panelW - 20),
-            y: Math.max(20, ((typeof window !== "undefined" ? window.innerHeight : 800) - panelH) / 2),
-        });
+        const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
+        const vh = typeof window !== "undefined" ? window.innerHeight : 800;
+        const MARGIN = 16;
+        const isMobile = vw < 640;
+        // Panel width: 520 on desktop, viewport-minus-margin on mobile.
+        const panelW = isMobile
+            ? Math.max(280, vw - MARGIN * 2)
+            : 520;
+        const panelH = Math.min(vh * 0.8, 700);
+        // Position: right-anchored on desktop, centered-margin on mobile so
+        // both ends of the header (Dock + Close) stay inside the viewport.
+        const x = isMobile
+            ? Math.max(MARGIN, (vw - panelW) / 2)
+            : Math.max(0, vw - panelW - 20);
+        const y = Math.max(20, (vh - panelH) / 2);
+        setFloatPos({ x, y });
         setFloatedPane(pane);
     }, []);
 
@@ -1203,12 +1220,16 @@ function PlaygroundApp(): React.ReactElement {
                             {/* Suppress surface nav when AI is floating — the background
                               * BI canvas should be clean, navigation lives in the float. */}
                             {enabledComponents === "mix" && !floatedPane && (
-                                <UnifiedSurfaceTabs
-                                    active="bi"
-                                    onOpenInsights={() => handleMixSurfaceSelect("ai", "insights")}
-                                    onOpenAskPulse={() => handleMixSurfaceSelect("ai", "chat")}
-                                    onOpenBi={() => handleMixSurfaceSelect("bi")}
-                                />
+                                <div className="pp-surface-switcher-wrap">
+                                    <SurfaceSwitcher
+                                        active="bi-viz"
+                                        onPick={(id) => {
+                                            if (id === "ai-insights") handleMixSurfaceSelect("ai", "insights");
+                                            else if (id === "ask-pulse") handleMixSurfaceSelect("ai", "chat");
+                                            else handleMixSurfaceSelect("bi");
+                                        }}
+                                    />
+                                </div>
                             )}
                             <PowerBIDeveloperPanel
                                 activeVendor={activeVendor}
@@ -1247,15 +1268,24 @@ function PlaygroundApp(): React.ReactElement {
                                             )}
                                         </>
                                     ) : (
+                                        // 2026-05-19 fix: in unified mix mode this empty
+                                        // state used to read "BI-only mode" + "switch back
+                                        // to Both / AI only" — that made BI Viz feel like
+                                        // a separate product, not a peer surface. Now the
+                                        // copy frames BI Viz as one of the three peer
+                                        // surfaces (AI Insights / Ask Pulse / BI Viz) and
+                                        // explicitly tells the user the AI surfaces are
+                                        // still one click away in the switcher above.
                                         <>
-                                            <h2>BI-only mode</h2>
+                                            <h2>BI Viz — embed your dashboard</h2>
                                             <p>
-                                                AI components are hidden. Embed any BI URL below — PulsePlay is acting
-                                                as a thin multi-vendor BI host. Switch back to "Both" or "AI only" via
-                                                Settings › Preferences to re-enable Pulse / v0.
+                                                Pick a BI tool and paste its embed URL — your report appears
+                                                here as one of the peer surfaces alongside AI Insights and
+                                                Ask Pulse. Switch between them any time with the surface
+                                                switcher above.
                                             </p>
-                                            <p style={{ marginTop: 12 }}>
-                                                Vendors: {visibleVendors.map(v => v.displayName).join(" · ") || "none allowlisted"}
+                                            <p style={{ marginTop: 12, fontSize: 12, opacity: 0.7 }}>
+                                                Vendors available: {visibleVendors.map(v => v.displayName).join(" · ") || "none allowlisted"}
                                             </p>
                                         </>
                                     )}
@@ -1282,91 +1312,6 @@ function PlaygroundApp(): React.ReactElement {
                 />
             )}
             </div>
-        </div>
-    );
-}
-
-function UnifiedSurfaceTabs(props: {
-    active: "insights" | "chat" | "bi";
-    onOpenInsights: () => void;
-    onOpenAskPulse: () => void;
-    onOpenBi: () => void;
-}): React.ReactElement {
-    const items: Array<{
-        key: "insights" | "chat" | "bi";
-        label: string;
-        icon: string;
-        ariaLabel: string;
-        onClick: () => void;
-    }> = [
-        { key: "insights", label: "AI Insights", icon: "AI", ariaLabel: "Open AI Insights surface", onClick: props.onOpenInsights },
-        { key: "chat", label: "Ask Pulse", icon: "Ask", ariaLabel: "Open Ask Pulse surface", onClick: props.onOpenAskPulse },
-        { key: "bi", label: "BI Viz", icon: "BI", ariaLabel: "Open BI Viz surface", onClick: props.onOpenBi },
-    ];
-    return (
-        <div
-            role="tablist"
-            aria-label="PulsePlay surfaces"
-            style={{
-                flex: "0 0 auto",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                alignSelf: "flex-start",
-                margin: "16px 18px 10px",
-                padding: 4,
-                border: "1px solid rgba(148, 163, 184, 0.35)",
-                borderRadius: 999,
-                background: "rgba(255, 255, 255, 0.82)",
-                boxShadow: "0 10px 24px rgba(15, 23, 42, 0.08)",
-            }}
-        >
-            {items.map(item => {
-                const active = props.active === item.key;
-                return (
-                    <button
-                        key={item.key}
-                        type="button"
-                        role="tab"
-                        aria-selected={active}
-                        aria-label={item.ariaLabel}
-                        onClick={item.onClick}
-                        style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 7,
-                            minHeight: 32,
-                            padding: item.key === "bi" ? "6px 12px" : "6px 14px",
-                            borderRadius: 999,
-                            border: active ? "1px solid rgba(37, 99, 235, 0.75)" : "1px solid transparent",
-                            background: active ? "linear-gradient(180deg, #3b82f6, #1d4ed8)" : "transparent",
-                            color: active ? "#fff" : "#475569",
-                            fontWeight: 700,
-                            fontSize: 13,
-                            cursor: "pointer",
-                            boxShadow: active ? "0 8px 20px rgba(37, 99, 235, 0.22)" : "none",
-                        }}
-                    >
-                        <span
-                            aria-hidden="true"
-                            style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                width: item.key === "chat" ? 28 : 18,
-                                height: 18,
-                                borderRadius: "50%",
-                                fontSize: item.key === "bi" ? 10 : 12,
-                                fontWeight: 800,
-                                background: active ? "rgba(255,255,255,0.2)" : "rgba(148,163,184,0.16)",
-                            }}
-                        >
-                            {item.icon}
-                        </span>
-                        <span>{item.label}</span>
-                    </button>
-                );
-            })}
         </div>
     );
 }
@@ -1752,9 +1697,22 @@ function FloatingPanel(props: {
         const onMove = (ev: MouseEvent) => {
             const a = dragAnchor.current;
             if (!a) return;
+            // 2026-05-19 fix: clamp drag bounds to viewport so the panel
+            // can't be dragged offscreen on narrow viewports. Header buttons
+            // (Dock, Close) must always remain reachable. We use the panel's
+            // own bounding rect to compute the live width — handles the
+            // resize:both case where the user has dragged the resize handle.
+            const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
+            const vh = typeof window !== "undefined" ? window.innerHeight : 800;
+            const rect = (ev.target as Element)?.closest?.('[role="complementary"]')?.getBoundingClientRect();
+            const w = rect?.width ?? 520;
+            const h = rect?.height ?? 480;
+            const MARGIN = 16;
+            const nextX = a.startPosX + ev.clientX - a.startClientX;
+            const nextY = a.startPosY + ev.clientY - a.startClientY;
             props.onPosChange({
-                x: Math.max(0, a.startPosX + ev.clientX - a.startClientX),
-                y: Math.max(0, a.startPosY + ev.clientY - a.startClientY),
+                x: Math.min(Math.max(MARGIN, nextX), Math.max(MARGIN, vw - w - MARGIN)),
+                y: Math.min(Math.max(MARGIN, nextY), Math.max(MARGIN, vh - h - MARGIN)),
             });
         };
         const onUp = () => {
@@ -1766,6 +1724,14 @@ function FloatingPanel(props: {
         document.addEventListener("mouseup", onUp);
     }, [props]);
 
+    // 2026-05-19 fix: derive width from the viewport so the panel never
+    // exceeds the screen. Codex's visible E2E pass at 390 px caught the
+    // Dock button measured at x=453 (offscreen) — root cause was width: 520
+    // hardcoded with no viewport awareness. Now: clamped at 520 max with
+    // 16 px margin per side; min 300 keeps the chrome usable.
+    const viewportW = typeof window !== "undefined" ? window.innerWidth : 1200;
+    const computedWidth = Math.min(520, Math.max(300, viewportW - 32));
+
     return (
         <div
             role="complementary"
@@ -1774,9 +1740,10 @@ function FloatingPanel(props: {
                 position: "fixed",
                 left: props.pos.x,
                 top: props.pos.y,
-                width: 520,
+                width: computedWidth,
                 height: "80vh",
-                minWidth: 300,
+                maxWidth: "calc(100vw - 32px)",
+                minWidth: 280,
                 minHeight: 220,
                 zIndex: 1200,
                 display: "flex",

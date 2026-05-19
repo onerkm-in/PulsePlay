@@ -691,6 +691,88 @@ html, body, #root {
 .pp-evidence__item pre { margin: 0; max-height: 220px; overflow: auto; padding: 8px; font-size: var(--pp-text-xs); line-height: 1.4; white-space: pre-wrap; }
 .pp-evidence__item p { margin: 0; padding: 0 8px 8px; color: var(--pp-text-subtle); font-size: 10px; }
 
+/* ── Surface Switcher (unified shell tab control) ───────────────── */
+/* Peer segmented control for AI Insights / Ask Pulse / BI Viz.
+ * Codex 2026-05-19 finding: the previous implementation had visible
+ * label-icon duplication ("AI AI Insights", "Ask Ask Pulse", "BI BI Viz")
+ * because the icon well rendered the same text as the label. Rebuilt
+ * with proper SVG glyphs, smooth segmented-control feel, single label. */
+.pp-surface-switcher-wrap {
+    padding: 14px 18px 10px;
+    flex: 0 0 auto;
+    display: flex;
+}
+
+.pp-surface-switcher {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 4px;
+    border: 1px solid var(--pp-border, rgba(15, 23, 42, 0.10));
+    border-radius: var(--pp-radius-pill, 999px);
+    background: var(--pp-surface-overlay, rgba(255, 255, 255, 0.92));
+    box-shadow: var(--pp-shadow-md, 0 8px 24px rgba(15, 23, 42, 0.08));
+    backdrop-filter: saturate(140%) blur(10px);
+}
+
+.pp-surface-switcher__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+    padding: 6px 14px;
+    border: 1px solid transparent;
+    border-radius: var(--pp-radius-pill, 999px);
+    background: transparent;
+    color: var(--pp-text-muted, #475569);
+    font: inherit;
+    font-size: var(--pp-text-base, 13px);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--pp-t-base, 160ms) var(--pp-ease, cubic-bezier(0.22, 1, 0.36, 1));
+    white-space: nowrap;
+}
+
+.pp-surface-switcher__item:hover:not(.pp-surface-switcher__item--active) {
+    background: var(--pp-accent-soft, rgba(37, 99, 235, 0.08));
+    color: var(--pp-text, #0f172a);
+}
+
+.pp-surface-switcher__item--active {
+    background: linear-gradient(180deg, var(--pp-accent, #2563eb) 0%, var(--pp-accent-hover, #1d4ed8) 100%);
+    color: #ffffff;
+    border-color: rgba(37, 99, 235, 0.75);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.32);
+}
+
+.pp-surface-switcher__item svg {
+    flex: 0 0 14px;
+    /* Icon inherits currentColor so active state flips to white automatically. */
+}
+
+.pp-surface-switcher__label {
+    line-height: 1;
+}
+
+.pp-surface-switcher__trailing {
+    display: inline-flex;
+    align-items: center;
+    padding-left: 6px;
+    margin-left: 4px;
+    border-left: 1px solid var(--pp-border-subtle, rgba(15, 23, 42, 0.06));
+}
+
+/* Narrow viewport: drop the label text, keep glyph-only pills. */
+@media (max-width: 640px) {
+    .pp-surface-switcher-wrap { padding: 10px 12px 6px; }
+    .pp-surface-switcher__item {
+        padding: 6px 10px;
+        gap: 0;
+    }
+    .pp-surface-switcher__label { display: none; }
+}
+
 /* ── Responsive ──────────────────────────────────────────────────── */
 @media (max-width: 1100px) {
     .pp-pbi-dev__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }

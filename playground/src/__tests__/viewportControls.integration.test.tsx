@@ -136,8 +136,16 @@ function openOverflowFor(state: MountState, pane: "ai" | "bi"): void {
 }
 
 function clickByLabel(state: MountState, ariaLabel: string): void {
-    const find = () => state.container.querySelector(`button[aria-label="${ariaLabel}"]`) as HTMLButtonElement | null;
-    let btn = find();
+    // First try the aria-label match (most buttons in PaneChrome use it).
+    // Fall back to matching visible text content for the new SurfaceSwitcher
+    // pills (Codex 2026-05-19: accessible name = visible label, no extra
+    // "Open … surface" wrapper).
+    const findByAria = () => state.container.querySelector(`button[aria-label="${ariaLabel}"]`) as HTMLButtonElement | null;
+    const findByText = () => {
+        const buttons = Array.from(state.container.querySelectorAll<HTMLButtonElement>("button"));
+        return buttons.find(b => (b.textContent || "").trim() === ariaLabel) ?? null;
+    };
+    let btn = findByAria() ?? findByText();
     if (!btn) {
         // Try opening the relevant overflow menu first, then retry.
         const lower = ariaLabel.toLowerCase();
@@ -146,11 +154,11 @@ function clickByLabel(state: MountState, ariaLabel: string): void {
             : ["ai", "bi"];
         for (const p of panes) {
             openOverflowFor(state, p);
-            btn = find();
+            btn = findByAria() ?? findByText();
             if (btn) break;
         }
     }
-    if (!btn) throw new Error(`button[aria-label="${ariaLabel}"] not found`);
+    if (!btn) throw new Error(`button[aria-label="${ariaLabel}"] (or visible text) not found`);
     act(() => {
         btn!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
@@ -242,6 +250,12 @@ describe("App viewport controls — default unified Mix surface", () => {
     it("opens BI Viz as the unified primary surface without entering focused-pane mode", () => {
         const state = mountApp();
 
+        // 2026-05-19 surface switcher rewrite: the mocked PulseShell button
+        // still carries the verbose "Open BI Viz surface" aria-label (it is
+        // a test mock — see top of file). When the BI pane mounts, the real
+        // SurfaceSwitcher renders pills with clean accessible names = their
+        // visible text ("AI Insights" / "Ask Pulse" / "BI Viz") per Codex's
+        // non-duplicative-label feedback.
         clickByLabel(state, "Open BI Viz surface");
 
         const shell = state.container.querySelector(viewportControlShellSelector);
@@ -252,10 +266,49 @@ describe("App viewport controls — default unified Mix surface", () => {
         expect(biChrome?.getAttribute("data-panel-state")).toBe("normal");
         expect(window.localStorage.getItem("pulseplay:enabled-components")).toBeNull();
 
-        clickByLabel(state, "Open AI Insights surface");
+        // Click "AI Insights" pill in the new SurfaceSwitcher (visible text
+        // is the accessible name now — no more "Open … surface" wrapper).
+        clickByLabel(state, "AI Insights");
         expect(state.container.querySelector(viewportControlPanelChromeSelector("ai"))).toBeTruthy();
         expect(state.container.querySelector(viewportControlPanelChromeSelector("bi"))).toBeNull();
 
+        unmount(state);
+    });
+
+    // Regression guard for Codex's 2026-05-19 finding:
+    // "Clicking `BI Viz` surfaces `BI-only mode` copy and a different layout
+    // grammar." In unified mode, BI Viz is a peer surface — the empty state
+    // must not read "BI-only mode" or tell the user to switch back to
+    // Both / AI only.
+    it("BI Viz empty state in unified mode reads as a peer surface, not BI-only mode", () => {
+        const state = mountApp();
+        clickByLabel(state, "Open BI Viz surface");
+        const text = state.container.textContent || "";
+        expect(text).not.toContain("BI-only mode");
+        expect(text).not.toContain("Switch back to");
+        expect(text).toContain("BI Viz");
+        unmount(state);
+    });
+
+    // Regression guard for Codex's 2026-05-19 finding:
+    // Surface switcher accessible names + visible labels must not duplicate
+    // (e.g. screen-reader hearing "AI AI Insights"). The new SurfaceSwitcher
+    // uses visible text as the accessible name with no icon-text duplication.
+    it("surface switcher labels are non-duplicative", () => {
+        const state = mountApp();
+        // Move to mix mode and into BI Viz so the SurfaceSwitcher mounts.
+        clickByLabel(state, "Open BI Viz surface");
+        const switcherButtons = Array.from(
+            state.container.querySelectorAll<HTMLButtonElement>('.pp-surface-switcher__item'),
+        );
+        expect(switcherButtons.length).toBe(3);
+        for (const btn of switcherButtons) {
+            const text = (btn.textContent || "").trim();
+            // No "AI AI", "Ask Ask", "BI BI" doubled prefix.
+            expect(text).not.toMatch(/^(AI|Ask|BI)\s+\1\b/i);
+            // Accessible name (no aria-label set; falls back to text content).
+            expect(btn.hasAttribute("aria-label")).toBe(false);
+        }
         unmount(state);
     });
 

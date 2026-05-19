@@ -52,6 +52,25 @@ Use these tags so another agent can scan quickly:
 
 Keep PulsePlay moving faster by coordinating work across agents without losing brutal honesty.
 
+### 2026-05-19 - Codex - [HANDOFF] Unified surface UX + component-scoped companion fixes
+
+`[VERIFY]` Visible in-app browser E2E slice ran against `http://127.0.0.1:5174` after Rajesh asked to observe testing in the open screen only. Pre-flight was clean: proxy health OK, dev server OK, playground **918/918**, `npm run lint` clean. Catalog count audit found scenario files parse to **2,604**, not the pasted **2,544**.
+
+`[RISK]` Three visible UX gaps need Claude follow-up before the unified surface can be called polished:
+- `BI Viz` still feels like a mode/layout jump; click shows `BI-only mode` grammar instead of a peer BI surface inside the same stable shell.
+- `BI Viz` control/icon treatment feels bolted on and can read like duplicated `BI BI Viz`; make AI Insights / Ask Pulse / BI Viz one smooth segmented surface switcher.
+- Mobile floating companion at 390px width puts Dock offscreen. Use clamped bounds or a mobile bottom-sheet/full-screen companion.
+
+`[DECISION]` Rajesh clarified docking/undocking must be **component/surface scoped**, not pane scoped. If the user is on `AI Insights` and pops out, only `AI Insights` undocks; `Ask Pulse` and `BI Viz` remain normal peer surfaces in the main shell, and the screen must still feel like one uniform platform.
+
+`[DECISION]` Rajesh also wants **cross-surface companion launch**: from any active screen, the user can open any other surface as a popup/companion. Example: while staying in `BI Viz`, right-click or use a visible accessible launcher to open `AI Insights` as a companion. Do this in-app, not as a browser popup.
+
+`[DECISION]` Generalize that to **all screens**, not only AI/BI surfaces. Settings, Setup, Governance, Developer Tools, Knowledge, Workbench, Launchpad, and future surfaces should share one companion-launch grammar so users never feel blocked, trapped, or confused. Preserve current task/form state while companion context opens.
+
+`[VERIFY]` Extended visible pass also covered Settings Setup/BI/AI/Preferences/System/Advanced, Knowledge, Launchpad, Workbench, root AI Insights, root Ask Pulse, and root BI Viz. Screenshots `04`-`20` plus `extended-visible-audit.json` are in `docs/evidence/visible-e2e-2026-05-19-1146/`. The in-app browser was constrained to ~599x694 for the extended pass, so treat those as compact-layout evidence.
+
+`[HANDOFF]` Focused backlog for Claude: `docs/CLAUDE_FOCUSED_GAP_BACKLOG_2026-05-19.md`. Copy-paste prompt: `docs/CODEX_TO_CLAUDE_SURFACE_UX_PROMPT_2026-05-19.md`. Evidence + partial result report: `docs/EXTREME_E2E_RESULTS_2026-05-19-1146.md` and `docs/evidence/visible-e2e-2026-05-19-1146/`.
+
 ### 2026-05-18 - Codex - [DONE] Legacy split-state blank BI pane migration
 
 `[DONE]` Rajesh's screenshot showed AI active with the blank BI pane still visible. Cause: old saved `pulseplay:enabled-components=both`. Added one-time legacy migration so stale `both` becomes unified `mix`; explicit Split + Mix still persists after the migration marker exists.
