@@ -3960,7 +3960,15 @@ function App(props: AppProps) {
                                         }
                                     }}
                                 >
-                                    <span className="gn-header-tab-icon" aria-hidden="true">✨</span>
+                                    <span className="gn-header-tab-icon" aria-hidden="true">
+                                        {/* Sparkle glyph — matches the SurfaceSwitcher AI Insights icon. Codex
+                                          * 2026-05-19 naming audit: previous emoji "✨" was visible in test
+                                          * text-content snapshots even though aria-hidden; SVG avoids both
+                                          * the screen-reader and the visible-text duplication. */}
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M12 3 L14 10 L21 12 L14 14 L12 21 L10 14 L3 12 L10 10 Z" />
+                                        </svg>
+                                    </span>
                                     <span>AI Insights</span>
                                 </button>
                                 <button
@@ -3987,7 +3995,11 @@ function App(props: AppProps) {
                                         }
                                     }}
                                 >
-                                    <span className="gn-header-tab-icon" aria-hidden="true">💬</span>
+                                    <span className="gn-header-tab-icon" aria-hidden="true">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                                        </svg>
+                                    </span>
                                     <span>Ask Pulse</span>
                                 </button>
                             </div>
@@ -3998,7 +4010,16 @@ function App(props: AppProps) {
                                 aria-label="Open BI Viz surface"
                                 title="Open BI Viz surface"
                             >
-                                <span className="gn-header-tab-icon gn-header-tab-icon--bi" aria-hidden="true">BI</span>
+                                <span className="gn-header-tab-icon gn-header-tab-icon--bi" aria-hidden="true">
+                                    {/* Bar-chart glyph — replaces the literal "BI" text that was
+                                      * causing visible "BI BI Viz" duplication in test snapshots
+                                      * (Codex 2026-05-19 tough test, scenario P1-13 / EL-SWITCHER-COPY). */}
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <line x1="6" y1="20" x2="6" y2="11" />
+                                        <line x1="12" y1="20" x2="12" y2="5" />
+                                        <line x1="18" y1="20" x2="18" y2="14" />
+                                    </svg>
+                                </span>
                                 <span>BI Viz</span>
                             </button>
                         </div>
@@ -7407,6 +7428,22 @@ function MessageCard(props: {
     );
 }
 
+/** Map raw profile slug (`default`, `supervisor`, `foundation-stream`) to a
+ *  human-friendly source label for the provenance footer. Codex 2026-05-19
+ *  naming audit: "Avoid raw profile names such as `default` in primary UI.
+ *  Map them to configured display names." Keep this list small + extend as
+ *  more profile types become common; falls back to title-cased slug. */
+function formatProvenanceSourceLabel(raw: string | undefined): string {
+    if (!raw) return "Default profile";
+    const known: Record<string, string> = {
+        "default":           "Default profile",
+        "supervisor":        "Supervisor agent",
+        "foundation-stream": "Foundation Model",
+    };
+    if (known[raw]) return known[raw];
+    return raw.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function formatSqlSectionLabel(section: GenieSqlSection): string {
     const id = String(section.sectionId || "").trim();
     const pretty = id
@@ -8818,10 +8855,26 @@ function InsightsSectionFooter(props: {
         <footer className="gn-insights-provenance gn-insights-provenance--with-actions gn-export-skip">
             <div className="gn-insights-provenance-text">
                 {props.showProvenanceFooter && (
+                    // Codex 2026-05-19 naming audit fix: provenance footer
+                    // was reading "AI-generated · Source: default · 19 min ago"
+                    // which exposed the raw profile slug and didn't say WHO
+                    // generated it. New copy is human + trust-oriented and
+                    // maps `default` → "Default profile" so authors don't see
+                    // an internal id as primary copy. The wording stays
+                    // honest — "Generated by PulsePlay" not "Verified" until
+                    // we have an actual validator gate to back the claim.
+                    // No "100% hallucination-free" claims anywhere.
                     <>
-                        <span>AI-generated</span>
-                        <span>Source: {props.sourceLabel || "default"}</span>
-                        <span>{props.generatedAt ? formatRelativeTime(props.generatedAt) : "just now"}</span>
+                        <span>Generated by PulsePlay</span>
+                        <span>
+                            {"Source: "}
+                            <strong style={{ fontWeight: 600 }}>{formatProvenanceSourceLabel(props.sourceLabel)}</strong>
+                        </span>
+                        <span>
+                            {props.generatedAt
+                                ? `Updated ${formatRelativeTime(props.generatedAt)}`
+                                : "Updated just now"}
+                        </span>
                     </>
                 )}
             </div>

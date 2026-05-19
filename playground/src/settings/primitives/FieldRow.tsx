@@ -12,8 +12,17 @@ export interface FieldRowProps {
     label: string;
     /** Helper sentence shown under the control. */
     hint?: string;
-    /** Rich tooltip content. Renders an info button next to the label. */
+    /** Rich tooltip content. Renders an info button next to the label.
+     *  IMPORTANT: tooltips are ARIA-non-interactive and have
+     *  pointer-events:none — do NOT put `<a>` / `<button>` / `<input>`
+     *  inside `tip`. Use `labelTrailing` for actionable links instead. */
     tip?: ReactNode;
+    /** Slot rendered after the label, before the tip button. Use this for
+     *  small actionable links (e.g. "docs ↗") that need to stay
+     *  keyboard-reachable — putting them inside `tip` would bury them
+     *  in a pointer-events:none container per the 2026-05-19 Codex
+     *  tooltip audit. */
+    labelTrailing?: ReactNode;
     /** Inline status badge displayed after the label. */
     status?: { tone: StatusTone; label: string; detail?: string };
     /** Optional required-flag (renders a red asterisk). */
@@ -35,6 +44,7 @@ export function FieldRow(props: FieldRowProps): React.ReactElement {
                     {props.label}
                     {props.required && <span className="pp-field__required" aria-label="required"> *</span>}
                 </label>
+                {props.labelTrailing}
                 {props.tip && <HelpTip>{props.tip}</HelpTip>}
                 {props.status && (
                     <StatusBadge tone={props.status.tone} label={props.status.label} detail={props.status.detail} compact />

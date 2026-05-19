@@ -232,12 +232,21 @@ export function SubSection(props: {
                 <h3
                     data-subsection-label="true"
                     style={{
+                        // Codex 2026-05-19 naming audit fix:
+                        // "Convert all-caps Settings headings to product
+                        // Title Case." SubSection headings were
+                        // text-transform:uppercase with letter-spacing,
+                        // producing CURRENT STATE / CONNECT AND EMBED /
+                        // GENERATION BEHAVIOR. Switched to proper
+                        // typographic case: callers already pass labels in
+                        // Title or sentence case (e.g. "Current state",
+                        // "Connect and embed"), so we just stop forcing
+                        // uppercase and bump the size for legibility.
                         margin:        0,
-                        fontSize:      11,
+                        fontSize:      12.5,
                         fontWeight:    700,
-                        color:         "#475569",
-                        textTransform: "uppercase",
-                        letterSpacing: 0.6,
+                        color:         "#334155",
+                        letterSpacing: 0.1,
                     }}
                 >
                     {props.label}

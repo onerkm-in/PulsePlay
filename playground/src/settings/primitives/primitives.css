@@ -40,11 +40,20 @@
 .pp-helptip__trigger--tip   { background: rgba(124,58,237,0.10); color: #6d28d9; font-style: normal; font-family: inherit; font-size: 9px; }
 .pp-helptip__trigger--tip:hover { background: #7c3aed; color: #fff; box-shadow: 0 2px 6px rgba(124,58,237,0.42); }
 
+/* ── HelpTip bubble — viewport-aware position
+ * Codex 2026-05-19 audit fix:
+ *   - The bubble used a fixed center-anchored position
+ *     (left: 50% + translateX(-50%)) which clipped at compact viewport
+ *     widths (599×694 visible browser pane).
+ *   - The new HelpTip component picks an alignment + side based on the
+ *     trigger's bounding rect; this CSS exposes the resulting class
+ *     variants so each combination renders in the right spot.
+ *   - Bubble keeps pointer-events:none — interactive content should not
+ *     live inside role="tooltip"; authors should put links adjacent to
+ *     the field instead.
+ */
 .pp-helptip__bubble {
     position: absolute;
-    bottom: calc(100% + 8px);
-    left: 50%;
-    transform: translateX(-50%);
     z-index: 100;
     padding: 10px 12px;
     border-radius: var(--pp-radius);
@@ -59,15 +68,37 @@
     pointer-events: none;
     animation: pp-tip-fade 140ms var(--pp-ease, ease-out);
 }
+
+/* Vertical placement */
+.pp-helptip__bubble--side-above { bottom: calc(100% + 8px); }
+.pp-helptip__bubble--side-below { top:    calc(100% + 8px); }
+
+/* Horizontal placement — anchor matches the side with more viewport room */
+.pp-helptip__bubble--align-center { left: 50%; transform: translateX(-50%); }
+.pp-helptip__bubble--align-left   { left: 0; }
+.pp-helptip__bubble--align-right  { right: 0; }
+
+/* Pointer arrow — flips when the bubble is below the trigger so it still
+ * points at the trigger button. The arrow centers on the bubble for the
+ * center alignment; for left/right alignment it anchors near the trigger
+ * edge instead of the bubble midpoint. */
 .pp-helptip__bubble::after {
     content: '';
     position: absolute;
-    top: 100%;
-    left: 50%;
-    transform: translateX(-50%);
     border: 5px solid transparent;
+}
+.pp-helptip__bubble--side-above::after {
+    top: 100%;
     border-top-color: #0f172a;
 }
+.pp-helptip__bubble--side-below::after {
+    bottom: 100%;
+    border-bottom-color: #0f172a;
+}
+.pp-helptip__bubble--align-center::after { left: 50%; transform: translateX(-50%); }
+.pp-helptip__bubble--align-left::after   { left: 8px; }
+.pp-helptip__bubble--align-right::after  { right: 8px; }
+
 .pp-helptip__bubble code {
     font-family: var(--pp-font-mono);
     background: rgba(255,255,255,0.10);
@@ -76,10 +107,22 @@
     font-size: 11px;
     color: #93c5fd;
 }
+/* Links inside tooltips are visually styled but the bubble has
+ * pointer-events:none — they won't click. Authors should put any
+ * actionable link adjacent to the field, not inside the tooltip. */
 .pp-helptip__bubble a { color: #93c5fd; text-decoration: underline; }
 .pp-helptip__bubble strong { color: #fff; }
 
 @keyframes pp-tip-fade {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+/* Center-aligned bubble still uses translateX in its position, so the
+ * fade keyframe needs to preserve the X centering during the animation. */
+.pp-helptip__bubble--align-center {
+    animation: pp-tip-fade-center 140ms var(--pp-ease, ease-out);
+}
+@keyframes pp-tip-fade-center {
     from { opacity: 0; transform: translateX(-50%) translateY(4px); }
     to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }

@@ -137,14 +137,19 @@ export function AiGroup(): React.ReactElement {
             <header style={{ marginBottom: 20 }}>
                 <h2 id="settings-ai-title" style={{ margin: 0, fontSize: 20 }}>AI</h2>
                 <p style={{ margin: "4px 0 0", opacity: 0.7, fontSize: 13 }}>
-                    What's thinking, and what it knows — provider, model, knowledge, behavior. MVP 0.2: Databricks Genie + Supervisor only.
+                    One assistant powers both AI Insights and Ask Pulse. Configure the assistant, give it context, tune how it responds, then tune per-surface behavior. MVP 0.2: Databricks Genie + Supervisor only.
                 </p>
             </header>
 
-            {/* ─── Tier 1: Connect and test ───────────────────────────── */}
+            {/* ─── Tier 1: Assistant — who is answering ─────────────────
+              * 2026-05-19 Codex IA restructure: pick the assistant (provider,
+              * model/agent) and prove it can answer. Sits ahead of any
+              * context or response tuning because nothing else matters until
+              * a working assistant is wired.
+              */}
             <SubSection
-                label="Connect and test"
-                helper="Pick the AI brain and the knowledge bundle it grounds answers in."
+                label="Assistant"
+                helper="The assistant profile powering AI Insights and Ask Pulse — pick a provider, see the model/agent details, and verify the connection."
             >
 
             {/* ── Provider ──────────────────────────────────────────── */}
@@ -207,11 +212,55 @@ export function AiGroup(): React.ReactElement {
                 )}
             </Leaf>
 
-            {/* ── Knowledge pack ────────────────────────────────────── */}
+            {/* ── Connection test ──────────────────────────────────────
+              * Kept inside the Assistant tier — the connection IS part of
+              * "who is answering". Moved here from the legacy "Test and
+              * validate" tier so authors don't have to scroll past unrelated
+              * sections to verify the assistant is reachable.
+              */}
+            <Leaf
+                group="ai"
+                label="Connection test"
+                helper={
+                    isSupervisor
+                        ? "Per-space probes run in parallel with a 2-second stagger between launches (per ADR-0003). Partial failures are visible — the rest still answer."
+                        : "Live probe against the proxy. Shows reachability, schema hints, and the inferred pack."
+                }
+            >
+                {!activeAiProfile && (
+                    <div style={{ fontSize: 12, opacity: 0.6 }}>
+                        Pick a provider first.
+                    </div>
+                )}
+                {activeAiProfile && !isSupervisor && (
+                    <TestConnectionPanel profile={activeAiProfile} autoRun={false} />
+                )}
+                {activeAiProfile && isSupervisor && activeProfileMeta?.spaces && (
+                    <SupervisorProbeMatrix spaces={activeProfileMeta.spaces} />
+                )}
+            </Leaf>
+
+            </SubSection>
+
+            {/* ─── Tier 2: Shared context — what the assistant grounds on ─
+              * Codex 2026-05-19 IA restructure: knowledge, domain
+              * guidance, metric semantics, retrieval sources are SHARED
+              * between AI Insights and Ask Pulse. Grouping them under
+              * one bucket fixes the mental-model bug where authors
+              * thought "Knowledge pack" was AI-Insights-only.
+              * Knowledge Pack stays here; UC Metric View and Vector
+              * Search KB join it.
+              */}
+            <SubSection
+                label="Shared context"
+                helper="Knowledge, vocabulary, and grounding sources used by both AI Insights and Ask Pulse. Change once; both surfaces benefit."
+            >
+
+            {/* ── Knowledge pack (Domain knowledge) ──────────────────── */}
             <Leaf
                 group="ai"
                 label="Knowledge pack"
-                helper="Vertical domain bundle the AI uses for vocabulary, KPIs, and starter questions. Restricted to packs your organization installs."
+                helper="The industry-domain bundle the assistant uses for vocabulary, KPIs, and starter questions. Used by both AI Insights and Ask Pulse. Restricted to packs your organization installs."
             >
                 {packsLoading && <CurrentValue label="Loading">…</CurrentValue>}
                 {!packsLoading && packs.length === 0 && (
@@ -236,7 +285,7 @@ export function AiGroup(): React.ReactElement {
                 <Leaf
                     group="ai"
                     label="Vector Search KB"
-                    helper="Databricks Vector Search grounding is available for this profile. Configure the approved index for retrieval-augmented answers."
+                    helper="Databricks Vector Search grounding. Available for this profile — configure the approved index for retrieval-augmented answers. Used by both AI Insights and Ask Pulse."
                 >
                     <CurrentValue label="Status">Available</CurrentValue>
                     <CurrentValue label="Endpoints">{String(vectorSearchDetail?.count || 0)}</CurrentValue>
@@ -268,72 +317,10 @@ export function AiGroup(): React.ReactElement {
                 </Leaf>
             )}
 
-            </SubSection>
-
-            {/* ─── Tier 2: Test and validate ──────────────────────────── */}
-            <SubSection
-                label="Test and validate"
-                helper="Probe the active connector. Fast and safe — uses the same path the AI sidebar's discovery loop runs on every conversation start."
-            >
-
-            {/* ── Connection test ───────────────────────────────────── */}
-            <Leaf
-                group="ai"
-                label="Connection test"
-                helper={
-                    isSupervisor
-                        ? "Per-space probes run in parallel with a 2-second stagger between launches (per ADR-0003). Partial failures are visible — the rest still answer."
-                        : "Live probe against the proxy. Shows reachability, schema hints, and the inferred pack."
-                }
-            >
-                {!activeAiProfile && (
-                    <div style={{ fontSize: 12, opacity: 0.6 }}>
-                        Pick a provider first.
-                    </div>
-                )}
-                {activeAiProfile && !isSupervisor && (
-                    <TestConnectionPanel profile={activeAiProfile} autoRun={false} />
-                )}
-                {activeAiProfile && isSupervisor && activeProfileMeta?.spaces && (
-                    <SupervisorProbeMatrix spaces={activeProfileMeta.spaces} />
-                )}
-            </Leaf>
-
-            </SubSection>
-
-            {/* ─── Tier 3: Generation behavior ────────────────────────── */}
-            <SubSection
-                label="Generation behavior"
-                helper="How the AI talks back — prompt strategy, domain guidance, sections, metric semantics. Saves to Pulse genieSettings and live-updates the playground."
-            >
-
-            {/* ── Shared assistant behavior (used by BOTH AI Insights and Ask Pulse) ─
-              * 2026-05-19 Codex naming audit:
-              *   "rename the shared leaf to 'Response behavior'; split common
-              *    grounding from surface-specific controls."
-              * Label was "AI Insights" which implied it only affected the
-              * proactive-briefing surface. The actual scope is broader: prompt
-              * strategy, domain guidance, metric semantics, evidence display,
-              * sections — all of these flow through to Ask Pulse responses too.
-              * The full IA restructure (Assistant / Shared context / Response
-              * behavior / Surface-specific) is queued for a follow-up cycle;
-              * this rename clarifies the scope without the deeper refactor. */}
-            <Leaf
-                group="ai"
-                label="Response behavior"
-                helper="Shared with both AI Insights and Ask Pulse. Controls prompt strategy, domain guidance, section schema, metric semantics, and evidence display. Saves to Pulse genieSettings and live-updates the playground."
-            >
-                <PulseAiInsightsSettingsPanel
-                    value={pulseAi.value}
-                    onChange={pulseAi.update}
-                    activeAiProfile={activeAiProfile}
-                />
-            </Leaf>
-
             <Leaf
                 group="ai"
                 label="UC Metric View"
-                helper="Discover governed Databricks metric views and use one as the semantic source for AI Insights."
+                helper="Discover governed Databricks metric views and use one as the semantic source for the assistant. Used by both AI Insights and Ask Pulse."
             >
                 <MetricViewPicker
                     activeAiProfile={activeAiProfile}
@@ -358,6 +345,78 @@ export function AiGroup(): React.ReactElement {
                 />
             </Leaf>
 
+            </SubSection>
+
+            {/* ─── Tier 3: Response behavior — how the assistant answers ─
+              * Codex IA restructure: prompt strategy, sections, evidence,
+              * tone. These apply to BOTH surfaces; surface-specific knobs
+              * (Insights stage toggles, Ask Pulse chat suggestions) belong
+              * to the next tier. The Pulse genieSettings panel is the
+              * single editor today — when the surface-specific knobs are
+              * separated into their own controls, this leaf will shrink to
+              * the truly-shared bits only.
+              */}
+            <SubSection
+                label="Response behavior"
+                helper="How the assistant talks back — prompt strategy, section schema, metric semantics, evidence and provenance. Shared with both AI Insights and Ask Pulse; saves to Pulse genieSettings."
+            >
+
+            <Leaf
+                group="ai"
+                label="Response behavior"
+                helper="Shared with both AI Insights and Ask Pulse. Controls prompt strategy, domain guidance, section schema, metric semantics, and evidence display. Surface-specific knobs (Insights stages, Ask Pulse chat behavior) live in the next section."
+            >
+                <PulseAiInsightsSettingsPanel
+                    value={pulseAi.value}
+                    onChange={pulseAi.update}
+                    activeAiProfile={activeAiProfile}
+                />
+            </Leaf>
+
+            </SubSection>
+
+            {/* ─── Tier 4: Surface-specific behavior ──────────────────
+              * Stub for the future split: AI Insights auto-run, cache,
+              * briefing stages on one side; Ask Pulse chat suggestions,
+              * filter bar, conversation behavior on the other. Today the
+              * controls live inside Response behavior above. This section
+              * exists in the IA so authors see the shape of the future
+              * separation and so the next cycle has a clear home for
+              * each surface's distinct controls.
+              */}
+            <SubSection
+                label="Surface-specific behavior"
+                helper="Settings that apply to ONE surface only — AI Insights auto-run and briefing stages, or Ask Pulse chat behavior and follow-ups. Most controls still live in Response behavior above; the split moves in a follow-up cycle."
+            >
+                <Leaf
+                    group="ai"
+                    label="Supervisor Fusion"
+                    helper="Supervisor-only fan-out behavior — synthesis, auto-fusion, and per-space overrides. Only relevant when the active profile is a Supervisor."
+                >
+                    <DeepLinkButton
+                        label="Open Supervisor Fusion"
+                        onClick={() => {
+                            if (typeof window === "undefined") return;
+                            window.history.pushState({}, "", "/settings/ai/supervisor-fusion");
+                            try { window.dispatchEvent(new CustomEvent("pulseplay:settings-navigate")); } catch { /* swallow */ }
+                        }}
+                    />
+                </Leaf>
+
+                <Leaf
+                    group="ai"
+                    label="Knowledge Base"
+                    helper="Analytics-knowledge toggles (chart rules / stats rules / reporting rules) used by AI Insights primarily, with knock-on effects on Ask Pulse when grounded answers reference them."
+                >
+                    <DeepLinkButton
+                        label="Open Knowledge Base"
+                        onClick={() => {
+                            if (typeof window === "undefined") return;
+                            window.history.pushState({}, "", "/settings/ai/knowledge-base");
+                            try { window.dispatchEvent(new CustomEvent("pulseplay:settings-navigate")); } catch { /* swallow */ }
+                        }}
+                    />
+                </Leaf>
             </SubSection>
         </section>
     );

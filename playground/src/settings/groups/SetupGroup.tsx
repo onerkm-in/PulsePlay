@@ -288,12 +288,43 @@ export function SetupGroup(): React.ReactElement {
             >
                 <FieldRow
                     label="AI profile"
+                    labelTrailing={
+                        // Docs link rendered next to the label — outside the
+                        // tooltip per Codex 2026-05-19 tooltip audit P1-2.
+                        // ARIA tooltips can't host interactive controls; this
+                        // link is a sibling so it's keyboard-reachable,
+                        // screen-reader announced as a real link, and not
+                        // buried inside a pointer-events:none container.
+                        <a
+                            href="https://docs.databricks.com/en/genie/index.html"
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{ fontSize: 11, fontWeight: 500, marginLeft: 4, color: "var(--pp-accent)" }}
+                        >
+                            Databricks docs ↗
+                        </a>
+                    }
                     required
-                    hint="Maps to a profile in proxy/config.json. The proxy holds all credentials — your browser never sees a token."
+                    hint={
+                        // Codex 2026-05-19 tooltip audit P1-3: when the proxy
+                        // is online but the select is empty, the original
+                        // tooltip was conceptual and didn't explain the
+                        // blocked state. Inline hint now names the most
+                        // common reasons so authors can self-diagnose.
+                        allowlistLoading
+                            ? "Loading available profiles from the proxy allowlist…"
+                            : aiProfiles.length === 0
+                                ? "No profiles available. Either the proxy /assistant/profiles call failed, or none are in the allowlist. Check Settings → System → Proxy status to confirm."
+                                : "Maps to a profile in proxy/config.json. The proxy holds all credentials — your browser never sees a token."
+                    }
                     tip={
+                        // Codex 2026-05-19 tooltip audit P1-2 fix: removed the
+                        // <a href> from inside the tooltip body. ARIA tooltips
+                        // are non-interactive (pointer-events:none); links
+                        // inside them can't be clicked reliably. The docs link
+                        // is rendered as a separate sibling below the select.
                         <>
                             A <strong>profile</strong> is a named backend the proxy knows how to call. Common types: <code>genie</code>, <code>foundation-stream</code>, <code>supervisor</code>, <code>azure-openai</code>, <code>bedrock</code>.
-                            {" "}<a href="https://docs.databricks.com" target="_blank" rel="noreferrer">Databricks docs ↗</a>
                         </>
                     }
                 >
