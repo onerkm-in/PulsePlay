@@ -831,7 +831,7 @@ class VisualErrorBoundary extends React.Component<
         if (this.state.error) {
             return (
                 <div style={{ padding: 24, fontFamily: "Segoe UI, sans-serif", color: "var(--gn-text, #444)", background: "var(--gn-bg, #ffffff)" }}>
-                    <h3 style={{ marginTop: 0, color: "var(--gn-error, #b22020)" }}>UniBridge AI hit an unexpected error</h3>
+                    <h3 style={{ marginTop: 0, color: "var(--gn-error, #b22020)" }}>PulsePlay hit an unexpected error</h3>
                     <p>The visual stopped rendering because of a runtime issue. Reload the report or refresh the page to try again.</p>
                     <details style={{ marginTop: 12 }}>
                         <summary style={{ cursor: "pointer" }}>Technical detail</summary>
@@ -2986,7 +2986,7 @@ function App(props: AppProps) {
                     }
                 }
             }
-            throw new Error("Proxy Offline. Ensure the UniBridge AI Proxy is running and accessible at the configured URL.");
+            throw new Error("Proxy Offline. Ensure the PulsePlay Proxy is running and accessible at the configured URL.");
         };
 
         const obtainMessage = async (
@@ -6661,7 +6661,7 @@ function ProxyProbingBanner() {
                 <span>
                     {isColdStart
                         ? `First request after idle — typical wake time 15-45s on free-tier hosting (${Math.round(elapsedMs / 1000)}s elapsed). The proxy will be reachable shortly.`
-                        : "Probing the UniBridge AI Proxy at the configured URL."}
+                        : "Probing the PulsePlay Proxy at the configured URL."}
                 </span>
             </div>
         </div>
@@ -6707,7 +6707,7 @@ function ProxyStatusBanner(props: {
                 <span className="gn-proxy-banner-dot gn-proxy-banner-dot--error" aria-hidden="true" />
                 <div className="gn-proxy-banner-text">
                     <strong>Proxy offline</strong>
-                    <span>{props.health.error || "The UniBridge AI Proxy is not reachable at the configured URL."}</span>
+                    <span>{props.health.error || "The PulsePlay Proxy is not reachable at the configured URL."}</span>
                     <span className="gn-proxy-banner-help">
                         To start it locally, open a terminal at the project root and run
                         <code> node proxy/server.js</code>, then click Retry.
@@ -6929,7 +6929,7 @@ function SetupEditFlow(props: {
                                 placeholder={"e.g. " + "http" + "://127.0.0.1:8787"}
                                 aria-required={req}
                             />
-                            <span className="gn-setup-field-hint">Where the UniBridge AI Proxy is listening. Local default is <code>127.0.0.1:8787</code>.</span>
+                            <span className="gn-setup-field-hint">Where the PulsePlay Proxy is listening. Local default is <code>127.0.0.1:8787</code>.</span>
                         </div>
                         );
                     })()}

@@ -351,15 +351,15 @@ export function getConfigIssues(settings: GenieVisualSettings): string[] {
         }
     } else if (mode === "azure-openai") {
         if (!settings.apiBaseUrl.trim()) {
-            issues.push("Azure OpenAI mode requires an API Base URL pointing to the UniBridge AI Proxy (e.g. http://127.0.0.1:8787).");
+            issues.push("Azure OpenAI mode requires an API Base URL pointing to the PulsePlay Proxy (e.g. http://127.0.0.1:8787).");
         }
     } else if (mode === "bedrock") {
         if (!settings.apiBaseUrl.trim()) {
-            issues.push("AWS Bedrock mode requires an API Base URL pointing to the UniBridge AI Proxy (e.g. http://127.0.0.1:8787).");
+            issues.push("AWS Bedrock mode requires an API Base URL pointing to the PulsePlay Proxy (e.g. http://127.0.0.1:8787).");
         }
     } else if (mode === "supervisor") {
         if (!settings.apiBaseUrl.trim()) {
-            issues.push("Supervisor mode requires an API Base URL pointing to the UniBridge AI Proxy (e.g. http://127.0.0.1:8787).");
+            issues.push("Supervisor mode requires an API Base URL pointing to the PulsePlay Proxy (e.g. http://127.0.0.1:8787).");
         }
     } else {
         // Auto \u2014 infer from whether apiBaseUrl is set.
@@ -530,7 +530,7 @@ export function computeConnectionStatus(
             level: "caution",
             label: "Connected",
             modeLabel: "AI Gateway",
-            tooltip: "Experimental route: Genie is connected through Databricks AI Gateway / MCP rather than the normal UniBridge AI Proxy. Use Proxy mode for standard Genie deployments.",
+            tooltip: "Experimental route: Genie is connected through Databricks AI Gateway / MCP rather than the normal PulsePlay Proxy. Use Proxy mode for standard Genie deployments.",
             details: []
         };
     }

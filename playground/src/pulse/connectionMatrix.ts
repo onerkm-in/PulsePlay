@@ -37,7 +37,7 @@ export interface FieldRequirement {
 
 export const TRANSPORT_LABELS: Record<Transport, { label: string; hint: string }> = {
     auto:    { label: "Auto",    hint: "Use Proxy when configured, otherwise fall back to Direct." },
-    proxy:   { label: "Proxy",   hint: "Route through the UniBridge AI Proxy. Recommended for production — credentials stay server-side." },
+    proxy:   { label: "Proxy",   hint: "Route through the PulsePlay Proxy. Recommended for production — credentials stay server-side." },
     direct:  { label: "Direct",  hint: "Browser calls Databricks Genie REST directly with a PAT. Dev / demo only — token lives in the .pbix file." },
     gateway: { label: "Gateway", hint: "Route through Databricks AI Gateway / MCP. Experimental — single Genie space only." }
 };

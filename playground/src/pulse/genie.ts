@@ -981,7 +981,7 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
                     } else {
                         // BUG-002: Handle "Request failed with status 0" (Network/Proxy Offline)
                         if (xhr.status === 0) {
-                            reject(new Error("Proxy Offline. Ensure the UniBridge AI Proxy is running and accessible at the configured URL."));
+                            reject(new Error("Proxy Offline. Ensure the PulsePlay Proxy is running and accessible at the configured URL."));
                             return;
                         }
                         try {
@@ -1550,7 +1550,7 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
                         try { resolve(JSON.parse(xhr.responseText)); }
                         catch { reject(new Error("Health response was not valid JSON.")); }
                     } else if (xhr.status === 0) {
-                        reject(new Error("Proxy is not reachable. Ensure the UniBridge AI Proxy is running."));
+                        reject(new Error("Proxy is not reachable. Ensure the PulsePlay Proxy is running."));
                     } else {
                         reject(new Error(`Proxy /health returned status ${xhr.status}.`));
                     }

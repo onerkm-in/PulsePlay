@@ -325,7 +325,7 @@ class ConnectionGroup extends FormattingSettingsGroup {
     apiBaseUrl = new formattingSettings.TextInput({
         name: "apiBaseUrl",
         displayName: "Proxy URL",
-        description: "Required for Proxy, AI Supervisor Agent, Azure OpenAI, and AWS Bedrock modes. Local UniBridge AI Proxy: 127.0.0.1:8787 (use http in browser, https for hosted). Leave blank for Direct mode. Databricks AI Gateway uses the Workspace URL instead.",
+        description: "Required for Proxy, AI Supervisor Agent, Azure OpenAI, and AWS Bedrock modes. Local PulsePlay Proxy: 127.0.0.1:8787 (use http in browser, https for hosted). Leave blank for Direct mode. Databricks AI Gateway uses the Workspace URL instead.",
         placeholder: "https://your-proxy-host",
         value: ""
     });
@@ -786,13 +786,13 @@ class AppearanceGroup extends FormattingSettingsGroup {
     useReportTheme = new formattingSettings.ToggleSwitch({
         name: "useReportTheme",
         displayName: "Use Report Theme (colours + fonts)",
-        description: "When ON, the visual inherits the Power BI report theme colours (background, text, accent) AND fonts (header / body / accent typography) via host.colorPalette. Per-element FontControl overrides below are still respected. When OFF (default), the UniBridge AI built-in theme below is used.",
+        description: "When ON, the visual inherits the Power BI report theme colours (background, text, accent) AND fonts (header / body / accent typography) via host.colorPalette. Per-element FontControl overrides below are still respected. When OFF (default), the PulsePlay built-in theme below is used.",
         value: false
     });
 
     themeName = new formattingSettings.ItemDropdown({
         name: "themeName",
-        displayName: "UniBridge AI Theme",
+        displayName: "PulsePlay Theme",
         description: "Built-in themes tuned for different use cases. Default: clean light. Corporate Blue: Microsoft/enterprise palette. Forest: sustainability/ESG green. Slate Dark: dark mode for ops centres. High Contrast: WCAG AAA accessible. Custom: start from Default and apply your brand overrides below.",
         items: [
             { value: "default",        displayName: "Default  —  clean light" },
@@ -1493,7 +1493,7 @@ class SqlConfigGroup extends FormattingSettingsGroup {
 class GenieSettingsCard extends FormattingSettingsCompositeCard {
     name = "genieSettings";
     displayName = "AI for BI Settings";
-    description = "All configuration for the UniBridge AI visual. Work through the groups top-to-bottom: set up Connection first, declare Security next, then tune Instructions and AI Insights.";
+    description = "All configuration for the PulsePlay visual. Work through the groups top-to-bottom: set up Connection first, declare Security next, then tune Instructions and AI Insights.";
     visible = true;
 
     connection      = new ConnectionGroup({} as any);

@@ -121,7 +121,7 @@ const F_HOST: ConnectorFieldSpec = {
 const F_API_BASE: ConnectorFieldSpec = {
     id: "apiBaseUrl",
     label: "Proxy API base URL",
-    hint: "Where the visual calls the UniBridge proxy. Use 127.0.0.1, never localhost.",
+    hint: "Where the visual calls the PulsePlay proxy. Use 127.0.0.1, never localhost.",
     kind: "url",
     required: true,
     placeholder: "e.g. " + "http" + "://127.0.0.1:8787",

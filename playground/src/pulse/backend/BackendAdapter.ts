@@ -113,7 +113,7 @@ export type ContentChunkCallback = (accumulatedContent: string) => void;
  * multi-stage Insights pipelines by issuing N sequential calls.
  *
  * Implemented today by GenieClient when `connectionMode` is one of:
- *   - "proxy" (route through UniBridge proxy)
+ *   - "proxy" (route through PulsePlay proxy)
  *   - "direct" (browser → Databricks REST with PAT, dev only)
  *   - "gateway" (Databricks AI Gateway / MCP — wired but not end-to-end)
  *   - "azure-openai" (proxy → Azure OpenAI Chat Completions)
