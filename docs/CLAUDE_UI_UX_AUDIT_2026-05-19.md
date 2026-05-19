@@ -1,9 +1,39 @@
 # PulsePlay — UI/UX Audit + Validation
 
-**Date:** 2026-05-19
-**HEAD:** `b0636d1` "style: fuse BI pane with AI pane visual vocabulary"
+**Date:** 2026-05-19 → 2026-05-20 (iteration through fixes)
+**Audit HEAD:** `b0636d1` "style: fuse BI pane with AI pane visual vocabulary"
+**Fixes shipped through:** Cycle 1 (`71c6320`), Cycle 2 (`204e1b2`), Cycles 3+4 (`43d2173`), Cycle 5 (this commit)
 **Reviewer:** Claude (Opus 4.7, 1M context)
-**Scope:** Comprehensive design / UX / accessibility / static / live regression review of the playground + proxy at `D:\Working_Folder\Projects\PulsePlay`.
+**Scope:** Comprehensive design / UX / accessibility / static / live regression review of the playground + proxy at `D:\Working_Folder\Projects\PulsePlay`, **plus iterative fixes** for every P1 and material P2 finding.
+
+## Status of each finding
+
+| # | Severity | Title | Status |
+|---|---|---|---|
+| P1-1 | P1 | Phantom "Unsaved changes" in Settings | **Fixed** Cycle 1 — META_KEYS exclusion + 5 regression tests |
+| P1-2 | P1 | No dark-mode support | **Fixed** Cycle 1 — `<meta color-scheme="light only">` honest opt-out |
+| P1-3 | P1 | Wizard focuses × dismiss button on open | **Fixed** Cycle 1 — focus the checked persona radio + 2 regression tests |
+| P1-4 | P1 | Body scroll NOT locked while wizard open | **Fixed** Cycle 1 — overflow:hidden lifecycle + 2 regression tests |
+| P1-5 | P1 | CLAUDE.md proxy test count is stale | **Fixed** Cycle 5 — CLAUDE.md updated to 945/787 |
+| P2-1 | P2 | AI Insights empty state is dead-end | **Fixed** Cycle 3 — list + 2 CTAs ("Connect AI assistant →", "Browse knowledge packs") |
+| P2-2 | P2 | AISidebar narrative has no markdown rendering | **Fixed** Cycle 3 — new `renderMarkdown.tsx` + 16 regression tests, safe-by-construction |
+| P2-3 | P2 | "Mix" mode leaves right half empty | Deferred — needs layout-policy decision (intentional for now, see surfaceRegistry) |
+| P2-4 | P2 | "BI Viz" tab label is jargon | **Fixed** Cycle 2 — renamed to "Dashboard" everywhere user-visible |
+| P2-5 | P2 | Heavy inline styles in AISidebar | Partial — Cycle 3 added shared `.pp-md*` classes for markdown; full sweep deferred |
+| P2-6 | P2 | Send button `↑` glyph | **Fixed** Cycle 2 — SVG up-arrow |
+| P2-7 | P2 | Settings search `🔍` emoji | **Fixed** Cycle 2 — SVG magnifying glass |
+| P2-8 | P2 | "two steps" vs "three steps" inconsistency | **Fixed** Cycle 2 — rail aligned to body ("three short steps") |
+| P2-9 | P2 | "CONTINUE SETUP" mis-frames cross-links | **Fixed** Cycle 2 — renamed to "Related areas" |
+| P2-10 | P2 | ReactQuery devtools button overlap | Accept — dev-only, doesn't ship to prod |
+| P2-11 | P2 | Animated spinners lack accessible names | **Fixed** Cycle 3 — `role=status aria-live=polite` on submitting/polling/KPI-loading |
+| P2-12 | P2 | Latency itself is the headline gap | Out of scope — separate cycle per existing perf guide |
+| P2-13 | P2 | Hardcoded proxy IP in error copy | **Fixed** Cycles 3+4 — reads from configured apiBaseUrl, falls back to dev default |
+| P2-14 | P2 | `console.log` in perfInstrumentation.ts | **Fixed** Cycles 3+4 — gated on DEV or `window.__pulseplayPerfDump` |
+| P2-15 | P2 | KnowledgeShell bypasses routing helper | **Fixed** Cycles 3+4 — uses `navigateToSettings()` |
+| P2-16 | P2 | Open generic-iframe sandbox | Tracked — needs per-vendor min-sandbox cycle when adapters graduate |
+| P2-17 | P2 | × dismiss claimed race | **Withdrawn** — original audit observation was a React batching artifact; confirmed live (write is synchronous, dialog dismisses on next render commit) |
+
+## TL;DR — Validation results
 
 ---
 

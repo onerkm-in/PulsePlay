@@ -5,6 +5,46 @@
 
 ---
 
+## 2026-05-20 — UI/UX audit + iterative fixes (5 cycles)
+
+**Range:** Comprehensive UI/UX audit at HEAD `b0636d1`, followed by 5 iterative fix cycles closing every P1 and every material P2 finding. Audit doc: [`docs/CLAUDE_UI_UX_AUDIT_2026-05-19.md`](CLAUDE_UI_UX_AUDIT_2026-05-19.md) — top of file has a per-finding status table.
+
+**Cycles shipped:**
+- **Cycle 1 (`71c6320`)** — P1-1 Settings phantom-dirty fix (`META_KEYS` exclude list in `useSettingsDraft.ts`); P1-3 wizard initial focus on persona radio instead of × dismiss button; P1-4 body scroll lock with overflow-restore; P1-2 `<meta name="color-scheme" content="light only">` honest opt-out until a real dark theme ships. +9 tests.
+- **Cycle 2 (`204e1b2`)** — P2-4 surface label "BI Viz" → "Dashboard" (with matching "Open dashboard surface" aria-label); P2-6 Ask Pulse Send button `↑` → SVG; P2-7 Settings search `🔍` → SVG; P2-8 setup rail "two short steps" → "three short steps" reconcile; P2-9 footer "Continue setup" → "Related areas". 4 integration tests updated for the rename.
+- **Cycles 3 + 4 (`43d2173`)** — P2-2 new `lib/renderMarkdown.tsx` + 16 regression tests, wired into AISidebar narrative (Genie / Foundation Model / Supervisor / Bedrock markdown now renders properly; safe-by-construction, no innerHTML, link protocol allowlist); P2-11 `role=status aria-live=polite` on submitting/polling/KPI-loading; P2-1 AI Insights empty state ports Ask Pulse's guided start with 2 CTAs (`Connect AI assistant →` / `Browse knowledge packs`); P2-13 fail-closed error copy reads configured `apiBaseUrl` instead of hardcoded `127.0.0.1:8787`; P2-14 perfInstrumentation `console.table` gated on DEV or `window.__pulseplayPerfDump`; P2-15 KnowledgeShell Esc uses `navigateToSettings()`.
+- **Cycle 5 (HEAD)** — P1-5 / P3-1 refresh `CLAUDE.md` test counts (161/418 → 945/787); audit doc updated with per-finding status; this handover entry.
+
+**Validation:** 945/945 playground tests pass (+25 over the audit baseline of 920); 787/787 proxy tests pass; `npm run lint` clean; `npm run build` clean (32.15 s).
+
+**Live verifications captured during the audit + iteration:**
+- Wizard now focuses the checked persona radio (`pp-first-run-persona-analyst` with `aria-checked=true`).
+- `document.body.style.overflow === "hidden"` while wizard mounted; restored to `""` after navigation away.
+- Repro of original phantom-dirty: clear localStorage → open `/`, click "Skip for now", press `Ctrl+,` → SaveBar no longer renders; `pulseplay:settings-last-group` and `pulseplay:wizard-dismissed` writes after mount no longer flip `isDirty`.
+- "Dashboard" label live in the surface switcher with `aria-label="Open dashboard surface"`; no `"BI Viz"` substring left in any user-visible string.
+- Empty state for AI Insights pre-config now lists Headline / Trends / Risks & opportunities / Recommended actions + 2 CTAs; "Connect AI assistant →" navigates to `/settings/ai`.
+- Settings search shows SVG magnifying glass instead of `🔍`; setup rail says "three short steps"; footer says "Related areas".
+
+**Deferrals carried forward:**
+- **P1-2 dark mode itself.** The opt-out is the honest interim; shipping a real dark theme is its own cycle. `<meta color-scheme="light only">` keeps browser-painted form controls + scrollbars consistent with the still-light surface CSS in the meantime.
+- **P2-3 "mix" mode empty right half.** Intentional layout-policy choice for v1 per `surfaceRegistry`; needs a product call before changing.
+- **P2-5 full inline-style sweep in AISidebar / KnowledgeShell.** Cycle 3 added shared `.pp-md*` classes for markdown rendering; the broader `style={{…}}` → CSS class migration is its own cycle.
+- **P2-10 ReactQuery devtools floating button.** Dev-only; doesn't ship.
+- **P2-12 latency itself.** Already tracked in `docs/CLAUDE_PULSEPLAY_POTENTIAL_PERFORMANCE_GUIDE_2026-05-19.md`; instrumentation now in place.
+- **P2-16 per-vendor sandbox tightening.** Tracked for when Tableau / Qlik / Looker / Databricks adapters graduate past iframe stub.
+- **P2-17 wizard × race.** Withdrawn — verified live; the dismiss flag is written synchronously and the dialog unmounts on the next render commit. Original audit observation was a React-batching artifact.
+
+**Tripwires preserved:**
+- No Genie iframe sandbox widened.
+- No validator authority changed.
+- No Pulse-PBI sibling compat surface broken (`pulse/visual.tsx` aria-live additions are additive; nothing in `pulse/backend/*` touched).
+- No secrets ever written to logs / errors / docs (proxy URL reveal is the configured `apiBaseUrl` only, not any token).
+- `useSettingsDraft` discard path now leaves META keys alone — clicking Discard can no longer accidentally re-open the wizard the user just dismissed.
+
+**Honest note about scope:** the markdown renderer is intentionally minimal (no tables, no autolinks, no inline HTML passthrough). If a backend starts emitting tables in narrative, extending `parseBlocks()` is the right move — opening up to `react-markdown` is not, because the chat surface should NEVER render raw HTML the model can write.
+
+---
+
 ## 2026-05-19 — Stale-while-revalidate for AI Insights warm loads
 
 **Range:** Addresses guide Phase 1 "Fast First Output — render cached last-known briefing if scope is unchanged, clearly labeled as cached." Closes guide acceptance criterion #3 (AI Insights paints first meaningful section within ≤ 10 s **warm**).
