@@ -7282,13 +7282,11 @@ function MessageCard(props: {
     return (
         <div className="gn-msg gn-msg--assistant">
             <div className="gn-bubble">
-                <div className="gn-msg-header gn-msg-header--compact">
-                    <span className="gn-msg-sender">AI for BI</span>
-                    <span className="gn-msg-time">just now</span>
-                    {props.message.route?.routeLabel && (
+                {props.message.route?.routeLabel && (
+                    <div className="gn-msg-header gn-msg-header--compact">
                         <span className="gn-route-label">{props.message.route.routeLabel}</span>
-                    )}
-                </div>
+                    </div>
+                )}
 
                 {renderMessageBody(props.message, activeView, availableViews, props.settings, viewId =>
                     props.setMessages(previous => previous.map(message =>
