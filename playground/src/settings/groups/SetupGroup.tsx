@@ -420,9 +420,14 @@ export function SetupGroup(): React.ReactElement {
                 )}
             </FieldCard>
 
-            {/* ── Footer · jump to advanced groups ──────────────────── */}
+            {/* ── Footer · jump to peer groups ────────────────────────
+              * Audit 2026-05-19: was "Continue setup", implying these are
+              * required next steps. They're optional cross-links into other
+              * groups — Layout in Preferences, Proxy in System, etc. Renamed
+              * to "Related areas" so users know they're done with Setup once
+              * the cards above are green. */}
             <div className="pp-setup__footer">
-                <p className="pp-setup__footer-label">Continue setup</p>
+                <p className="pp-setup__footer-label">Related areas</p>
                 <div className="pp-setup__footer-links">
                     <FooterLink label="Layout & display" group="preferences" />
                     <FooterLink label="Proxy & diagnostics" group="system" />

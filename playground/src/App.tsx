@@ -1270,14 +1270,15 @@ function PlaygroundApp(): React.ReactElement {
                                     ) : (
                                         // 2026-05-19 fix: in unified mix mode this empty
                                         // state used to read "BI-only mode" + "switch back
-                                        // to Both / AI only" — that made BI Viz feel like
-                                        // a separate product, not a peer surface. Now the
-                                        // copy frames BI Viz as one of the three peer
-                                        // surfaces (AI Insights / Ask Pulse / BI Viz) and
-                                        // explicitly tells the user the AI surfaces are
+                                        // to Both / AI only" — that made the dashboard feel
+                                        // like a separate product, not a peer surface. Now
+                                        // the copy frames Dashboard as one of the three
+                                        // peer surfaces (AI Insights / Ask Pulse / Dashboard)
+                                        // and explicitly tells the user the AI surfaces are
                                         // still one click away in the switcher above.
+                                        // Audit 2026-05-19: label renamed "BI Viz" → "Dashboard".
                                         <>
-                                            <h2>BI Viz — embed your dashboard</h2>
+                                            <h2>Embed your dashboard</h2>
                                             <p>
                                                 Pick a BI tool and paste its embed URL — your report appears
                                                 here as one of the peer surfaces alongside AI Insights and

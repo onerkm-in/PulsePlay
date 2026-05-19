@@ -41,7 +41,7 @@ const GROUP_LABELS: Record<SettingsGroupId, string> = {
 };
 
 const GROUP_DESCRIPTIONS: Record<SettingsGroupId, string> = {
-    setup:       "Get PulsePlay ready in two short steps",
+    setup:       "Get PulsePlay ready in three short steps",
     bi:          "Pick a BI tool and wire its embed",
     ai:          "Configure the assistant powering Insights and Ask Pulse",
     preferences: "Layout, visible panels, and display policy",
@@ -260,7 +260,17 @@ function SettingsSearchBar(props: SettingsSearchBarProps): React.ReactElement {
     return (
         <div className="pp-settings-search">
             <div className="pp-settings-search__wrap">
-                <span className="pp-settings-search__icon" aria-hidden="true">🔍</span>
+                {/* Audit 2026-05-19: was raw "🔍" emoji; replaced with the
+                  * same SVG-icon discipline the header cog uses (and that the
+                  * Codex 09:14 + 18:40 glyph sweeps applied to AI Insights /
+                  * Knowledge / Sustainability). aria-hidden so screen readers
+                  * still rely on the input's aria-label. */}
+                <span className="pp-settings-search__icon" aria-hidden="true">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="11" cy="11" r="7" />
+                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                </span>
                 <input
                     ref={inputRef}
                     type="search"

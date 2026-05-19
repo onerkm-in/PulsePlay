@@ -55,7 +55,7 @@ vi.mock("../components/PulseShell", () => ({
                 <button type="button" aria-label="Open AI panel in separate page" onClick={() => fire("open-page")} />
                 <button
                     type="button"
-                    aria-label="Open BI Viz surface"
+                    aria-label="Open dashboard surface"
                     onClick={() => window.dispatchEvent(new CustomEvent("pulseplay:viewport-action", {
                         detail: { pane: "bi", action: "focus" },
                     }))}
@@ -247,16 +247,17 @@ describe("App viewport controls — default unified Mix surface", () => {
         unmount(state);
     });
 
-    it("opens BI Viz as the unified primary surface without entering focused-pane mode", () => {
+    it("opens the dashboard as the unified primary surface without entering focused-pane mode", () => {
         const state = mountApp();
 
         // 2026-05-19 surface switcher rewrite: the mocked PulseShell button
-        // still carries the verbose "Open BI Viz surface" aria-label (it is
+        // carries the verbose "Open dashboard surface" aria-label (it is
         // a test mock — see top of file). When the BI pane mounts, the real
         // SurfaceSwitcher renders pills with clean accessible names = their
-        // visible text ("AI Insights" / "Ask Pulse" / "BI Viz") per Codex's
-        // non-duplicative-label feedback.
-        clickByLabel(state, "Open BI Viz surface");
+        // visible text ("AI Insights" / "Ask Pulse" / "Dashboard") per Codex's
+        // non-duplicative-label feedback. Label renamed "BI Viz" → "Dashboard"
+        // in the 2026-05-19 UI/UX audit.
+        clickByLabel(state, "Open dashboard surface");
 
         const shell = state.container.querySelector(viewportControlShellSelector);
         const biChrome = state.container.querySelector(viewportControlPanelChromeSelector("bi"));
@@ -276,17 +277,17 @@ describe("App viewport controls — default unified Mix surface", () => {
     });
 
     // Regression guard for Codex's 2026-05-19 finding:
-    // "Clicking `BI Viz` surfaces `BI-only mode` copy and a different layout
-    // grammar." In unified mode, BI Viz is a peer surface — the empty state
-    // must not read "BI-only mode" or tell the user to switch back to
+    // "Clicking `Dashboard` surfaces `BI-only mode` copy and a different layout
+    // grammar." In unified mode, the Dashboard is a peer surface — the empty
+    // state must not read "BI-only mode" or tell the user to switch back to
     // Both / AI only.
-    it("BI Viz empty state in unified mode reads as a peer surface, not BI-only mode", () => {
+    it("Dashboard empty state in unified mode reads as a peer surface, not BI-only mode", () => {
         const state = mountApp();
-        clickByLabel(state, "Open BI Viz surface");
+        clickByLabel(state, "Open dashboard surface");
         const text = state.container.textContent || "";
         expect(text).not.toContain("BI-only mode");
         expect(text).not.toContain("Switch back to");
-        expect(text).toContain("BI Viz");
+        expect(text).toContain("Dashboard");
         unmount(state);
     });
 
@@ -296,8 +297,8 @@ describe("App viewport controls — default unified Mix surface", () => {
     // uses visible text as the accessible name with no icon-text duplication.
     it("surface switcher labels are non-duplicative", () => {
         const state = mountApp();
-        // Move to mix mode and into BI Viz so the SurfaceSwitcher mounts.
-        clickByLabel(state, "Open BI Viz surface");
+        // Move to mix mode and into Dashboard so the SurfaceSwitcher mounts.
+        clickByLabel(state, "Open dashboard surface");
         const switcherButtons = Array.from(
             state.container.querySelectorAll<HTMLButtonElement>('.pp-surface-switcher__item'),
         );

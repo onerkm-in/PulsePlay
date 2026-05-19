@@ -4229,20 +4229,21 @@ function App(props: AppProps) {
                                 type="button"
                                 className="gn-header-tab gn-header-tab--surface-action"
                                 onClick={() => dispatchPulsePlayViewportAction("focus", "bi")}
-                                aria-label="Open BI Viz surface"
-                                title="Open BI Viz surface"
+                                aria-label="Open dashboard surface"
+                                title="Open dashboard surface"
                             >
                                 <span className="gn-header-tab-icon gn-header-tab-icon--bi" aria-hidden="true">
                                     {/* Bar-chart glyph — replaces the literal "BI" text that was
                                       * causing visible "BI BI Viz" duplication in test snapshots
-                                      * (Codex 2026-05-19 tough test, scenario P1-13 / EL-SWITCHER-COPY). */}
+                                      * (Codex 2026-05-19 tough test, scenario P1-13 / EL-SWITCHER-COPY).
+                                      * Audit 2026-05-19: label renamed "BI Viz" → "Dashboard". */}
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                         <line x1="6" y1="20" x2="6" y2="11" />
                                         <line x1="12" y1="20" x2="12" y2="5" />
                                         <line x1="18" y1="20" x2="18" y2="14" />
                                     </svg>
                                 </span>
-                                <span>BI Viz</span>
+                                <span>Dashboard</span>
                             </button>
                         </div>
                     )}
@@ -5686,7 +5687,15 @@ function App(props: AppProps) {
                                 }}
                                 aria-label="Send"
                             >
-                                ↑
+                                {/* Audit 2026-05-19: was the raw "↑" glyph;
+                                  * replaced with SVG arrow to match the rest of
+                                  * the icon system and avoid screen readers
+                                  * announcing "up arrow" inside a button already
+                                  * labelled "Send". */}
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <line x1="12" y1="19" x2="12" y2="5" />
+                                    <polyline points="5 12 12 5 19 12" />
+                                </svg>
                             </button>
                         </div>
                     </div>

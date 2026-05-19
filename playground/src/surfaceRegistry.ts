@@ -52,8 +52,13 @@ export const SURFACES: ReadonlyArray<SurfaceDescriptor> = Object.freeze([
         pane: "ai",
     },
     {
+        // Audit 2026-05-19: label was "BI Viz" — engineer-speak short for
+        // "BI Visualization". Renamed to "Dashboard" (the lowest-common
+        // user term across Power BI / Tableau / Qlik / Looker) without
+        // changing the internal id "bi-viz", so URL params, telemetry,
+        // and CSS class names stay stable.
         id: "bi-viz",
-        label: "BI Viz",
+        label: "Dashboard",
         icon: "bars",
         description: "The embedded BI surface — same shell, peer to AI Insights.",
         pane: "bi",

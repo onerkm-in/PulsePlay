@@ -66,7 +66,7 @@ export interface LayoutPresetConfig {
 export const LAYOUT_PRESETS: Record<LayoutPreset, LayoutPresetConfig> = {
     "balanced": {
         label: "Balanced",
-        description: "Unified default. AI Insights, Ask Pulse, and BI Viz are peer surfaces; BI opens on demand instead of taking a permanent second section.",
+        description: "Unified default. AI Insights, Ask Pulse, and Dashboard are peer surfaces; the dashboard opens on demand instead of taking a permanent second section.",
         template: "T1",
         state: {
             enabledComponents: "mix",
