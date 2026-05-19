@@ -156,6 +156,17 @@ export const AREA_PROMPTS: Record<GuidedArea, string> = {
     opportunity: "Highlight the top opportunities in the current scope, explain the strongest drivers, and suggest where to act first."
 };
 
+// 2026-05-19 Option A — KPI preload prompt. Fired silently in the background
+// when the user first opens the Ask Pulse tab. Short by design: fast response,
+// brief content, fits naturally as the opening "state snapshot" before the user
+// asks follow-up questions. The conversation started here becomes the base
+// thread for all subsequent chat in that session.
+export const CHAT_PRELOAD_PROMPT =
+    "Give a quick data snapshot covering the 3-4 most important metrics currently " +
+    "visible, each with its current value, a one-word trend (up / down / stable), " +
+    "and one short actionable sentence. Respond in plain markdown — no tables, no SQL. " +
+    "Total response under 120 words.";
+
 export const STATIC_ACTIONS: AssistantAction[] = [
     { id: "drivers", label: "Rank key drivers", kind: "ask", prompt: "Rank the key drivers behind the current result and explain the largest contributors.", intent: "drivers" },
     { id: "leadership", label: "Summarize for leadership", kind: "ask", prompt: "Summarize this analysis for leadership with key points, risks, actions, and impact.", intent: "leadership" },

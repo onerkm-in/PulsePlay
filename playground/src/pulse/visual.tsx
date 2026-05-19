@@ -184,6 +184,7 @@ import { subscribeSqlFormatter, formatSqlForCopy } from "./visualHelpers";
 // doesn't apply in the browser playground.
 import { Icon } from "./_adapter/Icon";
 import { renderInsightsAsEmailHtml } from "./_adapter/exportInsightsAsHtml";
+import { CHAT_PRELOAD_PROMPT } from "./visualHelpers";
 // 2026-05-19 Codex post-UAT-1840 follow-up: wire perfInstrumentation
 // (added in b71270f) into the AI Insights pipeline. We only wrap the
 // outer pipeline (total duration + final dumpRun) — per-stage timing
@@ -940,6 +941,16 @@ function App(props: AppProps) {
     const activeSpace = activeSpaces.find(space => space.key === activeSpaceKey) ?? activeSpaces[0];
     const activeClient = clientMap.get(activeSpace?.key ?? "space1") ?? null;
 
+    // ── Option A — KPI preload on first Ask Pulse tab entry ──────────────────
+    // When the user opens the chat tab for the first time (no messages, no
+    // existing conversation), fire a lightweight background Genie call to get
+    // a KPI snapshot. The result appears in the welcome area as KPI cards; the
+    // conversation_id pre-seeds the conversation so the user's first typed
+    // question continues the same thread rather than starting cold.
+    const kpiPreloadRef = React.useRef<Record<string, boolean>>({});
+    const [kpiSnapshotMap, setKpiSnapshotMap] = useState<Record<string, string | null>>({});
+    const [kpiLoadingMap,  setKpiLoadingMap]  = useState<Record<string, boolean>>({});
+
     // ── Per-space conversation + message state ────────────────────────────────
     const [conversationMap, setConversationMap] = useState<Record<string, string>>({});
     const [messageMap,      setMessageMap]      = useState<Record<string, ChatMessageViewModel[]>>({});
@@ -954,6 +965,11 @@ function App(props: AppProps) {
     const connectionContextKey = `${props.settings.connectionMode}|${props.settings.host}|${props.settings.apiBaseUrl}`;
     useEffect(() => {
         setConversationMap({});
+        // Reset preload guard when the connection context changes so the new
+        // backend gets its own preload conversation.
+        kpiPreloadRef.current = {};
+        setKpiSnapshotMap({});
+        setKpiLoadingMap({});
     }, [connectionContextKey]);
 
     // ── Per-space insights state ──────────────────────────────────────────────
@@ -2169,6 +2185,55 @@ function App(props: AppProps) {
                 ? Boolean((activeGenieConfig.assistantProfile ?? "").trim().length > 0 || (activeGenieConfig.spaceId ?? "").trim().length > 0)
                 : Boolean(activeGenieConfig.host.trim() && activeGenieConfig.token.trim() && (activeGenieConfig.spaceId ?? "").trim())
         : false;
+
+    // Option A trigger — fires exactly once per space per connection context
+    // when the user first lands on the chat tab with no existing conversation.
+    useEffect(() => {
+        if (activeTab !== "chat") return;
+        if (!isConfigured || !activeClient) return;
+        if ((messageMap[activeSpaceKey] ?? []).length > 0) return;
+        if (conversationMap[activeSpaceKey]) return;
+        if (kpiPreloadRef.current[activeSpaceKey]) return;
+        kpiPreloadRef.current[activeSpaceKey] = true;
+
+        const spaceKey = activeSpaceKey;
+        const client = activeClient;
+
+        setKpiLoadingMap(prev => ({ ...prev, [spaceKey]: true }));
+        void (async () => {
+            try {
+                const req = buildGenieRequest(
+                    CHAT_PRELOAD_PROMPT,
+                    "summary",
+                    props.context,
+                    selectedFilters,
+                    "",
+                    props.settings.sendContextToGenie,
+                    { kbFlags, omitDomainGuidance: true }
+                );
+                const start = await client.startConversation(req, { intent: "summary", contextText: "" });
+                const response = await client.waitForMessageWithProgress(
+                    start.conversationId,
+                    start.messageId,
+                    () => { /* silent — no progress UI for preload */ }
+                );
+                if (response?.content) {
+                    // Pre-seed the conversation so the user's first question
+                    // continues this thread rather than starting a new one.
+                    setConversationMap(prev =>
+                        prev[spaceKey] ? prev : { ...prev, [spaceKey]: start.conversationId }
+                    );
+                    setKpiSnapshotMap(prev => ({ ...prev, [spaceKey]: response.content ?? null }));
+                }
+            } catch {
+                // Silently swallow — if the preload fails, the welcome
+                // screen shows the Quick Start chips as normal.
+            } finally {
+                setKpiLoadingMap(prev => ({ ...prev, [spaceKey]: false }));
+            }
+        })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeTab, activeSpaceKey, isConfigured]);
 
     const runAssistant = async (input: string, intent: AssistantIntent) => {
         const trimmed = input.trim();
@@ -5362,6 +5427,8 @@ function App(props: AppProps) {
                                 latestActions={latestActions}
                                 onRunArea={() => void runAssistant(AREA_PROMPTS[area], mapAreaToIntent(area))}
                                 onAction={handleSuggestedAction}
+                                kpiSnapshot={kpiSnapshotMap[activeSpaceKey] ?? null}
+                                kpiLoading={kpiLoadingMap[activeSpaceKey] ?? false}
                             />
                         ) : (
                             messages.map(message => (
@@ -7379,16 +7446,39 @@ function WelcomeSection(props: {
     latestActions: AssistantAction[];
     onRunArea: () => void;
     onAction: (action: AssistantAction) => void;
+    /** Option A — preloaded KPI snapshot content (markdown). When set,
+     *  renders as the leading data panel in place of the role subtitle. */
+    kpiSnapshot?: string | null;
+    /** True while the background preload is in flight — shows a subtle
+     *  "Analysing your data…" hint under the snapshot area. */
+    kpiLoading?: boolean;
 }) {
     return (
         <div className="gn-welcome">
-            {/* IDEA-004: hero logo + product name + role subtitle removed —
-                they duplicated the header content. The data-first snapshot
-                is now the primary landing element. The role subtitle moves
-                to a small caption only when no snapshot data is available
-                (so the cold-start state still has at least one line of
-                context). */}
-            {props.home.snapshot.length > 0 ? (
+            {/* Option A — KPI preload panel. Shows when the background
+                Genie call has returned a snapshot. Falls back to either
+                the home.snapshot pills or the role subtitle when nothing
+                is ready yet. */}
+            {props.kpiSnapshot ? (
+                <div className="gn-welcome-kpi-snapshot">
+                    <div
+                        className="gn-msg gn-msg--assistant"
+                        style={{ margin: "0 0 8px" }}
+                    >
+                        <div className="gn-bubble" style={{ fontSize: 13 }}>
+                            {renderNarrative(props.kpiSnapshot, "KPI Snapshot")}
+                        </div>
+                    </div>
+                    <p style={{
+                        textAlign: "center",
+                        fontSize: 11,
+                        color: "var(--gn-text-muted)",
+                        margin: "0 0 12px",
+                    }}>
+                        Current snapshot · ask a follow-up question below to go deeper
+                    </p>
+                </div>
+            ) : props.home.snapshot.length > 0 ? (
                 <div className="gn-welcome-snapshot">
                     {props.home.snapshot.slice(0, 4).map(card => (
                         <div key={`${card.label}-${card.value}`} className="gn-snapshot-pill">
@@ -7397,6 +7487,11 @@ function WelcomeSection(props: {
                         </div>
                     ))}
                 </div>
+            ) : props.kpiLoading ? (
+                <p className="gn-welcome-caption" style={{ color: "var(--gn-text-muted)" }}>
+                    <span style={{ animation: "gn-progress-spin 1.2s linear infinite", display: "inline-block", marginRight: 6 }}>↻</span>
+                    Analysing your data…
+                </p>
             ) : (
                 <p className="gn-welcome-caption">{getRoleSubtitle(props.roleMode)}</p>
             )}

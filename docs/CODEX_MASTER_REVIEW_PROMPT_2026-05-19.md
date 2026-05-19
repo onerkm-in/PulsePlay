@@ -1,6 +1,6 @@
 # PulsePlay — Master Codex Review Prompt
 # Full Day/Week Coverage · Complex + Highly Complex Scenarios
-# HEAD: ac2b1ba · 2026-05-19
+# HEAD: see below · 2026-05-19 (updated after Codex review of initial draft)
 
 > **For Codex:** This is a standalone, self-contained prompt. You do not need prior
 > session context. Read the "Read first" section, then execute every part.
@@ -19,12 +19,15 @@ Before anything else, read these files in full:
 4. `docs/CLAUDE_PULSEPLAY_POTENTIAL_PERFORMANCE_GUIDE_2026-05-19.md` — acceptance bar
 5. `docs/CODEX_VERIFY_RESULTS_2026-05-19_post-uat-1840.md` — last Codex verify (baseline)
 
-**Git HEAD:** `ac2b1ba`
+**Git HEAD:** run `git log --oneline -1` to confirm current HEAD before starting.
 
-**Full scope of commits (newest first):**
+**Full scope of commits (newest first):** run `git log --oneline d1c3320..HEAD` for the full list. Key commits:
 
 | Hash | Commit |
 |---|---|
+| latest | feat: preload KPI snapshot on Ask Pulse tab entry (Option A) |
+| `6840bce` | fix: remove Power BI / Databricks-hardcoded role subtitles in Ask Pulse welcome |
+| `b20458f` | docs: master Codex review prompt |
 | `ac2b1ba` | feat: animate SustainabilityIndicator with tier-matched breathing + human panel |
 | `5e04f0d` | fix: remove zero-state snapshot fallback cards from Ask Pulse welcome |
 | `243277d` | perf: stale-while-revalidate for AI Insights warm loads |
@@ -49,8 +52,11 @@ Before anything else, read these files in full:
 # Proxy health
 curl http://127.0.0.1:8787/health
 
-# Dev server
+# Dev server — Vite may bind to 5173 OR 5174 if 5173 is occupied.
+# Run both; whichever returns 200 is the active port. Use that port for all
+# browser tests below.
 curl http://127.0.0.1:5173/
+curl http://127.0.0.1:5174/
 
 # TypeScript lint
 cd playground && npm run lint
@@ -121,35 +127,49 @@ File: `playground/src/pulse/visual.tsx`
 
 ### 2.5 Glyph sweep (`eae37a1`, `d3c38be`)
 
-Run these greps. Every hit outside comments is a failure:
+Run these greps. Every hit outside comments is a failure **unless it is a listed known exception**.
 
 ```bash
-# AI Insights footer — no emoji in JSX returns
-grep -n "📋\|↻\|</>" playground/src/pulse/visual.tsx | grep -v "//\|/\*\|\*\|comment"
+# AI Insights footer — 📋 and ↻ as rendered button content.
+# NOTE: do NOT grep for "</>" — that is valid React fragment syntax everywhere.
+# Only look for 📋 and ↻ as string literals in JSX (not in comments).
+grep -n "📋\|↻" playground/src/pulse/visual.tsx | grep -v "//\|/\*\|\*\|comment"
 
-# Knowledge shell — no ⚙ in button text
+# Knowledge shell — no ⚙ in rendered JSX (button text)
 grep -n "⚙" playground/src/knowledge/KnowledgeShell.tsx | grep -v "//\|/\*"
 
-# SustainabilityIndicator — no ↻ text glyph
+# SustainabilityIndicator — no ↻ text glyph (SVG replaced it)
 grep -n "↻" playground/src/components/SustainabilityIndicator.tsx | grep -v "//\|/\*"
 
-# Settings shell — no ⚙ ← ⚡ arrow glyphs in rendered JSX
-grep -n "⚙\|⚡\|←\s*Back" playground/src/settings/SettingsShell.tsx | grep -v "//\|/\*"
+# Settings shell — no ⚙ ← ⚡ as button text
+grep -n "⚡\|←\s*Back" playground/src/settings/SettingsShell.tsx | grep -v "//\|/\*"
+# KNOWN EXCEPTION: SettingsShell.tsx line ~58 has GROUP_ICONS with
+# advanced: "⚙" as part of a geometric rail icon set. This was
+# intentionally deferred (the whole set ✦/⬡/◈/◉/⬢/⚙ must move together).
+# grep for it separately and mark DEFERRED, not FAIL:
+grep -n "GROUP_ICONS\|advanced.*⚙" playground/src/settings/SettingsShell.tsx
 
-# TestButton — no ⚡ emoji
+# TestButton — no ⚡ emoji in rendered text
 grep -n "⚡" playground/src/settings/primitives/TestButton.tsx | grep -v "//\|/\*"
 
-# AiGroup — "AI brain" must be gone
+# AiGroup — "AI brain" must be gone from rendered copy
 grep -rn "AI brain" playground/src/ | grep -v "//\|/\*\|test\|spec"
 
-# UniBridge must be gone from all user-facing strings
+# UniBridge must be gone from user-facing strings
 grep -rn "UniBridge" playground/src/ | grep -v "//\|/\*\|test\|spec"
 
-# AI-generated source string must be gone from rendered copy
+# AI-generated source string (the old provenance copy)
 grep -rn "AI-generated" playground/src/ | grep -v "//\|/\*\|test\|spec\|comment"
+
+# Role subtitles — no "inside Power BI" or hardcoded "Databricks Genie assistant"
+grep -n "inside Power BI\|Databricks Genie assistant" playground/src/pulse/visualHelpers.ts
 ```
 
-Expected: zero hits in all. Report every exception.
+**Known intentional exceptions (mark DEFERRED, not FAIL):**
+- `SettingsShell.tsx` `GROUP_ICONS["advanced"] = "⚙"` — geometric rail set, intentionally deferred
+- Comments/JSDoc mentioning old strings for reference — not rendered
+
+Report every non-exception hit.
 
 ### 2.6 Stale-while-revalidate logic (`243277d`)
 
@@ -163,6 +183,7 @@ File: `playground/src/pulse/visual.tsx`
 - [ ] On success + `backgroundRefresh: true` — `setSpaceInsightsResult` fires ONCE with full COMPLETED content
 - [ ] On stop + `backgroundRefresh: true` — banner clears, cached content preserved (no "Stopped by user" state written)
 - [ ] On error + `backgroundRefresh: true` — banner clears, cached content preserved (no FAILED state written)
+- [ ] **EDGE CASE to verify or falsify:** when `backgroundRefresh: true` and ALL stages return empty content (`contentParts.every(p => p === "")`), does the code still avoid writing a FAILED state to the display? Look for the `else if (backgroundRefresh)` path after the `if (lastResponse && contentParts.every(...))` block. If the empty-response FAILED path still fires during background refresh, report as P1 bug.
 - [ ] Stale-refresh banner: `{staleRefreshingMap[activeSpaceKey] && (` renders a `role="status"` div with `aria-live="polite"`
 - [ ] `backgroundRefresh: true` is ONLY passed from the cache-hit path — not from chip clicks, Adjust box, or auto-fire on config change
 
@@ -707,20 +728,55 @@ Screenshot: `18-mobile-390-ask-pulse.png`, `18-mobile-390-settings.png`, `18-mob
 
 ### 4A. Full end-to-end: Insights → Ask Pulse follow-up
 
+**This is a HYPOTHESIS TO VERIFY, not an expected PASS.** The BUG-017 fix in
+`pulse/visual.tsx` is intended to re-seed `conversationMap` from the AI
+Insights stage-1 conversation when a ✨ chip is clicked, but this may not be
+fully wired end-to-end. Mark the result PASS / PARTIAL / FAIL based on what
+you actually observe.
+
 1. Run AI Insights cold (from 3.10)
 2. Wait for full completion
-3. Find the "✦ Try asking" clarifier chips that appear at the bottom of Ask Pulse AFTER insights completes (these should be derived from the Insights run)
-4. Click one of the Insights-derived clarifier chips (marked with ✨)
-5. Confirm: the Ask Pulse turn CONTINUES the same AI Insights conversation (check `conversation_id` in Network — should match the insights conversation, not start fresh)
-6. Response builds on what the Insights briefing established
+3. Switch to Ask Pulse tab
+4. Look for ✨-marked clarifier chips at the bottom of the chat area (distinct from the plain Quick Start chips)
+5. Click one ✨ chip
+6. In DevTools Network: does the resulting Genie call use the SAME `conversation_id` from the AI Insights run, or does it start a new conversation?
+   - PASS: same conversation_id → context continuity
+   - PARTIAL: different conversation_id but response still references Insights context
+   - FAIL: different conversation_id, cold-start response with no context
+7. Does the response build on what the Insights briefing established?
 
-Record: conversation_id from AI Insights run and from the clicked clarifier turn — they should match.
+Record: conversation_id from AI Insights run AND from the ✨ chip turn.
 
 Screenshot: `19-insights-to-chat-handoff.png`, `19-conversation-id-match.json`
 
+If no ✨ chips appear (clarifier chips require Insights to have surfaced follow-up questions), mark section DEFERRED and describe what was visible instead.
+
 ---
 
-### 4B. Cache invalidation
+### 4B. KPI preload on Ask Pulse tab entry (Option A)
+
+**New feature — verify the full flow:**
+
+1. Hard-refresh the app. Navigate to Ask Pulse tab (first visit this session).
+2. Immediately after the tab loads (no question asked):
+   - [ ] A subtle "Analyzing your data..." loading indicator appears under the Quick Start chips.
+   - [ ] Within the normal Genie response time, 3-4 KPI cards appear in the welcome area.
+   - [ ] Quick Start and Try Asking chips remain visible below the KPI cards.
+   - [ ] No user question bubble appears in the chat history — the preload is silent.
+3. Check DevTools Network: ONE `/conversations/start` call should have fired automatically.
+   Record its `conversation_id`.
+4. Now type and submit your own question: "Tell me more about the top metric"
+   - [ ] The question goes as a FOLLOW-UP on the same `conversation_id` (check Network — should NOT be a new `/conversations/start`).
+   - [ ] Response builds on the preload context.
+5. Check the cache: navigate away, hard-refresh, come back to Ask Pulse tab.
+   - [ ] KPI cards appear immediately (from cache, no network call).
+   - [ ] Preload conversation does NOT re-fire within the 30-min TTL.
+6. Change a setting that affects the prompt scope (e.g. domain guidance), return to Ask Pulse.
+   - [ ] Cache is invalidated, fresh preload fires.
+
+Screenshot: `20-kpi-preload-cards.png`, `20-preload-conv-id-reuse.json`
+
+### 4C. Cache invalidation
 
 1. Run AI Insights cold. Note the scope (no filters active).
 2. Wait for completion. Cache should be written.
