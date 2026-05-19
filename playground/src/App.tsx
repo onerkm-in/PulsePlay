@@ -1247,22 +1247,28 @@ function PlaygroundApp(): React.ReactElement {
                         onOpenPage={() => handleViewportOpenPage("bi")}
                         onFloat={() => handleViewportFloat("bi")}
                         onShowBoth={handleShowBothPanes}
+                        // Audit 2026-05-20 chrome-parity pass: render the
+                        // SurfaceSwitcher INLINE with PaneChrome's toolbar
+                        // row instead of on a separate row below the chrome.
+                        // Same visual rhythm as the AI pane (where Pulse
+                        // renders its switcher next to its own action
+                        // cluster). Suppressed when AI is floating because
+                        // the background BI canvas should be clean (nav
+                        // lives in the float).
+                        inlineSwitcher={
+                            enabledComponents === "mix" && !floatedPane ? (
+                                <SurfaceSwitcher
+                                    active="bi-viz"
+                                    onPick={(id) => {
+                                        if (id === "ai-insights") handleMixSurfaceSelect("ai", "insights");
+                                        else if (id === "ask-pulse") handleMixSurfaceSelect("ai", "chat");
+                                        else handleMixSurfaceSelect("bi");
+                                    }}
+                                />
+                            ) : undefined
+                        }
                     >
                         <main className="pp-app__canvas" style={{ ...panelInnerStyle(), display: "flex", flexDirection: "column" }}>
-                            {/* Suppress surface nav when AI is floating — the background
-                              * BI canvas should be clean, navigation lives in the float. */}
-                            {enabledComponents === "mix" && !floatedPane && (
-                                <div className="pp-surface-switcher-wrap">
-                                    <SurfaceSwitcher
-                                        active="bi-viz"
-                                        onPick={(id) => {
-                                            if (id === "ai-insights") handleMixSurfaceSelect("ai", "insights");
-                                            else if (id === "ask-pulse") handleMixSurfaceSelect("ai", "chat");
-                                            else handleMixSurfaceSelect("bi");
-                                        }}
-                                    />
-                                </div>
-                            )}
                             <PowerBIDeveloperPanel
                                 activeVendor={activeVendor}
                                 hasEmbedConfig={hasEmbedConfig}
@@ -1469,6 +1475,14 @@ function PaneChrome(props: {
     /** Pulse mode owns its own AI row (AI Insights / Chat + icons). Hiding
      *  the outer AI title row removes duplicate vertical chrome. */
     hideHeader?: boolean;
+    /** Audit 2026-05-20: optional slot rendered between the title and the
+     *  toolbar. The BI pane uses this to embed the SurfaceSwitcher so the
+     *  three-tab pill sits on the SAME row as the toolbar buttons — same
+     *  visual rhythm as the AI pane (which renders its switcher inline
+     *  inside the PulseShell). When supplied, the title block is hidden
+     *  to avoid a duplicate "BI" + "Dashboard" identity (the active tab
+     *  in the switcher already names the surface). */
+    inlineSwitcher?: React.ReactNode;
     children: React.ReactNode;
 }): React.ReactElement {
     const label = props.pane === "ai" ? "AI" : "BI";
@@ -1550,14 +1564,26 @@ function PaneChrome(props: {
                         background: props.isFocused ? "#f8fafc" : "rgba(248,250,252,0.6)",
                     }}
                 >
-                    <div style={{ minWidth: 0, flex: "1 1 auto", overflow: "hidden" }}>
-                        <div style={{ fontSize: 11.5, fontWeight: 600, lineHeight: 1.2, letterSpacing: 0.1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{props.title}</div>
-                        {props.subtitle && (
-                            <div style={{ fontSize: 10.5, opacity: 0.6, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={props.subtitle}>
-                                {props.subtitle}
-                            </div>
-                        )}
-                    </div>
+                    {/* When the caller supplies an inline switcher (the
+                      * SurfaceSwitcher pill for the BI pane), let it take
+                      * the title's slot. The active tab name in the switcher
+                      * already conveys what surface this is — duplicating
+                      * the "BI" title was just extra vertical noise (see
+                      * user feedback 2026-05-20 + Codex EL-SWITCHER-COPY). */}
+                    {props.inlineSwitcher ? (
+                        <div style={{ minWidth: 0, flex: "1 1 auto", display: "flex", alignItems: "center", overflow: "hidden" }}>
+                            {props.inlineSwitcher}
+                        </div>
+                    ) : (
+                        <div style={{ minWidth: 0, flex: "1 1 auto", overflow: "hidden" }}>
+                            <div style={{ fontSize: 11.5, fontWeight: 600, lineHeight: 1.2, letterSpacing: 0.1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{props.title}</div>
+                            {props.subtitle && (
+                                <div style={{ fontSize: 10.5, opacity: 0.6, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={props.subtitle}>
+                                    {props.subtitle}
+                                </div>
+                            )}
+                        </div>
+                    )}
                     {!props.quiet && (
                         <div
                             role="toolbar"
