@@ -5381,7 +5381,7 @@ function App(props: AppProps) {
                         arrive. Mirrors the AI Insights pattern. role="log" with
                         polite announcement avoids interrupting the user. */}
                     <div
-                        className="gn-chat-area"
+                        className="gn-chat-area gn-chat-log"
                         ref={activeTab === "chat" ? chatRef : undefined}
                         role="log"
                         aria-live="polite"
@@ -7897,7 +7897,7 @@ function renderMessageBody(
     return (
         <>
             {toggles}
-            <div className="gn-msg-body">{renderNarrative(message.content || "No response returned.")}</div>
+            <div className="gn-msg-body">{renderKpiSnapshot(message.content || "No response returned.")}</div>
             {message.dmlWarning && (
                 <div className="gn-dml-warning" role="alert" aria-live="assertive">
                     {message.dmlVerb
@@ -8320,6 +8320,20 @@ function demoteBulletStyleHeadings(text: string): string {
 function renderKpiSnapshot(raw: string): React.ReactNode {
     const text = String(raw || "").trim();
     if (!text) return null;
+
+    // Conservative: if the content has structural markdown that the KPI
+    // parser can't represent (headings, tables, code blocks, blockquotes),
+    // fall back to the generic narrative renderer immediately so we never
+    // strip rich content out of a chat reply.
+    const hasStructuredMarkdown =
+        /^#{1,6}\s/m.test(text) ||
+        /^\s*\|.+\|\s*$/m.test(text) ||
+        /```/.test(text) ||
+        /^\s*>\s/m.test(text);
+    if (hasStructuredMarkdown) {
+        return renderNarrative(text);
+    }
+
     const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
 
     interface MetricRow { name: string; value: string; trend: "up" | "down" | "stable" | null; prior: string | null; }
@@ -8359,9 +8373,11 @@ function renderKpiSnapshot(raw: string): React.ReactNode {
         }
     }
 
-    // If parsing didn't find structured metric rows, fall back to the
-    // generic renderer so we never drop content on the floor.
-    if (rows.length === 0) {
+    // If parsing didn't find at least 2 structured metric rows, the content
+    // is probably free-form narrative — fall back so we don't render a
+    // half-empty card. Threshold is 2 (not 1) because a single matched
+    // bullet inside a narrative paragraph is more likely coincidence.
+    if (rows.length < 2) {
         return renderNarrative(text, "KPI Snapshot");
     }
 
@@ -8554,7 +8570,23 @@ function renderNarrative(text: string, sectionTitle?: string, metricRules?: Inli
         }
 
         flushList();
-        elements.push(<p key={`p-${i}`} className="gn-narrative-p">{inlineFormat(trimmed, sectionTitle, metricRules)}</p>);
+        // Detect action-like leading labels to give them a tone-accent
+        // callout — mirrors the RECOMMENDED ACTIONS card treatment in
+        // AI Insights. Matches "Action:", "Recommendation:", "Next step:",
+        // "Next steps:", "Recommended action(s):". Case-insensitive.
+        const actionMatch = trimmed.match(/^(action|recommendation|recommended action[s]?|next step[s]?)\s*:\s*(.+)$/i);
+        if (actionMatch) {
+            const label = actionMatch[1].replace(/\b\w/g, c => c.toUpperCase());
+            const body = actionMatch[2];
+            elements.push(
+                <p key={`act-${i}`} className="gn-narrative-action">
+                    <strong className="gn-narrative-action-label">{label} ·</strong>{" "}
+                    {inlineFormat(body, sectionTitle, metricRules)}
+                </p>
+            );
+        } else {
+            elements.push(<p key={`p-${i}`} className="gn-narrative-p">{inlineFormat(trimmed, sectionTitle, metricRules)}</p>);
+        }
         i++;
     }
 

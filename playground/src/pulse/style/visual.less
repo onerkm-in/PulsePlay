@@ -2119,6 +2119,47 @@
     strong { color: #1260b8; margin-right: 2px; }
 }
 
+/* Universal Action callout — applies inside any narrative render path
+ * (chat bubbles, insight sections, KPI fallback) when a paragraph leads
+ * with "Action:", "Recommendation:", "Next step(s):". Mirrors the
+ * RECOMMENDED ACTIONS card treatment in AI Insights so the visual
+ * vocabulary stays consistent across the two surfaces. */
+.gn-narrative-action {
+    margin: 10px 0;
+    padding: 8px 12px;
+    background: rgba(36, 92, 184, 0.06);
+    border-left: 3px solid @gn-accent;
+    border-radius: 0 4px 4px 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: @gn-text;
+}
+.gn-narrative-action-label {
+    color: #1260b8;
+    margin-right: 4px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+}
+
+/* Polish for Ask Pulse chat-tab assistant bubbles. AI Insights bubbles
+ * already get the polished look by virtue of sitting inside a section
+ * card; chat bubbles need their own elevation. Scoped to the chat
+ * conversation log so it doesn't touch insights. */
+.gn-chat-log .gn-msg--assistant .gn-bubble {
+    padding: 12px 14px;
+    background: linear-gradient(180deg, #ffffff 0%, #fafcff 100%);
+    border-color: rgba(36, 92, 184, 0.14);
+    border-radius: 6px 18px 18px 18px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    transition: box-shadow 0.18s ease;
+    &:hover { box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06); }
+}
+/* Tighten KPI card chrome when it sits inside the chat-bubble polish
+ * — avoid the double-card look. */
+.gn-chat-log .gn-msg--assistant .gn-bubble .gn-kpi-card {
+    margin: 0;
+}
+
 // Wave 43 — defensive font-size normalization for AI-drift output.
 // Live testing surfaced cards where the AI emitted `### Label` markup
 // inside bullet items, so the rendered list mixed heading-size fonts
