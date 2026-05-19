@@ -155,6 +155,21 @@ describe("GROUP_LEAF_LABELS dictionary drift prevention", () => {
         // doesn't have MORE labels than rendered (i.e. no zombie entries
         // for leaves that were removed but never cleaned up from the
         // search dictionary).
+        //
+        // Sub-route exceptions: some dictionary entries correspond to
+        // dedicated sub-pages dispatched by SettingsShell.ActiveGroup
+        // (e.g., AI → "Knowledge Base" mounts <AiKnowledgeBase/>, not a
+        // Leaf inside <AiGroup/>). Those entries don't render as Leaves
+        // when the parent group page mounts; the rail still surfaces them
+        // and the search still finds them.
+        const SUB_ROUTE_LABELS: Record<keyof typeof GROUP_LEAF_LABELS, ReadonlySet<string>> = {
+            setup: new Set(),
+            bi: new Set(),
+            ai: new Set(["Knowledge Base", "Supervisor Fusion"]),
+            preferences: new Set(),
+            system: new Set(),
+            advanced: new Set(),
+        };
         const cases: Array<[keyof typeof GROUP_LEAF_LABELS, React.ReactNode]> = [
             ["setup", <SetupGroup key="setup" />],
             ["bi", <BiGroup key="bi" />],
@@ -167,10 +182,12 @@ describe("GROUP_LEAF_LABELS dictionary drift prevention", () => {
             const state = mount(ui);
             const rendered = extractRenderedLeafLabels(state.container);
             const renderedSet = new Set(rendered);
+            const subRoutes = SUB_ROUTE_LABELS[group];
             for (const dictLabel of GROUP_LEAF_LABELS[group]) {
+                if (subRoutes.has(dictLabel)) continue;
                 expect(
                     renderedSet.has(dictLabel),
-                    `Dictionary entry "${dictLabel}" in GROUP_LEAF_LABELS.${group} has no matching <Leaf label="${dictLabel}"> in the rendered DOM. Either restore the leaf, or remove the dictionary entry.`,
+                    `Dictionary entry "${dictLabel}" in GROUP_LEAF_LABELS.${group} has no matching <Leaf label="${dictLabel}"> in the rendered DOM. Either restore the leaf, or remove the dictionary entry, or add it to SUB_ROUTE_LABELS if it dispatches to a dedicated sub-page.`,
                 ).toBe(true);
             }
             unmount(state);

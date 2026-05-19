@@ -24,6 +24,7 @@ import { SystemGroup } from "./groups/SystemGroup";
 import { AdvancedGroup } from "./groups/AdvancedGroup";
 import { useSettingsDraft } from "./useSettingsDraft";
 import { SettingsSaveBar } from "./SettingsSaveBar";
+import { AiKnowledgeBase } from "./groups/sub/AiKnowledgeBase";
 import "./settings.css";
 
 const GROUP_LABELS: Record<SettingsGroupId, string> = {
@@ -72,7 +73,7 @@ export const GROUP_LEAF_LABELS: Record<SettingsGroupId, string[]> = {
     // group label + description.
     setup: [],
     bi: ["Provider", "Embed", "Authentication", "Canvas", "Status"],
-    ai: ["Provider", "Model / Agent", "Knowledge pack", "Vector Search KB", "Connection test", "AI Insights", "UC Metric View", "Browse library ↗"],
+    ai: ["Provider", "Model / Agent", "Knowledge pack", "Knowledge Base", "Vector Search KB", "Connection test", "AI Insights", "Supervisor Fusion", "UC Metric View", "Browse library ↗"],
     preferences: [
         "UI mode",
         "Layout preset",
@@ -169,13 +170,14 @@ export function SettingsShell(): React.ReactElement {
             <div className="pp-settings-body">
                 <SettingsLeftRail
                     activeGroup={route.group}
+                    activeLeaf={route.leaf}
                     visibleGroups={filteredGroups}
                     settingsLoaded={!settings.allowlistLoading}
                     hasOrphans={settings.orphans.length > 0}
                     readinessByGroup={readinessByGroup}
                 />
                 <main className="pp-settings-main" aria-live="polite">
-                    <ActiveGroup group={route.group} />
+                    <ActiveGroup group={route.group} leaf={route.leaf} />
                 </main>
             </div>
             <SettingsSaveBar draft={draft} />
@@ -312,41 +314,64 @@ interface SettingsLeftRailProps {
     readinessByGroup: Record<SettingsGroupId, "ready" | "needed" | "info">;
 }
 
-function SettingsLeftRail(props: SettingsLeftRailProps): React.ReactElement {
+function SettingsLeftRail(props: SettingsLeftRailProps & { activeLeaf?: string | null }): React.ReactElement {
     return (
         <nav className="pp-settings-rail" aria-label="Settings sections">
             {props.visibleGroups.map(id => {
                 const active = id === props.activeGroup;
                 const readiness = props.readinessByGroup[id];
                 const showOrphan = (id === "setup" || id === "advanced") && props.hasOrphans;
+                const subLeaves = GROUP_LEAF_LABELS[id];
                 return (
-                    <button
-                        key={id}
-                        type="button"
-                        className={`pp-settings-rail__item${active ? " pp-settings-rail__item--active" : ""}`}
-                        onClick={() => navigateToSettings(id)}
-                        aria-current={active ? "page" : undefined}
-                    >
-                        <div className="pp-settings-rail__item-row">
-                            <span className="pp-settings-rail__item-left">
-                                <span
-                                    className="pp-settings-rail__dot"
-                                    aria-label={READINESS_LABEL[readiness]}
-                                    title={READINESS_LABEL[readiness]}
-                                    style={{ background: active ? undefined : READINESS_DOT[readiness] }}
-                                />
-                                <span>{GROUP_ICONS[id]}&nbsp;&nbsp;{GROUP_LABELS[id]}</span>
-                            </span>
-                            {showOrphan && (
-                                <span className="pp-settings-rail__orphan-badge" aria-label="Orphaned settings">
-                                    Orphans
+                    <div key={id} className="pp-settings-rail__group">
+                        <button
+                            type="button"
+                            className={`pp-settings-rail__item${active ? " pp-settings-rail__item--active" : ""}`}
+                            onClick={() => navigateToSettings(id)}
+                            aria-current={active ? "page" : undefined}
+                        >
+                            <div className="pp-settings-rail__item-row">
+                                <span className="pp-settings-rail__item-left">
+                                    <span
+                                        className="pp-settings-rail__dot"
+                                        aria-label={READINESS_LABEL[readiness]}
+                                        title={READINESS_LABEL[readiness]}
+                                        style={{ background: active ? undefined : READINESS_DOT[readiness] }}
+                                    />
+                                    <span>{GROUP_ICONS[id]}&nbsp;&nbsp;{GROUP_LABELS[id]}</span>
                                 </span>
-                            )}
-                        </div>
-                        <div className="pp-settings-rail__desc">
-                            {GROUP_DESCRIPTIONS[id]}
-                        </div>
-                    </button>
+                                {showOrphan && (
+                                    <span className="pp-settings-rail__orphan-badge" aria-label="Orphaned settings">
+                                        Orphans
+                                    </span>
+                                )}
+                            </div>
+                            <div className="pp-settings-rail__desc">
+                                {GROUP_DESCRIPTIONS[id]}
+                            </div>
+                        </button>
+                        {active && subLeaves.length > 0 && (
+                            <div className="pp-settings-rail__sub" role="list">
+                                {subLeaves.map(label => {
+                                    const slug = leafSlugify(label);
+                                    const subActive = props.activeLeaf === slug;
+                                    return (
+                                        <button
+                                            key={label}
+                                            type="button"
+                                            role="listitem"
+                                            className={`pp-settings-rail__subitem${subActive ? " pp-settings-rail__subitem--active" : ""}`}
+                                            onClick={() => navigateToSettings(id, slug)}
+                                            aria-current={subActive ? "page" : undefined}
+                                        >
+                                            <span className="pp-settings-rail__subdot" aria-hidden="true" />
+                                            {label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
                 );
             })}
             {!props.settingsLoaded && (
@@ -356,9 +381,20 @@ function SettingsLeftRail(props: SettingsLeftRailProps): React.ReactElement {
     );
 }
 
+function leafSlugify(label: string): string {
+    return label.toLowerCase()
+        .replace(/[↗→]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+}
+
 // ─── Active group resolver ───────────────────────────────────────
 
-function ActiveGroup(props: { group: SettingsGroupId }): React.ReactElement {
+function ActiveGroup(props: { group: SettingsGroupId; leaf?: string | null }): React.ReactElement {
+    // Sub-route dispatch — when leaf matches a dedicated sub-page, render
+    // that instead of the parent group. Leaves without a dedicated handler
+    // fall through and rely on the group's own scroll-into-view behavior.
+    if (props.group === "ai" && props.leaf === "knowledge-base") return <AiKnowledgeBase />;
     switch (props.group) {
         case "setup":       return <SetupGroup />;
         case "bi":          return <BiGroup />;

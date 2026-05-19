@@ -346,6 +346,64 @@
 .pp-card__body > :first-child { margin-top: 0; }
 .pp-card__body > :last-child  { margin-bottom: 0; }
 
+/* ── Toggle switch ────────────────────────────────────────────────── */
+.pp-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    user-select: none;
+    font-family: inherit;
+}
+
+.pp-toggle__input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.pp-toggle__track {
+    position: relative;
+    display: inline-block;
+    width: 36px;
+    height: 20px;
+    background: var(--pp-border-strong);
+    border-radius: 999px;
+    transition: background var(--pp-t-base) var(--pp-ease);
+    flex-shrink: 0;
+}
+
+.pp-toggle__thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    background: #fff;
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.18);
+    transition: transform var(--pp-t-base) var(--pp-ease);
+}
+
+.pp-toggle__input:checked ~ .pp-toggle__track {
+    background: linear-gradient(135deg, var(--pp-accent) 0%, var(--pp-accent-hover) 100%);
+    box-shadow: 0 1px 4px rgba(37,99,235,0.36);
+}
+.pp-toggle__input:checked ~ .pp-toggle__track .pp-toggle__thumb {
+    transform: translateX(16px);
+}
+
+.pp-toggle__input:focus-visible ~ .pp-toggle__track {
+    outline: 2px solid var(--pp-accent);
+    outline-offset: 2px;
+}
+
+.pp-toggle__label {
+    font-size: var(--pp-text-base);
+    font-weight: 500;
+    color: var(--pp-text);
+}
+
 /* ── Two-column field grid (use inside .pp-card__body) ────────────── */
 .pp-grid-2 {
     display: grid;
