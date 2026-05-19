@@ -404,6 +404,85 @@
     color: var(--pp-text);
 }
 
+/* ── Theme picker grid (Preferences → Appearance) ─────────────────── */
+.pp-theme-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 10px;
+}
+
+.pp-theme-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--pp-surface);
+    border: 1.5px solid var(--pp-border);
+    border-radius: var(--pp-radius);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: var(--pp-text-base);
+    font-weight: 500;
+    color: var(--pp-text);
+    text-align: left;
+    transition: all var(--pp-t-base) var(--pp-ease);
+}
+.pp-theme-card:hover {
+    border-color: var(--pp-accent-border);
+    transform: translateY(-1px);
+    box-shadow: var(--pp-shadow-sm);
+}
+.pp-theme-card--active {
+    border-color: var(--pp-accent);
+    background: var(--pp-accent-soft);
+    color: var(--pp-accent);
+    font-weight: 600;
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+}
+
+.pp-theme-swatch {
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    box-shadow: inset 0 0 0 1px rgba(15,23,42,0.10), 0 1px 2px rgba(15,23,42,0.08);
+}
+
+.pp-theme-label { flex: 1; line-height: 1.3; }
+
+/* ── Color input (paired swatch + hex) ─────────────────────────────── */
+.pp-color-input {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+}
+
+.pp-color-input__swatch {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 1.5px solid var(--pp-border-strong);
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+    transition: border-color var(--pp-t-base) var(--pp-ease);
+}
+.pp-color-input__swatch:hover:not(:disabled) { border-color: var(--pp-accent); }
+.pp-color-input__swatch:disabled { cursor: not-allowed; }
+.pp-color-input__swatch::-webkit-color-swatch-wrapper { padding: 2px; }
+.pp-color-input__swatch::-webkit-color-swatch { border: none; border-radius: 4px; }
+
+.pp-color-input__hex {
+    flex: 1;
+    min-width: 0;
+    font-family: var(--pp-font-mono);
+    text-transform: uppercase;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+}
+
 /* ── Two-column field grid (use inside .pp-card__body) ────────────── */
 .pp-grid-2 {
     display: grid;

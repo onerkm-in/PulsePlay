@@ -164,10 +164,10 @@ describe("GROUP_LEAF_LABELS dictionary drift prevention", () => {
         // and the search still finds them.
         const SUB_ROUTE_LABELS: Record<keyof typeof GROUP_LEAF_LABELS, ReadonlySet<string>> = {
             setup: new Set(),
-            bi: new Set(),
+            bi: new Set(["Governance"]),
             ai: new Set(["Knowledge Base", "Supervisor Fusion"]),
-            preferences: new Set(),
-            system: new Set(),
+            preferences: new Set(["Appearance"]),
+            system: new Set(["Developer Tools"]),
             advanced: new Set(),
         };
         const cases: Array<[keyof typeof GROUP_LEAF_LABELS, React.ReactNode]> = [

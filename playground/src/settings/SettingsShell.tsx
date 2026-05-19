@@ -25,6 +25,10 @@ import { AdvancedGroup } from "./groups/AdvancedGroup";
 import { useSettingsDraft } from "./useSettingsDraft";
 import { SettingsSaveBar } from "./SettingsSaveBar";
 import { AiKnowledgeBase } from "./groups/sub/AiKnowledgeBase";
+import { AiSupervisorFusion } from "./groups/sub/AiSupervisorFusion";
+import { PreferencesAppearance } from "./groups/sub/PreferencesAppearance";
+import { SystemDeveloper } from "./groups/sub/SystemDeveloper";
+import { BiGovernance } from "./groups/sub/BiGovernance";
 import "./settings.css";
 
 const GROUP_LABELS: Record<SettingsGroupId, string> = {
@@ -72,7 +76,7 @@ export const GROUP_LEAF_LABELS: Record<SettingsGroupId, string[]> = {
     // than the per-leaf navigation pattern — search still finds it via the
     // group label + description.
     setup: [],
-    bi: ["Provider", "Embed", "Authentication", "Canvas", "Status"],
+    bi: ["Provider", "Embed", "Authentication", "Canvas", "Status", "Governance"],
     ai: ["Provider", "Model / Agent", "Knowledge pack", "Knowledge Base", "Vector Search KB", "Connection test", "AI Insights", "Supervisor Fusion", "UC Metric View", "Browse library ↗"],
     preferences: [
         "UI mode",
@@ -84,8 +88,9 @@ export const GROUP_LEAF_LABELS: Record<SettingsGroupId, string[]> = {
         "Managed agent surface",
         "BI composition",
         "Canvas tiles",
+        "Appearance",
     ],
-    system: ["Proxy status", "Network and auth", "Security posture", "License posture", "Profile inventory", "Diagnostics", "Setup wizard", "Export support bundle"],
+    system: ["Proxy status", "Network and auth", "Security posture", "License posture", "Profile inventory", "Diagnostics", "Setup wizard", "Export support bundle", "Developer Tools"],
     advanced: ["Local storage inspector", "Reset section", "Reset all", "Danger zone"],
 };
 
@@ -394,7 +399,11 @@ function ActiveGroup(props: { group: SettingsGroupId; leaf?: string | null }): R
     // Sub-route dispatch — when leaf matches a dedicated sub-page, render
     // that instead of the parent group. Leaves without a dedicated handler
     // fall through and rely on the group's own scroll-into-view behavior.
-    if (props.group === "ai" && props.leaf === "knowledge-base") return <AiKnowledgeBase />;
+    if (props.group === "ai"          && props.leaf === "knowledge-base")    return <AiKnowledgeBase />;
+    if (props.group === "ai"          && props.leaf === "supervisor-fusion") return <AiSupervisorFusion />;
+    if (props.group === "preferences" && props.leaf === "appearance")        return <PreferencesAppearance />;
+    if (props.group === "system"      && props.leaf === "developer-tools")   return <SystemDeveloper />;
+    if (props.group === "bi"          && props.leaf === "governance")        return <BiGovernance />;
     switch (props.group) {
         case "setup":       return <SetupGroup />;
         case "bi":          return <BiGroup />;

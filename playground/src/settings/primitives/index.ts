@@ -11,3 +11,5 @@ export { TestButton } from "./TestButton";
 export type { TestButtonProps, TestResult } from "./TestButton";
 export { FieldRow, FieldCard } from "./FieldRow";
 export type { FieldRowProps } from "./FieldRow";
+export { Toggle } from "./Toggle";
+export type { ToggleProps } from "./Toggle";

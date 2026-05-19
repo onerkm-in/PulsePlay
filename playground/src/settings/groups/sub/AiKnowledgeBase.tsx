@@ -2,71 +2,42 @@
 //
 // AI → Knowledge Base sub-route. Resurfaces the Pulse analytics KB toggles
 // (kbEnabled / kbChartRules / kbStatRules / kbReportingRules) that were
-// missing from the playground UI. Writes through pulseVisualSettingsStore.
+// missing from the playground UI.
 
-import { useCallback, useEffect, useState } from "react";
-import { FieldCard, FieldRow } from "../../primitives";
+import { FieldCard, FieldRow, Toggle } from "../../primitives";
+import { asBool, useGenieSettingsSlice } from "./genieSettingsBridge";
 
-const KB_KEYS = ["kbEnabled", "kbChartRules", "kbStatRules", "kbReportingRules"] as const;
-type KbKey = typeof KB_KEYS[number];
-
-const PULSE_KEY = "pulseplay:visual-settings:genieSettings";
-const EVENT = "pulseplay:visual-settings-change";
-
-function readKb(): Record<KbKey, boolean> {
-    const out: Record<KbKey, boolean> = {
-        kbEnabled: true, kbChartRules: true, kbStatRules: true, kbReportingRules: true,
-    };
-    if (typeof window === "undefined") return out;
-    try {
-        const raw = window.localStorage.getItem(PULSE_KEY);
-        if (!raw) return out;
-        const parsed = JSON.parse(raw) as Record<string, unknown>;
-        for (const k of KB_KEYS) {
-            if (typeof parsed[k] === "boolean") out[k] = parsed[k] as boolean;
-        }
-    } catch { /* swallow */ }
-    return out;
+interface KbState {
+    kbEnabled: boolean;
+    kbChartRules: boolean;
+    kbStatRules: boolean;
+    kbReportingRules: boolean;
 }
 
-function writeKb(patch: Partial<Record<KbKey, boolean>>): void {
-    if (typeof window === "undefined") return;
-    try {
-        const raw = window.localStorage.getItem(PULSE_KEY);
-        const existing = raw ? JSON.parse(raw) as Record<string, unknown> : {};
-        const next = { ...existing, ...patch };
-        window.localStorage.setItem(PULSE_KEY, JSON.stringify(next));
-        window.dispatchEvent(new CustomEvent(EVENT, { detail: { properties: patch } }));
-    } catch { /* swallow — error reported via inline status, not toast */ }
+const readSlice = (): KbState => {
+    const raw = (typeof window !== "undefined" ? window.localStorage.getItem("pulseplay:visual-settings:genieSettings") : null);
+    const obj = raw ? safeParse(raw) : {};
+    return {
+        kbEnabled: asBool(obj.kbEnabled, true),
+        kbChartRules: asBool(obj.kbChartRules, true),
+        kbStatRules: asBool(obj.kbStatRules, true),
+        kbReportingRules: asBool(obj.kbReportingRules, true),
+    };
+};
+
+function safeParse(s: string): Record<string, unknown> {
+    try { const p = JSON.parse(s); return p && typeof p === "object" ? p : {}; } catch { return {}; }
 }
 
 export function AiKnowledgeBase(): React.ReactElement {
-    const [state, setState] = useState<Record<KbKey, boolean>>(() => readKb());
-
-    useEffect(() => {
-        const sync = () => setState(readKb());
-        window.addEventListener(EVENT, sync as EventListener);
-        return () => window.removeEventListener(EVENT, sync as EventListener);
-    }, []);
-
-    const toggle = useCallback((key: KbKey) => {
-        setState(prev => {
-            const next = { ...prev, [key]: !prev[key] };
-            writeKb({ [key]: next[key] });
-            return next;
-        });
-    }, []);
+    const [state, patch] = useGenieSettingsSlice<KbState>(readSlice);
 
     return (
         <section id="settings-ai-knowledge-base" aria-labelledby="settings-ai-kb-title">
-            <header style={{ marginBottom: 20 }}>
-                <h2 id="settings-ai-kb-title" style={{ margin: 0, fontSize: 20, fontWeight: 700, letterSpacing: "-0.02em" }}>
-                    Knowledge Base
-                </h2>
-                <p style={{ margin: "4px 0 0", opacity: 0.7, fontSize: 13, lineHeight: 1.5 }}>
-                    Tune the analytical guardrails the assistant applies when picking a chart, computing statistics, or framing a leadership report. These toggles affect prompt construction for AI Insights and Ask Pulse.
-                </p>
-            </header>
+            <SubPageHeader
+                title="Knowledge Base"
+                blurb="Tune the analytical guardrails the assistant applies when picking a chart, computing statistics, or framing a leadership report. These toggles affect prompt construction for AI Insights and Ask Pulse."
+            />
 
             <FieldCard
                 title="Analytics rules"
@@ -83,7 +54,7 @@ export function AiKnowledgeBase(): React.ReactElement {
                     hint="When off, all KB rules below are bypassed regardless of their individual toggles."
                     tip="The fastest way to test whether a KB rule is interfering with an answer — turn this off, retry, compare."
                 >
-                    <Toggle id="kb-enabled" checked={state.kbEnabled} onChange={() => toggle("kbEnabled")} label={state.kbEnabled ? "KB enabled" : "KB disabled"} />
+                    <Toggle id="kb-enabled" checked={state.kbEnabled} onChange={v => patch({ kbEnabled: v })} label={state.kbEnabled ? "KB enabled" : "KB disabled"} />
                 </FieldRow>
 
                 <FieldRow
@@ -91,7 +62,7 @@ export function AiKnowledgeBase(): React.ReactElement {
                     hint="Adds the chart-type guidance from chartRegistry.ts to the system prompt (auto-pick policy, tier hints)."
                     tip="Recommended for orgs that want consistent chart picks. Disable if you want the LLM to be more creative with vendor-specific chart types."
                 >
-                    <Toggle id="kb-charts" checked={state.kbChartRules} onChange={() => toggle("kbChartRules")} disabled={!state.kbEnabled} label={state.kbChartRules ? "Chart rules on" : "Chart rules off"} />
+                    <Toggle id="kb-charts" checked={state.kbChartRules} onChange={v => patch({ kbChartRules: v })} disabled={!state.kbEnabled} label={state.kbChartRules ? "Chart rules on" : "Chart rules off"} />
                 </FieldRow>
 
                 <FieldRow
@@ -99,7 +70,7 @@ export function AiKnowledgeBase(): React.ReactElement {
                     hint="Adds reminders about confidence intervals, sample size warnings, and avoiding misleading aggregations."
                     tip="Important for executive-facing summaries where small samples can produce misleading deltas."
                 >
-                    <Toggle id="kb-stats" checked={state.kbStatRules} onChange={() => toggle("kbStatRules")} disabled={!state.kbEnabled} label={state.kbStatRules ? "Stats rules on" : "Stats rules off"} />
+                    <Toggle id="kb-stats" checked={state.kbStatRules} onChange={v => patch({ kbStatRules: v })} disabled={!state.kbEnabled} label={state.kbStatRules ? "Stats rules on" : "Stats rules off"} />
                 </FieldRow>
 
                 <FieldRow
@@ -107,28 +78,35 @@ export function AiKnowledgeBase(): React.ReactElement {
                     hint="Adds 'lead with the headline / explain the why / suggest next step' framing for leadership summaries."
                     tip="Turn off for technical audiences (engineers, analysts) who want raw findings without narrative scaffolding."
                 >
-                    <Toggle id="kb-reporting" checked={state.kbReportingRules} onChange={() => toggle("kbReportingRules")} disabled={!state.kbEnabled} label={state.kbReportingRules ? "Reporting rules on" : "Reporting rules off"} />
+                    <Toggle id="kb-reporting" checked={state.kbReportingRules} onChange={v => patch({ kbReportingRules: v })} disabled={!state.kbEnabled} label={state.kbReportingRules ? "Reporting rules on" : "Reporting rules off"} />
                 </FieldRow>
             </FieldCard>
         </section>
     );
 }
 
-function Toggle(props: { id: string; checked: boolean; onChange: () => void; disabled?: boolean; label: string }): React.ReactElement {
+// ─── Shared sub-page header ───────────────────────────────────────
+
+export function SubPageHeader({ title, blurb }: { title: string; blurb: string }): React.ReactElement {
     return (
-        <label htmlFor={props.id} className="pp-toggle" style={{ opacity: props.disabled ? 0.5 : 1, cursor: props.disabled ? "not-allowed" : "pointer" }}>
-            <input
-                id={props.id}
-                type="checkbox"
-                checked={props.checked}
-                onChange={props.onChange}
-                disabled={props.disabled}
-                className="pp-toggle__input"
-            />
-            <span className="pp-toggle__track" aria-hidden="true">
-                <span className="pp-toggle__thumb" />
-            </span>
-            <span className="pp-toggle__label">{props.label}</span>
-        </label>
+        <header style={{ marginBottom: 20 }}>
+            <h2
+                style={{
+                    margin: 0,
+                    fontSize: 22,
+                    fontWeight: 800,
+                    letterSpacing: "-0.025em",
+                    background: "linear-gradient(135deg, #0f172a 0%, #4f46e5 100%)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    backgroundClip: "text",
+                }}
+            >
+                {title}
+            </h2>
+            <p style={{ margin: "6px 0 0", opacity: 0.7, fontSize: 13, lineHeight: 1.55, maxWidth: 640 }}>
+                {blurb}
+            </p>
+        </header>
     );
 }

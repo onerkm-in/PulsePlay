@@ -120,12 +120,21 @@ describe("Leaf renders id=settings-<group>-<slug> when group prop is set", () =>
         unmount(state);
     });
 
+    // Sub-route entries (e.g., "Governance" under BI, "Appearance" under
+    // Preferences) dispatch to dedicated pages via SettingsShell, so they
+    // do NOT render as Leaf <article>s inside their parent group page.
+    // Keep this list in sync with the dispatcher in SettingsShell.tsx.
+    const SUB_ROUTE_LEAVES: Record<string, ReadonlySet<string>> = {
+        bi: new Set(["Governance"]),
+        ai: new Set(["Knowledge Base", "Supervisor Fusion"]),
+        preferences: new Set(["Appearance"]),
+        system: new Set(["Developer Tools"]),
+    };
+
     it("BiGroup leaves render the expected ids", () => {
         const state = mount(<BiGroup />);
-        // Build expected ids from the dictionary (cross-checked against the
-        // rendered DOM here; the drift test in leafLabels.drift.test.tsx
-        // already proves the dictionary matches the rendered labels).
         for (const label of GROUP_LEAF_LABELS.bi) {
+            if (SUB_ROUTE_LEAVES.bi?.has(label)) continue;
             const expectedId = `settings-bi-${leafSlug(label)}`;
             const node = state.container.querySelector(`[id="${expectedId}"]`);
             expect(node, `<Leaf label="${label}"> in BI group should have id="${expectedId}"`).toBeTruthy();
@@ -136,6 +145,7 @@ describe("Leaf renders id=settings-<group>-<slug> when group prop is set", () =>
     it("PreferencesGroup leaves render the expected ids", () => {
         const state = mount(<PreferencesGroup />);
         for (const label of GROUP_LEAF_LABELS.preferences) {
+            if (SUB_ROUTE_LEAVES.preferences?.has(label)) continue;
             const expectedId = `settings-preferences-${leafSlug(label)}`;
             const node = state.container.querySelector(`[id="${expectedId}"]`);
             expect(node, `<Leaf label="${label}"> in Preferences should have id="${expectedId}"`).toBeTruthy();
