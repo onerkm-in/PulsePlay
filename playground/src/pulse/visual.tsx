@@ -4156,7 +4156,19 @@ function App(props: AppProps) {
                 <div className="gn-header-row gn-header-row--bottom">
                     {enabledFeatures === "both" && (
                         <div className="gn-surface-switcher" aria-label="Visual surfaces">
-                            <div className="gn-header-tabs" role="tablist" aria-label="AI surfaces">
+                            {/* Audit 2026-05-20 navigation pass: Dashboard joins the
+                              * AI-side tablist as a proper role=tab (was a plain
+                              * button outside the list), so the user has consistent
+                              * three-tab navigation on BOTH panes — AI side and BI
+                              * side now mirror each other.
+                              * - aria-selected on Dashboard stays false here because
+                              *   clicking it transfers focus to the BI pane (whose
+                              *   SurfaceSwitcher then shows Dashboard active).
+                              * - Keyboard nav cycles AI Insights → Ask Pulse →
+                              *   Dashboard with arrow keys; Home / End jump to ends.
+                              * - aria-label updated "AI surfaces" → "PulsePlay
+                              *   surfaces" to reflect the inclusion of Dashboard. */}
+                            <div className="gn-header-tabs" role="tablist" aria-label="PulsePlay surfaces">
                                 <button
                                     role="tab"
                                     id="gn-tab-insights"
@@ -4177,8 +4189,8 @@ function App(props: AppProps) {
                                             setActiveTab("insights");
                                         } else if (e.key === "End") {
                                             e.preventDefault();
-                                            setActiveTab("chat");
-                                            document.getElementById("gn-tab-chat")?.focus();
+                                            // End jumps to the last tab — Dashboard.
+                                            document.getElementById("gn-tab-dashboard")?.focus();
                                         }
                                     }}
                                 >
@@ -4207,13 +4219,18 @@ function App(props: AppProps) {
                                             setActiveTab("insights");
                                             const prev = document.getElementById("gn-tab-insights") as HTMLButtonElement | null;
                                             prev?.focus();
+                                        } else if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+                                            e.preventDefault();
+                                            // ArrowRight from Ask Pulse focuses Dashboard
+                                            // (and lets the user activate it with Enter / Space).
+                                            document.getElementById("gn-tab-dashboard")?.focus();
                                         } else if (e.key === "Home") {
                                             e.preventDefault();
                                             setActiveTab("insights");
                                             document.getElementById("gn-tab-insights")?.focus();
                                         } else if (e.key === "End") {
                                             e.preventDefault();
-                                            setActiveTab("chat");
+                                            document.getElementById("gn-tab-dashboard")?.focus();
                                         }
                                     }}
                                 >
@@ -4224,27 +4241,48 @@ function App(props: AppProps) {
                                     </span>
                                     <span>Ask Pulse</span>
                                 </button>
+                                <button
+                                    role="tab"
+                                    id="gn-tab-dashboard"
+                                    aria-selected={false}
+                                    aria-controls="pp-dashboard-empty"
+                                    tabIndex={-1}
+                                    className="gn-header-tab gn-header-tab--surface-action"
+                                    onClick={() => dispatchPulsePlayViewportAction("focus", "bi")}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+                                            e.preventDefault();
+                                            setActiveTab("chat");
+                                            document.getElementById("gn-tab-chat")?.focus();
+                                        } else if (e.key === "Home") {
+                                            e.preventDefault();
+                                            setActiveTab("insights");
+                                            document.getElementById("gn-tab-insights")?.focus();
+                                        } else if (e.key === "End") {
+                                            // Already on the last tab.
+                                            e.preventDefault();
+                                        } else if (e.key === "Enter" || e.key === " ") {
+                                            // Native button activation already fires onClick; no-op
+                                            // override needed.
+                                        }
+                                    }}
+                                    aria-label="Open dashboard surface"
+                                    title="Open dashboard surface"
+                                >
+                                    <span className="gn-header-tab-icon gn-header-tab-icon--bi" aria-hidden="true">
+                                        {/* Bar-chart glyph — replaces the literal "BI" text that was
+                                          * causing visible "BI BI Viz" duplication in test snapshots
+                                          * (Codex 2026-05-19 tough test, scenario P1-13 / EL-SWITCHER-COPY).
+                                          * Audit 2026-05-19: label renamed "BI Viz" → "Dashboard". */}
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <line x1="6" y1="20" x2="6" y2="11" />
+                                            <line x1="12" y1="20" x2="12" y2="5" />
+                                            <line x1="18" y1="20" x2="18" y2="14" />
+                                        </svg>
+                                    </span>
+                                    <span>Dashboard</span>
+                                </button>
                             </div>
-                            <button
-                                type="button"
-                                className="gn-header-tab gn-header-tab--surface-action"
-                                onClick={() => dispatchPulsePlayViewportAction("focus", "bi")}
-                                aria-label="Open dashboard surface"
-                                title="Open dashboard surface"
-                            >
-                                <span className="gn-header-tab-icon gn-header-tab-icon--bi" aria-hidden="true">
-                                    {/* Bar-chart glyph — replaces the literal "BI" text that was
-                                      * causing visible "BI BI Viz" duplication in test snapshots
-                                      * (Codex 2026-05-19 tough test, scenario P1-13 / EL-SWITCHER-COPY).
-                                      * Audit 2026-05-19: label renamed "BI Viz" → "Dashboard". */}
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <line x1="6" y1="20" x2="6" y2="11" />
-                                        <line x1="12" y1="20" x2="12" y2="5" />
-                                        <line x1="18" y1="20" x2="18" y2="14" />
-                                    </svg>
-                                </span>
-                                <span>Dashboard</span>
-                            </button>
                         </div>
                     )}
                     {activeTab === "insights" && isConfigured && (
