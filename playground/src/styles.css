@@ -925,14 +925,24 @@ html, body, #root {
     border-left: 1px solid var(--pp-border-subtle, rgba(15, 23, 42, 0.06));
 }
 
-/* Narrow viewport: drop the label text, keep glyph-only pills. */
+/* Narrow viewport: tighten the pills but KEEP labels visible.
+ * Audit 2026-05-20 nav-IA pass: when the BI pane is half-width in mix
+ * mode (~640 px on a 1280 px viewport), this media query used to hide
+ * the labels entirely and the pill collapsed to three identical-shape
+ * icon discs. That made the BI-side picker feel like a different
+ * control from the AI-side picker (which always shows labels). Keep
+ * labels visible so the three tabs read the same on both panes. */
 @media (max-width: 640px) {
     .pp-surface-switcher-wrap { padding: 10px 12px 6px; }
+    .pp-surface-switcher {
+        max-width: 100%;
+        overflow-x: auto;
+    }
     .pp-surface-switcher__item {
         padding: 6px 10px;
-        gap: 0;
+        gap: 6px;
+        font-size: 12px;
     }
-    .pp-surface-switcher__label { display: none; }
 }
 
 /* ── Responsive ──────────────────────────────────────────────────── */
