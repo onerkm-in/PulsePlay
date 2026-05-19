@@ -3464,39 +3464,53 @@ function App(props: AppProps) {
                     // Single-stage path (override prompts, chips) — no batching needed.
                     await runStage(0);
                 } else {
-                    // Cycle 47.14 — Stage 0 first (alone, awaited), then a
-                    // concurrency-3 worker pool drains stages 1+. Cycle 47.1
-                    // started ALL stages including 0 in the pool, which meant
-                    // the HEADLINE section's paint order was non-deterministic
-                    // (whichever of stages 0/1/2 finished first painted first).
-                    // Live test surfaced that this was disorienting — the user
-                    // expects to see the headline render BEFORE detail
-                    // sections crowd in. Serializing stage 0 first costs ~10s
-                    // wall-clock (it no longer overlaps with stages 1-2) but
-                    // guarantees the headline paints first AND, with cycle
-                    // 47.2 conversation reuse, stage 0 becomes the conversation
-                    // OPENER — so by the time the pool fires, every joiner
-                    // skips startConversation and goes straight to sendMessage.
-                    // Workspace rate limit on /messages is materially higher
-                    // than on /start-conversation, so concurrency 3 for the
-                    // remaining stages stays comfortably inside budget.
-                    await runStage(0);
-                    if (prompts.length > 1) {
-                        const CONCURRENCY = 3;
-                        const queue = Array.from({ length: prompts.length - 1 }, (_, i) => i + 1);
-                        const drainWorker = async () => {
-                            while (true) {
-                                const idx = queue.shift();
-                                if (idx === undefined) return;
-                                await runStage(idx);
+                    // 2026-05-19 latency cycle — concurrency-2 pool with an
+                    // 8 s head-start for stage 0. Replaces the previous
+                    // cycle-47.14 pattern (serialize stage 0, then concurrency-3
+                    // for stages 1+) per Rajesh's request to:
+                    //   1. Process two sections at a time (concurrency 2,
+                    //      not 3) so backend load is gentler — Genie /messages
+                    //      throttling tends to compound long stages.
+                    //   2. Start stage 1 ~5-10 s after stage 0 on first load
+                    //      (not after stage 0 completes), so the second stage
+                    //      overlaps with the first while still giving stage 0
+                    //      a clear head start to claim the cycle-47.2 single-
+                    //      flight conversation opener and let the HEADLINE
+                    //      paint first in normal cases.
+                    //   3. All stages share the same conversation_id via the
+                    //      existing cycle-47.2 opener race in obtainMessage()
+                    //      — no API change here, just behavior.
+                    const CONCURRENCY = 2;
+                    const FIRST_LOAD_STAGE_1_DELAY_MS = 8_000;
+                    const queue = Array.from({ length: prompts.length }, (_, i) => i);
+                    const drainWorker = async (workerIndex: number) => {
+                        let isFirstPick = true;
+                        while (true) {
+                            const idx = queue.shift();
+                            if (idx === undefined) return;
+                            // Second worker waits before its FIRST pick so
+                            // stage 0 (claimed by worker 0) has time to win
+                            // the obtainMessage race + return the
+                            // conversation_id before stage 1 issues its
+                            // sendMessage on the same conversation. Subsequent
+                            // picks by the same worker have no delay.
+                            if (isFirstPick && workerIndex > 0) {
+                                await new Promise(r => setTimeout(r, FIRST_LOAD_STAGE_1_DELAY_MS));
+                                if (insightsStopRef.current[spaceKey]) {
+                                    const stopErr: any = new Error("__STOP_REQUESTED__");
+                                    stopErr.isStopRequest = true;
+                                    throw stopErr;
+                                }
                             }
-                        };
-                        const workers: Promise<void>[] = [];
-                        for (let w = 0; w < Math.min(CONCURRENCY, prompts.length - 1); w++) {
-                            workers.push(drainWorker());
+                            isFirstPick = false;
+                            await runStage(idx);
                         }
-                        await Promise.all(workers);
+                    };
+                    const workers: Promise<void>[] = [];
+                    for (let w = 0; w < Math.min(CONCURRENCY, prompts.length); w++) {
+                        workers.push(drainWorker(w));
                     }
+                    await Promise.all(workers);
                 }
                 const generatedAt = Date.now();
                 setInsightsGeneratedAtMap(previous => ({ ...previous, [spaceKey]: generatedAt }));

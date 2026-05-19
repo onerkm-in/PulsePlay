@@ -52,6 +52,16 @@ Use these tags so another agent can scan quickly:
 
 Keep PulsePlay moving faster by coordinating work across agents without losing brutal honesty.
 
+### 2026-05-19 - Claude - [DONE] AI Insights pipeline: concurrency-2 with stage-0 head-start
+
+`[DONE]` First concrete latency lever for AI Insights per Rajesh's "process two at a time, delay the second by 5-10 s on first load, all share the same conversation" ask. [`pulse/visual.tsx`](../playground/src/pulse/visual.tsx) `runInsights` IIFE replaces the cycle-47.14 pattern (serialize stage 0, then concurrency-3 pool) with a single concurrency-2 pool. Worker A picks stage 0 immediately; worker B waits **8 s** (`FIRST_LOAD_STAGE_1_DELAY_MS`) before its first pick (stage 1); both drain the remainder. Cycle-47.2 single-flight conversation opener in `obtainMessage()` is unchanged — every stage still shares the same `conversation_id`. Stop-flag honored before the delayed first pick.
+
+`[RISK]` This trims roughly one stage's wall-clock vs the prior serialization and reduces Genie /messages concurrency from 3 to 2 (gentler on workspace rate limit). It is **NOT** the 3:39 → 5-10 s leap — the dominant cost is Genie's per-message latency, which is upstream of pipeline orchestration. Use the perfInstrumentation `console.table` from `b71270f` / `eae37a1` to see per-stage durations; further levers (stage fusion, prompt-size trimming, supervisor routing, foundation-model SSE for Insights) are their own cycles.
+
+Validation: `npm run lint` clean; full `npm run test -- --run` **920/920** across 72 files; `npm run build` clean (17.82 s).
+
+`[HANDOFF]` Next focus options for real latency reduction: (a) fuse multiple sections into one Genie message (single round-trip, model emits headed sections — already partially implemented for hybrid pipelines), (b) switch Insights to foundation-model streaming for SSE-style first-token-fast UX, (c) prompt-size audit + tightening on the heaviest stages.
+
 ### 2026-05-19 - Claude - [DONE] Post-UAT-1840 follow-up — glyph sweep + tooltip rollout + perf wiring
 
 `[DONE]` Closed the non-latency P2 items Codex flagged in [`docs/CODEX_VERIFY_RESULTS_2026-05-19_post-uat-1840.md`](CODEX_VERIFY_RESULTS_2026-05-19_post-uat-1840.md) and wired `perfInstrumentation` into the two pipelines.

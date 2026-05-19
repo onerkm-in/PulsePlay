@@ -5,6 +5,43 @@
 
 ---
 
+## 2026-05-19 — AI Insights pipeline: concurrency-2 with stage-0 head-start
+
+**Range:** First concrete latency lever for AI Insights, per Rajesh's "process two sections at a time, delay the second by 5-10 s on first load, all share the same conversation" ask. Pipeline shape change only — does not touch backend or model selection.
+
+**Files touched:**
+- [`playground/src/pulse/visual.tsx`](../playground/src/pulse/visual.tsx) `runInsights` IIFE — replaces the cycle-47.14 pattern (`await runStage(0); then concurrency-3 pool for stages 1+`) with a single concurrency-2 pool that picks up stage 0 immediately and stage 1 after an 8 s head-start. The cycle-47.2 single-flight conversation opener in `obtainMessage()` is unchanged, so every stage still shares the same `conversation_id`.
+
+**What changed in flow:**
+- Stage 0 starts at `t=0` (claims the cycle-47.2 conversation opener race).
+- Stage 1 starts at `t=8 s` on the same conversation (joiner — calls `sendMessage`, not `startConversation`).
+- Stages 2+ are drained by the same two workers as soon as worker A or B finishes its current stage.
+- HEADLINE-first paint guarantee is preserved by giving stage 0 the 8 s lead — in the common case it still paints before stage 1 lands.
+- Stop request honored before the second worker's delayed first pick (same `__STOP_REQUESTED__` sentinel as elsewhere).
+
+**Honest expectations:**
+- For a 4-5 stage briefing where each stage costs ~60 s on Genie, this trims roughly one stage's worth of wall-clock vs the cycle-47.14 serialization (because stages 0 + 1 now overlap from the start instead of stages 1+ waiting for stage 0 to fully complete).
+- This is **not** the 3:39 → 5-10 s leap. The dominant cost is Genie's per-message latency, which is upstream of pipeline orchestration. Use the perfInstrumentation `console.table` from `b71270f`/`eae37a1` to see the per-stage durations; the next levers (stage-fusion, prompt trimming, supervisor switch, foundation-model streaming path) are different cycles.
+- Backend rate-limit pressure is gentler: only 2 in-flight Genie messages per run instead of 3.
+
+**Validation:**
+- `npm run lint` clean (TypeScript noEmit).
+- Full tests: **920/920** across 72 files.
+- `npm run build` clean in **17.82 s** (pre-existing dynamic/static import warnings unchanged).
+
+**Tripwires preserved:**
+- Cycle-47.2 single-flight conversation opener: opener race in `obtainMessage()` is untouched — only the OUTER orchestration changed.
+- Stage 0 still becomes the conversation opener (worker 0 picks stage 0 synchronously before any setTimeout).
+- Stop-flag check before delayed first pick (no new "ghost stage starts after Stop" path).
+- No Pulse-PBI compat broken — the orchestration change uses standard `setTimeout` + `Promise`, both safe in sandbox.
+
+**Honest deferrals carried forward:**
+- True 5-10 s answer time. Requires backend / model / prompt-shape work (foundation-model SSE streaming for Insights, or supervisor-routed paths) — separate cycles.
+- Per-stage prompt size trimming so each individual `sendMessage` finishes faster.
+- Mobile / cross-platform verification still queued.
+
+---
+
 ## 2026-05-19 — Post-UAT-1840 follow-up: glyph sweep + tooltip rollout + perf wiring
 
 **Range:** Concrete fixes for Codex's P2 follow-ups out of [`CODEX_VERIFY_RESULTS_2026-05-19_post-uat-1840.md`](CODEX_VERIFY_RESULTS_2026-05-19_post-uat-1840.md). Latency itself remains the carry-forward blocker — this pass closes the *non-latency* P2 items and wires `perfInstrumentation` into the two pipelines Codex called out so the next cycle has real numbers to attack instead of guessing.
