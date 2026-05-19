@@ -3057,54 +3057,79 @@
 /* ── Suggestions bar ── */
 
 .gn-suggestions {
-    padding: 8px 16px;
+    padding: 10px 16px 12px;
     border-top: 1px solid @gn-border-subtle;
+    background: linear-gradient(180deg, @gn-surface 0%, rgba(248,250,252,0.6) 100%);
 }
 
 .gn-suggestions-label {
-    display: block;
-    margin-bottom: 8px;
-    font-size: 12px;
-    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 9px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
     color: @gn-text-muted;
 }
 
 .gn-suggestion-pills {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 7px;
 }
 
 .gn-pill {
-    min-height: 30px;
-    padding: 0 13px;
-    border: 1px solid @gn-border;
+    min-height: 32px;
+    padding: 0 14px;
+    border: 1.5px solid @gn-border;
     border-radius: @gn-radius-pill;
     background: @gn-surface-raised;
     color: @gn-text;
-    font-size: 13px;
+    font-size: 12.5px;
     font-weight: 500;
     cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.85);
     transition: border-color @gn-t-base @gn-ease, color @gn-t-base @gn-ease,
-                background @gn-t-base @gn-ease, transform @gn-t-fast @gn-ease;
+                background @gn-t-base @gn-ease, transform @gn-t-fast @gn-ease,
+                box-shadow @gn-t-base @gn-ease;
 
     &:hover:not(:disabled) {
-        border-color: @gn-accent;
+        border-color: @gn-accent-border;
         color: @gn-accent;
         background: @gn-accent-subtle;
+        box-shadow: 0 2px 8px rgba(26,111,212,0.14), inset 0 1px 0 rgba(255,255,255,0.9);
+        transform: translateY(-1px);
     }
-    &:active:not(:disabled) { transform: scale(0.96); }
+    &:active:not(:disabled) { transform: scale(0.96) translateY(0); }
+}
+
+/* Featured/sparkle pill — first suggestion or AI-generated */
+.gn-pill--featured {
+    background: linear-gradient(135deg, rgba(37,99,235,0.07) 0%, rgba(124,58,237,0.05) 100%);
+    border-color: rgba(37,99,235,0.28);
+    color: #1d4ed8;
+    font-weight: 600;
+
+    &:hover:not(:disabled) {
+        background: linear-gradient(135deg, rgba(37,99,235,0.12) 0%, rgba(124,58,237,0.09) 100%);
+        border-color: rgba(37,99,235,0.5);
+        box-shadow: 0 3px 10px rgba(37,99,235,0.18);
+    }
 }
 
 .gn-pill:disabled {
-    opacity: 0.5;
+    opacity: 0.48;
     cursor: not-allowed;
+    box-shadow: none;
 }
 
 .gn-pill--active {
     border-color: @gn-accent;
-    background: @gn-accent;
+    background: linear-gradient(135deg, @gn-accent 0%, #1d4ed8 100%);
     color: #fff;
+    box-shadow: 0 3px 10px rgba(26,111,212,0.32);
 }
 
 /* ── Filters bar ── */

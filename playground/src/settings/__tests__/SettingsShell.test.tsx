@@ -117,8 +117,8 @@ describe("SettingsShell — search filter", () => {
         // "Canvas tiles" leaf is under Preferences -> only Preferences should render.
         const buttons = state.container.querySelectorAll<HTMLButtonElement>("nav button");
         const labels = Array.from(buttons).map(b => (b.textContent || "").trim());
-        expect(labels.some(l => l.startsWith("Preferences"))).toBe(true);
-        expect(labels.some(l => l.startsWith("Advanced"))).toBe(false);
+        expect(labels.some(l => l.includes("Preferences"))).toBe(true);
+        expect(labels.some(l => l.includes("Advanced"))).toBe(false);
         unmount(state);
     });
 });

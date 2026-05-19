@@ -5203,7 +5203,7 @@ function App(props: AppProps) {
 
                         {(messages.length > 0 || activeFollowUps.length > 0) && (
                             <div className="gn-suggestions">
-                                <span className="gn-suggestions-label">Try asking</span>
+                                <span className="gn-suggestions-label">✦ Try asking</span>
                                 <div className="gn-suggestion-pills">
                                     {/* IDEA-032: Insights-derived clarifiers come first so the
                                         most-contextual suggestions are most prominent. They
@@ -5214,7 +5214,7 @@ function App(props: AppProps) {
                                     {activeFollowUps.slice(0, 6).map((q, i) => (
                                         <button
                                             key={`fu-${i}`}
-                                            className="gn-pill gn-pill--from-insights"
+                                            className="gn-pill gn-pill--from-insights gn-pill--featured"
                                             disabled={!isConfigured || busy}
                                             title={`${q}\n\n✨ Carried over from AI Insights — will continue the same AI conversation`}
                                             onClick={() => {

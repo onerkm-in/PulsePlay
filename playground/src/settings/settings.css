@@ -1,0 +1,383 @@
+/* ═══════════════════════════════════════════════════════════════════
+   PulsePlay Settings Shell — v2 polished styles
+   Replaces the 50+ inline-style objects in SettingsShell.tsx with
+   a proper class-based design that uses the --pp-* token system.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Shell root ──────────────────────────────────────────────────── */
+.pp-settings {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    background: var(--pp-bg, #f4f6f9);
+    color: var(--pp-text, #0f172a);
+    font-family: var(--pp-font, "Inter", "Segoe UI", system-ui, sans-serif);
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ── Header ──────────────────────────────────────────────────────── */
+.pp-settings-header {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 24px;
+    background: var(--pp-surface, #fff);
+    border-bottom: 1px solid var(--pp-border-subtle, rgba(15,23,42,0.06));
+    box-shadow: 0 1px 0 var(--pp-border-subtle, rgba(15,23,42,0.06)),
+                0 2px 8px rgba(15, 23, 42, 0.04);
+    position: relative;
+    z-index: 1;
+}
+
+.pp-settings-header__brand {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.pp-settings-header__title {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--pp-text, #0f172a);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.pp-settings-header__title-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    flex-shrink: 0;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.32);
+}
+
+.pp-settings-header__subtitle {
+    margin: 0;
+    font-size: 11px;
+    color: var(--pp-text-muted, #64748b);
+    font-weight: 400;
+    letter-spacing: 0.01em;
+}
+
+.pp-settings-header__back {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: inherit;
+    border: 1px solid var(--pp-border-strong, rgba(15,23,42,0.18));
+    background: var(--pp-surface, #fff);
+    color: var(--pp-text, #0f172a);
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(15,23,42,0.07), inset 0 1px 0 rgba(255,255,255,0.9);
+    transition: all 160ms cubic-bezier(0.22,1,0.36,1);
+}
+.pp-settings-header__back:hover {
+    border-color: var(--pp-accent-border, rgba(37,99,235,0.30));
+    color: var(--pp-accent, #2563eb);
+    box-shadow: 0 2px 6px rgba(15,23,42,0.10), inset 0 1px 0 rgba(255,255,255,0.9);
+    transform: translateX(-2px);
+}
+.pp-settings-header__back:active { transform: translateX(0); }
+
+/* ── Search bar ──────────────────────────────────────────────────── */
+.pp-settings-search {
+    flex: 0 0 auto;
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--pp-surface, #fff);
+    border-bottom: 1px solid var(--pp-border-subtle, rgba(15,23,42,0.06));
+}
+
+.pp-settings-search__wrap {
+    flex: 1 1 auto;
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.pp-settings-search__icon {
+    position: absolute;
+    left: 11px;
+    font-size: 13px;
+    opacity: 0.45;
+    pointer-events: none;
+    user-select: none;
+    line-height: 1;
+}
+
+.pp-settings-search__input {
+    flex: 1 1 auto;
+    width: 100%;
+    padding: 8px 56px 8px 32px;
+    font-size: 13px;
+    font-family: inherit;
+    border: 1.5px solid var(--pp-border-strong, rgba(15,23,42,0.16));
+    border-radius: 10px;
+    outline: none;
+    background: var(--pp-bg, #f4f6f9);
+    color: var(--pp-text, #0f172a);
+    box-shadow: inset 0 1px 2px rgba(15,23,42,0.05);
+    transition: all 160ms cubic-bezier(0.22,1,0.36,1);
+}
+.pp-settings-search__input:focus {
+    border-color: var(--pp-accent, #2563eb);
+    background: var(--pp-surface, #fff);
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.14), inset 0 1px 2px rgba(15,23,42,0.04);
+}
+.pp-settings-search__input::placeholder { color: var(--pp-text-subtle, #94a3b8); }
+
+.pp-settings-search__kbd {
+    position: absolute;
+    right: 10px;
+    padding: 2px 7px;
+    font-size: 11px;
+    font-family: var(--pp-font-mono, monospace);
+    background: var(--pp-bg, #f4f6f9);
+    border: 1px solid var(--pp-border, rgba(15,23,42,0.10));
+    border-radius: 5px;
+    opacity: 0.65;
+    pointer-events: none;
+    transition: opacity 120ms;
+    color: var(--pp-text-muted, #64748b);
+}
+.pp-settings-search__input:focus + .pp-settings-search__kbd { opacity: 0; }
+
+.pp-settings-search__count {
+    font-size: 12px;
+    color: var(--pp-text-muted, #64748b);
+    white-space: nowrap;
+    font-weight: 500;
+}
+
+/* ── Status strip ────────────────────────────────────────────────── */
+.pp-settings-status {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 6px;
+    padding: 8px 24px;
+    border-bottom: 1px solid var(--pp-border-subtle, rgba(15,23,42,0.06));
+    flex-wrap: wrap;
+    background: var(--pp-surface, #fff);
+}
+
+/* Status chip base */
+.pp-settings-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 11px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: inherit;
+    border: 1.5px solid transparent;
+    cursor: pointer;
+    transition: all 120ms cubic-bezier(0.22,1,0.36,1);
+    box-shadow: 0 1px 2px rgba(15,23,42,0.05);
+}
+.pp-settings-chip:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(15,23,42,0.10); }
+.pp-settings-chip:active { transform: translateY(0); }
+
+.pp-settings-chip__dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    transition: transform 160ms;
+}
+.pp-settings-chip:hover .pp-settings-chip__dot { transform: scale(1.2); }
+
+.pp-settings-chip__label { letter-spacing: 0.01em; }
+.pp-settings-chip__detail { opacity: 0.75; font-weight: 500; }
+
+/* Chip variants */
+.pp-settings-chip--ok {
+    background: rgba(5, 150, 105, 0.08);
+    color: #065f46;
+    border-color: rgba(5, 150, 105, 0.20);
+}
+.pp-settings-chip--ok .pp-settings-chip__dot { background: #10b981; }
+
+.pp-settings-chip--warn {
+    background: rgba(217, 119, 6, 0.08);
+    color: #92400e;
+    border-color: rgba(217, 119, 6, 0.20);
+}
+.pp-settings-chip--warn .pp-settings-chip__dot { background: #f59e0b; }
+
+.pp-settings-chip--missing {
+    background: rgba(220, 38, 38, 0.07);
+    color: #991b1b;
+    border-color: rgba(220, 38, 38, 0.20);
+}
+.pp-settings-chip--missing .pp-settings-chip__dot { background: #ef4444; }
+
+.pp-settings-chip--loading {
+    background: rgba(15,23,42,0.04);
+    color: var(--pp-text-muted, #64748b);
+    border-color: rgba(15,23,42,0.08);
+}
+.pp-settings-chip--loading .pp-settings-chip__dot { background: #94a3b8; }
+
+/* ── Body (rail + content) ───────────────────────────────────────── */
+.pp-settings-body {
+    flex: 1 1 auto;
+    display: flex;
+    min-height: 0;
+}
+
+/* ── Left rail ───────────────────────────────────────────────────── */
+.pp-settings-rail {
+    flex: 0 0 232px;
+    padding: 12px 10px;
+    border-right: 1px solid var(--pp-border-subtle, rgba(15,23,42,0.06));
+    background: var(--pp-surface, #fff);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.pp-settings-rail__item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 10px 12px;
+    border: none;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--pp-text, #0f172a);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 160ms cubic-bezier(0.22,1,0.36,1);
+    position: relative;
+    overflow: hidden;
+}
+
+.pp-settings-rail__item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 60%;
+    border-radius: 0 3px 3px 0;
+    background: var(--pp-accent, #2563eb);
+    opacity: 0;
+    transition: opacity 160ms, height 160ms cubic-bezier(0.22,1,0.36,1);
+}
+
+.pp-settings-rail__item:hover:not(.pp-settings-rail__item--active) {
+    background: var(--pp-bg, #f4f6f9);
+}
+
+.pp-settings-rail__item--active {
+    background: linear-gradient(135deg, rgba(37,99,235,0.10) 0%, rgba(124,58,237,0.06) 100%);
+    color: var(--pp-accent, #2563eb);
+    font-weight: 600;
+}
+.pp-settings-rail__item--active::before { opacity: 1; height: 70%; }
+
+.pp-settings-rail__item-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.pp-settings-rail__item-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.pp-settings-rail__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    transition: transform 160ms;
+}
+.pp-settings-rail__item:hover .pp-settings-rail__dot { transform: scale(1.15); }
+
+.pp-settings-rail__item--active .pp-settings-rail__dot {
+    background: rgba(37,99,235,0.5) !important;
+}
+
+.pp-settings-rail__orphan-badge {
+    font-size: 9px;
+    padding: 2px 6px;
+    background: rgba(245, 158, 11, 0.15);
+    color: #92400e;
+    border-radius: 999px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border: 1px solid rgba(245, 158, 11, 0.25);
+}
+.pp-settings-rail__item--active .pp-settings-rail__orphan-badge {
+    background: rgba(37,99,235,0.15);
+    color: var(--pp-accent, #2563eb);
+    border-color: rgba(37,99,235,0.25);
+}
+
+.pp-settings-rail__desc {
+    font-size: 11px;
+    color: var(--pp-text-muted, #64748b);
+    margin-top: 2px;
+    font-weight: 400;
+    line-height: 1.35;
+}
+.pp-settings-rail__item--active .pp-settings-rail__desc { color: rgba(37,99,235,0.7); }
+
+.pp-settings-rail__loading {
+    font-size: 11px;
+    color: var(--pp-text-subtle, #94a3b8);
+    padding: 12px;
+    text-align: center;
+    font-style: italic;
+}
+
+/* ── Main content pane ───────────────────────────────────────────── */
+.pp-settings-main {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 24px 32px 48px;
+    background: var(--pp-bg, #f4f6f9);
+}
+
+/* ── Save bar ────────────────────────────────────────────────────── */
+/* (SettingsSaveBar already has its own inline styles — leave as is) */
+
+/* ── Responsive ──────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+    .pp-settings-rail { flex: 0 0 180px; }
+    .pp-settings-main { padding: 16px 20px 40px; }
+    .pp-settings-header { padding: 12px 16px; }
+    .pp-settings-search { padding: 8px 16px; }
+    .pp-settings-status { padding: 6px 16px; }
+}
+
+@media (max-width: 640px) {
+    .pp-settings-rail { display: none; }
+}

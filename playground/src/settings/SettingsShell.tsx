@@ -1,17 +1,8 @@
 // playground/src/settings/SettingsShell.tsx
 //
 // Full-page Settings surface. Mounted by App.tsx when the URL matches
-// /settings*. Layout per docs/SETTINGS_SPEC.md § 3:
-//
-//   - Header strip: brand + Back-to-app button + Esc to close
-//   - Search box (Cmd/Ctrl+/ to focus, Phase 2 filters by leaf label)
-//   - Status strip: setup/readiness + BI · AI · Pack · Proxy · Security
-//   - Left rail: Setup + BI + AI + Preferences + System + Advanced
-//   - Content pane: renders the active group
-//
-// Search is intentionally lightweight in Phase 2 (substring match on group
-// labels + leaf labels rendered today). It becomes load-bearing when leaf
-// count crosses ~25 (SETTINGS_SPEC § 9).
+// /settings*. All structural styles live in settings.css (class-based).
+// Layout per docs/SETTINGS_SPEC.md § 3.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -24,8 +15,6 @@ import {
 } from "./settingsRoute";
 import { useSettings } from "./settingsStore";
 import { useEmbedConfig } from "./embedConfigStore";
-import { useSettingsDraft } from "./useSettingsDraft";
-import { SettingsSaveBar } from "./SettingsSaveBar";
 import { getSetupReadiness } from "./setupReadiness";
 import { BiGroup, leafSlug } from "./groups/BiGroup";
 import { SetupGroup } from "./groups/SetupGroup";
@@ -33,33 +22,50 @@ import { AiGroup } from "./groups/AiGroup";
 import { PreferencesGroup } from "./groups/PreferencesGroup";
 import { SystemGroup } from "./groups/SystemGroup";
 import { AdvancedGroup } from "./groups/AdvancedGroup";
+import { useSettingsDraft } from "./useSettingsDraft";
+import { SettingsSaveBar } from "./SettingsSaveBar";
+import "./settings.css";
 
 const GROUP_LABELS: Record<SettingsGroupId, string> = {
-    setup: "Setup",
-    bi: "BI",
-    ai: "AI",
+    setup:       "Setup",
+    bi:          "BI",
+    ai:          "AI",
     preferences: "Preferences",
-    system: "System",
-    advanced: "Advanced",
+    system:      "System",
+    advanced:    "Advanced",
 };
 
-// Sidebar subtitle copy. Voice is consistent: action-leading, sentence case,
-// no questions or definitions. Authors should be able to scan the rail and
-// know what each group is for without opening it.
 const GROUP_DESCRIPTIONS: Record<SettingsGroupId, string> = {
-    setup: "Get PulsePlay ready in two short steps",
-    bi: "Pick a BI tool and wire its embed",
-    ai: "Configure the assistant powering Insights and Ask Pulse",
+    setup:       "Get PulsePlay ready in two short steps",
+    bi:          "Pick a BI tool and wire its embed",
+    ai:          "Configure the assistant powering Insights and Ask Pulse",
     preferences: "Layout, visible panels, and display policy",
-    system: "Network, governance, and diagnostics",
-    advanced: "Developer tools and reset utilities",
+    system:      "Network, governance, and diagnostics",
+    advanced:    "Developer tools and reset utilities",
 };
 
-// Leaf labels must match the `<Leaf label="…">` props rendered in each
-// group file verbatim. The drift-prevention test in
-// __tests__/leafLabels.drift.test.tsx scans the rendered DOM and asserts
-// every leaf appears here. If you add or rename a Leaf in one of the
-// groups, update this dictionary or the test will fail.
+const GROUP_ICONS: Record<SettingsGroupId, string> = {
+    setup:       "✦",
+    bi:          "⬡",
+    ai:          "◈",
+    preferences: "◉",
+    system:      "⬢",
+    advanced:    "⚙",
+};
+
+// Accent color for the readiness dot on each rail item.
+const READINESS_DOT: Record<"ready" | "needed" | "info", string> = {
+    ready:  "#10b981",
+    needed: "#ef4444",
+    info:   "rgba(0, 0, 0, 0.18)",
+};
+
+const READINESS_LABEL: Record<"ready" | "needed" | "info", string> = {
+    ready:  "Ready",
+    needed: "Setup needed",
+    info:   "Informational",
+};
+
 export const GROUP_LEAF_LABELS: Record<SettingsGroupId, string[]> = {
     setup: ["Readiness", "BI vertical", "AI vertical", "Experience controls"],
     bi: ["Provider", "Embed", "Authentication", "Canvas", "Status"],
@@ -87,9 +93,6 @@ export function SettingsShell(): React.ReactElement {
     const searchInputRef = useRef<HTMLInputElement | null>(null);
     const [search, setSearch] = useState("");
 
-    // Lift the readiness model so the left rail can render per-group status
-    // dots. Same computation that drives the existing Setup pill in the
-    // header status strip, just consumed in two places now.
     const readiness = useMemo(
         () => getSetupReadiness({
             biVendor: settings.biVendor,
@@ -98,8 +101,9 @@ export function SettingsShell(): React.ReactElement {
         }),
         [settings.biVendor, embedConfig, settings.activeAiProfile],
     );
+
     const readinessByGroup: Record<SettingsGroupId, "ready" | "needed" | "info"> = useMemo(() => ({
-        setup:       readiness.ready ? "ready" : "needed",
+        setup:       readiness.ready   ? "ready" : "needed",
         bi:          readiness.biReady ? "ready" : "needed",
         ai:          readiness.aiReady ? "ready" : "needed",
         preferences: "info",
@@ -107,7 +111,6 @@ export function SettingsShell(): React.ReactElement {
         advanced:    "info",
     }), [readiness.ready, readiness.biReady, readiness.aiReady]);
 
-    // Esc to close, Cmd/Ctrl+/ to focus search.
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
             if (e.key === "Escape") {
@@ -122,24 +125,14 @@ export function SettingsShell(): React.ReactElement {
         return () => window.removeEventListener("keydown", handler);
     }, []);
 
-    // Settings IA fix #2 — when the URL has a `/settings/<group>/<leaf>`
-    // segment, scroll the matching leaf into view after the group renders.
-    // The `<Leaf>` component renders `id="settings-<group>-<slug>"`; we
-    // accept either the exact slug or any label that slugifies to it
-    // (case-insensitive, separator-tolerant).
     useEffect(() => {
         if (!route.isSettingsRoute || !route.leaf) return;
         const wanted = leafSlug(route.leaf);
         if (!wanted) return;
-        // Defer one frame so the active group has mounted and its leaves
-        // are in the DOM before we look them up.
         const id = window.requestAnimationFrame(() => {
             const target = document.getElementById(`settings-${route.group}-${wanted}`);
             if (target) {
                 target.scrollIntoView({ behavior: "smooth", block: "start" });
-                // Visual highlight pulse so the user can spot the destination
-                // when the layout is dense. Pure CSS transition; no JS timer
-                // leak if the user navigates away.
                 target.setAttribute("data-leaf-just-scrolled", "true");
                 setTimeout(() => target.removeAttribute("data-leaf-just-scrolled"), 2000);
             }
@@ -160,25 +153,8 @@ export function SettingsShell(): React.ReactElement {
     }, [search]);
 
     return (
-        <div
-            className="pp-settings"
-            style={{
-                position: "fixed",
-                inset: 0,
-                background: "var(--pp-bg, #fff)",
-                color: "var(--pp-fg, #111)",
-                display: "flex",
-                flexDirection: "column",
-                zIndex: 1000,
-            }}
-        >
-            {/* Pulse animation for the unsaved-changes dot in SettingsSaveBar */}
-            <style>{`
-                @keyframes pp-save-pulse {
-                    0%, 100% { opacity: 1; transform: scale(1); }
-                    50% { opacity: 0.5; transform: scale(1.35); }
-                }
-            `}</style>
+        <div className="pp-settings">
+            <style>{`@keyframes pp-save-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.35)}}`}</style>
             <SettingsHeader />
             <SettingsSearchBar
                 inputRef={searchInputRef}
@@ -187,7 +163,7 @@ export function SettingsShell(): React.ReactElement {
                 resultsCount={filteredGroups.length}
             />
             <SettingsStatusStrip />
-            <div style={{ flex: "1 1 auto", display: "flex", minHeight: 0 }}>
+            <div className="pp-settings-body">
                 <SettingsLeftRail
                     activeGroup={route.group}
                     visibleGroups={filteredGroups}
@@ -195,15 +171,7 @@ export function SettingsShell(): React.ReactElement {
                     hasOrphans={settings.orphans.length > 0}
                     readinessByGroup={readinessByGroup}
                 />
-                <main
-                    style={{
-                        flex: "1 1 auto",
-                        overflowY: "auto",
-                        padding: "20px 28px 40px",
-                        background: "var(--pp-bg, #fafafa)",
-                    }}
-                    aria-live="polite"
-                >
+                <main className="pp-settings-main" aria-live="polite">
                     <ActiveGroup group={route.group} />
                 </main>
             </div>
@@ -212,37 +180,24 @@ export function SettingsShell(): React.ReactElement {
     );
 }
 
-// ─── Header strip ────────────────────────────────────────────────────────
+// ─── Header ──────────────────────────────────────────────────────
 
 function SettingsHeader(): React.ReactElement {
     return (
-        <header
-            style={{
-                flex: "0 0 auto",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "10px 20px",
-                borderBottom: "1px solid var(--pp-border, rgba(0,0,0,0.08))",
-            }}
-        >
-            <div>
-                <h1 style={{ margin: 0, fontSize: 18, lineHeight: 1.1 }}>PulsePlay Settings</h1>
-                <p style={{ margin: "2px 0 0", fontSize: 11, opacity: 0.6 }}>
+        <header className="pp-settings-header">
+            <div className="pp-settings-header__brand">
+                <h1 className="pp-settings-header__title">
+                    <span className="pp-settings-header__title-icon" aria-hidden="true">⚙</span>
+                    Settings
+                </h1>
+                <p className="pp-settings-header__subtitle">
                     Configure how PulsePlay looks, what it embeds, and how it reasons.
                 </p>
             </div>
             <button
                 type="button"
+                className="pp-settings-header__back"
                 onClick={navigateToApp}
-                style={{
-                    padding: "6px 14px",
-                    fontSize: 13,
-                    border: "1px solid var(--pp-border, rgba(0,0,0,0.18))",
-                    background: "transparent",
-                    borderRadius: 4,
-                    cursor: "pointer",
-                }}
                 title="Return to the playground (Esc)"
             >
                 ← Back to app
@@ -251,7 +206,7 @@ function SettingsHeader(): React.ReactElement {
     );
 }
 
-// ─── Search bar ──────────────────────────────────────────────────────────
+// ─── Search ──────────────────────────────────────────────────────
 
 interface SettingsSearchBarProps {
     value: string;
@@ -262,96 +217,34 @@ interface SettingsSearchBarProps {
 
 function SettingsSearchBar(props: SettingsSearchBarProps): React.ReactElement {
     const { value, onChange, resultsCount, inputRef } = props;
-    const [focused, setFocused] = useState(false);
-    // Sum of all leaves across all groups so the placeholder gives a concrete
-    // surface estimate rather than a generic prompt. Cheap to compute — the
-    // counts are static + tiny.
     const totalLeafCount = useMemo(
         () => SETTINGS_GROUP_IDS.reduce((sum, id) => sum + GROUP_LEAF_LABELS[id].length, 0),
         [],
     );
-    // Mac vs non-Mac kbd hint — visible inside the input to make Cmd/Ctrl+/
-    // discoverable. Falls back to "Ctrl" anywhere we can't read userAgent.
     const isMac = useMemo(() => {
         if (typeof navigator === "undefined") return false;
         return /Mac|iPad|iPhone|iPod/.test(navigator.platform || navigator.userAgent || "");
     }, []);
-    const kbdHint = isMac ? "⌘ /" : "Ctrl /";
+
     return (
-        <div
-            style={{
-                flex: "0 0 auto",
-                padding: "10px 20px",
-                display: "flex",
-                gap: 10,
-                alignItems: "center",
-                borderBottom: "1px solid var(--pp-border, rgba(0,0,0,0.08))",
-            }}
-        >
-            <div
-                style={{
-                    flex: "1 1 auto",
-                    position: "relative",
-                    display: "flex",
-                    alignItems: "center",
-                }}
-            >
-                <span
-                    aria-hidden="true"
-                    style={{
-                        position: "absolute",
-                        left: 12,
-                        fontSize: 13,
-                        opacity: 0.5,
-                        pointerEvents: "none",
-                    }}
-                >
-                    🔍
-                </span>
+        <div className="pp-settings-search">
+            <div className="pp-settings-search__wrap">
+                <span className="pp-settings-search__icon" aria-hidden="true">🔍</span>
                 <input
                     ref={inputRef}
                     type="search"
+                    className="pp-settings-search__input"
                     placeholder={`Search ${totalLeafCount} settings across 6 groups…`}
                     value={value}
                     onChange={e => onChange(e.target.value)}
-                    onFocus={() => setFocused(true)}
-                    onBlur={() => setFocused(false)}
                     aria-label="Search settings"
-                    style={{
-                        flex: "1 1 auto",
-                        width: "100%",
-                        padding: "8px 64px 8px 32px",
-                        fontSize: 13,
-                        fontWeight: focused || value ? 500 : 400,
-                        border: `1px solid ${focused ? "var(--pp-accent, #0078d4)" : "var(--pp-border, rgba(0,0,0,0.18))"}`,
-                        borderRadius: 6,
-                        outline: "none",
-                        background: "var(--pp-input-bg, #fff)",
-                        boxShadow: focused ? "0 0 0 3px rgba(0, 120, 212, 0.12)" : "none",
-                        transition: "border-color 0.12s ease, box-shadow 0.12s ease, font-weight 0.12s ease",
-                    }}
                 />
-                <kbd
-                    aria-hidden="true"
-                    style={{
-                        position: "absolute",
-                        right: 10,
-                        padding: "2px 6px",
-                        fontSize: 11,
-                        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-                        background: "var(--pp-border, rgba(0,0,0,0.06))",
-                        border: "1px solid rgba(0,0,0,0.08)",
-                        borderRadius: 3,
-                        opacity: focused ? 0 : 0.7,
-                        pointerEvents: "none",
-                        transition: "opacity 0.12s ease",
-                    }}
-                >
-                    {kbdHint}
+                <kbd className="pp-settings-search__kbd" aria-hidden="true">
+                    {isMac ? "⌘ /" : "Ctrl /"}
                 </kbd>
             </div>
             {value && (
-                <span style={{ fontSize: 12, opacity: 0.65, whiteSpace: "nowrap" }}>
+                <span className="pp-settings-search__count">
                     {resultsCount} group{resultsCount === 1 ? "" : "s"} matched
                 </span>
             )}
@@ -359,7 +252,7 @@ function SettingsSearchBar(props: SettingsSearchBarProps): React.ReactElement {
     );
 }
 
-// ─── Status strip ────────────────────────────────────────────────────────
+// ─── Status strip ────────────────────────────────────────────────
 
 function SettingsStatusStrip(): React.ReactElement {
     const { allowlist, allowlistLoading, allowlistError, biVendor, packSelection, activeAiProfile, orphans } = useSettings();
@@ -367,41 +260,21 @@ function SettingsStatusStrip(): React.ReactElement {
     const setupReadiness = getSetupReadiness({ biVendor, embedConfig, activeAiProfile });
 
     const biStatus = orphans.some(o => o.key === "pulseplay:bi-vendor")
-        ? "warn"
-        : setupReadiness.biReady
-            ? "ok"
-            : "missing";
+        ? "warn" : setupReadiness.biReady ? "ok" : "missing";
     const aiStatus = orphans.some(o => o.key === "pulseplay:active-ai-profile")
-        ? "warn"
-        : setupReadiness.aiReady
-            ? "ok"
-            : "missing";
+        ? "warn" : setupReadiness.aiReady ? "ok" : "missing";
     const packStatus = orphans.some(o => o.key === "pulseplay:pack-selection")
-        ? "warn"
-        : packSelection
-            ? "ok"
-            : "missing";
+        ? "warn" : packSelection ? "ok" : "missing";
     const proxyStatus = allowlistError ? "warn" : allowlistLoading ? "loading" : "ok";
     const securityStatus = allowlist?.enforcement === "strict" ? "ok" : "warn";
 
-    // Settings IA fix #3 — each chip is a button that jumps to the matching
-    // group. BI / AI / Preferences / System / Advanced. Pack lives under AI.
     return (
-        <div
-            style={{
-                flex: "0 0 auto",
-                display: "flex",
-                gap: 8,
-                padding: "8px 20px",
-                borderBottom: "1px solid var(--pp-border, rgba(0,0,0,0.08))",
-                flexWrap: "wrap",
-            }}
-        >
-            <Chip label="Setup" status={setupReadiness.ready ? "ok" : "warn"} detail={setupReadiness.pillDetail} group="setup" />
-            <Chip label="BI" status={biStatus} detail={biVendor || "(none)"} group="bi" />
-            <Chip label="AI" status={aiStatus} detail={activeAiProfile || "(none)"} group="ai" />
-            <Chip label="Pack" status={packStatus} detail={packSelection?.pack || "(none)"} group="ai" leaf="knowledge-pack" />
-            <Chip label="Proxy" status={proxyStatus} detail={allowlistError || (allowlistLoading ? "loading" : "ok")} group="system" leaf="proxy-status" />
+        <div className="pp-settings-status">
+            <Chip label="Setup"    status={setupReadiness.ready ? "ok" : "warn"} detail={setupReadiness.pillDetail} group="setup" />
+            <Chip label="BI"       status={biStatus}       detail={biVendor || "(none)"}            group="bi" />
+            <Chip label="AI"       status={aiStatus}       detail={activeAiProfile || "(none)"}     group="ai" />
+            <Chip label="Pack"     status={packStatus}     detail={packSelection?.pack || "(none)"} group="ai" leaf="knowledge-pack" />
+            <Chip label="Proxy"    status={proxyStatus}    detail={allowlistError || (allowlistLoading ? "loading" : "ok")} group="system" leaf="proxy-status" />
             <Chip label="Security" status={securityStatus} detail={allowlist?.enforcement || "(unknown)"} group="system" leaf="security-posture" />
         </div>
     );
@@ -410,221 +283,90 @@ function SettingsStatusStrip(): React.ReactElement {
 type ChipStatus = "ok" | "warn" | "missing" | "loading";
 
 function Chip(props: { label: string; status: ChipStatus; detail: string; group: SettingsGroupId; leaf?: string }): React.ReactElement {
-    const colors: Record<ChipStatus, { dot: string; bg: string; fg: string }> = {
-        ok: { dot: "#22c55e", bg: "rgba(34, 197, 94, 0.08)", fg: "#0f6b35" },
-        warn: { dot: "#facc15", bg: "rgba(250, 204, 21, 0.12)", fg: "#7a5b00" },
-        missing: { dot: "#ef4444", bg: "rgba(239, 68, 68, 0.08)", fg: "#a01828" },
-        loading: { dot: "#888", bg: "rgba(0, 0, 0, 0.04)", fg: "#555" },
-    };
-    const c = colors[props.status];
     const target = props.leaf ? `${props.group} › ${props.label}` : `${props.label} group`;
     return (
         <button
             type="button"
+            className={`pp-settings-chip pp-settings-chip--${props.status}`}
             onClick={() => navigateToSettings(props.group, props.leaf)}
             aria-label={`Jump to ${target}`}
             title={`Jump to ${target}`}
-            style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "4px 10px",
-                background: c.bg,
-                color: c.fg,
-                borderRadius: 14,
-                fontSize: 11,
-                fontWeight: 500,
-                border: "1px solid transparent",
-                cursor: "pointer",
-                font: "inherit",
-            }}
-            onFocus={e => { e.currentTarget.style.borderColor = c.dot; }}
-            onBlur={e => { e.currentTarget.style.borderColor = "transparent"; }}
         >
-            <span
-                aria-hidden="true"
-                style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: "50%",
-                    background: c.dot,
-                    display: "inline-block",
-                }}
-            />
-            <span style={{ fontWeight: 600 }}>{props.label}</span>
-            <span style={{ opacity: 0.75 }}>{props.detail}</span>
+            <span className="pp-settings-chip__dot" aria-hidden="true" />
+            <span className="pp-settings-chip__label">{props.label}</span>
+            <span className="pp-settings-chip__detail">{props.detail}</span>
         </button>
     );
 }
 
-// ─── Left rail ───────────────────────────────────────────────────────────
+// ─── Left rail ───────────────────────────────────────────────────
 
 interface SettingsLeftRailProps {
     activeGroup: SettingsGroupId;
     visibleGroups: ReadonlyArray<SettingsGroupId>;
     settingsLoaded: boolean;
     hasOrphans: boolean;
-    /** Per-group readiness signal driving the sidebar status dot.
-     *   - "ready"   → green dot (configured + no missing inputs)
-     *   - "needed"  → red dot   (required inputs missing)
-     *   - "info"    → gray dot  (no readiness concept — Preferences / System / Advanced) */
     readinessByGroup: Record<SettingsGroupId, "ready" | "needed" | "info">;
 }
 
-const READINESS_DOT_COLOR: Record<"ready" | "needed" | "info", string> = {
-    ready:  "#10b981",                 // emerald
-    needed: "#ef4444",                 // red
-    info:   "rgba(0, 0, 0, 0.20)",    // muted gray
-};
-
-const READINESS_DOT_LABEL: Record<"ready" | "needed" | "info", string> = {
-    ready:  "Ready",
-    needed: "Setup needed",
-    info:   "Informational",
-};
-
-// Subtle per-group accent rendered as a 3px left border on the inactive rail
-// row. Gives the eye a stable anchor when scanning groups — readiness dot
-// answers "what's the status?", accent answers "which group is this?".
-// Picked indigo for Setup (not green) so the accent doesn't fight the
-// "ready" dot color. Active row hides the accent because the blue active
-// fill takes over the left edge.
-const GROUP_ACCENT_COLOR: Record<SettingsGroupId, string> = {
-    setup:       "#6366f1",   // indigo — distinct from the green "ready" dot
-    bi:          "#0ea5e9",   // sky
-    ai:          "#7c3aed",   // violet
-    preferences: "#f59e0b",   // amber
-    system:      "#64748b",   // slate
-    advanced:    "#6b7280",   // gray
-};
-
 function SettingsLeftRail(props: SettingsLeftRailProps): React.ReactElement {
     return (
-        <nav
-            aria-label="Settings sections"
-            style={{
-                flex: "0 0 220px",
-                padding: "12px 8px",
-                borderRight: "1px solid var(--pp-border, rgba(0,0,0,0.08))",
-                background: "var(--pp-bg, #fff)",
-                overflowY: "auto",
-            }}
-        >
+        <nav className="pp-settings-rail" aria-label="Settings sections">
             {props.visibleGroups.map(id => {
                 const active = id === props.activeGroup;
-                const setupNeeded = (id === "setup" || id === "system") && props.hasOrphans;
+                const readiness = props.readinessByGroup[id];
+                const showOrphan = (id === "setup" || id === "advanced") && props.hasOrphans;
                 return (
                     <button
                         key={id}
                         type="button"
+                        className={`pp-settings-rail__item${active ? " pp-settings-rail__item--active" : ""}`}
                         onClick={() => navigateToSettings(id)}
                         aria-current={active ? "page" : undefined}
-                        style={{
-                            display: "block",
-                            width: "100%",
-                            textAlign: "left",
-                            padding: "10px 12px",
-                            margin: "2px 0",
-                            border: 0,
-                            // 3px left accent for visual group identity. Hidden
-                            // on the active row (blue fill takes over). Inactive
-                            // row keeps the accent so the eye registers the
-                            // group by its color stripe even when scanning fast.
-                            borderLeft: active ? "3px solid transparent" : `3px solid ${GROUP_ACCENT_COLOR[id]}`,
-                            paddingLeft: 9,
-                            borderRadius: 6,
-                            background: active ? "var(--pp-accent, #0078d4)" : "transparent",
-                            color: active ? "white" : "inherit",
-                            cursor: "pointer",
-                            fontSize: 13,
-                            fontWeight: active ? 600 : 500,
-                            transition: "background 0.12s ease",
-                        }}
                     >
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                        <div className="pp-settings-rail__item-row">
+                            <span className="pp-settings-rail__item-left">
                                 <span
-                                    aria-label={READINESS_DOT_LABEL[props.readinessByGroup[id]]}
-                                    title={READINESS_DOT_LABEL[props.readinessByGroup[id]]}
-                                    style={{
-                                        width: 8,
-                                        height: 8,
-                                        borderRadius: "50%",
-                                        background: active ? "rgba(255,255,255,0.85)" : READINESS_DOT_COLOR[props.readinessByGroup[id]],
-                                        flex: "0 0 8px",
-                                        // Soft ring around informational gray so it doesn't read as
-                                        // "disabled". Required + ready dots are saturated enough
-                                        // to need no ring.
-                                        boxShadow: !active && props.readinessByGroup[id] === "info"
-                                            ? "0 0 0 1px rgba(0,0,0,0.10)" : "none",
-                                    }}
+                                    className="pp-settings-rail__dot"
+                                    aria-label={READINESS_LABEL[readiness]}
+                                    title={READINESS_LABEL[readiness]}
+                                    style={{ background: active ? undefined : READINESS_DOT[readiness] }}
                                 />
-                                <span>{GROUP_LABELS[id]}</span>
+                                <span>{GROUP_ICONS[id]}&nbsp;&nbsp;{GROUP_LABELS[id]}</span>
                             </span>
-                            {setupNeeded && (
-                                <span
-                                    aria-label="Orphaned settings present"
-                                    title="Orphaned localStorage keys detected — see Advanced → Local storage inspector"
-                                    style={{
-                                        fontSize: 9,
-                                        padding: "1px 6px",
-                                        background: active ? "rgba(255,255,255,0.25)" : "rgba(245, 158, 11, 0.18)",
-                                        color: active ? "white" : "#92400e",
-                                        borderRadius: 8,
-                                        fontWeight: 600,
-                                        textTransform: "uppercase",
-                                    }}
-                                >
+                            {showOrphan && (
+                                <span className="pp-settings-rail__orphan-badge" aria-label="Orphaned settings">
                                     Orphans
                                 </span>
                             )}
                         </div>
-                        <div
-                            style={{
-                                fontSize: 10,
-                                opacity: active ? 0.85 : 0.55,
-                                marginTop: 2,
-                                fontWeight: 400,
-                            }}
-                        >
+                        <div className="pp-settings-rail__desc">
                             {GROUP_DESCRIPTIONS[id]}
                         </div>
                     </button>
                 );
             })}
             {!props.settingsLoaded && (
-                <div style={{ fontSize: 11, opacity: 0.5, padding: "12px", textAlign: "center" }}>
-                    Loading allowlist…
-                </div>
+                <div className="pp-settings-rail__loading">Loading allowlist…</div>
             )}
         </nav>
     );
 }
 
-// ─── Active group resolver ───────────────────────────────────────────────
+// ─── Active group resolver ───────────────────────────────────────
 
 function ActiveGroup(props: { group: SettingsGroupId }): React.ReactElement {
     switch (props.group) {
-        case "setup":
-            return <SetupGroup />;
-        case "bi":
-            return <BiGroup />;
-        case "ai":
-            return <AiGroup />;
-        case "preferences":
-            return <PreferencesGroup />;
-        case "system":
-            return <SystemGroup />;
-        case "advanced":
-            return <AdvancedGroup />;
-        default:
-            return <SetupGroup />;
+        case "setup":       return <SetupGroup />;
+        case "bi":          return <BiGroup />;
+        case "ai":          return <AiGroup />;
+        case "preferences": return <PreferencesGroup />;
+        case "system":      return <SystemGroup />;
+        case "advanced":    return <AdvancedGroup />;
+        default:            return <SetupGroup />;
     }
 }
 
-/** Pure helper exposed for tests — exercises parseSettingsRoute through
- *  the public route surface. Kept in this file to avoid a separate
- *  helper module just for one function. */
 export function __resolveActiveGroup(pathname: string): SettingsGroupId {
     return parseSettingsRoute(pathname).group;
 }
