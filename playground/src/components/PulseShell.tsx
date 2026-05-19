@@ -170,9 +170,33 @@ export function PulseShell(props: PulseShellProps) {
 
     useEffect(() => {
         if (!props.activeTabRequest) return;
-        window.dispatchEvent(new CustomEvent("pulseplay:pulse-surface-tab", {
-            detail: { tab: props.activeTabRequest },
+        // Pulse owns a nested React root (mounted via `new Visual({...})` in
+        // the mount effect above). Its visual.tsx attaches the
+        // "pulseplay:pulse-surface-tab" listener inside its own useEffect,
+        // which runs in a microtask AFTER PulseShell's effects on the very
+        // first mount. A pure dispatch would miss the listener — the
+        // symptom is "clicking Ask Pulse from BI lands on AI Insights".
+        //
+        // Two-pronged fix: (1) stash the desired tab on window so visual.tsx
+        // can read it on mount via useState initializer (no race), and
+        // (2) dispatch the event a few times across paint frames for
+        // already-mounted visuals that need to switch in-place. Both arms
+        // are needed: the stash handles cold-mount, the dispatch handles
+        // re-renders.
+        const tab = props.activeTabRequest;
+        (window as unknown as { __pulseplayInitialTab?: string }).__pulseplayInitialTab = tab;
+        const dispatch = () => window.dispatchEvent(new CustomEvent("pulseplay:pulse-surface-tab", {
+            detail: { tab },
         }));
+        dispatch();
+        const t1 = window.setTimeout(dispatch, 0);
+        const t2 = window.setTimeout(dispatch, 80);
+        const t3 = window.setTimeout(dispatch, 240);
+        return () => {
+            window.clearTimeout(t1);
+            window.clearTimeout(t2);
+            window.clearTimeout(t3);
+        };
     }, [props.activeTabRequest, props.renderToken]);
 
     return (

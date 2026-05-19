@@ -1081,9 +1081,24 @@ function App(props: AppProps) {
     // feature so the (now-hidden) tab strip can't leave us on a blank pane.
     // 'both' defaults to insights, matching previous behaviour.
     const enabledFeatures = props.settings.enabledFeatures ?? "both";
-    const [activeTab, setActiveTab] = useState<"insights" | "chat">(
-        enabledFeatures === "chatOnly" ? "chat" : "insights"
-    );
+    const [activeTab, setActiveTab] = useState<"insights" | "chat">(() => {
+        // Honor a host-stashed initial tab so cold-mount through
+        // PulseShell (e.g. user clicked "Ask Pulse" while the BI pane was
+        // maximized) lands on the requested tab without relying on a
+        // post-mount event reaching us before our listener attaches. The
+        // stash is cleared after read to avoid leaking into future mounts.
+        if (enabledFeatures === "chatOnly") return "chat";
+        if (enabledFeatures === "insightsOnly") return "insights";
+        if (typeof window !== "undefined") {
+            const w = window as unknown as { __pulseplayInitialTab?: string };
+            const stash = w.__pulseplayInitialTab;
+            if (stash === "chat" || stash === "insights") {
+                delete w.__pulseplayInitialTab;
+                return stash;
+            }
+        }
+        return "insights";
+    });
     // Re-pin activeTab if the author flips the gate at runtime (e.g. via
     // Setup Apply). Otherwise switching to insightsOnly while activeTab is
     // "chat" would render a blank chat pane behind a hidden strip.
