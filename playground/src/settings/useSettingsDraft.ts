@@ -2,24 +2,49 @@
 //
 // Snapshot-based dirty tracking for the Settings shell.
 //
-// Strategy: take a snapshot of all `pulseplay:*` localStorage keys when the
-// Settings page opens. Poll for drift (+ listen to the display-change event
-// that every setter fires). Expose `isDirty`, `save()`, and `discard()` so
-// the SettingsSaveBar can give authors an explicit commit step.
+// Strategy: take a snapshot of *user-settings* `pulseplay:*` localStorage keys
+// when the Settings page opens. Poll for drift (+ listen to the display-change
+// event that every setter fires). Expose `isDirty`, `save()`, and `discard()`
+// so the SettingsSaveBar can give authors an explicit commit step.
 //
 // Non-invasive: does NOT touch existing setters or stores. Works regardless
 // of which store wrote the change (settingsStore, pulseVisualSettingsStore,
 // embedConfigStore — all write to localStorage under the pulseplay: prefix).
+//
+// Meta-key exclusion: routing trail, wizard dismissal flag, draft, migration
+// flags, and pinned-viewport markers are written by the shell itself AFTER
+// the snapshot is taken on mount, so they would otherwise flip isDirty to true
+// the moment the page opens. They're NOT user-settings, so they're excluded
+// from both the snapshot and the diff. Audit bug fix 2026-05-19.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 const PREFIX = 'pulseplay:';
 
+/**
+ * Meta keys that are NOT user-editable settings. They're written by routing,
+ * the wizard, or migration shims, and would race the dirty-tracker's snapshot
+ * if they were included. Add to this set when you add another meta key.
+ */
+export const META_KEYS: ReadonlySet<string> = new Set<string>([
+    'pulseplay:wizard-dismissed',
+    'pulseplay:wizard-force',
+    'pulseplay:wizard-draft',
+    'pulseplay:settings-last-group',
+    'pulseplay:pinned-viewport-pane',
+    'pulseplay:enabled-components:legacy-both-migrated',
+    'pulseplay:display-change',
+]);
+
+function isUserSettingsKey(k: string): boolean {
+    return k.startsWith(PREFIX) && !META_KEYS.has(k);
+}
+
 function snapshotStorage(): Record<string, string> {
     const out: Record<string, string> = {};
     for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (k?.startsWith(PREFIX)) out[k] = localStorage.getItem(k) ?? '';
+        if (k && isUserSettingsKey(k)) out[k] = localStorage.getItem(k) ?? '';
     }
     return out;
 }

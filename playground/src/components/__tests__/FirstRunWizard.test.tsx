@@ -591,3 +591,44 @@ describe("forceWizard + shouldShowWizard force flag (4.5 — RISK-P1 fix)", () =
         expect(shouldShowWizard({ hasEmbedConfig: true, hasConnector: true, vendorsAvailable: true })).toBe(false);
     });
 });
+
+/* ─── Audit 2026-05-19: initial focus + body scroll lock ────────────── */
+
+describe("FirstRunWizard a11y — initial focus", () => {
+    it("focuses the checked persona radio on mount, NOT the × dismiss button", async () => {
+        await renderWizard();
+        const focused = document.activeElement;
+        // The checked persona at Step 1 with default analyst preset.
+        const checked = screen.getByTestId("pp-first-run-persona-analyst");
+        expect(focused).toBe(checked);
+        // And critically NOT the dismiss button.
+        expect(focused?.getAttribute("aria-label")).not.toBe("Skip setup and close");
+    });
+
+    it("focuses the radio matching initialPersona (Step 1 picks up the prop)", async () => {
+        await renderWizard({ initialPersona: "developer" });
+        const focused = document.activeElement;
+        const checked = screen.getByTestId("pp-first-run-persona-developer");
+        expect(focused).toBe(checked);
+    });
+});
+
+describe("FirstRunWizard a11y — body scroll lock", () => {
+    it("locks document.body scroll while the wizard is mounted", async () => {
+        // Prove the baseline is unset before mount.
+        document.body.style.overflow = "";
+        await renderWizard();
+        expect(document.body.style.overflow).toBe("hidden");
+    });
+
+    it("restores the previous body overflow on unmount", async () => {
+        // A host app already had its own value — we must not stomp on it.
+        document.body.style.overflow = "auto";
+        await renderWizard();
+        expect(document.body.style.overflow).toBe("hidden");
+        cleanup();
+        expect(document.body.style.overflow).toBe("auto");
+        // Reset so the next test isn't affected.
+        document.body.style.overflow = "";
+    });
+});

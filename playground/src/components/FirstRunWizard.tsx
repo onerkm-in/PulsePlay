@@ -416,7 +416,7 @@ export function FirstRunWizard(props: FirstRunWizardProps): ReactElement {
         return () => { cancelled = true; };
     }, [props.fetchConnectors]);
 
-    /* ── Focus trap ── */
+    /* ── Focus trap + initial focus ── */
     useEffect(() => {
         const dialog = dialogRef.current;
         if (!dialog) return;
@@ -436,10 +436,32 @@ export function FirstRunWizard(props: FirstRunWizardProps): ReactElement {
             }
         };
         dialog.addEventListener("keydown", handler as EventListener);
-        focusables()[0]?.focus();
+        // Audit bug fix 2026-05-19: Don't focus the "× Skip setup and close"
+        // dismiss button on open — one stray Enter would close the onboarding.
+        // Prefer the first input the user is actually supposed to interact with
+        // on this step: a checked or first radio (Step 1), then any other
+        // tab-stop that is NOT a dismissal control. Fall back to the dialog
+        // container so focus is still trapped if nothing else is found.
+        const checkedRadio = dialog.querySelector<HTMLElement>('[role="radio"][aria-checked="true"]');
+        const firstRadio   = dialog.querySelector<HTMLElement>('[role="radio"]');
+        const els = focusables();
+        const nonDismiss   = els.find(el => el.getAttribute('aria-label') !== 'Skip setup and close');
+        (checkedRadio || firstRadio || nonDismiss || els[0] || dialog)?.focus();
         return () => dialog.removeEventListener("keydown", handler as EventListener);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [step]);
+
+    /* ── Body scroll lock while wizard is open ──
+     * Audit bug fix 2026-05-19: without this, the launchpad behind the
+     * wizard scrolls under mouse wheel — modal pattern requires a scroll
+     * lock. We restore the previous `body.style.overflow` on unmount so
+     * we don't stomp on a host-app value if one was set. */
+    useEffect(() => {
+        if (typeof document === "undefined") return;
+        const prev = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        return () => { document.body.style.overflow = prev; };
+    }, []);
 
     /* ── Update suggested question when pack changes ── */
     useEffect(() => {
