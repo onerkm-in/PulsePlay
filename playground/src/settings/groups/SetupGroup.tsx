@@ -259,7 +259,7 @@ export function SetupGroup(): React.ReactElement {
                             </button>
                         )}
                         <button type="button" className="pp-setup__link" onClick={() => navigateToSettings("bi", "embed")}>
-                            Full embed form →
+                            Open full embed settings
                         </button>
                     </div>
                 )}
@@ -299,9 +299,17 @@ export function SetupGroup(): React.ReactElement {
                             href="https://docs.databricks.com/en/genie/index.html"
                             target="_blank"
                             rel="noreferrer"
-                            style={{ fontSize: 11, fontWeight: 500, marginLeft: 4, color: "var(--pp-accent)" }}
+                            style={{ fontSize: 11, fontWeight: 500, marginLeft: 4, color: "var(--pp-accent)", display: "inline-flex", alignItems: "center", gap: 3 }}
                         >
-                            Databricks docs ↗
+                            Databricks docs
+                            {/* External-link SVG glyph replaces the U+2197 "↗"
+                              * character so accessible name + text snapshots
+                              * stay clean. Codex naming audit fix. */}
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                                <polyline points="15 3 21 3 21 9" />
+                                <line x1="10" y1="14" x2="21" y2="3" />
+                            </svg>
                         </a>
                     }
                     required
@@ -344,7 +352,7 @@ export function SetupGroup(): React.ReactElement {
                 <div className="pp-setup__row-actions">
                     <TestButton label="Test selected profile" onTest={probeAiProfile} disabled={!activeAiProfile} disabledHint="Pick a profile first" />
                     <button type="button" className="pp-setup__link" onClick={() => navigateToSettings("ai", "ai-insights")}>
-                        Tune Insights behavior →
+                        Tune Insights behavior
                     </button>
                 </div>
             </FieldCard>
@@ -389,8 +397,14 @@ export function SetupGroup(): React.ReactElement {
                             href={`/knowledge/${encodeURIComponent(packSelection.pack)}`}
                             target="_blank"
                             rel="noreferrer"
+                            style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
                         >
-                            Browse pack content ↗
+                            Browse pack content
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                                <polyline points="15 3 21 3 21 9" />
+                                <line x1="10" y1="14" x2="21" y2="3" />
+                            </svg>
                         </a>
                     </div>
                 )}
@@ -412,7 +426,7 @@ export function SetupGroup(): React.ReactElement {
 function FooterLink(props: { label: string; group: "bi" | "ai" | "preferences" | "system" | "advanced" }): React.ReactElement {
     return (
         <button type="button" className="pp-setup__footer-link" onClick={() => navigateToSettings(props.group)}>
-            {props.label} →
+            {props.label}
         </button>
     );
 }

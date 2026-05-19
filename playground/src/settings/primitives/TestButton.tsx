@@ -63,7 +63,14 @@ export function TestButton(props: TestButtonProps): React.ReactElement {
                     </>
                 ) : (
                     <>
-                        <span aria-hidden="true">⚡</span>
+                        {/* Decorative lightning glyph. Codex naming audit:
+                          * U+26A1 "⚡" character was being picked up in
+                          * text-content snapshots. SVG keeps the visual
+                          * affordance and stays aria-hidden so the
+                          * accessible name is just the label. */}
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style={{ flexShrink: 0 }}>
+                            <polygon points="13,2 3,14 12,14 11,22 21,10 12,10" />
+                        </svg>
                         {props.label ?? "Test connection"}
                     </>
                 )}

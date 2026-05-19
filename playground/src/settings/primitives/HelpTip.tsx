@@ -4,7 +4,7 @@
 // explanation than the helper text can carry. The tooltip is keyboard-
 // accessible (focus to show) and pointer-accessible (hover to show).
 //
-// 2026-05-19 Codex tooltip audit findings + fixes:
+// 2026-05-19 Codex tooltip + verify audits fixes:
 //   - P1 clipping at narrow viewport (599×694): bubble could render
 //     offscreen at the left/top of a card. Fix: viewport-aware position
 //     measurement after open; flips to right or below if clipped, and
@@ -15,8 +15,13 @@
 //     tooltips should not contain interactive controls. Authors who need
 //     a docs link should render it adjacent to the field; this primitive
 //     remains for non-interactive guidance only.
+//   - P2 multiple open tooltips: clicking multiple HelpTips left earlier
+//     tooltip `role="tooltip"` nodes mounted offscreen. Fix: module-level
+//     active-instance tracker — opening one tooltip closes any other open
+//     tooltip. Document-level pointerdown also closes the open tooltip
+//     when the user clicks outside.
 
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 export interface HelpTipProps {
     /** Plain text content. */
@@ -49,6 +54,43 @@ interface BubblePosition {
 }
 
 const VIEWPORT_MARGIN = 12;
+
+// Module-level mutual-exclusion tracker. Codex 2026-05-19 verify audit P2:
+// "While opening multiple HelpTips in sequence, the currently visible tooltip
+// stayed unclipped, but an earlier tooltip node remained in the DOM offscreen
+// with role='tooltip'." Each HelpTip registers a close callback on open;
+// opening another tip calls every other registered close callback before
+// claiming the active slot. Also subscribes to document pointerdown so any
+// click outside an open trigger closes the open tip.
+const _activeClosers = new Set<() => void>();
+
+function _registerActive(close: () => void): () => void {
+    _activeClosers.add(close);
+    return () => { _activeClosers.delete(close); };
+}
+
+function _closeAllExcept(exempt: () => void): void {
+    for (const closer of Array.from(_activeClosers)) {
+        if (closer !== exempt) closer();
+    }
+}
+
+// Install the document-level pointerdown listener once. Closes ALL open
+// tooltips on any pointerdown — the trigger button itself handles re-open
+// in its onClick because pointerdown fires before click.
+if (typeof window !== "undefined") {
+    let installed = false;
+    const install = () => {
+        if (installed) return;
+        installed = true;
+        document.addEventListener("pointerdown", () => {
+            for (const closer of Array.from(_activeClosers)) closer();
+        });
+    };
+    // Defer install to the next tick so any module-load-time DOM check
+    // doesn't fight with React's first mount.
+    Promise.resolve().then(install);
+}
 
 function computeBubblePosition(triggerEl: HTMLElement, requestedWidth: number): BubblePosition {
     if (typeof window === "undefined") return { align: "center", side: "above", width: requestedWidth };
@@ -97,6 +139,24 @@ export function HelpTip({ text, children, label = "More info", width = 280, vari
 
     const glyph = variant === "warn" ? "!" : variant === "tip" ? "✨" : "i";
 
+    // Stable close callback so the registration set always sees the same
+    // function reference for this instance.
+    const close = useCallback(() => setOpen(false), []);
+
+    const handleOpen = useCallback(() => {
+        // Codex P2 fix: close any other open tooltip before claiming
+        // the active slot, then register self.
+        _closeAllExcept(close);
+        setOpen(true);
+    }, [close]);
+
+    // Register/unregister this instance in the active tracker each time it
+    // toggles. Unregister also runs on unmount via the cleanup return.
+    useEffect(() => {
+        if (!open) return;
+        return _registerActive(close);
+    }, [open, close]);
+
     // Recompute position when the bubble opens. Layout effect so the
     // initial render uses the measured values — no visible jump.
     useLayoutEffect(() => {
@@ -123,11 +183,24 @@ export function HelpTip({ text, children, label = "More info", width = 280, vari
                 className={`pp-helptip__trigger pp-helptip__trigger--${variant}`}
                 aria-label={label}
                 aria-describedby={open ? tipId : undefined}
-                onMouseEnter={() => setOpen(true)}
+                aria-expanded={open}
+                onMouseEnter={handleOpen}
                 onMouseLeave={() => setOpen(false)}
-                onFocus={() => setOpen(true)}
+                onFocus={handleOpen}
                 onBlur={() => setOpen(false)}
-                onClick={(e) => { e.preventDefault(); setOpen((o) => !o); }}
+                onPointerDown={(e) => {
+                    // Stop the document-level pointerdown from immediately
+                    // closing us during the click toggle.
+                    e.stopPropagation();
+                }}
+                onClick={(e) => {
+                    e.preventDefault();
+                    setOpen((o) => {
+                        const next = !o;
+                        if (next) _closeAllExcept(close);
+                        return next;
+                    });
+                }}
             >
                 {glyph}
             </button>

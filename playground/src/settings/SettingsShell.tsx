@@ -201,7 +201,17 @@ function SettingsHeader(): React.ReactElement {
         <header className="pp-settings-header">
             <div className="pp-settings-header__brand">
                 <h1 className="pp-settings-header__title">
-                    <span className="pp-settings-header__title-icon" aria-hidden="true">⚙</span>
+                    {/* Decorative settings glyph — Codex naming audit:
+                      * keep visual but never duplicate or pollute the
+                      * accessible name. SVG cog replaces the U+2699 "⚙"
+                      * character so text-content snapshots don't pick
+                      * it up. */}
+                    <span className="pp-settings-header__title-icon" aria-hidden="true">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="3" />
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                        </svg>
+                    </span>
                     Settings
                 </h1>
                 <p className="pp-settings-header__subtitle">
@@ -214,7 +224,14 @@ function SettingsHeader(): React.ReactElement {
                 onClick={navigateToApp}
                 title="Return to the playground (Esc)"
             >
-                ← Back to app
+                {/* Decorative arrow glyph kept as an SVG icon (aria-hidden);
+                  * visible label is just "Back to app" so screen readers
+                  * + text snapshots stay clean. */}
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}>
+                    <line x1="19" y1="12" x2="5" y2="12" />
+                    <polyline points="12 19 5 12 12 5" />
+                </svg>
+                Back to app
             </button>
         </header>
     );

@@ -156,7 +156,7 @@ export function AiGroup(): React.ReactElement {
             <Leaf
                 group="ai"
                 label="Provider"
-                helper="The AI brain that answers your questions. Restricted to the providers your organization allows."
+                helper="The AI assistant that answers your questions. Restricted to the providers your organization allows."
             >
                 {profilesLoading && <CurrentValue label="Loading">…</CurrentValue>}
                 {profilesError && (

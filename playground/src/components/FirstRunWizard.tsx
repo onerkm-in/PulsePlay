@@ -360,7 +360,7 @@ const STEP_META = [
         key:         "tools",
         label:       "Choose tools",
         title:       "What are you working with?",
-        subtitle:    "Pick the BI tool you're embedding (Y-axis) and the AI brain that answers your questions (X-axis). They're independent — any combination works.",
+        subtitle:    "Pick the BI tool you're embedding (Y-axis) and the AI assistant that answers your questions (X-axis). They're independent — any combination works.",
     },
     {
         key:         "connect",

@@ -52,6 +52,28 @@ Use these tags so another agent can scan quickly:
 
 Keep PulsePlay moving faster by coordinating work across agents without losing brutal honesty.
 
+### 2026-05-19 - Claude - [DONE] Final naming/glyph cleanup + HelpTip mutual exclusion + UAT handoff
+
+`[DONE]` Final polish pass after Codex's 08:31 verify. Closes every P1/P2 item Codex identified and ships the comprehensive UAT/regression handoff for the visible-browser verification cycle.
+
+Files changed (all surfaces only, no Pulse-PBI compat surface broken):
+- `playground/src/settings/groups/AiGroup.tsx` — Provider helper: "AI brain" → "AI assistant".
+- `playground/src/components/FirstRunWizard.tsx` — wizard tools subtitle: "AI brain" → "AI assistant".
+- `playground/src/settings/SettingsShell.tsx` — header `⚙` text glyph → SVG cog (aria-hidden); back-button `← Back to app` → SVG arrow + label.
+- `playground/src/knowledge/KnowledgeShell.tsx` — same back-button SVG-arrow cleanup.
+- `playground/src/settings/primitives/TestButton.tsx` — `⚡` text glyph → SVG lightning bolt.
+- `playground/src/settings/groups/SetupGroup.tsx` — multiple text-arrow cleanups: `Full embed form →` → "Open full embed settings"; `Databricks docs ↗` → label + SVG external-link; `Tune Insights behavior →` → "Tune Insights behavior"; `Browse pack content ↗` → label + SVG external-link; FooterLink drops `→` suffix.
+- `playground/src/pulse/visual.tsx` — removed unused `renderInsightsProvenance()` helper that still contained legacy `AI-generated / Source: default` copy. Source audits will stop flagging the stale string.
+- `playground/src/settings/primitives/HelpTip.tsx` — module-level mutual-exclusion: opening a tooltip closes any other open one; document-level pointerdown closes all open tips on outside clicks; added `aria-expanded` to trigger.
+
+Validation: TypeScript clean. `npm run lint` clean. `npm run test -- --run` → **920/920** passing. `npm run build` clean (15.77 s).
+
+Tripwires preserved: no Genie sandbox widening; no validator authority changes; no false "verified" / "hallucination-free" claims; no reintroduced blank BI pane; no `BI BI Viz`; no `UniBridge AI Proxy` branding; no `AI brain` in user-visible copy; no `AI-generated · Source: default` in source; no interactive controls inside `role="tooltip"`.
+
+`[VERIFY]` Comprehensive UAT/regression handoff at [`docs/CODEX_FINAL_UAT_REGRESSION_HANDOFF_2026-05-19.md`](CODEX_FINAL_UAT_REGRESSION_HANDOFF_2026-05-19.md) covers: smoke commands, 10-route browser checklist, 12-interaction checklist, 15 AI UAT questions (10 core + 5 edge: chart-needs-multi-row, non-existent metric, lower-is-better metric tone, prompt injection, evidence claim), data-correctness reconciliation rubric (capture question/profile/SQL/rows/chart/footer/validation/match per answer + UNVERIFIED rule when reconciliation isn't possible), 7-persona checklist (first-time author, returning analyst, exec viewer, compliance reviewer, troubleshooter, mobile, demo presenter), regression matrix with "before / expected after / observed" columns, evidence folder convention (`docs/evidence/final-uat-regression-2026-05-19-<HHMM>/`), credential-redaction rules, honest known-gap carry-forward, and result file format.
+
+`[RISK]` Still deferred (carried into the handoff doc): `P3-07`/`P3-08` AI profile picker empty when `configured:false`; `EL-BIVIZ-PEER` Power BI adapter shape mismatch; tooltip rewrite on deep Settings subroutes; Launchpad raw-ID demotion; surface-specific knob split; component-scoped pop-out; cross-surface companion launch; theme pack lane.
+
 ### 2026-05-19 - Claude - [DONE] IA restructure + tooltip + provenance + emoji-glyph fixes
 
 `[DONE]` Implemented the focused IA/copy/tooltip polish pass per Rajesh's request and Codex's three audits (naming, tooltip, tough run).
@@ -74,6 +96,12 @@ Tripwires preserved: no Pulse-PBI sibling compat code broken; no Genie iframe sa
 `[VERIFY]` Codex testing handover at `docs/CODEX_IA_UI_POLISH_HANDOFF_2026-05-19.md`.
 
 ### 2026-05-19 - Codex - [VERIFY] Tough visible UI run v2
+
+`[VERIFY]` Post-Claude IA/copy polish verification completed against commit `7562efd`. Result artifact: `docs/CODEX_IA_UI_POLISH_VERIFY_2026-05-19-0831.md`; evidence: `docs/evidence/codex-ia-ui-polish-verify-0831/`. Browser routes visited: `/`, `/settings/setup`, `/settings/ai`, `/settings/preferences`, `/settings/bi`, `/knowledge`, `/workbench`. Playground validation: `npm run lint` clean; `npm run test -- --run` **920/920**.
+
+`[VERIFY]` Passed: root/Pulse switcher no longer shows `BI BI Viz`; Settings AI now has `Assistant -> Shared context -> Response behavior -> Surface-specific behavior`; Knowledge pack/Vector Search/UC Metric View are in Shared context; blocked AI-profile state has explanatory copy; Databricks docs link moved out of tooltip; visible tooltip bubbles tested at 599px width did not clip; no tooltip links/buttons inside the opened bubble; `/knowledge` and `/workbench` still load.
+
+`[RISK]` Remaining polish gaps from the visible pass: `/settings/ai` still says `The AI brain that answers your questions`; Settings still exposes glyph text (`⚙ Settings`, `← Back to app`, `⚡ Test proxy`, `↗`, `→`) outside the root switcher; unused `renderInsightsProvenance()` in `visual.tsx` still contains the old `AI-generated / Source: default` text; opening multiple HelpTips can leave an offscreen stale `role="tooltip"` node in the DOM. Existing deferred bugs remain: AI profile picker empty with unconfigured allowlist, and Power BI secure-link shape vs adapter token contract.
 
 `[VERIFY]` Ran Claude's v2 tough visible plan in the open in-app browser at `http://127.0.0.1:5174`, per Rajesh's request to watch the UI test live. Pre-flight clean: proxy health OK, dev server OK, playground **920/920**, `npm run lint` clean.
 
