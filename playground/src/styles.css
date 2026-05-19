@@ -390,6 +390,101 @@ html, body, #root {
 }
 .pp-ai-sidebar__ask:hover { opacity: 0.92; transform: translateY(-1px); }
 
+/* ── Pane empty states (shared visual vocabulary) ────────────────
+ * Audit 2026-05-20 — bring the Dashboard tab's empty state into parity
+ * with AI Insights + Ask Pulse. Same structure: centered icon →
+ * heading → description → optional capability list → CTAs. These
+ * `.pp-empty-state*` classes mirror the `.gn-insights-placeholder` /
+ * `.gn-cta-*` rules in pulse/style/visual.less so the look is identical
+ * whether Pulse styles are loaded (mix / pulse mode) or not (biOnly). */
+.pp-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 48px 16px;
+    color: var(--pp-text-muted);
+    width: 100%;
+    max-width: 520px;
+    margin: 0 auto;
+}
+.pp-empty-state__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    background: var(--pp-accent-subtle, rgba(37, 99, 235, 0.10));
+    color: var(--pp-accent);
+    margin-bottom: 14px;
+}
+.pp-empty-state__icon svg { width: 28px; height: 28px; }
+.pp-empty-state__heading {
+    margin: 0 0 6px;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--pp-text);
+    line-height: 1.25;
+}
+.pp-empty-state__description {
+    margin: 0 0 14px;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--pp-text-muted);
+}
+.pp-empty-state__capabilities {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 18px;
+    text-align: left;
+    display: inline-block;
+    font-size: 12px;
+    line-height: 1.65;
+    color: var(--pp-text-muted);
+}
+.pp-empty-state__capabilities li { margin: 0; }
+.pp-empty-state__ctas {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+.pp-empty-state__hint {
+    margin: 14px 0 0;
+    font-size: 11px;
+    color: var(--pp-text-muted);
+    opacity: 0.8;
+}
+.pp-cta-primary {
+    padding: 8px 14px;
+    border: none;
+    background: var(--pp-accent);
+    color: #fff;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.28);
+    transition: opacity 120ms ease, transform 120ms ease;
+}
+.pp-cta-primary:hover { opacity: 0.92; transform: translateY(-1px); }
+.pp-cta-primary:focus-visible { outline: 2px solid var(--pp-accent); outline-offset: 2px; }
+.pp-cta-secondary {
+    padding: 8px 14px;
+    border: 1px solid var(--pp-border-strong, var(--pp-border));
+    background: var(--pp-surface);
+    color: var(--pp-text);
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease;
+}
+.pp-cta-secondary:hover { background: var(--pp-surface-raised, var(--pp-surface)); border-color: var(--pp-accent); }
+.pp-cta-secondary:focus-visible { outline: 2px solid var(--pp-accent); outline-offset: 2px; }
+
 /* ── Markdown rendering (lib/renderMarkdown.tsx) ──────────────────
  * Audit 2026-05-19 P2-2: shared class set used by AISidebar narrative.
  * Tight typographic rhythm — these render inside a sidebar bubble so

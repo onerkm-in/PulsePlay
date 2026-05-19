@@ -33,6 +33,7 @@ import { useEmbedConfig } from "./settings/embedConfigStore";
 import { warmGenieWarehouse, startWarehouseKeepalive, stopWarehouseKeepalive } from "./lib/warehouseWarmup";
 import { FirstRunWizard, WizardErrorBoundary, shouldShowWizard, type PersonaKey } from "./components/FirstRunWizard";
 import { SurfaceSwitcher } from "./components/SurfaceSwitcher";
+import { PaneEmptyState, DashboardIcon } from "./components/PaneEmptyState";
 import { TestConnectionPanel } from "./components/TestConnectionPanel";
 import { PackPicker } from "./components/PackPicker";
 import type { PackInfo, PackSelection } from "./components/PackPicker";
@@ -1280,47 +1281,88 @@ function PlaygroundApp(): React.ReactElement {
                                     onAdapterReady={handleBIAdapterReady}
                                 />
                             ) : (
-                                <div className="pp-app__empty">
-                                    {aiVisible ? (
-                                        <>
-                                            <h2>Pick a BI tool and supply embed config</h2>
-                                            <p>
-                                                PulsePlay can host {visibleVendors.map(v => v.displayName).join(" · ") || "no allowlisted BI providers"} as guests.
-                                                {uiMode === "pulse"
-                                                    ? " Use the Setup pill to select the BI and AI verticals, fill in the embed config, and the AI assistant will reason about whatever you load."
-                                                    : " Choose a vendor on the left, fill in its embed config, and the AI assistant will reason about whatever you load."}
-                                                {" "}Drag the divider to resize either pane; multi-frame BI is coming next.
-                                            </p>
-                                            {uiMode === "pulse" && (
-                                                <p style={{ fontSize: 12, opacity: 0.7, marginTop: 12 }}>
-                                                    Pulse UI is active in the AI pane. Configure BI and AI in
-                                                    Settings; the embedded BI surface will appear here.
-                                                </p>
-                                            )}
-                                        </>
-                                    ) : (
-                                        // 2026-05-19 fix: in unified mix mode this empty
-                                        // state used to read "BI-only mode" + "switch back
-                                        // to Both / AI only" — that made the dashboard feel
-                                        // like a separate product, not a peer surface. Now
-                                        // the copy frames Dashboard as one of the three
-                                        // peer surfaces (AI Insights / Ask Pulse / Dashboard)
-                                        // and explicitly tells the user the AI surfaces are
-                                        // still one click away in the switcher above.
-                                        // Audit 2026-05-19: label renamed "BI Viz" → "Dashboard".
-                                        <>
-                                            <h2>Embed your dashboard</h2>
-                                            <p>
-                                                Pick a BI tool and paste its embed URL — your report appears
-                                                here as one of the peer surfaces alongside AI Insights and
-                                                Ask Pulse. Switch between them any time with the surface
-                                                switcher above.
-                                            </p>
-                                            <p style={{ marginTop: 12, fontSize: 12, opacity: 0.7 }}>
-                                                Vendors available: {visibleVendors.map(v => v.displayName).join(" · ") || "none allowlisted"}
-                                            </p>
-                                        </>
-                                    )}
+                                // Audit 2026-05-20: brought into visual parity with the
+                                // AI Insights and Ask Pulse empty states via the shared
+                                // <PaneEmptyState> shell. Same icon disc + heading +
+                                // description + bullet list + CTAs vocabulary. Two
+                                // branches kept so the copy + bullet list reflect whether
+                                // the AI surfaces are already visible alongside.
+                                <div className="pp-app__empty pp-app__empty--unified">
+                                    {(() => {
+                                        const vendorsList = visibleVendors.map(v => v.displayName).join(" · ");
+                                        const vendorHint = vendorsList
+                                            ? <>Vendors available: {vendorsList}</>
+                                            : <>No BI providers are allowlisted yet.</>;
+                                        const primaryAction = {
+                                            label: "Open BI settings →",
+                                            onClick: () => navigateToSettings("bi"),
+                                            testid: "pp-dashboard-empty-primary-cta",
+                                        };
+                                        const secondaryAction = {
+                                            label: "Browse knowledge packs",
+                                            onClick: () => {
+                                                try {
+                                                    window.history.pushState({}, "", "/knowledge");
+                                                    window.dispatchEvent(new PopStateEvent("popstate"));
+                                                } catch { /* swallow */ }
+                                            },
+                                            testid: "pp-dashboard-empty-secondary-cta",
+                                        };
+                                        if (aiVisible) {
+                                            // AI pane already mounted alongside — the empty
+                                            // state guides the user to wire up the BI surface
+                                            // so all three peer surfaces fill out.
+                                            const description = uiMode === "pulse"
+                                                ? "Use the Setup pill to pick the BI tool you're embedding (Y-axis) and the AI assistant that reasons about it (X-axis). They're independent — any combination works."
+                                                : "Choose a vendor on the left, fill in its embed config, and the AI assistant will reason about whatever you load.";
+                                            return (
+                                                <PaneEmptyState
+                                                    testid="pp-dashboard-empty"
+                                                    icon={DashboardIcon}
+                                                    heading="Dashboard"
+                                                    description={description}
+                                                    capabilities={[
+                                                        "Your BI report renders here as the canvas",
+                                                        "AI Insights briefs you across the visible data",
+                                                        "Ask Pulse answers follow-ups in plain English",
+                                                        "All three surfaces stay in sync as you switch",
+                                                    ]}
+                                                    primaryAction={primaryAction}
+                                                    secondaryAction={secondaryAction}
+                                                    hint={vendorHint}
+                                                />
+                                            );
+                                        }
+                                        // Dashboard tab selected on its own — same shell,
+                                        // copy reframes Dashboard as one of the three peer
+                                        // surfaces (AI Insights / Ask Pulse / Dashboard) so
+                                        // the user knows the AI surfaces are one click away
+                                        // in the switcher above. 2026-05-19 BI-only mode fix.
+                                        return (
+                                            <PaneEmptyState
+                                                testid="pp-dashboard-empty"
+                                                icon={DashboardIcon}
+                                                heading="Dashboard"
+                                                description={
+                                                    <>
+                                                        Pick a BI tool and paste its embed URL — your report appears
+                                                        here as one of the peer surfaces alongside AI Insights and
+                                                        Ask Pulse. Switch between them any time with the surface
+                                                        switcher above.
+                                                    </>
+                                                }
+                                                capabilities={[
+                                                    "Embedded BI report renders in this canvas",
+                                                    "AI Insights surfaces a briefing across the data",
+                                                    "Ask Pulse answers follow-up questions",
+                                                    "All within the same shell — no tab switching",
+                                                ]}
+                                                primaryAction={primaryAction}
+                                                secondaryAction={secondaryAction}
+                                                hint={vendorHint}
+                                            />
+                                        );
+                                    })()}
                                 </div>
                             )}
                             </div>
