@@ -5,6 +5,38 @@
 
 ---
 
+## 2026-05-19 — Stale-while-revalidate for AI Insights warm loads
+
+**Range:** Addresses guide Phase 1 "Fast First Output — render cached last-known briefing if scope is unchanged, clearly labeled as cached." Closes guide acceptance criterion #3 (AI Insights paints first meaningful section within ≤ 10 s **warm**).
+
+**What changed:** On a warm load (valid cache hit), AI Insights now shows the full cached briefing immediately (< 500 ms), kicks off a background refresh, overlays a "Showing last completed briefing while PulsePlay refreshes" banner, and swaps in fresh results atomically on completion. On stop/failure the banner clears silently and the cached content stays. `runInsights` now accepts `backgroundRefresh?: boolean`; when true it skips the initial RUNNING clear, suppresses per-stage updates, and commits atomically. Per-stage updates are still live for cold (non-background) runs.
+
+**Before/After:**
+- Cold load (no cache): 3:39 → unchanged (this fix is warm-path only)
+- Warm load (scope unchanged, valid cache): 3:39 → < 500 ms first paint; fresh loads in ~3:39 in background
+
+**Validation:** `npm run lint` clean; **920/920** tests; build clean (20.13 s).
+
+**Tripwires:** `backgroundRefresh` only passed by the cache-hit path — chip clicks/Adjust/auto-fire are cold. Stopping during background refresh clears the banner but does NOT show "Stopped" (cached content is kept). Per-stage updates suppressed in background mode — `stageStatuses` are committed atomically, not live.
+
+---
+
+## 2026-05-19 — Claude guide for PulsePlay potential + performance recovery
+
+**Range:** Docs-only handoff for Rajesh's request to make PulsePlay's actual potential addressable while treating current performance as the top blocker, not a cosmetic issue.
+
+**Files touched:**
+- [`docs/CLAUDE_PULSEPLAY_POTENTIAL_PERFORMANCE_GUIDE_2026-05-19.md`](CLAUDE_PULSEPLAY_POTENTIAL_PERFORMANCE_GUIDE_2026-05-19.md) — Claude-ready plan covering the strategic product truth, non-negotiable latency bar, current suspected bottlenecks, required measurement pass, real fix strategy, staged commit plan, UAT questions, and acceptance criteria.
+
+**Key guidance locked:**
+- The latest concurrency-2 work (`7c6d84e`) is useful but **not** a performance fix unless live timings prove the 5-10 second useful-output target.
+- Do not fake speed with spinner copy; the target is useful output: headline, KPI, chart/table/SQL/evidence, or an honestly labeled cached/partial result.
+- Next implementation should start from measurement, then attack first useful output, stage fusion/two-pass execution, progressive section rendering, and warm-cache behavior.
+
+**Validation:** Docs-only; no code tests run.
+
+---
+
 ## 2026-05-19 — AI Insights pipeline: concurrency-2 with stage-0 head-start
 
 **Range:** First concrete latency lever for AI Insights, per Rajesh's "process two sections at a time, delay the second by 5-10 s on first load, all share the same conversation" ask. Pipeline shape change only — does not touch backend or model selection.

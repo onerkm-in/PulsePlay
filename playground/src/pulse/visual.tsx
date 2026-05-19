@@ -961,6 +961,15 @@ function App(props: AppProps) {
     const [insightsBusyMap,      setInsightsBusyMap]      = useState<Record<string, boolean>>({});
     const [stageStatusesMap,     setStageStatusesMap]     = useState<Record<string, StageStatus[]>>({});
     const [insightsGeneratedAtMap, setInsightsGeneratedAtMap] = useState<Record<string, number | null>>({});
+    // Stale-while-revalidate: tracks which spaces are showing cached content
+    // while a background refresh runs. When set the UI overlays a
+    // "Last run · Refreshing" banner on the stale cached render. Cleared
+    // atomically when the fresh pipeline commits its final result.
+    const [staleRefreshingMap, setStaleRefreshingMap]   = useState<Record<string, boolean>>({});
+    // Holds the cached result to display while the background refresh is in
+    // flight. Use a ref (not state) so it doesn't trigger extra renders;
+    // the banner appearance is driven by staleRefreshingMap.
+    const staleDisplayRef = React.useRef<Record<string, ChatMessageViewModel>>({});
     // IDEA-008: clarifying follow-up questions extracted from Insights stage
     // content. Accumulated across stages, deduplicated, and rendered as a
     // chip strip at the bottom of the Insights view + injected into the
@@ -2736,7 +2745,7 @@ function App(props: AppProps) {
     //
     // `overridePrompt` (chip or custom prompt) collapses to a single Stage 1
     // call — the chips don't follow the fixed section structure.
-    const runInsights = useCallback((overridePrompt?: string, overrideTitle?: string) => {
+    const runInsights = useCallback((overridePrompt?: string, overrideTitle?: string, backgroundRefresh?: boolean) => {
         const client = activeClient;
         const spaceKey = activeSpaceKey;
         if (!client || !isConfigured) return;
@@ -2770,15 +2779,23 @@ function App(props: AppProps) {
         const perfRunId = `insights:${spaceKey}:${Date.now()}`;
         resetRun(perfRunId);
         stageStart(perfRunId, "total", overrideTitle || "AI Insights pipeline");
-        setSpaceInsightsResult(spaceKey, {
-            id: createLocalId("insights"),
-            role: "assistant",
-            status: "RUNNING",
-            content: "",
-            viewMode: "narrative",
-            currentStatus: "Connecting to AI",
-            statusSteps: ["Connecting to AI"]
-        });
+        if (!backgroundRefresh) {
+            // Normal (cold) run: clear the display immediately so the user
+            // sees the RUNNING skeleton while the pipeline executes.
+            setSpaceInsightsResult(spaceKey, {
+                id: createLocalId("insights"),
+                role: "assistant",
+                status: "RUNNING",
+                content: "",
+                viewMode: "narrative",
+                currentStatus: "Connecting to AI",
+                statusSteps: ["Connecting to AI"]
+            });
+        } else {
+            // Background refresh: keep cached content visible; mark this
+            // space as stale-while-refreshing so the UI overlays the banner.
+            setStaleRefreshingMap(prev => ({ ...prev, [spaceKey]: true }));
+        }
 
         // 49.19 / IDEA-037 phase 3 — mode-driven priority chain for AI Insights:
         //   0. Runtime override (chip click / Adjust box) → single call,
@@ -3422,19 +3439,27 @@ function App(props: AppProps) {
                 updateStatus(index, "error");
                 return;
             }
-            setSpaceInsightsResult(spaceKey, prev => ({
-                ...(prev ?? { id: createLocalId("insights"), role: "assistant" } as ChatMessageViewModel),
-                id: prev?.id || response.id,
-                role: "assistant",
-                // Mark COMPLETED only when the last stage slot is filled
-                status: contentParts.every(p => p !== "") ? (response.status || "COMPLETED") : "RUNNING",
-                content: assembled,
-                viewMode: getDefaultViewMode(response, canShowSql, canShowTrace),
-                sqlQuery: prev?.sqlQuery || response.sqlQuery,
-                queryResult: prev?.queryResult || response.queryResult,
-                trace: prev?.trace || response.trace,
-                stageTraces: stageTraces.map(s => ({ ...s }))
-            }));
+            if (!backgroundRefresh) {
+                // Normal run: paint each section as it lands (progressive reveal).
+                setSpaceInsightsResult(spaceKey, prev => ({
+                    ...(prev ?? { id: createLocalId("insights"), role: "assistant" } as ChatMessageViewModel),
+                    id: prev?.id || response.id,
+                    role: "assistant",
+                    // Mark COMPLETED only when the last stage slot is filled
+                    status: contentParts.every(p => p !== "") ? (response.status || "COMPLETED") : "RUNNING",
+                    content: assembled,
+                    viewMode: getDefaultViewMode(response, canShowSql, canShowTrace),
+                    sqlQuery: prev?.sqlQuery || response.sqlQuery,
+                    queryResult: prev?.queryResult || response.queryResult,
+                    trace: prev?.trace || response.trace,
+                    stageTraces: stageTraces.map(s => ({ ...s }))
+                }));
+            }
+            // Background refresh: skip per-stage paint. Content accumulates
+            // in contentParts[] and will be committed atomically once all
+            // stages finish (see finally block). This avoids the "collapsing"
+            // UX where a stale 5-section briefing shrinks to 1 section when
+            // the first fresh stage lands and overwrites the displayed content.
             updateStatus(index, "done");
             // Multi-stage runs: if this was the LAST stage and ALL parts are
             // still empty, treat the run as failed too. Single-stage already
@@ -3516,6 +3541,28 @@ function App(props: AppProps) {
                 setInsightsGeneratedAtMap(previous => ({ ...previous, [spaceKey]: generatedAt }));
                 logSession("INFO", `AI Insights generated (${prompts.length} stage${prompts.length > 1 ? "s" : ""}, ${describeInsightsBatchPlan(prompts.length)}).`);
                 if (lastResponse && contentParts.every(p => p !== "")) {
+                    // Background refresh: commit the fresh result atomically now
+                    // that all stages are done. The stale cached content was shown
+                    // throughout the run; this single swap replaces it cleanly.
+                    if (backgroundRefresh) {
+                        setSpaceInsightsResult(spaceKey, {
+                            id: createLocalId("insights"),
+                            role: "assistant",
+                            status: "COMPLETED",
+                            content: joinParts(),
+                            viewMode: getDefaultViewMode(lastResponse, canShowSql, canShowTrace),
+                            sqlQuery: (lastResponse as any).sqlQuery,
+                            queryResult: (lastResponse as any).queryResult,
+                            trace: (lastResponse as any).trace,
+                            stageTraces: stageTraces.map(s => ({ ...s })),
+                        });
+                        delete staleDisplayRef.current[spaceKey];
+                        setStaleRefreshingMap(prev => {
+                            const next = { ...prev };
+                            delete next[spaceKey];
+                            return next;
+                        });
+                    }
                     try {
                         const ttlMs = (props.settings.insightsCacheTtlMinutes ?? 30) * 60 * 1000;
                         writeInsightsCache(computeInsightsCacheKey(spaceKey), {
@@ -3538,6 +3585,16 @@ function App(props: AppProps) {
                         // page-switch will re-burn the pipeline.
                         try { logSession("WARN", `Insights cache write failed (${e?.name || "Error"}: ${String(e?.message || "").slice(0, 80)}). Rehydrate after page-switch will re-run the pipeline.`); } catch { /* swallow */ }
                     }
+                } else if (backgroundRefresh) {
+                    // All stages empty on background refresh — clear the stale
+                    // banner so the user isn't stuck with a misleading indicator,
+                    // then let the normal empty-state handling show.
+                    delete staleDisplayRef.current[spaceKey];
+                    setStaleRefreshingMap(prev => {
+                        const next = { ...prev };
+                        delete next[spaceKey];
+                        return next;
+                    });
                 }
             } catch (error: any) {
                 // User-initiated stop — distinguish from real failures so the
@@ -3545,16 +3602,28 @@ function App(props: AppProps) {
                 // Completed stages keep their rendered content (partial run).
                 if (error?.isStopRequest || error?.message === "__STOP_REQUESTED__") {
                     statusesRef.forEach((s, i) => { if (s === "running" || s === "pending") updateStatus(i, "error"); });
-                    setSpaceInsightsResult(spaceKey, prev => prev && prev.content
-                        ? { ...prev, status: "COMPLETED", currentStatus: "Stopped by user", failureMessage: undefined }
-                        : {
-                            id: prev?.id ?? createLocalId("insights"),
-                            role: "system",
-                            status: "FAILED",
-                            content: "_(Run stopped by user before any stage completed.)_",
-                            currentStatus: "Stopped by user",
-                            failureMessage: undefined,
+                    if (backgroundRefresh) {
+                        // On stop during background refresh: just clear the banner
+                        // and keep showing the stale cached content the user was
+                        // already reading. No destructive status update.
+                        delete staleDisplayRef.current[spaceKey];
+                        setStaleRefreshingMap(prev => {
+                            const next = { ...prev };
+                            delete next[spaceKey];
+                            return next;
                         });
+                    } else {
+                        setSpaceInsightsResult(spaceKey, prev => prev && prev.content
+                            ? { ...prev, status: "COMPLETED", currentStatus: "Stopped by user", failureMessage: undefined }
+                            : {
+                                id: prev?.id ?? createLocalId("insights"),
+                                role: "system",
+                                status: "FAILED",
+                                content: "_(Run stopped by user before any stage completed.)_",
+                                currentStatus: "Stopped by user",
+                                failureMessage: undefined,
+                            });
+                    }
                     logSession("INFO", "AI Insights stopped by user");
                     return;
                 }
@@ -3577,24 +3646,38 @@ function App(props: AppProps) {
                 // P1.5 red error-card renders ABOVE the partial output rather
                 // than replacing it. When no partial exists, full FAILED state.
                 const failedTrace = stageTraces.find(t => t.status === "error");
-                setSpaceInsightsResult(spaceKey, prev => prev && prev.content
-                    ? {
-                        ...prev,
-                        status: "COMPLETED",
-                        stageTraces: stageTraces.map(s => ({ ...s })),
-                        failureMessage: errMsg,
-                        failedStageTitle: failedTrace?.title ?? "Pipeline"
-                    }
-                    : {
-                        id: prev?.id ?? createLocalId("insights"),
-                        role: "system",
-                        status: "FAILED",
-                        content: errMsg,
-                        stageTraces: stageTraces.map(s => ({ ...s })),
-                        failureMessage: errMsg,
-                        failedStageTitle: failedTrace?.title ?? "Pipeline"
+                if (backgroundRefresh) {
+                    // Background refresh failed — keep the stale cached content
+                    // the user was reading; just clear the "Refreshing" banner
+                    // so they aren't stuck with a false progress indicator.
+                    // Do NOT overwrite the cached display with an error state.
+                    delete staleDisplayRef.current[spaceKey];
+                    setStaleRefreshingMap(prev => {
+                        const next = { ...prev };
+                        delete next[spaceKey];
+                        return next;
                     });
-                logSession("ERROR", `AI Insights failed: ${errMsg}`);
+                    logSession("WARN", `AI Insights background refresh failed (${errMsg}); cached result preserved.`);
+                } else {
+                    setSpaceInsightsResult(spaceKey, prev => prev && prev.content
+                        ? {
+                            ...prev,
+                            status: "COMPLETED",
+                            stageTraces: stageTraces.map(s => ({ ...s })),
+                            failureMessage: errMsg,
+                            failedStageTitle: failedTrace?.title ?? "Pipeline"
+                        }
+                        : {
+                            id: prev?.id ?? createLocalId("insights"),
+                            role: "system",
+                            status: "FAILED",
+                            content: errMsg,
+                            stageTraces: stageTraces.map(s => ({ ...s })),
+                            failureMessage: errMsg,
+                            failedStageTitle: failedTrace?.title ?? "Pipeline"
+                        });
+                    logSession("ERROR", `AI Insights failed: ${errMsg}`);
+                }
             } finally {
                 setInsightsBusyMap(previous => ({ ...previous, [spaceKey]: false }));
                 // Close the perf instrumentation `total` stage + dump
@@ -3672,7 +3755,7 @@ function App(props: AppProps) {
             }
         } catch { /* never block on logging */ }
         if (cached && cached.status === "COMPLETED") {
-            setSpaceInsightsResult(activeSpaceKey, {
+            const cachedResult: ChatMessageViewModel = {
                 id: createLocalId("insights"),
                 role: "assistant",
                 status: cached.status,
@@ -3681,13 +3764,22 @@ function App(props: AppProps) {
                 queryResult: cached.queryResult as ChatMessageViewModel["queryResult"],
                 trace: cached.trace,
                 viewMode: (cached.viewMode as OutputMode) || "narrative"
-            });
+            };
+            setSpaceInsightsResult(activeSpaceKey, cachedResult);
             setInsightsGeneratedAtMap(prev => ({ ...prev, [activeSpaceKey]: cached.generatedAt }));
             setSpaceStageStatuses(activeSpaceKey, cached.stageStatuses as StageStatus[]);
             setPendingStageTitles(cached.stageTitles);
             insightsFiredRef.current[activeSpaceKey] = true;
             const ageMin = Math.max(0, Math.round((Date.now() - cached.generatedAt) / 60000));
-            logSession("INFO", `AI Insights restored from cache (generated ${ageMin}m ago).`);
+            logSession("INFO", `AI Insights restored from cache (generated ${ageMin}m ago); starting background refresh.`);
+            // Stale-while-revalidate: show the cached result immediately (done
+            // above) then kick off a background refresh so the user always
+            // gets fresh data without waiting for the pipeline before seeing
+            // anything. The banner in the Insights header signals the refresh
+            // is in progress; when the pipeline completes, the fresh result
+            // replaces the stale one atomically (no progressive collapse).
+            staleDisplayRef.current[activeSpaceKey] = cachedResult;
+            runInsights(undefined, undefined, /* backgroundRefresh */ true);
             return;
         }
 
@@ -4528,6 +4620,34 @@ function App(props: AppProps) {
                         Bedrock, those sections no-op. The warning gives
                         authors the heads-up so they don't wonder why a
                         configured Custom SQL section returns nothing. */}
+                    {/* Stale-while-revalidate banner: shown while a background
+                        refresh is running on top of a cached result. Tells the
+                        user what they're seeing without hiding the content. */}
+                    {staleRefreshingMap[activeSpaceKey] && (
+                        <div
+                            className="gn-insights-stale-banner"
+                            role="status"
+                            aria-live="polite"
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                padding: "6px 12px",
+                                fontSize: 12,
+                                color: "var(--pp-text-muted, #6b7280)",
+                                borderBottom: "1px solid var(--pp-border, #e5e7eb)",
+                                background: "var(--pp-surface-subtle, #f9fafb)",
+                            }}
+                        >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ animation: "gn-progress-spin 1.2s linear infinite", flexShrink: 0 }}>
+                                <path d="M3 12a9 9 0 0 1 15.5-6.36L21 8" />
+                                <path d="M21 3v5h-5" />
+                                <path d="M21 12a9 9 0 0 1-15.5 6.36L3 16" />
+                                <path d="M3 21v-5h5" />
+                            </svg>
+                            <span>Showing last completed briefing while PulsePlay refreshes.</span>
+                        </div>
+                    )}
                     {props.settings.showConnectorCompatibilityWarnings && (() => {
                         const isDatabricks = props.settings.connectionMode === "proxy" || props.settings.connectionMode === "direct";
                         if (isDatabricks) return null;
