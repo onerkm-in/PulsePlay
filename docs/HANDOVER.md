@@ -5,6 +5,62 @@
 
 ---
 
+## 2026-05-19 — Post-UAT-1840 follow-up: glyph sweep + tooltip rollout + perf wiring
+
+**Range:** Concrete fixes for Codex's P2 follow-ups out of [`CODEX_VERIFY_RESULTS_2026-05-19_post-uat-1840.md`](CODEX_VERIFY_RESULTS_2026-05-19_post-uat-1840.md). Latency itself remains the carry-forward blocker — this pass closes the *non-latency* P2 items and wires `perfInstrumentation` into the two pipelines Codex called out so the next cycle has real numbers to attack instead of guessing.
+
+**Files touched:**
+- `playground/src/pulse/visual.tsx` — `SectionSqlPanel` copy button: raw `📋` → `<Icon name="copy" />`. Supervisor/fusion/query-audit toolbar copy buttons (`Copy fusion` / `Copy SQL` / `Copy as MD`): raw `📋` + `✓` → `<Icon name="copy" />` / `<Icon name="check" />` with the label kept. Genie query audit `↻ Refresh` → SVG refresh + label. Incomplete-section + assumption-note `↻ Retry` → SVG refresh + label. Outer `runInsights` IIFE now opens a `total` perf stage on kickoff and closes + `dumpRun()`s it in `finally` (success / failure / stop alike) — DevTools Performance tab shows a horizontal band for the whole pipeline + a `console.table` summary on completion.
+- `playground/src/knowledge/KnowledgeShell.tsx` — Knowledge active-pack settings button: raw `⚙` → inline SVG cog matching the SettingsShell header pattern.
+- `playground/src/components/SustainabilityIndicator.tsx` — session-usage reset button: raw `↻` → inline SVG refresh.
+- `playground/src/components/AISidebar.tsx` — Ask Pulse `ask()` flow now opens `total` + `submit` perf stages; `submit` closes when the start-conversation POST returns; `polling` opens on polling kickoff; `finalize()` closes any still-open stages and `dumpRun()`s the table.
+- `playground/src/settings/primitives/FieldRow.tsx` — `FieldRow` + `FieldCard` `tip` prop now accepts either `ReactNode` (legacy dense paragraph) OR a `StructuredTip` object `{ title, body }` rendering through `HelpTip`'s title + bullet slots. Backwards-compatible — every existing `tip={…}` keeps rendering.
+- `playground/src/settings/groups/SetupGroup.tsx` — five dense `tip={<>…</>}` blocks migrated to structured `{ title, body }` form (BI surface card, Embed URL field, AI assistant card, Profile picker, Domain knowledge card). Dynamic content (allowlist permits…) preserved via inline ternary inside the `body` array.
+- `playground/src/settings/groups/sub/BiGovernance.tsx` — two dense card-level tips migrated (Authentication model, Unity Catalog enforcement).
+- `playground/src/settings/groups/sub/AiSupervisorFusion.tsx` — three dense card-level tips migrated (Auto-fusion, Synthesis prompt, Endpoint overrides).
+- `playground/src/settings/groups/sub/PreferencesAppearance.tsx` — three dense card-level tips migrated (Theme presets, Mode override, Brand colors).
+- `playground/src/settings/groups/sub/SystemDeveloper.tsx` — one dense card-level tip migrated (Diagnostic surfaces).
+
+**Validation:**
+- `npm run lint` clean (TypeScript noEmit).
+- Focused tests: `HelpTip AiGroup viewportControls` → **32/32**.
+- Full tests: **920/920** across 72 files (known `act(...)` + ECharts jsdom + style-shorthand warnings unchanged).
+- `npm run build` clean in 27.49s (pre-existing dynamic/static import warnings unchanged).
+
+**Tripwires preserved:**
+- No Pulse-PBI compat broken (`pulse/visual.tsx` still drives the Pulse sibling; only ports `Icon` + perfInstrumentation, both safe in the iframe-sandbox case via `Icon`'s inline SVG and perfInstrumentation's `ENABLED` guard).
+- No Genie iframe sandbox widening.
+- No validator authority weakening.
+- No reintroduced blank BI pane / `BI BI Viz` / `UniBridge` / `AI brain` / `AI-generated · Source: default` strings.
+- No interactive controls inside `role="tooltip"` (the `StructuredTip` migration only changes shape; HelpTip still keeps `pointer-events:none`).
+- No credentials in new files (greppable: `dapi…`, `eyJ…`, `access_token` — none present).
+
+**Honest deferrals (carried forward):**
+- **Response latency itself.** AI Insights still at `3:39` per Codex's 18:40 capture. This pass adds *visibility* (instrumentation wired into both pipelines + DevTools `console.table` on completion); it does **not** speed anything up. The actual speedup is its own cycle — Rajesh's "don't fake speed by polishing the spinner" continues to apply. Use the new DevTools Performance recording recipe in [`docs/CODEX_VERIFY_HANDOFF_2026-05-19_post-uat.md`](CODEX_VERIFY_HANDOFF_2026-05-19_post-uat.md) to capture baseline numbers; the next cycle can then attack backend/query/poll/render in priority order.
+- **Mobile / cross-platform verification.** Still queued — current visible-browser pass was 599 x 694; explicit narrow-viewport sweep is the next Codex cycle's job.
+- **Pulse-PBI compat surface emoji `displayName`s** (e.g. `🔌 1 · Connection`, `🧠 1c · AI Supervisor Agent`, `📋 3 · AI Instructions` in `pulse/settings.ts`). These ship as a coherent emoji set inherited from the Pulse-PBI sibling and Codex did not flag them; out of scope for this pass.
+- **`SettingsShell` rail `⚙` glyph for the Advanced group.** Part of the geometric `GROUP_ICONS` set (`✦`, `⬡`, `◈`, `◉`, `⬢`, `⚙`); changing one in isolation would break the visual family. Codex did not flag it.
+
+**Codex doc updates from the 18:40 verify** are preserved in the entry immediately below (the `b71270f` verification entry that Codex authored prior to this pass).
+
+---
+
+## 2026-05-19 — Codex verification of post-final-UAT polish (`b71270f`)
+
+**Range:** Visible-browser verification of Claude commit `b71270f` (`HelpTip portal + SQL affordance + duplicate-arrow + perf instrumentation`) against [`docs/CODEX_VERIFY_HANDOFF_2026-05-19_post-uat.md`](CODEX_VERIFY_HANDOFF_2026-05-19_post-uat.md).
+
+**Result artifact:** [`docs/CODEX_VERIFY_RESULTS_2026-05-19_post-uat-1840.md`](CODEX_VERIFY_RESULTS_2026-05-19_post-uat-1840.md). Evidence under [`docs/evidence/codex-verify-post-uat-1840/`](evidence/codex-verify-post-uat-1840/).
+
+**Validation:** proxy health OK; dev server HTTP 200 on `http://127.0.0.1:5174/`; `npm run lint` clean; focused `HelpTip AiGroup viewportControls` tests **32/32**; full playground `npm run test -- --run` **920/920**; `npm run build` clean. Known warnings remain: FirstRunWizard style-shorthand warnings, ECharts jsdom 0x0 warnings, and React `act(...)` warning in viewport integration tests.
+
+**Passes verified:** HelpTip bubble is portaled to `BODY`, viewport-fixed, not clipped at the current 599 x 694 browser size, and contains no interactive children. AI Insights per-section footer buttons are SVG-only with accessible labels/titles. Duplicate arrow/sign patterns (`▲ +`, `▼ -`, `▲ ▲`, `▼ ▼`) are gone from visible AI Insights text. Clicking `View SQL for TRENDS` now opens a real reused source SQL panel labelled `Reused from AI INSIGHTS BRIEFING`; the old large "This section reuses data..." panel is gone.
+
+**Still not done:** latency remains the top blocker. AI Insights stayed in `Working out the right query` past 3 minutes and completed around `3:39`, far outside Rajesh's 5-10 second target. Tooltip layering is fixed, but content rollout is partial: several Setup tooltips remain dense paragraphs / inline `<strong>` snippets rather than clean title + scannable body. The SQL reuse panel behavior is fixed, but `SectionSqlPanel` still has a raw `📋` copy button, so glyph cleanup did not reach every SQL-adjacent control. Static audit also still finds raw-glyph candidates in legacy/deep surfaces such as Knowledge active-pack settings and supervisor/query-audit controls. Mobile acceptance was not run in this pass.
+
+**Next recommended focus:** wire `perfInstrumentation.ts` into Ask Pulse + AI Insights and attack real latency; replace the SQL panel `📋` copy glyph; finish HelpTip title/body rollout; decide whether to run a global glyph sweep beyond AI Insights footer; perform mobile/narrow viewport acceptance.
+
+---
+
 ## 2026-05-19 — HelpTip portal + SQL affordance + duplicate-arrow + Pulse footer SVGs + perf instrumentation (`HEAD`)
 
 **Range:** Final pre-pilot polish pass after Codex's 09:14 UAT results ([`CODEX_FINAL_UAT_RESULTS_2026-05-19-0914.md`](CODEX_FINAL_UAT_RESULTS_2026-05-19-0914.md)). Closes the structural P1/P2 items Codex identified. Latency reduction itself is **not** attempted in this pass — only instrumentation was added so the next cycle can target real bottlenecks.

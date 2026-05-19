@@ -34,6 +34,14 @@ import { getDiscoverySnapshot, type DiscoverySnapshot, type ReachableFrame } fro
 import { SustainabilityIndicator } from "./SustainabilityIndicator";
 import { recordResponse as recordUsageResponse } from "../lib/usageTracker";
 import { EvidenceDrawer, type EvidenceItem } from "./EvidenceDrawer";
+import { dumpRun, resetRun, stageEnd, stageStart } from "../lib/perfInstrumentation";
+
+// 2026-05-19 Codex post-UAT-1840 follow-up: wire the perf instrumentation
+// utility (added in b71270f) into the actual Ask Pulse pipeline so DevTools
+// Performance + the console table show real backend / polling / render
+// segment durations against Rajesh's 5-10 s budget. The utility itself does
+// nothing to latency — this wiring just exposes the numbers so the next
+// cycle has concrete bottlenecks to attack instead of guessing.
 
 /** Hard upper bound on how long we poll before giving up. */
 export const MAX_POLL_DURATION_MS = 60_000;
@@ -426,6 +434,15 @@ export function AISidebar(props: AISidebarProps) {
             pollTimers.current.delete(entryId);
         }
         abortControllers.current.delete(entryId);
+        // Close any still-open perf stages and dump the table for this run.
+        // Harmless when the stage was already closed (stageEnd no-ops on
+        // already-closed entries). Lets the DevTools console show the
+        // breakdown for every terminal Ask Pulse — success OR failure.
+        const runId = `ask:${entryId}`;
+        stageEnd(runId, "polling");
+        stageEnd(runId, "submit");
+        stageEnd(runId, "total");
+        dumpRun(runId, `Ask Pulse #${entryId} → ${status}`);
         setHistory(prev => {
             const next = prev.map(h =>
                 h.id === entryId
@@ -524,6 +541,16 @@ export function AISidebar(props: AISidebarProps) {
         setHistory(prev => [...prev, entry]);
         setQuestion("");
 
+        // Perf instrumentation — start two open stages: `total` (the whole
+        // user-facing duration) and `submit` (the POST /start RTT). The
+        // `polling` stage opens later when (and only if) polling kicks in.
+        // Marks are emitted into the Performance API entry buffer so DevTools
+        // Performance tab shows vertical lines at each boundary.
+        const runId = `ask:${entryId}`;
+        resetRun(runId);
+        stageStart(runId, "total", q.length > 60 ? `${q.slice(0, 57)}…` : q);
+        stageStart(runId, "submit", `profile=${props.activeConnector || "(default)"}`);
+
         // Resolve the selected analysis frame (if any) from the snapshot so we
         // can include both a structured `frame` JSON field (additive — proxy
         // ignores unknown fields permissively) AND a "[Selected analysis frame]"
@@ -568,6 +595,9 @@ export function AISidebar(props: AISidebarProps) {
                 signal: ctrl.signal,
             });
             const data = (await res.json()) as ProxyMessageResponse;
+            // Backend RTT done — close `submit` regardless of terminal vs
+            // pending status. finalize() also closes it as a safety net.
+            stageEnd(runId, "submit");
             if (!res.ok) {
                 finalize(entryId, { error: data?.error || `HTTP ${res.status}` }, "failed");
                 return;
@@ -607,6 +637,7 @@ export function AISidebar(props: AISidebarProps) {
                     ? { ...h, ...projection, conversationId: cid, messageId: mid, status: "polling" }
                     : h
             ));
+            stageStart(runId, "polling", `cid=${cid}`);
             startPolling(entryId, cid, mid, startedAt);
         } catch (err) {
             if ((err as { name?: string })?.name === "AbortError") return; // user clicked Stop

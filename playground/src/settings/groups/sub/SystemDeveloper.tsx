@@ -51,11 +51,14 @@ export function SystemDeveloper(): React.ReactElement {
                 title="Diagnostic surfaces"
                 subtitle="Show internal SQL / reasoning traces in the chat and Insights."
                 status={{ tone: state.devMode || state.showSql || state.showTrace ? "info" : "neutral", label: state.devMode ? "Dev mode" : state.showSql || state.showTrace ? "Trace on" : "Production posture" }}
-                tip={
-                    <>
-                        Turn these on while diagnosing a bad answer; turn them off for screenshots, demos, and shipped releases. <strong>Dev mode</strong> implies <strong>SQL</strong> and <strong>Trace</strong> visible by default.
-                    </>
-                }
+                tip={{
+                    title: "On for diagnosis, off for shipping",
+                    body: [
+                        "Use while diagnosing a bad answer.",
+                        "Hide before screenshots, demos, releases.",
+                        "Dev mode implies SQL and Trace visible by default.",
+                    ],
+                }}
             >
                 <FieldRow
                     label="Developer mode"

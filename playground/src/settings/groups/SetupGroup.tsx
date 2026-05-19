@@ -192,14 +192,16 @@ export function SetupGroup(): React.ReactElement {
                 title="BI surface"
                 subtitle="The dashboard, report, or canvas users will look at."
                 status={{ tone: biStatus, label: biStatus === "ok" ? "Configured" : biStatus === "warn" ? "Needs embed" : "Not picked" }}
-                tip={
-                    <>
-                        PulsePlay <strong>hosts</strong> the BI surface — it doesn't replace it. Pick the vendor your team already uses, then paste the embed URL.
-                        {allowlist?.biProviders?.length ? (
-                            <> Your governance allowlist permits: <code>{allowlist.biProviders.join(", ")}</code>.</>
-                        ) : null}
-                    </>
-                }
+                tip={{
+                    title: "PulsePlay hosts the BI surface",
+                    body: [
+                        "Pick the vendor your team already uses.",
+                        "Paste the embed URL once configured.",
+                        ...(allowlist?.biProviders?.length
+                            ? [`Allowlist permits: ${allowlist.biProviders.join(", ")}.`]
+                            : []),
+                    ],
+                }}
             >
                 <FieldRow
                     label="Provider"
@@ -226,11 +228,13 @@ export function SetupGroup(): React.ReactElement {
                     <FieldRow
                         label="Embed URL or iframe HTML"
                         hint="Paste the full embed URL (Power BI / Tableau / generic) OR the iframe HTML from Databricks Genie Share → Embed."
-                        tip={
-                            <>
-                                For complex flows like Power BI <strong>SSO</strong>, <strong>backend service principal</strong>, or per-tile picking — use the full form on the <em>BI → Embed</em> page. This inline field handles the 80% case of a single URL or paste-in iframe.
-                            </>
-                        }
+                        tip={{
+                            title: "Use the full form for complex flows",
+                            body: [
+                                "Power BI SSO, backend service principal, or per-tile picking → BI → Embed.",
+                                "This inline field handles single URL or paste-in iframe (the 80% case).",
+                            ],
+                        }}
                         error={embedError}
                         success={embedSavedAt ? "Embed config saved — switch to the app to see the canvas refresh." : null}
                     >
@@ -271,14 +275,16 @@ export function SetupGroup(): React.ReactElement {
                 title="AI assistant"
                 subtitle="One assistant powers both AI Insights and Ask Pulse — pick its profile here."
                 status={{ tone: aiStatus, label: aiStatus === "ok" ? "Configured" : "Not picked" }}
-                tip={
-                    <>
-                        PulsePlay <strong>orchestrates</strong> AI — it doesn't run the model. Pick a profile your proxy already knows about (Genie, Foundation Model, Supervisor, Azure OpenAI, etc.).
-                        {allowlist?.aiProfiles?.length ? (
-                            <> Approved profiles: <code>{allowlist.aiProfiles.join(", ")}</code>.</>
-                        ) : null}
-                    </>
-                }
+                tip={{
+                    title: "PulsePlay orchestrates AI",
+                    body: [
+                        "It doesn't run the model — the proxy does.",
+                        "Pick a profile the proxy knows: Genie, Foundation Model, Supervisor, Azure OpenAI, etc.",
+                        ...(allowlist?.aiProfiles?.length
+                            ? [`Approved profiles: ${allowlist.aiProfiles.join(", ")}.`]
+                            : []),
+                    ],
+                }}
                 actions={
                     <TestButton
                         label="Test proxy"
@@ -325,16 +331,18 @@ export function SetupGroup(): React.ReactElement {
                                 ? "No profiles available. Either the proxy /assistant/profiles call failed, or none are in the allowlist. Check Settings → System → Proxy status to confirm."
                                 : "Maps to a profile in proxy/config.json. The proxy holds all credentials — your browser never sees a token."
                     }
-                    tip={
-                        // Codex 2026-05-19 tooltip audit P1-2 fix: removed the
-                        // <a href> from inside the tooltip body. ARIA tooltips
-                        // are non-interactive (pointer-events:none); links
-                        // inside them can't be clicked reliably. The docs link
-                        // is rendered as a separate sibling below the select.
-                        <>
-                            A <strong>profile</strong> is a named backend the proxy knows how to call. Common types: <code>genie</code>, <code>foundation-stream</code>, <code>supervisor</code>, <code>azure-openai</code>, <code>bedrock</code>.
-                        </>
-                    }
+                    // Codex 2026-05-19 tooltip audit P1-2 fix: removed the
+                    // <a href> from inside the tooltip body. ARIA tooltips
+                    // are non-interactive (pointer-events:none); links
+                    // inside them can't be clicked reliably. The docs link
+                    // is rendered as a separate sibling below the select.
+                    tip={{
+                        title: "A profile is a named backend",
+                        body: [
+                            "The proxy knows how to call each one.",
+                            "Common types: genie, foundation-stream, supervisor, azure-openai, bedrock.",
+                        ],
+                    }}
                 >
                     <select
                         id="pp-setup-ai-profile"
@@ -363,14 +371,16 @@ export function SetupGroup(): React.ReactElement {
                 title="Domain knowledge"
                 subtitle="Industry vocabulary the assistant uses to interpret your data."
                 status={{ tone: packStatus, label: packSelection ? "Selected" : "Optional" }}
-                tip={
-                    <>
-                        A pack is a bundle of domain terms, metric definitions, and guidance prompts. Without a pack the assistant uses generic vocabulary; with one it speaks your industry's language (CPG, retail, finance, etc.).
-                        {allowlist?.packs?.length ? (
-                            <> Allowlist permits: <code>{allowlist.packs.join(", ")}</code>.</>
-                        ) : null}
-                    </>
-                }
+                tip={{
+                    title: "A pack is your industry's vocabulary",
+                    body: [
+                        "Bundles domain terms, metric definitions, guidance prompts.",
+                        "Without one: generic vocabulary. With one: CPG, retail, finance, etc.",
+                        ...(allowlist?.packs?.length
+                            ? [`Allowlist permits: ${allowlist.packs.join(", ")}.`]
+                            : []),
+                    ],
+                }}
             >
                 <FieldRow
                     label="Pack"

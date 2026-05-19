@@ -52,6 +52,40 @@ Use these tags so another agent can scan quickly:
 
 Keep PulsePlay moving faster by coordinating work across agents without losing brutal honesty.
 
+### 2026-05-19 - Claude - [DONE] Post-UAT-1840 follow-up — glyph sweep + tooltip rollout + perf wiring
+
+`[DONE]` Closed the non-latency P2 items Codex flagged in [`docs/CODEX_VERIFY_RESULTS_2026-05-19_post-uat-1840.md`](CODEX_VERIFY_RESULTS_2026-05-19_post-uat-1840.md) and wired `perfInstrumentation` into the two pipelines.
+
+Files changed:
+- `playground/src/pulse/visual.tsx` — `SectionSqlPanel` raw `📋` copy button → `<Icon name="copy" />`. Supervisor/fusion/query-audit copy buttons (`Copy fusion`, `Copy SQL`, `Copy as MD`) → `<Icon name="copy" />` + label, with `✓` → `<Icon name="check" />` on the copied flash. Genie audit `↻ Refresh` → SVG refresh + label. Incomplete-section + assumption-note `↻ Retry` → SVG refresh + label. Outer `runInsights` IIFE opens a `total` perf stage at kickoff and closes + `dumpRun()`s it in `finally` (success / failure / stop alike).
+- `playground/src/knowledge/KnowledgeShell.tsx` — active-pack `⚙` → inline SVG cog (matches SettingsShell header).
+- `playground/src/components/SustainabilityIndicator.tsx` — session-reset `↻` → inline SVG refresh.
+- `playground/src/components/AISidebar.tsx` — Ask Pulse `ask()` flow opens `total` + `submit` perf stages; `submit` closes when the start-conversation POST returns; `polling` opens on polling kickoff; `finalize()` closes any still-open stages and `dumpRun()`s a `console.table` summary per question.
+- `playground/src/settings/primitives/FieldRow.tsx` — `FieldRow` + `FieldCard` `tip` prop now accepts either `ReactNode` (legacy paragraph) OR a `StructuredTip` `{ title, body }` object that renders through HelpTip's title + bullet slots. Backwards-compatible; every existing caller keeps rendering.
+- `playground/src/settings/groups/SetupGroup.tsx`, `…/sub/BiGovernance.tsx`, `…/sub/AiSupervisorFusion.tsx`, `…/sub/PreferencesAppearance.tsx`, `…/sub/SystemDeveloper.tsx` — twelve dense card-level `tip={<>…</>}` blocks migrated to the new structured form (5 / 2 / 3 / 3 / 1 respectively). Inline conditional content (allowlist permits…) preserved via ternary inside `body`.
+
+Validation: `npm run lint` clean. Focused `HelpTip AiGroup viewportControls` → **32/32**. Full `npm run test -- --run` → **920/920** across 72 files. `npm run build` clean in **27.49s** (pre-existing dynamic/static import warnings unchanged).
+
+Tripwires preserved: no Pulse-PBI compat broken (only adds `Icon` SVG + perfInstrumentation which both no-op safely in sandbox); no Genie iframe sandbox widening; no validator authority weakening; no reintroduced blank BI pane / `BI BI Viz` / `UniBridge` / `AI brain` / `AI-generated · Source: default`; no interactive controls inside `role="tooltip"`; no credentials in new files.
+
+`[RISK]` **Latency itself remains the carry-forward blocker.** This pass adds visibility (DevTools Performance marks + `console.table` summary per Ask Pulse question and per AI Insights run). It does **not** make anything faster. Use the new instrumentation to capture a real baseline via the DevTools Performance recipe in [`docs/CODEX_VERIFY_HANDOFF_2026-05-19_post-uat.md`](CODEX_VERIFY_HANDOFF_2026-05-19_post-uat.md), then attack backend / query / poll / render in priority order in a dedicated cycle. Mobile / cross-platform verification is also still queued.
+
+Pulse-PBI compat emoji `displayName`s in `pulse/settings.ts` (e.g. `🔌 1 · Connection`) and the `SettingsShell` `GROUP_ICONS` set (`✦`, `⬡`, `◈`, `◉`, `⬢`, `⚙`) were intentionally left alone — both ship as coherent visual sets and Codex did not flag them.
+
+`[HANDOFF]` Next focus: real latency work using the now-wired instrumentation; mobile / narrow viewport acceptance pass.
+
+### 2026-05-19 - Codex - [VERIFY] Post-final-UAT polish verification of `b71270f`
+
+`[VERIFY]` Visible browser verification completed for Claude commit `b71270f`. Result artifact: [`docs/CODEX_VERIFY_RESULTS_2026-05-19_post-uat-1840.md`](CODEX_VERIFY_RESULTS_2026-05-19_post-uat-1840.md). Evidence: [`docs/evidence/codex-verify-post-uat-1840/`](evidence/codex-verify-post-uat-1840/).
+
+Validation: proxy health OK, dev server HTTP 200 on 5174, `npm run lint` clean, focused `HelpTip AiGroup viewportControls` **32/32**, full playground **920/920**, `npm run build` clean.
+
+Passed: HelpTip bubble is portaled to `BODY`, fixed-positioned, unclipped at the current 599 x 694 viewport, and contains no interactive children. AI Insights section footer actions are SVG-only with accessible labels/titles. Duplicate direction patterns (`▲ +`, `▼ -`, `▲ ▲`, `▼ ▼`) are gone from visible AI Insights text. `View SQL for TRENDS` now renders real reused source SQL in-place labelled `Reused from AI INSIGHTS BRIEFING`; the old dead explanatory panel is gone.
+
+`[RISK]` Still not wrapped: latency remains bad. AI Insights stayed in `Working out the right query` past 3 minutes and completed around `3:39`, far outside Rajesh's 5-10 second target. HelpTip portal is fixed, but content rollout is partial (dense paragraphs remain). SQL reuse behavior is fixed, but `SectionSqlPanel` still has a raw `📋` copy button. Static audit still finds raw-glyph candidates in deeper/legacy surfaces. Mobile acceptance was not run.
+
+`[HANDOFF]` Next focus: real latency work with instrumentation wired into Ask Pulse + AI Insights; replace SQL panel `📋`; finish HelpTip title/body rollout; decide on a global glyph sweep; run mobile/narrow viewport acceptance.
+
 ### 2026-05-19 - Claude - [DONE] HelpTip portal + SQL affordance + duplicate-arrow + Pulse footer SVGs + perf instrumentation
 
 `[DONE]` Final pre-pilot polish pass after Codex's 09:14 UAT findings. Closes the structural P1/P2 items.

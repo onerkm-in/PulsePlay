@@ -58,11 +58,13 @@ export function BiGovernance(): React.ReactElement {
                 title="Authentication model"
                 subtitle="Who the proxy authenticates as when running queries on the user's behalf."
                 status={{ tone: "info", label: state.authMode === "oauthObo" ? "OAuth on-behalf-of" : "Shared PAT" }}
-                tip={
-                    <>
-                        <strong>Shared PAT</strong>: every user's queries run as the proxy's service principal. Simpler but weakens audit + RLS. <strong>OAuth on-behalf-of</strong>: each query runs as the signed-in user. Required for true per-user RLS.
-                    </>
-                }
+                tip={{
+                    title: "Shared PAT vs OAuth on-behalf-of",
+                    body: [
+                        "Shared PAT: every query runs as the proxy's service principal. Simpler, weaker audit/RLS.",
+                        "OAuth OBO: every query runs as the signed-in user. Required for per-user RLS.",
+                    ],
+                }}
             >
                 <FieldRow
                     label="Auth mode"
@@ -84,11 +86,14 @@ export function BiGovernance(): React.ReactElement {
                 title="Unity Catalog enforcement"
                 subtitle="Tell the proxy your Unity Catalog enforces row filters / column masks so it doesn't add redundant SQL."
                 status={{ tone: layeredEnforcement ? "ok" : "warn", label: layeredEnforcement ? "Full enforcement" : "Partial" }}
-                tip={
-                    <>
-                        These toggles affect <strong>prompt construction only</strong> — they don't enforce anything themselves. Set them to match what your Databricks workspace actually does, so the assistant doesn't generate SQL that fights with the downstream policy.
-                    </>
-                }
+                tip={{
+                    title: "Prompt construction only",
+                    body: [
+                        "These toggles don't enforce anything themselves.",
+                        "Set them to match what your Databricks workspace actually does.",
+                        "Mismatch → the assistant generates SQL that fights downstream policy.",
+                    ],
+                }}
             >
                 <FieldRow
                     label="UC row filters enforced"

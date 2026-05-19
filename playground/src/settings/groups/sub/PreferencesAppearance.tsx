@@ -65,11 +65,15 @@ export function PreferencesAppearance(): React.ReactElement {
                 title="Theme"
                 subtitle="Pre-built palettes tuned for common contexts."
                 status={{ tone: "info", label: THEMES.find(t => t.id === state.themeName)?.label ?? state.themeName }}
-                tip={
-                    <>
-                        Most teams pick <strong>Corporate Blue</strong> (matches Microsoft / Azure visual language) or <strong>Slate Dark</strong> for ops-center walls. <strong>Forest</strong> is tuned for ESG / sustainability dashboards; <strong>High Contrast</strong> meets WCAG AAA.
-                    </>
-                }
+                tip={{
+                    title: "Which preset fits where",
+                    body: [
+                        "Corporate Blue — Microsoft / Azure visual language.",
+                        "Slate Dark — ops-center walls.",
+                        "Forest — ESG / sustainability dashboards.",
+                        "High Contrast — meets WCAG AAA.",
+                    ],
+                }}
             >
                 <div className="pp-theme-grid" role="radiogroup" aria-label="Theme preset">
                     {THEMES.map(t => {
@@ -100,11 +104,13 @@ export function PreferencesAppearance(): React.ReactElement {
             <FieldCard
                 title="Mode"
                 subtitle="Light / dark override and report-inherited theme."
-                tip={
-                    <>
-                        When PulsePlay is embedded inside a Power BI report, <strong>Use report theme</strong> inherits Power BI's host colors and fonts. Useful when your team has standardised a report-level theme they want everywhere.
-                    </>
-                }
+                tip={{
+                    title: "Inherit Power BI host theme",
+                    body: [
+                        "Only active when PulsePlay is embedded inside a Power BI report.",
+                        "Use when your team has standardised a report-level theme everywhere.",
+                    ],
+                }}
             >
                 <FieldRow
                     label="Dark mode"
@@ -137,11 +143,13 @@ export function PreferencesAppearance(): React.ReactElement {
                 title="Brand colors"
                 subtitle={isCustom ? "Active — the Custom theme uses these values." : "Inactive — only used when the Custom theme is selected above."}
                 status={{ tone: isCustom ? "ok" : "neutral", label: isCustom ? "Active" : "Inactive" }}
-                tip={
-                    <>
-                        Hex values applied when the <strong>Custom</strong> theme is selected. The accent color drives buttons, links, and chart series; text/bg drive the surface palette.
-                    </>
-                }
+                tip={{
+                    title: "Active under the Custom theme",
+                    body: [
+                        "Hex values; accent drives buttons, links, and chart series.",
+                        "Text and bg drive the surface palette.",
+                    ],
+                }}
             >
                 <div className="pp-grid-2">
                     <FieldRow

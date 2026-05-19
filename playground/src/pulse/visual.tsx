@@ -184,6 +184,14 @@ import { subscribeSqlFormatter, formatSqlForCopy } from "./visualHelpers";
 // doesn't apply in the browser playground.
 import { Icon } from "./_adapter/Icon";
 import { renderInsightsAsEmailHtml } from "./_adapter/exportInsightsAsHtml";
+// 2026-05-19 Codex post-UAT-1840 follow-up: wire perfInstrumentation
+// (added in b71270f) into the AI Insights pipeline. We only wrap the
+// outer pipeline (total duration + final dumpRun) — per-stage timing
+// already lives in `stageTraces[i].durationMs`. The DevTools-visible
+// `pulseplay:<runId>:total` mark + console.table at completion give the
+// next cycle concrete numbers against Rajesh's 5-10 s budget without
+// invasive surgery inside the stage loop.
+import { dumpRun, resetRun, stageEnd, stageStart } from "../lib/perfInstrumentation";
 // PulsePlay — ColorRulesBanner (module-level component) needs the preset
 // list available at top level; the file's other consumers import inside
 // the class component so this import IS additive.
@@ -2752,6 +2760,16 @@ function App(props: AppProps) {
         // immediately cancel a fresh run.
         insightsStopRef.current[spaceKey] = false;
         setInsightsBusyMap(previous => ({ ...previous, [spaceKey]: true }));
+
+        // Perf instrumentation — open a `total` stage for the whole
+        // pipeline so the DevTools Performance tab shows a horizontal
+        // band from kickoff to finalize. Closed in the IIFE's finally
+        // block (see below). Per-stage timing already lives in
+        // `stageTraces[i].durationMs` so we deliberately don't double-
+        // instrument the inner loop here.
+        const perfRunId = `insights:${spaceKey}:${Date.now()}`;
+        resetRun(perfRunId);
+        stageStart(perfRunId, "total", overrideTitle || "AI Insights pipeline");
         setSpaceInsightsResult(spaceKey, {
             id: createLocalId("insights"),
             role: "assistant",
@@ -3565,6 +3583,11 @@ function App(props: AppProps) {
                 logSession("ERROR", `AI Insights failed: ${errMsg}`);
             } finally {
                 setInsightsBusyMap(previous => ({ ...previous, [spaceKey]: false }));
+                // Close the perf instrumentation `total` stage + dump
+                // the console.table for this run. Runs on every code
+                // path (success / failure / stop) thanks to the finally.
+                stageEnd(perfRunId, "total");
+                dumpRun(perfRunId, `AI Insights ${spaceKey}`);
             }
         })();
     }, [activeClient, activeSpaceKey, isConfigured, props.context, props.settings, selectedFilters, roleMode, canShowSql, canShowTrace, setSpaceInsightsResult, setSpaceStageStatuses, kbFlags, computeInsightsCacheKey, logSession]);
@@ -5324,7 +5347,13 @@ function App(props: AppProps) {
                                     onClick={() => fusionResult.content && flashCopy("fusion", fusionResult.content)}
                                     title="Copy fused answer"
                                 >
-                                    {copiedFlash["fusion"] ? "✓ Copied!" : "📋 Copy fusion"}
+                                    {/* 2026-05-19 post-UAT-1840: SVG copy/check
+                                      *  instead of 📋/✓ glyphs for consistent
+                                      *  rendering across OSes. */}
+                                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                        <Icon name={copiedFlash["fusion"] ? "check" : "copy"} />
+                                        {copiedFlash["fusion"] ? "Copied" : "Copy fusion"}
+                                    </span>
                                 </button>
                             )}
                             {syncMode && messages.length > 0 && !fusionPending && (
@@ -5702,7 +5731,14 @@ function App(props: AppProps) {
                                             onClick={() => void fetchGenieQueries(genieQueriesSinceMin)}
                                             disabled={genieQueriesLoading}
                                         >
-                                            {genieQueriesLoading ? "Loading…" : "↻ Refresh"}
+                                            {/* 2026-05-19 post-UAT-1840: SVG refresh
+                                              *  glyph instead of the text U+21BB. */}
+                                            {genieQueriesLoading ? "Loading…" : (
+                                                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                                    <Icon name="refresh" />
+                                                    Refresh
+                                                </span>
+                                            )}
                                         </button>
                                         {/* Cycle 47.10 — Copy all queries. Mirrors the
                                             session-log Copy button so the user can
@@ -5819,7 +5855,11 @@ function App(props: AppProps) {
                                                                 }}
                                                                 title="Copy formatted SQL"
                                                             >
-                                                                {copiedFlash[`gq-sql:${i}`] ? "✓ Copied!" : "📋 Copy SQL"}
+                                                                {/* 2026-05-19 post-UAT-1840: SVG icon. */}
+                                                                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                                                    <Icon name={copiedFlash[`gq-sql:${i}`] ? "check" : "copy"} />
+                                                                    {copiedFlash[`gq-sql:${i}`] ? "Copied" : "Copy SQL"}
+                                                                </span>
                                                             </button>
                                                             <button
                                                                 type="button"
@@ -5856,7 +5896,11 @@ function App(props: AppProps) {
                                                                 }}
                                                                 title="Copy as markdown (with metadata) — useful for bug reports"
                                                             >
-                                                                📋 Copy as MD
+                                                                {/* 2026-05-19 post-UAT-1840: SVG icon. */}
+                                                                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                                                    <Icon name={copiedFlash[`gq-md:${i}`] ? "check" : "copy"} />
+                                                                    {copiedFlash[`gq-md:${i}`] ? "Copied" : "Copy as MD"}
+                                                                </span>
                                                             </button>
                                                         </div>
                                                         <pre className="gn-code gn-genie-query-sql">
@@ -9053,7 +9097,12 @@ const SectionSqlPanel: React.FC<SectionSqlPanelProps> = (props) => {
                     ? `Copy active query for ${props.sectionTitle || "section"}`
                     : `Copy formatted SQL for ${props.sectionTitle || "section"}`}
             >
-                <span aria-hidden="true">📋</span>
+                {/* 2026-05-19 post-UAT-1840: replaced U+1F4CB emoji
+                  * with the shared SVG clipboard icon. Codex flagged
+                  * this as the last raw glyph inside SectionSqlPanel
+                  * after the section-footer cluster was already
+                  * cleaned up in b71270f. */}
+                <Icon name="copy" />
             </button>
             {props.reusedFromTitle && (
                 <div className="gn-sql-reused-note" role="note">
@@ -9739,7 +9788,10 @@ function renderSectionBody(body: string, sectionTitle?: string, options?: Insigh
                                 title="Retry just this section"
                                 aria-label="Retry just this section"
                             >
-                                <span aria-hidden="true">↻</span> Retry
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                    <Icon name="refresh" />
+                                    Retry
+                                </span>
                             </button>
                         ) : null}
                     </div>

@@ -53,11 +53,13 @@ export function AiSupervisorFusion(): React.ReactElement {
                 title="Auto-fusion"
                 subtitle="Should supervisor calls return a single synthesised answer, or the raw per-space results?"
                 status={{ tone: state.supervisorAutoFusion ? "ok" : "warn", label: state.supervisorAutoFusion ? "Synthesised" : "Raw fan-out" }}
-                tip={
-                    <>
-                        <strong>On</strong> (default): the proxy waits for all fan-out responses, then synthesises a single answer. <strong>Off</strong>: the UI receives per-space results separately, useful for debugging which space contributed what.
-                    </>
-                }
+                tip={{
+                    title: "Synthesised vs raw fan-out",
+                    body: [
+                        "On (default): proxy waits for all responses, then synthesises one answer.",
+                        "Off: UI receives per-space results separately — useful for debugging.",
+                    ],
+                }}
             >
                 <FieldRow
                     label="Synthesise into one answer"
@@ -75,11 +77,13 @@ export function AiSupervisorFusion(): React.ReactElement {
             <FieldCard
                 title="Synthesis prompt"
                 subtitle="The system prompt the proxy gives the synthesiser LLM when fusing answers."
-                tip={
-                    <>
-                        Only used when <strong>auto-fusion</strong> is on. The synthesiser sees this prompt plus the per-space JSON answers and produces the final unified response. Leave blank to use the proxy's built-in default.
-                    </>
-                }
+                tip={{
+                    title: "Active only when auto-fusion is on",
+                    body: [
+                        "The synthesiser sees this prompt plus the per-space JSON answers.",
+                        "Leave blank to use the proxy's built-in default.",
+                    ],
+                }}
             >
                 <FieldRow
                     label="Synthesis profile name"
@@ -117,11 +121,13 @@ export function AiSupervisorFusion(): React.ReactElement {
                 title="Endpoint overrides"
                 subtitle="Advanced — only set when you need to bypass the proxy's default supervisor lookup."
                 status={{ tone: state.supervisorEndpoint || state.supervisorAgentName ? "info" : "neutral", label: state.supervisorEndpoint || state.supervisorAgentName ? "Overridden" : "Defaults" }}
-                tip={
-                    <>
-                        <strong>Most orgs leave these blank.</strong> They override the proxy's default supervisor agent lookup; use only if you're testing a new supervisor endpoint or running multiple supervisor agents side-by-side.
-                    </>
-                }
+                tip={{
+                    title: "Most orgs leave these blank",
+                    body: [
+                        "Overrides the proxy's default supervisor agent lookup.",
+                        "Use only when testing a new endpoint or running multiple supervisor agents side-by-side.",
+                    ],
+                }}
             >
                 <FieldRow
                     label="Supervisor agent name"

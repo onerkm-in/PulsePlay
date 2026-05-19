@@ -8,6 +8,34 @@ import type { ReactNode } from "react";
 import { HelpTip } from "./HelpTip";
 import { StatusBadge, type StatusTone } from "./StatusBadge";
 
+/** Structured help-tip shape: short title + scannable bullets. Lets
+ *  callers migrate from dense prose tooltips to the title/body format
+ *  introduced in HelpTip after Codex's 09:14 UAT without changing the
+ *  call shape from `tip={...}` to `tip={<HelpTip …/>}` (which would
+ *  double-wrap). When a caller passes this object the FieldRow /
+ *  FieldCard renders a single HelpTip with the structured slots. */
+export interface StructuredTip {
+    title?: string;
+    body?: ReadonlyArray<string>;
+}
+
+function isStructuredTip(value: unknown): value is StructuredTip {
+    if (!value || typeof value !== "object") return false;
+    const v = value as Record<string, unknown>;
+    return (
+        ("title" in v && (typeof v.title === "string" || v.title === undefined)) ||
+        ("body" in v && Array.isArray(v.body))
+    );
+}
+
+function renderTip(tip: ReactNode | StructuredTip | undefined): ReactNode {
+    if (tip === undefined || tip === null || tip === false) return null;
+    if (isStructuredTip(tip)) {
+        return <HelpTip title={tip.title} body={tip.body} />;
+    }
+    return <HelpTip>{tip as ReactNode}</HelpTip>;
+}
+
 export interface FieldRowProps {
     label: string;
     /** Helper sentence shown under the control. */
@@ -15,8 +43,10 @@ export interface FieldRowProps {
     /** Rich tooltip content. Renders an info button next to the label.
      *  IMPORTANT: tooltips are ARIA-non-interactive and have
      *  pointer-events:none — do NOT put `<a>` / `<button>` / `<input>`
-     *  inside `tip`. Use `labelTrailing` for actionable links instead. */
-    tip?: ReactNode;
+     *  inside `tip`. Use `labelTrailing` for actionable links instead.
+     *  Pass a `StructuredTip` object (`{ title, body }`) for the post-
+     *  2026-05-19 title + scannable-bullets format. */
+    tip?: ReactNode | StructuredTip;
     /** Slot rendered after the label, before the tip button. Use this for
      *  small actionable links (e.g. "docs ↗") that need to stay
      *  keyboard-reachable — putting them inside `tip` would bury them
@@ -45,7 +75,7 @@ export function FieldRow(props: FieldRowProps): React.ReactElement {
                     {props.required && <span className="pp-field__required" aria-label="required"> *</span>}
                 </label>
                 {props.labelTrailing}
-                {props.tip && <HelpTip>{props.tip}</HelpTip>}
+                {renderTip(props.tip)}
                 {props.status && (
                     <StatusBadge tone={props.status.tone} label={props.status.label} detail={props.status.detail} compact />
                 )}
@@ -67,8 +97,10 @@ export function FieldCard(props: {
     step?: number | string;
     /** Status badge in the card header. */
     status?: { tone: StatusTone; label: string };
-    /** Rich tooltip next to the title. */
-    tip?: ReactNode;
+    /** Rich tooltip next to the title. Accepts a ReactNode (legacy) or
+     *  a `StructuredTip` object for the post-2026-05-19 title + body
+     *  format. */
+    tip?: ReactNode | StructuredTip;
     /** Right-aligned actions in the header (e.g. Test button). */
     actions?: ReactNode;
     children: ReactNode;
@@ -83,7 +115,7 @@ export function FieldCard(props: {
                     <div className="pp-card__title-block">
                         <h3 className="pp-card__title">
                             {props.title}
-                            {props.tip && <HelpTip>{props.tip}</HelpTip>}
+                            {renderTip(props.tip)}
                         </h3>
                         {props.subtitle && <p className="pp-card__subtitle">{props.subtitle}</p>}
                     </div>

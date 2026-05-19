@@ -1,0 +1,60 @@
+[
+  {
+    "headings": [],
+    "idx": 0,
+    "listItems": [],
+    "rect": null
+  },
+  {
+    "headings": [
+      "Microsoft Power BI."
+    ],
+    "html": "<div class=\"pp-helptip__body\"><strong>Microsoft Power BI.</strong> Embed reports via the official <code>powerbi-client</code> SDK. Requires an embed URL, workspace ID, and report ID. Authentication can be SSO (AAD), service principal, or a paste-in secure embed link.</div>",
+    "idx": 1,
+    "listItems": [],
+    "parentTag": "BODY",
+    "rect": {
+      "bottom": 472,
+      "height": 125,
+      "left": 12,
+      "right": 292,
+      "top": 347,
+      "width": 280
+    },
+    "text": "Microsoft Power BI. Embed reports via the official powerbi-client SDK. Requires an embed URL, workspace ID, and report ID. Authentication can be SSO (AAD), service principal, or a paste-in secure embed link."
+  },
+  {
+    "headings": [
+      "orchestrates"
+    ],
+    "html": "<div class=\"pp-helptip__body\">PulsePlay <strong>orchestrates</strong> AI — it doesn't run the model. Pick a profile your proxy already knows about (Genie, Foundation Model, Supervisor, Azure OpenAI, etc.).</div>",
+    "idx": 3,
+    "listItems": [],
+    "parentTag": "BODY",
+    "rect": {
+      "bottom": 452.30001068115234,
+      "height": 105.20000457763672,
+      "left": 31.36250114440918,
+      "right": 311.3625011444092,
+      "top": 347.1000061035156,
+      "width": 280
+    },
+    "text": "PulsePlay orchestrates AI — it doesn't run the model. Pick a profile your proxy already knows about (Genie, Foundation Model, Supervisor, Azure OpenAI, etc.)."
+  },
+  {
+    "headings": [],
+    "html": "<div class=\"pp-helptip__body\">A pack is a bundle of domain terms, metric definitions, and guidance prompts. Without a pack the assistant uses generic vocabulary; with one it speaks your industry's language (CPG, retail, finance, etc.).</div>",
+    "idx": 5,
+    "listItems": [],
+    "parentTag": "BODY",
+    "rect": {
+      "bottom": 472.3000183105469,
+      "height": 125,
+      "left": 83.80000305175781,
+      "right": 363.8000030517578,
+      "top": 347.3000183105469,
+      "width": 280
+    },
+    "text": "A pack is a bundle of domain terms, metric definitions, and guidance prompts. Without a pack the assistant uses generic vocabulary; with one it speaks your industry's language (CPG, retail, finance, etc.)."
+  }
+]

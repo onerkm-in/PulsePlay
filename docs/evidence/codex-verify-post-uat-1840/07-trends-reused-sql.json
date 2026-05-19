@@ -1,0 +1,10 @@
+{
+  "buttonTexts": [
+    "📋"
+  ],
+  "hasDeadOldMessage": false,
+  "hasReusedLabel": true,
+  "hasSql": true,
+  "panelExists": true,
+  "text": "📋Reused from AI INSIGHTS BRIEFING — Genie synthesized this section's answer from a prior stage's query result instead of running fresh SQL.WITH YearAgg AS ( SELECT `order_year`, SUM(`sales`) AS total_sales, SUM(`profit`) AS total_profit, try_divide(SUM(`profit`), SUM(`sales`)) AS profit_margin, COUNT(DISTINCT `order_id`) AS order_count, SUM(`quantity`) AS quantity, try_divide( COUNT( DISTINCT CASE WHEN `is_returned` THEN `order_id` END ) * 1.0, COUNT(DISTINCT `order_id`) ) AS return_rate FROM `workspace`.`databrickspractice`.`vw_genie_sales_performance` WHERE `order_year` IS NOT NULL GROUP BY `order_year` ), RankedYears AS ( SELECT *, ROW_NUMBER() OVER ( ORDER BY `order_year` DESC ) AS rn FROM YearAgg ) SELECT curr.`order_year` AS current_year, prev.`order_year` AS prior_year, curr.total_sales, prev.total_sales, curr.total_profit, prev.total_profit, curr.profit_margin, prev.profit_margin, curr.order_count, prev.order_count, curr.quantity, prev.quantity, curr.return_rate, prev.return_rate, ROUND( try_divide( (curr.total_sales - prev.total_sales), prev.total_sales ) * 100, 1 ) AS sales_pct_change, ROUND( try_divide( (curr.total_profit - prev.total_profit), prev.total_profit ) * 100, 1 ) AS profit_pct_change, ROUND( (curr.profit_margin - prev.profit_margin) * 100, 1 ) AS profit_margin_pp_change, ROUND( try_divide( (curr.order_count - prev.order_count), prev.order_count ) * 100, 1 ) AS order_count_pct_change, ROUND( try_divide((curr.quantity - prev.quantity), prev.quantity) * 100, 1 ) AS quantity_pct_change, ROUND((curr.return_rate - prev.return_rate) * 100, 1) AS return_rate_pp_change FROM RankedYears curr JOIN RankedYears prev ON curr.rn = 1 AND prev.rn = 2"
+}
