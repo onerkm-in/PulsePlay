@@ -641,13 +641,17 @@ export function buildLocalHomeModel(context: ContextSummary, userMode: UserMode)
             detail: index === 0 ? `Current ${userMode} snapshot` : undefined,
             tone: (value < 0 ? "risk" : "neutral") as "risk" | "neutral"
         }));
-    if (snapshot.length === 0) {
-        snapshot.push(
-            { label: "Scope", value: context.hasSelection ? "Filtered" : "Full dataset", detail: "Pulled from the active Power BI context", tone: "neutral" },
-            { label: "Guided filters", value: String(context.availableFilters.length), detail: "Available for region, time, and segment control", tone: "neutral" },
-            { label: "Measures", value: String(Object.keys(context.measures).length || 0), detail: "Bound to this visual", tone: "neutral" }
-        );
-    }
+    // 2026-05-19 PulsePlay UX: when no real measures are bound the fallback
+    // "Scope / Guided filters / Measures" snapshot cards showed "Full dataset"
+    // / 0 / 0 — accurate but noise. WelcomeSection already renders a clean
+    // role subtitle when snapshot is empty; leave the array empty so that
+    // path runs instead. The Pulse-PBI sibling still sends its own home
+    // payload via the proxy when configured (mergeHomePayload gives remote
+    // data priority), so this only affects the local-fallback state.
+    // Original fallback preserved as comment for reference:
+    //   { label: "Scope", value: context.hasSelection ? "Filtered" : "Full dataset", ... }
+    //   { label: "Guided filters", value: String(context.availableFilters.length), ... }
+    //   { label: "Measures", value: String(Object.keys(context.measures).length || 0), ... }
 
     return {
         snapshot,
