@@ -5,6 +5,35 @@
 
 ---
 
+## 2026-05-20 — Cycle 6: Dashboard tab visual parity with AI Insights + Ask Pulse
+
+**Range:** Follow-on to the 5-cycle UI/UX iteration below. User ask: "when Dashboard is enabled as a tab, it should follow the same design as in AI Insights and Ask Pulse."
+
+**What shipped (`8fcad45`):**
+- New shared component [`playground/src/components/PaneEmptyState.tsx`](../playground/src/components/PaneEmptyState.tsx) with exported `DashboardIcon` / `InsightsIcon` / `AskPulseIcon` SVGs (matching the SurfaceSwitcher glyphs). Single source of truth for the empty-state shell — icon disc → heading → description → capability list → primary / secondary CTAs → optional hint.
+- New `.pp-empty-state*` + `.pp-cta-primary` / `.pp-cta-secondary` rules in `playground/src/styles.css` that mirror the `.gn-insights-placeholder` + `.gn-cta-*` rules in `pulse/style/visual.less`. The Dashboard tab now looks identical whether Pulse styles are loaded (mix / pulse mode) or not (biOnly).
+- `App.tsx` Dashboard empty state rewritten to use `<PaneEmptyState>`: bar-chart SVG icon, heading "Dashboard", vendor-neutral description framing Dashboard as a peer surface, 4-line capability list, primary CTA "Open BI settings →" → `navigateToSettings("bi")`, secondary CTA "Browse knowledge packs" → `/knowledge`, "Vendors available: …" hint from the allowlist.
+- Both branches (`aiVisible` vs Dashboard-only) use the same component; only copy differs to match the surrounding context.
+
+**Live verification (mobile 375x812 + desktop 1440x900):**
+- Dashboard tab: bar-chart icon in accent disc, heading, 4 bullets, 2 CTAs, vendor hint. Layout stacks cleanly on mobile.
+- AI Insights tab: orange sparkle, heading, 4 bullets, 2 CTAs — same visual rhythm.
+- Ask Pulse tab: Quick start + Try asking chips — same typography + button system.
+- Primary CTA navigates to `/settings/bi`; secondary CTA navigates to `/knowledge`.
+
+**Tests:** **952/952 playground tests pass** (+7 new PaneEmptyState contract tests). `npm run lint` clean. Pre-existing `visual.less` HMR errors in the dev-server console were stale buffer entries from earlier in-progress edits; current Less compiles fine (verified by the Cycle 5 production build).
+
+**Honest design call:** the user said "follow the same design as AI Insights and Ask Pulse." The audit found AI Insights uses the icon → heading → description → bullets → CTAs pattern and Ask Pulse uses the captions → suggestion-chips pattern — different content patterns, same typography / button system. Dashboard maps naturally to the AI Insights pattern (it's a "read-only result preview" surface, not an "interactive sample" surface), so the cycle aligns Dashboard with AI Insights's specific layout while keeping the shared design vocabulary so the three tabs feel like one product.
+
+**Tripwires preserved:**
+- No `pulse/visual.tsx` AI Insights JSX touched (Pulse-PBI compat surface respected; visual parity achieved through mirrored CSS rules instead).
+- No Genie iframe sandbox widening.
+- No allowlist authority weakening — fallback hint reads the `visibleVendors` allowlist, not the raw vendor registry.
+
+**Carry-forward:** the `<PaneEmptyState>` component is now the right abstraction for any future surface that needs an empty / coming-soon state (Workbench, future LaunchPad surfaces). Re-use it instead of duplicating inline JSX.
+
+---
+
 ## 2026-05-20 — UI/UX audit + iterative fixes (5 cycles)
 
 **Range:** Comprehensive UI/UX audit at HEAD `b0636d1`, followed by 5 iterative fix cycles closing every P1 and every material P2 finding. Audit doc: [`docs/CLAUDE_UI_UX_AUDIT_2026-05-19.md`](CLAUDE_UI_UX_AUDIT_2026-05-19.md) — top of file has a per-finding status table.

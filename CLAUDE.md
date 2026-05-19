@@ -184,6 +184,6 @@ These constraints travel with the code under `playground/src/pulse/*` because Pu
 
 ## Status
 
-PulsePlay is past the original scaffold. Power BI has a real `powerbi-client` adapter plus secure embed quick-preview fallback and a developer tools strip, Pulse mode is hosted in the playground, and the latest local validation is **945/945 playground+adapter tests, 787/787 proxy tests**, and a passing playground build. Tableau/Qlik/Looker still use iframe fallbacks until their SDK adapters graduate.
+PulsePlay is past the original scaffold. Power BI has a real `powerbi-client` adapter plus secure embed quick-preview fallback and a developer tools strip, Pulse mode is hosted in the playground, and the latest local validation is **952/952 playground+adapter tests, 787/787 proxy tests**, and a passing playground build. Tableau/Qlik/Looker still use iframe fallbacks until their SDK adapters graduate.
 
 When you come back, see [docs/AGENDA.md](docs/AGENDA.md) for the open-work tracker and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) "Where to start when you come back" for the recommended first cycle.
