@@ -67,7 +67,10 @@ const READINESS_LABEL: Record<"ready" | "needed" | "info", string> = {
 };
 
 export const GROUP_LEAF_LABELS: Record<SettingsGroupId, string[]> = {
-    setup: ["Readiness", "BI vertical", "AI vertical", "Experience controls"],
+    // Setup uses inline FieldCards (BI tool / AI brain / Knowledge pack) rather
+    // than the per-leaf navigation pattern — search still finds it via the
+    // group label + description.
+    setup: [],
     bi: ["Provider", "Embed", "Authentication", "Canvas", "Status"],
     ai: ["Provider", "Model / Agent", "Knowledge pack", "Vector Search KB", "Connection test", "AI Insights", "UC Metric View", "Browse library ↗"],
     preferences: [

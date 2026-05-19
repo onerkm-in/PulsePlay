@@ -89,13 +89,14 @@ afterEach(() => {
 });
 
 describe("GROUP_LEAF_LABELS dictionary drift prevention", () => {
-    it("Setup: every rendered Leaf appears in GROUP_LEAF_LABELS.setup", () => {
+    it("Setup: uses inline FieldCards, not Leaves — dictionary stays empty", () => {
         const state = mount(<SetupGroup />);
         const rendered = extractRenderedLeafLabels(state.container);
-        expect(rendered.length).toBeGreaterThan(0);
-        for (const label of rendered) {
-            expect(GROUP_LEAF_LABELS.setup).toContain(label);
-        }
+        // Setup group is the Quick Setup canvas — it renders FieldCard
+        // <section>s, not Leaf <article>s. The dictionary entry is [] by
+        // design; the group is still discoverable by its label + description.
+        expect(rendered.length).toBe(0);
+        expect(GROUP_LEAF_LABELS.setup).toEqual([]);
         unmount(state);
     });
 

@@ -107,13 +107,16 @@ describe("leafSlug helper", () => {
 /* ─── Leaf id contract (fix #2 enabler) ───────────────────────────── */
 
 describe("Leaf renders id=settings-<group>-<slug> when group prop is set", () => {
-    it("SetupGroup leaves render the expected ids", () => {
+    it("SetupGroup uses inline FieldCards (no per-leaf ids needed)", () => {
+        // Setup is the Quick Setup canvas — three inline FieldCards
+        // (BI tool / AI brain / Knowledge pack) instead of separately
+        // deep-linkable Leaves. The drift test verifies this is consistent
+        // with GROUP_LEAF_LABELS.setup === [].
         const state = mount(<SetupGroup />);
-        for (const label of GROUP_LEAF_LABELS.setup) {
-            const expectedId = `settings-setup-${leafSlug(label)}`;
-            const node = state.container.querySelector(`[id="${expectedId}"]`);
-            expect(node, `<Leaf label="${label}"> in Setup group should have id="${expectedId}"`).toBeTruthy();
-        }
+        expect(GROUP_LEAF_LABELS.setup).toEqual([]);
+        // Title still renders for the readiness pill jump-link contract.
+        const title = state.container.querySelector("#settings-setup-title");
+        expect(title?.textContent).toBe("Setup");
         unmount(state);
     });
 
