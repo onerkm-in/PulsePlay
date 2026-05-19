@@ -2202,6 +2202,9 @@ function App(props: AppProps) {
         setKpiLoadingMap(prev => ({ ...prev, [spaceKey]: true }));
         void (async () => {
             try {
+                // Preload is a quick visual hint, not a deep analysis — drop
+                // both business guidance AND the analytics KB rules to keep
+                // the request lean and the upstream fast.
                 const req = buildGenieRequest(
                     CHAT_PRELOAD_PROMPT,
                     "summary",
@@ -2209,7 +2212,7 @@ function App(props: AppProps) {
                     selectedFilters,
                     "",
                     props.settings.sendContextToGenie,
-                    { kbFlags, omitDomainGuidance: true }
+                    { kbFlags, omitDomainGuidance: true, omitAnalyticsKB: true }
                 );
                 const start = await client.startConversation(req, { intent: "summary", contextText: "" });
                 const response = await client.waitForMessageWithProgress(
@@ -2223,7 +2226,17 @@ function App(props: AppProps) {
                     setConversationMap(prev =>
                         prev[spaceKey] ? prev : { ...prev, [spaceKey]: start.conversationId }
                     );
-                    setKpiSnapshotMap(prev => ({ ...prev, [spaceKey]: response.content ?? null }));
+                    // Route any leading clarifying question to the follow-up
+                    // chip strip; keep the snapshot itself clean.
+                    const { cleaned, clarifiers } = extractAndStripClarifiers(response.content);
+                    setKpiSnapshotMap(prev => ({ ...prev, [spaceKey]: cleaned || response.content || null }));
+                    if (clarifiers.length > 0) {
+                        setInsightsFollowUps(prev => {
+                            const existing = prev[spaceKey] ?? [];
+                            const merged = Array.from(new Set([...clarifiers, ...existing]));
+                            return { ...prev, [spaceKey]: merged };
+                        });
+                    }
                 }
             } catch {
                 // Silently swallow — if the preload fails, the welcome
@@ -7465,8 +7478,8 @@ function WelcomeSection(props: {
                         className="gn-msg gn-msg--assistant"
                         style={{ margin: "0 0 8px" }}
                     >
-                        <div className="gn-bubble" style={{ fontSize: 13 }}>
-                            {renderNarrative(props.kpiSnapshot, "KPI Snapshot")}
+                        <div className="gn-bubble">
+                            {renderKpiSnapshot(props.kpiSnapshot)}
                         </div>
                     </div>
                     <p style={{
@@ -8293,6 +8306,99 @@ function demoteBulletStyleHeadings(text: string): string {
         }
     }
     return out.join("\n");
+}
+
+/* ─── Option-A welcome KPI snapshot renderer ─────────────────────────
+ * Parses the LLM's KPI snapshot output into a structured layout:
+ *   - First non-bullet paragraph → bottom-line headline (bold lead)
+ *   - Bullet lines matching `- <name>: <value> · <up|down|stable> (was <prior>)`
+ *       → metric row with trend chip
+ *   - Final `Action: …` line → highlighted call-out
+ * If parsing fails to find at least one metric row, the function falls
+ * back to the generic renderNarrative so we never lose content.
+ */
+function renderKpiSnapshot(raw: string): React.ReactNode {
+    const text = String(raw || "").trim();
+    if (!text) return null;
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+
+    interface MetricRow { name: string; value: string; trend: "up" | "down" | "stable" | null; prior: string | null; }
+    const rows: MetricRow[] = [];
+    let headline = "";
+    let action = "";
+
+    const bulletRe = /^[-*•]\s+(.+)$/;
+    // <name>: <value> [· (up|down|stable)] [(was <prior>)]
+    const metricRe = /^([^:]+):\s*([^·(]+?)(?:\s*[·•]\s*(up|down|stable))?(?:\s*\(\s*(?:was\s+)?([^)]+)\))?\s*$/i;
+
+    for (const line of lines) {
+        if (!headline && !bulletRe.test(line) && !/^action\b/i.test(line)) {
+            headline = line;
+            continue;
+        }
+        if (/^action\s*:/i.test(line)) {
+            action = line.replace(/^action\s*:\s*/i, "").trim();
+            continue;
+        }
+        const bm = line.match(bulletRe);
+        if (bm) {
+            const body = bm[1];
+            // Strip stray trailing trend marker in parens like "(down)" when no "was"
+            const compact = body.replace(/\(\s*(up|down|stable)\s*\)\s*$/i, (_m, t) => `· ${t}`);
+            const mm = compact.match(metricRe);
+            if (mm) {
+                rows.push({
+                    name: mm[1].trim().replace(/\*+/g, ""),
+                    value: mm[2].trim().replace(/\*+/g, ""),
+                    trend: (mm[3]?.toLowerCase() as MetricRow["trend"]) ?? null,
+                    prior: mm[4]?.trim() ?? null,
+                });
+            } else {
+                rows.push({ name: "", value: body, trend: null, prior: null });
+            }
+        }
+    }
+
+    // If parsing didn't find structured metric rows, fall back to the
+    // generic renderer so we never drop content on the floor.
+    if (rows.length === 0) {
+        return renderNarrative(text, "KPI Snapshot");
+    }
+
+    const trendArrow = (t: MetricRow["trend"]) => t === "up" ? "↑" : t === "down" ? "↓" : t === "stable" ? "→" : "";
+
+    return (
+        <div className="gn-kpi-card">
+            {headline && (
+                <p className="gn-kpi-headline">{headline}</p>
+            )}
+            <ul className="gn-kpi-rows">
+                {rows.map((r, i) => (
+                    <li key={i} className="gn-kpi-row">
+                        {r.name ? (
+                            <>
+                                <span className="gn-kpi-row-name">{r.name}</span>
+                                <span className="gn-kpi-row-value">{r.value}</span>
+                                {r.trend && (
+                                    <span className={`gn-trend gn-trend--${r.trend}`}>
+                                        {trendArrow(r.trend)} {r.trend}
+                                    </span>
+                                )}
+                                {r.prior && (
+                                    <span className="gn-kpi-row-prior">was {r.prior}</span>
+                                )}
+                            </>
+                        ) : (
+                            <span className="gn-kpi-row-value">{r.value}</span>
+                        )}
+                    </li>
+                ))}
+            </ul>
+            {action && (
+                <p className="gn-kpi-action"><strong>Action ·</strong> {action}</p>
+            )}
+        </div>
+    );
 }
 
 function renderNarrative(text: string, sectionTitle?: string, metricRules?: InlineMetricRules): React.ReactNode {

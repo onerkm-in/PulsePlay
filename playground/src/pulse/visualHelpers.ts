@@ -162,10 +162,12 @@ export const AREA_PROMPTS: Record<GuidedArea, string> = {
 // asks follow-up questions. The conversation started here becomes the base
 // thread for all subsequent chat in that session.
 export const CHAT_PRELOAD_PROMPT =
-    "Give a quick data snapshot covering the 3-4 most important metrics currently " +
-    "visible, each with its current value, a one-word trend (up / down / stable), " +
-    "and one short actionable sentence. Respond in plain markdown — no tables, no SQL. " +
-    "Total response under 120 words.";
+    "Quick snapshot of the 3-4 most important visible metrics. " +
+    "Format strictly as:\n" +
+    "Line 1: One-sentence bottom line.\n" +
+    "Then 3-4 bullets, each exactly: `- <metric name>: <current value> · <up|down|stable> (was <prior value>)`.\n" +
+    "Final line: `Action: <one short actionable sentence>`.\n" +
+    "No tables, no SQL, no preamble, no clarifying questions. Under 90 words total.";
 
 export const STATIC_ACTIONS: AssistantAction[] = [
     { id: "drivers", label: "Rank key drivers", kind: "ask", prompt: "Rank the key drivers behind the current result and explain the largest contributors.", intent: "drivers" },
@@ -1902,16 +1904,21 @@ export function buildGenieRequest(
     sendContextToGenie: boolean,
     options?: {
         omitDomainGuidance?: boolean;
+        omitAnalyticsKB?: boolean;
         kbFlags?: { enabled: boolean; charts: boolean; stats: boolean; reporting: boolean };
     }
 ): string {
     const kb = options?.kbFlags ?? { enabled: true, charts: true, stats: true, reporting: true };
+    // Backend-neutral framing: PulsePlay orchestrates many AI connectors
+    // (Genie / Foundation Model / Supervisor / ResponsesAgent / …) and hosts
+    // many BI surfaces — the prompt must not assume any specific pair.
     const sections = [
-        "You are Azure Databricks Genie operating inside a Power BI custom visual.",
+        "You are the analytics assistant for a business-intelligence pane of glass.",
         "Respect the report context, explain business meaning clearly, and keep the response decision-oriented.",
         `Intent: ${intent}`,
-        // Inject compact analytics KB hint on every chat call
-        kb.enabled ? getKBChatHint(kb.stats, kb.reporting) : ""
+        // Inject compact analytics KB hint on every chat call (skippable for
+        // short snapshot prompts where the KB rules would dwarf the question).
+        !options?.omitAnalyticsKB && kb.enabled ? getKBChatHint(kb.stats, kb.reporting) : ""
     ];
 
     if (sendContextToGenie) {
