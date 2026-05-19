@@ -8352,6 +8352,24 @@ const POS_RE = /^(increased?|increases?|growth|rises?|risen|rose|up|higher|gaine
 const FLAT_GLYPH = "[▪■●]";
 const FLAT_WORD = "flat|unchanged|no\\s+change";
 const MEAS_NUM = "[+-]?[$€£₹¥]?\\d[\\d,.]*(?:%|pp|[KMBT])?";
+
+/** Strip a leading +/- sign from a trend pill's number when a direction
+ *  glyph (TrendPyramid) renders alongside. Codex 2026-05-19 final UAT:
+ *  Rajesh saw "two up arrows" in delta pills — the second indicator was
+ *  the literal "+" or "-" in the captured number reading as a direction
+ *  glyph next to the actual ▲/▼ icon. Stripping the redundant sign keeps
+ *  direction truth (the ▲ pyramid) and tone color, but avoids the visual
+ *  echo. Currency / no-sign numbers pass through unchanged.
+ *
+ *  Examples:
+ *    "+33.42%" → "33.42%"  (▲ pyramid already conveys direction)
+ *    "-0.22%"  → "0.22%"   (▼ pyramid already conveys direction)
+ *    "$1,234"  → "$1,234"  (no leading sign to strip)
+ *    "20.4%"   → "20.4%"   (already sign-less)
+ */
+function stripRedundantSignForPill(numberText: string): string {
+    return numberText.replace(/^([+-])(?=[$€£₹¥]?\d)/, "");
+}
 const INLINE_REGEX = new RegExp(
     // G1,G2: [**][arrow]number[**] trend-word
     `(?:[▲▼]\\s*)?\\*{0,2}(?:[▲▼]\\s*)?(${MEAS_NUM})\\*{0,2}\\s+(${TREND})\\b` +
@@ -8663,7 +8681,7 @@ function inlineFormat(text: string, sectionTitle?: string, metricRules?: InlineM
                 const cls = pillColorClass(dir, sourceText, match.index, match[1], metricRules, metricNameHint);
                 parts.push(
                     <React.Fragment key={match.index}>
-                        <span className={cls} data-source="ai"><TrendPyramid direction={dir} />{match[1]}</span>
+                        <span className={cls} data-source="ai"><TrendPyramid direction={dir} />{stripRedundantSignForPill(match[1])}</span>
                         {" " + match[2]}
                     </React.Fragment>
                 );
@@ -8685,7 +8703,7 @@ function inlineFormat(text: string, sectionTitle?: string, metricRules?: InlineM
                 parts.push(
                     <React.Fragment key={match.index}>
                         {match[3]} {connective}{" "}
-                        <span className={cls} data-source="ai"><TrendPyramid direction={dir} />{match[4]}</span>
+                        <span className={cls} data-source="ai"><TrendPyramid direction={dir} />{stripRedundantSignForPill(match[4])}</span>
                     </React.Fragment>
                 );
             }
@@ -8700,7 +8718,7 @@ function inlineFormat(text: string, sectionTitle?: string, metricRules?: InlineM
             } else {
                 const dir = match[5].startsWith("+") ? "up" : "down";
                 const cls = pillColorClass(dir, sourceText, match.index, match[5], metricRules, metricNameHint);
-                parts.push(<span key={match.index} className={cls} data-source="ai"><TrendPyramid direction={dir} />{match[5]}</span>);
+                parts.push(<span key={match.index} className={cls} data-source="ai"><TrendPyramid direction={dir} />{stripRedundantSignForPill(match[5])}</span>);
             }
         } else if (match[6] !== undefined && match[7] !== undefined) {
             // G6/G7 — trend-word + number (no "of/by" required).
@@ -8717,7 +8735,7 @@ function inlineFormat(text: string, sectionTitle?: string, metricRules?: InlineM
                 parts.push(
                     <React.Fragment key={match.index}>
                         {match[6]}{" "}
-                        <span className={cls} data-source="ai"><TrendPyramid direction={dir} />{match[7]}</span>
+                        <span className={cls} data-source="ai"><TrendPyramid direction={dir} />{stripRedundantSignForPill(match[7])}</span>
                     </React.Fragment>
                 );
             }
@@ -8886,7 +8904,15 @@ function InsightsSectionFooter(props: {
                     title={`Copy ${props.title || "section"} as markdown`}
                     aria-label={`Copy ${props.title || "section"} as markdown`}
                 >
-                    <span aria-hidden="true">📋</span>
+                    {/* 2026-05-19 Codex final UAT: replaced U+1F4CB
+                      * "📋" emoji with an SVG clipboard icon. The
+                      * emoji shows OS-level glyph variance and was
+                      * called out by Rajesh as feeling unpolished in
+                      * the AI Insights footer cluster. */}
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <rect x="9" y="2" width="6" height="4" rx="1" />
+                        <path d="M9 4H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2" />
+                    </svg>
                 </button>
                 {props.onExportRawData && !props.lazyExportBlocked && (
                     <button
@@ -8920,7 +8946,11 @@ function InsightsSectionFooter(props: {
                         title={`Re-run just the ${props.title || "section"} stage`}
                         aria-label={`Re-run just the ${props.title || "section"} stage`}
                     >
-                        <span aria-hidden="true">↻</span>
+                        {/* SVG refresh — replaces U+21BB "↻" text glyph. */}
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <polyline points="23 4 23 10 17 10" />
+                            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                        </svg>
                     </button>
                 )}
                 {sqlAvailable && (
@@ -8932,7 +8962,12 @@ function InsightsSectionFooter(props: {
                         aria-expanded={props.showingSql}
                         aria-label={props.showingSql ? `Hide SQL for ${props.title || "section"}` : `View SQL for ${props.title || "section"}`}
                     >
-                        <span aria-hidden="true">&lt;/&gt;</span>
+                        {/* SVG code-brackets — replaces literal "&lt;/&gt;" text
+                          * glyph. Same Feather-style mark across the codebase. */}
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <polyline points="16 18 22 12 16 6" />
+                            <polyline points="8 6 2 12 8 18" />
+                        </svg>
                     </button>
                 )}
             </div>
@@ -9288,41 +9323,66 @@ function renderInsightsSections(content: string, options?: InsightsRenderOptions
                             same pattern the Trace pane already uses. */}
                         {showingSql && (
                             <div className="gn-insights-section-sql gn-export-skip">
-                                {hasSectionSql && sectionSqls ? (
-                                    /* Cycle 47.8 — copy-SQL icon + (tab strip
-                                       when multiple) + highlighted <pre> live
-                                       in <SectionSqlPanel>. The copy icon
-                                       grabs the ACTIVE tab's SQL, not just #1.
-                                       Cycle 47.13 — reusedFromTitle surfaces
-                                       a "Reused from <title>" note when the
-                                       SQL was borrowed from a prior stage. */
-                                    <SectionSqlPanel
-                                        queries={sectionSqls}
-                                        sectionTitle={s.title || ""}
-                                        reusedFromTitle={sectionSqlReusedFrom}
-                                    />
-                                ) : (
-                                    <div className="gn-insights-section-sql-empty" role="status">
-                                        {/* Cycle 38 — clearer empty-state copy. Previous
-                                            message implied only RISKS / OPPORTUNITIES /
-                                            RECOMMENDED ACTIONS lacked SQL, but in practice
-                                            ANY stage that's a follow-up turn in the same Genie
-                                            conversation can reuse the prior stage's query
-                                            result instead of generating a new SQL.
-                                            2026-05-14 live-smoke pass — reframe from
-                                            "No SQL was attached" (reads like failure) to
-                                            "This section reuses data from an earlier query"
-                                            (reads like an optimisation). Point the viewer at
-                                            sibling stages with the `</>` icon so they know
-                                            where to click. */}
-                                        <strong>This section reuses data from an earlier query.</strong>{" "}
-                                        It's a narrative summary — Pulse synthesises it from the result
-                                        of a sibling stage (often <em>KPI SNAPSHOT</em> or the initial
-                                        briefing) rather than running another warehouse query.
-                                        Click the <code style={{ background: "rgba(0,0,0,0.05)", padding: "0 4px", borderRadius: 3 }}>{`</>`}</code>{" "}
-                                        icon on a sibling section above to see the SQL that supplied the data.
-                                    </div>
-                                )}
+                                {(() => {
+                                    // Codex 2026-05-19 final UAT P1: the SQL
+                                    // affordance must never open as a dead
+                                    // explanatory panel. Acceptance rule:
+                                    //   (a) show this section's own SQL, OR
+                                    //   (b) show reused source SQL in-place
+                                    //       labelled "Reused from <section>", OR
+                                    //   (c) jump to the reused source SQL, OR
+                                    //   (d) hide/disable when no traceable SQL.
+                                    //
+                                    // Branch (a): this stage has its own SQL.
+                                    if (hasSectionSql && sectionSqls) {
+                                        return (
+                                            <SectionSqlPanel
+                                                queries={sectionSqls}
+                                                sectionTitle={s.title || ""}
+                                                reusedFromTitle={sectionSqlReusedFrom}
+                                            />
+                                        );
+                                    }
+                                    // Branch (b): find a sibling stage that
+                                    // has SQL we can render inline. Prefer
+                                    // the explicitly-named reusedFrom source;
+                                    // fall back to whichever sibling section
+                                    // has SQL (typically KPI SNAPSHOT or the
+                                    // initial briefing).
+                                    const map = options?.stageSqlByTitle;
+                                    let sourceTitle: string | null = sectionSqlReusedFrom;
+                                    let sourceSqls: string[] | undefined;
+                                    if (sourceTitle) {
+                                        const entry = map?.get(sourceTitle.toUpperCase());
+                                        if (entry?.sqls?.length) sourceSqls = entry.sqls;
+                                    }
+                                    if (!sourceSqls && map) {
+                                        for (const [t, entry] of map) {
+                                            if (entry?.sqls?.length && t !== upperTitle) {
+                                                sourceTitle = t;
+                                                sourceSqls = entry.sqls;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if (sourceSqls && sourceTitle) {
+                                        return (
+                                            <SectionSqlPanel
+                                                queries={sourceSqls}
+                                                sectionTitle={s.title || ""}
+                                                reusedFromTitle={sourceTitle}
+                                            />
+                                        );
+                                    }
+                                    // Branch (d): nothing traceable. Render a
+                                    // short honest line (NOT a dead paragraph).
+                                    return (
+                                        <div className="gn-insights-section-sql-empty" role="status">
+                                            <strong>No SQL available for this section.</strong>{" "}
+                                            This stage produced a narrative-only output and the run did not retain a sibling query to reference.
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         )}
                         {/* Cycle 32 — section footer (provenance + per-section

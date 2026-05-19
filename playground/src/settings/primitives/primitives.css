@@ -40,21 +40,19 @@
 .pp-helptip__trigger--tip   { background: rgba(124,58,237,0.10); color: #6d28d9; font-style: normal; font-family: inherit; font-size: 9px; }
 .pp-helptip__trigger--tip:hover { background: #7c3aed; color: #fff; box-shadow: 0 2px 6px rgba(124,58,237,0.42); }
 
-/* ── HelpTip bubble — viewport-aware position
- * Codex 2026-05-19 audit fix:
- *   - The bubble used a fixed center-anchored position
- *     (left: 50% + translateX(-50%)) which clipped at compact viewport
- *     widths (599×694 visible browser pane).
- *   - The new HelpTip component picks an alignment + side based on the
- *     trigger's bounding rect; this CSS exposes the resulting class
- *     variants so each combination renders in the right spot.
- *   - Bubble keeps pointer-events:none — interactive content should not
- *     live inside role="tooltip"; authors should put links adjacent to
- *     the field instead.
+/* ── HelpTip bubble — portal-rendered with fixed positioning
+ * 2026-05-19 Codex final UAT fix (P1): tooltips at the edge of pane
+ * frames were going under the frame because the bubble was an inline
+ * descendant trapped by an ancestor's overflow:hidden / stacking
+ * context. Bubble is now portal-rendered into document.body via
+ * createPortal in HelpTip.tsx, positioned with position:fixed +
+ * viewport coordinates the component measures on open/scroll/resize.
+ * z-index is belt-and-braces; the portal escapes ancestor clipping.
+ *
+ * Authoring contract (unchanged): no interactive controls inside
+ * role="tooltip". Use FieldRow.labelTrailing for actionable links.
  */
 .pp-helptip__bubble {
-    position: absolute;
-    z-index: 100;
     padding: 10px 12px;
     border-radius: var(--pp-radius);
     background: #0f172a;
@@ -66,26 +64,25 @@
     white-space: normal;
     text-align: left;
     pointer-events: none;
+}
+
+/* Portal-rendered bubbles use position:fixed coordinates set inline by
+ * HelpTip.tsx (top/left/width/maxWidth). The fade-in respects the
+ * vertical drift only; position itself is owned by JS. */
+.pp-helptip__bubble--portal {
     animation: pp-tip-fade 140ms var(--pp-ease, ease-out);
 }
 
-/* Vertical placement */
-.pp-helptip__bubble--side-above { bottom: calc(100% + 8px); }
-.pp-helptip__bubble--side-below { top:    calc(100% + 8px); }
-
-/* Horizontal placement — anchor matches the side with more viewport room */
-.pp-helptip__bubble--align-center { left: 50%; transform: translateX(-50%); }
-.pp-helptip__bubble--align-left   { left: 0; }
-.pp-helptip__bubble--align-right  { right: 0; }
-
-/* Pointer arrow — flips when the bubble is below the trigger so it still
- * points at the trigger button. The arrow centers on the bubble for the
- * center alignment; for left/right alignment it anchors near the trigger
- * edge instead of the bubble midpoint. */
+/* Pointer arrow. Arrow horizontal position is set by the
+ * --pp-helptip-arrow-x CSS var (set inline by HelpTip.tsx) so the
+ * arrow can stay aligned with the trigger center even when the bubble
+ * is clamped left/right against the viewport edge. */
 .pp-helptip__bubble::after {
     content: '';
     position: absolute;
     border: 5px solid transparent;
+    left: var(--pp-helptip-arrow-x, 50%);
+    transform: translateX(-50%);
 }
 .pp-helptip__bubble--side-above::after {
     top: 100%;
@@ -95,9 +92,45 @@
     bottom: 100%;
     border-bottom-color: #0f172a;
 }
-.pp-helptip__bubble--align-center::after { left: 50%; transform: translateX(-50%); }
-.pp-helptip__bubble--align-left::after   { left: 8px; }
-.pp-helptip__bubble--align-right::after  { right: 8px; }
+
+/* ── Structured content (title + body bullets + paragraph)
+ * Codex 2026-05-19 UAT: tooltip bubbles read like a dense paragraph.
+ * Allow `title` + `body` slots so authors can write title + 2-3 short
+ * scannable lines. Falls back to text/children for legacy callers. */
+.pp-helptip__title {
+    font-weight: 600;
+    font-size: var(--pp-text-sm);
+    color: #ffffff;
+    margin-bottom: 6px;
+    line-height: 1.3;
+}
+
+.pp-helptip__list {
+    margin: 0 0 0 0;
+    padding: 0;
+    list-style: none;
+}
+.pp-helptip__list li {
+    position: relative;
+    padding: 2px 0 2px 14px;
+    font-size: var(--pp-text-sm);
+}
+.pp-helptip__list li::before {
+    content: '·';
+    position: absolute;
+    left: 4px;
+    top: 1px;
+    color: #93c5fd;
+    font-weight: 700;
+}
+
+.pp-helptip__body {
+    margin-top: 6px;
+}
+.pp-helptip__title + .pp-helptip__body,
+.pp-helptip__list + .pp-helptip__body {
+    margin-top: 8px;
+}
 
 .pp-helptip__bubble code {
     font-family: var(--pp-font-mono);
@@ -116,15 +149,6 @@
 @keyframes pp-tip-fade {
     from { opacity: 0; transform: translateY(4px); }
     to   { opacity: 1; transform: translateY(0); }
-}
-/* Center-aligned bubble still uses translateX in its position, so the
- * fade keyframe needs to preserve the X centering during the animation. */
-.pp-helptip__bubble--align-center {
-    animation: pp-tip-fade-center 140ms var(--pp-ease, ease-out);
-}
-@keyframes pp-tip-fade-center {
-    from { opacity: 0; transform: translateX(-50%) translateY(4px); }
-    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
 /* ── StatusBadge ──────────────────────────────────────────────────── */

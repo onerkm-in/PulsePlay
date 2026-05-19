@@ -1,0 +1,1890 @@
+[
+  {
+    "name": "01-root-ai-insights.png",
+    "file": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\final-uat-regression-2026-05-19-0914\\01-root-ai-insights.png",
+    "body": "PulsePlay AI playground · multi-BI host Ready BI + AI AI Insights Ask Pulse BI Viz Adjust ▾ ■ Stop AI Insights: Connecting to AI Drafting the briefing (Connecting to AI) 0:00 Drafting the briefing AI INSIGHTS BRIEFING",
+    "controls": [
+      {
+        "aria": "Open setup readiness in Settings",
+        "i": 0,
+        "role": "",
+        "tag": "button",
+        "text": "Ready BI + AI",
+        "title": "Open Settings → Setup",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 1,
+        "role": "tab",
+        "tag": "button",
+        "text": "AI Insights",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 2,
+        "role": "tab",
+        "tag": "button",
+        "text": "Ask Pulse",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "Open BI Viz surface",
+        "i": 3,
+        "role": "",
+        "tag": "button",
+        "text": "BI Viz",
+        "title": "Open BI Viz surface",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 4,
+        "role": "",
+        "tag": "button",
+        "text": "Adjust ▾",
+        "title": "Open Adjust suggestions",
+        "visible": true
+      },
+      {
+        "aria": "Maximize AI panel",
+        "i": 5,
+        "role": "",
+        "tag": "button",
+        "text": "",
+        "title": "Maximize AI pane",
+        "visible": true
+      },
+      {
+        "aria": "Minimize AI panel",
+        "i": 6,
+        "role": "",
+        "tag": "button",
+        "text": "",
+        "title": "Minimize AI pane",
+        "visible": true
+      },
+      {
+        "aria": "Open AI panel in separate page",
+        "i": 7,
+        "role": "",
+        "tag": "button",
+        "text": "",
+        "title": "Open AI pane in a separate page",
+        "visible": true
+      },
+      {
+        "aria": "Pop out AI panel as window",
+        "i": 8,
+        "role": "",
+        "tag": "button",
+        "text": "",
+        "title": "Pop out AI pane as a detached browser window you can keep alongside the main app",
+        "visible": true
+      },
+      {
+        "aria": "More actions: Copy as markdown, Copy as rich HTML, Print or save as PDF",
+        "i": 9,
+        "role": "",
+        "tag": "button",
+        "text": "",
+        "title": "More actions (Copy, Print)",
+        "visible": true
+      },
+      {
+        "aria": "Refresh AI Insights for the current report context",
+        "i": 10,
+        "role": "",
+        "tag": "button",
+        "text": "",
+        "title": "Refresh insights",
+        "visible": true
+      },
+      {
+        "aria": "Stop the current AI Insights run",
+        "i": 11,
+        "role": "",
+        "tag": "button",
+        "text": "■ Stop",
+        "title": "Stop the in-flight AI Insights run",
+        "visible": true
+      },
+      {
+        "aria": "Hide steps",
+        "i": 12,
+        "role": "",
+        "tag": "button",
+        "text": "",
+        "title": "Hide steps",
+        "visible": true
+      },
+      {
+        "aria": "Open Tanstack query devtools",
+        "i": 13,
+        "role": "",
+        "tag": "button",
+        "text": "",
+        "title": "",
+        "visible": true
+      }
+    ],
+    "headings": [
+      "PulsePlay",
+      "AI INSIGHTS BRIEFING"
+    ],
+    "title": "PulsePlay — Multi-BI AI Playground",
+    "tooltips": [],
+    "url": "http://127.0.0.1:5174/"
+  },
+  {
+    "name": "02-root-ask-pulse.png",
+    "file": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\final-uat-regression-2026-05-19-0914\\02-root-ask-pulse.png",
+    "body": "PulsePlay AI playground · multi-BI host Ready BI + AI AI Insights Ask Pulse BI Viz Show history Bind User Identity to enable per-user retrieval. SCOPE Full dataset GUIDED FILTERS 0 MEASURES 0 QUICK START Performance Issue Risk Opportunity Run Performance View TRY ASKING Rank key drivers Summarize for leadership Run what-if Press Enter to send. Press Shift plus Enter to insert a new line. ↑",
+    "controls": [
+      {
+        "aria": "Open setup readiness in Settings",
+        "i": 0,
+        "role": "",
+        "tag": "button",
+        "text": "Ready BI + AI",
+        "title": "Open Settings → Setup",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 1,
+        "role": "tab",
+        "tag": "button",
+        "text": "AI Insights",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 2,
+        "role": "tab",
+        "tag": "button",
+        "text": "Ask Pulse",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "Open BI Viz surface",
+        "i": 3,
+        "role": "",
+        "tag": "button",
+        "text": "BI Viz",
+        "title": "Open BI Viz surface",
+        "visible": true
+      },
+      {
+        "aria": "Maximize AI panel",
+        "i": 4,
+        "role": "",
+        "tag": "button",
+        "text": "",
+        "title": "Maximize AI pane",
+        "visible": true
+      },
+      {
+        "aria": "Minimize AI panel",
+        "i": 5,
+        "role": "",
+        "tag": "button",
+        "text": "",
+        "title": "Minimize AI pane",
+        "visible": true
+      },
+      {
+        "aria": "Open AI panel in separate page",
+        "i": 6,
+        "role": "",
+        "tag": "button",
+        "text": "",
+        "title": "Open AI pane in a separate page",
+        "visible": true
+      },
+      {
+        "aria": "Pop out AI panel as window",
+        "i": 7,
+        "role": "",
+        "tag": "button",
+        "text": "",
+        "title": "Pop out AI pane as a detached browser window you can keep alongside the main app",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 8,
+        "role": "",
+        "tag": "button",
+        "text": "Show history",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 9,
+        "role": "",
+        "tag": "button",
+        "text": "Performance",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 10,
+        "role": "",
+        "tag": "button",
+        "text": "Issue",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 11,
+        "role": "",
+        "tag": "button",
+        "text": "Risk",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 12,
+        "role": "",
+        "tag": "button",
+        "text": "Opportunity",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 13,
+        "role": "",
+        "tag": "button",
+        "text": "Run Performance View",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 14,
+        "role": "",
+        "tag": "button",
+        "text": "Rank key drivers",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 15,
+        "role": "",
+        "tag": "button",
+        "text": "Summarize for leadership",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 16,
+        "role": "",
+        "tag": "button",
+        "text": "Run what-if",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "Ask a question about your data",
+        "i": 17,
+        "role": "",
+        "tag": "textarea",
+        "text": "Ask a question about your data...",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "Send",
+        "i": 18,
+        "role": "",
+        "tag": "button",
+        "text": "↑",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "Open Tanstack query devtools",
+        "i": 19,
+        "role": "",
+        "tag": "button",
+        "text": "",
+        "title": "",
+        "visible": true
+      }
+    ],
+    "headings": [
+      "PulsePlay"
+    ],
+    "title": "PulsePlay — Multi-BI AI Playground",
+    "tooltips": [],
+    "url": "http://127.0.0.1:5174/"
+  },
+  {
+    "name": "03-root-bi-viz.png",
+    "file": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\final-uat-regression-2026-05-19-0914\\03-root-bi-viz.png",
+    "body": "PulsePlay AI playground · multi-BI host Ready BI + AI BI Power BI Developer Tools waiting for report Failed to embed powerbi: BI_EMBED_FAILED: powerbi adapter requires { id, embedUrl, accessToken }",
+    "controls": [
+      {
+        "aria": "Open setup readiness in Settings",
+        "i": 0,
+        "role": "",
+        "tag": "button",
+        "text": "Ready BI + AI",
+        "title": "Open Settings → Setup",
+        "visible": true
+      },
+      {
+        "aria": "Maximize BI panel",
+        "i": 1,
+        "role": "",
+        "tag": "button",
+        "text": "",
+        "title": "Maximize BI panel",
+        "visible": true
+      },
+      {
+        "aria": "Minimize BI panel",
+        "i": 2,
+        "role": "",
+        "tag": "button",
+        "text": "",
+        "title": "Minimize BI panel",
+        "visible": true
+      },
+      {
+        "aria": "Pin layout",
+        "i": 3,
+        "role": "",
+        "tag": "button",
+        "text": "",
+        "title": "Pin this pane as the focused startup layout",
+        "visible": true
+      },
+      {
+        "aria": "Open BI panel in separate page",
+        "i": 4,
+        "role": "",
+        "tag": "button",
+        "text": "",
+        "title": "Open BI panel in separate page",
+        "visible": true
+      },
+      {
+        "aria": "Pop out BI panel as window",
+        "i": 5,
+        "role": "",
+        "tag": "button",
+        "text": "",
+        "title": "Pop out BI panel as a detached browser window you can keep alongside the main app",
+        "visible": true
+      },
+      {
+        "aria": "Show both panels",
+        "i": 6,
+        "role": "",
+        "tag": "button",
+        "text": "",
+        "title": "Show both panels",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 7,
+        "role": "tab",
+        "tag": "button",
+        "text": "",
+        "title": "Auto-generated narrative summary of the current data scope.",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 8,
+        "role": "tab",
+        "tag": "button",
+        "text": "",
+        "title": "Ask follow-up questions in natural language; SQL + chart back.",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 9,
+        "role": "tab",
+        "tag": "button",
+        "text": "",
+        "title": "The embedded BI surface — same shell, peer to AI Insights.",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 10,
+        "role": "",
+        "tag": "button",
+        "text": "",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 11,
+        "role": "",
+        "tag": "button",
+        "text": "",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 12,
+        "role": "",
+        "tag": "button",
+        "text": "",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 13,
+        "role": "",
+        "tag": "button",
+        "text": "",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 14,
+        "role": "",
+        "tag": "input",
+        "text": "Region",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 15,
+        "role": "",
+        "tag": "input",
+        "text": "East",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 16,
+        "role": "",
+        "tag": "button",
+        "text": "",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 17,
+        "role": "",
+        "tag": "button",
+        "text": "",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "Open Tanstack query devtools",
+        "i": 18,
+        "role": "",
+        "tag": "button",
+        "text": "",
+        "title": "",
+        "visible": true
+      }
+    ],
+    "headings": [
+      "PulsePlay"
+    ],
+    "title": "PulsePlay — Multi-BI AI Playground",
+    "tooltips": [],
+    "url": "http://127.0.0.1:5174/"
+  },
+  {
+    "name": "04-settings-setup.png",
+    "file": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\final-uat-regression-2026-05-19-0914\\04-settings-setup.png",
+    "body": "Settings Configure how PulsePlay looks, what it embeds, and how it reasons. Back to app 🔍 Ctrl / Setup BI + AI BI Power BI AI Default profile Pack No knowledge source Proxy Connected Security Enforced Setup Three short steps to get PulsePlay running. Each card configures one axis inline; deeper tuning lives in the BI, AI, and Preferences pages. Ready BI + AI 1 BI surface i The dashboard, report, or canvas users will look at. Configured Provider * i — Pick a dashboard tool — Databricks AI/BI Databricks Genie Power BI Tableau Qlik Sense Looker Generic iframe The BI vendor PulsePlay will embed in the canvas pane. Embed URL or iframe HTML i Paste the full embed URL (Power BI / Tableau / generic) OR the iframe HTML from Databricks Genie Share → Embed. Apply embed Clear Open full embed settings 2 AI assistant i One assistant powers both AI Insights and Ask Pulse — pick its profile here. Configured Test proxy AI profile * Databricks docs i — Pick an AI profile — No profiles available. Either the proxy /assistant/profiles call failed, or none are in the allowlist. Check Settings → System → Proxy status to confirm. Test selected profile Tune Insights behavior 3 Domain knowledge i Industry vocabulary the assistant uses to interpret your data. Optional Pack i — No pack (generic vocabulary) — Optional but recommended. Picks vocab + metric direction rules tuned for the industry. CONTINUE SETUP Layout & display Proxy & diagnostics Advanced / reset Unsaved changes Discard Save changes",
+    "controls": [
+      {
+        "aria": "",
+        "i": 0,
+        "role": "",
+        "tag": "button",
+        "text": "Back to app",
+        "title": "Return to the playground (Esc)",
+        "visible": true
+      },
+      {
+        "aria": "Search settings",
+        "i": 1,
+        "role": "",
+        "tag": "input",
+        "text": "Search 39 settings across 6 groups…",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "Jump to Setup group",
+        "i": 2,
+        "role": "",
+        "tag": "button",
+        "text": "Setup BI + AI",
+        "title": "Jump to Setup group",
+        "visible": true
+      },
+      {
+        "aria": "Jump to BI group",
+        "i": 3,
+        "role": "",
+        "tag": "button",
+        "text": "BI Power BI",
+        "title": "Jump to BI group",
+        "visible": true
+      },
+      {
+        "aria": "Jump to AI group",
+        "i": 4,
+        "role": "",
+        "tag": "button",
+        "text": "AI Default profile",
+        "title": "Jump to AI group",
+        "visible": true
+      },
+      {
+        "aria": "Jump to ai › Pack",
+        "i": 5,
+        "role": "",
+        "tag": "button",
+        "text": "Pack No knowledge source",
+        "title": "Jump to ai › Pack",
+        "visible": true
+      },
+      {
+        "aria": "Jump to system › Proxy",
+        "i": 6,
+        "role": "",
+        "tag": "button",
+        "text": "Proxy Connected",
+        "title": "Jump to system › Proxy",
+        "visible": true
+      },
+      {
+        "aria": "Jump to system › Security",
+        "i": 7,
+        "role": "",
+        "tag": "button",
+        "text": "Security Enforced",
+        "title": "Jump to system › Security",
+        "visible": true
+      },
+      {
+        "aria": "More info",
+        "i": 14,
+        "role": "",
+        "tag": "button",
+        "text": "i",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "More info",
+        "i": 15,
+        "role": "",
+        "tag": "button",
+        "text": "i",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 16,
+        "role": "",
+        "tag": "select",
+        "text": "— Pick a dashboard tool — Databricks AI/BI Databricks Genie Power BI Tableau Qlik Sense Looker Generic iframe",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "More info",
+        "i": 17,
+        "role": "",
+        "tag": "button",
+        "text": "i",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 18,
+        "role": "",
+        "tag": "textarea",
+        "text": "https://app.powerbi.com/reportEmbed?reportId=…",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 19,
+        "role": "",
+        "tag": "button",
+        "text": "Apply embed",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 20,
+        "role": "",
+        "tag": "button",
+        "text": "Clear",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 21,
+        "role": "",
+        "tag": "button",
+        "text": "Open full embed settings",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "More info",
+        "i": 22,
+        "role": "",
+        "tag": "button",
+        "text": "i",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 23,
+        "role": "",
+        "tag": "button",
+        "text": "Test proxy",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 24,
+        "role": "",
+        "tag": "a",
+        "text": "Databricks docs",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "More info",
+        "i": 25,
+        "role": "",
+        "tag": "button",
+        "text": "i",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 26,
+        "role": "",
+        "tag": "select",
+        "text": "— Pick an AI profile —",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 27,
+        "role": "",
+        "tag": "button",
+        "text": "Test selected profile",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 28,
+        "role": "",
+        "tag": "button",
+        "text": "Tune Insights behavior",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "More info",
+        "i": 29,
+        "role": "",
+        "tag": "button",
+        "text": "i",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "More info",
+        "i": 30,
+        "role": "",
+        "tag": "button",
+        "text": "i",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 31,
+        "role": "",
+        "tag": "select",
+        "text": "— No pack (generic vocabulary) —",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 32,
+        "role": "",
+        "tag": "button",
+        "text": "Layout & display",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 33,
+        "role": "",
+        "tag": "button",
+        "text": "Proxy & diagnostics",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 34,
+        "role": "",
+        "tag": "button",
+        "text": "Advanced / reset",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 35,
+        "role": "",
+        "tag": "button",
+        "text": "Discard",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 36,
+        "role": "",
+        "tag": "button",
+        "text": "Save changes",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "Open Tanstack query devtools",
+        "i": 37,
+        "role": "",
+        "tag": "button",
+        "text": "",
+        "title": "",
+        "visible": true
+      }
+    ],
+    "headings": [
+      "Settings",
+      "Setup",
+      "BI surface i",
+      "AI assistant i",
+      "Domain knowledge i"
+    ],
+    "title": "PulsePlay — Multi-BI AI Playground",
+    "tooltips": [],
+    "url": "http://127.0.0.1:5174/settings/setup"
+  },
+  {
+    "name": "05-settings-ai.png",
+    "file": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\final-uat-regression-2026-05-19-0914\\05-settings-ai.png",
+    "body": "Settings Configure how PulsePlay looks, what it embeds, and how it reasons. Back to app 🔍 Ctrl / Setup BI + AI BI Power BI AI Default profile Pack No knowledge source Proxy Connected Security Enforced AI One assistant powers both AI Insights and Ask Pulse. Configure the assistant, give it context, tune how it responds, then tune per-surface behavior. MVP 0.2: Databricks Genie + Supervisor only. Assistant The assistant profile powering AI Insights and Ask Pulse — pick a provider, see the model/agent details, and verify the connection. Provider Copy link The AI assistant that answers your questions. Restricted to the providers your organization allows. DefaultSales Team SupervisorGenie Supervisor Agent SUPERVISOR · 0 SPACES Model / Agent Copy link For Genie: the single Genie space this profile is bound to. Configured server-side via proxy/config.json. Display name: Default Data domain: Sales Team Genie space: 01f13f...a37373 Connection test Copy link Live probe against the proxy. Shows reachability, schema hints, and the inferred pack. Test Connection Re-run Click Re-run to probe the connector. Shared context Knowledge, vocabulary, and grounding sources used by both AI Insights and Ask Pulse. Change once; both surfaces benefit. Knowledge pack Copy link The industry-domain bundle the assistant uses for vocabulary, KPIs, and starter questions. Used by both AI Insights and Ask Pulse. Restricted to packs your organization installs. Pack Pack — Select a pack — CPG / FMCG Sub-vertical — Pick a pack first — Vector Search KB Copy link Databricks Vector Search is not currently live in this workspace. Keep the target index here so the feature wakes up cleanly when an endpoint is enabled. Status: Hibernating Endpoints: 0 Planned Vector Search index UC Metric View Copy link Discover governed Databricks metric views and use one as the semantic source for the assistant. Used by both AI Insights and Ask Pulse. Catalog Schema Discovering Selected metric view No metric views returned for this catalog/schema. Browse library Copy link Open the Knowledge Base content browser — glossary, ontology, KPIs, sample questions per pack. Browse Knowledge Base → Response behavior How the assistant talks back — prompt strategy, section schema, metric semantics, evidence and provenance. Shared with both AI Insights and Ask Pulse; saves to Pulse genieSettings. Response behavior Copy link Shared with both AI Insights and Ask Pulse. Controls prompt strategy, domain guidance, section schema, metric semantics, and evidence display. Surface-specific knobs (Insights stages, Ask Pulse chat behavior) live in the next section. This replaces the old Pulse Console setup tab. Provider selection above writes the same genieSettings.assistantProfile value used by Pulse at runtime. Runtime profile: default Available AI surfaces Both — AI Insights + Ask Pulse AI Insights only Ask Pulse only Authoring mode Preset — pick domain + sections AI-assisted — infer from data Manual — write prompt Analytic",
+    "controls": [
+      {
+        "aria": "",
+        "i": 0,
+        "role": "",
+        "tag": "button",
+        "text": "Back to app",
+        "title": "Return to the playground (Esc)",
+        "visible": true
+      },
+      {
+        "aria": "Search settings",
+        "i": 1,
+        "role": "",
+        "tag": "input",
+        "text": "Search 39 settings across 6 groups…",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "Jump to Setup group",
+        "i": 2,
+        "role": "",
+        "tag": "button",
+        "text": "Setup BI + AI",
+        "title": "Jump to Setup group",
+        "visible": true
+      },
+      {
+        "aria": "Jump to BI group",
+        "i": 3,
+        "role": "",
+        "tag": "button",
+        "text": "BI Power BI",
+        "title": "Jump to BI group",
+        "visible": true
+      },
+      {
+        "aria": "Jump to AI group",
+        "i": 4,
+        "role": "",
+        "tag": "button",
+        "text": "AI Default profile",
+        "title": "Jump to AI group",
+        "visible": true
+      },
+      {
+        "aria": "Jump to ai › Pack",
+        "i": 5,
+        "role": "",
+        "tag": "button",
+        "text": "Pack No knowledge source",
+        "title": "Jump to ai › Pack",
+        "visible": true
+      },
+      {
+        "aria": "Jump to system › Proxy",
+        "i": 6,
+        "role": "",
+        "tag": "button",
+        "text": "Proxy Connected",
+        "title": "Jump to system › Proxy",
+        "visible": true
+      },
+      {
+        "aria": "Jump to system › Security",
+        "i": 7,
+        "role": "",
+        "tag": "button",
+        "text": "Security Enforced",
+        "title": "Jump to system › Security",
+        "visible": true
+      },
+      {
+        "aria": "Copy link to Provider",
+        "i": 24,
+        "role": "",
+        "tag": "button",
+        "text": "Copy link",
+        "title": "Copy link to this section",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 25,
+        "role": "",
+        "tag": "button",
+        "text": "DefaultSales Team",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 26,
+        "role": "",
+        "tag": "button",
+        "text": "SupervisorGenie Supervisor Agent SUPERVISOR · 0 SPACES",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "Copy link to Model / Agent",
+        "i": 27,
+        "role": "",
+        "tag": "button",
+        "text": "Copy link",
+        "title": "Copy link to this section",
+        "visible": true
+      },
+      {
+        "aria": "Copy link to Connection test",
+        "i": 28,
+        "role": "",
+        "tag": "button",
+        "text": "Copy link",
+        "title": "Copy link to this section",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 29,
+        "role": "",
+        "tag": "button",
+        "text": "Re-run",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "Copy link to Knowledge pack",
+        "i": 30,
+        "role": "",
+        "tag": "button",
+        "text": "Copy link",
+        "title": "Copy link to this section",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 31,
+        "role": "",
+        "tag": "select",
+        "text": "— Select a pack — CPG / FMCG",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 32,
+        "role": "",
+        "tag": "select",
+        "text": "— Pick a pack first —",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "Copy link to Vector Search KB",
+        "i": 33,
+        "role": "",
+        "tag": "button",
+        "text": "Copy link",
+        "title": "Copy link to this section",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 34,
+        "role": "",
+        "tag": "input",
+        "text": "catalog.schema.index_name",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "Copy link to UC Metric View",
+        "i": 35,
+        "role": "",
+        "tag": "button",
+        "text": "Copy link",
+        "title": "Copy link to this section",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 36,
+        "role": "",
+        "tag": "input",
+        "text": "workspace",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 37,
+        "role": "",
+        "tag": "input",
+        "text": "databrickspractice",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 38,
+        "role": "",
+        "tag": "button",
+        "text": "Discovering",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 39,
+        "role": "",
+        "tag": "input",
+        "text": "catalog.schema.metric_view",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "Copy link to Browse library",
+        "i": 40,
+        "role": "",
+        "tag": "button",
+        "text": "Copy link",
+        "title": "Copy link to this section",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 41,
+        "role": "",
+        "tag": "button",
+        "text": "Browse Knowledge Base →",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "Copy link to Response behavior",
+        "i": 42,
+        "role": "",
+        "tag": "button",
+        "text": "Copy link",
+        "title": "Copy link to this section",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 43,
+        "role": "",
+        "tag": "select",
+        "text": "Both — AI Insights + Ask Pulse AI Insights only Ask Pulse only",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 44,
+        "role": "",
+        "tag": "select",
+        "text": "Preset — pick domain + sections AI-assisted — infer from data Manual — write prompt",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 45,
+        "role": "",
+        "tag": "input",
+        "text": "Example: cpg-fmcg, finance, supply-chain",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 46,
+        "role": "",
+        "tag": "textarea",
+        "text": "## Objective Explain what the AI should prioritize. ## Required output - HEADLINE - TRENDS - RISKS - ACTIONS",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 47,
+        "role": "",
+        "tag": "textarea",
+        "text": "## Business rules Define KPI semantics and exception handling. ## Formatting standards Metric | Format | Direction",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 48,
+        "role": "",
+        "tag": "textarea",
+        "text": "[{\"id\":\"headline\",\"title\":\"HEADLINE\",\"instruction\":\"Summarize the key movement.\"}]",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 49,
+        "role": "",
+        "tag": "input",
+        "text": "on",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 50,
+        "role": "",
+        "tag": "input",
+        "text": "on",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 51,
+        "role": "",
+        "tag": "input",
+        "text": "on",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 52,
+        "role": "",
+        "tag": "input",
+        "text": "on",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 53,
+        "role": "",
+        "tag": "textarea",
+        "text": "Revenue: higher is better Returns: lower is better Inventory days: lower is better",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 54,
+        "role": "",
+        "tag": "textarea",
+        "text": "{\"Revenue\":{\"good\":\"up\"},\"Returns\":{\"good\":\"down\"}}",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 55,
+        "role": "",
+        "tag": "input",
+        "text": "on",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 56,
+        "role": "",
+        "tag": "select",
+        "text": "Disabled 5 minutes 15 minutes 30 minutes 1 hour 2 hours",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 57,
+        "role": "",
+        "tag": "textarea",
+        "text": "",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 58,
+        "role": "",
+        "tag": "textarea",
+        "text": "",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 59,
+        "role": "",
+        "tag": "textarea",
+        "text": "",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 60,
+        "role": "",
+        "tag": "textarea",
+        "text": "",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "Copy link to Supervisor Fusion",
+        "i": 61,
+        "role": "",
+        "tag": "button",
+        "text": "Copy link",
+        "title": "Copy link to this section",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 62,
+        "role": "",
+        "tag": "button",
+        "text": "Open Supervisor Fusion →",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "Copy link to Knowledge Base",
+        "i": 63,
+        "role": "",
+        "tag": "button",
+        "text": "Copy link",
+        "title": "Copy link to this section",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 64,
+        "role": "",
+        "tag": "button",
+        "text": "Open Knowledge Base →",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 65,
+        "role": "",
+        "tag": "button",
+        "text": "Discard",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 66,
+        "role": "",
+        "tag": "button",
+        "text": "Save changes",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "Open Tanstack query devtools",
+        "i": 67,
+        "role": "",
+        "tag": "button",
+        "text": "",
+        "title": "",
+        "visible": true
+      }
+    ],
+    "headings": [
+      "Settings",
+      "AI",
+      "Assistant",
+      "Test Connection",
+      "Shared context",
+      "Pack",
+      "Response behavior",
+      "Surface-specific behavior"
+    ],
+    "title": "PulsePlay — Multi-BI AI Playground",
+    "tooltips": [],
+    "url": "http://127.0.0.1:5174/settings/ai"
+  },
+  {
+    "name": "06-tooltip-open.png",
+    "file": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\final-uat-regression-2026-05-19-0914\\06-tooltip-open.png",
+    "body": "Settings Configure how PulsePlay looks, what it embeds, and how it reasons. Back to app 🔍 Ctrl / Setup BI + AI BI Power BI AI Default profile Pack No knowledge source Proxy Connected Security Enforced AI One assistant powers both AI Insights and Ask Pulse. Configure the assistant, give it context, tune how it responds, then tune per-surface behavior. MVP 0.2: Databricks Genie + Supervisor only. Assistant The assistant profile powering AI Insights and Ask Pulse — pick a provider, see the model/agent details, and verify the connection. Provider Copy link The AI assistant that answers your questions. Restricted to the providers your organization allows. DefaultSales Team SupervisorGenie Supervisor Agent SUPERVISOR · 0 SPACES Model / Agent Copy link For Genie: the single Genie space this profile is bound to. Configured server-side via proxy/config.json. Display name: Default Data domain: Sales Team Genie space: 01f13f...a37373 Connection test Copy link Live probe against the proxy. Shows reachability, schema hints, and the inferred pack. Test Connection Re-run Click Re-run to probe the connector. Shared context Knowledge, vocabulary, and grounding sources used by both AI Insights and Ask Pulse. Change once; both surfaces benefit. Knowledge pack Copy link The industry-domain bundle the assistant uses for vocabulary, KPIs, and starter questions. Used by both AI Insights and Ask Pulse. Restricted to packs your organization installs. Pack Pack — Select a pack — CPG / FMCG Sub-vertical — Pick a pack first — Vector Search KB Copy link Databricks Vector Search is not currently live in this workspace. Keep the target index here so the feature wakes up cleanly when an endpoint is enabled. Status: Hibernating Endpoints: 0 Planned Vector Search index UC Metric View Copy link Discover governed Databricks metric views and use one as the semantic source for the assistant. Used by both AI Insights and Ask Pulse. Catalog Schema Discovering Selected metric view No metric views returned for this catalog/schema. Browse library Copy link Open the Knowledge Base content browser — glossary, ontology, KPIs, sample questions per pack. Browse Knowledge Base → Response behavior How the assistant talks back — prompt strategy, section schema, metric semantics, evidence and provenance. Shared with both AI Insights and Ask Pulse; saves to Pulse genieSettings. Response behavior Copy link Shared with both AI Insights and Ask Pulse. Controls prompt strategy, domain guidance, section schema, metric semantics, and evidence display. Surface-specific knobs (Insights stages, Ask Pulse chat behavior) live in the next section. This replaces the old Pulse Console setup tab. Provider selection above writes the same genieSettings.assistantProfile value used by Pulse at runtime. Runtime profile: default Available AI surfaces Both — AI Insights + Ask Pulse AI Insights only Ask Pulse only Authoring mode Preset — pick domain + sections AI-assisted — infer from data Manual — write prompt Analytic",
+    "controls": [
+      {
+        "aria": "",
+        "i": 0,
+        "role": "",
+        "tag": "button",
+        "text": "Back to app",
+        "title": "Return to the playground (Esc)",
+        "visible": true
+      },
+      {
+        "aria": "Search settings",
+        "i": 1,
+        "role": "",
+        "tag": "input",
+        "text": "Search 39 settings across 6 groups…",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "Jump to Setup group",
+        "i": 2,
+        "role": "",
+        "tag": "button",
+        "text": "Setup BI + AI",
+        "title": "Jump to Setup group",
+        "visible": true
+      },
+      {
+        "aria": "Jump to BI group",
+        "i": 3,
+        "role": "",
+        "tag": "button",
+        "text": "BI Power BI",
+        "title": "Jump to BI group",
+        "visible": true
+      },
+      {
+        "aria": "Jump to AI group",
+        "i": 4,
+        "role": "",
+        "tag": "button",
+        "text": "AI Default profile",
+        "title": "Jump to AI group",
+        "visible": true
+      },
+      {
+        "aria": "Jump to ai › Pack",
+        "i": 5,
+        "role": "",
+        "tag": "button",
+        "text": "Pack No knowledge source",
+        "title": "Jump to ai › Pack",
+        "visible": true
+      },
+      {
+        "aria": "Jump to system › Proxy",
+        "i": 6,
+        "role": "",
+        "tag": "button",
+        "text": "Proxy Connected",
+        "title": "Jump to system › Proxy",
+        "visible": true
+      },
+      {
+        "aria": "Jump to system › Security",
+        "i": 7,
+        "role": "",
+        "tag": "button",
+        "text": "Security Enforced",
+        "title": "Jump to system › Security",
+        "visible": true
+      },
+      {
+        "aria": "Copy link to Provider",
+        "i": 24,
+        "role": "",
+        "tag": "button",
+        "text": "Copy link",
+        "title": "Copy link to this section",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 25,
+        "role": "",
+        "tag": "button",
+        "text": "DefaultSales Team",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 26,
+        "role": "",
+        "tag": "button",
+        "text": "SupervisorGenie Supervisor Agent SUPERVISOR · 0 SPACES",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "Copy link to Model / Agent",
+        "i": 27,
+        "role": "",
+        "tag": "button",
+        "text": "Copy link",
+        "title": "Copy link to this section",
+        "visible": true
+      },
+      {
+        "aria": "Copy link to Connection test",
+        "i": 28,
+        "role": "",
+        "tag": "button",
+        "text": "Copy link",
+        "title": "Copy link to this section",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 29,
+        "role": "",
+        "tag": "button",
+        "text": "Re-run",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "Copy link to Knowledge pack",
+        "i": 30,
+        "role": "",
+        "tag": "button",
+        "text": "Copy link",
+        "title": "Copy link to this section",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 31,
+        "role": "",
+        "tag": "select",
+        "text": "— Select a pack — CPG / FMCG",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 32,
+        "role": "",
+        "tag": "select",
+        "text": "— Pick a pack first —",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "Copy link to Vector Search KB",
+        "i": 33,
+        "role": "",
+        "tag": "button",
+        "text": "Copy link",
+        "title": "Copy link to this section",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 34,
+        "role": "",
+        "tag": "input",
+        "text": "catalog.schema.index_name",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "Copy link to UC Metric View",
+        "i": 35,
+        "role": "",
+        "tag": "button",
+        "text": "Copy link",
+        "title": "Copy link to this section",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 36,
+        "role": "",
+        "tag": "input",
+        "text": "workspace",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 37,
+        "role": "",
+        "tag": "input",
+        "text": "databrickspractice",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 38,
+        "role": "",
+        "tag": "button",
+        "text": "Discovering",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 39,
+        "role": "",
+        "tag": "input",
+        "text": "catalog.schema.metric_view",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "Copy link to Browse library",
+        "i": 40,
+        "role": "",
+        "tag": "button",
+        "text": "Copy link",
+        "title": "Copy link to this section",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 41,
+        "role": "",
+        "tag": "button",
+        "text": "Browse Knowledge Base →",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "Copy link to Response behavior",
+        "i": 42,
+        "role": "",
+        "tag": "button",
+        "text": "Copy link",
+        "title": "Copy link to this section",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 43,
+        "role": "",
+        "tag": "select",
+        "text": "Both — AI Insights + Ask Pulse AI Insights only Ask Pulse only",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 44,
+        "role": "",
+        "tag": "select",
+        "text": "Preset — pick domain + sections AI-assisted — infer from data Manual — write prompt",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 45,
+        "role": "",
+        "tag": "input",
+        "text": "Example: cpg-fmcg, finance, supply-chain",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 46,
+        "role": "",
+        "tag": "textarea",
+        "text": "## Objective Explain what the AI should prioritize. ## Required output - HEADLINE - TRENDS - RISKS - ACTIONS",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 47,
+        "role": "",
+        "tag": "textarea",
+        "text": "## Business rules Define KPI semantics and exception handling. ## Formatting standards Metric | Format | Direction",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 48,
+        "role": "",
+        "tag": "textarea",
+        "text": "[{\"id\":\"headline\",\"title\":\"HEADLINE\",\"instruction\":\"Summarize the key movement.\"}]",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 49,
+        "role": "",
+        "tag": "input",
+        "text": "on",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 50,
+        "role": "",
+        "tag": "input",
+        "text": "on",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 51,
+        "role": "",
+        "tag": "input",
+        "text": "on",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 52,
+        "role": "",
+        "tag": "input",
+        "text": "on",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 53,
+        "role": "",
+        "tag": "textarea",
+        "text": "Revenue: higher is better Returns: lower is better Inventory days: lower is better",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 54,
+        "role": "",
+        "tag": "textarea",
+        "text": "{\"Revenue\":{\"good\":\"up\"},\"Returns\":{\"good\":\"down\"}}",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 55,
+        "role": "",
+        "tag": "input",
+        "text": "on",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 56,
+        "role": "",
+        "tag": "select",
+        "text": "Disabled 5 minutes 15 minutes 30 minutes 1 hour 2 hours",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 57,
+        "role": "",
+        "tag": "textarea",
+        "text": "",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 58,
+        "role": "",
+        "tag": "textarea",
+        "text": "",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 59,
+        "role": "",
+        "tag": "textarea",
+        "text": "",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 60,
+        "role": "",
+        "tag": "textarea",
+        "text": "",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "Copy link to Supervisor Fusion",
+        "i": 61,
+        "role": "",
+        "tag": "button",
+        "text": "Copy link",
+        "title": "Copy link to this section",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 62,
+        "role": "",
+        "tag": "button",
+        "text": "Open Supervisor Fusion →",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "Copy link to Knowledge Base",
+        "i": 63,
+        "role": "",
+        "tag": "button",
+        "text": "Copy link",
+        "title": "Copy link to this section",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 64,
+        "role": "",
+        "tag": "button",
+        "text": "Open Knowledge Base →",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 65,
+        "role": "",
+        "tag": "button",
+        "text": "Discard",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 66,
+        "role": "",
+        "tag": "button",
+        "text": "Save changes",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "Open Tanstack query devtools",
+        "i": 67,
+        "role": "",
+        "tag": "button",
+        "text": "",
+        "title": "",
+        "visible": true
+      }
+    ],
+    "headings": [
+      "Settings",
+      "AI",
+      "Assistant",
+      "Test Connection",
+      "Shared context",
+      "Pack",
+      "Response behavior",
+      "Surface-specific behavior"
+    ],
+    "title": "PulsePlay — Multi-BI AI Playground",
+    "tooltips": [],
+    "url": "http://127.0.0.1:5174/settings/ai"
+  },
+  {
+    "name": "11-knowledge.png",
+    "file": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\final-uat-regression-2026-05-19-0914\\11-knowledge.png",
+    "body": "Knowledge Base Browse installed packs — glossary, ontology, KPIs, sample questions, prompt context. Settings Back to app INSTALLED PACKS CPG / FMCG 10 sub-verticals Pick a pack to browse The Knowledge Base shows the curated content each installed pack contributes — the AI uses this content for grounding when the pack is selected in Settings. CPG / FMCG Consumer Packaged Goods / Fast-Moving Consumer Goods preset pack. Ten sub-verticals plus a sustainability cross-cutting overlay, anchored in industry-standard taxonomies (GS1, ISA-95, ISO 22400, GHG Protocol). Includes a curated reference set from Gartner, Deloitte, KPMG, WEF, NielsenIQ, and Circana research published 2025-2026.",
+    "controls": [
+      {
+        "aria": "Open Settings",
+        "i": 0,
+        "role": "",
+        "tag": "button",
+        "text": "Settings",
+        "title": "Open Settings (also: Cmd/Ctrl+, anywhere in the app)",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 1,
+        "role": "",
+        "tag": "button",
+        "text": "Back to app",
+        "title": "Back to playground (Esc)",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 2,
+        "role": "",
+        "tag": "button",
+        "text": "CPG / FMCG 10 sub-verticals",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "",
+        "i": 3,
+        "role": "",
+        "tag": "button",
+        "text": "CPG / FMCG Consumer Packaged Goods / Fast-Moving Consumer Goods preset pack. Ten sub-verticals plus a sustainability cross-cutting overlay, anchored in industry-standard taxonomies (GS1, ISA-95, ISO 22400, GHG Protocol). Includes a curated reference set from Gartner, Deloitte, KPMG, WEF, NielsenIQ, and Circana research published 2025-2026.",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "Open Tanstack query devtools",
+        "i": 4,
+        "role": "",
+        "tag": "button",
+        "text": "",
+        "title": "",
+        "visible": true
+      }
+    ],
+    "headings": [
+      "Knowledge Base",
+      "Pick a pack to browse"
+    ],
+    "title": "PulsePlay — Multi-BI AI Playground",
+    "tooltips": [],
+    "url": "http://127.0.0.1:5174/knowledge"
+  },
+  {
+    "name": "12-workbench.png",
+    "file": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\final-uat-regression-2026-05-19-0914\\12-workbench.png",
+    "body": "Unified Ask Pulse Workbench — preview The workbench is preview-grade. Steps 1–5 (capability model, Genie native embed, artifact card shell, validation gates, ECharts renderer) have shipped. Steps 6 (Pulse-asset refactor) and 7 (theme) are queued. Opt in to preview the surface in this browser: Enable preview To enable for everyone on this build, set VITE_PULSEPLAY_ENABLE_WORKBENCH=true.",
+    "controls": [
+      {
+        "aria": "",
+        "i": 0,
+        "role": "",
+        "tag": "button",
+        "text": "Enable preview",
+        "title": "",
+        "visible": true
+      },
+      {
+        "aria": "Open Tanstack query devtools",
+        "i": 1,
+        "role": "",
+        "tag": "button",
+        "text": "",
+        "title": "",
+        "visible": true
+      }
+    ],
+    "headings": [
+      "Unified Ask Pulse Workbench — preview"
+    ],
+    "title": "PulsePlay — Multi-BI AI Playground",
+    "tooltips": [],
+    "url": "http://127.0.0.1:5174/workbench"
+  }
+]
