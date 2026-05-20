@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
-import { parseSseChunkBuffer, useSectionedStream } from "../useSectionedStream";
+import { parseSseChunkBuffer, useSectionedStream, type SectionedStreamPayload } from "../useSectionedStream";
 
 function frame(event: string, data: unknown): string {
     return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -182,5 +182,100 @@ describe("useSectionedStream", () => {
         await act(async () => { await result.current.start({ userPrompt: "q", sections: ["X"] }); });
         expect(result.current.error).toBe("ECONNREFUSED");
         expect(result.current.isStreaming).toBe(false);
+    });
+});
+
+describe("useSectionedStream — Phase D.4 regenerate() convenience", () => {
+    it("regenerate(id) is a no-op before any start() has been called", async () => {
+        const fetchImpl = vi.fn();
+        const { result } = renderHook(() => useSectionedStream({ fetchImpl: fetchImpl as unknown as typeof fetch }));
+        await act(async () => { await result.current.regenerate("HEADLINE"); });
+        expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
+    it("regenerate(id) re-POSTs with regenerateOnly + auto-captured probeCache + headlineCache", async () => {
+        const first = [
+            frame("probe-completed", { rows: [{ x: 1 }, { x: 2 }], durationMs: 3 }),
+            frame("section-started", { sectionId: "HEADLINE" }),
+            frame("section-completed", { sectionId: "HEADLINE", body: "first-headline" }),
+            frame("section-started", { sectionId: "KPI" }),
+            frame("section-completed", { sectionId: "KPI", body: "kpi-v1" }),
+            frame("all-completed", { totals: { sections: 2 } }),
+        ];
+        const second = [
+            frame("section-started", { sectionId: "KPI" }),
+            frame("section-completed", { sectionId: "KPI", body: "kpi-v2" }),
+            frame("all-completed", { totals: { sections: 1 } }),
+        ];
+        let runs = 0;
+        const calls: Array<{ url: string; body: SectionedStreamPayload }> = [];
+        const fetchImpl = vi.fn(async (url: string, init: RequestInit) => {
+            calls.push({ url, body: JSON.parse(init.body as string) as SectionedStreamPayload });
+            return streamResponse(runs++ === 0 ? first : second);
+        });
+        const { result } = renderHook(() => useSectionedStream({ fetchImpl: fetchImpl as unknown as typeof fetch }));
+
+        await act(async () => {
+            await result.current.start({
+                userPrompt: "what changed?",
+                sections: ["HEADLINE", "KPI"],
+                profile: "foundation",
+                temperature: 0.2,
+            });
+        });
+        expect(result.current.sectionStates.KPI.body).toBe("kpi-v1");
+
+        await act(async () => { await result.current.regenerate("KPI"); });
+
+        expect(calls).toHaveLength(2);
+        const secondBody = calls[1].body;
+        // Preserves base payload fields.
+        expect(secondBody.userPrompt).toBe("what changed?");
+        expect(secondBody.profile).toBe("foundation");
+        expect(secondBody.temperature).toBe(0.2);
+        expect(secondBody.sections).toEqual(["HEADLINE", "KPI"]);
+        // Pins regeneration + supplies the auto-cached state.
+        expect(secondBody.regenerateOnly).toEqual(["KPI"]);
+        expect(secondBody.probeCache).toEqual({ rows: [{ x: 1 }, { x: 2 }] });
+        expect(secondBody.headlineCache).toBe("first-headline");
+        // HEADLINE was untouched; KPI shows the new body.
+        expect(result.current.sectionStates.HEADLINE.body).toBe("first-headline");
+        expect(result.current.sectionStates.KPI.body).toBe("kpi-v2");
+    });
+
+    it("regenerate() after a selective-rerun does NOT clobber the cached base payload", async () => {
+        // Stream 1: full run captures payload + caches.
+        const full = [
+            frame("probe-completed", { rows: [{ id: 7 }] }),
+            frame("section-completed", { sectionId: "HEADLINE", body: "h1" }),
+            frame("section-completed", { sectionId: "KPI", body: "k1" }),
+            frame("all-completed", { totals: { sections: 2 } }),
+        ];
+        // Stream 2 & 3: selective re-runs (KPI then HEADLINE).
+        const reRunK = [frame("section-completed", { sectionId: "KPI", body: "k2" }), frame("all-completed", { totals: { sections: 1 } })];
+        const reRunH = [frame("section-completed", { sectionId: "HEADLINE", body: "h2" }), frame("all-completed", { totals: { sections: 1 } })];
+        let runs = 0;
+        const calls: SectionedStreamPayload[] = [];
+        const fetchImpl = vi.fn(async (_url: string, init: RequestInit) => {
+            calls.push(JSON.parse(init.body as string) as SectionedStreamPayload);
+            const chunks = runs === 0 ? full : runs === 1 ? reRunK : reRunH;
+            runs++;
+            return streamResponse(chunks);
+        });
+        const { result } = renderHook(() => useSectionedStream({ fetchImpl: fetchImpl as unknown as typeof fetch }));
+        await act(async () => { await result.current.start({ userPrompt: "base", sections: ["HEADLINE", "KPI"] }); });
+        await act(async () => { await result.current.regenerate("KPI"); });
+        await act(async () => { await result.current.regenerate("HEADLINE"); });
+
+        expect(calls).toHaveLength(3);
+        // All three calls share the same `userPrompt` from the original start().
+        expect(calls[0].userPrompt).toBe("base");
+        expect(calls[1].userPrompt).toBe("base");
+        expect(calls[2].userPrompt).toBe("base");
+        expect(calls[1].regenerateOnly).toEqual(["KPI"]);
+        expect(calls[2].regenerateOnly).toEqual(["HEADLINE"]);
+        // Headline cache survives across selective re-runs (still the FIRST headline).
+        expect(calls[1].headlineCache).toBe("h1");
+        expect(calls[2].headlineCache).toBe("h1");
     });
 });

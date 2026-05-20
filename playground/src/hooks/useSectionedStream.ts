@@ -48,6 +48,13 @@ export interface UseSectionedStreamResult {
     isDone: boolean;
     /** Trigger a stream. Resolves when the stream ends. */
     start: (payload: SectionedStreamPayload) => Promise<void>;
+    /**
+     * Convenience for Phase D.4 selective re-run: re-runs ONLY the named section
+     * using the most-recent start() payload and the auto-cached probe row + HEADLINE
+     * body from the prior stream. No-op (returns immediately) if no prior stream
+     * exists or the section is not present in the last payload's sections list.
+     */
+    regenerate: (sectionId: string) => Promise<void>;
     /** Abort the in-flight stream (if any). */
     abort: () => void;
 }
@@ -102,6 +109,11 @@ export function useSectionedStream(opts: UseSectionedStreamOptions = {}): UseSec
     const [error, setError] = React.useState<string | null>(null);
 
     const abortRef = React.useRef<AbortController | null>(null);
+    // Phase D.4: remember the most recent start() payload + auto-captured
+    // probe/headline so callers can re-run a single section via regenerate().
+    const lastPayloadRef = React.useRef<SectionedStreamPayload | null>(null);
+    const probeCacheRef = React.useRef<unknown>(null);
+    const headlineCacheRef = React.useRef<unknown>(null);
 
     const abort = React.useCallback(() => {
         abortRef.current?.abort();
@@ -110,6 +122,10 @@ export function useSectionedStream(opts: UseSectionedStreamOptions = {}): UseSec
 
     const applyEvent = React.useCallback((ev: StreamEvent) => {
         switch (ev.kind) {
+            case "probe-completed":
+                // Auto-cache so selective re-run can skip the probe.
+                probeCacheRef.current = { rows: (ev as { rows?: unknown[] }).rows ?? [] };
+                break;
             case "section-started":
                 setSectionStates((prev) => ({
                     ...prev,
@@ -117,6 +133,7 @@ export function useSectionedStream(opts: UseSectionedStreamOptions = {}): UseSec
                 }));
                 break;
             case "section-completed":
+                if (ev.sectionId === "HEADLINE") headlineCacheRef.current = ev.body;
                 setSectionStates((prev) => ({
                     ...prev,
                     [ev.sectionId]: {
@@ -143,7 +160,7 @@ export function useSectionedStream(opts: UseSectionedStreamOptions = {}): UseSec
             case "all-completed":
                 setIsDone(true);
                 break;
-            // probe-* are informational for now; UI can listen via a future ref handle.
+            // probe-started / probe-failed are informational for the UI for now.
             default:
                 break;
         }
@@ -151,14 +168,18 @@ export function useSectionedStream(opts: UseSectionedStreamOptions = {}): UseSec
 
     const start = React.useCallback(async (payload: SectionedStreamPayload) => {
         abort();
-        // Reset for the new run. Selective-rerun callers should preserve prior
-        // state themselves by merging with their own React state (see AISidebar
-        // wiring in Phase D.4).
+        // Phase D.4 cache management:
+        //   - Brand-new run (no regenerateOnly): reset section map, clear caches,
+        //     remember this payload as the "last full run" so future regenerate()
+        //     calls can re-issue with the right base.
+        //   - Selective re-run: keep peers, blank the named sections back to
+        //     'pending', and do NOT overwrite lastPayloadRef.
         if (!payload.regenerateOnly || payload.regenerateOnly.length === 0) {
             setSectionStates({});
+            probeCacheRef.current = null;
+            headlineCacheRef.current = null;
+            lastPayloadRef.current = payload;
         } else {
-            // For selective re-run, knock the named sections back to 'pending'
-            // (so the user sees the skeleton state) and keep peers as-is.
             setSectionStates((prev) => {
                 const next = { ...prev };
                 for (const id of payload.regenerateOnly!) {
@@ -235,5 +256,20 @@ export function useSectionedStream(opts: UseSectionedStreamOptions = {}): UseSec
 
     React.useEffect(() => () => abort(), [abort]);
 
-    return { sectionStates, isStreaming, isDone, error, start, abort };
+    const regenerate = React.useCallback(async (sectionId: string) => {
+        const last = lastPayloadRef.current;
+        if (!last) return; // no prior run — nothing to base the re-run on.
+        // The orchestrator filters by `regenerateOnly` against the IR's
+        // declared sections. So we re-issue the SAME payload but pinned to
+        // the one section, plus the caches we captured.
+        const payload: SectionedStreamPayload = {
+            ...last,
+            regenerateOnly: [sectionId],
+            probeCache: probeCacheRef.current ?? last.probeCache,
+            headlineCache: headlineCacheRef.current ?? last.headlineCache,
+        };
+        await start(payload);
+    }, [start]);
+
+    return { sectionStates, isStreaming, isDone, error, start, regenerate, abort };
 }
