@@ -5,6 +5,35 @@
 
 ---
 
+## 2026-05-20 — Cycle 11: Audit close-out — SigV4 dedup, ADR-0003 rewrite, CI workflow, doc accuracy
+
+**Scope.** A prior cloud-container session described a 7-commit audit close-out that never reached this repo (no branch on `origin`, no patch files on disk, only `docs/findingProbeIssue.md` had been carried in via Cycle 10). Verified each claim against current local main and applied the changes that were genuinely missing.
+
+**Pre-flight finding (important).** Local `main` was tracking `origin/publish/local-main-2026-05-20`, not `origin/main`. The two have diverged 314/50 — `origin/main` carries v0.1.3 + security audit work + the richer Insights export toolbar (`6c88a4a`) we do **not** want to lose. Re-pointed tracking to `origin/main` and did **not** push local `main` anywhere. The audit work shipped on its own branch.
+
+**What changed.**
+- [proxy/server.js](../proxy/server.js): `bedrockRetrieveAndGenerate` is now a 5-line delegate to `proxy/lib/bedrock.js`. The inline 62-line SigV4 implementation it duplicated is removed. Byte-identical behavior. (`748c984`)
+- [docs/adr/0003-supervisor-stagger.md](adr/0003-supervisor-stagger.md): Decision section rewritten. It used to claim a fixed 800 ms default but actual code at [proxy/server.js:6385](../proxy/server.js#L6385) ships 2000 ms. The body now carries the full 350 → 800 → 1500 → 2000 ms tuning history as a table, plus a "if you change this, add a row" guardrail. (`477f075`)
+- [databricks-agents/supervisor/agent.py](../databricks-agents/supervisor/agent.py): Module docstring said "DwD Multi-Domain Supervisor Agent." Renamed to "PulsePlay…". Other DwD mentions in the repo (App.tsx, AISidebar.tsx, pulse/*) are intentional sister-project context and were left as-is. (`1d4bf84`)
+- [CLAUDE.md](../CLAUDE.md): Supervisor-stagger tripwire pointed at a renamed ADR file (`0003-supervisor-stagger-800ms.md` — 404'd) and the stale `proxy/server.js:3556` citation. Both fixed to `0003-supervisor-stagger.md` and `:6385`. (`4a3a2f5`)
+- [.github/workflows/test.yml](../.github/workflows/test.yml): new — two parallel jobs (proxy jest, playground lint+vitest+build) on Node 20 ubuntu-latest. Triggers on PR + push to main + push to `publish/**`. (`bf01f2c`)
+
+**Verified-already-present (no commit).**
+- `docs/findingProbeIssue.md` — already in repo as of Cycle 10.
+- CLAUDE.md Genie message-immutability tripwire — added in Cycle 10.
+- `findingProbeIssue.md`-driven changes to sectionedOrchestrator + AGENTS.md + STAGED_RENDERING — all already shipped.
+
+**Honest deferrals.**
+- Author-selectable latency levers (settings UI for staggerMs / FM concurrency / Genie pre-flight skip / etc.) — designed previously, still not built. Largest user-pain win available; should headline the next cycle.
+- Origin divergence cleanup (314 publish-branch commits vs 50 origin/main commits) is a strategic call, not a code task. Either merge `publish/local-main-2026-05-20` → `origin/main` after a careful diff review, or rebase `origin/main`'s 50 commits onto local. Don't auto-resolve.
+- DwD references in `playground/src/pulse/themeConfig.ts`, `setupStep5Validation.ts`, `style/visual.less` left untouched — they're inside the explicit Pulse-PBI compat shim per CLAUDE.md, so they document inheritance, not naming drift.
+
+**Validation.**
+- `node --check proxy/server.js` clean post-edit.
+- Full suite run pending — see end-of-cycle results below or in the next commit.
+
+---
+
 ## 2026-05-20 — Cycle 10: Staged SSE `renderId` envelope after Genie message probe
 
 **Scope.** User supplied [findingProbeIssue.md](findingProbeIssue.md) plus a Databricks HAR. The markdown proves Genie REST cannot share one `message_id` across multiple section calls; the HAR was checked and is **not** API-level evidence (UI assets + `popproxy/health` + `data-rooms/.../value-index` + telemetry only). Shipped the recommended Path A: one PulsePlay logical assistant envelope keyed by `renderId`, while Genie can still allocate N upstream `message_id`s under one `conversation_id`.
