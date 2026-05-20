@@ -126,7 +126,7 @@ The 7-item cycle that this docs consolidation is part of. Tracked here for visib
 3. **First vendor adapter graduates from stub** — Power BI most likely (`bi-adapters/powerbi/index.ts` wires `powerbi-client` SDK). Probably v0.2 priority.
 4. **Embed-token issuance route** — `/api/powerbi/embed-token` in proxy, Azure AD service principal flow.
 5. **First playground tests** — BIAdapter conformance suite, BIPanel lifecycle, registry lazy-load.
-6. **Naming-leak sweep** — package name, header names, `errorStatusFromDatabricks`, supervisor README, `.dwd-session.state.json` rename. Tracked but deferred (low risk).
+6. **Naming-leak sweep** — package name, header names, `errorStatusFromDatabricks`, supervisor README, `.the sister project-session.state.json` rename. Tracked but deferred (low risk).
 7. **AI sidebar at parity with Pulse** (v0.3) — fast briefing default, validator wired, two-tier cache, optional deep multi-stage path.
 
 ## Near-term (next 1-3 cycles)
@@ -219,7 +219,7 @@ Specs: [SETTINGS_SPEC.md](SETTINGS_SPEC.md) is the consolidated source of truth 
 - [x] Power BI adapter wires `powerbi-client` SDK (cycle A)
 - [x] Power BI event mapping + send() commands (cycle A)
 - [x] `/assistant/embed-token/{vendor}` proxy route (cycle A — Power BI implemented; Tableau/Qlik/Looker can mirror)
-- [x] **Naming sweep** (2026-05-10): package name `unibridge-ai-proxy` -> `pulseplay-proxy`; description updated; `X-Genie-Key` / `X-Genie-Target-Host` -> `X-PulsePlay-Key` / `X-PulsePlay-Target-Host` with backward-compat reads (Pulse PBI sibling visual still works); `dwd-supervisor-agent` -> `pulseplay-supervisor-agent` in `databricks-agents/supervisor/` and `proxy/config.example.json`; `.dwd-session.state.json` -> `.pulseplay-session.state.json` in `scripts/llm_*.py` (legacy file still read on resume); ADR-0003 file renamed to drop the now-stale `-800ms` suffix; `proxy/app.yaml` Supervisor name updated; CORS comment updated.
+- [x] **Naming sweep** (2026-05-10): package name `unibridge-ai-proxy` -> `pulseplay-proxy`; description updated; `X-Genie-Key` / `X-Genie-Target-Host` -> `X-PulsePlay-Key` / `X-PulsePlay-Target-Host` with backward-compat reads (Pulse PBI sibling visual still works); `pulseplay-supervisor-agent` (was previously sister-project-supervisor-agent) in `databricks-agents/supervisor/` and `proxy/config.example.json`; `.the sister project-session.state.json` -> `.pulseplay-session.state.json` in `scripts/llm_*.py` (legacy file still read on resume); ADR-0003 file renamed to drop the now-stale `-800ms` suffix; `proxy/app.yaml` Supervisor name updated; CORS comment updated.
 - [ ] Smoke test adapted to PulsePlay (the inherited Pulse smoke is shaped wrong)
 
 ### Smart Connect & Connector Probe (NEW — agnostic-first)
@@ -265,7 +265,7 @@ Spec: [CONNECTOR_PROBE_AND_SMART_CONNECT.md](CONNECTOR_PROBE_AND_SMART_CONNECT.m
 - [x] Update `scripts/llm_onboard.py` to reference the new doc structure
 - [x] Move project memory source of truth into repo-local [docs/memory/](memory/) instead of external `.claude` / `.Codex` directories.
 - [ ] First HANDOVER.md entry that uses the new layout
-- [x] Rename `.dwd-session.state.json` -> `.pulseplay-session.state.json` in `llm_wrapup.py` (both scripts now write the new name; legacy still read as fallback for half-migrated repos)
+- [x] Rename `.the sister project-session.state.json` -> `.pulseplay-session.state.json` in `llm_wrapup.py` (both scripts now write the new name; legacy still read as fallback for half-migrated repos)
 
 ## Medium-term (4-8 cycles)
 

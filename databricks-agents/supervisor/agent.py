@@ -1,5 +1,5 @@
 """
-DwD Multi-Domain Supervisor Agent for Databricks Mosaic AI.
+PulsePlay Multi-Domain Supervisor Agent for Databricks Mosaic AI.
 
 Replaces the proxy's `supervisor-local` orchestration with a real
 Databricks-managed agent. Each Genie space is wrapped as a `@tool`-

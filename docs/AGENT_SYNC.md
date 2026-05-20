@@ -1057,7 +1057,7 @@ After your [CHALLENGE] responses, each pillar gets a per-ADR file under `docs/ad
 
 - **A — Hard-coupled compat surface** (kept until Pulse PBI sibling sunsets): Genie response shape, legacy `error` field, localStorage namespaces, conversation-id pass-through, BUG-003 fix, `/assistant/*` route names
 - **B — Soft-coupled modernization candidates** (PulsePlay grows native parallels, Pulse-port stays for sibling compat): XHR-only HTTP layer, `gn-*` CSS vocabulary, dark-theme model, Insights section taxonomy, Customize/Adjust interaction model, `v0` UI mode hedge, the whole `playground/src/pulse/*` directory
-- **C — Accidental baggage** (retire on touch): `LEGACY_DEMO_*` constants, `scrubInternalJargon` regex, lazy-chunk pre-warm probe references, 350 KB bundle cap awareness, Pulse-shaped sandbox-workaround prose, vestigial `DwD`/`PepPulse`/`UniBridge` name references
+- **C — Accidental baggage** (retire on touch): `LEGACY_DEMO_*` constants, `scrubInternalJargon` regex, lazy-chunk pre-warm probe references, 350 KB bundle cap awareness, Pulse-shaped sandbox-workaround prose, vestigial `PepPulse`/`UniBridge` name references
 
 `[TRIPWIRES-UPDATED]` [CLAUDE.md](../CLAUDE.md) and [AGENTS.md](../AGENTS.md) tripwires sections refactored to:
 - Strengthen the host-vs-guest framing ("PulsePlay is NOT captured inside any iframe")

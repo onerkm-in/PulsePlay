@@ -11,7 +11,7 @@
 // the user switches vendors, accumulating context (which page they
 // looked at, which filters they applied) across the session and using
 // the same proxy backend (Genie / Azure OpenAI / Bedrock / foundation
-// model) we proved out in DwD_AI_Assistant_for_PBI cycles 1-47.
+// model) we proved out in sister Pulse project cycles 1-47.
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
@@ -40,6 +40,7 @@ import type { PackInfo, PackSelection } from "./components/PackPicker";
 import type { ConnectorProbeResult } from "./types/probe";
 import type { PulsePlayAllowlist } from "./types/allowlist";
 import { probeConnector } from "./lib/probeClient";
+import { getDiscoverySnapshot } from "./lib/discoveryClient";
 import { SettingsProvider, useSettings } from "./settings/settingsStore";
 import { PULSE_VISUAL_SETTINGS_EVENT } from "./settings/pulseVisualSettingsStore";
 import { SettingsShell } from "./settings/SettingsShell";
@@ -744,7 +745,7 @@ function PlaygroundApp(): React.ReactElement {
 
     // Buffer the last ~20 BI events so the AI sidebar can include "what is
     // the user actually looking at right now?" in its prompt context. Same
-    // pattern as DwD_AI_Assistant_for_PBI's contextBuilder, just sourced
+    // pattern as sister Pulse project's contextBuilder, just sourced
     // from BI vendor events instead of Power BI's DataView.
     const handleBIEvent = useCallback((event: BIEvent) => {
         setRecentEvents(prev => {
@@ -832,6 +833,23 @@ function PlaygroundApp(): React.ReactElement {
             }
         } catch { /* swallow */ }
     }, [packSelection]);
+
+    // PROBE-ONCE prewarm — whenever we know the active profile (and pack, if
+    // any), pre-fetch the DiscoverySnapshot into the discoveryClient's
+    // sessionStorage cache. Subsequent fetches anywhere in the app — AISidebar,
+    // the Pulse genie pipeline, the Frame picker — hit the warm cache instead
+    // of paying for a cold round-trip. The client handles in-flight dedupe and
+    // 15-min TTL, so repeated fires are no-ops when nothing relevant changed.
+    // Best-effort; discovery failure is non-fatal (enrichment, not required).
+    useEffect(() => {
+        const profile = pulseAssistantProfile || activeConnector;
+        if (!profile) return;
+        void getDiscoverySnapshot({
+            assistantProfile: profile,
+            pack: packSelection?.pack,
+            subVertical: packSelection?.subVertical,
+        }).catch(() => { /* enrichment only */ });
+    }, [pulseAssistantProfile, activeConnector, packSelection]);
 
     // Switching connectors invalidates probe + pack selection so the next
     // probe runs fresh against the new profile.

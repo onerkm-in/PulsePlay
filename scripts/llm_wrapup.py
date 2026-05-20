@@ -9,8 +9,7 @@ Run this at the END of every LLM session. It:
      agents/, or scripts/ (heuristic).
   3. Marks .pulseplay-session.state.json as 'complete' with ended_at
      timestamp, so the next session's llm_onboard.py knows the previous
-     one exited cleanly. Reads the legacy .dwd-session.state.json as a
-     fallback so a half-migrated repo keeps working.
+     one exited cleanly.
   4. Prints a short diff summary so the user (and any reviewing LLM) can
      see what shipped.
 
@@ -37,10 +36,6 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 STATE_FILE = PROJECT_ROOT / ".pulseplay-session.state.json"
-# Legacy state-file name from the Pulse-heritage tooling. Read as a
-# fallback so a session started under the old name still wraps up cleanly
-# after the rename. Writes always go to the canonical PulsePlay name.
-LEGACY_STATE_FILE = PROJECT_ROOT / ".dwd-session.state.json"
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -86,18 +81,12 @@ def file_modified_since(path: Path, since_iso: str) -> bool:
 
 
 def read_state() -> dict | None:
-    # Prefer the canonical PulsePlay state file; fall back to the legacy
-    # Pulse-heritage name if the canonical one is missing. Lets a session
-    # started under the old name wrap up after the rename without losing
-    # crash-recovery context.
-    for candidate in (STATE_FILE, LEGACY_STATE_FILE):
-        if not candidate.exists():
-            continue
-        try:
-            return json.loads(candidate.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-    return None
+    if not STATE_FILE.exists():
+        return None
+    try:
+        return json.loads(STATE_FILE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
 
 
 def write_state(state: dict) -> None:

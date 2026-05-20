@@ -27,7 +27,7 @@
 | CFG-DRIFT-009 | Pack version bumped server-side | Pack file updated | Cache key changes; next insights request refetches | Low |
 | CFG-DRIFT-010 | Settings schema migration v1 → v2 | New field added with default | Existing localStorage hydrates with default value | Medium |
 | CFG-DRIFT-011 | Pulse genieSettings schema field removed | Field deleted from interface | Old localStorage value ignored; no crash | Medium |
-| CFG-DRIFT-012 | localStorage has key from sibling project | `dwd-something` key present | Ignored; not surfaced as orphan | Low |
+| CFG-DRIFT-012 | localStorage has key from sibling project | `legacy-name-something` key present | Ignored; not surfaced as orphan | Low |
 | CFG-DRIFT-013 | Two parallel proxy instances on different ports | Both running | UI talks to whichever is at the configured URL | Low |
 | CFG-DRIFT-014 | Proxy version mismatch with frontend expectations | Old proxy, new UI | Graceful degradation; missing features hidden | Medium |
 | CFG-DRIFT-015 | Frontend expects field /assistant/profiles[].type, proxy doesn't return it | Old proxy | UI falls back to "direct" assumption | Low |

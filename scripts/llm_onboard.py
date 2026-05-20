@@ -74,10 +74,6 @@ LOG_TAIL_LINES = 40
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_MEMORY_DIR = PROJECT_ROOT / "docs" / "memory"
 STATE_FILE = PROJECT_ROOT / ".pulseplay-session.state.json"
-# Legacy state-file name from the Pulse-heritage tooling. Read as a
-# fallback so a session started under the old name is recognised on
-# resume; new state always writes to the canonical PulsePlay name.
-LEGACY_STATE_FILE = PROJECT_ROOT / ".dwd-session.state.json"
 STATE_VERSION = 1
 
 
@@ -178,17 +174,12 @@ def detect_agent_label() -> str:
 # ── Session state file ───────────────────────────────────────────────────────
 
 def read_state() -> dict | None:
-    # Prefer the canonical PulsePlay state file; fall back to the legacy
-    # Pulse-heritage name if the canonical one is missing. Lets a session
-    # started under the old name resume correctly after the rename.
-    for candidate in (STATE_FILE, LEGACY_STATE_FILE):
-        if not candidate.exists():
-            continue
-        try:
-            return json.loads(candidate.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-    return None
+    if not STATE_FILE.exists():
+        return None
+    try:
+        return json.loads(STATE_FILE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
 
 
 def write_state(state: dict) -> None:

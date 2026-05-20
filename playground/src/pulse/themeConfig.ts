@@ -1,7 +1,7 @@
 /**
  * themeConfig.ts
  *
- * Adaptive progressive theming for the DwD AI Assistant visual.
+ * Adaptive progressive theming for the Pulse assistant visual.
  *
  * Architecture:
  *  - ThemeTokens: the full set of CSS custom properties the LESS file consumes
@@ -237,7 +237,7 @@ export function buildThemeStyle(tokens: ThemeTokens): React.CSSProperties {
 /**
  * Maps Power BI host.colorPalette values to our ThemeTokens.
  * Called only when the author enables "Use Report Theme" in the format pane.
- * Falls back to the "default" DwD theme for any palette entry that is missing.
+ * Falls back to the "default" Pulse theme for any palette entry that is missing.
  */
 export function buildThemeFromHost(palette: {
     background?: { value: string };

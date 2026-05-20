@@ -85,12 +85,12 @@ This may simply mean dependencies have not been installed on this machine, but f
 
 ### 5. Documentation drift is substantial
 
-Several docs still carry inherited PepPulse, UniBridge, DwD, and Power BI custom visual language. Examples:
+Several docs still carry inherited PepPulse, UniBridge, and Power BI custom visual language. Examples:
 
 - `docs/ARCHITECTURE.md` is titled "PepPulse" and still frames the product around a `.pbiviz`.
 - `docs/SECURITY_REVIEW.md` is titled "Security Review - PepPulse".
 - `docs/API_AUTH_AND_LIMITATIONS.md` describes visual-to-proxy behavior and Power BI sandbox constraints that do not fully apply to PulsePlay's browser-hosted playground.
-- `databricks-agents/supervisor/README.md` still names the agent "DwD Supervisor Agent".
+- `databricks-agents/supervisor/README.md` still names the agent "PulsePlay Supervisor Agent".
 
 The inherited material is valuable, but it should be clearly labeled as inherited backend/proxy documentation or rewritten for PulsePlay.
 
@@ -122,7 +122,7 @@ There is a dev proxy in Vite, but no clear production pattern for `VITE_API_BASE
 
 ### 9. Project naming is not fully settled
 
-The repo says PulsePlay, the proxy package says `unibridge-ai-proxy`, docs say PepPulse, and inherited scripts reference DwD. That makes orientation harder for humans and LLM collaborators.
+The repo says PulsePlay, the proxy package says `unibridge-ai-proxy`, docs say PepPulse, and inherited scripts reference the sister project. That makes orientation harder for humans and LLM collaborators.
 
 ## Highest-Impact Suggestions
 
@@ -182,7 +182,7 @@ Recommended doc structure:
 
 - `docs/PULSEPLAY_ARCHITECTURE.md`: current product truth.
 - `docs/PULSEPLAY_SECURITY.md`: current security truth.
-- `docs/INHERITED_PROXY_NOTES.md`: what came from DwD/UniBridge/PepPulse.
+- `docs/INHERITED_PROXY_NOTES.md`: what came from UniBridge/PepPulse.
 - `docs/ROADMAP.md`: keep, but connect each version to implementation criteria.
 
 This will reduce confusion fast.

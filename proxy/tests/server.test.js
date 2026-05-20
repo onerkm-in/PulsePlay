@@ -1232,7 +1232,7 @@ describe('POST /history — supervisor warehouse fallback (BUG-009)', () => {
         ...MOCK_CONFIG_BASE,
         // History table must be set so we exercise the warehouse check below;
         // without it the "history disabled" branch fires first.
-        chatHistoryTable: 'workspace.test.dwd_ai_chat_history',
+        chatHistoryTable: 'workspace.test.pulseplay_ai_chat_history',
         profiles: {
             supervisor: {
                 type: 'supervisor-local',

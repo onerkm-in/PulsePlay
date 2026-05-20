@@ -19,10 +19,10 @@ Add a new ADR when you make a decision that:
 
 | # | Title | Status (PulsePlay context) |
 |---|---|---|
-| [0001](0001-xhr-only-genie-client.md) | Genie REST client uses XHR, never fetch | Superseded — DwD/Pulse-legacy; PulsePlay runs in a real browser |
+| [0001](0001-xhr-only-genie-client.md) | Genie REST client uses XHR, never fetch | Superseded — Pulse-legacy; PulsePlay runs in a real browser |
 | [0002](0002-dual-bind-127-not-localhost.md) | Proxy binds 127.0.0.1 + ::1; client uses 127.0.0.1 | Accepted (still applies to local dev) |
 | [0003](0003-supervisor-stagger.md) | Supervisor stage stagger | Accepted; current default 2000 ms (file renamed from `0003-supervisor-stagger-800ms.md` on 2026-05-10) |
-| [0004](0004-format-pane-json-string-storage.md) | Format-pane stores complex shapes as JSON strings | Superseded — DwD/Pulse-only; no PBI format pane in PulsePlay |
+| [0004](0004-format-pane-json-string-storage.md) | Format-pane stores complex shapes as JSON strings | Superseded — Pulse-only; no PBI format pane in PulsePlay |
 | [0005](0005-two-tier-insights-cache.md) | AI Insights uses a two-tier (memory + localStorage) cache | Accepted; applies once AI Insights pipeline is ported (v0.3+) |
 | [0006](0006-trend-pill-allowlist.md) | Trend pills use a section allowlist + numeric anchor | Superseded for v0.x; applies if/when insights renderer is ported |
 | [0007](0007-backend-adapter-abstraction.md) | BackendAdapter interface + per-connector files (IDEA-023) | Spike landed; conceptual ancestor of PulsePlay's BIAdapter (Y-axis mirror) |

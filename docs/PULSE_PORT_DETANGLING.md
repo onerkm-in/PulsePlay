@@ -109,7 +109,7 @@ sibling depends on it.
 | "PNG / Excel / CSV exports were available; prefer Power BI Service-side native export" guidance in `pulse/visual.tsx:~4164` | Pulse-PBI sandbox-workaround language. PulsePlay can do all three browser-native |
 | `gn-pill--icon-only` `min-width: 28px` and similar PBI-custom-visual-sized assumptions | Cargo-culted sizing from sandbox-constrained UI |
 | Anti-pattern guidance warning about Power BI custom-visual sandbox limitations scattered through comments | Don't apply to PulsePlay-native code |
-| Several `DwD_AI_Assistant_for_PBI` / `PepPulse` / `UniBridge` name references | Pre-PulsePlay naming drift. Already tracked in `docs/research/CODEBASE_AUDIT.md`. Schedule cleanup |
+| Several `sister Pulse project` / `PepPulse` / `UniBridge` name references | Pre-PulsePlay naming drift. Already tracked in `docs/research/CODEBASE_AUDIT.md`. Schedule cleanup |
 
 **Retire process for Category C items:** any developer touching the
 relevant file is encouraged to delete the baggage as a drive-by cleanup.

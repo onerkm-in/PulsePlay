@@ -12,7 +12,7 @@ Public-OSS readiness items (license decision, SBOM signing, conformance harness,
 
 ## How we work here (read this every session)
 
-This file inherits the collaboration patterns we built up across the sister project DwD_AI_Assistant_for_PBI cycles 1-47. Names and specifics differ; the working style is identical. All of these are LOAD-BEARING — please honor them.
+This file inherits the collaboration patterns we built up across the sister Pulse project cycles 1-47. Names and specifics differ; the working style is identical. All of these are LOAD-BEARING — please honor them.
 
 ### Beast mode
 
@@ -63,7 +63,7 @@ Prints crash recovery context (if previous session didn't wrap up), the canonica
 python scripts/llm_wrapup.py --note "one-line summary of what shipped"
 ```
 
-State file is `.pulseplay-session.state.json` at the repo root. The legacy `.dwd-session.state.json` (from the sibling project's tooling) is still read as a fallback when present so a half-migrated repo keeps working; both names are gitignored. `--force` skips the doc-staleness check when knowingly skipping.
+State file is `.pulseplay-session.state.json` at the repo root, gitignored. `--force` skips the doc-staleness check when knowingly skipping.
 
 ## The 2-axis abstraction (PulsePlay's defining design)
 
@@ -85,9 +85,9 @@ ANY combination of (vendor, connector) is valid. Switching either is independent
 | `playground/src/components/AISidebar.tsx` | The whole-point AI assistant. Talks to the proxy, accumulates BI event context |
 | `bi-adapters/generic-iframe/` | Always-works iframe-with-URL escape hatch |
 | `bi-adapters/{powerbi,tableau,qlik,looker}/` | Vendor stubs (extend GenericIframeAdapter today; v1 wires real SDK) |
-| `proxy/server.js` | Express proxy — connector-agnostic backbone (copied from DwD) |
-| `proxy/lib/foundationModelClient.js` | Mosaic AI Foundation Model serving endpoint client (cycle 47.6+47.7 from DwD) |
-| `proxy/lib/insightsValidator.js` | Per-section validator framework (cycle 23-47 from DwD) |
+| `proxy/server.js` | Express proxy — connector-agnostic backbone (copied from the sister project) |
+| `proxy/lib/foundationModelClient.js` | Mosaic AI Foundation Model serving endpoint client (cycle 47.6+47.7 from the sister project) |
+| `proxy/lib/insightsValidator.js` | Per-section validator framework (cycle 23-47 from the sister project) |
 | `databricks-agents/supervisor/` | Mosaic AI Supervisor Agent template (LangGraph + create_react_agent) |
 | `scripts/llm_onboard.py` / `llm_wrapup.py` | Universal LLM ritual |
 | `scripts/smoke-full.ps1` / `smoke-rls-ols.ps1` | Smoke helpers (need adaptation for PulsePlay's profiles) |
@@ -144,10 +144,10 @@ The full inheritance inventory — what's hard-coupled Pulse-PBI compat surface 
 Every adapter except `generic-iframe` currently extends `GenericIframeAdapter`. They render an iframe with the URL you give them — no event bridge, no command bridge, no vendor SDK. v1 wires real SDKs (powerbi-client, Tableau Embedding API v3, qlik-embed, @looker/embed-sdk). Don't claim "PowerBI integration" until that's done.
 
 **Proxy `cfg()` does NOT cache when NODE_ENV=test**
-Carried over tripwire from DwD. Tests can't rely on in-memory mutations to `profileRegistry.get(name)` persisting. Configure profiles via `PROXY_PROFILE_*` env vars.
+Carried over tripwire from the sister project. Tests can't rely on in-memory mutations to `profileRegistry.get(name)` persisting. Configure profiles via `PROXY_PROFILE_*` env vars.
 
 **Genie Agent Mode is UI-only**
-Carried over from DwD's Session 76 tripwire. Verified definitively via 20+ probes — public REST API silently swallows the `force_deep_research_planning` flag. The Foundation Model serving endpoint path (proxy `/foundation/section`) is the workaround. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) "Genie Agent Mode is UI-only" callout.
+Carried over from the sister project's Session 76 tripwire. Verified definitively via 20+ probes — public REST API silently swallows the `force_deep_research_planning` flag. The Foundation Model serving endpoint path (proxy `/foundation/section`) is the workaround. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) "Genie Agent Mode is UI-only" callout.
 
 **Genie messages are immutable; one POST = one new `message_id`**
 Empirically verified 2026-05-20 against the live workspace ([docs/findingProbeIssue.md](docs/findingProbeIssue.md)). There is no `/follow-up`, `/append`, `/continue`, or `/sections` sub-resource on `.../messages/{id}`. Multi-section Genie flows MUST allocate N `message_id`s under one shared `conversation_id`. If the UI needs one logical assistant turn, key that envelope on PulsePlay's generated `renderId`, not on Genie's `message_id`.

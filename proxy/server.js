@@ -2809,15 +2809,28 @@ app.post('/assistant/conversations/start', async (req, res) => {
     // the first user message. Failures here are NEVER fatal: if the pack
     // can't be resolved we send the question unchanged and audit-log a
     // warning so the audit pipeline can surface misconfigured packs.
+    //
+    // Probe-once reuse — the client (Pulse genie.ts) reads its cached
+    // DiscoverySnapshot and attaches `discoveryContext`. We compose discovery
+    // BEFORE pack so Genie sees concrete facts (connector type, available
+    // KPIs, reachable frames) above the vertical vocabulary. Either or both
+    // may be absent; layout collapses gracefully.
     const packResolved = resolvePackContext({ pack, subVertical });
-    let fullContent = baseContent;
-    if (packResolved.resolved && packResolved.content) {
-        fullContent = wrapAsGenieUserMessage(
-            packResolved.content,
-            packResolved.pack,
-            packResolved.subVertical,
-            baseContent,
-        );
+    const discoveryBlock = _formatDiscoveryContext(req.body && req.body.discoveryContext);
+    let fullContent;
+    if (discoveryBlock || (packResolved.resolved && packResolved.content)) {
+        const parts = [];
+        if (discoveryBlock) parts.push(`[Discovery Context]\n\n${discoveryBlock}`);
+        if (packResolved.resolved && packResolved.content) {
+            const tag = packResolved.subVertical
+                ? `${packResolved.pack}/${packResolved.subVertical}`
+                : (packResolved.pack || 'pack');
+            parts.push(`[Pack Context: ${tag}]\n\n${packResolved.content}`);
+        }
+        parts.push(`[User Question]\n\n${baseContent}`);
+        fullContent = parts.join('\n\n');
+    } else {
+        fullContent = baseContent;
     }
     if (packResolved.requested) {
         auditLog(req, {
@@ -2826,6 +2839,16 @@ app.post('/assistant/conversations/start', async (req, res) => {
             action: 'pack-context-inject',
             status: packResolved.resolved ? 'OK' : 'WARN',
             detail: JSON.stringify({ ...buildPackAuditDetail(packResolved), backend: 'genie' }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+    }
+    if (discoveryBlock) {
+        auditLog(req, {
+            profileName: resolved.name,
+            spaceId: targetSpaceId,
+            action: 'discovery-context-inject',
+            status: 'OK',
+            detail: JSON.stringify({ ...buildDiscoveryAuditDetail(discoveryBlock), backend: 'genie' }),
             spIdentityHash: spHashForProfile(resolved.profile),
         });
     }
@@ -3225,6 +3248,12 @@ const {
     wrapAsGenieUserMessage,
     buildAuditDetail: buildPackAuditDetail,
 } = require('./lib/packPromptInjector');
+// Probe-once reuse — companion injector for the client-supplied
+// discoveryContext (compact summary of the cached DiscoverySnapshot).
+const {
+    formatDiscoveryContext: _formatDiscoveryContext,
+    buildAuditDetail: buildDiscoveryAuditDetail,
+} = require('./lib/discoveryPromptInjector');
 // Phase 11b prep — proxy-side handling of the structured `body.frame`
 // field shipped by AISidebar (commit 738e4e1). Defense-in-depth
 // validation, idempotent content bridging for direct API callers, and
@@ -5069,66 +5098,11 @@ function resolveBedrockProfile(body, headers, req) {
 }
 
 async function bedrockRetrieveAndGenerate(profile, input, sessionId) {
-    const region = profile.bedrockRegion || 'us-east-1';
-    const url = `https://bedrock-agent-runtime.${region}.amazonaws.com/retrieveAndGenerate`;
-
-    const body = {
-        input: { text: input },
-        retrieveAndGenerateConfiguration: {
-            type: 'KNOWLEDGE_BASE',
-            knowledgeBaseConfiguration: {
-                knowledgeBaseId: profile.bedrockKnowledgeBaseId,
-                modelArn: profile.bedrockModelArn || `anthropic.claude-3-5-sonnet-20241022-v2:0`
-            }
-        }
-    };
-    if (sessionId) body.sessionId = sessionId;
-
-    // AWS Signature V4 signing
-    const now = new Date();
-    const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '').slice(0, 15) + 'Z';
-    const dateStamp = amzDate.slice(0, 8);
-    const bodyStr = JSON.stringify(body);
-    const crypto = require('crypto');
-
-    function hmac(key, data) {
-        return crypto.createHmac('sha256', key).update(data).digest();
-    }
-    function sign(key, msg) { return hmac(key, msg); }
-    function getSignatureKey(secret, date, region, service) {
-        return sign(sign(sign(sign('AWS4' + secret, date), region), service), 'aws4_request');
-    }
-
-    const payloadHash = crypto.createHash('sha256').update(bodyStr).digest('hex');
-    const canonicalHeaders = `content-type:application/json\nhost:bedrock-agent-runtime.${region}.amazonaws.com\nx-amz-content-sha256:${payloadHash}\nx-amz-date:${amzDate}\n`;
-    const signedHeaders = 'content-type;host;x-amz-content-sha256;x-amz-date';
-    const canonicalRequest = `POST\n/retrieveAndGenerate\n\n${canonicalHeaders}\n${signedHeaders}\n${payloadHash}`;
-    const credScope = `${dateStamp}/${region}/bedrock/aws4_request`;
-    const strToSign = `AWS4-HMAC-SHA256\n${amzDate}\n${credScope}\n${crypto.createHash('sha256').update(canonicalRequest).digest('hex')}`;
-    const signingKey = getSignatureKey(profile.bedrockSecretAccessKey, dateStamp, region, 'bedrock');
-    const signature = hmac(signingKey, strToSign).toString('hex');
-    const authHeader = `AWS4-HMAC-SHA256 Credential=${profile.bedrockAccessKeyId}/${credScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
-
-    // Wave 28 — 30s timeout (matches Azure OpenAI). Without this, a stalled
-    // Bedrock endpoint hangs the proxy thread until OS-level connection
-    // timeout fires.
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-Amz-Date': amzDate,
-            'X-Amz-Content-Sha256': payloadHash,
-            'Authorization': authHeader
-        },
-        body: bodyStr,
-        signal: AbortSignal.timeout(30000),
-    });
-
-    if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`AWS Bedrock returned ${response.status}: ${text.substring(0, 300)}`);
-    }
-    return response.json();
+    // IDEA-040 cleanup — delegate to the shared SigV4 signer in
+    // proxy/lib/bedrock.js so we maintain one implementation, not two.
+    // Behavior is byte-identical to the previous inline version.
+    const { bedrockRetrieveAndGenerate: libRetrieveAndGenerate } = require('./lib/bedrock');
+    return libRetrieveAndGenerate(profile, input, sessionId);
 }
 
 app.get('/bedrock/health', (req, res) => {
@@ -6000,7 +5974,7 @@ app.post('/responses-agent/chat', async (req, res) => {
 //       "type": "supervisor",               // identifies this as a supervisor profile
 //       "host": "https://dbc-xxx...",        // Databricks workspace
 //       "token": "dapi...",                  // PAT with CAN QUERY on the endpoint
-//       "endpoint": "/serving-endpoints/dwd-supervisor/invocations",
+//       "endpoint": "/serving-endpoints/pulseplay-supervisor/invocations",
 //       "agentName": "PulsePlay Supervisor"  // display label (optional)
 //   }
 

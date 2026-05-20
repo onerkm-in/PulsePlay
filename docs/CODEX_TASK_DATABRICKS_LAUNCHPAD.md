@@ -31,7 +31,7 @@ You'll find `scripts/probe_databricks_2026.mjs` already staged — read-only GET
 |---|---|
 | Genie API | ✓ 7 spaces |
 | AI/BI Dashboards / Lakeview | ✓ 2 dashboards |
-| Serving endpoints | ✓ 13 endpoints (incl. `dwd-supervisor-agent` ready + foundation-model endpoints) |
+| Serving endpoints | ✓ 13 endpoints (incl. `pulseplay-supervisor-agent` ready + foundation-model endpoints) |
 | Databricks Apps | ✓ 1 app (stopped) |
 | Vector Search | ✓ endpoints API available, 0 endpoints configured |
 | Jobs | ✓ available |

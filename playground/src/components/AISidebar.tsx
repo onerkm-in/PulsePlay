@@ -246,7 +246,7 @@ export function describePollStatus(status: string | undefined): { label: string;
 }
 
 /** Build a small context block from the recent BI events so the LLM
- *  knows what the user is looking at. Same idea as DwD's contextBuilder,
+ *  knows what the user is looking at. Same idea as the sister project's contextBuilder,
  *  but sourced from BI vendor events. */
 /**
  * Build the [BI Context] preamble that prefixes the user question on every

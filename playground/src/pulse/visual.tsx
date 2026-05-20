@@ -1253,7 +1253,7 @@ function App(props: AppProps) {
     // no dynamic chunk. Persisted in sessionStorage so the flag survives
     // tab/section switches inside the same Desktop session, then reset on
     // visual reload (giving Service / Web hosts a clean slate). */
-    const LAZY_BLOCK_KEY = "dwd-export-lazy-blocked";
+    const LAZY_BLOCK_KEY = "pulseplay-export-lazy-blocked";
     const [lazyExportBlocked, setLazyExportBlocked] = useState<boolean>(() => {
         try { return window.sessionStorage?.getItem(LAZY_BLOCK_KEY) === "1"; } catch { return false; }
     });
@@ -2597,7 +2597,7 @@ function App(props: AppProps) {
                     routeLabel: response.route?.routeLabel
                 }).then(() => {
                     if (showHistory) void loadHistory();
-                }).catch((err: any) => logSession("WARN", `Chat history save failed: ${err?.message || "unknown error"}. Common causes: dwd_ai_chat_history table missing in workspace, viewer lacks INSERT permission, or no warehouseId on the active profile (BUG-009 fix routes supervisor saves to the default profile's warehouse — confirm one exists).`));
+                }).catch((err: any) => logSession("WARN", `Chat history save failed: ${err?.message || "unknown error"}. Common causes: pulseplay_ai_chat_history table missing in workspace, viewer lacks INSERT permission, or no warehouseId on the active profile (BUG-009 fix routes supervisor saves to the default profile's warehouse — confirm one exists).`));
             }
 
             // Fire confidence evaluation async — answer already rendered, this never blocks
