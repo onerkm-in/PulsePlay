@@ -40,6 +40,7 @@ import type { PackInfo, PackSelection } from "./components/PackPicker";
 import type { ConnectorProbeResult } from "./types/probe";
 import type { PulsePlayAllowlist } from "./types/allowlist";
 import { probeConnector } from "./lib/probeClient";
+import { getDiscoverySnapshot } from "./lib/discoveryClient";
 import { SettingsProvider, useSettings } from "./settings/settingsStore";
 import { PULSE_VISUAL_SETTINGS_EVENT } from "./settings/pulseVisualSettingsStore";
 import { SettingsShell } from "./settings/SettingsShell";
@@ -832,6 +833,23 @@ function PlaygroundApp(): React.ReactElement {
             }
         } catch { /* swallow */ }
     }, [packSelection]);
+
+    // PROBE-ONCE prewarm — whenever we know the active profile (and pack, if
+    // any), pre-fetch the DiscoverySnapshot into the discoveryClient's
+    // sessionStorage cache. Subsequent fetches anywhere in the app — AISidebar,
+    // the Pulse genie pipeline, the Frame picker — hit the warm cache instead
+    // of paying for a cold round-trip. The client handles in-flight dedupe and
+    // 15-min TTL, so repeated fires are no-ops when nothing relevant changed.
+    // Best-effort; discovery failure is non-fatal (enrichment, not required).
+    useEffect(() => {
+        const profile = pulseAssistantProfile || activeConnector;
+        if (!profile) return;
+        void getDiscoverySnapshot({
+            assistantProfile: profile,
+            pack: packSelection?.pack,
+            subVertical: packSelection?.subVertical,
+        }).catch(() => { /* enrichment only */ });
+    }, [pulseAssistantProfile, activeConnector, packSelection]);
 
     // Switching connectors invalidates probe + pack selection so the next
     // probe runs fresh against the new profile.
