@@ -121,9 +121,9 @@ The host can issue `BICommand` instances back into the embedded view. Adapters i
 
 Independent of which BI tool is loaded, the AI sidebar talks to **one connector at a time**. Connector profiles are configured in `proxy/config.json` (or via `PROXY_PROFILE_*` env vars) and listed via `GET /assistant/profiles`. The user picks one in the `ConnectorPicker`; subsequent prompts include `assistantProfile: <name>` so the proxy routes to the right backend.
 
-### Nine runtime backend paths
+### Ten runtime backend paths (updated 2026-05-20)
 
-The `MULTI_BI_ARCHITECTURE.md` predecessor of this doc and the README claimed six. The 2026-05-10 codebase audit confirmed eight; the 2026-05-17 ResponsesAgent connector made nine. Listed here in the order the proxy detects them, with the file:line that hosts each.
+The `MULTI_BI_ARCHITECTURE.md` predecessor of this doc and the README claimed six. The 2026-05-10 codebase audit confirmed eight; the 2026-05-17 ResponsesAgent connector made nine; the 2026-05-20 Power BI semantic-model cycle made **ten**. Listed here in the order the proxy detects them, with the file:line that hosts each.
 
 | # | Backend | Detection | Code path | Source |
 |---|---|---|---|---|
@@ -136,8 +136,15 @@ The `MULTI_BI_ARCHITECTURE.md` predecessor of this doc and the README claimed si
 | 7 | Supervisor (real Mosaic AI agent endpoint) | `profile.type === 'supervisor'` | inline `https.request` against `host + endpoint` | [server.js:4054-4078](../proxy/server.js#L4054) |
 | 8 | Supervisor-local (proxy-side fan-out) | `profile.type === 'supervisor-local'` | `runLocalSupervisor` -> `askGenieProfile x N + synthesizeSupervisorAnswer` | [server.js:3509-3588](../proxy/server.js#L3509) |
 | 9 | Mosaic AI ResponsesAgent (managed Agent Framework endpoint) | `profile.type === 'responses-agent'` + `responsesAgentEndpoint` | `callResponsesAgent` via `/responses-agent/chat` | [server.js:5311-5389](../proxy/server.js#L5311), [responsesAgentClient.js](../proxy/lib/responsesAgentClient.js) |
+| 10 | **Power BI semantic-model (no-LLM, deterministic)** | `profile.type === 'powerbi-semantic-model'` + AAD SP creds + `powerbiGroupId` + `powerbiDatasetId` | NL question → keyword matcher → DAX template → `POST .../datasets/{id}/executeQueries` → Markdown | [server.js#/powerbi/conversations/start](../proxy/server.js), [powerbiDatasetClient.js](../proxy/lib/powerbiDatasetClient.js), [powerbiDaxTemplates.js](../proxy/lib/powerbiDaxTemplates.js), [powerbiQuestionMatcher.js](../proxy/lib/powerbiQuestionMatcher.js) |
 
-Nine, not six or eight. Older audit/migration notes may still say eight because they are historical snapshots; this doc is the corrected reference.
+Ten, not nine. Older audit/migration notes may still say eight or nine because they are historical snapshots; this doc is the corrected reference.
+
+The PBI semantic-model brain (#10) **does not invoke any LLM** at any step. Every response emits `mode: "powerbi-deterministic", llmCallCount: 0` in both the JSON payload and the audit log so deployers can prove that contract. A separate Q&A surface at `/powerbi/qna` (embedded `powerbi-client` Q&A visual) lets users access Microsoft's NLP if they want; that NLP runs in Microsoft's tenant — PulsePlay only mints the dataset-scoped embed token.
+
+### Connector plugin architecture (direction locked 2026-05-20)
+
+The proxy's connector dispatch is the dominant friction point as it grows past ten backends. Direction agreed: refactor into a **`proxy/connectors/` directory of drop-in/drop-out modules** where each file exports `{ id, displayName, matchProfile, probe, register, unregister }` and only touches a shared `host` API surface. Phased rollout queued — Phase A (scaffolding) → B (one pilot) → C (rest). See [AGENT_SYNC.md](AGENT_SYNC.md) `[DECISION]` block for the full contract + host API spec.
 
 ### The orchestrator
 

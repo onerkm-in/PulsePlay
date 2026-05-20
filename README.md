@@ -47,9 +47,13 @@ Once both are running, the playground will:
 
 ## Status
 
-**First production target in flight — Genie + Power BI.** Proxy + databricks-agents + cross-cutting docs inherited from sister Pulse project cycles 1-47. The ported Pulse AI experience now runs inside the playground, Power BI has a real `powerbi-client` adapter, and Tableau/Qlik/Looker remain modular iframe stubs until the first cell passes the production gate.
+**First production target in flight — Genie + Power BI.** Proxy + databricks-agents + cross-cutting docs inherited from sister Pulse project cycles 1-47. The ported Pulse AI experience runs inside the playground, Power BI has a real `powerbi-client` adapter, and Tableau/Qlik/Looker remain modular iframe stubs until the first cell passes the production gate.
 
-Current local validation: proxy tests 418/418, playground tests 161/161, playground production build passing.
+Current local validation (post-2026-05-20 session): proxy **1013/1013**, playground **1103/1103**, lint clean, `vite build` clean.
+
+**The connector axis grew in May 2026.** PulsePlay now hosts **10 backend paths** on the AI side: Genie / Azure OpenAI (chat + analytics) / Bedrock (RAG + direct) / Foundation Model / Supervisor (managed + local) / ResponsesAgent / **Power BI semantic-model** (the latest — deterministic DAX templates, no LLM in the loop). The Power BI brain also exposes a **Q&A embed surface** at `/powerbi/qna` so deployers who want Microsoft's NLP can get it without PulsePlay invoking any LLM (Microsoft handles it in their tenant). See [docs/PROXY_REFERENCE.md](docs/PROXY_REFERENCE.md) for the full backend table.
+
+Next major architectural cycle: **connector plugin system** — drop-in/drop-out per-connector modules under `proxy/connectors/`. Direction locked 2026-05-20; phased rollout queued. See [docs/AGENT_SYNC.md](docs/AGENT_SYNC.md) `[DECISION]` block for the contract.
 
 ## Repository layout
 

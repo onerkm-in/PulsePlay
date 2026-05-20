@@ -155,8 +155,8 @@ Carried over from the sister project's Session 76 tripwire. Verified definitivel
 **Genie messages are immutable; one POST = one new `message_id`**
 Empirically verified 2026-05-20 against the live workspace ([docs/findingProbeIssue.md](docs/findingProbeIssue.md)). There is no `/follow-up`, `/append`, `/continue`, or `/sections` sub-resource on `.../messages/{id}`. Multi-section Genie flows MUST allocate N `message_id`s under one shared `conversation_id`. If the UI needs one logical assistant turn, key that envelope on PulsePlay's generated `renderId`, not on Genie's `message_id`.
 
-**Nine backend paths, not six/eight**
-Earlier docs (`MULTI_BI_ARCHITECTURE.md`, `README.md`) said the proxy supports six backends. The 2026-05-10 codebase audit confirmed eight, and the 2026-05-17 ResponsesAgent connector made nine. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) "Nine runtime backend paths" for the corrected table.
+**Ten backend paths, not nine** (updated 2026-05-20)
+Earlier docs claimed six → eight → nine. The 2026-05-20 PBI cycle added **`powerbi-semantic-model`** as the tenth — deterministic DAX templates, no LLM. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) "Ten runtime backend paths" for the corrected table. PBI also has a separate Q&A embed surface at `/powerbi/qna` (Microsoft's NLP in MS tenant; PulsePlay mints embed token only, 0 LLM calls from PulsePlay).
 
 **Supervisor stagger is 2000 ms, not 800 ms**
 [ADR-0003](docs/adr/0003-supervisor-stagger.md) was originally accepted at 800 ms in 2026-01; shipping default is now 2000 ms after iterative tuning. Actual code at [proxy/server.js:6385](proxy/server.js#L6385). The ADR body now carries the full 350 → 800 → 1500 → 2000 ms history — if you re-tune, add a row to the table there rather than silently changing the constant.
@@ -187,6 +187,12 @@ These constraints travel with the code under `playground/src/pulse/*` because Pu
 
 ## Status
 
-PulsePlay is past the original scaffold. Power BI has a real `powerbi-client` adapter plus secure embed quick-preview fallback and a developer tools strip, Pulse mode is hosted in the playground, and the latest local validation is **952/952 playground+adapter tests, 787/787 proxy tests**, and a passing playground build. Tableau/Qlik/Looker still use iframe fallbacks until their SDK adapters graduate.
+PulsePlay is past the original scaffold. Latest local validation (post-2026-05-20 session): **proxy 1013/1013**, **playground 1103/1103**, lint clean, `vite build` clean.
 
-When you come back, see [docs/AGENDA.md](docs/AGENDA.md) for the open-work tracker and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) "Where to start when you come back" for the recommended first cycle.
+Connector axis (X) now hosts **ten backend paths**: Genie / Azure OpenAI chat / Azure OpenAI analytics / Bedrock RAG / Bedrock direct / Foundation Model / Supervisor / Supervisor-local / ResponsesAgent / **Power BI semantic-model (no-LLM)** — plus the **Power BI Q&A embed surface** at `/powerbi/qna` (Microsoft's NLP, runs in MS tenant; PulsePlay mints embed token only).
+
+BI axis (Y): Power BI has a real `powerbi-client` adapter plus secure embed quick-preview fallback and a developer tools strip. Pulse mode is hosted in the playground. Tableau/Qlik/Looker still use iframe fallbacks until their SDK adapters graduate.
+
+Architecture-direction call locked 2026-05-20: **connector plugin system** (drop-in/drop-out per-connector modules under `proxy/connectors/`). Phase A scaffolding queued — see [docs/AGENT_SYNC.md](docs/AGENT_SYNC.md) `[DECISION]` block for the contract + host API + phased rollout.
+
+When you come back, see [docs/HANDOVER.md](docs/HANDOVER.md) top entry for the cycle 11→15.5 session arc, [docs/AGENDA.md](docs/AGENDA.md) "Next up" for the ordered open-work list, and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) "Where to start when you come back" for the recommended first cycle.
