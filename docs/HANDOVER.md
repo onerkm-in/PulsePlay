@@ -5,6 +5,43 @@
 
 ---
 
+## 2026-05-20 — Cycle 8: Phase D staged "1-then-3" rendering (beast-mode, full slice)
+
+**Scope:** Implement the staged section-by-section render path end-to-end — orchestrator + SSE endpoint + UI primitive + selective re-run. Plugin-agnostic by design: connector-axis stays FM-only for v1 (Genie path follow-up), vendor-axis untouched (this is the AI-render plane). User amended the original "1 then 3" schedule to "head 2 (first now, second after 2s) then 2-each batches" — encoded in `DEFAULT_SCHEDULE`.
+
+**What shipped (4 commits stacked on `main`, all green):**
+
+- [`c28da22`](../proxy/lib/sectionedOrchestrator.js) **Phase D.1 — `proxy/lib/sectionedOrchestrator.js`** + 37 unit tests. Transport-agnostic, LLM-agnostic backbone: caller injects `runProbe` + `runSection` thunks; orchestrator stages execution per `DEFAULT_SCHEDULE` `[{['HEADLINE','KPI'],spreadMs:2000}, {['TRENDS','RISKS'],0}, {['RECOMMENDED_ACTIONS','OPPORTUNITIES'],0}]`; `buildDefaultSchedule(ids, {headSpreadMs})` derives schedules for arbitrary section sets (head of 2 with clamped spread → 2-each tail); `validateSchedule` enforces SPREAD_MAX_MS=30s, no dup section ids, no negatives, non-empty stages; custom async iterator (`emit`/`next`/`buffer` pattern) yields probe-started/completed/failed + section-started/completed/failed + all-completed; HEADLINE result captured and threaded to downstream stages; per-section errors isolated (don't kill peers); `regenerateOnly` + `probeCache` + `headlineCache` for selective re-run; `AbortSignal` support.
+
+- [`8faf690`](../proxy/server.js) **Phase D.2 — `POST /assistant/conversations/start-sectioned`** + 11 SSE integration tests. Express SSE endpoint (`Content-Type: text/event-stream`, `X-Accel-Buffering: no`, `flushHeaders` + per-frame `res.flush()`). Validation order matters: profile → userPrompt → sections-or-schedule → schedule shape — all 400 JSON BEFORE the SSE opens. `runSection` thunk calls `callFoundationModel` with `messages: [system,{role:user,content:"Section: <id>\n\n<userPrompt>"}]`, returns `{body: parsedJson||content, usage}`. Iterates orchestrator output and writes each event as a frame. Defensive client-gone handling via `res.on('close')` (not `req.on('close')` — supertest fires that early). Two debugging gotchas locked: (a) supertest doesn't auto-buffer `text/event-stream` — tests must register `.buffer(true).parse(...)` and read `res.body` not `res.text`; (b) `req.on('close')` aborted the stream after one frame in tests — `res.on('close')` is the correct hook.
+
+- [`358679b`](../playground/src/components/SectionedAnswer.tsx) **Phase D.3 — `SectionedAnswer` component + `useSectionedStream` hook** + 23 tests (12 component + 11 hook/parser). Pure render component owns no network state: takes `sections: SectionDescriptor[]` + `sectionStates: Record<id, {status,body?,error?,durationMs?,usage?}>`; renders one of four lifecycles per section — `pending` (skeleton + `aria-busy=true`), `streaming` (`Generating…` + pulse line + `aria-busy=true`), `completed` (body + optional `Math.round(ms) · N tokens out` meta + per-section `↻ Regenerate`), `failed` (`role=alert` + `↻ Retry`). `renderBody` override lets each section type stringify how it wants (defaults to string passthrough / `<pre>` JSON). The companion hook POSTs to `/api/assistant/conversations/start-sectioned`, consumes SSE via `fetch` + `ReadableStream` (EventSource is GET-only), exposes a tested `parseSseChunkBuffer(buf): {events, rest}` that handles partial-chunk reassembly + malformed-frame skip + trusts SSE event-name over payload `kind`. `isStreaming` propagates to the Regenerate button so peers can't fire mid-stream.
+
+- [`9c54f10`](../playground/src/hooks/useSectionedStream.ts) **Phase D.4 — `hook.regenerate(sectionId)`** + 3 tests. Closes the selective re-run loop without leaking SSE plumbing into consumers. The hook auto-captures `probe-completed.rows` into `probeCacheRef` and `HEADLINE` body into `headlineCacheRef` during the first stream, and remembers the full `start()` payload in `lastPayloadRef`. `regenerate(id)` re-issues the SAME payload (preserves `userPrompt`, `profile`, `temperature`, `sections`) pinned to `regenerateOnly: [id]` with the cached probe + headline attached. Peer sections stay `completed`, the named section blanks back to `pending` then lands `completed` with the new body. Multiple successive regenerates do NOT clobber the cached base payload.
+
+**Validation:**
+- Proxy `npm test`: **899/899** (was 851 → +48: 37 D.1 unit + 11 D.2 integration).
+- Playground `npx vitest run`: **1042/1042** (was 1016 → +26: 12 SectionedAnswer + 11 hook/parser D.3 + 3 hook regenerate D.4).
+- Playground `npm run lint`: clean.
+- All four commits stacked on `main` after fast-forward.
+
+**Honest deferrals / known scope skipped (per beast-mode contract — naming them, not hiding them):**
+- The new SSE endpoint is **FM-only**. Genie path (`runProbe` for SQL, `runSection` via follow-up messages on the same conversation) is queued. The orchestrator is already Genie-shaped — `runProbe` + cached-row-in-message-text pattern is documented in [STAGED_RENDERING.md](STAGED_RENDERING.md) — but the route wiring is not in this cycle.
+- **No real probe yet.** v1's `runSection` doesn't call `runProbe`; sections work directly from `userPrompt`. Once the discovery-loop SQL plumbing lands, `runProbe` plugs into the orchestrator option of the same name and the section thunks consume `probeCache.rows`.
+- **No tokens-streaming yet.** `section-token` is part of the event vocabulary in [STAGED_RENDERING.md](STAGED_RENDERING.md) but neither emitted nor consumed today — `streaming` state currently means "started, awaiting completion". Token-by-token is its own cycle.
+- **AISidebar integration not done.** The component + hook are shipped and fully tested; wiring them into the live Ask Pulse / AI Insights surfaces is the follow-up cycle (it's a UI integration, not a primitive change).
+- **No browser smoke.** Tests are exhaustive at the unit + SSE-integration level but no live `proxy` + dev-server end-to-end run was performed in this cycle.
+
+**Tripwires honored:**
+- No Pulse-PBI sibling compat broken (`playground/src/pulse/*` untouched).
+- No Genie sandbox widening.
+- No validator authority weakening.
+- No credentials introduced in browser bundle (FM call stays server-side).
+- Embed-token / vendor-axis untouched — Phase D is the AI-render plane only.
+- Brutal honesty: the orchestrator's `regenerateOnly` filters at the IR-section level, so callers must include the section in the original `sections` list. If they don't, `regenerate()` will emit zero events + `all-completed:{sections:0}`. This is the intended invariant (locked in D.1 unit tests).
+
+---
+
 ## 2026-05-20 — Cycle 7: Power BI + Databricks intensive test pass with cross-plugin parity lens
 
 **Scope:** Beast-mode test coverage on the Power BI + Databricks slice of the plugin contract, applied through the vendor-agnostic lens — every BI tool is just one plugin behind `BIAdapter`. Five stacked commits, all green:
