@@ -323,6 +323,74 @@ They have independent profiles + independent credentials. **If a deployer wants 
 
 For v1, we don't have to be fancy. Two separate profile fields. If the deployer wants to share creds, they paste them into both.
 
+### 6.3 Feature toggle within a connector (added 2026-05-20)
+
+Several connectors bundle multiple sub-modes. The Power BI semantic-model brain has **deterministic DAX templates** AND **Q&A embed surface** — same auth, same dataset, two different answer paths. Genie has basic Q&A + supervisor synthesis + analytics. OpenAI has chat + analytics. Bedrock has direct + RAG.
+
+**Direction agreed 2026-05-20:** expose every capability the connector code supports. Let runtime + tenant configuration decide what actually works. Deployer override is opt-in (turn off what you don't want), not opt-out (no need to manually enable each feature).
+
+Three states per feature, surfaced by the discovery endpoint:
+
+| State | Meaning | Source |
+|---|---|---|
+| `capable` | The connector code supports this feature | `manifest.capabilities` (static, code-defined) |
+| `available` | The configured tenant / dataset / endpoint actually allows it | Runtime probe at boot or first request |
+| `enabled` | The profile has the feature turned on for users | `profile.features` (default: all `available`) |
+
+The discovery endpoint reports `capable | available | enabled` per feature per profile. The Setup card renders:
+
+- ✅ **active** — `capable & available & enabled` (the feature works and users can use it)
+- ⚠️ **degraded** — `enabled but not available` (deployer turned it on but the tenant doesn't allow it; clear "fix the tenant setting or turn it off here" message)
+- ⭕ **off** — `available but not enabled` (deployer chose to hide it; one click to enable)
+- *(omitted)* — `not capable` (connector doesn't support it; don't render the row)
+
+**Profile shape:**
+
+```json
+"pbi-sales-semantic": {
+  "type": "powerbi-semantic-model",
+  "displayName": "Power BI: Sales Semantic Model",
+  "aadTenantId": "...",
+  "aadClientId": "...",
+  "aadClientSecret": "...",
+  "powerbiGroupId": "...",
+  "powerbiDatasetId": "...",
+  "features": ["deterministic-dax", "qna-embed"]
+}
+```
+
+`features` is **optional**. When omitted, all `available` features are enabled. When present, it's the deployer's explicit pick.
+
+**Runtime gating:**
+- Each route checks `profile.features` (effective = explicit OR all-available) before serving.
+- Disabled feature → `403` with a friendly "this feature is not enabled on this profile; ask your administrator or use [other feature]".
+
+**Probe shape (per the connector contract):**
+
+```js
+async probe(profile, profileName, helpers) {
+    return {
+        connectorType: 'powerbi-semantic-model',
+        metadataAvailability: 'rich',
+        declaredKpis: [...],
+        schema: { tables: [...] },
+        // NEW — per-feature availability check
+        featureAvailability: {
+            'deterministic-dax': await helpers.checkDaxAvailable(profile),
+            'qna-embed': await helpers.checkQnAAvailable(profile),
+        },
+    };
+}
+```
+
+For PBI specifically:
+- `deterministic-dax` is available iff the SP can run `EVALUATE INFO.MEASURES()` against the dataset.
+- `qna-embed` is available iff `POST .../datasets/{id}/GenerateToken` returns a token (proves tenant + dataset have Q&A enabled).
+
+Both probes are cheap (one HTTP call each), cached for 60 s.
+
+**This pattern generalises** across connectors. Each one declares its capabilities + a per-capability availability check; the host runs them at probe time; the Setup UI renders the three-state badges uniformly.
+
 ---
 
 ## 7. Phased rollout
@@ -406,6 +474,18 @@ Two UX options:
 Possible compromise: **wizard by default + "Show all steps" toggle** that flattens to single-page.
 
 **Codex: which is the right primary?**
+
+### Q8 — Sub-mode feature toggle within a connector (added 2026-05-20)
+
+Some connectors bundle multiple sub-modes (PBI: deterministic-DAX + Q&A-embed; Genie: basic + supervisor + analytics; OpenAI: chat + analytics; Bedrock: direct + RAG). Today each sub-mode is detected via side-channel profile shape. With the feature-toggle pattern:
+
+- Connector declares `manifest.capabilities` (what code supports).
+- Probe declares `featureAvailability` (what the tenant/dataset/endpoint actually allows).
+- Profile declares `features` (deployer override; default: all `available`).
+
+**Decision (locked 2026-05-20):** expose every capability the connector code supports. Default = all `available` features enabled. Deployer can opt-out per profile but doesn't need to opt-in. Runtime gating returns `403` with a friendly "this feature isn't enabled — try X or contact admin" message.
+
+**Generalises across connectors**: same pattern applies to Genie's sub-modes, OpenAI's chat-vs-analytics, Bedrock's direct-vs-RAG — when each migrates in S2/S3. Doesn't block S1.
 
 ### Q7 — What to do with Codex's WIP
 
@@ -604,7 +684,7 @@ Accepting all major pushbacks. The contract is materially better with Codex's ed
 
 **Direction:** Build a manifest-backed connector discovery and Setup experience FIRST. Defer arbitrary connector drop-in runtime until the host route contract and load/failure semantics are nailed down.
 
-**Resolved Q1-Q7:**
+**Resolved Q1-Q8:**
 
 | # | Decision |
 |---|---|
@@ -615,6 +695,7 @@ Accepting all major pushbacks. The contract is materially better with Codex's ed
 | Q5 | **BI parity follow-up**, but S1 must visually distinguish "Power BI as BI display" from "Power BI as AI semantic-model brain" so the immediate dual-axis confusion is addressed. |
 | Q6 | **Single-page Settings** with opt-in "Guide me" stepper, NOT wizard-default. Returning users + developers need compare-at-a-glance. |
 | Q7 | **Audit + extract Bug B1 fix** from Codex WIP as an independent PR BEFORE the redesign work. Do not land the whole stash blindly. |
+| Q8 | **Expose every capability the connector code supports.** Three-state model (`capable` / `available` / `enabled`). Default `enabled = all available`. Deployer opts OUT per profile, not in. Probe runs per-capability availability check (cheap, cached 60s). Runtime gating returns 403 with friendly "feature not enabled — try X" when disabled. Pattern generalises to Genie / OpenAI / Bedrock sub-modes in S2/S3. |
 
 **Host API contract:**
 
@@ -627,10 +708,11 @@ Accepting all major pushbacks. The contract is materially better with Codex's ed
 1. ADR — connector manifest schema (`docs/adr/000X-connector-manifest.md`).
 2. `proxy/lib/connectorManifests.js` — hardcoded table mapping `connector id → manifest + reference to existing route handlers in server.js`. **No physical route extraction.**
 3. `proxy/lib/connectorRegistry.js` — stub registry that reads the table. Boot-time validation surfaces. Designed so swap to dir-scan in S2 is local.
-4. `GET /assistant/connector-types` — serves the response shape Codex specified, including `loadStatus`, `configuredProfiles[].secretStatus`, `valid`, `warnings`.
-5. `playground/src/setup/ConnectorBrandCard.tsx` — generic brand card consuming a manifest.
+4. `GET /assistant/connector-types` — serves the response shape Codex specified, including `loadStatus`, `configuredProfiles[].secretStatus`, `valid`, `warnings`, **plus per-feature `capable | available | enabled` for each profile per Q8**.
+5. `playground/src/setup/ConnectorBrandCard.tsx` — generic brand card consuming a manifest, including **the three-state feature badge row** (✅ active / ⚠️ degraded / ⭕ off).
 6. New Setup UI step driven by the discovery endpoint.
-7. **Acceptance tests:** secret-leakage negative test, legacy-profile-type back-compat, unconfigured-but-available rendering, broken-connector degraded-health, configured-profile-pointing-at-failed-connector production fail-closed, PBI dual-axis distinguished in Settings.
+7. **PBI feature-availability probe** — `checkDaxAvailable` (1 cheap DAX call) + `checkQnAAvailable` (1 cheap GenerateToken call); cached 60s. The probe runs at boot for each configured profile so the Setup card reflects real tenant state.
+8. **Acceptance tests:** secret-leakage negative test, legacy-profile-type back-compat, unconfigured-but-available rendering, broken-connector degraded-health, configured-profile-pointing-at-failed-connector production fail-closed, PBI dual-axis distinguished in Settings, **PBI feature toggle: profile with no `features` field defaults to all available; profile with explicit `features: ["deterministic-dax"]` returns 403 on `/powerbi/qna/embed-token`; tenant with Q&A disabled surfaces ⚠️ degraded state in discovery response**.
 
 **S2/S3 deferred until S1 ships + soaks:**
 
