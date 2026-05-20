@@ -1,0 +1,140 @@
+- banner:
+  - heading "Settings" [level=1]:
+    - text: Settings
+  - paragraph: Configure how PulsePlay looks, what it embeds, and how it reasons.
+  - button "Back to app":
+    - text: Back to app
+- searchbox "Search settings"
+- generic: Ctrl /
+- button "Jump to Setup group":
+  - generic: Setup
+  - generic: BI config
+- button "Jump to BI group":
+  - generic: BI
+  - generic: Power BI
+- button "Jump to AI group":
+  - generic: AI
+  - generic: Default profile
+- button "Jump to ai › Pack":
+  - generic: Pack
+  - generic: No knowledge source
+- button "Jump to system › Proxy":
+  - generic: Proxy
+  - generic: Connected
+- button "Jump to system › Security":
+  - generic: Security
+  - generic: Enforced
+- main:
+  - region "Advanced":
+    - heading "Advanced" [level=2]
+    - paragraph: Performance levers + destructive maintenance actions. Levers take effect immediately; destructive actions require type-to-confirm.
+    - article:
+      - generic: Performance levers
+      - button "Copy link to Performance levers": Copy link
+      - paragraph: Author-selectable speed-vs-completeness knobs. Each lever is persisted under pulseplay:performance-levers and broadcast on save, so changes take effect mid-session without a reload.
+      - group "Insights reveal cadence":
+        - generic: Insights reveal cadence
+        - paragraph: How aggressively the rendered Insights answer staggers its sections. Doesn't change the LLM cost or wall-clock — only when each section becomes visible after the answer lands.
+        - button "Instant All sections paint together — no staged reveal":
+          - generic: Instant
+          - generic: All sections paint together — no staged reveal
+        - button "Fast Headline at t=0, the rest at t=4s":
+          - generic: Fast
+          - generic: Headline at t=0, the rest at t=4s
+        - button "Balanced ✓ Default — t=0/10/20/30 cadence per section pair" [pressed]:
+          - generic: Balanced ✓
+          - generic: Default — t=0/10/20/30 cadence per section pair
+        - button "Full Every section its own beat at 8 s spacing":
+          - generic: Full
+          - generic: Every section its own beat at 8 s spacing
+      - group "Discovery prewarm on screen load":
+        - generic: Discovery prewarm on screen load
+        - paragraph: Fires one DiscoverySnapshot call right after the probe completes so subsequent queries hit the warm cache. Off = the first user query pays the cold round-trip itself.
+        - checkbox "Prewarm enabled" [checked]
+        - text: Prewarm enabled
+      - group "Insights cache freshness":
+        - generic: Insights cache freshness
+        - paragraph: Cached Insights answers are reused for this many minutes before re-running. Higher = faster repeat-questions; lower = fresher data.
+        - slider: "30"
+        - generic: 30 min
+      - group "Validation retry budget":
+        - generic: Validation retry budget
+        - paragraph: How many times the proxy retries a section that the validator flagged as Suggestion / Blocked. 0 = ship the first answer verbatim (fastest); 3 = retry up to three times (highest quality, slowest).
+        - slider: "1"
+        - generic: 1 retry
+      - button "All defaults" [disabled]
+    - article:
+      - generic: Local storage inspector
+      - button "Copy link to Local storage inspector": Copy link
+      - paragraph: Every PulsePlay localStorage key on this origin. Read-only.
+      - heading "Wizard state" [level=4]
+      - generic: 1 key
+      - paragraph: First-run setup wizard dismissal + draft + force flag + last-chosen persona.
+      - generic: pulseplay:wizard-dismissed
+      - generic: "true"
+      - heading "BI selections" [level=4]
+      - generic: 1 key
+      - paragraph: What you're looking at — vendor + embed config + SSO + canvas tile preference.
+      - generic: pulseplay:bi-vendor
+      - generic: powerbi
+      - heading "AI selections" [level=4]
+      - generic: 2 keys
+      - paragraph: What's thinking — active profile, knowledge pack, and the full Pulse genieSettings JSON.
+      - generic: pulseplay:active-ai-profile
+      - generic: default
+      - generic: pulseplay:visual-settings:genieSettings
+      - generic: "{\"showSetupAccess\":true,\"assistantProfile\":\"default\",\"connectionMode\":\"proxy\",\"apiBaseUrl\":\"http://127.0.0.1:5173/api\"}"
+      - heading "Layout state" [level=4]
+      - generic: 1 key
+      - paragraph: How the playground is laid out — UI mode, visible panels, AI position, pane focus.
+      - generic: pulseplay:enabled-components
+      - generic: mix
+      - heading "Navigation memory" [level=4]
+      - generic: 1 key
+      - paragraph: Where you were last in Settings; not a feature setting.
+      - generic: pulseplay:settings-last-group
+      - generic: system
+      - heading "Other" [level=4]
+      - generic: 3 keys
+      - paragraph: Keys that don't fit a known bucket — usually new features or legacy entries.
+      - generic: pulseplay:databricks-capabilities:default
+      - generic: "{\"ok\":true,\"assistantProfile\":\"default\",\"spaceId\":\"01f13fe275b515608abb4182d0a37373\",\"profile\":{\"name\":\"default\",\"host\":\"https://dbc-f88d29ce-4aa2.cloud.databricks.com\",\"spaceId\":\"01f13fe275b515608abb4182d0a37373\",\"warehouseId\":\"6510da5032…"
+      - generic: pulseplay:databricks-capabilities:supervisor
+      - generic: "{\"ok\":true,\"assistantProfile\":\"supervisor\",\"spaceId\":\"\",\"profile\":{\"name\":\"supervisor\",\"host\":\"\",\"spaceId\":\"\",\"warehouseId\":\"\",\"type\":\"supervisor-local\"},\"capabilities\":{\"genie\":false,\"lakeview\":false,\"servingEndpoints\":false,\"apps\":false,…"
+      - generic: pulseplay:enabled-components:legacy-both-migrated
+      - generic: "true"
+    - article:
+      - generic: Reset section
+      - button "Copy link to Reset section": Copy link
+      - paragraph: Clear localStorage keys owned by one settings group. The other groups keep their state.
+      - text: "Section to reset:"
+      - combobox "Section to reset:":
+        - option "BI (3 keys)" [selected]
+        - option "AI (2 keys)"
+        - option "Preferences (5 keys)"
+      - generic: "Keys to clear: pulseplay:bi-vendor, pulseplay:pbi-sso-config, pulseplay:bi-tile-mode"
+      - text: Type
+      - code: Reset bi
+      - text: "to enable:"
+      - textbox "Type Reset bi to confirm"
+      - button "Clear 3 keys" [disabled]
+    - article:
+      - generic: Reset all
+      - button "Copy link to Reset all": Copy link
+      - paragraph: Clear every PulsePlay setting on this origin. The app's BI and AI selections, layout, and pack will all be gone. Pulse's persisted visual-settings keys also clear.
+      - text: Type
+      - code: Reset all
+      - text: "to enable:"
+      - textbox "Type Reset all to confirm"
+      - button "Clear all PulsePlay settings" [disabled]
+    - article:
+      - generic: Danger zone
+      - button "Copy link to Danger zone": Copy link
+      - paragraph: Sign out of Power BI and clear cached MSAL sessions. The browser drops the AAD session — you'll need to sign in again to embed.
+      - generic: "Sign out of Power BI (clears MSAL sessionStorage):"
+      - button "Sign out Power BI"
+      - text: Type
+      - code: Clear Pulse settings
+      - text: "to enable:"
+      - textbox "Type Clear Pulse settings to confirm"
+      - button "Clear Pulse persisted settings" [disabled]

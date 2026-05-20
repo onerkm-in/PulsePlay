@@ -103,9 +103,9 @@ I have current context on:
 - **The 2-axis architecture** (BI vendor × AI connector)
 - **All 6 Settings groups + the Quick Setup canvas** I just built
 - **The Pulse port** under `playground/src/pulse/*` (compat-layer rules in `PULSE_PORT_DETANGLING.md`)
-- **The 9 backend paths** in the proxy
+- **The 10 backend paths** in the proxy
 - **Tripwires** in `CLAUDE.md` — Power BI Premium (NOT Fabric), Genie Agent Mode is UI-only, Foundation Model is the streaming path
-- **918 tests** that gate every change
+- **2,116 latest recorded automated checks** that gate every change: 1,013 proxy tests and 1,103 playground tests
 - **Beast-mode collaboration patterns** from the sister Pulse project sibling cycles 1-47
 
 I will read `CLAUDE.md` and `MEMORY.md` at the start of every session. If you say "remember X," I save it to memory immediately.

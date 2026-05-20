@@ -5,6 +5,58 @@
 
 ---
 
+## 2026-05-20 - Focused Settings validation + Setup AI fix
+
+**Scope.** Ran a focused multi-agent Settings validation across Setup/AI, BI, Preferences/Appearance, System/Advanced, and Settings shell/navigation. Evidence folder: [docs/evidence/settings-regression-2026-05-20-codex](evidence/settings-regression-2026-05-20-codex). Detailed Claude handoff is in [AGENT_SYNC.md](AGENT_SYNC.md) under `2026-05-20 - Codex - [VERIFY]+[DONE]+[HANDOFF] Focused Settings validation`.
+
+**Codex-owned fix shipped in working tree.** Quick Setup's AI card now falls back to live `/api/assistant/profiles` when the allowlist is unconfigured, and the Domain knowledge card falls back to live `/api/assistant/knowledge/packs`. The profile probe now accepts the proxy's actual direct-array response shape. The hardcoded `Databricks docs` link is now connector-aware for the selected profile.
+
+**Validation.**
+- Browser: `/settings/setup` now shows selectable `Default`, `Supervisor`, `Foundation` AI profiles and `CPG / FMCG` pack; `Test selected profile` returns `Profile reachable`.
+- `playground npm run lint`: PASS.
+- `playground npm run test -- src/settings/__tests__/vendorMatrix.test.tsx src/settings/__tests__/AiGroup.test.tsx`: **32/32**.
+- `playground npm run test -- src/settings/__tests__`: **155/155**.
+
+**Remaining Settings hardening for Claude.** P1 backlog is now explicit in [AGENDA.md](AGENDA.md) and detailed in [AGENT_SYNC.md](AGENT_SYNC.md): mobile Settings nav hidden below 640px, Save-bar Discard not restoring live state, diagnostics/localStorage redaction gaps, Advanced reset misses owned state/caches, Power BI secure host accepts sibling domains, and EmbedConfigForm does not fail closed on allowlist fetch failure. Local Databricks live calls are still blocked by Node TLS trust (`unable to verify the first certificate`), so live connector quality remains environment-blocked until Node uses the org CA chain.
+
+---
+
+## 2026-05-20 - Documentation hub and current-fact refresh
+
+**Scope.** Read the repo documentation inventory and created a lighter navigation layer instead of moving/deleting files in the first pass. New hub: [docs/README.md](README.md). It names the current facts, the small active-doc set, and the large "do not read by default" archive set.
+
+**Current facts refreshed.**
+- Proxy now has **10 backend paths**, including the Power BI semantic-model deterministic connector and the Power BI Q&A embed surface.
+- Latest recorded automated validation is **1013/1013 proxy tests** and **1103/1103 playground tests**.
+- Latest visible UI regression remains [docs/CODEX_UI_REGRESSION_RESULTS_2026-05-20.md](CODEX_UI_REGRESSION_RESULTS_2026-05-20.md): setup AI allowlist/profile mismatch, hardcoded Databricks docs link, local Node CA issue for live Ask Pulse, and HelpTip console error.
+- ADR-0003 now lives at [docs/adr/0003-supervisor-stagger.md](adr/0003-supervisor-stagger.md) and records the actual 2000 ms stagger.
+
+**Docs touched.** Root [README.md](../README.md), [CLAUDE.md](../CLAUDE.md), [docs/ARCHITECTURE.md](ARCHITECTURE.md), [docs/QUALITY.md](QUALITY.md), [docs/ROADMAP.md](ROADMAP.md), [docs/MIGRATION_NOTES.md](MIGRATION_NOTES.md), [docs/CONNECTOR_PROBE_AND_SMART_CONNECT.md](CONNECTOR_PROBE_AND_SMART_CONNECT.md), [docs/WORKING_WITH_CLAUDE.md](WORKING_WITH_CLAUDE.md), [scripts/llm_onboard.py](../scripts/llm_onboard.py), and project memory.
+
+**Next consolidation pass.** Do a link-preserving archive/merge, not a blind delete: move dated `CODEX_*`, `CLAUDE_*`, `*_RESULTS_2026-*`, `*_AUDIT_2026-*`, and `*_HANDOFF_2026-*` files under an archive/evidence structure; fold durable feature specs into `ARCHITECTURE`, `SETTINGS_SPEC`, `KNOWLEDGE_BASE_ARCHITECTURE`, `PACKS`, `QUALITY`, or `PROXY_REFERENCE`.
+
+---
+
+## 2026-05-20 - Codex UI regression pass after docs sync
+
+**Scope.** Read the current docs/memory after onboarding, then ran a visible in-app browser regression against the local dev server. Evidence lives in [docs/evidence/ui-regression-2026-05-20-codex](evidence/ui-regression-2026-05-20-codex). Full result file: [docs/CODEX_UI_REGRESSION_RESULTS_2026-05-20.md](CODEX_UI_REGRESSION_RESULTS_2026-05-20.md).
+
+**Environment.** Vite was already running at `http://127.0.0.1:5173`. Proxy was already running at `8787` but was stale: `/powerbi/qna` initially hit `Cannot POST /powerbi/qna/embed-token`. Restarted the local proxy so the current route loaded. Health after restart: `ok:true`, profiles `default`, `supervisor`, `foundation`, auth mode `none`.
+
+**Regression results.**
+- Root shell loads; old `BI BI Viz` duplication is gone. Current UI labels the BI peer surface as `Dashboard`, while older UAT docs still expect `BI Viz` - likely docs/acceptance drift unless Rajesh wants the older label restored.
+- Settings -> AI is healthy: 4-tier IA renders and provider cards show Default/Supervisor/Foundation. No visible `AI brain` copy.
+- Settings -> Setup still has the author-flow blocker: AI profile select is disabled with `No profiles available` even though `/api/assistant/profiles` returns 3 profiles. `/api/assistant/allowlist` returns `configured:false` with `aiProfiles:[]`, and Setup filters everything out. The older green `Configured` pill did not reproduce; it now says `Not picked`.
+- Setup -> AI still has the hardcoded `Databricks docs` link.
+- Power BI Q&A route now behaves correctly after proxy restart: no more 404, friendly `No Power BI semantic-model profile configured.` Live embed needs an actual `powerbi-semantic-model` profile.
+- Ask Pulse becomes enabled after selecting Default in Settings -> AI and submits through the UI, but live answer fails because local Node CA trust blocks Databricks (`unable to verify the first certificate`). Do not score live answer quality until proxy starts with `NODE_EXTRA_CA_CERTS` or Node `--use-system-ca`.
+- HelpTip mechanics pass (mutual exclusion, no interactive controls inside tooltip), but content remains dense prose and browser console still logs the React `setState` during render error from `HelpTip`.
+- Narrow 390x844 check for root + Setup showed no horizontal overflow.
+
+**No code shipped.** Docs-only audit trail update.
+
+---
+
 ## 2026-05-20 — Session arc: 6 cycles shipped (Cycles 11 → 15.5)
 
 One beast-mode session. Six PRs merged into `publish/local-main-2026-05-20`, every PR independently shippable + reversible, no rollbacks.

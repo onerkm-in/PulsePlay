@@ -162,7 +162,7 @@ This is acceptable for the internal-org charter (the org is on Databricks). If t
 
 ### The supervisor-local fan-out island
 
-`runLocalSupervisor` is a proxy-side multi-Genie orchestrator. The user prompt fans out to N helper Genie spaces in parallel; each response is collected, then a synthesis pass (typically Foundation Model or OpenAI) merges them into one answer. The stagger between fan-out requests is documented in [ADR-0003](adr/0003-supervisor-stagger-800ms.md) — note that the title says 800 ms but the actual code uses 2000 ms. Update pending.
+`runLocalSupervisor` is a proxy-side multi-Genie orchestrator. The user prompt fans out to N helper Genie spaces in parallel; each response is collected, then a synthesis pass (typically Foundation Model or OpenAI) merges them into one answer. The stagger between fan-out requests is documented in [ADR-0003](adr/0003-supervisor-stagger.md). Actual code uses 2000 ms.
 
 This is the architectural ancestor of "cross-vendor single pane of glass" — the v0.5 roadmap item. The supervisor-local pattern proves the proxy can fan out and synthesize.
 
@@ -228,7 +228,7 @@ PulsePlay/
 ├── proxy/                   # X-axis: AI connector backbone (4,298-line server.js + 8 lib modules)
 │   ├── server.js            # Express; routes for /assistant/*, /openai/*, /bedrock/*, /supervisor/*, /foundation/*
 │   ├── lib/                 # foundationModelClient, insightsValidator, llmOrchestrator, sqlExecutor, bedrock signer, ...
-│   └── tests/               # 418 jest tests in latest local validation
+│   └── tests/               # 1013 jest tests in latest recorded validation
 ├── databricks-agents/       # Mosaic AI Supervisor Agent template
 │   └── supervisor/          # LangGraph agent definition + deploy notebook
 ├── pulsepacks/              # Vertical packs (CPG/FMCG, manufacturing, ...). Pack architecture lives here.

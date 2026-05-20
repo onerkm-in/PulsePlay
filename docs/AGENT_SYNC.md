@@ -52,6 +52,95 @@ Use these tags so another agent can scan quickly:
 
 Keep PulsePlay moving faster by coordinating work across agents without losing brutal honesty.
 
+### 2026-05-20 - Codex - [VERIFY]+[DONE]+[HANDOFF] Focused Settings validation, Setup/AI fix, Claude hardening backlog
+
+`[VERIFY]` Multi-agent Settings validation completed against the live dev app at `http://127.0.0.1:5173/settings` plus focused source/test reads. Evidence folder: [docs/evidence/settings-regression-2026-05-20-codex](evidence/settings-regression-2026-05-20-codex). Browser snapshots/screenshots captured for all six Settings groups and the fixed Quick Setup path.
+
+`[DONE]` Codex took the user-suggested **Settings -> Setup -> AI** lane and fixed it end-to-end:
+
+- [playground/src/settings/groups/SetupGroup.tsx](../playground/src/settings/groups/SetupGroup.tsx) now loads live `/api/assistant/profiles` and `/api/assistant/knowledge/packs`. When the allowlist is unconfigured (`configured:false` + empty arrays), Quick Setup falls back to live proxy profiles/packs instead of disabling both controls.
+- `Test selected profile` now accepts the proxy's actual direct-array response shape and the older `{ profiles: [...] }` shape. Live browser repro after the fix: selected `Default`; result is `Profile reachable / registered`.
+- The hardcoded `Databricks docs` link in Setup -> AI is now connector-aware for the selected profile (`Genie docs`, `Foundation Model docs`, `Agent Framework docs`, `Power BI docs`, fallback `Connector docs`).
+- Added regression coverage in [playground/src/settings/__tests__/vendorMatrix.test.tsx](../playground/src/settings/__tests__/vendorMatrix.test.tsx): unconfigured allowlist uses live profiles/packs, and profile probing accepts the direct-array proxy response.
+
+`[VERIFY]` Validation after Codex's fix:
+
+- `npm run lint` in `playground/`: PASS.
+- `npm run test -- src/settings/__tests__/vendorMatrix.test.tsx src/settings/__tests__/AiGroup.test.tsx`: PASS, **32/32**.
+- `npm run test -- src/settings/__tests__`: PASS, **155/155**.
+- Live browser: `/settings/setup` now shows selectable AI profiles (`Default`, `Supervisor`, `Foundation`) and pack (`CPG / FMCG`); profile probe reports reachable.
+
+`[HANDOFF]` Claude should take the remaining Settings hardening items **end-to-end**. Do not stop at tests; verify in the live Settings UI and update HANDOVER/project memory. Ordered by severity and blast radius:
+
+#### P1 - Must Fix
+
+1. **Mobile Settings navigation is broken below 640px.**
+   - Repro: viewport `390x844`, open `/settings/advanced` or `/settings/preferences`; the rail is hidden and no replacement group/leaf navigation appears.
+   - Expected: mobile group nav/top tab strip plus compact status chips. `SETTINGS_SPEC.md` expects this.
+   - Actual: `.pp-settings-rail { display:none }`; Preferences/Advanced/Appearance become URL-only.
+   - Refs: [settings.css](../playground/src/settings/settings.css), [SettingsShell.tsx](../playground/src/settings/SettingsShell.tsx).
+   - Add tests: responsive Settings test at <=640px proving all six groups and subleaves are reachable; 390px status chips compact/dot mode.
+
+2. **Save bar Discard restores localStorage but not live Settings UI state.**
+   - Repro: `/settings/preferences`, choose `AI only`, click `Discard`.
+   - Expected: UI and localStorage both return to the original `Unified` state.
+   - Actual: localStorage is restored, but the currently pressed UI control remains `AI only`.
+   - Root cause: `useSettingsDraft.discard()` dispatches `pulseplay:display-change` without `{ key, value }`; `settingsStore` ignores that shape.
+   - Refs: [useSettingsDraft.ts](../playground/src/settings/useSettingsDraft.ts), [settingsStore.tsx](../playground/src/settings/settingsStore.tsx).
+   - Add tests: SettingsShell integration for preference change -> Discard -> context/UI/storage all revert.
+
+3. **Secrets can leak through Advanced/System diagnostics surfaces.**
+   - Repro: persist a PBI embed config containing `accessToken`, or log `console.error("Bearer ...")`; open Advanced local storage inspector or export diagnostics bundle.
+   - Expected: same deep redaction for localStorage and diagnostics errors as support-bundle payloads.
+   - Actual: Advanced local storage inspector renders raw values; export bundle redacts BI event payloads but not `diagnostics.errors`.
+   - Refs: [AdvancedGroup.tsx](../playground/src/settings/groups/AdvancedGroup.tsx), [SystemGroup.tsx](../playground/src/settings/groups/SystemGroup.tsx), [exportBundle.ts](../playground/src/settings/exportBundle.ts), [EmbedConfigForm.tsx](../playground/src/components/EmbedConfigForm.tsx).
+   - Add tests: token-shaped localStorage redaction; export bundle redacts `diagnostics.errors`; System diagnostics masks token-shaped console errors.
+
+4. **Reset paths leave owned state/caches behind.**
+   - Repro: save `pulseplay:bi-embed-config`; Advanced -> Reset section -> BI. Also seed `pulseplay:discovery:*` in `sessionStorage`; run Reset all.
+   - Expected: section reset clears all state owned by that section; Reset all clears PulsePlay local/session caches.
+   - Actual: BI reset omits `pulseplay:bi-embed-config`; AI reset omits `pulseplay:active-connector` and some visual settings; Reset all clears `localStorage` only, not discovery `sessionStorage`.
+   - Refs: [AdvancedGroup.tsx](../playground/src/settings/groups/AdvancedGroup.tsx), [discoveryClient.ts](../playground/src/lib/discoveryClient.ts).
+   - Add tests: seed every storage bucket key and assert section reset removes the right keys; seed session discovery cache and assert Reset all clears it.
+
+5. **Power BI secure host validation accepts sibling domains.**
+   - Repro: `/settings/bi` -> Secure embed -> paste `https://evilpowerbi.com/reportEmbed?reportId=bad&groupId=bad` -> Load secure embed.
+   - Expected: reject; UI promises `app.powerbi.com/reportEmbed`.
+   - Actual: accepted and persisted in dev-unconfigured allowlist posture.
+   - Refs: [EmbedConfigForm.tsx](../playground/src/components/EmbedConfigForm.tsx), [bi-adapters/powerbi/index.ts](../bi-adapters/powerbi/index.ts).
+   - Add tests: reject `evilpowerbi.com`, accept exact `app.powerbi.com/reportEmbed`, cover iframe `src=` parsing and adapter secure iframe path.
+
+6. **EmbedConfigForm does not fail closed when allowlist fetch fails.**
+   - Repro: mock `/api/assistant/allowlist` failure, then apply a BI embed config.
+   - Expected: Settings refuses the new embed config just like BIPanel refuses mounts when fail-closed.
+   - Actual: form validators treat `allowlist === null` as permissive, save config, and only canvas mount later refuses.
+   - Refs: [settingsStore.tsx](../playground/src/settings/settingsStore.tsx), [EmbedConfigForm.tsx](../playground/src/components/EmbedConfigForm.tsx), [BiGroup.tsx](../playground/src/settings/groups/BiGroup.tsx), [BIPanel.tsx](../playground/src/biPanel/BIPanel.tsx).
+   - Add tests: failing allowlist blocks BI config writes and shows a fail-closed error.
+
+#### P2 - Should Fix In Same Claude Pass If Time Allows
+
+- **Setup/AI probe copy is too optimistic under Databricks CA failure.** Live AI connection test currently says `Connection successful (no metadata)` while listing `Connector REST call failed: unable to verify the first certificate`. This is a local platform/access challenge (`NODE_EXTRA_CA_CERTS` or Node `--use-system-ca`), but the UI should label it degraded or failed, not successful.
+- **SSO mode displays backend service-principal copy.** In [EmbedConfigForm.tsx](../playground/src/components/EmbedConfigForm.tsx), AAD SSO mode still shows backend-issued/service-principal wording.
+- **BI Provider leaf is read-only.** `/settings/bi` says the page wires BI, but Provider cannot be changed there. Add allowlist-gated picker or explicit "Change in Setup" action.
+- **Power BI sign-out is one-click destructive and absent-config no-op is false.** Add confirmation/type-to-confirm or disable when unconfigured; make empty config no-op before MSAL import/init.
+- **Developer retry control conflicts with Advanced performance retry lever.** Decide one source of truth or label one as client-side only. Add integration coverage for outgoing `maxValidationRetries`.
+- **Search is not spec-complete.** Queries like `vendor`, `connector`, `frames` return `0 groups matched`; spec expects synonyms, breadcrumb result rows, and click-to-route.
+- **Deep links scroll but do not focus leaves.** `/settings/bi/status` scrolls but leaves `document.activeElement` as `BODY`; make leaf containers focusable and focus them on deep link.
+- **Copy links missing on dedicated sub-route leaves.** `/settings/bi/governance`, `/settings/ai/knowledge-base`, `/settings/ai/supervisor-fusion`, `/settings/preferences/appearance`, `/settings/system/developer-tools` render no Copy link.
+- **Appearance controls are not labelled by visible field labels.** `getByLabel("Dark mode")` and `getByLabel("Use report theme (Power BI host only)")` fail; accessible names are dynamic/internal.
+- **Appearance color inputs accept invalid CSS color strings.** `not-a-color` persists into localStorage, swatch falls back to black, Chromium logs format warnings.
+- **HelpTip still logs React setState-in-render.** Live browser console on Settings routes reports `Cannot update a component (HelpTip) while rendering a different component (HelpTip)`. The portal/mutual-exclusion behavior is better, but the runtime warning is still real.
+
+#### P3 - Cleanup / Contract Alignment
+
+- **Settings IA contract drift.** `SETTINGS_SPEC.md` still describes five groups and old default routing; current app has six groups with Setup default. Decide and update spec/tests.
+- **Unknown group routes are user-state dependent.** `/settings/not-a-real-group` keeps the bad URL but renders last visited group. Make fallback deterministic and canonical.
+- **Per-tile cherry-pick is an enabled no-op.** Disable or render as non-interactive coming-soon copy.
+- **Proxy status polling lacks abort/ordering guards.** Slow/out-of-order `/api/health` responses can update stale state after navigation or repeated probes.
+- **Supervisor with zero spaces renders an empty table + active Run button.** Either disable the button or show an explicit "no spaces configured" state.
+
+`[BLOCKED/PLATFORM]` Local Databricks live calls are still affected by Node TLS trust (`unable to verify the first certificate`). This blocks honest live Genie/Metric View validation until the proxy is started with the org CA chain (`NODE_EXTRA_CA_CERTS`) or Node system CA support. Do not score answer quality or Databricks asset discovery as product failures until that environment issue is fixed; do score unclear UI wording around this as product UX debt.
+
 ### 2026-05-20 — Claude — [DONE] Session arc: Cycles 11 → 15.5 (6 PRs merged)
 
 `[DONE]` One beast-mode session, six PRs merged into `publish/local-main-2026-05-20`. Net test delta: proxy **910 → 1013** (+103), playground **1063 → 1103** (+40). Each PR independently shippable + reversible, no rollbacks.

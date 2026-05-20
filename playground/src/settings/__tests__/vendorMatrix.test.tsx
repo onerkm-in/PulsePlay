@@ -337,6 +337,93 @@ describe("Vendor matrix: error handling", () => {
         unmount(state);
     });
 
+    it("unconfigured allowlist falls back to live proxy AI profiles and packs in Quick Setup", async () => {
+        vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+            const url = String(input);
+            if (url.endsWith("/api/assistant/profiles")) {
+                return new Response(JSON.stringify([
+                    { name: "default", displayName: "Default", spaceId: "space-1" },
+                    { name: "foundation", displayName: "Foundation", type: "foundation-model" },
+                ]), { status: 200 });
+            }
+            if (url.endsWith("/api/assistant/knowledge/packs")) {
+                return new Response(JSON.stringify({
+                    packs: [{ name: "cpg-fmcg", displayName: "CPG / FMCG", subVerticals: [] }],
+                }), { status: 200 });
+            }
+            return new Response("not found", { status: 404 });
+        }));
+        const emptyAllowlist = async (): Promise<PulsePlayAllowlist> => ({
+            configured: false,
+            biProviders: [],
+            embedOrigins: {},
+            aadTenants: [],
+            aiProfiles: [],
+            packs: [],
+            enforcement: "strict",
+        });
+        const state = mount(emptyAllowlist);
+        await act(async () => {
+            await Promise.resolve();
+            await Promise.resolve();
+            await Promise.resolve();
+            await Promise.resolve();
+        });
+
+        const profileSelect = state.container.querySelector<HTMLSelectElement>("#pp-setup-ai-profile");
+        expect(profileSelect).not.toBeNull();
+        expect(profileSelect!.disabled).toBe(false);
+        expect(Array.from(profileSelect!.options).map(o => o.value)).toEqual(["", "default", "foundation"]);
+
+        const packSelect = state.container.querySelector<HTMLSelectElement>("#pp-setup-pack");
+        expect(packSelect).not.toBeNull();
+        expect(packSelect!.disabled).toBe(false);
+        expect(Array.from(packSelect!.options).map(o => o.value)).toEqual(["", "cpg-fmcg"]);
+        unmount(state);
+    });
+
+    it("Test selected profile accepts the proxy's direct array response shape", async () => {
+        window.localStorage.setItem("pulseplay:active-ai-profile", "default");
+        vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+            const url = String(input);
+            if (url.includes("/api/assistant/profiles")) {
+                return new Response(JSON.stringify([
+                    { name: "default", displayName: "Default", spaceId: "space-1" },
+                ]), { status: 200 });
+            }
+            if (url.endsWith("/api/assistant/knowledge/packs")) {
+                return new Response(JSON.stringify({ packs: [] }), { status: 200 });
+            }
+            return new Response("not found", { status: 404 });
+        }));
+        const allowlist = async (): Promise<PulsePlayAllowlist> => ({
+            configured: false,
+            biProviders: [],
+            embedOrigins: {},
+            aadTenants: [],
+            aiProfiles: [],
+            packs: [],
+            enforcement: "strict",
+        });
+        const state = mount(allowlist);
+        await act(async () => {
+            await Promise.resolve();
+            await Promise.resolve();
+            await Promise.resolve();
+        });
+        const profileTest = Array.from(state.container.querySelectorAll<HTMLButtonElement>("button"))
+            .find(b => (b.textContent || "").includes("Test selected profile"));
+        expect(profileTest).toBeDefined();
+        await act(async () => {
+            profileTest!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+            await Promise.resolve();
+            await Promise.resolve();
+            await Promise.resolve();
+        });
+        expect(state.container.textContent || "").toContain("Profile reachable");
+        unmount(state);
+    });
+
     it("readiness with no inputs reports both axes missing", () => {
         const r = getSetupReadiness({ biVendor: "", embedConfig: null, activeAiProfile: "" });
         expect(r.ready).toBe(false);

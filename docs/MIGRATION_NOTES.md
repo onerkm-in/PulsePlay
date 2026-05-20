@@ -2,6 +2,34 @@
 
 > Recording of the docs consolidation cycle that took PulsePlay from 26 mixed-heritage docs to ~10 cleanly-identified active docs, with the rest archived to `docs/inherited/`. Strategic context: Path C — inner-source-first, public-OSS-later.
 
+## 2026-05-20 refresh - docs hub and next merge plan
+
+The docs tree grew again after several intense UAT, smoke, feature-spec, and handoff cycles.
+
+Current inventory:
+
+| Bucket | Count | Action |
+|---|---:|---|
+| All Markdown under `docs/` | 107 | Too many for onboarding. |
+| Top-level Markdown under `docs/` | 67 | Needs consolidation pressure. |
+| Dated top-level session artifacts | 28 | Merge findings into canonical docs, then move to `docs/archive/runs/`. |
+| Top-level feature/spec fragments | 25 | Merge into Architecture, Roadmap, Proxy Reference, Settings Spec, Knowledge Architecture, or Quality. |
+| Research docs | 7 | Keep in `docs/research/`; read on demand. |
+| ADR docs | 9 | Keep as decision history. |
+| Inherited docs | 15 | Keep as Pulse/PepPulse archive. |
+| Memory docs | 5 | Keep as repo-local working memory. |
+| Scenario docs | 4 | Keep as large test catalog, not onboarding material. |
+
+New consolidation front door: [README.md](README.md). It now records what to read first, what not to read by default, and where each fragment should merge.
+
+Canonical facts corrected in this refresh:
+
+- Architecture/onboarding/README docs now say **10 backend paths**, not 8 or 9.
+- Quality now says latest recorded validation is **proxy 1013/1013** and **playground 1103/1103**, not 418/161.
+- Architecture now links to the renamed [ADR-0003](adr/0003-supervisor-stagger.md).
+
+Next merge phase should be structural: move dated run artifacts into an archive bucket after updating any live links, then merge still-active feature specs into their canonical targets per the map in [README.md](README.md).
+
 ## 1. What moved where
 
 ### Active docs at root
@@ -141,7 +169,7 @@ These are flagged for a future cleanup cycle. None block today's work; tracked i
 - **`errorStatusFromDatabricks`** is the only error-mapping helper; only Databricks-shaped errors route through it. Bedrock and OpenAI have separate paths.
 - **CORS comment** claims "Power BI Desktop WebView requires permissive headers" — not applicable in PulsePlay.
 - **`scripts/llm_wrapup.py` state file** is now `.pulseplay-session.state.json` (and `llm_onboard.py` matches). Legacy `.the sister project-session.state.json` is still read as a fallback so a half-migrated repo keeps working; both names remain gitignored.
-- **ADR-0003 file name** `0003-supervisor-stagger-800ms.md` — title says 800 ms but code is 2000 ms. Either rename the file or supersede with a fresh ADR documenting 2000 ms.
+- **ADR-0003 filename drift was fixed on 2026-05-20**: the current file is `docs/adr/0003-supervisor-stagger.md` and records the implemented 2000 ms stagger. Older dated artifacts may still quote the superseded filename as historical evidence.
 - **Smoke scripts** (`scripts/smoke-full.ps1`, `scripts/smoke-rls-ols.ps1`) are Pulse-shaped (test PBI custom visual paths). Need adaptation to PulsePlay's profile types.
 
 ## 5. Doc count
