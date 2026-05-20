@@ -218,10 +218,18 @@ describe('POST /assistant/conversations/start-sectioned — SSE happy path', () 
         const frames = parseSseFrames(res.body || res.text);
         const eventSeq = frames.map(f => `${f.event}:${f.data?.sectionId || ''}`);
         const headlineCompleted = eventSeq.indexOf('section-completed:HEADLINE');
-        const kpiCompleted = eventSeq.indexOf('section-completed:KPI');
+        const kpiStarted = eventSeq.indexOf('section-started:KPI');
         const trendsStarted = eventSeq.indexOf('section-started:TRENDS');
+        const risksStarted = eventSeq.indexOf('section-started:RISKS');
+        // HEADLINE is now alone in stage 0; KPI + TRENDS share stage 1 (so TRENDS
+        // is no longer required to start after KPI completes — only after HEADLINE).
+        // RISKS lives in stage 2 and must come after BOTH KPI and TRENDS complete.
+        expect(kpiStarted).toBeGreaterThan(headlineCompleted);
         expect(trendsStarted).toBeGreaterThan(headlineCompleted);
-        expect(trendsStarted).toBeGreaterThan(kpiCompleted);
+        const kpiCompleted = eventSeq.indexOf('section-completed:KPI');
+        const trendsCompleted = eventSeq.indexOf('section-completed:TRENDS');
+        expect(risksStarted).toBeGreaterThan(kpiCompleted);
+        expect(risksStarted).toBeGreaterThan(trendsCompleted);
     });
 
     test('an explicit schedule is honoured verbatim (callers can pin custom stages)', async () => {

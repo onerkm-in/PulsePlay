@@ -52,12 +52,13 @@ function makeIR(sectionIds) {
 // ---------- DEFAULT_SCHEDULE shape ------------------------------------------
 
 describe('DEFAULT_SCHEDULE', () => {
-    test('is frozen and matches the docs lock (head=HEADLINE+KPI with 2000ms spread, then TRENDS+RISKS, then RECOMMENDED_ACTIONS+OPPORTUNITIES)', () => {
+    test('is frozen and matches the docs lock (HEADLINE alone first, then KPI+TRENDS with 2000ms spread, then RISKS+RECOMMENDED_ACTIONS, then OPPORTUNITIES)', () => {
         expect(Object.isFrozen(DEFAULT_SCHEDULE)).toBe(true);
         expect(DEFAULT_SCHEDULE).toEqual([
-            { sections: ['HEADLINE', 'KPI'], spreadMs: 2000 },
-            { sections: ['TRENDS', 'RISKS'], spreadMs: 0 },
-            { sections: ['RECOMMENDED_ACTIONS', 'OPPORTUNITIES'], spreadMs: 0 },
+            { sections: ['HEADLINE'], spreadMs: 0 },
+            { sections: ['KPI', 'TRENDS'], spreadMs: 2000 },
+            { sections: ['RISKS', 'RECOMMENDED_ACTIONS'], spreadMs: 0 },
+            { sections: ['OPPORTUNITIES'], spreadMs: 0 },
         ]);
     });
 });
@@ -77,13 +78,34 @@ describe('buildDefaultSchedule', () => {
         ]);
     });
 
-    test('two sections → one head stage with default 2000ms spread', () => {
+    test('two sections (no HEADLINE) → one head stage with default 2000ms spread', () => {
         expect(buildDefaultSchedule(['A', 'B'])).toEqual([
             { sections: ['A', 'B'], spreadMs: 2000 },
         ]);
     });
 
-    test('six sections → head of 2 with spread, then 2 stages of 2 with no spread', () => {
+    test('HEADLINE present → hoisted alone into stage 0, rest paired', () => {
+        expect(buildDefaultSchedule(['HEADLINE', 'KPI', 'TRENDS', 'RISKS'])).toEqual([
+            { sections: ['HEADLINE'], spreadMs: 0 },
+            { sections: ['KPI', 'TRENDS'], spreadMs: 2000 },
+            { sections: ['RISKS'], spreadMs: 0 },
+        ]);
+    });
+
+    test('HEADLINE not first → still hoisted to stage 0', () => {
+        expect(buildDefaultSchedule(['KPI', 'HEADLINE', 'TRENDS'])).toEqual([
+            { sections: ['HEADLINE'], spreadMs: 0 },
+            { sections: ['KPI', 'TRENDS'], spreadMs: 2000 },
+        ]);
+    });
+
+    test('HEADLINE alone → single stage of 1, no spread', () => {
+        expect(buildDefaultSchedule(['HEADLINE'])).toEqual([
+            { sections: ['HEADLINE'], spreadMs: 0 },
+        ]);
+    });
+
+    test('six sections (no HEADLINE) → head of 2 with spread, then 2 stages of 2 with no spread', () => {
         expect(buildDefaultSchedule(['A', 'B', 'C', 'D', 'E', 'F'])).toEqual([
             { sections: ['A', 'B'], spreadMs: 2000 },
             { sections: ['C', 'D'], spreadMs: 0 },
@@ -91,7 +113,7 @@ describe('buildDefaultSchedule', () => {
         ]);
     });
 
-    test('odd tail → final stage carries the lone section', () => {
+    test('odd tail (no HEADLINE) → final stage carries the lone section', () => {
         expect(buildDefaultSchedule(['A', 'B', 'C'])).toEqual([
             { sections: ['A', 'B'], spreadMs: 2000 },
             { sections: ['C'], spreadMs: 0 },
@@ -207,9 +229,10 @@ describe('orchestrate — happy path with default schedule', () => {
         const completed = events.filter(e => e.kind === 'section-completed').map(e => e.sectionId);
         expect(completed.sort()).toEqual(['HEADLINE', 'KPI', 'RISKS', 'TRENDS']);
 
-        // HEADLINE result is null for HEADLINE itself, populated for later stage sections.
+        // HEADLINE result is null for HEADLINE itself; every later-stage section now
+        // sees HEADLINE's result because HEADLINE renders alone in stage 0.
         expect(seenHeadlineResults.HEADLINE).toBeNull();
-        expect(seenHeadlineResults.KPI).toBeNull(); // same stage, no HEADLINE yet
+        expect(seenHeadlineResults.KPI).toEqual({ text: 'headline 0.91' });
         expect(seenHeadlineResults.TRENDS).toEqual({ text: 'headline 0.91' });
         expect(seenHeadlineResults.RISKS).toEqual({ text: 'headline 0.91' });
     });
@@ -272,7 +295,9 @@ describe('orchestrate — stage sequencing', () => {
 
     test('within a stage, spreadMs shifts the SECOND section start by spreadMs (user-amended head schedule)', async () => {
         const clock = fakeClock();
-        const ir = makeIR(['HEADLINE', 'KPI']);
+        // HEADLINE is now hoisted to stage 0 alone; KPI + TRENDS pair up in stage 1
+        // and that's where the 2000 ms head spread now applies.
+        const ir = makeIR(['HEADLINE', 'KPI', 'TRENDS']);
         const startedAt = {};
         await collect(orchestrate({
             ir,
@@ -283,9 +308,12 @@ describe('orchestrate — stage sequencing', () => {
             now: clock.now,
             sleep: clock.sleep,
         }));
-        // HEADLINE starts at t=0; KPI starts at t=2000 (default head spread).
+        // HEADLINE starts at t=0 (stage 0, alone).
+        // KPI starts at t=0 (first section of stage 1).
+        // TRENDS starts at t=2000 (second section of stage 1, default head spread).
         expect(startedAt.HEADLINE).toBe(0);
-        expect(startedAt.KPI).toBe(2000);
+        expect(startedAt.KPI).toBe(0);
+        expect(startedAt.TRENDS).toBe(2000);
     });
 
     test('within a stage with spreadMs=0, both sections start in the same tick', async () => {

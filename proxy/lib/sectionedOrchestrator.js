@@ -20,18 +20,22 @@
  * lets the endpoint wire the real Genie / Foundation Model translators in
  * without bleeding their concerns into the orchestrator core.
  *
- * Schedule shape (user-amended for Phase D, 2026-05-20):
+ * Schedule shape (user-amended 2026-05-20: HEADLINE alone first):
  *   [
- *     { sections: ['HEADLINE', 'KPI'],                       spreadMs: 2000 },
- *     { sections: ['TRENDS', 'RISKS'],                       spreadMs: 0    },
- *     { sections: ['RECOMMENDED_ACTIONS', 'OPPORTUNITIES'],  spreadMs: 0    },
+ *     { sections: ['HEADLINE'],                              spreadMs: 0    },
+ *     { sections: ['KPI', 'TRENDS'],                         spreadMs: 2000 },
+ *     { sections: ['RISKS', 'RECOMMENDED_ACTIONS'],          spreadMs: 0    },
+ *     { sections: ['OPPORTUNITIES'],                         spreadMs: 0    },
  *   ]
  *
  *   • Stage N waits for ALL sections in stage N-1 to complete (or fail)
- *     before any section in stage N starts.
+ *     before any section in stage N starts. HEADLINE running alone in
+ *     stage 0 guarantees later sections see its result in the shared
+ *     conversation context (Genie reuses the same `conversation_id`
+ *     across all section calls).
  *   • Within a stage, sections start concurrently but are shifted by
  *     `spreadMs` between starts (so the LLM backend isn't hit with a
- *     thundering herd on stage 0).
+ *     thundering herd).
  *   • `spreadMs=0` means all sections in the stage start in the same tick.
  *
  * Event vocabulary (matches docs/STAGED_RENDERING.md):
@@ -63,18 +67,24 @@
  */
 
 const DEFAULT_SCHEDULE = Object.freeze([
-    { sections: ['HEADLINE', 'KPI'], spreadMs: 2000 },
-    { sections: ['TRENDS', 'RISKS'], spreadMs: 0 },
-    { sections: ['RECOMMENDED_ACTIONS', 'OPPORTUNITIES'], spreadMs: 0 },
+    { sections: ['HEADLINE'], spreadMs: 0 },
+    { sections: ['KPI', 'TRENDS'], spreadMs: 2000 },
+    { sections: ['RISKS', 'RECOMMENDED_ACTIONS'], spreadMs: 0 },
+    { sections: ['OPPORTUNITIES'], spreadMs: 0 },
 ]);
 
 const SPREAD_MAX_MS = 30_000;
 
 /**
  * Build a default schedule from the IR's `output.sections[]` when no
- * explicit schedule is supplied. Pattern: first 2 with 2000 ms spread,
- * then 2 at a time with no spread. Sections beyond what the schedule
- * covers fall into a tail stage of 2 each.
+ * explicit schedule is supplied. Pattern:
+ *   • If HEADLINE is present, it ALWAYS occupies stage 0 alone so
+ *     downstream sections can rely on its result being already in the
+ *     shared conversation context. Remaining sections are then paired
+ *     2-at-a-time, with `headSpreadMs` between the first pair's starts
+ *     (default 2000 ms) and 0 ms thereafter.
+ *   • If HEADLINE is absent, the legacy behaviour applies: first stage
+ *     of up to 2 with `headSpreadMs` spread, then 2-at-a-time.
  *
  * @param {string[]} sectionIds
  * @param {{ headSpreadMs?: number }} [opts]
@@ -89,16 +99,33 @@ function buildDefaultSchedule(sectionIds, opts = {}) {
 
     /** @type {Stage[]} */
     const stages = [];
-    let cursor = 0;
-    // Stage 0 is the "head" stage with up to 2 sections, spread out.
-    const head = ids.slice(cursor, cursor + 2);
-    cursor += head.length;
-    stages.push({ sections: head, spreadMs: head.length > 1 ? headSpread : 0 });
+    let rest = ids.slice();
+
+    // If HEADLINE is in the list, hoist it into its own stage 0 so the
+    // rest of the sections execute AFTER it lands (and inherit its
+    // result via the shared conversation_id).
+    const headlineIdx = rest.indexOf('HEADLINE');
+    if (headlineIdx >= 0) {
+        rest.splice(headlineIdx, 1);
+        stages.push({ sections: ['HEADLINE'], spreadMs: 0 });
+        // First post-HEADLINE pair gets the head spread.
+        if (rest.length > 0) {
+            const firstPair = rest.slice(0, 2);
+            rest = rest.slice(firstPair.length);
+            stages.push({ sections: firstPair, spreadMs: firstPair.length > 1 ? headSpread : 0 });
+        }
+    } else {
+        // Legacy: head stage of up to 2 with spread.
+        const head = rest.slice(0, 2);
+        rest = rest.slice(head.length);
+        stages.push({ sections: head, spreadMs: head.length > 1 ? headSpread : 0 });
+    }
+
     // Remaining stages: 2-at-a-time, no spread.
-    while (cursor < ids.length) {
-        const batch = ids.slice(cursor, cursor + 2);
+    while (rest.length > 0) {
+        const batch = rest.slice(0, 2);
         stages.push({ sections: batch, spreadMs: 0 });
-        cursor += batch.length;
+        rest = rest.slice(batch.length);
     }
     return stages;
 }
