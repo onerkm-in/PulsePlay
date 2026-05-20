@@ -3208,16 +3208,9 @@ app.get('/assistant/conversations/:conversationId/messages/:messageId', async (r
         // string; POST routes on the body. Either path is parsed defensively
         // — non-numeric / out-of-range values fall through to the env default
         // inside maybeValidateGeniePollResponse.
-        const parsedClientRetries = (() => {
-            const fromQuery = req.query?.maxValidationRetries;
-            if (typeof fromQuery === 'string' && fromQuery.length > 0) {
-                const n = parseInt(fromQuery, 10);
-                if (Number.isFinite(n)) return n;
-            }
-            const fromBody = req.body?.maxValidationRetries;
-            if (typeof fromBody === 'number' && Number.isFinite(fromBody)) return fromBody;
-            return null;
-        })();
+        // Cycle 17 — extracted to parseClientMaxRetries() so the OpenAI
+        // analytics and Bedrock-direct routes share the same logic.
+        const parsedClientRetries = parseClientMaxRetries(req);
         await maybeValidateGeniePollResponse({
             data, actualProfile, targetSpaceId, conversationId,
             requestId: req.headers['x-request-id'],
@@ -4890,10 +4883,27 @@ app.get('/openai/health', (req, res) => {
     res.json({ ok: true, model: resolved.profile.azureOpenAiDeployment || 'gpt-4o' });
 });
 
+// Cycle 17 (2026-05-20) — shared per-request retry-override extractor.
+// Used by the Genie poll path (maybeValidateGeniePollResponse) AND the
+// analytics-orchestrator routes (OpenAI analytics + Bedrock-direct) so
+// the Settings "Validation retries" lever flows identically into every
+// validation budget. Returns `null` when no usable value is present,
+// which lets the budget resolver fall back to the env baseline.
+function parseClientMaxRetries(req) {
+    const fromQuery = req?.query?.maxValidationRetries;
+    if (typeof fromQuery === 'string' && fromQuery.length > 0) {
+        const n = parseInt(fromQuery, 10);
+        if (Number.isFinite(n)) return n;
+    }
+    const fromBody = req?.body?.maxValidationRetries;
+    if (typeof fromBody === 'number' && Number.isFinite(fromBody)) return fromBody;
+    return null;
+}
+
 // IDEA-040 Phase 2 — shared analytics-mode entry point used by both the
 // OpenAI route and the Bedrock-direct route. Wraps the orchestrator with
 // retry-on-bad-SQL and auto-introspection-when-missing.
-async function runAnalyticsOrchestrator({ profile, content, callLlm, convId, msgId, packContext }) {
+async function runAnalyticsOrchestrator({ profile, content, callLlm, convId, msgId, packContext, clientMaxRetries }) {
     const { orchestrateGroundedAnswer, withRetryOnBadSql } = require('./lib/llmOrchestrator');
 
     // Resolve schema context: explicit profile.schemaContext wins; otherwise
@@ -4917,6 +4927,11 @@ async function runAnalyticsOrchestrator({ profile, content, callLlm, convId, msg
         // Cycle C — forward optional pack-context to the LLM orchestrator so
         // SQL + narrative system prompts both pick up sub-vertical vocabulary.
         packContext,
+        // Cycle 17 (2026-05-20) — forward client-supplied validation-retry
+        // override so the orchestrator's server-side narrative validator
+        // honors the Settings "Validation retries" lever symmetrically with
+        // the Genie poll path. null/undefined falls through to env baseline.
+        clientMaxRetries,
     };
 
     // Retry-on-bad-SQL is opt-out: profile.disableSqlRetry === true skips it.
@@ -4984,9 +4999,15 @@ app.post('/openai/conversations/start', async (req, res) => {
                     usage: _sanitizeUsageBlock(data?.usage),
                 };
             };
+            // Cycle 17 — extract per-request validation-retry override symmetrically
+            // with the Genie poll path. Accept either ?maxValidationRetries=N (query)
+            // or { maxValidationRetries: N } (body). Out-of-range / non-numeric values
+            // fall through to env baseline inside the orchestrator.
+            const parsedClientRetries = parseClientMaxRetries(req);
             const { result, retried, attempts } = await runAnalyticsOrchestrator({
                 profile: resolved.profile, content, callLlm, convId, msgId,
                 packContext: packResolved.resolved ? packResolved.content : null,
+                clientMaxRetries: parsedClientRetries,
             });
             // Pack the COMPLETED response into message_id so the visual's
             // waitForMessageWithProgress() path returns immediately (matches
@@ -5220,9 +5241,12 @@ app.post('/bedrock/conversations/start', async (req, res) => {
                 });
                 return { content, usage: capturedUsage };
             };
+            // Cycle 17 — symmetric per-request validation-retry override.
+            const parsedClientRetries = parseClientMaxRetries(req);
             const { result, retried, attempts } = await runAnalyticsOrchestrator({
                 profile: resolved.profile, content, callLlm, convId, msgId,
                 packContext: packResolved.resolved ? packResolved.content : null,
+                clientMaxRetries: parsedClientRetries,
             });
             const responsePayload = {
                 conversation_id: convId,

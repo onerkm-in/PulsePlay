@@ -26,6 +26,7 @@ import { probeConnector } from "../../lib/probeClient";
 import { useDatabricksCapabilities } from "../../lib/databricksCapabilities";
 import { listMetricViews, type MetricViewSummary } from "../../lib/databricksAssets";
 import type { ConnectorProbeResult } from "../../types/probe";
+import { navigateToPowerBiQna } from "../../powerbi/PowerBiQnARoute";
 import {
     usePulseAiVisualSettings,
     type PulseAiVisualSettings,
@@ -129,6 +130,11 @@ export function AiGroup(): React.ReactElement {
 
     const isSupervisor =
         !!activeProfileMeta && (activeProfileMeta.type === "supervisor" || activeProfileMeta.type === "supervisor-local");
+    // Cycle 17 — surface a launch button to /powerbi/qna when the active
+    // assistant is a Power BI semantic-model profile. Route + token-mint
+    // landed in cycle 15.5; this just exposes the entry point.
+    const isPowerBiSemanticModel =
+        !!activeProfileMeta && activeProfileMeta.type === "powerbi-semantic-model";
     const vectorSearchDetail = databricksCapabilities.details.vectorSearch;
     const vectorSearchReady = databricksCapabilities.capabilities.vectorSearch === true && (vectorSearchDetail?.count || 0) > 0;
 
@@ -237,6 +243,147 @@ export function AiGroup(): React.ReactElement {
                 )}
                 {activeAiProfile && isSupervisor && activeProfileMeta?.spaces && (
                     <SupervisorProbeMatrix spaces={activeProfileMeta.spaces} />
+                )}
+            </Leaf>
+
+            {/* ── Power BI Q&A launch (cycle 17, always rendered) ──────────
+              * Opens the full-page Q&A surface (Microsoft's NLP layer over
+              * the dataset) at /powerbi/qna. The proxy mints the
+              * dataset-scoped embed token; PulsePlay makes zero LLM calls
+              * on this path.
+              *
+              * 2026-05-20 follow-up — the leaf now ALWAYS renders so users
+              * can see the option exists. The launch button is enabled
+              * only when the active profile is `powerbi-semantic-model`;
+              * otherwise the button is disabled with a hint to switch
+              * profile. This matches the "configure all technically
+              * feasible / surface what's possible" UX principle and fixes
+              * the dead-anchor bug where the rail entry led nowhere.
+              */}
+            <Leaf
+                group="ai"
+                label="Power BI Q&A"
+                helper={
+                    isPowerBiSemanticModel
+                        ? "Open Microsoft's natural-language Q&A surface bound to this dataset. The token mint stays server-side; PulsePlay makes no LLM call on this path."
+                        : "Microsoft's natural-language Q&A surface over a Power BI dataset. Available when the active assistant profile is a Power BI semantic-model connector. The token mint stays server-side; PulsePlay would make zero LLM calls on this path."
+                }
+            >
+                {isPowerBiSemanticModel ? (
+                    <button
+                        type="button"
+                        onClick={() => navigateToPowerBiQna()}
+                        data-action="open-powerbi-qna"
+                        style={{
+                            padding: "8px 16px",
+                            fontSize: 13,
+                            fontWeight: 600,
+                            border: "1px solid var(--pp-border, rgba(0,0,0,0.18))",
+                            background: "var(--pp-accent, #f3b5e3)",
+                            color: "var(--pp-accent-fg, #211322)",
+                            borderRadius: 4,
+                            cursor: "pointer",
+                        }}
+                    >
+                        Open Power BI Q&amp;A →
+                    </button>
+                ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        <button
+                            type="button"
+                            disabled
+                            data-action="open-powerbi-qna"
+                            data-state="disabled-wrong-profile"
+                            title="Switch to a Power BI semantic-model profile to enable"
+                            style={{
+                                padding: "8px 16px",
+                                fontSize: 13,
+                                fontWeight: 600,
+                                border: "1px solid var(--pp-border, rgba(0,0,0,0.18))",
+                                background: "var(--pp-disabled-bg, rgba(0,0,0,0.05))",
+                                color: "var(--pp-disabled-fg, rgba(0,0,0,0.45))",
+                                borderRadius: 4,
+                                cursor: "not-allowed",
+                                opacity: 0.65,
+                                alignSelf: "flex-start",
+                            }}
+                        >
+                            Open Power BI Q&amp;A →
+                        </button>
+                        <div style={{ fontSize: 12, opacity: 0.75 }}>
+                            Active profile <strong>{activeProfileMeta?.displayName || activeProfileMeta?.name || "(none)"}</strong>
+                            {activeProfileMeta?.type ? ` (type: ${activeProfileMeta.type})` : ""}
+                            {" "}is not a <code>powerbi-semantic-model</code> connector. The connector code is built-in;
+                            it just needs a profile in <code>proxy/config.json</code>. Steps:
+                        </div>
+                        <ol style={{ margin: "0 0 0 18px", padding: 0, fontSize: 12, opacity: 0.75, lineHeight: 1.55 }}>
+                            <li>Azure AD: create an app registration + client secret.</li>
+                            <li>Power BI: add the service principal as a workspace Member; enable <em>Service principals can use Power BI APIs</em> in the admin portal.</li>
+                            <li>Paste the snippet below into <code>proxy/config.json</code> under <code>profiles</code>, fill in the four GUIDs, restart <code>node server.js</code>, then pick the new profile under <strong>Provider</strong> above.</li>
+                        </ol>
+                        <details>
+                            <summary style={{ fontSize: 12, fontWeight: 600, cursor: "pointer", opacity: 0.85 }}>
+                                Show example profile JSON →
+                            </summary>
+                            <pre
+                                data-action="powerbi-qna-config-snippet"
+                                style={{
+                                    marginTop: 8,
+                                    padding: 10,
+                                    fontSize: 11,
+                                    fontFamily: "Consolas, 'Cascadia Mono', monospace",
+                                    background: "var(--pp-code-bg, rgba(0,0,0,0.04))",
+                                    border: "1px solid var(--pp-border, rgba(0,0,0,0.12))",
+                                    borderRadius: 4,
+                                    whiteSpace: "pre",
+                                    overflowX: "auto",
+                                }}
+                            >{`"powerbi_sales_dataset": {
+  "type": "powerbi-semantic-model",
+  "displayName": "Power BI: Sales Semantic Model",
+  "dataDomain": "Sales performance",
+  "aadTenantId": "YOUR_AAD_TENANT_GUID",
+  "aadClientId": "YOUR_SERVICE_PRINCIPAL_CLIENT_ID",
+  "aadClientSecret": "YOUR_SERVICE_PRINCIPAL_CLIENT_SECRET",
+  "powerbiGroupId": "YOUR_POWERBI_WORKSPACE_GUID",
+  "powerbiDatasetId": "YOUR_POWERBI_DATASET_GUID"
+}`}</pre>
+                            <button
+                                type="button"
+                                data-action="copy-powerbi-qna-snippet"
+                                onClick={async (e) => {
+                                    const pre = (e.currentTarget.parentElement as HTMLElement | null)?.querySelector(
+                                        '[data-action="powerbi-qna-config-snippet"]',
+                                    );
+                                    const text = pre?.textContent || "";
+                                    try {
+                                        await navigator.clipboard.writeText(text);
+                                        e.currentTarget.textContent = "Copied ✓";
+                                        setTimeout(() => {
+                                            if (e.currentTarget) e.currentTarget.textContent = "Copy snippet";
+                                        }, 1500);
+                                    } catch {
+                                        e.currentTarget.textContent = "Copy failed — select and ⌘C";
+                                    }
+                                }}
+                                style={{
+                                    marginTop: 6,
+                                    padding: "4px 10px",
+                                    fontSize: 12,
+                                    border: "1px solid var(--pp-border, rgba(0,0,0,0.18))",
+                                    background: "var(--pp-bg, white)",
+                                    borderRadius: 4,
+                                    cursor: "pointer",
+                                }}
+                            >
+                                Copy snippet
+                            </button>
+                            <div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>
+                                Full reference + RLS options in <code>proxy/config.example.json</code>
+                                {" "}and <code>docs/PROXY_REFERENCE.md</code>. Q&A surface mounts at <code>/powerbi/qna</code> once the profile is wired.
+                            </div>
+                        </details>
+                    </div>
                 )}
             </Leaf>
 
