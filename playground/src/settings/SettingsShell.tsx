@@ -81,7 +81,38 @@ export const GROUP_LEAF_LABELS: Record<SettingsGroupId, string[]> = {
     // group label + description.
     setup: [],
     bi: ["Provider", "Embed", "Authentication", "Canvas", "Status", "Governance"],
-    ai: ["Connector catalogue", "Model / Agent", "Knowledge pack", "Knowledge Base", "Vector Search KB", "Connection test", "Power BI Q&A", "Response behavior", "Supervisor Fusion", "UC Metric View", "Browse library"],
+    // 2026-05-20 cycle 20.1 follow-up — order MUST mirror the visual sequence
+    // in groups/AiGroup.tsx so clicking a rail item scrolls to the matching
+    // anchor in the main panel. Previous order interleaved Assistant-tier
+    // leaves with Shared-context leaves which made the rail feel random.
+    // Actual rendered order today:
+    //   §Connector catalogue (SubSection)
+    //   §Assistant
+    //     Model / Agent → Connection test → (Power BI Q&A when active is PBI)
+    //   §Shared context
+    //     Knowledge pack → Vector Search KB → UC Metric View → Browse library
+    //   §Response behavior
+    //     Response behavior
+    //   §Surface-specific behavior
+    //     Supervisor Fusion → Knowledge Base
+    ai: [
+        "Connector catalogue",
+        "Model / Agent",
+        "Connection test",
+        "Power BI Q&A",
+        "Knowledge pack",
+        "Vector Search KB",
+        "UC Metric View",
+        "Browse library",
+        "Response behavior",
+        "Supervisor Fusion",
+        "Knowledge Base",
+    ],
+    // Canvas tiles intentionally LAST (under "Display policy" SubSection).
+    // PreferencesGroup.tsx renders: Mode → Layout → MixCompositionPanel
+    // (AI surfaces / Research Agent / Managed agent / BI composition)
+    // → Display policy (Canvas tiles). Mix panel sits between Layout and
+    // Display policy — Canvas tiles is the FINAL leaf.
     preferences: [
         "UI mode",
         "Layout preset",
@@ -148,6 +179,20 @@ export function SettingsShell(): React.ReactElement {
                 target.scrollIntoView({ behavior: "smooth", block: "start" });
                 target.setAttribute("data-leaf-just-scrolled", "true");
                 setTimeout(() => target.removeAttribute("data-leaf-just-scrolled"), 2000);
+                return;
+            }
+            // 2026-05-20 cycle 20.1 — fallback for conditional leaves. Some
+            // rail entries (e.g. "Power BI Q&A") map to a Leaf that only
+            // renders for specific active profiles; when the Leaf isn't in
+            // the DOM, scroll-to-anchor would silently no-op, leaving the
+            // user on whatever section was previously visible. Fall back to
+            // the Connector catalogue SubSection so they at least land on a
+            // surface that lets them configure the connector.
+            const catalogue = document.getElementById(`settings-${route.group}-connector-catalogue`);
+            if (catalogue) {
+                catalogue.scrollIntoView({ behavior: "smooth", block: "start" });
+                catalogue.setAttribute("data-leaf-just-scrolled", "true");
+                setTimeout(() => catalogue.removeAttribute("data-leaf-just-scrolled"), 2000);
             }
         });
         return () => window.cancelAnimationFrame(id);
