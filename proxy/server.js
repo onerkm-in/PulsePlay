@@ -3055,11 +3055,13 @@ async function maybeValidateGeniePollResponse({ data, actualProfile, targetSpace
     // precedence when provided (clamped 0-3); otherwise fall back to the
     // deployer's `GENIE_POLL_VALIDATE_RETRIES` env-var default. Lets the
     // Settings → Performance UI raise or lower retries per session without
-    // re-deploying the proxy.
-    const envBudget = Math.max(0, Math.min(3, parseInt(process.env.GENIE_POLL_VALIDATE_RETRIES || '0', 10) || 0));
-    const retryBudget = (typeof clientMaxRetries === 'number' && Number.isFinite(clientMaxRetries))
-        ? Math.max(0, Math.min(3, Math.floor(clientMaxRetries)))
-        : envBudget;
+    // re-deploying the proxy. Logic extracted to lib/validationRetryBudget.js
+    // so the resolution rules can be unit-tested directly.
+    const { resolveBudget } = require('./lib/validationRetryBudget');
+    const retryBudget = resolveBudget({
+        envValue: process.env.GENIE_POLL_VALIDATE_RETRIES,
+        clientValue: clientMaxRetries,
+    });
     if (retryBudget === 0) return;
 
     let validator;
