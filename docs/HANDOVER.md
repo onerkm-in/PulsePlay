@@ -5,6 +5,33 @@
 
 ---
 
+## 2026-05-20 — Cycle 9: Phase E client-side staged reveal for Genie single-shot answers
+
+**Scope.** Rajesh observed Pulse Insights rendering the full Genie answer at once (screenshot). Asked for the same "1 then 2-each every 10s" cadence Phase D ships for FM, but layered onto the EXISTING Genie message id without re-querying. This is a pure-cosmetic pacing pass — no extra LLM calls, no extra cost.
+
+**E.1 — pure schedule module ([commit `b3412c8`](.))**
+- New `playground/src/pulse/state/stagedReveal.ts`: `DEFAULT_REVEAL_SCHEDULE` (HEADLINE@0, KPI+TRENDS@10s, RISKS+ACTIONS@20s, OPPORTUNITIES@30s), `computeRevealState`, `nextRevealTickMs`, `validateSchedule`.
+- Custom-Adjust safety: sections present in the parsed content but NOT named in any stage are revealed unconditionally so SWOT / STRENGTHS / etc. never get stuck hidden.
+- Stage pruning: stages whose sections aren't present in the parsed content are dropped from `totalStages` (no phantom future pills).
+- 17 vitest cases covering cadence + composition + edge cases.
+
+**E.2 — wire into Pulse Insights ([commit `39f7e43`](.))**
+- `InsightsRenderOptions.revealedSectionTitles?: Set<string> | null` — when present, sections not in the set render as `InsightsSectionPlaceholder` (status=pending) so the briefing SHAPE is preserved during the reveal.
+- `App` component: per-space `contentArrivedAtRef`, `reducedMotionRef`, `revealTick` state, `parsedSectionTitlesForReveal` memo, `revealState` memo (recomputes on revealTick), scheduled `setTimeout` to bump revealTick at each stage boundary, reset-on-busy effect.
+- Stage progression strip above the briefing render — done/current/pending pills with `· next in Ns` countdown. Driven from `revealProgress.stageProgress` so what the user SEES exactly matches the schedule.
+- Settings: `insightsStagedRevealEnabled: boolean` (default true) added to Pulse settings + PulseAi store + the AI Insights settings card.
+- Reduced-motion: `prefers-reduced-motion: reduce` → return null reveal state → every section renders instantly.
+
+**Validation.** tsc clean, 1059/1059 vitest (was 1042 + 17 new), playground build green, proxy untouched (787/787 from prior run still valid).
+
+**Tripwires for next session.**
+- The reveal kicks in only after `insightsResult.status === "DONE"` AND content is non-empty AND a space-specific arrival stamp has been recorded — during in-flight RUNNING the existing skeleton-grid path already paces things.
+- Schedule lives in `playground/src/pulse/state/stagedReveal.ts`. To tweak cadence, edit `DEFAULT_REVEAL_SCHEDULE` (and the cadence tests in `__tests__/stagedReveal.test.ts`). DON'T silently mutate without bumping the test expectations.
+- Stage strip uses `data-stage-index` + `data-stage-status` for any future smoke-test hooks.
+- Pulse-PBI compat: changes are additive. New setting defaults true in PulsePlay; sibling Pulse-PBI can opt out via the same setting if needed.
+
+---
+
 ## 2026-05-20 — Cycle 8: Phase D staged "1-then-3" rendering (beast-mode, full slice)
 
 **Scope:** Implement the staged section-by-section render path end-to-end — orchestrator + SSE endpoint + UI primitive + selective re-run. Plugin-agnostic by design: connector-axis stays FM-only for v1 (Genie path follow-up), vendor-axis untouched (this is the AI-render plane). User amended the original "1 then 3" schedule to "head 2 (first now, second after 2s) then 2-each batches" — encoded in `DEFAULT_SCHEDULE`.
