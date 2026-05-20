@@ -209,8 +209,18 @@ export function PulseShell(props: PulseShellProps) {
                 height: "100%",
                 minWidth: 0,
                 minHeight: 600,
-                overflowY: "auto",
-                overflowX: "hidden",
+                // 2026-05-20 dual-scrollbar fix: Pulse's own panes (e.g.
+                // `.gn-insights-pane`, `.gn-chat-area`) already manage their
+                // internal scroll via `overflow-y: auto`. When we ALSO
+                // declared `overflowY: auto` here, the host wrapper showed a
+                // second scrollbar stacked on the right of the Pulse pane's
+                // own — a visible double-rail. PulsePlay hosts Pulse at
+                // top-level origin (not the constrained PBI Desktop sandbox)
+                // so we don't need an outer safety scroller; let Pulse's
+                // internal panes own scrolling. `overflowX: hidden` stays to
+                // contain any rogue horizontal layout from the iframe-shaped
+                // visual.tsx render.
+                overflow: "hidden",
                 position: "relative",
             }}
         />
