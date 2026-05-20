@@ -45,6 +45,64 @@ const PACKS_RESPONSE = {
     ],
 };
 
+// Cycle 20 — the Connector catalogue now hosts profile selection; the
+// AiGroup test must mock /api/assistant/connector-types so the catalogue
+// renders + clicking a configured-profile button activates that profile.
+const CONNECTOR_TYPES_RESPONSE = {
+    manifests: [
+        {
+            id: "genie",
+            version: "1.0.0",
+            displayName: "Databricks Genie",
+            tagline: "NL Q&A over Genie spaces",
+            description: "Genie",
+            icon: "genie",
+            category: "databricks",
+            maturity: "stable",
+            profileType: "genie",
+            profileTypes: ["genie"],
+            capabilities: { llm: true },
+            profileSchema: { spaceId: { kind: "guid", required: true, label: "Space ID" } },
+            setupSteps: ["create"],
+            docsUrl: "https://docs.databricks.com",
+            routes: [{ method: "POST", path: "/x", purpose: "conversation-start" }],
+        },
+        {
+            id: "supervisor-local",
+            version: "1.0.0",
+            displayName: "Supervisor — Local Fan-Out",
+            tagline: "Proxy-side fan-out",
+            description: "Local supervisor",
+            icon: "sup-local",
+            category: "databricks",
+            maturity: "beta",
+            profileType: "supervisor-local",
+            profileTypes: ["supervisor-local"],
+            capabilities: { llm: true, multiHelper: true },
+            profileSchema: { spaces: { kind: "json", required: true, label: "Spaces" } },
+            setupSteps: ["configure"],
+            docsUrl: "https://docs.databricks.com",
+            routes: [{ method: "POST", path: "/sup", purpose: "conversation-start" }],
+        },
+    ],
+    runtime: {
+        genie: {
+            loadStatus: "loaded",
+            configuredProfiles: [{
+                name: "default", valid: true, warnings: [],
+                source: "config.json", secretStatus: "present", legacyCombined: false,
+            }],
+        },
+        "supervisor-local": {
+            loadStatus: "loaded",
+            configuredProfiles: [{
+                name: "supervisor", valid: true, warnings: [],
+                source: "config.json", secretStatus: "present", legacyCombined: false,
+            }],
+        },
+    },
+};
+
 let capabilitiesResponse: Record<string, unknown>;
 
 beforeEach(() => {
@@ -83,6 +141,9 @@ beforeEach(() => {
         if (url.includes("/api/assistant/capabilities")) {
             return new Response(JSON.stringify(capabilitiesResponse), { status: 200 });
         }
+        if (url.endsWith("/api/assistant/connector-types")) {
+            return new Response(JSON.stringify(CONNECTOR_TYPES_RESPONSE), { status: 200 });
+        }
         return new Response("not found", { status: 404 });
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -120,46 +181,68 @@ async function flushAll(): Promise<void> {
     });
 }
 
+// Cycle 20 update: profile selection moved from the legacy ProviderPicker
+// (inside the Assistant tier) to the Connector catalogue's brand cards.
+// Each card surfaces its configured profiles as click-to-activate buttons.
+// Tests now drive selection through the catalogue.
+function findCatalogueProfileButton(container: HTMLElement, profileName: string): HTMLButtonElement | null {
+    return container.querySelector<HTMLButtonElement>(
+        `[data-action="pick-profile"][data-profile-name="${profileName}"]`,
+    );
+}
+
 describe("AiGroup — Phase 4 wiring", () => {
-    it("renders Provider picker with both allowed profiles", async () => {
+    it("renders both allowed profiles via the Connector catalogue cards", async () => {
         const state = mount();
         await flushAll();
-        expect(state.container.textContent || "").toContain("Default helper");
-        expect(state.container.textContent || "").toContain("PulsePlay Supervisor");
+        // Click '+ Show all' to expand to all manifests (default view shows
+        // only configured ones; both our profiles are configured so they
+        // render in the compact view too, but expand makes the assertion
+        // robust against future catalogue filter tweaks).
+        const text = state.container.textContent || "";
+        // Profile names appear in the configured-profile buttons:
+        expect(findCatalogueProfileButton(state.container, "default")).not.toBeNull();
+        expect(findCatalogueProfileButton(state.container, "supervisor")).not.toBeNull();
+        // Connector card display names:
+        expect(text).toContain("Databricks Genie");
+        expect(text).toContain("Supervisor — Local Fan-Out");
         unmount(state);
     });
 
-    it("shows a Supervisor badge on supervisor profiles", async () => {
+    it("shows a Supervisor connector card in the catalogue", async () => {
         const state = mount();
         await flushAll();
-        // Badge text: "Supervisor · 2 spaces"
-        expect(state.container.textContent || "").toMatch(/Supervisor · 2 spaces/);
+        // The supervisor-local card renders with its tagline visible.
+        const text = state.container.textContent || "";
+        expect(text).toContain("Supervisor — Local Fan-Out");
+        // And exposes the configured profile button for activation.
+        expect(findCatalogueProfileButton(state.container, "supervisor")).not.toBeNull();
         unmount(state);
     });
 
-    it("selecting a Supervisor profile reveals the fan-out table", async () => {
+    it("selecting the supervisor profile via the catalogue reveals the fan-out table", async () => {
         const state = mount();
         await flushAll();
-        const supervisorBtn = Array.from(state.container.querySelectorAll<HTMLButtonElement>("button"))
-            .find(b => (b.textContent || "").includes("PulsePlay Supervisor"));
-        expect(supervisorBtn).toBeDefined();
+        const supervisorBtn = findCatalogueProfileButton(state.container, "supervisor");
+        expect(supervisorBtn).not.toBeNull();
         await act(async () => {
             supervisorBtn!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
             await Promise.resolve();
         });
-        // After selection, the fan-out table renders space-sales / space-marketing rows
-        expect(state.container.textContent || "").toContain("space-sales");
-        expect(state.container.textContent || "").toContain("space-marketing");
-        expect(state.container.textContent || "").toContain("Configured spaces");
+        // After selection, the Assistant tier's Model/Agent leaf renders the
+        // SupervisorFanOutTable (driven by /api/assistant/profiles spaces).
+        const text = state.container.textContent || "";
+        expect(text).toContain("space-sales");
+        expect(text).toContain("space-marketing");
+        expect(text).toContain("Configured spaces");
         unmount(state);
     });
 
-    it("selecting a provider mirrors the Pulse runtime assistantProfile", async () => {
+    it("selecting a connector via the catalogue mirrors the Pulse runtime assistantProfile", async () => {
         const state = mount();
         await flushAll();
-        const supervisorBtn = Array.from(state.container.querySelectorAll<HTMLButtonElement>("button"))
-            .find(b => (b.textContent || "").includes("PulsePlay Supervisor"));
-        expect(supervisorBtn).toBeDefined();
+        const supervisorBtn = findCatalogueProfileButton(state.container, "supervisor");
+        expect(supervisorBtn).not.toBeNull();
         await act(async () => {
             supervisorBtn!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
             await Promise.resolve();
@@ -232,11 +315,11 @@ describe("AiGroup — Phase 4 wiring", () => {
         unmount(state);
     });
 
-    it("renders Run probe button when Supervisor is selected", async () => {
+    it("renders Run probe button when Supervisor is selected via the catalogue", async () => {
         const state = mount();
         await flushAll();
-        const supervisorBtn = Array.from(state.container.querySelectorAll<HTMLButtonElement>("button"))
-            .find(b => (b.textContent || "").includes("PulsePlay Supervisor"));
+        const supervisorBtn = findCatalogueProfileButton(state.container, "supervisor");
+        expect(supervisorBtn).not.toBeNull();
         await act(async () => {
             supervisorBtn!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
             await Promise.resolve();

@@ -81,7 +81,7 @@ export const GROUP_LEAF_LABELS: Record<SettingsGroupId, string[]> = {
     // group label + description.
     setup: [],
     bi: ["Provider", "Embed", "Authentication", "Canvas", "Status", "Governance"],
-    ai: ["Connector catalogue", "Provider", "Model / Agent", "Knowledge pack", "Knowledge Base", "Vector Search KB", "Connection test", "Power BI Q&A", "Response behavior", "Supervisor Fusion", "UC Metric View", "Browse library"],
+    ai: ["Connector catalogue", "Model / Agent", "Knowledge pack", "Knowledge Base", "Vector Search KB", "Connection test", "Power BI Q&A", "Response behavior", "Supervisor Fusion", "UC Metric View", "Browse library"],
     preferences: [
         "UI mode",
         "Layout preset",

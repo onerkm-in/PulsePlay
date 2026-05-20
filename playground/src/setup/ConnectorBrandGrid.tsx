@@ -5,6 +5,7 @@
 // useConnectorManifests() hook. Drop-in for both the Setup wizard step
 // AND the Settings → AI Provider section.
 
+import { useState } from "react";
 import { useConnectorManifests, groupManifestsByCategory } from "../lib/connectorManifests";
 import { ConnectorBrandCard } from "./ConnectorBrandCard";
 
@@ -27,10 +28,21 @@ const CATEGORY_HELPER: Record<string, string> = {
 export interface ConnectorBrandGridProps {
     activeProfileName: string | null;
     onPickProfile?: (profileName: string) => void;
+    /**
+     * When true, only renders cards with at least one configured profile by
+     * default (active / configured / configured-degraded). Cards with no
+     * configured profiles (`status === "available"`) are hidden behind a
+     * "+ Show all N connectors" button. Defaults to true — the 12-card
+     * grid is overwhelming at first glance; configured + active are what
+     * day-to-day users care about. Set to false in Setup-wizard contexts
+     * where the full catalogue IS the point.
+     */
+    showOnlyConfiguredByDefault?: boolean;
 }
 
 export function ConnectorBrandGrid(props: ConnectorBrandGridProps): React.ReactElement {
     const { loading, error, data, refetch } = useConnectorManifests();
+    const [showAll, setShowAll] = useState(props.showOnlyConfiguredByDefault === false);
 
     if (loading) {
         return (
@@ -87,10 +99,98 @@ export function ConnectorBrandGrid(props: ConnectorBrandGridProps): React.ReactE
         );
     }
 
-    const groups = groupManifestsByCategory(data.manifests);
+    // Per-manifest "is this configured?" derivation (mirrors deriveStatus()
+    // in ConnectorBrandCard so the filter agrees with the badge).
+    const isConfigured = (id: string): boolean => {
+        const profiles = data.runtime[id]?.configuredProfiles || [];
+        return profiles.length > 0;
+    };
+
+    const totalCount = data.manifests.length;
+    const configuredCount = data.manifests.filter(m => isConfigured(m.id)).length;
+    const hiddenCount = totalCount - configuredCount;
+
+    // When the user has nothing configured (fresh install), there's nothing
+    // to show in the compact view — so we MUST show all cards or the grid
+    // looks empty. Compute the effective filter rather than letting the
+    // user stare at a blank surface.
+    const effectiveShowAll = showAll || configuredCount === 0;
+
+    const filteredManifests = effectiveShowAll
+        ? data.manifests
+        : data.manifests.filter(m => isConfigured(m.id));
+
+    const groups = groupManifestsByCategory(filteredManifests);
 
     return (
         <div data-component="connector-brand-grid" style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            {!effectiveShowAll && hiddenCount > 0 && (
+                <div
+                    data-component="brand-grid-filter-summary"
+                    style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "8px 12px",
+                        background: "rgba(59, 130, 246, 0.06)",
+                        border: "1px solid rgba(59, 130, 246, 0.2)",
+                        borderRadius: 6,
+                        fontSize: 12,
+                    }}
+                >
+                    <span>
+                        Showing <strong>{configuredCount}</strong> configured connector{configuredCount === 1 ? "" : "s"}.{" "}
+                        <span style={{ opacity: 0.7 }}>
+                            {hiddenCount} more available — not yet wired.
+                        </span>
+                    </span>
+                    <button
+                        type="button"
+                        data-action="show-all-connectors"
+                        onClick={() => setShowAll(true)}
+                        style={{
+                            padding: "4px 10px",
+                            fontSize: 12,
+                            fontWeight: 600,
+                            border: "1px solid rgba(59, 130, 246, 0.4)",
+                            background: "white",
+                            color: "#1e40af",
+                            borderRadius: 4,
+                            cursor: "pointer",
+                            whiteSpace: "nowrap",
+                        }}
+                    >
+                        + Show all {totalCount} →
+                    </button>
+                </div>
+            )}
+            {effectiveShowAll && configuredCount > 0 && configuredCount < totalCount && (
+                <div
+                    style={{
+                        display: "flex",
+                        justifyContent: "flex-end",
+                        fontSize: 11,
+                    }}
+                >
+                    <button
+                        type="button"
+                        data-action="show-only-configured"
+                        onClick={() => setShowAll(false)}
+                        style={{
+                            padding: "3px 8px",
+                            fontSize: 11,
+                            border: "1px solid rgba(0, 0, 0, 0.15)",
+                            background: "white",
+                            color: "rgba(0, 0, 0, 0.7)",
+                            borderRadius: 3,
+                            cursor: "pointer",
+                        }}
+                    >
+                        Showing all {totalCount} · only show configured
+                    </button>
+                </div>
+            )}
+
             {groups.map(group => (
                 <section key={group.category} aria-labelledby={`connector-cat-${group.category}`}>
                     <header style={{ marginBottom: 8 }}>

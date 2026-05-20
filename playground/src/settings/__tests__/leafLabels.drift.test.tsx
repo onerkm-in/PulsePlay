@@ -166,10 +166,11 @@ describe("GROUP_LEAF_LABELS dictionary drift prevention", () => {
             setup: new Set(),
             bi: new Set(["Governance"]),
             // "Connector catalogue" is a SubSection wrapping <ConnectorBrandGrid/>
-            // — not a per-leaf component. It still appears in the rail and in
-            // search, so we list it as a sub-route exception rather than
-            // dropping it from the dictionary.
-            ai: new Set(["Knowledge Base", "Supervisor Fusion", "Connector catalogue"]),
+            // — not a per-leaf component. "Power BI Q&A" is a conditional Leaf
+            // that only renders when the active profile is
+            // `powerbi-semantic-model`. Both still appear in the rail and in
+            // search; both are listed as sub-route exceptions.
+            ai: new Set(["Knowledge Base", "Supervisor Fusion", "Connector catalogue", "Power BI Q&A"]),
             preferences: new Set(["Appearance"]),
             system: new Set(["Developer Tools"]),
             advanced: new Set(),
