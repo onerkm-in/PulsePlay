@@ -5,6 +5,46 @@
 
 ---
 
+## 2026-05-20 — Cycle 13: Author-selectable latency levers (Settings → Advanced → Performance)
+
+**Scope.** Ship the headline deferred item from Cycle 12 — give deployers the speed-vs-completeness knobs the proxy already supported (or could be made to support) but were never UI-surfaced. Four levers, one localStorage bag, end-to-end wired.
+
+**The four levers.**
+
+| Lever | Range | Default | Effect |
+|---|---|---|---|
+| Insights reveal cadence | `instant` / `fast` / `balanced` / `full` | `balanced` | Picks the staged-reveal schedule. Instant = no staging; fast = headline at t=0 + body at t=4s; balanced = existing default (t=0/10/20/30); full = each section on its own 8 s beat. Cosmetic — doesn't change LLM cost. |
+| Discovery prewarm | on / off | on | When off, App.tsx skips the cycle-12 screen-load `getDiscoverySnapshot` prewarm. First user query then pays the cold round-trip itself. |
+| Insights cache TTL | 1..180 min | 30 | Surface for the existing `insightsCacheTtlMinutes`. Higher = faster repeat-questions; lower = fresher data. |
+| Validation retry budget | 0..3 retries | 1 | Proxy-side server validation retries (`maybeValidateGeniePollResponse`). 0 = ship first answer verbatim (fast); 3 = retry up to three times (slow, higher quality). Client value overrides the deployer's `GENIE_POLL_VALIDATE_RETRIES` env default. |
+
+**What changed.**
+- **New [playground/src/settings/performanceLevers.ts](../playground/src/settings/performanceLevers.ts)** (`e82fc08`) — single source for the lever store. `loadPerformanceLevers()` / `savePerformanceLevers()` / `resetPerformanceLevers()` with defensive coercion, clamping, and event broadcast.
+- **[playground/src/pulse/state/stagedReveal.ts](../playground/src/pulse/state/stagedReveal.ts)** (`e82fc08`) — new `FAST_REVEAL_SCHEDULE`, `FULL_REVEAL_SCHEDULE`, `INSTANT_REVEAL_SCHEDULE` constants + `revealScheduleFromCadence(label)` dispatcher.
+- **Wire-up** (`bb953e9`):
+  - `playground/src/pulse/visual.tsx`: subscribes to `PERFORMANCE_LEVERS_EVENT`; reads `activeRevealSchedule` from cadence; staged reveal disabled when cadence is "instant" OR legacy boolean is false.
+  - `playground/src/App.tsx`: prewarm useEffect short-circuits when `discoveryPrewarmEnabled` is false.
+  - `proxy/server.js`: `maybeValidateGeniePollResponse({ ..., clientMaxRetries })` honors client value; GET poll route parses `maxValidationRetries` from `req.query` and `req.body`.
+  - `playground/src/pulse/genie.ts`: `readMaxValidationRetriesFromStorage()` synchronous reader; poll URL gets `&maxValidationRetries=N` suffix when lever is set.
+- **[playground/src/settings/groups/AdvancedGroup.tsx](../playground/src/settings/groups/AdvancedGroup.tsx)** (`f3479a6`) — new "Performance levers" leaf with 2×2 cadence picker, prewarm toggle, TTL slider, retries slider, and Reset-to-defaults button (only enabled when at least one value has drifted from spec defaults).
+- **Extracted [proxy/lib/validationRetryBudget.js](../proxy/lib/validationRetryBudget.js)** (`ca64605`) — pure helper module so the budget-resolution math is unit-testable without restructuring `server.js`. The `server.js` call site now delegates to `resolveBudget({ envValue, clientValue })`.
+
+**Validation.**
+- proxy `npm test`: **934/934** passing (was 923 + 11 new `validationRetryBudget.test.js`)
+- playground `npm test`: **1085/1085** passing (was 1063 + 22 new across `performanceLevers.test.ts` and `revealScheduleFromCadence.test.ts`)
+- playground `npm run lint`: clean (`tsc --noEmit`)
+- playground `npm run build`: ✓ built in 15.71s
+- `node --check proxy/server.js`: clean
+- The pre-existing drift-prevention test in `leafLabels.drift.test.tsx` caught the new leaf and forced registration in `GROUP_LEAF_LABELS.advanced` in `SettingsShell.tsx` — surfaced by the test, fixed cleanly.
+
+**Honest deferrals.**
+- The PulseAiVisualSettings.insightsCacheTtlMinutes shadow write happens in the AdvancedGroup setter so the legacy pulse insights cache keeps working. If a deployer writes the lever JSON directly (skipping the UI), the legacy field can drift out of sync. Acceptable: the UI is the only documented author surface, and the cache code reads from PulseAiVisualSettings, which the UI always updates.
+- Validation retry budget is honored on the Genie poll path only. The Foundation Model orchestrator (`proxy/lib/llmOrchestrator.js`) reads `ORCHESTRATOR_VALIDATE_RETRIES` separately and doesn't yet consume `clientMaxRetries`. Symmetric wire-up is a small follow-up (~30 min).
+- Reveal cadence "instant" forces all-at-once; "fast" still uses two stages. A "no stages but instant within DOM batching" mode could give measurably smoother perceived response — punt for now.
+- No `<PerformanceLeversPanel />` component-level test yet. The pure store + dispatcher modules have direct coverage; an integration test that mounts the panel and asserts the click→storage→event chain would be valuable next cycle.
+
+---
+
 ## 2026-05-20 — Cycle 12: Full DwD purge + probe-once reuse (client+server)
 
 **Scope.** User direction: "no DwD anywhere — it should be PulsePlay" plus "can we not use a query to probe as and when the user loads the screen and all other queries follow the same probe?". Two parallel slices in one cycle.

@@ -95,7 +95,7 @@ export const GROUP_LEAF_LABELS: Record<SettingsGroupId, string[]> = {
         "Appearance",
     ],
     system: ["Proxy status", "Network and auth", "Security posture", "License posture", "Profile inventory", "Diagnostics", "Setup wizard", "Export support bundle", "Developer Tools"],
-    advanced: ["Local storage inspector", "Reset section", "Reset all", "Danger zone"],
+    advanced: ["Performance levers", "Local storage inspector", "Reset section", "Reset all", "Danger zone"],
 };
 
 export function SettingsShell(): React.ReactElement {
