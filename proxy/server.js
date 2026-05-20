@@ -5503,6 +5503,185 @@ app.get('/foundation/health', (req, res) => {
     });
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// POWER BI SEMANTIC MODEL — connector type `powerbi-semantic-model`
+//
+// Cycle 15. Deterministic, no-LLM AI brain over a published Power BI dataset.
+// Auth: AAD service principal (client_credentials). Execution: DAX templates
+// dispatched by `powerbiQuestionMatcher` against the schema returned by the
+// connector probe adapter.
+//
+// Audit lines emit `mode: "powerbi-deterministic", llmCallCount: 0` so
+// deployers can prove no LLM ran on this path.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function isPowerBiSemanticModelProfile(profile) {
+    return profile
+        && profile.type === 'powerbi-semantic-model'
+        && (profile.aadTenantId || profile.powerBiTenantId)
+        && (profile.aadClientId || profile.powerBiClientId)
+        && (profile.aadClientSecret || profile.powerBiClientSecret)
+        && (profile.powerbiGroupId || profile.powerBiGroupId)
+        && (profile.powerbiDatasetId || profile.powerBiDatasetId);
+}
+
+function resolvePowerBiSemanticModelProfile(body, headers, req) {
+    const explicitName = body?.profile || headers?.['x-powerbi-profile'] || headers?.['x-assistant-profile'];
+    if (explicitName) {
+        const resolved = profileByName(explicitName, req);
+        const p = resolved?.profile;
+        if (p && isPowerBiSemanticModelProfile(p)) return { name: resolved.name, profile: p };
+        return null;
+    }
+    for (const [name, profile] of profileRegistry.entries()) {
+        if (!profileAllowedForRequest(name, profile, req)) continue;
+        if (isPowerBiSemanticModelProfile(profile)) return { name, profile };
+    }
+    return null;
+}
+
+const _powerbiDatasetClient = require('./lib/powerbiDatasetClient');
+const _powerbiQuestionMatcher = require('./lib/powerbiQuestionMatcher');
+const _powerbiDaxTemplates = require('./lib/powerbiDaxTemplates');
+
+app.post('/powerbi/conversations/start', async (req, res) => {
+    const resolved = resolvePowerBiSemanticModelProfile(req.body || {}, req.headers, req);
+    if (!resolved) {
+        return sendNoMatchingProfile(req, res, 400, 'No Power BI semantic-model profile configured. Add a profile with type "powerbi-semantic-model" plus aadTenantId / aadClientId / aadClientSecret / powerbiGroupId / powerbiDatasetId.');
+    }
+    const content = String(req.body?.content || '').trim();
+    if (!content) {
+        return res.status(400).json({ error: 'Question content is required.' });
+    }
+
+    // The matcher needs the probed schema — accept it on the request body
+    // when the client has it cached, otherwise probe inline (slower).
+    let probe = req.body?.probeCache && typeof req.body.probeCache === 'object' ? req.body.probeCache : null;
+    if (!probe) {
+        try {
+            const { __internals } = require('./lib/connectorProbe');
+            probe = await __internals.probePowerBiSemanticModel(resolved.profile, resolved.name, {});
+        } catch (err) {
+            console.error('[powerbi/start] inline probe failed:', err?.message || err);
+            probe = { declaredKpis: [], schema: { tables: [] } };
+        }
+    }
+
+    // Match question → template → DAX.
+    const match = _powerbiQuestionMatcher.matchQuestion(content, probe);
+    const convId = `pbi-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    if (!match.matched) {
+        const kpiList = (match.kpis || []).slice(0, 8).join(', ');
+        const suggestions = (match.suggestions || []).slice(0, 4).map(s => `- **${s.label}** — e.g. "${(s.examples || [])[0] || ''}"`).join('\n');
+        const reason = match.reason || 'No template matched.';
+        const body = `I can answer questions like the ones below against this dataset (no LLM is used — only DAX templates). Available measures: ${kpiList || '(none probed)'}.\n\n${suggestions}\n\n_${reason}_`;
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'powerbi-question-unmatched',
+            status: 'WARN',
+            detail: JSON.stringify({ mode: 'powerbi-deterministic', llmCallCount: 0, reason }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+        const msgId = JSON.stringify({ id: convId, status: 'COMPLETED', content: body });
+        return res.json({
+            conversation_id: convId,
+            message_id: msgId,
+            status: 'COMPLETED',
+            content: body,
+            unmatched: true,
+        });
+    }
+
+    const tmpl = _powerbiDaxTemplates.getTemplate(match.templateId);
+    if (!tmpl) {
+        return res.status(500).json({ error: `Unknown template "${match.templateId}"` });
+    }
+
+    // Build + execute DAX.
+    let dax;
+    try {
+        dax = tmpl.buildDax(match.slots);
+    } catch (err) {
+        return res.status(400).json({ error: `Could not build DAX for "${match.templateId}": ${err?.message || err}` });
+    }
+
+    let normalized;
+    try {
+        normalized = await _powerbiDatasetClient.executeDaxNormalized(resolved.profile, dax);
+    } catch (err) {
+        console.error('[powerbi/start] executeDax failed:', err?.message || err);
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'powerbi-dax-execute-failed',
+            status: 'ERROR',
+            detail: JSON.stringify({ templateId: match.templateId, errorCode: err?.statusCode || null }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+        return sendProblem(res, createProblem({
+            status: err?.statusCode || 502,
+            code: 'POWERBI_DAX_FAILED',
+            title: 'Power BI DAX execution failed',
+            detail: String(err?.message || err).slice(0, 300),
+            category: 'upstream_error',
+            requestId: req.requestId,
+            retryable: false,
+        }));
+    }
+
+    const rendered = tmpl.buildResult({ columns: normalized.columns, rows: normalized.rows, slots: match.slots });
+    auditLog(req, {
+        profileName: resolved.name,
+        action: 'powerbi-deterministic-answer',
+        status: 'OK',
+        detail: JSON.stringify({
+            mode: 'powerbi-deterministic',
+            llmCallCount: 0,
+            templateId: match.templateId,
+            rowCount: normalized.rows.length,
+        }),
+        spIdentityHash: spHashForProfile(resolved.profile),
+    });
+
+    const msgId = JSON.stringify({
+        id: convId,
+        status: 'COMPLETED',
+        content: rendered.content,
+        templateId: match.templateId,
+        slots: match.slots,
+        dax,
+        rowCount: normalized.rows.length,
+    });
+    return res.json({
+        conversation_id: convId,
+        message_id: msgId,
+        status: 'COMPLETED',
+        content: rendered.content,
+        templateId: match.templateId,
+        slots: match.slots,
+        dax,
+        rowCount: normalized.rows.length,
+        mode: 'powerbi-deterministic',
+        llmCallCount: 0,
+    });
+});
+
+// Health probe for the Power BI semantic-model connector.
+app.get('/powerbi/health', (req, res) => {
+    const resolved = resolvePowerBiSemanticModelProfile({}, req.headers, req);
+    if (!resolved) {
+        return res.status(503).json({ ok: false, error: 'No Power BI semantic-model profile configured.' });
+    }
+    res.json({
+        ok: true,
+        profile: resolved.name,
+        connectorType: 'powerbi-semantic-model',
+        groupId: resolved.profile.powerbiGroupId || resolved.profile.powerBiGroupId,
+        datasetId: resolved.profile.powerbiDatasetId || resolved.profile.powerBiDatasetId,
+        templates: _powerbiDaxTemplates.listTemplates().map(t => t.id),
+    });
+});
+
 app.post('/foundation/section', async (req, res) => {
     const resolved = resolveFoundationModelProfile(req.body, req.headers, req);
     if (!resolved) {

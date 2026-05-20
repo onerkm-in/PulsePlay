@@ -114,6 +114,17 @@
             "displayName": "PulsePlay Supervisor Agent",
             "dataDomain": "all helper data"
         },
+        "_powerbi_semantic_model_example": {
+            "_doc": "Cycle 15 — Power BI semantic-model AI brain. Deterministic, no-LLM. PulsePlay probes the published dataset via INFO.* DAX functions, then matches each user question to one of four DAX templates (top-n, aggregate-by, trend, total) and executes it through POST .../datasets/{id}/executeQueries. Setup: (1) create an Azure AD app registration + client secret. (2) Add the service principal to the target Power BI workspace as a Member. (3) Enable 'Service principals can use Power BI APIs' in the Power BI admin portal. (4) Fill the fields below.",
+            "type": "powerbi-semantic-model",
+            "displayName": "Power BI: Sales Semantic Model",
+            "dataDomain": "Sales performance",
+            "aadTenantId": "YOUR_AAD_TENANT_GUID",
+            "aadClientId": "YOUR_SERVICE_PRINCIPAL_CLIENT_ID",
+            "aadClientSecret": "YOUR_SERVICE_PRINCIPAL_CLIENT_SECRET",
+            "powerbiGroupId": "YOUR_POWERBI_WORKSPACE_GUID",
+            "powerbiDatasetId": "YOUR_POWERBI_DATASET_GUID"
+        },
         "_doc_displayName": "Optional. Friendly label shown in the visual's progress text and source attributions (e.g. 'Sales helper'). If omitted, falls back to a title-cased profile key.",
         "_doc_dataDomain":  "Optional. Short noun phrase for what this helper covers (e.g. 'sales data', 'customer & returns data'). Used in step text like 'Sales helper is checking sales data'. If omitted, falls back to 'the data'.",
         "_doc_suggestedQuestions": "Optional. Per-profile starter questions surfaced as clickable chips on the visual's Welcome / Try-Asking strip (IDEA-006). Up to 8 strings. When present, replaces the generic static suggestions for this profile. Via env var: PROXY_PROFILE_<NAME>_SUGGESTED_QUESTIONS=comma,separated,list.",

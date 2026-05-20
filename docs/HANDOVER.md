@@ -5,6 +5,58 @@
 
 ---
 
+## 2026-05-20 — Cycle 15: Power BI semantic-model AI brain (no-LLM, deterministic)
+
+**Scope.** Add a Power BI published dataset (tabular semantic model) as a real AI brain alongside Genie / Foundation Model / OpenAI / Bedrock / Supervisor. **No LLM is invoked at any step** — the pipeline is AAD service-principal auth → DAX `INFO.*` probe → keyword matcher → DAX template → `executeQueries` → Markdown render.
+
+**Wire-format**: every response emits `mode: "powerbi-deterministic"`, `llmCallCount: 0` in both the JSON payload and the audit log so deployers can prove no LLM ran.
+
+**New modules.**
+- [proxy/lib/powerbiDatasetClient.js](../proxy/lib/powerbiDatasetClient.js) — AAD SP token cache (single-flight, 5-min early refresh), `getDatasetMetadata()`, `executeDax()`, `executeDaxNormalized()` (flattens PBI row-objects into `{columns, rows}` matching sqlExecutor's shape).
+- [proxy/lib/powerbiDaxTemplates.js](../proxy/lib/powerbiDaxTemplates.js) — 4 templates: `top-n`, `aggregate-by`, `trend`, `total`. Each = slot spec + DAX builder + Markdown renderer. Slot values pass through a strict identifier sanitiser so the matcher can't smuggle injection vectors into DAX.
+- [proxy/lib/powerbiQuestionMatcher.js](../proxy/lib/powerbiQuestionMatcher.js) — pure NL→template router. Longest-match measure detection + table-name + plural-aware column matching + word-form number parsing ("top five"). Returns `{matched, templateId, slots}` or `{matched:false, suggestions:[…], kpis:[…]}`.
+
+**Modified.**
+- [proxy/lib/connectorProbe.js](../proxy/lib/connectorProbe.js) — new `probePowerBiSemanticModel` adapter. Reads dataset metadata + runs `INFO.MEASURES` / `INFO.TABLES` / `INFO.COLUMNS` via DAX. Returns full schema as `ConnectorProbeResult` so pack matching can align PBI measures with vertical KPIs the same way Genie KPIs do.
+- [proxy/server.js](../proxy/server.js) — new `POST /powerbi/conversations/start` route + `GET /powerbi/health`. Profile resolution + dispatch + audit logging mirror the existing connector route family.
+- [proxy/config.example.json](../proxy/config.example.json) — example profile with 4-step deployer setup instructions in the `_doc` field.
+
+**Profile shape.**
+```json
+{
+  "type": "powerbi-semantic-model",
+  "displayName": "Power BI: Sales Semantic Model",
+  "dataDomain": "Sales performance",
+  "aadTenantId": "...",
+  "aadClientId": "...",
+  "aadClientSecret": "...",
+  "powerbiGroupId": "...",
+  "powerbiDatasetId": "..."
+}
+```
+Legacy aliases `powerBiTenantId` / `powerBiClientId` / `powerBiClientSecret` are accepted so deployers can reuse the existing embed-token SP for dataset access.
+
+**Tests (61 new).**
+- `powerbiDatasetClient.test.js` — 15 cases: token acquisition + cache + single-flight + retry-after-failure + legacy alias support + `getDatasetMetadata` + `executeDax` (incl. impersonation) + `executeDaxNormalized` (incl. malformed responses).
+- `powerbiDaxTemplates.test.js` — 22 cases: registry shape + sanitisation (injection vectors rejected) + per-template DAX strings + Markdown renderer + cell formatter (number locale, pipe escaping).
+- `powerbiQuestionMatcher.test.js` — 24 cases: longest-match measure + total/aggregate-by/top-n/trend routing + plural-aware match ("categories" → `Category`) + word-form number parsing + time detection by name and by type + best/highest/leading synonyms.
+
+**Validation.**
+- proxy `npm test`: TBD (running)
+- playground `npm test`: TBD (no playground changes; unaffected)
+- `node --check proxy/server.js`: clean
+- `node -e "JSON.parse(...config.example.json)"`: clean
+
+**Honest deferrals.**
+- **No Q&A embed surface yet.** The user's "with or without Q&A" framing left this optional. PBI Q&A uses Microsoft's NLP in their tenant (technically an LLM, just trusted). Future cycle would render the Q&A visual in the Ask Pulse pane when this connector is active.
+- **Front-end Setup UI for the new profile type is not wired.** Deployer edits `proxy/config.json` manually for v1. Adding it to Settings → AI is straight follow-up (new entry in the profile editor + connector-type chip from cycle-14 critique).
+- **Single dataset per profile.** Multi-dataset selection (one workspace, many datasets) is a small follow-up (`powerbiDatasetId` becomes an array).
+- **No RLS impersonation surfaced yet.** `executeDax` already accepts `impersonatedUserName` but the route doesn't derive it from IdP claims. Mirror the embed-token pattern (`powerBiRlsUsernameClaim`) for parity.
+- **Matcher is intentionally English-only** and uses a hand-coded pluraliser. Works for "category↔categories" and "customer↔customers". Spanish / French / German / etc. need locale-aware rules (out of scope).
+- **No NL-question → DAX fallback to an LLM.** That's exactly the user's constraint ("no LLM would be in place"). If a question doesn't match any template, the route returns a friendly suggestion list — never silently sends to an LLM.
+
+---
+
 ## 2026-05-20 — Cycle 14: Cross-backend probe symmetry + failure visibility
 
 **Scope.** Cycle 12 shipped `discoveryContext` injection on the Genie route only. The probe collected schema / KPIs / sample questions, but for 5 out of 6 backend paths the data sat in the cache unused — Foundation Model, OpenAI, Bedrock-direct, Bedrock-RAG, Supervisor, and FM staged sectioned were all blind to the probe's findings. This cycle closes the symmetry.
