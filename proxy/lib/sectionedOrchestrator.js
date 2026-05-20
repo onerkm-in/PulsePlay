@@ -77,17 +77,21 @@ const SPREAD_MAX_MS = 30_000;
 
 /**
  * Build a default schedule from the IR's `output.sections[]` when no
- * explicit schedule is supplied. Pattern:
- *   • If HEADLINE is present, it ALWAYS occupies stage 0 alone so
- *     downstream sections can rely on its result being already in the
- *     shared conversation context. Remaining sections are then paired
- *     2-at-a-time, with `headSpreadMs` between the first pair's starts
- *     (default 2000 ms) and 0 ms thereafter.
- *   • If HEADLINE is absent, the legacy behaviour applies: first stage
- *     of up to 2 with `headSpreadMs` spread, then 2-at-a-time.
+ * explicit schedule is supplied. Pattern (template-agnostic):
+ *   • Stage 0: the FIRST template section, alone. Lets the LLM ground
+ *     the conversation before the rest of the sections run, and gives
+ *     them its result via the shared conversation_id.
+ *   • Subsequent stages: `batchSize` sections at a time (default 2,
+ *     clamped to 1–3), in the order they appear in the template.
+ *   • `headSpreadMs` (default 2000 ms) is applied between starts of
+ *     sections within the FIRST multi-section stage only; later stages
+ *     start their sections in the same tick (spreadMs=0).
+ *
+ * The section ORDER is whatever the caller's IR specifies — we don't
+ * special-case section ids like HEADLINE here. Templates own the order.
  *
  * @param {string[]} sectionIds
- * @param {{ headSpreadMs?: number }} [opts]
+ * @param {{ headSpreadMs?: number, batchSize?: number }} [opts]
  * @returns {Stage[]}
  */
 function buildDefaultSchedule(sectionIds, opts = {}) {
@@ -96,36 +100,23 @@ function buildDefaultSchedule(sectionIds, opts = {}) {
     const headSpread = Number.isFinite(opts.headSpreadMs) && opts.headSpreadMs >= 0
         ? Math.min(opts.headSpreadMs, SPREAD_MAX_MS)
         : 2000;
+    const rawBatch = Number.isFinite(opts.batchSize) ? Math.trunc(opts.batchSize) : 2;
+    const batchSize = Math.max(1, Math.min(3, rawBatch));
 
     /** @type {Stage[]} */
     const stages = [];
     let rest = ids.slice();
 
-    // If HEADLINE is in the list, hoist it into its own stage 0 so the
-    // rest of the sections execute AFTER it lands (and inherit its
-    // result via the shared conversation_id).
-    const headlineIdx = rest.indexOf('HEADLINE');
-    if (headlineIdx >= 0) {
-        rest.splice(headlineIdx, 1);
-        stages.push({ sections: ['HEADLINE'], spreadMs: 0 });
-        // First post-HEADLINE pair gets the head spread.
-        if (rest.length > 0) {
-            const firstPair = rest.slice(0, 2);
-            rest = rest.slice(firstPair.length);
-            stages.push({ sections: firstPair, spreadMs: firstPair.length > 1 ? headSpread : 0 });
-        }
-    } else {
-        // Legacy: head stage of up to 2 with spread.
-        const head = rest.slice(0, 2);
-        rest = rest.slice(head.length);
-        stages.push({ sections: head, spreadMs: head.length > 1 ? headSpread : 0 });
-    }
+    // Stage 0: first template section alone.
+    stages.push({ sections: [rest.shift()], spreadMs: 0 });
 
-    // Remaining stages: 2-at-a-time, no spread.
+    // First post-head batch carries the head spread; subsequent batches use 0.
+    let firstBatch = true;
     while (rest.length > 0) {
-        const batch = rest.slice(0, 2);
-        stages.push({ sections: batch, spreadMs: 0 });
+        const batch = rest.slice(0, batchSize);
         rest = rest.slice(batch.length);
+        stages.push({ sections: batch, spreadMs: firstBatch && batch.length > 1 ? headSpread : 0 });
+        firstBatch = false;
     }
     return stages;
 }

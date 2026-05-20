@@ -78,13 +78,14 @@ describe('buildDefaultSchedule', () => {
         ]);
     });
 
-    test('two sections (no HEADLINE) → one head stage with default 2000ms spread', () => {
+    test('two sections → first alone in stage 0, second alone in stage 1 (no spread when stages are size-1)', () => {
         expect(buildDefaultSchedule(['A', 'B'])).toEqual([
-            { sections: ['A', 'B'], spreadMs: 2000 },
+            { sections: ['A'], spreadMs: 0 },
+            { sections: ['B'], spreadMs: 0 },
         ]);
     });
 
-    test('HEADLINE present → hoisted alone into stage 0, rest paired', () => {
+    test('preserves template order — first section alone, then pairs (no HEADLINE special-casing)', () => {
         expect(buildDefaultSchedule(['HEADLINE', 'KPI', 'TRENDS', 'RISKS'])).toEqual([
             { sections: ['HEADLINE'], spreadMs: 0 },
             { sections: ['KPI', 'TRENDS'], spreadMs: 2000 },
@@ -92,48 +93,73 @@ describe('buildDefaultSchedule', () => {
         ]);
     });
 
-    test('HEADLINE not first → still hoisted to stage 0', () => {
+    test('respects custom template ordering (e.g. KPI first, then HEADLINE, then TRENDS)', () => {
         expect(buildDefaultSchedule(['KPI', 'HEADLINE', 'TRENDS'])).toEqual([
-            { sections: ['HEADLINE'], spreadMs: 0 },
-            { sections: ['KPI', 'TRENDS'], spreadMs: 2000 },
+            { sections: ['KPI'], spreadMs: 0 },
+            { sections: ['HEADLINE', 'TRENDS'], spreadMs: 2000 },
         ]);
     });
 
-    test('HEADLINE alone → single stage of 1, no spread', () => {
+    test('single-section template → one stage of 1, no spread', () => {
         expect(buildDefaultSchedule(['HEADLINE'])).toEqual([
             { sections: ['HEADLINE'], spreadMs: 0 },
         ]);
     });
 
-    test('six sections (no HEADLINE) → head of 2 with spread, then 2 stages of 2 with no spread', () => {
+    test('six sections → first alone, then 2-at-a-time (head spread only on first multi-section stage)', () => {
         expect(buildDefaultSchedule(['A', 'B', 'C', 'D', 'E', 'F'])).toEqual([
-            { sections: ['A', 'B'], spreadMs: 2000 },
-            { sections: ['C', 'D'], spreadMs: 0 },
-            { sections: ['E', 'F'], spreadMs: 0 },
+            { sections: ['A'], spreadMs: 0 },
+            { sections: ['B', 'C'], spreadMs: 2000 },
+            { sections: ['D', 'E'], spreadMs: 0 },
+            { sections: ['F'], spreadMs: 0 },
         ]);
     });
 
-    test('odd tail (no HEADLINE) → final stage carries the lone section', () => {
+    test('odd tail → final stage carries the lone section', () => {
         expect(buildDefaultSchedule(['A', 'B', 'C'])).toEqual([
-            { sections: ['A', 'B'], spreadMs: 2000 },
+            { sections: ['A'], spreadMs: 0 },
+            { sections: ['B', 'C'], spreadMs: 2000 },
+        ]);
+    });
+
+    test('honors batchSize=3 to run three sections in parallel per stage', () => {
+        expect(buildDefaultSchedule(['A', 'B', 'C', 'D', 'E', 'F', 'G'], { batchSize: 3 })).toEqual([
+            { sections: ['A'], spreadMs: 0 },
+            { sections: ['B', 'C', 'D'], spreadMs: 2000 },
+            { sections: ['E', 'F', 'G'], spreadMs: 0 },
+        ]);
+    });
+
+    test('clamps batchSize to the 1–3 range', () => {
+        expect(buildDefaultSchedule(['A', 'B', 'C', 'D'], { batchSize: 99 })).toEqual([
+            { sections: ['A'], spreadMs: 0 },
+            { sections: ['B', 'C', 'D'], spreadMs: 2000 },
+        ]);
+        expect(buildDefaultSchedule(['A', 'B', 'C', 'D'], { batchSize: 0 })).toEqual([
+            { sections: ['A'], spreadMs: 0 },
+            { sections: ['B'], spreadMs: 0 },
             { sections: ['C'], spreadMs: 0 },
+            { sections: ['D'], spreadMs: 0 },
         ]);
     });
 
     test('honors custom headSpreadMs', () => {
-        expect(buildDefaultSchedule(['A', 'B'], { headSpreadMs: 500 })).toEqual([
-            { sections: ['A', 'B'], spreadMs: 500 },
+        expect(buildDefaultSchedule(['A', 'B', 'C'], { headSpreadMs: 500 })).toEqual([
+            { sections: ['A'], spreadMs: 0 },
+            { sections: ['B', 'C'], spreadMs: 500 },
         ]);
     });
 
     test('clamps headSpreadMs to SPREAD_MAX_MS', () => {
-        const built = buildDefaultSchedule(['A', 'B'], { headSpreadMs: 9_999_999 });
-        expect(built[0].spreadMs).toBe(SPREAD_MAX_MS);
+        const built = buildDefaultSchedule(['A', 'B', 'C'], { headSpreadMs: 9_999_999 });
+        // Stage 0 is the lone first section (spread 0); stage 1 carries the head spread.
+        expect(built[1].spreadMs).toBe(SPREAD_MAX_MS);
     });
 
     test('skips empty / non-string section ids', () => {
-        expect(buildDefaultSchedule(['A', '', null, 'B'])).toEqual([
-            { sections: ['A', 'B'], spreadMs: 2000 },
+        expect(buildDefaultSchedule(['A', '', null, 'B', 'C'])).toEqual([
+            { sections: ['A'], spreadMs: 0 },
+            { sections: ['B', 'C'], spreadMs: 2000 },
         ]);
     });
 });
