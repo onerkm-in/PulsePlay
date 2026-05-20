@@ -41,6 +41,7 @@ import type { ConnectorProbeResult } from "./types/probe";
 import type { PulsePlayAllowlist } from "./types/allowlist";
 import { probeConnector } from "./lib/probeClient";
 import { getDiscoverySnapshot } from "./lib/discoveryClient";
+import { updateProbeStatus } from "./lib/probeStatusStore";
 import {
     loadPerformanceLevers,
     PERFORMANCE_LEVERS_EVENT,
@@ -817,10 +818,18 @@ function PlaygroundApp(): React.ReactElement {
             if (!profile) return;
             // Skip if we already probed this profile (probeResult.profile holds the last probed key).
             if (probeResult?.profile === profile) return;
+            updateProbeStatus({ phase: "probing", profile, error: null });
             void probeConnector(profile).then(result => {
                 if (cancelled) return;
                 handleProbeComplete(result);
-            }).catch(() => { /* probe failure is non-fatal — Smart Connect is best-effort */ });
+                updateProbeStatus({ phase: "ready", profile, error: null });
+            }).catch(err => {
+                if (cancelled) return;
+                // Probe failure is non-fatal — Smart Connect is best-effort.
+                // Emit the failure so UI surfaces can flag degraded grounding.
+                const msg = err instanceof Error ? err.message : String(err);
+                updateProbeStatus({ phase: "failed", profile, error: msg });
+            });
         } catch { /* swallow */ }
         return () => { cancelled = true; };
     }, [uiMode, pulseRenderToken, probeResult, handleProbeComplete]);
@@ -866,7 +875,13 @@ function PlaygroundApp(): React.ReactElement {
             assistantProfile: profile,
             pack: packSelection?.pack,
             subVertical: packSelection?.subVertical,
-        }).catch(() => { /* enrichment only */ });
+        }).catch(err => {
+            // Enrichment only — but emit a status so the UI can flag
+            // degraded grounding for users who'd otherwise see silent
+            // misses. Doesn't transition probe phase out of "ready".
+            const msg = err instanceof Error ? err.message : String(err);
+            updateProbeStatus({ phase: "failed", profile, error: `discovery: ${msg}` });
+        });
     }, [perfLevers.discoveryPrewarmEnabled, pulseAssistantProfile, activeConnector, packSelection]);
 
     // Switching connectors invalidates probe + pack selection so the next

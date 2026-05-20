@@ -5,6 +5,43 @@
 
 ---
 
+## 2026-05-20 — Cycle 14: Cross-backend probe symmetry + failure visibility
+
+**Scope.** Cycle 12 shipped `discoveryContext` injection on the Genie route only. The probe collected schema / KPIs / sample questions, but for 5 out of 6 backend paths the data sat in the cache unused — Foundation Model, OpenAI, Bedrock-direct, Bedrock-RAG, Supervisor, and FM staged sectioned were all blind to the probe's findings. This cycle closes the symmetry.
+
+**Shared composers (new in [proxy/lib/discoveryPromptInjector.js](../proxy/lib/discoveryPromptInjector.js)).**
+- `composeUserMessageWithContext({discoveryBlock, packBlock, packTag, userQuestion})` — stacks `[Discovery Context]` → `[Pack Context]` → `[User Question]` for backends without a system slot (Genie poll path, Bedrock RAG, Supervisor).
+- `composeSystemPromptWithContext({systemPrompt, discoveryBlock, packBlock, packTag})` — augments the system prompt for backends with one (Foundation Model, OpenAI Chat Completions, Bedrock direct).
+
+**Routes wired (all in `proxy/server.js`).**
+- `/assistant/conversations/start` (Genie) — refactored to use the composer; behavior byte-identical to cycle 12.
+- `/foundation/section` (FM single) — system-prompt augmentation.
+- `/assistant/conversations/start-sectioned` (FM staged) — discovery resolved once before the loop, folded into every per-section system prompt inside `runSection()`.
+- `/openai/conversations/start` — system-prompt augmentation alongside pack context.
+- `/bedrock/conversations/start` — system-prompt for `bedrock-direct`; user-message header for `bedrock-rag` (the KB-coupled `RetrieveAndGenerate` API has no system slot).
+- `/supervisor/conversations/start` — user-message header (Mosaic AI serving endpoints accept only a single user message).
+
+Each route emits a `discovery-context-inject` audit-log action with the same structured detail shape as `pack-context-inject` so a single grep correlates all injection sites.
+
+**Client.** [playground/src/components/AISidebar.tsx](../playground/src/components/AISidebar.tsx) now attaches `discoveryContext` to its `/conversations/start` body via a local `summariseSnapshotForRequest()` helper. Schema matches what Pulse genie.ts already emits; the proxy doesn't care which client side produced it.
+
+**Probe failure visibility.** [playground/src/lib/probeStatusStore.ts](../playground/src/lib/probeStatusStore.ts) (new) — tiny pub/sub with `phase: idle | probing | ready | failed`. Subscribers can listen via React (`subscribeProbeStatus`) or vanilla (`pulseplay:probe-status` window event). [playground/src/App.tsx](../playground/src/App.tsx)'s prewarm + Pulse-mode auto-probe both emit through it. Replaces the cycle-12 silent `.catch(() => {})` pattern. UI surface (status pill / banner) is intentionally deferred — store + emit is the load-bearing part; future cycles can choose how to render.
+
+**Validation.**
+- proxy `npm test`: **947/947** (was 934 + 13 new composer cases)
+- playground `npm test`: **1096/1096** (was 1085 + 11 new probe-status-store cases)
+- playground `npm run lint`: clean
+- playground `npm run build`: ✓ built in 12.89s
+- `node --check proxy/server.js`: clean
+
+**Honest deferrals.**
+- **UI surface for probe status** — store + emit is the load-bearing part. A status pill ("Grounding degraded" near SetupReadiness) would be the natural follow-up. ~30-60 min.
+- **Server-side cache key reuse for `/assistant/discover`** — explicitly skipped. Proxy's existing `_snapshotCache` 60-sec TTL already absorbs the herd; saving a few KB of payload per discovery is optimization, not user-visible value.
+- **Per-section discoveryContext** — every section in `/assistant/conversations/start-sectioned` gets the SAME discovery block. Section-specific filtering (HEADLINE needs declared KPIs but RISKS only needs the connector type, etc.) could trim a few hundred bytes per call. Future cycle.
+- **Pulse genie.ts already attached `discoveryContext` since cycle 12** — no change needed there. AISidebar is the new attacher; both clients produce wire-compatible envelopes.
+
+---
+
 ## 2026-05-20 — Cycle 13: Author-selectable latency levers (Settings → Advanced → Performance)
 
 **Scope.** Ship the headline deferred item from Cycle 12 — give deployers the speed-vs-completeness knobs the proxy already supported (or could be made to support) but were never UI-surfaced. Four levers, one localStorage bag, end-to-end wired.

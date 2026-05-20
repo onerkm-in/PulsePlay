@@ -245,6 +245,35 @@ export function describePollStatus(status: string | undefined): { label: string;
     }
 }
 
+/** Cross-backend probe-once envelope. Mirrors the shape Pulse genie.ts
+ *  produces; the proxy's discoveryPromptInjector consumes either source
+ *  identically. Bounds: 20 KPIs, 12 frames. */
+function summariseSnapshotForRequest(snap: DiscoverySnapshot): Record<string, unknown> {
+    const probe = snap.sources?.probe as Record<string, unknown> | null | undefined;
+    const availableKpis = Array.isArray(snap.fused?.availableKpis)
+        ? snap.fused.availableKpis.map(k => k?.name).filter((s): s is string => !!s).slice(0, 20)
+        : [];
+    const reachableFrames = Array.isArray(snap.fused?.reachableFrames)
+        ? snap.fused.reachableFrames.map(f => f?.label).filter((s): s is string => !!s).slice(0, 12)
+        : [];
+    return {
+        snapshotVersion: snap.snapshotVersion,
+        sources: {
+            probe: probe
+                ? {
+                    connectorType: typeof probe.connectorType === "string" ? probe.connectorType : undefined,
+                    displayName: typeof probe.displayName === "string" ? probe.displayName : undefined,
+                    tableCount: typeof probe.tableCount === "number" ? probe.tableCount : undefined,
+                    metadataAvailability: typeof probe.metadataAvailability === "string" ? probe.metadataAvailability : undefined,
+                }
+                : null,
+            packKpiCount: Array.isArray(snap.sources?.packKpis) ? snap.sources.packKpis.length : 0,
+        },
+        availableKpis,
+        reachableFrames,
+    };
+}
+
 /** Build a small context block from the recent BI events so the LLM
  *  knows what the user is looking at. Same idea as the sister project's contextBuilder,
  *  but sourced from BI vendor events. */
@@ -592,6 +621,14 @@ export function AISidebar(props: AISidebarProps) {
                             params: selectedFrameObj.params,
                         },
                     } : {}),
+                    // Probe-once cross-backend reuse — when AISidebar already
+                    // has the snapshot in hand, distil it into the same
+                    // discoveryContext envelope the Pulse genie pipeline uses.
+                    // Proxy ignores unknown keys, so a stale proxy version
+                    // drops it silently; updated routes (Genie / FM / OpenAI /
+                    // Bedrock / Supervisor) inject it as system-prompt or
+                    // user-header augmentation.
+                    ...(snapshot ? { discoveryContext: summariseSnapshotForRequest(snapshot) } : {}),
                 }),
                 signal: ctrl.signal,
             });

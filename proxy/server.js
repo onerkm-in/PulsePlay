@@ -2817,21 +2817,15 @@ app.post('/assistant/conversations/start', async (req, res) => {
     // may be absent; layout collapses gracefully.
     const packResolved = resolvePackContext({ pack, subVertical });
     const discoveryBlock = _formatDiscoveryContext(req.body && req.body.discoveryContext);
-    let fullContent;
-    if (discoveryBlock || (packResolved.resolved && packResolved.content)) {
-        const parts = [];
-        if (discoveryBlock) parts.push(`[Discovery Context]\n\n${discoveryBlock}`);
-        if (packResolved.resolved && packResolved.content) {
-            const tag = packResolved.subVertical
-                ? `${packResolved.pack}/${packResolved.subVertical}`
-                : (packResolved.pack || 'pack');
-            parts.push(`[Pack Context: ${tag}]\n\n${packResolved.content}`);
-        }
-        parts.push(`[User Question]\n\n${baseContent}`);
-        fullContent = parts.join('\n\n');
-    } else {
-        fullContent = baseContent;
-    }
+    const packTag = packResolved.subVertical
+        ? `${packResolved.pack}/${packResolved.subVertical}`
+        : (packResolved.pack || 'pack');
+    const fullContent = _composeUserMessageWithContext({
+        discoveryBlock,
+        packBlock: (packResolved.resolved && packResolved.content) ? packResolved.content : null,
+        packTag,
+        userQuestion: baseContent,
+    });
     if (packResolved.requested) {
         auditLog(req, {
             profileName: resolved.name,
@@ -3278,6 +3272,8 @@ const {
 const {
     formatDiscoveryContext: _formatDiscoveryContext,
     buildAuditDetail: buildDiscoveryAuditDetail,
+    composeUserMessageWithContext: _composeUserMessageWithContext,
+    composeSystemPromptWithContext: _composeSystemPromptWithContext,
 } = require('./lib/discoveryPromptInjector');
 // Phase 11b prep — proxy-side handling of the structured `body.frame`
 // field shipped by AISidebar (commit 738e4e1). Defense-in-depth
@@ -5024,9 +5020,32 @@ app.post('/openai/conversations/start', async (req, res) => {
     // as a system message so the model adopts sub-vertical vocabulary. The
     // existing conversation-history shape is preserved (system messages are
     // valid in OpenAI Chat Completions).
-    const messages = packResolved.resolved && packResolved.content
-        ? [{ role: 'system', content: packResolved.content }, { role: 'user', content }]
+    //
+    // Probe-once cross-backend reuse — fold the client-supplied discovery
+    // summary into the same system message so OpenAI sees grounding facts
+    // above the vertical vocabulary.
+    const openAiDiscoveryBlock = _formatDiscoveryContext(req.body && req.body.discoveryContext);
+    const openAiPackTag = packResolved.subVertical
+        ? `${packResolved.pack}/${packResolved.subVertical}`
+        : (packResolved.pack || 'pack');
+    const openAiSystemContent = _composeSystemPromptWithContext({
+        systemPrompt: null,
+        discoveryBlock: openAiDiscoveryBlock,
+        packBlock: (packResolved.resolved && packResolved.content) ? packResolved.content : null,
+        packTag: openAiPackTag,
+    });
+    const messages = openAiSystemContent
+        ? [{ role: 'system', content: openAiSystemContent }, { role: 'user', content }]
         : [{ role: 'user', content }];
+    if (openAiDiscoveryBlock) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'discovery-context-inject',
+            status: 'OK',
+            detail: JSON.stringify({ ...buildDiscoveryAuditDetail(openAiDiscoveryBlock), backend: 'openai' }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+    }
     openAiConversationHistory.set(convId, { messages, storedAt: Date.now() });
 
     try {
@@ -5233,10 +5252,32 @@ app.post('/bedrock/conversations/start', async (req, res) => {
     // Cycle C — when pack-context is resolved, prepend it as a system message
     // so the model adopts sub-vertical vocabulary. The Anthropic Messages
     // payload wrapper (see lib/bedrock.js) accepts a leading system message.
+    //
+    // Probe-once cross-backend reuse — folds the discovery summary into the
+    // same system message alongside pack context.
+    const bedrockDiscoveryBlock = _formatDiscoveryContext(req.body && req.body.discoveryContext);
+    const bedrockPackTag = packResolved.subVertical
+        ? `${packResolved.pack}/${packResolved.subVertical}`
+        : (packResolved.pack || 'pack');
+    if (bedrockDiscoveryBlock) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'discovery-context-inject',
+            status: 'OK',
+            detail: JSON.stringify({ ...buildDiscoveryAuditDetail(bedrockDiscoveryBlock), backend: 'bedrock', engine }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+    }
     if (engine === 'bedrock-direct') {
         try {
-            const messages = packResolved.resolved && packResolved.content
-                ? [{ role: 'system', content: packResolved.content }, { role: 'user', content }]
+            const bedrockDirectSystemContent = _composeSystemPromptWithContext({
+                systemPrompt: null,
+                discoveryBlock: bedrockDiscoveryBlock,
+                packBlock: (packResolved.resolved && packResolved.content) ? packResolved.content : null,
+                packTag: bedrockPackTag,
+            });
+            const messages = bedrockDirectSystemContent
+                ? [{ role: 'system', content: bedrockDirectSystemContent }, { role: 'user', content }]
                 : [{ role: 'user', content }];
             let capturedUsage = null;
             const answer = await bedrockInvokeModelCall(resolved.profile, messages, {
@@ -5263,9 +5304,14 @@ app.post('/bedrock/conversations/start', async (req, res) => {
     // Existing RAG path. Cycle C — pack-context is prepended to the user's
     // input text as a header (Bedrock RetrieveAndGenerate has no system-prompt
     // slot in the v1 KB-coupled API), mirroring the Genie shape.
-    const ragInput = packResolved.resolved && packResolved.content
-        ? wrapAsGenieUserMessage(packResolved.content, packResolved.pack, packResolved.subVertical, content)
-        : content;
+    // Probe-once cross-backend reuse — discovery rides the same user-message
+    // header path (no system slot available on KB-coupled invocations).
+    const ragInput = _composeUserMessageWithContext({
+        discoveryBlock: bedrockDiscoveryBlock,
+        packBlock: (packResolved.resolved && packResolved.content) ? packResolved.content : null,
+        packTag: bedrockPackTag,
+        userQuestion: content,
+    });
     try {
         const data = await bedrockRetrieveAndGenerate(resolved.profile, ragInput, null);
         const answer = data.output?.text ?? '';
@@ -5485,9 +5531,30 @@ app.post('/foundation/section', async (req, res) => {
 
     const effectiveResponseFormat = responseFormat
         || (useStructuredOutput && presetKey ? FOUNDATION_RESPONSE_SCHEMAS[presetKey] : null);
-    const effectiveSystemPrompt = (typeof systemPrompt === 'string' && systemPrompt.trim())
+    const baseSystemPrompt = (typeof systemPrompt === 'string' && systemPrompt.trim())
         ? systemPrompt
         : defaultSystemPromptForSection(sectionTitle);
+
+    // Probe-once cross-backend reuse — when the client supplies a cached
+    // DiscoverySnapshot summary, fold it into the system prompt alongside
+    // any pack context. The augmented system prompt keeps the existing
+    // section-specific instructions and prepends grounding facts above.
+    const fmDiscoveryBlock = _formatDiscoveryContext(req.body && req.body.discoveryContext);
+    const effectiveSystemPrompt = _composeSystemPromptWithContext({
+        systemPrompt: baseSystemPrompt,
+        discoveryBlock: fmDiscoveryBlock,
+        packBlock: null,
+        packTag: null,
+    });
+    if (fmDiscoveryBlock) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'discovery-context-inject',
+            status: 'OK',
+            detail: JSON.stringify({ ...buildDiscoveryAuditDetail(fmDiscoveryBlock), backend: 'foundation-model', section: upperTitle || '-' }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+    }
 
     const messages = [
         { role: 'system', content: effectiveSystemPrompt },
@@ -5632,6 +5699,21 @@ app.post('/assistant/conversations/start-sectioned', async (req, res) => {
     const headlineCache = body.headlineCache !== undefined ? body.headlineCache : undefined;
     const renderId = resolveSectionedRenderId(body.renderId);
 
+    // Probe-once cross-backend reuse — fold the client-supplied
+    // DiscoverySnapshot summary into every per-section system prompt below.
+    // Resolved once here so the runSection closure can reuse it without
+    // re-parsing on each section.
+    const sectionedDiscoveryBlock = _formatDiscoveryContext(body && body.discoveryContext);
+    if (sectionedDiscoveryBlock) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'discovery-context-inject',
+            status: 'OK',
+            detail: JSON.stringify({ ...buildDiscoveryAuditDetail(sectionedDiscoveryBlock), backend: 'foundation-sectioned', sections: sectionIds.length }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+    }
+
     // Open the SSE stream.
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -5658,8 +5740,15 @@ app.post('/assistant/conversations/start-sectioned', async (req, res) => {
     }
 
     async function runSection({ sectionId }) {
+        const baseSection = systemPrompt || defaultSystemPromptForSection(sectionId);
+        const augmentedSystem = _composeSystemPromptWithContext({
+            systemPrompt: baseSection,
+            discoveryBlock: sectionedDiscoveryBlock,
+            packBlock: null,
+            packTag: null,
+        });
         const messages = [
-            { role: 'system', content: systemPrompt || defaultSystemPromptForSection(sectionId) },
+            { role: 'system', content: augmentedSystem },
             { role: 'user', content: `Section: ${sectionId}\n\n${userPrompt}` },
         ];
         const result = await callFoundationModel(databricksRequest, resolved.profile, {
@@ -6932,16 +7021,35 @@ app.post('/supervisor/conversations/start', async (req, res) => {
     // Phase 11b prep — bridge body.frame into the supervisor user content.
     // Idempotent when the frontend already prefixed [Selected analysis frame].
     const frame = validateFrame(req.body && req.body.frame);
-    const fullContent = prependFrameContext(
+    const frameContent = prependFrameContext(
         [contextText, content].filter(Boolean).join('\n\n'),
         frame,
     );
+    // Probe-once cross-backend reuse — supervisor serving endpoints accept
+    // only a single user message (no system slot), so discovery rides as a
+    // header inside the user message.
+    const supervisorDiscoveryBlock = _formatDiscoveryContext(req.body && req.body.discoveryContext);
+    const fullContent = _composeUserMessageWithContext({
+        discoveryBlock: supervisorDiscoveryBlock,
+        packBlock: null,
+        packTag: null,
+        userQuestion: frameContent,
+    });
     if (frame) {
         auditLog(req, {
             profileName: resolved.name,
             action: 'frame-context-inject',
             status: 'OK',
             detail: JSON.stringify({ ...buildFrameAuditDetail(frame), backend: 'supervisor' }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+    }
+    if (supervisorDiscoveryBlock) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'discovery-context-inject',
+            status: 'OK',
+            detail: JSON.stringify({ ...buildDiscoveryAuditDetail(supervisorDiscoveryBlock), backend: 'supervisor' }),
             spIdentityHash: spHashForProfile(resolved.profile),
         });
     }
