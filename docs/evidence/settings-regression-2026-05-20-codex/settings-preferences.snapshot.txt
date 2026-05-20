@@ -1,0 +1,104 @@
+- banner:
+  - heading "Settings" [level=1]:
+    - text: Settings
+  - paragraph: Configure how PulsePlay looks, what it embeds, and how it reasons.
+  - button "Back to app":
+    - text: Back to app
+- searchbox "Search settings"
+- generic: Ctrl /
+- button "Jump to Setup group":
+  - generic: Setup
+  - generic: BI config
+- button "Jump to BI group":
+  - generic: BI
+  - generic: Power BI
+- button "Jump to AI group":
+  - generic: AI
+  - generic: Default profile
+- button "Jump to ai › Pack":
+  - generic: Pack
+  - generic: No knowledge source
+- button "Jump to system › Proxy":
+  - generic: Proxy
+  - generic: Connected
+- button "Jump to system › Security":
+  - generic: Security
+  - generic: Enforced
+- main:
+  - region "Preferences":
+    - heading "Preferences" [level=2]
+    - paragraph: How the playground is laid out — UI mode, visible panels, AI position, canvas tiles.
+    - heading "Mode" [level=3]
+    - paragraph: Choose which AI experience surface runs. Pulse is the rich ported experience; v0 is the lightweight sidebar.
+    - article:
+      - generic: UI mode
+      - button "Copy link to UI mode": Copy link
+      - paragraph: Pulse is the ported PBI-heritage UI. v0 is the lightweight cycle-C sidebar.
+      - button "Pulse" [pressed]
+      - button "v0"
+    - heading "Layout" [level=3]
+    - paragraph: Where the AI and BI panes live + which ones are visible. Live-updates immediately.
+    - article:
+      - generic: Layout preset
+      - button "Copy link to Layout preset": Copy link
+      - paragraph: Pick a starting shape, then fine-tune below if needed. Unified default. AI Insights, Ask Pulse, and Dashboard are peer surfaces; the dashboard opens on demand instead of taking a permanent second section.
+      - button "Balanced" [pressed]
+      - button "Split + Mix"
+      - button "BI focus"
+      - button "AI Insights focus"
+      - button "Ask Pulse focus"
+    - article:
+      - generic: Visible panels
+      - button "Copy link to Visible panels": Copy link
+      - paragraph: "Author choice: unified surface, split review, or focused single-surface deployments. AI/BI verticals stay independent — pick what you've wired up."
+      - button "AI only"
+      - button "BI only"
+      - button "Unified" [pressed]
+      - button "Split"
+    - article:
+      - generic: AI position
+      - button "Copy link to AI position": Copy link
+      - paragraph: Where the AI panel sits relative to the BI canvas. Applies to the explicit Split preset, not the unified default.
+      - button "Left" [pressed]
+      - button "Right"
+      - button "Top"
+      - button "Bottom"
+    - heading "Mix composition" [level=3]
+    - paragraph: Cherry-pick which AI surfaces and BI composition modes render. Author choice — end users only see what's checked.
+    - article:
+      - generic: AI surfaces
+      - button "Copy link to AI surfaces": Copy link
+      - paragraph: Which AI views to expose. Cross-linked with Settings → AI → AI Insights (changes here update there).
+      - button "Insights + Ask Pulse" [pressed]
+      - button "Insights only"
+      - button "Ask Pulse only"
+    - article:
+      - generic: Research Agent traces
+      - button "Copy link to Research Agent traces": Copy link
+      - paragraph: When Genie's Agent Mode runs on a message (started in the Databricks Genie UI), render its reasoning trace as a separate section. PulsePlay does not start Agent Mode itself — Databricks' REST API doesn't expose that trigger — but we surface the trace when it's present in the message response (new Genie field, 2026-04-16).
+      - button "Show when present" [pressed]
+      - button "Hide"
+    - article:
+      - generic: Managed agent surface
+      - button "Copy link to Managed agent surface": Copy link
+      - paragraph: (Coming next cycle — wires Mosaic AI ResponsesAgent serving endpoints as a dedicated agentic pane. Distinct from the existing Supervisor connector template.)
+      - button "Available when ResponsesAgent connector is configured" [disabled]
+    - article:
+      - generic: BI composition
+      - button "Copy link to BI composition": Copy link
+      - paragraph: How BI surfaces render in Mix mode. Per-tile cherry-pick (selecting specific Power BI tiles / Tableau worksheets / Qlik objects / Looker tiles) requires vendor-SDK work and lands in the next cycle.
+      - button "Full canvas" [pressed]
+      - button "Per-tile cherry-pick (coming next cycle)"
+    - heading "Display policy" [level=3]
+    - paragraph: Read-only canvas policy — set by your admin in the proxy allowlist.
+    - article:
+      - generic: Canvas tiles
+      - button "Copy link to Canvas tiles": Copy link
+      - paragraph: How many BI frames render in the BI pane. Managed by backend display policy, not a viewer toolbar.
+      - generic: "Backend tile mode:"
+      - generic: "1"
+      - paragraph:
+        - text: Set by
+        - code: proxy/config.json
+        - code: allowlist.display.biTileMode
+        - text: . Use 1 for the normal viewer experience; 2 or 4 only for governed comparison deployments.

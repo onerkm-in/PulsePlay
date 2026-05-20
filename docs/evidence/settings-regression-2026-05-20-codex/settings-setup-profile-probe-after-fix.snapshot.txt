@@ -1,0 +1,97 @@
+- banner:
+  - heading "Settings" [level=1]:
+    - text: Settings
+  - paragraph: Configure how PulsePlay looks, what it embeds, and how it reasons.
+  - button "Back to app":
+    - text: Back to app
+- searchbox "Search settings"
+- generic: Ctrl /
+- button "Jump to Setup group":
+  - generic: Setup
+  - generic: BI config
+- button "Jump to BI group":
+  - generic: BI
+  - generic: Power BI
+- button "Jump to AI group":
+  - generic: AI
+  - generic: Default profile
+- button "Jump to ai › Pack":
+  - generic: Pack
+  - generic: No knowledge source
+- button "Jump to system › Proxy":
+  - generic: Proxy
+  - generic: Connected
+- button "Jump to system › Security":
+  - generic: Security
+  - generic: Enforced
+- main:
+  - region "Setup":
+    - heading "Setup" [level=2]
+    - paragraph: Three short steps to get PulsePlay running. Each card configures one axis inline; deeper tuning lives in the BI, AI, and Preferences pages.
+    - generic: Setup needed
+    - generic: "Missing: BI config"
+    - generic: "1"
+    - heading "BI surface More info" [level=3]:
+      - text: BI surface
+      - button "More info": i
+    - paragraph: The dashboard, report, or canvas users will look at.
+    - generic: Needs embed
+    - generic: Provider *
+    - button "More info": i
+    - combobox:
+      - option "— Pick a dashboard tool —"
+      - option "Databricks AI/BI"
+      - option "Databricks Genie"
+      - option "Power BI" [selected]
+      - option "Tableau"
+      - option "Qlik Sense"
+      - option "Looker"
+      - option "Generic iframe"
+    - paragraph: The BI vendor PulsePlay will embed in the canvas pane.
+    - generic: Embed URL or iframe HTML
+    - button "More info": i
+    - textbox "https://app.powerbi.com/reportEmbed?reportId=…"
+    - paragraph: Paste the full embed URL (Power BI / Tableau / generic) OR the iframe HTML from Databricks Genie Share → Embed.
+    - button "Apply embed" [disabled]
+    - button "Open full embed settings"
+    - generic: "2"
+    - heading "AI assistant More info" [level=3]:
+      - text: AI assistant
+      - button "More info": i
+    - paragraph: One assistant powers both AI Insights and Ask Pulse — pick its profile here.
+    - generic: Configured
+    - button "Test proxy":
+      - text: Test proxy
+    - generic: AI profile *
+    - link "Genie docs":
+      - /url: https://docs.databricks.com/aws/genie/
+      - text: Genie docs
+    - button "More info": i
+    - combobox:
+      - option "— Pick an AI profile —"
+      - option "Default" [selected]
+      - option "Supervisor"
+      - option "Foundation (Llama 3.1 405B)"
+    - paragraph: Maps to a profile in proxy/config.json. The proxy holds all credentials — your browser never sees a token.
+    - button "Test selected profile":
+      - text: Test selected profile
+    - generic: Profile reachable
+    - generic: registered
+    - button "Tune Insights behavior"
+    - generic: "3"
+    - heading "Domain knowledge More info" [level=3]:
+      - text: Domain knowledge
+      - button "More info": i
+    - paragraph: Industry vocabulary the assistant uses to interpret your data.
+    - generic: Optional
+    - generic: Pack
+    - button "More info": i
+    - combobox:
+      - option "— No pack (generic vocabulary) —" [selected]
+      - option "CPG / FMCG"
+    - paragraph: Optional but recommended. Picks vocab + metric direction rules tuned for the industry.
+    - paragraph: Related areas
+    - button "Layout & display"
+    - button "Proxy & diagnostics"
+    - button "Advanced / reset"
+- button "Open Tanstack query devtools":

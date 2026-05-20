@@ -5,7 +5,7 @@
 // System, and Advanced. Inline pickers + live test buttons + rich help
 // tooltips. The deeper per-area pages remain available for fine-tuning.
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { navigateToSettings } from "../settingsRoute";
 import { useSettings } from "../settingsStore";
 import { useEmbedConfig } from "../embedConfigStore";
@@ -42,6 +42,21 @@ const VENDOR_HELP: Record<string, React.ReactNode> = {
     "generic-iframe": <><strong>Generic iframe.</strong> Any URL — escape hatch for vendors PulsePlay doesn't yet have an SDK adapter for. Works today; no credentials needed.</>,
 };
 
+interface SetupProfileMetadata {
+    name: string;
+    displayName?: string;
+    dataDomain?: string;
+    description?: string;
+    spaceId?: string;
+    type?: string;
+    spaces?: string[];
+}
+
+interface SetupPackOption {
+    name: string;
+    displayName?: string;
+}
+
 export function SetupGroup(): React.ReactElement {
     const {
         biVendor, activeAiProfile, packSelection,
@@ -60,6 +75,78 @@ export function SetupGroup(): React.ReactElement {
 
     const aiProfiles = allowlist?.aiProfiles ?? [];
     const packs = allowlist?.packs ?? [];
+    const allowlistConfigured = allowlist?.configured === true;
+
+    const [liveProfiles, setLiveProfiles] = useState<SetupProfileMetadata[]>([]);
+    const [profilesLoading, setProfilesLoading] = useState(true);
+    const [livePacks, setLivePacks] = useState<SetupPackOption[]>([]);
+    const [packsLoading, setPacksLoading] = useState(true);
+
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            try {
+                const res = await fetch("/api/assistant/profiles", { headers: { Accept: "application/json" } });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                const list = normalizeProfilesPayload(data);
+                if (!cancelled) setLiveProfiles(list);
+            } catch {
+                if (!cancelled) setLiveProfiles([]);
+            } finally {
+                if (!cancelled) setProfilesLoading(false);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            try {
+                const res = await fetch("/api/assistant/knowledge/packs", { headers: { Accept: "application/json" } });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                const list = normalizePacksPayload(data);
+                if (!cancelled) setLivePacks(list);
+            } catch {
+                if (!cancelled) setLivePacks([]);
+            } finally {
+                if (!cancelled) setPacksLoading(false);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, []);
+
+    const visibleProfiles = useMemo<SetupProfileMetadata[]>(() => {
+        if (allowlistConfigured) {
+            if (aiProfiles.length === 0) return [];
+            const byName = new Map(liveProfiles.map(p => [p.name, p]));
+            return aiProfiles.map(name => byName.get(name) ?? { name });
+        }
+        if (liveProfiles.length > 0) return liveProfiles;
+        return aiProfiles.map(name => ({ name }));
+    }, [allowlistConfigured, aiProfiles, liveProfiles]);
+
+    const visiblePacks = useMemo<SetupPackOption[]>(() => {
+        if (allowlistConfigured) {
+            if (packs.length === 0) return [];
+            const byName = new Map(livePacks.map(p => [p.name, p]));
+            return packs.map(name => byName.get(name) ?? { name });
+        }
+        if (livePacks.length > 0) return livePacks;
+        return packs.map(name => ({ name }));
+    }, [allowlistConfigured, packs, livePacks]);
+
+    const activeProfileMeta = useMemo(
+        () => visibleProfiles.find(p => p.name === activeAiProfile) ?? liveProfiles.find(p => p.name === activeAiProfile) ?? null,
+        [visibleProfiles, liveProfiles, activeAiProfile],
+    );
+
+    const activeProfileDocs = useMemo(
+        () => docsForProfile(activeProfileMeta, activeAiProfile),
+        [activeProfileMeta, activeAiProfile],
+    );
 
     // ── Live probe handlers ────────────────────────────────────────
     const probeProxy = useCallback<() => Promise<TestResult>>(async () => {
@@ -95,9 +182,7 @@ export function SetupGroup(): React.ReactElement {
                 return { tone: "missing", label: "Profile probe failed", detail: `HTTP ${res.status}` };
             }
             const data = await res.json();
-            const profile = Array.isArray(data?.profiles)
-                ? data.profiles.find((p: any) => p?.name === activeAiProfile)
-                : null;
+            const profile = normalizeProfilesPayload(data).find(p => p.name === activeAiProfile) ?? null;
             if (!profile) {
                 return { tone: "warn", label: "Profile not registered", detail: `'${activeAiProfile}' missing on proxy` };
             }
@@ -295,28 +380,30 @@ export function SetupGroup(): React.ReactElement {
                 <FieldRow
                     label="AI profile"
                     labelTrailing={
-                        // Docs link rendered next to the label — outside the
-                        // tooltip per Codex 2026-05-19 tooltip audit P1-2.
-                        // ARIA tooltips can't host interactive controls; this
-                        // link is a sibling so it's keyboard-reachable,
-                        // screen-reader announced as a real link, and not
-                        // buried inside a pointer-events:none container.
-                        <a
-                            href="https://docs.databricks.com/en/genie/index.html"
-                            target="_blank"
-                            rel="noreferrer"
-                            style={{ fontSize: 11, fontWeight: 500, marginLeft: 4, color: "var(--pp-accent)", display: "inline-flex", alignItems: "center", gap: 3 }}
-                        >
-                            Databricks docs
-                            {/* External-link SVG glyph replaces the U+2197 "↗"
-                              * character so accessible name + text snapshots
-                              * stay clean. Codex naming audit fix. */}
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                                <polyline points="15 3 21 3 21 9" />
-                                <line x1="10" y1="14" x2="21" y2="3" />
-                            </svg>
-                        </a>
+                        activeProfileDocs && (
+                            // Docs link rendered next to the label — outside the
+                            // tooltip per Codex 2026-05-19 tooltip audit P1-2.
+                            // ARIA tooltips can't host interactive controls; this
+                            // link is a sibling so it's keyboard-reachable,
+                            // screen-reader announced as a real link, and not
+                            // buried inside a pointer-events:none container.
+                            <a
+                                href={activeProfileDocs.href}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{ fontSize: 11, fontWeight: 500, marginLeft: 4, color: "var(--pp-accent)", display: "inline-flex", alignItems: "center", gap: 3 }}
+                            >
+                                {activeProfileDocs.label}
+                                {/* External-link SVG glyph replaces the U+2197 "↗"
+                                  * character so accessible name + text snapshots
+                                  * stay clean. Codex naming audit fix. */}
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                                    <polyline points="15 3 21 3 21 9" />
+                                    <line x1="10" y1="14" x2="21" y2="3" />
+                                </svg>
+                            </a>
+                        )
                     }
                     required
                     hint={
@@ -327,8 +414,8 @@ export function SetupGroup(): React.ReactElement {
                         // common reasons so authors can self-diagnose.
                         allowlistLoading
                             ? "Loading available profiles from the proxy allowlist…"
-                            : aiProfiles.length === 0
-                                ? "No profiles available. Either the proxy /assistant/profiles call failed, or none are in the allowlist. Check Settings → System → Proxy status to confirm."
+                            : visibleProfiles.length === 0
+                                ? "No profiles available. Either the proxy /assistant/profiles call failed, or all profiles are blocked by the configured allowlist. Check Settings → System → Proxy status to confirm."
                                 : "Maps to a profile in proxy/config.json. The proxy holds all credentials — your browser never sees a token."
                     }
                     // Codex 2026-05-19 tooltip audit P1-2 fix: removed the
@@ -348,11 +435,11 @@ export function SetupGroup(): React.ReactElement {
                         id="pp-setup-ai-profile"
                         value={activeAiProfile}
                         onChange={e => setActiveAiProfile(e.target.value)}
-                        disabled={allowlistLoading || aiProfiles.length === 0}
+                        disabled={allowlistLoading || profilesLoading || visibleProfiles.length === 0}
                     >
                         <option value="">— Pick an AI profile —</option>
-                        {aiProfiles.map(p => (
-                            <option key={p} value={p}>{p}</option>
+                        {visibleProfiles.map(p => (
+                            <option key={p.name} value={p.name}>{p.displayName || p.name}</option>
                         ))}
                     </select>
                 </FieldRow>
@@ -391,11 +478,11 @@ export function SetupGroup(): React.ReactElement {
                         id="pp-setup-pack"
                         value={packSelection?.pack ?? ""}
                         onChange={e => setPackSelection(e.target.value ? { pack: e.target.value } : null)}
-                        disabled={allowlistLoading || packs.length === 0}
+                        disabled={allowlistLoading || packsLoading || visiblePacks.length === 0}
                     >
                         <option value="">— No pack (generic vocabulary) —</option>
-                        {packs.map(p => (
-                            <option key={p} value={p}>{p}</option>
+                        {visiblePacks.map(p => (
+                            <option key={p.name} value={p.name}>{p.displayName || p.name}</option>
                         ))}
                     </select>
                 </FieldRow>
@@ -444,6 +531,72 @@ function FooterLink(props: { label: string; group: "bi" | "ai" | "preferences" |
             {props.label}
         </button>
     );
+}
+
+function normalizeProfilesPayload(data: unknown): SetupProfileMetadata[] {
+    const list = Array.isArray(data)
+        ? data
+        : Array.isArray((data as { profiles?: unknown } | null)?.profiles)
+            ? (data as { profiles: unknown[] }).profiles
+            : [];
+    return list
+        .filter((p): p is Record<string, unknown> => !!p && typeof p === "object" && typeof p.name === "string" && p.name.trim().length > 0)
+        .map(p => ({
+            name: String(p.name),
+            displayName: typeof p.displayName === "string" ? p.displayName : undefined,
+            dataDomain: typeof p.dataDomain === "string" ? p.dataDomain : undefined,
+            description: typeof p.description === "string" ? p.description : undefined,
+            spaceId: typeof p.spaceId === "string" ? p.spaceId : undefined,
+            type: typeof p.type === "string" ? p.type : undefined,
+            spaces: Array.isArray(p.spaces) ? p.spaces.filter((s): s is string => typeof s === "string") : undefined,
+        }));
+}
+
+function normalizePacksPayload(data: unknown): SetupPackOption[] {
+    const list = Array.isArray(data)
+        ? data
+        : Array.isArray((data as { packs?: unknown } | null)?.packs)
+            ? (data as { packs: unknown[] }).packs
+            : [];
+    return list
+        .filter((p): p is Record<string, unknown> => !!p && typeof p === "object" && typeof p.name === "string" && p.name.trim().length > 0)
+        .map(p => ({
+            name: String(p.name),
+            displayName: typeof p.displayName === "string" ? p.displayName : undefined,
+        }));
+}
+
+function docsForProfile(profile: SetupProfileMetadata | null, selectedName: string): { href: string; label: string } | null {
+    if (!selectedName) return null;
+    const type = profile?.type || "";
+    if (type === "foundation-model") {
+        return {
+            href: "https://docs.databricks.com/en/machine-learning/foundation-models/index.html",
+            label: "Foundation Model docs",
+        };
+    }
+    if (type === "supervisor" || type === "supervisor-local" || type === "responses-agent") {
+        return {
+            href: "https://docs.databricks.com/aws/en/generative-ai/agent-framework/create-agent",
+            label: "Agent Framework docs",
+        };
+    }
+    if (type === "powerbi-semantic-model") {
+        return {
+            href: "https://learn.microsoft.com/power-bi/developer/embedded/",
+            label: "Power BI docs",
+        };
+    }
+    if (profile?.spaceId || !type) {
+        return {
+            href: "https://docs.databricks.com/aws/genie/",
+            label: "Genie docs",
+        };
+    }
+    return {
+        href: "https://docs.databricks.com/",
+        label: "Connector docs",
+    };
 }
 
 // ── Helpers ────────────────────────────────────────────────────────
