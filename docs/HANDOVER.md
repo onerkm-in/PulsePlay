@@ -5,6 +5,38 @@
 
 ---
 
+## 2026-05-20 — Cycle 12: Full DwD purge + probe-once reuse (client+server)
+
+**Scope.** User direction: "no DwD anywhere — it should be PulsePlay" plus "can we not use a query to probe as and when the user loads the screen and all other queries follow the same probe?". Two parallel slices in one cycle.
+
+**Slice A — DwD purge (43 files).** Replaced DwD-isms repo-wide with PulsePlay or sister-project phrasing.
+- Endpoint slugs + agent labels: `dwd-supervisor-agent` → `pulseplay-supervisor-agent`, `DwD Supervisor Agent` → `PulsePlay Supervisor Agent` (`deploy.ipynb`, `proxy/server.js` comments, supervisor README, `proxy/app.yaml`).
+- localStorage + cache prefixes bumped: `dwd-ai-insights:v6:` → `pulseplay-ai-insights:v7:` (per ADR-0005, acceptable cache invalidation), `dwd-ai-insights-visibility:`, `dwd-setup-step5-*`, `dwd-export-lazy-blocked` all renamed.
+- Window debug key `__dwdInsightsSectionsJson` → `__pulseplayInsightsSectionsJson`; SQL alias `dwd_validation_check` → `pulseplay_validation_check`.
+- Default DB table fixture `dwd_ai_chat_history` → `pulseplay_ai_chat_history` in code + tests. The actual table name is per-profile configurable (`chatHistoryTable`), so deployers with an existing `dwd_ai_chat_history` table keep working — only the default example + error-message hint changed.
+- Legacy session-state fallback REMOVED. [scripts/llm_onboard.py](../scripts/llm_onboard.py) and [llm_wrapup.py](../scripts/llm_wrapup.py) no longer read `.dwd-session.state.json`; `.gitignore` drops the line. Scripts have written the new name since 2026-05-10, so the fallback was dead weight.
+- Inherited / heritage prose: "from DwD" → "from the sister project", standalone DwD in prose → "the sister project", etc.
+- Final grep `dwd|DwD` across tracked files: 0 matches. (`f7090fa`)
+
+**Slice B — probe-once reuse end-to-end.** The probe was already running once on Pulse mode load (Smart Connect), but its findings (KPIs / schema / sample questions) never reached the conversations/start prompt — Genie was answering blind to the metadata we'd collected. Closed the loop:
+1. **App.tsx prewarm** (`e19e861`) — when (profile, pack) becomes known, fire `getDiscoverySnapshot()` once into the discoveryClient's sessionStorage cache (15-min TTL + in-flight dedupe). Subsequent surfaces hit the warm cache.
+2. **New [proxy/lib/discoveryPromptInjector.js](../proxy/lib/discoveryPromptInjector.js)** + [proxy/server.js#/assistant/conversations/start](../proxy/server.js) — composes the prompt as `[Discovery Context]` → `[Pack Context]` → `[User Question]`. Either or both context blocks may be absent; prompt is byte-identical to today when `discoveryContext` is absent. New `discovery-context-inject` audit-log action.
+3. **[playground/src/pulse/genie.ts](../playground/src/pulse/genie.ts)** — synchronous `readCachedDiscoverySummary(profile)` scans sessionStorage and summarises the snapshot (connector type, table count, available KPIs, reachable frames; bounded at 20 KPIs + 12 frames); `startConversation` + `sendMessage` attach it as `discoveryContext` on every request. (`5836dd6`)
+
+**Validation.**
+- proxy `npm test`: **910/910** passing
+- playground `npm test`: **1063/1063** passing
+- playground `npm run lint`: clean (`tsc --noEmit`)
+- playground `npm run build`: ✓ built in 17.00s
+- `node --check proxy/server.js`: clean
+
+**Honest deferrals.**
+- No unit test added for `discoveryPromptInjector.js` yet — the proxy integration tests pass and the helper has a tight surface (3 inputs, conditional string concat), so a focused unit test is low-priority follow-up.
+- A future cycle could swap to a server-resolved `discoverySnapshotCacheKey` lookup against the existing `_snapshotCache` in `discoveryEngine.js` (60-sec TTL) so the client only sends a hash, saving a few KB of payload per question.
+- KPI/frame caps (20 / 12) silently truncate richer snapshots. Reasonable for v1; revisit if specific KPIs get clipped in practice.
+
+---
+
 ## 2026-05-20 — Cycle 11: Audit close-out — SigV4 dedup, ADR-0003 rewrite, CI workflow, doc accuracy
 
 **Scope.** A prior cloud-container session described a 7-commit audit close-out that never reached this repo (no branch on `origin`, no patch files on disk, only `docs/findingProbeIssue.md` had been carried in via Cycle 10). Verified each claim against current local main and applied the changes that were genuinely missing.
