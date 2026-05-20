@@ -26,6 +26,7 @@ import { probeConnector } from "../../lib/probeClient";
 import { useDatabricksCapabilities } from "../../lib/databricksCapabilities";
 import { listMetricViews, type MetricViewSummary } from "../../lib/databricksAssets";
 import type { ConnectorProbeResult } from "../../types/probe";
+import { navigateToPowerBiQna } from "../../powerbi/PowerBiQnARoute";
 import {
     usePulseAiVisualSettings,
     type PulseAiVisualSettings,
@@ -129,6 +130,11 @@ export function AiGroup(): React.ReactElement {
 
     const isSupervisor =
         !!activeProfileMeta && (activeProfileMeta.type === "supervisor" || activeProfileMeta.type === "supervisor-local");
+    // Cycle 17 — surface a launch button to /powerbi/qna when the active
+    // assistant is a Power BI semantic-model profile. Route + token-mint
+    // landed in cycle 15.5; this just exposes the entry point.
+    const isPowerBiSemanticModel =
+        !!activeProfileMeta && activeProfileMeta.type === "powerbi-semantic-model";
     const vectorSearchDetail = databricksCapabilities.details.vectorSearch;
     const vectorSearchReady = databricksCapabilities.capabilities.vectorSearch === true && (vectorSearchDetail?.count || 0) > 0;
 
@@ -239,6 +245,39 @@ export function AiGroup(): React.ReactElement {
                     <SupervisorProbeMatrix spaces={activeProfileMeta.spaces} />
                 )}
             </Leaf>
+
+            {/* ── Power BI Q&A launch (cycle 17, conditional) ──────────────
+              * Only renders when the active profile is a
+              * `powerbi-semantic-model`. Opens the full-page Q&A surface
+              * (Microsoft's NLP layer over the dataset) at /powerbi/qna.
+              * The proxy mints the dataset-scoped embed token; PulsePlay
+              * makes zero LLM calls on this path.
+              */}
+            {isPowerBiSemanticModel && (
+                <Leaf
+                    group="ai"
+                    label="Power BI Q&A"
+                    helper="Open Microsoft's natural-language Q&A surface bound to this dataset. The token mint stays server-side; PulsePlay makes no LLM call on this path."
+                >
+                    <button
+                        type="button"
+                        onClick={() => navigateToPowerBiQna()}
+                        data-action="open-powerbi-qna"
+                        style={{
+                            padding: "8px 16px",
+                            fontSize: 13,
+                            fontWeight: 600,
+                            border: "1px solid var(--pp-border, rgba(0,0,0,0.18))",
+                            background: "var(--pp-accent, #f3b5e3)",
+                            color: "var(--pp-accent-fg, #211322)",
+                            borderRadius: 4,
+                            cursor: "pointer",
+                        }}
+                    >
+                        Open Power BI Q&amp;A →
+                    </button>
+                </Leaf>
+            )}
 
             </SubSection>
 

@@ -102,6 +102,12 @@ async function orchestrateGroundedAnswer({
     convId,
     msgId,
     packContext,       // Cycle C — optional pack-specific prompt context.
+    clientMaxRetries,  // Cycle 17 — optional per-request validation-retry override.
+                       //   When provided, wins over ORCHESTRATOR_VALIDATE_RETRIES so
+                       //   the Settings "Validation retries" lever can raise/lower
+                       //   server-side validator retries without re-deploying the
+                       //   proxy. Mirrors the Genie poll path (cycle 13). null/undefined
+                       //   falls back to the env-var default. Clamped 0..3.
 }) {
     if (!schemaContext || !schemaContext.trim()) {
         throw new Error('Schema context is required for grounded answers. Set profile.schemaContext in config.json.');
@@ -213,7 +219,17 @@ async function orchestrateGroundedAnswer({
     // failed body so the model can fix itself. Returns the better
     // attempt; logs validation diagnostics so the visual can surface
     // them inline.
-    const orchestratorRetryBudget = Math.max(0, Math.min(3, parseInt(process.env.ORCHESTRATOR_VALIDATE_RETRIES || '0', 10) || 0));
+    //
+    // Cycle 17 (2026-05-20) — symmetry with Genie poll: clientMaxRetries
+    // from the request body (Settings "Validation retries" lever) wins
+    // over the env-var baseline. Uses the shared resolveBudget helper so
+    // the resolution rules stay testable in isolation and identical to
+    // the Genie path at proxy/server.js#maybeValidateGeniePollResponse.
+    const { resolveBudget } = require('./validationRetryBudget');
+    const orchestratorRetryBudget = resolveBudget({
+        envValue: process.env.ORCHESTRATOR_VALIDATE_RETRIES,
+        clientValue: clientMaxRetries,
+    });
     let validationDiagnostics = null;
     if (orchestratorRetryBudget > 0 && narrative && /^#{1,3}\s/m.test(narrative)) {
         try {

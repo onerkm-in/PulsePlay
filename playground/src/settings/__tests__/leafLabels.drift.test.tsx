@@ -165,7 +165,11 @@ describe("GROUP_LEAF_LABELS dictionary drift prevention", () => {
         const SUB_ROUTE_LABELS: Record<keyof typeof GROUP_LEAF_LABELS, ReadonlySet<string>> = {
             setup: new Set(),
             bi: new Set(["Governance"]),
-            ai: new Set(["Knowledge Base", "Supervisor Fusion"]),
+            // "Power BI Q&A" is a conditional leaf that renders only when the
+            // active profile is `powerbi-semantic-model`. The default test
+            // mount uses no profile; the button dispatches to a dedicated
+            // sub-page (/powerbi/qna) so it sits with the sub-route entries.
+            ai: new Set(["Knowledge Base", "Supervisor Fusion", "Power BI Q&A"]),
             preferences: new Set(["Appearance"]),
             system: new Set(["Developer Tools"]),
             advanced: new Set(),
