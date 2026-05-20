@@ -1323,6 +1323,11 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
         // when its auto-probe completes or the user picks via the
         // PackPicker; absent key = no pack injection (proxy is permissive).
         const packSelection = readPackSelectionFromStorage();
+        // Probe-once reuse — attach the cached DiscoverySnapshot summary
+        // so the proxy injects discovery facts (connector type, available
+        // KPIs, reachable frames) above the user question. Cache-first
+        // read from sessionStorage; null = no injection.
+        const discoveryContext = readCachedDiscoverySummary(this.config.assistantProfile || "");
         const body = {
             ...base,
             intent: options?.intent,
@@ -1331,6 +1336,7 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
             spaceId: this.config.spaceId,
             ...(packSelection?.pack ? { pack: packSelection.pack } : {}),
             ...(packSelection?.subVertical ? { subVertical: packSelection.subVertical } : {}),
+            ...(discoveryContext ? { discoveryContext } : {}),
         };
         const raw = await this.request<any>("POST", "/conversations/start", body);
         const normalized = this.normalizeConversationResult(raw);
@@ -1360,12 +1366,16 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
             );
             return this.normalizeConversationResult(raw);
         }
+        // Probe-once reuse — follow-up messages also forward the cached
+        // discovery summary so the proxy can re-inject if it chooses.
+        const discoveryContext = readCachedDiscoverySummary(this.config.assistantProfile || "");
         const body = {
             ...base,
             intent: options?.intent,
             contextText: options?.contextText,
             assistantProfile: this.config.assistantProfile,
-            spaceId: this.config.spaceId
+            spaceId: this.config.spaceId,
+            ...(discoveryContext ? { discoveryContext } : {}),
         };
         const raw = await this.request<any>("POST", `/conversations/${conversationId}/messages`, body);
         const normalized = this.normalizeConversationResult(raw);
@@ -1907,4 +1917,84 @@ function readPackSelectionFromStorage(): { pack?: string; subVertical?: string }
     } catch {
         return null;
     }
+}
+
+// Probe-once reuse — pulls the cached DiscoverySnapshot (written by
+// discoveryClient.ts's sessionStorage cache on screen-load prewarm) and
+// summarises it into a compact `discoveryContext` block that the proxy's
+// /assistant/conversations/start route consumes alongside pack context.
+// Synchronous; never throws.
+const DISCOVERY_STORAGE_PREFIX = "pulseplay:discovery:";
+
+interface CachedDiscoverySummary {
+    snapshotVersion?: number;
+    sources?: {
+        probe?: {
+            connectorType?: string;
+            displayName?: string;
+            tableCount?: number;
+            metadataAvailability?: string;
+        } | null;
+        biMetadata?: unknown;
+        packKpiCount?: number;
+    };
+    availableKpis?: string[];
+    reachableFrames?: string[];
+}
+
+function readCachedDiscoverySummary(profile: string): CachedDiscoverySummary | null {
+    if (typeof window === "undefined") return null;
+    if (!profile) return null;
+    try {
+        if (typeof sessionStorage === "undefined") return null;
+        // discoveryClient cache key shape: PREFIX + "<profile>|<pack>|<subV>|<biHash>"
+        // We only need a profile match; the first non-expired hit wins. The 15-min
+        // sessionStorage TTL bounds staleness.
+        const now = Date.now();
+        for (let i = 0; i < sessionStorage.length; i++) {
+            const k = sessionStorage.key(i);
+            if (!k || !k.startsWith(DISCOVERY_STORAGE_PREFIX)) continue;
+            const rest = k.slice(DISCOVERY_STORAGE_PREFIX.length);
+            const keyProfile = rest.split("|")[0];
+            if (keyProfile !== profile) continue;
+            const raw = sessionStorage.getItem(k);
+            if (!raw) continue;
+            const wrapper = JSON.parse(raw);
+            if (!wrapper || typeof wrapper !== "object") continue;
+            if (typeof wrapper.expiresAtMs !== "number") continue;
+            if (now > wrapper.expiresAtMs) continue;
+            const snap = wrapper.snapshot;
+            if (!snap || typeof snap !== "object") continue;
+            return summariseSnapshotForPrompt(snap);
+        }
+    } catch { /* ignore — discovery is enrichment */ }
+    return null;
+}
+
+function summariseSnapshotForPrompt(snap: Record<string, unknown>): CachedDiscoverySummary {
+    const sources = snap.sources as Record<string, unknown> | undefined;
+    const probe = sources?.probe as Record<string, unknown> | null | undefined;
+    const fused = snap.fused as Record<string, unknown> | undefined;
+    const availableKpis = Array.isArray(fused?.availableKpis)
+        ? (fused.availableKpis as Array<{ name?: string }>).map(k => k?.name).filter((s): s is string => !!s)
+        : [];
+    const reachableFrames = Array.isArray(fused?.reachableFrames)
+        ? (fused.reachableFrames as Array<{ label?: string }>).map(f => f?.label).filter((s): s is string => !!s)
+        : [];
+    return {
+        snapshotVersion: typeof snap.snapshotVersion === "number" ? snap.snapshotVersion : undefined,
+        sources: {
+            probe: probe
+                ? {
+                    connectorType: typeof probe.connectorType === "string" ? probe.connectorType : undefined,
+                    displayName: typeof probe.displayName === "string" ? probe.displayName : undefined,
+                    tableCount: typeof probe.tableCount === "number" ? probe.tableCount : undefined,
+                    metadataAvailability: typeof probe.metadataAvailability === "string" ? probe.metadataAvailability : undefined,
+                }
+                : null,
+            packKpiCount: Array.isArray(sources?.packKpis) ? (sources.packKpis as unknown[]).length : 0,
+        },
+        availableKpis,
+        reachableFrames,
+    };
 }

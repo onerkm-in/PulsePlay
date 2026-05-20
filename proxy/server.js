@@ -2809,15 +2809,28 @@ app.post('/assistant/conversations/start', async (req, res) => {
     // the first user message. Failures here are NEVER fatal: if the pack
     // can't be resolved we send the question unchanged and audit-log a
     // warning so the audit pipeline can surface misconfigured packs.
+    //
+    // Probe-once reuse — the client (Pulse genie.ts) reads its cached
+    // DiscoverySnapshot and attaches `discoveryContext`. We compose discovery
+    // BEFORE pack so Genie sees concrete facts (connector type, available
+    // KPIs, reachable frames) above the vertical vocabulary. Either or both
+    // may be absent; layout collapses gracefully.
     const packResolved = resolvePackContext({ pack, subVertical });
-    let fullContent = baseContent;
-    if (packResolved.resolved && packResolved.content) {
-        fullContent = wrapAsGenieUserMessage(
-            packResolved.content,
-            packResolved.pack,
-            packResolved.subVertical,
-            baseContent,
-        );
+    const discoveryBlock = _formatDiscoveryContext(req.body && req.body.discoveryContext);
+    let fullContent;
+    if (discoveryBlock || (packResolved.resolved && packResolved.content)) {
+        const parts = [];
+        if (discoveryBlock) parts.push(`[Discovery Context]\n\n${discoveryBlock}`);
+        if (packResolved.resolved && packResolved.content) {
+            const tag = packResolved.subVertical
+                ? `${packResolved.pack}/${packResolved.subVertical}`
+                : (packResolved.pack || 'pack');
+            parts.push(`[Pack Context: ${tag}]\n\n${packResolved.content}`);
+        }
+        parts.push(`[User Question]\n\n${baseContent}`);
+        fullContent = parts.join('\n\n');
+    } else {
+        fullContent = baseContent;
     }
     if (packResolved.requested) {
         auditLog(req, {
@@ -2826,6 +2839,16 @@ app.post('/assistant/conversations/start', async (req, res) => {
             action: 'pack-context-inject',
             status: packResolved.resolved ? 'OK' : 'WARN',
             detail: JSON.stringify({ ...buildPackAuditDetail(packResolved), backend: 'genie' }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+    }
+    if (discoveryBlock) {
+        auditLog(req, {
+            profileName: resolved.name,
+            spaceId: targetSpaceId,
+            action: 'discovery-context-inject',
+            status: 'OK',
+            detail: JSON.stringify({ ...buildDiscoveryAuditDetail(discoveryBlock), backend: 'genie' }),
             spIdentityHash: spHashForProfile(resolved.profile),
         });
     }
@@ -3225,6 +3248,12 @@ const {
     wrapAsGenieUserMessage,
     buildAuditDetail: buildPackAuditDetail,
 } = require('./lib/packPromptInjector');
+// Probe-once reuse — companion injector for the client-supplied
+// discoveryContext (compact summary of the cached DiscoverySnapshot).
+const {
+    formatDiscoveryContext: _formatDiscoveryContext,
+    buildAuditDetail: buildDiscoveryAuditDetail,
+} = require('./lib/discoveryPromptInjector');
 // Phase 11b prep — proxy-side handling of the structured `body.frame`
 // field shipped by AISidebar (commit 738e4e1). Defense-in-depth
 // validation, idempotent content bridging for direct API callers, and
