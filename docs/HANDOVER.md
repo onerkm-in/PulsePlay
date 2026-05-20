@@ -5,6 +5,38 @@
 
 ---
 
+## 2026-05-20 — Session arc: 6 cycles shipped (Cycles 11 → 15.5)
+
+One beast-mode session. Six PRs merged into `publish/local-main-2026-05-20`, every PR independently shippable + reversible, no rollbacks.
+
+| # | Cycle | Headline | PR | Tests delta |
+|---|---|---|---|---|
+| 1 | **11** — Audit close-out | SigV4 dedup; ADR-0003 rewrite (2000 ms history table); CLAUDE.md citation fix; GitHub Actions CI workflow; HANDOVER entry | [#1](https://github.com/onerkm-in/PulsePlay/pull/1) | proxy 910→**923** (+13 discoveryPromptInjector unit tests merged together) |
+| 2 | **12** — DwD purge + probe-once (Genie) | 43-file rename DwD→PulsePlay (cache prefixes bumped, legacy session-state fallback removed, default DB table renamed); App.tsx prewarm of discovery snapshot; Pulse genie attaches `discoveryContext` on every Genie request; proxy injects `[Discovery Context]` block (Genie only) | [#1](https://github.com/onerkm-in/PulsePlay/pull/1) | rolled into #1 |
+| 3 | **13** — Author-selectable latency levers | Single `pulseplay:performance-levers` localStorage bag with 4 knobs (reveal cadence / discovery prewarm / cache TTL / validation retry budget), Settings → Advanced → Performance UI panel, server-side override in `maybeValidateGeniePollResponse`, mid-session event broadcast | [#2](https://github.com/onerkm-in/PulsePlay/pull/2) | proxy 923→**934** (+11); playground 1063→**1085** (+22) |
+| 4 | **14** — Cross-backend probe symmetry + failure visibility | Shared `composeUserMessageWithContext` + `composeSystemPromptWithContext`; FM (single + sectioned), OpenAI, Bedrock (direct + RAG), Supervisor all now consume `discoveryContext` like Genie does; new `probeStatusStore` pub/sub replaces silent `.catch(() => {})` | [#3](https://github.com/onerkm-in/PulsePlay/pull/3) | proxy 934→**947** (+13); playground 1085→**1096** (+11) |
+| 5 | **15** — Power BI semantic-model AI brain (no-LLM) | AAD SP token → DAX `INFO.*` probe → keyword matcher → DAX template → `executeQueries` → Markdown. 4 templates (top-n / aggregate-by / trend / total). Every response: `mode: powerbi-deterministic, llmCallCount: 0` | [#4](https://github.com/onerkm-in/PulsePlay/pull/4) | proxy 947→**1008** (+61) |
+| 6 | **15.5** — Power BI Q&A embed surface | Second answer mode for the same PBI connector: standalone `/powerbi/qna` route with `<PowerBiQnA>` component using `powerbi-client` SDK; proxy mints Q&A embed token via `generateQnAEmbedToken`; Microsoft's NLP runs in MS tenant; PulsePlay still 0 LLM calls | [#5](https://github.com/onerkm-in/PulsePlay/pull/5) | proxy 1008→**1013** (+5); playground 1096→**1103** (+7) |
+
+**Net test delta across the session:**
+- proxy: **910 → 1013** (+103 new cases)
+- playground: **1063 → 1103** (+40 new cases)
+- lint clean, `vite build` clean throughout
+
+**Pre-flight finding from Cycle 11 still load-bearing:** local `main` was tracking `origin/publish/local-main-2026-05-20`, not `origin/main`. The two branches have NO common git ancestor (`git merge-base` returns empty); 50 commits on `origin/main` + 314 on `publish/local-main-2026-05-20` + this session's 6 PRs are now stacked on publish. **Do not push publish→main without a strategic reconciliation cycle.** See Cycle 11 entry below.
+
+**Open agenda after this session** (deferred, ordered by impact × cost):
+
+1. **Connector plugin architecture** ([DECISION] agreed 2026-05-20). Refactor `proxy/server.js` connector dispatch into a `proxy/connectors/` directory of drop-in/drop-out modules. Phased rollout — see [AGENT_SYNC.md](AGENT_SYNC.md) for the contract spec.
+2. **Setup → AI UX bugs** (B1: allowlist shape mismatch returning `aiProfiles: []` despite proxy having 3 profiles; B2: "Configured" pill while dropdown is empty; B3: hardcoded "Databricks docs" link regardless of connector type). All caught during the live regression test.
+3. **Setup-side launch button** for PBI Q&A — surface "Open Power BI Q&A" in Settings → AI when active profile is `powerbi-semantic-model`. ~15-min follow-up.
+4. **FM orchestrator symmetric retry-budget wire-up** — `clientMaxRetries` honored on Genie poll path but not yet in `llmOrchestrator.js`.
+5. **RLS impersonation from IdP claims** (PBI). `executeDax` + `generateQnAEmbedToken` already accept `identities`; the route doesn't derive them yet.
+6. **Pulse tab integration** for PBI Q&A — make Q&A a 3rd tab next to AI Insights / Ask Pulse when connector matches. Requires touching `pulse/visual.tsx` `activeTab` (20+ call sites) — UX cycle on its own.
+7. **`origin/main` reconciliation** — structural, multi-day strategic decision.
+
+---
+
 ## 2026-05-20 — Cycle 15.5: Power BI Q&A embed surface
 
 **Scope.** The cycle-15 deterministic PBI brain answers via DAX templates. Cycle 15.5 adds the second answer surface: **Microsoft's Q&A NLP**, embedded inline via the `powerbi-client` SDK. The user types free-form questions, Microsoft handles NL → DAX → visual inside the iframe. PulsePlay still runs zero LLM calls — the proxy only mints the dataset-scoped embed token; Microsoft's NLP runs in their tenant.

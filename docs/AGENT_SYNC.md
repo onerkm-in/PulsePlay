@@ -52,6 +52,88 @@ Use these tags so another agent can scan quickly:
 
 Keep PulsePlay moving faster by coordinating work across agents without losing brutal honesty.
 
+### 2026-05-20 — Claude — [DONE] Session arc: Cycles 11 → 15.5 (6 PRs merged)
+
+`[DONE]` One beast-mode session, six PRs merged into `publish/local-main-2026-05-20`. Net test delta: proxy **910 → 1013** (+103), playground **1063 → 1103** (+40). Each PR independently shippable + reversible, no rollbacks.
+
+| Cycle | Headline | PR | Files |
+|---|---|---|---|
+| 11 | Audit close-out (SigV4 dedup, ADR-0003 rewrite, CI workflow) | [#1](https://github.com/onerkm-in/PulsePlay/pull/1) | 48 |
+| 12 | DwD purge (43 files) + probe-once (Genie) | [#1](https://github.com/onerkm-in/PulsePlay/pull/1) | (rolled in) |
+| 13 | Author-selectable latency levers (4 knobs + UI panel) | [#2](https://github.com/onerkm-in/PulsePlay/pull/2) | 13 |
+| 14 | Cross-backend probe symmetry (FM/OpenAI/Bedrock/Supervisor inject `discoveryContext` too) + `probeStatusStore` | [#3](https://github.com/onerkm-in/PulsePlay/pull/3) | 8 |
+| 15 | Power BI semantic-model AI brain — deterministic DAX template path, no LLM | [#4](https://github.com/onerkm-in/PulsePlay/pull/4) | 10 |
+| 15.5 | Power BI Q&A embed surface (MS NLP, PulsePlay still 0 LLM calls) | [#5](https://github.com/onerkm-in/PulsePlay/pull/5) | 9 |
+
+See [HANDOVER.md](HANDOVER.md) top entry for the full session-arc summary and per-cycle entries below it for full detail.
+
+`[RISK]` Local `main` is on the publish branch; `origin/main` shares NO common ancestor with publish (cycle-11 finding). **Do not push publish → main without a strategic reconciliation cycle.** ~496 files differ; ~50 commits unique to origin/main include v0.1.3 PBI secure-embed quick-preview, security audit work, richer Insights export toolbar. None of this session's work is on origin/main.
+
+`[DECISION]` **Connector plugin architecture — accepted 2026-05-20, queued for next session.**
+
+The 7,000-line `proxy/server.js` knowing about all 7 connectors (Genie / FM / OpenAI / Bedrock-direct / Bedrock-RAG / Supervisor / PBI semantic-model) is becoming the dominant friction. Rajesh's vision is **drop-in/drop-out** per-connector modules: add a connector by dropping a file into `proxy/connectors/`, remove one by deleting the file. Direction confirmed; phased rollout scheduled.
+
+Contract sketch (one file per connector):
+
+```js
+// proxy/connectors/genie.js
+module.exports = {
+    id: 'genie',
+    displayName: 'Databricks Genie',
+    matchProfile(profile) { return !!profile?.spaceId && !profile.type; },
+    async probe(profile, profileName, helpers) { /* ... */ },
+    register(host) {
+        host.app.post('/assistant/conversations/start', /* ... */);
+    },
+    async unregister(host) { /* optional cleanup */ },
+};
+```
+
+Host API surface (the only thing connectors are allowed to touch):
+
+```
+host = {
+    app: Express,
+    auditLog, sendProblem, createProblem, sendNoMatchingProfile,
+    profileRegistry, profileByName, profileAllowedForRequest,
+    databricksRequest, spHashForProfile,
+    discovery: discoveryPromptInjector,   // cycle 14 composers
+    packs:     packPromptInjector,         // cycle C pack context
+    validateFrame, prependFrameContext,
+    sanitiseSlotName,
+    // ... ONLY what at least two connectors need
+}
+```
+
+Phased rollout (each PR independently shippable):
+
+| Phase | What | Effort | Risk |
+|---|---|---|---|
+| **A** | Scaffolding only — `proxy/connectors/` dir + `_template.js` + `connectorHost.js` + `connectorRegistry.js` + boot-time scan in server.js. No connectors migrated. | ~1 day | Tiny — additive |
+| **B** | Migrate ONE pilot connector (recommend `bedrock` — both -direct and -RAG, ~300 lines, simplest deps). Validate contract is sufficient. | ~1 day | Low |
+| **C** | Migrate remaining 5 connectors one PR at a time: openai → foundation-model → supervisor → powerbi → genie (genie last; most integrated). | ~3-5 days | Per-connector |
+
+**Rule that protects the contract**: only add to `host` what at least two connectors need. Anything one-connector-specific stays inside that connector file. Otherwise `host` becomes the new monolith one layer down.
+
+`[HANDOFF]` Next agent picking this up should pick from (impact × cost ordered):
+
+1. **Phase A** of connector plugin architecture (scaffolding only). Pure additive; existing routes unaffected. Sets foundation for everything else.
+2. **Setup → AI UX bugs B1/B2/B3** (caught during live regression):
+   - B1: `allowlist.aiProfiles` returns `[]` despite proxy having 3 profiles. Shape mismatch — proxy returns `{default: [...], byGroup: {}}` but client filters as flat array. Fix in `settings/settingsRoute.ts` or wherever the allowlist hydrates.
+   - B2: "Configured" pill shows green while AI profile dropdown is empty + helper says "No profiles available". Source: B1 cascade.
+   - B3: "Databricks docs" link in Setup → AI hardcoded to `docs.databricks.com/genie` regardless of connector type. Should be connector-aware.
+3. **PBI Q&A Setup launcher** — add "Open Power BI Q&A" button to Settings → AI when active profile type is `powerbi-semantic-model`. The route already exists at `/powerbi/qna`; this is just a button + navigate. ~15 min.
+4. **FM orchestrator retry budget** — `clientMaxRetries` honored on Genie poll path; symmetric wire-up needed in `llmOrchestrator.js` reading `ORCHESTRATOR_VALIDATE_RETRIES`. ~30 min.
+5. **PBI RLS impersonation** — `executeDax` + `generateQnAEmbedToken` accept `identities` but the route doesn't derive them from IdP claims. Mirror the embed-token `powerBiRlsUsernameClaim` pattern.
+6. **Pulse tab integration for PBI Q&A** — `pulse/visual.tsx` `activeTab` has 20+ call sites; adding a third option is a UX cycle on its own.
+7. **`origin/main` reconciliation** — strategic, multi-day.
+
+**Critical do-not-touch tripwires preserved across the session**:
+- `pulse/*` directory is the Pulse-PBI sibling compat shim — every edit there was reviewed for sibling compatibility (cycle 12's DwD purge touched `themeConfig.ts` + `setupStep5*.ts` + `visual.less`; OK because the Pulse sibling either matches or doesn't share these specific lines).
+- `proxy/lib/sqlExecutor.js` is Databricks SQL Warehouse-only; do not extend it for arbitrary-DB direct-view mode without first agreeing on the transport layer.
+- The proxy's `_snapshotCache` (60 s TTL) intentionally absorbs the herd; do not bypass it with client-side cache keys (cycle 14 Task 32 explicitly skipped this optimization).
+- Audit-log file (`proxy/feedback.log`) is configured in `proxy/config.json` but may not appear on disk until first audit-emitting request completes. Not a code bug; flagged as environment hygiene during cycle 14 regression.
+
 ### 2026-05-19 - Claude - [DONE] AI Insights pipeline: concurrency-2 with stage-0 head-start
 
 `[DONE]` First concrete latency lever for AI Insights per Rajesh's "process two at a time, delay the second by 5-10 s on first load, all share the same conversation" ask. [`pulse/visual.tsx`](../playground/src/pulse/visual.tsx) `runInsights` IIFE replaces the cycle-47.14 pattern (serialize stage 0, then concurrency-3 pool) with a single concurrency-2 pool. Worker A picks stage 0 immediately; worker B waits **8 s** (`FIRST_LOAD_STAGE_1_DELAY_MS`) before its first pick (stage 1); both drain the remainder. Cycle-47.2 single-flight conversation opener in `obtainMessage()` is unchanged — every stage still shares the same `conversation_id`. Stop-flag honored before the delayed first pick.

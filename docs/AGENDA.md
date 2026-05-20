@@ -4,6 +4,20 @@
 >
 > Strategic direction is locked: **Path C — inner-source-first, public-OSS-later.** Items that only matter for the public-OSS path live in [PUBLIC_OSS_AGENDA.md](PUBLIC_OSS_AGENDA.md), not here.
 
+## Next up (post-2026-05-20 session)
+
+Ordered by impact × cost. Each item is independently shippable.
+
+- [ ] **Connector plugin architecture — Phase A (scaffolding)** — `proxy/connectors/` directory + `_template.js` + `connectorHost.js` + `connectorRegistry.js` + boot-time scan in `server.js`. No connectors migrated yet; pure additive change. Sets the foundation for Phases B + C (per-connector migrations). Contract documented in [AGENT_SYNC.md](AGENT_SYNC.md) `[DECISION]` block. ~1 day.
+- [ ] **Setup → AI bugs B1+B2+B3** — caught during cycle-14 live regression. (B1) `/api/assistant/allowlist` returns `aiProfiles: []` despite proxy having 3 profiles — shape mismatch between proxy `{default: [...], byGroup: {}}` and client flat-array filter. (B2) "Configured" pill green while dropdown empty — cascade from B1. (B3) "Databricks docs" link hardcoded regardless of connector. Half-day fix; biggest user-pain win on Setup.
+- [ ] **PBI Q&A Setup launch button** — add "Open Power BI Q&A" entry point in Settings → AI when active profile type is `powerbi-semantic-model`. Route already exists at `/powerbi/qna` (cycle 15.5). ~15 min.
+- [ ] **FM orchestrator retry budget symmetry** — `clientMaxRetries` honored on Genie poll path (cycle 13); `llmOrchestrator.js` reads `ORCHESTRATOR_VALIDATE_RETRIES` separately and doesn't yet consume the client override. ~30 min.
+- [ ] **PBI RLS impersonation from IdP claims** — `executeDax` + `generateQnAEmbedToken` already accept `identities` but the route doesn't derive them. Mirror the embed-token `powerBiRlsUsernameClaim` pattern. ~half-day.
+- [ ] **Connector plugin architecture — Phase B (one pilot)** — migrate `bedrock` (both -direct and -RAG) into `proxy/connectors/bedrock.js`. Validates the contract from Phase A. ~1 day.
+- [ ] **Pulse tab integration for PBI Q&A** — make Q&A a 3rd tab next to AI Insights / Ask Pulse when the active profile is `powerbi-semantic-model`. `pulse/visual.tsx` has 20+ `activeTab` call sites; this is a UX cycle on its own. ~half-day to a day.
+- [ ] **Connector plugin architecture — Phase C (rest)** — migrate the remaining 5 connectors one PR at a time (openai → foundation-model → supervisor → powerbi → genie). Each ~half-day. Total ~3-5 days, but each PR is independently shippable.
+- [ ] **`origin/main` reconciliation** — `origin/publish/local-main-2026-05-20` and `origin/main` share NO common ancestor (cycle-11 finding). 496 files differ. Strategic decision: forward-port the 50 unique origin/main commits onto publish, OR cherry-pick recent publish work back to origin/main. Multi-day strategic cycle, not a code task.
+
 ## In flight (v0.1.3)
 
 - [x] **Staged SSE `renderId` envelope + visual smoke** (2026-05-20, shipped). Follow-up to [findingProbeIssue.md](findingProbeIssue.md): Genie REST cannot share one upstream `message_id` across multiple section calls. Path A landed: `sectionedOrchestrator` stamps one PulsePlay `renderId` on every event, `/assistant/conversations/start-sectioned` preserves caller-provided `renderId`, `useSectionedStream` exposes/reuses it for selective reruns, and AGENTS/CLAUDE/STAGED_RENDERING carry the immutable-message tripwire. UI assessment found `SectionedAnswer` had no CSS despite lifecycle tests; added styles and browser-smoked the actual component via Vite harness. Validation: proxy **910/910**, playground lint clean, playground **1063/1063**, build green. Evidence: [docs/evidence/renderid-ui-smoke-2026-05-20](evidence/renderid-ui-smoke-2026-05-20).
