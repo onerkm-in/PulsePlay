@@ -165,7 +165,11 @@ describe("GROUP_LEAF_LABELS dictionary drift prevention", () => {
         const SUB_ROUTE_LABELS: Record<keyof typeof GROUP_LEAF_LABELS, ReadonlySet<string>> = {
             setup: new Set(),
             bi: new Set(["Governance"]),
-            ai: new Set(["Knowledge Base", "Supervisor Fusion"]),
+            // "Connector catalogue" is a SubSection wrapping <ConnectorBrandGrid/>
+            // — not a per-leaf component. It still appears in the rail and in
+            // search, so we list it as a sub-route exception rather than
+            // dropping it from the dictionary.
+            ai: new Set(["Knowledge Base", "Supervisor Fusion", "Connector catalogue"]),
             preferences: new Set(["Appearance"]),
             system: new Set(["Developer Tools"]),
             advanced: new Set(),
