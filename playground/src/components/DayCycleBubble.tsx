@@ -1,11 +1,11 @@
 // playground/src/components/DayCycleBubble.tsx
 //
-// Loading-aware day-cycle bubble. A circular "sky" bubble that cycles
-// morning → noon → evening → night → morning while data is loading,
-// and snaps back to morning the instant `loading` flips to false. The
-// sun (☀️) sits centered during the day phases; the moon (🌙) takes
-// its place at night. All motion is contained inside the bubble —
-// nothing animates outside its circular boundary.
+// Always-on day-cycle bubble. A circular "sky" bubble that continuously
+// cycles morning → noon → evening → night → morning, with the sun (☀️)
+// during the daylight phases and the moon (🌙) at night. The `loading`
+// flag now only intensifies the bubble (adds a soft glow ring) — it no
+// longer gates the animation, because the user wants the cycle visible
+// at all times. All motion stays inside the bubble's circular boundary.
 //
 // Design notes:
 //   - Size flexes with the viewport via `clamp(48px, 6vmin, 88px)` so
@@ -94,11 +94,11 @@ export function DayCycleBubble(props: DayCycleBubbleProps): ReactElement {
         return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     });
 
-    // Track the current phase. While loading we run a ticker; when
-    // loading flips off we snap back to morning and stop ticking.
+    // Track the current phase. Cycles continuously while motion is
+    // allowed; holds at morning if the user has prefers-reduced-motion.
     const [phase, setPhase] = useState<Phase>("morning");
     useEffect(() => {
-        if (reducedMotion || !props.loading) {
+        if (reducedMotion) {
             setPhase("morning");
             return;
         }
@@ -108,7 +108,7 @@ export function DayCycleBubble(props: DayCycleBubbleProps): ReactElement {
             setPhase(phaseAt(Date.now() - start));
         }, 80);
         return () => window.clearInterval(handle);
-    }, [reducedMotion, props.loading]);
+    }, [reducedMotion]);
 
     const glyph = phase === "night" ? "🌙" : "☀️";
 
@@ -117,7 +117,14 @@ export function DayCycleBubble(props: DayCycleBubbleProps): ReactElement {
     // 88 px) without ever needing a media query.
     const size = "clamp(48px, 6vmin, 88px)";
 
-    const cycling = props.loading && !reducedMotion;
+    const cycling = !reducedMotion;
+
+    // When `loading` is true we add an outer pulsing glow ring so the
+    // bubble visibly "reacts" to in-flight work without disturbing the
+    // sky cycle itself.
+    const loadingGlow = props.loading && !reducedMotion
+        ? "0 0 0 3px rgba(59, 130, 246, 0.35), 0 0 18px 4px rgba(59, 130, 246, 0.45), "
+        : "";
 
     return (
         <div
@@ -126,7 +133,7 @@ export function DayCycleBubble(props: DayCycleBubbleProps): ReactElement {
             data-phase={phase}
             data-loading={props.loading ? "true" : "false"}
             role="img"
-            aria-label={props.ariaLabel ?? (props.loading ? "Loading — day cycle in progress" : "Ready")}
+            aria-label={props.ariaLabel ?? (props.loading ? "Loading — day cycle in progress" : "Day cycle")}
             style={{
                 position:           "fixed",
                 bottom:             "clamp(12px, 2vmin, 24px)",
@@ -135,16 +142,15 @@ export function DayCycleBubble(props: DayCycleBubbleProps): ReactElement {
                 height:             size,
                 borderRadius:       "50%",
                 overflow:           "hidden",
-                boxShadow:          "0 4px 16px rgba(15, 23, 42, 0.18), inset 0 0 0 1px rgba(255, 255, 255, 0.25)",
+                boxShadow:          `${loadingGlow}0 4px 16px rgba(15, 23, 42, 0.18), inset 0 0 0 1px rgba(255, 255, 255, 0.25)`,
                 pointerEvents:      "none",
                 zIndex:             40,
-                // When NOT cycling, hold the static morning gradient so
-                // the bubble visibly "rests" at morning between loads.
+                // When motion is disabled, hold a static morning gradient.
                 background:         cycling ? undefined : MORNING_GRADIENT,
                 animation:          cycling
                     ? `pp-daycycle-sky ${CYCLE_MS}ms linear infinite`
                     : undefined,
-                transition:         "background 400ms ease-out",
+                transition:         "box-shadow 300ms ease-out, background 400ms ease-out",
                 ...props.style,
             }}
         >
