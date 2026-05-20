@@ -41,6 +41,11 @@ import type { ConnectorProbeResult } from "./types/probe";
 import type { PulsePlayAllowlist } from "./types/allowlist";
 import { probeConnector } from "./lib/probeClient";
 import { getDiscoverySnapshot } from "./lib/discoveryClient";
+import {
+    loadPerformanceLevers,
+    PERFORMANCE_LEVERS_EVENT,
+    type PerformanceLevers,
+} from "./settings/performanceLevers";
 import { SettingsProvider, useSettings } from "./settings/settingsStore";
 import { PULSE_VISUAL_SETTINGS_EVENT } from "./settings/pulseVisualSettingsStore";
 import { SettingsShell } from "./settings/SettingsShell";
@@ -834,6 +839,16 @@ function PlaygroundApp(): React.ReactElement {
         } catch { /* swallow */ }
     }, [packSelection]);
 
+    // Performance levers — subscribed so the prewarm toggle takes effect
+    // mid-session without a reload.
+    const [perfLevers, setPerfLevers] = useState<PerformanceLevers>(loadPerformanceLevers);
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const sync = () => setPerfLevers(loadPerformanceLevers());
+        window.addEventListener(PERFORMANCE_LEVERS_EVENT, sync);
+        return () => window.removeEventListener(PERFORMANCE_LEVERS_EVENT, sync);
+    }, []);
+
     // PROBE-ONCE prewarm — whenever we know the active profile (and pack, if
     // any), pre-fetch the DiscoverySnapshot into the discoveryClient's
     // sessionStorage cache. Subsequent fetches anywhere in the app — AISidebar,
@@ -841,7 +856,10 @@ function PlaygroundApp(): React.ReactElement {
     // of paying for a cold round-trip. The client handles in-flight dedupe and
     // 15-min TTL, so repeated fires are no-ops when nothing relevant changed.
     // Best-effort; discovery failure is non-fatal (enrichment, not required).
+    // Author can opt out via Settings → Advanced → Performance (discovery
+    // prewarm toggle).
     useEffect(() => {
+        if (!perfLevers.discoveryPrewarmEnabled) return;
         const profile = pulseAssistantProfile || activeConnector;
         if (!profile) return;
         void getDiscoverySnapshot({
@@ -849,7 +867,7 @@ function PlaygroundApp(): React.ReactElement {
             pack: packSelection?.pack,
             subVertical: packSelection?.subVertical,
         }).catch(() => { /* enrichment only */ });
-    }, [pulseAssistantProfile, activeConnector, packSelection]);
+    }, [perfLevers.discoveryPrewarmEnabled, pulseAssistantProfile, activeConnector, packSelection]);
 
     // Switching connectors invalidates probe + pack selection so the next
     // probe runs fresh against the new profile.

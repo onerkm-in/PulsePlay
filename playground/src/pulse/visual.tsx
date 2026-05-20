@@ -159,10 +159,16 @@ import { cleanInsightsContent, stripTrailingProse, normalizeStageHeading, enforc
 // (arrival-time ref, tick scheduling, render filter + spinner).
 import {
     DEFAULT_REVEAL_SCHEDULE,
+    revealScheduleFromCadence,
     computeRevealState,
     nextRevealTickMs,
     type RevealState,
 } from "./state/stagedReveal";
+import {
+    loadPerformanceLevers,
+    PERFORMANCE_LEVERS_EVENT,
+    type PerformanceLevers,
+} from "../settings/performanceLevers";
 // IDEA-044 Phase 1 MVP — CSV export of the first pipe-table found in the
 // active Insights output. Pure client-side, no proxy round-trip required.
 import { exportSectionAsCsv, extractFirstPipeTable } from "./exportHelpers";
@@ -1026,7 +1032,28 @@ function App(props: AppProps) {
     // The reveal kicks in only when the content has actually landed
     // (status === "DONE"); during the in-flight RUNNING phase the existing
     // stage skeleton grid already provides the perceived progression.
-    const stagedRevealEnabled = props.settings.insightsStagedRevealEnabled !== false;
+    // Performance levers — author-selectable speed-vs-completeness knobs.
+    // Subscribed via the same event the Settings UI dispatches, so changes
+    // take effect mid-session without a reload.
+    const [perfLevers, setPerfLevers] = useState<PerformanceLevers>(loadPerformanceLevers);
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const sync = () => setPerfLevers(loadPerformanceLevers());
+        window.addEventListener(PERFORMANCE_LEVERS_EVENT, sync);
+        return () => window.removeEventListener(PERFORMANCE_LEVERS_EVENT, sync);
+    }, []);
+
+    // Staged reveal is disabled when either:
+    //  (a) the legacy boolean is explicitly false (back-compat), or
+    //  (b) the new revealCadence lever is "instant"
+    // The cadence picker is the canonical surface; the boolean remains for
+    // deployers / scripts that wrote it before this lever existed.
+    const stagedRevealEnabled = props.settings.insightsStagedRevealEnabled !== false
+        && perfLevers.revealCadence !== "instant";
+    const activeRevealSchedule = useMemo(
+        () => revealScheduleFromCadence(perfLevers.revealCadence),
+        [perfLevers.revealCadence],
+    );
     const contentArrivedAtRef = React.useRef<Record<string, number>>({});
     const [revealTick, setRevealTick] = useState(0);
     const reducedMotionRef = React.useRef<boolean>(false);
@@ -1085,11 +1112,11 @@ function App(props: AppProps) {
         const arrivedAt = contentArrivedAtRef.current[activeSpaceKey];
         if (!arrivedAt) return null;
         const elapsed = Date.now() - arrivedAt;
-        return computeRevealState(DEFAULT_REVEAL_SCHEDULE, elapsed, parsedSectionTitlesForReveal);
+        return computeRevealState(activeRevealSchedule, elapsed, parsedSectionTitlesForReveal);
         // revealTick is intentionally a dep so the memo recomputes on each
         // scheduled tick even though Date.now() is read imperatively.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [stagedRevealEnabled, insightsDone, insightsContentForReveal, activeSpaceKey, parsedSectionTitlesForReveal, revealTick]);
+    }, [stagedRevealEnabled, insightsDone, insightsContentForReveal, activeSpaceKey, parsedSectionTitlesForReveal, revealTick, activeRevealSchedule]);
 
     // Schedule the next reveal tick.
     useEffect(() => {
@@ -1097,12 +1124,12 @@ function App(props: AppProps) {
         const arrivedAt = contentArrivedAtRef.current[activeSpaceKey];
         if (!arrivedAt) return;
         const elapsed = Date.now() - arrivedAt;
-        const nextAt = nextRevealTickMs(DEFAULT_REVEAL_SCHEDULE, elapsed, parsedSectionTitlesForReveal);
+        const nextAt = nextRevealTickMs(activeRevealSchedule, elapsed, parsedSectionTitlesForReveal);
         if (nextAt == null) return;
         const wait = Math.max(50, nextAt - elapsed + 30); // tiny buffer past the boundary
         const handle = window.setTimeout(() => setRevealTick(t => t + 1), wait);
         return () => window.clearTimeout(handle);
-    }, [revealState, activeSpaceKey, parsedSectionTitlesForReveal]);
+    }, [revealState, activeSpaceKey, parsedSectionTitlesForReveal, activeRevealSchedule]);
 
     // Convenience derivations the render path reads.
     const revealedSectionTitles: Set<string> | null = revealState ? revealState.visibleSections as Set<string> : null;
