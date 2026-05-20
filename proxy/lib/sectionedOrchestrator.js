@@ -1,6 +1,8 @@
 // @ts-check
 'use strict';
 
+const { randomUUID } = require('crypto');
+
 /**
  * Sectioned orchestrator — Phase D.1.
  *
@@ -39,13 +41,13 @@
  *   • `spreadMs=0` means all sections in the stage start in the same tick.
  *
  * Event vocabulary (matches docs/STAGED_RENDERING.md):
- *   { kind: 'probe-started',     probeId }
- *   { kind: 'probe-completed',   probeId, rows, durationMs }
- *   { kind: 'probe-failed',      probeId, error, durationMs }
- *   { kind: 'section-started',   sectionId, stageIndex }
- *   { kind: 'section-completed', sectionId, body, sql?, usage?, durationMs }
- *   { kind: 'section-failed',    sectionId, error, durationMs }
- *   { kind: 'all-completed',     totals: { sections, durationMs } }
+ *   { kind: 'probe-started',     renderId, probeId }
+ *   { kind: 'probe-completed',   renderId, probeId, rows, durationMs }
+ *   { kind: 'probe-failed',      renderId, probeId, error, durationMs }
+ *   { kind: 'section-started',   renderId, sectionId, stageIndex }
+ *   { kind: 'section-completed', renderId, sectionId, body, sql?, usage?, durationMs }
+ *   { kind: 'section-failed',    renderId, sectionId, error, durationMs }
+ *   { kind: 'all-completed',     renderId, totals: { sections, durationMs } }
  */
 
 /**
@@ -60,6 +62,7 @@
  *   regenerateOnly?: string[],
  *   probeCache?: { rows?: any[] },
  *   headlineCache?: any,
+ *   renderId?: string,
  *   now?: () => number,
  *   sleep?: (ms: number) => Promise<void>,
  *   signal?: AbortSignal,
@@ -74,6 +77,22 @@ const DEFAULT_SCHEDULE = Object.freeze([
 ]);
 
 const SPREAD_MAX_MS = 30_000;
+const RENDER_ID_MAX_LENGTH = 200;
+
+function createRenderId() {
+    if (typeof randomUUID === 'function') {
+        return `render-${randomUUID()}`;
+    }
+    return `render-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function resolveRenderId(value) {
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (trimmed) return trimmed.slice(0, RENDER_ID_MAX_LENGTH);
+    }
+    return createRenderId();
+}
 
 /**
  * Build a default schedule from the IR's `output.sections[]` when no
@@ -202,6 +221,7 @@ function orchestrate(opts) {
     if (problems.length > 0) {
         throw new Error(`invalid schedule: ${problems.join('; ')}`);
     }
+    const renderId = resolveRenderId(opts.renderId);
 
     const regenerateOnly = Array.isArray(opts.regenerateOnly) && opts.regenerateOnly.length > 0
         ? new Set(opts.regenerateOnly.map(s => String(s)))
@@ -217,11 +237,14 @@ function orchestrate(opts) {
 
     function emit(event) {
         if (done) return;
+        const eventWithRenderId = event && typeof event === 'object' && !Array.isArray(event)
+            ? { ...event, renderId }
+            : event;
         if (consumers.length > 0) {
             const c = consumers.shift();
-            c.resolve({ value: event, done: false });
+            c.resolve({ value: eventWithRenderId, done: false });
         } else {
-            buffer.push(event);
+            buffer.push(eventWithRenderId);
         }
     }
     function finish(err) {
@@ -363,6 +386,7 @@ function orchestrate(opts) {
             return Promise.resolve({ value: undefined, done: true });
         },
         [Symbol.asyncIterator]() { return this; },
+        renderId,
     };
     return iterator;
 }
@@ -398,6 +422,8 @@ async function collect(iterable) {
 module.exports = {
     DEFAULT_SCHEDULE,
     SPREAD_MAX_MS,
+    createRenderId,
+    resolveRenderId,
     buildDefaultSchedule,
     validateSchedule,
     orchestrate,

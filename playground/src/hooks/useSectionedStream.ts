@@ -15,6 +15,8 @@ import * as React from "react";
 import type { SectionState } from "../components/SectionedAnswer";
 
 export interface SectionedStreamPayload {
+    /** Logical assistant-turn envelope id. Server generates one when omitted. */
+    renderId?: string;
     profile?: string;
     userPrompt: string;
     /** Either an explicit `schedule` OR `sections` (to use the default schedule). */
@@ -30,18 +32,22 @@ export interface SectionedStreamPayload {
     headlineCache?: unknown;
 }
 
+type RenderEventEnvelope = { renderId?: string };
+
 export type StreamEvent =
-    | { kind: "probe-started" }
-    | { kind: "probe-completed"; rows?: unknown[]; durationMs?: number }
-    | { kind: "probe-failed"; error: { message: string } }
-    | { kind: "section-started"; sectionId: string }
-    | { kind: "section-completed"; sectionId: string; body: unknown; durationMs?: number; usage?: SectionState["usage"] }
-    | { kind: "section-failed"; sectionId: string; error: { message: string; code?: string }; durationMs?: number }
-    | { kind: "all-completed"; totals?: { sections?: number; failed?: number; durationMs?: number } }
-    | { kind: "orchestrator-failed"; error: { message: string } };
+    | ({ kind: "probe-started" } & RenderEventEnvelope)
+    | ({ kind: "probe-completed"; rows?: unknown[]; durationMs?: number } & RenderEventEnvelope)
+    | ({ kind: "probe-failed"; error: { message: string } } & RenderEventEnvelope)
+    | ({ kind: "section-started"; sectionId: string } & RenderEventEnvelope)
+    | ({ kind: "section-completed"; sectionId: string; body: unknown; durationMs?: number; usage?: SectionState["usage"] } & RenderEventEnvelope)
+    | ({ kind: "section-failed"; sectionId: string; error: { message: string; code?: string }; durationMs?: number } & RenderEventEnvelope)
+    | ({ kind: "all-completed"; totals?: { sections?: number; failed?: number; durationMs?: number } } & RenderEventEnvelope)
+    | ({ kind: "orchestrator-failed"; error: { message: string } } & RenderEventEnvelope);
 
 export interface UseSectionedStreamResult {
     sectionStates: Record<string, SectionState>;
+    /** Stable logical assistant-turn id carried by every SSE event once known. */
+    renderId: string | null;
     isStreaming: boolean;
     error: string | null;
     /** True once an `all-completed` (or terminal failure) event has been received. */
@@ -104,6 +110,7 @@ export function useSectionedStream(opts: UseSectionedStreamOptions = {}): UseSec
     const { endpoint = "/api/assistant/conversations/start-sectioned", fetchImpl } = opts;
 
     const [sectionStates, setSectionStates] = React.useState<Record<string, SectionState>>({});
+    const [renderId, setRenderId] = React.useState<string | null>(null);
     const [isStreaming, setIsStreaming] = React.useState(false);
     const [isDone, setIsDone] = React.useState(false);
     const [error, setError] = React.useState<string | null>(null);
@@ -114,6 +121,7 @@ export function useSectionedStream(opts: UseSectionedStreamOptions = {}): UseSec
     const lastPayloadRef = React.useRef<SectionedStreamPayload | null>(null);
     const probeCacheRef = React.useRef<unknown>(null);
     const headlineCacheRef = React.useRef<unknown>(null);
+    const renderIdRef = React.useRef<string | null>(null);
 
     const abort = React.useCallback(() => {
         abortRef.current?.abort();
@@ -121,6 +129,10 @@ export function useSectionedStream(opts: UseSectionedStreamOptions = {}): UseSec
     }, []);
 
     const applyEvent = React.useCallback((ev: StreamEvent) => {
+        if (typeof ev.renderId === "string" && ev.renderId.trim() && ev.renderId !== renderIdRef.current) {
+            renderIdRef.current = ev.renderId;
+            setRenderId(ev.renderId);
+        }
         switch (ev.kind) {
             case "probe-completed":
                 // Auto-cache so selective re-run can skip the probe.
@@ -179,7 +191,14 @@ export function useSectionedStream(opts: UseSectionedStreamOptions = {}): UseSec
             probeCacheRef.current = null;
             headlineCacheRef.current = null;
             lastPayloadRef.current = payload;
+            const nextRenderId = typeof payload.renderId === "string" && payload.renderId.trim() ? payload.renderId : null;
+            renderIdRef.current = nextRenderId;
+            setRenderId(nextRenderId);
         } else {
+            if (typeof payload.renderId === "string" && payload.renderId.trim()) {
+                renderIdRef.current = payload.renderId;
+                setRenderId(payload.renderId);
+            }
             setSectionStates((prev) => {
                 const next = { ...prev };
                 for (const id of payload.regenerateOnly!) {
@@ -264,6 +283,7 @@ export function useSectionedStream(opts: UseSectionedStreamOptions = {}): UseSec
         // the one section, plus the caches we captured.
         const payload: SectionedStreamPayload = {
             ...last,
+            renderId: renderIdRef.current ?? last.renderId,
             regenerateOnly: [sectionId],
             probeCache: probeCacheRef.current ?? last.probeCache,
             headlineCache: headlineCacheRef.current ?? last.headlineCache,
@@ -271,5 +291,5 @@ export function useSectionedStream(opts: UseSectionedStreamOptions = {}): UseSec
         await start(payload);
     }, [start]);
 
-    return { sectionStates, isStreaming, isDone, error, start, regenerate, abort };
+    return { sectionStates, renderId, isStreaming, isDone, error, start, regenerate, abort };
 }

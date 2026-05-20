@@ -6,9 +6,9 @@
 //
 // Architectural reminder (the contract these tests defend):
 //   - HEADLINE fires `/start` and creates the conversationId
-//   - TRENDS / RISKS / RECOMMENDED ACTIONS fire `/follow-up` on that same
+//   - TRENDS / RISKS / RECOMMENDED ACTIONS fire follow-up POSTs on that same
 //     conversationId; each gets its OWN messageId (Genie's API is one LLM
-//     turn = one message)
+//     turn = one immutable message; see docs/findingProbeIssue.md)
 //   - Each follow-up's response carries SQL on `attachments[].query.query`
 //   - The Genie + Foundation Model prompt translators inject
 //     `/* Section: X */` markers into the SQL when the IR carries
@@ -19,7 +19,7 @@
 // What "associated back to the same conversation" means in practice:
 //   - The proxy passes `data.conversation_id` + `data.message_id` through
 //     unchanged on every poll response
-//   - When the playground stitches 4 messages back together by
+//   - When the playground stitches 4 messages back together by renderId /
 //     conversationId, each message's sqlSections joins the correct section
 //     to the correct briefing
 //   - These tests verify the unit (extraction per message); the join is

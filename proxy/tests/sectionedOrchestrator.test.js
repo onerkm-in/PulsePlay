@@ -16,6 +16,8 @@
 const {
     DEFAULT_SCHEDULE,
     SPREAD_MAX_MS,
+    createRenderId,
+    resolveRenderId,
     buildDefaultSchedule,
     validateSchedule,
     orchestrate,
@@ -379,6 +381,29 @@ describe('orchestrate — stage sequencing', () => {
 // ---------- orchestrate: section payloads -----------------------------------
 
 describe('orchestrate — section-completed payload shape', () => {
+    test('stamps the same renderId on every event for one logical assistant turn', async () => {
+        const events = await collect(orchestrate({
+            ir: makeIR(['HEADLINE', 'KPI']),
+            renderId: 'render-test-turn',
+            runProbe: async () => ({ rows: [{ x: 1 }] }),
+            runSection: async ({ sectionId }) => ({ body: sectionId }),
+            sleep: () => Promise.resolve(),
+        }));
+
+        expect(events.length).toBeGreaterThan(0);
+        expect(events.every(e => e.renderId === 'render-test-turn')).toBe(true);
+    });
+
+    test('creates a generated renderId when the caller does not provide one', async () => {
+        const events = await collect(orchestrate({
+            ir: makeIR(['HEADLINE']),
+            runSection: async () => ({ body: 'x' }),
+        }));
+        const ids = new Set(events.map(e => e.renderId));
+        expect(ids.size).toBe(1);
+        expect([...ids][0]).toMatch(/^render-/);
+    });
+
     test('includes body always; sql + usage only when runSection returned them', async () => {
         const ir = makeIR(['HEADLINE', 'TRENDS']);
         const events = await collect(orchestrate({
@@ -568,5 +593,22 @@ describe('collect', () => {
         }
         const out = await collect(gen());
         expect(out).toEqual([1, 2, 3]);
+    });
+});
+
+describe('renderId helpers', () => {
+    test('createRenderId returns a namespaced id', () => {
+        expect(createRenderId()).toMatch(/^render-/);
+    });
+
+    test('resolveRenderId preserves caller ids and falls back for blank values', () => {
+        expect(resolveRenderId(' render-ui-1 ')).toBe('render-ui-1');
+        expect(resolveRenderId('')).toMatch(/^render-/);
+        expect(resolveRenderId(null)).toMatch(/^render-/);
+    });
+
+    test('resolveRenderId caps untrusted caller ids', () => {
+        const long = 'x'.repeat(500);
+        expect(resolveRenderId(long)).toHaveLength(200);
     });
 });

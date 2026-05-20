@@ -70,12 +70,12 @@ A new `proxy/lib/sectionedOrchestrator.js`:
 ```
 buildSectionedResponse(profile, ir, request)
    → returns an async iterable that yields:
-       { kind: "probe-started", probeId, sql }
-       { kind: "probe-completed", probeId, rows, durationMs }
-       { kind: "section-started", sectionId }
-       { kind: "section-token", sectionId, token }      // when streaming
-       { kind: "section-completed", sectionId, body, sql: SectionSql, durationMs }
-       { kind: "all-completed", totals }
+       { kind: "probe-started", renderId, probeId, sql }
+       { kind: "probe-completed", renderId, probeId, rows, durationMs }
+       { kind: "section-started", renderId, sectionId }
+       { kind: "section-token", renderId, sectionId, token }      // when streaming
+       { kind: "section-completed", renderId, sectionId, body, sql: SectionSql, durationMs }
+       { kind: "all-completed", renderId, totals }
 ```
 
 The endpoint becomes **SSE-streaming** so the playground can render sections
@@ -87,19 +87,19 @@ POST /assistant/conversations/start-sectioned   (Phase D)
 Accept: text/event-stream
 
 → event: probe-started
-  data: { probeId, sql }
+  data: { renderId, probeId, sql }
 
 → event: probe-completed
-  data: { probeId, rows: [...], durationMs }
+  data: { renderId, probeId, rows: [...], durationMs }
 
 → event: section-started
-  data: { sectionId: "HEADLINE" }
+  data: { renderId, sectionId: "HEADLINE" }
 
 → event: section-completed
-  data: { sectionId: "HEADLINE", body: "...", sql: { fragment, cteName, … } }
+  data: { renderId, sectionId: "HEADLINE", body: "...", sql: { fragment, cteName, ... } }
 
 → event: section-started
-  data: { sectionId: "TRENDS" }
+  data: { renderId, sectionId: "TRENDS" }
    …
 ```
 
@@ -115,16 +115,25 @@ Phase 11a. The translator emits a payload; the orchestrator decides
 
 ### Genie
 
-Genie is single-message — its API doesn't expose function-calling. So:
+Genie REST is one-message-per-POST, and completed messages are immutable.
+This was empirically verified on 2026-05-20 against the live workspace in
+[findingProbeIssue.md](findingProbeIssue.md): `start-conversation` returns one
+`message_id`, every subsequent `POST .../messages` returns a fresh
+`message_id`, and there is no append / continue / sections sub-resource on an
+existing message.
+
+So:
 
 - **Call #1 (HEADLINE)**: a Genie conversation `/start` with a user message
   asking for HEADLINE only (the IR's HEADLINE section instruction + the
   cached probe row), wrapped via `genie.translate(ir, ...)` with a narrow
   scope override.
-- **Calls #2/#3/#4 (TRENDS/RISKS/ACTIONS)**: `/follow-up` messages on the
-  SAME conversation. Genie reuses the loaded space metadata + caches the
-  user's question context, so these are cheaper than fresh starts. Each
-  asks for ONE section only.
+- **Calls #2/#3/#4 (TRENDS/RISKS/ACTIONS)**: follow-up messages created with
+  `POST .../messages` on the SAME `conversation_id`. Each call gets its own
+  Genie `message_id`; that is upstream behavior, not a PulsePlay choice.
+- **UI envelope**: the proxy emits a PulsePlay `renderId` on every staged SSE
+  frame. UI/chat history should group the N Genie messages under that one
+  logical `renderId` when showing "one assistant answer that fills in."
 - **Trade-off**: Genie may try to re-execute SQL on the follow-ups. The
   orchestrator passes the cached probe row in the message text ("Based on
   the following result: …") to discourage re-execution. Verify in smoke

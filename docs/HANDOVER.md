@@ -5,6 +5,34 @@
 
 ---
 
+## 2026-05-20 — Cycle 10: Staged SSE `renderId` envelope after Genie message probe
+
+**Scope.** User supplied [findingProbeIssue.md](findingProbeIssue.md) plus a Databricks HAR. The markdown proves Genie REST cannot share one `message_id` across multiple section calls; the HAR was checked and is **not** API-level evidence (UI assets + `popproxy/health` + `data-rooms/.../value-index` + telemetry only). Shipped the recommended Path A: one PulsePlay logical assistant envelope keyed by `renderId`, while Genie can still allocate N upstream `message_id`s under one `conversation_id`.
+
+**What changed.**
+- [proxy/lib/sectionedOrchestrator.js](../proxy/lib/sectionedOrchestrator.js): added `createRenderId()` / `resolveRenderId()`, optional `opts.renderId`, and automatic `renderId` stamping on every orchestration event.
+- [proxy/server.js](../proxy/server.js): `/assistant/conversations/start-sectioned` now accepts optional `renderId`, passes it into the orchestrator, and includes it on `orchestrator-failed` frames too.
+- [playground/src/hooks/useSectionedStream.ts](../playground/src/hooks/useSectionedStream.ts): hook exposes `renderId`, captures it from SSE frames, and reuses it when `regenerate(sectionId)` posts a selective rerun.
+- [playground/src/styles.css](../playground/src/styles.css): visual-smoke follow-up. The `SectionedAnswer` component already had lifecycle class names but no CSS, so it would have rendered as a plain ordered list. Added card, status, skeleton, streaming, failed, JSON, meta, and regenerate-button styles.
+- [AGENTS.md](../AGENTS.md), [CLAUDE.md](../CLAUDE.md), [docs/STAGED_RENDERING.md](STAGED_RENDERING.md), and [proxy/tests/genieSqlSections.test.js](../proxy/tests/genieSqlSections.test.js): new tripwire / wording that Genie messages are immutable; UI grouping must use PulsePlay `renderId`, not Genie `message_id`.
+
+**Validation.**
+- Focused proxy sectioned tests: **59/59**.
+- Focused hook/parser + visual component tests after CSS: **26/26**.
+- Full proxy `npm test`: **910/910**.
+- Playground `npm run lint`: clean.
+- Full playground `npx vitest run`: **1063/1063** after CSS.
+- Playground `npm run build`: green. Vite repeated existing chunking warnings for statically imported BI adapters; no build failure.
+- Browser visual smoke: started local proxy + Vite, opened the real app, then opened a temporary Vite harness that imported the actual `SectionedAnswer.tsx`. Evidence saved under [docs/evidence/renderid-ui-smoke-2026-05-20](evidence/renderid-ui-smoke-2026-05-20): app shell plus styled SectionedAnswer harness. Harness DOM check: 5 items, 2 completed, 1 streaming, 1 pending, 1 failed; browser logs for the harness had no warnings/errors.
+
+**Honest deferrals / tripwires.**
+- This does **not** make Genie share one real upstream `message_id`; that is upstream-impossible per the live probe.
+- The live Genie staged route is still queued. This cycle prepares the transport/UI grouping contract so the later Genie implementation has the correct envelope from day one.
+- `SectionedAnswer` is visually smoke-tested as a primitive, not as a live AISidebar flow, because the staged SSE path still is not wired into AISidebar.
+- Pre-existing unrelated working-tree changes in `playground/package*.json`, `playground/src/App.tsx`, and deleted `DayCycleBubble.tsx` were not touched.
+
+---
+
 ## 2026-05-20 — Cycle 9: Phase E client-side staged reveal for Genie single-shot answers
 
 **Scope.** Rajesh observed Pulse Insights rendering the full Genie answer at once (screenshot). Asked for the same "1 then 2-each every 10s" cadence Phase D ships for FM, but layered onto the EXISTING Genie message id without re-querying. This is a pure-cosmetic pacing pass — no extra LLM calls, no extra cost.

@@ -175,6 +175,9 @@ describe('POST /assistant/conversations/start-sectioned — SSE happy path', () 
         expect(events).toContain('section-started');
         expect(events).toContain('section-completed');
         expect(events[events.length - 1]).toBe('all-completed');
+        const renderIds = new Set(frames.map(f => f.data.renderId));
+        expect(renderIds.size).toBe(1);
+        expect([...renderIds][0]).toMatch(/^render-/);
 
         const completed = frames.filter(f => f.event === 'section-completed');
         expect(completed.map(f => f.data.sectionId).sort()).toEqual(['HEADLINE', 'TRENDS']);
@@ -249,6 +252,19 @@ describe('POST /assistant/conversations/start-sectioned — SSE happy path', () 
             .map(f => f.data.sectionId);
         expect(startOrder[0]).toBe('B');
         expect(startOrder.slice(1).sort()).toEqual(['A', 'C']);
+    });
+
+    test('preserves a caller-provided renderId across every SSE frame', async () => {
+        callFoundationModel.mockResolvedValue({ content: 'ok', parsedJson: null });
+        const res = await postSse('/assistant/conversations/start-sectioned', {
+            profile: 'foundation',
+            userPrompt: 'q',
+            sections: ['HEADLINE', 'KPI'],
+            renderId: 'render-ui-turn-42',
+        });
+        const frames = parseSseFrames(res.body || res.text);
+        expect(frames.length).toBeGreaterThan(0);
+        expect(frames.every(f => f.data.renderId === 'render-ui-turn-42')).toBe(true);
     });
 });
 

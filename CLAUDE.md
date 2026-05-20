@@ -152,6 +152,9 @@ Carried over tripwire from DwD. Tests can't rely on in-memory mutations to `prof
 **Genie Agent Mode is UI-only**
 Carried over from DwD's Session 76 tripwire. Verified definitively via 20+ probes — public REST API silently swallows the `force_deep_research_planning` flag. The Foundation Model serving endpoint path (proxy `/foundation/section`) is the workaround. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) "Genie Agent Mode is UI-only" callout.
 
+**Genie messages are immutable; one POST = one new `message_id`**
+Empirically verified 2026-05-20 against the live workspace ([docs/findingProbeIssue.md](docs/findingProbeIssue.md)). There is no `/follow-up`, `/append`, `/continue`, or `/sections` sub-resource on `.../messages/{id}`. Multi-section Genie flows MUST allocate N `message_id`s under one shared `conversation_id`. If the UI needs one logical assistant turn, key that envelope on PulsePlay's generated `renderId`, not on Genie's `message_id`.
+
 **Nine backend paths, not six/eight**
 Earlier docs (`MULTI_BI_ARCHITECTURE.md`, `README.md`) said the proxy supports six backends. The 2026-05-10 codebase audit confirmed eight, and the 2026-05-17 ResponsesAgent connector made nine. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) "Nine runtime backend paths" for the corrected table.
 

@@ -29,13 +29,14 @@ function streamResponse(chunks: string[], init: ResponseInit = {}): Response {
 describe("parseSseChunkBuffer", () => {
     it("returns one event per complete frame and preserves trailing partial in 'rest'", () => {
         const buf = frame("section-started", { sectionId: "HEADLINE" })
-            + frame("section-completed", { sectionId: "HEADLINE", body: "hi" })
+            + frame("section-completed", { renderId: "render-abc", sectionId: "HEADLINE", body: "hi" })
             + "event: section-started\ndata: {\"sectionId\""; // partial
         const { events, rest } = parseSseChunkBuffer(buf);
         expect(events).toHaveLength(2);
         expect(events[0].kind).toBe("section-started");
         expect((events[0] as { sectionId: string }).sectionId).toBe("HEADLINE");
         expect(events[1].kind).toBe("section-completed");
+        expect((events[1] as { renderId?: string }).renderId).toBe("render-abc");
         expect(rest.startsWith("event: section-started")).toBe(true);
     });
 
@@ -65,9 +66,9 @@ describe("parseSseChunkBuffer", () => {
 describe("useSectionedStream", () => {
     it("transitions HEADLINE: pending -> streaming -> completed and marks isDone", async () => {
         const fetchImpl = vi.fn(async () => streamResponse([
-            frame("section-started", { sectionId: "HEADLINE" }),
-            frame("section-completed", { sectionId: "HEADLINE", body: "ok", durationMs: 12, usage: { output_tokens: 4 } }),
-            frame("all-completed", { totals: { sections: 1, failed: 0 } }),
+            frame("section-started", { renderId: "render-hook-1", sectionId: "HEADLINE" }),
+            frame("section-completed", { renderId: "render-hook-1", sectionId: "HEADLINE", body: "ok", durationMs: 12, usage: { output_tokens: 4 } }),
+            frame("all-completed", { renderId: "render-hook-1", totals: { sections: 1, failed: 0 } }),
         ]));
         const { result } = renderHook(() => useSectionedStream({ fetchImpl: fetchImpl as unknown as typeof fetch }));
 
@@ -77,6 +78,7 @@ describe("useSectionedStream", () => {
 
         await waitFor(() => expect(result.current.isDone).toBe(true));
         expect(result.current.isStreaming).toBe(false);
+        expect(result.current.renderId).toBe("render-hook-1");
         expect(result.current.sectionStates.HEADLINE.status).toBe("completed");
         expect(result.current.sectionStates.HEADLINE.body).toBe("ok");
         expect(result.current.sectionStates.HEADLINE.durationMs).toBe(12);
@@ -195,12 +197,12 @@ describe("useSectionedStream — Phase D.4 regenerate() convenience", () => {
 
     it("regenerate(id) re-POSTs with regenerateOnly + auto-captured probeCache + headlineCache", async () => {
         const first = [
-            frame("probe-completed", { rows: [{ x: 1 }, { x: 2 }], durationMs: 3 }),
-            frame("section-started", { sectionId: "HEADLINE" }),
-            frame("section-completed", { sectionId: "HEADLINE", body: "first-headline" }),
-            frame("section-started", { sectionId: "KPI" }),
-            frame("section-completed", { sectionId: "KPI", body: "kpi-v1" }),
-            frame("all-completed", { totals: { sections: 2 } }),
+            frame("probe-completed", { renderId: "render-regenerate-1", rows: [{ x: 1 }, { x: 2 }], durationMs: 3 }),
+            frame("section-started", { renderId: "render-regenerate-1", sectionId: "HEADLINE" }),
+            frame("section-completed", { renderId: "render-regenerate-1", sectionId: "HEADLINE", body: "first-headline" }),
+            frame("section-started", { renderId: "render-regenerate-1", sectionId: "KPI" }),
+            frame("section-completed", { renderId: "render-regenerate-1", sectionId: "KPI", body: "kpi-v1" }),
+            frame("all-completed", { renderId: "render-regenerate-1", totals: { sections: 2 } }),
         ];
         const second = [
             frame("section-started", { sectionId: "KPI" }),
@@ -234,6 +236,7 @@ describe("useSectionedStream — Phase D.4 regenerate() convenience", () => {
         expect(secondBody.profile).toBe("foundation");
         expect(secondBody.temperature).toBe(0.2);
         expect(secondBody.sections).toEqual(["HEADLINE", "KPI"]);
+        expect(secondBody.renderId).toBe("render-regenerate-1");
         // Pins regeneration + supplies the auto-cached state.
         expect(secondBody.regenerateOnly).toEqual(["KPI"]);
         expect(secondBody.probeCache).toEqual({ rows: [{ x: 1 }, { x: 2 }] });

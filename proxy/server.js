@@ -5407,6 +5407,7 @@ const {
     orchestrate: orchestrateSectioned,
     validateSchedule: validateSectionedSchedule,
     buildDefaultSchedule: buildDefaultSectionedSchedule,
+    resolveRenderId: resolveSectionedRenderId,
 } = require('./lib/sectionedOrchestrator');
 
 function isFoundationModelProfile(profile) {
@@ -5581,15 +5582,16 @@ app.post('/foundation/section', async (req, res) => {
 //     regenerateOnly?: string[],     // re-run subset; reuses probeCache/headlineCache
 //     probeCache?: { rows?: any[] }, // honored on regenerateOnly requests
 //     headlineCache?: any,           // honored on regenerateOnly requests
+//     renderId?: string,             // optional logical UI envelope id to preserve on regenerate
 //   }
 //
 // SSE event stream — each event is `event: <kind>\ndata: <json>\n\n`:
 //   probe-started / probe-completed / probe-failed (not emitted today — probe
 //   is a Phase D.5 wire-in once the analytical probe path is ready)
-//   section-started     { sectionId, stageIndex }
-//   section-completed   { sectionId, body, sql?, usage?, durationMs }
-//   section-failed      { sectionId, error: { message, code? }, durationMs }
-//   all-completed       { totals: { sections, durationMs } }
+//   section-started     { renderId, sectionId, stageIndex }
+//   section-completed   { renderId, sectionId, body, sql?, usage?, durationMs }
+//   section-failed      { renderId, sectionId, error: { message, code? }, durationMs }
+//   all-completed       { renderId, totals: { sections, durationMs } }
 //
 // Section LLM call is delegated to callFoundationModel for foundation-model
 // profiles. Non-FM profiles return a 400 with a problem envelope — Genie
@@ -5629,6 +5631,7 @@ app.post('/assistant/conversations/start-sectioned', async (req, res) => {
     const regenerateOnly = Array.isArray(body.regenerateOnly) ? body.regenerateOnly : null;
     const probeCache = (body.probeCache && typeof body.probeCache === 'object') ? body.probeCache : undefined;
     const headlineCache = body.headlineCache !== undefined ? body.headlineCache : undefined;
+    const renderId = resolveSectionedRenderId(body.renderId);
 
     // Open the SSE stream.
     res.setHeader('Content-Type', 'text/event-stream');
@@ -5681,6 +5684,7 @@ app.post('/assistant/conversations/start-sectioned', async (req, res) => {
             regenerateOnly,
             probeCache,
             headlineCache,
+            renderId,
         });
         for await (const event of iterable) {
             const ok = writeEvent(event);
@@ -5692,6 +5696,7 @@ app.post('/assistant/conversations/start-sectioned', async (req, res) => {
         // unexpected — emit a final all-completed-style failure marker.
         writeEvent({
             kind: 'orchestrator-failed',
+            renderId,
             error: { message: err && err.message ? err.message : String(err) },
         });
     } finally {

@@ -13,7 +13,7 @@
 // the same proxy backend (Genie / Azure OpenAI / Bedrock / foundation
 // model) we proved out in DwD_AI_Assistant_for_PBI cycles 1-47.
 
-import { QueryClientProvider, useIsFetching, useIsMutating, useQueryClient } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
 import { usePacks } from "./features/config/usePacks";
 import { useAllowlist } from "./features/config/useAllowlist";
@@ -29,7 +29,6 @@ import { AISidebar, type AutoSubmitQuestionEvent } from "./components/AISidebar"
 import { VendorPicker } from "./components/VendorPicker";
 import { ConnectorPicker } from "./components/ConnectorPicker";
 import { EmbedConfigForm } from "./components/EmbedConfigForm";
-import { DayCycleBubble } from "./components/DayCycleBubble";
 import { useEmbedConfig } from "./settings/embedConfigStore";
 import { warmGenieWarehouse, startWarehouseKeepalive, stopWarehouseKeepalive } from "./lib/warehouseWarmup";
 import { FirstRunWizard, WizardErrorBoundary, shouldShowWizard, type PersonaKey } from "./components/FirstRunWizard";
@@ -290,56 +289,10 @@ export function App(): React.ReactElement {
         <QueryClientProvider client={queryClient}>
             <SettingsProvider>
                 <AppRouted />
-                <DayCycleBubbleHost />
             </SettingsProvider>
             <ReactQueryDevtoolsHost />
         </QueryClientProvider>
     );
-}
-
-/** Renders the day-cycle bubble in the bottom-right corner. Cycles
- *  morning → noon → evening → night while any React Query fetch /
- *  mutation is in flight, while the app is in its initial-render
- *  window, or for a brief window after a cached query is read (so
- *  even instant cache hits visibly trigger the cycle). Snaps back to
- *  morning when everything is idle. All motion is contained inside
- *  the bubble. */
-function DayCycleBubbleHost(): React.ReactElement {
-    const fetching = useIsFetching();
-    const mutating = useIsMutating();
-    const queryClient = useQueryClient();
-
-    // Initial-render window: covers the first paint while lazy chunks
-    // and stylesheets are still warming up. 5 s is long enough for the
-    // user to see at least one full day-cycle loop (4 s) before the
-    // bubble settles back to morning.
-    const [initialBoot, setInitialBoot] = useState<boolean>(true);
-    useEffect(() => {
-        const t = window.setTimeout(() => setInitialBoot(false), 5000);
-        return () => window.clearTimeout(t);
-    }, []);
-
-    // Cache-hit flash: every time a React Query observer updates (cache
-    // read, background refetch, invalidation, optimistic update) we
-    // kick a transient 4 s loading window so the cycle plays even when
-    // data came back instantly from cache.
-    const [cacheFlash, setCacheFlash] = useState<number>(0);
-    useEffect(() => {
-        const cache = queryClient.getQueryCache();
-        let flashTimer: number | null = null;
-        const unsub = cache.subscribe(() => {
-            if (flashTimer !== null) window.clearTimeout(flashTimer);
-            setCacheFlash(n => n + 1);
-            flashTimer = window.setTimeout(() => setCacheFlash(0), 4000);
-        });
-        return () => {
-            unsub();
-            if (flashTimer !== null) window.clearTimeout(flashTimer);
-        };
-    }, [queryClient]);
-
-    const loading = initialBoot || fetching > 0 || mutating > 0 || cacheFlash > 0;
-    return <DayCycleBubble loading={loading} />;
 }
 
 function ReactQueryDevtoolsHost(): React.ReactElement | null {
