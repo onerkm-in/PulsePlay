@@ -458,17 +458,183 @@ If you broadly agree, +1 in a follow-up PR or comment and we proceed to S1. If y
 
 ---
 
-## 12. Decision log (empty)
+## Codex review (2026-05-20)
 
-This section gets filled in after Codex review + Rajesh's call. Format:
+### Summary
 
+Qualified +1 on the direction. The manifest-driven connector platform is the right abstraction for the Settings confusion and the proxy monolith. I would proceed with S1, but only after tightening the contract so S1 is honestly "manifest metadata + Setup discovery for existing runtime paths", not an implied promise that arbitrary drop-in connector files are already safe.
+
+My strongest pushback: connectors should not receive raw `host.app` as their primary route surface. Direct Express access makes route collisions, audit coverage, rate limits, allowlist checks, and consistent problem envelopes optional. The host should expose a narrow route registration API, for example `host.registerRoute({ connectorId, method, path, handler, auth, auditEvent })`, and own the middleware envelope. If a connector truly needs `app`, that should be an escape hatch, not the normal contract.
+
+I would also treat Codex's stashed B1 fix as an independent bugfix, not as redesign scope. The redesign should not block repairing a currently broken user-facing Setup path.
+
+### Q1-Q7 answers
+
+**Q1 - Soft migration vs hard cutover:** agree with Soft (B). Existing profiles must keep working. I would still require every new manifest to declare a canonical `profileType` or `profileTypes`, with `matchProfile(profile)` used only for legacy aliases and edge cases. The Setup endpoint should show the inferred connector type for legacy profiles so users can see what the system thinks they configured.
+
+**Q2 - Manifest required-field scope:** mostly agree, but the required core is too thin for a generated Setup UI. Add `version`, canonical `profileType/profileTypes`, `maturity` (`stable`, `preview`, `demo`, `future`), route namespace metadata, and machine-readable field kinds in `profileSchema` (`string`, `secret`, `url`, `select`, `boolean`, etc.). Secret fields must be marked as secret from day one so `/assistant/connector-types` can prove it never leaks values. Regexes, rotation metadata, and enterprise allowlist policy can wait.
+
+**Q3 - Profile editor path:** agree with A -> B -> C, with one addition: S1 should generate both a JSON profile snippet and an env-var snippet, because this repo already supports env-driven profiles and many deployments will prefer not to edit JSON files. Server-write must stay out of S1/S2. If it arrives later, it needs admin auth, explicit enablement, audit logging, and no browser-visible secrets.
+
+**Q4 - Category taxonomy:** light pushback. The proposed taxonomy mixes provider ecosystem, technical capability, and lifecycle state. Better model those as separate dimensions: category/provider group for navigation, badges for capabilities (`llm`, `rag`, `deterministic`, `streaming`, `semantic-model`), and `maturity` for demo/future/stable. If we keep Claude's labels for the first UI, do not bake them into connector identity.
+
+**Q5 - BI adapter manifest parity:** agree with follow-up, but S1 should leave a clear parity contract. The user confusion is specifically dual-axis BI vendor vs AI connector. Even if AI is the urgent pain, Step 1 should either use a tiny read-only BI manifest table or avoid a redesign that implies BI is already on the same platform.
+
+**Q6 - Wizard vs single-page Setup:** push back on wizard default everywhere. A first-run wizard is good, but Settings should remain a single-page overview with progressive sections and a "Guide me" stepper. Returning users and developers need to compare BI, AI, profile, and pack state at once. A wizard-only default will hide the very relationships we are trying to clarify.
+
+**Q7 - Codex WIP handling:** agree with audit + extract. Do not discard the stash. Extract the Bug B1 Setup routing/visibility fix first if it is clean, then build the connector redesign on top. Do not land the whole WIP blindly; it came from a regression session and should be reviewed file-by-file.
+
+### Contract changes I want before S1
+
+1. Replace normal `host.app` usage with `host.registerRoute(...)`.
+2. Make `/assistant/connector-types` return load health, configured profile summaries, validation warnings, and redacted secret status, not just static brand metadata.
+3. Define fail behavior: dev may boot with a loud degraded connector, but production should fail closed if a configured profile references a connector that failed to load.
+4. Add no-secret leakage tests for the connector discovery endpoint before any Settings UI consumes it.
+5. Separate `provider/category`, `capabilities`, and `maturity` in the manifest. The UI can group however it wants.
+
+Suggested response shape:
+
+```js
+{
+  connectors: [
+    {
+      id,
+      displayName,
+      version,
+      category,
+      maturity,
+      capabilities,
+      profileTypes,
+      docsUrl,
+      routes: [{ namespace, purpose }],
+      configuredProfiles: [
+        {
+          name,
+          source,
+          valid,
+          warnings,
+          secretStatus
+        }
+      ],
+      loadStatus
+    }
+  ]
+}
 ```
-### 2026-MM-DD — DECIDED
-- Q1: <chosen option>
-- Q2: <chosen option>
-- ...
-- Signed off by: Claude / Codex / Rajesh
-```
+
+### S1/S2 sequencing
+
+S1 should be hardcoded/registry-backed metadata plus the Setup UI that consumes it. Keep every existing route unchanged. That is the right two-day slice.
+
+For S2, I would not use Power BI semantic-model as the first physical connector extraction unless the team explicitly wants to spend the pilot on the hardest auth story. Power BI should absolutely be represented in S1 because it is the current user-facing confusion, but the first drop-file runtime pilot may be safer with Foundation Model or Bedrock, where the route surface is narrower and we can prove the loader/host lifecycle before layering in AAD + Power BI tenant complexity. Genie last is correct.
+
+### Test bar
+
+Before implementing S1, add these acceptance tests to the plan:
+
+- `/assistant/connector-types` never returns secret values.
+- Legacy `profile.type` values still resolve through `matchProfile()`.
+- Unconfigured connectors still render as available but inactive in Settings.
+- Broken connector metadata reports degraded health without crashing dev.
+- Production/configured-profile failure semantics are explicit and tested.
+- Settings UI distinguishes BI display setup from AI semantic-model setup for Power BI.
+- Route namespace collisions are rejected by host registration tests.
+
+### Decision recommendation
+
+Proceed, but record the decision as: "Build a manifest-backed connector discovery and Setup experience first; defer arbitrary connector drop-in runtime until the host route contract and load/failure semantics are nailed down."
+
+That keeps the win small and real: fewer hardcoded Settings branches, clearer Power BI dual-axis setup, and a path out of the proxy monolith without pretending the plugin boundary is already mature.
+
+---
+
+## Claude's response to Codex (2026-05-20)
+
+Accepting all major pushbacks. The contract is materially better with Codex's edits. Specifically:
+
+1. **`host.registerRoute({ connectorId, method, path, handler, auth, auditEvent })`** as the default route surface. Host owns the middleware envelope (audit, error envelope, rate limits, allowlist enforcement). Raw `host.app` becomes an explicit escape hatch only for genuine special cases (SSE streams, multipart uploads). This eliminates a class of "the connector forgot to audit-log" bugs by construction.
+
+2. **S1 honest scope.** S1 ships manifest schema + a hardcoded registry mapping `id → existing route handlers in server.js` + the discovery endpoint + the Setup UI brand cards. **No physical extraction of routes in S1.** Drop-in runtime is S2+. Eliminates the over-promise.
+
+3. **B1 fix as independent PR** before S1. Extract from the stashed Codex WIP, audit file-by-file (per `feedback_external_llm_audit.md`), ship as its own commit.
+
+4. **Settings single-page** stays the default. Opt-in "Guide me" stepper overlay for first-time authors. Returning users get the compare-at-a-glance view they need.
+
+5. **Manifest expanded** with `version`, `profileType` (or `profileTypes`), `maturity`, typed `profileSchema` field kinds (`string` / `secret` / `url` / `select` / `boolean`), route namespace metadata. Secret fields marked as secret from day 1 so the discovery endpoint can prove non-leakage.
+
+6. **Discovery response shape** adopted verbatim (load status, configured profiles with `valid` / `warnings` / `source` / `secretStatus`). Health belongs at the discovery layer.
+
+7. **Profile editor surfaces BOTH** the JSON snippet AND the env-var equivalent (`PROXY_PROFILE_<NAME>_<FIELD>=...`) in S1's "Add a profile" panel. Server-side write (option C from §8.Q3) explicitly deferred and gated.
+
+8. **Taxonomy split into three orthogonal dimensions:**
+   - `category` — provider grouping (`databricks`, `aws`, `azure`, `microsoft`, `demo`) — drives Setup navigation
+   - `capabilities` — feature flags (`llm`, `rag`, `deterministic`, `streaming`, `qnaEmbedSurface`, `semanticModel`) — drives feature affordance UI
+   - `maturity` — lifecycle (`stable`, `preview`, `demo`, `future`) — drives badging
+   - UI groups by whichever dimension makes sense (default: category).
+
+9. **S2 pilot reordered to Foundation Model first** (narrower route surface, no AAD). PBI semantic-model moves later in S3 sequence so the loader/host lifecycle is proven before adding tenant complexity.
+
+10. **Acceptance test bar adopted verbatim:**
+    - `/assistant/connector-types` never returns secret values (negative test)
+    - Legacy `profile.type` resolution through `matchProfile()` (back-compat test)
+    - Unconfigured connectors render available-but-inactive
+    - Broken connector → degraded health without crashing dev
+    - Production fail-closed semantics for configured-profile-pointing-at-failed-connector
+    - Settings distinguishes BI display setup vs AI semantic-model setup for Power BI
+    - Route namespace collision rejection (applies starting in S2 when real route migration begins)
+
+**No outstanding disagreements.** The decision is recorded below.
+
+---
+
+## 12. Decision log
+
+### 2026-05-20 — DECIDED
+
+**Direction:** Build a manifest-backed connector discovery and Setup experience FIRST. Defer arbitrary connector drop-in runtime until the host route contract and load/failure semantics are nailed down.
+
+**Resolved Q1-Q7:**
+
+| # | Decision |
+|---|---|
+| Q1 | **B (soft migration).** Manifest declares canonical `profileType` or `profileTypes`; `matchProfile()` is the legacy alias path. |
+| Q2 | Required manifest fields: `id`, `displayName`, `version`, `profileType`/`profileTypes`, `category`, `maturity`, `icon`, `tagline`, `description`, `capabilities`, `profileSchema` (with typed field kinds + secret marking), `setupSteps`, `docsUrl`, `routes` (namespace + purpose). Deferred to follow-ups: validation regexes, secret rotation hints, allowlist policy integration, example payloads. |
+| Q3 | **A in S1** (JSON snippet) **+ env-var snippet** generator. **B (generated form)** as follow-up. **C (server-side write)** explicitly deferred — needs admin auth + opt-in flag + audit + zero-browser-secret-leakage guarantee. |
+| Q4 | **Split into 3 orthogonal dimensions:** `category` (provider grouping) + `capabilities` (feature flags) + `maturity` (lifecycle). Single taxonomy was conflating provider + capability + lifecycle. |
+| Q5 | **BI parity follow-up**, but S1 must visually distinguish "Power BI as BI display" from "Power BI as AI semantic-model brain" so the immediate dual-axis confusion is addressed. |
+| Q6 | **Single-page Settings** with opt-in "Guide me" stepper, NOT wizard-default. Returning users + developers need compare-at-a-glance. |
+| Q7 | **Audit + extract Bug B1 fix** from Codex WIP as an independent PR BEFORE the redesign work. Do not land the whole stash blindly. |
+
+**Host API contract:**
+
+- `host.registerRoute({ connectorId, method, path, handler, auth, auditEvent })` is the default route surface, NOT raw `host.app`.
+- Host owns middleware envelope: audit log emit, problem-envelope on throw, rate-limit hook, allowlist enforcement, request-id propagation.
+- Raw `host.app` available as escape hatch for SSE / multipart / other non-standard surfaces, but its use is reviewed.
+
+**S1 scope (committed):**
+
+1. ADR — connector manifest schema (`docs/adr/000X-connector-manifest.md`).
+2. `proxy/lib/connectorManifests.js` — hardcoded table mapping `connector id → manifest + reference to existing route handlers in server.js`. **No physical route extraction.**
+3. `proxy/lib/connectorRegistry.js` — stub registry that reads the table. Boot-time validation surfaces. Designed so swap to dir-scan in S2 is local.
+4. `GET /assistant/connector-types` — serves the response shape Codex specified, including `loadStatus`, `configuredProfiles[].secretStatus`, `valid`, `warnings`.
+5. `playground/src/setup/ConnectorBrandCard.tsx` — generic brand card consuming a manifest.
+6. New Setup UI step driven by the discovery endpoint.
+7. **Acceptance tests:** secret-leakage negative test, legacy-profile-type back-compat, unconfigured-but-available rendering, broken-connector degraded-health, configured-profile-pointing-at-failed-connector production fail-closed, PBI dual-axis distinguished in Settings.
+
+**S2/S3 deferred until S1 ships + soaks:**
+
+- S2 pilot: **Foundation Model first** (narrowest route surface, no AAD). NOT Power BI semantic-model.
+- S3 migration order: bedrock-direct → openai → supervisor → bedrock-rag → supervisor-local → responses-agent → powerbi-semantic-model → genie. Genie last because it's the most integrated.
+
+**Independent bugfix to land BEFORE S1:**
+
+- Bug B1 (allowlist shape mismatch in `playground/src/settings/settingsRoute.ts` or equivalent). Extract from Codex stash, audit file-by-file per the external-LLM audit rule, ship as its own PR with negative tests covering the shape contract.
+
+**Signed off by:**
+
+- Claude — proposer
+- Codex — reviewer (qualified +1, contract changes locked in above)
+- Rajesh — awaiting (the PR is OPEN; +1 in a comment unlocks S1 work)
 
 ---
 
