@@ -163,7 +163,7 @@ export function AiGroup(): React.ReactElement {
               */}
             <SubSection
                 label="Connector catalogue"
-                helper="Every connector PulsePlay can wire up — configured or not. Status badges show what's active, what's configured with warnings, and what's available but not configured yet. Each card has a copy-paste config snippet."
+                helper="Every connector PulsePlay can wire up. The compact view shows only what's configured today — click '+ Show all 12 →' to browse what else is available. Each card has a copy-paste config snippet."
             >
                 <ConnectorBrandGrid
                     activeProfileName={activeAiProfile || null}
@@ -171,6 +171,7 @@ export function AiGroup(): React.ReactElement {
                         const result = setActiveAiProfile(name);
                         if (!result.ok) console.warn(result.reason);
                     }}
+                    showOnlyConfiguredByDefault
                 />
             </SubSection>
 
@@ -182,41 +183,21 @@ export function AiGroup(): React.ReactElement {
               */}
             <SubSection
                 label="Assistant"
-                helper="The assistant profile powering AI Insights and Ask Pulse — pick a provider, see the model/agent details, and verify the connection."
+                helper="The currently active assistant — its model/agent details and a live reachability probe. Switch the active connector via the catalogue above."
             >
 
-            {/* ── Provider ──────────────────────────────────────────── */}
-            <Leaf
-                group="ai"
-                label="Provider"
-                helper="The AI assistant that answers your questions. Restricted to the providers your organization allows."
-            >
-                {profilesLoading && <CurrentValue label="Loading">…</CurrentValue>}
-                {profilesError && (
-                    <CurrentValue label="Error">
-                        <span style={{ color: "#a01828" }}>{profilesError}</span>
-                    </CurrentValue>
-                )}
-                {!profilesLoading && allowedProfileNames.length === 0 && (
-                    <div style={{ fontSize: 12, opacity: 0.6 }}>
-                        No AI providers available. Contact your administrator.
-                    </div>
-                )}
-                {allowedProfileNames.length > 0 && (
-                    <ProviderPicker
-                        options={profiles.filter(p => allowedProfileNames.includes(p.name))}
-                        value={activeAiProfile}
-                        onChange={(name) => {
-                            const result = setActiveAiProfile(name);
-                            if (!result.ok) {
-                                // The store guards against allowlist-bypass.
-                                console.warn(result.reason);
-                            }
-                        }}
-                    />
-                )}
-                {aiOrphan && <OrphanBanner reason={aiOrphan.reason} />}
-            </Leaf>
+            {/* ── Provider picker removed 2026-05-20 (cycle 20 follow-up) ──
+              * The Connector catalogue above renders all 12 connectors with
+              * clickable configured-profile buttons; selecting one fires the
+              * same setActiveAiProfile() that the legacy ProviderPicker did.
+              * Keeping both surfaces showed duplicate Provider UI; the
+              * catalogue is the single source.
+              *
+              * Orphan banner moved up so it still surfaces when a stale
+              * pulseplay:active-ai-profile localStorage key references a
+              * removed profile.
+              */}
+            {aiOrphan && <OrphanBanner reason={aiOrphan.reason} />}
 
             {/* ── Model / Agent ─────────────────────────────────────── */}
             <Leaf
@@ -230,7 +211,7 @@ export function AiGroup(): React.ReactElement {
             >
                 {!activeProfileMeta && (
                     <div style={{ fontSize: 12, opacity: 0.6 }}>
-                        Pick a provider above to see the model / agent details.
+                        Pick a connector in the catalogue above to see the model / agent details.
                     </div>
                 )}
                 {activeProfileMeta && !isSupervisor && (
@@ -262,7 +243,7 @@ export function AiGroup(): React.ReactElement {
             >
                 {!activeAiProfile && (
                     <div style={{ fontSize: 12, opacity: 0.6 }}>
-                        Pick a provider first.
+                        Pick a connector in the catalogue above first.
                     </div>
                 )}
                 {activeAiProfile && !isSupervisor && (
@@ -273,30 +254,24 @@ export function AiGroup(): React.ReactElement {
                 )}
             </Leaf>
 
-            {/* ── Power BI Q&A launch (cycle 17, always rendered) ──────────
-              * Opens the full-page Q&A surface (Microsoft's NLP layer over
-              * the dataset) at /powerbi/qna. The proxy mints the
-              * dataset-scoped embed token; PulsePlay makes zero LLM calls
-              * on this path.
+            {/* ── Power BI Q&A launch (cycle 17, conditional after cycle 20) ─
+              * Renders ONLY when the active profile is `powerbi-semantic-model`.
+              * The launch button opens the full-page Q&A surface at /powerbi/qna.
+              * The proxy mints the dataset-scoped embed token; PulsePlay makes
+              * zero LLM calls on this path.
               *
-              * 2026-05-20 follow-up — the leaf now ALWAYS renders so users
-              * can see the option exists. The launch button is enabled
-              * only when the active profile is `powerbi-semantic-model`;
-              * otherwise the button is disabled with a hint to switch
-              * profile. This matches the "configure all technically
-              * feasible / surface what's possible" UX principle and fixes
-              * the dead-anchor bug where the rail entry led nowhere.
+              * 2026-05-20 cycle 20 cleanup: the "wrong-profile" disabled state
+              * was removed because the Connector catalogue above now hosts the
+              * Power BI Q&A brand card with the same config snippet for users
+              * who aren't on a PBI semantic-model profile. Keeping both was
+              * pure duplication.
               */}
-            <Leaf
-                group="ai"
-                label="Power BI Q&A"
-                helper={
-                    isPowerBiSemanticModel
-                        ? "Open Microsoft's natural-language Q&A surface bound to this dataset. The token mint stays server-side; PulsePlay makes no LLM call on this path."
-                        : "Microsoft's natural-language Q&A surface over a Power BI dataset. Available when the active assistant profile is a Power BI semantic-model connector. The token mint stays server-side; PulsePlay would make zero LLM calls on this path."
-                }
-            >
-                {isPowerBiSemanticModel ? (
+            {isPowerBiSemanticModel && (
+                <Leaf
+                    group="ai"
+                    label="Power BI Q&A"
+                    helper="Open Microsoft's natural-language Q&A surface bound to this dataset. The token mint stays server-side; PulsePlay makes no LLM call on this path."
+                >
                     <button
                         type="button"
                         onClick={() => navigateToPowerBiQna()}
@@ -314,105 +289,8 @@ export function AiGroup(): React.ReactElement {
                     >
                         Open Power BI Q&amp;A →
                     </button>
-                ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                        <button
-                            type="button"
-                            disabled
-                            data-action="open-powerbi-qna"
-                            data-state="disabled-wrong-profile"
-                            title="Switch to a Power BI semantic-model profile to enable"
-                            style={{
-                                padding: "8px 16px",
-                                fontSize: 13,
-                                fontWeight: 600,
-                                border: "1px solid var(--pp-border, rgba(0,0,0,0.18))",
-                                background: "var(--pp-disabled-bg, rgba(0,0,0,0.05))",
-                                color: "var(--pp-disabled-fg, rgba(0,0,0,0.45))",
-                                borderRadius: 4,
-                                cursor: "not-allowed",
-                                opacity: 0.65,
-                                alignSelf: "flex-start",
-                            }}
-                        >
-                            Open Power BI Q&amp;A →
-                        </button>
-                        <div style={{ fontSize: 12, opacity: 0.75 }}>
-                            Active profile <strong>{activeProfileMeta?.displayName || activeProfileMeta?.name || "(none)"}</strong>
-                            {activeProfileMeta?.type ? ` (type: ${activeProfileMeta.type})` : ""}
-                            {" "}is not a <code>powerbi-semantic-model</code> connector. The connector code is built-in;
-                            it just needs a profile in <code>proxy/config.json</code>. Steps:
-                        </div>
-                        <ol style={{ margin: "0 0 0 18px", padding: 0, fontSize: 12, opacity: 0.75, lineHeight: 1.55 }}>
-                            <li>Azure AD: create an app registration + client secret.</li>
-                            <li>Power BI: add the service principal as a workspace Member; enable <em>Service principals can use Power BI APIs</em> in the admin portal.</li>
-                            <li>Paste the snippet below into <code>proxy/config.json</code> under <code>profiles</code>, fill in the four GUIDs, restart <code>node server.js</code>, then pick the new profile under <strong>Provider</strong> above.</li>
-                        </ol>
-                        <details>
-                            <summary style={{ fontSize: 12, fontWeight: 600, cursor: "pointer", opacity: 0.85 }}>
-                                Show example profile JSON →
-                            </summary>
-                            <pre
-                                data-action="powerbi-qna-config-snippet"
-                                style={{
-                                    marginTop: 8,
-                                    padding: 10,
-                                    fontSize: 11,
-                                    fontFamily: "Consolas, 'Cascadia Mono', monospace",
-                                    background: "var(--pp-code-bg, rgba(0,0,0,0.04))",
-                                    border: "1px solid var(--pp-border, rgba(0,0,0,0.12))",
-                                    borderRadius: 4,
-                                    whiteSpace: "pre",
-                                    overflowX: "auto",
-                                }}
-                            >{`"powerbi_sales_dataset": {
-  "type": "powerbi-semantic-model",
-  "displayName": "Power BI: Sales Semantic Model",
-  "dataDomain": "Sales performance",
-  "aadTenantId": "YOUR_AAD_TENANT_GUID",
-  "aadClientId": "YOUR_SERVICE_PRINCIPAL_CLIENT_ID",
-  "aadClientSecret": "YOUR_SERVICE_PRINCIPAL_CLIENT_SECRET",
-  "powerbiGroupId": "YOUR_POWERBI_WORKSPACE_GUID",
-  "powerbiDatasetId": "YOUR_POWERBI_DATASET_GUID"
-}`}</pre>
-                            <button
-                                type="button"
-                                data-action="copy-powerbi-qna-snippet"
-                                onClick={async (e) => {
-                                    const pre = (e.currentTarget.parentElement as HTMLElement | null)?.querySelector(
-                                        '[data-action="powerbi-qna-config-snippet"]',
-                                    );
-                                    const text = pre?.textContent || "";
-                                    try {
-                                        await navigator.clipboard.writeText(text);
-                                        e.currentTarget.textContent = "Copied ✓";
-                                        setTimeout(() => {
-                                            if (e.currentTarget) e.currentTarget.textContent = "Copy snippet";
-                                        }, 1500);
-                                    } catch {
-                                        e.currentTarget.textContent = "Copy failed — select and ⌘C";
-                                    }
-                                }}
-                                style={{
-                                    marginTop: 6,
-                                    padding: "4px 10px",
-                                    fontSize: 12,
-                                    border: "1px solid var(--pp-border, rgba(0,0,0,0.18))",
-                                    background: "var(--pp-bg, white)",
-                                    borderRadius: 4,
-                                    cursor: "pointer",
-                                }}
-                            >
-                                Copy snippet
-                            </button>
-                            <div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>
-                                Full reference + RLS options in <code>proxy/config.example.json</code>
-                                {" "}and <code>docs/PROXY_REFERENCE.md</code>. Q&A surface mounts at <code>/powerbi/qna</code> once the profile is wired.
-                            </div>
-                        </details>
-                    </div>
-                )}
-            </Leaf>
+                </Leaf>
+            )}
 
             </SubSection>
 
@@ -968,69 +846,11 @@ const settingsInputStyle: React.CSSProperties = {
     fontSize: 12,
 };
 
-// ─── Provider picker ────────────────────────────────────────────────────
-
-interface ProviderPickerProps {
-    options: ProfileMetadata[];
-    value: string;
-    onChange: (next: string) => void;
-}
-
-function ProviderPicker(props: ProviderPickerProps): React.ReactElement {
-    return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {props.options.map(p => {
-                const active = p.name === props.value;
-                const isSup = p.type === "supervisor" || p.type === "supervisor-local";
-                return (
-                    <button
-                        key={p.name}
-                        type="button"
-                        onClick={() => props.onChange(p.name)}
-                        aria-pressed={active}
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            padding: "8px 12px",
-                            border: "1px solid var(--pp-border, rgba(0,0,0,0.18))",
-                            background: active ? "var(--pp-accent, #0078d4)" : "transparent",
-                            color: active ? "white" : "inherit",
-                            borderRadius: 4,
-                            cursor: "pointer",
-                            textAlign: "left",
-                            fontSize: 13,
-                        }}
-                    >
-                        <span>
-                            <strong>{p.displayName || p.name}</strong>
-                            <span style={{ opacity: 0.7, fontSize: 11, marginLeft: 6 }}>
-                                {p.dataDomain || p.description || p.name}
-                            </span>
-                        </span>
-                        {isSup && (
-                            <span
-                                style={{
-                                    fontSize: 10,
-                                    padding: "2px 8px",
-                                    background: active ? "rgba(255,255,255,0.25)" : "rgba(0, 120, 212, 0.15)",
-                                    color: active ? "white" : "var(--pp-accent, #0078d4)",
-                                    borderRadius: 10,
-                                    fontWeight: 600,
-                                    textTransform: "uppercase",
-                                    letterSpacing: 0.4,
-                                }}
-                            >
-                                Supervisor ·{" "}
-                                {Array.isArray(p.spaces) ? p.spaces.length : "?"} spaces
-                            </span>
-                        )}
-                    </button>
-                );
-            })}
-        </div>
-    );
-}
+// ProviderPicker — removed 2026-05-20 cycle 20 cleanup. The Connector
+// catalogue's brand cards now host the same chip-style picker via their
+// configured-profile buttons, and a single Provider UI is less confusing
+// than two surfaces fighting for the same job. Git history preserves the
+// component if it's ever needed again.
 
 // ─── Supervisor fan-out table (read-only) ───────────────────────────────
 
