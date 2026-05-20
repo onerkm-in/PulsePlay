@@ -15,7 +15,7 @@ The first production-grade build target is **Databricks Genie + Power BI** becau
 
 ## Why it exists
 
-The sister project [DwD_AI_Assistant_for_PBI](../DwD_AI_Assistant_for_PBI) (Pulse) proved out the AI-over-BI pattern as a Power BI custom visual. That product is locked into the Power BI sandbox (no `fetch`, no streaming, no Web Workers, single-vendor). PulsePlay flips the model: **the React playground is the host, BI tools are guests** — which removes the sandbox constraints AND opens the door to multi-vendor BI orchestration.
+The sister project [sister Pulse project](../sister Pulse project) (Pulse) proved out the AI-over-BI pattern as a Power BI custom visual. That product is locked into the Power BI sandbox (no `fetch`, no streaming, no Web Workers, single-vendor). PulsePlay flips the model: **the React playground is the host, BI tools are guests** — which removes the sandbox constraints AND opens the door to multi-vendor BI orchestration.
 
 PulsePlay's role inside the org: a thin pane of glass that connects to the platform team's existing AI services (Databricks Genie, Mosaic Supervisor, Foundation Model serving) and the org's existing BI deployments (Power BI / Tableau / Qlik / Looker). We don't build LLMs; we don't build agents; we orchestrate and provide the experience layer.
 
@@ -47,7 +47,7 @@ Once both are running, the playground will:
 
 ## Status
 
-**First production target in flight — Genie + Power BI.** Proxy + databricks-agents + cross-cutting docs inherited from DwD_AI_Assistant_for_PBI cycles 1-47. The ported Pulse AI experience now runs inside the playground, Power BI has a real `powerbi-client` adapter, and Tableau/Qlik/Looker remain modular iframe stubs until the first cell passes the production gate.
+**First production target in flight — Genie + Power BI.** Proxy + databricks-agents + cross-cutting docs inherited from sister Pulse project cycles 1-47. The ported Pulse AI experience now runs inside the playground, Power BI has a real `powerbi-client` adapter, and Tableau/Qlik/Looker remain modular iframe stubs until the first cell passes the production gate.
 
 Current local validation: proxy tests 418/418, playground tests 161/161, playground production build passing.
 
@@ -99,4 +99,4 @@ No `LICENSE` file is committed yet. License decision pending; recommendation whe
 
 ## Sister project
 
-This is a sibling of [DwD_AI_Assistant_for_PBI](../DwD_AI_Assistant_for_PBI) (the Pulse Power BI custom visual). Cross-pollination is intentional: bug fixes in `proxy/` should be ported between both projects manually until a shared library extraction is done. PulsePlay's `proxy/`, `databricks-agents/`, and `scripts/` were copied verbatim from Pulse cycles 1-47 and still carry some Pulse vocabulary in headers and comments — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) "Vocabulary leak items" for the cleanup list.
+This is a sibling of [sister Pulse project](../sister Pulse project) (the Pulse Power BI custom visual). Cross-pollination is intentional: bug fixes in `proxy/` should be ported between both projects manually until a shared library extraction is done. PulsePlay's `proxy/`, `databricks-agents/`, and `scripts/` were copied verbatim from Pulse cycles 1-47 and still carry some Pulse vocabulary in headers and comments — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) "Vocabulary leak items" for the cleanup list.

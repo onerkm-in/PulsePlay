@@ -14,7 +14,7 @@
 **What changed.**
 - [proxy/server.js](../proxy/server.js): `bedrockRetrieveAndGenerate` is now a 5-line delegate to `proxy/lib/bedrock.js`. The inline 62-line SigV4 implementation it duplicated is removed. Byte-identical behavior. (`748c984`)
 - [docs/adr/0003-supervisor-stagger.md](adr/0003-supervisor-stagger.md): Decision section rewritten. It used to claim a fixed 800 ms default but actual code at [proxy/server.js:6385](../proxy/server.js#L6385) ships 2000 ms. The body now carries the full 350 → 800 → 1500 → 2000 ms tuning history as a table, plus a "if you change this, add a row" guardrail. (`477f075`)
-- [databricks-agents/supervisor/agent.py](../databricks-agents/supervisor/agent.py): Module docstring said "DwD Multi-Domain Supervisor Agent." Renamed to "PulsePlay…". Other DwD mentions in the repo (App.tsx, AISidebar.tsx, pulse/*) are intentional sister-project context and were left as-is. (`1d4bf84`)
+- [databricks-agents/supervisor/agent.py](../databricks-agents/supervisor/agent.py): Module docstring said "PulsePlay Multi-Domain Supervisor Agent." Renamed to "PulsePlay…". Other the sister project mentions in the repo (App.tsx, AISidebar.tsx, pulse/*) are intentional sister-project context and were left as-is. (`1d4bf84`)
 - [CLAUDE.md](../CLAUDE.md): Supervisor-stagger tripwire pointed at a renamed ADR file (`0003-supervisor-stagger-800ms.md` — 404'd) and the stale `proxy/server.js:3556` citation. Both fixed to `0003-supervisor-stagger.md` and `:6385`. (`4a3a2f5`)
 - [.github/workflows/test.yml](../.github/workflows/test.yml): new — two parallel jobs (proxy jest, playground lint+vitest+build) on Node 20 ubuntu-latest. Triggers on PR + push to main + push to `publish/**`. (`bf01f2c`)
 
@@ -26,7 +26,7 @@
 **Honest deferrals.**
 - Author-selectable latency levers (settings UI for staggerMs / FM concurrency / Genie pre-flight skip / etc.) — designed previously, still not built. Largest user-pain win available; should headline the next cycle.
 - Origin divergence cleanup (314 publish-branch commits vs 50 origin/main commits) is a strategic call, not a code task. Either merge `publish/local-main-2026-05-20` → `origin/main` after a careful diff review, or rebase `origin/main`'s 50 commits onto local. Don't auto-resolve.
-- DwD references in `playground/src/pulse/themeConfig.ts`, `setupStep5Validation.ts`, `style/visual.less` left untouched — they're inside the explicit Pulse-PBI compat shim per CLAUDE.md, so they document inheritance, not naming drift.
+- the sister project references in `playground/src/pulse/themeConfig.ts`, `setupStep5Validation.ts`, `style/visual.less` left untouched — they're inside the explicit Pulse-PBI compat shim per CLAUDE.md, so they document inheritance, not naming drift.
 
 **Validation.**
 - `node --check proxy/server.js` clean post-edit.

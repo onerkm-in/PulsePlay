@@ -28,7 +28,7 @@
 // silently colliding the new key shape onto the old one. SQL-section
 // outputs are deterministic, so they ride a 4h TTL via the new
 // SQL_SECTION_CACHE_TTL_MS constant — callers pick which TTL to pass in.
-const CACHE_PREFIX = "dwd-ai-insights:v6:";
+const CACHE_PREFIX = "pulseplay-ai-insights:v6:";
 /** Default TTL when the caller doesn't pass an override (IDEA-009). */
 const DEFAULT_CACHE_TTL_MS = 30 * 60 * 1000;
 /** Wave 35 Phase 1 — SQL sections are deterministic (no LLM in the loop)
@@ -301,7 +301,7 @@ export function clearAllInsightsCache(): number {
             const k = store.key(i);
             // Match both the current prefix and any earlier version (so a
             // single sweep cleans up old v1/v2/etc cruft too).
-            if (k && /^dwd-ai-insights:v\d+:/.test(k)) keys.push(k);
+            if (k && /^pulseplay-ai-insights:v\d+:/.test(k)) keys.push(k);
         }
         for (const k of keys) {
             try { store.removeItem(k); removed++; } catch { /* ignore */ }

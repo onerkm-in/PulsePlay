@@ -1,6 +1,6 @@
 # ADR-0004 — Format-pane stores complex shapes as JSON strings, not nested objects
 
-**Status:** SUPERSEDED — DwD/Pulse-only. There is no Power BI custom-visual format pane in PulsePlay (we are not a custom visual; we are a React playground). This ADR is preserved for historical context only and applies only to the sister project Pulse.
+**Status:** SUPERSEDED — Pulse-only. There is no Power BI custom-visual format pane in PulsePlay (we are not a custom visual; we are a React playground). This ADR is preserved for historical context only and applies only to the sister project Pulse.
 
 **Original status:** Accepted (2026-02) in Pulse.
 

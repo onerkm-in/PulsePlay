@@ -564,7 +564,7 @@ pandoc docs/ARCHITECTURE_DESIGN.md -o ARCHITECTURE_DESIGN.pdf --from gfm
 
 ## Analytics, Statistics, Data Visualization & Reporting — Knowledge Base
 
-> Maintained for the DwD AI Assistant for PBI project.
+> Maintained for the sister Pulse project.
 > Last updated: 2026-04-24.
 
 ---
@@ -2140,7 +2140,7 @@ Power BI supports accessibility; authors must actively configure it.
 
 #### 10.1 How to Frame Natural Language Questions for BI AI Tools
 
-The quality of AI-generated analysis is directly determined by the quality of the question. Apply these principles when querying AI BI tools (including the DwD AI Assistant).
+The quality of AI-generated analysis is directly determined by the quality of the question. Apply these principles when querying AI BI tools (including the Pulse assistant).
 
 ##### The Five-Part Question Structure
 
@@ -2274,9 +2274,9 @@ When evaluating an AI-generated BI answer, check:
 - [ ] **Audience fit:** Is the language and depth appropriate for the stated user role?
 - [ ] **No hallucination:** Does the AI claim facts not present in the bound data? (Check the SQL/trace view in developer mode.)
 
-#### 10.7 Prompt Engineering for the DwD AI Assistant Specifically
+#### 10.7 Prompt Engineering for the Pulse assistant Specifically
 
-The DwD AI Assistant sends a structured context block to Genie with every request. Authors can improve answer quality by:
+The Pulse assistant sends a structured context block to Genie with every request. Authors can improve answer quality by:
 
 **Bind only meaningful fields:**
 - A visual bound with 20 dimensions and 15 measures produces a bloated, noisy context.
@@ -2353,4 +2353,4 @@ The DwD AI Assistant sends a structured context block to Genie with every reques
 
 ---
 
-*This knowledge base is maintained alongside the DwD AI Assistant for PBI project. All DAX patterns have been tested against Power BI Desktop (March 2026 release). SQL patterns use ANSI SQL window functions compatible with Databricks SQL and most modern SQL engines.*
+*This knowledge base is maintained alongside the sister Pulse project. All DAX patterns have been tested against Power BI Desktop (March 2026 release). SQL patterns use ANSI SQL window functions compatible with Databricks SQL and most modern SQL engines.*

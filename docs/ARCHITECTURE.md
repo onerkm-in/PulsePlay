@@ -190,7 +190,7 @@ The proxy was extracted from Pulse and the wires of that origin are still showin
 - Headers: `X-Genie-Key`, `X-Genie-Target-Host`, `X-Databricks-Host`, `X-Databricks-Token`, `X-Genie-Space-Id`. Five of six allowed CORS headers are Databricks-vocabulary; only `X-Profile-Name` is generic.
 - Helper `errorStatusFromDatabricks()` is the only error-mapping helper; only Databricks-shaped errors route through it. Bedrock and OpenAI have separate error paths.
 - The CORS comment claims "Power BI Desktop WebView requires permissive headers." That justification doesn't apply in PulsePlay (real browser, not PBI Desktop iframe).
-- `databricks-agents/supervisor/README.md` still says "DwD Supervisor Agent."
+- `databricks-agents/supervisor/README.md` still says "PulsePlay Supervisor Agent."
 
 Tracked for a future cleanup cycle. None of these block today's work.
 

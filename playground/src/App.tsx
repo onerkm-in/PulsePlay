@@ -11,7 +11,7 @@
 // the user switches vendors, accumulating context (which page they
 // looked at, which filters they applied) across the session and using
 // the same proxy backend (Genie / Azure OpenAI / Bedrock / foundation
-// model) we proved out in DwD_AI_Assistant_for_PBI cycles 1-47.
+// model) we proved out in sister Pulse project cycles 1-47.
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
@@ -744,7 +744,7 @@ function PlaygroundApp(): React.ReactElement {
 
     // Buffer the last ~20 BI events so the AI sidebar can include "what is
     // the user actually looking at right now?" in its prompt context. Same
-    // pattern as DwD_AI_Assistant_for_PBI's contextBuilder, just sourced
+    // pattern as sister Pulse project's contextBuilder, just sourced
     // from BI vendor events instead of Power BI's DataView.
     const handleBIEvent = useCallback((event: BIEvent) => {
         setRecentEvents(prev => {

@@ -404,7 +404,7 @@ class SupervisorGroup extends FormattingSettingsGroup {
         name: "supervisorEndpoint",
         displayName: "AI Supervisor Agent Endpoint",
         description: "Supervisor mode only. URL of the Databricks Mosaic AI serving endpoint that acts as the supervisor orchestrator. The proxy forwards questions here; the supervisor queries the appropriate AI workspaces and returns a unified answer.",
-        placeholder: "https://dbc-xxx.cloud.databricks.com/serving-endpoints/dwd-supervisor/invocations",
+        placeholder: "https://dbc-xxx.cloud.databricks.com/serving-endpoints/pulseplay-supervisor/invocations",
         value: ""
     });
 

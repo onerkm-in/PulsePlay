@@ -106,7 +106,7 @@ I have current context on:
 - **The 9 backend paths** in the proxy
 - **Tripwires** in `CLAUDE.md` — Power BI Premium (NOT Fabric), Genie Agent Mode is UI-only, Foundation Model is the streaming path
 - **918 tests** that gate every change
-- **Beast-mode collaboration patterns** from the DwD_AI_Assistant_for_PBI sibling cycles 1-47
+- **Beast-mode collaboration patterns** from the sister Pulse project sibling cycles 1-47
 
 I will read `CLAUDE.md` and `MEMORY.md` at the start of every session. If you say "remember X," I save it to memory immediately.
 

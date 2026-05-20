@@ -35,5 +35,5 @@ Theme is **not** part of the key. Theme changes shouldn't bust insights — that
 
 - Adding a new prompt-affecting setting requires three coordinated edits: the field in `setupDraft.ts`, the fingerprint in `insightsCache.ts`, the `useCallback` deps in `visual.tsx`. Codex Review #2 C1 was an example of what happens when one of those is missed.
 - The parity test in `tests/insightsCache.test.ts` asserts each fingerprint field independently busts the cache. A future change that adds a field without updating the test is a tripwire — fixed by extending the `fields` array in that test.
-- Field-order changes in the fingerprint require bumping `CACHE_PREFIX` (currently `dwd-ai-insights:v2:`), which orphans every previously cached entry. This is intentional and not a problem because Insights re-runs anyway.
+- Field-order changes in the fingerprint require bumping `CACHE_PREFIX` (currently `pulseplay-ai-insights:v2:`), which orphans every previously cached entry. This is intentional and not a problem because Insights re-runs anyway.
 - The 30-minute default TTL is a guess; surface telemetry later (M1) will let us tune it to actual hit rate.

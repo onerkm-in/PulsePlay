@@ -492,7 +492,7 @@ const SECTION_E: FieldMeta[] = [
         name: "supervisorEndpoint", section: "E",
         label: "Supervisor agent endpoint",
         hint: "Ask Pulse feature only. Databricks Mosaic AI serving endpoint URL that orchestrates multi-space queries when Ask Pulse is set to Supervisor connection mode. AI Insights does not use the supervisor; it runs the briefing against the primary space directly.",
-        example: "https://dbc-xxx.cloud.databricks.com/serving-endpoints/dwd-supervisor/invocations",
+        example: "https://dbc-xxx.cloud.databricks.com/serving-endpoints/pulseplay-supervisor/invocations",
         scope: ["supervisor"],
         defaultValue: "",
     },
@@ -1107,8 +1107,8 @@ export function copyJsonToClipboard(pretty: string, onFeedback: (msg: string) =>
             document.body.removeChild(ta);
             onFeedback("Copied to clipboard");
         } catch (e) {
-            onFeedback(`Copy failed (${(e as Error).message}). DevTools console has the JSON on window.__dwdInsightsSectionsJson.`);
-            try { (window as unknown as { __dwdInsightsSectionsJson?: string }).__dwdInsightsSectionsJson = pretty; } catch { /* sandboxed */ }
+            onFeedback(`Copy failed (${(e as Error).message}). DevTools console has the JSON on window.__pulseplayInsightsSectionsJson.`);
+            try { (window as unknown as { __pulseplayInsightsSectionsJson?: string }).__pulseplayInsightsSectionsJson = pretty; } catch { /* sandboxed */ }
         }
     };
     try {
@@ -1692,7 +1692,7 @@ export function CustomSectionsEditor(props: { value: string; onChange: (json: st
             } catch (e) {
                 setExportFeedback(`Copy failed (${(e as Error).message}). Open browser DevTools console to grab the JSON.`);
                 // Best-effort: stash on window so user can pick it up.
-                try { (window as unknown as { __dwdInsightsSectionsJson?: string }).__dwdInsightsSectionsJson = pretty; } catch { /* sandboxed */ }
+                try { (window as unknown as { __pulseplayInsightsSectionsJson?: string }).__pulseplayInsightsSectionsJson = pretty; } catch { /* sandboxed */ }
             }
             window.setTimeout(() => setExportFeedback(null), 4000);
         };
@@ -2630,7 +2630,7 @@ export function HybridPreview(props: {
     );
 }
 
-const STEP5_MODE_LS_KEY = "dwd-setup-step5-mode";
+const STEP5_MODE_LS_KEY = "pulseplay-setup-step5-mode";
 
 /** Read the persisted Step 5 mode from localStorage. New PBIPs default to
  *  Guided so first-time authors get the wizard; once an author switches to
@@ -4674,7 +4674,7 @@ WITH scoped AS (
                                     value={draft.supervisorEndpoint}
                                     onChange={e => setField("supervisorEndpoint", e.target.value)}
                                     onBlur={e => { const t = e.target.value.replace(/[ \s]+/g, "").trim(); if (t !== e.target.value) setField("supervisorEndpoint", t); }}
-                                    placeholder="https://dbc-xxx.cloud.databricks.com/serving-endpoints/dwd-supervisor/invocations"
+                                    placeholder="https://dbc-xxx.cloud.databricks.com/serving-endpoints/pulseplay-supervisor/invocations"
                                 />
                             </FieldRow>
 

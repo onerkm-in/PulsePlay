@@ -1028,7 +1028,7 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
         }
     }
 
-    public async testQuestion(question = "Run this validation query and return the single result: SELECT 1 AS dwd_validation_check."): Promise<{ ok: boolean; detail: string }> {
+    public async testQuestion(question = "Run this validation query and return the single result: SELECT 1 AS pulseplay_validation_check."): Promise<{ ok: boolean; detail: string }> {
         try {
             if (this.isDirectMode() && (!this.config.host || !this.config.token || !this.config.spaceId)) {
                 return { ok: false, detail: "Direct mode requires host, token (PAT), and spaceId to be set before running a test question." };

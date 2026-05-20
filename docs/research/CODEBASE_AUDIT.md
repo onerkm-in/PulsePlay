@@ -16,13 +16,13 @@ Top-level layout from `Get-ChildItem D:\Working_Folder\Projects\PulsePlay`:
 | Path | Purpose | State | Status |
 |---|---|---|---|
 | [README.md](../../README.md) | Front door. Calls the project "v0.1.0 — scaffold complete." Honest about stub state. | PulsePlay-native | Working |
-| [CLAUDE.md](../../CLAUDE.md) | LLM collaboration guide. Admits the auto-memory state file is `.dwd-session.state.json` carried over and "will be renamed to `.pulseplay-session.state.json` when you next touch the script." | PulsePlay-native, with inherited tooling | Stale (rename pending) |
-| [.gitignore](../../.gitignore) | Both `.dwd-session.state.json` AND `.pulseplay-session.state.json` are ignored. | PulsePlay-native | Working |
+| [CLAUDE.md](../../CLAUDE.md) | LLM collaboration guide. Admits the auto-memory state file is `.the sister project-session.state.json` carried over and "will be renamed to `.pulseplay-session.state.json` when you next touch the script." | PulsePlay-native, with inherited tooling | Stale (rename pending) |
+| [.gitignore](../../.gitignore) | Both `.the sister project-session.state.json` AND `.pulseplay-session.state.json` are ignored. | PulsePlay-native | Working |
 | `playground/` | Vite + React + TS frontend (the host). 7 source files total. | PulsePlay-native | Working scaffold; submit-only AI; vendor stubs |
 | `bi-adapters/` | Y-axis: BI vendor adapters. 5 directories, one `index.ts` each. | PulsePlay-native (4 stubs + 1 real) | Only `generic-iframe` is real |
-| `proxy/` | X-axis: AI connector backbone. Inherited verbatim from DwD_AI_Assistant_for_PBI cycles 1–47. **4,298-line server.js** + 8 lib modules + 12 test files. | Inherited (Pulse heritage) | Working but Pulse/Genie-shaped |
-| `databricks-agents/` | Mosaic AI Supervisor Agent template. One `supervisor/` subdir with `agent.py`, `log_and_deploy.py`, `deploy.ipynb`, `requirements.txt`, `README.md`, `config.example.env`. | Inherited (DwD heritage) | Untested in PulsePlay context; demo-domain |
-| `scripts/` | LLM onboarding/wrapup, smoke helpers, deploy helper, accuracy battery, proxy auth helper. 13 files. | Inherited (mostly DwD/Pulse-shaped) | Mostly stale; some load-bearing |
+| `proxy/` | X-axis: AI connector backbone. Inherited verbatim from sister Pulse project cycles 1–47. **4,298-line server.js** + 8 lib modules + 12 test files. | Inherited (Pulse heritage) | Working but Pulse/Genie-shaped |
+| `databricks-agents/` | Mosaic AI Supervisor Agent template. One `supervisor/` subdir with `agent.py`, `log_and_deploy.py`, `deploy.ipynb`, `requirements.txt`, `README.md`, `config.example.env`. | Inherited (Pulse heritage) | Untested in PulsePlay context; demo-domain |
+| `scripts/` | LLM onboarding/wrapup, smoke helpers, deploy helper, accuracy battery, proxy auth helper. 13 files. | Inherited (mostly Pulse-shaped) | Mostly stale; some load-bearing |
 | `docs/` | Mixed: 4 inherited PepPulse-titled docs, 7 PulsePlay-native docs, 8 newly-commissioned external-LLM reviews, 7 inherited ADRs that describe the Pulse PBI custom visual, 2 inherited research bibliographies. | Mixed — needs aggressive triage | Drift-heavy |
 | `docs/research/` | Empty directory at audit start. This audit lives here. | New | Working |
 
@@ -323,7 +323,7 @@ The proxy advertises itself as "connector-agnostic on the AI side" but is shot t
 | [server.js:3263-3302](../../proxy/server.js#L3263-L3302) | `LEGACY_DEMO_SCHEMAS = { sales, customer, ops, hse }` | Hardcoded SuperStore demo data column lists. Used as fallback when `profile.schemaContext` is unset. The hse "Hybrid flat superstore" is a Pulse demo construct. |
 | [server.js:3605-3608](../../proxy/server.js#L3605-L3608) | `LEGACY_DEMO_SYNTHETIC_FIELDS = { customer: ['churn_risk_score', ...], ops: ['hse_risk_score', ...] }` | Synthetic indicators hardcoded for the Pulse demo schemas |
 | [server.js:3373](../../proxy/server.js#L3373) | "**actual_sales** from the **{ops}** source is a monthly regional aggregate rounded to 2 decimal places…" | Cross-domain divergence note baked in; only fires when profile keys `ops` AND something else are configured |
-| [server.js:3181](../../proxy/server.js#L3181) | "DwD Supervisor" | Profile shape comment |
+| [server.js:3181](../../proxy/server.js#L3181) | "PulsePlay Supervisor" | Profile shape comment |
 | [server.js:1512](../../proxy/server.js#L1512) | "Genie space" wording into user-facing surfaces (BUG-013 generic) | Comment on profile-listing endpoint |
 | [llmOrchestrator.js:23](../../proxy/lib/llmOrchestrator.js#L23) | "for a Databricks SQL warehouse" | SQL system prompt |
 | [llmOrchestrator.js:452](../../proxy/lib/llmOrchestrator.js#L452) | "analysing a Power BI dashboard's measures + Genie space metadata" | Metric-rule prompt builder |
@@ -405,7 +405,7 @@ const data = await res.json();
 if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
 // The assistant endpoint returns conversation_id + message_id +
 // an initial status. v1 will poll for completion via
-// /api/assistant/conversations/:cid/messages/:mid like DwD does.
+// /api/assistant/conversations/:cid/messages/:mid like the sister project does.
 const answer = data.message?.content || "(message submitted; v1 will poll for completion)";
 ```
 
@@ -423,7 +423,7 @@ For OpenAI / Bedrock / Foundation Model — same story. They return `{ conversat
 
 ### 3.4 Pulse-heritage assumptions baked in
 
-- `AISidebar` reads `data.message?.content` — **wrong field name** for every PulsePlay backend. Possibly inherited from a Pulse contract (the comment "v1 will poll for completion via … like DwD does" at [AISidebar.tsx:75-76](../../playground/src/components/AISidebar.tsx#L75-L76) confirms the heritage thinking).
+- `AISidebar` reads `data.message?.content` — **wrong field name** for every PulsePlay backend. Possibly inherited from a Pulse contract (the comment "v1 will poll for completion via … like the sister project does" at [AISidebar.tsx:75-76](../../playground/src/components/AISidebar.tsx#L75-L76) confirms the heritage thinking).
 - The proxy passthrough sends header `X-Assistant-Profile` with value from `activeConnector` ([AISidebar.tsx:65](../../playground/src/components/AISidebar.tsx#L65)) — that header is recognised by the proxy ([server.js:2607, 2790, 3054, 3185](../../proxy/server.js#L2607)), so this works.
 - The "BI Context" prompt template ([AISidebar.tsx:51-55](../../playground/src/components/AISidebar.tsx#L51-L55)) jams `recent BI events` into the user prompt as plaintext. There is no separate context channel. A malicious BI tool emitting crafted event payloads could inject prompt directives. Cited in [E2E_GAP_REVIEW_INITIAL.md row 4](../E2E_GAP_REVIEW_INITIAL.md) — "BI event trust" — but it bears repeating.
 - `App.tsx` resets `recentEvents` when the user switches vendors ([App.tsx:62](../../playground/src/App.tsx#L62)) — sensible, but the buffer's last-20 cap ([App.tsx:43](../../playground/src/App.tsx#L43)) is probably not what an enterprise needs.
@@ -434,7 +434,7 @@ For OpenAI / Bedrock / Foundation Model — same story. They return `{ conversat
 - Proxies `/api` → `http://127.0.0.1:8787` with rewrite stripping `/api` ([line 14-19](../../playground/vite.config.ts#L14-L19)). So `/api/assistant/profiles` from the React app lands at `/assistant/profiles` on the proxy. Confirmed by route handler at [server.js:1516](../../proxy/server.js#L1516).
 - Source maps enabled in production build ([line 24](../../playground/vite.config.ts#L24)). For an enterprise deployment, source maps shouldn't ship to public hosting.
 - `changeOrigin: true` ([line 17](../../playground/vite.config.ts#L17)) — forwards `Host` header rewrite. Fine for dev.
-- The header docstring says "DwD_AI_Assistant_for_PBI's UniBridge AI Proxy" ([line 6](../../playground/vite.config.ts#L6)) — naming heritage drift confirmed.
+- The header docstring says "sister Pulse project's UniBridge AI Proxy" ([line 6](../../playground/vite.config.ts#L6)) — naming heritage drift confirmed.
 
 ### 3.6 TypeScript config
 
@@ -529,26 +529,26 @@ These are the SuperStore + Pulse Customer Experience Dashboard categories.
 
 ### 5.2 Naming drift
 
-Every place "DwD Supervisor Agent" or `dwd-supervisor-agent` appears (from grep `DwD` + `dwd-supervisor`):
+Every place "PulsePlay Supervisor Agent" or `pulseplay-supervisor-agent` appears (from grep `the sister project` + `pulseplay-supervisor`):
 
 | File | Line | Reference |
 |---|---|---|
-| [databricks-agents/supervisor/README.md](../../databricks-agents/supervisor/README.md) | 1 | Title: "DwD Supervisor Agent for Databricks Mosaic AI" |
+| [databricks-agents/supervisor/README.md](../../databricks-agents/supervisor/README.md) | 1 | Title: "PulsePlay Supervisor Agent for Databricks Mosaic AI" |
 | [databricks-agents/supervisor/README.md](../../databricks-agents/supervisor/README.md) | 48, 62, 75-78 | Various references in deploy steps and config snippet |
 | [databricks-agents/supervisor/log_and_deploy.py](../../databricks-agents/supervisor/log_and_deploy.py) | 2, 14 | Module docstring + `ENDPOINT_NAME` default |
 | [databricks-agents/supervisor/log_and_deploy.py](../../databricks-agents/supervisor/log_and_deploy.py) | 31, 39 | `ENDPOINT_NAME` env default + MLflow run_name |
 | [databricks-agents/supervisor/log_and_deploy.py](../../databricks-agents/supervisor/log_and_deploy.py) | 100, 102 | Printed config snippet `agentName` and `displayName` |
-| [databricks-agents/supervisor/config.example.env](../../databricks-agents/supervisor/config.example.env) | 23 | `ENDPOINT_NAME=dwd-supervisor-agent` |
-| [databricks-agents/supervisor/deploy.ipynb](../../databricks-agents/supervisor/deploy.ipynb) | 19, 26, 329, 345, 601-618 | Notebook cells reference dwd-supervisor-agent multiple times |
-| [proxy/config.example.json](../../proxy/config.example.json) | 81-84 | Sample profile uses `endpoint: "/serving-endpoints/dwd-supervisor-agent/..."` and `agentName: "DwD Supervisor Agent"` |
-| [proxy/server.js](../../proxy/server.js) | 3181 | Profile shape comment example: `"agentName": "DwD Supervisor"` |
-| [proxy/app.yaml](../../proxy/app.yaml) | 20 | `SUPERVISOR_AGENT_NAME` value `"DwD Supervisor"` |
+| [databricks-agents/supervisor/config.example.env](../../databricks-agents/supervisor/config.example.env) | 23 | `ENDPOINT_NAME=pulseplay-supervisor-agent` |
+| [databricks-agents/supervisor/deploy.ipynb](../../databricks-agents/supervisor/deploy.ipynb) | 19, 26, 329, 345, 601-618 | Notebook cells reference pulseplay-supervisor-agent multiple times |
+| [proxy/config.example.json](../../proxy/config.example.json) | 81-84 | Sample profile uses `endpoint: "/serving-endpoints/pulseplay-supervisor-agent/..."` and `agentName: "PulsePlay Supervisor Agent"` |
+| [proxy/server.js](../../proxy/server.js) | 3181 | Profile shape comment example: `"agentName": "PulsePlay Supervisor"` |
+| [proxy/app.yaml](../../proxy/app.yaml) | 20 | `SUPERVISOR_AGENT_NAME` value `"PulsePlay Supervisor"` |
 
 **The agent is still branded for the parent project, not for PulsePlay.** Renaming would touch `agent.py`, `log_and_deploy.py`, `deploy.ipynb`, `config.example.env`, `README.md`, `proxy/config.example.json`, `proxy/server.js` (3 places where 'UniBridge AI Supervisor' is the default), `proxy/app.yaml`.
 
 ### 5.3 Deployment story
 
-[supervisor/README.md:42-89](../../databricks-agents/supervisor/README.md#L42-L89) lays out: upload to Databricks workspace, open `log_and_deploy.py` as a notebook, set env vars, run cell-by-cell. The deploy script logs the agent as MLflow LangChain model, registers in Unity Catalog at `<UC_CATALOG>.<UC_SCHEMA>.dwd_supervisor_agent` ([log_and_deploy.py:33-43](../../databricks-agents/supervisor/log_and_deploy.py#L33-L43)), then deploys via `databricks-agents.deploy` with `scale_to_zero=True` ([log_and_deploy.py:74-88](../../databricks-agents/supervisor/log_and_deploy.py#L74-L88)).
+[supervisor/README.md:42-89](../../databricks-agents/supervisor/README.md#L42-L89) lays out: upload to Databricks workspace, open `log_and_deploy.py` as a notebook, set env vars, run cell-by-cell. The deploy script logs the agent as MLflow LangChain model, registers in Unity Catalog at `<UC_CATALOG>.<UC_SCHEMA>.pulseplay_supervisor_agent` ([log_and_deploy.py:33-43](../../databricks-agents/supervisor/log_and_deploy.py#L33-L43)), then deploys via `databricks-agents.deploy` with `scale_to_zero=True` ([log_and_deploy.py:74-88](../../databricks-agents/supervisor/log_and_deploy.py#L74-L88)).
 
 **What's verifiable from the repo alone: nothing.** The deployment cannot be tested without a Databricks workspace + UC permissions + foundation-model serving access. The script is well-written (sensible pin-loose pip_requirements at [log_and_deploy.py:60-64](../../databricks-agents/supervisor/log_and_deploy.py#L60-L64) to avoid ResolutionImpossible) but operational reality is workspace-dependent.
 
@@ -564,8 +564,8 @@ Every place "DwD Supervisor Agent" or `dwd-supervisor-agent` appears (from grep 
 
 | Script | Purpose | Heritage | Status |
 |---|---|---|---|
-| [llm_onboard.py](../../scripts/llm_onboard.py) | Session start ritual — prints crash recovery, canonical docs, last 40 proxy log lines, last 20 commits. | Inherited (Pulse) | **Stale** — STATE_FILE = `.dwd-session.state.json` ([llm_onboard.py:75](../../scripts/llm_onboard.py#L75)). Should be `.pulseplay-session.state.json` per CLAUDE.md TODO. |
-| [llm_wrapup.py](../../scripts/llm_wrapup.py) | Session end ritual — marks session complete, optional `--note`. | Inherited (Pulse) | **Stale** — same `.dwd-session.state.json` reference at [llm_wrapup.py:37](../../scripts/llm_wrapup.py#L37). |
+| [llm_onboard.py](../../scripts/llm_onboard.py) | Session start ritual — prints crash recovery, canonical docs, last 40 proxy log lines, last 20 commits. | Inherited (Pulse) | **Stale** — STATE_FILE = `.the sister project-session.state.json` ([llm_onboard.py:75](../../scripts/llm_onboard.py#L75)). Should be `.pulseplay-session.state.json` per CLAUDE.md TODO. |
+| [llm_wrapup.py](../../scripts/llm_wrapup.py) | Session end ritual — marks session complete, optional `--note`. | Inherited (Pulse) | **Stale** — same `.the sister project-session.state.json` reference at [llm_wrapup.py:37](../../scripts/llm_wrapup.py#L37). |
 | [release-check.ps1](../../scripts/release-check.ps1) | Local release gate — runs proxy tests, smoke, builds. | Inherited (Pulse) | **Mostly stale.** References `.pbiviz` size cap ([release-check.ps1:22-26](../../scripts/release-check.ps1#L22-L26)) — that's a PBI custom visual artifact PulsePlay does not produce. Step "Package: build.ps1 (lint + tsc + pbiviz)" at [release-check.ps1:126](../../scripts/release-check.ps1#L126) calls a `build.ps1` that does not exist in this repo. **This script will fail in PulsePlay context.** |
 | [smoke-full.ps1](../../scripts/smoke-full.ps1) | 10-test live smoke against proxy. Fires real Databricks calls. | Inherited (Pulse) | Marginal — uses 'default' and 'hse' profile names ([smoke-full.ps1:50](../../scripts/smoke-full.ps1#L50)) hardcoded. Will work if PulsePlay deploys with those exact profile names. |
 | [smoke-rls-ols.ps1](../../scripts/smoke-rls-ols.ps1) | 4-test smoke for RLS/OLS enforcement on the Genie path. | Inherited (Pulse) | **Stale conceptually** — explicitly asserts that "RLS and OLS are NOT enforced on the Genie path (shared PAT)" ([smoke-rls-ols.ps1:16-17, 143](../../scripts/smoke-rls-ols.ps1#L143)). This is a Pulse-specific finding about how shared-PAT mode breaks Power BI's row-level/object-level security. PulsePlay inherits the same finding but it should be a security note, not a smoke test. |
@@ -589,7 +589,7 @@ The docs folder is the most heritage-fraught area. There are five categories:
 | Category | Description |
 |---|---|
 | **PulsePlay-native** | Written for PulsePlay specifically. Title is correct. |
-| **DwD-PepPulse-titled-inherited** | Inherited verbatim from sister project. Title still says PepPulse. |
+| **PepPulse-inherited** | Inherited verbatim from sister project. Title still says PepPulse. |
 | **External-LLM review** | Commissioned in the past 24h from external LLMs. PulsePlay-aware but unverified. |
 | **CPG-vertical** | Specific to a CPG/FMCG enterprise scenario. PulsePlay-aware but aspirational. |
 | **Research bibliography** | Inherited research catalogue, not actionable for PulsePlay. |
@@ -611,12 +611,12 @@ The docs folder is the most heritage-fraught area. There are five categories:
 | [docs/FUNCTIONAL_COVERAGE_ASSESSMENT.md](../../docs/FUNCTIONAL_COVERAGE_ASSESSMENT.md) | "Functional Coverage Assessment" | External-LLM coverage matrix. Implemented / Partial / Missing / Out-of-Scope. **Practical reference.** | repo files | **Keep** |
 | [docs/E2E_GAP_REVIEW_INITIAL.md](../../docs/E2E_GAP_REVIEW_INITIAL.md) | "End-to-End Gap Review" | External-LLM gap review. Severity table (Blocker/High/Medium). | docs/CPG_FMCG_ENTERPRISE_BLUEPRINT.md, docs/ENTERPRISE_SECURITY_PLATFORM_GUARDRAILS.md | **Keep** |
 | [docs/E2E_REVIEW_SUB_AGENT.md](../../docs/E2E_REVIEW_SUB_AGENT.md) | "End-to-End Review Sub-Agent" | External-LLM agent specification — defines a recurring review cadence | docs/E2E_GAP_REVIEW_INITIAL.md | **Keep** as process doc |
-| [docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md) | **"PepPulse — Architecture & Knowledge Base (Consolidated)"** | DwD-PepPulse-titled-inherited (108KB). Page 1 ([line 14-16](../ARCHITECTURE.md#L14-L16)) explicitly says "UniBridge AI for Power BI — Architecture & Cost Design" with a `.pbiviz` diagram at line 35. **Wrong product title for PulsePlay.** | docs/SECURITY_REVIEW.md, docs/INDEX.md (file does not exist), docs/AUTHOR_GUIDE.md (file does not exist) | **Archive to `docs/inherited/`** + create new `docs/PULSEPLAY_ARCHITECTURE.md` referenced from MULTI_BI_ARCHITECTURE.md |
-| [docs/SECURITY_REVIEW.md](../../docs/SECURITY_REVIEW.md) | **"Security Review — PepPulse"** | DwD-PepPulse-titled-inherited (19KB). Threat model speaks of `.pbix files`, "Wave 31 inline credentials", PBI custom visual sandbox. Specific to Pulse. | n/a | **Archive to `docs/inherited/`** + write new `docs/PULSEPLAY_SECURITY.md` for browser-host risks (CSP, embed allowlist, prompt injection from BI events) — flagged by [PROJECT_REVIEW.md:165-178](../PROJECT_REVIEW.md#L165-L178) |
-| [docs/ENTERPRISE_READINESS.md](../../docs/ENTERPRISE_READINESS.md) | **"PepPulse — Enterprise Readiness Brief"** | DwD-PepPulse-titled-inherited (38KB). Section 1 talks about PBI Desktop + proxy setup, section 7 is "when NOT to pick PepPulse." | n/a | **Archive to `docs/inherited/`** |
-| [docs/API_AUTH_AND_LIMITATIONS.md](../../docs/API_AUTH_AND_LIMITATIONS.md) | **"PepPulse — API Surface, Auth Modes, and Known Limitations"** | DwD-PepPulse-titled-inherited (28KB). Lists every API the proxy calls (Genie, OpenAI, Bedrock, Foundation Model). **Most of the content IS still relevant for PulsePlay** — the proxy is the same. | n/a | **Rewrite top section + retitle** to `docs/PULSEPLAY_API_AUTH.md` keeping the bulk of the content |
-| [docs/BEAST_MODE_MEMORY.md](../../docs/BEAST_MODE_MEMORY.md) | "BEAST_MODE_MEMORY.md — North Star for Anyone Picking Up This Codebase" | DwD-PepPulse-titled-inherited (15KB). [Line 13](../BEAST_MODE_MEMORY.md#L13) says "PepPulse is a Power BI custom visual." References `INDEX.md`, `AUTHOR_GUIDE.md`, build.ps1 — none of which exist in PulsePlay. | docs/INDEX.md, docs/AUTHOR_GUIDE.md | **Archive to `docs/inherited/`** or **delete** — PulsePlay's CLAUDE.md replaces it |
-| [docs/QUALITY_METHODOLOGY.md](../../docs/QUALITY_METHODOLOGY.md) | "Quality Methodology — Honest Statement" | DwD-PepPulse-titled-inherited (6KB). Cites "874 vitest unit tests" — that was Pulse, NOT PulsePlay. PulsePlay has 0 vitest tests. | n/a | **Archive to `docs/inherited/`** — replace with PulsePlay-specific methodology when written |
+| [docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md) | **"PepPulse — Architecture & Knowledge Base (Consolidated)"** | PepPulse-inherited (108KB). Page 1 ([line 14-16](../ARCHITECTURE.md#L14-L16)) explicitly says "UniBridge AI for Power BI — Architecture & Cost Design" with a `.pbiviz` diagram at line 35. **Wrong product title for PulsePlay.** | docs/SECURITY_REVIEW.md, docs/INDEX.md (file does not exist), docs/AUTHOR_GUIDE.md (file does not exist) | **Archive to `docs/inherited/`** + create new `docs/PULSEPLAY_ARCHITECTURE.md` referenced from MULTI_BI_ARCHITECTURE.md |
+| [docs/SECURITY_REVIEW.md](../../docs/SECURITY_REVIEW.md) | **"Security Review — PepPulse"** | PepPulse-inherited (19KB). Threat model speaks of `.pbix files`, "Wave 31 inline credentials", PBI custom visual sandbox. Specific to Pulse. | n/a | **Archive to `docs/inherited/`** + write new `docs/PULSEPLAY_SECURITY.md` for browser-host risks (CSP, embed allowlist, prompt injection from BI events) — flagged by [PROJECT_REVIEW.md:165-178](../PROJECT_REVIEW.md#L165-L178) |
+| [docs/ENTERPRISE_READINESS.md](../../docs/ENTERPRISE_READINESS.md) | **"PepPulse — Enterprise Readiness Brief"** | PepPulse-inherited (38KB). Section 1 talks about PBI Desktop + proxy setup, section 7 is "when NOT to pick PepPulse." | n/a | **Archive to `docs/inherited/`** |
+| [docs/API_AUTH_AND_LIMITATIONS.md](../../docs/API_AUTH_AND_LIMITATIONS.md) | **"PepPulse — API Surface, Auth Modes, and Known Limitations"** | PepPulse-inherited (28KB). Lists every API the proxy calls (Genie, OpenAI, Bedrock, Foundation Model). **Most of the content IS still relevant for PulsePlay** — the proxy is the same. | n/a | **Rewrite top section + retitle** to `docs/PULSEPLAY_API_AUTH.md` keeping the bulk of the content |
+| [docs/BEAST_MODE_MEMORY.md](../../docs/BEAST_MODE_MEMORY.md) | "BEAST_MODE_MEMORY.md — North Star for Anyone Picking Up This Codebase" | PepPulse-inherited (15KB). [Line 13](../BEAST_MODE_MEMORY.md#L13) says "PepPulse is a Power BI custom visual." References `INDEX.md`, `AUTHOR_GUIDE.md`, build.ps1 — none of which exist in PulsePlay. | docs/INDEX.md, docs/AUTHOR_GUIDE.md | **Archive to `docs/inherited/`** or **delete** — PulsePlay's CLAUDE.md replaces it |
+| [docs/QUALITY_METHODOLOGY.md](../../docs/QUALITY_METHODOLOGY.md) | "Quality Methodology — Honest Statement" | PepPulse-inherited (6KB). Cites "874 vitest unit tests" — that was Pulse, NOT PulsePlay. PulsePlay has 0 vitest tests. | n/a | **Archive to `docs/inherited/`** — replace with PulsePlay-specific methodology when written |
 | [docs/ANALYTICS_DOMAIN_TAXONOMY.md](../../docs/ANALYTICS_DOMAIN_TAXONOMY.md) | "Analytics Domain Taxonomy — Recommendation" | Inherited research bibliography (15KB). Source-of-truth pointer at [line 4](../ANALYTICS_DOMAIN_TAXONOMY.md#L4) is `genieChatVisual/src/setupStep5.tsx` — doesn't exist in PulsePlay. | genieChatVisual/* (Pulse repo) | **Archive to `docs/inherited/`** |
 | [docs/INSIGHTS_SECTION_TAXONOMY.md](../../docs/INSIGHTS_SECTION_TAXONOMY.md) | "AI Insights — Section Archetype Taxonomy" | Inherited research bibliography (20KB). References `insightsPresetLibrary.ts` from genieChatVisual — doesn't exist in PulsePlay. | genieChatVisual/src/insightsPresetLibrary.ts | **Archive to `docs/inherited/`** |
 | [docs/adr/README.md](../../docs/adr/README.md) | "Architecture Decision Records" | Inherited ADR index — references 7 ADRs that all describe Pulse decisions | the 7 ADRs | **Replace** with PulsePlay-specific ADR index |
@@ -628,7 +628,7 @@ The docs folder is the most heritage-fraught area. There are five categories:
 | [docs/adr/0006-trend-pill-allowlist.md](../../docs/adr/0006-trend-pill-allowlist.md) | "Trend pills use a section allowlist + numeric anchor" | Inherited-ADR — describes Pulse visual's renderer. | genieChatVisual | **Archive** |
 | [docs/adr/0007-backend-adapter-abstraction.md](../../docs/adr/0007-backend-adapter-abstraction.md) | "BackendAdapter abstraction (IDEA-023)" | Inherited-ADR — describes Pulse's incomplete backend abstraction. References `genieChatVisual/src/backend/BackendAdapter.ts` — does not exist in PulsePlay. | genieChatVisual/src/backend/* | **Archive** — PulsePlay's `BIAdapter` is the closest analogue but is a vendor adapter, not a backend adapter |
 | [proxy/README.databricks-app.md](../../proxy/README.databricks-app.md) | "Databricks App: test_SuperUser Genie Proxy" | Inherited Pulse-specific — references the `test-superuser-genie-powerbi` app name and a hardcoded Genie space ID ([README.databricks-app.md:27](../../proxy/README.databricks-app.md#L27)). | proxy/app.yaml, scripts/Deploy-DatabricksApp.ps1 | **Rewrite** — generic Databricks Apps deployment guide for PulsePlay's proxy |
-| [databricks-agents/supervisor/README.md](../../databricks-agents/supervisor/README.md) | "DwD Supervisor Agent for Databricks Mosaic AI" | Inherited DwD-titled. Content is Mosaic-AI-deployment-shaped and largely valid. | log_and_deploy.py, agent.py | **Retitle** to "PulsePlay Supervisor Agent" |
+| [databricks-agents/supervisor/README.md](../../databricks-agents/supervisor/README.md) | "PulsePlay Supervisor Agent for Databricks Mosaic AI" | Inherited inherited. Content is Mosaic-AI-deployment-shaped and largely valid. | log_and_deploy.py, agent.py | **Retitle** to "PulsePlay Supervisor Agent" |
 
 ### 7.2 Recommended new doc structure
 
@@ -686,18 +686,18 @@ This pattern explicitly separates "PulsePlay current truth", "PulsePlay target s
 **`PulsePlay`** (this project):
 - README.md, CLAUDE.md, MULTI_BI_ARCHITECTURE.md, package.json (playground), PROJECT_REVIEW.md, all the new external-LLM review docs, App.tsx file headers and brand label.
 
-**`DwD`** (Data with Determination — the parent repo of Pulse):
+**`the sister project`** (Data with Determination — the parent repo of Pulse):
 - Found in 14 files via grep. Examples:
-  - [README.md:16](../../README.md#L16) and several other README references — context: "the sister project DwD_AI_Assistant_for_PBI"
+  - [README.md:16](../../README.md#L16) and several other README references — context: "the sister Pulse project"
   - [CLAUDE.md](../../CLAUDE.md) — multiple references in the heritage discussion
-  - [docs/MULTI_BI_ARCHITECTURE.md:154](../MULTI_BI_ARCHITECTURE.md#L154) — "(copied from DwD)"
+  - [docs/MULTI_BI_ARCHITECTURE.md:154](../MULTI_BI_ARCHITECTURE.md#L154) — "(copied from the sister project)"
   - [playground/src/App.tsx:14, 38](../../playground/src/App.tsx#L14) — comments
   - [playground/src/components/AISidebar.tsx:11, 47](../../playground/src/components/AISidebar.tsx#L11) — comments
-  - [playground/vite.config.ts:6](../../playground/vite.config.ts#L6) — "DwD_AI_Assistant_for_PBI's UniBridge AI Proxy"
-  - [databricks-agents/supervisor/agent.py:1](../../databricks-agents/supervisor/agent.py#L1) — "DwD Multi-Domain Supervisor Agent"
+  - [playground/vite.config.ts:6](../../playground/vite.config.ts#L6) — "sister Pulse project's UniBridge AI Proxy"
+  - [databricks-agents/supervisor/agent.py:1](../../databricks-agents/supervisor/agent.py#L1) — "PulsePlay Multi-Domain Supervisor Agent"
   - [databricks-agents/supervisor/README.md:1](../../databricks-agents/supervisor/README.md#L1) — title
   - [databricks-agents/supervisor/log_and_deploy.py:2](../../databricks-agents/supervisor/log_and_deploy.py#L2) — module docstring
-  - [scripts/llm_onboard.py, llm_wrapup.py](../../scripts/llm_onboard.py) — `.dwd-session.state.json` filename
+  - [scripts/llm_onboard.py, llm_wrapup.py](../../scripts/llm_onboard.py) — `.the sister project-session.state.json` filename
   - [proxy/server.js:3181](../../proxy/server.js#L3181) — comment example
   - [proxy/app.yaml:20](../../proxy/app.yaml#L20) — `SUPERVISOR_AGENT_NAME` value
   - [proxy/config.example.json:81-84](../../proxy/config.example.json#L81-L84) — sample profile
@@ -727,10 +727,10 @@ This pattern explicitly separates "PulsePlay current truth", "PulsePlay target s
 - [proxy/package.json:2](../../proxy/package.json#L2)
 - [proxy/package-lock.json:2, 8](../../proxy/package-lock.json#L2)
 
-**`dwd-supervisor-agent`** (literal endpoint name):
+**`pulseplay-supervisor-agent`** (literal endpoint name):
 - See section 5.2 above — appears in databricks-agents/supervisor/* + proxy/config.example.json + proxy/server.js + proxy/app.yaml
 
-**`genieChatVisual`** (the Pulse visual source dir in DwD):
+**`genieChatVisual`** (the Pulse visual source dir in the sister project):
 - 14 files via grep. Examples:
   - [CLAUDE.md](../../CLAUDE.md) — heritage references
   - [docs/adr/0001, 0005, 0007](../adr/0001-xhr-only-genie-client.md) — ADRs that point at file paths in genieChatVisual
@@ -752,10 +752,10 @@ This pattern explicitly separates "PulsePlay current truth", "PulsePlay target s
 |---|---|---|
 | The npm package | `@pulseplay/proxy` (or `pulseplay-proxy`) | `unibridge-ai-proxy` |
 | The startup banner | `PulsePlay Proxy` | `UniBridge AI Proxy` |
-| The default supervisor display | `PulsePlay Supervisor` | `UniBridge AI Supervisor`, `DwD Supervisor` |
-| The example endpoint name | `pulseplay-supervisor-agent` | `dwd-supervisor-agent` |
+| The default supervisor display | `PulsePlay Supervisor` | `UniBridge AI Supervisor`, `PulsePlay Supervisor` |
+| The example endpoint name | `pulseplay-supervisor-agent` | `pulseplay-supervisor-agent` |
 | The Databricks app name | `pulseplay-proxy-app` | `test-superuser-genie-powerbi` |
-| The session state file | `.pulseplay-session.state.json` | `.dwd-session.state.json` (CLAUDE.md already flags this) |
+| The session state file | `.pulseplay-session.state.json` | `.the sister project-session.state.json` (CLAUDE.md already flags this) |
 | The headers | Keep `X-Genie-Key` / `X-Databricks-*` ONLY for backward compat with Pulse — add neutral alternatives `X-PulsePlay-Key` / `X-Backend-*` | n/a |
 
 The CONFIG_PATH is correctly already `proxy/config.json`, no rename needed there.
@@ -807,10 +807,10 @@ Concrete debt items, severity-tagged. Cited.
 | 10.6 | AISidebar reads `data.message?.content` ([AISidebar.tsx:77](../../playground/src/components/AISidebar.tsx#L77)) which is the wrong key for every backend | **Blocker for v0 demo** | The displayed answer is always the placeholder; nobody sees real responses | Fix to read `data.content` (synchronous backends) AND poll `/assistant/conversations/:cid/messages/:mid` for Genie. |
 | 10.7 | The "supervisor poll" route is a stub ([server.js:4167-4178](../../proxy/server.js#L4167-L4178)) | **Medium** | Returns a placeholder string regardless of the conversation. Any client that polls supervisor messages instead of reading the start response gets garbage. | Either: A) change supervisor to enqueue async + real polling; B) document the contract clearly that supervisor is synchronous-only and clients must read content from `/start`. |
 | 10.8 | ADR-0003 "supervisor stagger 800ms" is stale ([adr/0003-supervisor-stagger-800ms.md](../adr/0003-supervisor-stagger-800ms.md)) | **Low** but misleading | Code is 2000ms; ADR says 800ms. Future contributors will trust the ADR over the code. | Update the ADR (or replace per section 7 reorg). |
-| 10.9 | Vendor adapters PowerBI/Tableau/Qlik/Looker are stubs ([powerbi/index.ts:17-25](../../bi-adapters/powerbi/index.ts#L17-L25) and siblings) | **Blocker for product narrative** | The README claims the project hosts "any BI tool" but only generic-iframe is real | Pick one (Power BI, since DwD already has the workspace) and graduate it. Documented in [ROADMAP.md v0.2.0](../ROADMAP.md). |
+| 10.9 | Vendor adapters PowerBI/Tableau/Qlik/Looker are stubs ([powerbi/index.ts:17-25](../../bi-adapters/powerbi/index.ts#L17-L25) and siblings) | **Blocker for product narrative** | The README claims the project hosts "any BI tool" but only generic-iframe is real | Pick one (Power BI, since the sister project already has the workspace) and graduate it. Documented in [ROADMAP.md v0.2.0](../ROADMAP.md). |
 | 10.10 | EmbedConfigForm is one URL field for every vendor ([EmbedConfigForm.tsx:36-46](../../playground/src/components/EmbedConfigForm.tsx#L36-L46)) | **Medium** | Cannot supply embed token + workspace ID + report ID for PBI; cannot supply trusted ticket for Tableau; cannot supply OAuth params for Qlik | Per-vendor `EmbedConfigForm<vendor>` components, dispatched by active vendor. |
 | 10.11 | Playground has zero tests | **High** | [package.json:12](../../playground/package.json#L12) declares vitest but no test files exist. No regression net for any component change. | Add `App.test.tsx`, `BIPanel.test.tsx`, `AISidebar.test.tsx`, `ConnectorPicker.test.tsx`, `registry.test.ts`. Per [PROJECT_REVIEW.md:73-76](../PROJECT_REVIEW.md#L73-L76) suggestion. |
-| 10.12 | `release-check.ps1` references `.pbiviz` and a missing `build.ps1` ([release-check.ps1:22-26](../../scripts/release-check.ps1#L22-L26), [126](../../scripts/release-check.ps1#L126)) | **Medium** | This script will fail in PulsePlay. Inherited DwD release gate. | Rewrite for PulsePlay: `npm run build` in playground + `npm test` in proxy + smoke. Drop the .pbiviz packaging step. |
+| 10.12 | `release-check.ps1` references `.pbiviz` and a missing `build.ps1` ([release-check.ps1:22-26](../../scripts/release-check.ps1#L22-L26), [126](../../scripts/release-check.ps1#L126)) | **Medium** | This script will fail in PulsePlay. Inherited sister-project release gate. | Rewrite for PulsePlay: `npm run build` in playground + `npm test` in proxy + smoke. Drop the .pbiviz packaging step. |
 | 10.13 | `Deploy-DatabricksApp.ps1` requires a missing `databricks.yml` for default mode ([Deploy-DatabricksApp.ps1:15](../../scripts/Deploy-DatabricksApp.ps1#L15)) | **Medium** | Default invocation will fail. The `-WorkspaceSource` flag works. | Add `databricks.yml` bundle definition OR change the script's default to `-WorkspaceSource`. |
 | 10.14 | `Check-Credentials.ps1` targets PBIP demo files that don't exist ([Check-Credentials.ps1:3-4](../../scripts/Check-Credentials.ps1#L3-L4)) | **Low** | Useless in PulsePlay. | Delete or rewrite to grep `proxy/config.json`-shaped files. |
 | 10.15 | `accuracy_audit.py` is broken — hardcoded host + warehouse + reads `proxy/config.json["profiles"]["sales"]["token"]` ([accuracy_audit.py:16-23](../../scripts/accuracy_audit.py#L16-L23)) | **Low** | Useless in PulsePlay without manual edits. | Delete (it's a sister-project artifact) or generalise via env vars. |
@@ -901,7 +901,7 @@ The 6 commissioned external-LLM review docs are generally honest but have specif
 | `E2E_GAP_REVIEW_INITIAL.md` flags wildcard CORS and inline credentials | **Did not catch ADR-0003 stagger drift (800ms doc vs 2000ms code)** |
 | `FUNCTIONAL_COVERAGE_ASSESSMENT.md` has a clean status matrix | **Did not enumerate all 8 backends** — listed 5 ("Genie, supervisor, OpenAI, Bedrock, foundation"); supervisor-local + supervisor-real are genuinely different code paths and the analytics-mode + chat-only OpenAI paths are also distinct |
 | `CONTROL_ENVIRONMENT_FEASIBILITY_MAPPING.md` is the most useful — paired current-state vs target-state | **Did not flag the two-SigV4-signer drift** ([server.js:2828-2843](../../proxy/server.js#L2828-L2843) vs [lib/bedrock.js:62-91](../../proxy/lib/bedrock.js#L62-L91)) |
-| `PROJECT_REVIEW.md` calls out naming chaos | **Understated** — PROJECT_REVIEW says "repo says PulsePlay, proxy says unibridge-ai-proxy, docs say PepPulse, scripts say DwD." Actually count: 8 files reference UniBridge, 14 files reference DwD, 7 files have PepPulse in titles or bodies, 14 files reference genieChatVisual. The naming is more layered. |
+| `PROJECT_REVIEW.md` calls out naming chaos | **Understated** — PROJECT_REVIEW says "repo says PulsePlay, proxy says unibridge-ai-proxy, docs say PepPulse, scripts inherited sister-project names." Actually count: 8 files reference UniBridge, 14 files reference the sister project, 7 files have PepPulse in titles or bodies, 14 files reference genieChatVisual. The naming is more layered. |
 | All reviews say "stub" for vendor adapters | **None point out** that all four PowerBI/Tableau/Qlik/Looker advertise the SAME `BICapabilities` (because they inherit `generic-iframe`'s) — meaning even the capability discovery surface is a no-op for them |
 | `PULSEPLAY_CPG_REVIEW.md` calls PulsePlay "an architectural masterstroke" | **No code is cited.** Marketing voice in a project that says "no flaws / brutal honesty" in CLAUDE.md is misaligned. |
 | Reviews mention the foundation-model client | **None analyse** that the structured-output renderers ([foundationModelClient.js:256-293](../../proxy/lib/foundationModelClient.js#L256-L293)) produce Pulse-shaped section markdown ("## RECOMMENDED ACTIONS", "## RISKS", "## OPPORTUNITIES") — making the foundation-model path useful only if your downstream parses those exact headings |
@@ -940,4 +940,4 @@ Items marked `[UNVERIFIED]` in the body should be confirmed before being used as
 
 ## 14. Audit summary (one paragraph)
 
-PulsePlay v0.1.0 is exactly what its README admits it is: a thin React shell over a powerful Pulse-inherited proxy. The 2-axis abstraction (vendor × connector) is genuinely well-shaped at the BIAdapter contract level — but four of five vendor adapters are inheritance-stubs that do nothing different from the generic-iframe baseline, and the AI sidebar reads a wrong field name (`data.message?.content` vs `data.content`) that means the user always sees a placeholder, never a real LLM answer. The proxy is feature-rich (8 backend paths including Genie, OpenAI chat-only and analytics, Bedrock RAG and direct, Foundation Model, supervisor-local fan-out, supervisor real Mosaic agent) with serious engineering — OAuth M2M with single-flight, SP identity hashing, constant-time shared-key compare, Wave 36 inline-credentials precedence inversion, three-pass token redaction. But it's also a 4,298-line single file with two duplicate SigV4 signers, a stale ADR (0003 says 800ms stagger; code is 2000ms), demo-data leaks (`LEGACY_DEMO_SCHEMAS` baked in, `scrubInternalJargon` regex-rewrites synthesis output every call), Pulse-shaped validators (RECOMMENDED ACTIONS / RISKS / etc.), and 14 files referencing the parent project's `DwD` name plus 7 docs still titled `PepPulse`. The naming is the symptom; the deeper issue is that the proxy was extracted, not refactored. Production-grade enterprise readiness — per the four external-LLM review docs and per direct code inspection — is at "partially implemented foundation," not deployable. The shortest path to something demo-grade is: (1) fix the AISidebar field-name bug, (2) rename to remove UniBridge/DwD/PepPulse drift, (3) graduate the Power BI adapter to real, (4) remove `LEGACY_DEMO_*` fallbacks, (5) add playground tests. Everything else is creativity surface.
+PulsePlay v0.1.0 is exactly what its README admits it is: a thin React shell over a powerful Pulse-inherited proxy. The 2-axis abstraction (vendor × connector) is genuinely well-shaped at the BIAdapter contract level — but four of five vendor adapters are inheritance-stubs that do nothing different from the generic-iframe baseline, and the AI sidebar reads a wrong field name (`data.message?.content` vs `data.content`) that means the user always sees a placeholder, never a real LLM answer. The proxy is feature-rich (8 backend paths including Genie, OpenAI chat-only and analytics, Bedrock RAG and direct, Foundation Model, supervisor-local fan-out, supervisor real Mosaic agent) with serious engineering — OAuth M2M with single-flight, SP identity hashing, constant-time shared-key compare, Wave 36 inline-credentials precedence inversion, three-pass token redaction. But it's also a 4,298-line single file with two duplicate SigV4 signers, a stale ADR (0003 says 800ms stagger; code is 2000ms), demo-data leaks (`LEGACY_DEMO_SCHEMAS` baked in, `scrubInternalJargon` regex-rewrites synthesis output every call), Pulse-shaped validators (RECOMMENDED ACTIONS / RISKS / etc.), and 14 files referencing the parent project's `the sister project` name plus 7 docs still titled `PepPulse`. The naming is the symptom; the deeper issue is that the proxy was extracted, not refactored. Production-grade enterprise readiness — per the four external-LLM review docs and per direct code inspection — is at "partially implemented foundation," not deployable. The shortest path to something demo-grade is: (1) fix the AISidebar field-name bug, (2) rename to remove UniBridge/the sister project/PepPulse drift, (3) graduate the Power BI adapter to real, (4) remove `LEGACY_DEMO_*` fallbacks, (5) add playground tests. Everything else is creativity surface.

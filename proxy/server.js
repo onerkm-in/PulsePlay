@@ -5945,7 +5945,7 @@ app.post('/responses-agent/chat', async (req, res) => {
 //       "type": "supervisor",               // identifies this as a supervisor profile
 //       "host": "https://dbc-xxx...",        // Databricks workspace
 //       "token": "dapi...",                  // PAT with CAN QUERY on the endpoint
-//       "endpoint": "/serving-endpoints/dwd-supervisor/invocations",
+//       "endpoint": "/serving-endpoints/pulseplay-supervisor/invocations",
 //       "agentName": "PulsePlay Supervisor"  // display label (optional)
 //   }
 

@@ -46,7 +46,7 @@ export const GUIDED_PAGE_TITLES: Record<GuidedPageId, string> = {
     7: "Review",
 };
 
-const GUIDED_PAGE_LS_KEY = "dwd-setup-step5-guided-page";
+const GUIDED_PAGE_LS_KEY = "pulseplay-setup-step5-guided-page";
 
 function readPersistedPage(): GuidedPageId {
     try {
