@@ -18,7 +18,7 @@ import {
     buildProfileJsonSnippet,
 } from "../lib/connectorManifests";
 
-type Status = "active" | "configured-degraded" | "available";
+type Status = "active" | "configured" | "configured-degraded" | "available";
 
 function deriveStatus(runtime: ConnectorRuntimeState | undefined, activeProfileName: string | null): {
     status: Status;
@@ -38,13 +38,17 @@ function deriveStatus(runtime: ConnectorRuntimeState | undefined, activeProfileN
         return { status: anyInvalid ? "configured-degraded" : "active", activeMatch, configuredCount };
     }
     // Configured but the active profile isn't one of these.
-    return { status: anyInvalid ? "configured-degraded" : "available", activeMatch: null, configuredCount };
+    // Distinguish "valid but not picked" (configured) from "broken" (configured-degraded)
+    // so the user sees that a click on the configured profile button is the
+    // only step needed to activate this connector.
+    return { status: anyInvalid ? "configured-degraded" : "configured", activeMatch: null, configuredCount };
 }
 
 const STATUS_META: Record<Status, { label: string; dot: string; tone: string; bg: string }> = {
-    "active":              { label: "Active",                dot: "#10b981", tone: "#065f46", bg: "rgba(16, 185, 129, 0.12)" },
-    "configured-degraded": { label: "Configured · warnings", dot: "#f59e0b", tone: "#92400e", bg: "rgba(245, 158, 11, 0.12)" },
-    "available":           { label: "Available · not wired", dot: "rgba(0, 0, 0, 0.35)", tone: "rgba(0, 0, 0, 0.65)", bg: "rgba(0, 0, 0, 0.04)" },
+    "active":              { label: "Active",                          dot: "#10b981", tone: "#065f46", bg: "rgba(16, 185, 129, 0.12)" },
+    "configured":          { label: "Configured · pick to activate",   dot: "#3b82f6", tone: "#1e3a8a", bg: "rgba(59, 130, 246, 0.12)" },
+    "configured-degraded": { label: "Configured · warnings",           dot: "#f59e0b", tone: "#92400e", bg: "rgba(245, 158, 11, 0.12)" },
+    "available":           { label: "Available · not wired",           dot: "rgba(0, 0, 0, 0.35)", tone: "rgba(0, 0, 0, 0.65)", bg: "rgba(0, 0, 0, 0.04)" },
 };
 
 const MATURITY_META: Record<string, { label: string; bg: string; fg: string }> = {
