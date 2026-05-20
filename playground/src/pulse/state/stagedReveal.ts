@@ -50,6 +50,48 @@ export const DEFAULT_REVEAL_SCHEDULE: RevealSchedule = Object.freeze([
     { atMs: 30000, sections: ["OPPORTUNITIES"],                         label: "Opportunities" },
 ]);
 
+/** Schedule preset for the "fast" cadence lever — headline immediately,
+ *  everything else after 4 s. Useful for demo settings where the author
+ *  wants a fast perceived response and doesn't care about per-section
+ *  beats. */
+export const FAST_REVEAL_SCHEDULE: RevealSchedule = Object.freeze([
+    { atMs: 0,    sections: ["HEADLINE"],                                                         label: "Headline" },
+    { atMs: 4000, sections: ["KPI SNAPSHOT", "TRENDS", "RISKS", "RECOMMENDED ACTIONS", "OPPORTUNITIES"], label: "Body" },
+]);
+
+/** Schedule preset for the "full" cadence lever — every section gets its
+ *  own visible beat at 8 s spacing. Slower wall-clock but each section
+ *  paints distinctly. */
+export const FULL_REVEAL_SCHEDULE: RevealSchedule = Object.freeze([
+    { atMs: 0,     sections: ["HEADLINE"],            label: "Headline" },
+    { atMs: 8000,  sections: ["KPI SNAPSHOT"],        label: "KPIs" },
+    { atMs: 16000, sections: ["TRENDS"],              label: "Trends" },
+    { atMs: 24000, sections: ["RISKS"],               label: "Risks" },
+    { atMs: 32000, sections: ["RECOMMENDED ACTIONS"], label: "Actions" },
+    { atMs: 40000, sections: ["OPPORTUNITIES"],       label: "Opportunities" },
+]);
+
+/** The "instant" cadence has no schedule — every section is treated as
+ *  unscheduled and falls through to the t=0 default. Returned as an empty
+ *  schedule; the visual layer pairs this with the existing
+ *  `insightsStagedRevealEnabled === false` path so the same code disables
+ *  staged reveal in either case. */
+export const INSTANT_REVEAL_SCHEDULE: RevealSchedule = Object.freeze([]);
+
+/** Map a cadence label to its concrete schedule. Unknown labels fall back
+ *  to the balanced default. */
+export function revealScheduleFromCadence(
+    cadence: "instant" | "fast" | "balanced" | "full" | string | undefined,
+): RevealSchedule {
+    switch (cadence) {
+        case "instant":  return INSTANT_REVEAL_SCHEDULE;
+        case "fast":     return FAST_REVEAL_SCHEDULE;
+        case "full":     return FULL_REVEAL_SCHEDULE;
+        case "balanced":
+        default:         return DEFAULT_REVEAL_SCHEDULE;
+    }
+}
+
 /** Upper bound on a single inter-stage gap. Anything longer is almost
  *  certainly a unit confusion (seconds vs ms) — clamp to keep the UI from
  *  hanging on a phantom future stage. */

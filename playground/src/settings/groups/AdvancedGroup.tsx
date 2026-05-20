@@ -17,6 +17,17 @@
 import { useEffect, useState } from "react";
 import { Leaf } from "./BiGroup";
 import { signOutPbi } from "../../lib/pbiAuth";
+import {
+    loadPerformanceLevers,
+    savePerformanceLevers,
+    resetPerformanceLevers,
+    PERFORMANCE_LEVERS_EVENT,
+    PERFORMANCE_LEVERS_BOUNDS,
+    PERFORMANCE_LEVERS_DEFAULTS,
+    type PerformanceLevers,
+    type RevealCadence,
+} from "../performanceLevers";
+import { writePulseAiVisualSettingsPatch } from "../pulseVisualSettingsStore";
 
 const PULSEPLAY_KEY_PREFIX = "pulseplay:";
 const PULSE_VISUAL_PREFIX = "pulseplay:visual-settings:";
@@ -37,9 +48,13 @@ export function AdvancedGroup(): React.ReactElement {
             <header style={{ marginBottom: 20 }}>
                 <h2 id="settings-advanced-title" style={{ margin: 0, fontSize: 20 }}>Advanced</h2>
                 <p style={{ margin: "4px 0 0", opacity: 0.7, fontSize: 13 }}>
-                    Destructive + maintenance actions. Each requires typing the action name to confirm.
+                    Performance levers + destructive maintenance actions. Levers take effect immediately; destructive actions require type-to-confirm.
                 </p>
             </header>
+
+            <Leaf group="advanced" label="Performance levers" helper="Author-selectable speed-vs-completeness knobs. Each lever is persisted under pulseplay:performance-levers and broadcast on save, so changes take effect mid-session without a reload.">
+                <PerformanceLeversPanel />
+            </Leaf>
 
             <Leaf group="advanced" label="Local storage inspector" helper="Every PulsePlay localStorage key on this origin. Read-only.">
                 <LocalStorageTable entries={entries} />
@@ -412,3 +427,191 @@ function broadcastReset(scope: string): void {
         window.dispatchEvent(new CustomEvent("pulseplay:settings-reset", { detail: { scope } }));
     } catch { /* swallow */ }
 }
+
+// ─── Performance levers panel ────────────────────────────────────────────
+
+const CADENCE_LABELS: Record<RevealCadence, { title: string; tagline: string }> = {
+    instant:  { title: "Instant",  tagline: "All sections paint together — no staged reveal" },
+    fast:     { title: "Fast",     tagline: "Headline at t=0, the rest at t=4s" },
+    balanced: { title: "Balanced", tagline: "Default — t=0/10/20/30 cadence per section pair" },
+    full:     { title: "Full",     tagline: "Every section its own beat at 8 s spacing" },
+};
+
+function PerformanceLeversPanel(): React.ReactElement {
+    const [levers, setLevers] = useState<PerformanceLevers>(loadPerformanceLevers);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const sync = () => setLevers(loadPerformanceLevers());
+        window.addEventListener(PERFORMANCE_LEVERS_EVENT, sync);
+        window.addEventListener("pulseplay:settings-reset", sync as EventListener);
+        return () => {
+            window.removeEventListener(PERFORMANCE_LEVERS_EVENT, sync);
+            window.removeEventListener("pulseplay:settings-reset", sync as EventListener);
+        };
+    }, []);
+
+    const onCadence = (value: RevealCadence) => {
+        setLevers(savePerformanceLevers({ revealCadence: value }));
+    };
+    const onPrewarmToggle = (next: boolean) => {
+        setLevers(savePerformanceLevers({ discoveryPrewarmEnabled: next }));
+    };
+    const onTtl = (n: number) => {
+        const saved = savePerformanceLevers({ insightsCacheTtlMinutes: n });
+        // Keep the legacy PulseAiVisualSettings field in sync so the existing
+        // insights-cache code (which reads from there) doesn't drift.
+        try { writePulseAiVisualSettingsPatch({ insightsCacheTtlMinutes: saved.insightsCacheTtlMinutes }); }
+        catch { /* non-fatal */ }
+        setLevers(saved);
+    };
+    const onRetries = (n: number) => {
+        setLevers(savePerformanceLevers({ maxValidationRetries: n }));
+    };
+    const onResetAll = () => {
+        const reset = resetPerformanceLevers();
+        try { writePulseAiVisualSettingsPatch({ insightsCacheTtlMinutes: reset.insightsCacheTtlMinutes }); }
+        catch { /* non-fatal */ }
+        setLevers(reset);
+    };
+
+    const ttlBounds = PERFORMANCE_LEVERS_BOUNDS.insightsCacheTtlMinutes;
+    const retryBounds = PERFORMANCE_LEVERS_BOUNDS.maxValidationRetries;
+    const isDefault =
+        levers.revealCadence === PERFORMANCE_LEVERS_DEFAULTS.revealCadence
+        && levers.discoveryPrewarmEnabled === PERFORMANCE_LEVERS_DEFAULTS.discoveryPrewarmEnabled
+        && levers.insightsCacheTtlMinutes === PERFORMANCE_LEVERS_DEFAULTS.insightsCacheTtlMinutes
+        && levers.maxValidationRetries === PERFORMANCE_LEVERS_DEFAULTS.maxValidationRetries;
+
+    return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            <fieldset style={leverFieldset} data-lever="reveal-cadence">
+                <legend style={leverLegend}>Insights reveal cadence</legend>
+                <p style={leverHelper}>How aggressively the rendered Insights answer staggers its sections. Doesn't change the LLM cost or wall-clock — only when each section becomes visible after the answer lands.</p>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    {(PERFORMANCE_LEVERS_BOUNDS.revealCadence).map(c => {
+                        const meta = CADENCE_LABELS[c];
+                        const selected = levers.revealCadence === c;
+                        return (
+                            <button
+                                key={c}
+                                type="button"
+                                onClick={() => onCadence(c)}
+                                aria-pressed={selected}
+                                data-cadence={c}
+                                style={{
+                                    textAlign: "left",
+                                    padding: "8px 12px",
+                                    border: `1px solid ${selected ? "var(--pp-accent, #0078d4)" : "var(--pp-border, rgba(0,0,0,0.18))"}`,
+                                    background: selected ? "rgba(0,120,212,0.08)" : "transparent",
+                                    borderRadius: 4,
+                                    cursor: "pointer",
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    gap: 2,
+                                }}
+                            >
+                                <span style={{ fontSize: 12, fontWeight: 600 }}>{meta.title}{selected ? " ✓" : ""}</span>
+                                <span style={{ fontSize: 11, opacity: 0.7 }}>{meta.tagline}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+            </fieldset>
+
+            <fieldset style={leverFieldset} data-lever="discovery-prewarm">
+                <legend style={leverLegend}>Discovery prewarm on screen load</legend>
+                <p style={leverHelper}>Fires one DiscoverySnapshot call right after the probe completes so subsequent queries hit the warm cache. Off = the first user query pays the cold round-trip itself.</p>
+                <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+                    <input
+                        type="checkbox"
+                        checked={levers.discoveryPrewarmEnabled}
+                        onChange={e => onPrewarmToggle(e.target.checked)}
+                        data-control="discovery-prewarm"
+                    />
+                    Prewarm enabled
+                </label>
+            </fieldset>
+
+            <fieldset style={leverFieldset} data-lever="insights-cache-ttl">
+                <legend style={leverLegend}>Insights cache freshness</legend>
+                <p style={leverHelper}>Cached Insights answers are reused for this many minutes before re-running. Higher = faster repeat-questions; lower = fresher data.</p>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <input
+                        type="range"
+                        min={ttlBounds.min}
+                        max={ttlBounds.max}
+                        step={1}
+                        value={levers.insightsCacheTtlMinutes}
+                        onChange={e => onTtl(parseInt(e.target.value, 10) || 0)}
+                        data-control="insights-cache-ttl"
+                        style={{ flex: 1 }}
+                    />
+                    <span style={{ fontFamily: "var(--pp-mono, monospace)", fontSize: 12, minWidth: 56, textAlign: "right" }}>
+                        {levers.insightsCacheTtlMinutes} min
+                    </span>
+                </div>
+            </fieldset>
+
+            <fieldset style={leverFieldset} data-lever="max-validation-retries">
+                <legend style={leverLegend}>Validation retry budget</legend>
+                <p style={leverHelper}>How many times the proxy retries a section that the validator flagged as Suggestion / Blocked. 0 = ship the first answer verbatim (fastest); 3 = retry up to three times (highest quality, slowest).</p>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <input
+                        type="range"
+                        min={retryBounds.min}
+                        max={retryBounds.max}
+                        step={1}
+                        value={levers.maxValidationRetries}
+                        onChange={e => onRetries(parseInt(e.target.value, 10) || 0)}
+                        data-control="max-validation-retries"
+                        style={{ flex: 1 }}
+                    />
+                    <span style={{ fontFamily: "var(--pp-mono, monospace)", fontSize: 12, minWidth: 56, textAlign: "right" }}>
+                        {levers.maxValidationRetries} retr{levers.maxValidationRetries === 1 ? "y" : "ies"}
+                    </span>
+                </div>
+            </fieldset>
+
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <button
+                    type="button"
+                    onClick={onResetAll}
+                    disabled={isDefault}
+                    data-control="reset-performance-levers"
+                    style={{
+                        padding: "5px 14px",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        border: "1px solid var(--pp-border, rgba(0,0,0,0.18))",
+                        background: "transparent",
+                        color: isDefault ? "var(--pp-border, rgba(0,0,0,0.4))" : "var(--pp-text, #1d1d1f)",
+                        borderRadius: 4,
+                        cursor: isDefault ? "default" : "pointer",
+                    }}
+                >
+                    {isDefault ? "All defaults" : "Reset to defaults"}
+                </button>
+            </div>
+        </div>
+    );
+}
+
+const leverFieldset: React.CSSProperties = {
+    border: "1px solid var(--pp-border, rgba(0,0,0,0.12))",
+    borderRadius: 6,
+    padding: "10px 14px 12px",
+    margin: 0,
+};
+const leverLegend: React.CSSProperties = {
+    fontSize: 12,
+    fontWeight: 600,
+    padding: "0 6px",
+    color: "var(--pp-text, #1d1d1f)",
+};
+const leverHelper: React.CSSProperties = {
+    margin: "0 0 8px",
+    fontSize: 11,
+    opacity: 0.7,
+    lineHeight: 1.45,
+};

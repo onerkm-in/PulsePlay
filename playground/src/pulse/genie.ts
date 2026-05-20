@@ -1453,7 +1453,13 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
             if (Date.now() - startedAt > POLL_DEADLINE_MS) {
                 throw new Error(timeoutMessage);
             }
-            const res = await this.request<GenieMessage>("GET", `/conversations/${conversationId}/messages/${messageId}?assistantProfile=${this.config.assistantProfile || ""}&spaceId=${this.config.spaceId || ""}`);
+            // Author-selectable retry budget — forwards the
+            // Settings → Advanced → Performance value on every poll so the
+            // proxy can decide whether to run server-side validation retries
+            // before returning the COMPLETED response.
+            const maxRetries = readMaxValidationRetriesFromStorage();
+            const retrySuffix = maxRetries != null ? `&maxValidationRetries=${maxRetries}` : "";
+            const res = await this.request<GenieMessage>("GET", `/conversations/${conversationId}/messages/${messageId}?assistantProfile=${this.config.assistantProfile || ""}&spaceId=${this.config.spaceId || ""}${retrySuffix}`);
             if (onProgress) onProgress(res.status);
 
             if (res.status === "COMPLETED" || res.status === "FAILED" || res.status === "CANCELLED") {
@@ -1914,6 +1920,30 @@ function readPackSelectionFromStorage(): { pack?: string; subVertical?: string }
         const subVertical = typeof parsed.subVertical === "string" ? parsed.subVertical : undefined;
         if (!pack && !subVertical) return null;
         return { pack, subVertical };
+    } catch {
+        return null;
+    }
+}
+
+// Performance levers reader. Reads localStorage directly so we don't
+// pull the wider Settings module into the Pulse-PBI compat shim. Schema
+// + key match playground/src/settings/performanceLevers.ts; out-of-range
+// or malformed values return null so the caller can skip the override.
+const PERFORMANCE_LEVERS_KEY = "pulseplay:performance-levers";
+
+function readMaxValidationRetriesFromStorage(): number | null {
+    if (typeof window === "undefined") return null;
+    try {
+        const raw = window.localStorage.getItem(PERFORMANCE_LEVERS_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== "object") return null;
+        const v = (parsed as Record<string, unknown>).maxValidationRetries;
+        if (typeof v !== "number" || !Number.isFinite(v)) return null;
+        const i = Math.round(v);
+        if (i < 0) return 0;
+        if (i > 3) return 3;
+        return i;
     } catch {
         return null;
     }

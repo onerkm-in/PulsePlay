@@ -3045,14 +3045,23 @@ function normalizeGenieResponse(data) {
 //   double-retry from the visual's own budget. (Visual-side coordination
 //   is a small follow-up — for cycle 45 we just emit the diagnostic.)
 // ─────────────────────────────────────────────────────────────────────────────
-async function maybeValidateGeniePollResponse({ data, actualProfile, targetSpaceId, conversationId, requestId }) {
+async function maybeValidateGeniePollResponse({ data, actualProfile, targetSpaceId, conversationId, requestId, clientMaxRetries }) {
     // 1. Cheap eligibility checks first.
     if (!data || (data.status || '').toUpperCase() !== 'COMPLETED') return;
     const content = data.content;
     if (!content || typeof content !== 'string' || !/^#{1,3}\s/m.test(content)) return;
 
-    // 2. Opt-in via env var.
-    const retryBudget = Math.max(0, Math.min(3, parseInt(process.env.GENIE_POLL_VALIDATE_RETRIES || '0', 10) || 0));
+    // 2. Resolve retry budget. Client-supplied `maxValidationRetries` takes
+    // precedence when provided (clamped 0-3); otherwise fall back to the
+    // deployer's `GENIE_POLL_VALIDATE_RETRIES` env-var default. Lets the
+    // Settings → Performance UI raise or lower retries per session without
+    // re-deploying the proxy. Logic extracted to lib/validationRetryBudget.js
+    // so the resolution rules can be unit-tested directly.
+    const { resolveBudget } = require('./lib/validationRetryBudget');
+    const retryBudget = resolveBudget({
+        envValue: process.env.GENIE_POLL_VALIDATE_RETRIES,
+        clientValue: clientMaxRetries,
+    });
     if (retryBudget === 0) return;
 
     let validator;
@@ -3201,8 +3210,24 @@ app.get('/assistant/conversations/:conversationId/messages/:messageId', async (r
         //   knows + can decide whether to also retry per its budget
         //   (avoids double-retry of an already-retried response).
         // ─────────────────────────────────────────────────────────────
+        // Client-supplied retry budget. GET routes carry it on the query
+        // string; POST routes on the body. Either path is parsed defensively
+        // — non-numeric / out-of-range values fall through to the env default
+        // inside maybeValidateGeniePollResponse.
+        const parsedClientRetries = (() => {
+            const fromQuery = req.query?.maxValidationRetries;
+            if (typeof fromQuery === 'string' && fromQuery.length > 0) {
+                const n = parseInt(fromQuery, 10);
+                if (Number.isFinite(n)) return n;
+            }
+            const fromBody = req.body?.maxValidationRetries;
+            if (typeof fromBody === 'number' && Number.isFinite(fromBody)) return fromBody;
+            return null;
+        })();
         await maybeValidateGeniePollResponse({
-            data, actualProfile, targetSpaceId, conversationId, requestId: req.headers['x-request-id'],
+            data, actualProfile, targetSpaceId, conversationId,
+            requestId: req.headers['x-request-id'],
+            clientMaxRetries: parsedClientRetries,
         });
 
         auditLog(req, {
