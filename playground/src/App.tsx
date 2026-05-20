@@ -13,7 +13,7 @@
 // the same proxy backend (Genie / Azure OpenAI / Bedrock / foundation
 // model) we proved out in DwD_AI_Assistant_for_PBI cycles 1-47.
 
-import { QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider, useIsFetching } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
 import { usePacks } from "./features/config/usePacks";
 import { useAllowlist } from "./features/config/useAllowlist";
@@ -29,6 +29,7 @@ import { AISidebar, type AutoSubmitQuestionEvent } from "./components/AISidebar"
 import { VendorPicker } from "./components/VendorPicker";
 import { ConnectorPicker } from "./components/ConnectorPicker";
 import { EmbedConfigForm } from "./components/EmbedConfigForm";
+import { DayCycleBubble } from "./components/DayCycleBubble";
 import { useEmbedConfig } from "./settings/embedConfigStore";
 import { warmGenieWarehouse, startWarehouseKeepalive, stopWarehouseKeepalive } from "./lib/warehouseWarmup";
 import { FirstRunWizard, WizardErrorBoundary, shouldShowWizard, type PersonaKey } from "./components/FirstRunWizard";
@@ -289,10 +290,29 @@ export function App(): React.ReactElement {
         <QueryClientProvider client={queryClient}>
             <SettingsProvider>
                 <AppRouted />
+                <DayCycleBubbleHost />
             </SettingsProvider>
             <ReactQueryDevtoolsHost />
         </QueryClientProvider>
     );
+}
+
+/** Renders the day-cycle bubble in the bottom-right corner. Cycles
+ *  morning → noon → evening → night while any React Query fetch is in
+ *  flight or while the app is in its initial-render window; snaps back
+ *  to morning when everything is idle. All motion is contained inside
+ *  the bubble. */
+function DayCycleBubbleHost(): React.ReactElement {
+    const fetching = useIsFetching();
+    // Initial-render window: covers the first paint while lazy chunks
+    // and stylesheets are still warming up. Flips off after a short
+    // settle, then `fetching` takes over as the loading signal.
+    const [initialBoot, setInitialBoot] = useState<boolean>(true);
+    useEffect(() => {
+        const t = window.setTimeout(() => setInitialBoot(false), 1200);
+        return () => window.clearTimeout(t);
+    }, []);
+    return <DayCycleBubble loading={initialBoot || fetching > 0} />;
 }
 
 function ReactQueryDevtoolsHost(): React.ReactElement | null {
