@@ -217,11 +217,22 @@ export function leafSlug(label: string): string {
 export function SubSection(props: {
     label:    string;
     helper?:  string;
+    /**
+     * Optional group id (e.g. "ai", "bi"). When provided, the SubSection
+     * emits `id="settings-${group}-${slug(label)}"` so it can act as a
+     * scroll-to anchor for the matching rail entry. Without this, clicking
+     * a rail item that points at a SubSection (e.g. "Connector catalogue")
+     * would land on no anchor. 2026-05-20 cycle 20.1 re-index follow-up.
+     */
+    group?:   string;
     children: React.ReactNode;
 }): React.ReactElement {
+    const slug = props.label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    const anchorId = props.group ? `settings-${props.group}-${slug}` : undefined;
     return (
         <div
-            data-subsection={props.label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}
+            id={anchorId}
+            data-subsection={slug}
             style={{
                 marginTop:  10,
                 paddingTop: 14,

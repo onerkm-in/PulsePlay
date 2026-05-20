@@ -162,6 +162,7 @@ export function AiGroup(): React.ReactElement {
               * for users who already know which profile they want.
               */}
             <SubSection
+                group="ai"
                 label="Connector catalogue"
                 helper="Every connector PulsePlay can wire up. The compact view shows only what's configured today — click '+ Show all 12 →' to browse what else is available. Each card has a copy-paste config snippet."
             >
