@@ -159,7 +159,7 @@ Empirically verified 2026-05-20 against the live workspace ([docs/findingProbeIs
 Earlier docs (`MULTI_BI_ARCHITECTURE.md`, `README.md`) said the proxy supports six backends. The 2026-05-10 codebase audit confirmed eight, and the 2026-05-17 ResponsesAgent connector made nine. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) "Nine runtime backend paths" for the corrected table.
 
 **Supervisor stagger is 2000 ms, not 800 ms**
-[ADR-0003](docs/adr/0003-supervisor-stagger-800ms.md) title says 800 ms. Actual code at [proxy/server.js:3556](proxy/server.js#L3556) is 2000 ms. ADR title rename pending.
+[ADR-0003](docs/adr/0003-supervisor-stagger.md) was originally accepted at 800 ms in 2026-01; shipping default is now 2000 ms after iterative tuning. Actual code at [proxy/server.js:6385](proxy/server.js#L6385). The ADR body now carries the full 350 → 800 → 1500 → 2000 ms history — if you re-tune, add a row to the table there rather than silently changing the constant.
 
 **Cross-origin iframes need narrow sandbox**
 Default sandbox in `GenericIframeAdapter`: `allow-scripts allow-same-origin allow-forms allow-popups`. Each vendor adapter SHOULD narrow this to the minimum the vendor needs. Open-ended sandbox defeats the purpose.
