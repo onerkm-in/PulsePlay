@@ -2604,6 +2604,47 @@ app.get('/assistant/knowledge/packs/:pack/sub-verticals/:subVertical', (req, res
 //
 // Keys starting with "_doc_" are treated as in-file documentation and
 // skipped — see config.example.json for the convention.
+// Cycle 20 / S1 (2026-05-20) — connector manifest discovery endpoint.
+// Implements PR #8 §4 lifecycle loop: a single read-only endpoint that
+// describes the full connector catalogue + runtime state so the UI can
+// render brand cards without hand-coded provider knowledge.
+//
+// S1 ships the manifest table + runtime-state derivation. S2 will add
+// per-connector probe-driven `featureAvailability` and `loadStatus`
+// failure surfacing once connectors physically move to proxy/connectors/.
+//
+// Response shape locked in PR #8 §12 "S1 scope (committed)":
+//   { manifests: [...12 entries...], runtime: { <id>: { loadStatus, configuredProfiles[] } } }
+//
+// Secrets contract: NEVER include a secret value in this response. The
+// `secretStatus` field on each configured profile reports 'present' /
+// 'missing' / 'n/a' only — derived from whether the schema's secret
+// field is non-empty. The registry's describeRuntimeState() enforces this.
+app.get('/assistant/connector-types', (req, res) => {
+    try {
+        const { listManifests, describeRuntimeState } = require('./lib/connectorRegistry');
+        const manifests = listManifests();
+        // Snapshot the live profileRegistry so the runtime block reflects
+        // current config (no caching — the table is 12 entries × N profiles).
+        const profiles = profileRegistry.entries().map(([name, p]) => ({ name, ...p }));
+        const runtime = describeRuntimeState({ profiles });
+        res.json({ manifests, runtime });
+    } catch (err) {
+        // Manifest validation failures should not happen at runtime (the
+        // table validates at module load and crashes early), but if they
+        // do we return a 500 with a viewer-safe envelope.
+        return sendProblem(res, createProblem({
+            status: 500,
+            code: 'CONNECTOR_MANIFEST_ERROR',
+            title: 'Connector manifest table unavailable',
+            detail: UNEXPECTED_INTERNAL_SENTINEL,
+            category: 'unexpected_internal',
+            requestId: req.requestId,
+            retryable: false,
+        }));
+    }
+});
+
 app.get('/assistant/profiles', (req, res) => {
     const c = cfg();
     const profiles = profileRegistry.entries()

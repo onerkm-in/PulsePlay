@@ -27,6 +27,7 @@ import { useDatabricksCapabilities } from "../../lib/databricksCapabilities";
 import { listMetricViews, type MetricViewSummary } from "../../lib/databricksAssets";
 import type { ConnectorProbeResult } from "../../types/probe";
 import { navigateToPowerBiQna } from "../../powerbi/PowerBiQnARoute";
+import { ConnectorBrandGrid } from "../../setup/ConnectorBrandGrid";
 import {
     usePulseAiVisualSettings,
     type PulseAiVisualSettings,
@@ -146,6 +147,32 @@ export function AiGroup(): React.ReactElement {
                     One assistant powers both AI Insights and Ask Pulse. Configure the assistant, give it context, tune how it responds, then tune per-surface behavior. MVP 0.2: Databricks Genie + Supervisor only.
                 </p>
             </header>
+
+            {/* ─── Cycle 20 / S1: Connector catalogue (brand grid) ──────
+              * Surfaces ALL 12 connector types from /api/assistant/connector-types
+              * regardless of whether they're configured. Each card has a
+              * three-state status (Active / Configured-degraded / Available
+              * not wired) and a copy-paste config snippet. Drop a new manifest
+              * into proxy/lib/connectorManifests.js → a new card appears here
+              * without any UI code change.
+              *
+              * Lives ABOVE the existing Assistant tier so users see the full
+              * menu of providers before picking one. The legacy Provider
+              * picker below stays as the "configured profiles only" shortcut
+              * for users who already know which profile they want.
+              */}
+            <SubSection
+                label="Connector catalogue"
+                helper="Every connector PulsePlay can wire up — configured or not. Status badges show what's active, what's configured with warnings, and what's available but not configured yet. Each card has a copy-paste config snippet."
+            >
+                <ConnectorBrandGrid
+                    activeProfileName={activeAiProfile || null}
+                    onPickProfile={(name) => {
+                        const result = setActiveAiProfile(name);
+                        if (!result.ok) console.warn(result.reason);
+                    }}
+                />
+            </SubSection>
 
             {/* ─── Tier 1: Assistant — who is answering ─────────────────
               * 2026-05-19 Codex IA restructure: pick the assistant (provider,
