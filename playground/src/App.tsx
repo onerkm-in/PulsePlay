@@ -54,6 +54,7 @@ import { useSettingsRoute, navigateToSettings } from "./settings/settingsRoute";
 import { getSetupReadiness, type SetupReadiness } from "./settings/setupReadiness";
 import { KnowledgeShell } from "./knowledge/KnowledgeShell";
 import { useKnowledgeRoute } from "./knowledge/knowledgeRoute";
+import { PowerBiQnaShell, usePowerBiQnaRoute } from "./powerbi/PowerBiQnARoute";
 import { LaunchpadShell } from "./launchpad/LaunchpadShell";
 import { useLaunchpadRoute } from "./launchpad/launchpadRoute";
 import { WorkbenchShell } from "./workbench/WorkbenchShell";
@@ -326,6 +327,7 @@ function AppRouted(): React.ReactElement {
     const knowledgeRoute = useKnowledgeRoute();
     const launchpadRoute = useLaunchpadRoute();
     const workbenchRoute = useWorkbenchRoute();
+    const powerBiQnaRoute = usePowerBiQnaRoute();
 
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -344,6 +346,9 @@ function AppRouted(): React.ReactElement {
     }
     if (knowledgeRoute.isKnowledgeRoute) {
         return <KnowledgeShell />;
+    }
+    if (powerBiQnaRoute.isPowerBiQnaRoute) {
+        return <PowerBiQnaShell />;
     }
     if (launchpadRoute.isLaunchpadRoute) {
         return (

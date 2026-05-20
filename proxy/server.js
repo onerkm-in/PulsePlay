@@ -5666,6 +5666,61 @@ app.post('/powerbi/conversations/start', async (req, res) => {
     });
 });
 
+// Cycle-15.5 — Power BI Q&A embed token. Mints a dataset-scoped embed
+// token that the playground's powerbi-client SDK uses to render the
+// Microsoft Q&A surface inline. The Q&A engine's NLP runs in Microsoft's
+// tenant — PulsePlay does NOT invoke an LLM here; the proxy is only
+// minting the embed token and audit-logging the issuance.
+app.post('/powerbi/qna/embed-token', async (req, res) => {
+    const resolved = resolvePowerBiSemanticModelProfile(req.body || {}, req.headers, req);
+    if (!resolved) {
+        return sendNoMatchingProfile(req, res, 400, 'No Power BI semantic-model profile configured.');
+    }
+    try {
+        const tokenInfo = await _powerbiDatasetClient.generateQnAEmbedToken(resolved.profile);
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'powerbi-qna-token-minted',
+            status: 'OK',
+            detail: JSON.stringify({
+                groupId: tokenInfo.groupId,
+                datasetId: tokenInfo.datasetId,
+                expiresAt: tokenInfo.expiresAt,
+                llmCallCount: 0,
+            }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+        // Never echo the SP credentials. Only the short-lived embed token
+        // + the public-safe metadata.
+        res.json({
+            accessToken: tokenInfo.accessToken,
+            embedUrl: tokenInfo.embedUrl,
+            datasetId: tokenInfo.datasetId,
+            groupId: tokenInfo.groupId,
+            expiresAt: tokenInfo.expiresAt,
+            tokenType: 'Embed',
+        });
+    } catch (err) {
+        console.error('[powerbi/qna/embed-token]', err?.message || err);
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'powerbi-qna-token-failed',
+            status: 'ERROR',
+            detail: JSON.stringify({ errorCode: err?.statusCode || null }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+        return sendProblem(res, createProblem({
+            status: err?.statusCode || 502,
+            code: 'POWERBI_QNA_TOKEN_FAILED',
+            title: 'Power BI Q&A embed token mint failed',
+            detail: String(err?.message || err).slice(0, 300),
+            category: 'upstream_error',
+            requestId: req.requestId,
+            retryable: false,
+        }));
+    }
+});
+
 // Health probe for the Power BI semantic-model connector.
 app.get('/powerbi/health', (req, res) => {
     const resolved = resolvePowerBiSemanticModelProfile({}, req.headers, req);

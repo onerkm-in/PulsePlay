@@ -264,6 +264,65 @@ async function executeDaxNormalized(profile, daxQuery, opts = {}) {
     return { columns, rows, truncated: false };
 }
 
+/* ───── Q&A embed token ────────────────────────────────────────────── */
+
+/**
+ * Mint a Power BI embed token scoped to the dataset, suitable for the
+ * Q&A embed surface (Microsoft's NL → DAX visual). The token is generated
+ * via the dataset's own `/GenerateToken` endpoint — NOT the report one —
+ * because Q&A doesn't bind to a report.
+ *
+ * Returned shape matches what the powerbi-client SDK expects to embed
+ * Q&A: { accessToken, embedUrl, datasetId, groupId, expiresAt }.
+ *
+ * @param {object} profile
+ * @param {{ fetchImpl?: function, accessLevel?: "View"|"Edit", identities?: Array<object> }} [opts]
+ * @returns {Promise<{ accessToken: string, embedUrl: string, datasetId: string, groupId: string, expiresAt: number, tokenId?: string }>}
+ */
+async function generateQnAEmbedToken(profile, opts = {}) {
+    const groupId = _groupId(profile);
+    if (!groupId) throw new Error('Power BI profile missing powerbiGroupId');
+    const datasetId = _datasetId(profile);
+    if (!datasetId) throw new Error('Power BI profile missing powerbiDatasetId');
+
+    const token = await acquirePbiAccessToken(profile, opts.fetchImpl);
+    const url = `${PBI_API_BASE}/v1.0/myorg/groups/${encodeURIComponent(groupId)}/datasets/${encodeURIComponent(datasetId)}/GenerateToken`;
+    const body = {
+        accessLevel: opts.accessLevel || 'View',
+        ...(Array.isArray(opts.identities) && opts.identities.length > 0
+            ? { identities: opts.identities }
+            : {}),
+    };
+    const f = opts.fetchImpl || globalThis.fetch;
+    const resp = await f(url, {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(SOCKET_TIMEOUT_MS),
+    });
+    if (!resp.ok) {
+        const detail = (await resp.text()).slice(0, 300);
+        const err = new Error(`Power BI dataset GenerateToken failed (${resp.status}): ${detail}`);
+        // @ts-expect-error — attach status for callers
+        err.statusCode = resp.status;
+        throw err;
+    }
+    const data = await resp.json();
+    if (!data?.token) throw new Error('Power BI dataset GenerateToken response missing token');
+    const expiresAt = data.expiration ? new Date(data.expiration).getTime() : Date.now() + 60 * 60 * 1000;
+    return {
+        accessToken: String(data.token),
+        embedUrl: `https://app.powerbi.com/qnaEmbed?groupId=${encodeURIComponent(groupId)}`,
+        datasetId,
+        groupId,
+        expiresAt,
+        tokenId: data.tokenId ? String(data.tokenId) : undefined,
+    };
+}
+
 /* ───── Module exports ─────────────────────────────────────────────── */
 
 function __resetCacheForTests() {
@@ -275,6 +334,7 @@ module.exports = {
     getDatasetMetadata,
     executeDax,
     executeDaxNormalized,
+    generateQnAEmbedToken,
     // Internal exports for tests + probe-adapter reuse.
     __internals: {
         tenantId: _tenantId,

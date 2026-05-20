@@ -5,6 +5,41 @@
 
 ---
 
+## 2026-05-20 — Cycle 15.5: Power BI Q&A embed surface
+
+**Scope.** The cycle-15 deterministic PBI brain answers via DAX templates. Cycle 15.5 adds the second answer surface: **Microsoft's Q&A NLP**, embedded inline via the `powerbi-client` SDK. The user types free-form questions, Microsoft handles NL → DAX → visual inside the iframe. PulsePlay still runs zero LLM calls — the proxy only mints the dataset-scoped embed token; Microsoft's NLP runs in their tenant.
+
+This is the "with Q&A" half of the user's "with or without Q&A" framing from cycle 15.
+
+**Proxy.** [proxy/lib/powerbiDatasetClient.js](../proxy/lib/powerbiDatasetClient.js) gains `generateQnAEmbedToken(profile, opts)` — calls `POST .../datasets/{id}/GenerateToken` with `accessLevel: "View"` and optional RLS `identities`. Returns the embed token + the `https://app.powerbi.com/qnaEmbed?groupId=…` embed URL + expiry. New `POST /powerbi/qna/embed-token` route in [proxy/server.js](../proxy/server.js) — resolves the powerbi-semantic-model profile, mints the token, audit-logs `powerbi-qna-token-minted` with `llmCallCount: 0`. SP credentials never leave the proxy.
+
+**Client.** New [playground/src/lib/powerbiQnAClient.ts](../playground/src/lib/powerbiQnAClient.ts) — thin fetch wrapper around `/api/powerbi/qna/embed-token`, with client-side profile-name sanitisation and friendly error extraction from the proxy's Problem+JSON envelope.
+
+**Component.** New [playground/src/components/PowerBiQnA.tsx](../playground/src/components/PowerBiQnA.tsx) — React component that lazy-loads the `powerbi-client` SDK (~200 KB chunk off the critical path), creates a service singleton, and embeds Q&A in a div with `viewMode: QnaMode.Interactive`. Schedules a token refetch 5 min before `expiresAt` for no-flicker handoff. State machine: idle/loading/ready/failed with retry.
+
+**Route.** New [playground/src/powerbi/PowerBiQnARoute.tsx](../playground/src/powerbi/PowerBiQnARoute.tsx) — standalone full-viewport route at `/powerbi/qna` with a header strip + back-to-app button. Wired into [App.tsx](../playground/src/App.tsx)'s `AppRouted` switch so it shows alongside `/settings`, `/knowledge`, etc. Keeps the Pulse-PBI compat shim's `activeTab` state untouched (intentional — that's a 20+-call-site change deferred to a UX cycle).
+
+**Tests (12 new).**
+- proxy `powerbiDatasetClient.test.js`: +5 cases for `generateQnAEmbedToken` covering the View accessLevel default, RLS identities pass-through, missing-id validation, 4xx status code propagation, and 1-hour fallback expiry when PBI returns no expiration field.
+- playground `powerbiQnAClient.test.ts`: 7 cases covering the POST contract (with/without profile), client-side profile sanitisation, network-unreachable friendly message, problem+JSON detail extraction, malformed-response detection.
+
+**Validation.**
+- proxy `npm test`: **1013/1013** (was 1008 + 5 new)
+- playground `npm test`: **1103/1103** (was 1096 + 7 new)
+- playground `npm run lint`: clean
+- playground `npm run build`: ✓ built in 17.42s
+- `node --check proxy/server.js`: clean
+- Live browser smoke at `/powerbi/qna`: route renders, component mounts, token fetch fires, error state surfaces cleanly (the externally-running proxy in this session hadn't been restarted to pick up the new route — that's environment-only).
+
+**Honest deferrals.**
+- **Externally-running proxy needs a restart** to pick up the new route in any deployment where the proxy isn't started fresh. Not a code bug — process management. Production deployers restart the proxy on config/code update by convention.
+- **No Setup-side UI entry point yet.** The route is discoverable only by URL. Adding a "Open Power BI Q&A" button to Settings → AI when the active profile is `powerbi-semantic-model` is a tiny follow-up (~15 min).
+- **No tab integration into Pulse mode.** Pulse `visual.tsx` uses `activeTab: "insights" | "chat"` with ~20 call sites. Adding a third option needs a careful UX cycle and is out of scope here.
+- **No RLS impersonation from IdP claims** for the Q&A token route specifically. The client function signature accepts `identities` but the route doesn't derive them yet. Mirror the embed-token pattern (`powerBiRlsUsernameClaim`) in a follow-up.
+- **Token refresh is a window setTimeout** — survives renders but not tab discards on mobile (background → suspended → token expires). Not material for desktop deployers; mobile-tab edge case.
+
+---
+
 ## 2026-05-20 — Cycle 15: Power BI semantic-model AI brain (no-LLM, deterministic)
 
 **Scope.** Add a Power BI published dataset (tabular semantic model) as a real AI brain alongside Genie / Foundation Model / OpenAI / Bedrock / Supervisor. **No LLM is invoked at any step** — the pipeline is AAD service-principal auth → DAX `INFO.*` probe → keyword matcher → DAX template → `executeQueries` → Markdown render.
