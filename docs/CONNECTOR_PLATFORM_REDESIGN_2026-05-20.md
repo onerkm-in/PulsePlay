@@ -331,7 +331,7 @@ Tested against the 10 backend paths we ship:
 
 | Provider sub-modes | Schema differs? | Decision |
 |---|---|---|
-| **Power BI Dataset DAX vs Power BI Q&A** | 7 of 12 fields differ (templateAllowList / queryTimeoutMs / resultCacheTtlSec vs powerbiReportId / tokenLifetimeMinutes / enableUserImpersonation / rlsRoles) | **Split** — two connectors |
+| **Power BI Dataset DAX vs Power BI Q&A** | DAX needs no extra config beyond auth + dataset; Q&A needs the existing RLS family (`powerBiRlsEnabled`, `powerBiRlsRequired`, `powerBiRlsUsernameClaim`, `powerBiRlsUsername`, `powerBiRlsRoles`) which DAX does not consume. Distinct route contract (`/powerbi/conversations/start` vs `/powerbi/qna/embed-token`) and probe lifecycle (DAX probes `INFO.*`; Q&A probes `GenerateToken`). | **Split** — two connectors |
 | **Azure OpenAI chat vs Azure OpenAI analytics** | analytics needs `schemaContext`, `warehouseId`, `mode: 'analytics'` | **Split** — two connectors |
 | **Bedrock direct vs Bedrock RAG** | RAG needs `bedrockKnowledgeBaseId`; direct needs `bedrockModelArn` only | **Split** — two connectors |
 | **Mosaic AI Supervisor (managed) vs Supervisor-local** | Different routes today; managed needs `serving endpoint`; local has `spaces` fan-out config | **Already split** |
@@ -349,7 +349,7 @@ Result: brand grid grows from 10 → 12 cards (PBI ×2, OpenAI ×2, Bedrock ×2,
 **Concrete sketches: PBI DAX vs PBI Q&A**
 
 ```js
-// proxy/connectors/powerbi-dataset-dax.js
+// proxy/connectors/powerbi-dataset-dax.js  (S1 shape — only fields the code uses today)
 {
     id: 'powerbi-dataset-dax',
     displayName: 'Power BI Dataset (DAX)',
@@ -358,18 +358,17 @@ Result: brand grid grows from 10 → 12 cards (PBI ×2, OpenAI ×2, Bedrock ×2,
         capabilities: { deterministic: true, llm: false, ragGrounded: false },
         tagline: 'Deterministic answers via DAX templates — no LLM',
         profileSchema: {
-            // Auth (same shape as Q&A, but separate values per profile)
+            // Auth (legacy aliases accepted: powerBiTenantId / powerBiClientId / powerBiClientSecret)
             aadTenantId:      { kind: 'string', required: true, label: 'AAD Tenant ID' },
             aadClientId:      { kind: 'string', required: true, label: 'AAD Client ID' },
             aadClientSecret:  { kind: 'secret', required: true, label: 'AAD Client Secret' },
             powerbiGroupId:   { kind: 'string', required: true, label: 'Power BI Workspace ID' },
             powerbiDatasetId: { kind: 'string', required: true, label: 'Dataset ID' },
-            // DAX-specific
-            templateAllowList:  { kind: 'multi-select', required: false,
-                                  options: ['top-n', 'aggregate-by', 'trend', 'total'],
-                                  default: ['top-n', 'aggregate-by', 'trend', 'total'] },
-            queryTimeoutMs:     { kind: 'number', required: false, default: 30000, min: 5000, max: 120000 },
-            resultCacheTtlSec:  { kind: 'number', required: false, default: 60 },
+            // No DAX-specific knobs in S1. The template library + query timeout + result cache
+            // are NOT yet runtime-configurable (template set is fixed; timeout is hard-coded in
+            // powerbiDatasetClient.js; no result cache exists). Each is a deferred follow-up
+            // that adds its own field (daxTemplateAllowList / daxQueryTimeoutMs / daxResultCacheTtlSec)
+            // once the runtime supports the override.
         },
         routes: [
             { method: 'POST', path: '/powerbi/conversations/start', purpose: 'deterministic-dax-question' },
@@ -378,7 +377,7 @@ Result: brand grid grows from 10 → 12 cards (PBI ×2, OpenAI ×2, Bedrock ×2,
     },
 }
 
-// proxy/connectors/powerbi-dataset-qna.js
+// proxy/connectors/powerbi-dataset-qna.js  (S1 shape — reuses existing PBI RLS family)
 {
     id: 'powerbi-dataset-qna',
     displayName: 'Power BI Q&A',
@@ -387,21 +386,31 @@ Result: brand grid grows from 10 → 12 cards (PBI ×2, OpenAI ×2, Bedrock ×2,
         capabilities: { qnaEmbedSurface: true, llm: false /* PulsePlay-side */, deterministic: false },
         tagline: 'Microsoft NL → DAX, runs inside your tenant',
         profileSchema: {
-            // Auth (same shape; separate values)
+            // Auth (legacy aliases accepted: powerBiTenantId / powerBiClientId / powerBiClientSecret)
             aadTenantId:      { kind: 'string', required: true, label: 'AAD Tenant ID' },
             aadClientId:      { kind: 'string', required: true, label: 'AAD Client ID' },
             aadClientSecret:  { kind: 'secret', required: true, label: 'AAD Client Secret' },
             powerbiGroupId:   { kind: 'string', required: true, label: 'Power BI Workspace ID' },
             powerbiDatasetId: { kind: 'string', required: true, label: 'Dataset ID' },
-            // Q&A-specific
-            powerbiReportId:        { kind: 'string',  required: false,
-                                      label: 'Power BI Report ID (optional)',
-                                      help: 'For in-report Q&A. Leave blank for standalone surface at /powerbi/qna.' },
-            tokenLifetimeMinutes:   { kind: 'number',  required: false, default: 60, min: 5, max: 240 },
-            enableUserImpersonation:{ kind: 'boolean', required: false, default: false,
-                                      label: 'Apply RLS from IdP claims' },
-            rlsRoles:               { kind: 'string',  required: false,
-                                      label: 'Default RLS roles (comma-separated)' },
+            // RLS family — reuses the existing field names used by the embed-token route
+            // (proxy/server.js#generatePowerBIEmbedToken). DO NOT invent new RLS names.
+            powerBiRlsEnabled:        { kind: 'boolean', required: false, default: false,
+                                        label: 'Enable RLS impersonation' },
+            powerBiRlsRequired:       { kind: 'boolean', required: false, default: false,
+                                        label: 'Require RLS — fail issuance if no identity can be derived' },
+            powerBiRlsUsernameClaim:  { kind: 'string',  required: false,
+                                        label: 'IdP claim order for RLS username',
+                                        help: 'Comma-separated. Default: email, preferredUsername, upn.' },
+            powerBiRlsUsername:       { kind: 'string',  required: false,
+                                        label: 'Server-configured RLS username override' },
+            powerBiRlsRoles:          { kind: 'string',  required: false,
+                                        label: 'RLS roles (comma-separated or array)' },
+            // NOT INCLUDED IN S1:
+            //   powerbiReportId — code path mints dataset-scoped token + returns qnaEmbed URL.
+            //     Report-scoped Q&A is a future cycle; the field would look load-bearing while
+            //     doing nothing.
+            //   tokenLifetimeMinutes — generateQnAEmbedToken() does not accept a lifetime option
+            //     today. Add the field when the runtime takes it.
         },
         routes: [
             { method: 'POST', path: '/powerbi/qna/embed-token', purpose: 'qna-embed-token' },
@@ -415,7 +424,7 @@ Result: brand grid grows from 10 → 12 cards (PBI ×2, OpenAI ×2, Bedrock ×2,
 
 ### 6.4 Feature toggle within a connector (narrower scope after 6.3)
 
-Several connectors bundle multiple sub-modes. The Power BI semantic-model brain has **deterministic DAX templates** AND **Q&A embed surface** — same auth, same dataset, two different answer paths. Genie has basic Q&A + supervisor synthesis + analytics. OpenAI has chat + analytics. Bedrock has direct + RAG.
+Several connectors bundle multiple sub-modes. After §6.3, Q8 applies only after the schema boundary is settled: sub-modes with different profile schemas split into separate connector cards; sub-modes with identical profile schemas stay inside one connector and use feature availability + deployer opt-out. The legacy `powerbi-semantic-model` profile may still report both `deterministic-dax` and `qna-embed` during S1 while routes remain unmigrated, but the long-term Setup model is two cards. Genie remains the clean single-card example because its sub-behavior is selected per request, not by a different config shape.
 
 **Direction agreed 2026-05-20:** expose every capability the connector code supports. Let runtime + tenant configuration decide what actually works. Deployer override is opt-in (turn off what you don't want), not opt-out (no need to manually enable each feature).
 
@@ -488,8 +497,8 @@ Both probes are cheap (one HTTP call each), cached for 60 s.
 | Slice | What | Effort | Ships |
 |---|---|---|---|
 | **S1** | Connector manifest spec ADR + `GET /assistant/connector-types` endpoint serving a HARDCODED `proxy/lib/connectorManifests.js` table (no dir scan yet) + new `ConnectorBrandCard` + new Setup step that uses it. Existing routes unchanged. | ~2 days | Working manifest-driven Setup UI without migrating any connector |
-| **S2** | Migrate **one** connector to a real `proxy/connectors/<id>.js` file. Recommend Power BI semantic-model (newest, smallest blast radius). Boot-time scan starts here. Other 9 connectors stay in `server.js`. | ~1 day | Proves the directory-scan model end-to-end |
-| **S3** | Migrate the remaining 9 connectors one PR at a time. Order: openai → foundation-model → supervisor → bedrock-direct → bedrock-rag → supervisor-local → responses-agent → genie (last, biggest blast radius). | ~3-5 days | Per-PR independently shippable |
+| **S2** | Migrate **one** connector to a real `proxy/connectors/<id>.js` file. Recommend Foundation Model first (narrowest route surface, no AAD). Boot-time scan starts here. Other connectors stay in `server.js`. | ~1 day | Proves the directory-scan model end-to-end |
+| **S3** | Migrate the remaining connectors one PR at a time. Order: bedrock-direct → openai → supervisor → bedrock-rag → supervisor-local → responses-agent → powerbi-semantic-model → genie (last, biggest blast radius). | ~3-5 days | Per-PR independently shippable |
 
 **S1 alone gives the user-visible win** (the Setup redesign). S2 + S3 deliver the architectural promise (drop-in/drop-out).
 
@@ -786,7 +795,7 @@ Accepting all major pushbacks. The contract is materially better with Codex's ed
 | Q6 | **Single-page Settings** with opt-in "Guide me" stepper, NOT wizard-default. Returning users + developers need compare-at-a-glance. |
 | Q7 | **Audit + extract Bug B1 fix** from Codex WIP as an independent PR BEFORE the redesign work. Do not land the whole stash blindly. |
 | Q8 | **Expose every capability the connector code supports.** Three-state model (`capable` / `available` / `enabled`). Default `enabled = all available`. Deployer opts OUT per profile, not in. Probe runs per-capability availability check (cheap, cached 60s). Runtime gating returns 403 with friendly "feature not enabled — try X" when disabled. |
-| Q9 | **Split when settings differ** — sub-modes with different profile schemas become separate connector files (Power BI Dataset DAX vs Power BI Q&A; OpenAI chat vs OpenAI analytics; Bedrock direct vs Bedrock RAG). Sub-modes with identical schemas use the Q8 feature toggle. Brand grid grows from 10 → 12 cards; `category` grouping keeps related connectors visually adjacent. **Pending Codex re-review.** |
+| Q9 | **Split when settings differ** — sub-modes with different profile schemas become separate connector files (Power BI Dataset DAX vs Power BI Q&A; OpenAI chat vs OpenAI analytics; Bedrock direct vs Bedrock RAG). Sub-modes with identical schemas use the Q8 feature toggle. Brand grid grows from 10 → 12 cards; `category` grouping keeps related connectors visually adjacent. **Codex re-review complete: lock with the qualitative rule + hard split triggers in the Codex review below.** |
 
 **Host API contract:**
 
@@ -817,8 +826,8 @@ Accepting all major pushbacks. The contract is materially better with Codex's ed
 **Signed off by:**
 
 - Claude — proposer
-- Codex — reviewer (qualified +1 on Q1-Q8; **Q9 pending re-review**)
-- Rajesh — approved Q1-Q8 + Q9 direction; signoff conditional on Codex's Q9 re-review
+- Codex — reviewer (qualified +1 on Q1-Q9; Q9 re-reviewed below)
+- Rajesh — approved Q1-Q8 + Q9 direction; final product call remains Rajesh's
 
 ---
 
@@ -837,6 +846,32 @@ Q9 added after Rajesh confirmed Interpretation B (split connectors when settings
 5. **Sketches in §6.3** — the two PBI connector schemas. Anything missing, anything that should be merged back, anything where the field naming clashes with existing config?
 
 If Codex agrees on all 5 + the split rule, Q9 locks and S1 work begins.
+
+---
+
+### Codex review of Q9 (2026-05-20)
+
+Q9 can lock. I agree with the split-when-settings-differ rule, with one refinement: keep the rule qualitative, but document hard triggers so future contributors do not invent percentage math. A connector should split when any sub-mode has a distinct required field, distinct secret/auth scope, distinct route contract, distinct probe/availability lifecycle, or distinct deployer owner. If the schema is identical and only request-time behavior differs, keep one connector and use the Q8 feature toggle.
+
+Answers to the five requested points:
+
+1. **Do not quantify with percentages.** "30% of fields differ" is false precision. One required secret or one required tenant permission is enough to deserve a split; five optional display fields may not be. Use qualitative judgement backed by the hard triggers above.
+2. **12 brand cards is acceptable at the architecture level.** It only becomes a UX problem if the grid is flat. Group by `category`, add capability/maturity badges, and make configured/recommended connectors visually rise to the top. More accurate cards are better than one vague "Power BI semantic model" card that hides two very different setup paths.
+3. **Genie should stay single.** Its supervisor/analytics behavior is request-time behavior over the same profile shape. Split it only if a future Genie mode needs a separate serving endpoint, separate secret, separate space binding model, or separate tenant prerequisite.
+4. **Auth duplication is acceptable for v1.** Do not land `credentialRef` in S1. Shared credentials introduce a second config resolver, masking rules, migration semantics, and new secret-leakage tests. Instead, let the S1 snippet generator reuse the same placeholders across both PBI profiles and reserve `credentialRef` as a follow-up. The manifest can include a non-runtime hint such as `sharedCredentialHint: "powerbi-aad-sp"` so the UI can say these two cards may use the same service principal without centralizing secrets yet.
+5. **The PBI sketches are directionally right, but adjust field names before implementation.** Current code and docs already use `aadTenantId` / `aadClientId` / `aadClientSecret` as canonical with `powerBiTenantId` / `powerBiClientId` / `powerBiClientSecret` aliases, and `powerbiGroupId` / `powerbiDatasetId` as canonical with `powerBiGroupId` / `powerBiDatasetId` aliases. Keep that. Also:
+   - Rename `templateAllowList` to `daxTemplateAllowList` so it is not a generic connector field.
+   - Rename `queryTimeoutMs` to `daxQueryTimeoutMs` if it becomes profile-driven; today it is a constant in `powerbiDatasetClient.js`.
+   - Do not expose `resultCacheTtlSec` until a DAX result cache actually exists.
+   - Do not expose `tokenLifetimeMinutes` until `generateQnAEmbedToken()` accepts and forwards a lifetime option.
+   - Use existing RLS names (`powerBiRlsEnabled`, `powerBiRlsRequired`, `powerBiRlsUsernameClaim`, `powerBiRlsUsername`, `powerBiRlsRoles`) rather than new `enableUserImpersonation` / `rlsRoles` names. DAX and Q&A both need the same RLS vocabulary.
+   - Keep `powerbiReportId` out of the Q&A connector unless the route actually uses report-scoped Q&A. The current Q&A path mints a dataset token and returns `https://app.powerbi.com/qnaEmbed?groupId=...`, so a report ID would look important while doing nothing.
+   - Include common `displayName` and `dataDomain` in both profile schemas because current profile UX and answer attribution already rely on them.
+   - S1 env-var snippets must either use the existing `POWER_BI_*` env aliases or extend the env mapper for the new `AAD_*` canonical fields; otherwise JSON and env setup will drift.
+
+One compatibility note: during S1, the legacy `type: "powerbi-semantic-model"` profile can appear under both `powerbi-dataset-dax` and `powerbi-dataset-qna` cards because the routes are not migrated yet. The discovery response should mark that as a legacy combined profile and offer split-profile snippets for the new canonical types. That gives users clarity without breaking the current route resolver.
+
+With those field-name constraints, I am comfortable locking Q9 and starting S1 after the independent B1 Setup bugfix is extracted.
 
 ---
 
