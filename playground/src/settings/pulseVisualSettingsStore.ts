@@ -49,6 +49,9 @@ export interface PulseAiVisualSettings {
      *  authors who want to hide it can opt out in Settings → Preferences →
      *  Mix composition. */
     insightsShowResearchTraces: boolean;
+    /** Phase E.1 — client-side progressive reveal of single-shot Genie
+     *  answers. Default true; opt out for instant render. */
+    insightsStagedRevealEnabled: boolean;
 }
 
 const DEFAULTS: PulseAiVisualSettings = {
@@ -74,6 +77,7 @@ const DEFAULTS: PulseAiVisualSettings = {
     kbVectorSearchIndex: "",
     ucMetricView: "",
     insightsShowResearchTraces: true,
+    insightsStagedRevealEnabled: true,
 };
 
 function readRawGenieSettings(): Record<string, unknown> {
@@ -139,6 +143,7 @@ export function readPulseAiVisualSettings(): PulseAiVisualSettings {
         kbVectorSearchIndex: asString(raw.kbVectorSearchIndex, DEFAULTS.kbVectorSearchIndex),
         ucMetricView: asString(raw.ucMetricView, DEFAULTS.ucMetricView),
         insightsShowResearchTraces: asBool(raw.insightsShowResearchTraces, DEFAULTS.insightsShowResearchTraces),
+        insightsStagedRevealEnabled: asBool(raw.insightsStagedRevealEnabled, DEFAULTS.insightsStagedRevealEnabled),
     };
 }
 

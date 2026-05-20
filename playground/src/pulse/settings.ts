@@ -149,6 +149,13 @@ export interface GenieVisualSettings {
      *  true so the trace appears automatically when available; opt out in
      *  Settings → Preferences → Mix composition → Research Agent traces. */
     insightsShowResearchTraces: boolean;
+    /** Phase E.1 — client-side progressive reveal of single-shot Genie
+     *  answers. When true (default), the briefing reveals on a wall-clock
+     *  schedule (HEADLINE@0, KPI+TRENDS@10s, RISKS+ACTIONS@20s) so the
+     *  perceived cadence matches a multi-call orchestrator. Pure cosmetic
+     *  — no extra LLM calls, no extra cost, same message id. Honours
+     *  `prefers-reduced-motion: reduce` (instant-reveal). */
+    insightsStagedRevealEnabled: boolean;
     refreshInsights: boolean;
     /** IDEA-009: AI Insights cache TTL in minutes. 0 = disabled. */
     insightsCacheTtlMinutes: number;
@@ -712,6 +719,15 @@ class InsightsGroup extends FormattingSettingsGroup {
         value: true
     });
 
+    /** Phase E.1 — client-side progressive reveal of single-shot Genie
+     *  answers. Default ON. Pure cosmetic — no extra LLM calls. */
+    insightsStagedRevealEnabled = new formattingSettings.ToggleSwitch({
+        name: "insightsStagedRevealEnabled",
+        displayName: "Reveal briefing in stages",
+        description: "Reveal the AI Insights briefing progressively (HEADLINE at 0s, KPI+TRENDS at 10s, RISKS+ACTIONS at 20s) instead of rendering everything at once. The full answer is already generated — this is pure cosmetic pacing. Honours the OS reduced-motion preference (instant-reveal).",
+        value: true
+    });
+
     // 49.19 / IDEA-037 phase 3 — Authoring mode radio. Drives which authoring
     // path the AI Insights pipeline takes: manual / preset / ai-assisted.
     insightsAuthoringMode = new formattingSettings.ItemDropdown({
@@ -770,7 +786,7 @@ class InsightsGroup extends FormattingSettingsGroup {
         value: { value: "both", displayName: "Both — AI Insights + Ask Pulse (default)" }
     });
 
-    slices = [this.insightsAuthoringMode, this.insightsDomain, this.insightsCustomSections, this.insightsPrompt, this.insightsDomainGuidance, this.metricDirectionRules, this.insightsMetricDirections, this.insightsShowProvenanceFooter, this.insightsShowHeadline, this.insightsShowTrends, this.insightsShowRisks, this.insightsShowActions, this.insightsHeadlineOverride, this.insightsTrendsOverride, this.insightsRisksOverride, this.insightsActionsOverride, this.insightsShowResearchTraces, this.refreshInsights, this.insightsCacheTtlMinutes, this.enabledFeatures];
+    slices = [this.insightsAuthoringMode, this.insightsDomain, this.insightsCustomSections, this.insightsPrompt, this.insightsDomainGuidance, this.metricDirectionRules, this.insightsMetricDirections, this.insightsShowProvenanceFooter, this.insightsShowHeadline, this.insightsShowTrends, this.insightsShowRisks, this.insightsShowActions, this.insightsHeadlineOverride, this.insightsTrendsOverride, this.insightsRisksOverride, this.insightsActionsOverride, this.insightsShowResearchTraces, this.insightsStagedRevealEnabled, this.refreshInsights, this.insightsCacheTtlMinutes, this.enabledFeatures];
 }
 
 // ─── Group 5 · Appearance & Theme ────────────────────────────────────────────
@@ -1579,6 +1595,7 @@ export function toGenieVisualSettings(model: VisualFormattingSettingsModel): Gen
         insightsRisksOverride:    g.aiInsights.insightsRisksOverride.value,
         insightsActionsOverride:  g.aiInsights.insightsActionsOverride.value,
         insightsShowResearchTraces: g.aiInsights.insightsShowResearchTraces.value,
+        insightsStagedRevealEnabled: g.aiInsights.insightsStagedRevealEnabled.value,
         refreshInsights:       g.aiInsights.refreshInsights.value,
         insightsCacheTtlMinutes: Math.max(0, parseInt(String(g.aiInsights.insightsCacheTtlMinutes.value?.value ?? "30"), 10) || 30),
         enabledFeatures:       (g.aiInsights.enabledFeatures.value?.value ?? "both") as EnabledFeatures,

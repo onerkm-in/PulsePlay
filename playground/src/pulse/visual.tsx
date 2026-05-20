@@ -154,6 +154,15 @@ import { buildThemeFromHost, buildThemeStyle, mergeTheme, ThemeName } from "./th
 // helpers; the Visual class flushes the resulting plan onto `this.target`.
 import { planThemeWrites, applyThemeWrites } from "./themeInheritance";
 import { cleanInsightsContent, stripTrailingProse, normalizeStageHeading, enforceStageScope, stripEmptyEmphasis } from "./rendering/contentSanitizer";
+// Phase E.1 — client-side progressive reveal of Genie single-shot answers.
+// Pure schedule lives in ./state/stagedReveal; this file owns the React glue
+// (arrival-time ref, tick scheduling, render filter + spinner).
+import {
+    DEFAULT_REVEAL_SCHEDULE,
+    computeRevealState,
+    nextRevealTickMs,
+    type RevealState,
+} from "./state/stagedReveal";
 // IDEA-044 Phase 1 MVP — CSV export of the first pipe-table found in the
 // active Insights output. Pure client-side, no proxy round-trip required.
 import { exportSectionAsCsv, extractFirstPipeTable } from "./exportHelpers";
@@ -318,6 +327,12 @@ interface InsightsRenderOptions {
      *  filling in — perceived speed win. */
     pendingStageTitles?: string[];
     stageStatuses?: string[];
+    /** Phase E.1 — client-side progressive reveal. When provided, sections
+     *  whose UPPER-CASED title is NOT in this set are held back and rendered
+     *  as a skeleton placeholder until the schedule reveals them. `null` /
+     *  undefined disables the reveal gate (every section renders
+     *  immediately, matching pre-E.1 behaviour). */
+    revealedSectionTitles?: Set<string> | null;
 }
 
 interface ParsedSessionLogEntry {
@@ -1000,6 +1015,98 @@ function App(props: AppProps) {
     const stageStatuses     = stageStatusesMap[activeSpaceKey]     ?? [];
     const insightsGeneratedAt = insightsGeneratedAtMap[activeSpaceKey] ?? null;
     const activeFollowUps   = insightsFollowUps[activeSpaceKey]    ?? [];
+
+    // ── Phase E.1 — client-side progressive reveal ────────────────────────
+    // Genie answers single-shot (one message id, one big markdown). To get
+    // the 1-then-2-then-2 cadence Rajesh asked for WITHOUT re-querying the
+    // LLM, we stamp an arrival time per space the first time the rendered
+    // content has body, then tick a counter on each scheduled reveal so the
+    // memo below recomputes `revealedSectionTitles`.
+    //
+    // The reveal kicks in only when the content has actually landed
+    // (status === "DONE"); during the in-flight RUNNING phase the existing
+    // stage skeleton grid already provides the perceived progression.
+    const stagedRevealEnabled = props.settings.insightsStagedRevealEnabled !== false;
+    const contentArrivedAtRef = React.useRef<Record<string, number>>({});
+    const [revealTick, setRevealTick] = useState(0);
+    const reducedMotionRef = React.useRef<boolean>(false);
+    useEffect(() => {
+        try {
+            reducedMotionRef.current = typeof window !== "undefined"
+                && typeof window.matchMedia === "function"
+                && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        } catch { reducedMotionRef.current = false; }
+    }, []);
+
+    // Record arrival time the first frame content lands for this space.
+    const insightsContentForReveal = (insightsResult?.content || "").trim();
+    const insightsDone = insightsResult?.status === "DONE";
+    useEffect(() => {
+        if (!insightsDone || !insightsContentForReveal) return;
+        if (contentArrivedAtRef.current[activeSpaceKey]) return;
+        contentArrivedAtRef.current[activeSpaceKey] = Date.now();
+        setRevealTick(t => t + 1);
+    }, [activeSpaceKey, insightsDone, insightsContentForReveal]);
+
+    // Reset arrival stamp when a fresh pipeline begins so the next answer
+    // gets its own reveal cadence.
+    useEffect(() => {
+        if (insightsBusy) {
+            delete contentArrivedAtRef.current[activeSpaceKey];
+        }
+    }, [activeSpaceKey, insightsBusy]);
+
+    // Parse section IDs out of the current content (lightweight — same
+    // delimiter rules as renderInsightsSections). We only need the titles
+    // here so the schedule can prune stages whose sections aren't present.
+    const parsedSectionTitlesForReveal = useMemo<string[]>(() => {
+        if (!insightsContentForReveal) return [];
+        const titles: string[] = [];
+        const parts = insightsContentForReveal.split(/^#{1,3}\s+/m);
+        const preamble = parts.shift();
+        if (preamble && preamble.trim()) {
+            const t = preamble.trim();
+            const looksLikeHeadline = /\b(situation|implication|on-track|at-risk|off-track|^total\b|^revenue\b)/i.test(t);
+            titles.push(looksLikeHeadline ? "HEADLINE" : "INSIGHTS");
+        }
+        for (const chunk of parts) {
+            const nl = chunk.indexOf("\n");
+            const title = (nl === -1 ? chunk : chunk.slice(0, nl)).trim().toUpperCase();
+            if (title) titles.push(title);
+        }
+        return titles;
+    }, [insightsContentForReveal]);
+
+    // Compute the live reveal state. Uses revealTick to invalidate.
+    const revealState: RevealState | null = useMemo(() => {
+        if (!stagedRevealEnabled) return null;
+        if (!insightsDone || !insightsContentForReveal) return null;
+        if (reducedMotionRef.current) return null; // instant-reveal
+        const arrivedAt = contentArrivedAtRef.current[activeSpaceKey];
+        if (!arrivedAt) return null;
+        const elapsed = Date.now() - arrivedAt;
+        return computeRevealState(DEFAULT_REVEAL_SCHEDULE, elapsed, parsedSectionTitlesForReveal);
+        // revealTick is intentionally a dep so the memo recomputes on each
+        // scheduled tick even though Date.now() is read imperatively.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [stagedRevealEnabled, insightsDone, insightsContentForReveal, activeSpaceKey, parsedSectionTitlesForReveal, revealTick]);
+
+    // Schedule the next reveal tick.
+    useEffect(() => {
+        if (!revealState || !revealState.isRevealing) return;
+        const arrivedAt = contentArrivedAtRef.current[activeSpaceKey];
+        if (!arrivedAt) return;
+        const elapsed = Date.now() - arrivedAt;
+        const nextAt = nextRevealTickMs(DEFAULT_REVEAL_SCHEDULE, elapsed, parsedSectionTitlesForReveal);
+        if (nextAt == null) return;
+        const wait = Math.max(50, nextAt - elapsed + 30); // tiny buffer past the boundary
+        const handle = window.setTimeout(() => setRevealTick(t => t + 1), wait);
+        return () => window.clearTimeout(handle);
+    }, [revealState, activeSpaceKey, parsedSectionTitlesForReveal]);
+
+    // Convenience derivations the render path reads.
+    const revealedSectionTitles: Set<string> | null = revealState ? revealState.visibleSections as Set<string> : null;
+    const revealProgress = revealState; // alias for spinner JSX clarity
 
     const appliedFiltersRef = useRef<Record<string, IFilter>>({});
     const chatRef = useRef<HTMLDivElement | null>(null);
@@ -5190,6 +5297,63 @@ function App(props: AppProps) {
                                                         </ol>
                                                     </details>
                                                 )}
+                                                {/* Phase E.1 — stage progression strip. Visible only while
+                                                    the briefing is still progressively revealing. Each pill
+                                                    represents a reveal stage (done / current / pending). */}
+                                                {revealProgress && revealProgress.totalStages > 1 && (
+                                                    <div
+                                                        className="gn-reveal-stage-strip"
+                                                        role="status"
+                                                        aria-live="polite"
+                                                        aria-label={`Briefing reveal: stage ${Math.max(1, revealProgress.currentStageIndex + 1)} of ${revealProgress.totalStages}`}
+                                                        style={{
+                                                            display: "flex",
+                                                            gap: 6,
+                                                            alignItems: "center",
+                                                            margin: "0 0 10px",
+                                                            fontSize: 11,
+                                                            lineHeight: 1.4,
+                                                            flexWrap: "wrap",
+                                                        }}
+                                                    >
+                                                        <span style={{ fontWeight: 600, color: "var(--gn-text-muted, #6b7280)", marginRight: 4 }}>
+                                                            Revealing briefing:
+                                                        </span>
+                                                        {revealProgress.stageProgress.map(stage => {
+                                                            const isDone    = stage.status === "done";
+                                                            const isCurrent = stage.status === "current";
+                                                            return (
+                                                                <span
+                                                                    key={`reveal-stage-${stage.index}`}
+                                                                    data-stage-index={stage.index}
+                                                                    data-stage-status={stage.status}
+                                                                    title={stage.sections.join(" + ")}
+                                                                    style={{
+                                                                        display: "inline-flex",
+                                                                        alignItems: "center",
+                                                                        gap: 4,
+                                                                        padding: "2px 8px",
+                                                                        borderRadius: 10,
+                                                                        background: isDone ? "rgba(16, 185, 129, 0.12)" : isCurrent ? "rgba(124, 58, 237, 0.14)" : "rgba(148, 163, 184, 0.12)",
+                                                                        color: isDone ? "#047857" : isCurrent ? "#5b21b6" : "#64748b",
+                                                                        border: `1px solid ${isDone ? "rgba(16, 185, 129, 0.35)" : isCurrent ? "rgba(124, 58, 237, 0.35)" : "rgba(148, 163, 184, 0.30)"}`,
+                                                                        fontWeight: isCurrent ? 600 : 500,
+                                                                    }}
+                                                                >
+                                                                    <span aria-hidden="true">
+                                                                        {isDone ? "✓" : isCurrent ? "●" : "○"}
+                                                                    </span>
+                                                                    {stage.label}
+                                                                </span>
+                                                            );
+                                                        })}
+                                                        {revealProgress.isRevealing && revealProgress.msUntilNextStage != null && (
+                                                            <span style={{ marginLeft: 4, color: "var(--gn-text-muted, #6b7280)" }}>
+                                                                · next in {Math.max(1, Math.ceil(revealProgress.msUntilNextStage / 1000))}s
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
                                                 {renderInsightsSections(insightsResult.content || "", {
                                                     metricDirectionsJson: props.settings.insightsMetricDirections,
                                                     legacyMetricDirectionRules: props.settings.metricDirectionRules,
@@ -5200,6 +5364,8 @@ function App(props: AppProps) {
                                                     disabledTrendPillSections: getDisabledTrendPillSectionTitles(props.settings.insightsCustomSections),
                                                     // Wave 37 — viewer-side visibility filter (per-report localStorage).
                                                     visibleSectionTitles: currentVisibleTitles,
+                                                    // Phase E.1 — client-side progressive reveal of the Genie answer.
+                                                    revealedSectionTitles,
                                                     // Cycle 20 — per-section export + Show SQL.
                                                     lazyExportBlocked,
                                                     canShowSql,
@@ -9825,10 +9991,28 @@ function renderInsightsSections(content: string, options?: InsightsRenderOptions
         ? sections.filter(s => visibilityFilter.has((s.title || "").trim().toUpperCase()))
         : sections;
 
+    // Phase E.1 \u2014 client-side progressive reveal. When the caller passes a
+    // `revealedSectionTitles` set, sections not in the set are replaced by a
+    // placeholder card (preserves briefing shape so the user sees what's
+    // coming). When the set is null/undefined, every section renders.
+    const revealFilter = options?.revealedSectionTitles;
+
     return (
         <div className="gn-insights-sections">
             {filteredSections.map((s, i) => {
                 const upperTitle = (s.title || "").toUpperCase();
+                // Phase E.1 \u2014 hold-back placeholder for not-yet-revealed
+                // sections. The same skeleton component the in-flight pipeline
+                // uses, so the visual language stays consistent.
+                if (revealFilter && !revealFilter.has(upperTitle)) {
+                    return (
+                        <InsightsSectionPlaceholder
+                            key={`reveal-pending-${i}-${upperTitle}`}
+                            title={s.title}
+                            status="pending"
+                        />
+                    );
+                }
                 // Cycle 47.8 — stageSqlByTitle now carries an array.
                 // Cycle 47.13 — value is { sqls, reusedFromTitle? }; an
                 // empty/missing entry still renders the empty-state card.
