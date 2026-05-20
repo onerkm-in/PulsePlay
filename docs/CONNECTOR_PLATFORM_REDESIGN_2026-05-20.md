@@ -323,7 +323,97 @@ They have independent profiles + independent credentials. **If a deployer wants 
 
 For v1, we don't have to be fancy. Two separate profile fields. If the deployer wants to share creds, they paste them into both.
 
-### 6.3 Feature toggle within a connector (added 2026-05-20)
+### 6.3 Split when settings differ — sub-modes are separate connectors (revised 2026-05-20)
+
+**Rule:** when sub-modes of a provider have *different profile schemas*, split them into separate connector files. When sub-modes share an *identical schema* but differ only in runtime behavior, use a feature toggle within one connector.
+
+Tested against the 10 backend paths we ship:
+
+| Provider sub-modes | Schema differs? | Decision |
+|---|---|---|
+| **Power BI Dataset DAX vs Power BI Q&A** | 7 of 12 fields differ (templateAllowList / queryTimeoutMs / resultCacheTtlSec vs powerbiReportId / tokenLifetimeMinutes / enableUserImpersonation / rlsRoles) | **Split** — two connectors |
+| **Azure OpenAI chat vs Azure OpenAI analytics** | analytics needs `schemaContext`, `warehouseId`, `mode: 'analytics'` | **Split** — two connectors |
+| **Bedrock direct vs Bedrock RAG** | RAG needs `bedrockKnowledgeBaseId`; direct needs `bedrockModelArn` only | **Split** — two connectors |
+| **Mosaic AI Supervisor (managed) vs Supervisor-local** | Different routes today; managed needs `serving endpoint`; local has `spaces` fan-out config | **Already split** |
+| **Foundation Model** | No sub-modes — single endpoint per profile | **Single connector** |
+| **Databricks Genie** | Sub-behavior (with/without supervisor fan-out) is selected per *request*, not per *config*. Profile schema is identical. | **Single connector** |
+
+Result: brand grid grows from 10 → 12 cards (PBI ×2, OpenAI ×2, Bedrock ×2, Supervisor ×2 already, Genie ×1, FM ×1, ResponsesAgent ×1, demo TBD). The `category` grouping (`microsoft` / `azure` / `aws` / `databricks`) keeps them visually adjacent so the count doesn't feel scattered.
+
+**Why this rule is good:**
+- A first-time author reads "Power BI Q&A" and immediately knows what they're picking. Not "Power BI semantic model — wait, what does that bundle?".
+- Each connector's profile editor is narrow — only the fields that connector needs. No half-applicable settings.
+- Adding a sub-mode to an existing provider = drop a new file. Not "edit the existing connector to add a new feature flag".
+- Testing surface is cleaner — one set of tests per connector.
+
+**Concrete sketches: PBI DAX vs PBI Q&A**
+
+```js
+// proxy/connectors/powerbi-dataset-dax.js
+{
+    id: 'powerbi-dataset-dax',
+    displayName: 'Power BI Dataset (DAX)',
+    manifest: {
+        category: 'microsoft',
+        capabilities: { deterministic: true, llm: false, ragGrounded: false },
+        tagline: 'Deterministic answers via DAX templates — no LLM',
+        profileSchema: {
+            // Auth (same shape as Q&A, but separate values per profile)
+            aadTenantId:      { kind: 'string', required: true, label: 'AAD Tenant ID' },
+            aadClientId:      { kind: 'string', required: true, label: 'AAD Client ID' },
+            aadClientSecret:  { kind: 'secret', required: true, label: 'AAD Client Secret' },
+            powerbiGroupId:   { kind: 'string', required: true, label: 'Power BI Workspace ID' },
+            powerbiDatasetId: { kind: 'string', required: true, label: 'Dataset ID' },
+            // DAX-specific
+            templateAllowList:  { kind: 'multi-select', required: false,
+                                  options: ['top-n', 'aggregate-by', 'trend', 'total'],
+                                  default: ['top-n', 'aggregate-by', 'trend', 'total'] },
+            queryTimeoutMs:     { kind: 'number', required: false, default: 30000, min: 5000, max: 120000 },
+            resultCacheTtlSec:  { kind: 'number', required: false, default: 60 },
+        },
+        routes: [
+            { method: 'POST', path: '/powerbi/conversations/start', purpose: 'deterministic-dax-question' },
+            { method: 'GET',  path: '/powerbi/health',              purpose: 'health' },
+        ],
+    },
+}
+
+// proxy/connectors/powerbi-dataset-qna.js
+{
+    id: 'powerbi-dataset-qna',
+    displayName: 'Power BI Q&A',
+    manifest: {
+        category: 'microsoft',
+        capabilities: { qnaEmbedSurface: true, llm: false /* PulsePlay-side */, deterministic: false },
+        tagline: 'Microsoft NL → DAX, runs inside your tenant',
+        profileSchema: {
+            // Auth (same shape; separate values)
+            aadTenantId:      { kind: 'string', required: true, label: 'AAD Tenant ID' },
+            aadClientId:      { kind: 'string', required: true, label: 'AAD Client ID' },
+            aadClientSecret:  { kind: 'secret', required: true, label: 'AAD Client Secret' },
+            powerbiGroupId:   { kind: 'string', required: true, label: 'Power BI Workspace ID' },
+            powerbiDatasetId: { kind: 'string', required: true, label: 'Dataset ID' },
+            // Q&A-specific
+            powerbiReportId:        { kind: 'string',  required: false,
+                                      label: 'Power BI Report ID (optional)',
+                                      help: 'For in-report Q&A. Leave blank for standalone surface at /powerbi/qna.' },
+            tokenLifetimeMinutes:   { kind: 'number',  required: false, default: 60, min: 5, max: 240 },
+            enableUserImpersonation:{ kind: 'boolean', required: false, default: false,
+                                      label: 'Apply RLS from IdP claims' },
+            rlsRoles:               { kind: 'string',  required: false,
+                                      label: 'Default RLS roles (comma-separated)' },
+        },
+        routes: [
+            { method: 'POST', path: '/powerbi/qna/embed-token', purpose: 'qna-embed-token' },
+            { method: 'GET',  path: '/powerbi/qna/health',      purpose: 'health' },
+        ],
+    },
+}
+```
+
+**Auth sharing**: v1 deployer pastes the same AAD SP creds into both profiles. Follow-up cycle introduces a `credentials:` section + `credentialRef:` field so secrets live in one place — locks under Q3 (option C — server-side write deferred) and Codex's secret-leakage tests.
+
+### 6.4 Feature toggle within a connector (narrower scope after 6.3)
 
 Several connectors bundle multiple sub-modes. The Power BI semantic-model brain has **deterministic DAX templates** AND **Q&A embed surface** — same auth, same dataset, two different answer paths. Genie has basic Q&A + supervisor synthesis + analytics. OpenAI has chat + analytics. Bedrock has direct + RAG.
 
@@ -695,7 +785,8 @@ Accepting all major pushbacks. The contract is materially better with Codex's ed
 | Q5 | **BI parity follow-up**, but S1 must visually distinguish "Power BI as BI display" from "Power BI as AI semantic-model brain" so the immediate dual-axis confusion is addressed. |
 | Q6 | **Single-page Settings** with opt-in "Guide me" stepper, NOT wizard-default. Returning users + developers need compare-at-a-glance. |
 | Q7 | **Audit + extract Bug B1 fix** from Codex WIP as an independent PR BEFORE the redesign work. Do not land the whole stash blindly. |
-| Q8 | **Expose every capability the connector code supports.** Three-state model (`capable` / `available` / `enabled`). Default `enabled = all available`. Deployer opts OUT per profile, not in. Probe runs per-capability availability check (cheap, cached 60s). Runtime gating returns 403 with friendly "feature not enabled — try X" when disabled. Pattern generalises to Genie / OpenAI / Bedrock sub-modes in S2/S3. |
+| Q8 | **Expose every capability the connector code supports.** Three-state model (`capable` / `available` / `enabled`). Default `enabled = all available`. Deployer opts OUT per profile, not in. Probe runs per-capability availability check (cheap, cached 60s). Runtime gating returns 403 with friendly "feature not enabled — try X" when disabled. |
+| Q9 | **Split when settings differ** — sub-modes with different profile schemas become separate connector files (Power BI Dataset DAX vs Power BI Q&A; OpenAI chat vs OpenAI analytics; Bedrock direct vs Bedrock RAG). Sub-modes with identical schemas use the Q8 feature toggle. Brand grid grows from 10 → 12 cards; `category` grouping keeps related connectors visually adjacent. **Pending Codex re-review.** |
 
 **Host API contract:**
 
@@ -726,8 +817,26 @@ Accepting all major pushbacks. The contract is materially better with Codex's ed
 **Signed off by:**
 
 - Claude — proposer
-- Codex — reviewer (qualified +1, contract changes locked in above)
-- Rajesh — awaiting (the PR is OPEN; +1 in a comment unlocks S1 work)
+- Codex — reviewer (qualified +1 on Q1-Q8; **Q9 pending re-review**)
+- Rajesh — approved Q1-Q8 + Q9 direction; signoff conditional on Codex's Q9 re-review
+
+---
+
+## Codex re-review request (added 2026-05-20)
+
+Q9 added after Rajesh confirmed Interpretation B (split connectors when settings differ). Specific points where Codex's view is requested before Q9 locks in:
+
+1. **The split rule itself** — "split when profile schemas differ" is qualitative. Should it be quantified (e.g., split when ≥30% of fields differ or when a unique field is required)? Or is qualitative judgement fine?
+
+2. **12 brand cards** — visual density check. With `category` grouping (microsoft / azure / aws / databricks), is 12 too many? Worth a designer's eye, but at the architecture level — does it conflict with the "first-time author finds a better place to be" goal in the original ask?
+
+3. **Genie staying single** — sub-behavior (with/without supervisor; with/without analytics) is selected per *request* not per *config*, so schema is identical. Codex's read: should this stay one card, or split anyway for consistency with PBI / OpenAI / Bedrock?
+
+4. **Auth duplication in v1** — deployers paste AAD SP creds into both PBI profiles (DAX + Q&A) until follow-up `credentials:` section ships. Acceptable mild secret-hygiene tradeoff for v1? Or should `credentialRef:` land in S1 to avoid duplication?
+
+5. **Sketches in §6.3** — the two PBI connector schemas. Anything missing, anything that should be merged back, anything where the field naming clashes with existing config?
+
+If Codex agrees on all 5 + the split rule, Q9 locks and S1 work begins.
 
 ---
 
