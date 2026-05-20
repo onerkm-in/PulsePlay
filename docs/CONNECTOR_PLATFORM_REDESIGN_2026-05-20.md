@@ -40,7 +40,7 @@ The proposal: blend the modular-backend + Setup-redesign threads into one archit
 - `playground/src/settings/groups/SetupGroup.tsx` — three inline cards (BI / AI / Pack).
 - AI card surfaces a single `<select>` populated from `GET /api/assistant/profiles`.
 - The connector TYPE is not visible to the user. The card's right column shows a status pill (`Configured` / `Not picked`) that comes from `setupReadiness.ts`.
-- Bug B1 (caught by both regression passes): `/api/assistant/allowlist` returns `aiProfiles: []` despite the proxy having 3 profiles — shape mismatch where proxy returns `{default: [...], byGroup: {}}` but the client filters as a flat array. Setup ends up showing "No profiles available" while the proxy is healthy with 3.
+- Bug B1 (caught by both regression passes): `/api/assistant/allowlist` returns `aiProfiles: []` despite the proxy having 3 profiles. The earlier note that this was a `{default: [...], byGroup: {}}` vs flat-array shape mismatch conflated config storage shape with endpoint response. The actual response shape from [proxy/server.js:2531](../proxy/server.js#L2531) is a flat `string[]` filtered via `visible.aiProfiles.filter(name => configuredProfileNames.has(name))`. The empty result almost certainly comes from `allowlist.buildVisibleAllowlist(c, req)` returning `aiProfiles: []` because the configured profile names aren't in the workspace's allowlist whitelist (a configuration / IdP-claim issue, not a contract issue). **Action for B1**: instrument `buildVisibleAllowlist` to log which profile names got filtered out and why, then either fix the allowlist config or fix the filter to be more lenient when `allowlistEnforcement: "warn"`.
 - Bug B3: "Databricks docs" link is hardcoded next to the AI profile select, regardless of which connector type is active.
 
 ### 2.3 The deferred items that prompted this redesign
@@ -72,7 +72,15 @@ module.exports = {
     displayName: 'Databricks Genie',
 
     // ─── Runtime contract (dispatch + probe) ─────────────────────────
-    matchProfile(profile) { return !!profile?.spaceId && !profile.type; },
+    // Match against either the explicit type tag (new soft-migration path)
+    // OR the legacy duck-type (profile has spaceId). Today's `pickAdapter`
+    // in proxy/lib/connectorProbe.js uses the latter as the final branch;
+    // typed profiles with type: 'genie' must keep working too.
+    matchProfile(profile) {
+        if (!profile) return false;
+        if (profile.type === 'genie') return true;
+        return !!profile.spaceId;
+    },
     async probe(profile, profileName, helpers) { /* ... */ },
     register(host) {
         host.app.post('/assistant/conversations/start', /* ... */);
@@ -128,6 +136,9 @@ proxy/lib/connectorRegistry.js          ← boot-time directory scan
         │
         ▼
 GET /assistant/connector-types          ← serves the manifest list (read-only)
+                                          (browser-facing path: /api/assistant/connector-types
+                                           — Vite dev proxy strips the /api prefix; production
+                                           reverse-proxy does the same.)
         │
         ▼
 playground/src/setup/ConnectorBrand     ← generic component renders any manifest
@@ -425,7 +436,7 @@ For each of the 10 existing backend paths, the migration to `proxy/connectors/<i
 6. **Delete the original route + resolver from `server.js`** in the same PR.
 7. **Run the full test suite** — should be unchanged (same routes, same payloads, same audit emit).
 
-Each migration is independently revertable (one file added, one section deleted from `server.js`).
+Each migration is independently revertible (one file added, one section deleted from `server.js`).
 
 ---
 
