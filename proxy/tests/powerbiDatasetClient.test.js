@@ -197,6 +197,74 @@ describe('executeDax', () => {
     });
 });
 
+describe('generateQnAEmbedToken', () => {
+    test('POSTs to .../datasets/{id}/GenerateToken with View accessLevel', async () => {
+        let captured;
+        const fetchImpl = makeFetchStub([
+            { match: u => u.includes('login.microsoftonline.com'), respond: () => jsonResponse({ access_token: 'aad-tok', expires_in: 3600 }) },
+            { match: u => u.includes('/GenerateToken'), respond: (url, opts) => {
+                captured = { url, body: JSON.parse(opts.body), auth: opts.headers.Authorization };
+                return jsonResponse({ token: 'qna-tok-xyz', tokenId: 'tid-1', expiration: '2099-12-31T23:59:59Z' });
+            }},
+        ]);
+        const { generateQnAEmbedToken } = require('../lib/powerbiDatasetClient');
+        const out = await generateQnAEmbedToken(baseProfile, { fetchImpl });
+        expect(captured.url).toContain('/groups/group-ddd/datasets/dataset-eee/GenerateToken');
+        expect(captured.auth).toBe('Bearer aad-tok');
+        expect(captured.body.accessLevel).toBe('View');
+        expect(out.accessToken).toBe('qna-tok-xyz');
+        expect(out.tokenId).toBe('tid-1');
+        expect(out.datasetId).toBe('dataset-eee');
+        expect(out.groupId).toBe('group-ddd');
+        expect(out.embedUrl).toBe('https://app.powerbi.com/qnaEmbed?groupId=group-ddd');
+        expect(out.expiresAt).toBe(new Date('2099-12-31T23:59:59Z').getTime());
+    });
+
+    test('forwards RLS identities when supplied', async () => {
+        let captured;
+        const fetchImpl = makeFetchStub([
+            { match: u => u.includes('login.microsoftonline.com'), respond: () => jsonResponse({ access_token: 'aad-rls', expires_in: 3600 }) },
+            { match: u => u.includes('/GenerateToken'), respond: (url, opts) => {
+                captured = JSON.parse(opts.body);
+                return jsonResponse({ token: 'qna-rls', expiration: '2099-12-31T23:59:59Z' });
+            }},
+        ]);
+        const { generateQnAEmbedToken } = require('../lib/powerbiDatasetClient');
+        await generateQnAEmbedToken(baseProfile, {
+            fetchImpl,
+            identities: [{ username: 'alice@org', datasets: ['dataset-eee'], roles: ['Sales'] }],
+        });
+        expect(captured.identities).toEqual([{ username: 'alice@org', datasets: ['dataset-eee'], roles: ['Sales'] }]);
+    });
+
+    test('throws when profile missing groupId / datasetId', async () => {
+        const { generateQnAEmbedToken } = require('../lib/powerbiDatasetClient');
+        await expect(generateQnAEmbedToken({ ...baseProfile, powerbiGroupId: '' })).rejects.toThrow(/groupId/i);
+        await expect(generateQnAEmbedToken({ ...baseProfile, powerbiDatasetId: '' })).rejects.toThrow(/datasetId/i);
+    });
+
+    test('throws with status code on Power BI 4xx', async () => {
+        const fetchImpl = makeFetchStub([
+            { match: u => u.includes('login.microsoftonline.com'), respond: () => jsonResponse({ access_token: 'aad-err', expires_in: 3600 }) },
+            { match: u => u.includes('/GenerateToken'), respond: () => jsonResponse({ error: 'Forbidden' }, 403) },
+        ]);
+        const { generateQnAEmbedToken } = require('../lib/powerbiDatasetClient');
+        await expect(generateQnAEmbedToken(baseProfile, { fetchImpl })).rejects.toThrow(/403/);
+    });
+
+    test('falls back to a 1-hour expiry when Power BI returns no expiration field', async () => {
+        const fetchImpl = makeFetchStub([
+            { match: u => u.includes('login.microsoftonline.com'), respond: () => jsonResponse({ access_token: 'aad-noexp', expires_in: 3600 }) },
+            { match: u => u.includes('/GenerateToken'), respond: () => jsonResponse({ token: 'qna-noexp' }) },
+        ]);
+        const before = Date.now();
+        const { generateQnAEmbedToken } = require('../lib/powerbiDatasetClient');
+        const out = await generateQnAEmbedToken(baseProfile, { fetchImpl });
+        expect(out.expiresAt).toBeGreaterThanOrEqual(before + 60 * 60 * 1000 - 100);
+        expect(out.expiresAt).toBeLessThanOrEqual(before + 60 * 60 * 1000 + 5000);
+    });
+});
+
 describe('executeDaxNormalized', () => {
     test('flattens PBI row-objects into { columns, rows } shape', async () => {
         const fetchImpl = makeFetchStub([
