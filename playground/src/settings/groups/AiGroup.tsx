@@ -246,19 +246,30 @@ export function AiGroup(): React.ReactElement {
                 )}
             </Leaf>
 
-            {/* ── Power BI Q&A launch (cycle 17, conditional) ──────────────
-              * Only renders when the active profile is a
-              * `powerbi-semantic-model`. Opens the full-page Q&A surface
-              * (Microsoft's NLP layer over the dataset) at /powerbi/qna.
-              * The proxy mints the dataset-scoped embed token; PulsePlay
-              * makes zero LLM calls on this path.
+            {/* ── Power BI Q&A launch (cycle 17, always rendered) ──────────
+              * Opens the full-page Q&A surface (Microsoft's NLP layer over
+              * the dataset) at /powerbi/qna. The proxy mints the
+              * dataset-scoped embed token; PulsePlay makes zero LLM calls
+              * on this path.
+              *
+              * 2026-05-20 follow-up — the leaf now ALWAYS renders so users
+              * can see the option exists. The launch button is enabled
+              * only when the active profile is `powerbi-semantic-model`;
+              * otherwise the button is disabled with a hint to switch
+              * profile. This matches the "configure all technically
+              * feasible / surface what's possible" UX principle and fixes
+              * the dead-anchor bug where the rail entry led nowhere.
               */}
-            {isPowerBiSemanticModel && (
-                <Leaf
-                    group="ai"
-                    label="Power BI Q&A"
-                    helper="Open Microsoft's natural-language Q&A surface bound to this dataset. The token mint stays server-side; PulsePlay makes no LLM call on this path."
-                >
+            <Leaf
+                group="ai"
+                label="Power BI Q&A"
+                helper={
+                    isPowerBiSemanticModel
+                        ? "Open Microsoft's natural-language Q&A surface bound to this dataset. The token mint stays server-side; PulsePlay makes no LLM call on this path."
+                        : "Microsoft's natural-language Q&A surface over a Power BI dataset. Available when the active assistant profile is a Power BI semantic-model connector. The token mint stays server-side; PulsePlay would make zero LLM calls on this path."
+                }
+            >
+                {isPowerBiSemanticModel ? (
                     <button
                         type="button"
                         onClick={() => navigateToPowerBiQna()}
@@ -276,8 +287,37 @@ export function AiGroup(): React.ReactElement {
                     >
                         Open Power BI Q&amp;A →
                     </button>
-                </Leaf>
-            )}
+                ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        <button
+                            type="button"
+                            disabled
+                            data-action="open-powerbi-qna"
+                            data-state="disabled-wrong-profile"
+                            title="Switch to a Power BI semantic-model profile to enable"
+                            style={{
+                                padding: "8px 16px",
+                                fontSize: 13,
+                                fontWeight: 600,
+                                border: "1px solid var(--pp-border, rgba(0,0,0,0.18))",
+                                background: "var(--pp-disabled-bg, rgba(0,0,0,0.05))",
+                                color: "var(--pp-disabled-fg, rgba(0,0,0,0.45))",
+                                borderRadius: 4,
+                                cursor: "not-allowed",
+                                opacity: 0.65,
+                                alignSelf: "flex-start",
+                            }}
+                        >
+                            Open Power BI Q&amp;A →
+                        </button>
+                        <div style={{ fontSize: 12, opacity: 0.7 }}>
+                            Active profile <strong>{activeProfileMeta?.displayName || activeProfileMeta?.name || "(none)"}</strong>
+                            {activeProfileMeta?.type ? ` (type: ${activeProfileMeta.type})` : ""}
+                            {" "}is not a <code>powerbi-semantic-model</code> connector. Add a Power BI semantic-model profile to <code>proxy/config.json</code> and pick it under <strong>Provider</strong> above to enable this launch.
+                        </div>
+                    </div>
+                )}
+            </Leaf>
 
             </SubSection>
 
