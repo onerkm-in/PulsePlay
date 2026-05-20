@@ -5403,6 +5403,12 @@ const {
     SECTION_RENDERERS: FOUNDATION_SECTION_RENDERERS,
 } = require('./lib/foundationModelClient');
 
+const {
+    orchestrate: orchestrateSectioned,
+    validateSchedule: validateSectionedSchedule,
+    buildDefaultSchedule: buildDefaultSectionedSchedule,
+} = require('./lib/sectionedOrchestrator');
+
 function isFoundationModelProfile(profile) {
     return profile && (profile.type === 'foundation-model' || profile.type === 'foundation') && !!profile.foundationModelEndpoint;
 }
@@ -5552,12 +5558,147 @@ app.post('/foundation/section', async (req, res) => {
     }
 });
 
-// ── Foundation Model SSE streaming ───────────────────────────────────────────
+// ── Sectioned (staged) rendering — Phase D.2 ─────────────────────────────────
 //
-// POST /foundation/conversations/start-stream
+// POST /assistant/conversations/start-sectioned
 //
-// Same profile + prompt contract as /foundation/section but streams tokens
-// back as NDJSON (newline-delimited JSON) so the frontend can render content
+// SSE endpoint that drives the sectionedOrchestrator (see
+// proxy/lib/sectionedOrchestrator.js and docs/STAGED_RENDERING.md). The
+// default schedule fires section #1 immediately, section #2 after a 2000 ms
+// spread, and remaining sections in batches of 2 with no spread — locked
+// per Rajesh's 2026-05-20 amendment.
+//
+// Request body:
+//   {
+//     profile?: string,              // foundation-model profile name (else first available)
+//     userPrompt: string,            // the question / context
+//     sections: string[],            // EXPLICIT list of section ids to generate
+//     systemPrompt?: string,         // override default per-section system prompt
+//     temperature?: number,          // forwarded to callFoundationModel
+//     maxTokens?: number,            // forwarded to callFoundationModel
+//     schedule?: Array<{ sections: string[], spreadMs?: number }>,
+//                                    // override the default 1-then-2-each schedule
+//     regenerateOnly?: string[],     // re-run subset; reuses probeCache/headlineCache
+//     probeCache?: { rows?: any[] }, // honored on regenerateOnly requests
+//     headlineCache?: any,           // honored on regenerateOnly requests
+//   }
+//
+// SSE event stream — each event is `event: <kind>\ndata: <json>\n\n`:
+//   probe-started / probe-completed / probe-failed (not emitted today — probe
+//   is a Phase D.5 wire-in once the analytical probe path is ready)
+//   section-started     { sectionId, stageIndex }
+//   section-completed   { sectionId, body, sql?, usage?, durationMs }
+//   section-failed      { sectionId, error: { message, code? }, durationMs }
+//   all-completed       { totals: { sections, durationMs } }
+//
+// Section LLM call is delegated to callFoundationModel for foundation-model
+// profiles. Non-FM profiles return a 400 with a problem envelope — Genie
+// staged rendering is a Phase D.5 follow-up (see docs/STAGED_RENDERING.md
+// "Genie" sub-section).
+app.post('/assistant/conversations/start-sectioned', async (req, res) => {
+    const body = req.body || {};
+    const resolved = resolveFoundationModelProfile(body, req.headers, req);
+    if (!resolved) {
+        return sendNoMatchingProfile(req, res, 400, 'No foundation-model profile configured. Staged rendering is foundation-model-only in Phase D.2; Genie staging lands in Phase D.5.');
+    }
+    const userPrompt = typeof body.userPrompt === 'string' ? body.userPrompt.trim() : '';
+    if (!userPrompt) {
+        return res.status(400).json({ error: 'userPrompt is required.' });
+    }
+    const sectionIds = Array.isArray(body.sections)
+        ? body.sections.filter(s => typeof s === 'string' && s.trim().length > 0)
+        : [];
+    if (sectionIds.length === 0 && !Array.isArray(body.schedule)) {
+        return res.status(400).json({ error: 'sections[] (or an explicit schedule) is required.' });
+    }
+
+    // Validate any caller-provided schedule before we open the SSE stream.
+    let schedule = Array.isArray(body.schedule) && body.schedule.length > 0
+        ? body.schedule
+        : buildDefaultSectionedSchedule(sectionIds);
+    const scheduleProblems = validateSectionedSchedule(schedule);
+    if (scheduleProblems.length > 0) {
+        return res.status(400).json({ error: 'invalid schedule', problems: scheduleProblems });
+    }
+
+    const systemPrompt = (typeof body.systemPrompt === 'string' && body.systemPrompt.trim())
+        ? body.systemPrompt
+        : null;
+    const temperature = typeof body.temperature === 'number' ? body.temperature : 0.2;
+    const maxTokens = typeof body.maxTokens === 'number' ? body.maxTokens : 2048;
+    const regenerateOnly = Array.isArray(body.regenerateOnly) ? body.regenerateOnly : null;
+    const probeCache = (body.probeCache && typeof body.probeCache === 'object') ? body.probeCache : undefined;
+    const headlineCache = body.headlineCache !== undefined ? body.headlineCache : undefined;
+
+    // Open the SSE stream.
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders?.();
+
+    let clientGone = false;
+    res.on('close', () => { clientGone = true; });
+
+    function writeEvent(event) {
+        if (clientGone) return false;
+        try {
+            res.write(`event: ${event.kind}\n`);
+            // Defensive: SSE data lines mustn't contain raw newlines.
+            // JSON.stringify never emits unescaped \n, so this is safe.
+            res.write(`data: ${JSON.stringify(event)}\n\n`);
+            if (typeof res.flush === 'function') res.flush();
+            return true;
+        } catch (_) {
+            clientGone = true;
+            return false;
+        }
+    }
+
+    async function runSection({ sectionId }) {
+        const messages = [
+            { role: 'system', content: systemPrompt || defaultSystemPromptForSection(sectionId) },
+            { role: 'user', content: `Section: ${sectionId}\n\n${userPrompt}` },
+        ];
+        const result = await callFoundationModel(databricksRequest, resolved.profile, {
+            messages,
+            temperature,
+            maxTokens,
+            requestId: req.requestId,
+        });
+        const out = { body: result.content };
+        if (result.parsedJson) out.body = result.parsedJson;
+        if (result.usage) out.usage = result.usage;
+        return out;
+    }
+
+    try {
+        const iterable = orchestrateSectioned({
+            ir: sectionIds.length > 0 ? { output: { sections: sectionIds.map(id => ({ id })) } } : undefined,
+            request: { userQuestion: userPrompt },
+            schedule,
+            runSection,
+            regenerateOnly,
+            probeCache,
+            headlineCache,
+        });
+        for await (const event of iterable) {
+            const ok = writeEvent(event);
+            if (!ok) break;
+        }
+    } catch (err) {
+        // Orchestrator threw before yielding any event (e.g., invariant break).
+        // We've already validated the schedule, so this is genuinely
+        // unexpected — emit a final all-completed-style failure marker.
+        writeEvent({
+            kind: 'orchestrator-failed',
+            error: { message: err && err.message ? err.message : String(err) },
+        });
+    } finally {
+        try { res.end(); } catch (_) { /* already ended */ }
+    }
+});
+
 // progressively section-by-section instead of waiting for the full response.
 //
 // Response format (one JSON object per line):
