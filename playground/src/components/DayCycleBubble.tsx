@@ -27,8 +27,9 @@
 
 import { useEffect, useState, type ReactElement } from "react";
 
-/** Total length of one morning → night → morning cycle, in ms. */
-const CYCLE_MS = 16_000;
+/** Total length of one morning → night → morning cycle, in ms. Kept
+ *  brisk (4 s) so the cycle is visible even on short loads. */
+const CYCLE_MS = 4_000;
 
 /** Which celestial body to show in the bubble. We toggle to the moon for
  *  the night quarter; everything else uses the sun. */
@@ -105,7 +106,7 @@ export function DayCycleBubble(props: DayCycleBubbleProps): ReactElement {
         setPhase(phaseAt(0));
         const handle = window.setInterval(() => {
             setPhase(phaseAt(Date.now() - start));
-        }, 250);
+        }, 80);
         return () => window.clearInterval(handle);
     }, [reducedMotion, props.loading]);
 

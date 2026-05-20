@@ -305,11 +305,12 @@ export function App(): React.ReactElement {
 function DayCycleBubbleHost(): React.ReactElement {
     const fetching = useIsFetching();
     // Initial-render window: covers the first paint while lazy chunks
-    // and stylesheets are still warming up. Flips off after a short
-    // settle, then `fetching` takes over as the loading signal.
+    // and stylesheets are still warming up. 5 s is long enough for the
+    // user to see at least one full day-cycle loop (4 s) before the
+    // bubble settles back to morning.
     const [initialBoot, setInitialBoot] = useState<boolean>(true);
     useEffect(() => {
-        const t = window.setTimeout(() => setInitialBoot(false), 1200);
+        const t = window.setTimeout(() => setInitialBoot(false), 5000);
         return () => window.clearTimeout(t);
     }, []);
     return <DayCycleBubble loading={initialBoot || fetching > 0} />;
