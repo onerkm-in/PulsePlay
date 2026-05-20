@@ -288,7 +288,7 @@ export function AiGroup(): React.ReactElement {
                         Open Power BI Q&amp;A →
                     </button>
                 ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                         <button
                             type="button"
                             disabled
@@ -310,11 +310,79 @@ export function AiGroup(): React.ReactElement {
                         >
                             Open Power BI Q&amp;A →
                         </button>
-                        <div style={{ fontSize: 12, opacity: 0.7 }}>
+                        <div style={{ fontSize: 12, opacity: 0.75 }}>
                             Active profile <strong>{activeProfileMeta?.displayName || activeProfileMeta?.name || "(none)"}</strong>
                             {activeProfileMeta?.type ? ` (type: ${activeProfileMeta.type})` : ""}
-                            {" "}is not a <code>powerbi-semantic-model</code> connector. Add a Power BI semantic-model profile to <code>proxy/config.json</code> and pick it under <strong>Provider</strong> above to enable this launch.
+                            {" "}is not a <code>powerbi-semantic-model</code> connector. The connector code is built-in;
+                            it just needs a profile in <code>proxy/config.json</code>. Steps:
                         </div>
+                        <ol style={{ margin: "0 0 0 18px", padding: 0, fontSize: 12, opacity: 0.75, lineHeight: 1.55 }}>
+                            <li>Azure AD: create an app registration + client secret.</li>
+                            <li>Power BI: add the service principal as a workspace Member; enable <em>Service principals can use Power BI APIs</em> in the admin portal.</li>
+                            <li>Paste the snippet below into <code>proxy/config.json</code> under <code>profiles</code>, fill in the four GUIDs, restart <code>node server.js</code>, then pick the new profile under <strong>Provider</strong> above.</li>
+                        </ol>
+                        <details>
+                            <summary style={{ fontSize: 12, fontWeight: 600, cursor: "pointer", opacity: 0.85 }}>
+                                Show example profile JSON →
+                            </summary>
+                            <pre
+                                data-action="powerbi-qna-config-snippet"
+                                style={{
+                                    marginTop: 8,
+                                    padding: 10,
+                                    fontSize: 11,
+                                    fontFamily: "Consolas, 'Cascadia Mono', monospace",
+                                    background: "var(--pp-code-bg, rgba(0,0,0,0.04))",
+                                    border: "1px solid var(--pp-border, rgba(0,0,0,0.12))",
+                                    borderRadius: 4,
+                                    whiteSpace: "pre",
+                                    overflowX: "auto",
+                                }}
+                            >{`"powerbi_sales_dataset": {
+  "type": "powerbi-semantic-model",
+  "displayName": "Power BI: Sales Semantic Model",
+  "dataDomain": "Sales performance",
+  "aadTenantId": "YOUR_AAD_TENANT_GUID",
+  "aadClientId": "YOUR_SERVICE_PRINCIPAL_CLIENT_ID",
+  "aadClientSecret": "YOUR_SERVICE_PRINCIPAL_CLIENT_SECRET",
+  "powerbiGroupId": "YOUR_POWERBI_WORKSPACE_GUID",
+  "powerbiDatasetId": "YOUR_POWERBI_DATASET_GUID"
+}`}</pre>
+                            <button
+                                type="button"
+                                data-action="copy-powerbi-qna-snippet"
+                                onClick={async (e) => {
+                                    const pre = (e.currentTarget.parentElement as HTMLElement | null)?.querySelector(
+                                        '[data-action="powerbi-qna-config-snippet"]',
+                                    );
+                                    const text = pre?.textContent || "";
+                                    try {
+                                        await navigator.clipboard.writeText(text);
+                                        e.currentTarget.textContent = "Copied ✓";
+                                        setTimeout(() => {
+                                            if (e.currentTarget) e.currentTarget.textContent = "Copy snippet";
+                                        }, 1500);
+                                    } catch {
+                                        e.currentTarget.textContent = "Copy failed — select and ⌘C";
+                                    }
+                                }}
+                                style={{
+                                    marginTop: 6,
+                                    padding: "4px 10px",
+                                    fontSize: 12,
+                                    border: "1px solid var(--pp-border, rgba(0,0,0,0.18))",
+                                    background: "var(--pp-bg, white)",
+                                    borderRadius: 4,
+                                    cursor: "pointer",
+                                }}
+                            >
+                                Copy snippet
+                            </button>
+                            <div style={{ fontSize: 11, opacity: 0.6, marginTop: 6 }}>
+                                Full reference + RLS options in <code>proxy/config.example.json</code>
+                                {" "}and <code>docs/PROXY_REFERENCE.md</code>. Q&A surface mounts at <code>/powerbi/qna</code> once the profile is wired.
+                            </div>
+                        </details>
                     </div>
                 )}
             </Leaf>
