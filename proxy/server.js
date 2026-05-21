@@ -7829,6 +7829,28 @@ function handleUnexpectedProxyError(err, req, res, next) {
 // required at the app level — platform-level auth in front (Databricks
 // Apps, App Service Easy Auth) gates access. Safe: read-only listing, no
 // file contents, capped at 30 asset names.
+// Diagnostic — list PROXY_PROFILE_* env-var KEYS (and value LENGTH for tokens,
+// full value for non-secret fields like HOST/SPACE_ID/etc). Reveals whether
+// Databricks Apps' valueFrom secret binding actually resolved to a non-empty
+// string at runtime. Token values are NEVER logged or returned — only length.
+app.get('/__diag/env', (req, res) => {
+    const out = { profile_env: {}, app_resource_env: {}, has_DATABRICKS_TOKEN: !!process.env.DATABRICKS_TOKEN };
+    const TOKEN_FIELDS = new Set(['TOKEN', 'CLIENT_SECRET', 'PROXY_KEY', 'AAD_CLIENT_SECRET']);
+    for (const [k, v] of Object.entries(process.env)) {
+        if (k.startsWith('PROXY_PROFILE_')) {
+            const field = k.split('_').slice(3).join('_'); // PROXY_PROFILE_<NAME>_<FIELD>
+            if (TOKEN_FIELDS.has(field)) {
+                out.profile_env[k] = { length: String(v || '').length, preview: v ? `${String(v).slice(0, 4)}…` : '(empty)' };
+            } else {
+                out.profile_env[k] = String(v || '');
+            }
+        } else if (k.startsWith('APP_RESOURCE_')) {
+            out.app_resource_env[k] = String(v || '');
+        }
+    }
+    res.json(out);
+});
+
 app.get('/__diag/static', (req, res) => {
     const fs = require('fs');
     const out = {
@@ -7907,7 +7929,7 @@ if (_STATIC_DIR_RAW) {
     }));
     // SPA fallback: any GET that isn't a known API prefix → serve index.html.
     // Adding new top-level API routes? Add their first path segment to this list.
-    const API_PREFIX_RE = /^\/(api|assistant|foundation|powerbi|health|discovery|capabilities|feedback|debug|metrics|smoke|connectors|knowledge|policy|profiles|packs|supervisor|insights|sql-preview|test|__diag|\.well-known)(\/|$)/;
+    const API_PREFIX_RE = /^\/(api|assistant|foundation|powerbi|health|discovery|capabilities|feedback|debug|metrics|smoke|connectors|knowledge|policy|profiles|packs|supervisor|insights|sql-preview|test|__diag|\.well-known)(\/|$|\?)/;
     app.get(/.*/, (req, res, next) => {
         if (API_PREFIX_RE.test(req.path)) return next();
         if (req.headers.accept && !req.headers.accept.includes('text/html')) return next();
