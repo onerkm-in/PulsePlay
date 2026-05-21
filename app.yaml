@@ -9,31 +9,57 @@ command:
     (cd playground && npm run build)
     echo "[boot] installing proxy deps"
     (cd proxy && npm ci --no-audit --no-fund)
-    echo "[boot] starting proxy with STATIC_DIR=../playground/dist"
+    echo "[boot] starting proxy with STATIC_DIR=playground/dist"
     cd proxy && exec node server.js
+
 env:
-  # NOTE: deliberately not setting NODE_ENV=production. Doing so triggers
-  # assertProductionAuthConfig() which refuses PROXY_AUTH_MODE=none. The
-  # Databricks Apps platform already enforces user auth in front of this
-  # app, so explicit PROXY_AUTH_MODE=none is acceptable for the demo
-  # deployment. Switch to shared-key/idp for production rollouts.
+  # Auth posture — Databricks Apps gates the URL with platform auth, so the
+  # in-proxy mode can be "none". Switch to shared-key/idp for non-Databricks hosts.
   - name: PROXY_AUTH_MODE
     value: "none"
+
+  # Static-serve: relative to repo root (proxy resolves via __dirname + '..').
   - name: STATIC_DIR
     value: "playground/dist"
-  - name: ASSISTANT_PROFILE
-    value: "default"
-  - name: SUPERVISOR_ENABLED
-    value: "false"
-  # Resource bindings (configure via `databricks apps update` or app UI after create).
-  # These will be empty/no-ops if not bound; the proxy degrades gracefully.
-  - name: APP_RESOURCE_SQL_WAREHOUSE
-    valueFrom: sql_warehouse
-  - name: APP_RESOURCE_GENIE_SPACE
-    valueFrom: genie_space
-  - name: APP_RESOURCE_AIBI_DASHBOARD_ID
-    valueFrom: aibi_dashboard
-  - name: APP_RESOURCE_VECTOR_SEARCH_INDEX
-    valueFrom: vector_search_index
-  - name: APP_RESOURCE_METRIC_VIEW
-    valueFrom: metric_view
+
+  # Default Genie profile — Sample Superstore - Sales Performance space.
+  - name: PROXY_PROFILE_DEFAULT_HOST
+    value: "https://dbc-f88d29ce-4aa2.cloud.databricks.com"
+  - name: PROXY_PROFILE_DEFAULT_TOKEN
+    valueFrom: databricks-pat
+  - name: PROXY_PROFILE_DEFAULT_SPACE_ID
+    value: "01f13fe275b515608abb4182d0a37373"
+  - name: PROXY_PROFILE_DEFAULT_WAREHOUSE_ID
+    value: "6510da50329f1e85"
+  - name: PROXY_PROFILE_DEFAULT_DISPLAY_NAME
+    value: "Default (Sample Superstore Genie)"
+  - name: PROXY_PROFILE_DEFAULT_DATA_DOMAIN
+    value: "Sales performance"
+
+  # Foundation Model profile — Llama 3.1 405B serving endpoint on same workspace.
+  - name: PROXY_PROFILE_FOUNDATION_TYPE
+    value: "foundation-model"
+  - name: PROXY_PROFILE_FOUNDATION_HOST
+    value: "https://dbc-f88d29ce-4aa2.cloud.databricks.com"
+  - name: PROXY_PROFILE_FOUNDATION_TOKEN
+    valueFrom: databricks-pat
+  - name: PROXY_PROFILE_FOUNDATION_FOUNDATION_MODEL_ENDPOINT
+    value: "databricks-meta-llama-3.1-405b-instruct"
+  - name: PROXY_PROFILE_FOUNDATION_DISPLAY_NAME
+    value: "Foundation (Llama 3.1 405B)"
+
+  # Supervisor (local fan-out) — orchestrator profile, no creds of its own.
+  - name: PROXY_PROFILE_SUPERVISOR_TYPE
+    value: "supervisor-local"
+  - name: PROXY_PROFILE_SUPERVISOR_AGENT_NAME
+    value: "PulsePlay Supervisor"
+  - name: PROXY_PROFILE_SUPERVISOR_SYNTHESIS_ENDPOINT
+    value: "databricks-meta-llama-3.1-405b-instruct"
+
+resources:
+  - name: databricks-pat
+    description: PAT used by the proxy for all Databricks workspace calls (Genie + warehouse + Foundation Model).
+    secret:
+      scope: pulseplay
+      key: databricks_pat
+      permission: READ
