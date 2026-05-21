@@ -89,6 +89,7 @@ Pulse PBI and the future desktop EXE get these fields automatically when they ca
 |---|---|---:|---:|---|---|
 | Every renderable backend path emits `governance.enforced` | proxy routes and tests | PulsePlay proxy | 0.1 | `58b8bbf` | automatic payload benefit via the shared proxy; Pulse PBI/desktop receive the field when they call these routes, but each host still chooses when to fail closed |
 | Client identity headers (`X-Pulse-Client`, version, request id) | proxy request/audit contract | PulsePlay proxy | 0.1 | `22db943` | automatic via proxy; Pulse PBI/desktop clients should send headers when adopted |
+| Pulse PBI shared-proxy adoption | `enablers/pulse-pbi/src/genie.ts` + format-pane settings | Pulse PBI enabler | 0.1 | PB1a | shipped 2026-05-21; Pulse PBI proxy mode now calls `/assistant/*`, sends `X-Pulse-Client: pulse-pbi`, supports proxy profile/shared-key settings, and consumes proxy-enriched top-level result fields |
 
 ### Tier 3.5 - Desktop EXE Cascade
 
@@ -145,7 +146,8 @@ Use this checklist for any change that future desktop EXE users would experience
 | governance-contract | 0.2 (G3) | G3b/G3c/G3d completion: every renderable proxy backend path now stamps proxy-built attestation; registry-driven route mapping covers all 10 backend ids; user subject refs are hashed, SP refs reuse existing SP hash, Genie emits real `sourceRef` when available; native adapter fails closed in production/required-governance mode and dev/mock missing-attestation results render only as `ungoverned-result-preview`. | Automatic via proxy for Pulse PBI/desktop payloads; host fail-closed adoption remains host-specific |
 | bi-surface-mode | 0.1 (G5) | PulsePlay host-specific BI author switch: persisted `biSurfaceMode` (`auto/native/vendor`) resolves requested vendor config into runtime BI surface without deleting vendor setup. | Pulse PBI N/A (host UI); desktop inherits through future app bundle and needs DX smoke for auto-native fallback |
 | native-fusion-lite | 0.1 (G6) | PulsePlay host-specific native T2 fusion-lite: NativeCanvas docks AI commentary beside chart/KPI/table bodies when an attested envelope has renderable rows plus an answer, with all wrappers bound by `data-result-id`. | Pulse PBI N/A (vendor T2 handled by custom visual); desktop inherits through future app bundle and needs DX smoke |
-| integrity-sweep | 0.1 | 2026-05-21 multi-agent sweep fixed admin auth-mode parity, SQL preview CTE validation, governance registry override protection, streaming error redaction, Quick Setup mountable embed configs, and Pulse PBI CI lint/unit coverage. | Pulse PBI gets CI coverage now; shared-proxy adoption still queued |
+| integrity-sweep | 0.1 | 2026-05-21 multi-agent sweep fixed admin auth-mode parity, SQL preview CTE validation, governance registry override protection, streaming error redaction, Quick Setup mountable embed configs, and Pulse PBI CI lint/unit coverage. | Pulse PBI gets CI coverage now; PB1a later closed shared-proxy adoption |
+| pulse-pbi-shared-proxy | 0.1 (PB1a) | Pulse PBI enabler proxy mode now targets the repo-root PulsePlay proxy contract (`/assistant/capabilities`, `/assistant/conversations/*`, `/feedback`) and sends `X-Pulse-Client: pulse-pbi` plus optional profile/shared-key headers. Production hosted proxy origins must be added to `capabilities.json` `WebAccess` before packaging. | Pulse PBI done; desktop will inherit the same PX1 route discipline through DX1 bundled proxy work |
 
 ## Product Sync
 

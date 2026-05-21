@@ -4,6 +4,16 @@ All notable package-level changes for `PBI Genie Visual` should be recorded here
 
 This file is intended to improve release clarity, handover quality, and package auditability.
 
+## Unreleased — 2026-05-21
+
+### Changed
+
+- Proxy mode now uses the shared PulsePlay proxy contract (`/assistant/*`) instead of Databricks-shaped `/api/2.0/genie/spaces/*` URLs.
+- Proxy-mode requests identify the host as `pulse-pbi` with `X-Pulse-Client`, client version, and request-id headers.
+- Added format-pane settings for the PulsePlay proxy profile name and proxy shared secret.
+- Proxy poll responses now consume top-level `sqlQuery`, `queryResult`, `queryTitle`, and follow-up fields emitted by the shared proxy.
+- Documented production `WebAccess` origin requirements for hosted PulsePlay proxy deployments.
+
 ## 1.0.0 — 2026-03-28
 
 ### Added

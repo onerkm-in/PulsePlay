@@ -11,7 +11,9 @@ function buildConnectionCacheKey(settings: GenieVisualSettings): string {
     return [
         settings.host.trim(),
         settings.apiBaseUrl.trim(),
+        settings.assistantProfile.trim(),
         settings.spaceId.trim(),
+        settings.proxyKey.trim() ? "proxy-key-present" : "proxy-key-missing",
         settings.token.trim() ? "token-present" : "token-missing"
     ].join("|");
 }

@@ -138,6 +138,7 @@ export function validateAssignedFields(context: ContextSummary, genieFieldsInput
 export function getConfigIssues(settings: GenieVisualSettings): string[] {
     const issues: string[] = [];
     const hasProxyUrl = settings.apiBaseUrl.trim().length > 0;
+    const hasProxyProfile = settings.assistantProfile.trim().length > 0;
 
     if (!hasProxyUrl) {
         if (!settings.host.trim()) {
@@ -152,8 +153,8 @@ export function getConfigIssues(settings: GenieVisualSettings): string[] {
     if (!hasProxyUrl && !settings.token.trim()) {
         issues.push("access token");
     }
-    if (!settings.spaceId.trim()) {
-        issues.push("Genie Space ID");
+    if (!settings.spaceId.trim() && !(hasProxyUrl && hasProxyProfile)) {
+        issues.push("Genie Space ID or proxy profile");
     }
     return issues;
 }
@@ -172,6 +173,8 @@ export function createGenieClient(settings: GenieVisualSettings): GenieClient {
     return new GenieClient({
         host: settings.host,
         apiBaseUrl: settings.apiBaseUrl,
+        assistantProfile: settings.assistantProfile,
+        proxyKey: settings.proxyKey,
         token: settings.token,
         spaceId: settings.spaceId
     });

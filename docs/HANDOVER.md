@@ -5,6 +5,38 @@
 
 ---
 
+## 2026-05-21 - PB1a Pulse PBI shared-proxy adoption
+
+**Scope.** Closes the integrity-sweep finding that the Pulse PBI enabler still used historical Databricks-shaped proxy paths. When `apiBaseUrl` / **PulsePlay Proxy URL** is set, Pulse PBI now talks to the repo-root shared PulsePlay proxy contract instead of `/api/2.0/genie/spaces/*`.
+
+**Code changes.**
+
+- [`enablers/pulse-pbi/src/genie.ts`](../enablers/pulse-pbi/src/genie.ts):
+  - Proxy mode now routes through `/assistant/capabilities`, `/assistant/conversations/start`, `/assistant/conversations/{conversationId}/messages`, `/assistant/conversations/{conversationId}/messages/{messageId}`, and `/feedback`.
+  - Every proxy-mode request sends `X-Pulse-Client: pulse-pbi`, `X-Pulse-Client-Version: 2.1.0.0`, `X-Pulse-Request-Id`, and `X-Request-Id`.
+  - Optional `assistantProfile` and `proxyKey` settings map to `X-Assistant-Profile` / request body profile and `X-PulsePlay-Key`.
+  - Inline `X-Databricks-Host` / `X-Databricks-Token` / `X-Genie-Space-Id` headers are sent only when all three report settings are present; production shared proxies should keep inline credentials disabled.
+  - Poll parsing now consumes top-level `sqlQuery`, `queryResult`, `queryTitle`, and follow-up fields from the shared proxy while preserving direct-mode attachment parsing.
+- [`enablers/pulse-pbi/src/settings.ts`](../enablers/pulse-pbi/src/settings.ts) and [`capabilities.json`](../enablers/pulse-pbi/capabilities.json): added format-pane settings for proxy profile name and proxy shared secret; renamed the proxy URL display copy toward the shared PulsePlay proxy.
+- [`enablers/pulse-pbi/src/visualHelpers.ts`](../enablers/pulse-pbi/src/visualHelpers.ts): proxy mode can rely on a server-side profile space when `assistantProfile` is present; direct mode still requires host/token/spaceId.
+- [`enablers/pulse-pbi/src/hooks/useConnectionState.ts`](../enablers/pulse-pbi/src/hooks/useConnectionState.ts): connection health cache now keys on profile and proxy-key presence.
+
+**Docs.** Updated the Pulse PBI README, proxy guide, technical reference, changelog, and local handover. Repo-level current-state docs now record PB1a and the new test counts. `docs/PULSE_SYNC.md` records the proxy-contract cascade.
+
+**Validation.**
+
+| Check | Result |
+|---|---|
+| `cd enablers/pulse-pbi && npm run lint` | pass |
+| `cd enablers/pulse-pbi && npm test` | **93/93** |
+| `cd enablers/pulse-pbi && npx pbiviz package` | pass, `.pbiviz` created |
+
+**Build-tool note.** First `pbiviz package` attempt failed with `TS2688: Cannot find type definition file for 'node'`. The root cause was an empty extraneous generated folder at `enablers/pulse-pbi/node_modules/@types/node` shadowing `pbiviz`'s own complete Node types. Removing that empty generated folder fixed packaging without changing `package.json` / lockfile. The broader `powerbi-visuals-tools` pin remains queued under build hygiene.
+
+**Next.** Build hygiene (stale script cleanup + `powerbi-visuals-tools` pin), then DX1 desktop proof.
+
+---
+
 ## 2026-05-21 - FW1 AISidebar → native canvas wiring
 
 **Scope.** Closes the honest non-claim from SS2: completed AISidebar results now route into the native BI adapter's `renderResult` command when the runtime BI vendor is native. Ask → governed answer → **native canvas paints** is the full user-visible loop end-to-end.

@@ -17,43 +17,59 @@ The visual can call Databricks directly using a Personal Access Token (PAT) stor
 
 A production proxy or gateway addresses all of these by placing a controlled, auditable server between the visual and Databricks.
 
-## How the Visual Uses a Proxy
+## How the Visual Uses the Shared PulsePlay Proxy
 
-Configure the visual's **API Base URL Override** setting to point at the proxy base URL (for example `https://genie-proxy.example.com`). When this setting is populated:
+Configure the visual's **PulsePlay Proxy URL** setting to point at the shared PulsePlay proxy base URL (for example `https://pulseplay-proxy.example.com`). When this setting is populated:
 
-- The visual sends all Genie API requests to the proxy instead of directly to Databricks.
-- The visual still sends `X-Genie-Target-Host` and optionally `Authorization` headers.
-- The proxy is responsible for forwarding requests to Databricks with appropriate credentials.
+- The visual sends all assistant requests to the shared PulsePlay proxy under `/assistant/*` instead of calling Databricks REST paths directly.
+- Every request includes `X-Pulse-Client: pulse-pbi`, `X-Pulse-Client-Version`, and request-id headers so proxy audit logs can distinguish Power BI custom visual traffic.
+- If configured, the visual sends the proxy shared secret as `X-PulsePlay-Key`.
+- If configured, the visual sends `assistantProfile` in request bodies / query strings and as `X-Assistant-Profile`.
+- Direct developer mode remains available only when **PulsePlay Proxy URL** is blank; then the browser calls Databricks directly with the PAT stored in the report.
 
-The visual does not need to know which proxy platform is used. Any HTTP-accessible endpoint that satisfies the interface contract below will work.
+The production proxy is the PulsePlay repo-root [`proxy/`](../../../proxy) service. The snapshot-local [`../proxy/server.js`](../proxy/server.js) is historical reference / local testing code, not the production contract.
 
 ## Proxy Interface Contract
 
-Any production proxy must expose the following to the visual:
+The shared PulsePlay proxy must expose the following to the visual:
 
 | Route | Method | Description |
 |---|---|---|
-| `/health` or `/` | GET | Health check — returns `{"ok": true}` |
-| `/api/2.0/genie/spaces/{spaceId}/conversations` | POST | Start a Genie conversation |
-| `/api/2.0/genie/spaces/{spaceId}/conversations/{conversationId}/messages` | POST | Send a message |
-| `/api/2.0/genie/spaces/{spaceId}/conversations/{conversationId}/messages/{messageId}` | GET | Poll message status |
-| `/api/2.0/genie/spaces/{spaceId}/conversations/{conversationId}/messages/{messageId}/query-result` | GET | Retrieve SQL result |
+| `/health` | GET | Health check and auth posture |
+| `/clients/compatibility` | GET | PX1 compatibility handshake for PulsePlay / Pulse PBI / desktop clients |
+| `/assistant/capabilities?assistantProfile={profile}` | GET | Connection check for the configured profile |
+| `/assistant/conversations/start` | POST | Start a Genie conversation |
+| `/assistant/conversations/{conversationId}/messages` | POST | Send a follow-up |
+| `/assistant/conversations/{conversationId}/messages/{messageId}` | GET | Poll message status; proxy enriches completed query results inline when available |
 | `/feedback` | POST | Optional — receive usage feedback logs |
 
 The proxy must:
 
-- Accept `GET` and `POST` requests on the Genie API paths.
-- Forward requests to the correct Databricks workspace with a valid `Authorization: Bearer <token>` header.
-- Return Databricks response bodies and status codes unchanged to the visual.
+- Accept `GET` and `POST` requests on the PulsePlay assistant paths above.
+- Resolve the target Databricks workspace from server-side profile config, or from inline `X-Databricks-*` headers only when that mode is explicitly enabled for local/lab use.
+- Stamp renderable responses with the proxy governance attestation field.
 - Return CORS headers that allow the Power BI visual sandbox to receive responses.
 
 Required CORS headers on all responses:
 
 ```
 Access-Control-Allow-Origin: *
-Access-Control-Allow-Headers: Content-Type, Authorization, X-Genie-Target-Host
+Access-Control-Allow-Headers: Content-Type, Authorization, X-PulsePlay-Key, X-Pulse-Client, X-Pulse-Client-Version, X-Pulse-Request-Id, X-Request-Id, X-Assistant-Profile, X-Databricks-Host, X-Databricks-Token, X-Genie-Space-Id
 Access-Control-Allow-Methods: GET, POST, OPTIONS
+Access-Control-Expose-Headers: X-Request-Id, X-Pulse-Request-Id, X-Pulse-Client
 ```
+
+The repo-root PulsePlay proxy already emits these headers.
+
+## Power BI WebAccess Origins
+
+Power BI custom visuals require outbound origins to be declared in `capabilities.json` before packaging. The committed visual includes Databricks hosts plus local development proxy origins (`localhost` / `127.0.0.1`). For a hosted shared proxy, add your production proxy origin to the `WebAccess` privilege parameters before packaging the `.pbiviz`, for example:
+
+```json
+"https://pulseplay-proxy.example.com"
+```
+
+Do not use an open wildcard for production packaging. Keep the list as narrow as the deployed proxy origins your organization actually uses.
 
 ## Production Requirements
 
@@ -156,15 +172,16 @@ Caution: Nginx does not provide built-in authentication. Pair with a network pol
 
 ### Local Proxy (Testing Only)
 
-The included `proxy/server.js` is intended exclusively for Power BI Desktop development on a local machine.
+The snapshot-local `enablers/pulse-pbi/proxy/server.js` is preserved as upstream historical reference. New PulsePlay work should use the repo-root shared proxy instead:
 
-What it provides:
+```powershell
+cd ../../../proxy
+node server.js
+```
 
-- HTTP on `127.0.0.1` only (not network-accessible by default).
-- Request forwarding with token injection from environment variables.
-- No authentication, no rate limiting, no TLS.
+For local Power BI Desktop testing, configure **PulsePlay Proxy URL** to `http://localhost:8787` and ensure `capabilities.json` includes the local WebAccess origins.
 
-It must not be used as a production gateway. Replace it with one of the platform patterns above before deploying to a shared or production environment.
+The historical local proxy must not be used as the production gateway. It speaks the old Databricks-shaped route pattern and does not provide the full PulsePlay client identity, governance, audit, allowlist, and auth contract.
 
 ## Validation Checklist for a New Proxy Deployment
 
@@ -177,6 +194,6 @@ Before connecting the visual to any new proxy:
 5. Confirm path allowlisting blocks requests to non-Genie paths.
 6. Confirm rate limits are active and return HTTP 429 when triggered.
 7. Confirm CORS headers are present on all responses including errors.
-8. Confirm the visual's **API Base URL Override** points at the proxy, not at Databricks directly.
+8. Confirm the visual's **PulsePlay Proxy URL** points at the shared PulsePlay proxy, not at Databricks directly.
 9. Confirm the connection indicator in the visual shows green before publishing.
 10. Confirm request logs appear in your monitoring system after a test question is asked.

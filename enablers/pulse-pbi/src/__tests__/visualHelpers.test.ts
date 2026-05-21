@@ -31,6 +31,8 @@ function makeSettings(overrides: Record<string, any> = {}): any {
     return {
         host: "https://adb-123.azuredatabricks.net",
         apiBaseUrl: "",
+        assistantProfile: "",
+        proxyKey: "",
         token: "dapi-test",
         spaceId: "space-1",
         genieFields: "",
@@ -231,9 +233,20 @@ describe("getConfigIssues", () => {
         expect(issues).not.toContain("access token");
     });
 
-    it("reports missing Genie Space ID", () => {
+    it("reports missing Genie Space ID or proxy profile", () => {
         const issues = getConfigIssues(makeSettings({ spaceId: "" }));
-        expect(issues).toContain("Genie Space ID");
+        expect(issues).toContain("Genie Space ID or proxy profile");
+    });
+
+    it("allows proxy mode to rely on a server-side profile space", () => {
+        const issues = getConfigIssues(makeSettings({
+            apiBaseUrl: "http://localhost:8787",
+            assistantProfile: "finance",
+            host: "",
+            token: "",
+            spaceId: ""
+        }));
+        expect(issues).not.toContain("Genie Space ID or proxy profile");
     });
 
     it("reports invalid API base URL when set but malformed", () => {

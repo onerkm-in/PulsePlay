@@ -49,7 +49,7 @@ Once both are running, the playground will:
 
 **First production target in flight — Genie + Power BI.** Proxy + databricks-agents + cross-cutting docs inherited from sister Pulse project cycles 1-47. The ported Pulse AI experience runs inside the playground, Power BI has a real `powerbi-client` adapter, and Tableau/Qlik/Looker remain modular iframe stubs until the first cell passes the production gate.
 
-Current local validation: proxy **1136/1136**; playground **1369/1369**, lint clean, and `vite build` clean; Pulse PBI enabler **87/87**, lint clean, and local `pbiviz package` clean from the 2026-05-21 integrity sweep. The proxy-backed shell smoke also passes via `node playground/scripts/shell-smoke-proxy.mjs`.
+Current local validation: proxy **1137/1137**; playground **1382/1382**, lint clean, and `vite build` clean; Pulse PBI enabler **93/93**, lint clean, and local `pbiviz package` clean after PB1a. The proxy-backed shell smoke also passes via `node playground/scripts/shell-smoke-proxy.mjs` with native canvas paint.
 
 **The connector axis grew in May 2026.** PulsePlay now hosts **10 backend paths** on the AI side: Genie / Azure OpenAI (chat + analytics) / Bedrock (RAG + direct) / Foundation Model / Supervisor (managed + local) / ResponsesAgent / **Power BI semantic-model** (the latest — deterministic DAX templates, no LLM in the loop). The Power BI brain also exposes a **Q&A embed surface** at `/powerbi/qna` so deployers who want Microsoft's NLP can get it without PulsePlay invoking any LLM (Microsoft handles it in their tenant). See [docs/PROXY_REFERENCE.md](docs/PROXY_REFERENCE.md) for the full backend table.
 

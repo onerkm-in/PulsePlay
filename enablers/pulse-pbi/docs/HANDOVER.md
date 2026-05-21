@@ -2,7 +2,7 @@
 
 ## Current State
 
-The package is buildable and produces a Power BI custom visual artifact in `dist/`.
+The package is buildable and produces a Power BI custom visual artifact in `dist/`. As of PB1a (2026-05-21), proxy mode targets the shared PulsePlay proxy contract under `/assistant/*` and stamps `X-Pulse-Client: pulse-pbi` on every proxy request.
 
 Version: **2.1.0** — released 2026-03-29.
 
@@ -17,6 +17,7 @@ Version: **2.1.0** — released 2026-03-29.
 - outbound interactive context chips for cross-filtering
 - connection-status indicator with cached live health checks
 - local proxy server for Power BI Desktop testing with structured response logging
+- shared PulsePlay proxy mode with `/assistant/conversations/*`, `/assistant/capabilities`, `/feedback`, `X-Pulse-Client: pulse-pbi`, optional proxy profile, and optional proxy shared secret
 - Genie API client with correct `attachment_id` field parsing and separate query-result endpoint fetching
 - query results (tables and charts) rendered from the `/query-result/{attachment_id}` endpoint
 - follow-up suggestions parsed from `suggested_questions` attachment and rendered as multiple clickable buttons
@@ -55,7 +56,7 @@ PBIGENIE_FILTER = COUNTROWS(<table_or_view_name>)
 - Power BI RLS does not automatically become Databricks authorization.
 - Only categorical fields with Power BI identities can be used for outbound interactive chips.
 - End-to-end latency remains primarily dependent on proxy and Databricks response time.
-- The local proxy is intended for testing and should be replaced or hardened for broader production deployment.
+- The snapshot-local proxy is historical reference. New deployments should use the repo-root PulsePlay proxy and add the hosted proxy origin to `capabilities.json` `WebAccess` before packaging.
 - Conversation history is in-memory only — messages are lost when the visual is refreshed or the report is reloaded.
 - Charts render from returned query result data only — no real-time streaming or live data updates.
 - Heatmap, Sankey, and point map chart types are not yet supported (Databricks Genie native supports these).

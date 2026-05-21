@@ -21,8 +21,11 @@ The package is intentionally split into a thin Power BI host layer and a modular
 
 - [src/genie.ts](../src/genie.ts)
   Databricks Genie client built on top of `XMLHttpRequest`. Handles conversation sessions, polling, and attachment parsing. Key behaviours:
+  - Proxy mode uses the shared PulsePlay proxy contract: `/assistant/conversations/start`, `/assistant/conversations/{id}/messages`, `/assistant/conversations/{id}/messages/{messageId}`, and `/feedback`.
+  - Every proxy-mode request sends `X-Pulse-Client: pulse-pbi`, a client version, and request-id headers for shared proxy audit correlation.
+  - Direct mode remains browser-to-Databricks for developer testing only and is used only when `apiBaseUrl` is blank.
   - Uses `attachment_id` (not `id`) to identify attachments, matching the Databricks API contract.
-  - After COMPLETED status, fetches query result rows from the separate `/query-result/{attachment_id}` endpoint.
+  - In direct mode, after COMPLETED status, fetches query result rows from the separate `/query-result/{attachment_id}` endpoint. In proxy mode, it consumes top-level `queryResult` when the shared proxy enriches the poll response.
   - Parses `suggested_questions` attachment for follow-up question arrays.
   - Handles three known query-result response formats: `statement_response` wrapper, direct `data_array`, and legacy `data_table`.
   - `GenieMessage` includes `queryTitle` and `followUpQuestions` alongside content, SQL, and query result.
@@ -73,8 +76,8 @@ The package is intentionally split into a thin Power BI host layer and a modular
 2. The host adapter extracts the current `dataView`, formatting settings, highlights, and selection context.
 3. `buildContext()` creates a compact context summary from visible dimensions and measures.
 4. `VisualApp` constructs a governed Genie request from domain guidance plus Power BI context.
-5. `GenieClient` sends the request to Databricks or a proxy and polls until COMPLETED.
-6. On COMPLETED, `GenieClient` checks for a QUERY attachment. If present and no inline result, it fetches rows from `/query-result/{attachment_id}`. It also extracts `suggested_questions` from the suggestions attachment and `title` from the query attachment.
+5. `GenieClient` sends the request to the shared PulsePlay proxy when `apiBaseUrl` is configured, or directly to Databricks only when `apiBaseUrl` is blank.
+6. In proxy mode, `GenieClient` polls `/assistant/conversations/{conversationId}/messages/{messageId}` and consumes the proxy-enriched `content`, `sqlQuery`, `queryResult`, governance, and follow-up fields. In direct mode, it checks for a QUERY attachment and fetches rows from `/query-result/{attachment_id}`.
 7. The UI renders the full response:
    - analysis disclosure (expandable SQL, source view badge)
    - rich-text explanation (markdown with bold, italic, lists, inline code)
@@ -107,19 +110,19 @@ The header indicator supports four states:
 
 Live connection checks are cached in memory for a short time to avoid repeated backend calls during frequent Power BI update cycles.
 
-## Local Proxy
+## Proxy Contract
 
-The local proxy is for Power BI Desktop testing only. For production deployment patterns (Azure APIM, Azure Functions, AWS API Gateway, Nginx), see [PROXY_GUIDE.md](PROXY_GUIDE.md).
+Pulse PBI now targets the shared PulsePlay proxy in the repo root, not the snapshot-local historical proxy. For production deployment patterns and WebAccess origin requirements, see [PROXY_GUIDE.md](PROXY_GUIDE.md).
 
-Behavior:
+Shared proxy behavior:
 
-- listens on `127.0.0.1:8787` by default
-- proxies `GET` and `POST` requests for `/api/2.0/genie/spaces/...`
-- accepts Databricks host from `X-Genie-Target-Host` or `DATABRICKS_HOST`
-- accepts authorization from `Authorization` or `DATABRICKS_TOKEN`
-- exposes `/health`
+- listens on `127.0.0.1:8787` by default in local dev
+- exposes `/health`, `/clients/compatibility`, `/assistant/capabilities`, `/assistant/conversations/*`, and `/feedback`
+- resolves Databricks credentials from server-side profiles by default
+- can accept inline `X-Databricks-*` headers only when the proxy's inline-credentials mode allows it
+- stamps audit logs with `clientApp: "pulse-pbi"` when the visual calls it
 - accepts `/feedback`
-- logs `[genie-msg]` lines (attachment structure, follow-up count) and `[genie-qr]` lines (columns, row count) for every Genie API call to aid debugging
+- returns governed response envelopes for renderable assistant responses
 
 ## Important Constraints
 

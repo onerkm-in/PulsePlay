@@ -83,6 +83,16 @@ The `package.json`, `package-lock.json`, `pbiviz.json`, and `capabilities.json` 
 
 ---
 
+## Shared Proxy Runtime
+
+PB1a (2026-05-21) moved the enabler's proxy mode onto the repo-root PulsePlay proxy contract. When **PulsePlay Proxy URL** is set, the visual calls `/assistant/*` routes, sends `X-Pulse-Client: pulse-pbi`, and relies on server-side proxy profiles for production credentials. When the proxy enforces a shared key, set **Proxy Shared Secret** so the visual sends `X-PulsePlay-Key`.
+
+Direct browser-to-Databricks mode remains available only when the proxy URL is blank, mainly for controlled developer testing. The snapshot-local `enablers/pulse-pbi/proxy/` folder is historical reference; use the repo-root [`proxy/`](../../proxy) service for new work.
+
+Hosted proxy origins must be added to `capabilities.json` `WebAccess` before packaging the `.pbiviz`. The committed file includes Databricks and local proxy origins, not your organization's hosted proxy URL.
+
+---
+
 ## Sync discipline (PULSE_SYNC.md)
 
 This folder is **not auto-synced** with the upstream `pbi-genie-visual` repo. Changes flow through [`docs/PULSE_SYNC.md`](../../docs/PULSE_SYNC.md) the same way they always did:

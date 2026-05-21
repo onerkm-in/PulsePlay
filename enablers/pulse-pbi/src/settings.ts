@@ -8,6 +8,8 @@ import FormattingSettingsSlice = formattingSettings.Slice;
 export interface GenieVisualSettings {
     host: string;
     apiBaseUrl: string;
+    assistantProfile: string;
+    proxyKey: string;
     token: string;
     spaceId: string;
     genieFields: string;
@@ -34,9 +36,25 @@ class GenieSettingsCard extends FormattingSettingsSimpleCard {
 
     apiBaseUrl = new formattingSettings.TextInput({
         name: "apiBaseUrl",
-        displayName: "Optional - API Base URL Override",
-        description: "Optional. Use a proxy or local gateway instead of direct browser-to-Databricks calls, for example http://localhost:8787 or https://proxy.company.com. The visual will append the Genie REST path automatically.",
+        displayName: "Step 1 - PulsePlay Proxy URL",
+        description: "Recommended for production. Use the shared PulsePlay proxy instead of direct browser-to-Databricks calls, for example http://localhost:8787 or https://proxy.company.com. Leave blank only for direct developer testing.",
         placeholder: "http://localhost:8787",
+        value: ""
+    });
+
+    assistantProfile = new formattingSettings.TextInput({
+        name: "assistantProfile",
+        displayName: "Optional - Proxy Profile Name",
+        description: "Optional. Name of the assistant profile configured in the shared PulsePlay proxy. Leave blank to use the default profile.",
+        placeholder: "default",
+        value: ""
+    });
+
+    proxyKey = new formattingSettings.TextInput({
+        name: "proxyKey",
+        displayName: "Optional - Proxy Shared Secret",
+        description: "Optional. Sent as the PulsePlay proxy shared-key header when your proxy requires API-key authentication. Leave blank for local or IdP-only proxies.",
+        placeholder: "Proxy shared secret",
         value: ""
     });
 
@@ -94,6 +112,8 @@ class GenieSettingsCard extends FormattingSettingsSimpleCard {
     slices: FormattingSettingsSlice[] = [
         this.host,
         this.apiBaseUrl,
+        this.assistantProfile,
+        this.proxyKey,
         this.token,
         this.spaceId,
         this.genieFields,
@@ -116,6 +136,8 @@ export function toGenieVisualSettings(model: VisualFormattingSettingsModel): Gen
     return {
         host: model.genieSettings.host.value,
         apiBaseUrl: model.genieSettings.apiBaseUrl.value,
+        assistantProfile: model.genieSettings.assistantProfile.value,
+        proxyKey: model.genieSettings.proxyKey.value,
         token: model.genieSettings.token.value,
         spaceId: model.genieSettings.spaceId.value,
         genieFields: model.genieSettings.genieFields.value,

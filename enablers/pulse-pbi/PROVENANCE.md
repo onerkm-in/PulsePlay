@@ -129,3 +129,15 @@ The visual identity in `pbiviz.json` and the npm package name in `package.json` 
 | `npm test` (vitest) | 87/87 unit tests pass. A follow-up audit patch added `vitest.config.ts` so Vitest only loads `src/**/*.test.ts`; `chat.spec.ts` remains a Playwright E2E spec and runs through `npm run test:e2e`. |
 | `npx pbiviz package` | `done Build completed successfully` → `dist/PulseVisuals87799D3556EA4890BCBE3FF9F9A095F5.2.1.0.0.pbiviz` produced (~106 KB). The pre-rename `PBIGenieVisual87799...pbiviz` from PB0d is still present in `dist/` from the earlier build; both are gitignored and not tracked. |
 | Build artifacts still gitignored | confirmed — `dist/`, `node_modules/`, `.tmp/`, `webpack.statistics.prod.html` all excluded |
+
+## PB1a shared-proxy adoption verification (2026-05-21)
+
+PB1a changed the enabler's proxy-mode runtime from historical Databricks-shaped paths to the shared PulsePlay proxy contract. The snapshot remains local to `enablers/pulse-pbi/`, but it now expects the repo-root `proxy/` service for production-style proxy mode.
+
+| Step | Result |
+|---|---|
+| `npm run lint` | pass, no output |
+| `npm test` | 93/93 unit tests pass |
+| `npx pbiviz package` | `done Build completed successfully` → `dist/PulseVisuals87799D3556EA4890BCBE3FF9F9A095F5.2.1.0.0.pbiviz` produced |
+
+First packaging attempt failed with `TS2688: Cannot find type definition file for 'node'` because an empty generated `node_modules/@types/node` folder shadowed `pbiviz`'s own complete Node types. Removing that empty generated folder fixed packaging without changing `package.json` or `package-lock.json`. The broader `powerbi-visuals-tools` pin remains a queued build-hygiene task.

@@ -23,8 +23,18 @@
                     "type": { "text": true }
                 },
                 "apiBaseUrl": {
-                    "displayName": "Optional - API Base URL Override",
-                    "description": "Optional. Use a proxy or local gateway instead of direct browser-to-Databricks calls, for example http://localhost:8787 or https://proxy.company.com. The visual appends the Genie REST path automatically.",
+                    "displayName": "Step 1 - PulsePlay Proxy URL",
+                    "description": "Recommended for production. Use the shared PulsePlay proxy instead of direct browser-to-Databricks calls, for example http://localhost:8787 or https://proxy.company.com.",
+                    "type": { "text": true }
+                },
+                "assistantProfile": {
+                    "displayName": "Optional - Proxy Profile Name",
+                    "description": "Optional. Name of the assistant profile configured in the shared PulsePlay proxy. Leave blank to use the default profile.",
+                    "type": { "text": true }
+                },
+                "proxyKey": {
+                    "displayName": "Optional - Proxy Shared Secret",
+                    "description": "Optional. Sent as the PulsePlay proxy shared-key header when your proxy requires API-key authentication. Leave blank for local or IdP-only proxies.",
                     "type": { "text": true }
                 },
                 "token": {
