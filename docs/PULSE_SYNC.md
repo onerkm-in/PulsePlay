@@ -78,6 +78,7 @@ Zero-runtime or type-only contracts both projects should respect.
 |---|---|---:|---:|---|---|
 | AIResultEnvelope | `playground/src/visualization/aiResultEnvelope.ts` | PulsePlay | queued | N/A | queued |
 | ChartRenderSpec | `playground/src/visualization/chartSpecValidation.ts` | PulsePlay | queued | N/A | queued |
+| DatabricksSourceRef | `playground/src/visualization/sourceRef.ts` | PulsePlay | 0.1 | G2.5 | shipped 2026-05-21; pure module, copy-port safe; Pulse PBI adoption queued |
 | GovernanceAttestation | proxy response contract | PulsePlay proxy | queued | N/A | automatic fields after G3; fail-closed optional |
 
 ### Tier 3 - Proxy Upgrades
@@ -137,6 +138,7 @@ Use this checklist for any change that future desktop EXE users would experience
 | sync-ledger | 0.1 | Created sync ledger for native adapter G0. | N/A |
 | sync-ledger | 0.2 | Expanded ledger from Pulse PBI-only copy-porting to ecosystem cascade tracking for Pulse PBI and future desktop EXE. | Pulse PBI + desktop checklist active |
 | proxy-client-contract | 0.1 | PX1 client identity headers, `/clients/compatibility`, response echo headers, and client-aware audit context. | Automatic via proxy; Pulse PBI/desktop adoption is header wiring only |
+| DatabricksSourceRef | 0.1 | G2.5 typed Databricks source-ref contract: discriminated union over genie-space, metric-view, uc-function, view, and table; per-kind type guards; `sourceRefDisplayLabel` formatter; table variant carries the `raw-table-bypasses-curated-views` warning at the type level. Pure module, no DOM/fetch/React. | Copy-port queued for Pulse PBI |
 
 ## Product Sync
 

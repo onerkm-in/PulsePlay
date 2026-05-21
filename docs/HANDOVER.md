@@ -5,6 +5,35 @@
 
 ---
 
+## 2026-05-21 - G2.5 Databricks source-ref contract
+
+**Scope.** Pure TypeScript contract module that types the governed Databricks data assets PulsePlay can request through the proxy/data layer. Ships in parallel with Codex's G2 (visualization pipeline). No proxy code, no SQL execution, no native adapter change. The complementary one-line narrowing of `aiResultEnvelope.ts` is deliberately deferred until G2 lands so the two parallel tracks don't collide.
+
+**Module.** [`playground/src/visualization/sourceRef.ts`](../playground/src/visualization/sourceRef.ts) ships:
+- `DatabricksSourceRef` discriminated union over five kinds: `genie-space`, `metric-view`, `uc-function`, `view`, `table`.
+- `DATABRICKS_SOURCE_REF_KINDS` frozen kind list for exhaustive iteration.
+- Per-kind type guards: `isGenieSpaceSourceRef`, `isMetricViewSourceRef`, `isUcFunctionSourceRef`, `isViewSourceRef`, `isTableSourceRef`.
+- General trust-boundary validator: `isDatabricksSourceRef` for JSON / URL / proxy-payload ingest.
+- Display formatter: `sourceRefDisplayLabel(ref) -> "Name (Kind)"` so pickers disambiguate identically-named sources across kinds.
+
+**Type-level safety.** Every variant requires `displayName: string` and `governance: { requiresAttestation: true }`. The `table` variant ALSO carries `warning: "raw-table-bypasses-curated-views"` at the type level, so UI consumers always render the warning hint without per-call-site checks. The `uc-function` variant accepts an optional `parameters: Array<{ name, type }>` for parameterized governed queries — the proxy binds parameters server-side; the browser never concatenates SQL strings.
+
+**Pulse PBI copy-port safety.** Pure TypeScript. No DOM, no React, no `fetch`, no localStorage, no browser globals, no CSS, no vendor SDKs. [PULSE_SYNC.md](PULSE_SYNC.md) Tier 2 records the module at version `0.1` with sibling status "Copy-port queued for Pulse PBI."
+
+**Tests.** [`playground/src/visualization/__tests__/sourceRef.test.ts`](../playground/src/visualization/__tests__/sourceRef.test.ts) — **55/55** locking the contract: every variant validates through the guard; non-objects rejected; unknown kinds rejected; missing required fields rejected; governance attestation requirement enforced; the `table` warning literal is checked (not just any-warning); `uc-function` parameters optional + array-of-typed-pairs; per-kind guards reject other kinds; `sourceRefDisplayLabel` disambiguates same-`displayName` across kinds; JSON-serialization shape stability locked; fixture-coverage exhaustiveness guard so adding a new kind without a fixture fails CI.
+
+**Validation.**
+- Focused sourceRef tests: **55/55**.
+- Full playground suite: **1252/1252** (+55 from previous 1197).
+- `playground npm run lint`: PASS.
+- `playground npm run build`: PASS (existing BI-adapter dynamic-import warnings only).
+
+**Pending follow-up.** When Codex's G2 lands `aiResultEnvelope.ts` with `sourceRef?: unknown`, narrow it to `sourceRef?: DatabricksSourceRef` in a one-line patch. Until then, the module is standalone — nothing imports it yet, no behavior change in the rest of the codebase.
+
+**Next.** G3 (governance attestation) waits until both G2 and G2.5 land. G3 will thread `sourceRef` into the proxy-emitted `governance` payload and add the native fail-closed render check.
+
+---
+
 ## 2026-05-21 - PX1 unified proxy client contract
 
 **Scope.** Added the first runtime piece of the ecosystem-artifact strategy: one shared proxy contract that can identify hosted PulsePlay, the Pulse PBI custom visual, and the future desktop EXE without route forks. Commit `22db943`. No visualization pipeline work, no governance attestation G3 runtime, no desktop launcher, and no Pulse PBI source import.
