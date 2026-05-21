@@ -116,7 +116,7 @@ PulsePlay/
   pulsepacks/              # shared pack/source intent layer
   enablers/
     pulse-pbi/             # Power BI custom visual project/artifact lane
-    desktop/               # future Tauri desktop EXE lane
+    desktop/               # future packaged desktop launcher/EXE lane
   docs/
 ```
 
@@ -162,6 +162,7 @@ The desktop EXE should:
 - start its inbuilt local app server/proxy on random available loopback ports
 - bind only to `127.0.0.1`
 - create a colocated data folder on first launch
+- treat private-browser storage as session-scoped; durable Save Changes writes go through local runtime endpoints into `PulsePlayData/`
 - encrypt local config/secrets/cache at rest
 - redact logs
 - generate a one-time launch token per session
@@ -191,19 +192,23 @@ Browser launch preference:
 
 There is no universal standard that forces an arbitrary default browser into private/incognito mode.
 
-## Tauri Preference
+## Launcher-First Desktop Packaging
 
-For DX1, prefer Tauri over Electron.
+DX1 is a packaged local runtime/launcher proof, not a native desktop application proof.
 
-Reasons:
+The intended user flow is:
 
-- smaller download
-- faster startup
-- lower memory footprint
-- better fit for a lightweight recon tool
-- desktop shell mostly needs to start local services and open a browser, not host heavy Node-integrated UI
+1. User double-clicks the packaged EXE.
+2. The EXE starts the bundled static app server and bundled proxy on random loopback ports.
+3. The EXE generates a one-time launch token.
+4. The EXE opens the same PulsePlay React app in a new private/incognito browser window.
+5. Durable Save Changes operations persist through the local runtime into the colocated `PulsePlayData/` folder, not into the private browser's session-only storage.
 
-Electron remains a fallback if a later desktop requirement needs deep bundled Chromium/Node integration that Tauri cannot cover.
+This keeps PulsePlay as the same web app users already test and deploy, while still giving authors a one-click local recon artifact. It also avoids creating a second native UI shell that would drift from the browser app.
+
+Tauri is no longer the default DX1 implementation. Use Tauri only if native packaging/lifecycle requirements make it the smallest reliable wrapper for the launcher, for example single-binary packaging, process lifecycle, tray/cleanup behavior, or OS integration that a simpler Node/PowerShell packaged launcher cannot satisfy.
+
+Electron remains a fallback only if a future requirement needs bundled Chromium or deep Node-integrated UI. That is not the current DX1 intent.
 
 ## Repository Layout
 
@@ -227,7 +232,7 @@ Recommended sequence:
 3. **G2 + G2.5 + G3** - finish visualization pipeline, Databricks source refs, and governance attestation before new artifact runtime work.
 4. **PB0 - Single-download enabler folder** - bring Pulse PBI into `enablers/pulse-pbi/` without merging its runtime into PulsePlay web.
 5. **PB1 - Optional PBIVIZ build lane** - formalize the Power BI custom visual artifact path after G3/PB0 unless explicitly pulled forward.
-6. **DX1 - Desktop EXE proof** - Tauri proof under `enablers/desktop/` with inbuilt app server/proxy, random loopback ports, and private browser launch.
+6. **DX1 - Desktop EXE proof** - launcher-first packaged local runtime under `enablers/desktop/` with inbuilt app server/proxy, random loopback ports, one-time launch token, private browser launch, and `PulsePlayData/` persistence hooks.
 7. **DX2 - Encrypted portable data** - encrypted colocated data folder, TTL, redaction, and clear-on-quit options.
 
 Do not ship DX1/DX2/PB1 half-done in parallel with an unfinished G3 governance contract.
@@ -246,7 +251,7 @@ Positive:
 Negative:
 
 - copy-port discipline remains a process burden until a package layer is justified
-- Tauri introduces Rust/toolchain considerations when DX1 begins
+- DX1 must prove packaged local runtime behavior before choosing a native wrapper; Tauri/Rust tooling is optional, not assumed
 - desktop encryption and browser-private launch behavior will need platform-specific testing
 - moving Pulse PBI into the single-download tree needs a careful import plan to preserve history/build assumptions
 - one-command PBIVIZ build orchestration still needs coordination with the Pulse PBI artifact lane

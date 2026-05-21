@@ -98,9 +98,9 @@ These changes are not copy-ported to Pulse PBI, but they must be assessed for th
 | Area | PulsePlay source | Desktop consequence | Version | Last synced commit | Status |
 |---|---|---|---:|---|---|
 | Proxy routes and connector clients | `proxy/` | Bundled proxy must keep same behavior; no lite proxy fork | queued | N/A | PX1/G3 first |
-| Static app build | `playground/` | EXE serves built app through inbuilt local app server | queued | N/A | DX1 future |
-| Settings and first-run setup | `playground/src/settings/`, `playground/src/components/FirstRunWizard.tsx` | EXE uses same setup UX with recon disclaimer and local encrypted persistence; G5 `biSurfaceMode` must smoke `auto` with no embed config under bundled proxy/private browser | 0.1 | G5 | Author switch shipped in PulsePlay; DX smoke queued |
-| Local persistence model | future `desktop/` plus Settings stores | Sensitive local state moves to encrypted colocated `PulsePlayData/` where needed | queued | N/A | DX2 future |
+| Static app build | `playground/` | Packaged launcher serves the built React app through an inbuilt local app server | queued | N/A | DX1 future |
+| Settings and first-run setup | `playground/src/settings/`, `playground/src/components/FirstRunWizard.tsx` | EXE uses same setup UX with recon disclaimer and runtime-backed persistence; G5 `biSurfaceMode` must smoke `auto` with no embed config under bundled proxy/private browser | 0.1 | G5 | Author switch shipped in PulsePlay; DX smoke queued |
+| Local persistence model | future `desktop/` plus Settings stores | Private-browser storage is session-scoped; durable Save Changes writes go through local runtime endpoints into colocated `PulsePlayData/` with encryption/redaction hardened in DX2 | queued | N/A | DX1/DX2 future |
 | Browser launch | future `desktop/` | Prefer Chrome incognito, then Edge InPrivate, Firefox private, Brave, then default-browser fallback | queued | N/A | DX1 future |
 
 ### Tier 4 - Host-Specific
@@ -112,7 +112,7 @@ Do not copy-port as-is.
 | `playground/src/visualization/NativeCanvas.tsx` | React + PulsePlay host + ECharts runtime |
 | `bi-adapters/native/nativeCapabilities.ts` | PulsePlay BI adapter capability surface; Pulse PBI has different constraints |
 | PulsePlay layout/preset state | Top-level browser app; Pulse PBI lives inside Power BI Desktop visual sandbox |
-| Desktop EXE launcher/runtime | Tauri/local-process/browser-launch concerns; not relevant to Pulse PBI |
+| Desktop EXE launcher/runtime | Packaged local launcher/process/browser-launch concerns; Tauri only if native packaging/lifecycle is needed; not relevant to Pulse PBI |
 
 ## Copy-Port Checklist
 

@@ -5,6 +5,20 @@
 
 ---
 
+## 2026-05-21 - DX1 direction lock: launcher-first desktop proof
+
+**Decision.** DX1 is no longer "Tauri-first." The desktop artifact is a packaged local runtime / launcher for the existing PulsePlay web app, not a second native desktop UI. User flow: double-click EXE -> start bundled static app server + bundled proxy on random loopback ports -> generate one-time launch token -> open the same React app in a new private/incognito browser window.
+
+**Persistence rule.** Private/incognito browser storage is session-scoped. Durable **Save Changes** in the desktop artifact must go through local runtime endpoints into the colocated `PulsePlayData/` folder described in ADR-0010. DX1 can prove the folder/persistence hook; DX2 hardens encryption, TTL/clear behavior, redacted logs, and platform-specific storage tests.
+
+**Tauri stance.** Tauri is only a fallback if native packaging/lifecycle requirements make it the smallest reliable wrapper (single-binary packaging, process lifecycle cleanup, tray/OS integration). Do not add a Tauri WebView just to show the app; the browser is the intended UI surface for DX1.
+
+**Docs updated.** ADR-0010, AGENDA, PULSE_SYNC, and project memory now use "launcher-first packaged local runtime" language.
+
+**Next.** DX1 implementation under `enablers/desktop/`: start with the launcher/runtime contract before choosing any native wrapper.
+
+---
+
 ## 2026-05-21 - Build hygiene: stale script modernization + pbiviz pin
 
 **Scope.** Closes the AGENDA "Build hygiene" item: the three PowerShell scripts that pre-dated the PulsePlay split (`scripts/release-check.ps1`, `scripts/smoke-full.ps1`, `proxy/smoke_test.ps1`) referenced paths and contracts from the sister Pulse-PBI project, and `enablers/pulse-pbi/`'s lockfile carried no `powerbi-visuals-tools` entry — `npx pbiviz package` was silently resolving the global install (or an `extraneous` floating dep). Reproducibility hole closed.
@@ -38,7 +52,7 @@
 - `--ignore-scripts` skips `powerbi-visuals-tools`'s postinstall, which generates the self-signed cert used by `pbiviz start`. If a future author needs `pbiviz start`'s dev HTTPS server, re-run `npm install` without `--ignore-scripts` once (the cert is cached after first generation).
 - `release-check.ps1` no longer calls `build.ps1`. Anyone who relied on that step needs to know the playground build is `cd playground && npm run build` (`tsc -b && vite build`).
 
-**Next.** DX1 — Tauri-first desktop EXE proof.
+**Next.** DX1 — launcher-first packaged local runtime proof.
 
 ---
 
@@ -204,7 +218,7 @@ Exit 0 + `failures: []` in the JSON report means smoke passed. No manual proxy/V
 - **The `warehouseWarmup.ts` short-circuit is a workaround**, not a feature. If the playground stops calling `/warehouse/start` on mount (or changes which profiles trigger it), the proxy guard becomes unreachable code. Track that and remove the guard when the warmup call is removed.
 - **Pulse mode smoke is queued.** It needs the `apiBaseUrl` + `assistantProfile`/`spaceId` settings seeded plus a different chat-history selector path. Worth a small follow-up cycle if/when Pulse mode becomes the default smoke target.
 
-**Next.** Per the user's stated sequencing — PB1a (Pulse PBI shared-proxy adoption with `X-Pulse-Client: pulse-pbi` header), then build hygiene (stale smoke scripts + `powerbi-visuals-tools` pin), then DX1 (desktop EXE Tauri proof).
+**Next.** Per the user's stated sequencing — PB1a (Pulse PBI shared-proxy adoption with `X-Pulse-Client: pulse-pbi` header), then build hygiene (stale smoke scripts + `powerbi-visuals-tools` pin), then DX1 (desktop EXE proof; later superseded to launcher-first packaged runtime in the 2026-05-21 direction-lock entry).
 
 ---
 
@@ -301,7 +315,7 @@ Rationale: authors presenting to executives often want to force dark mode regard
 - **Do NOT collapse `themePreset` and `colorMode` into one string** (`"slate-dark"` vs `"slate-light"`). They are independent axes; the storage shape must reflect that or the "preset stays, user flips brightness" UX becomes a rename rather than a flag flip.
 - **`enablers/pulse-pbi/examples/SampleSuperStoreAnalysis/CustomVisuals/PBIGenieVisual87799...`** directories still carry the OLD prefix because they are frozen .pbix-derived demo data. Do NOT rename those directories — Power BI's report definitions reference them by name and renaming would break the demo without a corresponding re-save of the .pbix.
 
-**Next.** Per the queued sequencing in AGENDA: **SS2** (full proxy-backed shell smoke) or **DX1** (desktop EXE Tauri proof) — whichever you green-light. F1 (theme token unification) will pick up the dark-mode lock when it lands.
+**Next.** Per the queued sequencing in AGENDA: **SS2** (full proxy-backed shell smoke) or **DX1** (desktop EXE proof; later superseded to launcher-first packaged runtime) — whichever you green-light. F1 (theme token unification) will pick up the dark-mode lock when it lands.
 
 ---
 
@@ -350,7 +364,7 @@ Exit 0 + `"failures": []` in the JSON report means smoke passed.
 - Generated `shell-smoke.png` is gitignored. If you want baseline-comparison, save a reference image separately.
 - Do NOT extend this smoke into "validates AI conversation" without first landing SS2 (proxy boot + smoke fixture profile). Mocking real envelopes via route handlers would be a regression — the canvas-standalone smoke already validates that layer with hardcoded fixtures, and the proxy round-trip belongs in SS2.
 
-**Next.** SS2 — Proxy-backed shell smoke. Needs (a) a `smoke-fixture` profile type in `proxy/` (or `NODE_ENV`-gated dry-run mode) that emits canned attested `AIResultEnvelope`s, (b) process orchestration in the runner (boot proxy + Vite + run Playwright + clean up), (c) a wizard-walked-end-to-end scenario where the AI sidebar receives an attested envelope and the native canvas paints it. After that, DX1 (desktop EXE Tauri proof) is the next architecture cycle per ADR-0010.
+**Next.** SS2 — Proxy-backed shell smoke. Needs (a) a `smoke-fixture` profile type in `proxy/` (or `NODE_ENV`-gated dry-run mode) that emits canned attested `AIResultEnvelope`s, (b) process orchestration in the runner (boot proxy + Vite + run Playwright + clean up), (c) a wizard-walked-end-to-end scenario where the AI sidebar receives an attested envelope and the native canvas paints it. After that, DX1 (desktop EXE proof; later superseded to launcher-first packaged runtime) is the next architecture cycle per ADR-0010.
 
 ---
 
@@ -401,7 +415,7 @@ PB0d caught **one real defect**: `tsconfig.json` was missed in the initial selec
 - When refreshing the snapshot from upstream (`git pull` on `pbi-genie-visual`, then re-copy here), follow the procedure in `PROVENANCE.md` — update the commit SHA + PULSE_SYNC.md changelog. Do not automate this; refresh PRs need human review for dependency-version drift and policy changes with cross-impact on the proxy contract.
 - The first build attempt from `enablers/pulse-pbi/` is queued. When it runs, expect to install ~63 MB of node_modules locally (PulsePlay's gitignore excludes them from the tree) and to need `npx pbiviz` (or `powerbi-visuals-tools` globally) for `package`.
 
-**Next.** Per ADR-0010 sequencing, PB1 (formalize the `.pbiviz` build lane from this location) is the natural follow-up, but is queued — not required for PB0 to be considered shipped. Proxy-backed shell smoke remains the other open infrastructure cycle. DX1 (desktop EXE Tauri proof) sits behind both.
+**Next.** Per ADR-0010 sequencing, PB1 (formalize the `.pbiviz` build lane from this location) is the natural follow-up, but is queued — not required for PB0 to be considered shipped. Proxy-backed shell smoke remains the other open infrastructure cycle. DX1 (desktop EXE proof; later superseded to launcher-first packaged runtime) sits behind both.
 
 ---
 
@@ -779,7 +793,7 @@ Text-intent envelopes (answer only, no rows) skip fusion because `TextState` alr
 
 **Decision.** PulsePlay is the umbrella ecosystem with multiple artifacts: PulsePlay web, optional Pulse PBI `.pbiviz`, optional PulsePlay desktop EXE recon tool, and hosted deployment bundles. These are separate build outputs with different runtimes and audiences, not one mega-binary.
 
-**Single-download correction.** The target is one repo checkout/download containing all enablers. ADR-0010 now defines the future layout as `enablers/pulse-pbi/` for the Power BI custom visual lane and `enablers/desktop/` for the Tauri EXE lane. The components stay isolated by build/runtime constraints, but they should not require separate downloads. Submodule-only final state is called out as risky because source ZIP downloads may omit submodule contents.
+**Single-download correction.** The target is one repo checkout/download containing all enablers. ADR-0010 now defines the future layout as `enablers/pulse-pbi/` for the Power BI custom visual lane and `enablers/desktop/` for the desktop EXE lane. The components stay isolated by build/runtime constraints, but they should not require separate downloads. Submodule-only final state is called out as risky because source ZIP downloads may omit submodule contents.
 
 **Unified proxy.** Locked the rule: one proxy product/codebase/API/governance/audit/result-envelope contract, with deployment topology allowed to vary. Pulse PBI, PulsePlay, and future desktop should identify themselves through client headers and shared audit context. Separate physical proxy instances are allowed for local debugging or isolation; connector logic must not fork.
 
