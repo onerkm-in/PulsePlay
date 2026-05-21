@@ -10,17 +10,9 @@
 
 import type { EChartsOption } from 'echarts';
 import { chartFromVegaLiteMark } from './chartRegistry';
+import type { VegaLiteChartSpec } from '../visualization/chartSpecValidation';
 
-export interface VegaLiteSpec {
-    readonly mark: string | { type: string };
-    readonly data?: { values?: ReadonlyArray<Record<string, unknown>> };
-    readonly encoding?: {
-        readonly x?: { field?: string; type?: string };
-        readonly y?: { field?: string; type?: string; aggregate?: string };
-        readonly color?: { field?: string; type?: string };
-    };
-    readonly title?: string;
-}
+export type VegaLiteSpec = VegaLiteChartSpec;
 
 export interface CompileResult {
     readonly ok: boolean;

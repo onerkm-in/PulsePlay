@@ -21,6 +21,7 @@ import type {
     ReasoningTrace,
 } from '../../types/assistant';
 import { compileVegaLiteToECharts, type VegaLiteSpec } from '../../lib/vegaLiteToECharts';
+import { validateChartRenderSpec } from '../../visualization/chartSpecValidation';
 import { EChartsRenderer } from './EChartsRenderer';
 
 // ─── Answer tab ────────────────────────────────────────────────────────
@@ -50,7 +51,17 @@ export const ChartTab: React.FC<{ spec: ChartSpec | undefined }> = ({ spec }) =>
     if (!spec) {
         return <div className="workbench-tab-empty">No chart spec attached.</div>;
     }
-    const result = compileVegaLiteToECharts(spec as unknown as VegaLiteSpec);
+    const validation = validateChartRenderSpec(spec);
+    if (!validation.ok) {
+        return (
+            <div className="workbench-tab-chart" data-testid="artifact-tab-chart">
+                <div className="workbench-chart-unsupported" data-testid="artifact-chart-unsupported">
+                    Chart spec could not be rendered: {validation.errors[0]?.message ?? 'invalid chart spec'}
+                </div>
+            </div>
+        );
+    }
+    const result = compileVegaLiteToECharts(validation.spec as VegaLiteSpec);
     if (!result.ok || !result.option) {
         return (
             <div className="workbench-tab-chart" data-testid="artifact-tab-chart">

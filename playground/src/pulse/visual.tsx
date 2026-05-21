@@ -8280,7 +8280,7 @@ function GenieChart(props: { columns: string[]; rows: any[][]; preferredChart?: 
 
     // Group CHART_OPTIONS into optgroup sections for the picker.
     const grouped = useMemo(() => {
-        const map = new Map<string, typeof CHART_OPTIONS>();
+        const map = new Map<string, Array<(typeof CHART_OPTIONS)[number]>>();
         for (const opt of CHART_OPTIONS) {
             if (!map.has(opt.group)) map.set(opt.group, []);
             map.get(opt.group)!.push(opt);

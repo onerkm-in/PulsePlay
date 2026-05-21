@@ -58,51 +58,37 @@ import { GenieVisualSettings } from "./settings";
 import { getKBSystemPrompt, getKBChatHint, parseOrgRules } from "./knowledgeBase";
 import { describeGenieStatus } from "./progressVocab";
 import { safeAuthorPrompt } from "./promptRedaction";
+import {
+    analyzeDataShape as analyzeSharedDataShape,
+    CHART_OPTIONS,
+    detectViewIntent,
+    formatCellForTooltip as formatSharedCellForTooltip,
+    formatChartDate,
+    isRankOrIndexColumn,
+    type ChartKind,
+    type ChartSeriesPoint,
+    type ClusteredSeriesPoint,
+    type DataShape,
+    type ForcedViewMode,
+    type ViewIntent,
+} from "../visualization/chartAutoPick";
 
 import DataView = powerbi.DataView;
 import PrimitiveValue = powerbi.PrimitiveValue;
 import IFilter = powerbi.IFilter;
 
+export { CHART_OPTIONS, detectViewIntent, formatChartDate, isRankOrIndexColumn };
+export type { ChartKind, ChartSeriesPoint, ClusteredSeriesPoint, DataShape, ForcedViewMode, ViewIntent };
+
 /* ── Types & Interfaces ──────────────────────────────────────────── */
 
 export type GuidedArea = "performance" | "issue" | "risk" | "opportunity";
-
-export interface ChartSeriesPoint {
-    label: string;
-    value: number;
-    tooltipParts?: { col: string; val: string }[];
-}
-
-export interface ClusteredSeriesPoint {
-    label: string;
-    values: { name: string; value: number }[];
-}
 
 export interface ChartRange {
     minValue: number;
     maxValue: number;
     range: number;
     zeroRatio: number;
-}
-
-// ChartKind now includes all renderable chart types from chartRegistry.ts.
-// The legacy 5-type union is preserved for backwards compat; new types are
-// added from the full KB so the Ask Pulse chart picker shows every chart
-// the ECharts renderer can produce.
-export type ChartKind =
-    | "bar" | "column" | "clustered-bar" | "line" | "area" | "sparkline"
-    | "scatter" | "bubble"
-    | "pie" | "donut"
-    | "heatmap" | "treemap" | "funnel" | "waterfall" | "kpi"
-    | "gauge" | "radar" | "sunburst"
-    | "lollipop" | "pareto" | "sankey";
-
-export interface DataShape {
-    series: ChartSeriesPoint[];
-    clustered: ClusteredSeriesPoint[];
-    numericColCount: number;
-    rowCount: number;
-    recommended: ChartKind;
 }
 
 export interface FormatRule {
@@ -114,37 +100,6 @@ export interface FormatRule {
 }
 
 /* ── Constants ───────────────────────────────────────────────────── */
-
-// Chart options grouped by tier — matches the chartRegistry.ts tier structure.
-// The selector in GenieChart renders these as <optgroup> sections so users
-// can find chart types quickly. All entries with supported:true are backed by
-// buildEChartsOption in lib/buildEChartsOption.ts.
-export const CHART_OPTIONS: { value: ChartKind; label: string; supported: boolean; group: string }[] = [
-    // Core — standard BI charts
-    { value: "kpi",          label: "KPI Tile",          supported: true,  group: "Core" },
-    { value: "column",       label: "Column (Vertical)",  supported: true,  group: "Core" },
-    { value: "bar",          label: "Bar (Horizontal)",   supported: true,  group: "Core" },
-    { value: "clustered-bar",label: "Clustered Bar",      supported: true,  group: "Core" },
-    { value: "line",         label: "Line",               supported: true,  group: "Core" },
-    { value: "area",         label: "Area",               supported: true,  group: "Core" },
-    { value: "pie",          label: "Pie",                supported: true,  group: "Core" },
-    { value: "donut",        label: "Donut",              supported: true,  group: "Core" },
-    { value: "scatter",      label: "Scatter",            supported: true,  group: "Core" },
-    { value: "bubble",       label: "Bubble",             supported: true,  group: "Core" },
-    { value: "heatmap",      label: "Heat Map",           supported: true,  group: "Core" },
-    { value: "treemap",      label: "Tree Map",           supported: true,  group: "Core" },
-    { value: "funnel",       label: "Funnel",             supported: true,  group: "Core" },
-    { value: "waterfall",    label: "Waterfall",          supported: true,  group: "Core" },
-    // Advanced
-    { value: "pareto",       label: "Pareto",             supported: true,  group: "Advanced" },
-    { value: "lollipop",     label: "Lollipop",           supported: true,  group: "Advanced" },
-    { value: "sparkline",    label: "Sparkline",          supported: true,  group: "Advanced" },
-    { value: "sankey",       label: "Sankey Flow",        supported: true,  group: "Advanced" },
-    // Statistical / shaped
-    { value: "radar",        label: "Radar / Spider",     supported: true,  group: "Shaped" },
-    { value: "gauge",        label: "Gauge",              supported: true,  group: "Shaped" },
-    { value: "sunburst",     label: "Sunburst",           supported: true,  group: "Shaped" },
-];
 
 export const ALL_FILTER_VALUE = "__all__";
 export const BASIC_FILTER_SCHEMA = "http" + "://powerbi.com/product/schema#basic";
@@ -186,7 +141,6 @@ const ROLE_SUBTITLES: Record<string, string> = {
 };
 
 export const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}(?:T[\d:.]+Z?)?$/;
-const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 // Genie poll status → friendly text mapping moved to `progressVocab.ts`
 // (single source of truth shared by AI Insights, Chat, and Supervisor).
@@ -2032,18 +1986,8 @@ export function describeScope(selectedFilters: Record<string, string>, filters: 
 
 /* ── Chart label helpers ─────────────────────────────────────────── */
 
-export function formatChartDate(raw: string): string {
-    const d = new Date(raw);
-    if (isNaN(d.getTime())) return raw;
-    return `${SHORT_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
-}
-
 export function formatCellForTooltip(col: string, raw: any): string {
-    if (raw === null || raw === undefined) return "-";
-    if (typeof raw === "string" && ISO_DATE_RE.test(raw)) return formatChartDate(raw);
-    if (typeof raw === "number") return formatNumber(raw);
-    if (isNumericString(raw)) return formatNumber(Number(raw));
-    return String(raw);
+    return formatSharedCellForTooltip(col, raw, { formatNumber });
 }
 
 export function mapAreaToIntent(area: GuidedArea): AssistantIntent {
@@ -2062,189 +2006,8 @@ export function buildBasicFilter(target: FilterTarget, value: string): IFilter {
 
 /* ── Data analysis & chart ───────────────────────────────────────── */
 
-/**
- * Detects whether a column is a rank/index/row-number column that should be
- * excluded from chart auto-recommendation. Uses word boundaries to avoid
- * false positives on legitimate columns like "Return_Revenue" or "region".
- *
- * A column is treated as rank/index when EITHER:
- *   - Its name matches a whole-word rank-ish token (rank|index|row_id|rn|seq|id), OR
- *   - ALL its values form a strict 1..N or 0..N-1 sequence (requires rows.length >= 3).
- */
-export function isRankOrIndexColumn(colName: string, values: number[]): boolean {
-    // Rank/index/surrogate key names
-    if (/\b(rank|index|row[\s_]?num(ber)?|row[\s_]?id|rn|seq(uence)?)\b/i.test(colName || "")) {
-        return true;
-    }
-    // Bare "id" column (exact match, not a suffix like order_id/product_id)
-    if (/^id$/i.test((colName || "").trim())) {
-        return true;
-    }
-    // Sequential 1-based or 0-based index run
-    if (values.length >= 3) {
-        const allOneBased = values.every((v, i) => v === i + 1);
-        const allZeroBased = values.every((v, i) => v === i);
-        if (allOneBased || allZeroBased) return true;
-    }
-    return false;
-}
-
-/**
- * Lightweight intent detector for business-user phrasing.
- *
- * Scans a question for explicit chart-type / view cues so the chat path
- * can honour requests like "show me a bar chart of sales by region" or
- * "give me a pie of profit by category" instead of falling through to
- * the auto-detected recommendation. Returns an empty object when the
- * question carries no explicit cue — caller then uses the default
- * view + auto-recommended chart type.
- *
- * Recognised cues (case-insensitive):
- *   • table            → "show as table", "in tabular form", "a table"
- *   • sql              → "show me the sql", "underlying sql", "in sql"
- *   • bar              → "bar chart", "bar graph", just "bar"
- *   • clustered-bar    → "clustered bar", "grouped bar", "side-by-side"
- *   • line             → "line chart", "line graph", "trend line"
- *   • area             → "area chart", "area graph"
- *   • donut            → "donut", "doughnut", "pie chart"
- *   • generic chart    → "show as a chart", "visualise", "graph it"
- *
- * Order matters: more specific phrases (e.g. "clustered bar") match
- * before the generic ones (e.g. "bar") so a clustered-bar request
- * doesn't degrade to a plain bar chart.
- */
-export type ForcedViewMode = "chart" | "table" | "narrative" | "sql";
-
-export interface ViewIntent {
-    /** Explicit view-mode override (when caller's available views allow it). */
-    viewMode?: ForcedViewMode;
-    /** Forced chart type — only meaningful when viewMode === "chart". */
-    chartType?: ChartKind;
-}
-
-export function detectViewIntent(question: string | null | undefined): ViewIntent {
-    const q = String(question || "").toLowerCase();
-    if (!q) return {};
-
-    // Table — match before chart so "show me a table of bar sales" is a table.
-    if (/\b(?:as|in)\s+(?:a\s+)?table\b|\bshow\s+(?:me\s+)?(?:a\s+)?table\b|\btabular\b/.test(q)) {
-        return { viewMode: "table" };
-    }
-    // SQL
-    if (/\bshow\s+(?:me\s+)?(?:the\s+)?sql\b|\b(?:as|in)\s+sql\b|\b(?:underlying|generated)\s+sql\b/.test(q)) {
-        return { viewMode: "sql" };
-    }
-
-    // Specific chart types — order: specific → generic.
-    if (/\b(?:donut|doughnut|pie)(?:\s*(?:chart|graph))?\b/.test(q)) {
-        return { viewMode: "chart", chartType: "donut" };
-    }
-    if (/\b(?:clustered|grouped|side[-\s]?by[-\s]?side)\s+bar\b/.test(q)) {
-        return { viewMode: "chart", chartType: "clustered-bar" };
-    }
-    if (/\bbar(?:\s*(?:chart|graph))?\b/.test(q)) {
-        return { viewMode: "chart", chartType: "bar" };
-    }
-    if (/\bline(?:\s*(?:chart|graph))?\b|\btrend(?:line)?\b/.test(q)) {
-        return { viewMode: "chart", chartType: "line" };
-    }
-    if (/\barea(?:\s*(?:chart|graph))?\b/.test(q)) {
-        return { viewMode: "chart", chartType: "area" };
-    }
-
-    // Generic chart ask without specific type — leave chart auto-pick.
-    if (/\bvisuali[sz]e\b|\b(?:show\s+(?:me\s+)?)?(?:as\s+a\s+|in\s+a\s+)?chart\b|\bgraph\s+it\b|\bplot\s+it\b/.test(q)) {
-        return { viewMode: "chart" };
-    }
-
-    return {};
-}
-
 export function analyzeDataShape(columns: string[], rows: any[][]): DataShape {
-    if (!columns.length || !rows.length) {
-        return { series: [], clustered: [], numericColCount: 0, rowCount: 0, recommended: "bar" };
-    }
-
-    const numericIndices: number[] = [];
-    const labelIndices: number[] = [];
-    rows[0].forEach((cell, i) => {
-        if (typeof cell === "number" || isNumericString(cell)) {
-            numericIndices.push(i);
-        } else {
-            labelIndices.push(i);
-        }
-    });
-
-    // Filter out rank/index columns using a shared helper with word boundaries
-    // and full-row sequential detection (see isRankOrIndexColumn).
-    const meaningfulNumeric = numericIndices.filter(ni => {
-        const colName = columns[ni] ?? "";
-        const vals = rows.map(r => Number(r[ni] ?? 0));
-        return !isRankOrIndexColumn(colName, vals);
-    });
-
-    // Build short label for axes (format dates, truncate composites)
-    const buildLabel = (row: any[], index: number): string => {
-        if (labelIndices.length === 0) return `Row ${index + 1}`;
-        const parts = labelIndices.map(li => {
-            const raw = String(row[li] ?? "");
-            return ISO_DATE_RE.test(raw) ? formatChartDate(raw) : raw;
-        }).filter(Boolean);
-        return parts.join(", ") || `Row ${index + 1}`;
-    };
-
-    // Build rich tooltip parts for all columns
-    const buildTooltipParts = (row: any[]): { col: string; val: string }[] =>
-        columns.map((col, ci) => ({ col, val: formatCellForTooltip(col, row[ci]) }));
-
-    const rowCount = rows.length;
-    const numericColCount = meaningfulNumeric.length;
-
-    // Multiple meaningful numeric columns → clustered bar candidate
-    if (numericColCount >= 2) {
-        const clustered: ClusteredSeriesPoint[] = rows.slice(0, 12).map((row, ri) => ({
-            label: buildLabel(row, ri),
-            values: meaningfulNumeric.map(ni => ({
-                name: columns[ni] ?? `Series ${ni}`,
-                value: Number(row[ni] ?? 0)
-            }))
-        }));
-
-        // Also build a flat series using the primary (first meaningful) numeric column
-        const primaryIdx = meaningfulNumeric[0];
-        const flatSeries: ChartSeriesPoint[] = rows.slice(0, 12).map((row, ri) => ({
-            label: buildLabel(row, ri),
-            value: Number(row[primaryIdx] ?? 0),
-            tooltipParts: buildTooltipParts(row)
-        }));
-
-        // Recommend clustered bar only for genuine comparisons (not ranked lists)
-        const recommended: ChartKind = rowCount === 1 ? "clustered-bar" : "clustered-bar";
-
-        return { series: flatSeries, clustered, numericColCount, rowCount, recommended };
-    }
-
-    // Single meaningful numeric column — use it for standard series
-    const primaryNumIdx = meaningfulNumeric[0] ?? numericIndices[0];
-    if (primaryNumIdx === undefined) {
-        return { series: [], clustered: [], numericColCount: 0, rowCount, recommended: "bar" };
-    }
-
-    const series: ChartSeriesPoint[] = rows.slice(0, 12).map((row, ri) => ({
-        label: buildLabel(row, ri),
-        value: Number(row[primaryNumIdx] ?? 0),
-        tooltipParts: buildTooltipParts(row)
-    }));
-
-    let recommended: ChartKind = "bar";
-    if (rowCount >= 6) {
-        recommended = "line";
-    }
-    if (rowCount >= 3 && rowCount <= 6 && series.every(p => p.value >= 0)) {
-        recommended = "donut";
-    }
-
-    return { series, clustered: [], numericColCount, rowCount, recommended };
+    return analyzeSharedDataShape(columns, rows, { formatNumber });
 }
 
 export function extractChartSeries(columns: string[], rows: any[][]): ChartSeriesPoint[] {
