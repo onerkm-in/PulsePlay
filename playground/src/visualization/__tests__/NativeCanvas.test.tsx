@@ -299,6 +299,224 @@ describe("NativeCanvas — envelope-driven viz states", () => {
     });
 });
 
+// ─── G6 fusion-lite ────────────────────────────────────────────────────────
+
+describe("NativeCanvas — G6 fusion-lite", () => {
+    const chartEnvelopeWithAnswer = () => validEnvelope({
+        id: "result-fusion-1",
+        schema: [{ name: "month" }, { name: "sales" }],
+        rows: [
+            ["Jan", 100], ["Feb", 140], ["Mar", 160], ["Apr", 180],
+            ["May", 220], ["Jun", 260], ["Jul", 300],
+        ],
+        answer: "Sales grew 200% from January to July, driven by a step change in May.",
+    });
+
+    it("renders fusion-lite when envelope has chart-renderable rows AND an answer", () => {
+        const container = makeContainer();
+        const handle = mountCanvas(container, {
+            mode: "result-accepted",
+            envelope: chartEnvelopeWithAnswer(),
+            governanceState: enforcedAttestation(),
+        });
+        // Fusion wrapper + commentary card BOTH present, bound by result id.
+        const fusion = container.querySelector("[data-testid='pp-native-bi-fusion']");
+        const card = container.querySelector("[data-testid='pp-native-bi-fusion-card']");
+        expect(fusion).not.toBeNull();
+        expect(card).not.toBeNull();
+        expect(fusion?.getAttribute("data-result-id")).toBe("result-fusion-1");
+        expect(card?.getAttribute("data-result-id")).toBe("result-fusion-1");
+        // Chart still renders inside the fusion wrapper.
+        expect(container.querySelector("[data-testid='pp-native-bi-chart']")).not.toBeNull();
+        unmountAndDetach(handle, container);
+    });
+
+    it("renders chart alone (no fusion) when answer is empty", () => {
+        const container = makeContainer();
+        const handle = mountCanvas(container, {
+            mode: "result-accepted",
+            envelope: validEnvelope({
+                id: "result-no-commentary",
+                schema: [{ name: "month" }, { name: "sales" }],
+                rows: [["Jan", 100], ["Feb", 140], ["Mar", 160], ["Apr", 180],
+                       ["May", 220], ["Jun", 260], ["Jul", 300]],
+                // answer omitted
+            }),
+            governanceState: enforcedAttestation(),
+        });
+        expect(container.querySelector("[data-testid='pp-native-bi-chart']")).not.toBeNull();
+        expect(container.querySelector("[data-testid='pp-native-bi-fusion']")).toBeNull();
+        expect(container.querySelector("[data-testid='pp-native-bi-fusion-card']")).toBeNull();
+        unmountAndDetach(handle, container);
+    });
+
+    it("renders fusion-lite for KPI + answer", () => {
+        const container = makeContainer();
+        const handle = mountCanvas(container, {
+            mode: "result-accepted",
+            envelope: validEnvelope({
+                id: "result-kpi-fusion",
+                schema: [{ name: "revenue" }],
+                rows: [[1234567]],
+                answer: "Revenue crossed $1.2M this quarter.",
+            }),
+            governanceState: enforcedAttestation(),
+        });
+        expect(container.querySelector("[data-testid='pp-native-bi-fusion']")).not.toBeNull();
+        expect(container.querySelector("[data-testid='pp-native-bi-kpi']")).not.toBeNull();
+        expect(container.querySelector("[data-testid='pp-native-bi-fusion-card']")).not.toBeNull();
+        unmountAndDetach(handle, container);
+    });
+
+    it("renders fusion-lite for table + answer", () => {
+        const container = makeContainer();
+        const handle = mountCanvas(container, {
+            mode: "result-accepted",
+            envelope: validEnvelope({
+                id: "result-table-fusion",
+                schema: [{ name: "category" }, { name: "owner" }],
+                rows: [["Sales", "Alice"], ["Marketing", "Bob"]],
+                answer: "Two functions, no overlap in ownership.",
+            }),
+            governanceState: enforcedAttestation(),
+        });
+        expect(container.querySelector("[data-testid='pp-native-bi-fusion']")).not.toBeNull();
+        expect(container.querySelector("[data-testid='pp-native-bi-table']")).not.toBeNull();
+        expect(container.querySelector("[data-testid='pp-native-bi-fusion-card']")).not.toBeNull();
+        unmountAndDetach(handle, container);
+    });
+
+    it("does NOT render fusion-lite for text-intent envelopes (TextState already shows the answer)", () => {
+        const container = makeContainer();
+        const handle = mountCanvas(container, {
+            mode: "result-accepted",
+            envelope: validEnvelope({
+                id: "result-text-only",
+                answer: "No tabular data, just narrative.",
+                schema: [],
+                rows: [],
+            }),
+            governanceState: enforcedAttestation(),
+        });
+        expect(container.querySelector("[data-testid='pp-native-bi-fusion']")).toBeNull();
+        unmountAndDetach(handle, container);
+    });
+
+    it("commentary card shows the envelope answer text", () => {
+        const container = makeContainer();
+        const handle = mountCanvas(container, {
+            mode: "result-accepted",
+            envelope: chartEnvelopeWithAnswer(),
+            governanceState: enforcedAttestation(),
+        });
+        const answerEl = container.querySelector("[data-testid='pp-native-bi-fusion-card-answer']");
+        expect(answerEl?.textContent).toContain("Sales grew 200% from January to July");
+        unmountAndDetach(handle, container);
+    });
+
+    it("commentary card shows the governance authority chip when enforced", () => {
+        const container = makeContainer();
+        const handle = mountCanvas(container, {
+            mode: "result-accepted",
+            envelope: chartEnvelopeWithAnswer(),
+            governanceState: enforcedAttestation(),
+        });
+        const authority = container.querySelector("[data-testid='pp-native-bi-fusion-card-authority']");
+        expect(authority?.textContent).toBe("unity-catalog");
+        // DEV preview chip must NOT appear when enforced.
+        expect(container.querySelector("[data-testid='pp-native-bi-fusion-card-preview']")).toBeNull();
+        unmountAndDetach(handle, container);
+    });
+
+    it("commentary card shows the DEV preview chip in ungoverned-result-preview mode (no authority chip)", () => {
+        const container = makeContainer();
+        const handle = mountCanvas(container, {
+            mode: "ungoverned-result-preview",
+            envelope: chartEnvelopeWithAnswer(),
+            governanceState: { state: "preview", reason: "no-governance-attestation" },
+        });
+        expect(container.querySelector("[data-testid='pp-native-bi-fusion-card-preview']"))
+            .not.toBeNull();
+        // Authority chip MUST NOT appear in preview mode — there's no enforced authority.
+        expect(container.querySelector("[data-testid='pp-native-bi-fusion-card-authority']"))
+            .toBeNull();
+        // Top-level preview badge still appears.
+        const root = container.querySelector("[data-native-bi-adapter='true']");
+        expect(root?.textContent).toContain("Ungoverned result preview");
+        unmountAndDetach(handle, container);
+    });
+
+    it("commentary card shows the sourceRef display label when present", () => {
+        const container = makeContainer();
+        const handle = mountCanvas(container, {
+            mode: "result-accepted",
+            envelope: {
+                ...chartEnvelopeWithAnswer(),
+                sourceRef: {
+                    kind: "metric-view",
+                    fullName: "main.sales.revenue_metrics",
+                    warehouseId: "wh-prod-1",
+                    displayName: "Revenue metrics",
+                    governance: { requiresAttestation: true },
+                },
+            },
+            governanceState: enforcedAttestation(),
+        });
+        const source = container.querySelector("[data-testid='pp-native-bi-fusion-card-source']");
+        expect(source?.textContent).toContain("Revenue metrics (Metric View)");
+        unmountAndDetach(handle, container);
+    });
+
+    it("commentary card omits the source line when no sourceRef", () => {
+        const container = makeContainer();
+        const handle = mountCanvas(container, {
+            mode: "result-accepted",
+            envelope: chartEnvelopeWithAnswer(), // sourceRef omitted in fixture
+            governanceState: enforcedAttestation(),
+        });
+        expect(container.querySelector("[data-testid='pp-native-bi-fusion-card-source']"))
+            .toBeNull();
+        unmountAndDetach(handle, container);
+    });
+
+    it("blocked governance state hides the commentary card entirely (BlockedState only)", () => {
+        const container = makeContainer();
+        const handle = mountCanvas(container, {
+            mode: "result-blocked",
+            envelope: chartEnvelopeWithAnswer(),
+            governanceState: { state: "blocked", reason: "no-governance-attestation" },
+        });
+        // BlockedState renders; no fusion wrapper, no commentary, no chart.
+        const root = container.querySelector("[data-native-bi-adapter='true']");
+        expect(root?.textContent).toContain("Render blocked");
+        expect(container.querySelector("[data-testid='pp-native-bi-fusion']")).toBeNull();
+        expect(container.querySelector("[data-testid='pp-native-bi-fusion-card']")).toBeNull();
+        expect(container.querySelector("[data-testid='pp-native-bi-chart']")).toBeNull();
+        unmountAndDetach(handle, container);
+    });
+
+    it("fusion wrapper and commentary share data-result-id matching envelope.id", () => {
+        const container = makeContainer();
+        const handle = mountCanvas(container, {
+            mode: "result-accepted",
+            envelope: validEnvelope({
+                id: "result-bound-by-id-xyz",
+                schema: [{ name: "month" }, { name: "sales" }],
+                rows: [["Jan", 100], ["Feb", 140], ["Mar", 160], ["Apr", 180],
+                       ["May", 220], ["Jun", 260], ["Jul", 300]],
+                answer: "Bound by result id.",
+            }),
+            governanceState: enforcedAttestation(),
+        });
+        const ids = Array.from(container.querySelectorAll("[data-result-id]"))
+            .map(el => el.getAttribute("data-result-id"));
+        // Fusion wrapper, chart wrapper, and commentary card all carry the id.
+        expect(ids.length).toBeGreaterThanOrEqual(2);
+        expect(new Set(ids)).toEqual(new Set(["result-bound-by-id-xyz"]));
+        unmountAndDetach(handle, container);
+    });
+});
+
 // ─── Mount helper lifecycle ────────────────────────────────────────────────
 
 describe("mountNativeCanvas — lifecycle", () => {

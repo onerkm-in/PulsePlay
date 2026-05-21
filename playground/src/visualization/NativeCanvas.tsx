@@ -63,6 +63,7 @@ import {
 } from "./chartAutoPick";
 import { validateChartRenderSpec, type ChartRenderSpec } from "./chartSpecValidation";
 import { compileVegaLiteToECharts } from "../lib/vegaLiteToECharts";
+import { sourceRefDisplayLabel } from "./sourceRef";
 
 // Register only the chart types + components G4 actually surfaces.
 // Adding a new chart kind means registering its module here AND
@@ -202,7 +203,17 @@ export function NativeCanvas(props: NativeCanvasProps): React.ReactElement {
 
     // result-accepted or ungoverned-result-preview from here on.
     const isPreview = mode === "ungoverned-result-preview";
-    const body = renderEnvelopeBody(envelope);
+    const renderedBody = renderEnvelopeBody(envelope);
+
+    // G6 fusion-lite: when the envelope carries BOTH chart-renderable
+    // rows AND a narrative answer, dock the body alongside a commentary
+    // card bound by `envelope.id`. The chart half stays exactly the
+    // same component used in non-fusion mode — fusion is purely a
+    // layout wrapper. Future cycles can split structured insights into
+    // multiple cards; G6 ships the single-card MVP.
+    const fusionCommentary = isAIResultEnvelope(envelope)
+        ? buildFusionCommentary(envelope, renderedBody.intent, governanceState)
+        : null;
 
     return renderRootSection({
         statusKey: mode,
@@ -210,30 +221,226 @@ export function NativeCanvas(props: NativeCanvasProps): React.ReactElement {
         theme,
         children: (
             <>
-                {body}
+                {fusionCommentary
+                    ? (
+                        <FusionLayout
+                            resultId={fusionCommentary.resultId}
+                            chart={renderedBody.element}
+                            commentary={fusionCommentary}
+                        />
+                    )
+                    : renderedBody.element}
                 {isPreview && <PreviewBadge />}
             </>
         ),
     });
 }
 
-function renderEnvelopeBody(envelope: unknown): React.ReactElement {
+interface RenderedEnvelopeBody {
+    readonly element: React.ReactElement;
+    readonly intent: "empty" | "text" | "table" | "kpi" | "chart" | "fallback";
+}
+
+function renderEnvelopeBody(envelope: unknown): RenderedEnvelopeBody {
     // Adapter may pass a partially-shaped result through (e.g., the
     // existing G3 tests use `{ rows: [] }` which is not a valid
     // AIResultEnvelope but is a legitimate "accepted" message). Fall
     // back to AcceptedFallback so the user gets the "AI result accepted"
     // signal even when there is nothing renderable.
     if (!isAIResultEnvelope(envelope)) {
-        return <AcceptedFallback />;
+        return { element: <AcceptedFallback />, intent: "fallback" };
     }
     const intent = resultToVizIntent(envelope);
     switch (intent.kind) {
-        case "empty": return <AcceptedFallback />;
-        case "text":  return <TextState answer={envelope.answer ?? ""} />;
-        case "table": return <TableState envelope={envelope} />;
-        case "kpi":   return <KpiState envelope={envelope} />;
-        case "chart": return <ChartState envelope={envelope} intent={intent} />;
+        case "empty": return { element: <AcceptedFallback />, intent: "empty" };
+        case "text":  return { element: <TextState answer={envelope.answer ?? ""} />, intent: "text" };
+        case "table": return { element: <TableState envelope={envelope} />, intent: "table" };
+        case "kpi":   return { element: <KpiState envelope={envelope} />, intent: "kpi" };
+        case "chart": return { element: <ChartState envelope={envelope} intent={intent} />, intent: "chart" };
     }
+}
+
+// ─── Fusion-lite (G6) ─────────────────────────────────────────────────────
+
+/** Decision: should this envelope render in fusion-lite layout?
+ *  Yes when ALL three hold:
+ *    - The envelope rendered as a chart, KPI, or table (it has data
+ *      worth pairing commentary with). Pure text/empty intents already
+ *      surface the answer in their own body, so docking would duplicate.
+ *    - The envelope carries a non-empty `answer` narrative.
+ *    - Governance state is enforced or preview (NOT blocked) — blocked
+ *      renders BlockedState only, never fusion.
+ *  Returns the commentary payload + the result id binding, or null. */
+interface FusionCommentaryPayload {
+    readonly resultId: string;
+    readonly answer: string;
+    readonly sourceRefLabel: string | null;
+    readonly governanceAuthority: string | null;
+    readonly isPreview: boolean;
+}
+
+function buildFusionCommentary(
+    envelope: AIResultEnvelope,
+    bodyIntent: RenderedEnvelopeBody["intent"],
+    governanceState: NativeCanvasGovernanceState,
+): FusionCommentaryPayload | null {
+    if (bodyIntent !== "chart" && bodyIntent !== "kpi" && bodyIntent !== "table") return null;
+    const answer = typeof envelope.answer === "string" ? envelope.answer.trim() : "";
+    if (!answer) return null;
+    if (governanceState.state === "blocked") return null;
+    const sourceRefLabel = envelope.sourceRef ? sourceRefDisplayLabel(envelope.sourceRef) : null;
+    const governanceAuthority = governanceState.state === "enforced"
+        ? governanceState.authority
+        : null;
+    return {
+        resultId: envelope.id,
+        answer,
+        sourceRefLabel,
+        governanceAuthority,
+        isPreview: governanceState.state === "preview",
+    };
+}
+
+/** Side-by-side wrapper that binds chart + commentary by `data-result-id`.
+ *  Stacks vertically below ~720px (responsive without media queries by
+ *  using flex-wrap). Chart half grows; commentary card has a max width
+ *  so it doesn't dominate on very wide viewports. */
+function FusionLayout({
+    resultId,
+    chart,
+    commentary,
+}: {
+    resultId: string;
+    chart: React.ReactElement;
+    commentary: FusionCommentaryPayload;
+}): React.ReactElement {
+    return (
+        <div
+            className="pp-native-bi__fusion"
+            data-testid="pp-native-bi-fusion"
+            data-result-id={resultId}
+            style={{
+                display: "flex",
+                flexDirection: "row",
+                flexWrap: "wrap",
+                gap: 16,
+                width: "100%",
+                height: "100%",
+                alignItems: "stretch",
+            }}
+        >
+            <div
+                className="pp-native-bi__fusion-chart"
+                data-result-id={resultId}
+                style={{
+                    flex: "1 1 380px",
+                    minWidth: 280,
+                    display: "flex",
+                    flexDirection: "column",
+                }}
+            >
+                {chart}
+            </div>
+            <FusionCommentaryCard commentary={commentary} />
+        </div>
+    );
+}
+
+/** Single commentary card. Shows envelope.answer prominently, plus
+ *  optional sourceRef display label and governance authority chip.
+ *  Bound to the chart by `data-result-id` so future hover/highlight
+ *  code can sync the two halves. */
+function FusionCommentaryCard({
+    commentary,
+}: {
+    commentary: FusionCommentaryPayload;
+}): React.ReactElement {
+    return (
+        <aside
+            className="pp-native-bi__fusion-card"
+            data-testid="pp-native-bi-fusion-card"
+            data-result-id={commentary.resultId}
+            role="complementary"
+            aria-label="AI commentary"
+            style={{
+                flex: "0 1 320px",
+                minWidth: 240,
+                maxWidth: 380,
+                padding: "12px 14px",
+                background: "var(--pp-surface-subtle, rgba(15,23,42,0.04))",
+                border: "1px solid var(--pp-border-subtle, rgba(15,23,42,0.08))",
+                borderRadius: 6,
+                color: "var(--pp-text, #0f172a)",
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+            }}
+        >
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+                <strong style={{ fontSize: 13, color: "var(--pp-text, #0f172a)" }}>
+                    AI commentary
+                </strong>
+                {commentary.governanceAuthority && (
+                    <span
+                        data-testid="pp-native-bi-fusion-card-authority"
+                        style={{
+                            fontSize: 10,
+                            fontWeight: 600,
+                            letterSpacing: "0.04em",
+                            textTransform: "uppercase",
+                            padding: "2px 6px",
+                            borderRadius: 3,
+                            background: "rgba(34, 197, 94, 0.12)",
+                            color: "rgba(21, 128, 61, 0.95)",
+                        }}
+                    >
+                        {commentary.governanceAuthority}
+                    </span>
+                )}
+                {commentary.isPreview && (
+                    <span
+                        data-testid="pp-native-bi-fusion-card-preview"
+                        style={{
+                            fontSize: 10,
+                            fontWeight: 600,
+                            letterSpacing: "0.04em",
+                            textTransform: "uppercase",
+                            padding: "2px 6px",
+                            borderRadius: 3,
+                            background: "rgba(202, 138, 4, 0.18)",
+                            color: "rgba(146, 64, 14, 0.95)",
+                        }}
+                    >
+                        DEV preview
+                    </span>
+                )}
+            </div>
+            <p
+                style={{
+                    margin: 0,
+                    fontSize: 13,
+                    lineHeight: 1.5,
+                    whiteSpace: "pre-wrap",
+                    color: "var(--pp-text, #0f172a)",
+                }}
+                data-testid="pp-native-bi-fusion-card-answer"
+            >
+                {commentary.answer}
+            </p>
+            {commentary.sourceRefLabel && (
+                <p
+                    style={{
+                        margin: 0,
+                        fontSize: 11,
+                        color: "var(--pp-text-muted, #475569)",
+                    }}
+                    data-testid="pp-native-bi-fusion-card-source"
+                >
+                    Source: {commentary.sourceRefLabel}
+                </p>
+            )}
+        </aside>
+    );
 }
 
 // ─── Root section wrapper — owns the stable selectors existing tests use ──
