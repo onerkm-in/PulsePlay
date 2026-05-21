@@ -19,6 +19,8 @@ export default defineConfig({
     // playground/node_modules/.
     resolve: {
         alias: {
+            "react": path.resolve(__dirname, "node_modules/react"),
+            "react-dom": path.resolve(__dirname, "node_modules/react-dom"),
             "powerbi-client": path.resolve(__dirname, "node_modules/powerbi-client"),
             // Cycle D — Pulse port stubs (mirror vite.config.ts aliases).
             "powerbi-visuals-api": path.resolve(__dirname, "src/pulse/_adapter/powerbi-visuals-api.ts"),

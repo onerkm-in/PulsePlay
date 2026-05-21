@@ -4,6 +4,7 @@
 // capabilities, command rejection, and import-boundary guardrails.
 
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
+import { act } from "react";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import {
@@ -81,7 +82,7 @@ describe("NativeBIAdapter — mount and lifecycle", () => {
 
     test("mount renders the native empty state without an embed URL", async () => {
         const adapter = new NativeBIAdapter();
-        await adapter.mount(containerEl, {});
+        await mountAdapter(adapter, containerEl, {});
         const root = containerEl.querySelector<HTMLElement>("[data-native-bi-adapter='true']");
         expect(root).not.toBeNull();
         expect(root?.textContent).toContain("Native result canvas");
@@ -93,15 +94,15 @@ describe("NativeBIAdapter — mount and lifecycle", () => {
         const events: NativeEvent[] = [];
         adapter.on("loaded", e => events.push(e));
         adapter.on("ready", e => events.push(e));
-        await adapter.mount(containerEl, {});
+        await mountAdapter(adapter, containerEl, {});
         expect(events.map(e => e.type)).toEqual(["loaded", "ready"]);
     });
 
     test("destroy removes the native root and clears metadata", async () => {
         const adapter = new NativeBIAdapter();
-        await adapter.mount(containerEl, {});
+        await mountAdapter(adapter, containerEl, {});
         expect(await adapter.getMetadata()).not.toBeNull();
-        adapter.destroy();
+        destroyAdapter(adapter);
         expect(containerEl.querySelector("[data-native-bi-adapter='true']")).toBeNull();
         expect(await adapter.getMetadata()).toBeNull();
     });
@@ -121,9 +122,9 @@ describe("NativeBIAdapter — command surface", () => {
 
     test.each(NATIVE_FORBIDDEN_COMMAND_KINDS)("rejects forbidden command %s", async (kind) => {
         const adapter = new NativeBIAdapter();
-        await adapter.mount(containerEl, {});
+        await mountAdapter(adapter, containerEl, {});
         await expect(
-            adapter.send({ kind } as unknown as BICommand),
+            sendAdapter(adapter, { kind } as unknown as BICommand),
         ).rejects.toThrow(new RegExp(BI_ERR.UNSUPPORTED_COMMAND));
     });
 
@@ -131,9 +132,9 @@ describe("NativeBIAdapter — command surface", () => {
         const adapter = new NativeBIAdapter();
         const events: NativeEvent[] = [];
         adapter.on("error", e => events.push(e));
-        await adapter.mount(containerEl, {});
+        await mountAdapter(adapter, containerEl, {});
         await expect(
-            adapter.send({ kind: "executeQuery" } as unknown as BICommand),
+            sendAdapter(adapter, { kind: "executeQuery" } as unknown as BICommand),
         ).rejects.toThrow(/BI_UNSUPPORTED_COMMAND/);
         expect(events).toHaveLength(1);
         expect(events[0].payload).toMatchObject({
@@ -151,7 +152,7 @@ describe("NativeBIAdapter — command surface", () => {
         const seen: string[] = [];
         const newlySubscribedSeen: string[] = [];
 
-        await adapter.mount(containerEl, {});
+        await mountAdapter(adapter, containerEl, {});
 
         let unsubMid: (() => void) | null = null;
         const unsubFirst = adapter.on("rendered", () => {
@@ -164,7 +165,7 @@ describe("NativeBIAdapter — command surface", () => {
         unsubMid = adapter.on("rendered", () => { seen.push("mid-but-unsubscribed-during-emit"); });
         adapter.on("rendered", () => { seen.push("last"); });
 
-        await adapter.send({ kind: "renderResult", result: { rows: [] } });
+        await sendAdapter(adapter, { kind: "renderResult", result: { rows: [] } });
         // First handler fired. Mid-handler was unsubscribed before its
         // turn so it did NOT fire. Last handler fired. Newly subscribed
         // handler did NOT fire in this emit cycle.
@@ -172,7 +173,7 @@ describe("NativeBIAdapter — command surface", () => {
         expect(newlySubscribedSeen).toEqual([]);
 
         // Second emit: newly subscribed handler fires now.
-        await adapter.send({ kind: "renderResult", result: { rows: [] } });
+        await sendAdapter(adapter, { kind: "renderResult", result: { rows: [] } });
         expect(newlySubscribedSeen).toEqual(["late"]);
 
         unsubFirst();
@@ -182,15 +183,16 @@ describe("NativeBIAdapter — command surface", () => {
         const adapter = new NativeBIAdapter();
         const events: NativeEvent[] = [];
         adapter.on("rendered", e => events.push(e));
-        await adapter.mount(containerEl, {});
+        await mountAdapter(adapter, containerEl, {});
 
-        await expect(adapter.send({ kind: "renderResult", result: { rows: [] } })).resolves.toBeUndefined();
+        await expect(sendAdapter(adapter, { kind: "renderResult", result: { rows: [] } })).resolves.toBeUndefined();
         expect(containerEl.textContent).toContain("AI result accepted");
-        await expect(adapter.send({ kind: "renderSpec", spec: { mark: "bar" } })).resolves.toBeUndefined();
-        expect(containerEl.textContent).toContain("Chart render spec accepted");
-        await expect(adapter.send({ kind: "setTheme", theme: "slate-dark" } as NativeBICommand)).resolves.toBeUndefined();
-        await expect(adapter.send({ kind: "resize", width: 800, height: 420 } as NativeBICommand)).resolves.toBeUndefined();
-        await expect(adapter.send({ kind: "clear" })).resolves.toBeUndefined();
+        await expect(sendAdapter(adapter, { kind: "renderSpec", spec: { mark: "bar" } })).resolves.toBeUndefined();
+        expect(containerEl.textContent).toContain("Chart spec could not be rendered");
+        expect(containerEl.textContent).toContain("Spec must define data.values");
+        await expect(sendAdapter(adapter, { kind: "setTheme", theme: "slate-dark" } as NativeBICommand)).resolves.toBeUndefined();
+        await expect(sendAdapter(adapter, { kind: "resize", width: 800, height: 420 } as NativeBICommand)).resolves.toBeUndefined();
+        await expect(sendAdapter(adapter, { kind: "clear" })).resolves.toBeUndefined();
         expect(containerEl.textContent).toContain("Ask Pulse");
         expect(events.map(e => e.type)).toEqual(["rendered", "rendered"]);
     });
@@ -213,9 +215,9 @@ describe("NativeBIAdapter — G3 governance render gate", () => {
         const events: NativeEvent[] = [];
         adapter.on("error", e => events.push(e));
         adapter.on("view-context", e => events.push(e));
-        await adapter.mount(containerEl, {});
+        await mountAdapter(adapter, containerEl, {});
 
-        await expect(adapter.send({ kind: "renderResult", result: { rows: [] } }))
+        await expect(sendAdapter(adapter, { kind: "renderResult", result: { rows: [] } }))
             .rejects.toThrow(/NATIVE_GOVERNANCE_REQUIRED/);
 
         expect(containerEl.textContent).toContain("Native render blocked");
@@ -233,9 +235,9 @@ describe("NativeBIAdapter — G3 governance render gate", () => {
 
     test("production mode blocks renderResult when governance is invalid", async () => {
         const adapter = new NativeBIAdapter({ requireGovernanceAttestation: true });
-        await adapter.mount(containerEl, {});
+        await mountAdapter(adapter, containerEl, {});
 
-        await expect(adapter.send({
+        await expect(sendAdapter(adapter, {
             kind: "renderResult",
             result: { rows: [], governance: { enforced: false } },
         })).rejects.toThrow(/NATIVE_GOVERNANCE_REQUIRED/);
@@ -246,9 +248,9 @@ describe("NativeBIAdapter — G3 governance render gate", () => {
         const adapter = new NativeBIAdapter({ requireGovernanceAttestation: true });
         const events: NativeEvent[] = [];
         adapter.on("rendered", e => events.push(e));
-        await adapter.mount(containerEl, {});
+        await mountAdapter(adapter, containerEl, {});
 
-        await expect(adapter.send({ kind: "renderResult", result: VALID_GOVERNED_RESULT }))
+        await expect(sendAdapter(adapter, { kind: "renderResult", result: VALID_GOVERNED_RESULT }))
             .resolves.toBeUndefined();
 
         expect(containerEl.textContent).toContain("AI result accepted");
@@ -268,9 +270,9 @@ describe("NativeBIAdapter — G3 governance render gate", () => {
         const adapter = new NativeBIAdapter({ requireGovernanceAttestation: false });
         const events: NativeEvent[] = [];
         adapter.on("rendered", e => events.push(e));
-        await adapter.mount(containerEl, {});
+        await mountAdapter(adapter, containerEl, {});
 
-        await expect(adapter.send({ kind: "renderResult", result: { rows: [] } }))
+        await expect(sendAdapter(adapter, { kind: "renderResult", result: { rows: [] } }))
             .resolves.toBeUndefined();
 
         expect(containerEl.textContent).toContain("Ungoverned result preview");
@@ -377,4 +379,22 @@ function collectProductionFiles(dir: string, ext: ".ts" | ".tsx"): string[] {
         }
     }
     return out;
+}
+
+async function mountAdapter(adapter: NativeBIAdapter, containerEl: HTMLElement, config: BIEmbedConfig): Promise<void> {
+    await act(async () => {
+        await adapter.mount(containerEl, config);
+    });
+}
+
+async function sendAdapter(adapter: NativeBIAdapter, command: NativeBICommand): Promise<void> {
+    await act(async () => {
+        await adapter.send(command);
+    });
+}
+
+function destroyAdapter(adapter: NativeBIAdapter): void {
+    act(() => {
+        adapter.destroy();
+    });
 }

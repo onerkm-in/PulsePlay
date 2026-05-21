@@ -61,6 +61,7 @@ export class NativeBIAdapter implements BIAdapter {
     private renderStatus: NativeRenderStatus = "empty";
     private governanceState: NativeGovernanceState = { state: "not-applicable" };
     private currentEnvelope: unknown = null;
+    private currentSpec: unknown = null;
     private currentTheme: string | null = null;
 
     constructor(options: NativeBIAdapterOptions = {}) {
@@ -85,6 +86,7 @@ export class NativeBIAdapter implements BIAdapter {
         this.renderStatus = "empty";
         this.governanceState = { state: "not-applicable" };
         this.currentEnvelope = null;
+        this.currentSpec = null;
         this.currentTheme = null;
 
         // Mount the React canvas inside the host container. NativeCanvas
@@ -152,6 +154,7 @@ export class NativeBIAdapter implements BIAdapter {
         this.renderStatus = "empty";
         this.governanceState = { state: "not-applicable" };
         this.currentEnvelope = null;
+        this.currentSpec = null;
         this.currentTheme = null;
     }
 
@@ -194,6 +197,7 @@ export class NativeBIAdapter implements BIAdapter {
                 this.renderStatus = "spec-accepted";
                 this.governanceState = { state: "not-applicable" };
                 this.currentEnvelope = null;
+                this.currentSpec = command.spec;
                 this.syncCanvas();
                 this.emitRendered("spec");
                 return;
@@ -201,6 +205,7 @@ export class NativeBIAdapter implements BIAdapter {
                 this.renderStatus = "empty";
                 this.governanceState = { state: "not-applicable" };
                 this.currentEnvelope = null;
+                this.currentSpec = null;
                 this.syncCanvas();
                 this.emit({ type: "view-context", payload: { status: this.renderStatus, governance: this.governanceState } });
                 return;
@@ -233,6 +238,7 @@ export class NativeBIAdapter implements BIAdapter {
             this.renderStatus = "result-blocked";
             this.governanceState = { state: "blocked", reason: "no-governance-attestation" };
             this.currentEnvelope = null;
+            this.currentSpec = null;
             this.syncCanvas();
             const payload = {
                 mode: "native",
@@ -255,6 +261,7 @@ export class NativeBIAdapter implements BIAdapter {
             this.renderStatus = "ungoverned-result-preview";
             this.governanceState = { state: "preview", reason: "no-governance-attestation" };
             this.currentEnvelope = result;
+            this.currentSpec = null;
             this.syncCanvas();
             this.emitRendered("result");
             return;
@@ -267,6 +274,7 @@ export class NativeBIAdapter implements BIAdapter {
             requestId: attestation.requestId,
         };
         this.currentEnvelope = result;
+        this.currentSpec = null;
         this.syncCanvas();
         this.emitRendered("result");
     }
@@ -275,6 +283,7 @@ export class NativeBIAdapter implements BIAdapter {
         return {
             mode: this.renderStatus,
             envelope: this.currentEnvelope,
+            spec: this.currentSpec,
             governanceState: this.governanceState,
             theme: this.currentTheme,
         } as const;

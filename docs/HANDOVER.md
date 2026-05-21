@@ -5,6 +5,26 @@
 
 ---
 
+## 2026-05-21 - G4 audit patch: renderSpec actually renders
+
+**Scope.** External-LLM audit of Claude's G4 slice found one real quality gap: `renderSpec` accepted a spec but discarded `command.spec`, so the canvas only showed "Chart render spec accepted" and never validated or rendered the provided spec. Patched before accepting G4.
+
+**Patch.**
+- [`NativeBIAdapter`](../bi-adapters/native/NativeBIAdapter.ts) now tracks `currentSpec`, passes it through `canvasProps()`, and clears it whenever result/clear/block paths run.
+- [`NativeCanvas`](../playground/src/visualization/NativeCanvas.tsx) now validates `spec` with `validateChartRenderSpec`, compiles valid inline specs through `compileVegaLiteToECharts`, renders them with the same ECharts host used for envelope-driven charts, and shows a clear unsupported state for invalid specs.
+- G4 canvas registration now includes scatter + heatmap modules because the portable spec validator allows `point` and `rect` marks.
+- Focused G4 tests now wrap canvas/adapter render operations in React `act(...)`, removing the warning flood introduced by the React root helper. [`vitest.config.ts`](../playground/vitest.config.ts) aliases React/ReactDOM so adapter tests outside `playground/` can import `act` from the playground dependency.
+
+**Validation.**
+- Focused native + canvas: **55/55** (41 native + 14 canvas).
+- Full playground: **1341/1341**.
+- `npm run lint`: PASS.
+- `npm run build`: PASS (same BI-adapter dynamic-import warnings).
+
+**Browser smoke.** Still **not green**. No new browser attempt in this audit patch; Claude's prior attempt remains the latest signal and was blocked because the proxy was not running. G4 is automated-green, not UX-verified.
+
+---
+
 ## 2026-05-21 - G4 native canvas + ECharts MVP
 
 **Scope.** First real renderer for the native BI adapter. Five viz states (empty / text / table / KPI / chart) rendered from attested `AIResultEnvelope`s. Preserves G3 governance gate; preserves renderer-only / no-fetch / no-authoring posture; preserves Pulse-PBI copy-port discipline. Browser smoke attempted but did NOT pass (proxy required).
@@ -21,8 +41,8 @@
 
 **Tests.**
 - Focused native adapter (lifecycle + commands + G3 gate + import boundary): **41/41**.
-- Focused NativeCanvas (5 viz states + preview badge + blocked + mount lifecycle): **13/13**.
-- Full playground: **1340/1340** (was 1326, +14: 13 new canvas + 1 boundary split).
+- Focused NativeCanvas (5 viz states + preview badge + blocked + renderSpec validation/render + mount lifecycle): **14/14**.
+- Full playground after audit patch: **1341/1341** (was 1326 before G4; +15 net).
 - `playground npm run lint`: PASS.
 - `playground npm run build`: PASS (existing BI-adapter dynamic-import warnings only).
 

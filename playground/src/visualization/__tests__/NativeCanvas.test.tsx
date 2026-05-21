@@ -11,6 +11,7 @@
 // actually paint.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act } from "react";
 
 // Vitest hoists `vi.mock` to the top of the file, so the factory must
 // not reference top-level `const`s declared later. Use `vi.hoisted` to
@@ -30,7 +31,7 @@ const { echartsMock } = vi.hoisted(() => {
 
 vi.mock("echarts/core", () => echartsMock);
 vi.mock("echarts/charts", () => ({
-    BarChart: {}, LineChart: {}, PieChart: {},
+    BarChart: {}, HeatmapChart: {}, LineChart: {}, PieChart: {}, ScatterChart: {},
 }));
 vi.mock("echarts/components", () => ({
     GridComponent: {},
@@ -59,8 +60,24 @@ function makeContainer(): HTMLElement {
     return container;
 }
 
+function mountCanvas(container: HTMLElement, props: NativeCanvasProps): ReturnType<typeof mountNativeCanvas> {
+    let handle!: ReturnType<typeof mountNativeCanvas>;
+    act(() => {
+        handle = mountNativeCanvas(container, props);
+    });
+    return handle;
+}
+
+function updateCanvas(handle: ReturnType<typeof mountNativeCanvas>, props: NativeCanvasProps): void {
+    act(() => {
+        handle.update(props);
+    });
+}
+
 function unmountAndDetach(handle: ReturnType<typeof mountNativeCanvas>, container: HTMLElement): void {
-    handle.unmount();
+    act(() => {
+        handle.unmount();
+    });
     if (container.parentElement) container.parentElement.removeChild(container);
 }
 
@@ -79,7 +96,7 @@ afterEach(() => {
 describe("NativeCanvas — non-envelope modes", () => {
     it("mode=empty renders the empty placeholder", () => {
         const container = makeContainer();
-        const handle = mountNativeCanvas(container, {
+        const handle = mountCanvas(container, {
             mode: "empty",
             envelope: null,
             governanceState: { state: "not-applicable" },
@@ -95,20 +112,36 @@ describe("NativeCanvas — non-envelope modes", () => {
 
     it("mode=spec-accepted renders the spec acknowledgement", () => {
         const container = makeContainer();
-        const handle = mountNativeCanvas(container, {
+        const handle = mountCanvas(container, {
             mode: "spec-accepted",
             envelope: null,
+            spec: validChartSpec(),
             governanceState: { state: "not-applicable" },
         });
         const root = container.querySelector<HTMLElement>("[data-native-bi-adapter='true']");
         expect(root?.getAttribute("data-native-bi-status")).toBe("spec-accepted");
         expect(root?.textContent).toContain("Chart render spec accepted");
+        expect(container.querySelector("[data-testid='pp-native-bi-spec-chart']")).not.toBeNull();
+        unmountAndDetach(handle, container);
+    });
+
+    it("mode=spec-accepted surfaces invalid specs without rendering a chart", () => {
+        const container = makeContainer();
+        const handle = mountCanvas(container, {
+            mode: "spec-accepted",
+            envelope: null,
+            spec: { mark: "bar" },
+            governanceState: { state: "not-applicable" },
+        });
+        const root = container.querySelector<HTMLElement>("[data-native-bi-adapter='true']");
+        expect(root?.textContent).toContain("Chart spec could not be rendered");
+        expect(container.querySelector("[data-testid='pp-native-bi-spec-chart']")).toBeNull();
         unmountAndDetach(handle, container);
     });
 
     it("mode=result-blocked renders the blocked alert and ignores envelope", () => {
         const container = makeContainer();
-        const handle = mountNativeCanvas(container, {
+        const handle = mountCanvas(container, {
             mode: "result-blocked",
             envelope: { rows: [], schema: [] },
             governanceState: { state: "blocked", reason: "no-governance-attestation" },
@@ -126,7 +159,7 @@ describe("NativeCanvas — non-envelope modes", () => {
 
     it("mode=result-accepted with a non-envelope value falls back to acknowledgement", () => {
         const container = makeContainer();
-        const handle = mountNativeCanvas(container, {
+        const handle = mountCanvas(container, {
             mode: "result-accepted",
             envelope: { rows: [] },  // not a valid AIResultEnvelope (no id)
             governanceState: { state: "enforced", authority: "unity-catalog", requestId: "req-1" },
@@ -144,7 +177,7 @@ describe("NativeCanvas — non-envelope modes", () => {
 describe("NativeCanvas — ungoverned preview badge", () => {
     it("renders the DEV ONLY badge on ungoverned-result-preview mode", () => {
         const container = makeContainer();
-        const handle = mountNativeCanvas(container, {
+        const handle = mountCanvas(container, {
             mode: "ungoverned-result-preview",
             envelope: { rows: [] },
             governanceState: { state: "preview", reason: "no-governance-attestation" },
@@ -158,7 +191,7 @@ describe("NativeCanvas — ungoverned preview badge", () => {
 
     it("does NOT render the preview badge in enforced mode", () => {
         const container = makeContainer();
-        const handle = mountNativeCanvas(container, {
+        const handle = mountCanvas(container, {
             mode: "result-accepted",
             envelope: validEnvelope({ rows: [["a", 1]] }),
             governanceState: { state: "enforced", authority: "unity-catalog", requestId: "req-1" },
@@ -174,7 +207,7 @@ describe("NativeCanvas — ungoverned preview badge", () => {
 describe("NativeCanvas — envelope-driven viz states", () => {
     it("renders the table state for non-numeric multi-column data", () => {
         const container = makeContainer();
-        const handle = mountNativeCanvas(container, {
+        const handle = mountCanvas(container, {
             mode: "result-accepted",
             envelope: validEnvelope({
                 schema: [
@@ -199,7 +232,7 @@ describe("NativeCanvas — envelope-driven viz states", () => {
 
     it("renders the KPI state for single-row single-numeric data", () => {
         const container = makeContainer();
-        const handle = mountNativeCanvas(container, {
+        const handle = mountCanvas(container, {
             mode: "result-accepted",
             envelope: validEnvelope({
                 schema: [{ name: "revenue" }],
@@ -219,7 +252,7 @@ describe("NativeCanvas — envelope-driven viz states", () => {
 
     it("renders the chart state and initializes echarts for multi-row numeric data", () => {
         const container = makeContainer();
-        const handle = mountNativeCanvas(container, {
+        const handle = mountCanvas(container, {
             mode: "result-accepted",
             envelope: validEnvelope({
                 schema: [
@@ -248,7 +281,7 @@ describe("NativeCanvas — envelope-driven viz states", () => {
 
     it("handles text-intent envelopes (answer only, no rows)", () => {
         const container = makeContainer();
-        const handle = mountNativeCanvas(container, {
+        const handle = mountCanvas(container, {
             mode: "result-accepted",
             envelope: validEnvelope({
                 answer: "Q3 revenue is up 12% year-over-year.",
@@ -271,7 +304,7 @@ describe("NativeCanvas — envelope-driven viz states", () => {
 describe("mountNativeCanvas — lifecycle", () => {
     it("update() re-renders with new props synchronously", () => {
         const container = makeContainer();
-        const handle = mountNativeCanvas(container, {
+        const handle = mountCanvas(container, {
             mode: "empty",
             envelope: null,
             governanceState: { state: "not-applicable" },
@@ -279,7 +312,7 @@ describe("mountNativeCanvas — lifecycle", () => {
         expect(container.querySelector("[data-native-bi-adapter='true']")?.getAttribute("data-native-bi-status"))
             .toBe("empty");
 
-        handle.update({
+        updateCanvas(handle, {
             mode: "result-blocked",
             envelope: null,
             governanceState: { state: "blocked", reason: "no-governance-attestation" },
@@ -292,28 +325,32 @@ describe("mountNativeCanvas — lifecycle", () => {
 
     it("unmount() empties the container and is idempotent", () => {
         const container = makeContainer();
-        const handle = mountNativeCanvas(container, {
+        const handle = mountCanvas(container, {
             mode: "empty",
             envelope: null,
             governanceState: { state: "not-applicable" },
         });
         expect(container.querySelector("[data-native-bi-adapter='true']")).not.toBeNull();
-        handle.unmount();
+        act(() => {
+            handle.unmount();
+        });
         expect(container.querySelector("[data-native-bi-adapter='true']")).toBeNull();
         // Second unmount must not throw.
-        expect(() => handle.unmount()).not.toThrow();
+        expect(() => act(() => { handle.unmount(); })).not.toThrow();
         if (container.parentElement) container.parentElement.removeChild(container);
     });
 
     it("update() after unmount() is a no-op (does not re-render)", () => {
         const container = makeContainer();
-        const handle = mountNativeCanvas(container, {
+        const handle = mountCanvas(container, {
             mode: "empty",
             envelope: null,
             governanceState: { state: "not-applicable" },
         });
-        handle.unmount();
-        expect(() => handle.update({
+        act(() => {
+            handle.unmount();
+        });
+        expect(() => updateCanvas(handle, {
             mode: "result-accepted",
             envelope: null,
             governanceState: { state: "enforced", authority: "unity-catalog", requestId: "r" },
@@ -352,4 +389,23 @@ function validEnvelope(input: MakeEnvelopeInput) {
 
 function enforcedAttestation(): NativeCanvasProps["governanceState"] {
     return { state: "enforced", authority: validAttestation.authority, requestId: validAttestation.requestId };
+}
+
+function validChartSpec() {
+    return {
+        version: "chart-render-spec/v0" as const,
+        renderer: "echarts" as const,
+        chartType: "bar" as const,
+        mark: "bar" as const,
+        data: {
+            values: [
+                { month: "Jan", sales: 100 },
+                { month: "Feb", sales: 140 },
+            ],
+        },
+        encoding: {
+            x: { field: "month", type: "nominal" },
+            y: { field: "sales", type: "quantitative" },
+        },
+    };
 }

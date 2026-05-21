@@ -1,4 +1,4 @@
-// bi-adapters/native/NativeCanvas.tsx
+// playground/src/visualization/NativeCanvas.tsx
 //
 // G4 — Native canvas + ECharts MVP.
 //
@@ -16,19 +16,16 @@
 //   • Adapter lifecycle (mount/destroy plumbing) — `NativeBIAdapter.ts`.
 //   • Chart-pick policy — `playground/src/visualization/chartAutoPick.ts`.
 //   • Result-shape decisions — `playground/src/visualization/resultToVizIntent.ts`.
-//   • Spec validation — `playground/src/visualization/chartSpecValidation.ts`.
 //   • Governance enforcement — handled in the adapter; the canvas just
 //     renders whatever mode + state the adapter passes via props.
 //   • Data fetching, SQL, vendor SDKs — renderer-only.
 //
 // Layering
 // ────────
-// This file is the ONLY React + ECharts importer in `bi-adapters/native/`.
-// The `.ts` adapter stays free of React imports so the static import
-// graph stays clean for hosts that mount native through a non-React
-// shell later (Pulse PBI custom visual, desktop EXE). The adapter
-// imports the typed mount helper from this file via `./NativeCanvas`,
-// not from React directly.
+// This file is the only Native renderer module that imports React +
+// ECharts. The `bi-adapters/native/*.ts` adapter files stay free of
+// direct React/ECharts imports; they delegate to the typed mount helper
+// exported here.
 //
 // Pulse PBI copy-port note
 // ────────────────────────
@@ -42,7 +39,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
 import * as echarts from "echarts/core";
-import { BarChart, LineChart, PieChart } from "echarts/charts";
+import { BarChart, HeatmapChart, LineChart, PieChart, ScatterChart } from "echarts/charts";
 import {
     GridComponent,
     LegendComponent,
@@ -64,6 +61,8 @@ import {
     type ChartKind,
     type DataShape,
 } from "./chartAutoPick";
+import { validateChartRenderSpec, type ChartRenderSpec } from "./chartSpecValidation";
+import { compileVegaLiteToECharts } from "../lib/vegaLiteToECharts";
 
 // Register only the chart types + components G4 actually surfaces.
 // Adding a new chart kind means registering its module here AND
@@ -72,8 +71,10 @@ import {
 // exotic chart types.
 echarts.use([
     BarChart,
+    HeatmapChart,
     LineChart,
     PieChart,
+    ScatterChart,
     GridComponent,
     LegendComponent,
     TitleComponent,
@@ -108,6 +109,9 @@ export interface NativeCanvasProps {
      *  `result-accepted` and `ungoverned-result-preview` modes. For
      *  `blocked` / `spec-accepted` / `empty`, the canvas ignores it. */
     readonly envelope?: unknown;
+    /** Last chart spec the adapter accepted. Only consulted for
+     *  `spec-accepted` mode. Specs are still validated before render. */
+    readonly spec?: unknown;
     /** Governance state the adapter resolved. Drives the
      *  `data-native-governance` attribute and the preview badge.
      *  The canvas trusts the adapter — it does not re-validate. */
@@ -183,7 +187,7 @@ export function NativeCanvas(props: NativeCanvasProps): React.ReactElement {
             statusKey: "spec-accepted",
             governanceAttribute: govAttr,
             theme,
-            children: <SpecAcceptedState />,
+            children: <SpecState spec={props.spec} />,
         });
     }
 
@@ -295,13 +299,47 @@ function BlockedState(): React.ReactElement {
     );
 }
 
-function SpecAcceptedState(): React.ReactElement {
+function SpecState({ spec }: { spec?: unknown }): React.ReactElement {
+    const validation = validateChartRenderSpec(spec);
+    if (!validation.ok) {
+        return <SpecUnsupportedState message={validation.errors[0]?.message ?? "Invalid chart render spec."} />;
+    }
+
+    const compiled = compileVegaLiteToECharts(validation.spec);
+    if (!compiled.ok || !compiled.option) {
+        return <SpecUnsupportedState message={compiled.reason ?? "Spec could not be compiled for ECharts."} />;
+    }
+
+    return <SpecChartState spec={validation.spec} option={compiled.option} />;
+}
+
+function SpecUnsupportedState({ message }: { message: string }): React.ReactElement {
     return (
-        <div className="pp-native-bi__spec" style={emptyMessageStyle}>
-            <strong style={titleStyle}>Chart render spec accepted.</strong>
+        <div className="pp-native-bi__spec pp-native-bi__spec--unsupported" style={emptyMessageStyle} role="alert">
+            <strong style={titleStyle}>Chart spec could not be rendered.</strong>
             <span data-native-bi-status="spec-accepted">
-                Spec validated by the visualization pipeline.
+                {message}
             </span>
+        </div>
+    );
+}
+
+function SpecChartState({
+    spec,
+    option,
+}: {
+    spec: ChartRenderSpec;
+    option: EChartsOption;
+}): React.ReactElement {
+    const mark = typeof spec.mark === "string" ? spec.mark : spec.mark.type;
+    return (
+        <div className="pp-native-bi__spec" style={{ width: "100%", height: "100%" }}>
+            <strong style={{ ...titleStyle, marginBottom: "4px" }}>Chart render spec accepted.</strong>
+            <EChartsOptionView
+                option={option}
+                chartKind={spec.chartType ?? mark}
+                testId="pp-native-bi-spec-chart"
+            />
         </div>
     );
 }
@@ -484,9 +522,6 @@ function ChartState({
     envelope: AIResultEnvelope;
     intent: VizIntent;
 }): React.ReactElement {
-    const containerRef = useRef<HTMLDivElement | null>(null);
-    const instanceRef = useRef<echarts.ECharts | null>(null);
-
     // Memo the option so changing only `theme` higher up does not retrigger
     // chart init. Adapter swaps envelope on real updates.
     const option = useMemo<EChartsOption>(() => {
@@ -495,6 +530,30 @@ function ChartState({
         const shape = analyzeDataShape(columns, rows);
         return buildEChartsOption(intent.chartType ?? shape.recommended, shape);
     }, [envelope, intent]);
+
+    return (
+        <div className="pp-native-bi__chart-wrap" style={{ width: "100%", height: "100%" }}>
+            <strong style={{ ...titleStyle, marginBottom: "4px" }}>AI result accepted.</strong>
+            <EChartsOptionView
+                option={option}
+                chartKind={intent.chartType ?? "bar"}
+                testId="pp-native-bi-chart"
+            />
+        </div>
+    );
+}
+
+function EChartsOptionView({
+    option,
+    chartKind,
+    testId,
+}: {
+    option: EChartsOption;
+    chartKind: string;
+    testId: string;
+}): React.ReactElement {
+    const containerRef = useRef<HTMLDivElement | null>(null);
+    const instanceRef = useRef<echarts.ECharts | null>(null);
 
     useEffect(() => {
         const el = containerRef.current;
@@ -516,16 +575,13 @@ function ChartState({
     }, [option]);
 
     return (
-        <div className="pp-native-bi__chart-wrap" style={{ width: "100%", height: "100%" }}>
-            <strong style={{ ...titleStyle, marginBottom: "4px" }}>AI result accepted.</strong>
-            <div
-                ref={containerRef}
-                className="pp-native-bi__chart"
-                data-testid="pp-native-bi-chart"
-                data-chart-kind={intent.chartType ?? "bar"}
-                style={{ width: "100%", height: "100%", minHeight: 240 }}
-            />
-        </div>
+        <div
+            ref={containerRef}
+            className="pp-native-bi__chart"
+            data-testid={testId}
+            data-chart-kind={chartKind}
+            style={{ width: "100%", height: "100%", minHeight: 240 }}
+        />
     );
 }
 

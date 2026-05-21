@@ -42,6 +42,7 @@
 //   to inject fakes if the adapter needs them.
 
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
+import { act } from "react";
 import type {
     BIAdapter,
     BICapabilities,
@@ -181,12 +182,12 @@ export function runAdapterConformance(
             describe("after mount", () => {
                 test("mount() resolves without error against a valid config", async () => {
                     const a = factory();
-                    await expect(a.mount(containerEl, validConfig)).resolves.not.toThrow();
+                    await expect(mountAdapter(a, containerEl, validConfig)).resolves.not.toThrow();
                 });
 
                 test("on() returns an unsubscribe function that removes the handler", async () => {
                     const a = factory();
-                    await a.mount(containerEl, validConfig);
+                    await mountAdapter(a, containerEl, validConfig);
                     let calls = 0;
                     const off = a.on("loaded", () => { calls++; });
                     expect(typeof off).toBe("function");
@@ -203,7 +204,7 @@ export function runAdapterConformance(
 
                 test("multiple subscribers to the same event coexist", async () => {
                     const a = factory();
-                    await a.mount(containerEl, validConfig);
+                    await mountAdapter(a, containerEl, validConfig);
                     const off1 = a.on("loaded", () => {});
                     const off2 = a.on("loaded", () => {});
                     expect(typeof off1).toBe("function");
@@ -218,13 +219,13 @@ export function runAdapterConformance(
 
                 test("send(knownUnsupportedCommand) rejects with UNSUPPORTED_COMMAND", async () => {
                     const a = factory();
-                    await a.mount(containerEl, validConfig);
+                    await mountAdapter(a, containerEl, validConfig);
                     const caps = a.capabilities();
                     // Only assert UNSUPPORTED when the adapter actually
                     // claims not to support the command. Otherwise the
                     // command should resolve — also a valid contract path.
                     if (knownUnsupportedCommand.kind === "export" && !caps.canExport) {
-                        await expect(a.send(knownUnsupportedCommand)).rejects.toThrow(
+                        await expect(sendAdapter(a, knownUnsupportedCommand)).rejects.toThrow(
                             new RegExp(BI_ERR.UNSUPPORTED_COMMAND),
                         );
                     }
@@ -232,16 +233,16 @@ export function runAdapterConformance(
 
                 test("destroy() is idempotent (second call does not throw)", async () => {
                     const a = factory();
-                    await a.mount(containerEl, validConfig);
-                    a.destroy();
-                    expect(() => a.destroy()).not.toThrow();
+                    await mountAdapter(a, containerEl, validConfig);
+                    destroyAdapter(a);
+                    expect(() => destroyAdapter(a)).not.toThrow();
                 });
 
                 test("send() after destroy() rejects with NOT_MOUNTED", async () => {
                     const a = factory();
-                    await a.mount(containerEl, validConfig);
-                    a.destroy();
-                    await expect(a.send({ kind: "refresh" })).rejects.toThrow(
+                    await mountAdapter(a, containerEl, validConfig);
+                    destroyAdapter(a);
+                    await expect(sendAdapter(a, { kind: "refresh" })).rejects.toThrow(
                         new RegExp(BI_ERR.NOT_MOUNTED),
                     );
                 });
@@ -251,21 +252,39 @@ export function runAdapterConformance(
                     // subscribe again. The second mount must not see ghost
                     // handlers from the first lifecycle.
                     const a = factory();
-                    await a.mount(containerEl, validConfig);
+                    await mountAdapter(a, containerEl, validConfig);
                     a.on("loaded", () => {});
-                    a.destroy();
+                    destroyAdapter(a);
                     // Second container so the remount is clean even for
                     // adapters that hold containerEl refs.
                     const secondEl = document.createElement("div");
                     document.body.appendChild(secondEl);
                     try {
-                        await expect(a.mount(secondEl, validConfig)).resolves.not.toThrow();
-                        a.destroy();
+                        await expect(mountAdapter(a, secondEl, validConfig)).resolves.not.toThrow();
+                        destroyAdapter(a);
                     } finally {
                         if (secondEl.parentElement) secondEl.parentElement.removeChild(secondEl);
                     }
                 });
             });
         }
+    });
+}
+
+async function mountAdapter(adapter: BIAdapter, containerEl: HTMLElement, config: BIEmbedConfig): Promise<void> {
+    await act(async () => {
+        await adapter.mount(containerEl, config);
+    });
+}
+
+async function sendAdapter(adapter: BIAdapter, command: BICommand): Promise<void> {
+    await act(async () => {
+        await adapter.send(command);
+    });
+}
+
+function destroyAdapter(adapter: BIAdapter): void {
+    act(() => {
+        adapter.destroy();
     });
 }
