@@ -7833,15 +7833,23 @@ app.get('/__diag/static', (req, res) => {
             out.resolved_path = path.isAbsolute(raw) ? raw : path.resolve(__dirname, '..', raw);
             out.exists = fs.existsSync(out.resolved_path);
             if (out.exists) {
-                out.top_level = fs.readdirSync(out.resolved_path).slice(0, 30);
+                out.top_level = fs.readdirSync(out.resolved_path).slice(0, 50);
                 const indexPath = path.join(out.resolved_path, 'index.html');
                 out.index_html_exists = fs.existsSync(indexPath);
                 if (out.index_html_exists) {
-                    out.index_html_size = fs.statSync(indexPath).size;
+                    const stat = fs.statSync(indexPath);
+                    out.index_html_size = stat.size;
+                    // Capture the actual <script> / <link rel="modulepreload"> / stylesheet lines
+                    // from the served index.html so we can verify what the browser is asked to load.
+                    const html = fs.readFileSync(indexPath, 'utf-8');
+                    const lineMatches = html.match(/<(script|link)[^>]*>/g) || [];
+                    out.index_html_tags = lineMatches.slice(0, 40);
                 }
                 const assetsPath = path.join(out.resolved_path, 'assets');
                 if (fs.existsSync(assetsPath)) {
-                    out.assets = fs.readdirSync(assetsPath).slice(0, 30);
+                    const all = fs.readdirSync(assetsPath);
+                    out.assets_count_total = all.length;
+                    out.assets = all.filter(f => !f.endsWith('.map'));   // hide .map noise
                 }
             }
         }
