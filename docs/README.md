@@ -8,7 +8,7 @@
 - First production-grade product cell: **Databricks Genie + Power BI**. It must remain modular through the BI adapter axis and AI connector axis.
 - BI axis status: Power BI has a real `powerbi-client` adapter; generic iframe is the escape hatch; Tableau/Qlik/Looker are still iframe fallbacks until their SDK adapters graduate.
 - AI connector axis status: **10 backend paths**. Genie, Azure OpenAI chat, Azure OpenAI analytics, Bedrock RAG, Bedrock direct, Foundation Model, Supervisor, Supervisor-local, ResponsesAgent, and Power BI semantic-model deterministic DAX.
-- Latest recorded validation from the 2026-05-20 handover: proxy **1013/1013**, playground **1103/1103**, lint clean, `vite build` clean.
+- Latest recorded validation: proxy **1013/1013** from the 2026-05-20 handover; playground **1197/1197**, lint clean, and `vite build` clean from the 2026-05-21 G1 audit handover.
 - Latest UI regression: [CODEX_UI_REGRESSION_RESULTS_2026-05-20.md](CODEX_UI_REGRESSION_RESULTS_2026-05-20.md). Main open blockers: Setup AI profile allowlist mismatch, hardcoded Setup Databricks docs link, local Node CA trust blocking live Databricks calls, and HelpTip React console warning.
 
 ## Read These First
@@ -23,6 +23,7 @@
 | 2-axis architecture and backend table | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | Proxy routes, profile shapes, OAuth/M2M | [PROXY_REFERENCE.md](PROXY_REFERENCE.md) |
 | Security guardrails | [SECURITY.md](SECURITY.md) |
+| Hosting choices and production topology | [HOSTING_OPTIONS.md](HOSTING_OPTIONS.md) |
 | Test coverage and honesty rules | [QUALITY.md](QUALITY.md) |
 | Roadmap tracks | [ROADMAP.md](ROADMAP.md) |
 | Settings IA and guardrails | [SETTINGS_SPEC.md](SETTINGS_SPEC.md) |
@@ -51,7 +52,7 @@ The docs tree currently has many good pieces, but too many front doors. Use this
 | `SETUP_SETTINGS_RELATIONSHIP_AUDIT.md`, UI/copy audit docs, tooltip audit docs | [SETTINGS_SPEC.md](SETTINGS_SPEC.md) + [AGENDA.md](AGENDA.md) | Only active IA/copy rules remain in Settings; open bugs go to Agenda. |
 | `UNIFIED_ASK_PULSE_WORKBENCH.md`, `THEME_STUDIO.md`, `FLOATING_COMPANION.md`, `STRUCTURED_AUTHORING_STANDARD.md` | [ROADMAP.md](ROADMAP.md) + focused ADRs when locked | Keep current shipped/queued state in Roadmap; create ADR only for accepted architecture decisions. |
 | `FOCUSED_E2E_PLAN.md`, `EXTREME_E2E_PLAN.md`, `SMOKE_TEST_PLAN.md`, result docs | [QUALITY.md](QUALITY.md) + `docs/archive/runs/` | Quality owns current methodology; dated plans/results should move to an archive bucket after links are updated. |
-| `DEPLOY_MVP_0.2.md`, `DEPLOY_DATABRICKS_APP.md` | A future `DEPLOYMENT.md` or [PROXY_REFERENCE.md](PROXY_REFERENCE.md) | Keep deployer commands in one deployer-facing doc. |
+| `HOSTING_OPTIONS.md`, `DEPLOY_MVP_0.2.md`, `DEPLOY_DATABRICKS_APP.md` | A future `DEPLOYMENT.md` or [PROXY_REFERENCE.md](PROXY_REFERENCE.md) | Keep hosting choice guidance in Hosting Options; keep deployer commands in focused deployer-facing docs. |
 | `GENIE_POWERBI_FIRST_COPY_RESEARCH.md`, `SUPERIOR_BUILD_LEVERAGE_PLAN.md`, `PULSE_PORT_DETANGLING.md` | [ARCHITECTURE.md](ARCHITECTURE.md) + [AGENDA.md](AGENDA.md) | Preserve tripwires and leverage rules; archive the detailed source notes once merged. |
 
 ## Target Shape

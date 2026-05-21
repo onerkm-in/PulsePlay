@@ -49,7 +49,7 @@ Once both are running, the playground will:
 
 **First production target in flight — Genie + Power BI.** Proxy + databricks-agents + cross-cutting docs inherited from sister Pulse project cycles 1-47. The ported Pulse AI experience runs inside the playground, Power BI has a real `powerbi-client` adapter, and Tableau/Qlik/Looker remain modular iframe stubs until the first cell passes the production gate.
 
-Current local validation (post-2026-05-20 session): proxy **1013/1013**, playground **1103/1103**, lint clean, `vite build` clean.
+Current local validation: proxy **1013/1013** from the 2026-05-20 handover; playground **1197/1197**, lint clean, and `vite build` clean from the 2026-05-21 G1 audit handover.
 
 **The connector axis grew in May 2026.** PulsePlay now hosts **10 backend paths** on the AI side: Genie / Azure OpenAI (chat + analytics) / Bedrock (RAG + direct) / Foundation Model / Supervisor (managed + local) / ResponsesAgent / **Power BI semantic-model** (the latest — deterministic DAX templates, no LLM in the loop). The Power BI brain also exposes a **Q&A embed surface** at `/powerbi/qna` so deployers who want Microsoft's NLP can get it without PulsePlay invoking any LLM (Microsoft handles it in their tenant). See [docs/PROXY_REFERENCE.md](docs/PROXY_REFERENCE.md) for the full backend table.
 
@@ -82,6 +82,7 @@ PulsePlay/
 | [docs/AGENDA.md](docs/AGENDA.md) | Open-work tracker, near-term + medium-term + blockers |
 | [docs/SUPERIOR_BUILD_LEVERAGE_PLAN.md](docs/SUPERIOR_BUILD_LEVERAGE_PLAN.md) | How we harvest the mature Power BI visual without reintroducing Power BI-only coupling |
 | [docs/TEN_MINUTE_AUTHOR_SETUP.md](docs/TEN_MINUTE_AUTHOR_SETUP.md) | Novice-author setup target for the production Genie + Power BI cell |
+| [docs/HOSTING_OPTIONS.md](docs/HOSTING_OPTIONS.md) | Hosting decision guide: Databricks App, Azure Static Web Apps, Container Apps, App Service, AKS, VM, and no-proxy rejection path |
 | [docs/SECURITY.md](docs/SECURITY.md) | Internal-scoped security guardrails |
 | [docs/PROXY_REFERENCE.md](docs/PROXY_REFERENCE.md) | Proxy API surface, scopes, OAuth M2M setup |
 | [docs/QUALITY.md](docs/QUALITY.md) | What we measure, what we don't, what's roadmap |

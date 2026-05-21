@@ -5,6 +5,22 @@
 
 ---
 
+## 2026-05-21 - Hosting options guide
+
+**Scope.** Added [HOSTING_OPTIONS.md](HOSTING_OPTIONS.md) as the deployment decision guide for PulsePlay hosting choices. This is additive documentation only: no hosting commands, no runtime changes, no deletions, and no change to the Databricks-first/native-adapter architecture.
+
+**Decision frame.** The guide recommends Databricks Apps for the fastest Databricks-native pilot, Azure Static Web Apps or Azure Storage/Front Door plus Azure Container Apps/App Service for the enterprise split-host default, single Azure App Service for the simplest fallback, and AKS/OpenShift/VMs only when the organization already has that paved road. It explicitly rejects frontend-only production hosting because PulsePlay needs the proxy for secrets, governance, audit, token issuance, and Databricks/vendor calls.
+
+**Databricks-first boundary.** Captures the current platform assumption: Azure Databricks + ADLS + Unity Catalog + SQL Warehouses + Metric Views/UC Views/Genie Spaces are the core data/AI plane for now. SQL execution stays in the proxy/data layer; the native adapter remains renderer-only and must not become a query engine.
+
+**Links updated.** [README.md](../README.md) and [docs/README.md](README.md) now point to the hosting guide. The docs hub consolidation map now treats `HOSTING_OPTIONS.md` as the place for hosting choice guidance while `DEPLOY_MVP_0.2.md` and `DEPLOY_DATABRICKS_APP.md` remain focused deployer checklists.
+
+**Validation.** `git diff --check` passed (LF-to-CRLF warnings only). No runtime tests were run for this docs-only slice.
+
+**Adjacent audit note.** The G1 audit patch is now committed as `931f62f` (`fix(native): deterministic emit() iteration under reentrancy`) and raised the recorded playground suite to **1197/1197**. This hosting slice did not modify native adapter code.
+
+---
+
 ## 2026-05-21 - G1 native adapter skeleton + guardrails
 
 **Scope.** Additive G1 runtime foundation for Option B. Native is now a loadable BI adapter option, but still renderer-only. No visualization pipeline extraction, no ECharts canvas, no author switch state, no governance attestation runtime, and no Pulse PBI portable-module changes in this slice.
