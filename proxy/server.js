@@ -2972,11 +2972,31 @@ app.post('/assistant/conversations/start', async (req, res) => {
         }
         const cryptoMod = require('crypto');
         const fingerprint = cryptoMod.createHash('sha256').update(fixtureContent).digest('hex').slice(0, 12);
+        // FW1 — the fixture now returns a small, deterministic time-series
+        // table alongside the answer text. This gives the native canvas
+        // something to auto-pick (4 rows, one dimension + one measure ->
+        // line chart) so the AISidebar -> native renderResult wiring can
+        // be exercised end-to-end. The shape mirrors the Genie poll-result
+        // contract the AISidebar's `extractQueryResult` already parses:
+        //   { sqlQuery: string, queryResult: { columns: [...], rows: [[...]] },
+        //     rows_returned: number, execution_time_ms: number }
         const payload = {
             conversation_id: `smoke-conv-${fingerprint}`,
             message_id: `smoke-msg-${fingerprint}`,
             status: 'COMPLETED',
             content: `Smoke fixture answer to: "${fixtureContent.length > 200 ? `${fixtureContent.slice(0, 197)}...` : fixtureContent}"`,
+            sqlQuery: 'SELECT period, revenue FROM fixtures.smoke_quarterly ORDER BY period',
+            queryResult: {
+                columns: ['period', 'revenue'],
+                rows: [
+                    ['Q1', 100],
+                    ['Q2', 200],
+                    ['Q3', 300],
+                    ['Q4', 250],
+                ],
+            },
+            rows_returned: 4,
+            execution_time_ms: 0,
         };
         try {
             return res.json(withGovernance(req, resolved.profile, 'smoke-fixture', payload));

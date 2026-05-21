@@ -25,7 +25,8 @@ import { listVendors } from "./biPanel/registry";
 import type { BIAdapter, BICapabilities, BICommand, BIEvent, BIEmbedConfig } from "./biPanel/BIAdapter";
 import type powerbi from "./pulse/_adapter/powerbi-visuals-api";
 import { Icon } from "./pulse/_adapter/Icon";
-import { AISidebar, type AutoSubmitQuestionEvent } from "./components/AISidebar";
+import { AISidebar, type AnswerEntry, type AutoSubmitQuestionEvent } from "./components/AISidebar";
+import { entryToAIResultEnvelope } from "./visualization/entryToEnvelope";
 import { VendorPicker } from "./components/VendorPicker";
 import { ConnectorPicker } from "./components/ConnectorPicker";
 import { EmbedConfigForm } from "./components/EmbedConfigForm";
@@ -951,6 +952,52 @@ function PlaygroundApp(): React.ReactElement {
         setPrimaryBIAdapter(biAdaptersRef.current.get(0) || null);
     }, []);
 
+    // FW1 — route a completed AISidebar entry into the active BI adapter as
+    // a `renderResult` command when the runtime BI vendor is native. The
+    // sidebar continues to show the answer text regardless; this handler
+    // adds the canvas paint alongside it. Guarded by:
+    //   * runtimeBiVendor === "native" — only the native adapter has
+    //     `renderResult` in its command vocabulary. Vendor adapters reject
+    //     it as UNSUPPORTED_COMMAND.
+    //   * primaryBIAdapter present — without an adapter to dispatch to,
+    //     there's nothing to do.
+    //   * envelope has answer OR rows — purely-empty envelopes are dropped
+    //     because the canvas would just paint an empty state on top of
+    //     whatever was there.
+    //
+    // `runtimeBiVendor` is computed further down the component body, so
+    // the handler reads it through a ref kept current by the effect below.
+    // This also lets the callback stay stable across vendor switches,
+    // which keeps AISidebar's prop diffing tight.
+    //
+    // The cast to `BICommand` is a known type widening: `renderResult` is
+    // declared on `NativeBICommand`, NOT on the generic `BIAdapter.send`
+    // signature. The native adapter accepts it; vendor adapters would
+    // throw at runtime — that's why the runtimeBiVendor guard runs first.
+    const runtimeBiVendorRef = useRef<string>("");
+    const handleEntryCompleted = useCallback((entry: AnswerEntry) => {
+        if (runtimeBiVendorRef.current !== "native") return;
+        if (!primaryBIAdapter) return;
+        const envelope = entryToAIResultEnvelope({
+            messageId:   entry.messageId,
+            fallbackId:  String(entry.id),
+            question:    entry.question,
+            answer:      entry.answer,
+            sqlQuery:    entry.sqlQuery,
+            queryResult: entry.queryResult,
+            governance:  entry.governance,
+        });
+        if (!envelope.answer && !envelope.rows) return;
+        void primaryBIAdapter
+            .send({ kind: "renderResult", result: envelope } as unknown as BICommand)
+            .catch((err) => {
+                // Adapter rejects are observable but not fatal — the
+                // sidebar still shows the answer text. Log so a flaky
+                // adapter surfaces in DevTools.
+                console.warn("[App] native renderResult dispatch failed:", err);
+            });
+    }, [primaryBIAdapter]);
+
     const handlePulseApplyFilter = useCallback((
         filter: powerbi.IFilter | powerbi.IFilter[] | null,
         action: powerbi.FilterAction,
@@ -1088,6 +1135,12 @@ function PlaygroundApp(): React.ReactElement {
         [biSurfaceMode, activeVendor, hasEmbedConfig, visibleVendors],
     );
     const runtimeBiVendor = biSurfaceResolution.runtimeVendor;
+    // FW1 — keep the entry-completed handler's runtimeBiVendor read fresh
+    // without re-creating the callback every render. The ref is read inside
+    // `handleEntryCompleted`, defined further up the body.
+    useEffect(() => {
+        runtimeBiVendorRef.current = runtimeBiVendor;
+    }, [runtimeBiVendor]);
     const hasRenderableBiSurface = biSurfaceResolution.usesNative || hasEmbedConfig;
     const setupReadiness = getSetupReadiness({
         biVendor: runtimeBiVendor,
@@ -1342,6 +1395,7 @@ function PlaygroundApp(): React.ReactElement {
                                     recentEvents={recentEvents}
                                     packSelection={packSelection}
                                     autoSubmitQuestion={wizardAutoSubmit}
+                                    onEntryCompleted={handleEntryCompleted}
                                 />
                             )}
                         </aside>
@@ -1472,6 +1526,7 @@ function PlaygroundApp(): React.ReactElement {
                                         packSelection={packSelection}
                                         biAdapter={primaryBIAdapter}
                                         autoSubmitQuestion={wizardAutoSubmit}
+                                        onEntryCompleted={handleEntryCompleted}
                                     />
                                 </>
                             )}

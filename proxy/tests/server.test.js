@@ -742,6 +742,25 @@ describe('POST /assistant/conversations/start — smoke-fixture profile', () => 
         });
     });
 
+    it('FW1 — returns a small time-series queryResult the native canvas can paint', async () => {
+        const res = await request(app)
+            .post('/assistant/conversations/start')
+            .send({ assistantProfile: 'smoke', content: 'Quarterly trend?' });
+        expect(res.status).toBe(200);
+        expect(res.body.sqlQuery).toMatch(/SELECT period/);
+        expect(res.body.queryResult).toEqual({
+            columns: ['period', 'revenue'],
+            rows: [
+                ['Q1', 100],
+                ['Q2', 200],
+                ['Q3', 300],
+                ['Q4', 250],
+            ],
+        });
+        expect(res.body.rows_returned).toBe(4);
+        expect(typeof res.body.execution_time_ms).toBe('number');
+    });
+
     it('returns deterministic ids for the same question', async () => {
         const a = await request(app)
             .post('/assistant/conversations/start')

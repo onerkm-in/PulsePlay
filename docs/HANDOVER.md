@@ -5,6 +5,64 @@
 
 ---
 
+## 2026-05-21 - FW1 AISidebar → native canvas wiring
+
+**Scope.** Closes the honest non-claim from SS2: completed AISidebar results now route into the native BI adapter's `renderResult` command when the runtime BI vendor is native. Ask → governed answer → **native canvas paints** is the full user-visible loop end-to-end.
+
+**Code changes.**
+
+- New [`playground/src/visualization/entryToEnvelope.ts`](../playground/src/visualization/entryToEnvelope.ts) — pure mapper from a completed AISidebar entry snapshot to an `AIResultEnvelope`. Prefers `messageId` as the envelope id (the proxy-supplied stable correlation id, so the canvas's `data-result-id` binding stays auditable to the same response that produced the sidebar entry); widens `string[]` columns to `AIResultColumn[]`; coerces non-primitive cells via `String()` so the envelope stays JSON-safe; forwards `governance` only if `isGovernanceAttestation` validates the shape. 13 vitest unit tests cover id selection, answer/rows/sql trimming, schema/column widening, governance validation, and the canonical chart envelope shape the SS2 smoke expects.
+- [`playground/src/components/AISidebar.tsx`](../playground/src/components/AISidebar.tsx):
+  - `governance?: unknown` added to `ProxyMessageResponse` and `AnswerEntry`. `projectEntryFromResponse` forwards the field.
+  - New optional prop `onEntryCompleted?: (entry: AnswerEntry) => void`. Fires from `finalize(...)` only on terminal `completed` status. Builds the completed entry inside the `setHistory` updater AND keeps a structurally-correct fallback so React 18 batching can't lose the callback fire.
+- [`playground/src/App.tsx`](../playground/src/App.tsx):
+  - New `handleEntryCompleted` callback that builds an envelope via the mapper and dispatches `{ kind: "renderResult", result: envelope }` to `primaryBIAdapter` when `runtimeBiVendorRef.current === "native"`. Empty envelopes are dropped; adapter rejects log a warning but don't break the sidebar's state machine.
+  - `runtimeBiVendorRef` synced from the existing `runtimeBiVendor` memo via a small effect so the callback can read the latest vendor without depending on declaration order (the memo is computed later in the component body than the callback declaration).
+  - Both `<AISidebar>` mount sites (floating panel + main split layout) receive `onEntryCompleted={handleEntryCompleted}`.
+- [`proxy/server.js`](../proxy/server.js): smoke-fixture response now includes `sqlQuery`, `queryResult: { columns: ['period', 'revenue'], rows: [['Q1', 100], ['Q2', 200], ['Q3', 300], ['Q4', 250]] }`, `rows_returned: 4`, and `execution_time_ms: 0`. The fixture's 4-row time-series makes the native canvas auto-pick to a chart (donut in the current policy — one categorical + one measure across 4 rows).
+- [`proxy/tests/server.test.js`](../proxy/tests/server.test.js): +1 test verifying the fixture returns the time-series queryResult shape. Total 4 smoke-fixture tests.
+
+**Smoke (`node playground/scripts/shell-smoke-proxy.mjs`) now asserts:**
+
+| Layer | Verified by |
+|---|---|
+| Real proxy boot + smoke-fixture profile | "PulsePlay Proxy → http://127.0.0.1:8787" ready line |
+| Real Vite + Chromium | shell + AISidebar textarea + canvas all mount |
+| AISidebar submit fires the real fetch | proxy receives POST `/assistant/conversations/start` |
+| AISidebar renders the answer text | `[data-status='completed']` entry text matches `Smoke fixture answer to: "...SS2 smoke question"` |
+| **Native adapter receives renderResult and paints** | `[data-testid='pp-native-bi-chart'] canvas` is visible |
+| **Fusion-lite commentary card mounts with governance chip** | `[data-testid='pp-native-bi-fusion-card-answer']` matches; `[data-testid='pp-native-bi-fusion-card-authority']` text === "mock" |
+| **data-result-id wiring is coherent end-to-end** | the Set of `data-result-id` attributes across sidebar + canvas + fusion card has size 1 and matches `/^smoke-msg-[a-f0-9]{12}$/` (the proxy-supplied `message_id`) |
+| Zero console / page / failed-request budget | strict checks |
+
+**Tripwires encoded.**
+
+1. **`enabledComponents` migration.** The smoke explicitly sets `pulseplay:enabled-components=both` AND `pulseplay:enabled-components:legacy-both-migrated=true`. Without the migration marker, App.tsx migrates legacy "both" to "mix" on first load, which would hide the BI surface and leave `primaryBIAdapter` null — the renderResult dispatch would skip silently.
+2. **BI panel mount race.** The smoke waits for `[data-native-bi-adapter='true']` before submitting. Without that wait, the AISidebar can finalize the entry before the BI panel finishes mounting, leaving `primaryBIAdapter` null when `handleEntryCompleted` fires.
+3. **React 18 batching of `setHistory` updater.** The `finalize(...)` callback path computes the completed entry inside the updater AND has a structurally-correct fallback so the post-setHistory `onEntryCompleted` call can never be skipped due to batching. Documented inline.
+4. **`BICommand` type widening.** `renderResult` is declared on `NativeBICommand`, not the generic `BIAdapter.send`. The dispatch uses a single `as unknown as BICommand` cast; the runtime guard is the `runtimeBiVendor === "native"` check above it. Vendor adapters would reject `renderResult` as `UNSUPPORTED_COMMAND`.
+
+**Honest non-claims (still queued).**
+
+- Pulse-mode (`ui-mode: "pulse"`) smoke. Same gates documented in SS2.
+- Multi-message conversation flows (still single-shot smoke).
+- Wizard walkthrough (still pre-seeds dismissed state).
+- Other vendor adapters not exercised (auto-fallback-to-native is the runtime surface).
+- The donut auto-pick is the chart-pick policy's current call for this fixture shape (4 rows × dimension+measure). A line chart would be more honest for a quarterly trend — that's a chart-pick policy tweak, not an FW1 gap.
+
+**Validation.**
+
+| Check | Result |
+|---|---|
+| Proxy unit tests | **1137/1137** (was 1136; +1 FW1c queryResult test) |
+| Playground lint (tsc --noEmit) | pass |
+| Focused entryToEnvelope tests | **13/13** |
+| Full SS2 smoke (proxy + Vite + Chromium + AISidebar + native canvas) | exit 0, failures `[]`, no console / page / API failures |
+
+**Next.** Per the user's queue: **PB1a** (Pulse PBI shared-proxy adoption — `X-Pulse-Client: pulse-pbi` and align the enabler HTTP layer to the unified proxy contract), then build hygiene, then DX1.
+
+---
+
 ## 2026-05-21 - SS2 audit polish accepted
 
 **Scope.** External-LLM audit of SS2 accepted after inspecting commit `e4c6f1c` and re-running the core evidence. One small polish patch landed on top: `shell-smoke-proxy.mjs` no longer uses `shell: true`, so Node no longer emits the `DEP0190` warning during the smoke run. The runner now invokes `npm.cmd` through `cmd.exe` explicitly on Windows with fixed internal args and keeps `taskkill /T /F` for process-tree cleanup.

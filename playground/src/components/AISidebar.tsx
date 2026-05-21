@@ -77,6 +77,19 @@ export interface AISidebarProps {
      *  `id` so two separate wizard completions can submit the same
      *  question intentionally. */
     autoSubmitQuestion?: AutoSubmitQuestionEvent | string | null;
+    /** FW1 — fires when an entry transitions to a terminal `completed`
+     *  status. The host (App.tsx) builds an `AIResultEnvelope` via
+     *  `entryToAIResultEnvelope(...)` and, when the runtime BI vendor is
+     *  native, sends `{ kind: "renderResult", result: envelope }` to the
+     *  primary BI adapter so the canvas paints alongside the sidebar
+     *  answer text. The callback is intentionally narrow — only firing on
+     *  successful completion — because failed/aborted entries have no
+     *  attested result to render.
+     *
+     *  The handler should be cheap; it runs inside `finalize(...)`
+     *  before React commits the next render. Heavy lifting (adapter
+     *  send, telemetry, etc) should be fire-and-forget or post-effect. */
+    onEntryCompleted?: (entry: AnswerEntry) => void;
 }
 
 export interface AutoSubmitQuestionEvent {
@@ -125,6 +138,11 @@ export interface AnswerEntry {
      *  the user sees that a 40-second wait is a cold-start warehouse,
      *  not the proxy hanging. Cleared on terminal status. */
     pollStatus?: string;
+    /** FW1 — proxy-built governance attestation forwarded as-is from the
+     *  upstream response. Validated shape-wise by the envelope mapper;
+     *  the AISidebar treats it as opaque metadata. Absent for backends
+     *  that haven't been wired through `withGovernance(...)` yet. */
+    governance?: unknown;
 }
 
 let nextEntryId = 1;
@@ -159,6 +177,12 @@ interface ProxyMessageResponse {
         output_tokens?: number;
         total_tokens?: number;
     };
+    /** FW1 — opaque governance attestation. The proxy attaches a typed
+     *  `GovernanceAttestation` via `withGovernance(...)` for renderable
+     *  backend paths; AISidebar carries it through to the renderer
+     *  without validating shape here (the entryToEnvelope mapper +
+     *  native adapter render gate own shape validation + policy). */
+    governance?: unknown;
 }
 
 /** Pull the narrative answer text out of a Genie-shape response, falling
@@ -204,6 +228,10 @@ function projectEntryFromResponse(data: ProxyMessageResponse): Partial<AnswerEnt
         validationDiagnostics: data.validationDiagnostics,
         usage: data.usage,
         pollStatus: typeof data.status === "string" ? data.status : undefined,
+        // FW1 — forward the opaque governance field if the proxy populated
+        // one. AISidebar carries it through; the envelope mapper validates
+        // shape and the native adapter's render gate applies policy.
+        governance: data.governance,
     };
 }
 
@@ -473,14 +501,46 @@ export function AISidebar(props: AISidebarProps) {
         stageEnd(runId, "submit");
         stageEnd(runId, "total");
         dumpRun(runId, `Ask Pulse #${entryId} → ${status}`);
+        let completedEntry: AnswerEntry | null = null;
         setHistory(prev => {
+            const finishedAt = Date.now();
             const next = prev.map(h =>
                 h.id === entryId
-                    ? { ...h, ...patch, status, finishedAt: Date.now() }
+                    ? { ...h, ...patch, status, finishedAt }
                     : h
             );
+            // FW1 — capture the post-patch entry so the onEntryCompleted
+            // callback below can fire with the same object the sidebar
+            // just rendered. The updater runs synchronously inside React's
+            // commit so completedEntry is populated before the `if` block
+            // below executes.
+            if (status === "completed") {
+                completedEntry = next.find(h => h.id === entryId) ?? null;
+            }
             return next;
         });
+        // Fire the FW1 completion callback after setHistory dispatches.
+        // Wrapped in try/catch so a misbehaved host can't break the AI
+        // sidebar's state machine.
+        if (status === "completed" && props.onEntryCompleted) {
+            // If completedEntry wasn't populated (React batched the
+            // updater past this point), reconstruct the completed shape
+            // from the function arguments — the caller already has the
+            // patch + entryId, so this is a guaranteed-correct fallback.
+            const entry: AnswerEntry = completedEntry ?? {
+                id: entryId,
+                question: "",
+                status: "completed",
+                startedAt: 0,
+                finishedAt: Date.now(),
+                ...patch,
+            };
+            try {
+                props.onEntryCompleted(entry);
+            } catch (err) {
+                console.warn("[AISidebar] onEntryCompleted handler threw:", err);
+            }
+        }
     };
 
     /** One poll tick. Resolves the message status from the proxy and
