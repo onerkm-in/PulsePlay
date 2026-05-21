@@ -1087,6 +1087,26 @@ html, body, #root {
     box-shadow: 0 4px 12px rgba(37, 99, 235, 0.32);
 }
 
+/* F5.1 — Surface unavailable in the current deployment configuration.
+ * The pill stays in the tablist (configuration options are never
+ * hidden globally), but it's visibly de-emphasised and not clickable.
+ * Both `:disabled` and the class selector apply: HTML disabled prevents
+ * clicks, the class keeps styling reliable across browsers that
+ * sometimes drop the pseudo-class on focus/hover transitions. The
+ * existing `:hover:not(--active)` rule above would otherwise re-tone
+ * the pill on hover; we explicitly cancel that here. */
+.pp-surface-switcher__item:disabled,
+.pp-surface-switcher__item--unavailable {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.pp-surface-switcher__item:disabled:hover,
+.pp-surface-switcher__item--unavailable:hover {
+    background: transparent;
+    color: var(--pp-text-muted, #475569);
+}
+
 .pp-surface-switcher__item svg {
     flex: 0 0 14px;
     /* Icon inherits currentColor so active state flips to white automatically. */

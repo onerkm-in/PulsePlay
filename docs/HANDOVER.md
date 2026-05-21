@@ -5,7 +5,9 @@
 
 ---
 
-## 2026-05-21 - F5.1 surface availability resolver
+## 2026-05-21 - F5.1 surface availability resolver + F5 closure
+
+**F5 / F5.1 closure status:** automated green (1158/1158 playground tests, lint, build). **Browser smoke pending** — has not run successfully in any F5 or F5.1 session (kernel-asset write blocker encountered, not retried). Do not characterise F5 as "fully UX-verified" until the manual browser pass lands.
 
 **Scope.** Pure resolver that separates requested-surface intent from effective-surface rendering. Closes the P4 finding from the previous audit pass (`data-active-surface` could lie under Pulse `enabledFeatures` constraints). Additive only. No deletions. No native runtime work — G1 stays queued.
 
@@ -29,10 +31,12 @@
 - `a525f5d feat(layout): F5.1 pure surface availability resolver`
 - `038bd14 feat(layout): wire F5.1 resolver into App.tsx + SurfaceSwitcher`
 
+**Final polish (same session).** Added a light CSS rule for `.pp-surface-switcher__item:disabled` and `.pp-surface-switcher__item--unavailable` in [`playground/src/styles.css`](../playground/src/styles.css): `opacity: 0.5`, `cursor: not-allowed`, and an explicit hover override that cancels the standard `accent-soft` tone-up so disabled pills stay visibly inert. The pill remains in the tablist and keeps its tooltip; only the visual state changes.
+
 **Tripwires for next session.**
 - The resolver assumes `EnabledComponentsInput` and `EnabledFeaturesInput` mirror the canonical types in `settingsStore.tsx` and `pulseVisualSettingsStore.ts`. If those types ever gain new values (e.g., a third Pulse feature), the resolver's last-resort branch fires and emits `"no-surface-available"`. Add an explicit rule before shipping the new value to production.
 - `data-surface-fallback-reason` is now part of the shell contract. Telemetry that depends on it should treat absent attribute as "no fallback," matching the React `undefined` → no attribute output.
-- The `pp-surface-switcher__item--unavailable` class is exported by SurfaceSwitcher but has no CSS rule yet — visual styling for the disabled pill is queued. Default `<button disabled>` styling applies in the meantime.
+- Browser smoke is the only remaining F5 closure item. Until it runs successfully, F5 is "automated green" — not "UX-verified." G1 (native adapter skeleton) does not need it green before starting, but a release that ships F5 to users does.
 
 ---
 
