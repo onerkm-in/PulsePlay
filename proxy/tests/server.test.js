@@ -78,7 +78,18 @@ jest.mock('../lib/databricksCapabilityRegistry', () => ({
 }));
 
 const request = require('supertest');
-const { app, conversationMap, normalizeGenieResponse, loadEnvProfiles, isTransientNetError, handleUnexpectedProxyError } = require('../server');
+const {
+    app,
+    conversationMap,
+    normalizeGenieResponse,
+    loadEnvProfiles,
+    isTransientNetError,
+    handleUnexpectedProxyError,
+    RENDERABLE_BACKEND_GOVERNANCE,
+    governanceSubjectRefForRequest,
+    governanceForBackend,
+    withGovernance,
+} = require('../server');
 const { UNEXPECTED_INTERNAL_SENTINEL } = require('../lib/problemDetails');
 const fs = require('fs');
 
@@ -114,6 +125,59 @@ afterAll(() => {
 
 beforeEach(() => {
     conversationMap.clear();
+});
+
+// ── G3 governance route registry ─────────────────────────────────────────────
+describe('G3 renderable backend governance registry', () => {
+    const expectedBackendIds = [
+        'genie',
+        'azure-openai-chat',
+        'azure-openai-analytics',
+        'bedrock-rag',
+        'bedrock-direct',
+        'foundation-model',
+        'supervisor',
+        'supervisor-local',
+        'responses-agent',
+        'powerbi-semantic-model',
+    ];
+
+    it('declares every renderable backend path exactly once', () => {
+        expect(Object.keys(RENDERABLE_BACKEND_GOVERNANCE).sort()).toEqual([...expectedBackendIds].sort());
+    });
+
+    it('stamps a valid attestation for every registered backend', () => {
+        for (const backendId of expectedBackendIds) {
+            const payload = withGovernance(
+                { requestId: `req-${backendId}`, headers: {}, pulseClient: { clientApp: 'pulseplay' } },
+                { type: backendId },
+                backendId,
+                { status: 'COMPLETED', content: 'ok' },
+            );
+            expect(payload.governance).toMatchObject({
+                enforced: true,
+                authority: RENDERABLE_BACKEND_GOVERNANCE[backendId].authority,
+                subjectRef: 'local-dev',
+                requestId: `req-${backendId}`,
+                policyVersion: 'g3-v1',
+            });
+        }
+    });
+
+    it('refuses unknown backend ids so new routes cannot silently skip mapping', () => {
+        expect(() => governanceForBackend({ requestId: 'req-1', headers: {} }, {}, 'new-backend'))
+            .toThrow(/No governance mapping registered/);
+    });
+
+    it('hashes verified user identifiers instead of echoing PII', () => {
+        const subjectRef = governanceSubjectRefForRequest(
+            { user: { email: 'person@example.com' }, headers: {} },
+            {},
+        );
+        expect(subjectRef).toMatch(/^user:[a-f0-9]{12}$/);
+        expect(subjectRef).not.toContain('person');
+        expect(subjectRef).not.toContain('@');
+    });
 });
 
 // ── /health ────────────────────────────────────────────────────────────────────

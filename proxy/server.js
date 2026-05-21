@@ -79,6 +79,7 @@ const {
     resolvePulseRequestId,
     buildPulseClientCompatibilityResponse,
 } = require('./lib/pulseClientContext');
+const { buildGovernanceAttestation } = require('./lib/governance');
 const { extractSqlSections, extractSqlSectionsFromMarkdown } = require('./lib/sqlSectionExtractor');
 
 // ── Supervisor strategy registry ─────────────────────────────────────────────
@@ -1539,6 +1540,84 @@ function sendAuthRejection(req, res, reason, error, status = 401) {
     return res.status(status).json({ error });
 }
 
+const RENDERABLE_BACKEND_GOVERNANCE = Object.freeze({
+    genie: Object.freeze({ authority: 'unity-catalog' }),
+    'azure-openai-chat': Object.freeze({ authority: 'warehouse' }),
+    'azure-openai-analytics': Object.freeze({ authority: 'unity-catalog' }),
+    'bedrock-rag': Object.freeze({ authority: 'warehouse' }),
+    'bedrock-direct': Object.freeze({ authority: 'warehouse' }),
+    'foundation-model': Object.freeze({ authority: 'unity-catalog' }),
+    supervisor: Object.freeze({ authority: 'unity-catalog' }),
+    'supervisor-local': Object.freeze({ authority: 'unity-catalog' }),
+    'responses-agent': Object.freeze({ authority: 'unity-catalog' }),
+    'powerbi-semantic-model': Object.freeze({ authority: 'powerbi-semantic-model' }),
+});
+
+function hashGovernanceSubject(prefix, raw) {
+    const text = String(raw || '').trim();
+    if (!text) return null;
+    try {
+        const cryptoMod = require('crypto');
+        const digest = cryptoMod.createHash('sha256').update(text).digest('hex');
+        return `${prefix}:${digest.slice(0, 12)}`;
+    } catch {
+        return null;
+    }
+}
+
+function governanceSubjectRefForRequest(req, profile) {
+    if (hasVerifiedIdpUser(req)) {
+        const user = req.user || {};
+        return hashGovernanceSubject(
+            'user',
+            user.sub || user.email || user.preferredUsername || user.preferred_username || user.upn,
+        ) || 'user:unknown';
+    }
+
+    const spHash = spHashForProfile(profile);
+    if (spHash) return spHash;
+
+    if (requestHasSharedKey(req)) {
+        const clientApp = req.pulseClient?.clientApp || resolvePulseClientContext(req.headers || {}).clientApp || 'unknown';
+        return `shared-key:${clientApp}`;
+    }
+
+    return isProxyProductionAuthRequired() ? 'anonymous' : 'local-dev';
+}
+
+function sourceRefForGenieProfile(profile, spaceId) {
+    const resolvedSpaceId = String(spaceId || profile?.spaceId || '').trim();
+    if (!resolvedSpaceId) return undefined;
+    const ref = {
+        kind: 'genie-space',
+        spaceId: resolvedSpaceId,
+        displayName: String(profile?.agentName || profile?.displayName || profile?.name || 'Genie Space'),
+        governance: { requiresAttestation: true },
+    };
+    if (profile?.warehouseId) ref.warehouseId = String(profile.warehouseId);
+    return ref;
+}
+
+function governanceForBackend(req, profile, backendId, extra = {}) {
+    const spec = RENDERABLE_BACKEND_GOVERNANCE[backendId];
+    if (!spec) throw new Error(`No governance mapping registered for backend "${backendId}"`);
+    return buildGovernanceAttestation({
+        authority: spec.authority,
+        subjectRef: governanceSubjectRefForRequest(req, profile),
+        requestId: req.requestId || req.headers?.['x-request-id'] || req.headers?.['x-pulse-request-id'] || 'request-unknown',
+        policyVersion: 'g3-v1',
+        ...extra,
+    });
+}
+
+function withGovernance(req, profile, backendId, payload, extra = {}) {
+    const base = payload && typeof payload === 'object' ? payload : { content: payload };
+    return {
+        ...base,
+        governance: governanceForBackend(req, profile, backendId, extra),
+    };
+}
+
 function normalizeIdpUserClaims(payload = {}) {
     const preferred = payload.preferredUsername || payload.preferred_username || null;
     return {
@@ -2939,7 +3018,9 @@ app.post('/assistant/conversations/start', async (req, res) => {
         const convId = data.conversation_id ?? data.conversation?.id;
         storeConversation(convId, targetSpaceId, resolved.name);
         console.log(`[start] profile=${resolved.name} space=${targetSpaceId} conv=${convId}`);
-        res.json(data);
+        res.json(withGovernance(req, resolved.profile, 'genie', data, {
+            sourceRef: sourceRefForGenieProfile(resolved.profile, targetSpaceId),
+        }));
     } catch (err) {
         console.error('[start-conversation]', err.message);
         const mapped = errorStatusFromDatabricks(err, 500);
@@ -2971,7 +3052,9 @@ app.post('/assistant/conversations/:conversationId/messages', async (req, res) =
         );
         storeConversation(conversationId, targetSpaceId, resolved.name);
         console.log(`[send] profile=${resolved.name} space=${targetSpaceId} conv=${conversationId}`);
-        res.json(data);
+        res.json(withGovernance(req, resolved.profile, 'genie', data, {
+            sourceRef: sourceRefForGenieProfile(resolved.profile, targetSpaceId),
+        }));
     } catch (err) {
         console.error('[send-message]', err.message);
         const mapped = errorStatusFromDatabricks(err, 500);
@@ -3295,7 +3378,9 @@ app.get('/assistant/conversations/:conversationId/messages/:messageId', async (r
             status: (data.status || '').toUpperCase(),
             spIdentityHash: spHashForProfile(actualProfile),
         });
-        res.json(data);
+        res.json(withGovernance(req, actualProfile, 'genie', data, {
+            sourceRef: sourceRefForGenieProfile(actualProfile, targetSpaceId),
+        }));
     } catch (err) {
         console.error('[poll]', err.message);
         auditLog(req, {
@@ -5092,7 +5177,7 @@ app.post('/openai/conversations/start', async (req, res) => {
                 ...(result.usage ? { usage: result.usage } : {}),
             };
             console.log(`[openai/analytics] profile=${resolved.name} conv=${convId} status=${result.status} attempts=${attempts} retried=${retried}`);
-            return res.json(responsePayload);
+            return res.json(withGovernance(req, resolved.profile, 'azure-openai-analytics', responsePayload));
         } catch (err) {
             // Slice 1d — viewer-safe envelope; raw err.message stays in console.
             console.error('[openai/analytics]', err.message);
@@ -5154,7 +5239,7 @@ app.post('/openai/conversations/start', async (req, res) => {
             ...(usage ? { usage } : {}),
         };
         console.log(`[openai/start] profile=${resolved.name} conv=${convId}`);
-        res.json(responsePayload);
+        res.json(withGovernance(req, resolved.profile, 'azure-openai-chat', responsePayload));
     } catch (err) {
         console.error('[openai/start]', err.message);
         sendProblem(res, createProblem({
@@ -5187,7 +5272,12 @@ app.post('/openai/conversations/:conversationId/messages', async (req, res) => {
 
         const msgId = JSON.stringify({ id: `${conversationId}-${history.length}`, status: 'COMPLETED', content: answer });
         console.log(`[openai/send] profile=${resolved.name} conv=${conversationId}`);
-        res.json({ conversation_id: conversationId, message_id: msgId, status: 'COMPLETED', content: answer });
+        res.json(withGovernance(req, resolved.profile, 'azure-openai-chat', {
+            conversation_id: conversationId,
+            message_id: msgId,
+            status: 'COMPLETED',
+            content: answer,
+        }));
     } catch (err) {
         console.error('[openai/send]', err.message);
         sendProblem(res, createProblem({
@@ -5328,7 +5418,9 @@ app.post('/bedrock/conversations/start', async (req, res) => {
                 ...(result.usage ? { usage: result.usage } : {}),
             };
             console.log(`[bedrock/analytics] profile=${resolved.name} conv=${convId} status=${result.status} attempts=${attempts} retried=${retried}`);
-            return res.json(responsePayload);
+            return res.json(withGovernance(req, resolved.profile, 'bedrock-direct', responsePayload, {
+                authority: 'unity-catalog',
+            }));
         } catch (err) {
             console.error('[bedrock/analytics]', err.message);
             return sendProblem(res, createProblem({
@@ -5381,7 +5473,13 @@ app.post('/bedrock/conversations/start', async (req, res) => {
             const usage = _sanitizeUsageBlock(capturedUsage);
             const msgId = JSON.stringify({ id: convId, status: 'COMPLETED', content: answer, ...(usage ? { usage } : {}) });
             console.log(`[bedrock/direct/start] profile=${resolved.name} conv=${convId}`);
-            return res.json({ conversation_id: convId, message_id: msgId, status: 'COMPLETED', content: answer, ...(usage ? { usage } : {}) });
+            return res.json(withGovernance(req, resolved.profile, 'bedrock-direct', {
+                conversation_id: convId,
+                message_id: msgId,
+                status: 'COMPLETED',
+                content: answer,
+                ...(usage ? { usage } : {}),
+            }));
         } catch (err) {
             console.error('[bedrock/direct/start]', err.message);
             return sendProblem(res, createProblem({
@@ -5415,7 +5513,12 @@ app.post('/bedrock/conversations/start', async (req, res) => {
 
         const msgId = JSON.stringify({ id: convId, status: 'COMPLETED', content: answer, citations: data.citations ?? [] });
         console.log(`[bedrock/start] profile=${resolved.name} conv=${convId} session=${sessionId}`);
-        res.json({ conversation_id: convId, message_id: msgId, status: 'COMPLETED', content: answer });
+        res.json(withGovernance(req, resolved.profile, 'bedrock-rag', {
+            conversation_id: convId,
+            message_id: msgId,
+            status: 'COMPLETED',
+            content: answer,
+        }));
     } catch (err) {
         console.error('[bedrock/start]', err.message);
         sendProblem(res, createProblem({
@@ -5447,7 +5550,12 @@ app.post('/bedrock/conversations/:conversationId/messages', async (req, res) => 
             const answer = await bedrockInvokeModelCall(resolved.profile, messages);
             const msgId = JSON.stringify({ id: `${conversationId}-${Date.now()}`, status: 'COMPLETED', content: answer });
             console.log(`[bedrock/direct/send] profile=${resolved.name} conv=${conversationId}`);
-            return res.json({ conversation_id: conversationId, message_id: msgId, status: 'COMPLETED', content: answer });
+            return res.json(withGovernance(req, resolved.profile, 'bedrock-direct', {
+                conversation_id: conversationId,
+                message_id: msgId,
+                status: 'COMPLETED',
+                content: answer,
+            }));
         } catch (err) {
             console.error('[bedrock/direct/send]', err.message);
             return sendProblem(res, createProblem({
@@ -5470,7 +5578,12 @@ app.post('/bedrock/conversations/:conversationId/messages', async (req, res) => 
 
         const msgId = JSON.stringify({ id: `${conversationId}-${Date.now()}`, status: 'COMPLETED', content: answer, citations: data.citations ?? [] });
         console.log(`[bedrock/send] profile=${resolved.name} conv=${conversationId}`);
-        res.json({ conversation_id: conversationId, message_id: msgId, status: 'COMPLETED', content: answer });
+        res.json(withGovernance(req, resolved.profile, 'bedrock-rag', {
+            conversation_id: conversationId,
+            message_id: msgId,
+            status: 'COMPLETED',
+            content: answer,
+        }));
     } catch (err) {
         console.error('[bedrock/send]', err.message);
         sendProblem(res, createProblem({
@@ -5679,13 +5792,13 @@ app.post('/powerbi/conversations/start', async (req, res) => {
             spIdentityHash: spHashForProfile(resolved.profile),
         });
         const msgId = JSON.stringify({ id: convId, status: 'COMPLETED', content: body });
-        return res.json({
+        return res.json(withGovernance(req, resolved.profile, 'powerbi-semantic-model', {
             conversation_id: convId,
             message_id: msgId,
             status: 'COMPLETED',
             content: body,
             unmatched: true,
-        });
+        }));
     }
 
     const tmpl = _powerbiDaxTemplates.getTemplate(match.templateId);
@@ -5747,7 +5860,7 @@ app.post('/powerbi/conversations/start', async (req, res) => {
         dax,
         rowCount: normalized.rows.length,
     });
-    return res.json({
+    return res.json(withGovernance(req, resolved.profile, 'powerbi-semantic-model', {
         conversation_id: convId,
         message_id: msgId,
         status: 'COMPLETED',
@@ -5758,7 +5871,7 @@ app.post('/powerbi/conversations/start', async (req, res) => {
         rowCount: normalized.rows.length,
         mode: 'powerbi-deterministic',
         llmCallCount: 0,
-    });
+    }));
 });
 
 // Cycle-15.5 — Power BI Q&A embed token. Mints a dataset-scoped embed
@@ -5931,7 +6044,7 @@ app.post('/foundation/section', async (req, res) => {
         const sqlSections = extractSqlSectionsFromMarkdown(result.content || '');
 
         console.log(`[foundation/section] profile=${resolved.name} endpoint=${resolved.profile.foundationModelEndpoint} title=${upperTitle || '-'} structured=${!!effectiveResponseFormat} sqlSections=${sqlSections.length}`);
-        res.json({
+        res.json(withGovernance(req, resolved.profile, 'foundation-model', {
             content: renderedContent,
             rawContent: result.content,
             parsedJson: result.parsedJson || null,
@@ -5939,7 +6052,8 @@ app.post('/foundation/section', async (req, res) => {
             profile: resolved.name,
             structured: !!effectiveResponseFormat,
             ...(sqlSections.length > 0 ? { sqlSections } : {}),
-        });
+            ...(result.usage ? { usage: result.usage } : {}),
+        }));
     } catch (err) {
         console.error('[foundation/section]', err.message);
         sendProblem(res, createProblem({
@@ -6053,13 +6167,23 @@ app.post('/assistant/conversations/start-sectioned', async (req, res) => {
     let clientGone = false;
     res.on('close', () => { clientGone = true; });
 
+    const stampSectionedGovernance = (event) => {
+        if (!event || typeof event !== 'object') return event;
+        if (event.kind !== 'section-completed' && event.kind !== 'all-completed') return event;
+        return {
+            ...event,
+            governance: governanceForBackend(req, resolved.profile, 'foundation-model'),
+        };
+    };
+
     function writeEvent(event) {
         if (clientGone) return false;
+        const payload = stampSectionedGovernance(event);
         try {
-            res.write(`event: ${event.kind}\n`);
+            res.write(`event: ${payload.kind}\n`);
             // Defensive: SSE data lines mustn't contain raw newlines.
             // JSON.stringify never emits unescaped \n, so this is safe.
-            res.write(`data: ${JSON.stringify(event)}\n\n`);
+            res.write(`data: ${JSON.stringify(payload)}\n\n`);
             if (typeof res.flush === 'function') res.flush();
             return true;
         } catch (_) {
@@ -6281,7 +6405,11 @@ app.post('/foundation/conversations/start-stream', async (req, res) => {
             const finalUsage = usageBlock
                 ? { prompt_tokens: usageBlock.prompt_tokens, completion_tokens: usageBlock.completion_tokens, total_tokens: usageBlock.total_tokens }
                 : null;
-            writeNDJSON({ done: true, content: accumulated, ...(finalUsage ? { usage: finalUsage } : {}) });
+            writeNDJSON(withGovernance(req, resolved.profile, 'foundation-model', {
+                done: true,
+                content: accumulated,
+                ...(finalUsage ? { usage: finalUsage } : {}),
+            }));
             console.log(`[foundation/stream] profile=${resolved.name} endpoint=${endpoint} chars=${accumulated.length}`);
             res.end();
         });
@@ -6385,13 +6513,13 @@ app.post('/responses-agent/chat', async (req, res) => {
             requestId: req.requestId,
         });
         console.log(`[responses-agent/chat] profile=${resolved.name} endpoint=${resolved.profile.responsesAgentEndpoint} customOutputs=${result.customOutputs ? 'yes' : 'no'}`);
-        res.json({
+        res.json(withGovernance(req, resolved.profile, 'responses-agent', {
             content: result.content,
             customOutputs: result.customOutputs || null,
             usage: result.usage || null,
             endpoint: resolved.profile.responsesAgentEndpoint,
             profile: resolved.name,
-        });
+        }));
     } catch (err) {
         console.error('[responses-agent/chat]', err.message);
         sendProblem(res, createProblem({
@@ -7300,7 +7428,7 @@ app.post('/supervisor/conversations/start-stream', async (req, res) => {
             console.log(`[supervisor/stream] agent profile=${resolved.name} conv=${convId}`);
         }
 
-        writeEvent({
+        writeEvent(withGovernance(req, resolved.profile, resolved.profile.type === 'supervisor-local' ? 'supervisor-local' : 'supervisor', {
             type: 'result',
             conversation_id: convId,
             conversationId: convId,
@@ -7314,7 +7442,7 @@ app.post('/supervisor/conversations/start-stream', async (req, res) => {
                 routeLabel: resolved.profile.agentName || 'Supervisor',
                 spaceResults,
             },
-        });
+        }));
     } catch (err) {
         // Tier B Day 4 — extend the OAuth 401-invalidation policy from
         // databricksRequest into the supervisor stream call site. If the
@@ -7393,7 +7521,7 @@ app.post('/supervisor/conversations/start', async (req, res) => {
             const msgId = `sv-msg-${Date.now()}`;
             storeConversation(convId, 'supervisor-local', resolved.name);
             console.log(`[supervisor/local] profile=${resolved.name} conv=${convId} spaces=${supervisor.results.map(r => r.profileName).join(',')}`);
-            return res.json({
+            return res.json(withGovernance(req, resolved.profile, 'supervisor-local', {
                 conversation_id: convId,
                 conversationId: convId,
                 message_id: msgId,
@@ -7415,7 +7543,7 @@ app.post('/supervisor/conversations/start', async (req, res) => {
                 // (Genie has no upstream usage). Future helpers backed by
                 // Foundation Model / OpenAI / Bedrock will add their share.
                 ...(supervisor.usage ? { usage: supervisor.usage } : {}),
-            });
+            }));
         }
 
         if (!host || !ep) {
@@ -7497,7 +7625,7 @@ app.post('/supervisor/conversations/start', async (req, res) => {
         storeConversation(convId, resolved.profile.endpoint, resolved.name);
         const usage = _sanitizeUsageBlock(data?.usage);
         console.log(`[supervisor/start] profile=${resolved.name} conv=${convId}`);
-        res.json({
+        res.json(withGovernance(req, resolved.profile, 'supervisor', {
             conversation_id: convId,
             conversationId:  convId,
             message_id:      msgId,
@@ -7510,7 +7638,7 @@ app.post('/supervisor/conversations/start', async (req, res) => {
             // `data.usage`; forward when present so the SustainabilityIndicator
             // reflects real cost for the remote-supervisor path too.
             ...(usage ? { usage } : {}),
-        });
+        }));
     } catch (err) {
         console.error('[supervisor/start]', err.message);
         // Tier B Day 4 — same 401-invalidation policy as the stream path.
@@ -7556,13 +7684,16 @@ app.get('/supervisor/conversations/:conversationId/messages/:messageId', (req, r
     // The visual polls after startConversation — return COMPLETED immediately
     // since the supervisor response was already resolved synchronously.
     const msgId = req.params.messageId;
-    res.json({
+    const resolved = resolveSupervisorProfile(req.query || {}, req.headers, req);
+    const profile = resolved?.profile || {};
+    const backendId = profile.type === 'supervisor-local' ? 'supervisor-local' : 'supervisor';
+    res.json(withGovernance(req, profile, backendId, {
         id:              msgId,
         message_id:      msgId,
         status:          'COMPLETED',
         content:         '(Supervisor answer was returned synchronously on conversation start.)',
         attachments:     [],
-    });
+    }));
 });
 
 if (process.env.NODE_ENV === 'test') {
@@ -7752,4 +7883,8 @@ module.exports = {
     resolvePulseClientContext,
     resolvePulseRequestId,
     buildPulseClientCompatibilityResponse,
+    RENDERABLE_BACKEND_GOVERNANCE,
+    governanceSubjectRefForRequest,
+    governanceForBackend,
+    withGovernance,
 };

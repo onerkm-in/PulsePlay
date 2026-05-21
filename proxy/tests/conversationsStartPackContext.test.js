@@ -166,9 +166,19 @@ describe('POST /assistant/conversations/start — pack-context injection', () =>
                 content: 'What is fill rate trending this quarter?',
                 pack: 'cpg-fmcg',
                 subVertical: 'supply-chain',
-            }));
+        }));
         expect(res.status).toBe(200);
         expect(res.body.conversation_id).toBe('conv-fake-001');
+        expect(res.body.governance).toMatchObject({
+            enforced: true,
+            authority: 'unity-catalog',
+            subjectRef: 'local-dev',
+            sourceRef: {
+                kind: 'genie-space',
+                spaceId: 'space-default-123',
+                governance: { requiresAttestation: true },
+            },
+        });
 
         // Inspect the JSON the proxy forwarded to Databricks.
         expect(lastBody).toBeTruthy();
@@ -300,6 +310,11 @@ describe('POST /openai/conversations/start — pack-context injection (chat-only
             }));
         expect(res.status).toBe(200);
         expect(res.body.status).toBe('COMPLETED');
+        expect(res.body.governance).toMatchObject({
+            enforced: true,
+            authority: 'warehouse',
+            subjectRef: 'local-dev',
+        });
         expect(global.fetch).toHaveBeenCalled();
 
         const fetchPayload = JSON.parse(lastFetchBody);
@@ -326,6 +341,11 @@ describe('POST /openai/conversations/start — pack-context injection (chat-only
                 content: 'Plain question.',
             }));
         expect(res.status).toBe(200);
+        expect(res.body.governance).toMatchObject({
+            enforced: true,
+            authority: 'warehouse',
+            subjectRef: 'local-dev',
+        });
         const fetchPayload = JSON.parse(lastFetchBody);
         expect(fetchPayload.messages.length).toBe(1);
         expect(fetchPayload.messages[0].role).toBe('user');
@@ -386,6 +406,11 @@ describe('POST /bedrock/conversations/start — pack-context injection (bedrock-
             }));
         expect(res.status).toBe(200);
         expect(res.body.status).toBe('COMPLETED');
+        expect(res.body.governance).toMatchObject({
+            enforced: true,
+            authority: 'warehouse',
+            subjectRef: 'local-dev',
+        });
         expect(global.fetch).toHaveBeenCalled();
 
         const fetchPayload = JSON.parse(lastFetchBody);
