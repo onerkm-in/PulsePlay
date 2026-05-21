@@ -7804,6 +7804,53 @@ function handleUnexpectedProxyError(err, req, res, next) {
     return sendProblem(res, problem);
 }
 
+// ── Diagnostic endpoint for combined-app deployment debugging ────────────────
+//
+// Reports the resolved static directory and what's actually in it. Useful
+// when the React UI loads blank on a hosted deployment (cold-start build
+// failed silently, wrong path resolution, missing assets, etc.). No auth
+// required at the app level — platform-level auth in front (Databricks
+// Apps, App Service Easy Auth) gates access. Safe: read-only listing, no
+// file contents, capped at 30 asset names.
+app.get('/__diag/static', (req, res) => {
+    const fs = require('fs');
+    const out = {
+        cwd: process.cwd(),
+        __dirname: __dirname,
+        node_version: process.version,
+        STATIC_DIR_env: process.env.STATIC_DIR || null,
+        resolved_path: null,
+        exists: false,
+        index_html_exists: false,
+        index_html_size: null,
+        top_level: [],
+        assets: [],
+        error: null,
+    };
+    try {
+        const raw = process.env.STATIC_DIR;
+        if (raw) {
+            out.resolved_path = path.isAbsolute(raw) ? raw : path.resolve(__dirname, '..', raw);
+            out.exists = fs.existsSync(out.resolved_path);
+            if (out.exists) {
+                out.top_level = fs.readdirSync(out.resolved_path).slice(0, 30);
+                const indexPath = path.join(out.resolved_path, 'index.html');
+                out.index_html_exists = fs.existsSync(indexPath);
+                if (out.index_html_exists) {
+                    out.index_html_size = fs.statSync(indexPath).size;
+                }
+                const assetsPath = path.join(out.resolved_path, 'assets');
+                if (fs.existsSync(assetsPath)) {
+                    out.assets = fs.readdirSync(assetsPath).slice(0, 30);
+                }
+            }
+        }
+    } catch (err) {
+        out.error = err.message;
+    }
+    res.json(out);
+});
+
 // ── Static-file serving (combined-app deployment) ────────────────────────────
 //
 // Optional. When STATIC_DIR is set (e.g. "playground/dist" or an absolute
