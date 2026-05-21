@@ -1,6 +1,6 @@
 # Native BI Adapter - Renderer-Only Architecture
 
-> Status: G0 architecture lock, 2026-05-21. This is a product and code boundary, not an implementation claim.
+> Status: G1 adapter skeleton shipped, 2026-05-21. The adapter is loadable and guarded; the visualization pipeline and real chart canvas are still queued for G2-G4.
 
 ## Decision
 
@@ -29,7 +29,7 @@ playground/src/visualization/
   v
 bi-adapters/native/
   NativeBIAdapter.ts
-  NativeCanvas.tsx
+  NativeCanvas.tsx        (G4)
   nativeCapabilities.ts
   nativeCommands.ts
   nativeEvents.ts
@@ -43,7 +43,7 @@ No shared monorepo package is created in v0.x. If the Pulse PBI sibling needs th
 
 The native adapter still satisfies the existing `BIAdapter` contract.
 
-`mount(container, config)` creates a React root and renders the native canvas empty state.
+G1 `mount(container, config)` creates a lightweight DOM empty state and proves the adapter lifecycle. G4 replaces this with the React/ECharts `NativeCanvas`.
 
 `send(command)` accepts only renderer commands:
 
@@ -158,9 +158,9 @@ Renderer-only is enforced in three layers:
 }
 ```
 
-2. Runtime command rejection. Unsupported commands reject and emit an adapter error.
+2. Runtime command rejection. Unsupported commands reject and emit an adapter error. G1 tests cover BI commands and explicit drift commands such as `executeQuery`, `saveLayout`, and `createMeasure`.
 
-3. CI boundaries. Contract tests prove forbidden commands stay rejected. `no-restricted-imports` prevents `bi-adapters/native/**` from importing query clients, warehouse clients, vendor SDKs, drag/drop libraries, permission UI, or authoring/settings modules.
+3. CI boundaries. Contract tests prove forbidden commands stay rejected. G1 ships a Vitest import-boundary guard for `bi-adapters/native/**` so the adapter cannot import query clients, warehouse clients, vendor SDKs, drag/drop libraries, permission UI, or authoring/settings modules. A future ESLint `no-restricted-imports` rule can mirror this once the repo adopts ESLint for playground code.
 
 ## Pulse PBI Relationship
 
@@ -205,11 +205,10 @@ First slice: fusion-lite. Render one chart plus docked AI commentary cards bound
 
 ## Build Track
 
-- G0: architecture docs, ADR, Pulse sync ledger, agenda/memory updates.
-- G1: adapter skeleton, capabilities, command rejection tests.
+- G0: shipped. Architecture docs, ADR, Pulse sync ledger, agenda/memory updates.
+- G1: shipped. Adapter skeleton, capabilities, command rejection tests, import-boundary guard, registry loadability, no-embed readiness.
 - G2: `playground/src/visualization/` pipeline MVP and chart-pick extraction.
 - G3: governance attestation contract across proxy backend paths and native fail-closed test.
 - G4: native canvas plus ECharts MVP.
 - G5: brand-grid card and author switch.
 - G6: native T2 fusion-lite.
-

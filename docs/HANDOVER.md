@@ -5,6 +5,27 @@
 
 ---
 
+## 2026-05-21 - G1 native adapter skeleton + guardrails
+
+**Scope.** Additive G1 runtime foundation for Option B. Native is now a loadable BI adapter option, but still renderer-only. No visualization pipeline extraction, no ECharts canvas, no author switch state, no governance attestation runtime, and no Pulse PBI portable-module changes in this slice.
+
+**Adapter skeleton.** Added [`bi-adapters/native/`](../bi-adapters/native) with `NativeBIAdapter`, `nativeCapabilities`, `nativeCommands`, `nativeEvents`, and `index.ts`. The adapter implements `mount` / `on` / `send` / `destroy`, renders a lightweight empty state, emits `loaded` / `ready` / `rendered` / `view-context` events for native consumers, and returns honest empty metadata. Renderer commands accepted: `renderResult`, `renderSpec`, `clear`, `setTheme`, `resize`. All BI-tool and drift commands reject.
+
+**Capability enforcement.** `NATIVE_RENDERER_CAPABILITIES` locks authoring, drag layout, cross-filter, drill, semantic modeling, live refresh, permissions, query execution, and persistence to `false`. Tests prove `setFilter`, `drill`, `saveLayout`, `executeQuery`, `createMeasure`, plus existing BI commands (`apply-filter`, `refresh`, `export`, etc.) reject with `BI_UNSUPPORTED_COMMAND`. A Vitest import-boundary guard scans production native adapter files and blocks `fetch`, `XMLHttpRequest`, proxy/warehouse imports, vendor SDKs, drag/drop libraries, React runtime imports, and authoring/settings group imports.
+
+**Host wiring.** Registry now lists and lazy-loads `native`. Native is marked configured because it needs no external vendor credentials. Setup/readiness treats `biVendor="native"` as BI-ready without an embed URL, and App.tsx mounts the BI pane for native even when `embedConfig` is empty. Existing vendor defaults were preserved by keeping native after the established vendor/generic entries rather than making it the first default.
+
+**Validation.**
+- Focused G1 suite: `npm run test -- ../bi-adapters/native/__tests__/index.test.ts src/biPanel/__tests__/registry.parity.test.ts src/settings/__tests__/setupReadiness.test.ts src/settings/__tests__/vendorMatrix.test.tsx` -> **77/77**.
+- `playground npm run lint` -> PASS.
+- Full playground suite: **1196/1196**.
+- `playground npm run build` -> PASS (existing BI-adapter dynamic-import warnings only).
+- In-app Browser plugin smoke: BLOCKED by existing kernel-asset write failure (`failed to write kernel assets`). Headless Playwright fallback: PASS for preselected native setup state (`pulseplay:bi-vendor=native`) — provider value stayed `native`, native note rendered, and embed textarea count was 0. Interactive picker switch was not a valid smoke because the proxy was down and Settings correctly fail-closed new BI selections. Do not call this fully UX-verified until a real browser/manual pass runs with proxy up.
+
+**Next.** G2 should stay pure: create `playground/src/visualization/` (`aiResultEnvelope`, `resultToVizIntent`, `chartAutoPick`, `chartSpecValidation`) and refactor Pulse-ported chart-pick callsites to consume the shared policy. Do not add chart layout, drag handles, cross-filter wires, query execution, or saved layouts.
+
+---
+
 ## 2026-05-21 - F5.1 surface availability resolver + F5 closure
 
 **F5 / F5.1 closure status:** automated green (1158/1158 playground tests, lint, build). **Browser smoke pending** — has not run successfully in any F5 or F5.1 session (kernel-asset write blocker encountered, not retried). Do not characterise F5 as "fully UX-verified" until the manual browser pass lands.
