@@ -5,6 +5,43 @@
 
 ---
 
+## 2026-05-21 - DX1c packaged EXE proof + AV mitigation
+
+**Scope.** Closes the DX1c packaging proof: the launcher now produces a runnable Windows `PulsePlay.exe` and a smokeable `out/install/` folder. The artifact is still a packaged local runtime, not a native UI shell.
+
+**Code changes.**
+
+- [`enablers/desktop/runtime/launcher.mjs`](../enablers/desktop/runtime/launcher.mjs): packaged-mode `resolvePaths()` now resolves sidecars beside `process.execPath` (`proxy/server.js`, `playground/dist`, `PulsePlayData/`). Packaged proxy children use the same EXE in a multicall mode via `PULSEPLAY_DESKTOP_PROXY_CHILD=1`; this avoids pkg treating `--desktop-proxy-child` as an external script path and keeps `proxy/server.js` unchanged.
+- [`enablers/desktop/scripts/package-win.mjs`](../enablers/desktop/scripts/package-win.mjs): new packaging driver. Builds `out/launcher.cjs` via esbuild, runs `@yao-pkg/pkg` for `node20-win-x64`, copies sidecar `proxy/` + `playground/dist/`, writes a minimal install manifest so `/runtime/version` reports `0.1.0`, and builds `out/install/PulsePlay.exe`.
+- [`enablers/desktop/scripts/dx1b-smoke.mjs`](../enablers/desktop/scripts/dx1b-smoke.mjs): accepts `--launcher out/install/PulsePlay.exe` so the same contract smoke can exercise the packaged binary.
+- [`enablers/desktop/package.json`](../enablers/desktop/package.json): `npm run package`, `smoke:binary`, `smoke:binary:persistence`; desktop tests narrowed to `tests/*.test.mjs` so generated `out/snapshot/proxy/tests` never pollutes `node --test`.
+- [`enablers/desktop/PACKAGING.md`](../enablers/desktop/PACKAGING.md): updated from recipe-only to executed DX1c path; documents antivirus / SmartScreen mitigation.
+
+**Antivirus answer.** The EXE is locally generated and unsigned. It starts loopback servers and, when compressed, looks like a packed Node runtime. That is expected to trigger heuristic antivirus and SmartScreen on some machines. DX1c mitigates by making the default artifact **uncompressed** and documenting signing, timestamping, and Defender submission. It does **not** make the binary enterprise-distribution safe; that needs DX1d signing/reputation.
+
+**Validation.**
+
+| Check | Result |
+|---|---|
+| `cd enablers/desktop && npm test` | **49/49** |
+| `cd enablers/desktop && npm run package` | pass, `out/install/PulsePlay.exe` produced |
+| `Get-AuthenticodeSignature out/install/PulsePlay.exe` | `NotSigned` (expected, honest non-claim) |
+| `Get-FileHash out/install/PulsePlay.exe -Algorithm SHA256` | `595D770F0D511FA18A595A2EC1C4706A65ADE503BA13D0242DC40D11D688AE61` |
+| `cd enablers/desktop && npm run smoke:binary` | PASS, `failures: []` |
+| `cd enablers/desktop && npm run smoke:binary:persistence` | PASS, prior value survived relaunch |
+
+**Honest non-claims.**
+
+- The EXE is unsigned and may still trigger antivirus / SmartScreen. Do not ask users to disable AV; use signing and Microsoft review.
+- The artifact is an install folder (`PulsePlay.exe` + sidecar `proxy/` + `playground/dist/`), not a single self-contained binary.
+- Real private-browser launch was not exercised; smoke still uses `--no-browser`.
+- Wizard/global recon disclaimer is still deferred.
+- Secrets remain plaintext until DX2 encryption.
+
+**Next.** DX1d signing/install UX hardening, or DX2 encryption if signing infrastructure is not available yet.
+
+---
+
 ## 2026-05-21 - DX1b launcher implementation (beast-mode 6-slice arc)
 
 **Scope.** DX1a's contract is now executable. Six small commits under [`enablers/desktop/`](../enablers/desktop/) implement every endpoint the contract specified, plus the React-side desktop runtime client and an end-to-end smoke runner that proves Save Changes round-trips through `PulsePlayData/`. Per the contract's slice plan, packaging (the last `.exe` step) is deferred to DX1c.
