@@ -1,0 +1,21 @@
+{
+    "name": "pulseplay-desktop",
+    "private": true,
+    "version": "0.1.0",
+    "type": "module",
+    "description": "PulsePlay desktop launcher / packaged local runtime. Boots the bundled app server + bundled proxy on random 127.0.0.1 ports, generates a one-time launch token, opens a private browser. DX1b proof; not yet packaged. See docs/DX1_LAUNCHER_CONTRACT.md.",
+    "main": "runtime/launcher.mjs",
+    "scripts": {
+        "start": "node runtime/launcher.mjs",
+        "dev": "node runtime/launcher.mjs --dev",
+        "test": "node --test tests/",
+        "smoke": "node scripts/dx1b-smoke.mjs"
+    },
+    "dependencies": {
+        "express": "^4.21.2",
+        "http-proxy-middleware": "^3.0.3"
+    },
+    "engines": {
+        "node": ">=20"
+    }
+}
