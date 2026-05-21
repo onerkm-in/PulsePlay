@@ -8,16 +8,29 @@
 
 ## Status — 2026-05-21
 
-**DX1a — launcher contract spec — shipped.** [`docs/DX1_LAUNCHER_CONTRACT.md`](../../docs/DX1_LAUNCHER_CONTRACT.md) is the canonical contract a future DX1b implementation must satisfy. **No runtime code lives here yet.** This folder is the enabler skeleton; the launcher, app server, packaging config, and smoke runner all arrive in DX1b.
+**DX1a + DX1b shipped.** The contract at [`docs/DX1_LAUNCHER_CONTRACT.md`](../../docs/DX1_LAUNCHER_CONTRACT.md) is locked AND its first runtime implementation lives in this folder under [`runtime/`](./runtime/), [`tests/`](./tests/), and [`scripts/`](./scripts/). Run `npm run smoke` to boot the launcher and exercise every endpoint end-to-end. Producing a single `.exe` is the DX1c next step — see [`PACKAGING.md`](./PACKAGING.md).
 
 | Slice | Scope | Status |
 |---|---|---|
 | **DX1a** | Launcher contract spec, enabler folder skeleton, ledger updates | shipped 2026-05-21 |
-| **DX1b** | Node launcher + app server + Save Changes endpoints + Windows packaging proof | queued |
-| **DX1c** | Packaging hardening (binary size, signing, installer) | queued |
-| **DX1d** | Acceptance smoke (download → double-click → save → relaunch → quit) | queued |
+| **DX1b** | Node launcher + app server + /runtime/* + browser launch matrix + heartbeat watchdog + React-side desktopRuntimeClient + end-to-end smoke + persistence proof | **shipped 2026-05-21** |
+| **DX1c** | Execute [`PACKAGING.md`](./PACKAGING.md) recipe (esbuild + @yao-pkg/pkg), fill packaged-mode `resolvePaths()` branch, run smoke against the binary, wizard-variant recon disclaimer, optional signing | queued |
 | **DX2** | At-rest encryption for `PulsePlayData/secrets.enc` + state.json | queued |
 | **DX3** | macOS / Linux launchers, tray icon, single-instance, auto-update | deferred |
+
+### Quick start (dev mode)
+
+```bash
+cd enablers/desktop
+npm install
+npm run dev          # launches with --dev; opens a private browser
+npm test             # 45/45 node:test (dataStore, appServer, watchdog,
+                     #  lockFile, portDiscovery, browserLaunch)
+npm run smoke        # boots launcher + asserts every /runtime/* endpoint
+npm run smoke:persistence   # second run: prior session's state survived
+```
+
+`playground/dist` must be built first (`cd playground && npm run build`) so the launcher has something to serve. The smoke runner asserts a real `/api/health` round-trip through the bundled proxy, so `proxy/config.json` must exist.
 
 ---
 

@@ -5,6 +5,54 @@
 
 ---
 
+## 2026-05-21 - DX1b launcher implementation (beast-mode 6-slice arc)
+
+**Scope.** DX1a's contract is now executable. Six small commits under [`enablers/desktop/`](../enablers/desktop/) implement every endpoint the contract specified, plus the React-side desktop runtime client and an end-to-end smoke runner that proves Save Changes round-trips through `PulsePlayData/`. Per the contract's slice plan, packaging (the last `.exe` step) is deferred to DX1c.
+
+**Commit arc.**
+
+| Commit | Slice | What landed |
+|---|---|---|
+| `d5fb8b0` | DX1b-1 | Enabler bootstrap: `enablers/desktop/package.json` (express + http-proxy-middleware), `DECISIONS.md` resolving the 5 contract §18 open questions (express / @yao-pkg/pkg / setInterval heartbeat / 256-bit base64url token / per-session disclaimer dismissal), `runtime/config.mjs` with every locked constant, `.gitignore`. |
+| `50d748c` | DX1b-2 | `runtime/dataStore.mjs` (atomic write-tmp-rename, profile name regex `^[a-z0-9_-]{1,64}$`, 9 tests) + `runtime/appServer.mjs` (all 11 `/runtime/*` endpoints + `/launch` shim + `/api/*` reverse proxy with PX1 header injection, constant-time token compare, Host-header loopback regex, 14 tests). Real bug surfaced in dev: `createProfile` was creating the target dir BEFORE validating `copyFrom`, leaving an orphan on copyFrom failure. Fixed. |
+| `5343fed` | DX1b-3 | `runtime/portDiscovery.mjs` (ephemeral 127.0.0.1, 3 tests), `runtime/browserLaunch.mjs` (Chrome→Edge→Firefox→Brave→default matrix per OS, 7 tests), `runtime/launcher.mjs` main entry with `--dev` / `--no-browser`, and `runtime/proxyEntry.cjs` — a tiny CommonJS wrapper around `proxy/server.js`'s exported express app. Why the wrapper: setting `PORT` env on the proxy flips its `runAsDatabricksApp` branch and binds `0.0.0.0`, which contract §11 forbids. The wrapper imports the app (skipping the proxy's own `require.main === module` startup) and binds `127.0.0.1:PULSEPLAY_DESKTOP_PROXY_PORT` instead. Manual smoke verified end-to-end. |
+| `a8a8850` | DX1b-4 | `runtime/watchdog.mjs` (15s kick / 45s timeout, 6 tests) + `runtime/lockFile.mjs` (`pid`/`appPort`/`proxyPort`/`startedAt`, stale-vs-live inspection via `process.kill(pid, 0)`, atomic, 6 tests, `last-error.txt` for crash traces). Launcher now wires watchdog into `createAppServer`'s `onHeartbeat`, writes lock after both servers bind, releases lock on clean shutdown, adds `beforeExit` belt-and-braces. Smoke: full lifecycle including `/runtime/heartbeat` 204 and `/runtime/quit` 202 with clean SIGTERM and lock release. |
+| `d948a3a` | DX1b-5 | React side. New [`playground/src/lib/desktopRuntimeClient.ts`](../playground/src/lib/desktopRuntimeClient.ts) — `isDesktopMode` / `bootstrapDesktopMode` / `pushSettingsSnapshot` / `sendHeartbeat` / `requestQuit` / `dismissReconDisclaimer` / `startDesktopRuntime`. EXE-mode detection is sessionStorage launch-token presence; browser mode is a no-op end-to-end. New [`playground/src/components/ReconDisclaimer.tsx`](../playground/src/components/ReconDisclaimer.tsx) (`settings` and `banner` variants; null in browser mode). `main.tsx` becomes an async IIFE that calls `ingestLaunchFragmentIfPresent` + awaits `bootstrapDesktopMode` (so persisted localStorage lands BEFORE any Settings store reads it on import) + renders + calls `startDesktopRuntime`. `useSettingsDraft.save()` dispatches a `pulseplay:settings-saved` CustomEvent carrying the snapshot. `SystemGroup` mounts `<ReconDisclaimer variant="settings" />` per contract §11. 17 new vitest. Honest non-claim: wizard-variant + top-bar banner deferred to DX1c (App.tsx multi-shell switch + FirstRunWizard focus-trap need their own layout cycle). |
+| `7c4c075` | DX1b-6 | `scripts/dx1b-smoke.mjs` — end-to-end. S1-S11 default run asserts `/runtime/version` unauthed, token-guard 401, `/runtime/state` GET/PUT round-trip, `/api/health` proxy hop returns proxy's `client=pulseplay` (PX1 wiring works), lock file shape, `/runtime/heartbeat` 204, `/runtime/quit` 202 + clean exit, lock released. `--check-persistence` mode reboots launcher and asserts the prior session's value survived (contract §16 acceptance signal for "Save Changes persists across launches" via desktopRuntimeClient → /runtime/state → state.json → bootstrap restore on next launch). `PACKAGING.md` ships the recipe but defers actual `.exe` production to DX1c with an honest call-out of the four gates (resolvePaths packaged-mode branch, sidecar layout, http-proxy-middleware bundling, signing/SmartScreen UX). `npm run package` script intentionally errors with "see PACKAGING.md; lands in DX1c". |
+
+**End-to-end validation.**
+
+| Check | Result |
+|---|---|
+| `cd enablers/desktop && npm test` | **45/45** node:test (was 0 — new) |
+| `cd playground && npm run lint` | clean |
+| `cd playground && npm test` | **1399/1399** vitest (was 1382 → +17 desktopRuntimeClient) |
+| `cd playground && npm run build` | clean (16.57s, 7 chunks) |
+| `cd proxy && npm test` | **1137/1137** (unchanged — no proxy edits in DX1b) |
+| `cd enablers/desktop && npm run smoke` | `ok: true, failures: []` (11 contract endpoints PASS) |
+| `cd enablers/desktop && npm run smoke:persistence` | `P1 PASS` — value PUT in run 1 was readable in run 2 |
+
+**Architectural notes (read before DX1c).**
+
+1. **`runtime/proxyEntry.cjs` is the bridge that keeps `proxy/server.js` byte-for-byte unchanged.** Do not be tempted to add a "desktop mode" flag inside `proxy/server.js`. The contract's "one proxy product, one codebase" rule (ADR-0010) is preserved precisely by NOT modifying the proxy — the wrapper imports the exported app and provides its own loopback bind.
+2. **`bootstrapDesktopMode` runs synchronously in the main.tsx IIFE before createRoot.** This is load-bearing: Settings stores (settingsStore, embedConfigStore, pulseVisualSettingsStore) read localStorage on import. If bootstrap ran AFTER stores initialized, restored values would be ignored until the user manually refreshed each store. Do not move the bootstrap into a `useEffect`.
+3. **The `pulseplay:settings-saved` CustomEvent is the only coupling between the Settings UI and `desktopRuntimeClient`.** No imports cross the boundary — `useSettingsDraft` doesn't know desktopRuntimeClient exists; desktopRuntimeClient doesn't know about useSettingsDraft. This keeps browser mode clean.
+4. **Lock file is for crash recovery, not single-instance.** Two `node runtime/launcher.mjs` invocations succeed simultaneously and pick different ports. Per contract §10 this is intentional — don't add a refuse-to-start branch in DX1c.
+5. **Recon disclaimer mount points expand in DX1c.** Settings → System is wired now. The contract also wants the disclaimer on the first-launch screen (FirstRunWizard integration) and arguably as a persistent top-bar banner. Both touch large UI files and were deferred to keep this slice on-budget.
+
+**Honest non-claims (these are DX1c work).**
+
+- No packaged binary produced. The runtime is observably correct via the smoke runner; producing a single `.exe` is the next cycle.
+- Real-browser-launch interaction not exercised end-to-end. `browserLaunch.mjs` has matrix unit tests; the smoke runner uses `--no-browser` to keep it headless.
+- Secrets persist plaintext in `PulsePlayData/secrets.json`. Encryption-at-rest is DX2.
+- Recon disclaimer not on the wizard or as a global banner. DX1c.
+- `http-proxy-middleware` emits a DEP0060 warning from its `util._extend` call. Cosmetic; pin a newer version in DX1c or accept the warning.
+- Windows `CTRL_CLOSE_EVENT` is approximated via `SIGHUP`. Most configurations work; full Win32-API handling is DX1c hardening.
+
+**Next.** DX1c — execute the packaging recipe in `enablers/desktop/PACKAGING.md`, fill `resolvePaths()` packaged-mode branch, re-run `dx1b-smoke.mjs` against the produced binary, add wizard-variant disclaimer, optional signing.
+
+---
+
 ## 2026-05-21 - DX1a launcher contract spec
 
 **Scope.** First slice of DX1 following Rajesh's lock the same day. **Doc-only**, matching the G0 pattern (architecture lock first, runtime in the next slice). Locks the contract a future DX1b implementation must satisfy so the next cycle can ship against a written target rather than a one-paragraph intent.
