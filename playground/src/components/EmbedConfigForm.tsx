@@ -183,6 +183,9 @@ const EMPTY_PBI: PowerBIFormState = {
 };
 
 export function EmbedConfigForm(props: EmbedConfigFormProps) {
+    if (props.vendor === "native") {
+        return <NativeResultCanvasConfig />;
+    }
     if (props.vendor === "powerbi") {
         return <PowerBIEmbedForm {...props} />;
     }
@@ -193,6 +196,25 @@ export function EmbedConfigForm(props: EmbedConfigFormProps) {
         return <DatabricksGenieEmbedForm {...props} />;
     }
     return <GenericUrlForm {...props} />;
+}
+
+function NativeResultCanvasConfig() {
+    return (
+        <div
+            role="note"
+            style={{
+                fontSize: 12,
+                lineHeight: 1.5,
+                padding: "10px 12px",
+                border: "1px solid var(--pp-border, rgba(0,0,0,0.12))",
+                borderRadius: 6,
+                background: "rgba(14, 165, 233, 0.06)",
+                color: "var(--pp-text, #0f172a)",
+            }}
+        >
+            Native result canvas needs no embed URL. Ask Pulse can use this pane as the place to show generated result views.
+        </div>
+    );
 }
 
 // ── Power BI ───────────────────────────────────────────────────────────────

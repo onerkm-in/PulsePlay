@@ -135,8 +135,8 @@ export interface BIMetadata {
  * `destroy()` when the panel unmounts.
  */
 export interface BIAdapter {
-    /** Vendor identifier — "powerbi", "tableau", "qlik", "looker",
-     *  "generic-iframe". Used by the registry + by the AI sidebar to
+    /** Vendor identifier — "native", "powerbi", "tableau", "qlik",
+     *  "looker", "generic-iframe". Used by the registry + by the AI sidebar to
      *  pick vendor-aware behavior. */
     readonly vendor: string;
     /** Human-readable display name shown in the panel header. */

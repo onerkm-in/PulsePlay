@@ -25,12 +25,17 @@ export interface SetupReadiness {
     pillDetail: string;
 }
 
+export function isNativeBiVendor(vendor?: string | null): boolean {
+    return String(vendor || "").trim() === "native";
+}
+
 export function getSetupReadiness(input: SetupReadinessInput): SetupReadiness {
     const hasBiProvider = !!String(input.biVendor || "").trim();
-    const hasEmbedConfig = !!input.embedConfig
+    const nativeBi = isNativeBiVendor(input.biVendor);
+    const hasEmbedConfig = nativeBi || (!!input.embedConfig
         && typeof input.embedConfig === "object"
         && !Array.isArray(input.embedConfig)
-        && Object.keys(input.embedConfig).length > 0;
+        && Object.keys(input.embedConfig).length > 0);
     const hasAiProfile = !!String(input.activeAiProfile || "").trim();
     const biReady = hasBiProvider && hasEmbedConfig;
     const aiReady = hasAiProfile;

@@ -27,13 +27,14 @@ import type { BIAdapter } from "../BIAdapter";
 const REGISTERED: VendorInfo[] = listVendors();
 
 describe("BI registry — plugin-architecture parity", () => {
-    test("at least the 7 currently-known plugins are registered", () => {
+    test("at least the 8 currently-known plugins are registered", () => {
         const ids = REGISTERED.map(v => v.vendor).sort();
         expect(ids).toEqual([
             "databricks-aibi",
             "databricks-genie",
             "generic-iframe",
             "looker",
+            "native",
             "powerbi",
             "qlik",
             "tableau",
@@ -57,9 +58,9 @@ describe("BI registry — plugin-architecture parity", () => {
         }
     });
 
-    test("only generic-iframe ships pre-configured (no creds needed); every other plugin starts unconfigured", () => {
+    test("only no-credential plugins ship pre-configured; every vendor-backed plugin starts unconfigured", () => {
         const preConfigured = REGISTERED.filter(v => v.configured).map(v => v.vendor);
-        expect(preConfigured).toEqual(["generic-iframe"]);
+        expect(preConfigured).toEqual(["generic-iframe", "native"]);
     });
 
     test("loadAdapter() throws an actionable error for an unknown vendor, listing the known IDs", async () => {
@@ -70,6 +71,7 @@ describe("BI registry — plugin-architecture parity", () => {
         await expect(loadAdapter("bogus")).rejects.toThrow(/tableau/);
         await expect(loadAdapter("bogus")).rejects.toThrow(/databricks-aibi/);
         await expect(loadAdapter("bogus")).rejects.toThrow(/databricks-genie/);
+        await expect(loadAdapter("bogus")).rejects.toThrow(/native/);
     });
 });
 

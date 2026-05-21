@@ -58,7 +58,7 @@ import { SettingsProvider, useSettings } from "./settings/settingsStore";
 import { PULSE_VISUAL_SETTINGS_EVENT } from "./settings/pulseVisualSettingsStore";
 import { SettingsShell } from "./settings/SettingsShell";
 import { useSettingsRoute, navigateToSettings } from "./settings/settingsRoute";
-import { getSetupReadiness, type SetupReadiness } from "./settings/setupReadiness";
+import { getSetupReadiness, isNativeBiVendor, type SetupReadiness } from "./settings/setupReadiness";
 import { KnowledgeShell } from "./knowledge/KnowledgeShell";
 import { useKnowledgeRoute } from "./knowledge/knowledgeRoute";
 import { PowerBiQnaShell, usePowerBiQnaRoute } from "./powerbi/PowerBiQnARoute";
@@ -1056,6 +1056,7 @@ function PlaygroundApp(): React.ReactElement {
     }, []);
 
     const hasEmbedConfig = Object.keys(embedConfig).length > 0;
+    const hasRenderableBiSurface = isNativeBiVendor(activeVendor) || hasEmbedConfig;
     const setupReadiness = getSetupReadiness({
         biVendor: activeVendor,
         embedConfig,
@@ -1079,7 +1080,7 @@ function PlaygroundApp(): React.ReactElement {
     const wizardShown = useMemo(() => {
         if (allowlistFailClosed) return false;
         return shouldShowWizard({
-            hasEmbedConfig,
+            hasEmbedConfig: hasRenderableBiSurface,
             hasConnector: !!activeConnector,
             vendorsAvailable: visibleVendors.length > 0,
         });
@@ -1087,7 +1088,7 @@ function PlaygroundApp(): React.ReactElement {
         // re-runs after `resetWizardDismissal()` or `Skip for now` mutates
         // localStorage out-of-band.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [allowlistFailClosed, hasEmbedConfig, activeConnector, visibleVendors.length, wizardForceTick]);
+    }, [allowlistFailClosed, hasRenderableBiSurface, activeConnector, visibleVendors.length, wizardForceTick]);
 
     /** Wizard "Done & ask" → AISidebar auto-submit. Captured here and
      *  passed to AISidebar via the `autoSubmitQuestion` prop. The event id
@@ -1495,7 +1496,7 @@ function PlaygroundApp(): React.ReactElement {
                                 recentEvents={recentEvents}
                             />
                             <div style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
-                            {hasEmbedConfig ? (
+                            {hasRenderableBiSurface ? (
                                 <BITileGrid
                                     tileMode={effectiveBiTileMode}
                                     vendor={activeVendor}

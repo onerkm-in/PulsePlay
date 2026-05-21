@@ -493,4 +493,28 @@ describe("Vendor matrix: registry coverage for Databricks + Power BI", () => {
         expect(options2).toContain("generic-iframe");
         unmount(state2);
     });
+
+    it("Native result canvas is available when the allowlist is unconfigured", async () => {
+        const state = mount(async () => ({
+            ...fullAllowlist(),
+            configured: false,
+            biProviders: [],
+        }));
+        await act(async () => { await Promise.resolve(); });
+        const select = state.container.querySelector<HTMLSelectElement>("#pp-setup-vendor");
+        const options = Array.from(select?.options ?? []).map(o => o.value);
+        expect(options).toContain("native");
+        unmount(state);
+    });
+
+    it("native readiness does not require external embed config", () => {
+        const r = getSetupReadiness({
+            biVendor: "native",
+            embedConfig: null,
+            activeAiProfile: "genie-default",
+        });
+        expect(r.biReady).toBe(true);
+        expect(r.ready).toBe(true);
+        expect(r.missing).toEqual([]);
+    });
 });

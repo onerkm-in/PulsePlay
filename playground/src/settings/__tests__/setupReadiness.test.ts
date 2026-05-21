@@ -21,4 +21,16 @@ describe("getSetupReadiness", () => {
         expect(state.pillLabel).toBe("Ready");
         expect(state.pillDetail).toBe("BI + AI");
     });
+
+    it("treats native as a ready BI surface without an embed config", () => {
+        const state = getSetupReadiness({
+            biVendor: "native",
+            embedConfig: {},
+            activeAiProfile: "default",
+        });
+        expect(state.ready).toBe(true);
+        expect(state.biReady).toBe(true);
+        expect(state.hasEmbedConfig).toBe(true);
+        expect(state.missing).toEqual([]);
+    });
 });

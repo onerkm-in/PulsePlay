@@ -1,7 +1,7 @@
 // playground/src/biPanel/registry.ts
 //
 // Lazy adapter registry. Adapters are loaded on-demand so a deployment
-// that only uses Power BI doesn't ship the Tableau / Qlik bundles.
+// that only uses Power BI doesn't ship the Tableau / Qlik / native bundles.
 //
 // To add a new adapter:
 //   1. Implement BIAdapter in /bi-adapters/<vendor>/index.ts
@@ -63,6 +63,12 @@ const REGISTERED: ReadonlyArray<VendorInfo> = [
         description: "Any URL — bring-your-own-BI or escape hatch when no vendor adapter exists yet.",
         configured: true, // No credentials needed; just requires a URL
     },
+    {
+        vendor: "native",
+        displayName: "Native result canvas",
+        description: "PulsePlay-native renderer for AI query results. No external BI embed or vendor credentials required.",
+        configured: true,
+    },
 ];
 
 export function listVendors(): VendorInfo[] {
@@ -76,6 +82,10 @@ export function listVendors(): VendorInfo[] {
  */
 export async function loadAdapter(vendor: string): Promise<BIAdapter> {
     switch (vendor) {
+        case "native": {
+            const mod = await import("../../../bi-adapters/native/index");
+            return new mod.NativeBIAdapter();
+        }
         case "powerbi": {
             const mod = await import("../../../bi-adapters/powerbi/index");
             return new mod.PowerBIAdapter();
