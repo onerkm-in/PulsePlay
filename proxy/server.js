@@ -2972,11 +2972,12 @@ app.post('/assistant/conversations/start', async (req, res) => {
         }
         const cryptoMod = require('crypto');
         const fingerprint = cryptoMod.createHash('sha256').update(fixtureContent).digest('hex').slice(0, 12);
-        // FW1 — the fixture now returns a small, deterministic time-series
+        // FW1 — the fixture now returns a small, deterministic quarterly
         // table alongside the answer text. This gives the native canvas
-        // something to auto-pick (4 rows, one dimension + one measure ->
-        // line chart) so the AISidebar -> native renderResult wiring can
-        // be exercised end-to-end. The shape mirrors the Genie poll-result
+        // something to auto-pick. Current chart policy treats this shape
+        // (4 categorical rows, one dimension + one measure) as a donut;
+        // changing that to line is a policy tweak, not a smoke failure.
+        // The shape mirrors the Genie poll-result
         // contract the AISidebar's `extractQueryResult` already parses:
         //   { sqlQuery: string, queryResult: { columns: [...], rows: [[...]] },
         //     rows_returned: number, execution_time_ms: number }
@@ -7801,6 +7802,34 @@ function handleUnexpectedProxyError(err, req, res, next) {
         },
     });
     return sendProblem(res, problem);
+}
+
+// ── Static-file serving (combined-app deployment) ────────────────────────────
+//
+// Optional. When STATIC_DIR is set (e.g. "playground/dist" or an absolute
+// path), the proxy serves the React playground bundle as static files AND
+// falls back to index.html for unknown GET paths so client-side routing
+// survives a refresh. Registered AFTER all API routes so it cannot shadow them;
+// the SPA fallback explicitly skips known API path prefixes.
+//
+// Set in Databricks Apps via app.yaml `env: [{ name: STATIC_DIR, value: ... }]`
+// or via shell `STATIC_DIR=playground/dist node server.js`.
+const _STATIC_DIR_RAW = process.env.STATIC_DIR;
+if (_STATIC_DIR_RAW) {
+    const staticDir = path.isAbsolute(_STATIC_DIR_RAW)
+        ? _STATIC_DIR_RAW
+        : path.resolve(__dirname, '..', _STATIC_DIR_RAW);
+    const indexHtml = path.join(staticDir, 'index.html');
+    app.use(express.static(staticDir, { index: 'index.html', maxAge: '1h', fallthrough: true }));
+    // SPA fallback: any GET that isn't a known API prefix → serve index.html.
+    // Adding new top-level API routes? Add their first path segment to this list.
+    const API_PREFIX_RE = /^\/(api|assistant|foundation|powerbi|health|discovery|capabilities|feedback|debug|metrics|smoke|connectors|knowledge|policy|profiles|packs|supervisor|insights|sql-preview|test|\.well-known)(\/|$)/;
+    app.get(/.*/, (req, res, next) => {
+        if (API_PREFIX_RE.test(req.path)) return next();
+        if (req.headers.accept && !req.headers.accept.includes('text/html')) return next();
+        res.sendFile(indexHtml, err => { if (err) next(err); });
+    });
+    console.log(`[static] STATIC_DIR=${staticDir} (SPA fallback to index.html for unknown paths)`);
 }
 
 app.use(handleUnexpectedProxyError);

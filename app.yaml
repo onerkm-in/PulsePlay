@@ -1,9 +1,27 @@
-command: ["sh", "-c", "cd proxy && npm run start"]
+command:
+  - "bash"
+  - "-c"
+  - |
+    set -e
+    echo "[boot] installing playground deps"
+    (cd playground && npm ci --no-audit --no-fund)
+    echo "[boot] building playground (vite)"
+    (cd playground && npm run build)
+    echo "[boot] installing proxy deps"
+    (cd proxy && npm ci --no-audit --no-fund)
+    echo "[boot] starting proxy with STATIC_DIR=../playground/dist"
+    cd proxy && exec node server.js
 env:
+  - name: NODE_ENV
+    value: "production"
+  - name: STATIC_DIR
+    value: "../playground/dist"
   - name: ASSISTANT_PROFILE
     value: "default"
   - name: SUPERVISOR_ENABLED
     value: "false"
+  # Resource bindings (configure via `databricks apps update` or app UI after create).
+  # These will be empty/no-ops if not bound; the proxy degrades gracefully.
   - name: APP_RESOURCE_SQL_WAREHOUSE
     valueFrom: sql_warehouse
   - name: APP_RESOURCE_GENIE_SPACE

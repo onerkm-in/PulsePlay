@@ -47,6 +47,63 @@ describe('acquirePbiAccessToken', () => {
         await expect(acquirePbiAccessToken({ aadTenantId: 't', aadClientId: 'c' })).rejects.toThrow(/secret/i);
     });
 
+    test('user-refresh mode: uses refresh_token grant against same OAuth endpoint', async () => {
+        let captured;
+        const fetchImpl = makeFetchStub([{
+            match: url => url.includes('login.microsoftonline.com'),
+            respond: (url, opts) => { captured = { url, body: opts.body }; return jsonResponse({ access_token: 'user-tok-1', refresh_token: 'rt-rotated', expires_in: 3600 }); },
+        }]);
+        const profile = {
+            type: 'powerbi-semantic-model',
+            authMode: 'user-refresh',
+            aadTenantId: 'tenant-xyz',
+            userRefreshToken: 'rt-original',
+        };
+        const token = await acquirePbiAccessToken(profile, fetchImpl);
+        expect(token).toBe('user-tok-1');
+        expect(captured.body).toContain('grant_type=refresh_token');
+        expect(captured.body).toContain('refresh_token=rt-original');
+        expect(captured.body).toContain('client_id=04b07795-8ddb-461a-bbee-02f9e1bf7b46'); // Azure CLI public client (default)
+        expect(captured.body).not.toContain('client_secret'); // public client — no secret
+        expect(captured.body).toMatch(/offline_access/);
+    });
+
+    test('user-refresh mode: rotated refresh_token is used on next acquisition', async () => {
+        let calls = 0;
+        const usedRefreshTokens = [];
+        const fetchImpl = makeFetchStub([{
+            match: url => url.includes('login.microsoftonline.com'),
+            respond: (url, opts) => {
+                calls++;
+                const params = new URLSearchParams(opts.body);
+                usedRefreshTokens.push(params.get('refresh_token'));
+                // Issue a fresh access token AND rotate the refresh token. Force the cached access token
+                // to be already inside the 5-min early-refresh window so the second call has to mint again.
+                return jsonResponse({ access_token: `tok-${calls}`, refresh_token: `rt-${calls + 1}`, expires_in: 60 });
+            },
+        }]);
+        const profile = {
+            type: 'powerbi-semantic-model',
+            authMode: 'user-refresh',
+            aadTenantId: 'tenant-xyz',
+            userRefreshToken: 'rt-1',
+        };
+        await acquirePbiAccessToken(profile, fetchImpl);
+        await acquirePbiAccessToken(profile, fetchImpl);
+        expect(calls).toBe(2);
+        expect(usedRefreshTokens[0]).toBe('rt-1');         // first call: from profile
+        expect(usedRefreshTokens[1]).toBe('rt-2');         // second call: from cache (rotation honored)
+    });
+
+    test('user-refresh mode: throws if no refresh token is configured', async () => {
+        const profile = {
+            type: 'powerbi-semantic-model',
+            authMode: 'user-refresh',
+            aadTenantId: 'tenant-xyz',
+        };
+        await expect(acquirePbiAccessToken(profile)).rejects.toThrow(/userRefreshToken/);
+    });
+
     test('fetches from login.microsoftonline.com with client_credentials grant', async () => {
         let captured;
         const fetchImpl = makeFetchStub([{

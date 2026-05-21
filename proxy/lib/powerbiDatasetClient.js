@@ -21,27 +21,49 @@
  *
  * Auth model
  * ──────────
- * Azure AD Service Principal (client_credentials grant). Token scope:
- *   https://analysis.windows.net/powerbi/api/.default
+ * TWO supported auth modes (selected by profile.authMode; default "service-principal"):
  *
- * Setup requirements:
- *   - AAD app registration with a client secret.
- *   - Service Principal added to the target Power BI workspace as a member
- *     (Power BI Admin can do this via "Workspace access" UI).
- *   - Tenant admin grant: "Service principals can use Power BI APIs"
- *     setting enabled in the Power BI admin portal.
+ *   "service-principal" (default, production-shape):
+ *     Azure AD app registration + client secret. client_credentials grant against
+ *     https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token with scope
+ *     https://analysis.windows.net/powerbi/api/.default. Requires the SP to be
+ *     added to the workspace as Member/Contributor AND the tenant setting
+ *     "Service principals can use Power BI APIs" to be enabled.
+ *
+ *   "user-refresh" (demo / setup-incomplete fallback):
+ *     MSAL device-code flow run once (e.g. via scripts/get-pbi-user-refresh-token.mjs)
+ *     captures a refresh_token tied to the signed-in user. Profile carries that
+ *     refresh_token; acquirePbiAccessToken redeems it for fresh access tokens
+ *     using refresh_token grant against the same OAuth endpoint. Public client
+ *     (no secret). Refresh-token rotation is honored — the latest refresh_token
+ *     is kept in the in-memory cache for the lifetime of the proxy process.
+ *     Access uses the signed-in user's existing Power BI permissions, so no
+ *     tenant SP toggle / no workspace SP add is required.
  *
  * Profile shape
  * ─────────────
+ *   // service-principal mode (default)
  *   {
  *     "type": "powerbi-semantic-model",
  *     "displayName": "...",
- *     "aadTenantId": "...",          // OR powerBiTenantId (back-compat)
- *     "aadClientId": "...",          // OR powerBiClientId
- *     "aadClientSecret": "...",      // OR powerBiClientSecret
- *     "powerbiGroupId": "...",       // workspace GUID; "me" is not supported
- *     "powerbiDatasetId": "...",     // dataset GUID
+ *     "authMode": "service-principal",   // optional; default
+ *     "aadTenantId": "...",              // OR powerBiTenantId (back-compat)
+ *     "aadClientId": "...",              // OR powerBiClientId
+ *     "aadClientSecret": "...",          // OR powerBiClientSecret
+ *     "powerbiGroupId": "...",           // workspace GUID; "me" is not supported
+ *     "powerbiDatasetId": "...",         // dataset GUID
  *     "dataDomain": "Sales performance"
+ *   }
+ *
+ *   // user-refresh mode (demo fallback)
+ *   {
+ *     "type": "powerbi-semantic-model",
+ *     "authMode": "user-refresh",
+ *     "aadTenantId": "...",              // tenant the user signed into
+ *     "userClientId": "...",             // optional; defaults to Azure CLI public client
+ *     "userRefreshToken": "...",         // captured via device-code flow once
+ *     "powerbiGroupId": "...",
+ *     "powerbiDatasetId": "..."
  *   }
  *
  * Defensive posture
@@ -57,14 +79,21 @@
 
 const PBI_API_BASE = 'https://api.powerbi.com';
 const AAD_TOKEN_SCOPE = 'https://analysis.windows.net/powerbi/api/.default';
+const AAD_USER_SCOPE = 'https://analysis.windows.net/powerbi/api/.default offline_access';
+const AZURE_CLI_PUBLIC_CLIENT_ID = '04b07795-8ddb-461a-bbee-02f9e1bf7b46';
 const SOCKET_TIMEOUT_MS = 10_000;
 const EXECUTE_QUERIES_TIMEOUT_MS = 30_000;
 const TOKEN_EARLY_REFRESH_MS = 5 * 60 * 1000;
 
-const _tokenCache = new Map(); // key: tenantId|clientId → { accessToken, expiresAt, inFlight? }
+// Cache key: `${authMode}|${tenantId}|${clientId}` → { accessToken, expiresAt, refreshToken?, inFlight? }
+const _tokenCache = new Map();
 
 /* ───── Profile field accessors (with back-compat aliases) ────────── */
 
+function _authMode(p) {
+    const m = String(p?.authMode || '').trim().toLowerCase();
+    return (m === 'user-refresh' || m === 'user-token') ? 'user-refresh' : 'service-principal';
+}
 function _tenantId(p) {
     return String(p?.aadTenantId || p?.powerBiTenantId || '').trim();
 }
@@ -74,6 +103,13 @@ function _clientId(p) {
 function _clientSecret(p) {
     // Never logged. Falsy-check only.
     return p?.aadClientSecret || p?.powerBiClientSecret || '';
+}
+function _userClientId(p) {
+    return String(p?.userClientId || '').trim() || AZURE_CLI_PUBLIC_CLIENT_ID;
+}
+function _userRefreshToken(p) {
+    // Never logged. Falsy-check only.
+    return p?.userRefreshToken || '';
 }
 function _groupId(p) {
     return String(p?.powerbiGroupId || p?.powerBiGroupId || '').trim();
@@ -94,15 +130,42 @@ function _datasetId(p) {
  * @returns {Promise<string>}      The bearer access token.
  */
 async function acquirePbiAccessToken(profile, fetchImpl) {
+    const mode = _authMode(profile);
     const tenant = _tenantId(profile);
-    const client = _clientId(profile);
-    const secret = _clientSecret(profile);
     if (!tenant) throw new Error('Power BI profile missing aadTenantId');
-    if (!client) throw new Error('Power BI profile missing aadClientId');
-    if (!secret) throw new Error('Power BI profile missing aadClientSecret');
+
+    // Mode-specific validation + body construction
+    let client, key, bodyParams;
+    if (mode === 'user-refresh') {
+        client = _userClientId(profile);
+        const cached = _tokenCache.get(`user-refresh|${tenant}|${client}`);
+        // Prefer the latest cached refresh_token (rotation), fall back to profile-provided.
+        const refreshToken = (cached && cached.refreshToken) || _userRefreshToken(profile);
+        if (!refreshToken) {
+            throw new Error('Power BI user-refresh mode requires userRefreshToken (run scripts/get-pbi-user-refresh-token.mjs once)');
+        }
+        bodyParams = {
+            client_id: client,
+            grant_type: 'refresh_token',
+            refresh_token: refreshToken,
+            scope: AAD_USER_SCOPE,
+        };
+        key = `user-refresh|${tenant}|${client}`;
+    } else {
+        client = _clientId(profile);
+        const secret = _clientSecret(profile);
+        if (!client) throw new Error('Power BI profile missing aadClientId');
+        if (!secret) throw new Error('Power BI profile missing aadClientSecret');
+        bodyParams = {
+            client_id: client,
+            client_secret: secret,
+            grant_type: 'client_credentials',
+            scope: AAD_TOKEN_SCOPE,
+        };
+        key = `service-principal|${tenant}|${client}`;
+    }
 
     const f = fetchImpl || globalThis.fetch;
-    const key = `${tenant}|${client}`;
     const now = Date.now();
     const cached = _tokenCache.get(key);
     if (cached && !cached.inFlight && cached.expiresAt > now + TOKEN_EARLY_REFRESH_MS) {
@@ -113,12 +176,7 @@ async function acquirePbiAccessToken(profile, fetchImpl) {
     }
 
     const tokenUrl = `https://login.microsoftonline.com/${encodeURIComponent(tenant)}/oauth2/v2.0/token`;
-    const body = new URLSearchParams({
-        client_id: client,
-        client_secret: secret,
-        grant_type: 'client_credentials',
-        scope: AAD_TOKEN_SCOPE,
-    }).toString();
+    const body = new URLSearchParams(bodyParams).toString();
 
     const inFlight = (async () => {
         const resp = await f(tokenUrl, {
@@ -129,7 +187,7 @@ async function acquirePbiAccessToken(profile, fetchImpl) {
         });
         if (!resp.ok) {
             const detail = (await resp.text()).slice(0, 300);
-            throw new Error(`Azure AD token request failed (${resp.status}): ${detail}`);
+            throw new Error(`Azure AD token request failed (${resp.status}, mode=${mode}): ${detail}`);
         }
         const data = await resp.json();
         if (!data?.access_token) throw new Error('Azure AD response missing access_token');
@@ -138,16 +196,18 @@ async function acquirePbiAccessToken(profile, fetchImpl) {
             accessToken: String(data.access_token),
             expiresAt: Date.now() + expiresInSec * 1000,
         };
+        // Persist rotated refresh_token if AAD returned one (user-refresh only)
+        if (mode === 'user-refresh' && data.refresh_token) {
+            entry.refreshToken = String(data.refresh_token);
+        }
         _tokenCache.set(key, entry);
         return entry.accessToken;
     })();
 
-    // Park the in-flight promise so concurrent callers share it.
     _tokenCache.set(key, { ...(cached || {}), inFlight });
     try {
         return await inFlight;
     } catch (err) {
-        // Clear cache on failure so the next request retries cleanly.
         _tokenCache.delete(key);
         throw err;
     }
