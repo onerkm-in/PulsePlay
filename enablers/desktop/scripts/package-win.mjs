@@ -22,6 +22,7 @@ const repoRoot = path.resolve(enablerRoot, "..", "..");
 const outRoot = path.join(enablerRoot, "out");
 const snapshotRoot = path.join(outRoot, "snapshot");
 const installRoot = path.join(outRoot, "install");
+const useCompression = process.argv.includes("--compress");
 
 const launcherBundle = path.join(outRoot, "launcher.cjs");
 const exePath = path.join(outRoot, "PulsePlay.exe");
@@ -105,7 +106,8 @@ async function findInNpxCache(name) {
 function run(command, args, options = {}) {
     return new Promise((resolve, reject) => {
         log(`${command} ${args.join(" ")}`);
-        const child = spawn(command, args, {
+        const plan = buildSpawnPlan(command, args);
+        const child = spawn(plan.command, plan.args, {
             cwd: options.cwd || enablerRoot,
             env: { ...process.env, ...(options.env || {}) },
             stdio: "inherit",
@@ -124,7 +126,8 @@ function run(command, args, options = {}) {
 
 function runCapture(command, args, options = {}) {
     return new Promise((resolve, reject) => {
-        const child = spawn(command, args, {
+        const plan = buildSpawnPlan(command, args);
+        const child = spawn(plan.command, plan.args, {
             cwd: options.cwd || enablerRoot,
             stdio: ["ignore", "pipe", "pipe"],
             shell: false,
@@ -142,6 +145,27 @@ function runCapture(command, args, options = {}) {
         });
         child.on("error", reject);
     });
+}
+
+function buildSpawnPlan(command, args) {
+    if (process.platform !== "win32" || !command.toLowerCase().endsWith(".cmd")) {
+        return { command, args };
+    }
+    const comspec = process.env.ComSpec || "cmd.exe";
+    const line = [quoteCmd(command), ...args.map(quoteCmd)].join(" ");
+    return { command: comspec, args: ["/d", "/s", "/c", line] };
+}
+
+function quoteCmd(value) {
+    const text = String(value);
+    if (!/[\s"&|<>^]/.test(text)) return text;
+    return `"${text.replace(/"/g, '\\"')}"`;
+}
+
+function appendNodeOption(existing, next) {
+    const current = (existing || "").trim();
+    if (current.split(/\s+/).includes(next)) return current;
+    return current ? `${current} ${next}` : next;
 }
 
 async function cleanOut() {
@@ -168,6 +192,8 @@ async function copySnapshot() {
             if (!rel) return true;
             const parts = rel.split(path.sep);
             if (parts.includes("coverage")) return false;
+            if (parts.includes("tests")) return false;
+            if (parts.includes("__tests__")) return false;
             if (parts.includes(".cache")) return false;
             if (parts.includes(".tmp")) return false;
             if (rel === "config.json") return false;
@@ -183,7 +209,19 @@ async function copyInstallFolder() {
     await fs.rm(installRoot, { recursive: true, force: true });
     await fs.mkdir(installRoot, { recursive: true });
     await fs.copyFile(exePath, path.join(installRoot, "PulsePlay.exe"));
+    await writeInstallManifest();
     await fs.cp(snapshotRoot, installRoot, { recursive: true });
+}
+
+async function writeInstallManifest() {
+    const raw = JSON.parse(await fs.readFile(path.join(enablerRoot, "package.json"), { encoding: "utf8" }));
+    const manifest = {
+        name: raw.name,
+        version: raw.version,
+        private: true,
+        description: "PulsePlay desktop packaged local runtime install manifest.",
+    };
+    await fs.writeFile(path.join(installRoot, "package.json"), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
 }
 
 async function main() {
@@ -201,15 +239,19 @@ async function main() {
         "--format=cjs",
         "--external:express",
         "--external:http-proxy-middleware",
+        "--log-override:empty-import-meta=silent",
         `--outfile=${launcherBundle}`,
     ]);
 
-    await run(pkg, [
+    const pkgArgs = [
         launcherBundle,
         "--targets", "node20-win-x64",
-        "--compress", "GZip",
         "--output", exePath,
-    ]);
+    ];
+    if (useCompression) {
+        pkgArgs.splice(3, 0, "--compress", "GZip");
+    }
+    await run(pkg, pkgArgs, { env: { NODE_OPTIONS: appendNodeOption(process.env.NODE_OPTIONS, "--use-system-ca") } });
 
     await copyInstallFolder();
 

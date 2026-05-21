@@ -1,6 +1,6 @@
 # DX1b - Packaging Recipe
 
-> **Status:** recipe locked, actual binary production **deferred to DX1c**. The DX1b smoke runner ([`scripts/dx1b-smoke.mjs`](./scripts/dx1b-smoke.mjs)) exercises every contract endpoint against the **un-packaged** launcher and proves the runtime behaves correctly. Producing a single-file Windows `.exe` is the next step.
+> **Status:** DX1c executes this recipe through `npm run package`. The smoke runner ([`scripts/dx1b-smoke.mjs`](./scripts/dx1b-smoke.mjs)) can exercise both the source launcher and the packaged Windows executable.
 >
 > Per [`DECISIONS.md`](./DECISIONS.md) §2 the chosen tool is **`@yao-pkg/pkg`** (the maintained successor to the deprecated `vercel/pkg`). The `node --experimental-sea-config` (Single Executable Application) path is the DX1c upgrade target.
 
@@ -26,6 +26,8 @@ Each of these is its own correctness gate. DX1c is the cycle that does them hone
 cd enablers/desktop
 npm install --save-dev @yao-pkg/pkg esbuild
 ```
+
+If npm install stalls on a locked-down machine, the packaging script also accepts `PULSEPLAY_ESBUILD_BIN` and `PULSEPLAY_PKG_BIN` environment variables pointing at known-good tool binaries.
 
 ### 1. Bundle launcher.mjs to a single CJS file
 
@@ -69,31 +71,46 @@ DX1b leaves the packaged-mode branch as a comment-only placeholder. DX1c impleme
 ```bash
 npx pkg out/launcher.cjs \
     --targets node20-win-x64 \
-    --output PulsePlay.exe
+    --output out/PulsePlay.exe
 ```
+
+DX1c defaults to **no compression**. `pkg --compress GZip` shrinks the binary, but compressed single-file Node executables are more likely to trip heuristic antivirus engines. Use `npm run package:compressed` only when size matters more than AV calm.
 
 ### 5. Smoke the packaged binary
 
 ```bash
-# From a clean folder with the snapshot beside the EXE:
-mkdir test-install
-cp PulsePlay.exe test-install/
-cp -R out/snapshot/* test-install/
-cd test-install
-./PulsePlay.exe --no-browser &
-node ../enablers/desktop/scripts/dx1b-smoke.mjs
+node scripts/dx1b-smoke.mjs --launcher out/install/PulsePlay.exe
+node scripts/dx1b-smoke.mjs --launcher out/install/PulsePlay.exe --check-persistence
 ```
 
-The smoke runner doesn't need any change to work against a packaged binary - it just spawns whatever's at `runtime/launcher.mjs`. DX1c can add a `--against-packaged-binary` flag if the spawn path needs to differ.
+The `out/install/` folder is the smokeable artifact: `PulsePlay.exe` plus the sidecar `proxy/` and `playground/dist/` folders.
 
 ---
 
 ## Known unknowns (gates DX1c must close)
 
-1. **Bundle size.** `@yao-pkg/pkg` produces ~60-80 MB binaries for Node 20 targets. Add `--compress GZip` to bring it to ~30 MB. Worth tolerating; the contract accepts that.
-2. **Signing.** Unsigned EXEs trigger SmartScreen warnings on Windows. DX1c hardening either ships a code-signing cert or documents the SmartScreen UX so authors aren't surprised.
+1. **Bundle size.** `@yao-pkg/pkg` produces large binaries for Node 20 targets. Compression is opt-in because smaller packed binaries are more AV-sensitive.
+2. **Signing.** Unsigned EXEs trigger SmartScreen and antivirus reputation warnings on Windows. This cannot be fixed in code alone; production distribution must sign and timestamp `PulsePlay.exe` with a trusted code-signing certificate and build reputation for the publisher/certificate.
 3. **First-run firewall prompt.** Windows shows a firewall prompt the first time the launcher binds a loopback port. The recon disclaimer should call this out at first launch.
 4. **`http-proxy-middleware` DEP0060 noise.** The middleware uses `util._extend` which Node 24 deprecates. Cosmetic, but worth pinning a newer version or filing upstream.
+
+## Antivirus / SmartScreen mitigation
+
+The DX1c executable is a locally generated, unsigned Node launcher that starts loopback HTTP services. That is a legitimate behavior for PulsePlay, but it overlaps with the heuristics antivirus products use for unknown tooling. Mitigations, in order:
+
+1. Keep the default artifact uncompressed (`npm run package`), because packed/compressed binaries are noisier to heuristic scanners.
+2. Sign every candidate release with Authenticode and timestamp it. Microsoft documents SmartScreen reputation for app developers at [SmartScreen reputation](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation), and SignTool verification at [SignTool](https://learn.microsoft.com/en-us/windows/win32/seccrypto/signtool):
+
+```powershell
+signtool sign /fd SHA256 /td SHA256 /tr http://timestamp.digicert.com /a out\install\PulsePlay.exe
+signtool verify /pa /v out\install\PulsePlay.exe
+```
+
+3. Prefer an organization-managed certificate or Microsoft Trusted Signing once the org distribution path is known; see Microsoft's [code-signing options](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/code-signing-options).
+4. Submit release candidates to Microsoft Security Intelligence / Defender portal for review if Defender flags the signed binary.
+5. Keep the install folder auditable: include the SHA-256 hash, version, source commit, and validation output beside the build.
+
+Do not ask users to permanently disable antivirus. For local developer smoke only, use a short-lived allow action on the exact file hash if your workstation policy permits it.
 
 ---
 

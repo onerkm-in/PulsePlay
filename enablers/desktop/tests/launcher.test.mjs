@@ -36,7 +36,8 @@ test("proxy child spawn plan uses multicall executable in packaged mode", () => 
     const plan = __forTests.buildProxyChildSpawnPlan(proxyEntry, true);
 
     assert.equal(plan.command, process.execPath);
-    assert.deepEqual(plan.args, ["--desktop-proxy-child"]);
+    assert.deepEqual(plan.args, []);
+    assert.equal(plan.env.PULSEPLAY_DESKTOP_PROXY_CHILD, "1");
     assert.equal(plan.cwd, path.dirname(proxyEntry));
 });
 

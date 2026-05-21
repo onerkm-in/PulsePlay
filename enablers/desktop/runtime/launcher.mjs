@@ -22,7 +22,7 @@ import http from "node:http";
 import path from "node:path";
 import { promises as fs } from "node:fs";
 import { createRequire } from "node:module";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
     TOKEN_BYTES,
@@ -42,19 +42,23 @@ import {
     writeLastError,
 } from "./lockFile.mjs";
 
-const __filename = fileURLToPath(import.meta.url);
+const moduleUrl = typeof import.meta !== "undefined" && import.meta.url
+    ? import.meta.url
+    : pathToFileURL(process.argv[1] || process.execPath).href;
+const __filename = fileURLToPath(moduleUrl);
 const __dirname = path.dirname(__filename);
 
 const ARG_DEV = "--dev";
 const ARG_NO_BROWSER = "--no-browser";
 const ARG_DESKTOP_PROXY_CHILD = "--desktop-proxy-child";
+const ENV_DESKTOP_PROXY_CHILD = "PULSEPLAY_DESKTOP_PROXY_CHILD";
 
 function parseArgs(argv) {
     const args = argv.slice(2);
     return {
         dev: args.includes(ARG_DEV),
         noBrowser: args.includes(ARG_NO_BROWSER),
-        proxyChild: args.includes(ARG_DESKTOP_PROXY_CHILD),
+        proxyChild: args.includes(ARG_DESKTOP_PROXY_CHILD) || process.env[ENV_DESKTOP_PROXY_CHILD] === "1",
     };
 }
 
@@ -148,8 +152,9 @@ async function ensureProxyEntryOrFail(proxyEntry) {
 function buildProxyChildSpawnPlan(proxyEntry, packaged = isPackagedRuntime()) {
     return {
         command: process.execPath,
-        args: packaged ? [ARG_DESKTOP_PROXY_CHILD] : [path.join(__dirname, "proxyEntry.cjs")],
+        args: packaged ? [] : [path.join(__dirname, "proxyEntry.cjs")],
         cwd: path.dirname(proxyEntry),
+        env: packaged ? { [ENV_DESKTOP_PROXY_CHILD]: "1" } : {},
     };
 }
 
@@ -177,7 +182,7 @@ function spawnProxyChild(proxyEntry, port, dataLogPath, packaged) {
     };
     const plan = buildProxyChildSpawnPlan(proxyEntry, packaged);
     const child = spawn(plan.command, plan.args, {
-        env,
+        env: { ...env, ...plan.env },
         cwd: plan.cwd,
         stdio: ["ignore", "pipe", "pipe"],
     });
