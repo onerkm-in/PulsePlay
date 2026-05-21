@@ -5,6 +5,36 @@
 
 ---
 
+## 2026-05-21 - Packaged desktop visible UI smoke found/fixed /api POST hang
+
+**Scope.** Real headed Chrome smoke against the packaged `out/install/PulsePlay.exe`, using the smoke-fixture profile and the desktop app server. This was not just a screenshot pass: it exercised Settings -> Preferences Save, Ask Pulse submit, the bundled `/api -> proxy` hop, FW1 AISidebar -> native-canvas dispatch, ECharts paint, fusion-lite commentary, and shared `data-result-id` binding.
+
+**Bug found.** `runtime/appServer.mjs` mounted `express.json()` globally before the `/api/*` reverse proxy. That consumed JSON request streams, so `POST /api/assistant/conversations/start` hung in packaged desktop mode even though direct proxy `POST /assistant/conversations/start` worked. The old binary smoke only covered `GET /api/health`, so it missed the real Ask path.
+
+**Fix.**
+
+- [`enablers/desktop/runtime/appServer.mjs`](../enablers/desktop/runtime/appServer.mjs): moved JSON parsing behind the guarded `/runtime/*` router only. `/api/*` now forwards the original request stream intact.
+- [`enablers/desktop/tests/appServer.test.mjs`](../enablers/desktop/tests/appServer.test.mjs): new echo-upstream regression proves `POST /api/assistant/conversations/start` strips the `/api` prefix, preserves the JSON body, injects `X-Pulse-Client: pulseplay-desktop`, and keeps the inbound request id.
+
+**Visible proof.** Headed Chrome drove the packaged EXE through launch -> Settings/Preferences -> `Split` -> Save Changes -> Ask Pulse. Final report: active profile `smoke`, `enabledComponents: both`, entry `completed`, chart canvas present and painted, fusion card present with `mock` authority, and all three result ids collapsed to one `smoke-msg-<hex>` id. Evidence screenshots/report are in the local ignored runtime folder `enablers/desktop/out/ui-test/`; the final screenshot file was `ui-50-after-ask-canvas-fusion-full-pixel.png`.
+
+**Validation.**
+
+| Check | Result |
+|---|---|
+| `cd enablers/desktop && npm test` | **50/50** |
+| `cd enablers/desktop && npm run package` | pass, rebuilt `out/install/PulsePlay.exe` |
+| headed packaged UI smoke | PASS: Ask -> governed answer -> painted native canvas + fusion card |
+| `Get-FileHash out/install/PulsePlay.exe -Algorithm SHA256` | `B06EF25E6684D37D09B96DADECABCB08480B706138494F53826900E4AE7CFA05` |
+| `cd enablers/desktop && npm run smoke:binary` | PASS, `failures: []` |
+| `cd enablers/desktop && npm run smoke:binary:persistence` | PASS, prior value survived relaunch |
+
+**Honest non-claims.** The in-app Browser plugin was unavailable in this session (`browser-client is not trusted`), so the visible proof used Playwright-driven headed Chrome. This still is not DX1d's full private-browser/signing gate: EXE remains unsigned, wizard/global recon disclaimer placements remain open, and Defender/SmartScreen reputation is still signing/review work.
+
+**Next.** DX1d remains the queued signing/reputation + real private-browser contract gate, but its UI smoke can build from this now-covered POST Ask path.
+
+---
+
 ## 2026-05-21 - DX1d acceptance bar locked (calibration entry)
 
 **Scope.** Docs-only calibration. Records the honest DX1d acceptance bar in [AGENDA](AGENDA.md) so the next session doesn't underbill the work or fall into the "we signed it, why is Defender still flagging" trap.

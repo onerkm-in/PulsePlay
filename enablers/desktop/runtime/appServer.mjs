@@ -199,9 +199,6 @@ export async function createAppServer(options) {
     // any other middleware so it cannot be bypassed by a chained route.
     app.use(rejectNonLoopbackHost);
 
-    // Parse JSON bodies for /runtime/* endpoints.
-    app.use(express.json({ limit: "1mb" }));
-
     // /launch shim. Public on purpose - it serves a static HTML page
     // that contains no secrets; the token rides in the fragment which
     // is never sent to the server.
@@ -222,6 +219,10 @@ export async function createAppServer(options) {
     // All other /runtime/* endpoints behind the token guard.
     const guarded = express.Router();
     guarded.use(makeTokenGuard(launchTokenRef));
+    // Parse JSON bodies only for guarded /runtime/* endpoints. Keep this
+    // off /api/*: the bundled proxy must receive the original request
+    // stream, especially for POST /assistant/conversations/start.
+    guarded.use(express.json({ limit: "1mb" }));
 
     // GET /runtime/state - returns merged state for the active profile.
     guarded.get("/state", async (_req, res, next) => {

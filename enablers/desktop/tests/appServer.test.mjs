@@ -17,7 +17,7 @@ import crypto from "node:crypto";
 import http from "node:http";
 
 import { createAppServer, __forTests } from "../runtime/appServer.mjs";
-import { LAUNCH_TOKEN_HEADER, DESKTOP_CLIENT_VALUE } from "../runtime/config.mjs";
+import { LAUNCH_TOKEN_HEADER, DESKTOP_CLIENT_HEADER, DESKTOP_CLIENT_VALUE } from "../runtime/config.mjs";
 
 async function makeTempBase() {
     return fs.mkdtemp(path.join(os.tmpdir(), "pulseplay-dx1b-app-"));
@@ -62,6 +62,39 @@ async function bootForTest(extraOptions = {}) {
             await new Promise((resolve) => server.close(resolve));
             await cleanup(dataBase);
             await cleanup(staticDir);
+        },
+    };
+}
+
+async function bootEchoProxy() {
+    const seen = [];
+    const server = http.createServer((req, res) => {
+        const chunks = [];
+        req.on("data", (chunk) => chunks.push(chunk));
+        req.on("end", () => {
+            const rawBody = Buffer.concat(chunks).toString("utf8");
+            seen.push({
+                method: req.method,
+                url: req.url,
+                headers: req.headers,
+                rawBody,
+            });
+            res.writeHead(200, { "content-type": "application/json" });
+            res.end(JSON.stringify({
+                ok: true,
+                method: req.method,
+                url: req.url,
+                body: rawBody ? JSON.parse(rawBody) : null,
+            }));
+        });
+    });
+    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const { port } = server.address();
+    return {
+        port,
+        seen,
+        close: async () => {
+            await new Promise((resolve) => server.close(resolve));
         },
     };
 }
@@ -255,6 +288,37 @@ test("static SPA fallback returns index.html for unknown GETs", async (t) => {
     assert.equal(res.status, 200);
     const body = await res.text();
     assert.match(body, /fake-dist/);
+});
+
+test("/api/* reverse proxy preserves JSON POST bodies and strips the prefix", async (t) => {
+    const upstream = await bootEchoProxy();
+    const ctx = await bootForTest({ proxyPort: upstream.port });
+    t.after(async () => {
+        await ctx.close();
+        await upstream.close();
+    });
+
+    const payload = { assistantProfile: "smoke", content: "visible UI smoke" };
+    const res = await fetch(`${ctx.base}/api/assistant/conversations/start`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-pulse-request-id": "ui-test-request" },
+        body: JSON.stringify(payload),
+    });
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.deepEqual(body, {
+        ok: true,
+        method: "POST",
+        url: "/assistant/conversations/start",
+        body: payload,
+    });
+
+    assert.equal(upstream.seen.length, 1);
+    assert.equal(upstream.seen[0].method, "POST");
+    assert.equal(upstream.seen[0].url, "/assistant/conversations/start");
+    assert.deepEqual(JSON.parse(upstream.seen[0].rawBody), payload);
+    assert.equal(upstream.seen[0].headers[DESKTOP_CLIENT_HEADER.toLowerCase()], DESKTOP_CLIENT_VALUE);
+    assert.equal(upstream.seen[0].headers["x-pulse-request-id"], "ui-test-request");
 });
 
 test("non-loopback Host header is rejected with 403", async (t) => {
