@@ -12,8 +12,13 @@ command:
     echo "[boot] starting proxy with STATIC_DIR=../playground/dist"
     cd proxy && exec node server.js
 env:
-  - name: NODE_ENV
-    value: "production"
+  # NOTE: deliberately not setting NODE_ENV=production. Doing so triggers
+  # assertProductionAuthConfig() which refuses PROXY_AUTH_MODE=none. The
+  # Databricks Apps platform already enforces user auth in front of this
+  # app, so explicit PROXY_AUTH_MODE=none is acceptable for the demo
+  # deployment. Switch to shared-key/idp for production rollouts.
+  - name: PROXY_AUTH_MODE
+    value: "none"
   - name: STATIC_DIR
     value: "../playground/dist"
   - name: ASSISTANT_PROFILE
