@@ -5,6 +5,25 @@
 
 ---
 
+## 2026-05-21 - F5 audit pass: focus-drift fix + 4 new tests
+
+**Scope.** Surgical audit of Codex's F5 + G0 slice. Branch already clean: 24/24 tests, lint clean, build clean. Audit found one real correctness issue (focus drift) and three missing test scenarios. No architecture change. No deletions.
+
+**The focus-drift bug.** `applyViewportFocus` in [playground/src/App.tsx](../playground/src/App.tsx) updated `focusedPane` but not `activeSurface`. When the user clicked the BI focus toggle while `activeSurface="ai-insights"`, the BI pane maximized correctly but `data-active-surface` kept reading "ai-insights" — a telemetry lie and a restore-semantics lie (collapse focus would land on the wrong surface). Same gap in the `popstate` handler for `?focus=ai` URLs. Patched both paths: focus → "bi" forces `bi-viz`; focus → "ai" with current surface `bi-viz` falls back to `ai-insights`; popstate reads from storage to avoid stale closure.
+
+**New tests (4).** Added to [`playground/src/__tests__/viewportControls.integration.test.tsx`](../playground/src/__tests__/viewportControls.integration.test.tsx): combined `?focus=bi&surface=ask-pulse` lock (URL is source of truth, focus is overlay), popstate `?focus=bi` syncs activeSurface, popstate `?focus=ai` syncs when prior surface was `bi-viz`, and **T1 → T6 → T1 preset flip preserves activeSurface** (locks the persistence promise of the layoutPreset facade).
+
+**Tests / validation.**
+- `playground npm run test -- src/__tests__/viewportControls.integration.test.tsx`: **28/28** (was 24/24).
+- `playground npm run lint`: PASS.
+- `playground npm run build`: PASS (existing BI-adapter dynamic-import chunk warnings only).
+
+**Findings flagged but not patched.** (1) Minor doc-style inconsistency between AGENDA's combined G4-G6 line and `feature_native_adapter.md`'s per-cycle G4/G5/G6 breakdown — both internally consistent, intentional planning vs spec granularity. (2) `data-active-surface` can still drift from Pulse's `enabledFeatures` (T4 insightsOnly / T5 chatOnly) because App.tsx doesn't observe that pulse-side store. Real but not on the F5 hot path — queue for a small F5.1 follow-up if telemetry needs exact surface accuracy under T4/T5.
+
+**Browser smoke.** Not run in this audit (kernel-asset write blocker from the earlier session was not retried). Do not claim browser smoke is green.
+
+---
+
 ## 2026-05-21 - F5 layout state contract + G0 native adapter lock
 
 **Scope.** Beast-mode additive slice: locked the native BI adapter architecture as a renderer-only option, then shipped the first T1/T6 layout-state contract code. No existing vendor adapter or Pulse-ported code was removed.
