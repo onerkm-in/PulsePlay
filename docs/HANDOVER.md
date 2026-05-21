@@ -5,6 +5,27 @@
 
 ---
 
+## 2026-05-21 - F5 layout state contract + G0 native adapter lock
+
+**Scope.** Beast-mode additive slice: locked the native BI adapter architecture as a renderer-only option, then shipped the first T1/T6 layout-state contract code. No existing vendor adapter or Pulse-ported code was removed.
+
+**G0 native adapter architecture.** Added [docs/feature_native_adapter.md](feature_native_adapter.md), [docs/adr/0009-native-bi-adapter.md](adr/0009-native-bi-adapter.md), and [docs/PULSE_SYNC.md](PULSE_SYNC.md). The decision is explicit: `native` is a BI adapter option, but renderer-only. AI-result-to-chart plumbing belongs in future `playground/src/visualization/` modules; `bi-adapters/native/` stays a dumb renderer. Governance attestation fails closed in production when missing. Hard non-goals are authoring, drag layout, cross-filter, drill, semantic modeling, live refresh, query execution, and permissions/RLS in the renderer. Pulse PBI sync is copy-port discipline, not a shared package.
+
+**F5 layout state contract.** [playground/src/App.tsx](../playground/src/App.tsx) now has a real active surface contract for the three registry surfaces. `pulseplay:active-surface` persists the current `SurfaceId`, `?surface=` deep-links the selected surface, and the shell exposes `data-active-surface` for tests/telemetry. The existing `mixSurface` and Pulse tab request state remain as compatibility plumbing, but are now driven by the registry surface id. `?focus=bi` initializes the active surface as `bi-viz`; invalid `?surface=` values fail back to `ai-insights`.
+
+**Tests / validation.**
+- `playground npm run test -- src/__tests__/viewportControls.integration.test.tsx`: **24/24**.
+- `playground npm run lint`: PASS (`tsc --noEmit`).
+- `playground npm run build`: PASS (existing BI-adapter dynamic-import chunk warnings only).
+
+**Commits.**
+- `c5c1b12 docs(native): lock renderer-only adapter architecture`
+- `ea7bd35 feat(layout): persist active surface state`
+
+**Next.** G1 can start after this: add `bi-adapters/native/` skeleton, `nativeCapabilities`, renderer-only command vocabulary, command rejection tests, and restricted-import guardrails. G2 should then create `playground/src/visualization/` and extract chart-pick policy; do not bury that refactor in G1.
+
+---
+
 ## 2026-05-20 - Focused Settings validation + Setup AI fix
 
 **Scope.** Ran a focused multi-agent Settings validation across Setup/AI, BI, Preferences/Appearance, System/Advanced, and Settings shell/navigation. Evidence folder: [docs/evidence/settings-regression-2026-05-20-codex](evidence/settings-regression-2026-05-20-codex). Detailed Claude handoff is in [AGENT_SYNC.md](AGENT_SYNC.md) under `2026-05-20 - Codex - [VERIFY]+[DONE]+[HANDOFF] Focused Settings validation`.

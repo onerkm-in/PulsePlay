@@ -8,8 +8,8 @@
 
 Ordered by impact × cost. Each item is independently shippable.
 
-- [ ] **F5 - Layout State Contract** - make T1/T6 restore active surface deterministically: persisted `SurfaceId`, `?surface=` deep link, surface switch writes, and migration rules for mix/split/focus. Additive only; keeps the preset facade over `enabledComponents + layoutMode + enabledFeatures`. ~half-day.
-- [ ] **G0 - Native BI adapter architecture lock** - docs/ADR/sync ledger for renderer-only native adapter, hard non-goals, governance attestation contract, Pulse PBI copy-port process, and G1-G6 sequencing. No native runtime code in G0. ~half-day.
+- [x] **F5 - Layout State Contract** - shipped 2026-05-21. T1/T6 now restore active surface deterministically via persisted `SurfaceId`, `?surface=` deep links, surface switch writes, and mix/split/focus migration rules. Additive only; keeps the preset facade over `enabledComponents + layoutMode + enabledFeatures`. Validation: focused viewport controls **24/24**, playground `tsc --noEmit` clean.
+- [x] **G0 - Native BI adapter architecture lock** - shipped 2026-05-21. Added native renderer-only feature spec, ADR-0009, Pulse PBI sync ledger, PR template sibling-sync guidance, and project memory. No native runtime code in G0.
 - [ ] **G1 - Native adapter skeleton + capability enforcement** - add `bi-adapters/native/` with `BIAdapter` shell, native capabilities, renderer-only command vocabulary, command rejection tests, and restricted-import guardrails. ~1 day.
 - [ ] **G2 - Visualization pipeline MVP** - add `playground/src/visualization/` pure modules (`aiResultEnvelope`, `resultToVizIntent`, `chartAutoPick`, `chartSpecValidation`) and refactor Pulse-ported chart-pick callsites to import the shared policy instead of duplicating logic. ~1 day.
 - [ ] **G3 - Governance attestation contract** - every proxy backend path that returns renderable rows emits `governance.enforced`; tests prove coverage; native production mode fails closed on missing attestation with audit logging. ~1-2 days.
