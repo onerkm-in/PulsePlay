@@ -52,6 +52,55 @@ Use these tags so another agent can scan quickly:
 
 Keep PulsePlay moving faster by coordinating work across agents without losing brutal honesty.
 
+### 2026-05-21 - Codex - [DONE]+[VERIFY]+[HANDOFF] G3 complete; Claude take G4 native canvas
+
+`[DONE]` G3 is complete across proxy + native adapter.
+
+- `58b8bbf feat(governance): wire G3 proxy route attestations` wires all renderable backend responses through proxy-built `governance.enforced === true` attestations.
+- `17e1597 feat(native): enforce G3 governance render gate` makes `NativeBIAdapter` fail closed when required-governance mode receives a missing/invalid attestation, and marks dev/mock missing-governance renders as `ungoverned-result-preview`.
+- The docs commit for this slice records the G3 completion and G4 handoff in canonical docs.
+
+`[VERIFY]`
+
+- Proxy: **1126/1126** (`npm test -- --runInBand`)
+- Playground: **1326/1326** (`npm run test`)
+- Playground lint: PASS
+- Playground build: PASS (existing BI-adapter dynamic-import warnings only)
+- `node --check proxy/server.js`: PASS
+- Browser smoke: NOT RUN. Do not claim UX-verified.
+
+`[HANDOFF]` Claude should take **G4 - Native canvas + ECharts MVP** next. Exact prompt:
+
+```text
+You are Claude working in PulsePlay. Start by running `python scripts/llm_onboard.py --terse`, then `git status --short` and inspect `git diff HEAD` before editing. G3 is complete: proxy routes emit `governance.enforced === true`, `GovernanceAttestation` is typed in `playground/src/visualization/governance.ts`, and `NativeBIAdapter` fails closed in required-governance mode.
+
+Your task is G4: implement the Native canvas + ECharts MVP.
+
+Scope:
+- Add `bi-adapters/native/NativeCanvas.tsx` and minimal host styling.
+- Keep `NativeBIAdapter` renderer-only. It may host/render a React canvas, but it must not execute SQL, fetch data, import proxy/warehouse clients, import BI vendor SDKs, add authoring UX, drag layout, cross-filter, drill, save layout, live refresh, permissions, or semantic modeling.
+- Consume only pure contracts from `playground/src/visualization/`: `AIResultEnvelope`, `resultToVizIntent`, `chartAutoPick`, `ChartRenderSpec`, `validateChartRenderSpec`, `isGovernanceAttestation`, and `isDatabricksSourceRef` as needed.
+- Render attested AI result envelopes into useful states: empty, text, table, KPI, chart. Use ECharts for chart MVP. Validate any spec before rendering. External `data.url` stays rejected.
+- Preserve G3: missing/invalid governance must remain blocked in production/required-governance mode. Dev preview may render only with the explicit `ungoverned-result-preview` state.
+- Extend the native import-boundary test to scan `.tsx`; allow React/ECharts only in `.tsx`, but still block `fetch`, `XMLHttpRequest`, proxy imports, warehouse/query clients, Databricks SDKs, Power BI/Tableau/Qlik/Looker SDKs, drag/drop/resizable libs, and settings authoring imports.
+
+Tests:
+- Add native adapter/canvas tests for empty/text/table/KPI/chart rendering and invalid-spec fallback.
+- Add a negative import-boundary test covering `.tsx`.
+- Run focused native tests, full playground tests, lint, and build.
+- If feasible, start the dev server and run a browser/Playwright screenshot or canvas-pixel smoke. If not feasible, say browser smoke was not run.
+
+Docs:
+- Update `docs/HANDOVER.md`, `docs/AGENDA.md`, `docs/memory/project_state.md`, and `docs/PULSE_SYNC.md` if the portable/shape contract changes.
+
+Hard tripwires:
+- Do not add a shared `packages/` layer.
+- Do not add a native dataset-modeling/authoring UX.
+- Do not default missing governance to enforced.
+- Do not add raw SQL source kinds.
+- Do not weaken Pulse PBI constraints; Pulse PBI gets shared proxy fields but remains sandbox-specific.
+```
+
 ### 2026-05-20 - Codex - [VERIFY]+[DONE]+[HANDOFF] Focused Settings validation, Setup/AI fix, Claude hardening backlog
 
 `[VERIFY]` Multi-agent Settings validation completed against the live dev app at `http://127.0.0.1:5173/settings` plus focused source/test reads. Evidence folder: [docs/evidence/settings-regression-2026-05-20-codex](evidence/settings-regression-2026-05-20-codex). Browser snapshots/screenshots captured for all six Settings groups and the fixed Quick Setup path.

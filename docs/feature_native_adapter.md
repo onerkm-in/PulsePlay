@@ -1,6 +1,6 @@
 # Native BI Adapter - Renderer-Only Architecture
 
-> Status: G1 adapter skeleton shipped, 2026-05-21. The adapter is loadable and guarded; the visualization pipeline and real chart canvas are still queued for G2-G4.
+> Status: G3 complete, 2026-05-21. The adapter is loadable and guarded; the visualization pipeline, Databricks source refs, proxy governance attestations, and native fail-closed gate are shipped. The real chart canvas is queued for G4.
 
 ## Decision
 
@@ -208,7 +208,7 @@ First slice: fusion-lite. Render one chart plus docked AI commentary cards bound
 - G0: shipped. Architecture docs, ADR, Pulse sync ledger, agenda/memory updates.
 - G1: shipped. Adapter skeleton, capabilities, command rejection tests, import-boundary guard, registry loadability, no-embed readiness.
 - G2: `playground/src/visualization/` pipeline MVP and chart-pick extraction.
-- G3: governance attestation contract across proxy backend paths and native fail-closed test.
+- G3: governance attestation contract across proxy backend paths and native fail-closed test. **Shipped 2026-05-21.**
 - G4: native canvas plus ECharts MVP.
 - G5: brand-grid card and author switch.
 - G6: native T2 fusion-lite.

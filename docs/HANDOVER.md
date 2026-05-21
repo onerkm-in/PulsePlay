@@ -5,6 +5,52 @@
 
 ---
 
+## 2026-05-21 - G3 governance attestation complete; G4 handed to Claude
+
+**Scope.** Closed G3b/G3c/G3d end-to-end. G3 is now runtime-active, not just a contract: renderable proxy responses carry proxy-built attestations, and the native adapter fails closed when production/required-governance rendering lacks a valid attestation. No native canvas/ECharts runtime yet — that is G4.
+
+**Proxy route wiring.** Commit `58b8bbf` adds a registry-backed governance helper in [`proxy/server.js`](../proxy/server.js):
+- `RENDERABLE_BACKEND_GOVERNANCE` covers the 10 backend ids: `genie`, `azure-openai-chat`, `azure-openai-analytics`, `bedrock-rag`, `bedrock-direct`, `foundation-model`, `supervisor`, `supervisor-local`, `responses-agent`, `powerbi-semantic-model`.
+- `withGovernance()` wraps renderable responses with `governance.enforced === true` from [`proxy/lib/governance.js`](../proxy/lib/governance.js).
+- User subject refs are hashed (`user:<12hex>`), OAuth M2M profiles reuse the existing `sp:<12hex>` hash, shared-key callers are tagged by normalized client app, and unauthenticated dev falls back to `local-dev`.
+- Genie responses include a real `sourceRef` when a Genie space id is known. No fake source refs are invented for paths that do not carry a trustworthy source identity yet.
+- Covered JSON, SSE, and NDJSON outputs: Genie start/send/poll, OpenAI chat/analytics, Bedrock RAG/direct, Power BI semantic-model, `/foundation/section`, `/assistant/conversations/start-sectioned`, `/foundation/conversations/start-stream`, `/responses-agent/chat`, and Supervisor start/stream/poll compatibility.
+
+**Native fail-closed.** Commit `17e1597` updates [`bi-adapters/native/NativeBIAdapter.ts`](../bi-adapters/native/NativeBIAdapter.ts):
+- Constructor option `requireGovernanceAttestation` lets tests and future host policy force production behavior; default follows Vite production/`VITE_PULSEPLAY_REQUIRE_GOVERNANCE`.
+- `renderResult` with missing/invalid governance blocks in required mode, emits `NATIVE_GOVERNANCE_REQUIRED`, sets `data-native-governance="blocked"`, and sends `view-context` with the block reason.
+- Attested results render as `result-accepted` with `data-native-governance="enforced"`.
+- Dev/mock missing-governance results still render, but only as explicit `ungoverned-result-preview` with `data-native-governance="preview"`.
+- `renderSpec` remains accepted without governance because specs are renderer commands, not AI result envelopes.
+
+**Tests / validation.**
+- Focused proxy route/helper pass before commit: `server.test.js + conversationsStartPackContext.test.js + governance.test.js` **207/207**.
+- Full proxy: **1126/1126**.
+- Focused native adapter: **40/40**.
+- Full playground: **1326/1326**.
+- `playground npm run lint`: PASS.
+- `playground npm run build`: PASS (same existing BI-adapter dynamic-import warnings).
+- `node --check proxy/server.js`: PASS.
+- Browser smoke: NOT RUN. Do not claim G3/G4 UX-verified until a real browser pass lands.
+- Note: one invalid validation attempt used Jest's `--runInBand` flag against Vitest; it failed as an invalid command, then the correct `npm run test` passed.
+
+**G4 handoff to Claude.** Take **G4 - Native canvas + ECharts MVP** next. Keep it narrow:
+1. Build `bi-adapters/native/NativeCanvas.tsx` and minimal styling for an actual chart/table/KPI host inside the native adapter.
+2. Consume only pure contracts from `playground/src/visualization/`: `AIResultEnvelope`, `resultToVizIntent`, `chartAutoPick`, `ChartRenderSpec`, `validateChartRenderSpec`, and governance/source-ref guards.
+3. Do not add SQL execution, fetch, proxy clients, vendor SDKs, authoring UX, drag layout, cross-filter, drill, save layout, or semantic modeling to the native adapter.
+4. Extend the native import-boundary guard to scan `.tsx`; allow React/ECharts in `.tsx`, but still block `fetch`, proxy/warehouse clients, vendor SDKs, drag/drop/resizable libs, and query execution imports.
+5. Render policy: attested envelope → chart/table/KPI/text/empty via G2 pipeline; missing attestation in production should remain blocked by the adapter gate; dev preview badge/state must stay visible.
+6. Add browser smoke or Playwright screenshot/canvas-pixel check if a dev server can be started. If not, state that honestly.
+
+**Tripwires.**
+- Browser code still cannot build attestations. Do not import `proxy/lib/governance.js` into frontend code.
+- Do not make `AIResultEnvelope.governance` required in TypeScript; runtime fail-closed is renderer policy.
+- Do not default missing governance to enforced.
+- Do not add `kind: "raw-sql"` to `DatabricksSourceRef` as part of G4.
+- Pulse PBI receives attestation fields automatically via the shared proxy when it calls these routes, but Pulse PBI fail-closed adoption is a separate host decision.
+
+---
+
 ## 2026-05-21 - G3a governance contract + builder (route wiring G3b/G3c pending)
 
 **Scope.** **G3a contract/helper shipped; route wiring G3b/G3c pending; native fail-closed G3d pending.** This slice intentionally ships ONLY the type contract, the trust-boundary guard, and the proxy-side builder. No backend routes are wired yet. No native fail-closed render gate. Splitting the G3 work this way keeps each commit auditable and prevents half-shipped attestation coverage from creating a false sense of safety.

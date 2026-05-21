@@ -79,7 +79,7 @@ Zero-runtime or type-only contracts both projects should respect.
 | AIResultEnvelope | `playground/src/visualization/aiResultEnvelope.ts` | PulsePlay | 0.2 | G3a | shipped 2026-05-21; includes `sourceRef?: DatabricksSourceRef`; G3a narrowed `governance?: unknown` → `governance?: GovernanceAttestation` (optional in type; env-agnostic guard) |
 | ChartRenderSpec | `playground/src/visualization/chartSpecValidation.ts` | PulsePlay | 0.1 | `9ff892a` | shipped 2026-05-21; inline data only, external URLs rejected |
 | DatabricksSourceRef | `playground/src/visualization/sourceRef.ts` | PulsePlay | 0.1 | `4b818b2` | shipped 2026-05-21; pure module, copy-port safe; Pulse PBI adoption queued |
-| GovernanceAttestation | `playground/src/visualization/governance.ts` + `proxy/lib/governance.js` | PulsePlay (split) | 0.1 (G3a) | G3a | G3a shape + frontend guard + proxy builder shipped 2026-05-21; route wiring G3b/G3c pending; native fail-closed G3d pending. Frontend guard validates shape only and is env-agnostic; proxy builder forbids `authority: "mock"` when `NODE_ENV=production` |
+| GovernanceAttestation | `playground/src/visualization/governance.ts` + `proxy/lib/governance.js` + `proxy/server.js` | PulsePlay (split) | 0.2 (G3) | `58b8bbf` / `17e1597` | G3 complete 2026-05-21: frontend guard validates shape only; proxy builder is the only sanctioned attestation producer; every renderable backend path emits `governance.enforced === true`; native adapter fails closed in production/required-governance mode and marks dev previews explicitly |
 
 ### Tier 3 - Proxy Upgrades
 
@@ -87,7 +87,7 @@ Pulse PBI and the future desktop EXE get these fields automatically when they ca
 
 | Upgrade | Source | Owner side | Version | Last synced commit | Sibling status |
 |---|---|---:|---:|---|---|
-| Every renderable backend path emits `governance.enforced` | proxy routes and tests | PulsePlay proxy | queued | N/A | automatic payload benefit after G3 |
+| Every renderable backend path emits `governance.enforced` | proxy routes and tests | PulsePlay proxy | 0.1 | `58b8bbf` | automatic payload benefit via the shared proxy; Pulse PBI/desktop receive the field when they call these routes, but each host still chooses when to fail closed |
 | Client identity headers (`X-Pulse-Client`, version, request id) | proxy request/audit contract | PulsePlay proxy | 0.1 | `22db943` | automatic via proxy; Pulse PBI/desktop clients should send headers when adopted |
 
 ### Tier 3.5 - Desktop EXE Cascade
@@ -140,7 +140,8 @@ Use this checklist for any change that future desktop EXE users would experience
 | proxy-client-contract | 0.1 | PX1 client identity headers, `/clients/compatibility`, response echo headers, and client-aware audit context. | Automatic via proxy; Pulse PBI/desktop adoption is header wiring only |
 | DatabricksSourceRef | 0.1 | G2.5 typed Databricks source-ref contract: discriminated union over genie-space, metric-view, uc-function, view, and table; per-kind type guards; `sourceRefDisplayLabel` formatter; table variant carries the `raw-table-bypasses-curated-views` warning at the type level. Pure module, no DOM/fetch/React. | Copy-port queued for Pulse PBI |
 | visualization-pipeline | 0.1 | G2 pure result-to-chart pipeline: `AIResultEnvelope`, `resultToVizIntent`, `chartAutoPick`, and `chartSpecValidation`; Pulse-ported chart helpers now import the shared policy instead of duplicating it; workbench chart tabs validate specs before rendering. | Copy-port queued for Pulse PBI; desktop inherits through PulsePlay app bundle |
-| governance-contract | 0.1 (G3a) | G3a contract slice: frontend `GovernanceAttestation` type + `isGovernanceAttestation` env-agnostic guard; proxy `buildGovernanceAttestation` builder that enforces `enforced: true`, validates authority allowlist, sanitizes subjectRef/requestId, forbids `authority: "mock"` in production; `AIResultEnvelope.governance` narrowed from `unknown` to optional `GovernanceAttestation`. Route wiring and native fail-closed render check still queued (G3b/G3c/G3d). | Proxy contract benefits Pulse PBI + desktop once routes wire; native fail-closed and per-path attestation tests are subsequent slices |
+| governance-contract | 0.1 (G3a) | G3a contract slice: frontend `GovernanceAttestation` type + `isGovernanceAttestation` env-agnostic guard; proxy `buildGovernanceAttestation` builder that enforces `enforced: true`, validates authority allowlist, sanitizes subjectRef/requestId, forbids `authority: "mock"` in production; `AIResultEnvelope.governance` narrowed from `unknown` to optional `GovernanceAttestation`. | Proxy contract benefits Pulse PBI + desktop once routes wire |
+| governance-contract | 0.2 (G3) | G3b/G3c/G3d completion: every renderable proxy backend path now stamps proxy-built attestation; registry-driven route mapping covers all 10 backend ids; user subject refs are hashed, SP refs reuse existing SP hash, Genie emits real `sourceRef` when available; native adapter fails closed in production/required-governance mode and dev/mock missing-attestation results render only as `ungoverned-result-preview`. | Automatic via proxy for Pulse PBI/desktop payloads; host fail-closed adoption remains host-specific |
 
 ## Product Sync
 

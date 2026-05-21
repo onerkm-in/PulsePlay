@@ -11,7 +11,7 @@ Portable tiers:
 
 - Tier 1: pure modules such as `chartAutoPick.ts`, `aiResultEnvelope.ts`, `resultToVizIntent.ts`, `chartSpecValidation.ts`, and `sourceRef.ts`.
 - Tier 2: serializable shape contracts: `AIResultEnvelope`, `ChartRenderSpec`, `DatabricksSourceRef`, and governance attestation.
-- Tier 3: proxy upgrades, especially `governance.enforced`, which Pulse PBI receives automatically in responses after G3.
+- Tier 3: proxy upgrades, especially `governance.enforced`, which Pulse PBI receives automatically in responses after G3; G3 route wiring shipped 2026-05-21, while Pulse PBI fail-closed adoption remains host-specific.
 - Tier 4: host-specific code such as `NativeCanvas.tsx` and native adapter capabilities. Do not copy as-is.
 
 Process: PRs that change portable modules need a `sibling-sync` label, copy-port status in the PR description, desktop impact status where relevant, and a `docs/PULSE_SYNC.md` changelog update.
