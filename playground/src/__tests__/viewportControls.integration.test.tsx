@@ -96,7 +96,23 @@ function clearStorage(): void {
         window.localStorage.removeItem("pulseplay:bi-tile-mode");
         window.localStorage.removeItem("pulseplay:bi-vendor");
         window.localStorage.removeItem("pulseplay:ui-mode");
+        window.localStorage.removeItem("pulseplay:visual-settings:genieSettings");
     } catch { /* swallow */ }
+}
+
+/** F5.1 helper — seed Pulse `enabledFeatures` and fire the change event so
+ *  App.tsx's resolver picks up the new value. Mirrors what Settings UI does
+ *  via `writePulseAiVisualSettingsPatch`. */
+function setPulseEnabledFeatures(value: "both" | "insightsOnly" | "chatOnly"): void {
+    const KEY = "pulseplay:visual-settings:genieSettings";
+    const raw = window.localStorage.getItem(KEY);
+    let parsed: Record<string, unknown> = {};
+    try { if (raw) parsed = JSON.parse(raw); } catch { /* swallow */ }
+    parsed.enabledFeatures = value;
+    window.localStorage.setItem(KEY, JSON.stringify(parsed));
+    window.dispatchEvent(new CustomEvent("pulseplay:visual-settings-change", {
+        detail: { objectName: "genieSettings", properties: { enabledFeatures: value } },
+    }));
 }
 
 function seedExplicitSplitLayout(): void {
@@ -533,6 +549,81 @@ describe("App viewport controls — ?focus= URL", () => {
         const state = mountApp();
         const shell = state.container.querySelector(viewportControlShellSelector);
         expect(shell?.getAttribute("data-viewport-focus")).toBe("split");
+        unmount(state);
+    });
+
+    // F5.1 — effective vs requested surface
+    it("data-active-surface follows effective when chatOnly disables requested ai-insights", () => {
+        // Start with ai-insights requested (default). Then flip Pulse to
+        // chatOnly. data-active-surface should swap to ask-pulse (effective)
+        // while data-requested-surface preserves the original intent.
+        const state = mountApp();
+        let shell = state.container.querySelector(viewportControlShellSelector);
+        expect(shell?.getAttribute("data-active-surface")).toBe("ai-insights");
+        expect(shell?.getAttribute("data-requested-surface")).toBe("ai-insights");
+        expect(shell?.getAttribute("data-surface-fallback-reason")).toBeNull();
+
+        act(() => { setPulseEnabledFeatures("chatOnly"); });
+
+        shell = state.container.querySelector(viewportControlShellSelector);
+        expect(shell?.getAttribute("data-active-surface")).toBe("ask-pulse");
+        expect(shell?.getAttribute("data-requested-surface")).toBe("ai-insights");
+        expect(shell?.getAttribute("data-surface-fallback-reason"))
+            .toBe("insights-disabled-by-chatOnly");
+
+        unmount(state);
+    });
+
+    it("restores requested surface when Pulse re-enables both features", () => {
+        // F5.1 promise: intent persists. Going chatOnly → both restores
+        // the original ai-insights request without manual intervention.
+        const state = mountApp();
+        act(() => { setPulseEnabledFeatures("chatOnly"); });
+
+        let shell = state.container.querySelector(viewportControlShellSelector);
+        expect(shell?.getAttribute("data-active-surface")).toBe("ask-pulse");
+        expect(shell?.getAttribute("data-requested-surface")).toBe("ai-insights");
+
+        act(() => { setPulseEnabledFeatures("both"); });
+
+        shell = state.container.querySelector(viewportControlShellSelector);
+        expect(shell?.getAttribute("data-active-surface")).toBe("ai-insights");
+        expect(shell?.getAttribute("data-requested-surface")).toBe("ai-insights");
+        expect(shell?.getAttribute("data-surface-fallback-reason")).toBeNull();
+
+        unmount(state);
+    });
+
+    it("preserves AI-surface intent across biOnly → mix preset flip", () => {
+        // Start with requested ai-insights. Flip to biOnly via the same
+        // event channel SettingsShell uses. data-active-surface follows
+        // effective (bi-viz); data-requested-surface preserves ai-insights.
+        // Flipping back to mix restores ai-insights as effective.
+        const state = mountApp();
+        let shell = state.container.querySelector(viewportControlShellSelector);
+        expect(shell?.getAttribute("data-requested-surface")).toBe("ai-insights");
+
+        act(() => {
+            window.dispatchEvent(new CustomEvent("pulseplay:display-change", {
+                detail: { key: "pulseplay:enabled-components", value: "biOnly" },
+            }));
+        });
+        shell = state.container.querySelector(viewportControlShellSelector);
+        expect(shell?.getAttribute("data-active-surface")).toBe("bi-viz");
+        expect(shell?.getAttribute("data-requested-surface")).toBe("ai-insights");
+        expect(shell?.getAttribute("data-surface-fallback-reason"))
+            .toBe("ai-pane-disabled-by-biOnly");
+
+        act(() => {
+            window.dispatchEvent(new CustomEvent("pulseplay:display-change", {
+                detail: { key: "pulseplay:enabled-components", value: "mix" },
+            }));
+        });
+        shell = state.container.querySelector(viewportControlShellSelector);
+        expect(shell?.getAttribute("data-active-surface")).toBe("ai-insights");
+        expect(shell?.getAttribute("data-requested-surface")).toBe("ai-insights");
+        expect(shell?.getAttribute("data-surface-fallback-reason")).toBeNull();
+
         unmount(state);
     });
 

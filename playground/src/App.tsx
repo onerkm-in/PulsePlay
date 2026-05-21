@@ -36,6 +36,11 @@ import { SurfaceSwitcher } from "./components/SurfaceSwitcher";
 import { PaneEmptyState, DashboardIcon } from "./components/PaneEmptyState";
 import type { SurfaceId } from "./surfaceRegistry";
 import { isSurfaceId } from "./surfaceRegistry";
+import {
+    resolveSurfaceAvailability,
+    type EnabledFeaturesInput,
+} from "./surfaces/surfaceAvailability";
+import { readPulseAiVisualSettings } from "./settings/pulseVisualSettingsStore";
 import { TestConnectionPanel } from "./components/TestConnectionPanel";
 import { PackPicker } from "./components/PackPicker";
 import type { PackInfo, PackSelection } from "./components/PackPicker";
@@ -535,9 +540,19 @@ function PlaygroundApp(): React.ReactElement {
     );
     const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => readInitialLayoutMode());
     const [focusedPane, setFocusedPane] = useState<ViewportFocus>(() => readInitialViewportFocus());
+    // F5.1 — `activeSurface` is the REQUESTED surface (user/URL intent),
+    // not necessarily what's actually rendered. The deployment can disable
+    // surfaces via `enabledComponents` (pane axis) and `enabledFeatures`
+    // (Pulse feature axis). The resolver below maps requested + config
+    // to an EFFECTIVE surface and a fallback reason. Intent persists so
+    // that re-enabling a disabled surface restores the user's original
+    // surface automatically.
     const [activeSurface, setActiveSurface] = useState<SurfaceId>(() => readInitialActiveSurface());
     const [mixSurface, setMixSurface] = useState<MixSurface>(() => surfaceToMixSurface(readInitialActiveSurface()));
     const [requestedPulseTab, setRequestedPulseTab] = useState<PulseSurfaceTab>(() => surfaceToPulseTab(readInitialActiveSurface()) ?? "insights");
+    const [enabledFeatures, setEnabledFeatures] = useState<EnabledFeaturesInput>(
+        () => readPulseAiVisualSettings().enabledFeatures,
+    );
     const [pinnedViewportPane, setPinnedViewportPane] = useState<ViewportFocus>(() => readInitialPinnedViewportPane());
     const biAdaptersRef = useRef<Map<number, BIAdapter>>(new Map());
     const [primaryBIAdapter, setPrimaryBIAdapter] = useState<BIAdapter | null>(null);
@@ -587,6 +602,22 @@ function PlaygroundApp(): React.ReactElement {
         if (options?.writeUrl !== false) writeActiveSurfaceToUrl(next);
     }, []);
 
+    // F5.1 — resolve REQUESTED surface against the current deployment
+    // config. `surfaceResolution.effectiveSurfaceId` is what the shell
+    // renders; `activeSurface` is the user's persisted intent. When config
+    // re-opens a previously-disabled surface, the resolver returns the
+    // requested surface as effective again — no manual restore code path
+    // needed. Pure function in / out, cheap to recompute on each render.
+    const surfaceResolution = useMemo(
+        () => resolveSurfaceAvailability({
+            requestedSurfaceId: activeSurface,
+            enabledComponents,
+            enabledFeatures,
+        }),
+        [activeSurface, enabledComponents, enabledFeatures],
+    );
+    const effectiveSurfaceId = surfaceResolution.effectiveSurfaceId;
+
     const handleEnabledComponentsChange = useCallback((next: EnabledComponents) => {
         setEnabledComponents(next);
         try {
@@ -595,12 +626,12 @@ function PlaygroundApp(): React.ReactElement {
                 window.localStorage.setItem(ENABLED_COMPONENTS_LEGACY_BOTH_MIGRATION_KEY, "true");
             }
         } catch { /* swallow */ }
-        if (next === "biOnly") {
-            persistActiveSurface("bi-viz", { writeUrl: false });
-        } else if (next === "aiOnly" && activeSurface === "bi-viz") {
-            persistActiveSurface("ai-insights", { writeUrl: false });
-        }
-    }, [activeSurface, persistActiveSurface]);
+        // F5.1 — do NOT mutate activeSurface on enabledComponents changes.
+        // The resolver above maps the persisted requested surface through
+        // the new pane configuration; intent stays intact so re-enabling
+        // a previously-disabled pane restores the user's original surface
+        // automatically.
+    }, []);
     const handleLayoutModeChange = useCallback((next: LayoutMode) => {
         setLayoutMode(next);
         try { window.localStorage.setItem(LAYOUT_MODE_STORAGE_KEY, next); } catch { /* swallow */ }
@@ -717,12 +748,17 @@ function PlaygroundApp(): React.ReactElement {
         handleEnabledComponentsChange("both");
     }, [handleEnabledComponentsChange]);
 
+    // F5.1 — mix-mode pane state follows the EFFECTIVE surface, not the
+    // raw request. When chatOnly forces an ai-insights request to fall
+    // back to ask-pulse, the pane must show chat — otherwise the user's
+    // click would visibly do nothing while the resolver silently swapped
+    // the surface underneath.
     useEffect(() => {
         if (enabledComponents !== "mix") return;
-        setMixSurface(surfaceToMixSurface(activeSurface));
-        const pulseTab = surfaceToPulseTab(activeSurface);
+        setMixSurface(surfaceToMixSurface(effectiveSurfaceId));
+        const pulseTab = surfaceToPulseTab(effectiveSurfaceId);
         if (pulseTab) setRequestedPulseTab(pulseTab);
-    }, [activeSurface, enabledComponents]);
+    }, [effectiveSurfaceId, enabledComponents]);
 
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -833,10 +869,16 @@ function PlaygroundApp(): React.ReactElement {
     // Settings also owns Pulse's legacy `genieSettings` namespace now. When a
     // Settings control writes to that namespace, re-run PulseShell.update()
     // so the embedded Pulse UI picks up the new prompt/domain/runtime config.
+    //
+    // F5.1 — also sync `enabledFeatures` so the surface resolver sees the
+    // new value the next time it runs. Without this, switching between
+    // T4 (insightsOnly) and T5 (chatOnly) wouldn't update which AI surface
+    // is effectively rendered, and `data-active-surface` would lie.
     useEffect(() => {
         const handler = () => {
             setPulseAssistantProfile(readPulseAssistantProfile());
             setPulseRenderToken(t => t + 1);
+            setEnabledFeatures(readPulseAiVisualSettings().enabledFeatures);
         };
         window.addEventListener(PULSE_VISUAL_SETTINGS_EVENT, handler as EventListener);
         return () => window.removeEventListener(PULSE_VISUAL_SETTINGS_EVENT, handler as EventListener);
@@ -1144,7 +1186,14 @@ function PlaygroundApp(): React.ReactElement {
             className="pp-app"
             data-testid="pp-viewport-shell"
             data-viewport-focus={focusedPane ?? "split"}
-            data-active-surface={activeSurface}
+            // F5.1 — data-active-surface is the EFFECTIVE surface (what
+            // the shell actually renders). data-requested-surface is the
+            // user's persisted intent — useful for telemetry that wants to
+            // distinguish "user wanted X but config forced Y." Fallback
+            // reason emitted only when the two differ.
+            data-active-surface={effectiveSurfaceId}
+            data-requested-surface={activeSurface}
+            data-surface-fallback-reason={surfaceResolution.fallbackReason ?? undefined}
             data-layout-pinned={pinnedViewportPane ? "true" : "false"}
             style={{ position: "relative", width: "100%", height: "100vh", overflow: "hidden", display: "flex", flexDirection: "column" }}
         >
@@ -1431,7 +1480,8 @@ function PlaygroundApp(): React.ReactElement {
                         inlineSwitcher={
                             enabledComponents === "mix" && !floatedPane ? (
                                 <SurfaceSwitcher
-                                    active={activeSurface}
+                                    active={effectiveSurfaceId}
+                                    availability={surfaceResolution.availability}
                                     onPick={handleSurfacePick}
                                 />
                             ) : undefined

@@ -9,16 +9,26 @@ import type { SurfaceIcon, SurfaceId } from "../surfaceRegistry";
 import { SURFACES } from "../surfaceRegistry";
 
 interface SurfaceSwitcherProps {
-    /** Active surface id. Drives selected state + aria-selected. */
+    /** Active surface id. Drives selected state + aria-selected.
+     *  Caller should pass the EFFECTIVE surface (post-resolver), not the
+     *  raw requested surface — that way the highlighted pill always
+     *  matches what the user is actually looking at. */
     readonly active: SurfaceId;
     /** Click handler — receives the picked surface id. The shell decides
      *  whether to swap pane content, mount a companion, etc. */
     readonly onPick: (id: SurfaceId) => void;
+    /** Optional per-surface availability under the current deployment
+     *  configuration. F5.1 contract: `false` means the surface exists
+     *  but is unreachable right now (e.g., Pulse `enabledFeatures` has
+     *  it turned off). Unavailable buttons render `disabled` so the
+     *  control is still visible — never removed — but cannot be picked.
+     *  When omitted, all surfaces are treated as available. */
+    readonly availability?: Readonly<Record<SurfaceId, boolean>>;
     /** Optional extra controls rendered to the right (e.g., companion launcher). */
     readonly trailing?: React.ReactNode;
 }
 
-export function SurfaceSwitcher({ active, onPick, trailing }: SurfaceSwitcherProps): React.ReactElement {
+export function SurfaceSwitcher({ active, onPick, availability, trailing }: SurfaceSwitcherProps): React.ReactElement {
     return (
         <div
             role="tablist"
@@ -27,6 +37,10 @@ export function SurfaceSwitcher({ active, onPick, trailing }: SurfaceSwitcherPro
         >
             {SURFACES.map((surface) => {
                 const isActive = surface.id === active;
+                const isAvailable = availability ? availability[surface.id] !== false : true;
+                const tooltip = isAvailable
+                    ? surface.description
+                    : `${surface.label} — unavailable in this configuration. Adjust Preferences to re-enable.`;
                 return (
                     <button
                         key={surface.id}
@@ -34,9 +48,15 @@ export function SurfaceSwitcher({ active, onPick, trailing }: SurfaceSwitcherPro
                         role="tab"
                         aria-selected={isActive}
                         aria-controls={`pp-surface-pane-${surface.id}`}
-                        title={surface.description}
-                        onClick={() => onPick(surface.id)}
-                        className={`pp-surface-switcher__item${isActive ? " pp-surface-switcher__item--active" : ""}`}
+                        aria-disabled={isAvailable ? undefined : true}
+                        disabled={!isAvailable}
+                        title={tooltip}
+                        onClick={() => { if (isAvailable) onPick(surface.id); }}
+                        className={
+                            "pp-surface-switcher__item"
+                            + (isActive ? " pp-surface-switcher__item--active" : "")
+                            + (isAvailable ? "" : " pp-surface-switcher__item--unavailable")
+                        }
                     >
                         <SurfaceGlyph icon={surface.icon} />
                         <span className="pp-surface-switcher__label">{surface.label}</span>
