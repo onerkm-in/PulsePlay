@@ -1464,6 +1464,23 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '4mb' }));
 app.use(handleJsonParseProblem);
 
+// ── /api/ prefix strip (combined-deployment compatibility) ───────────────────
+//
+// The Vite playground bundles fetch URLs like `/api/assistant/profiles`
+// because in dev Vite proxies `/api/*` → `127.0.0.1:8787/*`. When the
+// playground is served from the same origin as the proxy (combined
+// Databricks App / App Service deployment), there's no Vite to do the
+// rewrite — so we strip the `/api/` prefix here before the route handlers
+// resolve. The proxy's own routes are mounted without the prefix (e.g.
+// `/assistant/profiles`), and stripping is a no-op for direct API consumers
+// that already use the unprefixed path.
+app.use((req, _res, next) => {
+    if (req.url.startsWith('/api/')) {
+        req.url = req.url.slice(4) || '/';
+    }
+    next();
+});
+
 // ── Proxy auth mode ──────────────────────────────────────────────────────────
 //
 // Production deployments must be explicit about the edge auth story:
@@ -7869,19 +7886,32 @@ app.get('/__diag/static', (req, res) => {
 //
 // Set in Databricks Apps via app.yaml `env: [{ name: STATIC_DIR, value: ... }]`
 // or via shell `STATIC_DIR=playground/dist node server.js`.
+//
+// CSP override: the global proxy CSP is `default-src 'none'` (locks down the
+// JSON-only API surface against rogue HTML responses). For HTML/CSS/JS that
+// we deliberately serve, we must replace that header with a sane web CSP so
+// the browser actually executes the bundled React app from same-origin.
 const _STATIC_DIR_RAW = process.env.STATIC_DIR;
 if (_STATIC_DIR_RAW) {
     const staticDir = path.isAbsolute(_STATIC_DIR_RAW)
         ? _STATIC_DIR_RAW
         : path.resolve(__dirname, '..', _STATIC_DIR_RAW);
     const indexHtml = path.join(staticDir, 'index.html');
-    app.use(express.static(staticDir, { index: 'index.html', maxAge: '1h', fallthrough: true }));
+    const STATIC_CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://login.microsoftonline.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://login.microsoftonline.com https://login.live.com https://graph.microsoft.com https://api.powerbi.com https://analysis.windows.net https://*.cloud.databricks.com https://*.azuredatabricks.net; frame-src 'self' https://login.microsoftonline.com https://app.powerbi.com https://*.cloud.databricks.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self';";
+    const applyStaticCsp = (res) => res.setHeader('Content-Security-Policy', STATIC_CSP);
+    app.use(express.static(staticDir, {
+        index: 'index.html',
+        maxAge: '1h',
+        fallthrough: true,
+        setHeaders: applyStaticCsp,
+    }));
     // SPA fallback: any GET that isn't a known API prefix → serve index.html.
     // Adding new top-level API routes? Add their first path segment to this list.
-    const API_PREFIX_RE = /^\/(api|assistant|foundation|powerbi|health|discovery|capabilities|feedback|debug|metrics|smoke|connectors|knowledge|policy|profiles|packs|supervisor|insights|sql-preview|test|\.well-known)(\/|$)/;
+    const API_PREFIX_RE = /^\/(api|assistant|foundation|powerbi|health|discovery|capabilities|feedback|debug|metrics|smoke|connectors|knowledge|policy|profiles|packs|supervisor|insights|sql-preview|test|__diag|\.well-known)(\/|$)/;
     app.get(/.*/, (req, res, next) => {
         if (API_PREFIX_RE.test(req.path)) return next();
         if (req.headers.accept && !req.headers.accept.includes('text/html')) return next();
+        applyStaticCsp(res);
         res.sendFile(indexHtml, err => { if (err) next(err); });
     });
     console.log(`[static] STATIC_DIR=${staticDir} (SPA fallback to index.html for unknown paths)`);
