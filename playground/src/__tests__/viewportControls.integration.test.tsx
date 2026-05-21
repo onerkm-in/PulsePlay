@@ -298,6 +298,41 @@ describe("App viewport controls — default unified Mix surface", () => {
         unmount(state);
     });
 
+    it("preserves activeSurface across T1 → T6 → T1 (mix → both → mix) preset flips", () => {
+        // Locks the persistence promise: switching between Balanced (mix)
+        // and Split + Mix (both) must not lose the user's currently active
+        // surface. The active surface is the registry SurfaceId; preset
+        // facades only change enabledComponents/layoutMode/enabledFeatures.
+        window.localStorage.setItem("pulseplay:active-surface", "ask-pulse");
+        const state = mountApp();
+
+        let shell = state.container.querySelector(viewportControlShellSelector);
+        expect(shell?.getAttribute("data-active-surface")).toBe("ask-pulse");
+
+        // T1 → T6: flip enabledComponents to "both" via the display-change
+        // event (same channel SettingsShell uses when applying a preset).
+        act(() => {
+            window.dispatchEvent(new CustomEvent("pulseplay:display-change", {
+                detail: { key: "pulseplay:enabled-components", value: "both" },
+            }));
+        });
+        shell = state.container.querySelector(viewportControlShellSelector);
+        expect(shell?.getAttribute("data-active-surface")).toBe("ask-pulse");
+        expect(window.localStorage.getItem("pulseplay:active-surface")).toBe("ask-pulse");
+
+        // T6 → T1: flip back to "mix".
+        act(() => {
+            window.dispatchEvent(new CustomEvent("pulseplay:display-change", {
+                detail: { key: "pulseplay:enabled-components", value: "mix" },
+            }));
+        });
+        shell = state.container.querySelector(viewportControlShellSelector);
+        expect(shell?.getAttribute("data-active-surface")).toBe("ask-pulse");
+        expect(window.localStorage.getItem("pulseplay:active-surface")).toBe("ask-pulse");
+
+        unmount(state);
+    });
+
     // Regression guard for Codex's 2026-05-19 finding:
     // "Clicking `Dashboard` surfaces `BI-only mode` copy and a different layout
     // grammar." In unified mode, the Dashboard is a peer surface — the empty
@@ -440,6 +475,56 @@ describe("App viewport controls — ?focus= URL", () => {
         const shell = state.container.querySelector(viewportControlShellSelector);
         expect(shell?.getAttribute("data-viewport-focus")).toBe("split");
         expect(shell?.getAttribute("data-active-surface")).toBe("ai-insights");
+        unmount(state);
+    });
+
+    it("respects ?surface= when combined with ?focus=bi (URL is the source of truth)", () => {
+        // Combined URL: user wants BI maximized now, but the underlying mix
+        // surface is Ask Pulse. When focus is collapsed, the user lands on
+        // Ask Pulse — not on the focused pane's surface. This locks the
+        // semantic: ?surface= is the persistent active surface, ?focus= is
+        // a temporary maximization layered on top.
+        setLocation("?focus=bi&surface=ask-pulse");
+        const state = mountApp();
+        const shell = state.container.querySelector(viewportControlShellSelector);
+        expect(shell?.getAttribute("data-viewport-focus")).toBe("bi");
+        expect(shell?.getAttribute("data-active-surface")).toBe("ask-pulse");
+        unmount(state);
+    });
+
+    it("syncs activeSurface to bi-viz on popstate ?focus=bi without ?surface=", () => {
+        // Regression guard for focus-drift: when the user navigates to a
+        // BI-focused URL via history (e.g. back/forward) without an explicit
+        // surface= param, activeSurface should follow the focus.
+        const state = mountApp();
+        let shell = state.container.querySelector(viewportControlShellSelector);
+        expect(shell?.getAttribute("data-active-surface")).toBe("ai-insights");
+
+        setLocation("?focus=bi");
+        act(() => { window.dispatchEvent(new PopStateEvent("popstate")); });
+        shell = state.container.querySelector(viewportControlShellSelector);
+        expect(shell?.getAttribute("data-viewport-focus")).toBe("bi");
+        expect(shell?.getAttribute("data-active-surface")).toBe("bi-viz");
+
+        unmount(state);
+    });
+
+    it("syncs activeSurface to ai-insights on popstate ?focus=ai when previously on bi-viz", () => {
+        // Symmetric with the bi-viz popstate case. Without this, focus=ai
+        // would maximize the AI pane while data-active-surface still reads
+        // bi-viz — a telemetry lie. Start on bi-viz so the symmetric path
+        // is exercised.
+        window.localStorage.setItem("pulseplay:active-surface", "bi-viz");
+        const state = mountApp();
+        let shell = state.container.querySelector(viewportControlShellSelector);
+        expect(shell?.getAttribute("data-active-surface")).toBe("bi-viz");
+
+        setLocation("?focus=ai");
+        act(() => { window.dispatchEvent(new PopStateEvent("popstate")); });
+        shell = state.container.querySelector(viewportControlShellSelector);
+        expect(shell?.getAttribute("data-viewport-focus")).toBe("ai");
+        expect(shell?.getAttribute("data-active-surface")).toBe("ai-insights");
+
         unmount(state);
     });
 

@@ -609,7 +609,18 @@ function PlaygroundApp(): React.ReactElement {
     const applyViewportFocus = useCallback((next: ViewportFocus) => {
         setFocusedPane(next);
         writeViewportFocusToUrl(next);
-    }, []);
+        // Keep activeSurface in sync with the focused pane so `data-active-surface`,
+        // telemetry, and surface restore semantics never drift from what's visible.
+        // Focus = "bi" → the maximized pane IS the dashboard surface.
+        // Focus = "ai" + current surface is bi-viz → land on AI Insights (the
+        // only AI-pane surface that's always valid). If the user was already
+        // on an AI-pane surface (ai-insights / ask-pulse), leave it alone.
+        if (next === "bi") {
+            persistActiveSurface("bi-viz", { writeUrl: false });
+        } else if (next === "ai" && activeSurface === "bi-viz") {
+            persistActiveSurface("ai-insights", { writeUrl: false });
+        }
+    }, [activeSurface, persistActiveSurface]);
 
     const handleViewportRestore = useCallback(() => {
         applyViewportFocus(null);
@@ -790,6 +801,15 @@ function PlaygroundApp(): React.ReactElement {
                 persistActiveSurface(surfaceFromUrl, { writeUrl: false });
             } else if (nextFocus === "bi") {
                 persistActiveSurface("bi-viz", { writeUrl: false });
+            } else if (nextFocus === "ai") {
+                // Symmetric with focus=bi: when the user pops back to a URL
+                // that focuses AI without a surface= param, ensure activeSurface
+                // reflects an AI-pane surface. Read from storage (not closure)
+                // to dodge stale-closure issues — persistActiveSurface is stable
+                // so this effect doesn't tear down per activeSurface change.
+                if (readStoredActiveSurface() === "bi-viz") {
+                    persistActiveSurface("ai-insights", { writeUrl: false });
+                }
             }
         };
         window.addEventListener("popstate", handler);
