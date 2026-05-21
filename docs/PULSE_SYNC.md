@@ -1,8 +1,38 @@
-# PulsePlay / Pulse PBI Sync Ledger
+# PulsePlay Ecosystem Sync Ledger
 
-> Lightweight copy-port discipline. This is not a shared package and not hard enforcement. It makes drift visible.
+> Lightweight cascade discipline for PulsePlay, Pulse PBI, and the future desktop EXE. This is not a shared package and not hard enforcement. It makes drift visible before it becomes architectural debt.
 
-## Rules
+## Rule
+
+Every meaningful PulsePlay change must answer two questions before merge:
+
+1. **Does this affect Pulse PBI?**
+2. **Does this affect the future desktop EXE?**
+
+The answer can be `N/A`, but it must be deliberate.
+
+## Cascade Classes
+
+| Class | Meaning | Required action |
+|---|---|---|
+| Shared proxy contract | Proxy route, result envelope, governance, audit, source-ref, auth, or client compatibility behavior changes | Update proxy docs/tests; assess Pulse PBI + desktop impact; prefer backward-compatible fields |
+| Portable module | Pure code safe to copy-port: no DOM, React, browser APIs, fetch, vendor SDK, or CSS imports | Add `sibling-sync` label, update this ledger, copy-port or queue Pulse PBI patch |
+| Host-specific UI | PulsePlay shell, Settings, layout, browser-only UX | Record Pulse PBI = N/A unless a shared contract/type changed; record desktop impact if the UI will appear in EXE |
+| Desktop packaging | Local app server/proxy, encrypted data folder, browser launch, recon disclaimer, portable cache | Update future EXE notes/tests; Pulse PBI usually N/A |
+| Documentation only | ADRs, guides, plans | Record if the doc changes ecosystem rules; otherwise N/A |
+
+## PR Checklist Contract
+
+Every PR description should include:
+
+```text
+Pulse PBI impact: N/A | queued | done | automatic via proxy | not affected because <reason>
+Desktop EXE impact: N/A | queued | done | future DX consideration | not affected because <reason>
+```
+
+Use `queued` or `done` instead of `N/A` when the change affects copy-portable modules or future desktop behavior.
+
+## Pulse PBI Copy-Port Rules
 
 Changes to portable modules require:
 
@@ -12,6 +42,20 @@ Changes to portable modules require:
 4. The sibling repo takes the patch on its own cadence.
 
 If Pulse PBI improves the same logic first, use the same flow in reverse and update this ledger when PulsePlay catches up.
+
+## Pulse PBI Constraint Boundary
+
+Pulse PBI is part of the ecosystem, but it is still a Power BI custom visual. It runs as a guest inside the Power BI report iframe/sandbox and keeps those limitations.
+
+Respect these boundaries:
+
+- Do copy-port pure modules and shape contracts when they are sandbox-safe.
+- Do let Pulse PBI benefit from shared proxy response fields, governance attestation, source refs, and audit vocabulary.
+- Do not assume Pulse PBI can use PulsePlay browser capabilities such as normal `fetch`, SSE/NDJSON streaming, Web Workers, Service Workers, large lazy-loaded chunks, unrestricted storage, popups, or top-level window APIs.
+- Do not move PulsePlay-native UI or desktop runtime assumptions into Pulse PBI.
+- Do not weaken PulsePlay because Pulse PBI cannot support a capability. Use capability-aware routes/adapters instead.
+
+The right shape is shared backend truth and portable pure contracts, with host-specific runtime adapters.
 
 ## Portable Tiers
 
@@ -38,11 +82,24 @@ Zero-runtime or type-only contracts both projects should respect.
 
 ### Tier 3 - Proxy Upgrades
 
-Pulse PBI gets these fields automatically when it calls the shared proxy.
+Pulse PBI and the future desktop EXE get these fields automatically when they call the shared proxy contract. Desktop may bundle the proxy physically, but it still uses the same proxy logic and response shapes.
 
 | Upgrade | Source | Owner side | Version | Last synced commit | Sibling status |
 |---|---|---:|---:|---|---|
 | Every renderable backend path emits `governance.enforced` | proxy routes and tests | PulsePlay proxy | queued | N/A | automatic payload benefit after G3 |
+| Client identity headers (`X-Pulse-Client`, version, request id) | proxy request/audit contract | PulsePlay proxy | queued | N/A | PX1 queued; applies to Pulse PBI + desktop |
+
+### Tier 3.5 - Desktop EXE Cascade
+
+These changes are not copy-ported to Pulse PBI, but they must be assessed for the desktop artifact once DX1 starts.
+
+| Area | PulsePlay source | Desktop consequence | Version | Last synced commit | Status |
+|---|---|---|---:|---|---|
+| Proxy routes and connector clients | `proxy/` | Bundled proxy must keep same behavior; no lite proxy fork | queued | N/A | PX1/G3 first |
+| Static app build | `playground/` | EXE serves built app through inbuilt local app server | queued | N/A | DX1 future |
+| Settings and first-run setup | `playground/src/settings/`, `playground/src/components/FirstRunWizard.tsx` | EXE uses same setup UX with recon disclaimer and local encrypted persistence | queued | N/A | UX/DX future |
+| Local persistence model | future `desktop/` plus Settings stores | Sensitive local state moves to encrypted colocated `PulsePlayData/` where needed | queued | N/A | DX2 future |
+| Browser launch | future `desktop/` | Prefer Chrome incognito, then Edge InPrivate, Firefox private, Brave, then default-browser fallback | queued | N/A | DX1 future |
 
 ### Tier 4 - Host-Specific
 
@@ -53,6 +110,7 @@ Do not copy-port as-is.
 | `bi-adapters/native/NativeCanvas.tsx` | React + PulsePlay host + ECharts runtime |
 | `bi-adapters/native/nativeCapabilities.ts` | PulsePlay BI adapter capability surface; Pulse PBI has different constraints |
 | PulsePlay layout/preset state | Top-level browser app; Pulse PBI lives inside Power BI Desktop visual sandbox |
+| Desktop EXE launcher/runtime | Tauri/local-process/browser-launch concerns; not relevant to Pulse PBI |
 
 ## Copy-Port Checklist
 
@@ -62,13 +120,23 @@ Do not copy-port as-is.
 - Record intentional differences in the sibling PR.
 - Update the changelog below.
 
+## Desktop Cascade Checklist
+
+Use this checklist for any change that future desktop EXE users would experience or depend on:
+
+- Does it require a deployed proxy instead of the inbuilt bundled proxy? If yes, redesign or mark explicitly unsupported for EXE.
+- Does it persist sensitive data in browser localStorage/sessionStorage? If yes, decide whether DX2 must migrate it to encrypted `PulsePlayData/`.
+- Does it assume multi-user hosting, public callback URLs, or admin-managed secrets? If yes, add an EXE-specific setup/readiness state.
+- Does it change proxy routes, result envelopes, auth, governance, or audit? If yes, mark Desktop EXE impact as `queued` until the bundled proxy path is updated/tested.
+- Does it add a browser feature that may behave differently in private/incognito mode? If yes, add a DX smoke note.
+
 ## Changelog
 
 | Module | Version | Change | Sibling status |
 |---|---:|---|---|
 | sync-ledger | 0.1 | Created sync ledger for native adapter G0. | N/A |
+| sync-ledger | 0.2 | Expanded ledger from Pulse PBI-only copy-porting to ecosystem cascade tracking for Pulse PBI and future desktop EXE. | Pulse PBI + desktop checklist active |
 
 ## Product Sync
 
-This ledger covers code and shape contracts only. Feature-level drift, such as one project shipping a new insight section type before the other, is a roadmap coordination problem. Do not solve that with packaging in v0.x.
-
+This ledger covers code, shape contracts, proxy behavior, and desktop impact classification. Feature-level drift, such as one project shipping a new insight section type before the other, is still a roadmap coordination problem. Do not solve that with packaging in v0.x.

@@ -29,6 +29,7 @@
 | Roadmap tracks | [ROADMAP.md](ROADMAP.md) |
 | Settings IA and guardrails | [SETTINGS_SPEC.md](SETTINGS_SPEC.md) |
 | Settings author/viewer UX scan | [SETTINGS_AUTHOR_VIEWER_UX_SCAN.md](SETTINGS_AUTHOR_VIEWER_UX_SCAN.md) |
+| Pulse PBI + desktop EXE cascade rules | [PULSE_SYNC.md](PULSE_SYNC.md) |
 | Knowledge plane | [KNOWLEDGE_BASE_ARCHITECTURE.md](KNOWLEDGE_BASE_ARCHITECTURE.md) |
 | Packs | [PACKS.md](PACKS.md) and [../pulsepacks/PACK_SPECIFICATION.md](../pulsepacks/PACK_SPECIFICATION.md) |
 

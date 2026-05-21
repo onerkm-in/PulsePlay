@@ -5,6 +5,22 @@
 
 ---
 
+## 2026-05-21 - ECO1 ecosystem cascade checklist
+
+**Scope.** Expanded [PULSE_SYNC.md](PULSE_SYNC.md) from a Pulse PBI-only copy-port ledger into an ecosystem cascade ledger for PulsePlay, Pulse PBI, and the future desktop EXE. Updated [.github/pull_request_template.md](../.github/pull_request_template.md) so every PR must state Pulse PBI impact and Desktop EXE impact. Docs/process only; no runtime code.
+
+**Rule.** Every meaningful PulsePlay change must answer: "Does this affect Pulse PBI?" and "Does this affect the future desktop EXE?" `N/A` is allowed, but it must be deliberate. Non-`N/A` answers should be `queued`, `done`, `automatic via proxy`, or `future DX consideration`, with the ledger updated.
+
+**Cascade model.** The ledger now distinguishes shared proxy contracts, portable modules, host-specific UI, desktop packaging, and documentation-only changes. Proxy/result/governance/audit/source-ref changes are treated as ecosystem-sensitive because they flow to Pulse PBI and the bundled desktop proxy. Settings/first-run/local-persistence/browser-runtime changes are assessed for EXE impact even before DX1 exists.
+
+**Pulse PBI boundary.** The ledger explicitly preserves Pulse PBI's host constraints: it is still a Power BI custom visual running as a guest inside the Power BI report iframe/sandbox. It can share pure modules, serializable contracts, proxy response fields, governance attestation, source refs, and audit vocabulary. It must not be assumed to support PulsePlay browser/desktop capabilities such as normal fetch, SSE/NDJSON streaming, Web Workers, Service Workers, unrestricted storage, popups, or top-level window APIs.
+
+**Desktop checklist.** Added checks for: no deployed-proxy dependency in EXE, sensitive local persistence needing future encrypted `PulsePlayData/`, multi-user/public-callback assumptions that need EXE states, proxy envelope changes that must be queued for the bundled proxy, and private/incognito browser behavior.
+
+**Validation.** Docs-only change. Run `git diff --check` before closing. No runtime tests required.
+
+---
+
 ## 2026-05-21 - BX0 artifact strategy ADR
 
 **Scope.** Added [ADR-0010 - PulsePlay Ecosystem Artifact Strategy](adr/0010-artifact-strategy.md). Docs-only slice. No runtime desktop code, no PBIVIZ build lane code, no source movement, and no `apps/` / `packages/` refactor.
