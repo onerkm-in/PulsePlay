@@ -93,15 +93,17 @@ Pulse PBI and the future desktop EXE get these fields automatically when they ca
 
 ### Tier 3.5 - Desktop EXE Cascade
 
-These changes are not copy-ported to Pulse PBI, but they must be assessed for the desktop artifact once DX1 starts.
+These changes are not copy-ported to Pulse PBI, but they must be assessed for the desktop artifact once DX1 starts. **DX1a (2026-05-21) published the launcher/runtime contract** at [`docs/DX1_LAUNCHER_CONTRACT.md`](DX1_LAUNCHER_CONTRACT.md); rows below reference it where the contract is now the source of truth.
 
 | Area | PulsePlay source | Desktop consequence | Version | Last synced commit | Status |
 |---|---|---|---:|---|---|
-| Proxy routes and connector clients | `proxy/` | Bundled proxy must keep same behavior; no lite proxy fork | queued | N/A | PX1/G3 first |
-| Static app build | `playground/` | Packaged launcher serves the built React app through an inbuilt local app server | queued | N/A | DX1 future |
-| Settings and first-run setup | `playground/src/settings/`, `playground/src/components/FirstRunWizard.tsx` | EXE uses same setup UX with recon disclaimer and runtime-backed persistence; G5 `biSurfaceMode` must smoke `auto` with no embed config under bundled proxy/private browser | 0.1 | G5 | Author switch shipped in PulsePlay; DX smoke queued |
-| Local persistence model | future `desktop/` plus Settings stores | Private-browser storage is session-scoped; durable Save Changes writes go through local runtime endpoints into colocated `PulsePlayData/` with encryption/redaction hardened in DX2 | queued | N/A | DX1/DX2 future |
-| Browser launch | future `desktop/` | Prefer Chrome incognito, then Edge InPrivate, Firefox private, Brave, then default-browser fallback | queued | N/A | DX1 future |
+| Proxy routes and connector clients | `proxy/` | Bundled proxy must keep same behavior; no lite proxy fork (contract §3, §15) | 0.1 (DX1a) | DX1a | DX1a contract locks the byte-for-byte rule; bundled-proxy wiring queued for DX1b |
+| Static app build | `playground/` | Packaged launcher serves the built React app via the in-bundle app server with the `/api → proxy` rewrite mirrored from `vite.config.ts` (contract §3, §7) | 0.1 (DX1a) | DX1a | Contract locked; DX1b implements the app server under `enablers/desktop/runtime/` |
+| Settings and first-run setup | `playground/src/settings/`, `playground/src/components/FirstRunWizard.tsx` | EXE Save Bar routes through `/runtime/state` instead of `localStorage` in EXE mode (contract §8, §17); recon disclaimer surfaced in Settings → System and first-launch; G5 `biSurfaceMode` must smoke `auto` with no embed config under bundled proxy/private browser | 0.1 (DX1a) | DX1a | Contract locked; `desktopRuntimeClient` routing queued for DX1b |
+| Local persistence model | future `enablers/desktop/` plus Settings stores | `PulsePlayData/` directory layout locked: `config.json` / `secrets.{enc,json}` / `profiles/<name>/{state.json,packs,cache}` / `logs/` / `runtime/lock.json` (contract §9). Atomic write-tmp-then-rename. DX1b ships plaintext `secrets.json` with in-app warning chip; DX2 encrypts | 0.1 (DX1a) | DX1a | Contract locked; persistence I/O queued for DX1b, encryption queued for DX2 |
+| Browser launch | future `enablers/desktop/` | Preference matrix Chrome incognito → Edge InPrivate → Firefox private → Brave → default-with-warning per OS, with `launch.log` audit line per attempt (contract §6) | 0.1 (DX1a) | DX1a | Contract locked; launcher implementation queued for DX1b |
+| Launch token | future `enablers/desktop/` | 256-bit per-session token in URL fragment only (never query, never cookie, never disk); React app moves to `sessionStorage` and validates via `X-PulsePlay-Launch-Token` header on `/runtime/*` (contract §5) | 0.1 (DX1a) | DX1a | Contract locked; token plumbing queued for DX1b |
+| Lifecycle / shutdown | future `enablers/desktop/` | 15s client heartbeat; 45s server timeout triggers SIGTERM + lock-file clear; explicit `/runtime/quit` from Settings → System; OS signal handlers for console-close (contract §10) | 0.1 (DX1a) | DX1a | Contract locked; watchdog queued for DX1b |
 
 ### Tier 4 - Host-Specific
 
@@ -148,6 +150,7 @@ Use this checklist for any change that future desktop EXE users would experience
 | native-fusion-lite | 0.1 (G6) | PulsePlay host-specific native T2 fusion-lite: NativeCanvas docks AI commentary beside chart/KPI/table bodies when an attested envelope has renderable rows plus an answer, with all wrappers bound by `data-result-id`. | Pulse PBI N/A (vendor T2 handled by custom visual); desktop inherits through future app bundle and needs DX smoke |
 | integrity-sweep | 0.1 | 2026-05-21 multi-agent sweep fixed admin auth-mode parity, SQL preview CTE validation, governance registry override protection, streaming error redaction, Quick Setup mountable embed configs, and Pulse PBI CI lint/unit coverage. | Pulse PBI gets CI coverage now; PB1a later closed shared-proxy adoption |
 | pulse-pbi-shared-proxy | 0.1 (PB1a) | Pulse PBI enabler proxy mode now targets the repo-root PulsePlay proxy contract (`/assistant/capabilities`, `/assistant/conversations/*`, `/feedback`) and sends `X-Pulse-Client: pulse-pbi` plus optional profile/shared-key headers. Production hosted proxy origins must be added to `capabilities.json` `WebAccess` before packaging. | Pulse PBI done; desktop will inherit the same PX1 route discipline through DX1 bundled proxy work |
+| launcher-contract | 0.1 (DX1a) | Published `docs/DX1_LAUNCHER_CONTRACT.md` — 18-section canonical contract for the packaged desktop EXE: five-step user flow, bundled-app-server + bundled-proxy process model, ephemeral `127.0.0.1` port discovery, 256-bit launch token in URL fragment, browser launch matrix, `/api → proxy` rewrite parity with `vite.config.ts`, `/runtime/*` Save Changes endpoint surface, `PulsePlayData/` directory layout, 15s/45s heartbeat shutdown, threat model and recon-disclaimer UX lock, logging/redaction model, implementation-choice criteria (Node `pkg`/`nexe` default, PowerShell second, Tauri only as fallback), DX1b acceptance signal. Enabler skeleton at `enablers/desktop/README.md`. Doc-only slice; runtime code arrives in DX1b. | Pulse PBI N/A; DX1b implementation queued |
 
 ## Product Sync
 

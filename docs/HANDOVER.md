@@ -5,6 +5,44 @@
 
 ---
 
+## 2026-05-21 - DX1a launcher contract spec
+
+**Scope.** First slice of DX1 following Rajesh's lock the same day. **Doc-only**, matching the G0 pattern (architecture lock first, runtime in the next slice). Locks the contract a future DX1b implementation must satisfy so the next cycle can ship against a written target rather than a one-paragraph intent.
+
+**Code changes.**
+
+- New [`docs/DX1_LAUNCHER_CONTRACT.md`](DX1_LAUNCHER_CONTRACT.md) — 18-section canonical contract. Sections: purpose, five-step user flow, two-child-process model, port discovery (ephemeral `127.0.0.1`, no `0.0.0.0`), 256-bit launch token in URL fragment (not query, not cookie), browser launch matrix (Chrome incognito → Edge InPrivate → Firefox private → Brave → default with warning), same-origin `/api → proxy` rewrite mirrored from `playground/vite.config.ts`, `/runtime/*` Save Changes endpoint surface (`/runtime/state`, `/runtime/profile/active`, `/runtime/profiles`, `/runtime/profile`, `/runtime/profile/<name>`, `/runtime/secrets`, `/runtime/logs/recent`, `/runtime/version`, `/runtime/heartbeat`, `/runtime/quit`), `PulsePlayData/` directory layout, 15s-heartbeat / 45s-timeout shutdown plus Settings → System "Quit" path, threat model (token never persisted, browser fragment scheme, `Host:` loopback enforcement, secrets in plaintext for DX1b with in-app warning chip until DX2 encrypts), logging + redaction model, Windows-first cross-platform stance, out-of-scope list (DX2 encryption / DX3 tray / Electron rejection), implementation-choice criteria for DX1b (Node `pkg`/`nexe` default, PowerShell + bundled `node.exe` second, Tauri only as fallback), acceptance signal for DX1b (fresh Win11 machine → double-click → private browser → Save Changes survives full quit + relaunch), six tripwires, five open questions for DX1b's first commit.
+- New [`enablers/desktop/README.md`](../enablers/desktop/README.md) — enabler-folder intro mirroring `enablers/pulse-pbi/README.md`'s convention. Status table (DX1a shipped → DX1b/c/d queued → DX2/DX3 deferred), one-paragraph runtime summary, recon-disclaimer callout, what-NOT-to-do list. Explicit "no runtime code yet" callout.
+- [`docs/AGENDA.md`](AGENDA.md) — DX1 line replaced with three lines: `[x] DX1a` (this slice, shipped), `[ ] DX1b` (Node launcher proof + Windows packaging, ~2-2.5 days), `[ ] DX1c` (packaging hardening + DX1d acceptance smoke, ~0.5-1 day).
+- [`docs/PULSE_SYNC.md`](PULSE_SYNC.md) — Tier 3.5 Desktop EXE Cascade rows updated to reference the published contract instead of "queued / N/A"; new `launcher-contract` changelog row at version `0.1 (DX1a)`.
+
+**Why doc-only.** Rajesh's "design-first then ship" pattern (collaboration session 63) and the G0 precedent: when the architecture is non-trivial, lock the contract in writing before any code. DX1 is the largest queued item (~3 days originally); slicing it into a contract lock + a Node proof + packaging + smoke keeps each PR independently shippable and reviewable.
+
+**Validation.**
+
+| Check | Result |
+|---|---|
+| `git diff --check` | clean (only CRLF notices) |
+| Markdown link sanity (relative paths walk) | manual walk-through OK |
+| Existing tests | untouched — pure docs slice |
+
+**Honest non-claims.**
+
+- No launcher code. No app server. No packaging. DX1b ships all of those against this contract.
+- Heartbeat / shutdown semantics are designed but not exercised; private-browser background-tab throttling may force a DX1b tweak. The 15s/45s pair was chosen conservatively (survives 2 missed beats) but is a contract knob, not a permanent constant.
+- The recon-disclaimer UX is specified but not wired (it lives in the React app, which doesn't yet detect EXE mode — DX1b adds the `desktopRuntimeClient` that surfaces `X-Pulse-Client: pulseplay-desktop` to the UI layer).
+- The five "open questions" in §18 are intentionally open. DX1b's first commit resolves them.
+
+**Tripwires.**
+
+- The contract requires the React app's Settings Save Bar to **route through `/runtime/state` in EXE mode** instead of `localStorage`. The current playground writes directly to `localStorage`. DX1b adds the routing layer; do not assume the current Save Bar code "just works" inside the packaged EXE.
+- `pulseClientContext.js` already normalizes `pulseplay-desktop`. Do not invent a new client-identity string in DX1b.
+- The proxy is bundled byte-for-byte; the launcher does not fork `proxy/server.js`. Any "desktop-only" connector tweak is a change to `proxy/` with the standard PULSE_SYNC cascade rules.
+
+**Next.** DX1b — Node launcher proof + Windows packaging. First commit picks the packaging tool (default `pkg`) and lays down `enablers/desktop/runtime/app-server.mjs` + the `desktopRuntimeClient` wiring in `playground/src/`.
+
+---
+
 ## 2026-05-21 - DX1 direction lock: launcher-first desktop proof
 
 **Decision.** DX1 is no longer "Tauri-first." The desktop artifact is a packaged local runtime / launcher for the existing PulsePlay web app, not a second native desktop UI. User flow: double-click EXE -> start bundled static app server + bundled proxy on random loopback ports -> generate one-time launch token -> open the same React app in a new private/incognito browser window.
