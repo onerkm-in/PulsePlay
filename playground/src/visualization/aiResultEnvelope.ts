@@ -5,6 +5,7 @@
 // native rendering, PulsePlay workbench, or the Pulse PBI sibling.
 
 import { isDatabricksSourceRef, type DatabricksSourceRef } from "./sourceRef";
+import { isGovernanceAttestation, type GovernanceAttestation } from "./governance";
 
 export type AIResultCell = string | number | boolean | null;
 
@@ -25,11 +26,18 @@ export interface AIResultEnvelope {
     readonly structuredInsight?: Readonly<Record<string, unknown>>;
     readonly sourceRef?: DatabricksSourceRef;
     /**
-     * G3 narrows this to GovernanceAttestation and makes production rendering
-     * fail closed when `enforced !== true`. G2 keeps it opaque so the pure
-     * visualization pipeline can land before proxy attestation does.
+     * G3a narrowed this from `unknown` to the typed `GovernanceAttestation`.
+     * The field stays OPTIONAL in the type system — production fail-closed
+     * policy ("missing attestation in production blocks render") lives in
+     * the native adapter / render gate (queued for G3d), not in this guard.
+     *
+     * The envelope guard `isAIResultEnvelope` only validates SHAPE: if
+     * `governance` is present it must structurally satisfy
+     * `isGovernanceAttestation`; if absent the envelope is still valid.
+     * Deployments enforce policy at the renderer layer where they have
+     * NODE_ENV / config context.
      */
-    readonly governance?: unknown;
+    readonly governance?: GovernanceAttestation;
     readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
@@ -62,6 +70,9 @@ export function isAIResultEnvelope(value: unknown): value is AIResultEnvelope {
     if (value.structuredInsight !== undefined && !isPlainObject(value.structuredInsight)) return false;
     if (value.metadata !== undefined && !isPlainObject(value.metadata)) return false;
     if (value.sourceRef !== undefined && !isDatabricksSourceRef(value.sourceRef)) return false;
+    // G3a — validate governance shape if present; do NOT require it. Production
+    // fail-closed policy applies at the renderer, not this guard.
+    if (value.governance !== undefined && !isGovernanceAttestation(value.governance)) return false;
     if (value.schema !== undefined) {
         if (!Array.isArray(value.schema)) return false;
         if (!value.schema.every(isColumn)) return false;

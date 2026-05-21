@@ -26,7 +26,15 @@ const sampleEnvelope: AIResultEnvelope = {
         displayName: "Category sales",
         governance: { requiresAttestation: true },
     },
-    governance: { queuedForG3: true },
+    // G3a narrowed envelope.governance to GovernanceAttestation. The old
+    // G2-era placeholder `{ queuedForG3: true }` no longer satisfies the
+    // shape; use a real attestation fixture so the guard accepts it.
+    governance: {
+        enforced: true,
+        authority: "unity-catalog",
+        subjectRef: "user-fixture",
+        requestId: "fixture-req-1",
+    },
     metadata: { connector: "genie" },
 };
 
