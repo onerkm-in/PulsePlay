@@ -9,6 +9,10 @@ import type {
 } from "../../playground/src/biPanel/BIAdapter";
 import { BI_ERR } from "../../playground/src/biPanel/BIAdapter";
 import {
+    isGovernanceAttestation,
+    type GovernanceAttestation,
+} from "../../playground/src/visualization/governance";
+import {
     NATIVE_BI_CAPABILITIES,
     NATIVE_RENDERER_CAPABILITIES,
 } from "./nativeCapabilities";
@@ -20,17 +24,45 @@ import {
 } from "./nativeCommands";
 import type { NativeEvent, NativeEventHandler, NativeEventType } from "./nativeEvents";
 
-type NativeRenderStatus = "empty" | "result-accepted" | "spec-accepted";
+type NativeRenderStatus = "empty" | "result-accepted" | "spec-accepted" | "result-blocked" | "ungoverned-result-preview";
+type NativeGovernanceState =
+    | { state: "not-applicable" }
+    | { state: "enforced"; authority: GovernanceAttestation["authority"]; requestId: string }
+    | { state: "preview"; reason: "no-governance-attestation" }
+    | { state: "blocked"; reason: "no-governance-attestation" };
+
+export interface NativeBIAdapterOptions {
+    readonly requireGovernanceAttestation?: boolean;
+}
+
+function defaultRequireGovernanceAttestation(): boolean {
+    const env = (import.meta as unknown as { env?: Record<string, unknown> }).env || {};
+    return env.PROD === true
+        || env.MODE === "production"
+        || env.VITE_PULSEPLAY_REQUIRE_GOVERNANCE === "true";
+}
+
+function governanceFromResult(result: unknown): GovernanceAttestation | null {
+    if (!result || typeof result !== "object") return null;
+    const governance = (result as { governance?: unknown }).governance;
+    return isGovernanceAttestation(governance) ? governance : null;
+}
 
 export class NativeBIAdapter implements BIAdapter {
     readonly vendor = "native";
     readonly displayName = "Native result canvas";
 
+    private readonly requireGovernanceAttestation: boolean;
     private containerEl: HTMLElement | null = null;
     private rootEl: HTMLElement | null = null;
     private statusEl: HTMLElement | null = null;
     private listeners = new Map<NativeEventType, Set<NativeEventHandler>>();
     private renderStatus: NativeRenderStatus = "empty";
+    private governanceState: NativeGovernanceState = { state: "not-applicable" };
+
+    constructor(options: NativeBIAdapterOptions = {}) {
+        this.requireGovernanceAttestation = options.requireGovernanceAttestation ?? defaultRequireGovernanceAttestation();
+    }
 
     capabilities(): BICapabilities {
         return { ...NATIVE_BI_CAPABILITIES };
@@ -84,6 +116,8 @@ export class NativeBIAdapter implements BIAdapter {
         this.rootEl = root;
         this.statusEl = status;
         this.renderStatus = "empty";
+        this.governanceState = { state: "not-applicable" };
+        root.removeAttribute("data-native-governance");
 
         this.emit({ type: "loaded", payload: { mode: "native", status: this.renderStatus } });
         this.emit({ type: "ready", payload: { mode: "native", capabilities: NATIVE_RENDERER_CAPABILITIES } });
@@ -134,6 +168,7 @@ export class NativeBIAdapter implements BIAdapter {
         this.rootEl = null;
         this.statusEl = null;
         this.renderStatus = "empty";
+        this.governanceState = { state: "not-applicable" };
     }
 
     async getMetadata(): Promise<BIMetadata | null> {
@@ -149,24 +184,26 @@ export class NativeBIAdapter implements BIAdapter {
     private handleRendererCommand(command: NativeRendererCommand): void {
         switch (command.kind) {
             case "renderResult":
-                this.renderStatus = "result-accepted";
-                this.setStatus("AI result accepted.");
-                this.emitRendered("result");
+                this.acceptResult(command.result);
                 return;
             case "renderSpec":
                 this.renderStatus = "spec-accepted";
+                this.governanceState = { state: "not-applicable" };
+                this.rootEl?.removeAttribute("data-native-governance");
                 this.setStatus("Chart render spec accepted.");
                 this.emitRendered("spec");
                 return;
             case "clear":
                 this.renderStatus = "empty";
+                this.governanceState = { state: "not-applicable" };
+                this.rootEl?.removeAttribute("data-native-governance");
                 this.setStatus("Ask Pulse a question to render the AI result here.");
                 this.statusEl?.setAttribute("data-native-bi-status", "empty");
-                this.emit({ type: "view-context", payload: { status: this.renderStatus } });
+                this.emit({ type: "view-context", payload: { status: this.renderStatus, governance: this.governanceState } });
                 return;
             case "setTheme":
                 if (command.theme) this.rootEl?.setAttribute("data-native-theme", command.theme);
-                this.emit({ type: "view-context", payload: { status: this.renderStatus, theme: command.theme ?? null } });
+                this.emit({ type: "view-context", payload: { status: this.renderStatus, theme: command.theme ?? null, governance: this.governanceState } });
                 return;
             case "resize":
                 this.emit({
@@ -175,10 +212,55 @@ export class NativeBIAdapter implements BIAdapter {
                         status: this.renderStatus,
                         width: command.width ?? null,
                         height: command.height ?? null,
+                        governance: this.governanceState,
                     },
                 });
                 return;
         }
+    }
+
+    private acceptResult(result: unknown): void {
+        const attestation = governanceFromResult(result);
+        if (!attestation && this.requireGovernanceAttestation) {
+            this.renderStatus = "result-blocked";
+            this.governanceState = { state: "blocked", reason: "no-governance-attestation" };
+            this.rootEl?.setAttribute("data-native-governance", "blocked");
+            this.setStatus("Governance attestation missing or invalid. Native render blocked.");
+            const payload = {
+                mode: "native",
+                status: this.renderStatus,
+                source: "result" as const,
+                governance: this.governanceState,
+            };
+            this.emit({
+                type: "error",
+                payload: {
+                    code: "NATIVE_GOVERNANCE_REQUIRED",
+                    reason: "no-governance-attestation",
+                },
+            });
+            this.emit({ type: "view-context", payload });
+            throw new Error("NATIVE_GOVERNANCE_REQUIRED: native adapter requires proxy governance attestation");
+        }
+
+        if (!attestation) {
+            this.renderStatus = "ungoverned-result-preview";
+            this.governanceState = { state: "preview", reason: "no-governance-attestation" };
+            this.rootEl?.setAttribute("data-native-governance", "preview");
+            this.setStatus("AI result accepted. Ungoverned result preview (DEV ONLY).");
+            this.emitRendered("result");
+            return;
+        }
+
+        this.renderStatus = "result-accepted";
+        this.governanceState = {
+            state: "enforced",
+            authority: attestation.authority,
+            requestId: attestation.requestId,
+        };
+        this.rootEl?.setAttribute("data-native-governance", "enforced");
+        this.setStatus("AI result accepted.");
+        this.emitRendered("result");
     }
 
     private setStatus(text: string): void {
@@ -188,7 +270,7 @@ export class NativeBIAdapter implements BIAdapter {
     }
 
     private emitRendered(source: "result" | "spec"): void {
-        const payload = { mode: "native", status: this.renderStatus, source };
+        const payload = { mode: "native", status: this.renderStatus, source, governance: this.governanceState };
         this.emit({ type: "rendered", payload });
         this.emit({ type: "view-context", payload });
     }

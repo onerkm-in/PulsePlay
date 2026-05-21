@@ -1,4 +1,4 @@
-export { NativeBIAdapter } from "./NativeBIAdapter";
+export { NativeBIAdapter, type NativeBIAdapterOptions } from "./NativeBIAdapter";
 export {
     NATIVE_BI_CAPABILITIES,
     NATIVE_RENDERER_CAPABILITIES,
@@ -20,4 +20,3 @@ export {
     type NativeEventHandler,
     type NativeEventType,
 } from "./nativeEvents";
-

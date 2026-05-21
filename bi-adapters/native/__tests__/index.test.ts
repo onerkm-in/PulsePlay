@@ -18,6 +18,15 @@ import { BI_ERR } from "../../../playground/src/biPanel/BIAdapter";
 import { runAdapterConformance } from "../../../playground/src/biPanel/__conformance__/adapterConformance";
 
 const VALID_CONFIG: BIEmbedConfig = {};
+const VALID_GOVERNED_RESULT = Object.freeze({
+    rows: [],
+    governance: {
+        enforced: true,
+        authority: "unity-catalog",
+        subjectRef: "user:abc123def456",
+        requestId: "req-native-1",
+    },
+});
 
 runAdapterConformance("NativeBIAdapter", {
     factory: () => new NativeBIAdapter(),
@@ -184,6 +193,93 @@ describe("NativeBIAdapter — command surface", () => {
         await expect(adapter.send({ kind: "clear" })).resolves.toBeUndefined();
         expect(containerEl.textContent).toContain("Ask Pulse");
         expect(events.map(e => e.type)).toEqual(["rendered", "rendered"]);
+    });
+});
+
+describe("NativeBIAdapter — G3 governance render gate", () => {
+    let containerEl: HTMLElement;
+
+    beforeEach(() => {
+        containerEl = document.createElement("div");
+        document.body.appendChild(containerEl);
+    });
+
+    afterEach(() => {
+        if (containerEl.parentElement) containerEl.parentElement.removeChild(containerEl);
+    });
+
+    test("production mode blocks renderResult when governance is missing", async () => {
+        const adapter = new NativeBIAdapter({ requireGovernanceAttestation: true });
+        const events: NativeEvent[] = [];
+        adapter.on("error", e => events.push(e));
+        adapter.on("view-context", e => events.push(e));
+        await adapter.mount(containerEl, {});
+
+        await expect(adapter.send({ kind: "renderResult", result: { rows: [] } }))
+            .rejects.toThrow(/NATIVE_GOVERNANCE_REQUIRED/);
+
+        expect(containerEl.textContent).toContain("Native render blocked");
+        expect(containerEl.querySelector("[data-native-bi-adapter='true']")?.getAttribute("data-native-governance"))
+            .toBe("blocked");
+        expect(events.find(e => e.type === "error")?.payload).toMatchObject({
+            code: "NATIVE_GOVERNANCE_REQUIRED",
+            reason: "no-governance-attestation",
+        });
+        expect(events.find(e => e.type === "view-context")?.payload).toMatchObject({
+            status: "result-blocked",
+            governance: { state: "blocked", reason: "no-governance-attestation" },
+        });
+    });
+
+    test("production mode blocks renderResult when governance is invalid", async () => {
+        const adapter = new NativeBIAdapter({ requireGovernanceAttestation: true });
+        await adapter.mount(containerEl, {});
+
+        await expect(adapter.send({
+            kind: "renderResult",
+            result: { rows: [], governance: { enforced: false } },
+        })).rejects.toThrow(/NATIVE_GOVERNANCE_REQUIRED/);
+        expect(containerEl.textContent).toContain("Native render blocked");
+    });
+
+    test("production mode accepts renderResult when governance is attested", async () => {
+        const adapter = new NativeBIAdapter({ requireGovernanceAttestation: true });
+        const events: NativeEvent[] = [];
+        adapter.on("rendered", e => events.push(e));
+        await adapter.mount(containerEl, {});
+
+        await expect(adapter.send({ kind: "renderResult", result: VALID_GOVERNED_RESULT }))
+            .resolves.toBeUndefined();
+
+        expect(containerEl.textContent).toContain("AI result accepted");
+        expect(containerEl.querySelector("[data-native-bi-adapter='true']")?.getAttribute("data-native-governance"))
+            .toBe("enforced");
+        expect(events[0].payload).toMatchObject({
+            status: "result-accepted",
+            governance: {
+                state: "enforced",
+                authority: "unity-catalog",
+                requestId: "req-native-1",
+            },
+        });
+    });
+
+    test("dev mode allows missing governance only as an explicit preview state", async () => {
+        const adapter = new NativeBIAdapter({ requireGovernanceAttestation: false });
+        const events: NativeEvent[] = [];
+        adapter.on("rendered", e => events.push(e));
+        await adapter.mount(containerEl, {});
+
+        await expect(adapter.send({ kind: "renderResult", result: { rows: [] } }))
+            .resolves.toBeUndefined();
+
+        expect(containerEl.textContent).toContain("Ungoverned result preview");
+        expect(containerEl.querySelector("[data-native-bi-adapter='true']")?.getAttribute("data-native-governance"))
+            .toBe("preview");
+        expect(events[0].payload).toMatchObject({
+            status: "ungoverned-result-preview",
+            governance: { state: "preview", reason: "no-governance-attestation" },
+        });
     });
 });
 
