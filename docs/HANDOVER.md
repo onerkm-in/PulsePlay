@@ -5,6 +5,53 @@
 
 ---
 
+## 2026-05-21 - G3a governance contract + builder (route wiring G3b/G3c pending)
+
+**Scope.** **G3a contract/helper shipped; route wiring G3b/G3c pending; native fail-closed G3d pending.** This slice intentionally ships ONLY the type contract, the trust-boundary guard, and the proxy-side builder. No backend routes are wired yet. No native fail-closed render gate. Splitting the G3 work this way keeps each commit auditable and prevents half-shipped attestation coverage from creating a false sense of safety.
+
+**Frontend contract.** New [`playground/src/visualization/governance.ts`](../playground/src/visualization/governance.ts):
+- `GovernanceAttestation` interface — `enforced: true` literal required, `authority` from a 4-value allowlist (`unity-catalog`, `powerbi-semantic-model`, `warehouse`, `mock`), required `subjectRef` + `requestId`, optional `sourceRef` (typed via G2.5), `policyVersion`, `rowLimitApplied`, `columnPolicyApplied`, `cacheHit`, `costEstimate`.
+- `GOVERNANCE_AUTHORITIES` + `GOVERNANCE_COST_UNITS` frozen exports for exhaustive iteration.
+- `isGovernanceAttestation` — env-agnostic trust-boundary validator. Per the F5.1 lesson, the guard describes SHAPE only; production fail-closed policy lives at the renderer (G3d).
+
+**Proxy builder.** New [`proxy/lib/governance.js`](../proxy/lib/governance.js):
+- `buildGovernanceAttestation(input)` — the single sanctioned way for backend paths to stamp a response.
+- Always emits `enforced: true`; callers cannot override even by passing `enforced: false`.
+- Validates the authority allowlist strictly.
+- Sanitizes `subjectRef` + `requestId` + `policyVersion` through an allowlist regex (`[A-Za-z0-9._:+@/-]`), truncates to 200 chars, throws on empty result.
+- Validates `rowLimitApplied`, `columnPolicyApplied`, `cacheHit`, `costEstimate.{unit,value}` types and ranges.
+- **Forbids `authority: "mock"` when `NODE_ENV === "production"`** — throws with a clear error so dev/mock attestations can't leak into prod deployments.
+- Returns a frozen object; the nested `costEstimate` is also frozen.
+
+**Envelope narrowing.** [`AIResultEnvelope.governance`](../playground/src/visualization/aiResultEnvelope.ts) narrowed from `unknown` to optional `GovernanceAttestation`. `isAIResultEnvelope` validates `governance` shape when present but does NOT require it — the field stays optional in the type system. Updated the existing aiResultEnvelope fixture to use a valid attestation (the old `{ queuedForG3: true }` placeholder no longer satisfies the shape).
+
+**Browser cannot create attestations.** The frontend module only validates; it never constructs. The proxy builder is the only sanctioned producer. This is enforced by file location (proxy vs playground) and by the asymmetric API (no `buildGovernanceAttestation` exported from `governance.ts`).
+
+**Validation.**
+- Focused frontend governance tests: **49/49**.
+- Focused proxy governance tests: **45/45**.
+- Full playground suite: **1322/1322** (+49 from previous 1273).
+- Full proxy suite: **1122/1122** (+45 from previous 1077).
+- `playground npm run lint`: PASS.
+- `playground npm run build`: PASS (existing BI-adapter dynamic-import warnings only).
+- `proxy node --check`: PASS (Jest covered).
+- Browser smoke: NOT RUN.
+
+**What's NOT done in G3a.** Per the contract-only scope:
+- No proxy backend path is wired to emit attestation yet. G3b ships Genie path wiring; G3c ships the other 9 backend paths with a registry-driven coverage test.
+- Native adapter does not yet fail-closed on missing attestation. G3d adds the render gate plus a "DEV ONLY ungoverned-result-preview" badge for dev/mock mode.
+- `AIResultEnvelope.governance` is OPTIONAL in the type system. Production enforcement happens at the renderer, not at the envelope guard.
+
+**Tripwires for next session.**
+- Do NOT make `isAIResultEnvelope` env-aware. The envelope guard must stay pure and shape-only.
+- Do NOT make `governance` required in the type. Optional + renderer-enforced is the architecture; required-in-type would force every test fixture to fabricate attestations.
+- Any PR adding a proxy backend path must also wire `buildGovernanceAttestation` and add a per-path coverage test (G3c lands the registry-driven test that catches missed paths automatically).
+- Browser code MUST NOT import `proxy/lib/governance.js`. The asymmetry is load-bearing.
+
+**Next.** G3b (Genie path attestation wiring) is the smallest next step — single backend path, single coverage test. G3c follows for the remaining 9 paths. G3d wraps with the native fail-closed render gate.
+
+---
+
 ## 2026-05-21 - G2 pure visualization pipeline
 
 **Scope.** Added the first pure result-to-chart pipeline for the native renderer track. This generalizes the proven Pulse chart-pick behavior upstream into `playground/src/visualization/` so PulsePlay, the future native adapter, Pulse PBI copy-ports, and desktop EXE can share the same policy without a package layer. Commit `9ff892a`. No proxy code, no SQL execution, no native canvas runtime, and no browser storage.

@@ -76,10 +76,10 @@ Zero-runtime or type-only contracts both projects should respect.
 
 | Contract | Source | Owner side | Version | Last synced commit | Sibling status |
 |---|---|---:|---:|---|---|
-| AIResultEnvelope | `playground/src/visualization/aiResultEnvelope.ts` | PulsePlay | 0.1 | `9ff892a` | shipped 2026-05-21; includes `sourceRef?: DatabricksSourceRef`; governance remains opaque until G3 |
+| AIResultEnvelope | `playground/src/visualization/aiResultEnvelope.ts` | PulsePlay | 0.2 | G3a | shipped 2026-05-21; includes `sourceRef?: DatabricksSourceRef`; G3a narrowed `governance?: unknown` → `governance?: GovernanceAttestation` (optional in type; env-agnostic guard) |
 | ChartRenderSpec | `playground/src/visualization/chartSpecValidation.ts` | PulsePlay | 0.1 | `9ff892a` | shipped 2026-05-21; inline data only, external URLs rejected |
 | DatabricksSourceRef | `playground/src/visualization/sourceRef.ts` | PulsePlay | 0.1 | `4b818b2` | shipped 2026-05-21; pure module, copy-port safe; Pulse PBI adoption queued |
-| GovernanceAttestation | proxy response contract | PulsePlay proxy | queued | N/A | automatic fields after G3; fail-closed optional |
+| GovernanceAttestation | `playground/src/visualization/governance.ts` + `proxy/lib/governance.js` | PulsePlay (split) | 0.1 (G3a) | G3a | G3a shape + frontend guard + proxy builder shipped 2026-05-21; route wiring G3b/G3c pending; native fail-closed G3d pending. Frontend guard validates shape only and is env-agnostic; proxy builder forbids `authority: "mock"` when `NODE_ENV=production` |
 
 ### Tier 3 - Proxy Upgrades
 
@@ -140,6 +140,7 @@ Use this checklist for any change that future desktop EXE users would experience
 | proxy-client-contract | 0.1 | PX1 client identity headers, `/clients/compatibility`, response echo headers, and client-aware audit context. | Automatic via proxy; Pulse PBI/desktop adoption is header wiring only |
 | DatabricksSourceRef | 0.1 | G2.5 typed Databricks source-ref contract: discriminated union over genie-space, metric-view, uc-function, view, and table; per-kind type guards; `sourceRefDisplayLabel` formatter; table variant carries the `raw-table-bypasses-curated-views` warning at the type level. Pure module, no DOM/fetch/React. | Copy-port queued for Pulse PBI |
 | visualization-pipeline | 0.1 | G2 pure result-to-chart pipeline: `AIResultEnvelope`, `resultToVizIntent`, `chartAutoPick`, and `chartSpecValidation`; Pulse-ported chart helpers now import the shared policy instead of duplicating it; workbench chart tabs validate specs before rendering. | Copy-port queued for Pulse PBI; desktop inherits through PulsePlay app bundle |
+| governance-contract | 0.1 (G3a) | G3a contract slice: frontend `GovernanceAttestation` type + `isGovernanceAttestation` env-agnostic guard; proxy `buildGovernanceAttestation` builder that enforces `enforced: true`, validates authority allowlist, sanitizes subjectRef/requestId, forbids `authority: "mock"` in production; `AIResultEnvelope.governance` narrowed from `unknown` to optional `GovernanceAttestation`. Route wiring and native fail-closed render check still queued (G3b/G3c/G3d). | Proxy contract benefits Pulse PBI + desktop once routes wire; native fail-closed and per-path attestation tests are subsequent slices |
 
 ## Product Sync
 
