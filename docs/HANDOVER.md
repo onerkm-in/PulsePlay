@@ -5,6 +5,22 @@
 
 ---
 
+## 2026-05-21 - Settings author/viewer UX structuring scan
+
+**Scope.** Added [SETTINGS_AUTHOR_VIEWER_UX_SCAN.md](SETTINGS_AUTHOR_VIEWER_UX_SCAN.md) as an additive UX architecture scan for Settings, Setup, and viewer shell structure. No runtime code changed, no settings/routes/options were deleted, and the recommendation is explicitly "add a role/scope layer over the existing Settings system," not a rewrite.
+
+**Verdict.** The current Settings shell is strong enough to keep: modular groups, deep links, setup readiness, status chips, search, copy links, and a tested store foundation. The gap is that the UI mixes deployment policy, author defaults, viewer preferences, and support/developer controls in one visual language. The scan proposes setting metadata for role, scope, lifecycle, source of truth, and edit mode.
+
+**Top findings.** P1s are: make Save bar semantics truthful (or implement real drafts), restore narrow-screen Settings navigation instead of hiding the rail, treat fail-closed governance as a first-class blocked UI state, and add a pure `AuthoringStateSnapshot` facade so Setup Home, setup pill, Settings status, and System truth share one model. P2s include BI/AI mode cards, shared Settings primitives, viewer-grade empty/loading/error states, HelpTip density reduction, reset-key coverage, and consistent visible "Dashboard" terminology while keeping `bi-viz` stable internally.
+
+**Design handoff.** The doc recommends Figma annotated frames only after UX1/UX2 lock the structure: Author Setup Home, BI mode cards, AI configured-current view, Viewer blocked state, Native empty/loading/rendered states, and narrow Settings nav. Canva is positioned as a later stakeholder explainer, not as the source of component truth.
+
+**Unified proxy note.** The scan also locks the recommended posture for Pulse PBI + PulsePlay: one proxy product/codebase/API contract, one governance/audit/result-envelope model, but multiple deployment topologies allowed. Local development or production isolation can run separate instances from the same proxy code/config shape; do not fork connector logic, and do not force PulsePlay to inherit Pulse PBI sandbox limits.
+
+**Validation.** Docs-only change. `git diff --check` should be run before closing. A headless DOM pass against `http://127.0.0.1:5173` with proxy down informed the scan, but does not count as browser smoke or UX certification.
+
+---
+
 ## 2026-05-21 - Hosting options guide
 
 **Scope.** Added [HOSTING_OPTIONS.md](HOSTING_OPTIONS.md) as the deployment decision guide for PulsePlay hosting choices. This is additive documentation only: no hosting commands, no runtime changes, no deletions, and no change to the Databricks-first/native-adapter architecture.

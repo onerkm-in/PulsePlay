@@ -27,6 +27,7 @@
 | Test coverage and honesty rules | [QUALITY.md](QUALITY.md) |
 | Roadmap tracks | [ROADMAP.md](ROADMAP.md) |
 | Settings IA and guardrails | [SETTINGS_SPEC.md](SETTINGS_SPEC.md) |
+| Settings author/viewer UX scan | [SETTINGS_AUTHOR_VIEWER_UX_SCAN.md](SETTINGS_AUTHOR_VIEWER_UX_SCAN.md) |
 | Knowledge plane | [KNOWLEDGE_BASE_ARCHITECTURE.md](KNOWLEDGE_BASE_ARCHITECTURE.md) |
 | Packs | [PACKS.md](PACKS.md) and [../pulsepacks/PACK_SPECIFICATION.md](../pulsepacks/PACK_SPECIFICATION.md) |
 
@@ -49,7 +50,7 @@ The docs tree currently has many good pieces, but too many front doors. Use this
 |---|---|---|
 | `DATABRICKS_FORWARD_STRATEGY.md`, `MODULAR_INTEGRATION_ARCHITECTURE.md`, `ENTERPRISE_MODERNIZATION_CHARTER.md` | [ARCHITECTURE.md](ARCHITECTURE.md) + [ROADMAP.md](ROADMAP.md) | Keep strategy/current architecture in Architecture; sequenced work in Roadmap/Agenda. |
 | `DISCOVERY_LOOP.md`, `CONNECTOR_PROBE_AND_SMART_CONNECT.md`, `AI_CONTEXT_CONFIGURATION_MODEL.md`, `PROMPT_IR_ARCHITECTURE.md`, `STAGED_RENDERING.md` | [ARCHITECTURE.md](ARCHITECTURE.md) + [PROXY_REFERENCE.md](PROXY_REFERENCE.md) | Architecture owns contracts; Proxy Reference owns routes and payload fields. |
-| `SETUP_SETTINGS_RELATIONSHIP_AUDIT.md`, UI/copy audit docs, tooltip audit docs | [SETTINGS_SPEC.md](SETTINGS_SPEC.md) + [AGENDA.md](AGENDA.md) | Only active IA/copy rules remain in Settings; open bugs go to Agenda. |
+| `SETUP_SETTINGS_RELATIONSHIP_AUDIT.md`, `SETTINGS_AUTHOR_VIEWER_UX_SCAN.md`, UI/copy audit docs, tooltip audit docs | [SETTINGS_SPEC.md](SETTINGS_SPEC.md) + [AGENDA.md](AGENDA.md) | Only active IA/copy rules remain in Settings; open bugs go to Agenda. |
 | `UNIFIED_ASK_PULSE_WORKBENCH.md`, `THEME_STUDIO.md`, `FLOATING_COMPANION.md`, `STRUCTURED_AUTHORING_STANDARD.md` | [ROADMAP.md](ROADMAP.md) + focused ADRs when locked | Keep current shipped/queued state in Roadmap; create ADR only for accepted architecture decisions. |
 | `FOCUSED_E2E_PLAN.md`, `EXTREME_E2E_PLAN.md`, `SMOKE_TEST_PLAN.md`, result docs | [QUALITY.md](QUALITY.md) + `docs/archive/runs/` | Quality owns current methodology; dated plans/results should move to an archive bucket after links are updated. |
 | `HOSTING_OPTIONS.md`, `DEPLOY_MVP_0.2.md`, `DEPLOY_DATABRICKS_APP.md` | A future `DEPLOYMENT.md` or [PROXY_REFERENCE.md](PROXY_REFERENCE.md) | Keep hosting choice guidance in Hosting Options; keep deployer commands in focused deployer-facing docs. |
