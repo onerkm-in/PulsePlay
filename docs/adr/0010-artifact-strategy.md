@@ -128,15 +128,19 @@ For single-download behavior, avoid Git submodules for required enablers because
 
 Pulse PBI is part of the PulsePlay ecosystem and should be present in the single repo/download, but it remains a separate runtime and build boundary.
 
+**PB0 shipped 2026-05-21.** Pulse PBI source now lives at [`enablers/pulse-pbi/`](../../enablers/pulse-pbi/). Import method was **snapshot + provenance doc** rather than `git subtree add`, recorded explicitly in [`enablers/pulse-pbi/PROVENANCE.md`](../../enablers/pulse-pbi/PROVENANCE.md). The decision rationale: the upstream `pbi-genie-visual` repo had only two commits in its history at import time, so subtree's history-preservation value was symbolic; snapshot keeps PulsePlay's own commit history clean and PULSE_SYNC.md remains the sync mechanism going forward. The original upstream `README.md` is kept verbatim as `README.upstream.md`; a new PulsePlay-side `README.md` documents the enabler's relationship to the rest of the repo.
+
 Near-term:
 
-- add a PB0 folder-convergence step before PB1: bring Pulse PBI into `enablers/pulse-pbi/` or an equivalent tracked folder so one checkout contains it
+- [x] **PB0 — folder convergence.** `enablers/pulse-pbi/` now contains the snapshot (~672 KB of tracked source) excluding `node_modules/`, `dist/`, and `webpack.statistics.prod.html`. Provenance documented at `enablers/pulse-pbi/PROVENANCE.md`. Local `.gitignore` reinforces exclusions.
 - keep `docs/PULSE_SYNC.md` as the copy-port and drift-visibility ledger
 - let proxy improvements benefit Pulse PBI through the shared proxy contract
 - add a PB1 planning/build lane only after PB0 + G3, unless explicitly redirected
 - do not create shared packages until copy-port discipline fails or 2+ artifacts genuinely need the same module with active maintenance pressure
 
 Future one-command build orchestration is allowed, but it should initially be a thin script that calls the isolated `enablers/pulse-pbi/` build rather than merging Pulse PBI code into the PulsePlay web app.
+
+**Refresh policy.** When upstream `pbi-genie-visual` gains commits worth pulling in, refresh the snapshot manually per the procedure in `enablers/pulse-pbi/PROVENANCE.md` (re-copy + update commit SHA + ledger entry). Automated upstream tracking is intentionally avoided so dependency-version drift and policy changes with cross-impact on the proxy contract land in human-reviewed PRs, not silent sync.
 
 ## Desktop EXE Position
 

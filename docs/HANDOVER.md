@@ -5,6 +5,57 @@
 
 ---
 
+## 2026-05-21 - PB0 Pulse PBI source convergence into enablers/
+
+**Scope.** ADR-0010's promised ecosystem layout is now real for the Pulse PBI sibling. The Power BI custom visual project source lives at [`enablers/pulse-pbi/`](../enablers/pulse-pbi/) in the same checkout as the PulsePlay web app. One repo download = every enabler. Pulse PBI's runtime, build target, and Power BI sandbox constraints stay strictly isolated from `playground/`.
+
+**Source provenance.** Imported from `github.com/onerkm-in/pbi-genie-visual`, branch `main`, commit `9e3b7b6fffdbea8d4ca3390a7ae5eaeb8307ccce`. Full provenance + refresh procedure at [`enablers/pulse-pbi/PROVENANCE.md`](../enablers/pulse-pbi/PROVENANCE.md). The upstream repo had only two commits in its history at import time, so the import method chosen was **snapshot (file copy) + provenance doc** rather than `git subtree add` — history preservation value was symbolic; snapshot keeps PulsePlay's own commit log clean and PULSE_SYNC.md remains the sync mechanism going forward.
+
+**Footprint.** ~672 KB of tracked source: `src/`, `proxy/` (reference only — production proxy is `proxy/` at repo root), `style/`, `assets/`, `docs/`, `examples/`, plus configs (`package.json`, `package-lock.json`, `pbiviz.json`, `capabilities.json`, `eslint.config.mjs`, `playwright.config.ts`, `chat.spec.ts`). Excludes `node_modules/` (63 MB; reproduce via `npm install`), `dist/` (build output), and `webpack.statistics.prod.html` (build statistics artifact). Local [`enablers/pulse-pbi/.gitignore`](../enablers/pulse-pbi/.gitignore) reinforces those exclusions in case PulsePlay's repo-root rules ever drift.
+
+**New PulsePlay-side README.** [`enablers/pulse-pbi/README.md`](../enablers/pulse-pbi/README.md) documents:
+- Why the folder exists (the one-checkout-every-enabler promise from ADR-0010).
+- Pulse PBI runtime constraints (XHR-only, bundle cap, no Web Workers, no SSE, `gn-*` CSS namespace, etc.) — same constraint list that applies to `playground/src/pulse/*` but enforced *strictly* inside this folder because it actually targets the PBI sandbox.
+- Build / develop steps (`npm install && npx pbiviz package`), with an honest note that those steps have NOT been run yet from this snapshot — first verification is a follow-up task.
+- Sync discipline via PULSE_SYNC.md.
+- Relationship to `playground/src/pulse/*` (different runtime, different target).
+- What NOT to do here (per ADR-0010 tripwires).
+
+Original upstream README preserved verbatim as `README.upstream.md`.
+
+**Guardrails honored** (matched 1:1 to your sequencing message):
+
+| Guardrail | Status |
+|---|---|
+| No monorepo package refactor | ✓ — no `packages/` directory created. ADR-0010's deferral still stands. |
+| No runtime merging | ✓ — `playground/` does not import from `enablers/pulse-pbi/` and vice versa. They have separate `package.json` files. |
+| No forced code sharing | ✓ — sync still flows through PULSE_SYNC.md. No new shared modules. |
+| Decide import strategy explicitly | ✓ — snapshot + provenance recorded in `PROVENANCE.md` with the rationale for choosing it over `git subtree add`. |
+| Do not touch the smoke artifacts | ✓ — `playground/native-canvas-smoke.html` + `playground/scripts/native-canvas-smoke.mjs` untouched by this slice. |
+
+**PB0d build verification: PASSED.** End-to-end build attempted from the new location and succeeded:
+
+| Step | Result |
+|---|---|
+| `npm install --no-audit --no-fund --prefer-offline` | 242 packages installed in 11s |
+| `npm run lint` (eslint) | pass, no output |
+| `npm test` (vitest) | 87/87 unit tests pass. One file fails to LOAD under vitest (`chat.spec.ts` is a Playwright E2E spec; dual-runner config issue inherited from upstream, not caused by the snapshot) |
+| `npx pbiviz package` | `done Build completed successfully` → `dist/PBIGenieVisual87799D3556EA4890BCBE3FF9F9A095F5.2.1.0.0.pbiviz` artifact produced |
+
+PB0d caught **one real defect**: `tsconfig.json` was missed in the initial selective copy (the file list I used didn't include it). Without PB0d, the snapshot would have shipped broken; first downstream user would have hit `Cannot read properties of undefined (reading 'outDir')` from `pbiviz`. Copied in before commit; `enablers/pulse-pbi/PROVENANCE.md` records the gap + fix transparently. **Cost of running PB0d: ~15 minutes. Value: caught a real defect before merge.** This is exactly why "or mark honestly if unavailable" was the right framing — running it found something.
+
+**Validation.** Docs-only `git diff --check` clean (CRLF warnings only). Existing PulsePlay test suites untouched (1366/1366 playground + 1126/1126 proxy still green; nothing in PulsePlay code paths changed). Pulse PBI's own 87/87 vitest unit tests pass from the new location.
+
+**Tripwires for next session.**
+- Do NOT add `import` statements from `playground/src/*` into `enablers/pulse-pbi/*` or vice versa. Cross-import would defeat the runtime isolation. Reuse flows through PULSE_SYNC's copy-port tiers only.
+- Do NOT modify `enablers/pulse-pbi/proxy/`. That's a historical reference proxy carried over from the upstream snapshot; the production proxy is `proxy/` at the repo root. If something in there is genuinely useful, port it to the production proxy with a clear PR description; don't run two proxies.
+- When refreshing the snapshot from upstream (`git pull` on `pbi-genie-visual`, then re-copy here), follow the procedure in `PROVENANCE.md` — update the commit SHA + PULSE_SYNC.md changelog. Do not automate this; refresh PRs need human review for dependency-version drift and policy changes with cross-impact on the proxy contract.
+- The first build attempt from `enablers/pulse-pbi/` is queued. When it runs, expect to install ~63 MB of node_modules locally (PulsePlay's gitignore excludes them from the tree) and to need `npx pbiviz` (or `powerbi-visuals-tools` globally) for `package`.
+
+**Next.** Per ADR-0010 sequencing, PB1 (formalize the `.pbiviz` build lane from this location) is the natural follow-up, but is queued — not required for PB0 to be considered shipped. Proxy-backed shell smoke remains the other open infrastructure cycle. DX1 (desktop EXE Tauri proof) sits behind both.
+
+---
+
 ## 2026-05-21 - G-track visual smoke (canvas-standalone) — PASS
 
 **Scope.** Closed the G-track with a real-browser visual smoke. Canvas-standalone harness: no proxy, no AI sidebar, no PulsePlay shell — mounts `NativeCanvas` via `mountNativeCanvas` directly in a Vite-served HTML page and exercises six scenarios end-to-end with a headless Chromium via Playwright.
