@@ -26,10 +26,12 @@ Add a new ADR when you make a decision that:
 | [0005](0005-two-tier-insights-cache.md) | AI Insights uses a two-tier (memory + localStorage) cache | Accepted; applies once AI Insights pipeline is ported (v0.3+) |
 | [0006](0006-trend-pill-allowlist.md) | Trend pills use a section allowlist + numeric anchor | Superseded for v0.x; applies if/when insights renderer is ported |
 | [0007](0007-backend-adapter-abstraction.md) | BackendAdapter interface + per-connector files (IDEA-023) | Spike landed; conceptual ancestor of PulsePlay's BIAdapter (Y-axis mirror) |
+| [0008](0008-unified-assistant-surface.md) | Unified Assistant Surface capability model | Accepted |
+| [0009](0009-native-bi-adapter.md) | Native BI adapter is a renderer only | Accepted |
 
 ## Notes for new ADRs
 
 PulsePlay's defining design (the 2-axis abstraction) is implemented across two sibling concepts:
 
 - **Connector axis (X)** — `BackendAdapter` family, ADR-0007. Lives in proxy profile types.
-- **BI vendor axis (Y)** — `BIAdapter`, in [`playground/src/biPanel/BIAdapter.ts`](../../playground/src/biPanel/BIAdapter.ts). The mirror of ADR-0007 on the BI vendor side. A future ADR-0008 should formally document it once the first real vendor adapter graduates from stub.
+- **BI vendor axis (Y)** — `BIAdapter`, in [`playground/src/biPanel/BIAdapter.ts`](../../playground/src/biPanel/BIAdapter.ts). The mirror of ADR-0007 on the BI vendor side. ADR-0009 documents the native renderer-only adapter variant.
