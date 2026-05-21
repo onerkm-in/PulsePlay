@@ -5,6 +5,30 @@
 
 ---
 
+## 2026-05-21 - DX1d acceptance bar locked (calibration entry)
+
+**Scope.** Docs-only calibration. Records the honest DX1d acceptance bar in [AGENDA](AGENDA.md) so the next session doesn't underbill the work or fall into the "we signed it, why is Defender still flagging" trap.
+
+**The nuance being locked.** Authenticode signing **reduces** SmartScreen / AV friction. It does **not** instantly eliminate it. The certificate + publisher still need real-world reputation; first signed builds on a fresh cert can still warn until Microsoft / Defender review and Smart App Control reputation catch up over time.
+
+**DX1d ships when all five gates close.**
+
+1. Signed + timestamped (Authenticode, RFC 3161 TSA, `signtool verify /pa /v` PASS)
+2. SHA-256 + source-commit `build-info.json` shipped beside the EXE
+3. Microsoft Defender submission path documented and exercised at least once (runbook in `PACKAGING.md`)
+4. Real private-browser launch smoke (human or Playwright-driven, not headless) covering paint + Save persistence across manual relaunch + visible recon disclaimer
+5. Wizard + global recon disclaimer mount points wired (Settings → System alone, the DX1b state, does not cover the contract)
+
+**Post-DX1d framing (tripwire for future sessions).** If Microsoft Defender still flags a signed PulsePlay build after the five gates close, treat it as an **allowlist / reputation review issue** — engage the org's Defender ATP allowlist process or wait for Smart App Control reputation to accumulate. **Do not relax the runtime** (loopback bind, token guard, recon disclaimer, etc.) to placate scanner heuristics. The runtime is correct; the trust signal is what's missing.
+
+**Why this is captured here and not just in a chat message.** Brutal-honest collaboration rule (`feedback_collaboration_session_63.md`): if a calibration matters enough to say once, it matters enough to commit. A future agent reading AGENDA for DX1d's scope would otherwise see "sign + smoke" and underestimate the reputation-curve problem.
+
+**Validation.** Docs-only; `git diff --check` clean except CRLF notices. No test runs.
+
+**Next.** Execute DX1d against the locked five gates.
+
+---
+
 ## 2026-05-21 - DX1c packaged EXE proof + AV mitigation
 
 **Scope.** Closes the DX1c packaging proof: the launcher now produces a runnable Windows `PulsePlay.exe` and a smokeable `out/install/` folder. The artifact is still a packaged local runtime, not a native UI shell.
