@@ -5,6 +5,50 @@
 
 ---
 
+## 2026-05-21 - G6 native T2 fusion-lite
+
+**Scope.** Canonical in-process T2 demo for the native renderer track. When an attested AI result envelope carries BOTH chart-renderable rows AND a non-empty `answer` narrative, the canvas now docks a commentary card alongside the chart / KPI / table body. Vendor T2 stays with the Pulse PBI sibling per ADR-0009; native T2 is the proof-of-concept that doesn't need overlay positioning gymnastics because the canvas owns both halves.
+
+**Where it lives.** All G6 code is in [`playground/src/visualization/NativeCanvas.tsx`](../playground/src/visualization/NativeCanvas.tsx). No adapter changes — fusion-lite is purely a canvas-side layout wrapper around the existing G4 viz states. No new files; one canvas file, two new internal components (`FusionLayout`, `FusionCommentaryCard`), one helper (`buildFusionCommentary`), one import (`sourceRefDisplayLabel`).
+
+**Decision rule.** `buildFusionCommentary` returns a payload only when ALL three hold:
+1. The body intent is `chart`, `kpi`, or `table` (data worth pairing with commentary).
+2. The envelope carries a non-empty `answer`.
+3. Governance state is `enforced` or `preview` (NEVER `blocked` — blocked governance suppresses commentary entirely, same way it suppresses the body).
+
+Text-intent envelopes (answer only, no rows) skip fusion because `TextState` already shows the answer prominently — docking would duplicate.
+
+**Bound by result id.** The fusion wrapper, the chart wrapper inside it, and the commentary card all carry `data-result-id={envelope.id}`. Test `expect(new Set(ids)).toEqual(new Set([result-id]))` proves all three share the same id. Future hover/highlight sync code has a stable hook.
+
+**Commentary card content.**
+- Heading: "AI commentary".
+- Governance chip: when `governanceState.state === "enforced"`, shows the authority literal (`unity-catalog`, `powerbi-semantic-model`, etc.). When `state === "preview"`, shows a "DEV preview" chip instead. Mutually exclusive.
+- Answer: full envelope.answer text in `pre-wrap` so newlines render.
+- Source: when `envelope.sourceRef` is present, shows `sourceRefDisplayLabel(ref)` → e.g. "Revenue metrics (Metric View)". Omitted when no sourceRef.
+
+**Layout.** Flex row with `flex-wrap: wrap`. Chart half: `flex: 1 1 380px`, min-width 280px. Commentary: `flex: 0 1 320px`, min-width 240px, max-width 380px. Below ~640px viewport, wraps to stacked layout naturally without media queries. Inline styles use CSS custom properties (`--pp-surface-subtle`, `--pp-border-subtle`, etc.) so theming flows through.
+
+**Tests.** 12 new cases in [`playground/src/visualization/__tests__/NativeCanvas.test.tsx`](../playground/src/visualization/__tests__/NativeCanvas.test.tsx): fusion-lite renders for chart+answer / kpi+answer / table+answer; no-fusion when answer empty or intent is text; commentary shows answer text, optional sourceRef line (present when ref exists, omitted when absent), governance authority chip when enforced, DEV preview chip when preview; blocked governance hides commentary entirely; bound-by-result-id assertion.
+
+**Validation.**
+- Focused canvas: **26/26** (was 14, +12 fusion).
+- Focused native adapter: **41/41** unchanged (fusion is canvas-only).
+- Full playground: **1366/1366** (was 1354, +12 fusion).
+- `playground npm run lint`: PASS.
+- `playground npm run build`: PASS (existing BI-adapter dynamic-import warnings only).
+- Browser smoke: **NOT RUN** — same proxy-required-for-UX-smoke blocker.
+
+**Tripwires for next session.**
+- Do NOT add fusion for `text` intent. `TextState` already surfaces the answer; docking duplicates. The body-intent gate in `buildFusionCommentary` enforces this.
+- Do NOT show fusion commentary in `blocked` mode. The third condition in `buildFusionCommentary` is load-bearing — blocked means UI shows BlockedState only, no envelope content.
+- Do NOT split commentary into multiple structured-insight cards yet. G6 ships single-card MVP. Future cycle can extract from `envelope.structuredInsight` once that contract is defined.
+- The `data-result-id` attribute is the foundation for chart↔commentary hover sync. Don't break it. Tests assert all three locations share the id.
+- Inline styles use CSS variables — when a theme service ships, swap inline `var(--pp-*)` for class-based selectors but keep the test attribute names stable.
+
+**Next.** G6 completes the G-track of the native adapter arc. Open work per AGENDA: PB0 / PB1 (Pulse PBI source convergence + PBIVIZ build lane), DX1 / DX2 (desktop EXE), browser smoke retry (proxy + dev server together), Settings hardening pass.
+
+---
+
 ## 2026-05-21 - G5 BI surface author switch
 
 **Scope.** Added the author/runtime split for BI surfaces. `biVendor` remains the selected vendor/config target; new `biSurfaceMode` decides what the BI pane mounts at runtime: `auto`, `native`, or `vendor`. This is additive only — no vendor option, embed config, surface id, or native path was removed.
