@@ -98,7 +98,7 @@ These changes are not copy-ported to Pulse PBI, but they must be assessed for th
 |---|---|---|---:|---|---|
 | Proxy routes and connector clients | `proxy/` | Bundled proxy must keep same behavior; no lite proxy fork | queued | N/A | PX1/G3 first |
 | Static app build | `playground/` | EXE serves built app through inbuilt local app server | queued | N/A | DX1 future |
-| Settings and first-run setup | `playground/src/settings/`, `playground/src/components/FirstRunWizard.tsx` | EXE uses same setup UX with recon disclaimer and local encrypted persistence | queued | N/A | UX/DX future |
+| Settings and first-run setup | `playground/src/settings/`, `playground/src/components/FirstRunWizard.tsx` | EXE uses same setup UX with recon disclaimer and local encrypted persistence; G5 `biSurfaceMode` must smoke `auto` with no embed config under bundled proxy/private browser | 0.1 | G5 | Author switch shipped in PulsePlay; DX smoke queued |
 | Local persistence model | future `desktop/` plus Settings stores | Sensitive local state moves to encrypted colocated `PulsePlayData/` where needed | queued | N/A | DX2 future |
 | Browser launch | future `desktop/` | Prefer Chrome incognito, then Edge InPrivate, Firefox private, Brave, then default-browser fallback | queued | N/A | DX1 future |
 
@@ -142,6 +142,7 @@ Use this checklist for any change that future desktop EXE users would experience
 | visualization-pipeline | 0.1 | G2 pure result-to-chart pipeline: `AIResultEnvelope`, `resultToVizIntent`, `chartAutoPick`, and `chartSpecValidation`; Pulse-ported chart helpers now import the shared policy instead of duplicating it; workbench chart tabs validate specs before rendering. | Copy-port queued for Pulse PBI; desktop inherits through PulsePlay app bundle |
 | governance-contract | 0.1 (G3a) | G3a contract slice: frontend `GovernanceAttestation` type + `isGovernanceAttestation` env-agnostic guard; proxy `buildGovernanceAttestation` builder that enforces `enforced: true`, validates authority allowlist, sanitizes subjectRef/requestId, forbids `authority: "mock"` in production; `AIResultEnvelope.governance` narrowed from `unknown` to optional `GovernanceAttestation`. | Proxy contract benefits Pulse PBI + desktop once routes wire |
 | governance-contract | 0.2 (G3) | G3b/G3c/G3d completion: every renderable proxy backend path now stamps proxy-built attestation; registry-driven route mapping covers all 10 backend ids; user subject refs are hashed, SP refs reuse existing SP hash, Genie emits real `sourceRef` when available; native adapter fails closed in production/required-governance mode and dev/mock missing-attestation results render only as `ungoverned-result-preview`. | Automatic via proxy for Pulse PBI/desktop payloads; host fail-closed adoption remains host-specific |
+| bi-surface-mode | 0.1 (G5) | PulsePlay host-specific BI author switch: persisted `biSurfaceMode` (`auto/native/vendor`) resolves requested vendor config into runtime BI surface without deleting vendor setup. | Pulse PBI N/A (host UI); desktop inherits through future app bundle and needs DX smoke for auto-native fallback |
 
 ## Product Sync
 

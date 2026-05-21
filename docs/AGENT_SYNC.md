@@ -52,6 +52,35 @@ Use these tags so another agent can scan quickly:
 
 Keep PulsePlay moving faster by coordinating work across agents without losing brutal honesty.
 
+### 2026-05-21 - Codex - [DONE]+[VERIFY]+[HANDOFF] G5 BI surface author switch
+
+`[DONE]` G5 is complete in PulsePlay.
+
+- Added `playground/src/settings/biSurfaceMode.ts` with `BiSurfaceMode = "auto" | "native" | "vendor"` and a pure runtime-vendor resolver.
+- `biVendor` remains author/vendor config intent. `biSurfaceMode` is persisted separately under `pulseplay:bi-surface-mode`.
+- `App.tsx` derives `runtimeBiVendor` and passes it to PulseShell, AISidebar, PowerBIDeveloperPanel, and BITileGrid. Shell telemetry now includes requested/runtime BI vendor + resolution reason.
+- Settings -> BI, Quick Setup, and v0 sidebar expose Auto/Vendor/Native controls without deleting vendor config.
+
+`[VERIFY]`
+
+- Focused G5/settings/viewport: **67/67**.
+- Full playground: **1354/1354**.
+- Playground lint: PASS.
+- Playground build: PASS (existing BI-adapter dynamic-import warnings only).
+- Browser smoke: NOT RUN. Native UX smoke still needs proxy + dev server together.
+
+`[HANDOFF]` Claude should audit G5 first, then take G6 if the audit is clean. Exact prompt:
+
+```text
+You are Claude working in PulsePlay. Start by running `python scripts/llm_onboard.py --terse`, then `git status --short` and inspect `git diff HEAD` before accepting any external-LLM patch.
+
+First task: audit Codex's G5 BI surface author switch. Check `playground/src/settings/biSurfaceMode.ts`, App runtime-vendor wiring, SettingsStore persistence/sync, Settings -> BI, Quick Setup, Advanced reset ownership, and viewport telemetry attrs. Verify the intent/runtime split is preserved: `biVendor` is author config intent; `biSurfaceMode` decides runtime adapter. Do not delete options or collapse the two settings.
+
+Validation to re-run: focused G5/settings/viewport tests, full playground, lint, build. Browser smoke is optional but only claim it if both proxy and dev server are running.
+
+If audit is clean, start G6: native T2 fusion-lite. Keep it narrow: attested native chart + docked commentary cards bound by result id. No SQL execution in browser, no authoring canvas, no drag layout, no cross-filter/drill/save layout, no weakening G3 governance, and no Pulse PBI constraint leakage into PulsePlay-native code. Vendor T2 remains Pulse PBI's domain; native T2 is the canonical in-process demo.
+```
+
 ### 2026-05-21 - Codex - [DONE]+[VERIFY]+[HANDOFF] G3 complete; Claude take G4 native canvas
 
 `[DONE]` G3 is complete across proxy + native adapter.

@@ -1,6 +1,6 @@
 # Native BI Adapter - Renderer-Only Architecture
 
-> Status: G3 complete, 2026-05-21. The adapter is loadable and guarded; the visualization pipeline, Databricks source refs, proxy governance attestations, and native fail-closed gate are shipped. The real chart canvas is queued for G4.
+> Status: G5 complete, 2026-05-21. The adapter is loadable and guarded; the visualization pipeline, Databricks source refs, proxy governance attestations, native fail-closed gate, React/ECharts canvas, and author-facing `auto/native/vendor` BI surface switch are shipped. Native T2 fusion-lite is queued for G6.
 
 ## Decision
 
@@ -29,10 +29,12 @@ playground/src/visualization/
   v
 bi-adapters/native/
   NativeBIAdapter.ts
-  NativeCanvas.tsx        (G4)
   nativeCapabilities.ts
   nativeCommands.ts
   nativeEvents.ts
+
+playground/src/visualization/
+  NativeCanvas.tsx        (G4)
 ```
 
 The visualization pipeline lives in `playground/src/visualization/`, not inside the adapter. The adapter receives a normalized `AIResultEnvelope` or an already validated `ChartRenderSpec`, then renders. This keeps the adapter boring and testable.
@@ -43,7 +45,7 @@ No shared monorepo package is created in v0.x. If the Pulse PBI sibling needs th
 
 The native adapter still satisfies the existing `BIAdapter` contract.
 
-G1 `mount(container, config)` creates a lightweight DOM empty state and proves the adapter lifecycle. G4 replaces this with the React/ECharts `NativeCanvas`.
+G1 `mount(container, config)` created a lightweight DOM empty state and proved the adapter lifecycle. G4 replaced this with the React/ECharts `NativeCanvas` mounted from `playground/src/visualization/` so React/ECharts resolve from the playground runtime while `bi-adapters/native/*.ts` stays plain TypeScript.
 
 `send(command)` accepts only renderer commands:
 
@@ -72,10 +74,10 @@ Unsupported commands are rejected, including:
 
 ## Author Switch
 
-Add a deployment-level BI surface choice with a session/runtime override:
+G5 added a deployment/session runtime choice:
 
 ```ts
-type BISurfaceMode = "auto" | "native" | "vendor";
+type BiSurfaceMode = "auto" | "native" | "vendor";
 ```
 
 Resolution:
@@ -85,6 +87,8 @@ Resolution:
 - `auto`: prefer configured vendor; fall back to native when no vendor config exists.
 
 The UI belongs in the existing BI surface picker as another card, not in a separate settings island. Native should read as "Native result canvas" and explain that it renders AI query results directly.
+
+Current implementation: `biVendor` is still the author's vendor/config intent. `biSurfaceMode` is persisted separately under `pulseplay:bi-surface-mode`; the shell derives `runtimeBiVendor` from mode + vendor + embed config and emits requested/runtime telemetry attributes. Settings -> BI, Quick Setup, and v0 mode expose compact Auto/Vendor/Native controls. Vendor config is preserved when native is forced.
 
 Switching between native and vendor remounts the BI adapter. The host keeps the AI conversation and latest/pinned result state, then feeds the current result into native after mount. No hot-swap bridge.
 
@@ -209,6 +213,6 @@ First slice: fusion-lite. Render one chart plus docked AI commentary cards bound
 - G1: shipped. Adapter skeleton, capabilities, command rejection tests, import-boundary guard, registry loadability, no-embed readiness.
 - G2: `playground/src/visualization/` pipeline MVP and chart-pick extraction.
 - G3: governance attestation contract across proxy backend paths and native fail-closed test. **Shipped 2026-05-21.**
-- G4: native canvas plus ECharts MVP.
-- G5: brand-grid card and author switch.
+- G4: native canvas plus ECharts MVP. **Shipped 2026-05-21.**
+- G5: BI surface author switch (`auto/native/vendor`). **Shipped 2026-05-21.**
 - G6: native T2 fusion-lite.

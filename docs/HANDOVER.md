@@ -5,6 +5,39 @@
 
 ---
 
+## 2026-05-21 - G5 BI surface author switch
+
+**Scope.** Added the author/runtime split for BI surfaces. `biVendor` remains the selected vendor/config target; new `biSurfaceMode` decides what the BI pane mounts at runtime: `auto`, `native`, or `vendor`. This is additive only — no vendor option, embed config, surface id, or native path was removed.
+
+**Runtime contract.**
+- New pure resolver [`playground/src/settings/biSurfaceMode.ts`](../playground/src/settings/biSurfaceMode.ts) owns `BiSurfaceMode`, `pulseplay:bi-surface-mode`, native-vendor detection, and `resolveBiSurfaceVendor(...)`.
+- `auto` uses the configured vendor when a vendor embed config exists, falls back to native when no vendor config exists, and respects an existing `biVendor="native"` for backward compatibility.
+- `vendor` forces the selected non-native vendor even when embed config is missing, so setup work stays visible instead of silently falling back.
+- `native` forces the native result renderer while preserving the vendor selection/config for later.
+
+**Shell/UI wiring.**
+- [`App.tsx`](../playground/src/App.tsx) now derives `runtimeBiVendor` from `biSurfaceMode + activeVendor + embedConfig`, passes that runtime vendor to `PulseShell`, `AISidebar`, `PowerBIDeveloperPanel`, and `BITileGrid`, and emits telemetry attributes: `data-bi-surface-mode`, `data-requested-bi-vendor`, `data-runtime-bi-vendor`, and `data-bi-surface-resolution`.
+- v0 mode gets a compact `Auto / Vendor / Native` surface-mode control above the vendor picker.
+- Settings store owns `biSurfaceMode` with same-tab/cross-tab sync through `pulseplay:display-change`.
+- Settings -> BI and Quick Setup expose the switch and show runtime vendor state. Vendor embed configuration remains visible/editable when relevant; native mode does not erase it.
+- Advanced reset/localStorage inspector now includes `pulseplay:bi-surface-mode`.
+
+**Tests / validation.**
+- Focused G5/settings/viewport: **67/67**.
+- Full playground: **1354/1354**.
+- `npm run lint`: PASS.
+- `npm run build`: PASS (same BI-adapter dynamic-import warnings).
+- Browser smoke: NOT RUN in this slice. G4's proxy-required smoke gap remains; do not claim native UX fully verified until proxy + dev server smoke passes.
+
+**Cascade.** Pulse PBI impact: N/A for host-specific UI; it still benefits from G3 proxy attestations and G2/G2.5 portable contracts separately. Future desktop EXE impact: inherits this Settings/runtime switch through the PulsePlay app bundle; DX1 should smoke `auto` with no embed config to confirm native fallback under private-browser launch.
+
+**Tripwires.**
+- Do not collapse `biVendor` and `biSurfaceMode` back into one setting; that would destroy the author-intent/runtime split.
+- Do not make Auto silently prefer a vendor without an embed config; that recreates the blank BI-pane problem.
+- Do not let forced native delete vendor config. Native is an option, not a replacement.
+
+---
+
 ## 2026-05-21 - G4 audit patch: renderSpec actually renders
 
 **Scope.** External-LLM audit of Claude's G4 slice found one real quality gap: `renderSpec` accepted a spec but discarded `command.spec`, so the canvas only showed "Chart render spec accepted" and never validated or rendered the provided spec. Patched before accepting G4.
