@@ -13,6 +13,7 @@ import { CurrentValue, Leaf, SubSection } from "./BiGroup";
 import { useDiagnosticsBuffer } from "../diagnosticsBuffer";
 import { buildExportBundle, downloadExportBundle } from "../exportBundle";
 import { forceWizard } from "../../components/FirstRunWizard";
+import { ReconDisclaimer } from "../../components/ReconDisclaimer";
 
 interface HealthResponse {
     ok?: boolean;
@@ -112,6 +113,11 @@ export function SystemGroup(): React.ReactElement {
                     Is it safe, and is anything broken — proxy health, governance, diagnostics, tools.
                 </p>
             </header>
+
+            {/* DX1b - the locked recon disclaimer (contract section 11). Renders only
+                in EXE mode (no-op in browser). Not dismissable here; the persistent
+                Settings instance is the always-visible policy reminder. */}
+            <ReconDisclaimer variant="settings" />
 
             {/* ─── Tier 1: Status ───────────────────────────────────────── */}
             <SubSection

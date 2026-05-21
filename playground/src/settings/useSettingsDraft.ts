@@ -89,11 +89,19 @@ export function useSettingsDraft(): SettingsDraft {
     }, [recheck]);
 
     const save = useCallback(() => {
-        snapRef.current = snapshotStorage();
+        const snap = snapshotStorage();
+        snapRef.current = snap;
         setIsDirty(false);
         setJustSaved(true);
         if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
         savedTimerRef.current = setTimeout(() => setJustSaved(false), 3000);
+        // DX1b — emit a save signal so the desktop runtime client (when
+        // mounted in EXE mode) can push the snapshot into PulsePlayData/
+        // via /runtime/state. Pure event dispatch — no-op in browser mode
+        // because nothing subscribes outside of the desktop launcher.
+        try {
+            window.dispatchEvent(new CustomEvent("pulseplay:settings-saved", { detail: { snapshot: snap } }));
+        } catch { /* swallow */ }
     }, []);
 
     const discard = useCallback(() => {
