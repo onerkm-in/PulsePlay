@@ -5,6 +5,64 @@
 
 ---
 
+## 2026-05-21 - G-track visual smoke (canvas-standalone) — PASS
+
+**Scope.** Closed the G-track with a real-browser visual smoke. Canvas-standalone harness: no proxy, no AI sidebar, no PulsePlay shell — mounts `NativeCanvas` via `mountNativeCanvas` directly in a Vite-served HTML page and exercises six scenarios end-to-end with a headless Chromium via Playwright.
+
+**What this smoke does cover.**
+- Real-browser ECharts paint (line chart + donut chart actually render to canvas; jsdom unit tests can never paint).
+- Fusion-lite layout in a real viewport (flex-wrap responsive behavior, not just DOM presence).
+- `data-result-id` binding visible end-to-end (Set of 3 ids per fusion scenario = size 1, all matching `envelope.id`).
+- Blocked state actually hides the body in real DOM, leaving only the BlockedState alert.
+- Governance authority chip vs DEV preview chip mutually exclusive in the commentary card.
+
+**What this smoke does NOT cover.**
+- PulsePlay shell mount path (BIPanel + AI sidebar + vendor picker) — needs a proxy-backed shell smoke, which is a dedicated infrastructure cycle.
+- G3 governance attestation through the proxy (envelopes here are hardcoded fixtures with attestation literals).
+- G5 surface-mode picker interaction (state machine; unit tests cover).
+
+**Six scenarios, all PASS.**
+1. Empty — "Native result canvas" / "Ask Pulse a question..." prompt visible, no governance attr.
+2. KPI — `1,234,567.89` formatted, REVENUE label, no fusion card (envelope has no answer).
+3. Chart + fusion enforced — ECharts line chart paints, card shows "AI commentary" + `UNITY-CATALOG` chip + answer + "Source: Monthly sales (Metric View)".
+4. Chart + fusion preview — same chart, card shows `DEV PREVIEW` chip (no authority chip), top-level "DEV ONLY · UNGOVERNED RESULT PREVIEW" badge.
+5. Blocked — "Render blocked. Governance attestation missing or invalid. Native render blocked." Only. No chart, no commentary.
+6. Table + commentary — proper HTML table renders (category/owner/phase columns), fusion card with `UNITY-CATALOG` chip + answer.
+
+**Files added.**
+- [`playground/native-canvas-smoke.html`](../playground/native-canvas-smoke.html) — Vite-served harness page with six scenarios. Dev-only — Vite's build does NOT include it in `dist/` (verified). Marked `noindex`.
+- [`playground/scripts/native-canvas-smoke.mjs`](../playground/scripts/native-canvas-smoke.mjs) — Playwright runner that asserts DOM expectations per scenario, captures full-page screenshot, exits non-zero on assertion failure.
+- [`playground/scripts/.gitignore`](../playground/scripts/.gitignore) — keeps the generated PNG out of version control (binary, regenerated each run).
+
+**Reproduction.**
+```
+cd playground
+npm run dev                              # in one terminal
+node scripts/native-canvas-smoke.mjs     # in another
+```
+Exit 0 + `"failures": []` in the JSON report means smoke passed. PNG at `playground/scripts/native-canvas-smoke.png`.
+
+**One fixture issue I caught during the run.** The initial table-scenario fixture had a "headcount" column with numeric-string values (`"12"`, `"8"`, `"24"`), which `analyzeDataShape`'s numeric detection correctly treated as a numeric column → rendered as a donut chart, not a table. **The canvas was right; the fixture was wrong.** Fixed by using all non-numeric column values. Worth noting as a tripwire for future fixture authors: `isNumericString` accepts string-encoded numbers.
+
+**Honest non-claims.**
+- This is NOT a full E2E PulsePlay shell smoke. It's a canvas-standalone visual smoke.
+- The proxy-required shell smoke remains pending and deserves its own session (proxy + Vite + governed mock profile + Playwright flow through the wizard).
+- G5 picker click flow not visually verified end-to-end; the state machine is unit-tested but the visual switch behavior on click hasn't been observed in a browser.
+
+**Validation.**
+- Smoke runner: 6/6 scenarios pass, 0 failures, 0 page errors, 0 console errors (Vite + React devtools noise filtered).
+- `playground npm run build`: PASS — smoke HTML is NOT included in production dist output (Vite only builds explicit entries; verified `dist/*.html` contains only `index.html`).
+- Existing automated suite untouched.
+
+**Tripwires for next session.**
+- The smoke harness mounts `NativeCanvas` with hardcoded "fake-governed" envelopes (`governance.enforced: true` literal). This is FINE for a canvas-rendering smoke — the adapter's render gate is bypassed because we're calling the canvas directly. Do NOT extend this pattern to production code paths; the proxy is the only sanctioned producer of attestations.
+- If you add new viz states or chart kinds to NativeCanvas, add a scenario to the smoke harness so future regressions land visually.
+- Generated `native-canvas-smoke.png` is gitignored. If you want a baseline-comparison test, save a reference image separately or use Playwright's `toMatchSnapshot`.
+
+**Next.** G-track is now both automated-green AND canvas-standalone-visual-green. The remaining unverified path is the full PulsePlay shell + proxy smoke — recommend a dedicated cycle. PB0 (Pulse PBI source convergence into `enablers/`) is the natural next architecture slice per ADR-0010.
+
+---
+
 ## 2026-05-21 - G6 native T2 fusion-lite
 
 **Scope.** Canonical in-process T2 demo for the native renderer track. When an attested AI result envelope carries BOTH chart-renderable rows AND a non-empty `answer` narrative, the canvas now docks a commentary card alongside the chart / KPI / table body. Vendor T2 stays with the Pulse PBI sibling per ADR-0009; native T2 is the proof-of-concept that doesn't need overlay positioning gymnastics because the canvas owns both halves.
