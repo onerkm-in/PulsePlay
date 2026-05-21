@@ -74,6 +74,11 @@ const {
     redactProblemCause,
     sendProblem,
 } = require('./lib/problemDetails');
+const {
+    resolvePulseClientContext,
+    resolvePulseRequestId,
+    buildPulseClientCompatibilityResponse,
+} = require('./lib/pulseClientContext');
 const { extractSqlSections, extractSqlSectionsFromMarkdown } = require('./lib/sqlSectionExtractor');
 
 // ── Supervisor strategy registry ─────────────────────────────────────────────
@@ -1440,8 +1445,10 @@ app.use((req, res, next) => {
         'X-Databricks-Host', 'X-Databricks-Token',
         // Generic
         'X-Assistant-Profile', 'X-Request-Id', 'X-Profile-Name',
+        // PX1 — shared client identity for PulsePlay / Pulse PBI / Desktop EXE
+        'X-Pulse-Client', 'X-Pulse-Client-Version', 'X-Pulse-Request-Id',
     ].join(', '));
-    res.setHeader('Access-Control-Expose-Headers', 'X-Request-Id');
+    res.setHeader('Access-Control-Expose-Headers', 'X-Request-Id, X-Pulse-Request-Id, X-Pulse-Client');
     // Defense-in-depth security headers — the proxy only serves JSON,
     // so a strict CSP is appropriate. Express's 404 / 5xx default body
     // is HTML; lock it down so a stray error page can't execute scripts.
@@ -1760,20 +1767,24 @@ function rateLimitMiddleware(req, res, next) {
     next();
 }
 
-// Wave 28 — X-Request-Id correlation. Visual sets `X-Request-Id` on every
+// Wave 28 + PX1 — X-Request-Id correlation. Visual sets `X-Request-Id` on every
 // outbound request; we echo it back in the response so the visual + proxy
 // + downstream Databricks logs can all be joined on one ID. If the visual
 // doesn't supply one, we mint a server-side fallback so audit lines are
 // always traceable. Mounted before auth so rejected requests are traceable.
+// PX1 adds equivalent Pulse-* headers so PulsePlay, Pulse PBI, and the
+// future desktop EXE share one proxy contract without forking routes.
 app.use((req, res, next) => {
-    let rid = req.headers['x-request-id'];
-    if (!rid || typeof rid !== 'string' || rid.length > 80) {
-        rid = `srv-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    }
-    // Sanitize: only safe header chars
-    rid = String(rid).replace(/[^A-Za-z0-9._\-]/g, '').slice(0, 80) || `srv-${Date.now()}`;
+    const pulseClient = resolvePulseClientContext(req.headers);
+    const rid = resolvePulseRequestId(
+        req.headers,
+        () => `srv-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+    );
     req.requestId = rid;
+    req.pulseClient = { ...pulseClient, requestId: rid };
     res.setHeader('X-Request-Id', rid);
+    res.setHeader('X-Pulse-Request-Id', rid);
+    res.setHeader('X-Pulse-Client', pulseClient.clientApp);
     next();
 });
 
@@ -1871,6 +1882,7 @@ function auditLog(req, { profileName, spaceId, action, status, detail, spIdentit
     // so audit lines can be correlated to visual session log + downstream
     // Databricks request log on a single ID.
     const requestId = req.requestId || null;
+    const pulseClient = req.pulseClient || resolvePulseClientContext(req.headers || {});
     // Tier B Day 3 — when the profile is OAuth M2M, stamp the audit line
     // with an opaque SHA-256 hash of the Service Principal client_id. This
     // lets analysts group activity by SP identity without persisting the
@@ -1878,9 +1890,11 @@ function auditLog(req, { profileName, spaceId, action, status, detail, spIdentit
     // is omitted entirely (clean log line, no noise).
     const baseLine = {
         ts, ip, ua, requestId, action, route: `${req.method} ${req.originalUrl}`,
+        clientApp: pulseClient.clientApp || 'unknown',
         profile: profileName || null, spaceId: spaceId || null,
         status: status ?? null, detail: detail ?? null,
     };
+    if (pulseClient.clientVersion) baseLine.clientVersion = pulseClient.clientVersion;
     if (spIdentityHash) baseLine.spIdentityHash = spIdentityHash;
     // IdP-authenticated user (set by idpMiddleware when a valid JWT
     // is present). Captures sub + email + tid + scopes/roles so a
@@ -2015,7 +2029,7 @@ app.use('/sql', allowlistGuard);
 app.use('/insights', allowlistGuard);
 
 // ── Health ────────────────────────────────────────────────────────────────────
-app.get('/health', (_req, res) => {
+app.get('/health', (req, res) => {
     const c = cfg();
     // Never reveal the secret itself — just the effective auth posture.
     const authMode = resolveProxyAuthMode(process.env, c);
@@ -2030,7 +2044,23 @@ app.get('/health', (_req, res) => {
         appName: process.env.DATABRICKS_APP_NAME || null,
         appResources: visibleDatabricksAppResources(process.env),
         authMode,
+        client: {
+            app: req.pulseClient?.clientApp || 'unknown',
+            version: req.pulseClient?.clientVersion || null,
+            requestId: req.requestId || null,
+        },
     });
+});
+
+// PX1 — cheap compatibility handshake for all ecosystem artifacts. This stays
+// auth-free like /health so PulsePlay, Pulse PBI, and the desktop EXE can verify
+// they are speaking the same proxy contract before invoking any cost-bearing
+// connector route.
+app.get('/clients/compatibility', (req, res) => {
+    res.json(buildPulseClientCompatibilityResponse(req.pulseClient || {
+        ...resolvePulseClientContext(req.headers || {}),
+        requestId: req.requestId || null,
+    }));
 });
 
 // ── Admin health summary (M1) ─────────────────────────────────────────────────
@@ -7719,4 +7749,7 @@ module.exports = {
     handleJsonParseProblem,
     handleUnexpectedProxyError,
     buildConfidencePhase2ErrorEvent,
+    resolvePulseClientContext,
+    resolvePulseRequestId,
+    buildPulseClientCompatibilityResponse,
 };

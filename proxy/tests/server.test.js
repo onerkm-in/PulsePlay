@@ -131,6 +131,24 @@ describe('GET /health', () => {
         expect(res.body.authMode).toBe('none');
     });
 
+    it('echoes PX1 client identity and request id without auth', async () => {
+        const res = await request(app)
+            .get('/health')
+            .set('X-Pulse-Client', 'pulse-pbi')
+            .set('X-Pulse-Client-Version', '3.4.5 beta')
+            .set('X-Pulse-Request-Id', 'pulse rid<>');
+
+        expect(res.status).toBe(200);
+        expect(res.headers['x-request-id']).toBe('pulserid');
+        expect(res.headers['x-pulse-request-id']).toBe('pulserid');
+        expect(res.headers['x-pulse-client']).toBe('pulse-pbi');
+        expect(res.body.client).toEqual({
+            app: 'pulse-pbi',
+            version: '3.4.5beta',
+            requestId: 'pulserid',
+        });
+    });
+
     it('filters _doc_* keys out of the public profile list (BUG-013 + IDEA-015)', async () => {
         // mockReturnValueOnce to avoid leaking the mutated config into
         // downstream tests in this file (the existing withConfig helper
@@ -145,6 +163,54 @@ describe('GET /health', () => {
         const res = await request(app).get('/health');
         expect(res.body.profiles).not.toContain('_doc_displayName');
         expect(res.body.profiles).toEqual(expect.arrayContaining(['default', 'analytics']));
+    });
+});
+
+// ── /clients/compatibility ───────────────────────────────────────────────────
+describe('GET /clients/compatibility', () => {
+    it.each([
+        ['pulseplay', 'top-level-browser', false],
+        ['pulse-pbi', 'power-bi-custom-visual', true],
+        ['pulseplay-desktop', 'desktop-portable', false],
+    ])('returns PX1 contract metadata for %s', async (clientApp, host, powerBiSandbox) => {
+        const res = await request(app)
+            .get('/clients/compatibility')
+            .set('X-Pulse-Client', clientApp)
+            .set('X-Pulse-Client-Version', '1.2.3')
+            .set('X-Request-Id', `rid-${clientApp}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body).toMatchObject({
+            ok: true,
+            contractVersion: 'px1',
+            client: {
+                app: clientApp,
+                version: '1.2.3',
+                requestId: `rid-${clientApp}`,
+            },
+            compatibility: {
+                host,
+                powerBiSandbox,
+                xhrSafe: true,
+            },
+            notes: {
+                singleProxyContract: true,
+            },
+        });
+        expect(res.body.supportedClients).toEqual(['pulseplay', 'pulse-pbi', 'pulseplay-desktop']);
+        expect(res.body.requestHeaders).toContain('X-Pulse-Client');
+        expect(res.body.responseHeaders).toContain('X-Pulse-Client');
+    });
+
+    it('normalizes unknown clients to unknown rather than trusting arbitrary header values', async () => {
+        const res = await request(app)
+            .get('/clients/compatibility')
+            .set('X-Pulse-Client', 'rogue-tool');
+
+        expect(res.status).toBe(200);
+        expect(res.body.client.app).toBe('unknown');
+        expect(res.body.compatibility.host).toBe('unknown');
+        expect(res.headers['x-pulse-client']).toBe('unknown');
     });
 });
 
@@ -739,6 +805,26 @@ describe('sharedKey authentication — when sharedKey is configured', () => {
         expect(res.body.error).toMatch(/X-Genie-Key/i);
     });
 
+    it('stamps PX1 client identity on auth audit lines', async () => {
+        _consoleLogSpy.mockClear();
+        const res = await request(app)
+            .get('/assistant/capabilities')
+            .set('X-Pulse-Client', 'pulse-pbi')
+            .set('X-Pulse-Client-Version', '4.5.6')
+            .set('X-Pulse-Request-Id', 'audit-rid')
+            .query({ assistantProfile: 'default' });
+
+        expect(res.status).toBe(401);
+        const auditCall = _consoleLogSpy.mock.calls.find(
+            args => args[0] === '[audit]' && typeof args[1] === 'string' && args[1].includes('auth.missing-shared-key')
+        );
+        expect(auditCall).toBeTruthy();
+        const parsed = JSON.parse(auditCall[1]);
+        expect(parsed.requestId).toBe('audit-rid');
+        expect(parsed.clientApp).toBe('pulse-pbi');
+        expect(parsed.clientVersion).toBe('4.5.6');
+    });
+
     it('returns 401 when the header value is wrong', async () => {
         const res = await request(app)
             .get('/assistant/capabilities')
@@ -798,6 +884,17 @@ describe('CORS — required custom headers are advertised', () => {
         const allowed = res.headers['access-control-allow-headers'] || '';
         expect(allowed).toMatch(/X-Genie-Target-Host/i);
         expect(allowed).toMatch(/X-Genie-Key/i);
+    });
+
+    it('advertises PX1 client identity headers and exposes response correlation headers', async () => {
+        const res = await request(app).get('/health');
+        const allowed = res.headers['access-control-allow-headers'] || '';
+        const exposed = res.headers['access-control-expose-headers'] || '';
+        expect(allowed).toMatch(/X-Pulse-Client/i);
+        expect(allowed).toMatch(/X-Pulse-Client-Version/i);
+        expect(allowed).toMatch(/X-Pulse-Request-Id/i);
+        expect(exposed).toMatch(/X-Pulse-Request-Id/i);
+        expect(exposed).toMatch(/X-Pulse-Client/i);
     });
 });
 
