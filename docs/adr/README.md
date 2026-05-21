@@ -28,6 +28,7 @@ Add a new ADR when you make a decision that:
 | [0007](0007-backend-adapter-abstraction.md) | BackendAdapter interface + per-connector files (IDEA-023) | Spike landed; conceptual ancestor of PulsePlay's BIAdapter (Y-axis mirror) |
 | [0008](0008-unified-assistant-surface.md) | Unified Assistant Surface capability model | Accepted |
 | [0009](0009-native-bi-adapter.md) | Native BI adapter is a renderer only | Accepted |
+| [0010](0010-artifact-strategy.md) | PulsePlay ecosystem artifact strategy | Accepted |
 
 ## Notes for new ADRs
 
