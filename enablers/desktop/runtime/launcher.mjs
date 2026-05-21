@@ -27,11 +27,19 @@ import {
     TOKEN_BYTES,
     LAUNCH_PATH,
     LAUNCHER_VERSION_FALLBACK,
+    HEARTBEAT_TIMEOUT_MS,
 } from "./config.mjs";
 import { findFreePorts } from "./portDiscovery.mjs";
 import { tryLaunchPrivateBrowser } from "./browserLaunch.mjs";
 import { createAppServer } from "./appServer.mjs";
 import { ensureDataDir } from "./dataStore.mjs";
+import { createWatchdog } from "./watchdog.mjs";
+import {
+    inspectLock,
+    writeLock,
+    releaseLock,
+    writeLastError,
+} from "./lockFile.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -178,6 +186,7 @@ function attachShutdown(state) {
         if (exiting) return;
         exiting = true;
         process.stdout.write(`\n[launcher] shutting down (${reason})...\n`);
+        try { if (state.watchdog) state.watchdog.stop(); } catch {}
         try { if (state.appServer) await new Promise((r) => state.appServer.close(r)); } catch {}
         try {
             if (state.proxyChild && !state.proxyChild.killed) {
@@ -187,11 +196,16 @@ function attachShutdown(state) {
                 if (!state.proxyChild.killed) state.proxyChild.kill("SIGKILL");
             }
         } catch {}
+        try { if (state.dataDir) await releaseLock(state.dataDir); } catch {}
         process.exit(code);
     };
     process.on("SIGINT", () => exit(0, "SIGINT"));
     process.on("SIGTERM", () => exit(0, "SIGTERM"));
     process.on("SIGHUP", () => exit(0, "SIGHUP"));
+    // 'beforeExit' fires when the event loop drains - belt-and-braces
+    // for the case where the process exits without a signal (e.g. unhandled
+    // promise rejection in older Node configs). exit() is idempotent.
+    process.on("beforeExit", (code) => { exit(code ?? 0, "beforeExit").catch(() => {}); });
     return { exit };
 }
 
@@ -216,6 +230,19 @@ export async function run(argv = process.argv) {
     process.stdout.write(`  staticDir ${staticDir}\n`);
     process.stdout.write(`  proxy     ${proxyEntry}\n\n`);
 
+    // 0) Inspect any prior lock. Stale (dead pid) is fine - reap on
+    //    fresh launch. Live (other launcher running) is also fine for
+    //    DX1b - we coexist on different ports. Contract §10 explicitly
+    //    says the lock is for crash-recovery and port reuse, NOT
+    //    single-instance enforcement.
+    const prior = await inspectLock(dataDir);
+    if (prior.state === "stale") {
+        process.stdout.write(`[launcher] reaping stale lock from pid ${prior.lock.pid}\n`);
+        await releaseLock(dataDir).catch(() => {});
+    } else if (prior.state === "live") {
+        process.stdout.write(`[launcher] another launcher is alive (pid ${prior.lock.pid}, app=${prior.lock.appPort}); starting a parallel session\n`);
+    }
+
     const [appPort, proxyPort] = await findFreePorts(2);
     const launchToken = generateLaunchToken();
 
@@ -224,7 +251,7 @@ export async function run(argv = process.argv) {
 
     // 1) Spawn bundled proxy child.
     const proxyChild = spawnProxyChild(proxyEntry, proxyPort, proxyLogPath);
-    const state = { proxyChild, appServer: null };
+    const state = { proxyChild, appServer: null, dataDir, watchdog: null };
     const shutdown = attachShutdown(state);
 
     proxyChild.on("exit", (code, signal) => {
@@ -241,13 +268,27 @@ export async function run(argv = process.argv) {
     }
     process.stdout.write(`[launcher] proxy ready on http://127.0.0.1:${proxyPort}\n`);
 
-    // 3) Build + listen on the app server.
+    // 3) Build + listen on the app server. Wire the heartbeat watchdog
+    //    so the React app's /runtime/heartbeat pings keep the launcher
+    //    alive; absence triggers shutdown after HEARTBEAT_TIMEOUT_MS.
+    //    The watchdog starts "warm" - the user has the full timeout to
+    //    open the browser and ship the first beat before we time out.
+    const watchdog = createWatchdog({
+        timeoutMs: HEARTBEAT_TIMEOUT_MS,
+        onTimeout: () => {
+            process.stdout.write("[launcher] no heartbeat for HEARTBEAT_TIMEOUT_MS; assuming session ended\n");
+            shutdown.exit(0, "heartbeat-timeout");
+        },
+    });
+    state.watchdog = watchdog;
+
     const { app } = await createAppServer({
         dataDir,
         staticDir,
         proxyPort,
         launchToken,
         version,
+        onHeartbeat: () => watchdog.kick(),
         onQuit: () => shutdown.exit(0, "runtime-quit"),
     });
     const appServer = http.createServer(app);
@@ -257,6 +298,17 @@ export async function run(argv = process.argv) {
         appServer.listen(appPort, "127.0.0.1", resolve);
     });
     process.stdout.write(`[launcher] app server ready on http://127.0.0.1:${appPort}\n`);
+
+    // 3b) Write the per-session lock file now that BOTH ports are bound.
+    //     If anything above failed we never wrote it - the launcher
+    //     bails early via ensureProxyEntryOrFail / ensureStaticDirOrFail
+    //     / waitForProxyReady before this point.
+    try {
+        await writeLock(dataDir, { pid: process.pid, appPort, proxyPort });
+    } catch (err) {
+        process.stderr.write(`[launcher] could not write lock file: ${err.message}\n`);
+        // Non-fatal; lock is informational. Continue.
+    }
 
     // 4) Open a private/incognito browser.
     const launchUrl = `http://127.0.0.1:${appPort}${LAUNCH_PATH}#token=${launchToken}`;
@@ -293,8 +345,17 @@ const invokedDirectly = (() => {
 })();
 
 if (invokedDirectly) {
-    run(process.argv).catch((err) => {
-        process.stderr.write(`[launcher] fatal: ${err && err.stack ? err.stack : err}\n`);
+    run(process.argv).catch(async (err) => {
+        const msg = err && err.stack ? err.stack : String(err);
+        process.stderr.write(`[launcher] fatal: ${msg}\n`);
+        // Best-effort error trace into PulsePlayData/runtime/last-error.txt
+        // so the operator can recover the message after the console window
+        // closes. The base directory is the enabler root in dev mode;
+        // packaged mode is dirname(process.execPath) (slice 6).
+        try {
+            const { enablerRoot, baseDir } = await resolvePaths({ dev: true });
+            await writeLastError(baseDir || enablerRoot, msg);
+        } catch { /* swallow */ }
         process.exit(1);
     });
 }
