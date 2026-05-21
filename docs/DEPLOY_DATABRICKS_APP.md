@@ -168,3 +168,77 @@ When the app crashes or returns blank, adding a thin `GET /__diag/static` route 
 ### 10. Auth-gated app URLs reject PAT for the hosted URL itself
 
 `https://pulseplay-<workspaceId>.aws.databricksapps.com/...` will always return the Databricks sign-in page for un-cookied requests (curl with PAT included). Smoke-testing from a CLI is only possible against the management API (`/api/2.0/apps/<name>`), not the app's serve URL. The user must verify the hosted UI from a logged-in browser.
+
+### 11. `resources:` in `app.yaml` is **decorative** — bind via API instead
+
+Declaring `resources: [...]` at the top of `app.yaml` does NOT actually create resource bindings. The block is silently dropped on deploy. Symptom: every env var that uses `valueFrom: <resource-name>` simply doesn't appear in `process.env` at runtime — and Databricks logs nothing about the missing binding.
+
+Verify with `databricks apps get <name> -o json | jq .resources` after deploy: if it's `null`, the binding didn't happen. The fix is a PATCH to the management API with the full app body including the `resources` array:
+
+```powershell
+$body = @{
+  name        = "pulseplay"
+  description = "..."
+  git_repository = @{ provider = "gitHub"; url = "https://github.com/<org>/<repo>.git" }
+  resources   = @(
+    @{
+      name        = "databricks-pat"
+      description = "..."
+      secret      = @{ scope = "pulseplay"; key = "databricks_pat"; permission = "READ" }
+    }
+  )
+} | ConvertTo-Json -Depth 6
+
+Invoke-RestMethod -Method Patch -Uri "$host/api/2.0/apps/<name>" `
+  -Headers @{ Authorization = "Bearer $pat" } `
+  -Body $body -ContentType "application/json"
+```
+
+After patching, **trigger a fresh deployment** so the new container picks up the env-var binding — existing containers won't get the new env retroactively.
+
+### 12. PATCH on apps requires the FULL body, not a partial
+
+Sending just `{"resources": [...]}` returns:
+
+```
+400 INVALID_PARAMETER_VALUE
+Git repository is required for Databricks Apps in this workspace.
+```
+
+Even though `git_repository` is already set, PATCH treats it like PUT. Always include `name`, `description`, `git_repository`, and any other required fields when updating.
+
+### 13. Diagnostic endpoint pattern, extended to env
+
+Mirroring `/__diag/static`, add `/__diag/env` that returns the resolved env-var KEYS your app cares about (TOKEN fields → length only, NEVER value; non-secret fields → full value). Cuts the "did the secret bind?" question to one browser open. Worth the 20 lines.
+
+```js
+app.get('/__diag/env', (req, res) => {
+    const out = { profile_env: {}, app_resource_env: {}, has_DATABRICKS_TOKEN: !!process.env.DATABRICKS_TOKEN };
+    const TOKEN_FIELDS = new Set(['TOKEN', 'CLIENT_SECRET', 'PROXY_KEY', 'AAD_CLIENT_SECRET']);
+    for (const [k, v] of Object.entries(process.env)) {
+        if (k.startsWith('PROXY_PROFILE_')) {
+            const field = k.split('_').slice(3).join('_');
+            if (TOKEN_FIELDS.has(field)) {
+                out.profile_env[k] = { length: String(v || '').length, preview: v ? `${String(v).slice(0,4)}…` : '(empty)' };
+            } else {
+                out.profile_env[k] = String(v || '');
+            }
+        } else if (k.startsWith('APP_RESOURCE_')) {
+            out.app_resource_env[k] = String(v || '');
+        }
+    }
+    res.json(out);
+});
+```
+
+### 14. `DATABRICKS_TOKEN` is NOT auto-injected on Free Edition
+
+The Databricks Apps platform reportedly injects `DATABRICKS_TOKEN` at runtime so the app SP can call workspace APIs using its own identity. On Free Edition workspaces (`*.aws.databricksapps.com`), the diag shows `has_DATABRICKS_TOKEN: false` even after the app SP is created. Don't rely on this auto-injection; provision a secret-scope PAT and bind it explicitly.
+
+### 15. Secret scope ACL: app SP needs READ via its `application_id` GUID
+
+`databricks secrets put-acl <scope> <principal> READ` accepts the SP's `service_principal_client_id` (the GUID like `67eeb8e6-...`). Verify with `databricks secrets list-acls <scope>`. The user creating the scope gets `MANAGE` automatically; the app needs an explicit `READ` row.
+
+### 16. Verify the wire-up via env diag BEFORE chasing the Settings UI
+
+When a profile shows "Missing required field: token" in the Settings UI, the temptation is to check the proxy code. Always hit `/__diag/env` first. If the `PROXY_PROFILE_<NAME>_TOKEN` key is absent from `profile_env`, the binding never reached the container — fix at the Databricks Apps resources layer, not in the proxy. If it's present with `length: 0`, the secret resolved to empty — fix at the secret scope. If it's present with the right length, the bug is in the proxy's profile merger.
