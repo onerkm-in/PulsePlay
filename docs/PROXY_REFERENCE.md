@@ -99,8 +99,47 @@ See [proxy/lib/responsesAgentClient.js](../proxy/lib/responsesAgentClient.js). T
 | POST | `/powerbi/conversations/start` | Power BI semantic-model deterministic Q (cycle 15) |
 | GET | `/powerbi/health` | Power BI semantic-model profile health + template inventory |
 | POST | `/powerbi/qna/embed-token` | Power BI Q&A embed token mint for `/powerbi/qna` (cycle 15.5) |
+| GET | `/clients/compatibility` | PX1 compatibility handshake for PulsePlay, Pulse PBI, and desktop EXE clients |
 
 The Vite dev server proxies `/api/*` from the playground at `http://127.0.0.1:5173` to the proxy at `http://127.0.0.1:8787`. So the React app fetches `/api/assistant/conversations/start` and the proxy receives it at `/assistant/conversations/start`.
+
+### 1.9.1 PX1 client identity contract
+
+PulsePlay, Pulse PBI, and the future desktop EXE use the same proxy API. Clients SHOULD identify themselves on every request with:
+
+| Header | Required | Notes |
+|---|---:|---|
+| `X-Pulse-Client` | no | Normalized to `pulseplay`, `pulse-pbi`, `pulseplay-desktop`, or `unknown`. Unknown values are not trusted or echoed raw. |
+| `X-Pulse-Client-Version` | no | Sanitized, max 80 chars, audit-only/debug-only. |
+| `X-Pulse-Request-Id` | no | Pulse-named alias for correlation. `X-Request-Id` still wins when both are present. |
+
+The proxy echoes `X-Request-Id`, `X-Pulse-Request-Id`, and `X-Pulse-Client` on responses, and CORS exposes all three. Audit lines now include `clientApp` and optional `clientVersion`, so shared proxy logs can distinguish hosted PulsePlay, Power BI custom visual traffic, and the future bundled desktop proxy without forking connector routes.
+
+`GET /clients/compatibility` is auth-free like `/health` and returns:
+
+```json
+{
+  "ok": true,
+  "contractVersion": "px1",
+  "client": {
+    "app": "pulse-pbi",
+    "version": "1.2.3",
+    "requestId": "rid-123"
+  },
+  "supportedClients": ["pulseplay", "pulse-pbi", "pulseplay-desktop"],
+  "requestHeaders": ["X-Pulse-Client", "X-Pulse-Client-Version", "X-Pulse-Request-Id", "X-Request-Id"],
+  "responseHeaders": ["X-Request-Id", "X-Pulse-Request-Id", "X-Pulse-Client"],
+  "compatibility": {
+    "host": "power-bi-custom-visual",
+    "xhrSafe": true,
+    "fetchAvailable": false,
+    "powerBiSandbox": true,
+    "bundledLocalProxy": false
+  }
+}
+```
+
+This is metadata only. It does not loosen auth, governance, allowlists, RLS/OLS, rate limits, or connector behavior.
 
 **Request-body fields that span backends (added in cycles 12-14):**
 

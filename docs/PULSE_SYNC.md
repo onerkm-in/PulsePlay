@@ -87,7 +87,7 @@ Pulse PBI and the future desktop EXE get these fields automatically when they ca
 | Upgrade | Source | Owner side | Version | Last synced commit | Sibling status |
 |---|---|---:|---:|---|---|
 | Every renderable backend path emits `governance.enforced` | proxy routes and tests | PulsePlay proxy | queued | N/A | automatic payload benefit after G3 |
-| Client identity headers (`X-Pulse-Client`, version, request id) | proxy request/audit contract | PulsePlay proxy | queued | N/A | PX1 queued; applies to Pulse PBI + desktop |
+| Client identity headers (`X-Pulse-Client`, version, request id) | proxy request/audit contract | PulsePlay proxy | 0.1 | `22db943` | automatic via proxy; Pulse PBI/desktop clients should send headers when adopted |
 
 ### Tier 3.5 - Desktop EXE Cascade
 
@@ -136,6 +136,7 @@ Use this checklist for any change that future desktop EXE users would experience
 |---|---:|---|---|
 | sync-ledger | 0.1 | Created sync ledger for native adapter G0. | N/A |
 | sync-ledger | 0.2 | Expanded ledger from Pulse PBI-only copy-porting to ecosystem cascade tracking for Pulse PBI and future desktop EXE. | Pulse PBI + desktop checklist active |
+| proxy-client-contract | 0.1 | PX1 client identity headers, `/clients/compatibility`, response echo headers, and client-aware audit context. | Automatic via proxy; Pulse PBI/desktop adoption is header wiring only |
 
 ## Product Sync
 

@@ -5,6 +5,22 @@
 
 ---
 
+## 2026-05-21 - PX1 unified proxy client contract
+
+**Scope.** Added the first runtime piece of the ecosystem-artifact strategy: one shared proxy contract that can identify hosted PulsePlay, the Pulse PBI custom visual, and the future desktop EXE without route forks. Commit `22db943`. No visualization pipeline work, no governance attestation G3 runtime, no desktop launcher, and no Pulse PBI source import.
+
+**Client identity.** New [`proxy/lib/pulseClientContext.js`](../proxy/lib/pulseClientContext.js) normalizes `X-Pulse-Client` to `pulseplay`, `pulse-pbi`, `pulseplay-desktop`, or `unknown`; sanitizes optional `X-Pulse-Client-Version`; and resolves request correlation from `X-Request-Id` first, then `X-Pulse-Request-Id`. Unknown client values are not trusted or echoed raw.
+
+**Proxy wiring.** [`proxy/server.js`](../proxy/server.js) now allows/exposes the PX1 headers in CORS, echoes both `X-Request-Id` and `X-Pulse-Request-Id`, echoes normalized `X-Pulse-Client`, and stamps audit lines with `clientApp` plus optional `clientVersion`. `/health` includes the resolved client identity, and new auth-free `GET /clients/compatibility` returns contract metadata for all three ecosystem clients.
+
+**Cascade impact.** [PULSE_SYNC.md](PULSE_SYNC.md) records PX1 as a shared proxy upgrade at version `0.1`, synced to `22db943`. Pulse PBI and desktop get the proxy-side behavior automatically once they call this proxy; their remaining work is only to send the headers and read the compatibility response where useful. Pulse PBI sandbox limits remain respected: compatibility metadata marks it as `power-bi-custom-visual`, `xhrSafe: true`, `fetchAvailable: false`.
+
+**Validation.** Focused PX1/server tests: **149/149**. Full proxy suite: **1077/1077**. `node --check proxy/server.js`: PASS. Docs-only follow-up should run `git diff --check` after this entry and PROXY_REFERENCE/AGENDA/memory updates.
+
+**Next.** G2 and G2.5 remain the next architecture slices. PX1 does not make governance attestation real; G3 still must prove every renderable backend path emits `governance.enforced`.
+
+---
+
 ## 2026-05-21 - ECO1 ecosystem cascade checklist
 
 **Scope.** Expanded [PULSE_SYNC.md](PULSE_SYNC.md) from a Pulse PBI-only copy-port ledger into an ecosystem cascade ledger for PulsePlay, Pulse PBI, and the future desktop EXE. Updated [.github/pull_request_template.md](../.github/pull_request_template.md) so every PR must state Pulse PBI impact and Desktop EXE impact. Docs/process only; no runtime code.
