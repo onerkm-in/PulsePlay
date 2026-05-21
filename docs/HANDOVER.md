@@ -5,6 +5,25 @@
 
 ---
 
+## 2026-05-21 - PR1 audit patch: split Pulse PBI unit and E2E runners
+
+**Finding.** PR1/PR2 was directionally correct, but the validation wording was too generous: `cd enablers/pulse-pbi && npm test` reported 87/87 unit tests passing but exited **1** because Vitest also tried to load the top-level Playwright spec [`chat.spec.ts`](../enablers/pulse-pbi/chat.spec.ts). That was documented as a pre-existing dual-runner quirk, but a red `npm test` is still a real developer-experience bug.
+
+**Patch.**
+- Added [`enablers/pulse-pbi/vitest.config.ts`](../enablers/pulse-pbi/vitest.config.ts) so Vitest only includes `src/**/*.test.ts`.
+- Added `npm run test:e2e` as the explicit Playwright lane in [`enablers/pulse-pbi/package.json`](../enablers/pulse-pbi/package.json).
+- Updated [`enablers/pulse-pbi/PROVENANCE.md`](../enablers/pulse-pbi/PROVENANCE.md) so the post-rename verification now describes the fixed runner split.
+
+**Validation.**
+| Check | Result |
+|---|---|
+| `cd enablers/pulse-pbi && npm run lint` | pass |
+| `cd enablers/pulse-pbi && npm test` | **87/87**, exit 0 |
+
+**Tripwire.** Keep `chat.spec.ts` in the Playwright lane. Do not make Vitest load Playwright specs again; if more E2E specs arrive, keep them under Playwright config or a dedicated E2E folder.
+
+---
+
 ## 2026-05-21 - PR1 Pulse-family rename + PR2 dark-mode direction lock
 
 **Scope.** Two small but load-bearing direction changes after PB0 + SS1 landed.

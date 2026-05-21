@@ -126,6 +126,6 @@ The visual identity in `pbiviz.json` and the npm package name in `package.json` 
 |---|---|
 | `npm install --no-audit --no-fund --prefer-offline` (regenerates `package-lock.json` with new package name `pulse-visuals`) | `up to date in 2s` (no new packages — name change is metadata-only) |
 | `npm run lint` (eslint) | pass, no output |
-| `npm test` (vitest) | 87/87 unit tests pass. `chat.spec.ts` still fails to LOAD under vitest for the same dual-runner reason PB0d documented (it's a Playwright spec); this is upstream-inherited config drift, not caused by the rename. |
+| `npm test` (vitest) | 87/87 unit tests pass. A follow-up audit patch added `vitest.config.ts` so Vitest only loads `src/**/*.test.ts`; `chat.spec.ts` remains a Playwright E2E spec and runs through `npm run test:e2e`. |
 | `npx pbiviz package` | `done Build completed successfully` → `dist/PulseVisuals87799D3556EA4890BCBE3FF9F9A095F5.2.1.0.0.pbiviz` produced (~106 KB). The pre-rename `PBIGenieVisual87799...pbiviz` from PB0d is still present in `dist/` from the earlier build; both are gitignored and not tracked. |
 | Build artifacts still gitignored | confirmed — `dist/`, `node_modules/`, `.tmp/`, `webpack.statistics.prod.html` all excluded |
