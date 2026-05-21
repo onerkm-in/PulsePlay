@@ -158,6 +158,9 @@ describe('G3 renderable backend governance registry', () => {
         'supervisor-local',
         'responses-agent',
         'powerbi-semantic-model',
+        // SS2 — proxy-backed shell smoke. Dev/test only; `authority: "mock"`
+        // is rejected by buildGovernanceAttestation in production.
+        'smoke-fixture',
     ];
 
     it('declares every renderable backend path exactly once', () => {
@@ -700,6 +703,73 @@ describe('POST /assistant/conversations/start — profile resolution', () => {
         expect(res.status).toBe(400);
         expect(res.body.error).toMatch(/No matching profile/i);
     });
+});
+
+// ── SS2 — smoke-fixture profile short-circuit ─────────────────────────────────
+describe('POST /assistant/conversations/start — smoke-fixture profile', () => {
+    const SMOKE_CONFIG = {
+        ...MOCK_CONFIG_BASE,
+        profiles: {
+            ...(MOCK_CONFIG_BASE.profiles || {}),
+            smoke: {
+                type: 'smoke-fixture',
+                displayName: 'SS2 Smoke Fixture',
+                dataDomain: 'synthetic smoke data',
+            },
+        },
+    };
+
+    beforeEach(() => {
+        fs.readFileSync.mockReturnValue(JSON.stringify(SMOKE_CONFIG));
+    });
+    afterEach(() => {
+        fs.readFileSync.mockReturnValue(JSON.stringify(MOCK_CONFIG_BASE));
+    });
+
+    it('returns COMPLETED + governance attestation without contacting upstream', async () => {
+        const res = await request(app)
+            .post('/assistant/conversations/start')
+            .send({ assistantProfile: 'smoke', content: 'What is the SS2 smoke answer?' });
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe('COMPLETED');
+        expect(res.body.conversation_id).toMatch(/^smoke-conv-[a-f0-9]{12}$/);
+        expect(res.body.message_id).toMatch(/^smoke-msg-[a-f0-9]{12}$/);
+        expect(res.body.content).toMatch(/^Smoke fixture answer to: ".+"$/);
+        expect(res.body.governance).toMatchObject({
+            enforced: true,
+            authority: 'mock',
+            policyVersion: 'g3-v1',
+        });
+    });
+
+    it('returns deterministic ids for the same question', async () => {
+        const a = await request(app)
+            .post('/assistant/conversations/start')
+            .send({ assistantProfile: 'smoke', content: 'deterministic test' });
+        const b = await request(app)
+            .post('/assistant/conversations/start')
+            .send({ assistantProfile: 'smoke', content: 'deterministic test' });
+        expect(a.body.conversation_id).toBe(b.body.conversation_id);
+        expect(a.body.message_id).toBe(b.body.message_id);
+    });
+
+    it('rejects empty content', async () => {
+        const res = await request(app)
+            .post('/assistant/conversations/start')
+            .send({ assistantProfile: 'smoke', content: '' });
+        expect(res.status).toBe(400);
+        expect(res.body.error).toMatch(/content is required/i);
+    });
+
+    // Production-mode rejection is enforced at the attestation builder level —
+    // `buildGovernanceAttestation` throws on `authority: "mock"` when
+    // NODE_ENV=production, regardless of which route called it. That contract
+    // is covered by the unit tests in `proxy/tests/governance.test.js`; we
+    // don't re-test it here because the auth middleware would reject this
+    // unauthenticated test request with 401 before the route handler runs
+    // in production mode anyway. The composition is: middleware blocks
+    // first; even if auth was provided, the governance builder still throws
+    // and the route returns 500.
 });
 
 // ── /assistant/conversations/:id/messages — profile resolution ────────────────

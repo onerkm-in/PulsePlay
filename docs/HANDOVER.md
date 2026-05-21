@@ -5,6 +5,72 @@
 
 ---
 
+## 2026-05-21 - SS2 proxy-backed shell smoke (real proxy + Vite + Chromium)
+
+**Scope.** Closes the biggest UX-confidence gap on the project. A real headless Chromium navigates to a real Vite dev server proxying `/api/*` to a real PulsePlay proxy process, the AISidebar submits a question through the actual React UI, and the rendered answer text + governance attestation are asserted end-to-end. No mocked routes, no fake adapters — the only synthetic element is the `type: "smoke-fixture"` profile that short-circuits Genie upstream and returns canned data through the real `withGovernance(...)` builder. This is materially stronger than SS1's Vite-only smoke.
+
+**Code changes.**
+
+- [`proxy/server.js`](../proxy/server.js):
+  - Registry entry: `'smoke-fixture': { authority: 'mock' }` in `RENDERABLE_BACKEND_GOVERNANCE`. The governance builder forbids `authority: "mock"` when `NODE_ENV=production`, so this profile fails closed in production even if it leaks into a deployment.
+  - Short-circuit at the top of `POST /assistant/conversations/start`: when `resolved.profile.type === 'smoke-fixture'`, return a Genie-shaped `{ conversation_id, message_id, status: 'COMPLETED', content: <echoes question> }` wrapped via `withGovernance(req, profile, 'smoke-fixture', payload)`. Conversation ids are deterministic per question (sha256 truncated to 12 hex).
+  - Short-circuit for `POST /warehouse/start` too: smoke profiles do not run SQL, but the playground's `warehouseWarmup.ts` fires the warmup on mount regardless. Returning a synthetic `{ ok: true, state: 'RUNNING', smokeFixture: true }` keeps the smoke's strict console-error budget at zero.
+- [`proxy/tests/server.test.js`](../proxy/tests/server.test.js): 3 new tests — round-trip happy path, deterministic ids, empty-content rejection. Production-mode rejection is covered by the existing `proxy/lib/governance.js` unit tests and is intentionally not re-tested here (auth middleware would intercept the request first in prod mode).
+- [`playground/scripts/shell-smoke-proxy.mjs`](../playground/scripts/shell-smoke-proxy.mjs): new orchestrator + spec. Boots `node proxy/server.js` (port 8787, pre-flight probe with 5s retry for port release) and `npm run dev` (Vite walks up from 5173 if taken), waits for ready signals (ANSI-stripped pattern matchers), seeds localStorage in Playwright `addInitScript`, drives the AISidebar input + submit, asserts the rendered entry has `data-status='completed'` and the answer text matches the fixture echo, and tears down all child processes via Windows `taskkill /T /F` (or POSIX SIGTERM/SIGKILL). JSON report to stdout, screenshot to `playground/scripts/shell-smoke-proxy.png` (gitignored).
+- [`playground/scripts/.gitignore`](../playground/scripts/.gitignore): adds `shell-smoke-proxy.png`.
+
+**What the smoke validates** (real round-trip evidence, not assertions about mocked behavior).
+
+| Layer | Verified by |
+|---|---|
+| Proxy boots cleanly with `PROXY_PROFILE_SMOKE_TYPE=smoke-fixture` env vars | "PulsePlay Proxy → http://127.0.0.1:8787" ready line |
+| Vite dev server proxies `/api/*` to the proxy | shell mounts and submit reaches the proxy |
+| Real React shell mounts | `data-testid='pp-viewport-shell'` present |
+| F5.1/G5 telemetry attrs emitted | `runtimeBiVendor=native, biSurfaceMode=auto, activeSurface=ask-pulse` snapshot |
+| AISidebar submit fires the real fetch | proxy receives POST `/assistant/conversations/start` |
+| Smoke-fixture short-circuit returns COMPLETED with real governance attestation | `withGovernance(...)` builds `{ enforced: true, authority: 'mock', policyVersion: 'g3-v1', subjectRef, requestId }` |
+| AISidebar receives, finalizes the entry, renders answer in DOM | `[data-status='completed']` + entry text contains "Smoke fixture answer to: \"...SS2 smoke question\"" |
+| Zero console errors, zero page errors, zero failed `/api/*` requests | strict budget enforced in the spec |
+
+**Reproduction.**
+```
+# From the repo root:
+node playground/scripts/shell-smoke-proxy.mjs
+```
+Exit 0 + `failures: []` in the JSON report means smoke passed. No manual proxy/Vite startup needed — the runner manages both.
+
+**Smoke runner tripwires encoded in the code.**
+
+1. **Windows `shell: true` orphans the node process under cmd.exe.** `child.kill('SIGTERM')` reaps the cmd.exe wrapper but the actual server stays alive. The cleanup path skips the SIGTERM step on Windows and goes straight to `taskkill /pid X /T /F`, which walks the tree and kills everything. Documented in `killAll`.
+2. **Vite ready-line is ANSI-color-wrapped.** `Local: http://...` actually arrives as `\x1b[32m\x1b[1mLocal\x1b[22m\x1b[39m: ...` — raw regex fails. The runner strips ANSI before matching.
+3. **Port 8787 may need a moment to free after a previous orchestrator run.** Pre-flight probe retries 5x at 1s intervals before declaring the port permanently bound.
+
+**What this smoke does NOT cover** (honest non-claims).
+
+- **AI result → native canvas render path.** PulsePlay's AISidebar surfaces the answer text in the sidebar but does NOT currently call `renderResult` on the native BI adapter. The wiring is missing, not the canvas — the canvas-standalone smoke (SS0/G-track) covers the canvas rendering layer separately with hardcoded attested fixtures. Connecting `renderResult` to attested AISidebar responses is a feature cycle (FW1?), not a smoke gap.
+- **Wizard walkthrough.** The smoke seeds `pulseplay:wizard-dismissed=true` so the wizard never mounts.
+- **Pulse mode (`ui-mode: 'pulse'`).** The smoke uses `ui-mode: 'v0'` because the default Pulse mode has multiple `isConfigured` gates (apiBaseUrl, assistantProfile/spaceId, etc) that aren't the contract SS2 is testing. Pulse-mode end-to-end smoke is a separate slice.
+- **Other vendor adapters.** Auto-fallback-to-native is the runtime surface; Power BI/Tableau/Qlik/Looker are not exercised.
+- **Multi-message conversation flows.** Smoke fixture returns COMPLETED synchronously; polling/continuation flows are not tested.
+
+**Validation.**
+| Check | Result |
+|---|---|
+| Proxy unit tests including 3 new SS2a tests | **1136/1136** (was 1133; +3) |
+| Proxy syntax | `node --check proxy/server.js` pass |
+| SS2 smoke run | exit 0; failures `[]`; snapshot shows fixture answer rendered in AISidebar |
+
+**Tripwires for next session.**
+
+- **Do NOT add `type: "smoke-fixture"` to a production config.** The governance builder rejects `authority: "mock"` in production and the short-circuits will return 500 — but the cleaner posture is to keep the smoke fixture out of any committed config. The env-var loader (`PROXY_PROFILE_SMOKE_*`) is the only intended entry point and is set only by the smoke runner.
+- **If the AISidebar's selectors change** (placeholder text "Ask about the loaded view…", `data-testid='pp-ai-entry-<n>'`, `data-status`), this smoke fails fast. Update both this smoke and SS1's selector list together.
+- **The `warehouseWarmup.ts` short-circuit is a workaround**, not a feature. If the playground stops calling `/warehouse/start` on mount (or changes which profiles trigger it), the proxy guard becomes unreachable code. Track that and remove the guard when the warmup call is removed.
+- **Pulse mode smoke is queued.** It needs the `apiBaseUrl` + `assistantProfile`/`spaceId` settings seeded plus a different chat-history selector path. Worth a small follow-up cycle if/when Pulse mode becomes the default smoke target.
+
+**Next.** Per the user's stated sequencing — PB1a (Pulse PBI shared-proxy adoption with `X-Pulse-Client: pulse-pbi` header), then build hygiene (stale smoke scripts + `powerbi-visuals-tools` pin), then DX1 (desktop EXE Tauri proof).
+
+---
+
 ## 2026-05-21 - Multi-agent integrity sweep + P1/P2 patch set
 
 **Scope.** Five subagents scanned frontend/native/settings, proxy/governance, Pulse PBI enabler, docs/memory, and build tooling. Full report: [`docs/research/PROJECT_INTEGRITY_AUDIT_2026-05-21.md`](research/PROJECT_INTEGRITY_AUDIT_2026-05-21.md).

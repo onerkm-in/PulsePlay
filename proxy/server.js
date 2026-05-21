@@ -1559,6 +1559,13 @@ const RENDERABLE_BACKEND_GOVERNANCE = Object.freeze({
     'supervisor-local': Object.freeze({ authority: 'unity-catalog' }),
     'responses-agent': Object.freeze({ authority: 'unity-catalog' }),
     'powerbi-semantic-model': Object.freeze({ authority: 'powerbi-semantic-model' }),
+    // SS2 — proxy-backed shell smoke. Profiles of `type: "smoke-fixture"`
+    // short-circuit the conversation routes to a canned `COMPLETED`
+    // response stamped with this `authority: "mock"` attestation. The
+    // governance builder forbids `authority: "mock"` when
+    // `NODE_ENV=production`, so a smoke profile cannot accidentally
+    // ship a governance-bypass to a real deployment.
+    'smoke-fixture': Object.freeze({ authority: 'mock' }),
 });
 
 function hashGovernanceSubject(prefix, raw) {
@@ -2854,6 +2861,13 @@ app.get('/warehouse/status', async (req, res) => {
 app.post('/warehouse/start', async (req, res) => {
     const resolved = resolveProfile(req.body, {}, req.headers, req);
     if (!resolved) return sendNoMatchingProfile(req, res);
+    // SS2 — smoke-fixture profiles do not run SQL; the playground's
+    // warmup helper fires this on mount regardless, so honor it as a
+    // no-op rather than letting it 400 and trip the smoke's strict
+    // console-error budget.
+    if (resolved.profile.type === 'smoke-fixture') {
+        return res.json({ ok: true, state: 'RUNNING', smokeFixture: true });
+    }
     const warehouseId = resolved.profile.warehouseId;
     if (!warehouseId) return res.status(400).json({ error: 'No warehouseId configured in profile' });
 
@@ -2939,6 +2953,40 @@ app.post('/assistant/space-update', async (req, res) => {
 app.post('/assistant/conversations/start', async (req, res) => {
     const resolved = resolveProfile(req.body, {}, req.headers, req);
     if (!resolved) return sendNoMatchingProfile(req, res);
+
+    // SS2 — proxy-backed shell smoke short-circuit.
+    //
+    // When the resolved profile is configured with `type: "smoke-fixture"`,
+    // return a canned `COMPLETED` Genie-shape response without contacting
+    // Genie. The response goes through `withGovernance(req, profile,
+    // 'smoke-fixture', ...)` so the attestation is BUILT BY THE REAL
+    // proxy code path — the smoke validates the actual governance contract,
+    // not a hand-rolled fixture. `authority: "mock"` is forbidden in
+    // production by `buildGovernanceAttestation`, so a smoke-fixture
+    // profile that somehow slips into a production deployment fails
+    // closed at attestation time.
+    if (resolved.profile.type === 'smoke-fixture') {
+        const fixtureContent = String(req.body?.content || '').trim();
+        if (!fixtureContent) {
+            return res.status(400).json({ error: 'Question content is required' });
+        }
+        const cryptoMod = require('crypto');
+        const fingerprint = cryptoMod.createHash('sha256').update(fixtureContent).digest('hex').slice(0, 12);
+        const payload = {
+            conversation_id: `smoke-conv-${fingerprint}`,
+            message_id: `smoke-msg-${fingerprint}`,
+            status: 'COMPLETED',
+            content: `Smoke fixture answer to: "${fixtureContent.length > 200 ? `${fixtureContent.slice(0, 197)}...` : fixtureContent}"`,
+        };
+        try {
+            return res.json(withGovernance(req, resolved.profile, 'smoke-fixture', payload));
+        } catch (err) {
+            // The most likely failure here is buildGovernanceAttestation
+            // refusing `authority: "mock"` in production — surface that
+            // explicitly rather than the generic 500.
+            return res.status(500).json({ error: String(err?.message || err) });
+        }
+    }
 
     const { spaceId, content, contextText, pack, subVertical } = req.body;
     if (!content || !String(content).trim()) {
