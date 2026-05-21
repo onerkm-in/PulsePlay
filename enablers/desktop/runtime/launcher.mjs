@@ -21,6 +21,7 @@ import crypto from "node:crypto";
 import http from "node:http";
 import path from "node:path";
 import { promises as fs } from "node:fs";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -46,13 +47,23 @@ const __dirname = path.dirname(__filename);
 
 const ARG_DEV = "--dev";
 const ARG_NO_BROWSER = "--no-browser";
+const ARG_DESKTOP_PROXY_CHILD = "--desktop-proxy-child";
 
 function parseArgs(argv) {
     const args = argv.slice(2);
     return {
         dev: args.includes(ARG_DEV),
         noBrowser: args.includes(ARG_NO_BROWSER),
+        proxyChild: args.includes(ARG_DESKTOP_PROXY_CHILD),
     };
+}
+
+function isPackagedRuntime(execPath = process.execPath, argv0 = process.argv0) {
+    // @yao-pkg/pkg sets process.pkg. The execPath/argv0 fallback keeps
+    // tests and future packagers from depending on that exact implementation.
+    if (Boolean(process.pkg)) return true;
+    const execBase = path.basename(execPath || "").toLowerCase();
+    return Boolean(execBase) && execBase !== "node.exe" && execBase !== "node";
 }
 
 // Resolve runtime paths based on where the launcher was invoked from.
@@ -64,23 +75,37 @@ function parseArgs(argv) {
 //                  beside the launcher binary under packaging)
 // Packaged mode (`process.execPath` !== node binary):
 //   The packaged tool sits beside its sidecar files; baseDir = dirname(execPath).
-//   Slice 6 (packaging proof) fills in this branch's path resolution.
-async function resolvePaths(opts) {
-    const isPackaged = typeof process.pkg !== "undefined" || process.execPath !== process.argv0;
+//   proxyEntry = baseDir/proxy/server.js
+//   staticDir  = baseDir/playground/dist
+async function resolvePaths(opts, runtime = {}) {
+    const execPath = runtime.execPath || process.execPath;
+    const argv0 = runtime.argv0 || process.argv0;
+    const packaged = typeof runtime.isPackaged === "boolean"
+        ? runtime.isPackaged
+        : isPackagedRuntime(execPath, argv0);
     const enablerRoot = path.resolve(__dirname, "..");
     const repoRoot = path.resolve(enablerRoot, "..", "..");
 
-    // For DX1b proof we use the dev-mode resolution unless flag overrides.
-    // Slice 6 introduces a packaging manifest that lets the packaged tool
-    // ship its proxy + static assets in a known location.
-    const baseDir = isPackaged && !opts.dev
-        ? path.dirname(process.execPath)
-        : enablerRoot;
+    if (packaged && !opts.dev) {
+        const baseDir = path.dirname(execPath);
+        return {
+            repoRoot: baseDir,
+            enablerRoot: baseDir,
+            baseDir,
+            proxyEntry: path.join(baseDir, "proxy", "server.js"),
+            staticDir: path.join(baseDir, "playground", "dist"),
+            isPackaged: true,
+        };
+    }
 
-    const proxyEntry = path.join(repoRoot, "proxy", "server.js");
-    const staticDir = path.join(repoRoot, "playground", "dist");
-
-    return { repoRoot, enablerRoot, baseDir, proxyEntry, staticDir, isPackaged };
+    return {
+        repoRoot,
+        enablerRoot,
+        baseDir: enablerRoot,
+        proxyEntry: path.join(repoRoot, "proxy", "server.js"),
+        staticDir: path.join(repoRoot, "playground", "dist"),
+        isPackaged: false,
+    };
 }
 
 async function readLauncherVersion(enablerRoot) {
@@ -120,14 +145,21 @@ async function ensureProxyEntryOrFail(proxyEntry) {
     }
 }
 
-function spawnProxyChild(proxyEntry, port, dataLogPath) {
+function buildProxyChildSpawnPlan(proxyEntry, packaged = isPackagedRuntime()) {
+    return {
+        command: process.execPath,
+        args: packaged ? [ARG_DESKTOP_PROXY_CHILD] : [path.join(__dirname, "proxyEntry.cjs")],
+        cwd: path.dirname(proxyEntry),
+    };
+}
+
+function spawnProxyChild(proxyEntry, port, dataLogPath, packaged) {
     // We spawn our own loopback-binding wrapper (proxyEntry.cjs) instead
     // of proxy/server.js directly. The proxy's own startup banner uses
     // `runAsDatabricksApp = Boolean(env.PORT || env.DATABRICKS_APP_PORT)`
     // and would bind 0.0.0.0 if we set PORT. The wrapper imports the
     // express app (server.js exports it but only auto-starts under
     // require.main) and binds 127.0.0.1:PULSEPLAY_DESKTOP_PROXY_PORT.
-    const wrapper = path.join(__dirname, "proxyEntry.cjs");
     const env = {
         ...process.env,
         PULSEPLAY_DESKTOP_PROXY_PORT: String(port),
@@ -143,10 +175,10 @@ function spawnProxyChild(proxyEntry, port, dataLogPath) {
         // operator can still override by setting NODE_ENV upstream.
         NODE_ENV: process.env.NODE_ENV || "development",
     };
-    const cwd = path.dirname(proxyEntry);
-    const child = spawn(process.execPath, [wrapper], {
+    const plan = buildProxyChildSpawnPlan(proxyEntry, packaged);
+    const child = spawn(plan.command, plan.args, {
         env,
-        cwd,
+        cwd: plan.cwd,
         stdio: ["ignore", "pipe", "pipe"],
     });
     // Mirror proxy stdio into PulsePlayData/logs/proxy.log AND surface
@@ -160,6 +192,52 @@ function spawnProxyChild(proxyEntry, port, dataLogPath) {
     child.stdout.on("data", tag("out"));
     child.stderr.on("data", tag("err"));
     return child;
+}
+
+function runProxyChildFromEnv() {
+    const port = Number(process.env.PULSEPLAY_DESKTOP_PROXY_PORT);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+        console.error("[proxy-wrap] PULSEPLAY_DESKTOP_PROXY_PORT must be a valid TCP port; got", process.env.PULSEPLAY_DESKTOP_PROXY_PORT);
+        process.exit(1);
+    }
+
+    const proxyEntry = process.env.PULSEPLAY_DESKTOP_PROXY_ENTRY;
+    if (!proxyEntry) {
+        console.error("[proxy-wrap] PULSEPLAY_DESKTOP_PROXY_ENTRY is required");
+        process.exit(1);
+    }
+
+    let mod;
+    try {
+        const requireFromProxy = createRequire(path.join(path.dirname(proxyEntry), "desktop-proxy-child.cjs"));
+        mod = requireFromProxy(proxyEntry);
+    } catch (err) {
+        console.error(`[proxy-wrap] failed to require ${proxyEntry}: ${err && err.message ? err.message : err}`);
+        process.exit(1);
+    }
+
+    if (!mod || typeof mod.app !== "function") {
+        console.error(`[proxy-wrap] ${proxyEntry} did not export an 'app' (express handler). Got keys: ${Object.keys(mod || {}).join(", ")}`);
+        process.exit(1);
+    }
+
+    const server = http.createServer(mod.app);
+    server.on("error", (err) => {
+        console.error(`[proxy-wrap] listen error: ${err && err.message ? err.message : err}`);
+        process.exit(1);
+    });
+    server.listen(port, "127.0.0.1", () => {
+        console.log(`[proxy-wrap] bound 127.0.0.1:${port} (desktop packaged child, no Databricks-Apps mode)`);
+    });
+
+    function shutdown(signal) {
+        console.log(`[proxy-wrap] ${signal} received, closing...`);
+        server.close(() => process.exit(0));
+        setTimeout(() => process.exit(1), 5_000).unref();
+    }
+    process.on("SIGTERM", () => shutdown("SIGTERM"));
+    process.on("SIGINT", () => shutdown("SIGINT"));
+    process.on("SIGHUP", () => shutdown("SIGHUP"));
 }
 
 async function waitForProxyReady(port, { timeoutMs = 10_000, intervalMs = 250 } = {}) {
@@ -214,7 +292,7 @@ function attachShutdown(state) {
 // the main module.
 export async function run(argv = process.argv) {
     const opts = parseArgs(argv);
-    const { enablerRoot, baseDir, proxyEntry, staticDir } = await resolvePaths(opts);
+    const { enablerRoot, baseDir, proxyEntry, staticDir, isPackaged } = await resolvePaths(opts);
     const version = await readLauncherVersion(enablerRoot);
 
     await ensureProxyEntryOrFail(proxyEntry);
@@ -250,7 +328,7 @@ export async function run(argv = process.argv) {
     await fs.appendFile(runtimeLogPath, `[launcher] ports app=${appPort} proxy=${proxyPort}\n`).catch(() => {});
 
     // 1) Spawn bundled proxy child.
-    const proxyChild = spawnProxyChild(proxyEntry, proxyPort, proxyLogPath);
+    const proxyChild = spawnProxyChild(proxyEntry, proxyPort, proxyLogPath, isPackaged);
     const state = { proxyChild, appServer: null, dataDir, watchdog: null };
     const shutdown = attachShutdown(state);
 
@@ -338,14 +416,18 @@ export async function run(argv = process.argv) {
 const invokedDirectly = (() => {
     try {
         const argvPath = path.resolve(process.argv[1] || "");
-        return argvPath === __filename;
+        return argvPath === __filename || isPackagedRuntime();
     } catch {
         return false;
     }
 })();
 
 if (invokedDirectly) {
-    run(process.argv).catch(async (err) => {
+    const opts = parseArgs(process.argv);
+    const entryPromise = opts.proxyChild
+        ? Promise.resolve(runProxyChildFromEnv())
+        : run(process.argv);
+    entryPromise.catch(async (err) => {
         const msg = err && err.stack ? err.stack : String(err);
         process.stderr.write(`[launcher] fatal: ${msg}\n`);
         // Best-effort error trace into PulsePlayData/runtime/last-error.txt
@@ -353,7 +435,7 @@ if (invokedDirectly) {
         // closes. The base directory is the enabler root in dev mode;
         // packaged mode is dirname(process.execPath) (slice 6).
         try {
-            const { enablerRoot, baseDir } = await resolvePaths({ dev: true });
+            const { enablerRoot, baseDir } = await resolvePaths(opts);
             await writeLastError(baseDir || enablerRoot, msg);
         } catch { /* swallow */ }
         process.exit(1);
@@ -362,8 +444,10 @@ if (invokedDirectly) {
 
 export const __forTests = {
     parseArgs,
+    isPackagedRuntime,
     generateLaunchToken,
     resolvePaths,
+    buildProxyChildSpawnPlan,
     readLauncherVersion,
     waitForProxyReady,
 };

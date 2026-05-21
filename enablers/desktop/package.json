@@ -11,7 +11,9 @@
         "test": "node --test",
         "smoke": "node scripts/dx1b-smoke.mjs",
         "smoke:persistence": "node scripts/dx1b-smoke.mjs --check-persistence",
-        "package": "node -e \"console.error('packaging recipe is documented in PACKAGING.md; implementation lands in DX1c'); process.exit(1)\""
+        "smoke:binary": "node scripts/dx1b-smoke.mjs --launcher out/install/PulsePlay.exe",
+        "smoke:binary:persistence": "node scripts/dx1b-smoke.mjs --launcher out/install/PulsePlay.exe --check-persistence",
+        "package": "node scripts/package-win.mjs"
     },
     "dependencies": {
         "express": "^4.21.2",

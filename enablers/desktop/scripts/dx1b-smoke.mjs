@@ -21,16 +21,50 @@ import { fileURLToPath } from "node:url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const enablerRoot = path.resolve(__dirname, "..");
-const launcher = path.join(enablerRoot, "runtime", "launcher.mjs");
-const dataDir = path.join(enablerRoot, "PulsePlayData");
-const lockFile = path.join(dataDir, "runtime", "lock.json");
 
 const args = process.argv.slice(2);
 const persistenceMode = args.includes("--check-persistence");
 const cleanFirst = args.includes("--clean") || !persistenceMode;
+const launcherArg = readArgValue("--launcher") || readArgValue("--packaged-binary");
+
+function readArgValue(name) {
+    const prefixed = args.find((arg) => arg.startsWith(`${name}=`));
+    if (prefixed) return prefixed.slice(name.length + 1);
+    const idx = args.indexOf(name);
+    return idx >= 0 ? args[idx + 1] : null;
+}
+
+function buildLauncherTarget() {
+    if (!launcherArg) {
+        return {
+            mode: "source",
+            command: process.execPath,
+            args: [path.join(enablerRoot, "runtime", "launcher.mjs"), "--dev", "--no-browser"],
+            cwd: enablerRoot,
+            dataDir: path.join(enablerRoot, "PulsePlayData"),
+        };
+    }
+
+    const launcherPath = path.resolve(launcherArg);
+    const ext = path.extname(launcherPath).toLowerCase();
+    const packaged = ext === ".exe";
+    return {
+        mode: packaged ? "packaged-binary" : "source-file",
+        command: packaged ? launcherPath : process.execPath,
+        args: packaged ? ["--no-browser"] : [launcherPath, "--dev", "--no-browser"],
+        cwd: path.dirname(launcherPath),
+        dataDir: path.join(path.dirname(launcherPath), "PulsePlayData"),
+    };
+}
+
+const launcherTarget = buildLauncherTarget();
+const dataDir = launcherTarget.dataDir;
+const lockFile = path.join(dataDir, "runtime", "lock.json");
 
 const report = {
     mode: persistenceMode ? "persistence-check" : "full",
+    launcherMode: launcherTarget.mode,
+    launcherCommand: launcherTarget.command,
     startedAt: new Date().toISOString(),
     steps: [],
     failures: [],
@@ -45,8 +79,8 @@ function step(name, ok, detail) {
 
 function bootLauncher() {
     return new Promise((resolve, reject) => {
-        const child = spawn(process.execPath, [launcher, "--dev", "--no-browser"], {
-            cwd: enablerRoot,
+        const child = spawn(launcherTarget.command, launcherTarget.args, {
+            cwd: launcherTarget.cwd,
             stdio: ["ignore", "pipe", "pipe"],
         });
         let stdoutBuf = "";
@@ -181,7 +215,7 @@ async function runFullSmoke() {
 
 async function runPersistenceCheck() {
     // Do NOT clean - we want the previous run's state to be present.
-    if (!await exists(lockFile.replace("/lock.json", "")) && !await exists(path.join(dataDir, "profiles", "default", "state.json"))) {
+    if (!await exists(path.dirname(lockFile)) && !await exists(path.join(dataDir, "profiles", "default", "state.json"))) {
         step("P0 prior state exists", false, "no state.json found from prior run - cannot test persistence");
         return false;
     }

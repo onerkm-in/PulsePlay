@@ -8,6 +8,9 @@ package-lock.json.bak
 # Vite
 playground/dist/
 playground/.vite/
+enablers/desktop/out/
+enablers/desktop/PulsePlayData/
+enablers/desktop/*.exe
 
 # Proxy runtime artifacts (never commit credentials or session-specific logs)
 proxy/config.json
