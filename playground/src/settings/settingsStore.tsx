@@ -31,11 +31,18 @@ import {
 import type { PulsePlayAllowlist } from "../types/allowlist";
 import type { PackSelection } from "../components/PackPicker";
 import { writePulseAiVisualSettingsPatch, writeRawGenieSettingsPatch } from "./pulseVisualSettingsStore";
+import {
+    BI_SURFACE_MODE_STORAGE_KEY,
+    normalizeBiSurfaceMode,
+    readInitialBiSurfaceMode,
+    type BiSurfaceMode,
+} from "./biSurfaceMode";
 
 // ─── Storage keys (mirrors App.tsx + Pulse Cycle H) ───────────────────────
 
 const KEY = {
     biVendor: "pulseplay:bi-vendor",
+    biSurfaceMode: BI_SURFACE_MODE_STORAGE_KEY,
     packSelection: "pulseplay:pack-selection",
     uiMode: "pulseplay:ui-mode",
     enabledComponents: "pulseplay:enabled-components",
@@ -79,6 +86,7 @@ export interface SettingsState {
     allowlistLoading: boolean;
     allowlistError: string | null;
     biVendor: string;
+    biSurfaceMode: BiSurfaceMode;
     packSelection: PackSelection | null;
     uiMode: UiMode;
     enabledComponents: EnabledComponents;
@@ -229,6 +237,7 @@ function buildInitialState(): SettingsState {
         allowlistLoading: true,
         allowlistError: null,
         biVendor: readBiVendor(),
+        biSurfaceMode: readInitialBiSurfaceMode(),
         packSelection: readPackSelection(),
         uiMode: readUiMode(),
         enabledComponents: readEnabledComponents(),
@@ -296,6 +305,7 @@ type Action =
     | { type: "allowlist/loaded"; allowlist: PulsePlayAllowlist | null }
     | { type: "allowlist/error"; message: string }
     | { type: "set/biVendor"; value: string }
+    | { type: "set/biSurfaceMode"; value: BiSurfaceMode }
     | { type: "set/packSelection"; value: PackSelection | null }
     | { type: "set/uiMode"; value: UiMode }
     | { type: "set/enabledComponents"; value: EnabledComponents }
@@ -337,6 +347,8 @@ function reducer(state: SettingsState, action: Action): SettingsState {
             };
         case "set/biVendor":
             return { ...state, biVendor: action.value };
+        case "set/biSurfaceMode":
+            return { ...state, biSurfaceMode: action.value };
         case "set/packSelection":
             return { ...state, packSelection: action.value };
         case "set/uiMode":
@@ -376,6 +388,8 @@ function applyExternalSync(state: SettingsState, key: string, value: string): Se
             return state;
         case KEY.biVendor:
             return { ...state, biVendor: value };
+        case KEY.biSurfaceMode:
+            return { ...state, biSurfaceMode: normalizeBiSurfaceMode(value) };
         case KEY.activeAiProfile:
             return { ...state, activeAiProfile: value };
         default:
@@ -409,6 +423,7 @@ function removeAndBroadcast(key: string): void {
 
 export interface SettingsActions {
     setBiVendor: (value: string) => { ok: boolean; reason?: string };
+    setBiSurfaceMode: (value: BiSurfaceMode) => void;
     setPackSelection: (value: PackSelection | null) => { ok: boolean; reason?: string };
     setUiMode: (value: UiMode) => void;
     setEnabledComponents: (value: EnabledComponents) => void;
@@ -494,6 +509,12 @@ export function SettingsProvider(props: SettingsProviderProps): React.ReactEleme
         },
         [state],
     );
+
+    const setBiSurfaceMode = useCallback<SettingsActions["setBiSurfaceMode"]>((value) => {
+        const normalized = normalizeBiSurfaceMode(value);
+        persistAndBroadcast(KEY.biSurfaceMode, normalized);
+        dispatch({ type: "set/biSurfaceMode", value: normalized });
+    }, []);
 
     const setPackSelection = useCallback<SettingsActions["setPackSelection"]>(
         (value) => {
@@ -604,6 +625,7 @@ export function SettingsProvider(props: SettingsProviderProps): React.ReactEleme
         () => ({
             ...state,
             setBiVendor,
+            setBiSurfaceMode,
             setPackSelection,
             setUiMode,
             setEnabledComponents,
@@ -615,6 +637,7 @@ export function SettingsProvider(props: SettingsProviderProps): React.ReactEleme
         [
             state,
             setBiVendor,
+            setBiSurfaceMode,
             setPackSelection,
             setUiMode,
             setEnabledComponents,

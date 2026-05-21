@@ -13,13 +13,22 @@ import { useState } from "react";
 import { useSettings } from "../settingsStore";
 import { useEmbedConfig } from "../embedConfigStore";
 import { EmbedConfigForm } from "../../components/EmbedConfigForm";
+import {
+    resolveBiSurfaceVendor,
+    type BiSurfaceMode,
+} from "../biSurfaceMode";
 
 export function BiGroup(): React.ReactElement {
-    const { allowlist, biVendor, orphans, activeAiProfile } = useSettings();
+    const { allowlist, biVendor, biSurfaceMode, orphans, activeAiProfile, setBiSurfaceMode } = useSettings();
     const biOrphan = orphans.find(o => o.key === "pulseplay:bi-vendor");
     const allowedProviders = allowlist?.biProviders || [];
     const { embedConfig, setEmbedConfig, clearEmbedConfig } = useEmbedConfig();
     const hasEmbedConfig = !!embedConfig && Object.keys(embedConfig).length > 0;
+    const surfaceResolution = resolveBiSurfaceVendor({
+        mode: biSurfaceMode,
+        requestedVendor: biVendor,
+        hasVendorEmbedConfig: hasEmbedConfig,
+    });
     return (
         <section aria-labelledby="settings-bi-title">
             <header style={{ marginBottom: 20 }}>
@@ -36,10 +45,18 @@ export function BiGroup(): React.ReactElement {
             >
 
             <Leaf group="bi" label="Provider" helper="The BI tool PulsePlay embeds. Restricted to the providers your organization allows.">
-                <CurrentValue label="Active">{biVendor}</CurrentValue>
+                <CurrentValue label="Vendor intent">{biVendor}</CurrentValue>
+                <CurrentValue label="Runtime">{surfaceResolution.runtimeVendor}</CurrentValue>
+                <CurrentValue label="Surface mode">{biSurfaceMode}</CurrentValue>
                 <CurrentValue label="Allowed">
                     {allowedProviders.length > 0 ? allowedProviders.join(" · ") : "(allowlist unavailable)"}
                 </CurrentValue>
+                <BiSurfaceModeControl
+                    value={biSurfaceMode}
+                    onChange={setBiSurfaceMode}
+                    hasEmbedConfig={hasEmbedConfig}
+                    runtimeVendor={surfaceResolution.runtimeVendor}
+                />
                 {biOrphan && <OrphanBanner reason={biOrphan.reason} />}
             </Leaf>
 
@@ -175,6 +192,65 @@ export function BiGroup(): React.ReactElement {
 
             </SubSection>
         </section>
+    );
+}
+
+function BiSurfaceModeControl(props: {
+    value: BiSurfaceMode;
+    onChange: (value: BiSurfaceMode) => void;
+    hasEmbedConfig: boolean;
+    runtimeVendor: string;
+}): React.ReactElement {
+    const options: Array<{ value: BiSurfaceMode; label: string; detail: string }> = [
+        {
+            value: "auto",
+            label: "Auto",
+            detail: "Use the configured vendor when it has an embed config; otherwise fall back to native.",
+        },
+        {
+            value: "vendor",
+            label: "Vendor",
+            detail: "Force the selected vendor surface. Missing embed config stays visible as setup work.",
+        },
+        {
+            value: "native",
+            label: "Native",
+            detail: "Render AI query results directly in PulsePlay. Vendor config is preserved.",
+        },
+    ];
+    return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {options.map(option => {
+                    const selected = props.value === option.value;
+                    return (
+                        <button
+                            key={option.value}
+                            type="button"
+                            aria-pressed={selected}
+                            title={option.detail}
+                            onClick={() => props.onChange(option.value)}
+                            style={{
+                                border: `1px solid ${selected ? "var(--pp-accent, #0078d4)" : "var(--pp-border, rgba(0,0,0,0.18))"}`,
+                                background: selected ? "rgba(0,120,212,0.08)" : "transparent",
+                                color: "var(--pp-text, #1d1d1f)",
+                                borderRadius: 5,
+                                cursor: "pointer",
+                                fontSize: 12,
+                                fontWeight: selected ? 700 : 500,
+                                padding: "5px 10px",
+                            }}
+                        >
+                            {option.label}
+                        </button>
+                    );
+                })}
+            </div>
+            <p style={{ margin: 0, fontSize: 11, opacity: 0.66, lineHeight: 1.45 }}>
+                Runtime surface: <code>{props.runtimeVendor}</code>
+                {props.value === "auto" && !props.hasEmbedConfig ? " (native fallback until vendor embed config exists)" : ""}.
+            </p>
+        </div>
     );
 }
 

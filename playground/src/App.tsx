@@ -58,7 +58,13 @@ import { SettingsProvider, useSettings } from "./settings/settingsStore";
 import { PULSE_VISUAL_SETTINGS_EVENT } from "./settings/pulseVisualSettingsStore";
 import { SettingsShell } from "./settings/SettingsShell";
 import { useSettingsRoute, navigateToSettings } from "./settings/settingsRoute";
-import { getSetupReadiness, isNativeBiVendor, type SetupReadiness } from "./settings/setupReadiness";
+import { getSetupReadiness, type SetupReadiness } from "./settings/setupReadiness";
+import {
+    BI_SURFACE_MODE_STORAGE_KEY,
+    readInitialBiSurfaceMode,
+    resolveBiSurfaceVendor,
+    type BiSurfaceMode,
+} from "./settings/biSurfaceMode";
 import { KnowledgeShell } from "./knowledge/KnowledgeShell";
 import { useKnowledgeRoute } from "./knowledge/knowledgeRoute";
 import { PowerBiQnaShell, usePowerBiQnaRoute } from "./powerbi/PowerBiQnARoute";
@@ -479,10 +485,12 @@ function PlaygroundApp(): React.ReactElement {
         [allowlistState],
     );
     // PulsePlay's 2-axis abstraction:
-    //   activeVendor    = Y-axis: which BI tool is loaded in the canvas
+    //   activeVendor    = Y-axis author intent: which vendor is configured
+    //   biSurfaceMode   = runtime policy: auto / native / vendor
     //   activeConnector = X-axis: which AI brain the sidebar talks to
     // Both pickers are independent — any cell of the matrix is valid.
     const [activeVendor, setActiveVendor] = useState<string>(() => readInitialBiVendor());
+    const [biSurfaceMode, setBiSurfaceMode] = useState<BiSurfaceMode>(() => readInitialBiSurfaceMode());
     // PRE-EXISTING BUG FIX: `activeConnector` was initialized to "" and only
     // updated by the wizard's onComplete or the in-app ConnectorPicker.
     // Settings → AI → Provider writes to `pulseplay:active-ai-profile` via
@@ -594,6 +602,16 @@ function PlaygroundApp(): React.ReactElement {
     const handleUiModeChange = useCallback((next: UiMode) => {
         setUiMode(next);
         try { window.localStorage.setItem(UI_MODE_STORAGE_KEY, next); } catch { /* swallow */ }
+    }, []);
+
+    const handleBiSurfaceModeChange = useCallback((next: BiSurfaceMode) => {
+        setBiSurfaceMode(next);
+        try {
+            window.localStorage.setItem(BI_SURFACE_MODE_STORAGE_KEY, next);
+            window.dispatchEvent(new CustomEvent("pulseplay:display-change", {
+                detail: { key: BI_SURFACE_MODE_STORAGE_KEY, value: next },
+            }));
+        } catch { /* swallow */ }
     }, []);
 
     const persistActiveSurface = useCallback((next: SurfaceId, options?: { writeUrl?: boolean }) => {
@@ -820,6 +838,8 @@ function PlaygroundApp(): React.ReactElement {
                 handleEnabledComponentsChange(detail.value);
             } else if (detail.key === LAYOUT_MODE_STORAGE_KEY && (detail.value === "ai-left" || detail.value === "ai-right" || detail.value === "ai-top" || detail.value === "ai-bottom")) {
                 setLayoutMode(detail.value);
+            } else if (detail.key === BI_SURFACE_MODE_STORAGE_KEY && (detail.value === "auto" || detail.value === "native" || detail.value === "vendor")) {
+                setBiSurfaceMode(detail.value);
             } else if (detail.key === ACTIVE_SURFACE_STORAGE_KEY && isSurfaceId(detail.value)) {
                 persistActiveSurface(detail.value, { writeUrl: false });
             }
@@ -857,6 +877,8 @@ function PlaygroundApp(): React.ReactElement {
         const syncBiVendor = () => {
             const next = readInitialBiVendor();
             if (next && next !== activeVendor) setActiveVendor(next);
+            const nextMode = readInitialBiSurfaceMode();
+            if (nextMode !== biSurfaceMode) setBiSurfaceMode(nextMode);
         };
         window.addEventListener("storage", syncBiVendor);
         window.addEventListener("pulseplay:bi-vendor-change", syncBiVendor as EventListener);
@@ -864,7 +886,7 @@ function PlaygroundApp(): React.ReactElement {
             window.removeEventListener("storage", syncBiVendor);
             window.removeEventListener("pulseplay:bi-vendor-change", syncBiVendor as EventListener);
         };
-    }, [activeVendor]);
+    }, [activeVendor, biSurfaceMode]);
 
     // Settings also owns Pulse's legacy `genieSettings` namespace now. When a
     // Settings control writes to that namespace, re-run PulseShell.update()
@@ -1056,9 +1078,19 @@ function PlaygroundApp(): React.ReactElement {
     }, []);
 
     const hasEmbedConfig = Object.keys(embedConfig).length > 0;
-    const hasRenderableBiSurface = isNativeBiVendor(activeVendor) || hasEmbedConfig;
+    const biSurfaceResolution = useMemo(
+        () => resolveBiSurfaceVendor({
+            mode: biSurfaceMode,
+            requestedVendor: activeVendor,
+            hasVendorEmbedConfig: hasEmbedConfig,
+            visibleVendors,
+        }),
+        [biSurfaceMode, activeVendor, hasEmbedConfig, visibleVendors],
+    );
+    const runtimeBiVendor = biSurfaceResolution.runtimeVendor;
+    const hasRenderableBiSurface = biSurfaceResolution.usesNative || hasEmbedConfig;
     const setupReadiness = getSetupReadiness({
-        biVendor: activeVendor,
+        biVendor: runtimeBiVendor,
         embedConfig,
         activeAiProfile: pulseAssistantProfile || activeConnector,
     });
@@ -1195,6 +1227,10 @@ function PlaygroundApp(): React.ReactElement {
             data-active-surface={effectiveSurfaceId}
             data-requested-surface={activeSurface}
             data-surface-fallback-reason={surfaceResolution.fallbackReason ?? undefined}
+            data-bi-surface-mode={biSurfaceMode}
+            data-requested-bi-vendor={activeVendor}
+            data-runtime-bi-vendor={runtimeBiVendor}
+            data-bi-surface-resolution={biSurfaceResolution.reason}
             data-layout-pinned={pinnedViewportPane ? "true" : "false"}
             style={{ position: "relative", width: "100%", height: "100vh", overflow: "hidden", display: "flex", flexDirection: "column" }}
         >
@@ -1295,13 +1331,13 @@ function PlaygroundApp(): React.ReactElement {
                                             onSettingsChange={() => setPulseRenderToken(t => t + 1)}
                                             onApplyFilter={handlePulseApplyFilter}
                                             biEvents={recentEvents}
-                                            biVendor={activeVendor}
+                                            biVendor={runtimeBiVendor}
                                         />
                                     </Suspense>
                                 </>
                             ) : (
                                 <AISidebar
-                                    activeVendor={activeVendor}
+                                    activeVendor={runtimeBiVendor}
                                     activeConnector={activeConnector}
                                     recentEvents={recentEvents}
                                     packSelection={packSelection}
@@ -1380,17 +1416,24 @@ function PlaygroundApp(): React.ReactElement {
                                             onSettingsChange={() => setPulseRenderToken(t => t + 1)}
                                             onApplyFilter={handlePulseApplyFilter}
                                             biEvents={recentEvents}
-                                            biVendor={activeVendor}
+                                            biVendor={runtimeBiVendor}
                                         />
                                     </Suspense>
                                 </>
                             ) : (
                                 <>
+                                    <BiSurfaceModeMiniControl
+                                        mode={biSurfaceMode}
+                                        runtimeVendor={runtimeBiVendor}
+                                        resolutionReason={biSurfaceResolution.reason}
+                                        onChange={handleBiSurfaceModeChange}
+                                    />
                                     <VendorPicker
                                         vendors={visibleVendors}
                                         activeVendor={activeVendor}
                                         onChange={(v) => {
                                             setActiveVendor(v);
+                                            if (v === "native") handleBiSurfaceModeChange("native");
                                             setEmbedConfig({});
                                             setRecentEvents([]);
                                             biAdaptersRef.current.clear();
@@ -1423,7 +1466,7 @@ function PlaygroundApp(): React.ReactElement {
                                         />
                                     )}
                                     <AISidebar
-                                        activeVendor={activeVendor}
+                                        activeVendor={runtimeBiVendor}
                                         activeConnector={activeConnector}
                                         recentEvents={recentEvents}
                                         packSelection={packSelection}
@@ -1490,7 +1533,7 @@ function PlaygroundApp(): React.ReactElement {
                     >
                         <main className="pp-app__canvas" style={{ ...panelInnerStyle(), display: "flex", flexDirection: "column" }}>
                             <PowerBIDeveloperPanel
-                                activeVendor={activeVendor}
+                                activeVendor={runtimeBiVendor}
                                 hasEmbedConfig={hasEmbedConfig}
                                 adapter={primaryBIAdapter}
                                 recentEvents={recentEvents}
@@ -1499,7 +1542,7 @@ function PlaygroundApp(): React.ReactElement {
                             {hasRenderableBiSurface ? (
                                 <BITileGrid
                                     tileMode={effectiveBiTileMode}
-                                    vendor={activeVendor}
+                                    vendor={runtimeBiVendor}
                                     embedConfig={embedConfig}
                                     allowlist={allowlistState.allowlist}
                                     allowlistFailClosed={allowlistFailClosed}
@@ -2247,6 +2290,54 @@ function panelInnerStyle(): React.CSSProperties {
         overflowX: "hidden",
         boxSizing: "border-box",
     };
+}
+
+function BiSurfaceModeMiniControl(props: {
+    mode: BiSurfaceMode;
+    runtimeVendor: string;
+    resolutionReason: string;
+    onChange: (mode: BiSurfaceMode) => void;
+}): React.ReactElement {
+    const options: Array<{ mode: BiSurfaceMode; label: string; title: string }> = [
+        { mode: "auto", label: "Auto", title: "Vendor when configured, otherwise native" },
+        { mode: "vendor", label: "Vendor", title: "Force the selected vendor adapter" },
+        { mode: "native", label: "Native", title: "Force PulsePlay's native result renderer" },
+    ];
+    return (
+        <section className="pp-vendor-picker" data-bi-surface-mode={props.mode}>
+            <div className="pp-vendor-picker__label">BI surface mode</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {options.map(option => {
+                    const selected = props.mode === option.mode;
+                    return (
+                        <button
+                            key={option.mode}
+                            type="button"
+                            aria-pressed={selected}
+                            title={option.title}
+                            onClick={() => props.onChange(option.mode)}
+                            style={{
+                                border: `1px solid ${selected ? "var(--pp-accent, #0078d4)" : "var(--pp-border, rgba(0,0,0,0.18))"}`,
+                                background: selected ? "rgba(0,120,212,0.08)" : "transparent",
+                                color: "var(--pp-text, #1d1d1f)",
+                                borderRadius: 5,
+                                cursor: "pointer",
+                                fontSize: 12,
+                                fontWeight: selected ? 700 : 500,
+                                minWidth: 76,
+                                padding: "5px 8px",
+                            }}
+                        >
+                            {option.label}
+                        </button>
+                    );
+                })}
+            </div>
+            <p className="pp-vendor-picker__desc">
+                Runtime: {props.runtimeVendor} ({props.resolutionReason})
+            </p>
+        </section>
+    );
 }
 
 function PowerBIDeveloperPanel(props: {

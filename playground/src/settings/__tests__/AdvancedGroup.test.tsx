@@ -115,6 +115,7 @@ describe("AdvancedGroup — type-to-confirm gates", () => {
 
     it("Reset section clears only the keys for the chosen section", async () => {
         window.localStorage.setItem("pulseplay:bi-vendor", "powerbi");
+        window.localStorage.setItem("pulseplay:bi-surface-mode", "native");
         window.localStorage.setItem("pulseplay:ui-mode", "pulse");
 
         const state = mount();
@@ -124,7 +125,7 @@ describe("AdvancedGroup — type-to-confirm gates", () => {
         const resetSectionInput = Array.from(state.container.querySelectorAll<HTMLInputElement>('input[type="text"]'))
             .find(i => i.getAttribute("aria-label") === "Type Reset bi to confirm")!;
         const resetSectionBtn = Array.from(state.container.querySelectorAll<HTMLButtonElement>("button"))
-            .find(b => (b.textContent || "").startsWith("Clear 3 keys"))!;
+            .find(b => (b.textContent || "").trim() === "Clear 4 keys")!;
 
         await act(async () => { typeInto(resetSectionInput, "Reset bi"); });
         await act(async () => {
@@ -132,6 +133,7 @@ describe("AdvancedGroup — type-to-confirm gates", () => {
         });
 
         expect(window.localStorage.getItem("pulseplay:bi-vendor")).toBeNull();
+        expect(window.localStorage.getItem("pulseplay:bi-surface-mode")).toBeNull();
         expect(window.localStorage.getItem("pulseplay:ui-mode")).toBe("pulse"); // preferences section untouched
         unmount(state);
     });

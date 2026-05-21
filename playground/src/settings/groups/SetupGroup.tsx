@@ -10,6 +10,7 @@ import { navigateToSettings } from "../settingsRoute";
 import { useSettings } from "../settingsStore";
 import { useEmbedConfig } from "../embedConfigStore";
 import { getSetupReadiness, isNativeBiVendor } from "../setupReadiness";
+import { resolveBiSurfaceVendor, type BiSurfaceMode } from "../biSurfaceMode";
 import { listVendors } from "../../biPanel/registry";
 import {
     FieldCard,
@@ -65,18 +66,26 @@ interface SetupPackOption {
 export function SetupGroup(): React.ReactElement {
     const {
         biVendor, activeAiProfile, packSelection,
+        biSurfaceMode,
         allowlist, allowlistError, allowlistLoading, orphans,
-        setBiVendor, setActiveAiProfile, setPackSelection,
+        setBiVendor, setBiSurfaceMode, setActiveAiProfile, setPackSelection,
     } = useSettings();
     const { embedConfig, setEmbedConfig } = useEmbedConfig();
-    const readiness = getSetupReadiness({ biVendor, embedConfig, activeAiProfile });
-
     const vendors = useMemo(() => listVendors(), []);
     const allowedBiVendors = useMemo(() => {
         if (!allowlist?.biProviders?.length) return vendors;
         const set = new Set(allowlist.biProviders);
         return vendors.filter(v => set.has(v.vendor));
     }, [vendors, allowlist]);
+    const hasVendorEmbedConfig = !!embedConfig && Object.keys(embedConfig).length > 0;
+    const surfaceResolution = resolveBiSurfaceVendor({
+        mode: biSurfaceMode,
+        requestedVendor: biVendor,
+        hasVendorEmbedConfig,
+        visibleVendors: allowedBiVendors,
+    });
+    const runtimeBiVendor = surfaceResolution.runtimeVendor;
+    const readiness = getSetupReadiness({ biVendor: runtimeBiVendor, embedConfig, activeAiProfile });
 
     const aiProfiles = allowlist?.aiProfiles ?? [];
     const packs = allowlist?.packs ?? [];
@@ -232,8 +241,9 @@ export function SetupGroup(): React.ReactElement {
     }, [setEmbedConfig]);
 
     // ── Card status tones ──────────────────────────────────────────
-    const nativeBi = isNativeBiVendor(biVendor);
-    const biStatus = biVendor && readiness.hasEmbedConfig ? "ok" : !biVendor ? "missing" : "warn";
+    const authorNativeBi = isNativeBiVendor(biVendor);
+    const runtimeNativeBi = isNativeBiVendor(runtimeBiVendor);
+    const biStatus = runtimeBiVendor && readiness.hasEmbedConfig ? "ok" : !runtimeBiVendor ? "missing" : "warn";
     const aiStatus = activeAiProfile ? "ok" : "missing";
     const packStatus = packSelection ? "ok" : "warn";
 
@@ -295,9 +305,31 @@ export function SetupGroup(): React.ReactElement {
                 }}
             >
                 <FieldRow
-                    label="Provider"
+                    label="Surface mode"
                     required
-                    hint="The BI vendor PulsePlay will embed in the canvas pane."
+                    hint="Auto uses your vendor when it is configured, otherwise native renders AI results. Force either mode when a deployment needs it."
+                    tip={{
+                        title: "Runtime surface",
+                        body: [
+                            "Auto is the default for packs and local recon.",
+                            "Vendor is for a real embedded dashboard.",
+                            "Native is the renderer-only Databricks-first result canvas.",
+                        ],
+                    }}
+                >
+                    <BiSurfaceModeSegmentedControl value={biSurfaceMode} onChange={setBiSurfaceMode} />
+                    <p style={{ margin: "6px 0 0", fontSize: 11, opacity: 0.66 }}>
+                        Runtime: <code>{runtimeBiVendor}</code>
+                        {surfaceResolution.reason === "auto-no-vendor-config" ? " (native fallback until embed config exists)" : ""}.
+                    </p>
+                </FieldRow>
+
+                <FieldRow
+                    label="Provider"
+                    required={biSurfaceMode !== "native"}
+                    hint={biSurfaceMode === "native"
+                        ? "Optional vendor intent kept for later. Native mode still renders in the BI pane now."
+                        : "The vendor PulsePlay embeds when the runtime surface is vendor-backed."}
                     tip={biVendor ? VENDOR_HELP[biVendor] : "Pick a provider to see its specific embed requirements."}
                 >
                     <select
@@ -315,7 +347,7 @@ export function SetupGroup(): React.ReactElement {
                     </select>
                 </FieldRow>
 
-                {nativeBi && (
+                {runtimeNativeBi && (
                     <div
                         role="note"
                         style={{
@@ -328,11 +360,11 @@ export function SetupGroup(): React.ReactElement {
                             color: "var(--pp-text, #0f172a)",
                         }}
                     >
-                        Native is ready immediately. Ask Pulse can use this pane as the place to show generated result views.
+                        Native is ready immediately. Ask Pulse can use this pane as the place to show generated result views. Vendor settings below are preserved for when you switch back to Vendor or Auto.
                     </div>
                 )}
 
-                {biVendor && !nativeBi && (
+                {biVendor && !authorNativeBi && (
                     <FieldRow
                         label="Embed URL or iframe HTML"
                         hint="Paste the full embed URL (Power BI / Tableau / generic) OR the iframe HTML from Databricks Genie Share → Embed."
@@ -360,7 +392,7 @@ export function SetupGroup(): React.ReactElement {
                     </FieldRow>
                 )}
 
-                {biVendor && !nativeBi && (
+                {biVendor && !authorNativeBi && (
                     <div className="pp-setup__row-actions">
                         <button type="button" className="pp-setup__primary" onClick={handleApplyEmbed} disabled={!embedUrl.trim()}>
                             Apply embed
@@ -545,6 +577,46 @@ export function SetupGroup(): React.ReactElement {
                 </div>
             </div>
         </section>
+    );
+}
+
+function BiSurfaceModeSegmentedControl(props: {
+    value: BiSurfaceMode;
+    onChange: (value: BiSurfaceMode) => void;
+}): React.ReactElement {
+    const options: Array<{ value: BiSurfaceMode; label: string; title: string }> = [
+        { value: "auto", label: "Auto", title: "Vendor when configured, otherwise native" },
+        { value: "vendor", label: "Vendor", title: "Force the selected vendor adapter" },
+        { value: "native", label: "Native", title: "Force PulsePlay's native result renderer" },
+    ];
+    return (
+        <div role="group" aria-label="BI surface mode" style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {options.map(option => {
+                const selected = props.value === option.value;
+                return (
+                    <button
+                        key={option.value}
+                        type="button"
+                        aria-pressed={selected}
+                        title={option.title}
+                        onClick={() => props.onChange(option.value)}
+                        style={{
+                            border: `1px solid ${selected ? "var(--pp-accent, #0078d4)" : "var(--pp-border, rgba(0,0,0,0.18))"}`,
+                            background: selected ? "rgba(0,120,212,0.08)" : "transparent",
+                            color: "var(--pp-text, #1d1d1f)",
+                            borderRadius: 5,
+                            cursor: "pointer",
+                            fontSize: 12,
+                            fontWeight: selected ? 700 : 500,
+                            minWidth: 76,
+                            padding: "6px 10px",
+                        }}
+                    >
+                        {option.label}
+                    </button>
+                );
+            })}
+        </div>
     );
 }
 

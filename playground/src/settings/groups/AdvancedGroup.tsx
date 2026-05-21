@@ -33,7 +33,7 @@ const PULSEPLAY_KEY_PREFIX = "pulseplay:";
 const PULSE_VISUAL_PREFIX = "pulseplay:visual-settings:";
 
 const SECTION_KEYS: Record<string, string[]> = {
-    bi: ["pulseplay:bi-vendor", "pulseplay:pbi-sso-config", "pulseplay:bi-tile-mode"],
+    bi: ["pulseplay:bi-vendor", "pulseplay:bi-surface-mode", "pulseplay:pbi-sso-config", "pulseplay:bi-tile-mode"],
     ai: ["pulseplay:active-ai-profile", "pulseplay:pack-selection"],
     preferences: ["pulseplay:ui-mode", "pulseplay:enabled-components", "pulseplay:layout-mode", "pulseplay:split:horizontal", "pulseplay:split:vertical"],
     system: [],
@@ -103,8 +103,9 @@ const STORAGE_BUCKETS: Array<{
     {
         id:      "bi",
         label:   "BI selections",
-        helper:  "What you're looking at — vendor + embed config + SSO + canvas tile preference.",
+        helper:  "What you're looking at — surface mode + vendor + embed config + SSO + canvas tile preference.",
         matches: k => k === "pulseplay:bi-vendor"
+                   || k === "pulseplay:bi-surface-mode"
                    || k === "pulseplay:bi-embed-config"
                    || k === "pulseplay:pbi-sso-config"
                    || k === "pulseplay:bi-tile-mode",

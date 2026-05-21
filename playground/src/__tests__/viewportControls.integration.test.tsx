@@ -94,6 +94,7 @@ function clearStorage(): void {
         window.localStorage.removeItem("pulseplay:layout-mode");
         window.localStorage.removeItem("pulseplay:active-surface");
         window.localStorage.removeItem("pulseplay:bi-tile-mode");
+        window.localStorage.removeItem("pulseplay:bi-surface-mode");
         window.localStorage.removeItem("pulseplay:bi-vendor");
         window.localStorage.removeItem("pulseplay:ui-mode");
         window.localStorage.removeItem("pulseplay:visual-settings:genieSettings");
@@ -240,6 +241,32 @@ describe("App viewport controls — default unified Mix surface", () => {
         expect(shell?.getAttribute("data-viewport-focus")).toBe("split");
         expect(shell?.getAttribute("data-active-surface")).toBe("ai-insights");
         expect(shell?.getAttribute("data-layout-pinned")).toBe("false");
+        unmount(state);
+    });
+
+    it("G5 auto mode mounts the configured vendor when embed config exists", () => {
+        window.localStorage.setItem("pulseplay:bi-surface-mode", "auto");
+        window.localStorage.setItem("pulseplay:bi-vendor", "powerbi");
+        const state = mountApp();
+        const shell = state.container.querySelector(viewportControlShellSelector);
+        expect(shell?.getAttribute("data-bi-surface-mode")).toBe("auto");
+        expect(shell?.getAttribute("data-requested-bi-vendor")).toBe("powerbi");
+        expect(shell?.getAttribute("data-runtime-bi-vendor")).toBe("powerbi");
+        expect(shell?.getAttribute("data-bi-surface-resolution")).toBe("auto-vendor-configured");
+        unmount(state);
+    });
+
+    it("G5 auto mode falls back to native when no vendor embed config exists", () => {
+        window.localStorage.removeItem("pulseplay:bi-embed-config");
+        __resetEmbedConfigStore();
+        window.localStorage.setItem("pulseplay:bi-surface-mode", "auto");
+        window.localStorage.setItem("pulseplay:bi-vendor", "powerbi");
+        const state = mountApp();
+        const shell = state.container.querySelector(viewportControlShellSelector);
+        expect(shell?.getAttribute("data-bi-surface-mode")).toBe("auto");
+        expect(shell?.getAttribute("data-requested-bi-vendor")).toBe("powerbi");
+        expect(shell?.getAttribute("data-runtime-bi-vendor")).toBe("native");
+        expect(shell?.getAttribute("data-bi-surface-resolution")).toBe("auto-no-vendor-config");
         unmount(state);
     });
 

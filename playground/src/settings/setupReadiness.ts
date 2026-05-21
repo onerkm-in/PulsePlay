@@ -6,6 +6,8 @@
 // and one AI profile/connector.
 
 import type { BIEmbedConfig } from "../biPanel/BIAdapter";
+export { isNativeBiVendor } from "./biSurfaceMode";
+import { isNativeBiVendor } from "./biSurfaceMode";
 
 export interface SetupReadinessInput {
     biVendor?: string | null;
@@ -23,10 +25,6 @@ export interface SetupReadiness {
     missing: string[];
     pillLabel: "Ready" | "Setup needed";
     pillDetail: string;
-}
-
-export function isNativeBiVendor(vendor?: string | null): boolean {
-    return String(vendor || "").trim() === "native";
 }
 
 export function getSetupReadiness(input: SetupReadinessInput): SetupReadiness {

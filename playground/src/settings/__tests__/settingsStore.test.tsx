@@ -162,6 +162,27 @@ describe("SettingsProvider — setters", () => {
         expect(captured.current?.uiMode).toBe("v0");
         unmount(state);
     });
+
+    it("setBiSurfaceMode persists + broadcasts (runtime choice, vendor config preserved)", async () => {
+        window.localStorage.setItem("pulseplay:bi-vendor", "powerbi");
+        const { Probe, captured } = makeProbe();
+        const state = mount(<Probe />, MVP_ALLOWLIST);
+        await act(async () => { await Promise.resolve(); });
+        const events: Array<{ key?: string; value?: string }> = [];
+        const listener = (e: Event) => {
+            const detail = (e as CustomEvent<{ key?: string; value?: string }>).detail;
+            if (detail) events.push(detail);
+        };
+        window.addEventListener("pulseplay:display-change", listener);
+        act(() => { captured.current!.setBiSurfaceMode("native"); });
+        window.removeEventListener("pulseplay:display-change", listener);
+        expect(window.localStorage.getItem("pulseplay:bi-surface-mode")).toBe("native");
+        expect(window.localStorage.getItem("pulseplay:bi-vendor")).toBe("powerbi");
+        expect(captured.current?.biSurfaceMode).toBe("native");
+        expect(captured.current?.biVendor).toBe("powerbi");
+        expect(events.some(e => e.key === "pulseplay:bi-surface-mode" && e.value === "native")).toBe(true);
+        unmount(state);
+    });
 });
 
 describe("SettingsProvider — activeAiProfile (Phase 4)", () => {
@@ -243,6 +264,21 @@ describe("SettingsProvider — external sync via display-change event", () => {
             );
         });
         expect(captured.current?.layoutMode).toBe("ai-right");
+        unmount(state);
+    });
+
+    it("picks up biSurfaceMode changes dispatched by legacy code", async () => {
+        const { Probe, captured } = makeProbe();
+        const state = mount(<Probe />, MVP_ALLOWLIST);
+        await act(async () => { await Promise.resolve(); });
+        act(() => {
+            window.dispatchEvent(
+                new CustomEvent("pulseplay:display-change", {
+                    detail: { key: "pulseplay:bi-surface-mode", value: "vendor" },
+                }),
+            );
+        });
+        expect(captured.current?.biSurfaceMode).toBe("vendor");
         unmount(state);
     });
 });
