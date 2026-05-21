@@ -5,6 +5,43 @@
 
 ---
 
+## 2026-05-21 - Build hygiene: stale script modernization + pbiviz pin
+
+**Scope.** Closes the AGENDA "Build hygiene" item: the three PowerShell scripts that pre-dated the PulsePlay split (`scripts/release-check.ps1`, `scripts/smoke-full.ps1`, `proxy/smoke_test.ps1`) referenced paths and contracts from the sister Pulse-PBI project, and `enablers/pulse-pbi/`'s lockfile carried no `powerbi-visuals-tools` entry — `npx pbiviz package` was silently resolving the global install (or an `extraneous` floating dep). Reproducibility hole closed.
+
+**Code changes.**
+
+- [`scripts/release-check.ps1`](../scripts/release-check.ps1) — rewritten. Walks four lanes (`playground/`, `proxy/`, `enablers/pulse-pbi/`, `playground/scripts/shell-smoke-proxy.mjs`) instead of the dead `genieChatVisual/` tree. Dropped the `build.ps1` call (no such file at the repo root). Bundle-size cap (`-MaxPbivizKb 350`) now applies to `enablers/pulse-pbi/dist/*.pbiviz`. New `-SkipEnabler` flag mirrors `-SkipPackage`. New `-IncludeLegacySmoke` opt-in gate for `smoke-full.ps1` + `smoke-rls-ols.ps1` (they need a live Databricks Genie profile and originated in the sister project). The Step / Print-Summary scaffolding is unchanged.
+- [`scripts/smoke-full.ps1`](../scripts/smoke-full.ps1) — rewritten. Dropped T11, which directly grepped `genieChatVisual/src/insightsCache.ts` + `visual.tsx` for the old IDEA-039 trace shape — those files don't exist in PulsePlay; the equivalent observability is vitest-side now. Replaced hard-coded `default` + `hse` profiles with a `-Profiles default,…` parameter. Made T5 conditional on a second profile being supplied. Kept the existing PulsePlay-current contract (`assistantProfile=` + snake_case `conversation_id`/`message_id`). Header now points authors at `playground/scripts/shell-smoke-proxy.mjs` for the SS2 shell smoke.
+- [`proxy/smoke_test.ps1`](../proxy/smoke_test.ps1) — rewritten. Was using the wrong contract throughout (`profile=` query, camelCase `conversationId`/`messageId`, `localhost`, hardcoded `hse` profile). Now speaks the current PulsePlay proxy contract, accepts `-ProxyBase` + `-Profile`, drops the HSE-specific tests, and points authors at the Node SS2 smoke as the primary path.
+- [`enablers/pulse-pbi/package.json`](../enablers/pulse-pbi/package.json) + [`package-lock.json`](../enablers/pulse-pbi/package-lock.json) — added `"powerbi-visuals-tools": "7.0.2"` to `devDependencies` (matches the 7.0.2 the global install was resolving). `npm install --ignore-scripts --no-audit --no-fund` regenerated the lockfile entry in ~1 minute. The prior timeout was the postinstall cert-gen; `--ignore-scripts` bypasses it without affecting build correctness (cert-gen is only relevant for `pbiviz start`'s dev HTTPS server, not for `pbiviz package`).
+
+**Validation.**
+
+| Check | Result |
+|---|---|
+| `pwsh AST-parse` of all 3 rewritten scripts | clean |
+| `cd enablers/pulse-pbi && npm run lint` | pass |
+| `cd enablers/pulse-pbi && npm test` | **93/93** |
+| `cd enablers/pulse-pbi && npx pbiviz package` | pass (`dist/PulseVisuals87799…2.1.0.0.pbiviz`) |
+| `cd proxy && npm test` | **1137/1137** |
+| `cd playground && npm run lint` | pass |
+| `npm ls --depth=0 powerbi-visuals-tools` (enabler) | `powerbi-visuals-tools@7.0.2` (no longer `extraneous`) |
+
+**Honest non-claims.**
+
+- `scripts/smoke-rls-ols.ps1` left untouched. It is intentionally Pulse-PBI / HSE-RLS specific (testing the shared-PAT bypass of Power BI RLS/OLS in the Pulse custom visual); the AGENDA item only names the three rewritten scripts. `release-check.ps1`'s `-IncludeLegacySmoke` gates it.
+- Live-proxy smoke was not run — these scripts call a live Databricks Genie workspace; the parse-check + the enabler/proxy/playground gates above are the appropriate proof under the AGENDA item.
+
+**Tripwires.**
+
+- `--ignore-scripts` skips `powerbi-visuals-tools`'s postinstall, which generates the self-signed cert used by `pbiviz start`. If a future author needs `pbiviz start`'s dev HTTPS server, re-run `npm install` without `--ignore-scripts` once (the cert is cached after first generation).
+- `release-check.ps1` no longer calls `build.ps1`. Anyone who relied on that step needs to know the playground build is `cd playground && npm run build` (`tsc -b && vite build`).
+
+**Next.** DX1 — Tauri-first desktop EXE proof.
+
+---
+
 ## 2026-05-21 - PB1a Pulse PBI shared-proxy adoption
 
 **Scope.** Closes the integrity-sweep finding that the Pulse PBI enabler still used historical Databricks-shaped proxy paths. When `apiBaseUrl` / **PulsePlay Proxy URL** is set, Pulse PBI now talks to the repo-root shared PulsePlay proxy contract instead of `/api/2.0/genie/spaces/*`.
