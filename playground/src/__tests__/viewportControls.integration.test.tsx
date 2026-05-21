@@ -92,6 +92,7 @@ function clearStorage(): void {
         window.localStorage.removeItem("pulseplay:enabled-components");
         window.localStorage.removeItem("pulseplay:enabled-components:legacy-both-migrated");
         window.localStorage.removeItem("pulseplay:layout-mode");
+        window.localStorage.removeItem("pulseplay:active-surface");
         window.localStorage.removeItem("pulseplay:bi-tile-mode");
         window.localStorage.removeItem("pulseplay:bi-vendor");
         window.localStorage.removeItem("pulseplay:ui-mode");
@@ -221,6 +222,7 @@ describe("App viewport controls — default unified Mix surface", () => {
         const shell = state.container.querySelector(viewportControlShellSelector);
         expect(shell).toBeTruthy();
         expect(shell?.getAttribute("data-viewport-focus")).toBe("split");
+        expect(shell?.getAttribute("data-active-surface")).toBe("ai-insights");
         expect(shell?.getAttribute("data-layout-pinned")).toBe("false");
         unmount(state);
     });
@@ -263,15 +265,35 @@ describe("App viewport controls — default unified Mix surface", () => {
         const biChrome = state.container.querySelector(viewportControlPanelChromeSelector("bi"));
         const aiChrome = state.container.querySelector(viewportControlPanelChromeSelector("ai"));
         expect(shell?.getAttribute("data-viewport-focus")).toBe("split");
+        expect(shell?.getAttribute("data-active-surface")).toBe("bi-viz");
         expect(aiChrome).toBeNull();
         expect(biChrome?.getAttribute("data-panel-state")).toBe("normal");
         expect(window.localStorage.getItem("pulseplay:enabled-components")).toBeNull();
+        expect(window.localStorage.getItem("pulseplay:active-surface")).toBe("bi-viz");
+        expect(new URL(window.location.href).searchParams.get("surface")).toBe("bi-viz");
 
         // Click "AI Insights" pill in the new SurfaceSwitcher (visible text
         // is the accessible name now — no more "Open … surface" wrapper).
         clickByLabel(state, "AI Insights");
+        const shellAfterAi = state.container.querySelector(viewportControlShellSelector);
+        expect(shellAfterAi?.getAttribute("data-active-surface")).toBe("ai-insights");
+        expect(window.localStorage.getItem("pulseplay:active-surface")).toBe("ai-insights");
+        expect(new URL(window.location.href).searchParams.get("surface")).toBe("ai-insights");
         expect(state.container.querySelector(viewportControlPanelChromeSelector("ai"))).toBeTruthy();
         expect(state.container.querySelector(viewportControlPanelChromeSelector("bi"))).toBeNull();
+
+        unmount(state);
+    });
+
+    it("restores the last active unified surface from localStorage", () => {
+        window.localStorage.setItem("pulseplay:active-surface", "bi-viz");
+        const state = mountApp();
+
+        const shell = state.container.querySelector(viewportControlShellSelector);
+        expect(shell?.getAttribute("data-viewport-focus")).toBe("split");
+        expect(shell?.getAttribute("data-active-surface")).toBe("bi-viz");
+        expect(state.container.querySelector(viewportControlPanelChromeSelector("bi"))).toBeTruthy();
+        expect(state.container.querySelector(viewportControlPanelChromeSelector("ai"))).toBeNull();
 
         unmount(state);
     });
@@ -395,8 +417,29 @@ describe("App viewport controls — ?focus= URL", () => {
         const state = mountApp();
         const shell = state.container.querySelector(viewportControlShellSelector);
         expect(shell?.getAttribute("data-viewport-focus")).toBe("bi");
+        expect(shell?.getAttribute("data-active-surface")).toBe("bi-viz");
         const biChrome = state.container.querySelector(viewportControlPanelChromeSelector("bi"));
         expect(biChrome?.getAttribute("data-panel-state")).toBe("maximized");
+        unmount(state);
+    });
+
+    it("hydrates Dashboard as the active unified surface from ?surface=bi-viz", () => {
+        setLocation("?surface=bi-viz");
+        const state = mountApp();
+        const shell = state.container.querySelector(viewportControlShellSelector);
+        expect(shell?.getAttribute("data-viewport-focus")).toBe("split");
+        expect(shell?.getAttribute("data-active-surface")).toBe("bi-viz");
+        expect(state.container.querySelector(viewportControlPanelChromeSelector("bi"))).toBeTruthy();
+        expect(state.container.querySelector(viewportControlPanelChromeSelector("ai"))).toBeNull();
+        unmount(state);
+    });
+
+    it("ignores invalid ?surface= values and falls through to AI Insights", () => {
+        setLocation("?surface=bogus");
+        const state = mountApp();
+        const shell = state.container.querySelector(viewportControlShellSelector);
+        expect(shell?.getAttribute("data-viewport-focus")).toBe("split");
+        expect(shell?.getAttribute("data-active-surface")).toBe("ai-insights");
         unmount(state);
     });
 

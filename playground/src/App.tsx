@@ -34,6 +34,8 @@ import { warmGenieWarehouse, startWarehouseKeepalive, stopWarehouseKeepalive } f
 import { FirstRunWizard, WizardErrorBoundary, shouldShowWizard, type PersonaKey } from "./components/FirstRunWizard";
 import { SurfaceSwitcher } from "./components/SurfaceSwitcher";
 import { PaneEmptyState, DashboardIcon } from "./components/PaneEmptyState";
+import type { SurfaceId } from "./surfaceRegistry";
+import { isSurfaceId } from "./surfaceRegistry";
 import { TestConnectionPanel } from "./components/TestConnectionPanel";
 import { PackPicker } from "./components/PackPicker";
 import type { PackInfo, PackSelection } from "./components/PackPicker";
@@ -104,6 +106,8 @@ type ViewportPane = "ai" | "bi";
 type ViewportFocus = ViewportPane | null;
 type PulseSurfaceTab = "insights" | "chat";
 type MixSurface = "ai" | "bi";
+const ACTIVE_SURFACE_STORAGE_KEY = "pulseplay:active-surface";
+const ACTIVE_SURFACE_URL_PARAM = "surface";
 const PINNED_VIEWPORT_PANE_STORAGE_KEY = "pulseplay:pinned-viewport-pane";
 const PULSEPLAY_VIEWPORT_ACTION_EVENT = "pulseplay:viewport-action";
 const PULSEPLAY_VIEWPORT_STATE_EVENT = "pulseplay:viewport-state";
@@ -264,12 +268,67 @@ function readInitialViewportFocus(): ViewportFocus {
     return readViewportFocusFromUrl() ?? readInitialPinnedViewportPane();
 }
 
+function readSurfaceFromUrl(): SurfaceId | null {
+    if (typeof window === "undefined") return null;
+    try {
+        const value = new URL(window.location.href).searchParams.get(ACTIVE_SURFACE_URL_PARAM);
+        return isSurfaceId(value) ? value : null;
+    } catch { /* swallow */ }
+    return null;
+}
+
+function readStoredActiveSurface(): SurfaceId | null {
+    if (typeof window === "undefined") return null;
+    try {
+        const value = window.localStorage.getItem(ACTIVE_SURFACE_STORAGE_KEY);
+        return isSurfaceId(value) ? value : null;
+    } catch { /* swallow */ }
+    return null;
+}
+
+function surfaceToMixSurface(surface: SurfaceId): MixSurface {
+    return surface === "bi-viz" ? "bi" : "ai";
+}
+
+function surfaceToPulseTab(surface: SurfaceId): PulseSurfaceTab | null {
+    if (surface === "ask-pulse") return "chat";
+    if (surface === "ai-insights") return "insights";
+    return null;
+}
+
+function surfaceFromMixState(surface: MixSurface, pulseTab?: PulseSurfaceTab): SurfaceId {
+    if (surface === "bi") return "bi-viz";
+    return pulseTab === "chat" ? "ask-pulse" : "ai-insights";
+}
+
+function readInitialActiveSurface(): SurfaceId {
+    const fromUrl = readSurfaceFromUrl();
+    if (fromUrl) return fromUrl;
+
+    const focus = readViewportFocusFromUrl();
+    if (focus === "bi") return "bi-viz";
+
+    const stored = readStoredActiveSurface();
+    if (focus === "ai") return stored && stored !== "bi-viz" ? stored : "ai-insights";
+    return stored ?? "ai-insights";
+}
+
 function writeViewportFocusToUrl(next: ViewportFocus) {
     if (typeof window === "undefined") return;
     try {
         const url = new URL(window.location.href);
         if (next) url.searchParams.set("focus", next);
         else url.searchParams.delete("focus");
+        window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+    } catch { /* swallow */ }
+}
+
+function writeActiveSurfaceToUrl(next: SurfaceId | null) {
+    if (typeof window === "undefined") return;
+    try {
+        const url = new URL(window.location.href);
+        if (next) url.searchParams.set(ACTIVE_SURFACE_URL_PARAM, next);
+        else url.searchParams.delete(ACTIVE_SURFACE_URL_PARAM);
         window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
     } catch { /* swallow */ }
 }
@@ -476,8 +535,9 @@ function PlaygroundApp(): React.ReactElement {
     );
     const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => readInitialLayoutMode());
     const [focusedPane, setFocusedPane] = useState<ViewportFocus>(() => readInitialViewportFocus());
-    const [mixSurface, setMixSurface] = useState<MixSurface>("ai");
-    const [requestedPulseTab, setRequestedPulseTab] = useState<PulseSurfaceTab>("insights");
+    const [activeSurface, setActiveSurface] = useState<SurfaceId>(() => readInitialActiveSurface());
+    const [mixSurface, setMixSurface] = useState<MixSurface>(() => surfaceToMixSurface(readInitialActiveSurface()));
+    const [requestedPulseTab, setRequestedPulseTab] = useState<PulseSurfaceTab>(() => surfaceToPulseTab(readInitialActiveSurface()) ?? "insights");
     const [pinnedViewportPane, setPinnedViewportPane] = useState<ViewportFocus>(() => readInitialPinnedViewportPane());
     const biAdaptersRef = useRef<Map<number, BIAdapter>>(new Map());
     const [primaryBIAdapter, setPrimaryBIAdapter] = useState<BIAdapter | null>(null);
@@ -520,6 +580,13 @@ function PlaygroundApp(): React.ReactElement {
         setUiMode(next);
         try { window.localStorage.setItem(UI_MODE_STORAGE_KEY, next); } catch { /* swallow */ }
     }, []);
+
+    const persistActiveSurface = useCallback((next: SurfaceId, options?: { writeUrl?: boolean }) => {
+        setActiveSurface(next);
+        try { window.localStorage.setItem(ACTIVE_SURFACE_STORAGE_KEY, next); } catch { /* swallow */ }
+        if (options?.writeUrl !== false) writeActiveSurfaceToUrl(next);
+    }, []);
+
     const handleEnabledComponentsChange = useCallback((next: EnabledComponents) => {
         setEnabledComponents(next);
         try {
@@ -528,7 +595,12 @@ function PlaygroundApp(): React.ReactElement {
                 window.localStorage.setItem(ENABLED_COMPONENTS_LEGACY_BOTH_MIGRATION_KEY, "true");
             }
         } catch { /* swallow */ }
-    }, []);
+        if (next === "biOnly") {
+            persistActiveSurface("bi-viz", { writeUrl: false });
+        } else if (next === "aiOnly" && activeSurface === "bi-viz") {
+            persistActiveSurface("ai-insights", { writeUrl: false });
+        }
+    }, [activeSurface, persistActiveSurface]);
     const handleLayoutModeChange = useCallback((next: LayoutMode) => {
         setLayoutMode(next);
         try { window.localStorage.setItem(LAYOUT_MODE_STORAGE_KEY, next); } catch { /* swallow */ }
@@ -562,7 +634,13 @@ function PlaygroundApp(): React.ReactElement {
         writeViewportFocusToUrl(null);
         setMixSurface(surface);
         if (pulseTab) setRequestedPulseTab(pulseTab);
-    }, []);
+        persistActiveSurface(surfaceFromMixState(surface, pulseTab));
+    }, [persistActiveSurface]);
+
+    const handleSurfacePick = useCallback((id: SurfaceId) => {
+        const pulseTab = surfaceToPulseTab(id);
+        handleMixSurfaceSelect(surfaceToMixSurface(id), pulseTab ?? undefined);
+    }, [handleMixSurfaceSelect]);
 
     const handleViewportPinToggle = useCallback((pane: ViewportPane) => {
         setPinnedViewportPane(prev => {
@@ -629,6 +707,13 @@ function PlaygroundApp(): React.ReactElement {
     }, [handleEnabledComponentsChange]);
 
     useEffect(() => {
+        if (enabledComponents !== "mix") return;
+        setMixSurface(surfaceToMixSurface(activeSurface));
+        const pulseTab = surfaceToPulseTab(activeSurface);
+        if (pulseTab) setRequestedPulseTab(pulseTab);
+    }, [activeSurface, enabledComponents]);
+
+    useEffect(() => {
         if (typeof window === "undefined") return;
         const handler = (e: Event) => {
             const detail = (e as CustomEvent<{ pane?: string; action?: string }>).detail;
@@ -685,20 +770,31 @@ function PlaygroundApp(): React.ReactElement {
             if (detail.key === UI_MODE_STORAGE_KEY && (detail.value === "pulse" || detail.value === "v0")) {
                 setUiMode(detail.value);
             } else if (detail.key === ENABLED_COMPONENTS_STORAGE_KEY && (detail.value === "aiOnly" || detail.value === "biOnly" || detail.value === "both" || detail.value === "mix")) {
-                setEnabledComponents(detail.value);
+                handleEnabledComponentsChange(detail.value);
             } else if (detail.key === LAYOUT_MODE_STORAGE_KEY && (detail.value === "ai-left" || detail.value === "ai-right" || detail.value === "ai-top" || detail.value === "ai-bottom")) {
                 setLayoutMode(detail.value);
+            } else if (detail.key === ACTIVE_SURFACE_STORAGE_KEY && isSurfaceId(detail.value)) {
+                persistActiveSurface(detail.value, { writeUrl: false });
             }
         };
         window.addEventListener("pulseplay:display-change", handler as EventListener);
         return () => window.removeEventListener("pulseplay:display-change", handler as EventListener);
-    }, []);
+    }, [handleEnabledComponentsChange, persistActiveSurface]);
 
     useEffect(() => {
-        const handler = () => setFocusedPane(readViewportFocusFromUrl());
+        const handler = () => {
+            const nextFocus = readViewportFocusFromUrl();
+            setFocusedPane(nextFocus);
+            const surfaceFromUrl = readSurfaceFromUrl();
+            if (surfaceFromUrl) {
+                persistActiveSurface(surfaceFromUrl, { writeUrl: false });
+            } else if (nextFocus === "bi") {
+                persistActiveSurface("bi-viz", { writeUrl: false });
+            }
+        };
         window.addEventListener("popstate", handler);
         return () => window.removeEventListener("popstate", handler);
-    }, []);
+    }, [persistActiveSurface]);
 
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -1028,6 +1124,7 @@ function PlaygroundApp(): React.ReactElement {
             className="pp-app"
             data-testid="pp-viewport-shell"
             data-viewport-focus={focusedPane ?? "split"}
+            data-active-surface={activeSurface}
             data-layout-pinned={pinnedViewportPane ? "true" : "false"}
             style={{ position: "relative", width: "100%", height: "100vh", overflow: "hidden", display: "flex", flexDirection: "column" }}
         >
@@ -1314,12 +1411,8 @@ function PlaygroundApp(): React.ReactElement {
                         inlineSwitcher={
                             enabledComponents === "mix" && !floatedPane ? (
                                 <SurfaceSwitcher
-                                    active="bi-viz"
-                                    onPick={(id) => {
-                                        if (id === "ai-insights") handleMixSurfaceSelect("ai", "insights");
-                                        else if (id === "ask-pulse") handleMixSurfaceSelect("ai", "chat");
-                                        else handleMixSurfaceSelect("bi");
-                                    }}
+                                    active={activeSurface}
+                                    onPick={handleSurfacePick}
                                 />
                             ) : undefined
                         }
