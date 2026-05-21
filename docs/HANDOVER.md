@@ -5,6 +5,55 @@
 
 ---
 
+## 2026-05-21 - SS1 shell-mount smoke (Vite-only, mocked /api/*)
+
+**Scope.** First proxy-adjacent shell smoke for the PulsePlay React shell. Boots a real Chromium against the Vite dev server, intercepts `/api/*` with Playwright route handlers that return canned "healthy allowlist + empty list" shapes, and validates two scenarios end-to-end: (A) pre-dismissed startup mounts the shell directly with no wizard, (B) a forced wizard mounts and the "Skip setup and close" path dismisses it leaving the shell standing. Both scenarios assert shell mount (`data-testid="pp-viewport-shell"`), F5.1 / G5 telemetry attributes (`data-active-surface`, `data-bi-surface-mode`, `data-runtime-bi-vendor`, etc.), and a zero-tolerance console-error + page-error budget.
+
+**Files added.**
+- [`playground/scripts/shell-smoke.mjs`](../playground/scripts/shell-smoke.mjs) — Playwright-driven runner. Two scenarios, JSON report to stdout, screenshot to `playground/scripts/shell-smoke.png`, exit 0 on PASS.
+- [`playground/scripts/.gitignore`](../playground/scripts/.gitignore) — adds `shell-smoke.png` to the existing screenshot exclusion list.
+
+**Reproduction.**
+```
+cd playground
+npm run dev                          # terminal 1
+node scripts/shell-smoke.mjs         # terminal 2
+# If Vite picked a non-default port (5173/5174 in use), override:
+# SHELL_SMOKE_URL=http://127.0.0.1:5175/ node scripts/shell-smoke.mjs
+```
+Exit 0 + `"failures": []` in the JSON report means smoke passed.
+
+**Two tripwires this smoke surfaced.**
+
+1. **Playwright `context.route` is LIFO** — last-registered handler matches first. The first cut of `mockApi()` registered a permissive `**/api/**` catch-all returning `{}` LAST, which shadowed every specific route. `defaultFetchConnectors()` then cast `{}` to `ConnectorOption[]`, the wizard called `.find` on it, and the `WizardErrorBoundary` caught `connectors.find is not a function`. Fix: register the catch-all FIRST so the specific routes shadow it. Encoded in the file's comment block so the next maintainer doesn't repeat the mistake.
+
+2. **G5 auto-fallback-to-native suppresses the fresh-state wizard.** In `auto` mode without an embed config, `biSurfaceResolution.usesNative === true` -> `hasRenderableBiSurface === true` -> the App treats the surface as renderable -> `shouldShowWizard` returns false. Scenario B has to set `pulseplay:wizard-force` (the documented Settings -> System "Re-run setup wizard" hook) to make the wizard mount. The scenario name `force-wizard-skip-path` is honest about this — it's the re-run path authors actually hit, not a "fresh state" path.
+
+**What this smoke covers.**
+- React shell mounts under real Chromium (jsdom never catches lazy-chunk resolve failures or React 19 suspense regressions).
+- Wizard renders when forced and dismisses cleanly via "Skip setup and close".
+- F5.1 telemetry attributes are emitted on shell root.
+- G5 runtime BI vendor resolution is observable (`runtimeBiVendor: "native"` in auto-no-vendor-config case).
+- Zero console errors, zero page errors during the mount path. Vite + React devtools chatter filtered out via `NOISE_PATTERNS`.
+
+**What this smoke does NOT cover** (honest non-claims — SS2 scope).
+- Proxy round-trip. `/api/*` is intercepted by Playwright route handlers. No real proxy starts. The smoke fixture profile + boot orchestration land in SS2.
+- Full wizard walkthrough (persona -> vendor -> connector -> embed config -> Done & Ask). The smoke only exercises the Skip path.
+- Real BIPanel adapter mount with actual SDKs. Native is the auto fallback when no embed config exists; the shell renders the native render-blocked state.
+- AI sidebar conversation flow (no proxy to talk to).
+
+**Validation.** Both scenarios PASS in headless Chromium. Playground `npm run lint` (tsc --noEmit) clean. Existing automated suite untouched (`.mjs` runner is not part of the test target). No source code changed — runner + gitignore only.
+
+**Tripwires for next session.**
+- If the wizard contract changes (new test ids, new selectors, new mount gates), update this smoke. The runner's selector list is small: `pp-viewport-shell`, `pp-first-run-wizard`, `pp-wizard-error-boundary`, `[aria-label='Skip setup and close']`.
+- If you add a new route the App calls during mount that returns a shape other than `{}`, add a specific `context.route()` handler AFTER the catch-all and document the expected response shape.
+- Generated `shell-smoke.png` is gitignored. If you want baseline-comparison, save a reference image separately.
+- Do NOT extend this smoke into "validates AI conversation" without first landing SS2 (proxy boot + smoke fixture profile). Mocking real envelopes via route handlers would be a regression — the canvas-standalone smoke already validates that layer with hardcoded fixtures, and the proxy round-trip belongs in SS2.
+
+**Next.** SS2 — Proxy-backed shell smoke. Needs (a) a `smoke-fixture` profile type in `proxy/` (or `NODE_ENV`-gated dry-run mode) that emits canned attested `AIResultEnvelope`s, (b) process orchestration in the runner (boot proxy + Vite + run Playwright + clean up), (c) a wizard-walked-end-to-end scenario where the AI sidebar receives an attested envelope and the native canvas paints it. After that, DX1 (desktop EXE Tauri proof) is the next architecture cycle per ADR-0010.
+
+---
+
 ## 2026-05-21 - PB0 Pulse PBI source convergence into enablers/
 
 **Scope.** ADR-0010's promised ecosystem layout is now real for the Pulse PBI sibling. The Power BI custom visual project source lives at [`enablers/pulse-pbi/`](../enablers/pulse-pbi/) in the same checkout as the PulsePlay web app. One repo download = every enabler. Pulse PBI's runtime, build target, and Power BI sandbox constraints stay strictly isolated from `playground/`.
