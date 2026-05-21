@@ -1,0 +1,670 @@
+// bi-adapters/native/NativeCanvas.tsx
+//
+// G4 — Native canvas + ECharts MVP.
+//
+// What this module owns
+// ─────────────────────
+//   • The React canvas that renders attested AI result envelopes into
+//     one of five viz states: empty / text / table / kpi / chart.
+//   • The "ungoverned-result-preview" badge overlay (dev/mock mode).
+//   • The "blocked" render state (production + missing/invalid governance).
+//   • A `mountNativeCanvas` helper the `.ts` adapter calls to mount this
+//     React component without importing React itself.
+//
+// What this module does NOT own
+// ─────────────────────────────
+//   • Adapter lifecycle (mount/destroy plumbing) — `NativeBIAdapter.ts`.
+//   • Chart-pick policy — `playground/src/visualization/chartAutoPick.ts`.
+//   • Result-shape decisions — `playground/src/visualization/resultToVizIntent.ts`.
+//   • Spec validation — `playground/src/visualization/chartSpecValidation.ts`.
+//   • Governance enforcement — handled in the adapter; the canvas just
+//     renders whatever mode + state the adapter passes via props.
+//   • Data fetching, SQL, vendor SDKs — renderer-only.
+//
+// Layering
+// ────────
+// This file is the ONLY React + ECharts importer in `bi-adapters/native/`.
+// The `.ts` adapter stays free of React imports so the static import
+// graph stays clean for hosts that mount native through a non-React
+// shell later (Pulse PBI custom visual, desktop EXE). The adapter
+// imports the typed mount helper from this file via `./NativeCanvas`,
+// not from React directly.
+//
+// Pulse PBI copy-port note
+// ────────────────────────
+// This file is NOT copy-port safe: it uses React 19, react-dom/client,
+// and ECharts. Pulse PBI runs in a Power BI custom visual sandbox with
+// different constraints (no native React 19 root, no fetch). Use the
+// PURE contracts in `playground/src/visualization/` from Pulse PBI; do
+// not import this file from the sibling project.
+
+import { useEffect, useMemo, useRef } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { flushSync } from "react-dom";
+import * as echarts from "echarts/core";
+import { BarChart, LineChart, PieChart } from "echarts/charts";
+import {
+    GridComponent,
+    LegendComponent,
+    TitleComponent,
+    TooltipComponent,
+} from "echarts/components";
+import { CanvasRenderer } from "echarts/renderers";
+import type { EChartsOption } from "echarts";
+import {
+    isAIResultEnvelope,
+    type AIResultEnvelope,
+} from "./aiResultEnvelope";
+import {
+    resultToVizIntent,
+    type VizIntent,
+} from "./resultToVizIntent";
+import {
+    analyzeDataShape,
+    type ChartKind,
+    type DataShape,
+} from "./chartAutoPick";
+
+// Register only the chart types + components G4 actually surfaces.
+// Adding a new chart kind means registering its module here AND
+// extending `buildEChartsOption` below. Keeping this list tight means
+// the bundle stays small for deployments that never render the more
+// exotic chart types.
+echarts.use([
+    BarChart,
+    LineChart,
+    PieChart,
+    GridComponent,
+    LegendComponent,
+    TitleComponent,
+    TooltipComponent,
+    CanvasRenderer,
+]);
+
+// ─── Props contract ───────────────────────────────────────────────────────
+
+/** High-level display mode the adapter wants the canvas to show.
+ *  Maps 1:1 to `NativeBIAdapter` renderStatus so adapter telemetry and
+ *  canvas DOM state never disagree. */
+export type NativeCanvasMode =
+    | "empty"
+    | "result-accepted"
+    | "ungoverned-result-preview"
+    | "result-blocked"
+    | "spec-accepted";
+
+export type NativeCanvasGovernanceState =
+    | { state: "not-applicable" }
+    | { state: "enforced"; authority: string; requestId: string }
+    | { state: "preview"; reason: "no-governance-attestation" }
+    | { state: "blocked"; reason: "no-governance-attestation" };
+
+export interface NativeCanvasProps {
+    /** Explicit display mode. Set by the adapter based on the last
+     *  command + governance check. Canvas trusts this — it does not
+     *  re-derive mode from envelope shape. */
+    readonly mode: NativeCanvasMode;
+    /** Last AI result the adapter accepted. Only consulted for
+     *  `result-accepted` and `ungoverned-result-preview` modes. For
+     *  `blocked` / `spec-accepted` / `empty`, the canvas ignores it. */
+    readonly envelope?: unknown;
+    /** Governance state the adapter resolved. Drives the
+     *  `data-native-governance` attribute and the preview badge.
+     *  The canvas trusts the adapter — it does not re-validate. */
+    readonly governanceState: NativeCanvasGovernanceState;
+    /** Optional theme token forwarded to `data-native-theme` so CSS
+     *  can react. The canvas does not interpret theme values. */
+    readonly theme?: string | null;
+}
+
+// ─── Public mount helper (the only API the adapter needs) ──────────────────
+
+export interface NativeCanvasHandle {
+    /** Replace the current props and re-render. Idempotent. */
+    update(next: NativeCanvasProps): void;
+    /** Tear down the React root. Idempotent. */
+    unmount(): void;
+}
+
+export function mountNativeCanvas(
+    container: HTMLElement,
+    initial: NativeCanvasProps,
+): NativeCanvasHandle {
+    const root: Root = createRoot(container);
+    let current = initial;
+    // Wrap render in flushSync so React 19's concurrent commit phase
+    // completes before the call returns. Without this, the BI adapter's
+    // synchronous tests + telemetry observers would see an empty
+    // container right after mount/update — render would complete on a
+    // later microtask. flushSync is the supported way to force a sync
+    // commit in test + DOM-introspection scenarios.
+    const render = (): void => {
+        flushSync(() => { root.render(<NativeCanvas {...current} />); });
+    };
+    render();
+    let unmounted = false;
+    return {
+        update(next) {
+            if (unmounted) return;
+            current = next;
+            render();
+        },
+        unmount() {
+            if (unmounted) return;
+            unmounted = true;
+            // React 19's createRoot.unmount is synchronous; safe to call
+            // immediately. Wrap in try/catch so a thrown error during
+            // unmount cannot break the adapter's destroy() lifecycle.
+            try { root.unmount(); } catch { /* swallow */ }
+        },
+    };
+}
+
+// ─── Top-level component ──────────────────────────────────────────────────
+
+export function NativeCanvas(props: NativeCanvasProps): React.ReactElement {
+    const { mode, envelope, governanceState, theme } = props;
+    const govAttr = governanceAttribute(governanceState);
+
+    // Mode dispatch. Each branch picks a body + the data-native-bi-status
+    // attribute value. The adapter's renderStatus already matches these
+    // mode names, so the DOM attribute and adapter telemetry stay in sync.
+    if (mode === "result-blocked") {
+        return renderRootSection({
+            statusKey: "result-blocked",
+            governanceAttribute: govAttr,
+            theme,
+            children: <BlockedState />,
+        });
+    }
+
+    if (mode === "spec-accepted") {
+        return renderRootSection({
+            statusKey: "spec-accepted",
+            governanceAttribute: govAttr,
+            theme,
+            children: <SpecAcceptedState />,
+        });
+    }
+
+    if (mode === "empty") {
+        return renderRootSection({
+            statusKey: "empty",
+            governanceAttribute: govAttr,
+            theme,
+            children: <EmptyState />,
+        });
+    }
+
+    // result-accepted or ungoverned-result-preview from here on.
+    const isPreview = mode === "ungoverned-result-preview";
+    const body = renderEnvelopeBody(envelope);
+
+    return renderRootSection({
+        statusKey: mode,
+        governanceAttribute: govAttr,
+        theme,
+        children: (
+            <>
+                {body}
+                {isPreview && <PreviewBadge />}
+            </>
+        ),
+    });
+}
+
+function renderEnvelopeBody(envelope: unknown): React.ReactElement {
+    // Adapter may pass a partially-shaped result through (e.g., the
+    // existing G3 tests use `{ rows: [] }` which is not a valid
+    // AIResultEnvelope but is a legitimate "accepted" message). Fall
+    // back to AcceptedFallback so the user gets the "AI result accepted"
+    // signal even when there is nothing renderable.
+    if (!isAIResultEnvelope(envelope)) {
+        return <AcceptedFallback />;
+    }
+    const intent = resultToVizIntent(envelope);
+    switch (intent.kind) {
+        case "empty": return <AcceptedFallback />;
+        case "text":  return <TextState answer={envelope.answer ?? ""} />;
+        case "table": return <TableState envelope={envelope} />;
+        case "kpi":   return <KpiState envelope={envelope} />;
+        case "chart": return <ChartState envelope={envelope} intent={intent} />;
+    }
+}
+
+// ─── Root section wrapper — owns the stable selectors existing tests use ──
+
+interface RootSectionProps {
+    readonly statusKey: string;
+    readonly governanceAttribute: string | null;
+    readonly theme?: string | null;
+    readonly children: React.ReactNode;
+}
+
+function renderRootSection(props: RootSectionProps): React.ReactElement {
+    return (
+        <section
+            className="pp-native-bi"
+            data-native-bi-adapter="true"
+            data-native-bi-status={props.statusKey}
+            data-native-governance={props.governanceAttribute ?? undefined}
+            data-native-theme={props.theme ?? undefined}
+            role="region"
+            aria-label="Native result canvas"
+            style={{
+                width: "100%",
+                height: "100%",
+                display: "grid",
+                placeItems: "stretch",
+                padding: "24px",
+                boxSizing: "border-box",
+                position: "relative",
+            }}
+        >
+            {props.children}
+        </section>
+    );
+}
+
+function governanceAttribute(state: NativeCanvasGovernanceState): string | null {
+    if (state.state === "not-applicable") return null;
+    return state.state;
+}
+
+// ─── Empty / Text / Blocked / Preview / Spec states ───────────────────────
+
+function EmptyState(): React.ReactElement {
+    return (
+        <div className="pp-native-bi__empty" style={emptyMessageStyle}>
+            <strong style={titleStyle}>Native result canvas</strong>
+            <span data-native-bi-status="empty">
+                Ask Pulse a question to render the AI result here.
+            </span>
+        </div>
+    );
+}
+
+function BlockedState(): React.ReactElement {
+    return (
+        <div className="pp-native-bi__blocked" style={emptyMessageStyle} role="alert">
+            <strong style={titleStyle}>Render blocked</strong>
+            <span data-native-bi-status="result-blocked">
+                Governance attestation missing or invalid. Native render blocked.
+            </span>
+        </div>
+    );
+}
+
+function SpecAcceptedState(): React.ReactElement {
+    return (
+        <div className="pp-native-bi__spec" style={emptyMessageStyle}>
+            <strong style={titleStyle}>Chart render spec accepted.</strong>
+            <span data-native-bi-status="spec-accepted">
+                Spec validated by the visualization pipeline.
+            </span>
+        </div>
+    );
+}
+
+function AcceptedFallback(): React.ReactElement {
+    // Used when the adapter accepted a result whose envelope shape is
+    // not renderable (no rows, malformed schema, etc.). Preserves the
+    // "AI result accepted" telemetry signal that downstream tests +
+    // observers depend on.
+    return (
+        <div className="pp-native-bi__accepted" style={textBlockStyle}>
+            <strong style={titleStyle}>AI result accepted.</strong>
+            <p style={mutedParagraphStyle}>(no renderable rows)</p>
+        </div>
+    );
+}
+
+function PreviewBadge(): React.ReactElement {
+    // Visible signal that this render is ungoverned. Tests assert the
+    // literal text. Intentionally obtrusive — authors must not get
+    // used to ignoring it.
+    return (
+        <div
+            className="pp-native-bi__preview-badge"
+            role="note"
+            style={previewBadgeStyle}
+        >
+            DEV ONLY · Ungoverned result preview
+        </div>
+    );
+}
+
+function TextState({ answer }: { answer: string }): React.ReactElement {
+    return (
+        <div className="pp-native-bi__text" style={textBlockStyle}>
+            <strong style={titleStyle}>AI result accepted.</strong>
+            <p style={{ marginTop: "8px", whiteSpace: "pre-wrap", color: "var(--pp-text, #0f172a)" }}>
+                {answer || "(no answer text)"}
+            </p>
+        </div>
+    );
+}
+
+// ─── Table state ──────────────────────────────────────────────────────────
+
+function TableState({ envelope }: { envelope: AIResultEnvelope }): React.ReactElement {
+    const schema = envelope.schema ?? [];
+    const rows = envelope.rows ?? [];
+    // Cap rendered rows at 100 to keep DOM cost bounded for MVP. Larger
+    // result sets should paginate or downsample in a later cycle.
+    const CAP = 100;
+    const visibleRows = rows.slice(0, CAP);
+    return (
+        <div className="pp-native-bi__table" style={{ width: "100%", overflow: "auto" }}>
+            <strong style={titleStyle}>AI result accepted.</strong>
+            <table
+                style={{ width: "100%", borderCollapse: "collapse", marginTop: "8px", fontSize: "13px" }}
+                data-testid="pp-native-bi-table"
+            >
+                <thead>
+                    <tr>
+                        {schema.map((col) => (
+                            <th
+                                key={col.name}
+                                style={{
+                                    textAlign: "left",
+                                    padding: "6px 8px",
+                                    borderBottom: "1px solid var(--pp-border, rgba(15,23,42,0.12))",
+                                    color: "var(--pp-text-muted, #475569)",
+                                    fontWeight: 600,
+                                }}
+                            >
+                                {col.name}
+                            </th>
+                        ))}
+                    </tr>
+                </thead>
+                <tbody>
+                    {visibleRows.map((row, ri) => (
+                        <tr key={ri}>
+                            {schema.map((col, ci) => (
+                                <td
+                                    key={col.name}
+                                    style={{
+                                        padding: "6px 8px",
+                                        borderBottom: "1px solid var(--pp-border-subtle, rgba(15,23,42,0.06))",
+                                        color: "var(--pp-text, #0f172a)",
+                                    }}
+                                >
+                                    {formatCell(row[ci])}
+                                </td>
+                            ))}
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+            {rows.length > CAP && (
+                <p style={mutedParagraphStyle}>Showing first {CAP} of {rows.length} rows.</p>
+            )}
+        </div>
+    );
+}
+
+function formatCell(value: unknown): string {
+    if (value === null || value === undefined) return "—";
+    if (typeof value === "number") {
+        return Number.isFinite(value) ? new Intl.NumberFormat("en-US").format(value) : String(value);
+    }
+    return String(value);
+}
+
+// ─── KPI state ────────────────────────────────────────────────────────────
+
+function KpiState({ envelope }: { envelope: AIResultEnvelope }): React.ReactElement {
+    const schema = envelope.schema ?? [];
+    const rows = envelope.rows ?? [];
+    // KPI intent guarantees rowCount === 1 and exactly one numeric column.
+    // Find the first numeric cell + its column label.
+    const numericIndex = schema.findIndex((_, i) => {
+        const cell = rows[0]?.[i];
+        return typeof cell === "number"
+            || (typeof cell === "string" && cell.trim() !== "" && !Number.isNaN(Number(cell.trim())));
+    });
+    const idx = numericIndex >= 0 ? numericIndex : 0;
+    const label = schema[idx]?.name ?? "Value";
+    const rawCell = rows[0]?.[idx];
+    const numericValue = typeof rawCell === "number"
+        ? rawCell
+        : typeof rawCell === "string"
+            ? Number(rawCell)
+            : NaN;
+    const formatted = Number.isFinite(numericValue)
+        ? new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(numericValue)
+        : String(rawCell ?? "—");
+    return (
+        <div
+            className="pp-native-bi__kpi"
+            data-testid="pp-native-bi-kpi"
+            style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "4px",
+                padding: "12px",
+            }}
+        >
+            <strong style={titleStyle}>AI result accepted.</strong>
+            <span
+                style={{
+                    fontSize: "13px",
+                    color: "var(--pp-text-muted, #475569)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em",
+                }}
+            >
+                {label}
+            </span>
+            <strong
+                style={{
+                    fontSize: "40px",
+                    color: "var(--pp-text, #0f172a)",
+                    fontWeight: 700,
+                    lineHeight: 1.1,
+                }}
+                data-testid="pp-native-bi-kpi-value"
+            >
+                {formatted}
+            </strong>
+        </div>
+    );
+}
+
+// ─── Chart state ──────────────────────────────────────────────────────────
+
+function ChartState({
+    envelope,
+    intent,
+}: {
+    envelope: AIResultEnvelope;
+    intent: VizIntent;
+}): React.ReactElement {
+    const containerRef = useRef<HTMLDivElement | null>(null);
+    const instanceRef = useRef<echarts.ECharts | null>(null);
+
+    // Memo the option so changing only `theme` higher up does not retrigger
+    // chart init. Adapter swaps envelope on real updates.
+    const option = useMemo<EChartsOption>(() => {
+        const columns = (envelope.schema ?? []).map(c => c.name);
+        const rows = envelope.rows ?? [];
+        const shape = analyzeDataShape(columns, rows);
+        return buildEChartsOption(intent.chartType ?? shape.recommended, shape);
+    }, [envelope, intent]);
+
+    useEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+        const instance = echarts.init(el);
+        instanceRef.current = instance;
+        instance.setOption(option, { notMerge: true });
+
+        const ro = typeof ResizeObserver !== "undefined"
+            ? new ResizeObserver(() => instance.resize())
+            : null;
+        ro?.observe(el);
+
+        return () => {
+            ro?.disconnect();
+            try { instance.dispose(); } catch { /* swallow */ }
+            instanceRef.current = null;
+        };
+    }, [option]);
+
+    return (
+        <div className="pp-native-bi__chart-wrap" style={{ width: "100%", height: "100%" }}>
+            <strong style={{ ...titleStyle, marginBottom: "4px" }}>AI result accepted.</strong>
+            <div
+                ref={containerRef}
+                className="pp-native-bi__chart"
+                data-testid="pp-native-bi-chart"
+                data-chart-kind={intent.chartType ?? "bar"}
+                style={{ width: "100%", height: "100%", minHeight: 240 }}
+            />
+        </div>
+    );
+}
+
+// ─── ECharts option builders ─────────────────────────────────────────────
+
+/** Build a minimal ECharts option for the chosen chart kind. MVP scope:
+ *  bar / column / clustered-bar / line / area / pie / donut. Unsupported
+ *  kinds fall back to bar so the canvas always renders SOMETHING for an
+ *  attested result rather than going blank. */
+function buildEChartsOption(kind: ChartKind, shape: DataShape): EChartsOption {
+    switch (kind) {
+        case "line":
+        case "area":
+            return lineOption(shape, kind === "area");
+        case "pie":
+            return pieOption(shape, false);
+        case "donut":
+            return pieOption(shape, true);
+        case "clustered-bar":
+            return clusteredBarOption(shape);
+        case "column":
+            return barOption(shape, false);
+        case "bar":
+        default:
+            return barOption(shape, true);
+    }
+}
+
+function barOption(shape: DataShape, horizontal: boolean): EChartsOption {
+    return {
+        tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+        grid: { left: 48, right: 16, top: 24, bottom: 36, containLabel: true },
+        xAxis: horizontal
+            ? { type: "value" }
+            : { type: "category", data: shape.series.map(p => p.label) },
+        yAxis: horizontal
+            ? { type: "category", data: shape.series.map(p => p.label) }
+            : { type: "value" },
+        series: [
+            {
+                type: "bar",
+                data: shape.series.map(p => p.value),
+            },
+        ],
+    };
+}
+
+function lineOption(shape: DataShape, area: boolean): EChartsOption {
+    return {
+        tooltip: { trigger: "axis" },
+        grid: { left: 48, right: 16, top: 24, bottom: 36, containLabel: true },
+        xAxis: { type: "category", data: shape.series.map(p => p.label) },
+        yAxis: { type: "value" },
+        series: [
+            {
+                type: "line",
+                data: shape.series.map(p => p.value),
+                smooth: true,
+                ...(area ? { areaStyle: {} } : {}),
+            },
+        ],
+    };
+}
+
+function pieOption(shape: DataShape, donut: boolean): EChartsOption {
+    return {
+        tooltip: { trigger: "item" },
+        legend: { bottom: 0, type: "scroll" },
+        series: [
+            {
+                type: "pie",
+                radius: donut ? ["45%", "70%"] : "65%",
+                data: shape.series.map(p => ({ name: p.label, value: p.value })),
+                avoidLabelOverlap: true,
+            },
+        ],
+    };
+}
+
+function clusteredBarOption(shape: DataShape): EChartsOption {
+    if (shape.clustered.length === 0) return barOption(shape, false);
+    const seriesNames = shape.clustered[0].values.map(v => v.name);
+    return {
+        tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+        legend: { bottom: 0, type: "scroll" },
+        grid: { left: 48, right: 16, top: 24, bottom: 48, containLabel: true },
+        xAxis: { type: "category", data: shape.clustered.map(c => c.label) },
+        yAxis: { type: "value" },
+        series: seriesNames.map((seriesName) => ({
+            name: seriesName,
+            type: "bar",
+            data: shape.clustered.map(c => {
+                const match = c.values.find(v => v.name === seriesName);
+                return match?.value ?? 0;
+            }),
+        })),
+    };
+}
+
+// ─── Local styles (inline so the canvas works without a CSS bundle) ──────
+
+const emptyMessageStyle: React.CSSProperties = {
+    maxWidth: 460,
+    textAlign: "center",
+    color: "var(--pp-text-muted, #475569)",
+    alignSelf: "center",
+    justifySelf: "center",
+};
+
+const titleStyle: React.CSSProperties = {
+    display: "block",
+    marginBottom: 6,
+    color: "var(--pp-text, #0f172a)",
+};
+
+const textBlockStyle: React.CSSProperties = {
+    maxWidth: 760,
+    margin: "0 auto",
+    padding: "12px",
+};
+
+const mutedParagraphStyle: React.CSSProperties = {
+    marginTop: "6px",
+    fontSize: "12px",
+    color: "var(--pp-text-muted, #475569)",
+};
+
+const previewBadgeStyle: React.CSSProperties = {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    padding: "6px 10px",
+    background: "rgba(202, 138, 4, 0.95)",
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: "0.04em",
+    borderRadius: 4,
+    textTransform: "uppercase",
+    zIndex: 2,
+    pointerEvents: "none",
+};

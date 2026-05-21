@@ -23,13 +23,15 @@ import {
     type NativeRendererCommand,
 } from "./nativeCommands";
 import type { NativeEvent, NativeEventHandler, NativeEventType } from "./nativeEvents";
+import {
+    mountNativeCanvas,
+    type NativeCanvasGovernanceState,
+    type NativeCanvasHandle,
+    type NativeCanvasMode,
+} from "../../playground/src/visualization/NativeCanvas";
 
-type NativeRenderStatus = "empty" | "result-accepted" | "spec-accepted" | "result-blocked" | "ungoverned-result-preview";
-type NativeGovernanceState =
-    | { state: "not-applicable" }
-    | { state: "enforced"; authority: GovernanceAttestation["authority"]; requestId: string }
-    | { state: "preview"; reason: "no-governance-attestation" }
-    | { state: "blocked"; reason: "no-governance-attestation" };
+type NativeRenderStatus = NativeCanvasMode;
+type NativeGovernanceState = NativeCanvasGovernanceState;
 
 export interface NativeBIAdapterOptions {
     readonly requireGovernanceAttestation?: boolean;
@@ -54,11 +56,12 @@ export class NativeBIAdapter implements BIAdapter {
 
     private readonly requireGovernanceAttestation: boolean;
     private containerEl: HTMLElement | null = null;
-    private rootEl: HTMLElement | null = null;
-    private statusEl: HTMLElement | null = null;
+    private canvasHandle: NativeCanvasHandle | null = null;
     private listeners = new Map<NativeEventType, Set<NativeEventHandler>>();
     private renderStatus: NativeRenderStatus = "empty";
     private governanceState: NativeGovernanceState = { state: "not-applicable" };
+    private currentEnvelope: unknown = null;
+    private currentTheme: string | null = null;
 
     constructor(options: NativeBIAdapterOptions = {}) {
         this.requireGovernanceAttestation = options.requireGovernanceAttestation ?? defaultRequireGovernanceAttestation();
@@ -79,45 +82,15 @@ export class NativeBIAdapter implements BIAdapter {
 
         this.detachDom();
         this.containerEl = containerEl;
-
-        const root = document.createElement("section");
-        root.className = "pp-native-bi";
-        root.setAttribute("data-native-bi-adapter", "true");
-        root.setAttribute("role", "region");
-        root.setAttribute("aria-label", "Native result canvas");
-        root.style.width = "100%";
-        root.style.height = "100%";
-        root.style.display = "grid";
-        root.style.placeItems = "center";
-        root.style.padding = "24px";
-        root.style.boxSizing = "border-box";
-
-        const message = document.createElement("div");
-        message.className = "pp-native-bi__empty";
-        message.style.maxWidth = "460px";
-        message.style.textAlign = "center";
-        message.style.color = "var(--pp-text-muted, #475569)";
-
-        const title = document.createElement("strong");
-        title.textContent = "Native result canvas";
-        title.style.display = "block";
-        title.style.marginBottom = "6px";
-        title.style.color = "var(--pp-text, #0f172a)";
-
-        const status = document.createElement("span");
-        status.setAttribute("data-native-bi-status", "empty");
-        status.textContent = "Ask Pulse a question to render the AI result here.";
-
-        message.appendChild(title);
-        message.appendChild(status);
-        root.appendChild(message);
-        containerEl.appendChild(root);
-
-        this.rootEl = root;
-        this.statusEl = status;
         this.renderStatus = "empty";
         this.governanceState = { state: "not-applicable" };
-        root.removeAttribute("data-native-governance");
+        this.currentEnvelope = null;
+        this.currentTheme = null;
+
+        // Mount the React canvas inside the host container. NativeCanvas
+        // owns DOM construction from here on; this adapter only updates
+        // canvas props in response to renderer commands.
+        this.canvasHandle = mountNativeCanvas(containerEl, this.canvasProps());
 
         this.emit({ type: "loaded", payload: { mode: "native", status: this.renderStatus } });
         this.emit({ type: "ready", payload: { mode: "native", capabilities: NATIVE_RENDERER_CAPABILITIES } });
@@ -135,7 +108,7 @@ export class NativeBIAdapter implements BIAdapter {
     async send(command: BICommand): Promise<void>;
     async send(command: NativeBICommand): Promise<void>;
     async send(command: NativeBICommand): Promise<void> {
-        if (!this.rootEl) {
+        if (!this.canvasHandle) {
             throw new Error(`${BI_ERR.NOT_MOUNTED}: native adapter not mounted`);
         }
 
@@ -161,18 +134,29 @@ export class NativeBIAdapter implements BIAdapter {
     }
 
     private detachDom(): void {
-        if (this.rootEl?.parentElement) {
-            this.rootEl.parentElement.removeChild(this.rootEl);
+        if (this.canvasHandle) {
+            this.canvasHandle.unmount();
+            this.canvasHandle = null;
+        }
+        // React's createRoot.unmount empties the container, but be
+        // belt-and-braces in case a future React version leaves
+        // residue: clear leftover children so existing tests that
+        // assert `containerEl.querySelector('[data-native-bi-adapter]')`
+        // returns null after destroy stay green.
+        if (this.containerEl) {
+            while (this.containerEl.firstChild) {
+                this.containerEl.removeChild(this.containerEl.firstChild);
+            }
         }
         this.containerEl = null;
-        this.rootEl = null;
-        this.statusEl = null;
         this.renderStatus = "empty";
         this.governanceState = { state: "not-applicable" };
+        this.currentEnvelope = null;
+        this.currentTheme = null;
     }
 
     async getMetadata(): Promise<BIMetadata | null> {
-        if (!this.rootEl) return null;
+        if (!this.canvasHandle) return null;
         return {
             activeViewId: "native-result-canvas",
             visibleMeasures: [],
@@ -182,6 +166,26 @@ export class NativeBIAdapter implements BIAdapter {
     }
 
     private handleRendererCommand(command: NativeRendererCommand): void {
+        // ─── Governance gate tripwire ──────────────────────────────────
+        // The G3 governance gate runs ONLY on `renderResult`. `renderSpec`
+        // is intentionally NOT gated here because renderer specs are not
+        // trusted AI result envelopes — they are compiled chart shapes
+        // already produced by the visualization pipeline FROM an attested
+        // envelope. The contract is:
+        //
+        //   1. Host calls `renderResult` with the AI result envelope.
+        //   2. Adapter checks `envelope.governance` here. Production with
+        //      missing/invalid attestation throws NATIVE_GOVERNANCE_REQUIRED.
+        //   3. Once governance is confirmed, the host may optionally call
+        //      `renderSpec` with a compiled chart spec derived from the
+        //      already-attested envelope.
+        //
+        // If a future caller starts sending raw or semi-trusted shapes
+        // directly through `renderSpec` (bypassing `renderResult`), the
+        // spec MUST either carry its own governance attestation OR this
+        // code MUST be tightened to gate `renderSpec` too. Do not silently
+        // widen the trust surface.
+        // ───────────────────────────────────────────────────────────────
         switch (command.kind) {
             case "renderResult":
                 this.acceptResult(command.result);
@@ -189,23 +193,27 @@ export class NativeBIAdapter implements BIAdapter {
             case "renderSpec":
                 this.renderStatus = "spec-accepted";
                 this.governanceState = { state: "not-applicable" };
-                this.rootEl?.removeAttribute("data-native-governance");
-                this.setStatus("Chart render spec accepted.");
+                this.currentEnvelope = null;
+                this.syncCanvas();
                 this.emitRendered("spec");
                 return;
             case "clear":
                 this.renderStatus = "empty";
                 this.governanceState = { state: "not-applicable" };
-                this.rootEl?.removeAttribute("data-native-governance");
-                this.setStatus("Ask Pulse a question to render the AI result here.");
-                this.statusEl?.setAttribute("data-native-bi-status", "empty");
+                this.currentEnvelope = null;
+                this.syncCanvas();
                 this.emit({ type: "view-context", payload: { status: this.renderStatus, governance: this.governanceState } });
                 return;
             case "setTheme":
-                if (command.theme) this.rootEl?.setAttribute("data-native-theme", command.theme);
+                this.currentTheme = command.theme ?? null;
+                this.syncCanvas();
                 this.emit({ type: "view-context", payload: { status: this.renderStatus, theme: command.theme ?? null, governance: this.governanceState } });
                 return;
             case "resize":
+                // Canvas re-rendering is handled by ResizeObserver inside
+                // the chart state; nothing the adapter needs to push here.
+                // Still emit the view-context event so observers can
+                // track sizing if they care.
                 this.emit({
                     type: "view-context",
                     payload: {
@@ -224,8 +232,8 @@ export class NativeBIAdapter implements BIAdapter {
         if (!attestation && this.requireGovernanceAttestation) {
             this.renderStatus = "result-blocked";
             this.governanceState = { state: "blocked", reason: "no-governance-attestation" };
-            this.rootEl?.setAttribute("data-native-governance", "blocked");
-            this.setStatus("Governance attestation missing or invalid. Native render blocked.");
+            this.currentEnvelope = null;
+            this.syncCanvas();
             const payload = {
                 mode: "native",
                 status: this.renderStatus,
@@ -246,8 +254,8 @@ export class NativeBIAdapter implements BIAdapter {
         if (!attestation) {
             this.renderStatus = "ungoverned-result-preview";
             this.governanceState = { state: "preview", reason: "no-governance-attestation" };
-            this.rootEl?.setAttribute("data-native-governance", "preview");
-            this.setStatus("AI result accepted. Ungoverned result preview (DEV ONLY).");
+            this.currentEnvelope = result;
+            this.syncCanvas();
             this.emitRendered("result");
             return;
         }
@@ -258,15 +266,22 @@ export class NativeBIAdapter implements BIAdapter {
             authority: attestation.authority,
             requestId: attestation.requestId,
         };
-        this.rootEl?.setAttribute("data-native-governance", "enforced");
-        this.setStatus("AI result accepted.");
+        this.currentEnvelope = result;
+        this.syncCanvas();
         this.emitRendered("result");
     }
 
-    private setStatus(text: string): void {
-        if (!this.statusEl) return;
-        this.statusEl.textContent = text;
-        this.statusEl.setAttribute("data-native-bi-status", this.renderStatus);
+    private canvasProps() {
+        return {
+            mode: this.renderStatus,
+            envelope: this.currentEnvelope,
+            governanceState: this.governanceState,
+            theme: this.currentTheme,
+        } as const;
+    }
+
+    private syncCanvas(): void {
+        this.canvasHandle?.update(this.canvasProps());
     }
 
     private emitRendered(source: "result" | "spec"): void {

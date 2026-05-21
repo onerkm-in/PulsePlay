@@ -284,9 +284,16 @@ describe("NativeBIAdapter — G3 governance render gate", () => {
 });
 
 describe("NativeBIAdapter — import boundaries", () => {
-    test("production native adapter files do not import data/query/vendor/authoring layers", () => {
+    // ─── .ts adapter scan ─────────────────────────────────────────────
+    // The bi-adapters/native/*.ts files are the BIAdapter contract
+    // implementation. They must remain plain TypeScript: no React, no
+    // fetch, no proxy clients, no vendor SDKs. This guarantees the
+    // adapter is mountable from any host shell (React, Pulse PBI
+    // sandbox, future desktop EXE) without dragging UI framework
+    // dependencies into the static import graph.
+    test("native adapter .ts files do not import React/data/query/vendor/authoring layers", () => {
         const adapterDir = join(process.cwd(), "../bi-adapters/native");
-        const files = collectProductionTsFiles(adapterDir);
+        const files = collectProductionFiles(adapterDir, ".ts");
         expect(files.length).toBeGreaterThan(0);
 
         const forbidden: Array<[string, RegExp]> = [
@@ -301,6 +308,8 @@ describe("NativeBIAdapter — import boundaries", () => {
             ["Looker SDK", /from\s+["'][^"']*looker[^"']*["']/i],
             ["drag/drop libraries", /from\s+["'][^"']*(dnd|draggable|resizable)[^"']*["']/i],
             ["React runtime", /from\s+["']react(?:\/[^"']*)?["']/],
+            ["react-dom runtime", /from\s+["']react-dom(?:\/[^"']*)?["']/],
+            ["echarts runtime", /from\s+["']echarts(?:\/[^"']*)?["']/],
             ["authoring settings imports", /from\s+["'][^"']*settings\/groups[^"']*["']/],
         ];
 
@@ -309,22 +318,61 @@ describe("NativeBIAdapter — import boundaries", () => {
             for (const [label, pattern] of forbidden) {
                 expect(
                     pattern.test(text),
-                    `${relative(adapterDir, file)} violates native import boundary: ${label}`,
+                    `${relative(adapterDir, file)} violates native adapter boundary (.ts): ${label}`,
                 ).toBe(false);
             }
         }
     });
+
+    // ─── .tsx canvas scan ─────────────────────────────────────────────
+    // G4 extends the import boundary to cover the NativeCanvas .tsx
+    // renderer. The canvas DOES import React/react-dom/echarts (those
+    // are its runtime). It must NOT import fetch, the proxy, vendor
+    // SDKs, drag/drop libs, or settings authoring modules — those would
+    // drift the canvas from "renderer of attested AI results" into
+    // "lightweight BI authoring tool", which Option B explicitly
+    // forbids (see ADR-0009 + ADR-0010 non-goals).
+    test("NativeCanvas.tsx does not import data/query/vendor/authoring layers", () => {
+        const canvasPath = join(process.cwd(), "src/visualization/NativeCanvas.tsx");
+        const text = readFileSync(canvasPath, "utf8");
+
+        const tsxForbidden: Array<[string, RegExp]> = [
+            ["fetch", /\bfetch\s*\(/],
+            ["XMLHttpRequest", /\bXMLHttpRequest\b/],
+            ["proxy imports", /from\s+["'][^"']*proxy[^"']*["']/],
+            ["warehouse imports", /from\s+["'][^"']*warehouse[^"']*["']/],
+            ["Power BI SDK", /from\s+["']powerbi-client["']/],
+            ["Databricks SDK", /from\s+["']@databricks\/[^"']+["']/],
+            ["Tableau SDK", /from\s+["'][^"']*tableau[^"']*["']/i],
+            ["Qlik SDK", /from\s+["'][^"']*qlik[^"']*["']/i],
+            ["Looker SDK", /from\s+["'][^"']*looker[^"']*["']/i],
+            ["drag/drop libraries", /from\s+["'][^"']*(dnd|draggable|resizable)[^"']*["']/i],
+            ["authoring settings imports", /from\s+["'][^"']*settings\/groups[^"']*["']/],
+            // React, react-dom, and echarts are ALLOWED here — they are
+            // the canvas runtime. Do NOT add them to this list.
+        ];
+
+        for (const [label, pattern] of tsxForbidden) {
+            expect(
+                pattern.test(text),
+                `NativeCanvas.tsx violates canvas boundary: ${label}`,
+            ).toBe(false);
+        }
+    });
 });
 
-function collectProductionTsFiles(dir: string): string[] {
+/** Collect production .ts OR .tsx files in a directory tree, excluding
+ *  __tests__ dirs and *.test.* files. The `ext` parameter selects
+ *  which extension to walk for. */
+function collectProductionFiles(dir: string, ext: ".ts" | ".tsx"): string[] {
     const out: string[] = [];
     for (const entry of readdirSync(dir)) {
         if (entry === "__tests__") continue;
         const full = join(dir, entry);
         const stat = statSync(full);
         if (stat.isDirectory()) {
-            out.push(...collectProductionTsFiles(full));
-        } else if (entry.endsWith(".ts") && !entry.endsWith(".test.ts")) {
+            out.push(...collectProductionFiles(full, ext));
+        } else if (entry.endsWith(ext) && !entry.endsWith(`.test${ext}`)) {
             out.push(full);
         }
     }
