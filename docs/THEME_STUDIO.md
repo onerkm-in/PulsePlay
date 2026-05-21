@@ -10,6 +10,73 @@ Let authors customize the AI briefing and workbench visual language **without wr
 
 ---
 
+## Color mode is a first-class user control (locked 2026-05-21)
+
+**Hard rule for every phase of Theme Studio AND for the F1 `--pp-*` / `--gn-*` token unification cycle.** Dark mode must be **directly selectable** in Appearance, NOT only inferred from the OS `prefers-color-scheme`. Users need an explicit menu/control with three values: `System`, `Light`, `Dark`.
+
+### Why this matters
+
+- Authors presenting to executives often want to force dark mode regardless of OS state (projector glare, late-evening sessions).
+- Power BI and Databricks workspaces themselves have explicit dark themes; aligning PulsePlay's appearance to those surfaces requires a manual override.
+- "Follow OS" is a sensible default, but making it the *only* path strands users on the wrong appearance when the OS preference doesn't match the room.
+
+### The two-axis model
+
+PulsePlay's appearance picker is **two independent dimensions**:
+
+```ts
+// Preset = palette + structural feel (chrome / surface / accent / radii / shadows).
+// Multiple palettes can ship in light + dark variants; the preset itself
+// does NOT decide which variant renders — the color mode does.
+type ThemePresetId =
+    | "pulse-default"      // current PulsePlay baseline
+    | "slate-dark"         // dark preset (preserved from existing styles)
+    | "midnight-ink"       // dark preset (Phase 1)
+    | "warm-slate"         // light preset (Phase 1)
+    | "high-contrast"      // accessibility-first
+    | "brand-neutral"      // white-label safe
+    | "forest"             // dark green
+    // Future enterprise presets must ship light + dark pairs when feasible.
+    | "custom";
+
+// Color mode is orthogonal to preset selection.
+type ColorMode = "system" | "light" | "dark";
+```
+
+`themePreset` chooses the palette and structural feel. `colorMode` decides whether the user follows the OS or forces a specific brightness when the preset supports both. A preset that only ships one variant (e.g. `high-contrast`) ignores the mode but still respects the user's stored choice for future presets that DO support both.
+
+### F1 (`--pp-*` / `--gn-*` token unification) MUST preserve this
+
+When F1 bridges the two token families, it MUST:
+
+- Keep `slate-dark` (or equivalent dark palette) directly **selectable** in Appearance.
+- Keep `colorMode` as a separate stored value (`pulseplay:color-mode`) independent of `themePreset` (`pulseplay:active-theme` or `pulseplay:theme-preset`).
+- Treat `colorMode: "system"` as "subscribe to `(prefers-color-scheme: dark)` MediaQueryList and re-apply the matching preset variant on change" — NOT as "ignore the user's stored mode."
+- Treat `colorMode: "dark"` (or `"light"`) as "force this brightness regardless of OS" — including when the user revisits the page on a different OS state.
+- Persist BOTH values across sessions.
+
+### What NOT to do
+
+- **Do not** make dark mode an OS-only inference. The presence of `@media (prefers-color-scheme: dark) { ... }` in a stylesheet is fine as a fallback, but a stored user preference MUST override the media query.
+- **Do not** collapse `themePreset` and `colorMode` into a single string (`"slate-dark"` vs `"slate-light"`). They are independent axes and the storage shape must reflect that — otherwise the "preset stays, user wanted to flip to light" path becomes a rename rather than a flag flip.
+- **Do not** ship enterprise/brand preset packs that hard-code one brightness without a paired light/dark variant — but **do not** block F1 on producing those pairs either. F1's deliverable is preserving the existing selectable behavior while the token plane unifies; new paired presets can land later.
+
+### Acceptance signal for F1
+
+The F1 PR is not complete until the Appearance leaf in Settings exposes BOTH:
+
+1. A **theme preset grid** with the existing presets (including `slate-dark` as a directly selectable dark option), AND
+2. A **separate color-mode control** with `System` / `Light` / `Dark` segmented buttons (or equivalent),
+
+with a manual test in the PR description confirming that:
+
+- Switching `colorMode` from `System` to `Dark` on a light-OS machine forces dark immediately.
+- Switching back to `System` re-syncs to OS state.
+- The selection persists across page reload.
+- Selecting a non-dark preset while `colorMode: "dark"` is set renders that preset's dark variant (if it ships one) or its sole variant (if it only ships one).
+
+---
+
 ## Supported inputs (all phases)
 
 | # | Input method | Phase |
@@ -76,6 +143,7 @@ Each preset must pass WCAG AA contrast on every token pair before shipping.
 | Preset id | Description |
 |---|---|
 | `pulse-default` | Current PulsePlay palette (no visual change — baseline) |
+| `slate-dark` | Dark slate-blue surface, light text — preserved from existing styles, directly selectable per the locked 2026-05-21 dark-mode direction above |
 | `midnight-ink` | Dark navy surface, white text, electric-blue accent |
 | `warm-slate` | Warm gray background, amber accent |
 | `high-contrast` | Pure black/white + bold borders for accessibility-first deployments |

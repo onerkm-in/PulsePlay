@@ -1,16 +1,16 @@
 {
   "visual": {
-    "name": "PBIGenieVisual",
-    "displayName": "PBI Genie Visual",
-    "guid": "PBIGenieVisual87799D3556EA4890BCBE3FF9F9A095F5",
+    "name": "PulseVisuals",
+    "displayName": "Pulse Visuals",
+    "guid": "PulseVisuals87799D3556EA4890BCBE3FF9F9A095F5",
     "visualClassName": "Visual",
     "version": "2.1.0.0",
-    "description": "Power BI custom visual for asking Databricks Genie questions from report context.",
+    "description": "Power BI custom visual for asking Databricks Genie questions from report context. Part of the PulsePlay ecosystem (Pulse family).",
     "supportUrl": "https://docs.databricks.com/api/workspace/genie",
     "gitHubUrl": ""
   },
   "apiVersion": "5.3.0",
-  "author": { "name": "PBIGenieVisual", "email": "admin@databricks.local" },
+  "author": { "name": "Pulse", "email": "admin@databricks.local" },
   "assets": { "icon": "assets/icon.png" },
   "externalJS": null,
   "style": "style/visual.less",

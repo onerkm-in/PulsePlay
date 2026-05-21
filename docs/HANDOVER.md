@@ -5,6 +5,56 @@
 
 ---
 
+## 2026-05-21 - PR1 Pulse-family rename + PR2 dark-mode direction lock
+
+**Scope.** Two small but load-bearing direction changes after PB0 + SS1 landed.
+
+**PR1 — PBIGenieVisual → PulseVisuals.** The Pulse PBI sibling's custom visual identity in [`enablers/pulse-pbi/pbiviz.json`](../enablers/pulse-pbi/pbiviz.json) + npm package name in [`package.json`](../enablers/pulse-pbi/package.json) + the Playwright test label in [`chat.spec.ts`](../enablers/pulse-pbi/chat.spec.ts) now use the **Pulse** brand family instead of the upstream `PBIGenieVisual` / `pbi-genie-visual` heritage. The user observed that "Pulse" is already the parent naming convention used across the sister DwD project family; the artifact a Power BI Desktop user installs should reflect the family name rather than the legacy project name.
+
+| File | Field | Before | After |
+|---|---|---|---|
+| `pbiviz.json` | `visual.name` | `PBIGenieVisual` | `PulseVisuals` |
+| `pbiviz.json` | `visual.displayName` | `PBI Genie Visual` | `Pulse Visuals` |
+| `pbiviz.json` | `visual.guid` prefix | `PBIGenieVisual87799...` | `PulseVisuals87799...` |
+| `pbiviz.json` | `author.name` | `PBIGenieVisual` | `Pulse` |
+| `package.json` | `name` | `pbi-genie-visual` | `pulse-visuals` |
+| `chat.spec.ts` | `test.describe` label | `PBIGenieVisual E2E` | `PulseVisuals E2E` |
+
+**What did NOT change**, deliberately: `README.upstream.md` (museum), `enablers/pulse-pbi/proxy/` (PB0 tripwire — historical reference proxy), `examples/SampleSuperStoreAnalysis/` (frozen demo .pbix-derived data with the old GUID; re-saving a new demo would refresh the folder names), the **upstream URL** `https://github.com/onerkm-in/pbi-genie-visual` (factual reference, must remain accurate so the refresh procedure still names what was pulled in), and the **32-char hex portion of the GUID** (`87799D3556EA4890BCBE3FF9F9A095F5` — preserved deliberately so the change is prefix-only and the GUID stays auditable to the same .pbiviz lineage).
+
+**Internal Pulse PBI consumers who installed the upstream version will see this as a new visual identity** (because pbiviz concatenates name + hex into a single GUID string at build time). Acceptable for this inner-source phase. Documented in [`enablers/pulse-pbi/PROVENANCE.md`](../enablers/pulse-pbi/PROVENANCE.md) "2026-05-21 post-import rename" section.
+
+**Rebuild verification ran against the renamed manifests:**
+
+| Step | Result |
+|---|---|
+| `npm install --no-audit --no-fund --prefer-offline` | `up to date in 2s` (regenerated package-lock.json metadata only) |
+| `npm run lint` | pass |
+| `npm test` | 87/87 vitest unit tests pass; `chat.spec.ts` still fails to LOAD under vitest for the dual-runner reason PB0d documented — unchanged from PB0d, not a rename regression |
+| `npx pbiviz package` | new artifact `dist/PulseVisuals87799D3556EA4890BCBE3FF9F9A095F5.2.1.0.0.pbiviz` (~106 KB) |
+
+**PR2 — Dark-mode direction lock for F1.** [`docs/THEME_STUDIO.md`](THEME_STUDIO.md) gains a new section "Color mode is a first-class user control (locked 2026-05-21)" that hard-codes the two-axis appearance model for both Theme Studio and the queued F1 `--pp-*` / `--gn-*` token unification cycle:
+
+- `themePreset: "pulse-default" | "slate-dark" | "midnight-ink" | ... | "custom"` — palette + structural feel.
+- `colorMode: "system" | "light" | "dark"` — orthogonal, separately stored, MUST be a user-visible control (System/Light/Dark segmented buttons), NOT only OS-inferred.
+- `slate-dark` is preserved as a directly selectable dark preset, not just an OS-prefers-dark inference target.
+- Acceptance signal for F1: Appearance leaf MUST expose BOTH the preset grid AND the separate color-mode control, AND switching `colorMode: System -> Dark` on a light-OS machine MUST force dark immediately (not require a reload).
+
+Rationale: authors presenting to executives often want to force dark mode regardless of OS state (projector glare, late-evening sessions); Power BI and Databricks workspaces have explicit dark themes that PulsePlay should be able to align with manually. "Follow OS" is a sensible default, but making it the only path strands users on the wrong appearance when the OS preference doesn't match the room. The `slate-dark` preset is now listed in the Phase 1 preset table alongside `pulse-default`, `midnight-ink`, etc.
+
+**Validation.** Pulse PBI: `npm install` + `npm run lint` + `npm test` + `npx pbiviz package` all pass post-rename. PulsePlay playground: no source code changed in this slice, so no test suite re-run was required. Docs-only `git diff --check` clean (CRLF warnings only). Tree clean before commit.
+
+**Tripwires for next session.**
+- **The upstream URL `pbi-genie-visual` is factual** — do NOT rewrite it during future docs sweeps. PROVENANCE.md's refresh procedure depends on it being accurate.
+- **The 32-char hex part of the GUID is stable** across the rename. Future renames of the visual name prefix MUST keep the same 32-char hex if continuity of identity matters for that release — or generate a fresh hex if a deliberate break is desired.
+- **F1 cannot ship without the color-mode control.** The acceptance signal is encoded in [THEME_STUDIO.md](THEME_STUDIO.md); reviewers must check both the preset grid AND the System/Light/Dark control are present in the Appearance leaf before approving.
+- **Do NOT collapse `themePreset` and `colorMode` into one string** (`"slate-dark"` vs `"slate-light"`). They are independent axes; the storage shape must reflect that or the "preset stays, user flips brightness" UX becomes a rename rather than a flag flip.
+- **`enablers/pulse-pbi/examples/SampleSuperStoreAnalysis/CustomVisuals/PBIGenieVisual87799...`** directories still carry the OLD prefix because they are frozen .pbix-derived demo data. Do NOT rename those directories — Power BI's report definitions reference them by name and renaming would break the demo without a corresponding re-save of the .pbix.
+
+**Next.** Per the queued sequencing in AGENDA: **SS2** (full proxy-backed shell smoke) or **DX1** (desktop EXE Tauri proof) — whichever you green-light. F1 (theme token unification) will pick up the dark-mode lock when it lands.
+
+---
+
 ## 2026-05-21 - SS1 shell-mount smoke (Vite-only, mocked /api/*)
 
 **Scope.** First proxy-adjacent shell smoke for the PulsePlay React shell. Boots a real Chromium against the Vite dev server, intercepts `/api/*` with Playwright route handlers that return canned "healthy allowlist + empty list" shapes, and validates two scenarios end-to-end: (A) pre-dismissed startup mounts the shell directly with no wizard, (B) a forced wizard mounts and the "Skip setup and close" path dismisses it leaving the shell standing. Both scenarios assert shell mount (`data-testid="pp-viewport-shell"`), F5.1 / G5 telemetry attributes (`data-active-surface`, `data-bi-surface-mode`, `data-runtime-bi-vendor`, etc.), and a zero-tolerance console-error + page-error budget.

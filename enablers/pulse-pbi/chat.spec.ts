@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('PBIGenieVisual E2E', () => {
+test.describe('PulseVisuals E2E', () => {
   test('local dev server is running and serving assets', async ({ page }) => {
     // For Power BI Custom Visuals, `pbiviz start` serves assets locally on port 8080.
     // Actual UI testing inside Power BI requires navigating to app.powerbi.com, 

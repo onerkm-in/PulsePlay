@@ -98,3 +98,34 @@ The first end-to-end build from this location ran during PB0d and succeeded:
 | Build artifacts properly gitignored | `git status --ignored` confirms `dist/`, `node_modules/`, `.tmp/`, `webpack.statistics.prod.html` all excluded from the tracked tree |
 
 The PB0d attempt is what surfaced the missing `tsconfig.json`. Without trying the build, the snapshot would have been shipped broken and the first downstream user would have seen the same `Cannot read properties of undefined (reading 'outDir')` error from `pbiviz`. **Cost of running PB0d: ~15 minutes. Value: caught a real defect before merge.**
+
+## 2026-05-21 post-import rename — PBIGenieVisual → PulseVisuals
+
+The visual identity in `pbiviz.json` and the npm package name in `package.json` were renamed from the upstream `PBIGenieVisual` / `pbi-genie-visual` family to `PulseVisuals` / `pulse-visuals` to align with the **Pulse** brand family used across the PulsePlay ecosystem (PulsePlay web app + Pulse PBI custom visual + future Pulse desktop). Rationale: the upstream "GenieVisual" naming was project-local and predates the ecosystem rename to Pulse; the artifact a user actually installs in Power BI Desktop should reflect the family name rather than the heritage project name.
+
+| File | Field | Before | After |
+|---|---|---|---|
+| `pbiviz.json` | `visual.name` | `PBIGenieVisual` | `PulseVisuals` |
+| `pbiviz.json` | `visual.displayName` | `PBI Genie Visual` | `Pulse Visuals` |
+| `pbiviz.json` | `visual.guid` | `PBIGenieVisual87799D3556EA4890BCBE3FF9F9A095F5` | `PulseVisuals87799D3556EA4890BCBE3FF9F9A095F5` |
+| `pbiviz.json` | `author.name` | `PBIGenieVisual` | `Pulse` |
+| `package.json` | `name` | `pbi-genie-visual` | `pulse-visuals` |
+| `chat.spec.ts` | `test.describe` label | `PBIGenieVisual E2E` | `PulseVisuals E2E` |
+
+**What did NOT change**, and why:
+
+- **`README.upstream.md`** — kept verbatim by design. It's the original upstream README at import time; rewriting it would lose the historical truth.
+- **`enablers/pulse-pbi/proxy/`** — historical reference proxy, ADR-0010 / PB0 tripwire says do not modify.
+- **`examples/SampleSuperStoreAnalysis/`** — sample .pbix-derived demo data containing the OLD visual GUID. Power BI Desktop extracted those folder names from the .pbix at the time the sample was authored; they are frozen historical artifacts, not the active visual identity. Re-saving a new .pbix using the renamed visual would produce fresh `PulseVisuals87799...` folders, but the existing committed demos remain valid as historical reference.
+- **Upstream URLs above** (`https://github.com/onerkm-in/pbi-genie-visual`, `Local sibling path at import time: ../PBIGenieVisual`) — factual references to the upstream repo and import-time local sibling. They must remain accurate so the refresh procedure below still names what was actually pulled in.
+- **The 32-char hex portion of the GUID (`87799D3556EA4890BCBE3FF9F9A095F5`)** — preserved deliberately. Only the human-readable prefix changed. Internal Pulse PBI deployments that installed the upstream version will see this as a NEW visual identity (because pbiviz concatenates name + hex into a single GUID string at build time) — that is acceptable for this inner-source phase and noted here so the next deployer doesn't expect in-place version updates.
+
+**Rebuild verification (post-rename, 2026-05-21):**
+
+| Step | Result |
+|---|---|
+| `npm install --no-audit --no-fund --prefer-offline` (regenerates `package-lock.json` with new package name `pulse-visuals`) | `up to date in 2s` (no new packages — name change is metadata-only) |
+| `npm run lint` (eslint) | pass, no output |
+| `npm test` (vitest) | 87/87 unit tests pass. `chat.spec.ts` still fails to LOAD under vitest for the same dual-runner reason PB0d documented (it's a Playwright spec); this is upstream-inherited config drift, not caused by the rename. |
+| `npx pbiviz package` | `done Build completed successfully` → `dist/PulseVisuals87799D3556EA4890BCBE3FF9F9A095F5.2.1.0.0.pbiviz` produced (~106 KB). The pre-rename `PBIGenieVisual87799...pbiviz` from PB0d is still present in `dist/` from the earlier build; both are gitignored and not tracked. |
+| Build artifacts still gitignored | confirmed — `dist/`, `node_modules/`, `.tmp/`, `webpack.statistics.prod.html` all excluded |
