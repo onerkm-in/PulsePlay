@@ -81,6 +81,14 @@ function setEmbedConfig(cfg: BIEmbedConfig | null): void {
     window.localStorage.setItem("pulseplay:bi-embed-config", JSON.stringify(cfg));
 }
 
+function setTextareaValue(el: HTMLTextAreaElement, value: string): void {
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value")?.set;
+    if (setter) setter.call(el, value);
+    else el.value = value;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
 beforeEach(() => {
     window.localStorage.clear();
     window.history.pushState({}, "", "/");
@@ -99,7 +107,7 @@ describe("Vendor matrix: Databricks-only (Genie BI + Foundation Model AI)", () =
             biVendor: "databricks-genie",
             embedConfig: {
                 vendor: "databricks-genie",
-                iframeHtml: '<iframe src="https://dbc-1234.cloud.databricks.com/embed/genie/abc"></iframe>',
+                iframe: '<iframe src="https://dbc-1234.cloud.databricks.com/embed/genie/abc"></iframe>',
             } as unknown as BIEmbedConfig,
             activeAiProfile: "foundation-stream",
         });
@@ -114,7 +122,7 @@ describe("Vendor matrix: Databricks-only (Genie BI + Foundation Model AI)", () =
         window.localStorage.setItem("pulseplay:active-ai-profile", "foundation-stream");
         setEmbedConfig({
             vendor: "databricks-genie",
-            iframeHtml: '<iframe src="https://dbc-1234.cloud.databricks.com/embed/genie/abc"></iframe>',
+            iframe: '<iframe src="https://dbc-1234.cloud.databricks.com/embed/genie/abc"></iframe>',
         } as unknown as BIEmbedConfig);
 
         const state = mount(async () => fullAllowlist());
@@ -186,8 +194,9 @@ describe("Vendor matrix: Power BI Premium (NOT Fabric) + Databricks Genie AI", (
             biVendor: "powerbi",
             embedConfig: {
                 vendor: "powerbi",
-                mode: "secure",
-                secureLink: "https://app.powerbi.com/reportEmbed?reportId=abc&groupId=xyz",
+                mode: "secure-embed",
+                embedMode: "secure",
+                embedUrl: "https://app.powerbi.com/reportEmbed?reportId=abc&groupId=xyz",
             } as unknown as BIEmbedConfig,
             activeAiProfile: "genie-default",
         });
@@ -269,8 +278,9 @@ describe("Vendor matrix: BI-only (Power BI Premium, no AI)", () => {
             biVendor: "powerbi",
             embedConfig: {
                 vendor: "powerbi",
-                mode: "secure",
-                secureLink: "https://app.powerbi.com/reportEmbed?reportId=abc",
+                mode: "secure-embed",
+                embedMode: "secure",
+                embedUrl: "https://app.powerbi.com/reportEmbed?reportId=abc",
             } as unknown as BIEmbedConfig,
             activeAiProfile: "",
         });
@@ -287,7 +297,7 @@ describe("Vendor matrix: Foundation Model AI profile (streaming variant)", () =>
     it("foundation-stream profile name is accepted by readiness check", () => {
         const r = getSetupReadiness({
             biVendor: "powerbi",
-            embedConfig: { vendor: "powerbi", mode: "secure", secureLink: "https://app.powerbi.com/x" } as unknown as BIEmbedConfig,
+            embedConfig: { vendor: "powerbi", mode: "secure-embed", embedMode: "secure", embedUrl: "https://app.powerbi.com/x" } as unknown as BIEmbedConfig,
             activeAiProfile: "foundation-stream",
         });
         expect(r.aiReady).toBe(true);
@@ -296,7 +306,7 @@ describe("Vendor matrix: Foundation Model AI profile (streaming variant)", () =>
     it("supervisor profile name is accepted by readiness check", () => {
         const r = getSetupReadiness({
             biVendor: "databricks-genie",
-            embedConfig: { vendor: "databricks-genie", iframeHtml: "<iframe></iframe>" } as unknown as BIEmbedConfig,
+            embedConfig: { vendor: "databricks-genie", iframe: "<iframe></iframe>" } as unknown as BIEmbedConfig,
             activeAiProfile: "supervisor",
         });
         expect(r.aiReady).toBe(true);
@@ -441,6 +451,61 @@ describe("Vendor matrix: error handling", () => {
         });
         expect(r.biReady).toBe(false);
         expect(r.ready).toBe(false);
+    });
+
+    it("Quick Setup writes adapter-mountable embed configs for Genie and Power BI", async () => {
+        const state = mount(async () => fullAllowlist());
+        await act(async () => { await Promise.resolve(); });
+
+        const vendorSelect = state.container.querySelector<HTMLSelectElement>("#pp-setup-vendor");
+        expect(vendorSelect).not.toBeNull();
+
+        await act(async () => {
+            vendorSelect!.value = "databricks-genie";
+            vendorSelect!.dispatchEvent(new Event("change", { bubbles: true }));
+            await Promise.resolve();
+        });
+        const embedText = state.container.querySelector<HTMLTextAreaElement>("#pp-setup-embed");
+        const apply = Array.from(state.container.querySelectorAll<HTMLButtonElement>("button"))
+            .find(button => button.textContent?.includes("Apply embed"));
+        expect(embedText).not.toBeNull();
+        expect(apply).toBeDefined();
+        await act(async () => {
+            setTextareaValue(embedText!, '<iframe src="https://dbc-1234.cloud.databricks.com/embed/genie/abc"></iframe>');
+            await Promise.resolve();
+        });
+        await act(async () => {
+            apply!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+            await Promise.resolve();
+        });
+        expect(JSON.parse(window.localStorage.getItem("pulseplay:bi-embed-config") || "{}")).toEqual({
+            vendor: "databricks-genie",
+            iframe: '<iframe src="https://dbc-1234.cloud.databricks.com/embed/genie/abc"></iframe>',
+        });
+
+        await act(async () => {
+            vendorSelect!.value = "powerbi";
+            vendorSelect!.dispatchEvent(new Event("change", { bubbles: true }));
+            await Promise.resolve();
+        });
+        const powerBiEmbedText = state.container.querySelector<HTMLTextAreaElement>("#pp-setup-embed");
+        expect(powerBiEmbedText).not.toBeNull();
+        await act(async () => {
+            setTextareaValue(powerBiEmbedText!, "https://app.powerbi.com/reportEmbed?reportId=abc&groupId=xyz");
+            await Promise.resolve();
+        });
+        await act(async () => {
+            apply!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+            await Promise.resolve();
+        });
+        expect(JSON.parse(window.localStorage.getItem("pulseplay:bi-embed-config") || "{}")).toEqual({
+            vendor: "powerbi",
+            mode: "secure-embed",
+            embedMode: "secure",
+            embedUrl: "https://app.powerbi.com/reportEmbed?reportId=abc&groupId=xyz",
+        });
+
+        unmount(state);
     });
 });
 

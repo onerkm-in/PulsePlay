@@ -703,7 +703,9 @@ function readEmbedUrl(cfg: unknown): string {
     const c = cfg as Record<string, unknown>;
     if (typeof c.url === "string") return c.url;
     if (typeof c.embedUrl === "string") return c.embedUrl;
+    if (typeof c.iframe === "string") return c.iframe;
     if (typeof c.iframeHtml === "string") return c.iframeHtml;
+    if (typeof c.secureLink === "string") return c.secureLink;
     if (typeof c.dashboardUrl === "string") return c.dashboardUrl;
     return "";
 }
@@ -714,7 +716,7 @@ function buildEmbedConfig(vendor: string, raw: string): Record<string, unknown> 
     const v = raw.trim();
     if (vendor === "databricks-genie") {
         // Genie accepts the full iframe HTML or just the src URL.
-        return { vendor, iframeHtml: v };
+        return { vendor, iframe: v };
     }
     if (vendor === "generic-iframe" || vendor === "tableau" || vendor === "qlik" || vendor === "looker") {
         return { vendor, url: v };
@@ -726,7 +728,7 @@ function buildEmbedConfig(vendor: string, raw: string): Record<string, unknown> 
         // Power BI secure-embed link or raw embed URL — the BI page has the
         // proper extractor; here we just stash the URL and let the SDK fail
         // gracefully if the format isn't recognised, which is honest.
-        return { vendor, mode: "secure", secureLink: v };
+        return { vendor, mode: "secure-embed", embedMode: "secure", embedUrl: v };
     }
     return null;
 }

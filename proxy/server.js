@@ -1540,6 +1540,14 @@ function sendAuthRejection(req, res, reason, error, status = 401) {
     return res.status(status).json({ error });
 }
 
+function safeStreamErrorText(value, maxLen = 200) {
+    const redacted = redactProblemCause(value);
+    const text = typeof redacted === 'string'
+        ? redacted
+        : JSON.stringify(redacted || 'Unexpected upstream stream error.');
+    return text.slice(0, maxLen) || 'Unexpected upstream stream error.';
+}
+
 const RENDERABLE_BACKEND_GOVERNANCE = Object.freeze({
     genie: Object.freeze({ authority: 'unity-catalog' }),
     'azure-openai-chat': Object.freeze({ authority: 'warehouse' }),
@@ -1601,12 +1609,20 @@ function sourceRefForGenieProfile(profile, spaceId) {
 function governanceForBackend(req, profile, backendId, extra = {}) {
     const spec = RENDERABLE_BACKEND_GOVERNANCE[backendId];
     if (!spec) throw new Error(`No governance mapping registered for backend "${backendId}"`);
+    const {
+        authority: _authority,
+        subjectRef: _subjectRef,
+        requestId: _requestId,
+        policyVersion: _policyVersion,
+        enforced: _enforced,
+        ...attestationExtra
+    } = extra || {};
     return buildGovernanceAttestation({
+        ...attestationExtra,
         authority: spec.authority,
         subjectRef: governanceSubjectRefForRequest(req, profile),
         requestId: req.requestId || req.headers?.['x-request-id'] || req.headers?.['x-pulse-request-id'] || 'request-unknown',
         policyVersion: 'g3-v1',
-        ...extra,
     });
 }
 
@@ -1896,6 +1912,8 @@ app.use('/history', rateLimitMiddleware, idpMiddleware);
 // rate-limited, leaving the same key as a brute-force target. Apply the
 // rate limit here too so a runaway probe can't spam /admin/health-summary.
 app.use('/admin', rateLimitMiddleware);
+app.use('/admin', idpMiddleware);
+app.use('/admin', sharedKeyMiddleware);
 
 // Shared-key auth. When the deployer sets `sharedKey` in config (or
 // PROXY_SHARED_KEY env), every cost-bearing route requires the matching
@@ -2167,23 +2185,18 @@ app.get('/admin/health-summary', (req, res) => {
     });
 });
 
-// L18 closure — shared admin-auth helper. Constant-time shared-key compare
-// (matches the inline check that was duplicated in /admin/health-summary).
-// When no shared key is configured, the routes remain open (dev posture —
-// 127.0.0.1 bind enforced by ADR-0002).
+// L18 closure — shared admin-auth helper. Mirrors the same auth-mode contract
+// as cost-bearing routes; the route-local guard stays as defence-in-depth even
+// though /admin is also mounted behind idpMiddleware + sharedKeyMiddleware.
 function _adminAuthOk(req) {
     const c = cfg();
+    const mode = resolveProxyAuthMode(process.env, c);
+    if (mode === 'none') return true;
+    if (mode === 'idp') return hasVerifiedIdpUser(req);
     const expected = configuredSharedKey(c);
-    if (!expected) return true;
-    const provided = req.headers['x-genie-key'] || req.headers['x-pulseplay-key'];
-    try {
-        const cryptoMod = require('crypto');
-        const a = Buffer.from(String(provided || ''), 'utf8');
-        const b = Buffer.from(String(expected), 'utf8');
-        return a.length === b.length && cryptoMod.timingSafeEqual(a, b);
-    } catch {
-        return false;
-    }
+    if (mode === 'shared-key') return requestHasSharedKey(req, expected);
+    if (mode === 'idp-or-shared-key') return hasVerifiedIdpUser(req) || requestHasSharedKey(req, expected);
+    return false;
 }
 
 // L18 — Embed-token cache stats. Read-only summary of the in-process
@@ -2240,20 +2253,10 @@ app.post('/admin/embed-tokens/purge', (req, res) => {
 //   { queries: [{ statement_id, query_text, status, duration_ms,
 //                 executed_at_ms, error_message, user_name }], ...meta }
 app.get('/admin/query-history', async (req, res) => {
-    // Shared-key gate (constant-time, mirrors /admin/health-summary).
-    const c = cfg();
-    const expected = configuredSharedKey(c);
-    if (expected) {
-        const provided = req.headers['x-genie-key'];
-        let ok = false;
-        try {
-            const cryptoMod = require('crypto');
-            const a = Buffer.from(String(provided || ''), 'utf8');
-            const b = Buffer.from(String(expected), 'utf8');
-            ok = a.length === b.length && cryptoMod.timingSafeEqual(a, b);
-        } catch { ok = false; }
-        if (!ok) return res.status(401).json({ error: 'Unauthorized' });
+    if (!_adminAuthOk(req)) {
+        return res.status(401).json({ error: 'Unauthorized' });
     }
+    const c = cfg();
     const profileName = String(req.query.profile || '').trim()
         || (Object.keys(c.profiles || {})[0]);
     const profile = (c.profiles || {})[profileName];
@@ -5418,9 +5421,7 @@ app.post('/bedrock/conversations/start', async (req, res) => {
                 ...(result.usage ? { usage: result.usage } : {}),
             };
             console.log(`[bedrock/analytics] profile=${resolved.name} conv=${convId} status=${result.status} attempts=${attempts} retried=${retried}`);
-            return res.json(withGovernance(req, resolved.profile, 'bedrock-direct', responsePayload, {
-                authority: 'unity-catalog',
-            }));
+            return res.json(withGovernance(req, resolved.profile, 'bedrock-direct', responsePayload));
         } catch (err) {
             console.error('[bedrock/analytics]', err.message);
             return sendProblem(res, createProblem({
@@ -6316,7 +6317,7 @@ app.post('/foundation/conversations/start-stream', async (req, res) => {
     try {
         token = await resolveToken(resolved.profile);
     } catch (tokenErr) {
-        writeNDJSON({ error: `Auth failed: ${String(tokenErr.message).slice(0, 200)}` });
+        writeNDJSON({ error: `Auth failed: ${safeStreamErrorText(tokenErr?.message || tokenErr)}` });
         return res.end();
     }
 
@@ -6359,8 +6360,8 @@ app.post('/foundation/conversations/start-stream', async (req, res) => {
             const errChunks = [];
             upstreamResp.on('data', c => errChunks.push(c));
             upstreamResp.on('end', () => {
-                const raw = Buffer.concat(errChunks).toString('utf8').slice(0, 400);
-                writeNDJSON({ error: `FM endpoint ${upstreamResp.statusCode}: ${raw}` });
+                const raw = Buffer.concat(errChunks).toString('utf8');
+                writeNDJSON({ error: `FM endpoint ${upstreamResp.statusCode}: ${safeStreamErrorText(raw, 400)}` });
                 res.end();
             });
             return;
@@ -6415,13 +6416,13 @@ app.post('/foundation/conversations/start-stream', async (req, res) => {
         });
 
         upstreamResp.on('error', (err) => {
-            writeNDJSON({ error: `Upstream read error: ${err.message}` });
+            writeNDJSON({ error: `Upstream read error: ${safeStreamErrorText(err?.message || err)}` });
             res.end();
         });
     });
 
     upstreamReq.on('error', (err) => {
-        writeNDJSON({ error: `Request error: ${err.message}` });
+        writeNDJSON({ error: `Request error: ${safeStreamErrorText(err?.message || err)}` });
         if (!res.writableEnded) res.end();
     });
 
@@ -7456,7 +7457,7 @@ app.post('/supervisor/conversations/start-stream', async (req, res) => {
                 invalidateOAuthCacheForProfile(resolved.profile);
             }
         } catch { /* invalidation must never throw */ }
-        if (!timedOut) writeEvent({ type: 'error', message: err?.message || String(err) });
+        if (!timedOut) writeEvent({ type: 'error', message: safeStreamErrorText(err?.message || err) });
     } finally {
         clearTimeout(deadlineTimer);
         if (!timedOut) {
@@ -7883,6 +7884,7 @@ module.exports = {
     resolvePulseClientContext,
     resolvePulseRequestId,
     buildPulseClientCompatibilityResponse,
+    safeStreamErrorText,
     RENDERABLE_BACKEND_GOVERNANCE,
     governanceSubjectRefForRequest,
     governanceForBackend,

@@ -1,6 +1,6 @@
 # Native BI Adapter - Renderer-Only Architecture
 
-> Status: G5 complete, 2026-05-21. The adapter is loadable and guarded; the visualization pipeline, Databricks source refs, proxy governance attestations, native fail-closed gate, React/ECharts canvas, and author-facing `auto/native/vendor` BI surface switch are shipped. Native T2 fusion-lite is queued for G6.
+> Status: G6 complete, 2026-05-21. The adapter is loadable and guarded; the visualization pipeline, Databricks source refs, proxy governance attestations, native fail-closed gate, React/ECharts canvas, author-facing `auto/native/vendor` BI surface switch, and native T2 fusion-lite are shipped.
 
 ## Decision
 
@@ -211,8 +211,8 @@ First slice: fusion-lite. Render one chart plus docked AI commentary cards bound
 
 - G0: shipped. Architecture docs, ADR, Pulse sync ledger, agenda/memory updates.
 - G1: shipped. Adapter skeleton, capabilities, command rejection tests, import-boundary guard, registry loadability, no-embed readiness.
-- G2: `playground/src/visualization/` pipeline MVP and chart-pick extraction.
+- G2: `playground/src/visualization/` pipeline MVP and chart-pick extraction. **Shipped 2026-05-21.**
 - G3: governance attestation contract across proxy backend paths and native fail-closed test. **Shipped 2026-05-21.**
 - G4: native canvas plus ECharts MVP. **Shipped 2026-05-21.**
 - G5: BI surface author switch (`auto/native/vendor`). **Shipped 2026-05-21.**
-- G6: native T2 fusion-lite.
+- G6: native T2 fusion-lite. **Shipped 2026-05-21.**

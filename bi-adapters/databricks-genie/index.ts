@@ -12,6 +12,8 @@ import { BI_ERR } from "../../playground/src/biPanel/BIAdapter";
 interface GenieConfig extends BIEmbedConfig {
     /** Full iframe code copied from Databricks Share > Embed space. */
     iframe?: string;
+    /** Legacy Quick Setup field retained for existing localStorage configs. */
+    iframeHtml?: string;
     /** Full iframe src URL. Preferred when available. */
     url?: string;
     /** Optional loose fallback used only when admins standardize an embed path. */
@@ -27,7 +29,7 @@ function extractIframeSrc(input: string): string {
 }
 
 export function buildGenieEmbedUrl(cfg: GenieConfig): string {
-    const direct = cfg.url || cfg.iframe;
+    const direct = cfg.url || cfg.iframe || cfg.iframeHtml;
     if (typeof direct === "string" && direct.trim()) return extractIframeSrc(direct);
     if (cfg.workspaceUrl && cfg.spaceId && cfg.embedPath) {
         const base = cfg.workspaceUrl.replace(/\/+$/, "");

@@ -56,6 +56,25 @@ function isSingleStatement(sql) {
     return !trimmed.includes(';');
 }
 
+function startsWithReadOnlyQuery(sql) {
+    return /^\s*(?:WITH|SELECT)\b/i.test(String(sql || ''));
+}
+
+function collectParenthesisErrors(sql) {
+    const errors = [];
+    let depth = 0;
+    for (let i = 0; i < sql.length; i++) {
+        const ch = sql.charCodeAt(i);
+        if (ch === 40) depth++;
+        else if (ch === 41) {
+            depth--;
+            if (depth < 0) { errors.push('SQL has unbalanced parentheses (extra closing).'); break; }
+        }
+    }
+    if (depth > 0) errors.push('SQL has unbalanced parentheses (unclosed opening).');
+    return errors;
+}
+
 /**
  * Compose the executable SQL by prepending the Section H CTE preamble (if
  * provided) to the section body. The CTE preamble is treated as TRUSTED
@@ -102,6 +121,7 @@ function validateSectionSql({ cteHeader, sql }) {
     /** @type {string[]} */
     const errors = [];
     const safeSql = sanitizeRuntimeScopeInput(sql, SQL_BODY_MAX_LENGTH);
+    const safeCte = sanitizeRuntimeScopeInput(cteHeader, CTE_HEADER_MAX_LENGTH).trim();
     if (!safeSql || !safeSql.trim()) {
         errors.push('SQL body is empty.');
         return { ok: false, errors, sql: '' };
@@ -112,24 +132,37 @@ function validateSectionSql({ cteHeader, sql }) {
     if (FORBIDDEN_KEYWORDS.test(safeSql)) {
         errors.push('SQL contains a forbidden DML/DDL keyword. Custom SQL sections must be read-only SELECT statements.');
     }
-    if (!isSelectOnly(safeSql)) {
-        errors.push('SQL must be a SELECT statement (no INSERT/UPDATE/DELETE/MERGE/etc.).');
+    if (!isSelectOnly(safeSql) || !startsWithReadOnlyQuery(safeSql)) {
+        errors.push('SQL must be a SELECT/WITH statement (no SHOW/DESCRIBE/INSERT/UPDATE/DELETE/MERGE/etc.).');
     }
     if (!isSingleStatement(safeSql)) {
         errors.push('Only single-statement SQL is allowed (no semicolons separating multiple statements).');
     }
-    let depth = 0;
-    for (let i = 0; i < safeSql.length; i++) {
-        const ch = safeSql.charCodeAt(i);
-        if (ch === 40) depth++;
-        else if (ch === 41) {
-            depth--;
-            if (depth < 0) { errors.push('SQL has unbalanced parentheses (extra closing).'); break; }
+    errors.push(...collectParenthesisErrors(safeSql));
+
+    if (safeCte) {
+        if (safeCte.length >= CTE_HEADER_MAX_LENGTH) {
+            errors.push(`Section H CTE preamble exceeds maximum length of ${CTE_HEADER_MAX_LENGTH} characters.`);
         }
+        if (!/^\s*WITH\b/i.test(safeCte)) {
+            errors.push('Section H CTE preamble must start with WITH.');
+        }
+        if (FORBIDDEN_KEYWORDS.test(safeCte) || !isSelectOnly(safeCte)) {
+            errors.push('Section H CTE preamble contains a forbidden DML/DDL keyword.');
+        }
+        if (!isSingleStatement(safeCte)) {
+            errors.push('Section H CTE preamble must be a single statement prefix.');
+        }
+        errors.push(...collectParenthesisErrors(safeCte));
     }
-    if (depth > 0) errors.push('SQL has unbalanced parentheses (unclosed opening).');
 
     const composed = composeSqlWithSectionH(cteHeader, safeSql);
+    if (FORBIDDEN_KEYWORDS.test(composed) || !isSelectOnly(composed) || !startsWithReadOnlyQuery(composed)) {
+        errors.push('Composed SQL must remain a read-only SELECT/WITH statement.');
+    }
+    if (!isSingleStatement(composed)) {
+        errors.push('Composed SQL must be a single statement.');
+    }
     return { ok: errors.length === 0, errors, sql: composed };
 }
 

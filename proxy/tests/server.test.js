@@ -89,6 +89,7 @@ const {
     governanceSubjectRefForRequest,
     governanceForBackend,
     withGovernance,
+    safeStreamErrorText,
 } = require('../server');
 const { UNEXPECTED_INTERNAL_SENTINEL } = require('../lib/problemDetails');
 const fs = require('fs');
@@ -101,6 +102,23 @@ function withConfig(overrides, fn) {
     beforeEach(() => fs.readFileSync.mockReturnValue(merged));
     afterEach(() => fs.readFileSync.mockReturnValue(JSON.stringify(MOCK_CONFIG_BASE)));
     fn();
+}
+
+async function withEnv(overrides, fn) {
+    const previous = {};
+    for (const key of Object.keys(overrides)) {
+        previous[key] = process.env[key];
+        if (overrides[key] === undefined) delete process.env[key];
+        else process.env[key] = overrides[key];
+    }
+    try {
+        return await fn();
+    } finally {
+        for (const key of Object.keys(overrides)) {
+            if (previous[key] === undefined) delete process.env[key];
+            else process.env[key] = previous[key];
+        }
+    }
 }
 
 // H2 — suppress expected console.error/warn noise from negative-path tests
@@ -167,6 +185,31 @@ describe('G3 renderable backend governance registry', () => {
     it('refuses unknown backend ids so new routes cannot silently skip mapping', () => {
         expect(() => governanceForBackend({ requestId: 'req-1', headers: {} }, {}, 'new-backend'))
             .toThrow(/No governance mapping registered/);
+    });
+
+    it('does not let route-local extras override registry-owned attestation fields', () => {
+        const attestation = governanceForBackend(
+            { requestId: 'req-real', headers: {}, user: { email: 'viewer@example.com' } },
+            {},
+            'bedrock-direct',
+            {
+                authority: 'unity-catalog',
+                subjectRef: 'spoofed-user',
+                requestId: 'spoofed-request',
+                policyVersion: 'spoofed-policy',
+                enforced: false,
+                cacheHit: true,
+            },
+        );
+        expect(attestation).toMatchObject({
+            enforced: true,
+            authority: 'warehouse',
+            requestId: 'req-real',
+            policyVersion: 'g3-v1',
+            cacheHit: true,
+        });
+        expect(attestation.subjectRef).toMatch(/^user:[a-f0-9]{12}$/);
+        expect(attestation.subjectRef).not.toBe('spoofed-user');
     });
 
     it('hashes verified user identifiers instead of echoing PII', () => {
@@ -296,24 +339,74 @@ describe('GET /admin/health-summary', () => {
     });
 
     it('rejects calls without the shared key when one is configured', async () => {
-        fs.readFileSync.mockReturnValueOnce(JSON.stringify({
+        fs.readFileSync.mockReturnValue(JSON.stringify({
             ...MOCK_CONFIG_BASE,
             sharedKey: 'super-secret-key',
         }));
-        const res = await request(app).get('/admin/health-summary');
-        expect(res.status).toBe(401);
+        try {
+            const res = await request(app).get('/admin/health-summary');
+            expect(res.status).toBe(401);
+        } finally {
+            fs.readFileSync.mockReturnValue(JSON.stringify(MOCK_CONFIG_BASE));
+        }
     });
 
     it('accepts calls with a matching shared key', async () => {
-        fs.readFileSync.mockReturnValueOnce(JSON.stringify({
+        fs.readFileSync.mockReturnValue(JSON.stringify({
             ...MOCK_CONFIG_BASE,
             sharedKey: 'super-secret-key',
         }));
-        const res = await request(app)
-            .get('/admin/health-summary')
-            .set('x-genie-key', 'super-secret-key');
-        expect(res.status).toBe(200);
-        expect(res.body.ok).toBe(true);
+        try {
+            const res = await request(app)
+                .get('/admin/health-summary')
+                .set('x-genie-key', 'super-secret-key');
+            expect(res.status).toBe(200);
+            expect(res.body.ok).toBe(true);
+        } finally {
+            fs.readFileSync.mockReturnValue(JSON.stringify(MOCK_CONFIG_BASE));
+        }
+    });
+
+    it('accepts calls with the canonical X-PulsePlay-Key header', async () => {
+        fs.readFileSync.mockReturnValue(JSON.stringify({
+            ...MOCK_CONFIG_BASE,
+            sharedKey: 'super-secret-key',
+        }));
+        try {
+            const res = await request(app)
+                .get('/admin/health-summary')
+                .set('X-PulsePlay-Key', 'super-secret-key');
+            expect(res.status).toBe(200);
+            expect(res.body.ok).toBe(true);
+        } finally {
+            fs.readFileSync.mockReturnValue(JSON.stringify(MOCK_CONFIG_BASE));
+        }
+    });
+
+    it('rejects admin access when PROXY_AUTH_MODE=idp has no verified user', async () => {
+        await withEnv({ PROXY_AUTH_MODE: 'idp' }, async () => {
+            const res = await request(app).get('/admin/health-summary');
+            expect(res.status).toBe(401);
+        });
+    });
+
+    it('applies the same canonical-key gate to query-history', async () => {
+        fs.readFileSync.mockReturnValue(JSON.stringify({
+            ...MOCK_CONFIG_BASE,
+            sharedKey: 'super-secret-key',
+        }));
+        try {
+            const rejected = await request(app).get('/admin/query-history?profile=missing-profile');
+            expect(rejected.status).toBe(401);
+
+            const accepted = await request(app)
+                .get('/admin/query-history?profile=missing-profile')
+                .set('X-PulsePlay-Key', 'super-secret-key');
+            expect(accepted.status).toBe(400);
+            expect(accepted.body.error).toMatch(/Unknown profile/);
+        } finally {
+            fs.readFileSync.mockReturnValue(JSON.stringify(MOCK_CONFIG_BASE));
+        }
     });
 });
 
@@ -959,6 +1052,16 @@ describe('CORS — required custom headers are advertised', () => {
         expect(allowed).toMatch(/X-Pulse-Request-Id/i);
         expect(exposed).toMatch(/X-Pulse-Request-Id/i);
         expect(exposed).toMatch(/X-Pulse-Client/i);
+    });
+});
+
+describe('streaming error redaction', () => {
+    it('redacts token and secret shaped substrings before in-band stream writes', () => {
+        const safe = safeStreamErrorText('upstream failed client_secret=stream-secret-123 with Bearer abc.def.ghi and dapiABC1234567890', 400);
+        expect(safe).not.toContain('stream-secret-123');
+        expect(safe).not.toContain('abc.def.ghi');
+        expect(safe).not.toContain('dapiABC1234567890');
+        expect(safe).toContain('[redacted]');
     });
 });
 

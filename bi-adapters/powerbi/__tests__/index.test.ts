@@ -359,6 +359,20 @@ describe("PowerBIAdapter — send()", () => {
             .rejects.toThrow(/UNSUPPORTED_COMMAND/);
     });
 
+    test("legacy Quick Setup secureLink config mounts as secure iframe", async () => {
+        const a = new PowerBIAdapter();
+        await a.mount(containerEl, {
+            vendor: "powerbi",
+            mode: "secure",
+            secureLink: "https://app.powerbi.com/reportEmbed?reportId=legacy-report",
+        } as unknown as PowerBIEmbedConfig);
+
+        const iframe = containerEl.querySelector("iframe");
+        expect(iframe).not.toBeNull();
+        expect(iframe?.src).toContain("reportId=legacy-report");
+        expect(svc.embed).not.toHaveBeenCalled();
+    });
+
     test("send before mount throws NOT_MOUNTED", async () => {
         const a = new PowerBIAdapter();
         await expect(a.send({ kind: "refresh" })).rejects.toThrow(/NOT_MOUNTED/);

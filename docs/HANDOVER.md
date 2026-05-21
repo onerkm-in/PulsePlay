@@ -5,6 +5,34 @@
 
 ---
 
+## 2026-05-21 - Multi-agent integrity sweep + P1/P2 patch set
+
+**Scope.** Five subagents scanned frontend/native/settings, proxy/governance, Pulse PBI enabler, docs/memory, and build tooling. Full report: [`docs/research/PROJECT_INTEGRITY_AUDIT_2026-05-21.md`](research/PROJECT_INTEGRITY_AUDIT_2026-05-21.md).
+
+**Fixed.**
+- Admin endpoints now use the same `PROXY_AUTH_MODE` contract as cost-bearing routes; canonical `X-PulsePlay-Key` works on admin routes.
+- SQL preview now validates browser-supplied Section H CTE preambles, metadata statements, and final composed SQL instead of trusting a caller-provided prefix.
+- Governance route extras can no longer spoof registry-owned authority / subject / request / policy / enforced fields.
+- Streaming in-band error events redact token/secret-shaped upstream text before writing NDJSON/SSE-style errors.
+- Quick Setup writes mountable Databricks Genie and Power BI secure-embed configs; adapters retain legacy `iframeHtml` / `secureLink` compatibility.
+- Pulse PBI enabler lint + unit tests now run in CI; common Playwright and Databricks staging artifacts are ignored.
+
+**Validation.**
+| Check | Result |
+|---|---|
+| `cd proxy && npm test` | **1133/1133** |
+| `cd playground && npm run lint` | pass |
+| `cd playground && npm run test` | **1369/1369** |
+| `cd playground && npm run build` | pass |
+| `cd enablers/pulse-pbi && npm run lint` | pass |
+| `cd enablers/pulse-pbi && npm test` | **87/87** |
+| `cd enablers/pulse-pbi && npm run package` | pass, local `pbiviz` 7.0.2 |
+| `node --check proxy/server.js` | pass |
+
+**Still open.** Pulse PBI still needs shared-proxy adoption (`X-Pulse-Client: pulse-pbi` + shared routes), production `WebAccess` origin handling, `pbiviz` toolchain pinning, stale release/smoke script cleanup, SS2 proxy-backed browser smoke, and the broader docs consolidation pass. No claim that the whole project is fully integrity-closed yet.
+
+---
+
 ## 2026-05-21 - PR1 audit patch: split Pulse PBI unit and E2E runners
 
 **Finding.** PR1/PR2 was directionally correct, but the validation wording was too generous: `cd enablers/pulse-pbi && npm test` reported 87/87 unit tests passing but exited **1** because Vitest also tried to load the top-level Playwright spec [`chat.spec.ts`](../enablers/pulse-pbi/chat.spec.ts). That was documented as a pre-existing dual-runner quirk, but a red `npm test` is still a real developer-experience bug.

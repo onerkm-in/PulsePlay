@@ -81,7 +81,7 @@ describe('GET /admin/embed-tokens/stats', () => {
         try {
             const res = await supertest(app).get('/admin/embed-tokens/stats');
             expect(res.status).toBe(401);
-            expect(res.body.error).toBe('Unauthorized');
+            expect(res.body.error).toMatch(/X-PulsePlay-Key|X-Genie-Key/);
         } finally {
             delete process.env.PROXY_SHARED_KEY;
         }

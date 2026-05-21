@@ -30,7 +30,7 @@ Accepted artifacts:
 | PulsePlay desktop EXE | authors, analysts, DPMs doing recon | inbuilt local app server + proxy | 1-click feasibility and setup exploration, not production hosting |
 | Hosted deployment bundles | admins/deployers | Databricks/Azure/enterprise PaaS | governed team/org deployment |
 
-This ADR does not move Pulse PBI source into this repo in this docs slice, does not add a monorepo `packages/` layer, and does not create desktop runtime code. It locks the target strategy and sequencing: one checkout should eventually contain every enabler, while each enabler keeps its own runtime/build boundary.
+This ADR originally did not move Pulse PBI source in its docs-only slice; PB0 later implemented the target by placing a Pulse PBI source snapshot under `enablers/pulse-pbi/`. The ADR still does not add a monorepo `packages/` layer and does not create desktop runtime code. It locks the target strategy and sequencing: one checkout contains every enabler, while each enabler keeps its own runtime/build boundary.
 
 ## Single Proxy Ecosystem
 

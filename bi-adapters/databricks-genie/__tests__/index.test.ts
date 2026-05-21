@@ -23,6 +23,12 @@ describe("buildGenieEmbedUrl", () => {
         })).toBe("https://workspace/genie/embed/space?x=1&y=2");
     });
 
+    test("accepts legacy Quick Setup iframeHtml configs", () => {
+        expect(buildGenieEmbedUrl({
+            iframeHtml: '<iframe src="https://workspace/genie/embed/legacy-space"></iframe>',
+        })).toBe("https://workspace/genie/embed/legacy-space");
+    });
+
     test("requires a Databricks-generated iframe src unless an explicit embedPath is provided", () => {
         expect(() => buildGenieEmbedUrl({ workspaceUrl: "https://workspace", spaceId: "space" })).toThrow(/EMBED_FAILED/);
     });

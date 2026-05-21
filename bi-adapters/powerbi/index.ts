@@ -74,10 +74,12 @@ export interface PowerBIEmbedConfig extends BIEmbedConfig {
     accessToken?: string;
     /** Optional duplicate URL for iframe-style hosts. */
     url?: string;
+    /** Legacy Quick Setup field retained for existing localStorage configs. */
+    secureLink?: string;
     /** Explicitly select the portal secure-embed iframe path. */
     embedMode?: "secure" | "sdk";
     /** Legacy/host-friendly marker for the quick-preview path. */
-    mode?: "secure-embed";
+    mode?: "secure-embed" | "secure";
     /** What type of artifact is being embedded. v0 only supports "report". */
     type?: "report";
     /** Token type — almost always "Embed" for embed-tokens, but "Aad" is
@@ -545,7 +547,7 @@ export class PowerBIAdapter implements BIAdapter {
     }
 
     private mountSecureIframe(containerEl: HTMLElement, cfg: PowerBIEmbedConfig): void {
-        const src = String(cfg.embedUrl || cfg.url || "").trim();
+        const src = String(cfg.embedUrl || cfg.url || cfg.secureLink || "").trim();
         if (!src) {
             throw new Error(
                 `${BI_ERR.EMBED_FAILED}: powerbi secure embed requires a reportEmbed URL`
@@ -670,8 +672,8 @@ export class PowerBIAdapter implements BIAdapter {
 }
 
 function isSecureEmbedConfig(cfg: PowerBIEmbedConfig): boolean {
-    if (cfg.embedMode === "secure" || cfg.mode === "secure-embed") return true;
-    const url = String(cfg.embedUrl || cfg.url || "").trim();
+    if (cfg.embedMode === "secure" || cfg.mode === "secure-embed" || cfg.mode === "secure") return true;
+    const url = String(cfg.embedUrl || cfg.url || cfg.secureLink || "").trim();
     return !cfg.accessToken && isPowerBIReportEmbedUrl(url);
 }
 

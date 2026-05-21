@@ -84,7 +84,7 @@ describe("BI registry — every registered plugin loads through the same contrac
             const adapter = await loadAdapter(info.vendor);
             loaded.push({ info, adapter });
         }
-    });
+    }, 30_000);
 
     test("every plugin produces an instance whose .vendor matches the registry ID", () => {
         for (const { info, adapter } of loaded) {

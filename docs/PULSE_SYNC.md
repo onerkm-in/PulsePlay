@@ -108,7 +108,7 @@ Do not copy-port as-is.
 
 | Module | Reason |
 |---|---|
-| `bi-adapters/native/NativeCanvas.tsx` | React + PulsePlay host + ECharts runtime |
+| `playground/src/visualization/NativeCanvas.tsx` | React + PulsePlay host + ECharts runtime |
 | `bi-adapters/native/nativeCapabilities.ts` | PulsePlay BI adapter capability surface; Pulse PBI has different constraints |
 | PulsePlay layout/preset state | Top-level browser app; Pulse PBI lives inside Power BI Desktop visual sandbox |
 | Desktop EXE launcher/runtime | Tauri/local-process/browser-launch concerns; not relevant to Pulse PBI |
@@ -144,6 +144,8 @@ Use this checklist for any change that future desktop EXE users would experience
 | governance-contract | 0.1 (G3a) | G3a contract slice: frontend `GovernanceAttestation` type + `isGovernanceAttestation` env-agnostic guard; proxy `buildGovernanceAttestation` builder that enforces `enforced: true`, validates authority allowlist, sanitizes subjectRef/requestId, forbids `authority: "mock"` in production; `AIResultEnvelope.governance` narrowed from `unknown` to optional `GovernanceAttestation`. | Proxy contract benefits Pulse PBI + desktop once routes wire |
 | governance-contract | 0.2 (G3) | G3b/G3c/G3d completion: every renderable proxy backend path now stamps proxy-built attestation; registry-driven route mapping covers all 10 backend ids; user subject refs are hashed, SP refs reuse existing SP hash, Genie emits real `sourceRef` when available; native adapter fails closed in production/required-governance mode and dev/mock missing-attestation results render only as `ungoverned-result-preview`. | Automatic via proxy for Pulse PBI/desktop payloads; host fail-closed adoption remains host-specific |
 | bi-surface-mode | 0.1 (G5) | PulsePlay host-specific BI author switch: persisted `biSurfaceMode` (`auto/native/vendor`) resolves requested vendor config into runtime BI surface without deleting vendor setup. | Pulse PBI N/A (host UI); desktop inherits through future app bundle and needs DX smoke for auto-native fallback |
+| native-fusion-lite | 0.1 (G6) | PulsePlay host-specific native T2 fusion-lite: NativeCanvas docks AI commentary beside chart/KPI/table bodies when an attested envelope has renderable rows plus an answer, with all wrappers bound by `data-result-id`. | Pulse PBI N/A (vendor T2 handled by custom visual); desktop inherits through future app bundle and needs DX smoke |
+| integrity-sweep | 0.1 | 2026-05-21 multi-agent sweep fixed admin auth-mode parity, SQL preview CTE validation, governance registry override protection, streaming error redaction, Quick Setup mountable embed configs, and Pulse PBI CI lint/unit coverage. | Pulse PBI gets CI coverage now; shared-proxy adoption still queued |
 
 ## Product Sync
 

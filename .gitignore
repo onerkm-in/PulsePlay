@@ -39,6 +39,8 @@ playground/tsconfig*.tsbuildinfo
 coverage/
 playground/coverage/
 proxy/coverage/
+playwright-report/
+test-results/
 
 # Python venvs (if you use scripts/ locally)
 .venv/
@@ -48,6 +50,7 @@ __pycache__/
 # Misc temp
 .cache/
 .tmp/
+.databricks-app-build/
 *.log
 
 # Local HAR captures (may contain secrets)
