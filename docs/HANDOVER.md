@@ -5,6 +5,37 @@
 
 ---
 
+## 2026-05-21 - F5.1 surface availability resolver
+
+**Scope.** Pure resolver that separates requested-surface intent from effective-surface rendering. Closes the P4 finding from the previous audit pass (`data-active-surface` could lie under Pulse `enabledFeatures` constraints). Additive only. No deletions. No native runtime work — G1 stays queued.
+
+**New module.** [`playground/src/surfaces/surfaceAvailability.ts`](../playground/src/surfaces/surfaceAvailability.ts) is a pure function: `(requestedSurfaceId, enabledComponents, enabledFeatures) → (effectiveSurfaceId, availability map, fallbackReason)`. No React, no localStorage, no DOM. The 4 named fallback reasons map cleanly to deployment configurations: `ai-pane-disabled-by-biOnly`, `bi-pane-disabled-by-aiOnly`, `insights-disabled-by-chatOnly`, `chat-disabled-by-insightsOnly` (plus `"no-surface-available"` as a defensive catch-all).
+
+**Intent vs effective.** `activeSurface` in App.tsx is now the REQUESTED surface (user/URL/storage intent), persisted across config changes. `effectiveSurfaceId` (resolver output) is what the shell renders. `data-active-surface` follows effective; `data-requested-surface` exposes intent for telemetry that wants to distinguish "user wanted X but config forced Y." `data-surface-fallback-reason` is present only when a fallback fired. Removed the activeSurface mutation in `handleEnabledComponentsChange` — preset/config flips no longer overwrite intent. Focus toggles still mutate intent because they are user actions.
+
+**Mix-mode plumbing.** `mixSurface`/`requestedPulseTab` now follow EFFECTIVE, not raw requested — so clicking AI Insights under `chatOnly` visibly renders chat instead of silently swapping the surface underneath the user.
+
+**SurfaceSwitcher.** New optional `availability` prop. Unavailable surfaces render `disabled` + `aria-disabled` with a tooltip explaining the constraint. They are NEVER removed from the tablist — "configuration options are never hidden globally," only unreachable in the current deployment state.
+
+**Tests / validation.**
+- Unit tests: [`playground/src/surfaces/__tests__/surfaceAvailability.test.ts`](../playground/src/surfaces/__tests__/surfaceAvailability.test.ts) — **27/27** covering availability matrix (every `enabledComponents × enabledFeatures` combo), happy paths, all 6 spec fallback scenarios, restore semantics, and `?surface=` URL as intent-not-guarantee.
+- Integration tests: 3 new in viewport controls integration suite covering `chatOnly` → ask-pulse fallback, restore on re-enabling `both`, and biOnly preset flip preserves AI-surface intent across the bi-viz fallback.
+- Full playground test suite: **1158/1158**.
+- `playground npm run lint`: PASS.
+- `playground npm run build`: PASS (existing BI-adapter dynamic-import chunk warnings only).
+- Browser smoke: **NOT RUN** in this session.
+
+**Commits.**
+- `a525f5d feat(layout): F5.1 pure surface availability resolver`
+- `038bd14 feat(layout): wire F5.1 resolver into App.tsx + SurfaceSwitcher`
+
+**Tripwires for next session.**
+- The resolver assumes `EnabledComponentsInput` and `EnabledFeaturesInput` mirror the canonical types in `settingsStore.tsx` and `pulseVisualSettingsStore.ts`. If those types ever gain new values (e.g., a third Pulse feature), the resolver's last-resort branch fires and emits `"no-surface-available"`. Add an explicit rule before shipping the new value to production.
+- `data-surface-fallback-reason` is now part of the shell contract. Telemetry that depends on it should treat absent attribute as "no fallback," matching the React `undefined` → no attribute output.
+- The `pp-surface-switcher__item--unavailable` class is exported by SurfaceSwitcher but has no CSS rule yet — visual styling for the disabled pill is queued. Default `<button disabled>` styling applies in the meantime.
+
+---
+
 ## 2026-05-21 - F5 audit pass: focus-drift fix + 4 new tests
 
 **Scope.** Surgical audit of Codex's F5 + G0 slice. Branch already clean: 24/24 tests, lint clean, build clean. Audit found one real correctness issue (focus drift) and three missing test scenarios. No architecture change. No deletions.
