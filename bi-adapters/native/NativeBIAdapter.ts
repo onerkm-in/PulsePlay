@@ -194,7 +194,22 @@ export class NativeBIAdapter implements BIAdapter {
     }
 
     private emit(event: NativeEvent): void {
-        this.listeners.get(event.type)?.forEach(handler => {
+        const handlers = this.listeners.get(event.type);
+        if (!handlers) return;
+        // Snapshot to an Array before iterating to deterministically
+        // exclude additions made during emit. Re-check Set membership
+        // before each handler call so deletions made during emit DO
+        // still take effect for handlers that haven't fired yet.
+        //
+        // Net contract:
+        //   - handlers subscribed BEFORE emit fire (unless unsubscribed
+        //     by an earlier handler in the same emit)
+        //   - handlers subscribed DURING emit do NOT fire in this cycle;
+        //     they fire on the next emit
+        //   - handlers unsubscribed DURING emit do NOT fire if their
+        //     turn hasn't come yet
+        Array.from(handlers).forEach(handler => {
+            if (!handlers.has(handler)) return;
             try { handler(event); } catch { /* listener errors must not break adapter lifecycle */ }
         });
     }

@@ -133,6 +133,42 @@ describe("NativeBIAdapter — command surface", () => {
         });
     });
 
+    test("emit() is reentrancy-safe: a handler that unsubscribes during emit does not crash, and a handler that subscribes during emit is not visited in the same emit", async () => {
+        // Defensive guard: ECMAScript Set.forEach is well-defined for
+        // deletion during iteration (deleted items are not revisited)
+        // but UNDEFINED for additions. The adapter snapshots listeners
+        // to an Array before emitting so both behaviors are stable.
+        const adapter = new NativeBIAdapter();
+        const seen: string[] = [];
+        const newlySubscribedSeen: string[] = [];
+
+        await adapter.mount(containerEl, {});
+
+        let unsubMid: (() => void) | null = null;
+        const unsubFirst = adapter.on("rendered", () => {
+            seen.push("first");
+            unsubMid?.();
+            // Subscribe a NEW handler during emit. It must NOT fire in
+            // this emit cycle, only on subsequent emits.
+            adapter.on("rendered", () => { newlySubscribedSeen.push("late"); });
+        });
+        unsubMid = adapter.on("rendered", () => { seen.push("mid-but-unsubscribed-during-emit"); });
+        adapter.on("rendered", () => { seen.push("last"); });
+
+        await adapter.send({ kind: "renderResult", result: { rows: [] } });
+        // First handler fired. Mid-handler was unsubscribed before its
+        // turn so it did NOT fire. Last handler fired. Newly subscribed
+        // handler did NOT fire in this emit cycle.
+        expect(seen).toEqual(["first", "last"]);
+        expect(newlySubscribedSeen).toEqual([]);
+
+        // Second emit: newly subscribed handler fires now.
+        await adapter.send({ kind: "renderResult", result: { rows: [] } });
+        expect(newlySubscribedSeen).toEqual(["late"]);
+
+        unsubFirst();
+    });
+
     test("accepts renderer commands without executing queries or fetching data", async () => {
         const adapter = new NativeBIAdapter();
         const events: NativeEvent[] = [];
