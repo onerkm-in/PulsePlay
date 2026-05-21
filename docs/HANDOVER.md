@@ -27,11 +27,13 @@
 
 **Decision.** PulsePlay is the umbrella ecosystem with multiple artifacts: PulsePlay web, optional Pulse PBI `.pbiviz`, optional PulsePlay desktop EXE recon tool, and hosted deployment bundles. These are separate build outputs with different runtimes and audiences, not one mega-binary.
 
+**Single-download correction.** The target is one repo checkout/download containing all enablers. ADR-0010 now defines the future layout as `enablers/pulse-pbi/` for the Power BI custom visual lane and `enablers/desktop/` for the Tauri EXE lane. The components stay isolated by build/runtime constraints, but they should not require separate downloads. Submodule-only final state is called out as risky because source ZIP downloads may omit submodule contents.
+
 **Unified proxy.** Locked the rule: one proxy product/codebase/API/governance/audit/result-envelope contract, with deployment topology allowed to vary. Pulse PBI, PulsePlay, and future desktop should identify themselves through client headers and shared audit context. Separate physical proxy instances are allowed for local debugging or isolation; connector logic must not fork.
 
 **Desktop stance.** The EXE is a recon tool for authors/analysts/DPMs, not production hosting. ADR chooses Tauri as the DX1 default over Electron for size/startup/memory, requires the app server and proxy to be inbuilt to the desktop artifact (no user-managed Node/npm/proxy/server dependency), loopback-only binding, one-time launch token, private browser launch when possible, encrypted colocated data in DX2, and an explicit no-lite-proxy rule: desktop builds use the same governance/attestation/allowlist logic as hosted PulsePlay even though the local proxy is bundled.
 
-**Sequencing.** Recommended order is BX0 -> PX1 -> finish G2/G2.5/G3 -> PB1 -> DX1 -> DX2. PX1 is the only ecosystem artifact item worth lifting forward before G3 because it benefits current PulsePlay and Pulse PBI immediately. Runtime EXE/PBIVIZ work stays deferred unless explicitly redirected.
+**Sequencing.** Recommended order is BX0 -> PX1 -> finish G2/G2.5/G3 -> PB0 -> PB1 -> DX1 -> DX2. PB0 is the single-download enabler-folder import for Pulse PBI. PX1 is the only ecosystem artifact item worth lifting forward before G3 because it benefits current PulsePlay and Pulse PBI immediately. Runtime EXE/PBIVIZ work stays deferred unless explicitly redirected.
 
 **Validation.** Docs-only change. Run `git diff --check` before closing. No runtime tests required.
 

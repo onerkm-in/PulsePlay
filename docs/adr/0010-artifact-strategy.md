@@ -13,13 +13,13 @@ PulsePlay is growing from a single React playground into an ecosystem of related
 - a possible local desktop EXE for no-setup recon
 - Databricks/Azure hosted deployments
 
-The product intent is to keep options open without multiplying systems. The user direction is clear: Pulse PBI and PulsePlay should feel like one ecosystem, share one proxy contract, and allow teams to choose the artifact that fits their context. At the same time, Pulse PBI runs inside the Power BI custom visual sandbox, PulsePlay runs as a normal browser app, and the desktop EXE would serve authors/analysts/DPMs doing quick feasibility checks on their own laptops.
+The product intent is to keep options open without multiplying systems. The user direction is clear: Pulse PBI and PulsePlay should feel like one ecosystem, share one proxy contract, and allow teams to choose the artifact that fits their context. The ecosystem should also arrive as one repo checkout/download so a user gets every enabler together. At the same time, Pulse PBI runs inside the Power BI custom visual sandbox, PulsePlay runs as a normal browser app, and the desktop EXE would serve authors/analysts/DPMs doing quick feasibility checks on their own laptops.
 
 Those are different runtimes. Forcing them into one mega-binary or one source layout now would create the wrong kind of coupling.
 
 ## Decision
 
-Treat PulsePlay as an umbrella ecosystem with multiple build artifacts, but not one runtime blob.
+Treat PulsePlay as an umbrella ecosystem with one repo/download and multiple build artifacts, but not one runtime blob.
 
 Accepted artifacts:
 
@@ -30,7 +30,7 @@ Accepted artifacts:
 | PulsePlay desktop EXE | authors, analysts, DPMs doing recon | inbuilt local app server + proxy | 1-click feasibility and setup exploration, not production hosting |
 | Hosted deployment bundles | admins/deployers | Databricks/Azure/enterprise PaaS | governed team/org deployment |
 
-This ADR does not move Pulse PBI source into this repo, does not add a monorepo `packages/` layer, and does not create desktop runtime code. It locks the strategy and sequencing.
+This ADR does not move Pulse PBI source into this repo in this docs slice, does not add a monorepo `packages/` layer, and does not create desktop runtime code. It locks the target strategy and sequencing: one checkout should eventually contain every enabler, while each enabler keeps its own runtime/build boundary.
 
 ## Single Proxy Ecosystem
 
@@ -104,18 +104,39 @@ interface ProxyAuditContext {
 
 The proxy may later expose client-specific compatibility/readiness routes, but those routes must describe capability differences. They must not fork connector logic.
 
+## Single Download Folder Structure
+
+Separate components should still ship in one folder structure. The target repo shape is:
+
+```text
+PulsePlay/
+  playground/              # PulsePlay web app
+  proxy/                   # shared proxy code/contract
+  bi-adapters/             # PulsePlay BI adapter implementations
+  pulsepacks/              # shared pack/source intent layer
+  enablers/
+    pulse-pbi/             # Power BI custom visual project/artifact lane
+    desktop/               # future Tauri desktop EXE lane
+  docs/
+```
+
+The `enablers/` folder is not an `apps/` monorepo refactor and not a shared package layer. It is a distribution boundary: optional artifacts live together in one checkout while preserving their own build tools and constraints.
+
+For single-download behavior, avoid Git submodules for required enablers because source ZIP downloads do not reliably include submodule contents. Prefer tracked source, subtree/vendor import, or generated artifact bundles that are included in release assets. If a submodule is used temporarily during migration, it must not be the final "download one repo and have everything" story.
+
 ## Pulse PBI Position
 
-Pulse PBI is part of the PulsePlay ecosystem, but it remains a separate runtime and, for v0.x, a separate source/workflow boundary.
+Pulse PBI is part of the PulsePlay ecosystem and should be present in the single repo/download, but it remains a separate runtime and build boundary.
 
 Near-term:
 
+- add a PB0 folder-convergence step before PB1: bring Pulse PBI into `enablers/pulse-pbi/` or an equivalent tracked folder so one checkout contains it
 - keep `docs/PULSE_SYNC.md` as the copy-port and drift-visibility ledger
 - let proxy improvements benefit Pulse PBI through the shared proxy contract
-- add a PB1 planning/build lane only after G3, unless explicitly redirected
+- add a PB1 planning/build lane only after PB0 + G3, unless explicitly redirected
 - do not create shared packages until copy-port discipline fails or 2+ artifacts genuinely need the same module with active maintenance pressure
 
-Future one-command build orchestration is allowed, but it should initially be a thin script that calls the sibling Pulse PBI build rather than a source merge.
+Future one-command build orchestration is allowed, but it should initially be a thin script that calls the isolated `enablers/pulse-pbi/` build rather than merging Pulse PBI code into the PulsePlay web app.
 
 ## Desktop EXE Position
 
@@ -182,13 +203,13 @@ Electron remains a fallback if a later desktop requirement needs deep bundled Ch
 
 ## Repository Layout
 
-Do not start an `apps/` plus `packages/` monorepo refactor for BX0.
+Do not start an `apps/` plus `packages/` monorepo refactor for BX0. Do create a single-download enabler layout when PB0/DX1 starts.
 
 Near-term accepted shape:
 
 - keep current `playground/`, `proxy/`, and `bi-adapters/`
-- keep Pulse PBI as sibling/project boundary for v0.x
-- add a future `desktop/` or `apps/pulseplay-desktop/` only when DX1 starts
+- move/copy/import Pulse PBI into `enablers/pulse-pbi/` during PB0, preserving its Power BI sandbox constraints and build isolation
+- add future desktop EXE work under `enablers/desktop/` during DX1
 - avoid `packages/` until reuse pressure is real
 
 This intentionally preserves the G0 decision to defer `packages/viz-core`.
@@ -200,9 +221,10 @@ Recommended sequence:
 1. **BX0 - Artifact strategy ADR** - this ADR.
 2. **PX1 - Unified proxy client contract** - can ride alongside G2/G3 because it benefits current PulsePlay and Pulse PBI.
 3. **G2 + G2.5 + G3** - finish visualization pipeline, Databricks source refs, and governance attestation before new artifact runtime work.
-4. **PB1 - Optional PBIVIZ build lane** - formalize the Power BI custom visual artifact path after G3 unless explicitly pulled forward.
-5. **DX1 - Desktop EXE proof** - Tauri proof with inbuilt app server/proxy, random loopback ports, and private browser launch.
-6. **DX2 - Encrypted portable data** - encrypted colocated data folder, TTL, redaction, and clear-on-quit options.
+4. **PB0 - Single-download enabler folder** - bring Pulse PBI into `enablers/pulse-pbi/` without merging its runtime into PulsePlay web.
+5. **PB1 - Optional PBIVIZ build lane** - formalize the Power BI custom visual artifact path after G3/PB0 unless explicitly pulled forward.
+6. **DX1 - Desktop EXE proof** - Tauri proof under `enablers/desktop/` with inbuilt app server/proxy, random loopback ports, and private browser launch.
+7. **DX2 - Encrypted portable data** - encrypted colocated data folder, TTL, redaction, and clear-on-quit options.
 
 Do not ship DX1/DX2/PB1 half-done in parallel with an unfinished G3 governance contract.
 
@@ -211,6 +233,7 @@ Do not ship DX1/DX2/PB1 half-done in parallel with an unfinished G3 governance c
 Positive:
 
 - keeps Pulse PBI and PulsePlay aligned without forcing a premature source merge
+- lets one repo checkout contain all enablers
 - lets proxy governance/audit improvements benefit every client
 - creates a path for lightweight desktop recon without weakening security
 - preserves optionality for hosted, PBIVIZ, and desktop delivery
@@ -221,11 +244,14 @@ Negative:
 - copy-port discipline remains a process burden until a package layer is justified
 - Tauri introduces Rust/toolchain considerations when DX1 begins
 - desktop encryption and browser-private launch behavior will need platform-specific testing
-- one-command PBIVIZ build orchestration still needs coordination with the sibling project
+- moving Pulse PBI into the single-download tree needs a careful import plan to preserve history/build assumptions
+- one-command PBIVIZ build orchestration still needs coordination with the Pulse PBI artifact lane
 
 ## Tripwires
 
 - If a PR creates a separate Pulse PBI proxy with duplicated connector logic, stop and route it through PX1.
+- If a PR keeps a required enabler only as an external sibling dependency after PB0, challenge it against the single-download rule.
+- If a PR uses a Git submodule for a required enabler, verify source ZIP/release download behavior before accepting it as complete.
 - If a PR adds a desktop "lite proxy" that skips governance, reject it.
 - If a PR moves PulsePlay-native code under Pulse PBI sandbox constraints merely for shared-proxy convenience, reject it.
 - If a PR creates `packages/` only to share one speculative module, defer it.

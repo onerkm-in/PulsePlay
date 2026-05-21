@@ -24,7 +24,7 @@
 | Proxy routes, profile shapes, OAuth/M2M | [PROXY_REFERENCE.md](PROXY_REFERENCE.md) |
 | Security guardrails | [SECURITY.md](SECURITY.md) |
 | Hosting choices and production topology | [HOSTING_OPTIONS.md](HOSTING_OPTIONS.md) |
-| Artifact outputs: web, PBIVIZ, desktop EXE | [adr/0010-artifact-strategy.md](adr/0010-artifact-strategy.md) |
+| Single-download artifact layout: web, PBIVIZ, desktop EXE | [adr/0010-artifact-strategy.md](adr/0010-artifact-strategy.md) |
 | Test coverage and honesty rules | [QUALITY.md](QUALITY.md) |
 | Roadmap tracks | [ROADMAP.md](ROADMAP.md) |
 | Settings IA and guardrails | [SETTINGS_SPEC.md](SETTINGS_SPEC.md) |
