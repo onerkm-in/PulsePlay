@@ -8,8 +8,8 @@
 - First production-grade product cell: **Databricks Genie + Power BI**. It must remain modular through the BI adapter axis and AI connector axis.
 - BI axis status: Power BI has a real `powerbi-client` adapter; generic iframe is the escape hatch; Tableau/Qlik/Looker are still iframe fallbacks until their SDK adapters graduate.
 - AI connector axis status: **10 backend paths**. Genie, Azure OpenAI chat, Azure OpenAI analytics, Bedrock RAG, Bedrock direct, Foundation Model, Supervisor, Supervisor-local, ResponsesAgent, and Power BI semantic-model deterministic DAX.
-- Latest recorded validation: proxy **1133/1133**; playground **1369/1369**, lint clean, and `vite build` clean; Pulse PBI enabler **87/87**, lint clean, and local `pbiviz` package clean from the 2026-05-21 integrity sweep.
-- Latest UI regression: [CODEX_UI_REGRESSION_RESULTS_2026-05-20.md](CODEX_UI_REGRESSION_RESULTS_2026-05-20.md). Setup AI profile fallback and connector-aware docs links were fixed after that report; remaining notable blockers are local Node CA trust for live Databricks calls, the HelpTip React console warning, and the queued SS2 full proxy-backed shell smoke.
+- Latest recorded validation: proxy **1136/1136**; playground **1369/1369**, lint clean, and `vite build` clean; Pulse PBI enabler **87/87**, lint clean, and local `pbiviz` package clean from the 2026-05-21 integrity sweep.
+- Latest shell smoke: **SS2 passes** via `node playground/scripts/shell-smoke-proxy.mjs` with real proxy + real Vite + real headless Chromium + AISidebar submit. Remaining notable blockers are local Node CA trust for live Databricks calls, the HelpTip React console warning, and FW1 AI-result-to-native-canvas wiring.
 
 ## Read These First
 

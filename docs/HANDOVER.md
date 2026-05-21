@@ -5,6 +5,16 @@
 
 ---
 
+## 2026-05-21 - SS2 audit polish accepted
+
+**Scope.** External-LLM audit of SS2 accepted after inspecting commit `e4c6f1c` and re-running the core evidence. One small polish patch landed on top: `shell-smoke-proxy.mjs` no longer uses `shell: true`, so Node no longer emits the `DEP0190` warning during the smoke run. The runner now invokes `npm.cmd` through `cmd.exe` explicitly on Windows with fixed internal args and keeps `taskkill /T /F` for process-tree cleanup.
+
+**Validation.** `cd proxy && npm test` -> **1136/1136**; `node --check proxy/server.js` pass; `node --check playground/scripts/shell-smoke-proxy.mjs` pass; `node playground/scripts/shell-smoke-proxy.mjs` exit 0 with `failures: []`, no console/page/API failures, and no Node deprecation warning.
+
+**Docs.** Refreshed the current-status surfaces (`README.md`, `docs/README.md`, `docs/QUALITY.md`, `docs/ARCHITECTURE.md`) from proxy **1133/1133** / "SS2 queued" to proxy **1136/1136** / SS2 green.
+
+---
+
 ## 2026-05-21 - SS2 proxy-backed shell smoke (real proxy + Vite + Chromium)
 
 **Scope.** Closes the biggest UX-confidence gap on the project. A real headless Chromium navigates to a real Vite dev server proxying `/api/*` to a real PulsePlay proxy process, the AISidebar submits a question through the actual React UI, and the rendered answer text + governance attestation are asserted end-to-end. No mocked routes, no fake adapters — the only synthetic element is the `type: "smoke-fixture"` profile that short-circuits Genie upstream and returns canned data through the real `withGovernance(...)` builder. This is materially stronger than SS1's Vite-only smoke.
@@ -41,7 +51,7 @@ Exit 0 + `failures: []` in the JSON report means smoke passed. No manual proxy/V
 
 **Smoke runner tripwires encoded in the code.**
 
-1. **Windows `shell: true` orphans the node process under cmd.exe.** `child.kill('SIGTERM')` reaps the cmd.exe wrapper but the actual server stays alive. The cleanup path skips the SIGTERM step on Windows and goes straight to `taskkill /pid X /T /F`, which walks the tree and kills everything. Documented in `killAll`.
+1. **Windows process-tree cleanup is load-bearing.** `npm.cmd` can still spawn a child Node/Vite process. The cleanup path skips SIGTERM on Windows and goes straight to `taskkill /pid X /T /F`, which walks the tree and kills everything. Documented in `killAll`.
 2. **Vite ready-line is ANSI-color-wrapped.** `Local: http://...` actually arrives as `\x1b[32m\x1b[1mLocal\x1b[22m\x1b[39m: ...` — raw regex fails. The runner strips ANSI before matching.
 3. **Port 8787 may need a moment to free after a previous orchestrator run.** Pre-flight probe retries 5x at 1s intervals before declaring the port permanently bound.
 

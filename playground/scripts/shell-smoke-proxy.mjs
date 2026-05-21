@@ -45,10 +45,10 @@
 // to stdout; screenshot to playground/scripts/shell-smoke-proxy.png
 // (gitignored). Exit 0 on PASS; non-zero on any failure.
 //
-// If port 8787 (proxy) or 5173 (Vite) is already taken, the runner
-// fails fast rather than reusing whatever was bound there — running
-// against a stale proxy or a different dev server invalidates the
-// smoke. Stop existing processes manually before re-running.
+// If port 8787 (proxy) is already taken, the runner fails fast rather
+// than reusing whatever was bound there — running against a stale proxy
+// invalidates the smoke. Vite is allowed to walk up from 5173 because
+// the runner captures the actual ready URL before launching Chromium.
 
 import { chromium } from "playwright";
 import { spawn } from "node:child_process";
@@ -115,12 +115,19 @@ function probePort(port) {
 const children = new Set();
 
 function spawnChild(name, command, args, opts) {
-    // Windows convenience: npm/npx must run through the shell to find the
-    // .cmd shim. On *nix it's a real binary so shell is fine either way.
-    const child = spawn(command, args, {
+    // Avoid `shell: true`: recent Node versions warn (DEP0190) when args
+    // are passed through a shell, and this runner should be warning-clean.
+    // On Windows, npm/npx are .cmd shims; run them through cmd.exe directly
+    // with fixed, internal args instead of asking Node to synthesize a shell.
+    const needsWindowsCmd = process.platform === "win32" && /^(npm|npx)$/.test(command);
+    const executable = needsWindowsCmd ? "cmd.exe" : command;
+    const executableArgs = needsWindowsCmd
+        ? ["/d", "/s", "/c", `${command}.cmd`, ...args]
+        : args;
+    const child = spawn(executable, executableArgs, {
         cwd: opts.cwd,
         env: opts.env,
-        shell: process.platform === "win32",
+        shell: false,
         stdio: ["ignore", "pipe", "pipe"],
     });
     child.label = name;
@@ -130,11 +137,9 @@ function spawnChild(name, command, args, opts) {
 }
 
 async function killAll(reason) {
-    // On Windows we use shell:true (so npm/npx find their .cmd shims),
-    // which means `child.pid` is the cmd.exe wrapper, not the node
-    // process underneath it. `child.kill()` reaps the shell but orphans
-    // the actual server. `taskkill /T /F` walks the tree and kills
-    // everything, so we use it directly — no SIGTERM grace window.
+    // On Windows, npm.cmd may still spawn a child Node/Vite process.
+    // `taskkill /T /F` walks the process tree and reliably tears the
+    // dev server down, so we use it directly — no SIGTERM grace window.
     //
     // On POSIX, SIGTERM with a SIGKILL fallback is the right shape.
     const promises = [];

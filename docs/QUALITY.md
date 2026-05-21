@@ -8,7 +8,7 @@
 
 ### 1. Structural correctness (automated)
 
-- **1133 jest tests in `proxy/`** in the latest recorded 2026-05-21 validation, covering profile resolution, OAuth M2M flow, X-Request-Id correlation, rate limiting, PII redaction, DML keyword blocking, identifier sanitization, supervisor-local fan-out, validator framework, foundation model client, bedrock signing, connector probe, discovery-context injection, pack prompt injection, Power BI embed-token flow, Power BI deterministic semantic-model templates, Power BI Q&A token minting, metadata-read rate-limit exemptions, analytics paths, the PX1 client identity contract, G3 governance attestation route wiring, admin auth-mode parity, SQL preview CTE validation, and streaming error redaction.
+- **1136 jest tests in `proxy/`** in the latest recorded 2026-05-21 validation, covering profile resolution, OAuth M2M flow, X-Request-Id correlation, rate limiting, PII redaction, DML keyword blocking, identifier sanitization, supervisor-local fan-out, validator framework, foundation model client, bedrock signing, connector probe, discovery-context injection, pack prompt injection, Power BI embed-token flow, Power BI deterministic semantic-model templates, Power BI Q&A token minting, metadata-read rate-limit exemptions, analytics paths, the PX1 client identity contract, G3 governance attestation route wiring, admin auth-mode parity, SQL preview CTE validation, streaming error redaction, and the SS2 smoke-fixture profile.
 - **1369 vitest tests in `playground/` + `bi-adapters/`** in the latest recorded 2026-05-21 validation, covering BIAdapter conformance, generic iframe behavior, Power BI adapter behavior including secure embed preview and developer snapshots, Tableau/Qlik/Looker iframe stubs, native adapter skeleton guardrails, native governance fail-closed behavior, PulseShell host behavior, health-probe single-flight caching, performance levers, discovery probe status, Power BI Q&A client behavior, AI Insights output polish, card-style Insights rendering, raw-data Excel export helpers, AISidebar, pack preset merge, PII redaction, layout surface availability, Databricks source refs, governance attestation shape validation, native canvas/fusion, G5 BI surface mode, Quick Setup embed config integrity, and the pure visualization result-to-chart pipeline.
 - **87 vitest tests in `enablers/pulse-pbi/`** in the latest recorded 2026-05-21 validation, now covered by CI for lint + unit tests. `pbiviz package` also passes locally, but the `pbiviz` toolchain is not yet pinned in the enabler lockfile.
 
@@ -23,7 +23,7 @@ These tests assert the code emits the right SHAPE of output (correct prompt stru
 
 ### 3. Live qualitative review
 
-The playground has HTTP-level local smoke only today unless an org Power BI report and Databricks profile are connected. v0.2 work: promote the inherited Sales/Superstore PBIP and old live-test prompts into a credentialed PulsePlay reference fixture, then run the same canonical 5-10 representative AI questions after each significant change.
+The playground has local browser smoke coverage for shell mount (SS1) and a proxy-backed AISidebar round-trip (SS2). It still does not prove live Databricks answer correctness unless an org Power BI report and Databricks profile are connected. v0.2 work: promote the inherited Sales/Superstore PBIP and old live-test prompts into a credentialed PulsePlay reference fixture, then run the same canonical 5-10 representative AI questions after each significant change.
 
 ## What we DO NOT measure today
 
@@ -87,7 +87,7 @@ WCAG compliance is not formally tested. The playground UI is minimal today; a fo
 
 **Do say:**
 
-- "The proxy has 1133 jest tests, all green in the latest recorded local run."
+- "The proxy has 1136 jest tests, all green in the latest recorded local run."
 - "The playground and BI adapters have 1369 vitest tests, all green in the latest recorded local run."
 - "The Pulse PBI enabler has 87 unit tests, all green in the latest recorded local run; its package lane passes locally but the pbiviz toolchain pin is still queued."
 - "The 2-axis abstraction is implemented as a contract; Power BI is real, Tableau/Qlik/Looker are still iframe fallbacks."
@@ -107,8 +107,8 @@ WCAG compliance is not formally tested. The playground UI is minimal today; a fo
 
 ## Why this honesty matters
 
-A sharp evaluator will ask "show me the test results" within 5 minutes. Better to say "1133 proxy tests green; 1369 playground/adapter tests green; 87 Pulse PBI enabler unit tests green in the latest recorded validation; eval suite next investment" than to claim a measured answer-quality number that doesn't exist. The proxy infrastructure is measurably solid, Power BI is the first real BI adapter, and the playground architecture is becoming test-backed. Lead with what's true; let the eval claim grow alongside the actual eval rig.
+A sharp evaluator will ask "show me the test results" within 5 minutes. Better to say "1136 proxy tests green; 1369 playground/adapter tests green; 87 Pulse PBI enabler unit tests green; SS2 proxy-backed shell smoke green in the latest recorded validation; eval suite next investment" than to claim a measured answer-quality number that doesn't exist. The proxy infrastructure is measurably solid, Power BI is the first real BI adapter, and the playground architecture is becoming test-backed. Lead with what's true; let the eval claim grow alongside the actual eval rig.
 
 ---
 
-*Compiled 2026-05-10 during the docs consolidation cycle. Updated 2026-05-21 after the integrity sweep raised latest recorded validation to proxy 1133/1133, playground 1369/1369, and Pulse PBI enabler 87/87. Re-run when test counts change or when the eval rig lands. The historical Pulse-numbered version is archived at [inherited/PEPPULSE_BEAST_MODE_MEMORY.md](inherited/PEPPULSE_BEAST_MODE_MEMORY.md) and the original `QUALITY_METHODOLOGY.md` content this file pruned from.*
+*Compiled 2026-05-10 during the docs consolidation cycle. Updated 2026-05-21 after SS2 raised latest recorded validation to proxy 1136/1136, playground 1369/1369, Pulse PBI enabler 87/87, and a passing proxy-backed shell smoke. Re-run when test counts change or when the eval rig lands. The historical Pulse-numbered version is archived at [inherited/PEPPULSE_BEAST_MODE_MEMORY.md](inherited/PEPPULSE_BEAST_MODE_MEMORY.md) and the original `QUALITY_METHODOLOGY.md` content this file pruned from.*

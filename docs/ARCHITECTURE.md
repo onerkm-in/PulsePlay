@@ -228,7 +228,7 @@ PulsePlay/
 ├── proxy/                   # X-axis: AI connector backbone (4,298-line server.js + 8 lib modules)
 │   ├── server.js            # Express; routes for /assistant/*, /openai/*, /bedrock/*, /supervisor/*, /foundation/*
 │   ├── lib/                 # foundationModelClient, insightsValidator, llmOrchestrator, sqlExecutor, bedrock signer, ...
-│   └── tests/               # 1133 jest tests in latest recorded validation
+│   └── tests/               # 1136 jest tests in latest recorded validation
 ├── databricks-agents/       # Mosaic AI Supervisor Agent template
 │   └── supervisor/          # LangGraph agent definition + deploy notebook
 ├── pulsepacks/              # Vertical packs (CPG/FMCG, manufacturing, ...). Pack architecture lives here.
