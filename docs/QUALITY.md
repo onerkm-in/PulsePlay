@@ -8,8 +8,8 @@
 
 ### 1. Structural correctness (automated)
 
-- **1013 jest tests in `proxy/`** in the latest recorded 2026-05-20 validation, covering profile resolution, OAuth M2M flow, X-Request-Id correlation, rate limiting, PII redaction, DML keyword blocking, identifier sanitization, supervisor-local fan-out, validator framework, foundation model client, bedrock signing, connector probe, discovery-context injection, pack prompt injection, Power BI embed-token flow, Power BI deterministic semantic-model templates, Power BI Q&A token minting, metadata-read rate-limit exemptions, and analytics paths.
-- **1103 vitest tests in `playground/` + `bi-adapters/`** in the latest recorded 2026-05-20 validation, covering BIAdapter conformance, generic iframe behavior, Power BI adapter behavior including secure embed preview and developer snapshots, Tableau/Qlik/Looker iframe stubs, PulseShell host behavior, health-probe single-flight caching, performance levers, discovery probe status, Power BI Q&A client behavior, AI Insights output polish, card-style Insights rendering, raw-data Excel export helpers, AISidebar, pack preset merge, and PII redaction.
+- **1077 jest tests in `proxy/`** in the latest recorded 2026-05-21 validation, covering profile resolution, OAuth M2M flow, X-Request-Id correlation, rate limiting, PII redaction, DML keyword blocking, identifier sanitization, supervisor-local fan-out, validator framework, foundation model client, bedrock signing, connector probe, discovery-context injection, pack prompt injection, Power BI embed-token flow, Power BI deterministic semantic-model templates, Power BI Q&A token minting, metadata-read rate-limit exemptions, analytics paths, and the PX1 client identity contract.
+- **1273 vitest tests in `playground/` + `bi-adapters/`** in the latest recorded 2026-05-21 validation, covering BIAdapter conformance, generic iframe behavior, Power BI adapter behavior including secure embed preview and developer snapshots, Tableau/Qlik/Looker iframe stubs, native adapter skeleton guardrails, PulseShell host behavior, health-probe single-flight caching, performance levers, discovery probe status, Power BI Q&A client behavior, AI Insights output polish, card-style Insights rendering, raw-data Excel export helpers, AISidebar, pack preset merge, PII redaction, layout surface availability, Databricks source refs, and the pure visualization result-to-chart pipeline.
 
 These tests assert the code emits the right SHAPE of output (correct prompt structure, correct cache key, correct sanitization, correct API call). They do NOT assert that the AI's natural-language answer is factually correct on a given dataset.
 
@@ -86,8 +86,8 @@ WCAG compliance is not formally tested. The playground UI is minimal today; a fo
 
 **Do say:**
 
-- "The proxy has 1013 jest tests, all green in the latest recorded local run."
-- "The playground and BI adapters have 1103 vitest tests, all green in the latest recorded local run."
+- "The proxy has 1077 jest tests, all green in the latest recorded local run."
+- "The playground and BI adapters have 1273 vitest tests, all green in the latest recorded local run."
 - "The 2-axis abstraction is implemented as a contract; Power BI is real, Tableau/Qlik/Looker are still iframe fallbacks."
 - "The old Power BI visual has a larger visual test bank; we are porting the most valuable pure tests."
 - "Eval suite is on the roadmap as a v0.3 candidate. We're not promising answer-quality numbers without measuring them."
@@ -105,8 +105,8 @@ WCAG compliance is not formally tested. The playground UI is minimal today; a fo
 
 ## Why this honesty matters
 
-A sharp evaluator will ask "show me the test results" within 5 minutes. Better to say "1013 proxy tests green; 1103 playground/adapter tests green in the latest recorded validation; old visual parity tests still being ported; eval suite next investment" than to claim a measured answer-quality number that doesn't exist. The proxy infrastructure is measurably solid, Power BI is the first real BI adapter, and the playground architecture is becoming test-backed. Lead with what's true; let the eval claim grow alongside the actual eval rig.
+A sharp evaluator will ask "show me the test results" within 5 minutes. Better to say "1077 proxy tests green; 1273 playground/adapter tests green in the latest recorded validation; old visual parity tests still being ported; eval suite next investment" than to claim a measured answer-quality number that doesn't exist. The proxy infrastructure is measurably solid, Power BI is the first real BI adapter, and the playground architecture is becoming test-backed. Lead with what's true; let the eval claim grow alongside the actual eval rig.
 
 ---
 
-*Compiled 2026-05-10 during the docs consolidation cycle. Updated 2026-05-20 after cycles 11-15.5 raised latest recorded validation to proxy 1013/1013 and playground 1103/1103. Re-run when test counts change or when the eval rig lands. The historical Pulse-numbered version is archived at [inherited/PEPPULSE_BEAST_MODE_MEMORY.md](inherited/PEPPULSE_BEAST_MODE_MEMORY.md) and the original `QUALITY_METHODOLOGY.md` content this file pruned from.*
+*Compiled 2026-05-10 during the docs consolidation cycle. Updated 2026-05-21 after PX1/G2 raised latest recorded validation to proxy 1077/1077 and playground 1273/1273. Re-run when test counts change or when the eval rig lands. The historical Pulse-numbered version is archived at [inherited/PEPPULSE_BEAST_MODE_MEMORY.md](inherited/PEPPULSE_BEAST_MODE_MEMORY.md) and the original `QUALITY_METHODOLOGY.md` content this file pruned from.*

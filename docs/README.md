@@ -8,7 +8,7 @@
 - First production-grade product cell: **Databricks Genie + Power BI**. It must remain modular through the BI adapter axis and AI connector axis.
 - BI axis status: Power BI has a real `powerbi-client` adapter; generic iframe is the escape hatch; Tableau/Qlik/Looker are still iframe fallbacks until their SDK adapters graduate.
 - AI connector axis status: **10 backend paths**. Genie, Azure OpenAI chat, Azure OpenAI analytics, Bedrock RAG, Bedrock direct, Foundation Model, Supervisor, Supervisor-local, ResponsesAgent, and Power BI semantic-model deterministic DAX.
-- Latest recorded validation: proxy **1013/1013** from the 2026-05-20 handover; playground **1197/1197**, lint clean, and `vite build` clean from the 2026-05-21 G1 audit handover.
+- Latest recorded validation: proxy **1077/1077** from the 2026-05-21 PX1 handover; playground **1273/1273**, lint clean, and `vite build` clean from the 2026-05-21 G2 handover.
 - Latest UI regression: [CODEX_UI_REGRESSION_RESULTS_2026-05-20.md](CODEX_UI_REGRESSION_RESULTS_2026-05-20.md). Main open blockers: Setup AI profile allowlist mismatch, hardcoded Setup Databricks docs link, local Node CA trust blocking live Databricks calls, and HelpTip React console warning.
 
 ## Read These First

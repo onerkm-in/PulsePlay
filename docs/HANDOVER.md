@@ -5,6 +5,32 @@
 
 ---
 
+## 2026-05-21 - G2 pure visualization pipeline
+
+**Scope.** Added the first pure result-to-chart pipeline for the native renderer track. This generalizes the proven Pulse chart-pick behavior upstream into `playground/src/visualization/` so PulsePlay, the future native adapter, Pulse PBI copy-ports, and desktop EXE can share the same policy without a package layer. Commit `9ff892a`. No proxy code, no SQL execution, no native canvas runtime, and no browser storage.
+
+**Modules.** New pure TypeScript modules:
+- [`playground/src/visualization/aiResultEnvelope.ts`](../playground/src/visualization/aiResultEnvelope.ts) defines `AIResultEnvelope`, schema/row guards, object-row conversion, and `sourceRef?: DatabricksSourceRef` now that G2.5 has landed. `governance` intentionally remains opaque until G3.
+- [`playground/src/visualization/resultToVizIntent.ts`](../playground/src/visualization/resultToVizIntent.ts) maps a result envelope to `empty | text | table | kpi | chart` before any renderer sees it.
+- [`playground/src/visualization/chartAutoPick.ts`](../playground/src/visualization/chartAutoPick.ts) owns the portable chart recommendation policy, preserving Pulse behavior for rank/index filtering, trend vs donut selection, multi-measure clustered bars, tooltip formatting, and explicit phrasing like "show table" / "show SQL" / "bar chart".
+- [`playground/src/visualization/chartSpecValidation.ts`](../playground/src/visualization/chartSpecValidation.ts) validates a compact Vega-Lite-ish `ChartRenderSpec` and rejects external `data.url` before workbench rendering.
+
+**Upstream/downstream generalization.** [`playground/src/pulse/visualHelpers.ts`](../playground/src/pulse/visualHelpers.ts) now imports the shared chart-pick policy instead of owning duplicate definitions. [`playground/src/lib/vegaLiteToECharts.ts`](../playground/src/lib/vegaLiteToECharts.ts) reuses the portable chart spec type, and [`playground/src/components/workbench/ArtifactTabs.tsx`](../playground/src/components/workbench/ArtifactTabs.tsx) validates chart specs before compiling them to ECharts. [PULSE_SYNC.md](PULSE_SYNC.md) records the four G2 modules and shape contracts at version `0.1`, with Pulse PBI copy-port queued and desktop inheriting through the app bundle.
+
+**Tests.** Added four focused test files under [`playground/src/visualization/__tests__`](../playground/src/visualization/__tests__) covering envelope validation/round-trip, chart auto-pick policy, result-to-intent selection, and chart spec validation. Post-commit focused visualization test: **76/76**.
+
+**Validation.**
+- Focused G2 + adjacent chart/workbench tests before commit: **145/145**.
+- Post-commit focused visualization tests: **76/76**.
+- Full playground suite: **1273/1273**.
+- `playground npm run lint`: PASS.
+- `playground npm run build`: PASS (existing BI-adapter dynamic-import warnings only).
+- Browser smoke: not run for this pure-module slice.
+
+**Next.** G3 is unblocked by G2 + G2.5. G3 should add the runtime `GovernanceAttestation` type, proxy-side attestation builder/tests for every renderable backend path, and native fail-closed behavior when production render payloads lack `governance.enforced === true`.
+
+---
+
 ## 2026-05-21 - G2.5 Databricks source-ref contract
 
 **Scope.** Pure TypeScript contract module that types the governed Databricks data assets PulsePlay can request through the proxy/data layer. Ships in parallel with Codex's G2 (visualization pipeline). No proxy code, no SQL execution, no native adapter change. The complementary one-line narrowing of `aiResultEnvelope.ts` is deliberately deferred until G2 lands so the two parallel tracks don't collide.
