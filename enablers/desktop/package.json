@@ -9,7 +9,9 @@
         "start": "node runtime/launcher.mjs",
         "dev": "node runtime/launcher.mjs --dev",
         "test": "node --test",
-        "smoke": "node scripts/dx1b-smoke.mjs"
+        "smoke": "node scripts/dx1b-smoke.mjs",
+        "smoke:persistence": "node scripts/dx1b-smoke.mjs --check-persistence",
+        "package": "node -e \"console.error('packaging recipe is documented in PACKAGING.md; implementation lands in DX1c'); process.exit(1)\""
     },
     "dependencies": {
         "express": "^4.21.2",
