@@ -5,6 +5,39 @@
 
 ---
 
+## 2026-05-21 - G4 native canvas + ECharts MVP
+
+**Scope.** First real renderer for the native BI adapter. Five viz states (empty / text / table / KPI / chart) rendered from attested `AIResultEnvelope`s. Preserves G3 governance gate; preserves renderer-only / no-fetch / no-authoring posture; preserves Pulse-PBI copy-port discipline. Browser smoke attempted but did NOT pass (proxy required).
+
+**Canvas.** New [`playground/src/visualization/NativeCanvas.tsx`](../playground/src/visualization/NativeCanvas.tsx) is the React component + `mountNativeCanvas` helper. Lives in `playground/src/visualization/` rather than `bi-adapters/native/` because React and ECharts must be resolved from playground's `node_modules` — `bi-adapters/native/index.ts` re-exports the canvas + types so consumers importing via the bi-adapters barrel still see a coherent API. Component mode dispatch: `empty` / `result-accepted` / `ungoverned-result-preview` / `result-blocked` / `spec-accepted`. Mode is set explicitly by the adapter so canvas DOM state and adapter telemetry never disagree.
+
+**Adapter refactor.** [`NativeBIAdapter`](../bi-adapters/native/NativeBIAdapter.ts) no longer constructs DOM imperatively. `mount()` calls `mountNativeCanvas(container, props)` to install the React root. Every renderer command updates internal state and calls `canvasHandle.update(...)`. `flushSync` wraps `root.render()` so React 19's concurrent commit completes before the call returns — without it, the adapter's synchronous tests and any DOM-introspection observer would see an empty container right after mount. `destroy()` unmounts the React root and clears leftover container children defensively.
+
+**Tripwire comment.** Added on `handleRendererCommand` explaining that `renderSpec` is intentionally NOT governance-gated because specs are compiled chart shapes already produced by the visualization pipeline FROM an attested envelope. The contract: hosts route AI results through `renderResult` first (governance runs there); `renderSpec` is for re-rendering an already-attested envelope's spec. If a future caller starts sending raw or semi-trusted specs directly, the spec MUST carry attestation OR this code MUST be tightened to gate `renderSpec` too. Closes the audit finding I raised after G3.
+
+**ECharts MVP.** Modular `echarts/core` + `BarChart` / `LineChart` / `PieChart` + `Grid` / `Legend` / `Title` / `Tooltip` + `CanvasRenderer` registered. Supported chart kinds: `bar` / `column` / `line` / `area` / `pie` / `donut` / `clustered-bar`. Unsupported kinds (waterfall, treemap, sankey, etc.) fall back to bar so the canvas always renders SOMETHING for an attested result rather than going blank. Adding a kind means registering its ECharts module + extending `buildEChartsOption` — both in `NativeCanvas.tsx`.
+
+**Import boundary extended.** [`bi-adapters/native/__tests__/index.test.ts`](../bi-adapters/native/__tests__/index.test.ts) now scans both `.ts` adapter files AND `NativeCanvas.tsx` separately. `.ts` files in `bi-adapters/native/` still forbid React, react-dom, echarts, fetch, vendor SDKs, drag/drop, and authoring settings. `.tsx` canvas may use React + react-dom + echarts as runtime, but still cannot fetch, hit the proxy, import vendor SDKs, drag/drop libs, or authoring settings modules. The split prevents G4 from accidentally widening the trust surface beyond renderer-only.
+
+**Tests.**
+- Focused native adapter (lifecycle + commands + G3 gate + import boundary): **41/41**.
+- Focused NativeCanvas (5 viz states + preview badge + blocked + mount lifecycle): **13/13**.
+- Full playground: **1340/1340** (was 1326, +14: 13 new canvas + 1 boundary split).
+- `playground npm run lint`: PASS.
+- `playground npm run build`: PASS (existing BI-adapter dynamic-import warnings only).
+
+**Browser smoke: attempted, did NOT pass.** Started the Vite dev server, opened `127.0.0.1:5173` via Playwright (preseeded `pulseplay:bi-vendor=native`, dismissed wizard). The page rendered but the BI panel never mounted because `/api/*` returned 500 (proxy was not running in this session). PulsePlay's allowlist fetch fails closed in that state and gates BI mounting. This is the same "proxy required for full UX smoke" blocker previous cycles flagged. Do NOT claim G4 is fully UX-verified.
+
+**Tripwires for next session.**
+- Do NOT make `renderSpec` accept arbitrary specs without governance — the tripwire comment is the contract.
+- Do NOT move React/ECharts into `bi-adapters/native/*.ts`. The split (adapter is `.ts` pure, canvas is `.tsx` React) is load-bearing for hosts that might later mount native through a non-React shell.
+- Adding new chart kinds requires touching ECharts module registrations AND the `buildEChartsOption` switch in the same file. The import-boundary test will accept new echarts/* imports in the canvas.
+- The 100-row table cap is intentional MVP. If a deployment needs more, future cycle adds pagination.
+
+**Next.** G5 (BI surface mode `auto/native/vendor` picker) and G6 (native T2 fusion-lite) per the established sequencing. PB0 (Pulse PBI source convergence under `enablers/`) remains the parallel artifact-strategy work, sequenced after G3 unless explicitly redirected.
+
+---
+
 ## 2026-05-21 - G3 governance attestation complete; G4 handed to Claude
 
 **Scope.** Closed G3b/G3c/G3d end-to-end. G3 is now runtime-active, not just a contract: renderable proxy responses carry proxy-built attestations, and the native adapter fails closed when production/required-governance rendering lacks a valid attestation. No native canvas/ECharts runtime yet — that is G4.
