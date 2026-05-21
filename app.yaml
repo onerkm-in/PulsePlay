@@ -20,7 +20,7 @@ env:
   - name: PROXY_AUTH_MODE
     value: "none"
   - name: STATIC_DIR
-    value: "../playground/dist"
+    value: "playground/dist"
   - name: ASSISTANT_PROFILE
     value: "default"
   - name: SUPERVISOR_ENABLED
