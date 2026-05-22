@@ -8905,16 +8905,21 @@ function renderKpiSnapshot(raw: string): React.ReactNode {
     // one-shot chat response.
     //
     // 2026-05-22 refined per Rajesh: *"let's not try mould it. Ask Pulse
-    // should be dialogue with data simple and insightful."* Tightened the
-    // gate to require AT LEAST TWO recognized briefing-section headers
-    // before routing to renderInsightsSections. Previously, ANY single
-    // uppercase `## SECTION` line would trigger the card grid — which
-    // moulded ad-hoc replies (Genie sometimes emits `## INSIGHTS` or
-    // `## TRENDS` alone via conversation-memory bleed-through) into
-    // sectioned chrome the question didn't warrant.
+    // should be dialogue with data simple and insightful."* AND then
+    // tightened further: *"let's keep only the insights only for the
+    // probe as well"* — probe is now HEADLINE-only. So the gate must
+    // route to renderInsightsSections when HEADLINE is present (single
+    // recognized section is enough), OR when there are ≥2 recognized
+    // briefing sections (for any future multi-section briefings or
+    // historical content). Plain `## INSIGHTS` or solo `## TRENDS` from
+    // Genie conversation-memory bleed-through still falls through to
+    // plain markdown — they're not in the recognized briefing list
+    // alone (TRENDS without HEADLINE doesn't trigger).
     const BRIEFING_SECTION_RE = /^#{1,3}\s+(HEADLINE|KPI SNAPSHOT|TRENDS|RISKS|OPPORTUNITIES|RECOMMENDED ACTIONS|WHAT CHANGED|WHAT NEEDS ATTENTION|NEXT BEST ACTIONS|EXECUTIVE BRIEF)\s*$/gmi;
-    const recognizedBriefingSections = (text.match(BRIEFING_SECTION_RE) ?? []).length;
-    if (recognizedBriefingSections >= 2) {
+    const recognizedSections = text.match(BRIEFING_SECTION_RE) ?? [];
+    const hasHeadline = recognizedSections.some(s => /HEADLINE|EXECUTIVE BRIEF/i.test(s));
+    const briefingTrigger = hasHeadline || recognizedSections.length >= 2;
+    if (briefingTrigger) {
         return renderInsightsSections(text, {
             showProvenanceFooter: true,
             sourceLabel: "Ask Pulse",

@@ -1873,29 +1873,30 @@ export function isBriefingQuestion(question: string, _intent: AssistantIntent): 
     return BRIEFING_QUESTION_RE.test(question || "");
 }
 
-// The briefing-format block — first-message "probe" only. Two sections
-// (Executive Brief + What Changed), BARE format. Per Rajesh's two
-// 2026-05-22 directions:
+// The briefing-format block — first-message "probe" only. HEADLINE-only.
+// Per Rajesh's three same-day 2026-05-22 directions, progressively
+// tightening the probe:
 //   1. *"as a probe What Changed is the section only section we should
 //      start with and rest should just be what you ask is what you get."*
-//   2. *"no need to have narrative like this"* (pointing at narrative
-//      cause clauses on What Changed bullets).
-// Rationale: first-message briefing must stay lightweight. Bullets are
-// metric + direction + magnitude, NOTHING ELSE. KPI SNAPSHOT / RISKS /
-// OPPORTUNITIES / RECOMMENDED ACTIONS get answered IF the user asks
-// for them — that's chat fidelity (memory/feedback_chat_fidelity.md).
-// The renderer still handles any of those sections gracefully if the
-// LLM emits them anyway (legacy compat); we just don't REQUEST them.
+//   2. *"no need to have narrative like this"* (dropped TRENDS cause
+//      clauses).
+//   3. *"let's keep only the insights only for the probe as well"* —
+//      drop TRENDS entirely. Probe is now a single-sentence context-
+//      setter. Everything else (KPI strip, trends, risks, opportunities,
+//      recommended actions) is reached via follow-up dialogue.
+// Rationale: Ask Pulse is dialogue with data. The opener should be one
+// crisp sentence, not a multi-section card. Subsequent turns are plain
+// chat. This is the purest expression of chat-fidelity
+// (memory/feedback_chat_fidelity.md). The renderer still handles any
+// additional sections gracefully if the LLM emits them anyway (legacy
+// compat); we just don't REQUEST them.
 const BRIEFING_FORMAT_INSTRUCTION = [
-    "Output format — produce these TWO markdown sections in this exact order, each with a `## ` heading. No other sections, no preamble, no closing remarks.",
+    "Output format — produce EXACTLY ONE markdown section with a `## HEADLINE` heading. No other sections, no preamble, no closing remarks.",
     "",
     "## HEADLINE",
     "One sentence (max 25 words). Lead with the single most important number for the current period, its change vs prior, and whether overall performance is on-track / at-risk / off-track.",
     "",
-    "## TRENDS",
-    "3-5 short bullets — one per metric. Each bullet is JUST: `<metric> ▲/▼ <magnitude>`. NO narrative, NO causes, NO explanation, NO commentary clauses. Examples: `Sales ▼ 29.2%`, `Profit margin ▲ +1.9pp`, `Orders ▼ 14.2%`. Stop at the magnitude.",
-    "",
-    "Rules: Never ask a clarifying question. Never offer alternatives. If data is ambiguous, pick the most material metric and state your assumption in HEADLINE. Start directly with `## HEADLINE` — no preamble. Do NOT add `## KPI SNAPSHOT`, `## RISKS`, `## OPPORTUNITIES`, or `## RECOMMENDED ACTIONS` — the user will ask for those as follow-ups if they want them. Do NOT explain WHY metrics moved — the user will ask if they want causes.",
+    "Rules: Never ask a clarifying question. Never offer alternatives. If data is ambiguous, pick the most material metric and state your assumption in HEADLINE. Start directly with `## HEADLINE` — no preamble, no trailing sections. Do NOT add `## KPI SNAPSHOT`, `## TRENDS`, `## WHAT CHANGED`, `## RISKS`, `## OPPORTUNITIES`, or `## RECOMMENDED ACTIONS` — the user will ask for those as follow-ups if they want them. Do NOT explain WHY metrics moved — the user will ask if they want causes.",
 ].join("\n");
 
 export function buildGenieRequest(
