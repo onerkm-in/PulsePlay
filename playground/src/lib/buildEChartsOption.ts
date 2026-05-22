@@ -20,6 +20,8 @@
 //   Trendy:   sunburst
 
 import type { EChartsOption } from 'echarts';
+import { detectColumnUnit, type UnitType } from '../visualization/chartAutoPick';
+import { humanizeColumnName, formatValueByUnit } from './columnLabels';
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 
@@ -55,17 +57,23 @@ function detectColumnRoles(columns: string[], rows: unknown[][]): {
     return { labelCols, numericCols };
 }
 
-/** Category labels + one or more numeric series from a standard SQL result. */
+/** Category labels + one or more numeric series from a standard SQL result.
+ *  2026-05-22 G2 — `name` is now humanized via humanizeColumnName, and each
+ *  series carries the raw column name + detected unit so axis/tooltip
+ *  formatters can render values per industry conventions ($ for currency,
+ *  % for ratios, pp for percentage points, K/M for big counts). */
 function extractCategorySeries(columns: string[], rows: unknown[][]): {
     categories: string[];
-    series: { name: string; data: number[] }[];
+    series: { name: string; rawName: string; unit: UnitType; data: number[] }[];
 } | null {
     const { labelCols, numericCols } = detectColumnRoles(columns, rows);
     if (!numericCols.length) return null;
     const labelCol = labelCols[0] ?? 0;
     const categories = rows.map(r => String(r[labelCol] ?? ''));
     const series = numericCols.map(ci => ({
-        name: columns[ci],
+        name: humanizeColumnName(columns[ci]),
+        rawName: columns[ci],
+        unit: detectColumnUnit(columns[ci]),
         data: rows.map(r => toNum(r[ci])),
     }));
     return { categories, series };
@@ -220,6 +228,67 @@ const TOOLTIP_STYLE = { trigger: 'axis' as const };
 const LEGEND_STYLE = { type: 'scroll' as const, bottom: 0 };
 const GRID_STYLE = { left: '10%', right: '6%', bottom: 40, top: 40, containLabel: true };
 
+// ── 2026-05-22 G2 — axis + tooltip value formatters per detected unit ────────
+//
+// When a chart has multiple series with DIFFERENT units (e.g. sales in $ +
+// margin in %), the axis can't carry one unit-correct formatter for all.
+// We resolve to the MAJORITY unit for axis labels, and use per-series
+// formatting in tooltips (which know which series the hovered point
+// belongs to). For single-series charts, axis matches that series.
+
+interface SeriesWithUnit {
+    readonly name: string;
+    readonly rawName: string;
+    readonly unit: UnitType;
+}
+
+function dominantUnit(series: ReadonlyArray<SeriesWithUnit>): UnitType {
+    if (!series.length) return 'generic';
+    const counts: Partial<Record<UnitType, number>> = {};
+    for (const s of series) counts[s.unit] = (counts[s.unit] ?? 0) + 1;
+    let best: UnitType = series[0].unit;
+    let bestCount = 0;
+    for (const u of Object.keys(counts) as UnitType[]) {
+        const c = counts[u] ?? 0;
+        if (c > bestCount) { best = u; bestCount = c; }
+    }
+    return best;
+}
+
+function dominantRawName(series: ReadonlyArray<SeriesWithUnit>, unit: UnitType): string | undefined {
+    return series.find(s => s.unit === unit)?.rawName;
+}
+
+/** Axis-label formatter using the dominant unit across all series. Returns
+ *  an ECharts axisLabel object (formatter callback). */
+function axisFormatterForSeries(series: ReadonlyArray<SeriesWithUnit>): { formatter: (value: number) => string } {
+    const unit = dominantUnit(series);
+    const hint = dominantRawName(series, unit);
+    return { formatter: (value: number) => formatValueByUnit(value, unit, 'axis', hint) };
+}
+
+/** Tooltip with a value formatter that uses the dominant unit. ECharts'
+ *  `tooltip.valueFormatter` receives only the value (no series context for
+ *  trigger:'axis' tooltips), so we resolve to the dominant unit across
+ *  series. Single-series charts are exact; mixed-unit charts get the
+ *  majority unit (and the chart-rationale warning already flags mixed-unit
+ *  shapes separately). */
+function tooltipWithFormatter(series: ReadonlyArray<SeriesWithUnit>): Record<string, unknown> {
+    const dom = dominantUnit(series);
+    const hint = dominantRawName(series, dom);
+    return {
+        ...TOOLTIP_STYLE,
+        valueFormatter: (value: number | string) => {
+            const v = typeof value === 'string' ? Number(value) : value;
+            if (!Number.isFinite(v)) return String(value);
+            return formatValueByUnit(v as number, dom, 'tooltip', hint);
+        },
+    };
+}
+
+// Re-export for tests / other callers if they want the same formatting.
+export { humanizeColumnName, formatValueByUnit };
+
 // ── Main builder ──────────────────────────────────────────────────────────────
 
 /**
@@ -240,10 +309,10 @@ export function buildEChartsOption(
             const d = extractCategorySeries(columns, rows);
             if (!d) return null;
             return {
-                tooltip: TOOLTIP_STYLE,
+                tooltip: tooltipWithFormatter(d.series),
                 legend: d.series.length > 1 ? LEGEND_STYLE : undefined,
                 grid: { ...GRID_STYLE, left: '20%' },
-                xAxis: { type: 'value' },
+                xAxis: { type: 'value', axisLabel: axisFormatterForSeries(d.series) },
                 yAxis: { type: 'category', data: d.categories },
                 series: d.series.map((s, i) => ({
                     name: s.name,
@@ -260,11 +329,11 @@ export function buildEChartsOption(
             const d = extractCategorySeries(columns, rows);
             if (!d) return null;
             return {
-                tooltip: TOOLTIP_STYLE,
+                tooltip: tooltipWithFormatter(d.series),
                 legend: d.series.length > 1 ? LEGEND_STYLE : undefined,
                 grid: GRID_STYLE,
                 xAxis: { type: 'category', data: d.categories },
-                yAxis: { type: 'value' },
+                yAxis: { type: 'value', axisLabel: axisFormatterForSeries(d.series) },
                 series: d.series.map((s, i) => ({
                     name: s.name,
                     type: 'bar' as const,
@@ -280,11 +349,11 @@ export function buildEChartsOption(
             const d = extractCategorySeries(columns, rows);
             if (!d) return null;
             return {
-                tooltip: TOOLTIP_STYLE,
+                tooltip: tooltipWithFormatter(d.series),
                 legend: d.series.length > 1 ? LEGEND_STYLE : undefined,
                 grid: GRID_STYLE,
                 xAxis: { type: 'category', data: d.categories },
-                yAxis: { type: 'value' },
+                yAxis: { type: 'value', axisLabel: axisFormatterForSeries(d.series) },
                 series: d.series.map((s, i) => ({
                     name: s.name,
                     type: 'line' as const,
@@ -300,11 +369,11 @@ export function buildEChartsOption(
             const d = extractCategorySeries(columns, rows);
             if (!d) return null;
             return {
-                tooltip: TOOLTIP_STYLE,
+                tooltip: tooltipWithFormatter(d.series),
                 legend: d.series.length > 1 ? LEGEND_STYLE : undefined,
                 grid: GRID_STYLE,
                 xAxis: { type: 'category', data: d.categories },
-                yAxis: { type: 'value' },
+                yAxis: { type: 'value', axisLabel: axisFormatterForSeries(d.series) },
                 series: d.series.map((s, i) => ({
                     name: s.name,
                     type: 'line' as const,

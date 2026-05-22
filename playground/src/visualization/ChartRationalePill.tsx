@@ -35,6 +35,18 @@ export interface ChartRationalePillProps {
     readonly className?: string;
     /** Optional data-testid override. Default `pp-chart-info-button`. */
     readonly testId?: string;
+    /**
+     * 2026-05-22 G4 — click-to-switch handler. When provided AND a warning
+     * carries a `suggestedView` field, the "Try: X" label inside the
+     * warning card renders as a clickable button that fires this callback
+     * with the suggested view label (e.g. "KPI tile", "Matrix view",
+     * "Table with sorting"). The parent maps the label to a ChartKind and
+     * calls its own setChartType. We don't auto-route — explicit user
+     * action only, per industry consensus (Tableau / Power BI / Looker /
+     * ThoughtSpot all suggest-then-apply, never silently swap).
+     * Sources: docs/research/EXTERNAL_REFERENCES.md (G4 entry).
+     */
+    readonly onSuggestedViewClick?: (suggestedView: string) => void;
 }
 
 const WARNING_PALETTE: Readonly<Record<string, { bg: string; border: string; icon: string }>> = Object.freeze({
@@ -153,16 +165,47 @@ export function ChartRationalePill(props: ChartRationalePillProps): React.ReactE
                                         </div>
                                         <div style={{ fontSize: 11, lineHeight: 1.45 }}>{w.explanation}</div>
                                         {w.suggestedView && (
-                                            <div
-                                                style={{
-                                                    marginTop: 4,
-                                                    fontSize: 11,
-                                                    fontStyle: "italic",
-                                                    color: "var(--pp-text-muted, #6b7280)",
-                                                }}
-                                            >
-                                                Try: <strong>{w.suggestedView}</strong>
-                                            </div>
+                                            props.onSuggestedViewClick ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        props.onSuggestedViewClick!(w.suggestedView!);
+                                                        setOpen(false);
+                                                    }}
+                                                    data-testid="pp-chart-info-switch-view"
+                                                    style={{
+                                                        marginTop: 6,
+                                                        padding: "4px 10px",
+                                                        fontSize: 11,
+                                                        fontWeight: 600,
+                                                        color: palette.border,
+                                                        background: "var(--pp-surface, #ffffff)",
+                                                        border: `1px solid ${palette.border}`,
+                                                        borderRadius: 4,
+                                                        cursor: "pointer",
+                                                        display: "inline-flex",
+                                                        alignItems: "center",
+                                                        gap: 4,
+                                                    }}
+                                                    title={`Switch to ${w.suggestedView}`}
+                                                    aria-label={`Switch to ${w.suggestedView}`}
+                                                >
+                                                    Switch to {w.suggestedView}
+                                                    <span aria-hidden="true">→</span>
+                                                </button>
+                                            ) : (
+                                                <div
+                                                    style={{
+                                                        marginTop: 4,
+                                                        fontSize: 11,
+                                                        fontStyle: "italic",
+                                                        color: "var(--pp-text-muted, #6b7280)",
+                                                    }}
+                                                >
+                                                    Try: <strong>{w.suggestedView}</strong>
+                                                </div>
+                                            )
                                         )}
                                     </div>
                                 );

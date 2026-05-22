@@ -8519,6 +8519,40 @@ function GenieChart(props: { columns: string[]; rows: any[][]; preferredChart?: 
                     rows={props.rows}
                     pickedKind={chartType}
                     popoverPlacement="below-right"
+                    onSuggestedViewClick={(suggestedView) => {
+                        // 2026-05-22 G4 — click-to-switch handler.
+                        // Maps the warning's `suggestedView` string (free-form
+                        // human label like "KPI tile" / "Matrix view") to a
+                        // ChartKind that GenieChart's <select> understands.
+                        // Industry consensus is suggest-then-apply, never auto-
+                        // route; the user must click to opt in (see
+                        // docs/research/EXTERNAL_REFERENCES.md G4 entry).
+                        const lower = String(suggestedView || "").toLowerCase();
+                        // "table" isn't a chart kind in the picker; the
+                        // closest fit when the warning says "Matrix view" /
+                        // "Table with sorting" is to keep the chart but
+                        // surface the data tab — out of scope here, so we
+                        // map both back to KPI. The user can still switch
+                        // to the Table tab via the message-level tabs.
+                        const next: ChartKind | null =
+                            /\bkpi\b|\btable\b|\bmatrix\b/.test(lower) ? "kpi" :
+                            /\bbar\b/.test(lower) ? "bar" :
+                            /\bcolumn\b/.test(lower) ? "column" :
+                            /\bline\b/.test(lower) ? "line" :
+                            /\barea\b/.test(lower) ? "area" :
+                            /\bpie|donut\b/.test(lower) ? "donut" :
+                            /\bscatter\b/.test(lower) ? "scatter" :
+                            /\bheatmap\b/.test(lower) ? "heatmap" :
+                            /\btreemap\b/.test(lower) ? "treemap" :
+                            /\bfunnel\b/.test(lower) ? "funnel" :
+                            /\bpareto\b/.test(lower) ? "pareto" :
+                            /\bwaterfall\b/.test(lower) ? "waterfall" :
+                            /\bsparkline\b/.test(lower) ? "sparkline" :
+                            /\bgauge\b/.test(lower) ? "gauge" :
+                            /\bradar\b/.test(lower) ? "radar" :
+                            null;
+                        if (next) setChartType(next);
+                    }}
                 />
             </div>
             {renderEChartsBody(chartType, props.columns, props.rows, dataShape)}

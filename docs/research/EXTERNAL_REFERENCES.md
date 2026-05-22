@@ -10,8 +10,69 @@
 
 ## Topic index (newest first)
 
+- [2026-05-22 — Chart axis label humanization + value formatting (G2)](#2026-05-22--chart-axis-label-humanization--value-formatting-g2)
+- [2026-05-22 — Auto-route vs click-to-switch when chart shape is wrong (G4)](#2026-05-22--auto-route-vs-click-to-switch-when-chart-shape-is-wrong-g4)
+- [2026-05-22 — Azure Databricks Apps enterprise installation guide](#2026-05-22--azure-databricks-apps-enterprise-installation-guide)
 - [2026-05-22 — Executive briefing card patterns (Ask Pulse narrative regression)](#2026-05-22--executive-briefing-card-patterns-ask-pulse-narrative-regression)
 - [2026-05-22 — Chart rationale popover design (data-shape-aware narrative + warnings)](#2026-05-22--chart-rationale-popover-design-data-shape-aware-narrative--warnings)
+
+---
+
+## 2026-05-22 — Chart axis label humanization + value formatting (G2)
+
+**Context.** Ask Pulse Chart tab renders raw SQL column names like `prev_order_count`, `sales_change_pct`, `margin_change_pp` in legends + axes; values display as raw floats (`0.05747126436781609`). Most of these are Genie-invented SQL aliases (not stable DB columns), so backend-only solutions don't fully cover the case. Research scope: industry humanization conventions + value formatting per unit type.
+
+### Industry humanization + formatting sources
+
+| URL (signature) | Title / publisher | One-line takeaway | Applied to |
+|---|---|---|---|
+| https://help.tableau.com/current/pro/desktop/en-us/data_clean_adm.htm | Tableau — Field Type Detection and Naming Improvements | Auto-converts underscores to spaces + Title Case; force-uppercases short letter-only tokens (`QTY`). Tableau-style: don't expand prefixes you can't prove. | Algorithmic fallback (tier 3) — snake_case → Title Case |
+| https://docs.thoughtspot.com/cloud/10.8.0.cl/worksheets | ThoughtSpot Cloud — Worksheets | Automatic Title Case + underscore replacement on column add. Also auto-generates synonyms for NL search. | Synonym layer (future enhancement) |
+| https://cloud.google.com/looker/docs/reference/param-field-label | Looker — `label` for fields | First-class label/synonym field on every column; defaults to field name if author hasn't supplied one. Labels are authorial, not algorithmic. | Backend (UC comment) path |
+| https://tabulareditor.com/blog/naming-conventions-for-power-bi-semantic-models | Tabular Editor — Naming Conventions for Power BI Semantic Models | Recommended pattern: `<Metric> <Modifier> <Unit?>` (e.g. "Sales YoY Change", "Gross Margin %"). Modifier first, unit last. | Registry entries for `_yoy`/`_qoq`/`_change`/`_pct` |
+| https://learn.microsoft.com/en-us/power-bi/natural-language/q-and-a-tooling-advanced | Microsoft Learn — Edit Q&A Linguistic Schema | Power BI Q&A uses a linguistic schema (synonyms + labels) authored alongside the model. | Backend semantic-model parallel path |
+| https://docs.sqlbi.com/dax-style/dax-naming-conventions | SQLBI — DAX Naming Conventions | YoY/QoQ/MoM/WoW/YTD/QTD/MTD as standard recognized acronyms — preserve casing. | Registry casing rules |
+| https://service-manual.ons.gov.uk/content/numbers/percentages | ONS Service Manual — Percentages and Percentage Points | "Percentage points" in narrative; " pp" compressed for chart labels. Always show unit somewhere. | Value formatter for `_pp` suffix |
+| https://www.datawrapper.de/academy/custom-number-formats-that-you-can-display-in-datawrapper | Datawrapper — Custom Number Formats | `0.0%` for percent, `$0,0.[00]a` for abbreviated currency, `123.4k` for big counts. Always show the unit. | Value formatter targets |
+| https://d3js.org/d3-format | D3 — d3-format spec | De-facto standard for format-spec mini-language; ECharts wraps similar conventions in `formatter`. | Format string syntax for `axisLabel.formatter` |
+| https://docs.getdbt.com/best-practices/how-we-style/1-how-we-style-our-dbt-models | dbt — How we style our dbt models | Friendly form in `meta:` / `description:` YAML; BI layer reads it. | Long-term backend parallel path |
+
+### Synthesis takeaway
+
+- **Three-tier cascade**: (1) Registry of common analytics tokens (`prev → Prior`, `pct → %`, `yoy → YoY`, `cnt → Count`, `amt → Amount`, `pp → pp`) — deterministic, audit-friendly, zero LLM cost. (2) LLM-emitted `columnLabels: { raw: friendly }` map — opt-in, validator-gated. (3) Algorithmic snake → Title Case fallback — guarantees no raw `prev_order_count` ever displays.
+- **Value formatting per unit** keyed off the same suffix registry: `_pct/_rate` → d3 `.1%` (`0.057 → 5.7%`); `_pp` → `+.1f pp`; `_amt/_revenue/_cost` → `$,.0f` with SI prefix on axes; `_count/_qty/_cnt` → `,.0f`.
+- **Gold mine**: PulsePlay's `chartAutoPick.ts` already has `detectColumnUnit()` + `UNIT_LABELS` from the chart-rationale upgrade. Currently only used in popover text; needs wiring into `buildEChartsOption.ts` axis + tooltip formatters.
+- **Brutal-honesty caveat**: Without a semantic model, PulsePlay cannot perfectly distinguish `_change` (delta) from `_change_pct` (ratio) from `_change_pp` (already in percentage points). Registry MUST encode all three explicitly; ambiguous columns get a no-transform passthrough rather than a wrong guess.
+
+---
+
+## 2026-05-22 — Auto-route vs click-to-switch when chart shape is wrong (G4)
+
+**Context.** Ask Pulse chart-rationale popover currently emits informational warnings like "Only 1 row of data — KPI tile shows the value more clearly. Try: KPI tile" but offers no clickable action. The question: silent auto-route to suggested view, OR add a one-click button? Research scope: industry conventions + UX research on auto-switching trust.
+
+### Industry chart-suggestion sources
+
+| URL (signature) | Title / publisher | One-line takeaway | Applied to |
+|---|---|---|---|
+| https://help.tableau.com/current/pro/desktop/en-us/buildauto_showme.htm | Tableau — Use Show Me to Start a View | "Show Me doesn't automatically switch chart types when data changes." Highlights suggested chart in orange outline; user clicks to apply. | Decision against auto-route |
+| https://docs.thoughtspot.com/6.0/end-user/search/lock-chart-type.html | ThoughtSpot — Disable automatic selection of chart type | Auto-picks "best fit" on FIRST render only; explicit lock once user overrides. "Disable automatically select my chart" setting. | Stickiness pattern (session-scoped, not cross-session) |
+| https://learn.microsoft.com/en-us/power-bi/visuals/power-bi-visualization-smart-narrative | Microsoft Learn — Smart Narrative Visual | "Try: KPI card" surfaces as text/button in Copilot pane; never silently swaps a visual. | Click-to-switch button pattern |
+| https://support.google.com/looker-studio/faq/7219787 | Looker Studio Troubleshooting (data shape mismatch) | Shows error empty state on mismatch; user picks from chart catalog manually. No auto-suggest button in the warning. | Confirms "user picks, not the system" |
+| https://vizml.media.mit.edu/assets/2019-VizML-CHI.pdf | VizML (CHI 2019) — ML Approach to Visualization Recommendation | Academic — ML-based viz recommendation; emphasizes the human-in-the-loop principle for AI-suggested charts. | Justification for keeping user in control |
+| https://idl.cs.washington.edu/files/2023-Draco2-VIS.pdf | Draco 2 — Extensible Platform to Model Visualization Design | Modeling viz design; same principle of suggest-then-apply. | Theoretical backing |
+| https://blog.logrocket.com/ux-design/user-preference-settings-ai-powered-designs | LogRocket — How much choice should we give users in AI-powered designs? | "UX designers should offer ways to override or adjust AI-predicted user interactions." | Override-ability is a user right |
+| https://docs.thoughtspot.com/software/10.1.0.sw/chart-types | ThoughtSpot — Chart Types | Inventory of chart types + when each fits. | Reference for suggestedView → ChartKind mapping |
+| https://www.datawrapper.de/charts | Datawrapper — Charts overview | Opinionated chart selection at CREATION only; never re-routes mid-edit. | Confirms "no mid-edit auto-switch" |
+| https://tabulareditor.com/blog/kpi-card-best-practices-dashboard-design | Tabular Editor — Better KPI Visualizations in Power BI | KPI card best practices — when KPI is the right choice over a chart. | KPI-tile suggestion contexts |
+| https://zapier.com/blog/turn-off-smart-compose/ | Zapier — How to turn off Smart Compose | Gmail Smart Compose UX: Tab to accept, keep typing to ignore. Suggest-then-apply, never apply-then-ask-forgiveness. | Pattern parallel to click-to-switch |
+
+### Synthesis takeaway
+
+- **No major BI tool silently auto-switches charts**. Tableau, Power BI, Looker, ThoughtSpot, Datawrapper all explicitly chose against this; they had the same option.
+- **Robust pattern**: suggest → one-click apply → easy undo. Mirrors Gmail Smart Compose (Tab to accept).
+- **Stickiness rule**: respect explicit user override for the session/conversation; re-evaluate on a fresh conversation.
+- **Severity gradient**: implicit pattern is "escalate the affordance, not the automation" — info = label only, caution = button, error = forced empty state with manual CTA. Never auto-switch.
+- **PulsePlay recommendation locked**: click-to-switch button inside warning card. `suggestedView` text becomes `<button>` that calls `setChartType(...)` on the parent. User-confirmed direction 2026-05-22.
 
 ---
 
@@ -97,3 +158,24 @@ When a research agent returns web findings:
 5. **Update the topic index** at the top.
 
 If a URL turns out to be dead, broken, or wrong, add a `*[verified-dead 2026-MM-DD]*` annotation but do not remove — the dead URL is itself evidence.
+
+---
+
+## 2026-05-22 — Azure Databricks Apps Enterprise Installation Guide
+
+**Context.** Rajesh asked for a single installation guide after the first live PulsePlay Databricks Apps deploy was not straightforward. A research agent inspected the local deploy guide, long-form lessons, app manifest, and older proxy-only README while the main session verified current Azure Databricks Apps docs. The result is the refreshed [DEPLOY_DATABRICKS_APP.md](../DEPLOY_DATABRICKS_APP.md) plus a superseded signpost in [proxy/README.databricks-app.md](../../proxy/README.databricks-app.md).
+
+| URL (signature) | Title / publisher | One-line takeaway | Applied to |
+|---|---|---|---|
+| https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/ | Microsoft Learn — Azure Databricks Apps overview | Apps run on Databricks serverless infrastructure, integrate with UC/SQL/OAuth, are billed while running, and require Premium workspace support. | Prerequisites and scope |
+| https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/configure-env | Microsoft Learn — Set up Databricks Apps workspace and development environment | Workspace must be in a serverless-supported region and network policy must allow outbound access to `*.databricksapps.com`; CLI 0.229+ required. | Enterprise prerequisites and network blockers |
+| https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/key-concepts | Microsoft Learn — Key concepts in Databricks Apps | App resources are environment-specific and app permissions are separate from app/user authorization. | Auth model and resource ownership |
+| https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/deploy | Microsoft Learn — Deploy a Databricks app | Git deploys can target branch, tag, or commit; private repos require SP Git credential; troubleshooting calls out env/resource resolution and Private Link egress. | Create/deploy sequence |
+| https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/app-runtime | Microsoft Learn — Configure app execution with app.yaml | `app.yaml` owns `command` and `env`; apps must receive runtime config through env/resource references. | `app.yaml` guidance |
+| https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/environment-variables | Microsoft Learn — Define environment variables in a Databricks app | Use `valueFrom` for resource-backed values; secrets should never be hardcoded in app config. | Secret/resource binding section |
+| https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/resources | Microsoft Learn — Add resources to a Databricks app | Add resources through app configuration/UI or bundles; app SP needs least-privilege access to existing resources. | Resource binding stance |
+| https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/auth | Microsoft Learn — Configure authorization in a Databricks app | User authorization is public preview and requires scopes/consent; app authorization uses the app SP. | Auth model decision table |
+| https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/permissions | Microsoft Learn — Configure permissions for a Databricks app | `CAN USE` / `CAN MANAGE` app permissions do not equal data authorization; apps cannot be anonymous/public. | Permission and access checklist |
+| https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/monitor | Microsoft Learn — Logging and monitoring for Databricks Apps | Use stdout/stderr, external logging/APM where needed, and system audit tables for app security events. | Ops checklist |
+| https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/best-practices | Microsoft Learn — Best practices for Databricks Apps | App compute is for UI/control plane; bind to `0.0.0.0:$DATABRICKS_APP_PORT`, avoid privileged operations, minimize cold start. | Challenge matrix |
+| https://learn.microsoft.com/en-us/azure/databricks/resources/limits | Microsoft Learn — Azure Databricks resource limits | Enterprise resource limits differ from Free Edition; Databricks Apps quota is workspace-scoped. | Free Edition vs enterprise caution |
