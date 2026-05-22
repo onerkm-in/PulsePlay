@@ -5,6 +5,103 @@
 
 ---
 
+## 2026-05-22 - Chart rationale upgrade: data-shape-aware narrative + warnings (LIVE on Databricks Apps)
+
+**Scope.** Replaced the generic KB-rule blurb in the "Why did we pick this chart?" popover with a personalised, data-driven explanation. Always speaks about the auto-pick (no user-override comparison framing — per Rajesh's direction "picked X wrongly it should be Y only"). Implementation drew on four research signals: in-tree Explore-agent scan of the OLD `DwD_for_BI` reference + web research on Tableau/Power BI/Looker rationale patterns + Figma/Material Design tooltip-popover conventions + user-shared OLD reference screenshots (`D:\Working_Folder\Artifacts\Pulse_ref\*`).
+
+**What changed.**
+
+| File | Change |
+|---|---|
+| [`chartAutoPick.ts`](../playground/src/visualization/chartAutoPick.ts) | `UnitType` + `ColumnRange` types, `UNIT_LABELS`, `detectColumnUnit()` (currency/percentage/count/duration/ratio/generic — percentage/rate/margin patterns checked BEFORE currency so "Profit Margin" resolves to percentage, not currency), `analyzeColumnRanges()` for mixed-sign / scale detection. |
+| [`chartRationale.ts`](../playground/src/visualization/chartRationale.ts) | `ChartWarning` + `WarningSeverity` types; `summariseUnits()` / `buildDataShapeNarrative()` / `friendlyChartName()` / `suggestAlternativeViews()` / `generateWarnings()` with 8 templates (no-data, mixed-units, mixed-signs, too-many-rows, too-few-rows, donut-with-negatives, short-time-trend, clean). `buildChartRationale()` composes narrative + warnings + KB rule. |
+| [`ChartRationalePill.tsx`](../playground/src/visualization/ChartRationalePill.tsx) | Drop the user-override comparison branch; always render auto-pick rationale. Title → "Why did we pick this chart?". Warnings render in severity-coded amber/red/blue cards (Material Design caution-card convention). |
+| [`__tests__/chartRationale.test.ts`](../playground/src/visualization/__tests__/chartRationale.test.ts) | +32 cases covering unit detection, range analysis, narrative generation, warning templates, integration paths. |
+
+**Test + lint.** **1442/1442** playground tests pass (was 1410, +32 new), lint clean.
+
+**Deploy.** Commit `d81ef08` pushed to `codex/f5-g0-native-layout-2026-05-21`. Databricks Apps redeploy via `databricks apps deploy pulseplay --json '{"git_source":{"commit":"d81ef08"}}' --profile pulseplay` returned `state: SUCCEEDED, message: "App started successfully"` in ~10 s; `apps get` confirms `active_deployment.resolved_commit: d81ef08`, `app_status: RUNNING`, `compute_status: ACTIVE`. Live at https://pulseplay-7474646467214591.aws.databricksapps.com/.
+
+**Workflow rule established (memory).** Rajesh: *"for everything that you do going forward, make sure that you spawn multiple research agents to do check for more detailed reference and then we will brainstorm and resume the work"* — and explicitly *"for above spwan agents for bot[h] online and offline assessement and review"*. Saved to `memory/feedback_research_first.md` — multiple research agents in parallel across **OFFLINE** (in-tree code archaeology, user reference materials) **+ ONLINE** (industry best-practice search, design-system references) tracks before any non-trivial change.
+
+**Tripwires for next session.**
+
+- The OLD `DwD_for_BI` deep-scan (`docs/research/DWD_FOR_BI_DEEP_SCAN_2026-05-22.md`) found **~95% of OLD features are already ported** into `playground/src/pulse/`. Thread C scope was re-estimated from 15–25 hr to **3–5 hr of UI wiring**. Before any "we don't have X" claim about Pulse-port surface, grep `playground/src/pulse/` first.
+- `databricks apps deploy --json` silently strips unknown fields. The only working git ref field is `git_source.commit` (NOT `git_source.revision` and NOT alongside `source_code_path`). Don't include `git_repository` in the deploy payload — that lives at the app level.
+- `origin/main` is currently **diverged** from `codex/f5-g0-native-layout-2026-05-21` (each has commits the other lacks). The `feedback_keep_main_current.md` "fast-forward and push main" step is on hold until a planned reconciliation — do NOT force-push main.
+
+**Next.** Live testing of the upgraded popover on Ask Pulse Chart tab + NativeCanvas. Awaiting user direction on the remaining UI-wiring backlog (AI-Assisted mode trigger reachability, source of the 3 custom sections, AI Insights progress placement, frame compaction, BI screen reloads).
+
+---
+
+## 2026-05-22 - Tough visible UI regression + 1000-question smoke batch
+
+**Scope.** Real in-app Browser plugin run against the local Vite playground and proxy, with the browser kept visible for the user. Surfaces covered: AI Insights, Ask Pulse, Dashboard/native canvas, Custom appearance, and Power BI forced-vendor preview. Evidence lives in [`docs/evidence/deep-regression-2026-05-22/`](evidence/deep-regression-2026-05-22/).
+
+**Visible UI results.**
+
+| Area | Result |
+|---|---|
+| AI Insights | PASS: Pulse-mode AI Insights loaded and exposed the Adjust menu; custom suggestions were present but disabled while no eligible action was selected. |
+| Ask Pulse | PASS: smoke-profile v0 path submitted deterministic questions and rendered completed answers; Pulse-mode Ask Pulse handled guidance-heavy prompts visibly beside the PBI panel. |
+| Dashboard/native | PASS: governed smoke answer rendered to native canvas + fusion card when the BI panel was mounted before Ask completion. |
+| Custom appearance | PASS: Settings -> Preferences -> Appearance -> Custom enabled color fields, showed unsaved state, saved, and cleared dirty state. |
+| Power BI | PASS as routing/preview only: secure dummy `app.powerbi.com/reportEmbed` URL mounted the Power BI developer-tools adapter and iframe in forced-vendor mode. Not a claim of authenticated report integration. |
+| Responsive | PASS for no horizontal overflow in the observed mobile viewport; note below for narrow prompt-chip wrapping. |
+
+**Prompt-variation add-on.** Five visible Ask Pulse prompts changed the guidance style:
+
+1. Unspecified "Power BI dashboard trend" executive prompt: correctly refused to bluff and said the request was not answerable from the available Sample Superstore schema.
+2. Grounded executive brief: returned 2017 vs 2016 sales/profit, identified West/Technology, and gave one leadership action.
+3. Risk-reviewer guidance: identified West return rate risk and Technology elevated returns without inventing fields.
+4. What-if guidance: framed a flat-sales / +1pp return-rate scenario, named missing inputs, and gave a mitigation.
+5. Accuracy guardrails: separated known totals from unknown breakdowns and called out that deeper visual state needs Power BI.
+
+Evidence files: [`batch-results.json`](evidence/deep-regression-2026-05-22/batch-results.json), [`prompt-variation-results.json`](evidence/deep-regression-2026-05-22/prompt-variation-results.json), [`prompt-variation-ask-pulse.png`](evidence/deep-regression-2026-05-22/prompt-variation-ask-pulse.png), and [`index.html`](evidence/deep-regression-2026-05-22/index.html).
+
+**Evidence-quality audit.** A follow-up audit caught that variant 1 originally stored a curated summary while variants 2-5 stored DOM excerpts. Corrected in-place: all five variants now carry `evidenceType: "dom-excerpt"`, and variant 1 contains the actual refusal text from the visible Ask Pulse DOM.
+
+**1000-question batch.** A local isolated proxy instance exercised the real `/assistant/conversations/start` Express route with the smoke-fixture profile. The generated matrix crossed AI Insights, Ask Pulse, Dashboard, Custom, Power BI, and complex scenario dimensions (trend, variance, ranking, outlier, risk, what-if, cohort, RFM, Pareto, forecast). Result: **1000/1000 passed**, **0 failed**, **1000 unique `smoke-msg-<hash>` ids**, duration **4.962s**, p50 **225ms**, p95 **378ms**, max **449ms**. Every response was `COMPLETED`, echoed the exact prompt, carried G3 governance (`enforced:true`, `authority:"mock"`, `policyVersion:"g3-v1"`), and returned the 4-row `period/revenue` fixture.
+
+**Honest findings.**
+
+- Asking while the native BI panel is not mounted produces a sidebar answer only; a second ask after mounting both panes renders canvas + fusion as expected. That is a lifecycle/visibility behavior worth deciding, not a proxy failure.
+- The Power BI pass proves vendor routing and iframe preview surface only. It does not prove authenticated Power BI report loading or SDK event bridge behavior.
+- Narrow Ask Pulse layout shows awkward wrapping in follow-up prompt chips; no horizontal overflow was observed, but polish is still needed.
+- Dark mode remains the known F1 Theme Studio gap from the earlier regression sweep.
+
+---
+
+## 2026-05-22 - 10-scenario browser regression sweep recorded
+
+**Scope.** User-provided browser regression report against commit `f11f387` with the smoke-fixture profile, real proxy, real Vite, and browser-driven UI validation. I did not rerun the browser sweep in this follow-up; I accepted it after the required external-LLM hygiene check (`git diff HEAD` was empty) and recorded the result so the next session does not lose the evidence.
+
+**Result.** Regression-clean for the shipped claims:
+
+| Scenario | Result |
+|---|---|
+| S1 first-run wizard | PASS: modal semantics, progress aside, role/vendor/connector radiogroups, smoke profile label, skip persistence |
+| S2 Ask Pulse -> attested envelope -> native canvas | PASS: completed sidebar entry, ECharts canvas painted, fusion card mounted, one shared `smoke-msg-f6a576913e5f` result id |
+| S3 G3d governance fail-closed | PASS: missing/invalid attestation blocked; valid attestation accepted; renderer-only command contract rejected `getStatus` |
+| S4 surface switching + `?surface=` deep link | PASS: deep link previews valid surfaces, invalid values fall back safely, persisted choice unaffected by URL preview |
+| S5 layout mode migration | PASS: `both`, `mix`, `aiOnly`, `biOnly`; `biOnly` auto-shifts active surface to `bi-viz` |
+| S6 G5 BI surface resolver | PASS: `auto` without embed config -> native (`auto-no-vendor-config`), `vendor` -> powerbi, `native` -> native |
+| S7 sustainability indicator | PASS: ready/lean/green/moderate/heavy/very-heavy thresholds match 2k/8k/20k/50k contract; reset clears session counter |
+| S8 responsive + dark-mode probe | PASS for mobile/tablet/desktop fit; honest non-claim: `prefers-color-scheme: dark` is not honored by PulsePlay-native styles yet |
+| S9 Settings Save/Discard/Reset truth | PASS: dirty Save bar, Discard restores, Save persists across reload |
+| S10 proxy PX1 + governance contract | PASS: health/capabilities/clients-compat, smoke conversation start, G3 attestation shape, valid `X-Pulse-Client` echo, invalid profile fail-closed |
+
+**Findings locked.**
+
+- Console error budget: zero errors across the run.
+- Failed `/api/*` requests: only intentional 400s for empty smoke-fixture content and invalid profile; no unexpected API failures.
+- Dark mode remains the known F1 gap, not a regression. `docs/THEME_STUDIO.md` already locks the future color-mode contract, but native styles still do not subscribe to it.
+- Chart policy tripwire: the `period + revenue` smoke fixture currently auto-picks a donut for 4 categorical rows. A line chart would be more honest for quarterly trend data, but that is a chart-pick policy change, not an FW1 regression.
+
+**Follow-up this session.** Cleaned stale comments in [`proxy/server.js`](../proxy/server.js) and [`playground/scripts/shell-smoke-proxy.mjs`](../playground/scripts/shell-smoke-proxy.mjs) that still claimed the fixture auto-picked a line chart.
+
+---
+
 ## 2026-05-21 - Packaged desktop visible UI smoke found/fixed /api POST hang
 
 **Scope.** Real headed Chrome smoke against the packaged `out/install/PulsePlay.exe`, using the smoke-fixture profile and the desktop app server. This was not just a screenshot pass: it exercised Settings -> Preferences Save, Ask Pulse submit, the bundled `/api -> proxy` hop, FW1 AISidebar -> native-canvas dispatch, ECharts paint, fusion-lite commentary, and shared `data-result-id` binding.
