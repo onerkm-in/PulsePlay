@@ -10,6 +10,9 @@
 
 ## Topic index (newest first)
 
+- [2026-05-23 — Enterprise UX architecture blueprint and typeahead system](#2026-05-23--enterprise-ux-architecture-blueprint-and-typeahead-system)
+- [2026-05-23 — Flow limits and multiplicity simplification](#2026-05-23--flow-limits-and-multiplicity-simplification)
+- [2026-05-23 — Business Context claims audit and source hardening](#2026-05-23--business-context-claims-audit-and-source-hardening)
 - [2026-05-23 — Persona + First-Launch Architecture for PulsePlay](#2026-05-23--persona--first-launch-architecture-for-pulseplay)
 - [2026-05-22 — PulsePlay end-to-end feature and journey research](#2026-05-22--pulseplay-end-to-end-feature-and-journey-research)
 - [2026-05-22 — Settings alignment observation + Figma VS Code handoff](#2026-05-22--settings-alignment-observation--figma-vs-code-handoff)
@@ -97,6 +100,54 @@
 The "clumsy" reaction is documented industry-wide and the fix shape is consensus. Three patterns to copy (sample insight above fold + Common Questions in sidebar + single high-affordance entry point) + three to avoid (wizard before value + configuration density + jargon-first labeling). Storage architecture (Logto 3-phase + per-user namespacing) is a known solved pattern, not new design work.
 
 **Decision pending user direction.** Implementation effort estimated at ~38-50 hours across 10 work items in [PERSONA_AND_FIRST_LAUNCH_ARCHITECTURE_2026-05-23.md](PERSONA_AND_FIRST_LAUNCH_ARCHITECTURE_2026-05-23.md).
+
+---
+
+## 2026-05-23 — Business Context claims audit and source hardening
+
+**Context.** User asked for several deep-research agents to study the claims behind the draft Business Context / pack-default implementation. Six read-only agents audited CPG, Retail, SaaS, ESG/sustainability, provenance/trust architecture, and Strategic Lens implementation shape. Consolidated audit: [BUSINESS_CONTEXT_CLAIMS_AUDIT_2026-05-23.md](BUSINESS_CONTEXT_CLAIMS_AUDIT_2026-05-23.md).
+
+### Claim validation sources
+
+| URL (signature) | Title / publisher | One-line takeaway | Applied to |
+|---|---|---|---|
+| https://ghgprotocol.org/corporate-standard | GHG Protocol — Corporate Standard | Provides requirements/guidance for corporate-level GHG inventories; correct source family for Scope 1/2/3 glossary, not packaging-circularity or software-efficiency claims. | CPG/ESG source ID correction |
+| https://ghgprotocol.org/scope_2_guidance | GHG Protocol — Scope 2 Guidance | Standardizes purchased electricity/steam/heat/cooling accounting and market/location-based Scope 2 treatment. | Scope 2 wording and source IDs |
+| https://ghgprotocol.org/corporate-value-chain-scope-3-standard | GHG Protocol — Corporate Value Chain Scope 3 Standard | Scope 3 covers 15 upstream/downstream categories, but category mapping depends on boundary and accounting policy. | Scope 3 caveats |
+| https://developers.google.com/analytics/devguides/collection/ga4/reference/events | Google Analytics for Developers — Recommended events | GA4 supports ecommerce event names/parameters; it is not authority for ROAS/CAC/LTV formulas. | Retail growth-marketing claim narrowing |
+| https://support.google.com/analytics/answer/12200568 | Google Analytics Help — Set up ecommerce events | Confirms ecommerce events and parameters are collected for reporting when configured. | GA4 taxonomy validation |
+| https://www.saasmetricsboard.com/standards | SaaS Metrics Standards Board — Standards | Publishes and tracks SaaS metric standards/status; also shows some metrics such as CLTV-to-CAC are in progress, not final standards. | SaaS source tiering |
+| https://www.saasmetricsboard.com/annual-recurring-revenue | SaaS Metrics Standards Board — Annual Recurring Revenue | ARR formula/source page; useful as SaaS operating metric authority, not GAAP accounting authority. | ARR correction |
+| https://info.sapphireventures.com/2024-keybanc-capital-markets-and-sapphire-ventures-saas-survey | KeyBanc Capital Markets & Sapphire Ventures — 2024 SaaS Survey | Useful benchmark/survey source, not formula authority for NRR or ARR. | SaaS benchmark role |
+| https://greensoftware.foundation/standards/sci/ | Green Software Foundation — Software Carbon Intensity | SCI is a software carbon-intensity methodology; it does not define PUE. | SaaS sustainability source split |
+| https://www.thegreengrid.org/node/372 | The Green Grid — Power Usage Effectiveness | PUE is total data-center energy divided by ICT equipment energy. | PUE source correction |
+| https://sciencebasedtargets.org/step-by-step-guide/ | Science Based Targets initiative — Target services | Companies submit targets for validation; PulsePlay can map to validated targets but cannot validate actions itself. | SBTi wording |
+| https://www.wbcsd.org/actions/circular-transition-indicators/ | WBCSD — Circular Transition Indicators | CTI is a universal framework/tool for measuring circular performance; better source family for packaging/circularity than GHG Scope 3 alone. | Retail/CPG packaging circularity |
+
+### Synthesis takeaway
+
+Business Context is the right simplification, but the current draft claim layer overstates confidence. Treat pack-generated defaults as draft until source IDs resolve to real source registers, confidence labels stop defaulting to `sme-reviewed`, and a validator blocks citation downgrades, invented IDs, and unsupported benchmarks.
+
+---
+
+## 2026-05-23 — Flow limits and multiplicity simplification
+
+**Context.** User asked to explore all limits, what else can be added, how flows can be simplified, what the end-user journey should become, and how to simplify multiplicity. Synthesis document: [FLOW_LIMITS_AND_MULTIPLICITY_SIMPLIFICATION_2026-05-23.md](FLOW_LIMITS_AND_MULTIPLICITY_SIMPLIFICATION_2026-05-23.md).
+
+### UX and interaction sources
+
+| URL (signature) | Title / publisher | One-line takeaway | Applied to |
+|---|---|---|---|
+| https://atlassian.design/components/empty-state/ | Atlassian Design System — Empty state | Empty states describe what the user can do next. | Sample/finished-insight-first landing and recovery states |
+| https://learn.microsoft.com/en-us/windows/powertoys/command-palette/overview | Microsoft Learn — PowerToys Command Palette | Command palettes keep frequent commands, search, and actions one keystroke away for power users. | PulsePlay global command palette recommendation |
+| https://learn.microsoft.com/en-us/windows/apps/develop/input/access-keys | Microsoft Learn — Access keys | Keyboard access improves usability and accessibility for users who navigate without a pointer. | Keyboard-first Authoring and command-surface requirements |
+| https://primer-docs-preview.github.com/product/components/dialog/guidelines/ | GitHub Primer — Dialog guidelines | Command palettes can be implemented as accessible dialogs with required title/close behavior and scrollable body. | Command palette modal anatomy |
+| https://docs.slack.dev/concepts/agent-design/ | Slack Developer Docs — Agent design | Agents must show up transparently, respect data boundaries, and use appropriate guardrails. | Trust footer, context-quality badge, owner-aware blocked states |
+| https://www.atlassian.com/blog/design/designing-atlassians-new-navigation | Atlassian — Designing the new navigation | Navigation simplification requires realistic prototyping, consistent action placement, accessibility, responsiveness, and content rules. | AppShell / primary-nav simplification and route unification |
+
+### Synthesis takeaway
+
+The most valuable additions are not more selectors. They are context visibility, command access, source proof, generated-default review, owner-aware recovery, and a non-blocking Viewer-first landing. Multiplicity should collapse by making Business Context the parent and generated defaults the child.
 
 ---
 
@@ -760,3 +811,42 @@ The Settings redesign should be structural first: Setup Home task list, parent m
 | https://pair.withgoogle.com/guidebook-v2/ | Google People + AI Guidebook | AI design patterns are organized around onboarding, explanation, trust calibration, control, and failure recovery. | AI onboarding and recovery questions |
 | https://www.ibm.com/design/ai/ethics/explainability/ | IBM Design for AI — Explainability | Users should understand when they are interacting with AI and be able to review why it made recommendations. | Evidence/source/freshness recommendations |
 | https://atlassian.design/foundations/tokens/design-tokens | Atlassian Design System — Design tokens explained | Tokens name reusable design decisions and support theming, responsive design, and consistent handoff. | Component primitive and token recommendation |
+
+---
+
+## 2026-05-23 — Enterprise UX Architecture Blueprint And Typeahead System
+
+**Context.** Rajesh asked for a world-class enterprise web application architecture, product design, UX/UI system, wireframe, typeahead, benchmarking, and Codex implementation blueprint. The result is [ENTERPRISE_UX_ARCHITECTURE_BLUEPRINT_2026-05-23.md](ENTERPRISE_UX_ARCHITECTURE_BLUEPRINT_2026-05-23.md).
+
+| URL (signature) | Title / publisher | One-line takeaway | Applied to |
+|---|---|---|---|
+| https://fluent2.microsoft.design/layout | Microsoft Fluent 2 — Layout | Spacing, proximity, and responsive reflow create relationships and preserve focus across screen sizes. | Global shell layout, context bar, responsive rules |
+| https://fluent2.microsoft.design/components/web/react/core/nav/usage | Microsoft Fluent 2 — Nav | Nav should be brief, high-level, scannable, and avoid deep nesting. | L0-L3 navigation model and primary nav cap |
+| https://fluent2.microsoft.design/accessibility | Microsoft Fluent 2 — Accessibility | Structure, focus management, contrast, zoom, and 320px reflow are baseline accessibility expectations. | A11y acceptance criteria |
+| https://www.microsoft.com/en-us/haxtoolkit/ | Microsoft HAX Toolkit | AI products should plan behavior across first use, normal use, failure, and long-term use. | Ask Pulse trust, recovery, and AI status grammar |
+| https://www.w3.org/WAI/ARIA/apg/patterns/combobox/ | WAI-ARIA APG — Combobox Pattern | Custom typeahead controls need correct roles, focus, and keyboard interaction. | Command palette accessibility contract |
+| https://atlassian.design/foundations/tokens/design-tokens/ | Atlassian Design System — Design Tokens | Tokens are single-source design decisions for theming, consistency, and code handoff. | `--pp-*` semantic token recommendation |
+| https://atlassian.design/components/empty-state | Atlassian Design System — Empty State | Empty states should describe the missing data and what the user can do next. | Empty/error/blocked state grammar |
+| https://linear.app/docs/conceptual-model | Linear Docs — Conceptual Model | Actions are available through buttons, shortcuts, contextual menus, and command menu. | Keyboard-first enterprise action model |
+| https://linear.app/docs/peek | Linear Docs — Peek Preview | Command menu items can support right-side quick preview without full navigation. | Typeahead `RightArrow` preview behavior |
+| https://www.notion.com/help/search | Notion Help — Search | Search combines quick jump, recents, AI search, and command-like access. | Result grouping and recents |
+| https://www.notion.com/help/keyboard-shortcuts | Notion Help — Keyboard Shortcuts | Slash commands and keyboard shortcuts reduce friction in creation and navigation. | `/` Ask-scoped command behavior |
+| https://vercel.com/docs/concepts/dashboard-features | Vercel Docs — Dashboard Features | Dashboard command menu supports keyboard navigation and common actions. | Global command surface |
+| https://vercel.com/changelog/dashboard-universal-search | Vercel Changelog — Universal Search | Universal search helps users find teams, projects, and pages from one entry point. | Assets/routes/settings unified search |
+| https://primer.style/product/components/action-list/ | GitHub Primer — ActionList | Action rows support leading/trailing visuals, keyboard shortcuts, selection, and accessible contrast. | Command result row component |
+| https://docs.stripe.com/stripe-apps/design | Stripe Apps — Design Your App | ContextView and SettingsView separate in-workflow context from configuration. | Viewer Experience vs Authoring Console split |
+| https://docs.stripe.com/stripe-apps/patterns | Stripe Apps — Design Patterns | Onboarding/settings patterns should be secure, intuitive, and clearly scoped. | Setup/Home and settings patterns |
+| https://slack.com/help/articles/201259356-Slash-commands-in-Slack | Slack Help — Shortcuts And Slash Commands | Slash commands let users take common actions from where they are. | Ask composer slash actions |
+| https://docs.slack.dev/surfaces/modals | Slack Developer Docs — Modals | Modals should capture focused interactions and preserve focus until submit/dismiss. | Modal vs drawer rules |
+| https://docs.databricks.com/gcp/en/workspace/genie | Databricks Docs — Genie Interface | Genie is a simplified business-user entry point for dashboards, natural-language questions, and apps. | Viewer-first AI/BI entry model |
+| https://docs.databricks.com/en/genie/talk-to-genie.html | Databricks Docs — Genie Spaces | Genie spaces include owners, tags, descriptions, and common questions. | Suggested questions and source context |
+| https://www.figma.com/resource-library/what-is-information-architecture/ | Figma — Information Architecture | IA organizes content and wayfinding so users understand where they are and where to go next. | Shell taxonomy and route map |
+| https://www.figma.com/resource-library/user-flow/ | Figma — User Flow | User flows map entry points, steps, decisions, and endpoints for a task. | Author and Viewer wireframes |
+| https://www.figma.com/resource-library/design-tokens/ | Figma — Design Tokens | Primitive, semantic, and component tokens keep design and code aligned. | Design system token hierarchy |
+| https://help.openai.com/en/articles/12515353-build-with-the-apps-sdk | OpenAI Help — Build With The Apps SDK | AI app experiences combine chat behavior, UI, backend connection, and safety/privacy expectations. | AI-native side-by-side app UI guidance |
+| https://openai.com/academy/projects/ | OpenAI Academy — Projects | Project-like context keeps source files, instructions, and chats together. | PulsePlay context grouping and trust strip |
+| https://www.algolia.com/doc/ui-libraries/autocomplete/introduction/what-is-autocomplete | Algolia Docs — What Is Autocomplete | Autocomplete can display search terms, results, products, pages, and actions to reduce typing and discovery effort. | Typeahead performance/result design |
+
+### Synthesis takeaway
+
+Enterprise-grade PulsePlay should be structured around a Viewer Experience, Authoring Console, and Command Surface. The command palette must be deterministic and fast first, AI-assisted second. Settings should become progressive Authoring, and every answer should carry the same source/scope/freshness/request-id trust grammar.

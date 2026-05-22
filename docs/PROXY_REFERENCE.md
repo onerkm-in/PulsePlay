@@ -156,9 +156,11 @@ Power BI embed tokens are minted only by the proxy. Required profile fields are 
 
 The route rejects browser-supplied `identities` / `effectiveIdentity` payloads and caches tokens by non-secret `(profile, workspace, report, dataset, access, identityHash)`.
 
-### 1.8 Power BI semantic-model (`profile.type === 'powerbi-semantic-model'`)
+### 1.10 Power BI semantic-model (`profile.type === 'powerbi-semantic-model'`)
 
 Added 2026-05-20 (Cycle 15). **Backend #10 — no LLM is invoked at any step.** PulsePlay probes the published Power BI dataset via INFO.* DAX functions, matches each user question to one of 4 deterministic DAX templates (top-n / aggregate-by / trend / total), executes the template through `executeQueries`, and renders the result as Markdown.
+
+For the deployer-facing setup guide, including tenant settings, RLS/OBO gaps, Q&A retirement risk, and the current env-only deployment blocker, see [POWERBI_DAX_QNA_ENABLEMENT.md](POWERBI_DAX_QNA_ENABLEMENT.md).
 
 | HTTP | Endpoint | Used by | Frequency |
 |---|---|---|---|
@@ -182,6 +184,8 @@ Added 2026-05-20 (Cycle 15). **Backend #10 — no LLM is invoked at any step.** 
 **Tenant setting required:** "Service principals can use Power BI APIs" must be ON in the Power BI admin portal.
 
 Every response from the deterministic conversations/start path emits `mode: "powerbi-deterministic", llmCallCount: 0` in both the JSON payload and the audit log. The Q&A embed surface uses Microsoft's NLP inside an iframe — that NLP runs in Microsoft's tenant; PulsePlay only mints the dataset-scoped embed token.
+
+**Known clean-tenant risk:** the current rich metadata probe uses INFO.* DAX functions, but Microsoft's current `executeQueries` documentation says INFO functions and DMV queries are not supported. Treat rich probe success as best-effort until the metadata path is replaced or made configurable.
 
 See [proxy/lib/powerbiDatasetClient.js](../proxy/lib/powerbiDatasetClient.js), [powerbiDaxTemplates.js](../proxy/lib/powerbiDaxTemplates.js), [powerbiQuestionMatcher.js](../proxy/lib/powerbiQuestionMatcher.js).
 

@@ -20,14 +20,26 @@
 | Current branch/state/test memory | [memory/project_state.md](memory/project_state.md) |
 | Latest session log | [HANDOVER.md](HANDOVER.md) |
 | Open work, ordered by impact | [AGENDA.md](AGENDA.md) |
+| **Simplification beast-mode decisions (T1-T7)** | [research/SIMPLIFICATION_BEAST_MODE_DECISIONS_2026-05-23.md](research/SIMPLIFICATION_BEAST_MODE_DECISIONS_2026-05-23.md) |
+| Simplified context and Authoring model | [research/SIMPLIFIED_CONTEXT_AND_AUTHORING_MODEL_2026-05-23.md](research/SIMPLIFIED_CONTEXT_AND_AUTHORING_MODEL_2026-05-23.md) |
+| Flow limits and multiplicity simplification | [research/FLOW_LIMITS_AND_MULTIPLICITY_SIMPLIFICATION_2026-05-23.md](research/FLOW_LIMITS_AND_MULTIPLICITY_SIMPLIFICATION_2026-05-23.md) |
+| Business Context claims audit | [research/BUSINESS_CONTEXT_CLAIMS_AUDIT_2026-05-23.md](research/BUSINESS_CONTEXT_CLAIMS_AUDIT_2026-05-23.md) |
+| Multi-agent all-areas deep study | [research/MULTI_AGENT_DEEP_STUDY_ALL_AREAS_2026-05-23.md](research/MULTI_AGENT_DEEP_STUDY_ALL_AREAS_2026-05-23.md) |
+| Enterprise UX architecture blueprint | [research/ENTERPRISE_UX_ARCHITECTURE_BLUEPRINT_2026-05-23.md](research/ENTERPRISE_UX_ARCHITECTURE_BLUEPRINT_2026-05-23.md) |
+| End-to-end feature and journey research | [research/PULSEPLAY_END_TO_END_FEATURE_AND_JOURNEY_RESEARCH_2026-05-22.md](research/PULSEPLAY_END_TO_END_FEATURE_AND_JOURNEY_RESEARCH_2026-05-22.md) |
 | 2-axis architecture and backend table | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | Proxy routes, profile shapes, OAuth/M2M | [PROXY_REFERENCE.md](PROXY_REFERENCE.md) |
 | Security guardrails | [SECURITY.md](SECURITY.md) |
 | Hosting choices and production topology | [HOSTING_OPTIONS.md](HOSTING_OPTIONS.md) |
+| Power BI DAX / Q&A enablement | [POWERBI_DAX_QNA_ENABLEMENT.md](POWERBI_DAX_QNA_ENABLEMENT.md) |
+| Azure App Service configuration challenges | [DEPLOY_AZURE_APP_SERVICE.md](DEPLOY_AZURE_APP_SERVICE.md) |
+| Azure App Service deep deployment findings | [research/AZURE_APP_SERVICE_DEPLOYMENT_FINDINGS_2026-05-22.md](research/AZURE_APP_SERVICE_DEPLOYMENT_FINDINGS_2026-05-22.md) |
 | Single-download artifact layout: web, PBIVIZ, desktop EXE | [adr/0010-artifact-strategy.md](adr/0010-artifact-strategy.md) |
 | Test coverage and honesty rules | [QUALITY.md](QUALITY.md) |
 | Roadmap tracks | [ROADMAP.md](ROADMAP.md) |
 | Settings IA and guardrails | [SETTINGS_SPEC.md](SETTINGS_SPEC.md) |
+| Settings alignment observation | [research/SETTINGS_ALIGNMENT_OBSERVATION_2026-05-22.md](research/SETTINGS_ALIGNMENT_OBSERVATION_2026-05-22.md) |
+| Settings progressive setup design brief | [research/SETTINGS_PROGRESSIVE_DESIGN_RESEARCH_2026-05-22.md](research/SETTINGS_PROGRESSIVE_DESIGN_RESEARCH_2026-05-22.md) |
 | Settings author/viewer UX scan | [SETTINGS_AUTHOR_VIEWER_UX_SCAN.md](SETTINGS_AUTHOR_VIEWER_UX_SCAN.md) |
 | Pulse PBI + desktop EXE cascade rules | [PULSE_SYNC.md](PULSE_SYNC.md) |
 | Knowledge plane | [KNOWLEDGE_BASE_ARCHITECTURE.md](KNOWLEDGE_BASE_ARCHITECTURE.md) |

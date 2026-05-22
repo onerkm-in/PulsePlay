@@ -467,6 +467,8 @@ Before any production pilot, require:
 |---|---|
 | [HOSTING_OPTIONS.md](HOSTING_OPTIONS.md) | Choosing the hosting shape. |
 | [DEPLOY_DATABRICKS_APP.md](DEPLOY_DATABRICKS_APP.md) | Deploying the Databricks App path once chosen. |
+| [DEPLOY_AZURE_APP_SERVICE.md](DEPLOY_AZURE_APP_SERVICE.md) | Configuring and troubleshooting the Azure App Service path once chosen. |
+| [research/AZURE_APP_SERVICE_DEPLOYMENT_FINDINGS_2026-05-22.md](research/AZURE_APP_SERVICE_DEPLOYMENT_FINDINGS_2026-05-22.md) | Deep App Service deployment findings, cost guardrails, account inventory, and approval gates. |
 | [DEPLOY_MVP_0.2.md](DEPLOY_MVP_0.2.md) | Configuring the earlier Genie + Power BI deployment cell. |
 | [PROXY_REFERENCE.md](PROXY_REFERENCE.md) | Proxy routes, profiles, auth modes, and backend behavior. |
 | [SECURITY.md](SECURITY.md) | Internal security guardrails and production posture. |

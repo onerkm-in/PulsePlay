@@ -5,6 +5,154 @@
 
 ---
 
+## 2026-05-23 - Simplification beast-mode decisions locked (T1-T7)
+
+**Scope.** Rajesh said "Beast Mode On" and asked to address all 7 tensions surfaced by the post-blueprint research pass. Dispatched 5 parallel research lanes (competitor 3-parent setup patterns, trust + confidence display standards, multiplicity controls codebase map, generated-defaults feasibility, mobile parent-nav restoration) and locked a decision for each tension. Added [research/SIMPLIFICATION_BEAST_MODE_DECISIONS_2026-05-23.md](research/SIMPLIFICATION_BEAST_MODE_DECISIONS_2026-05-23.md). No runtime code changed.
+
+**Decisions.** T1: smart 2-parent (Surface + Assistant; Business Context derived from Surface metadata, picker only on iframe/ambiguous). T2: ship the existing 95%-complete static generated-defaults scaffold first; BI-metadata-aware inference is a follow-up slice. T3: extend `pack.json` schema with inline `defaults` block; drop the hand-ported TS `PACK_REGISTRY` to eliminate the drift that caused the claims audit's invented-source-ID finding. T4: ship Option C (drawer + persistent Context Bar in header) for mobile parent-nav in Slice 3. T5: 5 backend confidence tiers preserved for governance, 3 UI buckets (`Draft / Inferred / Reviewed`) with hover-reveal of the specific tier. T6: mobile Context Bar shows `Context · Freshness` by default; rest on tap-to-expand. T7: all anonymous-OK; sign-in fires as a nudge at risk-of-loss moments and never blocks; anonymous-to-identified merge on first sign-in.
+
+**AGENDA impact.** UX-ARCH-0A (source hardening) gains the `pack.json` schema extension + validator. UX-ARCH-0 (BusinessContextProfile) becomes "as derived context + duplicate-choice collapse". Three new items queued: UX-ARCH-0B (mobile drawer + Context Bar), UX-ARCH-0C (BI-metadata-aware defaults), UX-ARCH-0D (anonymous-first persistence + sign-in nudge).
+
+**Research sources used.** Tableau Pulse, ThoughtSpot Sage, Power BI Copilot, Hex Context Studio, Snowflake Cortex Analyst, Databricks Genie (competitor setup patterns); HAX + Carbon AI Label + Fluent 2 Responsible AI + Google PAIR (confidence/explanation standards); GOV.UK Save Progress + Miro Anonymous Guest + CodeSandbox (identity-optional onboarding); shapeof.ai citations pattern (source proof drawer norms).
+
+**Validation.** Docs-only slice. Run `git diff --check` before wrapup.
+
+---
+
+## 2026-05-23 - Flow limits and multiplicity simplification blueprint added
+
+**Scope.** Rajesh asked to explore all limits, what else can be added, how flows can be simplified, what the end-user journey should become, and how to simplify multiplicity. Added [research/FLOW_LIMITS_AND_MULTIPLICITY_SIMPLIFICATION_2026-05-23.md](research/FLOW_LIMITS_AND_MULTIPLICITY_SIMPLIFICATION_2026-05-23.md). No runtime code changed.
+
+**Verdict.** PulsePlay should expose only three setup parents in the normal path: BI Surface, AI Assistant, and Business Context. Org type, sector, pack, sub-vertical, custom section presets, metric presets, guided filters, Strategic Lens, source expectations, and trust/reference behavior should become generated child defaults under Business Context and then be reviewed by the Author.
+
+**Journey.** The Viewer should land on value, not setup: finished insight/dashboard, context strip, 3-5 starter questions, answer trust footer, evidence drawer, and `Refine this answer`. The Author should use Authoring Home -> BI -> AI -> Business Context -> Generated Defaults Review -> Sources/Governance -> Test As Viewer -> Handoff. Labs/preview surfaces such as Workbench and Power BI Q&A should be visibly isolated from the core journey.
+
+**References.** Source ledger updated in [research/EXTERNAL_REFERENCES.md](research/EXTERNAL_REFERENCES.md#2026-05-23--flow-limits-and-multiplicity-simplification) with Atlassian, Microsoft, GitHub Primer, and Slack sources used for empty states, command palette, keyboard access, dialog anatomy, agent trust, and navigation simplification.
+
+**Validation.** Docs-only slice. Run `git diff --check` before wrapup.
+
+---
+
+## 2026-05-23 - Business Context claims audit added
+
+**Scope.** Rajesh asked for several deep-research agents to study the claims behind the draft Business Context / pack-default direction. Reused six available read-only agents because the session had reached the new-agent thread limit. Lanes covered CPG/FMCG, Retail, SaaS, ESG/sustainability, provenance/trust architecture, and Strategic Lens implementation shape.
+
+**Verdict.** Added [research/BUSINESS_CONTEXT_CLAIMS_AUDIT_2026-05-23.md](research/BUSINESS_CONTEXT_CLAIMS_AUDIT_2026-05-23.md). The one-canonical-`BusinessContextProfile` model is still the right simplification, but the current draft must not be treated as production-governed content. It currently overclaims `sme-reviewed`, uses invented CPG source IDs, conflates GA4 taxonomy with ROAS/CAC/LTV authority, conflates SCI with PUE, and risks turning Strategic Lens into another duplicate selector.
+
+**Gate.** Next implementation should start with source hardening: validate every runtime `sourceId` against the pack source register, block SME-review labels without real approval, keep thresholds as configurable/draft unless sourced, require review for citation downgrades, and make Strategic Lens a child of Generated Defaults Review rather than a top-level Settings choice. Source ledger updated in [research/EXTERNAL_REFERENCES.md](research/EXTERNAL_REFERENCES.md#2026-05-23--business-context-claims-audit-and-source-hardening).
+
+**Validation.** Docs-only slice. Run `git diff --check` before wrapup.
+
+---
+
+## 2026-05-23 - Simplified Business Context and Authoring model added
+
+**Scope.** Rajesh called out the real UX confusion: org type, persona presets, pack/sub-vertical, custom presets, metric presets, guided selections, and Adjust controls all feel like similar decisions with no clear sync. Added [research/SIMPLIFIED_CONTEXT_AND_AUTHORING_MODEL_2026-05-23.md](research/SIMPLIFIED_CONTEXT_AND_AUTHORING_MODEL_2026-05-23.md). No runtime code changed.
+
+**Decision.** The product should use two user sets for now: Viewer/Customer and Author. Authors configure one canonical `BusinessContextProfile` from knowledge pack + focus area/sub-vertical + overlays. PulsePlay then derives insight templates, KPI behavior, starter questions, guided filters, business guidance, retrieval policy, source expectations, and trust/reference badges from that profile. Viewers should not see org type, pack, sector, custom preset, metric preset, connector, or KB implementation controls.
+
+**Gemini note.** The pasted `SettingsQuerySync` idea is useful later for allowlist/profile/pack cache hygiene, but it does not solve the semantic duplication. Implement Business Context ownership first, then use TanStack Query synchronization to support that cleaner model.
+
+**Validation.** Docs-only slice. Run `git diff --check` before wrapup.
+
+---
+
+## 2026-05-23 - Multi-agent all-areas deep study added
+
+**Scope.** User asked to engage agents for proper deep studies in all areas. Reused the six available subagents because the thread limit was reached. All agents were read-only and covered product architecture/journeys, Settings/Authoring, typeahead/command palette, visual design system, AI trust/governance/evidence, and engineering readiness.
+
+**Guide.** Added [research/MULTI_AGENT_DEEP_STUDY_ALL_AREAS_2026-05-23.md](research/MULTI_AGENT_DEEP_STUDY_ALL_AREAS_2026-05-23.md). It complements the enterprise UX blueprint and turns the independent agent outputs into a consensus implementation queue.
+
+**Consensus.** The first foundation slice should be `AuthoringStateSnapshot`, deterministic `CommandPalette`, `AppShell` + `ContextBar`, `TrustFooter`, and immediate Setup safety fixes. The highest-risk findings are Settings save truth, governed setter results not always checked in Setup, governance being over-reassuring by default, missing mobile parent nav, and uneven source/freshness/request-id/governance trust grammar across answer surfaces.
+
+**Validation.** Docs-only slice. Run `git diff --check` before wrapup.
+
+---
+
+## 2026-05-23 - Enterprise UX architecture blueprint added
+
+**Scope.** User asked for a world-class enterprise product architecture, UX/UI system, wireframe, typeahead, benchmarking, and Codex implementation review. Added [research/ENTERPRISE_UX_ARCHITECTURE_BLUEPRINT_2026-05-23.md](research/ENTERPRISE_UX_ARCHITECTURE_BLUEPRINT_2026-05-23.md). No runtime code changed.
+
+**Verdict.** PulsePlay's product risk is choreography, not feature absence. The blueprint locks a target model around three layers: Viewer Experience, Authoring Console, and Command Surface. It keeps the two-axis BI/AI architecture intact, reframes Settings as progressive Authoring, makes trust/source/freshness a shared answer grammar, and treats the typeahead command palette as a first-class enterprise productivity surface.
+
+**Implementation guidance.** The doc defines reusable components and state contracts for `AppShell`, `ContextBar`, `AuthoringStateSnapshot`, `CommandItem`, `CommandPalette`, `TrustFooter`, `SourceFreshnessChip`, `EvidenceDrawer`, and setup primitives. It also lays out phases from shell/context bar through typeahead, progressive setup, trust standardization, theme/density, and telemetry.
+
+**Research.** Benchmarked official/primary sources across Microsoft Fluent/HAX, WAI-ARIA, Atlassian, Linear, Notion, Vercel, GitHub Primer, Stripe, Slack, Databricks, OpenAI, Figma, and Algolia. Source ledger updated in [research/EXTERNAL_REFERENCES.md](research/EXTERNAL_REFERENCES.md#2026-05-23--enterprise-ux-architecture-blueprint-and-typeahead-system).
+
+**Validation.** Docs-only slice. Run `git diff --check` before wrapup.
+
+---
+
+## 2026-05-22 - External Settings split-workspace patch audited and hardened
+
+**Scope.** User pasted an external-agent transcript showing edits to [SetupGroup.tsx](../playground/src/settings/groups/SetupGroup.tsx), [settings.css](../playground/src/settings/settings.css), and [vendorMatrix.test.tsx](../playground/src/settings/__tests__/vendorMatrix.test.tsx). Per external-LLM audit rule, inspected the diff before trusting it, then patched forward instead of reverting user/agent work.
+
+**What changed.** The external patch replaced Quick Setup with a five-gate progressive Split Workspace: BI surface, AI connector, knowledge pack, governance review, diagnostics/handoff, with a right-side preview/log panel. I kept that direction but hardened the unsafe/prototype edges: removed hardcoded Rajesh/security identity text, removed fake "verified" claims, removed fake fallback connector/pack catalogues, normalized live profile/pack payloads without `any`, silenced test-only relative fetch noise, and removed the direct Settings iframe preview so BI URLs still load only through the normal allowlist-enforced host path.
+
+**Validation.** `npm run lint` passed. Focused `npm run test -- src/settings/__tests__/vendorMatrix.test.tsx` passed 26/26. Full playground `npm run test` passed 1442/1442. `npm run build` passed with the existing dynamic-import chunk warnings. `git diff --check` passed for the touched Settings files. Headless Playwright DOM sanity against `http://127.0.0.1:5173/settings/setup` found 5 gates, no horizontal overflow at 1440px or 390px, and no direct iframe in the Setup preview panel. Screenshot writing was blocked by local filesystem permissions, so the visual check was DOM/layout only.
+
+**Honest caveat.** This is still a large UI rewrite/prototype in the working tree. It is now safer and test-clean, but it still needs human visual review and a design decision before we treat it as the final Settings implementation.
+
+---
+
+## 2026-05-22 - PulsePlay end-to-end feature and journey research
+
+**Scope.** Rajesh asked for multiple research agents to map every fused feature in PulsePlay so far, review information flow, study Author and Viewer journeys, and prepare for a later brainstorming session. Added [research/PULSEPLAY_END_TO_END_FEATURE_AND_JOURNEY_RESEARCH_2026-05-22.md](research/PULSEPLAY_END_TO_END_FEATURE_AND_JOURNEY_RESEARCH_2026-05-22.md). No runtime code changed.
+
+**Research.** Six read-only agents covered feature inventory, Author journey, Viewer journey, information flow, cross-page storytelling, and Figma/design handoff. Main session verified NN/g journey/service-blueprint guidance, Figma IA/user-flow/service-blueprint/dev-handoff sources, Microsoft HAX, Google People + AI, IBM Design for AI explainability, and Atlassian design-token guidance. Source ledger updated in [research/EXTERNAL_REFERENCES.md](research/EXTERNAL_REFERENCES.md#2026-05-22--pulseplay-end-to-end-feature-and-journey-research).
+
+**Verdict.** PulsePlay has the right product ingredients, but the experience needs two explicit journeys: Author configures/validates/previews/hands off; Viewer lands/understands/asks/trusts/returns. The next UX win is progressive journey choreography, not cosmetic repaint. Setup Home should become the durable Author hub; Viewer surfaces need a compact context strip and consistent source/scope/freshness/request-id trust footer.
+
+**Figma.** Attempted to generate the initial FigJam IA flow, but the Figma connector returned a plan-selection blocker: a team or organization must be selected in the widget before the diagram can be created. The document includes the proposed flow and recommended Figma sequence.
+
+---
+
+## 2026-05-22 - Settings alignment observation before brainstorming
+
+**Scope.** Rajesh asked to observe everything again, do deep research, align, and only then brainstorm. Added [research/SETTINGS_ALIGNMENT_OBSERVATION_2026-05-22.md](research/SETTINGS_ALIGNMENT_OBSERVATION_2026-05-22.md) as a document-only alignment pass. No runtime code changed.
+
+**Evidence.** Re-observed the 100-screenshot Settings sweep plus the new contact sheets in [evidence/settings-control-panel-sweep-2026-05-22](evidence/settings-control-panel-sweep-2026-05-22/README.md). Updated the evidence README to link the desktop/tablet/mobile/search contact sheets.
+
+**Verdict.** The second pass reinforces the same diagnosis: Settings needs progressive IA before visual polish. Setup opens as a form wall; AI is the densest hotspot; mobile loses the parent map; Advanced looks too normal; search is label-only; save semantics need truth; the floating bottom-right control competes with Settings; token/session efficiency belongs near Ask, with Settings only exposing preferences later.
+
+**Figma handoff.** Verified official Figma for VS Code, Figma MCP setup, Dev Mode, Code Connect, and Inspect docs. The VS Code extension is useful after frames exist; connector-based FigJam/Figma generation still needs a Figma team/organization plan selection. Next discussion should decide whether the first artifact is a FigJam flow, desktop frame, mobile frame, or component-primitive sketch.
+
+---
+
+## 2026-05-22 - Settings control-panel screenshot sweep
+
+**Scope.** User asked for as many Settings screenshots as possible because the control panel is messy and misconfiguration here breaks the whole product experience. Captured a broad visual evidence set against the already-running local Vite app at `127.0.0.1:5173`; no Azure, Power BI, deploy, or runtime mutation commands were run.
+
+**Evidence.** Added [evidence/settings-control-panel-sweep-2026-05-22/README.md](evidence/settings-control-panel-sweep-2026-05-22/README.md) plus 100 PNG screenshots and [manifest.json](evidence/settings-control-panel-sweep-2026-05-22/manifest.json). Coverage: 12 Settings routes, desktop/laptop/tablet/mobile, above-the-fold and full-page screenshots, plus search states for `power`, `token`, `advanced`, and `governance`.
+
+**Findings.** The screenshots make the risk concrete: first view is chrome-heavy; Setup still behaves like a form wall; mobile loses parent navigation; AI is the densest page; sticky Save bar can occlude narrow content; `token` search returns `0 groups matched`; Advanced looks like normal setup; governance has useful enterprise material but needs progressive framing; the floating bottom-right control competes with Settings. `/settings/ai` also logged a 502 resource error during capture.
+
+---
+
+## 2026-05-22 - Settings progressive setup research brief
+
+**Scope.** User asked for deep design research with multiple agents, focused first on the Settings page, the confusing "all open cards" problem, parent-child progressive setup, Canva/Figma support, and the sustainability gauge. Four read-only agents covered Settings IA/code, cross-page consistency, sustainability gauge behavior, and external design references. No runtime code was changed.
+
+**Guide.** Added [research/SETTINGS_PROGRESSIVE_DESIGN_RESEARCH_2026-05-22.md](research/SETTINGS_PROGRESSIVE_DESIGN_RESEARCH_2026-05-22.md), linked from [README.md](../README.md), [docs/README.md](README.md), [AGENDA.md](AGENDA.md), [memory/project_state.md](memory/project_state.md), and [research/EXTERNAL_REFERENCES.md](research/EXTERNAL_REFERENCES.md).
+
+**Verdict.** Settings is overexposed, not merely under-styled. The recommended target is a progressive authoring control center: Setup Home task list first; BI/AI mode cards before child fields; required fields revealed only after parent choice; test/source/freshness visible; mobile parent navigation restored; Advanced/support gated; save semantics made truthful. The sustainability gauge should be renamed to token/session efficiency, stay near the Ask surface, and avoid climate or emotion-tier claims until actual environmental/account usage data exists.
+
+**User refinement.** Rajesh accepted keeping the measurement but asked for a simple gesture that helps end users understand their contribution to digital wellbeing. The design brief now recommends a small Ask-adjacent coach card: after the first answer, the token/session efficiency chip can explain how focused questions, less pasted context, and fresh sessions help PulsePlay answer faster and use less context. This is optional, dismissible, non-modal, and never moralizing.
+
+**Connector notes.** Canva brand-template search for `settings dashboard` returned no connected workspace matches. Figma FigJam diagram generation was prepared, but the connector requires the user to select a team or organization plan before creation.
+
+---
+
+## 2026-05-22 - Power BI DAX / Q&A enablement guide
+
+**Scope.** User asked to engage a research agent to determine what it takes to enable Power BI DAX / Q&A connection for PulsePlay AI and document everything. One read-only agent mapped the local Power BI code paths; the main session verified current Microsoft docs for `executeQueries`, service-principal embedding, `GenerateToken`, Q&A embed, Q&A limitations, Q&A deprecation, and Entra app registration. No Azure, Power BI, or deploy commands were run.
+
+**Guide.** Added [POWERBI_DAX_QNA_ENABLEMENT.md](POWERBI_DAX_QNA_ENABLEMENT.md), linked from [README.md](../README.md), [docs/README.md](README.md), [PROXY_REFERENCE.md](PROXY_REFERENCE.md), [AGENDA.md](AGENDA.md), and [research/EXTERNAL_REFERENCES.md](research/EXTERNAL_REFERENCES.md).
+
+**Findings.** `powerbi-semantic-model` is the durable no-LLM DAX path; Power BI Q&A is only a Microsoft-hosted embedded bridge and retires in December 2026. Backend DAX exists, but normal Ask Pulse still needs profile-aware routing to `/api/powerbi/conversations/start`. Clean env-only deployment is blocked until `POWER_BI_GROUP_ID` and `POWER_BI_DATASET_ID` are mapped. RLS is not done: DAX needs OBO/user assertion for RLS datasets, and Q&A needs server-derived effective identity wiring.
+
+---
+
 ## 2026-05-22 - Power BI Q&A + powerbi-semantic-model + Settings IA research consolidated (DOCUMENT-ONLY)
 
 **Scope.** Three deep research threads ran sequentially this session — all conclude with documented findings + research-backed proposals for future discussion. Per user direction: *"if genie works, then let's keep it minimal for now, this is just to show case that this is one of possibility... let's not divert"* and *"make sure we keep everything documented so that it will help in the future, taking a discussion."*
