@@ -5,7 +5,7 @@
 // display policy for controlled enterprise deployments.
 
 import { useSettings } from "../settingsStore";
-import type { EnabledComponents, LayoutMode, UiMode } from "../settingsStore";
+import type { DefaultLandingSurface, EnabledComponents, LayoutMode, UiMode } from "../settingsStore";
 import { usePulseAiVisualSettings } from "../pulseVisualSettingsStore";
 import type { PulseEnabledFeatures } from "../pulseVisualSettingsStore";
 import { CurrentValue, Leaf, SubSection } from "./BiGroup";
@@ -22,9 +22,11 @@ export function PreferencesGroup(): React.ReactElement {
         enabledComponents,
         layoutMode,
         allowlist,
+        defaultLandingSurface,
         setUiMode,
         setEnabledComponents,
         setLayoutMode,
+        setDefaultLandingSurface,
     } = useSettings();
     const { value: pulseSettings, update: updatePulse } = usePulseAiVisualSettings();
     const activePreset = detectActivePreset({
@@ -141,6 +143,28 @@ export function PreferencesGroup(): React.ReactElement {
                         { value: "ai-right", label: "Right" },
                         { value: "ai-top", label: "Top" },
                         { value: "ai-bottom", label: "Bottom" },
+                    ]}
+                />
+            </Leaf>
+
+            {/* 2026-05-22 — author-configurable default landing tab.
+             *  Per Rajesh's direction: AI Insights is the home base; this
+             *  control lets the deployment author override for Ask Pulse-
+             *  first or Dashboard-first workflows. Falls back to AI Insights
+             *  when null. Priority in App.tsx readInitialActiveSurface:
+             *    URL ?surface= > this setting > localStorage > "ai-insights". */}
+            <Leaf
+                group="preferences"
+                label="Default landing tab"
+                helper="The tab a fresh visitor sees on first load. URL ?surface= still overrides; localStorage stickiness is bypassed in favor of this author choice. Leave on AI Insights for the default home-base experience."
+            >
+                <ButtonGroup<DefaultLandingSurface>
+                    value={defaultLandingSurface ?? "ai-insights"}
+                    onChange={setDefaultLandingSurface}
+                    options={[
+                        { value: "ai-insights", label: "AI Insights" },
+                        { value: "ask-pulse", label: "Ask Pulse" },
+                        { value: "bi-viz", label: "Dashboard" },
                     ]}
                 />
             </Leaf>

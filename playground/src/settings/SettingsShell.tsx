@@ -118,6 +118,7 @@ export const GROUP_LEAF_LABELS: Record<SettingsGroupId, string[]> = {
         "Layout preset",
         "Visible panels",
         "AI position",
+        "Default landing tab",
         "AI surfaces",
         "Research Agent traces",
         "Managed agent surface",

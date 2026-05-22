@@ -313,12 +313,39 @@ function surfaceFromMixState(surface: MixSurface, pulseTab?: PulseSurfaceTab): S
     return pulseTab === "chat" ? "ask-pulse" : "ai-insights";
 }
 
+/**
+ * 2026-05-22 — read the author-configured default landing surface from
+ * localStorage directly (no settingsStore dependency — this runs in
+ * useState's lazy initializer before the SettingsProvider mounts).
+ * Key must match settingsStore.KEY.defaultLandingSurface. Validates via
+ * isSurfaceId so a corrupted localStorage entry can't crash the boot.
+ */
+function readAuthorDefaultLandingSurface(): SurfaceId | null {
+    if (typeof window === "undefined") return null;
+    try {
+        const v = window.localStorage.getItem("pulseplay:default-landing-surface");
+        if (v === "ai-insights" || v === "ask-pulse" || v === "bi-viz") return v;
+    } catch { /* swallow */ }
+    return null;
+}
+
 function readInitialActiveSurface(): SurfaceId {
+    // Priority order (per Rajesh's 2026-05-22 direction "by author selection
+    // and by default the AI Insights should be the tab where it should open"):
+    //   1. URL ?surface= (explicit deep-link / share)
+    //   2. URL ?focus=bi (legacy viewport-focus deep-link)
+    //   3. Author-configured default landing surface (NEW)
+    //   4. localStorage stored active-surface (session memory; only kicks in
+    //      when no author default is set)
+    //   5. "ai-insights" hardcoded fallback (home base)
     const fromUrl = readSurfaceFromUrl();
     if (fromUrl) return fromUrl;
 
     const focus = readViewportFocusFromUrl();
     if (focus === "bi") return "bi-viz";
+
+    const authorDefault = readAuthorDefaultLandingSurface();
+    if (authorDefault) return authorDefault;
 
     const stored = readStoredActiveSurface();
     if (focus === "ai") return stored && stored !== "bi-viz" ? stored : "ai-insights";

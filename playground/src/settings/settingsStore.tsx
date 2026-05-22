@@ -49,7 +49,25 @@ const KEY = {
     layoutMode: "pulseplay:layout-mode",
     biTileMode: "pulseplay:bi-tile-mode",
     activeAiProfile: "pulseplay:active-ai-profile",
+    // 2026-05-22 — author-configurable default landing tab. When set,
+    // overrides localStorage stickiness so every new visitor sees the
+    // author's chosen home tab. See App.tsx readInitialActiveSurface
+    // for the priority order (URL > this > stored > "ai-insights").
+    defaultLandingSurface: "pulseplay:default-landing-surface",
 } as const;
+
+/** Exported so App.tsx readInitialActiveSurface can read the same key
+ *  without taking a circular dep on settingsStore. */
+export const DEFAULT_LANDING_SURFACE_STORAGE_KEY = KEY.defaultLandingSurface;
+
+/** Surfaces eligible as the author's default landing tab. Subset of
+ *  SurfaceId — we exclude composite/derived surfaces, only the three
+ *  primary picker options are valid choices. */
+export type DefaultLandingSurface = "ai-insights" | "ask-pulse" | "bi-viz";
+
+export function isDefaultLandingSurface(v: unknown): v is DefaultLandingSurface {
+    return v === "ai-insights" || v === "ask-pulse" || v === "bi-viz";
+}
 
 const ENABLED_COMPONENTS_LEGACY_BOTH_MIGRATION_KEY = "pulseplay:enabled-components:legacy-both-migrated";
 
@@ -99,6 +117,11 @@ export interface SettingsState {
      *  reads that on load if `active-ai-profile` is unset so the user's
      *  existing selection survives. Phase 5 unifies the two paths. */
     activeAiProfile: string;
+    /** 2026-05-22 — author-configurable default landing tab. When null,
+     *  the app falls back to "ai-insights" (per Rajesh's 2026-05-22
+     *  direction). When set, App.tsx readInitialActiveSurface uses this
+     *  in preference to the stored localStorage value. */
+    defaultLandingSurface: DefaultLandingSurface | null;
     /** Values found in localStorage that didn't validate against the
      *  live allowlist on the most-recent reconciliation pass. The
      *  Settings page surfaces these as "deprecated" banners. */
@@ -231,6 +254,15 @@ function readPackSelection(): PackSelection | null {
     return null;
 }
 
+function readDefaultLandingSurface(): DefaultLandingSurface | null {
+    if (typeof window === "undefined") return null;
+    try {
+        const v = window.localStorage.getItem(KEY.defaultLandingSurface);
+        return isDefaultLandingSurface(v) ? v : null;
+    } catch { /* swallow */ }
+    return null;
+}
+
 function buildInitialState(): SettingsState {
     return {
         allowlist: null,
@@ -244,6 +276,7 @@ function buildInitialState(): SettingsState {
         layoutMode: readLayoutMode(),
         biTileMode: readBiTileMode(),
         activeAiProfile: readActiveAiProfile(),
+        defaultLandingSurface: readDefaultLandingSurface(),
         orphans: [],
     };
 }
@@ -312,6 +345,7 @@ type Action =
     | { type: "set/layoutMode"; value: LayoutMode }
     | { type: "set/biTileMode"; value: BiTileMode }
     | { type: "set/activeAiProfile"; value: string }
+    | { type: "set/defaultLandingSurface"; value: DefaultLandingSurface | "" }
     | { type: "sync/external"; key: string; value: string };
 
 function reducer(state: SettingsState, action: Action): SettingsState {
@@ -361,6 +395,11 @@ function reducer(state: SettingsState, action: Action): SettingsState {
             return { ...state, biTileMode: action.value };
         case "set/activeAiProfile":
             return { ...state, activeAiProfile: action.value };
+        case "set/defaultLandingSurface":
+            return {
+                ...state,
+                defaultLandingSurface: isDefaultLandingSurface(action.value) ? action.value : null,
+            };
         case "sync/external":
             return applyExternalSync(state, action.key, action.value);
         default:
@@ -392,6 +431,8 @@ function applyExternalSync(state: SettingsState, key: string, value: string): Se
             return { ...state, biSurfaceMode: normalizeBiSurfaceMode(value) };
         case KEY.activeAiProfile:
             return { ...state, activeAiProfile: value };
+        case KEY.defaultLandingSurface:
+            return { ...state, defaultLandingSurface: isDefaultLandingSurface(value) ? value : null };
         default:
             return state;
     }
@@ -430,6 +471,9 @@ export interface SettingsActions {
     setLayoutMode: (value: LayoutMode) => void;
     setBiTileMode: (value: BiTileMode) => void;
     setActiveAiProfile: (value: string) => { ok: boolean; reason?: string };
+    /** 2026-05-22 — set the author's preferred landing tab. Pass null to
+     *  clear the override (app falls back to "ai-insights"). */
+    setDefaultLandingSurface: (value: DefaultLandingSurface | null) => void;
     reloadAllowlist: () => Promise<void>;
 }
 
@@ -565,6 +609,19 @@ export function SettingsProvider(props: SettingsProviderProps): React.ReactEleme
         dispatch({ type: "set/biTileMode", value });
     }, []);
 
+    const setDefaultLandingSurface = useCallback<SettingsActions["setDefaultLandingSurface"]>((value) => {
+        // 2026-05-22 — author's preferred landing tab. null clears the
+        // override so the app falls back to "ai-insights" (per Rajesh's
+        // 2026-05-22 direction). When set, App.tsx readInitialActiveSurface
+        // uses this in preference to the stored localStorage value.
+        if (value === null) {
+            removeAndBroadcast(KEY.defaultLandingSurface);
+        } else {
+            persistAndBroadcast(KEY.defaultLandingSurface, value);
+        }
+        dispatch({ type: "set/defaultLandingSurface", value: value ?? "" });
+    }, []);
+
     const setActiveAiProfile = useCallback<SettingsActions["setActiveAiProfile"]>(
         (value) => {
             const trimmed = String(value || "").trim();
@@ -632,6 +689,7 @@ export function SettingsProvider(props: SettingsProviderProps): React.ReactEleme
             setLayoutMode,
             setBiTileMode,
             setActiveAiProfile,
+            setDefaultLandingSurface,
             reloadAllowlist: reload,
         }),
         [
@@ -644,6 +702,7 @@ export function SettingsProvider(props: SettingsProviderProps): React.ReactEleme
             setLayoutMode,
             setBiTileMode,
             setActiveAiProfile,
+            setDefaultLandingSurface,
             reload,
         ],
     );
