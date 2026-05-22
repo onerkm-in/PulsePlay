@@ -2365,7 +2365,11 @@ function App(props: AppProps) {
                     selectedFilters,
                     "",
                     props.settings.sendContextToGenie,
-                    { kbFlags, omitDomainGuidance: true, omitAnalyticsKB: true }
+                    // 2026-05-22 — preload is an internal warm-up call, NOT a
+                    // user-typed Ask Pulse question. Briefing-format trim is
+                    // Ask Pulse-only; opt out explicitly so this path keeps
+                    // its full response.
+                    { kbFlags, omitDomainGuidance: true, omitAnalyticsKB: true, omitBriefingFormat: true }
                 );
                 const start = await client.startConversation(req, { intent: "summary", contextText: "" });
                 const response = await client.waitForMessageWithProgress(
@@ -2714,7 +2718,12 @@ function App(props: AppProps) {
                 const request = buildGenieRequest(
                     trimmed, intent, props.context, selectedFilters,
                     props.settings.domainGuidance, props.settings.sendContextToGenie,
-                    { omitDomainGuidance: !!convId, kbFlags }
+                    // 2026-05-22 — supervisor / multi-space chat path. The
+                    // briefing-format trim is reserved for the SINGLE-space
+                    // Ask Pulse compose path (line ~2456). Opting out here so
+                    // supervisor responses retain their full multi-section
+                    // shape across all fanned-out spaces.
+                    { omitDomainGuidance: !!convId, omitBriefingFormat: true, kbFlags }
                 );
                 const start = convId
                     ? await client.sendMessage(convId, request, { intent, contextText: "" })
@@ -2788,7 +2797,11 @@ function App(props: AppProps) {
         ].join("\n");
 
         try {
-            const req = buildGenieRequest(synthPrompt, "summary", props.context, selectedFilters, "", false, { kbFlags });
+            // 2026-05-22 — supervisor fusion synthesis prompt. Internal
+            // multi-space synthesizer call, NOT a user Ask Pulse turn.
+            // Briefing-format trim is Ask Pulse-only; opt out so synthesis
+            // keeps its full multi-section shape.
+            const req = buildGenieRequest(synthPrompt, "summary", props.context, selectedFilters, "", false, { kbFlags, omitBriefingFormat: true });
             const start = await primaryClient.startConversation(req, { intent: "summary", contextText: "" });
             const response = await primaryClient.waitForMessageWithProgress(
                 start.conversationId, start.messageId,
@@ -3339,7 +3352,14 @@ function App(props: AppProps) {
                 selectedFilters,
                 includeGuidance ? insightsGuidance : "",
                 props.settings.sendContextToGenie,
-                { kbFlags, omitDomainGuidance: isHybridStage }
+                // 2026-05-22 — AI Insights staged pipeline. Stage prompts
+                // themselves contain "## HEADLINE" / "## KPI SNAPSHOT" /
+                // "snapshot" / "summary" keywords that would trigger the
+                // briefing-format trim (`isBriefingQuestion` keyword match).
+                // The trim is Ask Pulse-only — AI Insights MUST stay on its
+                // full multi-section composeInsightsPrompts contract. Opt
+                // out explicitly.
+                { kbFlags, omitDomainGuidance: isHybridStage, omitBriefingFormat: true }
             );
             // IDEA-039 Phase 1 — capture the assembled outgoing payload before
             // it leaves the boundary. Once Genie has it, we can't reconstruct
@@ -3476,7 +3496,11 @@ function App(props: AppProps) {
                     const retryReq = buildGenieRequest(
                         retryPrompt, "summary", props.context, selectedFilters,
                         includeGuidance ? insightsGuidance : "", props.settings.sendContextToGenie,
-                        { kbFlags, omitDomainGuidance: isHybridStage }
+                        // 2026-05-22 — AI Insights stage-retry path. Same
+                        // reason as the primary stage call above: this is
+                        // NOT Ask Pulse, the briefing-format trim must not
+                        // fire here.
+                        { kbFlags, omitDomainGuidance: isHybridStage, omitBriefingFormat: true }
                     );
                     // Cycle 47.2 — issue the simplified retry prompt as a
                     // follow-up message on the shared conversation.
