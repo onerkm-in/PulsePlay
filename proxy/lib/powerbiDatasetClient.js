@@ -213,6 +213,142 @@ async function acquirePbiAccessToken(profile, fetchImpl) {
     }
 }
 
+/* ───── OAuth On-Behalf-Of (OBO) — RLS-preserving query path ────────
+ *
+ * 2026-05-22 spike: Microsoft's executeQueries REST API has a hard
+ * documented constraint — Service Principal + RLS = BLOCKED. The only
+ * supported path for querying an RLS-enforced dataset programmatically
+ * is OAuth On-Behalf-Of: exchange the SIGNED-IN USER'S existing OAuth
+ * token for a Power BI access token, then call executeQueries AS the
+ * user. RLS applies natively to the user's identity in the token; no
+ * `impersonatedUserName` needed.
+ *
+ * Source: docs/research/EXTERNAL_REFERENCES.md "powerbi-semantic-model
+ * deep-dive" entry — Microsoft Fabric Community thread + Microsoft
+ * Learn executeQueries reference.
+ *
+ * Deployer prerequisites (one-time):
+ *   1. Azure AD app registration must have `Power BI Service`
+ *      delegated permission `Dataset.Read.All` (or `Dataset.ReadWrite.All`)
+ *      granted with admin consent.
+ *   2. The Azure AD app must be configured to allow OBO grant flow
+ *      (default for delegated permissions).
+ *   3. PulsePlay's upstream IdP must forward the user's OAuth access
+ *      token in the `Authorization: Bearer <user-token>` header — the
+ *      token must have an audience that matches PulsePlay's AAD app
+ *      registration (so it can be exchanged on behalf of the user).
+ *   4. The signed-in user must be a Power BI Pro / PPU / Premium user
+ *      AND have at least Read access to the target workspace/dataset.
+ *      PulsePlay cannot grant access the user does not have.
+ *
+ * Per-user cache: OBO tokens are scoped to the (tenant, client, user)
+ * triple. The user identifier is derived from the assertion token's
+ * `sub` claim (sha256 hash, never the raw value). TTL respects AAD's
+ * `expires_in` with a 5-minute early-refresh window.
+ */
+const _oboTokenCache = new Map();
+
+function _hashUserAssertion(assertion) {
+    // Hash a stable per-user fragment of the assertion token. We DO NOT
+    // log the raw value anywhere. Falls back to the full token hash if
+    // the JWT can't be parsed (defensive — never throws).
+    const crypto = require('crypto');
+    try {
+        const parts = String(assertion || '').split('.');
+        if (parts.length >= 2) {
+            // base64url decode the JWT payload, hash the `sub` claim
+            // if present (most stable per-user identifier in AAD).
+            const padded = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+            const json = Buffer.from(padded, 'base64').toString('utf8');
+            const claims = JSON.parse(json);
+            const sub = String(claims?.sub || claims?.oid || claims?.upn || '');
+            if (sub) {
+                return crypto.createHash('sha256').update(sub).digest('hex').slice(0, 16);
+            }
+        }
+    } catch { /* fall through */ }
+    return crypto.createHash('sha256').update(String(assertion || '')).digest('hex').slice(0, 16);
+}
+
+/**
+ * Exchange the user's existing OAuth assertion token for a Power BI
+ * access token via the Azure AD On-Behalf-Of grant flow.
+ *
+ * @param {object} profile               PulsePlay profile (must have aadTenantId + aadClientId + aadClientSecret)
+ * @param {string} userAssertion         The user's OAuth token (typically from `Authorization: Bearer …` header)
+ * @param {function} [fetchImpl]         Test injection seam
+ * @returns {Promise<string>}            User-delegated Power BI access token
+ */
+async function acquirePbiAccessTokenOnBehalfOf(profile, userAssertion, fetchImpl) {
+    const tenant = _tenantId(profile);
+    if (!tenant) throw new Error('Power BI profile missing aadTenantId');
+    const client = _clientId(profile);
+    if (!client) throw new Error('Power BI profile missing aadClientId (OBO requires confidential client)');
+    const secret = _clientSecret(profile);
+    if (!secret) throw new Error('Power BI profile missing aadClientSecret (OBO requires confidential client)');
+    if (!userAssertion || typeof userAssertion !== 'string' || !userAssertion.trim()) {
+        throw new Error('OBO requires the signed-in user OAuth assertion token');
+    }
+
+    const userKey = _hashUserAssertion(userAssertion);
+    const key = `obo|${tenant}|${client}|${userKey}`;
+    const f = fetchImpl || globalThis.fetch;
+    const now = Date.now();
+    const cached = _oboTokenCache.get(key);
+    if (cached && !cached.inFlight && cached.expiresAt > now + TOKEN_EARLY_REFRESH_MS) {
+        return cached.accessToken;
+    }
+    if (cached?.inFlight) {
+        return cached.inFlight;
+    }
+
+    const tokenUrl = `https://login.microsoftonline.com/${encodeURIComponent(tenant)}/oauth2/v2.0/token`;
+    const body = new URLSearchParams({
+        client_id: client,
+        client_secret: secret,
+        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        assertion: userAssertion,
+        requested_token_use: 'on_behalf_of',
+        scope: 'https://analysis.windows.net/powerbi/api/Dataset.Read.All offline_access',
+    }).toString();
+
+    const inFlight = (async () => {
+        const resp = await f(tokenUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body,
+            signal: AbortSignal.timeout(SOCKET_TIMEOUT_MS),
+        });
+        if (!resp.ok) {
+            const detail = (await resp.text()).slice(0, 300);
+            // 400 typically means consent missing or assertion expired;
+            // 401 means client credentials wrong. Either way the deployer
+            // must fix configuration; we surface a clear message.
+            const err = new Error(`Azure AD OBO token request failed (${resp.status}): ${detail}`);
+            // @ts-expect-error attach status for callers
+            err.statusCode = resp.status;
+            throw err;
+        }
+        const data = await resp.json();
+        if (!data?.access_token) throw new Error('Azure AD OBO response missing access_token');
+        const expiresInSec = Number(data.expires_in || 3600);
+        const entry = {
+            accessToken: String(data.access_token),
+            expiresAt: Date.now() + expiresInSec * 1000,
+        };
+        _oboTokenCache.set(key, entry);
+        return entry.accessToken;
+    })();
+
+    _oboTokenCache.set(key, { ...(cached || {}), inFlight });
+    try {
+        return await inFlight;
+    } catch (err) {
+        _oboTokenCache.delete(key);
+        throw err;
+    }
+}
+
 /* ───── Dataset metadata + DAX execution ──────────────────────────── */
 
 /**
@@ -257,7 +393,14 @@ async function getDatasetMetadata(profile, opts = {}) {
  *
  * @param {object} profile
  * @param {string} daxQuery
- * @param {{ fetchImpl?: function, impersonatedUserName?: string }} [opts]
+ * @param {{ fetchImpl?: function, impersonatedUserName?: string, userAssertion?: string }} [opts]
+ *   - `userAssertion`: when present, takes the OBO path (user-delegated
+ *     token). REQUIRED for querying RLS-enforced datasets — Microsoft's
+ *     executeQueries API blocks Service Principal + RLS combos. The
+ *     `impersonatedUserName` option is IGNORED in OBO mode (RLS applies
+ *     natively to the user's identity in the access token).
+ *   - `impersonatedUserName`: legacy SP-mode RLS hint (non-RLS datasets
+ *     only). Use `userAssertion` for any RLS-enforced dataset.
  * @returns {Promise<{ results: Array<{ tables: Array<{ rows: any[] }> }> }>}
  */
 async function executeDax(profile, daxQuery, opts = {}) {
@@ -269,12 +412,20 @@ async function executeDax(profile, daxQuery, opts = {}) {
     const datasetId = _datasetId(profile);
     if (!datasetId) throw new Error('Power BI profile missing powerbiDatasetId');
 
-    const token = await acquirePbiAccessToken(profile, opts.fetchImpl);
+    // 2026-05-22 spike: prefer OBO when the user assertion is available.
+    // RLS applies natively to the user's identity in the access token, so
+    // `impersonatedUserName` is ignored in OBO mode (Microsoft docs).
+    const useObo = !!(opts.userAssertion && String(opts.userAssertion).trim());
+    const token = useObo
+        ? await acquirePbiAccessTokenOnBehalfOf(profile, opts.userAssertion, opts.fetchImpl)
+        : await acquirePbiAccessToken(profile, opts.fetchImpl);
     const url = `${PBI_API_BASE}/v1.0/myorg/groups/${encodeURIComponent(groupId)}/datasets/${encodeURIComponent(datasetId)}/executeQueries`;
     const body = {
         queries: [{ query: daxQuery }],
         serializerSettings: { includeNulls: true },
-        ...(opts.impersonatedUserName ? { impersonatedUserName: opts.impersonatedUserName } : {}),
+        // impersonatedUserName is ONLY honored in non-OBO (Service Principal)
+        // mode for non-RLS datasets. In OBO mode it's silently ignored.
+        ...((!useObo && opts.impersonatedUserName) ? { impersonatedUserName: opts.impersonatedUserName } : {}),
     };
     const f = opts.fetchImpl || globalThis.fetch;
     const resp = await f(url, {
@@ -305,7 +456,8 @@ async function executeDax(profile, daxQuery, opts = {}) {
  *
  * @param {object} profile
  * @param {string} daxQuery
- * @param {{ fetchImpl?: function, impersonatedUserName?: string }} [opts]
+ * @param {{ fetchImpl?: function, impersonatedUserName?: string, userAssertion?: string }} [opts]
+ *   - `userAssertion`: prefer OBO (user-delegated). REQUIRED for RLS datasets.
  * @returns {Promise<{ columns: string[], rows: any[][], truncated: boolean }>}
  */
 async function executeDaxNormalized(profile, daxQuery, opts = {}) {
@@ -387,10 +539,12 @@ async function generateQnAEmbedToken(profile, opts = {}) {
 
 function __resetCacheForTests() {
     _tokenCache.clear();
+    _oboTokenCache.clear();
 }
 
 module.exports = {
     acquirePbiAccessToken,
+    acquirePbiAccessTokenOnBehalfOf,
     getDatasetMetadata,
     executeDax,
     executeDaxNormalized,
@@ -401,6 +555,7 @@ module.exports = {
         clientId: _clientId,
         groupId: _groupId,
         datasetId: _datasetId,
+        hashUserAssertion: _hashUserAssertion,
     },
     __resetCacheForTests,
 };
