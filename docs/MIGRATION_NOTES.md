@@ -2,6 +2,34 @@
 
 > Recording of the docs consolidation cycle that took PulsePlay from 26 mixed-heritage docs to ~10 cleanly-identified active docs, with the rest archived to `docs/inherited/`. Strategic context: Path C — inner-source-first, public-OSS-later.
 
+## 2026-05-20 refresh - docs hub and next merge plan
+
+The docs tree grew again after several intense UAT, smoke, feature-spec, and handoff cycles.
+
+Current inventory:
+
+| Bucket | Count | Action |
+|---|---:|---|
+| All Markdown under `docs/` | 107 | Too many for onboarding. |
+| Top-level Markdown under `docs/` | 67 | Needs consolidation pressure. |
+| Dated top-level session artifacts | 28 | Merge findings into canonical docs, then move to `docs/archive/runs/`. |
+| Top-level feature/spec fragments | 25 | Merge into Architecture, Roadmap, Proxy Reference, Settings Spec, Knowledge Architecture, or Quality. |
+| Research docs | 7 | Keep in `docs/research/`; read on demand. |
+| ADR docs | 9 | Keep as decision history. |
+| Inherited docs | 15 | Keep as Pulse/PepPulse archive. |
+| Memory docs | 5 | Keep as repo-local working memory. |
+| Scenario docs | 4 | Keep as large test catalog, not onboarding material. |
+
+New consolidation front door: [README.md](README.md). It now records what to read first, what not to read by default, and where each fragment should merge.
+
+Canonical facts corrected in this refresh:
+
+- Architecture/onboarding/README docs now say **10 backend paths**, not 8 or 9.
+- Quality now says latest recorded validation is **proxy 1013/1013** and **playground 1103/1103**, not 418/161.
+- Architecture now links to the renamed [ADR-0003](adr/0003-supervisor-stagger.md).
+
+Next merge phase should be structural: move dated run artifacts into an archive bucket after updating any live links, then merge still-active feature specs into their canonical targets per the map in [README.md](README.md).
+
 ## 1. What moved where
 
 ### Active docs at root
@@ -19,7 +47,7 @@
 | `docs/ENTERPRISE_SECURITY_PLATFORM_GUARDRAILS.md` (684 lines, public-commercial-sized) | `docs/SECURITY.md` (~330 lines, internal-org-sized) | Aggressively pruned. Dropped: multi-tenant isolation, public CVE response, SBOM signing, OpenSSF Scorecard, full ISO 42001/EU AI Act compliance. Kept: SSO via org IdP, prompt injection defense, BI embed allowlist, secrets in vault, audit log, CORS/CSP basics. |
 | `docs/ROADMAP.md` (PulsePlay-native) | `docs/ROADMAP.md` | Light update — explicit Path C framing; cross-links to AGENDA + PUBLIC_OSS_AGENDA + PACKS; v1.x scope clarified as still-internal. |
 | `docs/API_AUTH_AND_LIMITATIONS.md` (PepPulse-titled, mixed) | `docs/PROXY_REFERENCE.md` (new) | Split. Kept §1-3 (API list, scopes, OAuth M2M) updated for 8 backend paths. Dropped §4 (Pulse user-identity propagation) and §5 (Pulse-sandbox limitations). Added: profile shapes reference, response shape contract, route table. Original archived as `inherited/API_AUTH_AND_LIMITATIONS_FULL.md`. |
-| `docs/QUALITY_METHODOLOGY.md` (PepPulse-titled with DwD test counts) | `docs/QUALITY.md` (new) | Pruned to ~100 lines. Originally updated to the scaffold-era PulsePlay counts; later revised to the current 161 playground/adapter tests and 418 proxy tests. Kept honesty framework. |
+| `docs/QUALITY_METHODOLOGY.md` (PepPulse-titled with sister-project test counts) | `docs/QUALITY.md` (new) | Pruned to ~100 lines. Originally updated to the scaffold-era PulsePlay counts; later revised to the current 161 playground/adapter tests and 418 proxy tests. Kept honesty framework. |
 | (none) | `docs/AGENDA.md` (new) | Open-work tracker. Captures beast-mode list, BI adapter priorities, AI sidebar v1 work, near/medium/long-term, blockers. |
 | (none) | `docs/PUBLIC_OSS_AGENDA.md` (new) | What gets done IF/WHEN we go public-OSS. License decision, SBOM/signing, conformance harness, public docs site, MCP server reference impls, multi-tenant isolation, full compliance items. So none of it is forgotten. |
 | (none) | `docs/PACKS.md` (new) | Pack architecture overview. Brief — details live in `pulsepacks/PACK_SPECIFICATION.md` (Agent 2's territory). |
@@ -34,7 +62,7 @@ Originals preserved verbatim (no content edits) for reference and historical con
 | `docs/SECURITY_REVIEW.md` | `docs/inherited/PEPPULSE_SECURITY_REVIEW.md` | PepPulse-titled, .pbix-extraction threat model, Wave 22-38 controls reference custom-visual files |
 | `docs/ENTERPRISE_READINESS.md` | `docs/inherited/PEPPULSE_ENTERPRISE_READINESS.md` | PepPulse-titled enterprise pitch with 20-question reviewer Q&A |
 | `docs/BEAST_MODE_MEMORY.md` | `docs/inherited/PEPPULSE_BEAST_MODE_MEMORY.md` | 14-cycle Wave-numbered for the Pulse PBI visual |
-| `docs/QUALITY_METHODOLOGY.md` | `docs/inherited/PEPPULSE_QUALITY_METHODOLOGY.md` | Original pre-pruning version with DwD test counts |
+| `docs/QUALITY_METHODOLOGY.md` | `docs/inherited/PEPPULSE_QUALITY_METHODOLOGY.md` | Original pre-pruning version with sister-project test counts |
 | `docs/API_AUTH_AND_LIMITATIONS.md` | `docs/inherited/API_AUTH_AND_LIMITATIONS_FULL.md` | Full version archived; PROXY_REFERENCE.md is the pruned active doc |
 | `docs/MULTI_BI_ARCHITECTURE.md` | `docs/inherited/MULTI_BI_ARCHITECTURE.md` | Predecessor of new ARCHITECTURE.md; archived after merge |
 | `docs/ENTERPRISE_SECURITY_PLATFORM_GUARDRAILS.md` | `docs/inherited/ENTERPRISE_SECURITY_PLATFORM_GUARDRAILS.md` | Full 684-line version; public-commercial-sized. SECURITY.md is the pruned active doc. |
@@ -48,11 +76,11 @@ Originals preserved verbatim (no content edits) for reference and historical con
 
 ### Moved to `docs/research/`
 
-Research bibliographies that were at `docs/` root but belong with the other research artifacts. Added portability notes at the top of each (file paths point to DwD/Pulse, not PulsePlay).
+Research bibliographies that were at `docs/` root but belong with the other research artifacts. Added portability notes at the top of each (file paths point to Pulse, not PulsePlay).
 
 | Was | Now lives at | Notes |
 |---|---|---|
-| `docs/ANALYTICS_DOMAIN_TAXONOMY.md` | `docs/research/ANALYTICS_DOMAIN_TAXONOMY.md` | Portability note added; references `genieChatVisual/src/setupStep5.tsx` (DwD) |
+| `docs/ANALYTICS_DOMAIN_TAXONOMY.md` | `docs/research/ANALYTICS_DOMAIN_TAXONOMY.md` | Portability note added; references `genieChatVisual/src/setupStep5.tsx` (sister project) |
 | `docs/INSIGHTS_SECTION_TAXONOMY.md` | `docs/research/INSIGHTS_SECTION_TAXONOMY.md` | Portability note added; same heritage |
 
 ### ADR updates (`docs/adr/`)
@@ -61,7 +89,7 @@ In-place edits — added status callouts at the top of each. No file moves.
 
 | ADR | Status change |
 |---|---|
-| `0001-xhr-only-genie-client.md` | Marked SUPERSEDED — DwD/Pulse-legacy. PulsePlay runs in real browser. |
+| `0001-xhr-only-genie-client.md` | Marked SUPERSEDED — Pulse-legacy. PulsePlay runs in real browser. |
 | `0002-dual-bind-127-not-localhost.md` | Kept Accepted (still applies). |
 | `0003-supervisor-stagger-800ms.md` | Updated — title says 800 ms, code is 2000 ms (verified at `proxy/server.js:3556`). Title rename pending. |
 | `0004-format-pane-json-string-storage.md` | Marked SUPERSEDED — no PBI format pane in PulsePlay. |
@@ -102,8 +130,8 @@ In-place edits — added status callouts at the top of each. No file moves.
 
 **Pruned: 95 -> ~100 lines (similar size, different content).** Items dropped:
 
-- DwD-specific test counts (874 vitest + 152 jest in DwD; PulsePlay has since moved past the scaffold-era counts recorded during consolidation)
-- DwD-specific cycle / Wave references
+- sister-project-specific test counts (874 vitest + 152 jest in the sister project; PulsePlay has since moved past the scaffold-era counts recorded during consolidation)
+- sister-project-specific cycle / Wave references
 - Pulse-specific build hygiene (.pbiviz cap, custom-visual constraints)
 
 **Kept**: honesty framework, what-we-measure / what-we-don't / roadmap structure, "do say / don't say" rules. Updated test counts to PulsePlay reality.
@@ -127,7 +155,7 @@ Additions over the predecessor:
 
 `docs/research/CODEBASE_AUDIT.md` and `docs/research/MARKET_AND_STANDARDS.md` — kept as-is. These are the brutal-honest ground-truth references; consolidation goal was not to alter them.
 
-`docs/research/ANALYTICS_DOMAIN_TAXONOMY.md` and `docs/research/INSIGHTS_SECTION_TAXONOMY.md` — content preserved verbatim; only added portability notes at the top so a reader doesn't get confused by `genieChatVisual/...` file references that are DwD/Pulse, not PulsePlay.
+`docs/research/ANALYTICS_DOMAIN_TAXONOMY.md` and `docs/research/INSIGHTS_SECTION_TAXONOMY.md` — content preserved verbatim; only added portability notes at the top so a reader doesn't get confused by `genieChatVisual/...` file references that are Pulse, not PulsePlay.
 
 All `docs/inherited/PEPPULSE_*.md` and other archived docs — preserved verbatim. Inherited material is reference material.
 
@@ -136,12 +164,12 @@ All `docs/inherited/PEPPULSE_*.md` and other archived docs — preserved verbati
 These are flagged for a future cleanup cycle. None block today's work; tracked in `docs/AGENDA.md` near-term and `docs/ARCHITECTURE.md` "Vocabulary leak items":
 
 - **`proxy/package.json` name** is still `unibridge-ai-proxy` (older internal name). Description says "for routing Power BI questions."
-- **`databricks-agents/supervisor/README.md`** still says "DwD Supervisor Agent" in the title.
+- **`databricks-agents/supervisor/README.md`** still says "PulsePlay Supervisor Agent" in the title.
 - **HTTP headers** in proxy: `X-Genie-Key`, `X-Genie-Target-Host`, `X-Databricks-Host`, `X-Databricks-Token`, `X-Genie-Space-Id`. Five of six allowed CORS headers are Databricks-vocabulary; only `X-Profile-Name` is generic. Renaming requires a backward-compat alias plan.
 - **`errorStatusFromDatabricks`** is the only error-mapping helper; only Databricks-shaped errors route through it. Bedrock and OpenAI have separate paths.
 - **CORS comment** claims "Power BI Desktop WebView requires permissive headers" — not applicable in PulsePlay.
-- **`scripts/llm_wrapup.py` state file** is now `.pulseplay-session.state.json` (and `llm_onboard.py` matches). Legacy `.dwd-session.state.json` is still read as a fallback so a half-migrated repo keeps working; both names remain gitignored.
-- **ADR-0003 file name** `0003-supervisor-stagger-800ms.md` — title says 800 ms but code is 2000 ms. Either rename the file or supersede with a fresh ADR documenting 2000 ms.
+- **`scripts/llm_wrapup.py` state file** is now `.pulseplay-session.state.json` (and `llm_onboard.py` matches). Legacy `.the sister project-session.state.json` is still read as a fallback so a half-migrated repo keeps working; both names remain gitignored.
+- **ADR-0003 filename drift was fixed on 2026-05-20**: the current file is `docs/adr/0003-supervisor-stagger.md` and records the implemented 2000 ms stagger. Older dated artifacts may still quote the superseded filename as historical evidence.
 - **Smoke scripts** (`scripts/smoke-full.ps1`, `scripts/smoke-rls-ols.ps1`) are Pulse-shaped (test PBI custom visual paths). Need adaptation to PulsePlay's profile types.
 
 ## 5. Doc count

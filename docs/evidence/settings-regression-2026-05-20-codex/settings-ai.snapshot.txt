@@ -1,0 +1,179 @@
+- banner:
+  - heading "Settings" [level=1]:
+    - text: Settings
+  - paragraph: Configure how PulsePlay looks, what it embeds, and how it reasons.
+  - button "Back to app":
+    - text: Back to app
+- searchbox "Search settings"
+- generic: Ctrl /
+- button "Jump to Setup group":
+  - generic: Setup
+  - generic: BI config
+- button "Jump to BI group":
+  - generic: BI
+  - generic: Power BI
+- button "Jump to AI group":
+  - generic: AI
+  - generic: Default profile
+- button "Jump to ai › Pack":
+  - generic: Pack
+  - generic: No knowledge source
+- button "Jump to system › Proxy":
+  - generic: Proxy
+  - generic: Connected
+- button "Jump to system › Security":
+  - generic: Security
+  - generic: Enforced
+- main:
+  - region "AI":
+    - heading "AI" [level=2]
+    - paragraph: "One assistant powers both AI Insights and Ask Pulse. Configure the assistant, give it context, tune how it responds, then tune per-surface behavior. MVP 0.2: Databricks Genie + Supervisor only."
+    - heading "Assistant" [level=3]
+    - paragraph: The assistant profile powering AI Insights and Ask Pulse — pick a provider, see the model/agent details, and verify the connection.
+    - article:
+      - generic: Provider
+      - button "Copy link to Provider": Copy link
+      - paragraph: The AI assistant that answers your questions. Restricted to the providers your organization allows.
+      - button "DefaultSales Team" [pressed]:
+        - strong: Default
+        - text: Sales Team
+      - button "SupervisorGenie Supervisor Agent Supervisor · 0 spaces":
+        - strong: Supervisor
+        - text: Genie Supervisor Agent
+        - generic: Supervisor · 0 spaces
+      - button "Foundation (Llama 3.1 405B)dbc-f88d29ce-4aa2.cloud.databricks.com":
+        - strong: Foundation (Llama 3.1 405B)
+        - text: dbc-f88d29ce-4aa2.cloud.databricks.com
+    - article:
+      - generic: Model / Agent
+      - button "Copy link to Model / Agent": Copy link
+      - paragraph: "For Genie: the single Genie space this profile is bound to. Configured server-side via proxy/config.json."
+      - generic: "Display name:"
+      - generic: Default
+      - generic: "Data domain:"
+      - generic: Sales Team
+      - generic: "Genie space:"
+      - generic: 01f13f...a37373
+    - article:
+      - generic: Connection test
+      - button "Copy link to Connection test": Copy link
+      - paragraph: Live probe against the proxy. Shows reachability, schema hints, and the inferred pack.
+      - heading "Test Connection" [level=2]
+      - button "Re-run"
+      - generic: Click Re-run to probe the connector.
+    - heading "Shared context" [level=3]
+    - paragraph: Knowledge, vocabulary, and grounding sources used by both AI Insights and Ask Pulse. Change once; both surfaces benefit.
+    - article:
+      - generic: Knowledge pack
+      - button "Copy link to Knowledge pack": Copy link
+      - paragraph: The industry-domain bundle the assistant uses for vocabulary, KPIs, and starter questions. Used by both AI Insights and Ask Pulse. Restricted to packs your organization installs.
+      - heading "Pack" [level=2]
+      - text: Pack
+      - combobox "Pack":
+        - option "— Select a pack —" [selected]
+        - option "CPG / FMCG"
+      - text: Sub-vertical
+      - combobox "Sub-vertical" [disabled]:
+        - option "— Pick a pack first —" [selected]
+    - article:
+      - generic: Vector Search KB
+      - button "Copy link to Vector Search KB": Copy link
+      - paragraph: Databricks Vector Search is not currently live in this workspace. Keep the target index here so the feature wakes up cleanly when an endpoint is enabled.
+      - generic: "Status:"
+      - generic: Hibernating
+      - generic: "Endpoints:"
+      - generic: "0"
+      - generic: Planned Vector Search index
+      - textbox "Planned Vector Search index":
+        - /placeholder: catalog.schema.index_name
+    - article:
+      - generic: UC Metric View
+      - button "Copy link to UC Metric View": Copy link
+      - paragraph: Discover governed Databricks metric views and use one as the semantic source for the assistant. Used by both AI Insights and Ask Pulse.
+      - generic: Catalog
+      - textbox "Catalog": workspace
+      - generic: Schema
+      - textbox "Schema": databrickspractice
+      - button "Discovering" [disabled]
+      - generic: Selected metric view
+      - textbox "Selected metric view":
+        - /placeholder: catalog.schema.metric_view
+      - generic: No metric views returned for this catalog/schema.
+    - article:
+      - generic: Browse library
+      - button "Copy link to Browse library": Copy link
+      - paragraph: Open the Knowledge Base content browser — glossary, ontology, KPIs, sample questions per pack.
+      - button "Browse Knowledge Base →"
+    - heading "Response behavior" [level=3]
+    - paragraph: How the assistant talks back — prompt strategy, section schema, metric semantics, evidence and provenance. Shared with both AI Insights and Ask Pulse; saves to Pulse genieSettings.
+    - article:
+      - generic: Response behavior
+      - button "Copy link to Response behavior": Copy link
+      - paragraph: Shared with both AI Insights and Ask Pulse. Controls prompt strategy, domain guidance, section schema, metric semantics, and evidence display. Surface-specific knobs (Insights stages, Ask Pulse chat behavior) live in the next section.
+      - note:
+        - text: This replaces the old Pulse Console setup tab. Provider selection above writes the same
+        - code: genieSettings.assistantProfile
+        - text: value used by Pulse at runtime.
+      - generic: "Runtime profile:"
+      - generic: default
+      - generic: Available AI surfaces
+      - combobox "Available AI surfaces":
+        - option "Both — AI Insights + Ask Pulse" [selected]
+        - option "AI Insights only"
+        - option "Ask Pulse only"
+      - generic: Authoring mode
+      - combobox "Authoring mode":
+        - option "Preset — pick domain + sections" [selected]
+        - option "AI-assisted — infer from data"
+        - option "Manual — write prompt"
+      - generic: Analytics domain
+      - textbox "Analytics domain":
+        - /placeholder: "Example: cpg-fmcg, finance, supply-chain"
+      - generic: Custom insights prompt
+      - textbox "Custom insights prompt":
+        - /placeholder: "## Objective\nExplain what the AI should prioritize.\n\n## Required output\n- HEADLINE\n- TRENDS\n- RISKS\n- ACTIONS"
+      - generic: Domain guidance
+      - textbox "Domain guidance":
+        - /placeholder: "## Business rules\nDefine KPI semantics and exception handling.\n\n## Formatting standards\nMetric | Format | Direction"
+      - generic: Custom sections JSON
+      - textbox "Custom sections JSON":
+        - /placeholder: "[{\"id\":\"headline\",\"title\":\"HEADLINE\",\"instruction\":\"Summarize the key movement.\"}]"
+      - generic: Included stages
+      - checkbox "HEADLINE" [checked]
+      - text: HEADLINE
+      - checkbox "TRENDS" [checked]
+      - text: TRENDS
+      - checkbox "RISKS" [checked]
+      - text: RISKS
+      - checkbox "ACTIONS" [checked]
+      - text: ACTIONS
+      - generic: Metric direction rules
+      - textbox "Metric direction rules":
+        - /placeholder: "Revenue: higher is better\nReturns: lower is better\nInventory days: lower is better"
+      - generic: Metric direction map JSON
+      - textbox "Metric direction map JSON":
+        - /placeholder: "{\"Revenue\":{\"good\":\"up\"},\"Returns\":{\"good\":\"down\"}}"
+      - checkbox "Show provenance footer" [checked]
+      - text: Show provenance footer
+      - generic: Cache TTL
+      - combobox "Cache TTL":
+        - option "Disabled"
+        - option "5 minutes"
+        - option "15 minutes"
+        - option "30 minutes" [selected]
+        - option "1 hour"
+        - option "2 hours"
+      - generic "Stage-specific instruction overrides"
+    - heading "Surface-specific behavior" [level=3]
+    - paragraph: Settings that apply to ONE surface only — AI Insights auto-run and briefing stages, or Ask Pulse chat behavior and follow-ups. Most controls still live in Response behavior above; the split moves in a follow-up cycle.
+    - article:
+      - generic: Supervisor Fusion
+      - button "Copy link to Supervisor Fusion": Copy link
+      - paragraph: Supervisor-only fan-out behavior — synthesis, auto-fusion, and per-space overrides. Only relevant when the active profile is a Supervisor.
+      - button "Open Supervisor Fusion →"
+    - article:
+      - generic: Knowledge Base
+      - button "Copy link to Knowledge Base": Copy link
+      - paragraph: Analytics-knowledge toggles (chart rules / stats rules / reporting rules) used by AI Insights primarily, with knock-on effects on Ask Pulse when grounded answers reference them.
+      - button "Open Knowledge Base →"
+- button "Open Tanstack query devtools":

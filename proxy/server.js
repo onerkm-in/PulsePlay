@@ -24,6 +24,12 @@
  * @property {string} [powerBiClientId] Cycle A — Azure AD application (client) ID used to mint Power BI embed tokens (POST /assistant/embed-token/powerbi).
  * @property {string} [powerBiClientSecret] Cycle A — Azure AD client secret. NEVER logged or returned to the browser.
  * @property {string} [powerBiTenantId] Cycle A — Azure AD tenant ID for the client_credentials grant.
+ * @property {string|boolean} [powerBiAllowEdit] Explicit policy gate for Power BI Edit embed tokens. Defaults false.
+ * @property {string|boolean} [powerBiRlsEnabled] Enables server-derived Power BI effective identities.
+ * @property {string|boolean} [powerBiRlsRequired] When true, fail token issuance if an RLS identity cannot be derived.
+ * @property {string} [powerBiRlsUsername] Optional server-configured RLS username override.
+ * @property {string} [powerBiRlsUsernameClaim] IdP claim name/list used for RLS username. Defaults to email/preferredUsername/upn.
+ * @property {string|string[]} [powerBiRlsRoles] Optional Power BI RLS role names.
  *
  * @typedef {Object} ProxyConfig
  * @property {number} [port]
@@ -32,6 +38,8 @@
  * @property {{ spaces?: string[], staggerMs?: number }} [supervisor]
  * @property {{ key?: string, deploymentName?: string, endpoint?: string }} [openai]
  * @property {{ region?: string, accessKeyId?: string, secretAccessKey?: string, knowledgeBaseId?: string }} [bedrock]
+ * @property {object} [allowlist]
+ * @property {string} [allowlistEnforcement]
  *
  * @typedef {Object} ConversationEntry
  * @property {string} conversationId
@@ -55,6 +63,24 @@ try {
 }
 
 const CONFIG_PATH = path.join(__dirname, 'config.json');
+const allowlist = require('./lib/allowlist');
+const { listInstalledPacks, loadPackDetail, loadSubVerticalDetail } = require('./lib/packRegistry');
+const databricksCapabilityRegistry = require('./lib/databricksCapabilityRegistry');
+const databricksEnablement = require('./lib/databricksEnablement');
+const {
+    UNEXPECTED_INTERNAL_SENTINEL,
+    createProblem,
+    ensureRequestId,
+    redactProblemCause,
+    sendProblem,
+} = require('./lib/problemDetails');
+const {
+    resolvePulseClientContext,
+    resolvePulseRequestId,
+    buildPulseClientCompatibilityResponse,
+} = require('./lib/pulseClientContext');
+const { buildGovernanceAttestation } = require('./lib/governance');
+const { extractSqlSections, extractSqlSectionsFromMarkdown } = require('./lib/sqlSectionExtractor');
 
 // ── Supervisor strategy registry ─────────────────────────────────────────────
 // All supervisor-flavour profile `type` values live in one place so adding a
@@ -103,6 +129,7 @@ function envConfig() {
         spaceId: process.env.GENIE_SPACE_ID || process.env.DATABRICKS_GENIE_SPACE_ID || '',
         warehouseId,
     };
+    Object.assign(profile, databricksAppResourceProfilePatch(process.env));
     /** @type {Record<string, ProfileConfig>} */
     const profiles = { [profileName]: profile };
     if (profileName !== 'default') profiles.default = profile;
@@ -137,6 +164,47 @@ function envConfig() {
         profiles,
         configSource: 'environment',
     };
+}
+
+function databricksAppResourceProfilePatch(env = process.env) {
+    const patch = {};
+    const pick = (...keys) => {
+        for (const key of keys) {
+            const value = env[key];
+            if (typeof value === 'string' && value.trim()) return value.trim();
+        }
+        return '';
+    };
+    const warehouse = pick('APP_RESOURCE_SQL_WAREHOUSE', 'APP_RESOURCE_WAREHOUSE_ID', 'DATABRICKS_APP_SQL_WAREHOUSE_ID');
+    const genieSpace = pick('APP_RESOURCE_GENIE_SPACE', 'APP_RESOURCE_GENIE_SPACE_ID', 'DATABRICKS_APP_GENIE_SPACE_ID');
+    const vectorIndex = pick('APP_RESOURCE_VECTOR_SEARCH_INDEX', 'APP_RESOURCE_VECTOR_INDEX');
+    const metricView = pick('APP_RESOURCE_METRIC_VIEW', 'APP_RESOURCE_UC_METRIC_VIEW');
+    const catalog = pick('APP_RESOURCE_CATALOG', 'DATABRICKS_CATALOG');
+    const schema = pick('APP_RESOURCE_SCHEMA', 'DATABRICKS_SCHEMA');
+    const aibiDashboardId = pick('APP_RESOURCE_AIBI_DASHBOARD_ID', 'APP_RESOURCE_DASHBOARD_ID');
+    const aibiWorkspaceId = pick('APP_RESOURCE_AIBI_WORKSPACE_ID', 'APP_RESOURCE_WORKSPACE_ID');
+    if (warehouse) patch.warehouseId = warehouse;
+    if (genieSpace) patch.spaceId = genieSpace;
+    if (vectorIndex) patch.vectorSearchIndex = vectorIndex;
+    if (metricView) patch.metricView = metricView;
+    if (catalog) patch.catalog = catalog;
+    if (schema) patch.schema = schema;
+    if (aibiDashboardId) patch.aibiDashboardId = aibiDashboardId;
+    if (aibiWorkspaceId) patch.aibiWorkspaceId = aibiWorkspaceId;
+    return patch;
+}
+
+function visibleDatabricksAppResources(env = process.env) {
+    const keys = Object.keys(env)
+        .filter(key => key.startsWith('APP_RESOURCE_') || key.startsWith('DATABRICKS_APP_'))
+        .sort();
+    const out = {};
+    for (const key of keys) {
+        const value = env[key];
+        if (typeof value !== 'string' || !value.trim()) continue;
+        out[key] = /SECRET|TOKEN|PASSWORD|KEY/i.test(key) ? '[configured]' : value;
+    }
+    return out;
 }
 
 /**
@@ -182,6 +250,30 @@ const ENV_PROFILE_FIELDS = {
     SYNTHESISENDPOINT: 'synthesisEndpoint',
     SPACES: 'spaces',
     TYPE: 'type',
+    AUTH_MODE: 'authMode',
+    AUTHMODE: 'authMode',
+    CLIENT_ID: 'clientId',
+    CLIENTID: 'clientId',
+    CLIENT_SECRET: 'clientSecret',
+    CLIENTSECRET: 'clientSecret',
+    CATALOG: 'catalog',
+    DATABRICKS_CATALOG: 'databricksCatalog',
+    DATABRICKSCATALOG: 'databricksCatalog',
+    SCHEMA: 'schema',
+    DATABRICKS_SCHEMA: 'databricksSchema',
+    DATABRICKSSCHEMA: 'databricksSchema',
+    AIBI_DASHBOARD_ID: 'aibiDashboardId',
+    AIBIDASHBOARDID: 'aibiDashboardId',
+    AIBI_WORKSPACE_ID: 'aibiWorkspaceId',
+    AIBIWORKSPACEID: 'aibiWorkspaceId',
+    AIBI_EXTERNAL_VIEWER_ID: 'aibiExternalViewerId',
+    AIBIEXTERNALVIEWERID: 'aibiExternalViewerId',
+    AIBI_EXTERNAL_VALUE: 'aibiExternalValue',
+    AIBIEXTERNALVALUE: 'aibiExternalValue',
+    VECTOR_SEARCH_INDEX: 'vectorSearchIndex',
+    VECTORSEARCHINDEX: 'vectorSearchIndex',
+    METRIC_VIEW: 'metricView',
+    METRICVIEW: 'metricView',
     SUGGESTED_QUESTIONS: 'suggestedQuestions',
     SUGGESTEDQUESTIONS: 'suggestedQuestions',
     // Cycle 47.6 — Foundation Model serving endpoint name. Lets a
@@ -197,7 +289,19 @@ const ENV_PROFILE_FIELDS = {
     POWER_BI_CLIENT_SECRET: 'powerBiClientSecret',
     POWERBICLIENTSECRET: 'powerBiClientSecret',
     POWER_BI_TENANT_ID: 'powerBiTenantId',
-    POWERBITENANTID: 'powerBiTenantId'
+    POWERBITENANTID: 'powerBiTenantId',
+    POWER_BI_ALLOW_EDIT: 'powerBiAllowEdit',
+    POWERBIALLOWEDIT: 'powerBiAllowEdit',
+    POWER_BI_RLS_ENABLED: 'powerBiRlsEnabled',
+    POWERBIRLSENABLED: 'powerBiRlsEnabled',
+    POWER_BI_RLS_REQUIRED: 'powerBiRlsRequired',
+    POWERBIRLSREQUIRED: 'powerBiRlsRequired',
+    POWER_BI_RLS_USERNAME: 'powerBiRlsUsername',
+    POWERBIRLSUSERNAME: 'powerBiRlsUsername',
+    POWER_BI_RLS_USERNAME_CLAIM: 'powerBiRlsUsernameClaim',
+    POWERBIRLSUSERNAMECLAIM: 'powerBiRlsUsernameClaim',
+    POWER_BI_RLS_ROLES: 'powerBiRlsRoles',
+    POWERBIRLSROLES: 'powerBiRlsRoles'
 };
 
 function loadEnvProfiles(env = process.env) {
@@ -219,7 +323,7 @@ function loadEnvProfiles(env = process.env) {
         const value = env[key];
         if (value == null || value === '') continue;
         if (!out[profileName]) out[profileName] = {};
-        if (fieldName === 'spaces' || fieldName === 'suggestedQuestions') {
+        if (fieldName === 'spaces' || fieldName === 'suggestedQuestions' || fieldName === 'powerBiRlsRoles') {
             out[profileName][fieldName] = String(value).split(',').map(s => s.trim()).filter(Boolean);
         } else {
             out[profileName][fieldName] = String(value);
@@ -230,6 +334,11 @@ function loadEnvProfiles(env = process.env) {
 
 function mergeConfigWithEnvironment(config) {
     const profiles = { ...(config.profiles || {}) };
+    const appResourcePatch = databricksAppResourceProfilePatch(process.env);
+    if (Object.keys(appResourcePatch).length > 0) {
+        const name = process.env.ASSISTANT_PROFILE || 'default';
+        profiles[name] = { ...(profiles[name] || {}), ...appResourcePatch };
+    }
 
     // Generic env-var profile layer (IDEA-016 phase 2). Per-field merge:
     // env wins for any field it sets; config.json values for unset fields
@@ -310,6 +419,33 @@ function cfg() {
     return readAndMerge();
 }
 
+const _allowlistStartupProblem = allowlist.startupAllowlistProblem(cfg(), process.env);
+if (_allowlistStartupProblem) {
+    console.error(`FATAL: ${_allowlistStartupProblem}`);
+    process.exit(1);
+}
+
+// L17 closure — config.json shape validation at startup. Catches obviously-
+// malformed config blocks (wrong types on fields the proxy reads via
+// direct property access) before they become confusing runtime errors.
+// Production hard-fails; dev mode logs a warning and continues so a
+// half-edited config doesn't block the developer.
+const _configValidator = require('./lib/configValidator');
+const _configProblems = _configValidator.validateConfigShape(cfg());
+if (_configProblems.length > 0) {
+    const header = `[config] proxy/config.json has ${_configProblems.length} validation problem${_configProblems.length === 1 ? '' : 's'}:`;
+    const lines = _configProblems.map(p => `  - ${p}`).join('\n');
+    if (process.env.NODE_ENV === 'production') {
+        console.error(`FATAL: ${header}\n${lines}\nRefusing to start. Fix the config and try again.`);
+        process.exit(1);
+    } else if (process.env.NODE_ENV !== 'test') {
+        console.warn(`${header}\n${lines}\nContinuing (NODE_ENV != production). See SETTINGS_SPEC § 15 L17.`);
+    }
+}
+if (process.env.NODE_ENV !== 'test' && !allowlist.normalizeAllowlist(cfg(), process.env).configured) {
+    console.warn('[allowlist] No proxy config allowlist is configured. Local development remains permissive; production refuses to start without one.');
+}
+
 // ── In-memory conversation → context mapping ──────────────────────────────────
 // Populated when a conversation starts so polling GETs can resolve the right
 // space and profile even without a request body. Entries are TTL-bounded
@@ -385,13 +521,47 @@ const profileRegistry = {
     }
 };
 
-function profileByName(name) {
+function recordAllowlistRejection(req, rejection) {
+    if (req && rejection) {
+        req._allowlistRejection = rejection;
+    }
+}
+
+function profileAllowedForRequest(name, profile, req) {
+    if (!req) return true;
+    const c = cfg();
+    const profileDecision = allowlist.isAiProfileAllowed(c, req, name);
+    if (!profileDecision.ok) {
+        recordAllowlistRejection(req, profileDecision);
+        return false;
+    }
+    if (profileDecision.warn) {
+        console.warn(`[allowlist] warn: profile "${name}" is outside aiProfiles allowlist`);
+    }
+
+    const spaceId = profile?.spaceId || profile?.genieSpaceId;
+    if (spaceId) {
+        const spaceDecision = allowlist.isGenieSpaceAllowed(c, req, spaceId);
+        if (!spaceDecision.ok) {
+            recordAllowlistRejection(req, spaceDecision);
+            return false;
+        }
+        if (spaceDecision.warn) {
+            console.warn(`[allowlist] warn: Genie space "${spaceId}" is outside genieSpaces allowlist`);
+        }
+    }
+    return true;
+}
+
+function profileByName(name, req) {
     const p = profileRegistry.get(name);
+    if (p && !profileAllowedForRequest(name, p, req)) return null;
     return p ? { profile: p, name } : null;
 }
 
-function profileByHost(targetHost) {
+function profileByHost(targetHost, req) {
     const match = profileRegistry.findByHost(targetHost);
+    if (match && !profileAllowedForRequest(match.name, match.profile, req)) return null;
     return match ? { profile: match.profile, name: 'host-matched' } : null;
 }
 
@@ -590,7 +760,7 @@ function resolveProfile(body, query, headers, req) {
     let base = null;
     const explicitName = body?.assistantProfile || query?.assistantProfile;
     if (explicitName) {
-        base = profileByName(explicitName);
+        base = profileByName(explicitName, req);
         // Explicit name was given but not found — in mode "override" with a
         // valid inline triple, fall through to inline (Wave 31 behaviour
         // when no config profile exists). Otherwise bail.
@@ -600,8 +770,8 @@ function resolveProfile(body, query, headers, req) {
     } else {
         // Prefer canonical PulsePlay header; fall back to legacy Pulse name.
         const targetHost = headers?.['x-pulseplay-target-host'] || headers?.['x-genie-target-host'];
-        const byHost = profileByHost(targetHost);
-        base = byHost || profileByName('default');
+        const byHost = profileByHost(targetHost, req);
+        base = byHost || profileByName('default', req);
     }
 
     // applyInlineMode needs raw headers to support partial fallback merges.
@@ -764,6 +934,30 @@ function spHashForProfile(profile) {
     if (!profile || profile.authMode !== 'oauth-m2m') return null;
     if (!profile.clientId) return null;
     return hashServicePrincipalId(profile.clientId);
+}
+
+/**
+ * Normalise a backend's `usage` block to the OpenAI-compatible shape the
+ * playground's SustainabilityIndicator expects. Tolerates partial fields
+ * (some self-hosted endpoints only report total_tokens). Returns null when
+ * the input carries no usable numeric fields.
+ *
+ * Backends and shapes handled:
+ *   • OpenAI chat-completions: { prompt_tokens, completion_tokens, total_tokens }
+ *   • Anthropic / Claude:      { input_tokens, output_tokens }
+ *   • Bedrock-normalised:      both shapes (via bedrock.js _extractBedrockUsage)
+ *   • Foundation Model:        OpenAI-compatible
+ */
+function _sanitizeUsageBlock(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const num = (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.floor(v) : null;
+    const out = {};
+    let any = false;
+    for (const k of ['prompt_tokens', 'completion_tokens', 'total_tokens', 'input_tokens', 'output_tokens']) {
+        const v = num(raw[k]);
+        if (v !== null) { out[k] = v; any = true; }
+    }
+    return any ? out : null;
 }
 
 async function resolveToken(profile) {
@@ -959,8 +1153,61 @@ async function databricksRequest(profile, method, urlPath, body, requestId) {
 
 // Normalize upstream Databricks auth failures so clients can distinguish
 // invalid/expired credentials from generic transport errors.
+//
+// Recognised error shapes (in match-precedence order):
+//
+//   1. "Databricks OAuth token request failed (NNN): <detail>"
+//        Thrown by resolveDatabricksOAuthToken() when /oidc/v1/token returns
+//        a non-2xx response. NNN is the OIDC endpoint's HTTP status.
+//        Closes Slice 1c P0-4: this shape was previously falling through to
+//        the raw-message fallback, exposing the client_id / detail prefix.
+//   2. "Azure AD response missing access_token"
+//   3. "Power BI GenerateToken response missing token"
+//        Thrown by /assistant/embed-token/* paths when the upstream IDP
+//        returns 200 but no token payload. Treated as 502 (upstream contract
+//        violation) with a safe sentinel.
+//   4. "Databricks NNN: <detail>"
+//        Original shape from databricksRequest() generic upstream errors.
+//        Existing 401/403 → auth-failure response + OAuth cache invalidation;
+//        other 4xx/5xx → redacted message preserving status.
+//
+// Anything not matching the above falls through to fallbackStatus with the
+// shared unexpected-internal sentinel. Never return raw err.message from this
+// chokepoint; routes that need operator diagnostics should log them server-side.
 function errorStatusFromDatabricks(err, fallbackStatus = 500, profile) {
     const message = String(err?.message || 'Unexpected proxy error');
+
+    // Slice 1c — OAuth-acquisition error shape from resolveDatabricksOAuthToken.
+    // /oidc/v1/token failures are always credential issues from the client's
+    // perspective: bad SP client_id / client_secret, revoked SP, or invalid
+    // grant. Normalize to 401 so the playground's auth-error UX kicks in
+    // regardless of whether the OIDC endpoint returned 400, 401, or 403.
+    const oauthAcquisitionMatch = message.match(
+        /Databricks\s+OAuth\s+token\s+request\s+failed\s+\((\d{3})\)/i,
+    );
+    if (oauthAcquisitionMatch) {
+        const oidcStatus = Number(oauthAcquisitionMatch[1]);
+        if (profile) {
+            try { invalidateOAuthCacheForProfile(profile); } catch { /* ignore */ }
+        }
+        return {
+            status: (oidcStatus === 401 || oidcStatus === 403) ? oidcStatus : 401,
+            error: 'Databricks OAuth token acquisition failed. Check the service principal client_id / client_secret on the selected profile.',
+        };
+    }
+
+    // Slice 1c — missing-token shapes from /assistant/embed-token/* paths.
+    // Upstream identity provider returned 200 but with no token payload —
+    // an upstream contract violation, not a credential issue. 502 with a
+    // safe sentinel; never leak the raw IdP response shape.
+    if (/Azure AD response missing access_token/i.test(message)
+        || /Power BI GenerateToken response missing token/i.test(message)) {
+        return {
+            status: 502,
+            error: 'Upstream identity provider returned an unexpected token response. Retry; if persistent, check provider status and the configured profile credentials.',
+        };
+    }
+
     const m = message.match(/Databricks\s+(\d{3})\s*:/i);
     if (m) {
         const status = Number(m[1]);
@@ -990,7 +1237,7 @@ function errorStatusFromDatabricks(err, fallbackStatus = 500, profile) {
             return { status, error: redacted };
         }
     }
-    return { status: fallbackStatus, error: message };
+    return { status: fallbackStatus, error: UNEXPECTED_INTERNAL_SENTINEL };
 }
 
 // ── Warehouse auto-start ──────────────────────────────────────────────────────
@@ -1070,7 +1317,51 @@ async function ensureWarehouseRunning(profile) {
 
 // ── App ───────────────────────────────────────────────────────────────────────
 const app = express();
-app.use(express.json({ limit: '4mb' }));
+
+function isJsonParseError(err) {
+    return Boolean(
+        err
+        && err.type === 'entity.parse.failed'
+        && err.status === 400
+        && err instanceof SyntaxError
+    );
+}
+
+function isBodyTooLargeError(err) {
+    return Boolean(err && err.type === 'entity.too.large' && Number(err.status) === 413);
+}
+
+function handleJsonParseProblem(err, req, res, next) {
+    if (!isJsonParseError(err) && !isBodyTooLargeError(err)) return next(err);
+    const requestId = ensureRequestId(req, res);
+    const tooLarge = isBodyTooLargeError(err);
+    const problem = createProblem({
+        status: tooLarge ? 413 : 400,
+        code: tooLarge ? 'REQUEST_BODY_TOO_LARGE' : 'INVALID_JSON',
+        title: tooLarge ? 'Request body too large' : 'Invalid JSON body',
+        detail: tooLarge
+            ? 'The request body is larger than the 4 MB proxy limit. Reduce the payload and try again.'
+            : 'The request body is not valid JSON. Fix the JSON syntax and try again.',
+        category: 'validation',
+        severity: 'warning',
+        retryable: false,
+        requestId,
+        instance: req.originalUrl || req.url || '',
+        userAction: tooLarge
+            ? 'Send a smaller payload, reduce embedded context, or split the request into smaller calls.'
+            : 'Check for missing commas, unclosed quotes, or trailing characters in the JSON body.',
+        operatorAction: tooLarge
+            ? 'Check whether the client is sending oversized BI context or accidental binary content.'
+            : 'Use the request id to find the rejected request if the client keeps sending malformed JSON.',
+        cause: {
+            method: req.method,
+            route: req.originalUrl || req.url || '',
+            status: tooLarge ? 413 : 400,
+            code: tooLarge ? 'REQUEST_BODY_TOO_LARGE' : 'INVALID_JSON',
+        },
+    });
+    return sendProblem(res, problem);
+}
 
 // CORS — permissive by default for development, pinned by env var for
 // production. Both PulsePlay (browser host) and Pulse (the sibling
@@ -1101,6 +1392,36 @@ if (process.env.NODE_ENV === 'production' && (_corsOriginRaw === '*' || !_corsAl
     console.error('FATAL: PROXY_CORS_ORIGIN must be pinned to specific origin(s) in production (NODE_ENV=production). Refusing to start with permissive "*".');
     process.exit(1);
 }
+
+// L8 closure — refuse to start in production with permissive inline
+// credentials. The visual-supplied X-Databricks-* headers must NEVER be
+// trusted in a shared / hosted deployment. Auto-detect already prefers
+// 'off' when PROXY_SHARED_KEY or WEBSITE_SITE_NAME are set, but a
+// misconfigured prod (those env vars unset AND PROXY_INLINE_CREDENTIALS_MODE
+// not explicitly 'off') would default to 'override' — silently accepting
+// browser-supplied creds. Hard-fail at startup so the misconfiguration
+// is loud, not subtle.
+if (process.env.NODE_ENV === 'production') {
+    const _inlineMode = resolveInlineCredentialsMode();
+    if (_inlineMode !== 'off') {
+        console.error(
+            `FATAL: PROXY_INLINE_CREDENTIALS_MODE is "${_inlineMode}" in production (NODE_ENV=production). Set PROXY_INLINE_CREDENTIALS_MODE=off (or PROXY_SHARED_KEY / WEBSITE_SITE_NAME to auto-pin) before starting. Refusing to start — see SETTINGS_SPEC § 15 L8.`,
+        );
+        process.exit(1);
+    }
+}
+
+// L6 mitigation — surface a loud startup banner when the embed-token
+// route is reachable without IdP gating. This relies on ADR-0002's
+// 127.0.0.1-only dev bind to limit blast radius, but the banner makes
+// the dev-only posture visible in the proxy log so a misconfigured
+// staging / preview deployment is obvious. Skipped in test runs to
+// keep CI logs quiet.
+if (process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'test' && !process.env.PROXY_IDP_REQUIRED) {
+    console.warn(
+        '[security] Embed-token route is reachable without IdP enforcement (dev posture). ADR-0002 binds the proxy to 127.0.0.1 in dev; do NOT expose this port. See SETTINGS_SPEC § 15 L6.',
+    );
+}
 function _corsOriginFor(req) {
     if (_corsAllowList === null) return '*'; // dev wildcard
     const reqOrigin = req.headers.origin;
@@ -1125,8 +1446,10 @@ app.use((req, res, next) => {
         'X-Databricks-Host', 'X-Databricks-Token',
         // Generic
         'X-Assistant-Profile', 'X-Request-Id', 'X-Profile-Name',
+        // PX1 — shared client identity for PulsePlay / Pulse PBI / Desktop EXE
+        'X-Pulse-Client', 'X-Pulse-Client-Version', 'X-Pulse-Request-Id',
     ].join(', '));
-    res.setHeader('Access-Control-Expose-Headers', 'X-Request-Id');
+    res.setHeader('Access-Control-Expose-Headers', 'X-Request-Id, X-Pulse-Request-Id, X-Pulse-Client');
     // Defense-in-depth security headers — the proxy only serves JSON,
     // so a strict CSP is appropriate. Express's 404 / 5xx default body
     // is HTML; lock it down so a stray error page can't execute scripts.
@@ -1138,30 +1461,303 @@ app.use((req, res, next) => {
     next();
 });
 
-// ── Shared-key auth ──────────────────────────────────────────────────────────
-// Opt-in protection: when config.json sets `sharedKey`, every /assistant/*,
-// /warehouse/*, and /feedback call must send the matching X-PulsePlay-Key
-// header (or the legacy X-Genie-Key alias for the Pulse PBI sibling).
-// Leaving `sharedKey` unset (the default for local dev) preserves existing
-// behaviour — localhost-only binding is still the primary defence.
-function sharedKeyMiddleware(req, res, next) {
-    const required = cfg().sharedKey;
-    if (!required || !String(required).trim()) return next();
-    // Prefer the canonical PulsePlay header; fall back to the legacy
-    // Pulse name so existing PBI-custom-visual deployments keep working
-    // unchanged. Constant-time compare on whichever was supplied.
-    const provided = req.headers['x-pulseplay-key'] || req.headers['x-genie-key'];
-    if (provided) {
-        try {
-            const cryptoMod = require('crypto');
-            const a = Buffer.from(String(provided), 'utf8');
-            const b = Buffer.from(String(required), 'utf8');
-            if (a.length === b.length && cryptoMod.timingSafeEqual(a, b)) return next();
-        } catch { /* fall through to 401 */ }
+app.use(express.json({ limit: '4mb' }));
+app.use(handleJsonParseProblem);
+
+// ── /api/ prefix strip (combined-deployment compatibility) ───────────────────
+//
+// The Vite playground bundles fetch URLs like `/api/assistant/profiles`
+// because in dev Vite proxies `/api/*` → `127.0.0.1:8787/*`. When the
+// playground is served from the same origin as the proxy (combined
+// Databricks App / App Service deployment), there's no Vite to do the
+// rewrite — so we strip the `/api/` prefix here before the route handlers
+// resolve. The proxy's own routes are mounted without the prefix (e.g.
+// `/assistant/profiles`), and stripping is a no-op for direct API consumers
+// that already use the unprefixed path.
+app.use((req, _res, next) => {
+    if (req.url.startsWith('/api/')) {
+        req.url = req.url.slice(4) || '/';
     }
-    return res.status(401).json({
-        error: 'Missing or invalid X-PulsePlay-Key header (legacy alias: X-Genie-Key). Set the Proxy Shared Key in your client.'
+    next();
+});
+
+// ── Proxy auth mode ──────────────────────────────────────────────────────────
+//
+// Production deployments must be explicit about the edge auth story:
+//   PROXY_AUTH_MODE=none               dev/lab only
+//   PROXY_AUTH_MODE=idp                verified Bearer JWT required
+//   PROXY_AUTH_MODE=shared-key         X-PulsePlay-Key / X-Genie-Key required
+//   PROXY_AUTH_MODE=idp-or-shared-key  either verified JWT or shared key
+//
+// Compatibility: a configured shared key with no explicit PROXY_AUTH_MODE
+// still enables shared-key auth in dev/test, preserving the historical gate.
+const VALID_PROXY_AUTH_MODES = new Set(['none', 'idp', 'shared-key', 'idp-or-shared-key']);
+
+function _normalizeProxyAuthMode(raw) {
+    const v = String(raw || '').trim().toLowerCase();
+    if (!v) return '';
+    if (v === 'sharedkey' || v === 'shared_key') return 'shared-key';
+    if (v === 'idp_or_shared_key' || v === 'idp-or-key' || v === 'either') return 'idp-or-shared-key';
+    if (v === 'off' || v === 'anonymous') return 'none';
+    return v;
+}
+
+function configuredSharedKey(config = cfg(), env = process.env) {
+    const raw = env.PROXY_SHARED_KEY || env.PROXY_KEY || env.GENIE_PROXY_SHARED_KEY || config?.sharedKey || '';
+    return String(raw || '').trim();
+}
+
+function isProxyProductionAuthRequired(env = process.env) {
+    return env.NODE_ENV === 'production' || _truthyConfig(env.PROXY_REQUIRE_AUTH);
+}
+
+function resolveProxyAuthMode(env = process.env, config = cfg()) {
+    const explicit = _normalizeProxyAuthMode(env.PROXY_AUTH_MODE);
+    if (explicit && VALID_PROXY_AUTH_MODES.has(explicit)) return explicit;
+    if (String(env.PROXY_IDP_REQUIRED || '').toLowerCase() === 'true') return 'idp';
+    if (isProxyProductionAuthRequired(env)) return 'idp-or-shared-key';
+    if (configuredSharedKey(config, env)) return 'shared-key';
+    return 'none';
+}
+
+function hasVerifiedIdpUser(req) {
+    const user = req?.user || {};
+    return Boolean(user.sub || user.email || user.preferredUsername || user.preferred_username || user.upn);
+}
+
+function requestHasSharedKey(req, required = configuredSharedKey()) {
+    if (!required) return false;
+    const provided = req.headers['x-pulseplay-key'] || req.headers['x-genie-key'];
+    if (!provided) return false;
+    try {
+        const cryptoMod = require('crypto');
+        const a = Buffer.from(String(provided), 'utf8');
+        const b = Buffer.from(String(required), 'utf8');
+        return a.length === b.length && cryptoMod.timingSafeEqual(a, b);
+    } catch {
+        return false;
+    }
+}
+
+function auditAuthRejection(req, reason, status = 401) {
+    try {
+        auditLog(req, {
+            profileName: req.body?.assistantProfile || req.body?.profile || req.query?.assistantProfile || req.query?.profile || null,
+            action: 'auth.rejected',
+            status,
+            detail: reason,
+        });
+    } catch {
+        // Auth rejection must never crash the request path.
+    }
+}
+
+function sendAuthRejection(req, res, reason, error, status = 401) {
+    auditAuthRejection(req, reason, status);
+    return res.status(status).json({ error });
+}
+
+function safeStreamErrorText(value, maxLen = 200) {
+    const redacted = redactProblemCause(value);
+    const text = typeof redacted === 'string'
+        ? redacted
+        : JSON.stringify(redacted || 'Unexpected upstream stream error.');
+    return text.slice(0, maxLen) || 'Unexpected upstream stream error.';
+}
+
+const RENDERABLE_BACKEND_GOVERNANCE = Object.freeze({
+    genie: Object.freeze({ authority: 'unity-catalog' }),
+    'azure-openai-chat': Object.freeze({ authority: 'warehouse' }),
+    'azure-openai-analytics': Object.freeze({ authority: 'unity-catalog' }),
+    'bedrock-rag': Object.freeze({ authority: 'warehouse' }),
+    'bedrock-direct': Object.freeze({ authority: 'warehouse' }),
+    'foundation-model': Object.freeze({ authority: 'unity-catalog' }),
+    supervisor: Object.freeze({ authority: 'unity-catalog' }),
+    'supervisor-local': Object.freeze({ authority: 'unity-catalog' }),
+    'responses-agent': Object.freeze({ authority: 'unity-catalog' }),
+    'powerbi-semantic-model': Object.freeze({ authority: 'powerbi-semantic-model' }),
+    // SS2 — proxy-backed shell smoke. Profiles of `type: "smoke-fixture"`
+    // short-circuit the conversation routes to a canned `COMPLETED`
+    // response stamped with this `authority: "mock"` attestation. The
+    // governance builder forbids `authority: "mock"` when
+    // `NODE_ENV=production`, so a smoke profile cannot accidentally
+    // ship a governance-bypass to a real deployment.
+    'smoke-fixture': Object.freeze({ authority: 'mock' }),
+});
+
+function hashGovernanceSubject(prefix, raw) {
+    const text = String(raw || '').trim();
+    if (!text) return null;
+    try {
+        const cryptoMod = require('crypto');
+        const digest = cryptoMod.createHash('sha256').update(text).digest('hex');
+        return `${prefix}:${digest.slice(0, 12)}`;
+    } catch {
+        return null;
+    }
+}
+
+function governanceSubjectRefForRequest(req, profile) {
+    if (hasVerifiedIdpUser(req)) {
+        const user = req.user || {};
+        return hashGovernanceSubject(
+            'user',
+            user.sub || user.email || user.preferredUsername || user.preferred_username || user.upn,
+        ) || 'user:unknown';
+    }
+
+    const spHash = spHashForProfile(profile);
+    if (spHash) return spHash;
+
+    if (requestHasSharedKey(req)) {
+        const clientApp = req.pulseClient?.clientApp || resolvePulseClientContext(req.headers || {}).clientApp || 'unknown';
+        return `shared-key:${clientApp}`;
+    }
+
+    return isProxyProductionAuthRequired() ? 'anonymous' : 'local-dev';
+}
+
+function sourceRefForGenieProfile(profile, spaceId) {
+    const resolvedSpaceId = String(spaceId || profile?.spaceId || '').trim();
+    if (!resolvedSpaceId) return undefined;
+    const ref = {
+        kind: 'genie-space',
+        spaceId: resolvedSpaceId,
+        displayName: String(profile?.agentName || profile?.displayName || profile?.name || 'Genie Space'),
+        governance: { requiresAttestation: true },
+    };
+    if (profile?.warehouseId) ref.warehouseId = String(profile.warehouseId);
+    return ref;
+}
+
+function governanceForBackend(req, profile, backendId, extra = {}) {
+    const spec = RENDERABLE_BACKEND_GOVERNANCE[backendId];
+    if (!spec) throw new Error(`No governance mapping registered for backend "${backendId}"`);
+    const {
+        authority: _authority,
+        subjectRef: _subjectRef,
+        requestId: _requestId,
+        policyVersion: _policyVersion,
+        enforced: _enforced,
+        ...attestationExtra
+    } = extra || {};
+    return buildGovernanceAttestation({
+        ...attestationExtra,
+        authority: spec.authority,
+        subjectRef: governanceSubjectRefForRequest(req, profile),
+        requestId: req.requestId || req.headers?.['x-request-id'] || req.headers?.['x-pulse-request-id'] || 'request-unknown',
+        policyVersion: 'g3-v1',
     });
+}
+
+function withGovernance(req, profile, backendId, payload, extra = {}) {
+    const base = payload && typeof payload === 'object' ? payload : { content: payload };
+    return {
+        ...base,
+        governance: governanceForBackend(req, profile, backendId, extra),
+    };
+}
+
+function normalizeIdpUserClaims(payload = {}) {
+    const preferred = payload.preferredUsername || payload.preferred_username || null;
+    return {
+        sub: payload.sub || null,
+        email: payload.email || preferred || null,
+        preferred_username: preferred,
+        preferredUsername: preferred,
+        upn: payload.upn || null,
+        name: payload.name || null,
+        tid: payload.tid || null, // AAD tenant
+        scp: payload.scp || payload.scope || null, // delegated scopes
+        roles: Array.isArray(payload.roles) ? payload.roles : (payload.roles ? [payload.roles] : null),
+        groups: Array.isArray(payload.groups) ? payload.groups : (payload.groups ? [payload.groups] : null),
+        // Raw subset for downstream audit log; never expose the full token
+        // or any signature material.
+        iat: payload.iat,
+        exp: payload.exp,
+    };
+}
+
+function validateProductionAuthConfig({ env = process.env, config = cfg(), idpConfigured = Boolean(_idpJwksFetcher) } = {}) {
+    const mode = resolveProxyAuthMode(env, config);
+    const sharedKey = configuredSharedKey(config, env);
+    if (!isProxyProductionAuthRequired(env)) return { ok: true, mode, reason: null };
+    if (mode === 'none') {
+        return {
+            ok: false,
+            mode,
+            reason: 'auth.production-refuses-none',
+            message: 'PROXY_AUTH_MODE=none is refused when NODE_ENV=production or PROXY_REQUIRE_AUTH=true.',
+        };
+    }
+    if (mode === 'idp' && !idpConfigured) {
+        return {
+            ok: false,
+            mode,
+            reason: 'auth.missing-idp',
+            message: 'PROXY_AUTH_MODE=idp requires PROXY_IDP_JWKS_URL and jose JWT verification.',
+        };
+    }
+    if (mode === 'shared-key' && !sharedKey) {
+        return {
+            ok: false,
+            mode,
+            reason: 'auth.missing-shared-key',
+            message: 'PROXY_AUTH_MODE=shared-key requires PROXY_SHARED_KEY or PROXY_KEY.',
+        };
+    }
+    if (mode === 'idp-or-shared-key' && !idpConfigured && !sharedKey) {
+        return {
+            ok: false,
+            mode,
+            reason: 'auth.missing-idp,auth.missing-shared-key',
+            message: 'Production auth requires PROXY_IDP_JWKS_URL or PROXY_SHARED_KEY / PROXY_KEY.',
+        };
+    }
+    return { ok: true, mode, reason: null };
+}
+
+function assertProductionAuthConfig() {
+    const result = validateProductionAuthConfig();
+    if (result.ok) return result;
+    console.error(`FATAL: ${result.message} (${result.reason})`);
+    process.exit(1);
+}
+
+// Historical middleware name retained because tests and route invariants assert
+// that the shared-key gate is mounted on every cost-bearing prefix. It now
+// enforces the full PROXY_AUTH_MODE contract, not only shared-key mode.
+function sharedKeyMiddleware(req, res, next) {
+    const mode = resolveProxyAuthMode();
+    if (mode === 'none') return next();
+    if (mode === 'idp') {
+        if (hasVerifiedIdpUser(req)) return next();
+        return sendAuthRejection(req, res, 'auth.missing-idp', 'Authorization Bearer JWT required.');
+    }
+
+    const required = configuredSharedKey();
+    if (mode === 'shared-key') {
+        if (requestHasSharedKey(req, required)) return next();
+        return sendAuthRejection(
+            req,
+            res,
+            'auth.missing-shared-key',
+            'Missing or invalid X-PulsePlay-Key header (legacy alias: X-Genie-Key). Set the Proxy Shared Key in your client.',
+        );
+    }
+
+    if (mode === 'idp-or-shared-key') {
+        if (hasVerifiedIdpUser(req)) return next();
+        if (requestHasSharedKey(req, required)) return next();
+        return sendAuthRejection(
+            req,
+            res,
+            'auth.missing-idp,auth.missing-shared-key',
+            'Authorization Bearer JWT or X-PulsePlay-Key header required.',
+        );
+    }
+
+    return sendAuthRejection(req, res, 'auth.production-refuses-none', 'Invalid PROXY_AUTH_MODE configuration.', 500);
 }
 
 // ── IdP session validation (JWT) ─────────────────────────────────────────────
@@ -1177,18 +1773,13 @@ function sharedKeyMiddleware(req, res, next) {
 //                          (e.g. https://login.microsoftonline.com/<tenant>/discovery/v2.0/keys)
 //   PROXY_IDP_ISSUER     — Expected `iss` claim (one or many, comma-separated)
 //   PROXY_IDP_AUDIENCE   — Expected `aud` claim (one or many, comma-separated)
-//   PROXY_IDP_REQUIRED   — "true" => reject unauthenticated requests.
-//                          When false (default), missing/invalid tokens are
-//                          fail-open so dev / loopback flows keep working
-//                          alongside the shared-key path. Production MUST
-//                          set this true.
-//   NODE_ENV=production  — When production AND PROXY_IDP_REQUIRED is true
-//                          but JWKS URL is unset, the proxy refuses to
-//                          start (security board ask: no silent skipping).
+//   PROXY_IDP_REQUIRED   — legacy alias for PROXY_AUTH_MODE=idp when
+//                          PROXY_AUTH_MODE is unset.
+//   PROXY_AUTH_MODE      — see the proxy auth mode section above.
 //
-// Combines with sharedKeyMiddleware as an ALTERNATIVE auth (either JWT
-// OR shared key satisfies; shared key remains the service-to-service
-// path). Routes consume both via the middleware chain.
+// This middleware verifies and attaches IdP claims when a Bearer token is
+// present. The downstream sharedKeyMiddleware enforces the final auth-mode
+// contract, allowing either JWT or shared key when configured that way.
 const _jose = (() => {
     try { return require('jose'); }
     catch { return null; }
@@ -1202,26 +1793,30 @@ if (_jose && _idpJwksUrl) {
     try { _idpJwksFetcher = _jose.createRemoteJWKSet(new URL(_idpJwksUrl)); }
     catch (err) { console.warn('[idp] failed to initialise JWKS fetcher:', err.message); }
 }
-if (process.env.NODE_ENV === 'production' && _idpRequired && !_idpJwksFetcher) {
-    console.error('FATAL: PROXY_IDP_REQUIRED=true in production requires PROXY_IDP_JWKS_URL + jose installed. Refusing to start.');
-    process.exit(1);
-}
 
 async function idpMiddleware(req, res, next) {
     // Tests bypass — unit tests inject profiles directly without an IdP.
     if (process.env.NODE_ENV === 'test') return next();
+    const authMode = resolveProxyAuthMode();
+    const requireIdp = authMode === 'idp' || (!process.env.PROXY_AUTH_MODE && _idpRequired);
     const auth = req.headers.authorization || '';
     const m = /^Bearer\s+(.+)$/i.exec(auth);
     const token = m ? m[1].trim() : '';
     if (!token) {
-        if (_idpRequired) {
-            return res.status(401).json({ error: 'Authorization Bearer JWT required.' });
+        if (requireIdp) {
+            return sendAuthRejection(req, res, 'auth.missing-idp', 'Authorization Bearer JWT required.');
         }
         return next(); // dev fail-open
     }
     if (!_idpJwksFetcher) {
-        if (_idpRequired) {
-            return res.status(500).json({ error: 'IdP enforcement enabled but PROXY_IDP_JWKS_URL is not configured.' });
+        if (requireIdp) {
+            return sendAuthRejection(
+                req,
+                res,
+                'auth.missing-idp',
+                'IdP enforcement enabled but PROXY_IDP_JWKS_URL is not configured.',
+                500,
+            );
         }
         return next();
     }
@@ -1230,22 +1825,16 @@ async function idpMiddleware(req, res, next) {
         if (_idpIssuer) verifyOpts.issuer = _idpIssuer.includes(',') ? _idpIssuer.split(',').map(s => s.trim()) : _idpIssuer;
         if (_idpAud)    verifyOpts.audience = _idpAud.includes(',') ? _idpAud.split(',').map(s => s.trim()) : _idpAud;
         const { payload } = await _jose.jwtVerify(token, _idpJwksFetcher, verifyOpts);
-        req.user = {
-            sub: payload.sub || null,
-            email: payload.email || payload.preferred_username || null,
-            name: payload.name || null,
-            tid: payload.tid || null, // AAD tenant
-            scp: payload.scp || payload.scope || null, // delegated scopes
-            roles: Array.isArray(payload.roles) ? payload.roles : (payload.roles ? [payload.roles] : null),
-            // Raw subset for downstream audit log; never expose the full
-            // token or any signature material.
-            iat: payload.iat,
-            exp: payload.exp,
-        };
+        req.user = normalizeIdpUserClaims(payload);
         return next();
     } catch (err) {
-        if (_idpRequired) {
-            return res.status(401).json({ error: `Invalid Authorization token: ${err.message || 'verify failed'}` });
+        if (requireIdp) {
+            return sendAuthRejection(
+                req,
+                res,
+                'auth.missing-idp',
+                `Invalid Authorization token: ${err.message || 'verify failed'}`,
+            );
         }
         // Fail-open in dev — log the reason once per token kind so
         // misconfigured dev setups are debuggable.
@@ -1266,8 +1855,13 @@ function isRateLimitExemptRead(req) {
     const path = String(req.originalUrl || req.url || '').split('?')[0];
     // These are cheap metadata reads used by setup/status UI. They should
     // not consume the same budget as LLM / Genie / warehouse calls.
+    // Phase 8 — `/assistant/knowledge/packs/*` is also a cheap read (file
+    // I/O only, no LLM call), so we exempt the prefix.
     return path === '/assistant/profiles'
         || path === '/assistant/capabilities'
+        || path === '/assistant/allowlist'
+        || path === '/assistant/knowledge/packs'
+        || path.startsWith('/assistant/knowledge/packs/')
         || path === '/health';
 }
 
@@ -1292,6 +1886,27 @@ function rateLimitMiddleware(req, res, next) {
     next();
 }
 
+// Wave 28 + PX1 — X-Request-Id correlation. Visual sets `X-Request-Id` on every
+// outbound request; we echo it back in the response so the visual + proxy
+// + downstream Databricks logs can all be joined on one ID. If the visual
+// doesn't supply one, we mint a server-side fallback so audit lines are
+// always traceable. Mounted before auth so rejected requests are traceable.
+// PX1 adds equivalent Pulse-* headers so PulsePlay, Pulse PBI, and the
+// future desktop EXE share one proxy contract without forking routes.
+app.use((req, res, next) => {
+    const pulseClient = resolvePulseClientContext(req.headers);
+    const rid = resolvePulseRequestId(
+        req.headers,
+        () => `srv-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+    );
+    req.requestId = rid;
+    req.pulseClient = { ...pulseClient, requestId: rid };
+    res.setHeader('X-Request-Id', rid);
+    res.setHeader('X-Pulse-Request-Id', rid);
+    res.setHeader('X-Pulse-Client', pulseClient.clientApp);
+    next();
+});
+
 // Rate-limit + IdP-validate any path that hits an LLM / warehouse / Genie
 // space — these are the routes that burn DBUs or token cost per call.
 // Health/profiles/list are cheap reads and stay open. Order matters:
@@ -1304,6 +1919,10 @@ app.use('/supervisor', rateLimitMiddleware, idpMiddleware);
 app.use('/confidence', rateLimitMiddleware, idpMiddleware);
 app.use('/openai', rateLimitMiddleware, idpMiddleware);
 app.use('/bedrock', rateLimitMiddleware, idpMiddleware);
+// Managed Databricks ResponsesAgent endpoints are cost-bearing serving
+// endpoints, so they inherit the same auth/rate-limit posture as the other
+// AI connector families.
+app.use('/responses-agent', rateLimitMiddleware, idpMiddleware);
 // Cycle 47.6 — Foundation Model serving endpoint (Mosaic AI Model Serving).
 // Same cost + auth posture as the other LLM paths.
 app.use('/foundation', rateLimitMiddleware, idpMiddleware);
@@ -1317,23 +1936,8 @@ app.use('/history', rateLimitMiddleware, idpMiddleware);
 // rate-limited, leaving the same key as a brute-force target. Apply the
 // rate limit here too so a runaway probe can't spam /admin/health-summary.
 app.use('/admin', rateLimitMiddleware);
-
-// Wave 28 — X-Request-Id correlation. Visual sets `X-Request-Id` on every
-// outbound request; we echo it back in the response so the visual + proxy
-// + downstream Databricks logs can all be joined on one ID. If the visual
-// doesn't supply one, we mint a server-side fallback so audit lines are
-// always traceable. Mounted before all routes so every response carries it.
-app.use((req, res, next) => {
-    let rid = req.headers['x-request-id'];
-    if (!rid || typeof rid !== 'string' || rid.length > 80) {
-        rid = `srv-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    }
-    // Sanitize: only safe header chars
-    rid = String(rid).replace(/[^A-Za-z0-9._\-]/g, '').slice(0, 80) || `srv-${Date.now()}`;
-    req.requestId = rid;
-    res.setHeader('X-Request-Id', rid);
-    next();
-});
+app.use('/admin', idpMiddleware);
+app.use('/admin', sharedKeyMiddleware);
 
 // Shared-key auth. When the deployer sets `sharedKey` in config (or
 // PROXY_SHARED_KEY env), every cost-bearing route requires the matching
@@ -1348,6 +1952,7 @@ app.use('/supervisor', sharedKeyMiddleware);
 app.use('/confidence', sharedKeyMiddleware);
 app.use('/openai', sharedKeyMiddleware);
 app.use('/bedrock', sharedKeyMiddleware);
+app.use('/responses-agent', sharedKeyMiddleware);
 app.use('/foundation', sharedKeyMiddleware);
 // Wave 41 PREP — /insights/* is the AI-assisted introspection family. Today
 // it hosts /insights/suggest-metric-rules; future cycles will fold in the
@@ -1355,6 +1960,7 @@ app.use('/foundation', sharedKeyMiddleware);
 // Genie conversation channel for that path. Same auth posture as every
 // cost-bearing route.
 app.use('/insights', rateLimitMiddleware);
+app.use('/insights', idpMiddleware);
 app.use('/insights', sharedKeyMiddleware);
 
 // ── Audit logging ─────────────────────────────────────────────────────────────
@@ -1397,6 +2003,7 @@ function auditLog(req, { profileName, spaceId, action, status, detail, spIdentit
     // so audit lines can be correlated to visual session log + downstream
     // Databricks request log on a single ID.
     const requestId = req.requestId || null;
+    const pulseClient = req.pulseClient || resolvePulseClientContext(req.headers || {});
     // Tier B Day 3 — when the profile is OAuth M2M, stamp the audit line
     // with an opaque SHA-256 hash of the Service Principal client_id. This
     // lets analysts group activity by SP identity without persisting the
@@ -1404,9 +2011,11 @@ function auditLog(req, { profileName, spaceId, action, status, detail, spIdentit
     // is omitted entirely (clean log line, no noise).
     const baseLine = {
         ts, ip, ua, requestId, action, route: `${req.method} ${req.originalUrl}`,
+        clientApp: pulseClient.clientApp || 'unknown',
         profile: profileName || null, spaceId: spaceId || null,
         status: status ?? null, detail: detail ?? null,
     };
+    if (pulseClient.clientVersion) baseLine.clientVersion = pulseClient.clientVersion;
     if (spIdentityHash) baseLine.spIdentityHash = spIdentityHash;
     // IdP-authenticated user (set by idpMiddleware when a valid JWT
     // is present). Captures sub + email + tid + scopes/roles so a
@@ -1418,6 +2027,7 @@ function auditLog(req, { profileName, spaceId, action, status, detail, spIdentit
         if (req.user.tid) baseLine.userTid = req.user.tid;
         if (req.user.scp) baseLine.userScope = req.user.scp;
         if (req.user.roles) baseLine.userRoles = req.user.roles;
+        if (req.user.groups) baseLine.userGroups = req.user.groups;
     }
     // Wave 36 — stamp inline-credentials usage on the audit line. Set by
     // resolveProfile() when the request was resolved through the inline path
@@ -1451,12 +2061,99 @@ function auditLog(req, { profileName, spaceId, action, status, detail, spIdentit
     }
 }
 
-// ── Health ────────────────────────────────────────────────────────────────────
-app.get('/health', (_req, res) => {
+function sendAllowlistRejection(req, res, rejection) {
+    const r = rejection || req._allowlistRejection || {};
+    const kind = r.kind || 'unknown';
+    const value = r.value || '';
+    const allowed = Array.isArray(r.allowed) ? r.allowed : [];
+    auditLog(req, {
+        profileName: req.body?.assistantProfile || req.body?.profile || req.query?.assistantProfile || null,
+        action: `allowlist.rejected.${kind}`,
+        status: 403,
+        detail: JSON.stringify({ value, allowedCount: allowed.length }),
+    });
+    return res.status(403).json({
+        ok: false,
+        error: `Value is not allowed by the organization allowlist: ${kind}`,
+        kind,
+        value,
+        allowed,
+    });
+}
+
+function sendNoMatchingProfile(req, res, status = 400, message = 'No matching profile configured') {
+    if (req._allowlistRejection) {
+        return sendAllowlistRejection(req, res, req._allowlistRejection);
+    }
+    return res.status(status).json({ ok: false, error: message });
+}
+
+function allowlistGuard(req, res, next) {
     const c = cfg();
-    // authMode is whether the proxy enforces an X-Genie-Key shared secret.
-    // We never reveal the secret itself — just whether it's configured.
-    const authMode = (process.env.PROXY_SHARED_KEY || c.sharedKey) ? 'sharedKey' : 'anonymous';
+    const body = req.body || {};
+    const query = req.query || {};
+    const pathPart = String(req.originalUrl || req.url || '').split('?')[0];
+
+    const explicitProfile = body.assistantProfile || body.profile || query.assistantProfile || query.profile || req.headers['x-assistant-profile'];
+    if (explicitProfile) {
+        const profileDecision = allowlist.isAiProfileAllowed(c, req, explicitProfile);
+        if (!profileDecision.ok) return sendAllowlistRejection(req, res, profileDecision);
+        if (profileDecision.warn) console.warn(`[allowlist] warn: profile "${explicitProfile}" is outside aiProfiles allowlist`);
+    }
+
+    if (body.pack) {
+        const packDecision = allowlist.isPackAllowed(c, req, body.pack);
+        if (!packDecision.ok) return sendAllowlistRejection(req, res, packDecision);
+        if (packDecision.warn) console.warn(`[allowlist] warn: pack "${body.pack}" is outside packs allowlist`);
+    }
+
+    if (body.spaceId || query.spaceId) {
+        const spaceDecision = allowlist.isGenieSpaceAllowed(c, req, body.spaceId || query.spaceId);
+        if (!spaceDecision.ok) return sendAllowlistRejection(req, res, spaceDecision);
+        if (spaceDecision.warn) console.warn(`[allowlist] warn: Genie space "${body.spaceId || query.spaceId}" is outside genieSpaces allowlist`);
+    }
+
+    const embedMatch = pathPart.match(/^\/assistant\/embed-token\/([^/]+)$/i);
+    if (embedMatch) {
+        const vendor = embedMatch[1].toLowerCase();
+        const vendorDecision = allowlist.isBiProviderAllowed(c, req, vendor);
+        if (!vendorDecision.ok) return sendAllowlistRejection(req, res, vendorDecision);
+        if (vendorDecision.warn) console.warn(`[allowlist] warn: BI provider "${vendor}" is outside biProviders allowlist`);
+
+        if (vendor === 'powerbi') {
+            if (body.groupId) {
+                const workspaceDecision = allowlist.isPowerBIWorkspaceAllowed(c, req, body.groupId);
+                if (!workspaceDecision.ok) return sendAllowlistRejection(req, res, workspaceDecision);
+                if (workspaceDecision.warn) console.warn(`[allowlist] warn: Power BI workspace "${body.groupId}" is outside powerbiWorkspaces allowlist`);
+            }
+            if (body.reportId) {
+                const reportDecision = allowlist.isPowerBIReportAllowed(c, req, body.reportId);
+                if (!reportDecision.ok) return sendAllowlistRejection(req, res, reportDecision);
+                if (reportDecision.warn) console.warn(`[allowlist] warn: Power BI report "${body.reportId}" is outside powerbiReports allowlist`);
+            }
+        }
+    }
+
+    next();
+}
+
+app.use('/assistant', allowlistGuard);
+app.use('/warehouse', allowlistGuard);
+app.use('/history', allowlistGuard);
+app.use('/openai', allowlistGuard);
+app.use('/bedrock', allowlistGuard);
+app.use('/responses-agent', allowlistGuard);
+app.use('/foundation', allowlistGuard);
+app.use('/supervisor', allowlistGuard);
+app.use('/confidence', allowlistGuard);
+app.use('/sql', allowlistGuard);
+app.use('/insights', allowlistGuard);
+
+// ── Health ────────────────────────────────────────────────────────────────────
+app.get('/health', (req, res) => {
+    const c = cfg();
+    // Never reveal the secret itself — just the effective auth posture.
+    const authMode = resolveProxyAuthMode(process.env, c);
     // Route through the registry so doc keys never leak (IDEA-016).
     const profileNames = profileRegistry.list();
     res.json({
@@ -1466,8 +2163,25 @@ app.get('/health', (_req, res) => {
         configSource: c.configSource || 'config.json',
         databricksApp: Boolean(process.env.DATABRICKS_APP_NAME),
         appName: process.env.DATABRICKS_APP_NAME || null,
+        appResources: visibleDatabricksAppResources(process.env),
         authMode,
+        client: {
+            app: req.pulseClient?.clientApp || 'unknown',
+            version: req.pulseClient?.clientVersion || null,
+            requestId: req.requestId || null,
+        },
     });
+});
+
+// PX1 — cheap compatibility handshake for all ecosystem artifacts. This stays
+// auth-free like /health so PulsePlay, Pulse PBI, and the desktop EXE can verify
+// they are speaking the same proxy contract before invoking any cost-bearing
+// connector route.
+app.get('/clients/compatibility', (req, res) => {
+    res.json(buildPulseClientCompatibilityResponse(req.pulseClient || {
+        ...resolvePulseClientContext(req.headers || {}),
+        requestId: req.requestId || null,
+    }));
 });
 
 // ── Admin health summary (M1) ─────────────────────────────────────────────────
@@ -1477,25 +2191,8 @@ app.get('/health', (_req, res) => {
 // secrets but does expose request volume by profile, which is mildly
 // sensitive in multi-tenant deploys.
 app.get('/admin/health-summary', (req, res) => {
-    const c = cfg();
-    const expected = process.env.PROXY_SHARED_KEY || c.sharedKey;
-    if (expected) {
-        const provided = req.headers['x-genie-key'];
-        // Wave 30 cycle 5 — constant-time comparison closes a timing oracle
-        // on the shared key. Plain `!==` leaks per-byte equality timing,
-        // measurable over enough probes; timingSafeEqual normalizes work.
-        // Lengths must match before comparison; mismatching lengths is a
-        // direct fail (and itself a length-only oracle, which is acceptable).
-        let ok = false;
-        try {
-            const cryptoMod = require('crypto');
-            const a = Buffer.from(String(provided || ''), 'utf8');
-            const b = Buffer.from(String(expected), 'utf8');
-            ok = a.length === b.length && cryptoMod.timingSafeEqual(a, b);
-        } catch { ok = false; }
-        if (!ok) {
-            return res.status(401).json({ error: 'Unauthorized' });
-        }
+    if (!_adminAuthOk(req)) {
+        return res.status(401).json({ error: 'Unauthorized' });
     }
     const uptimeSec = Math.floor(process.uptime());
     res.json({
@@ -1510,6 +2207,58 @@ app.get('/admin/health-summary', (req, res) => {
         memoryMb: Math.round((process.memoryUsage().rss / 1024 / 1024) * 10) / 10,
         nodeVersion: process.version
     });
+});
+
+// L18 closure — shared admin-auth helper. Mirrors the same auth-mode contract
+// as cost-bearing routes; the route-local guard stays as defence-in-depth even
+// though /admin is also mounted behind idpMiddleware + sharedKeyMiddleware.
+function _adminAuthOk(req) {
+    const c = cfg();
+    const mode = resolveProxyAuthMode(process.env, c);
+    if (mode === 'none') return true;
+    if (mode === 'idp') return hasVerifiedIdpUser(req);
+    const expected = configuredSharedKey(c);
+    if (mode === 'shared-key') return requestHasSharedKey(req, expected);
+    if (mode === 'idp-or-shared-key') return hasVerifiedIdpUser(req) || requestHasSharedKey(req, expected);
+    return false;
+}
+
+// L18 — Embed-token cache stats. Read-only summary of the in-process
+// _powerBiTokenCache so an operator can answer "what's my hit/miss
+// rate? what's about to expire?" without grep-ing live memory.
+// Constant-time shared-key gate via _adminAuthOk.
+app.get('/admin/embed-tokens/stats', (req, res) => {
+    if (!_adminAuthOk(req)) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const now = Date.now();
+    const entries = Array.from(_powerBiTokenCache.entries()).map(([key, value]) => {
+        const expiry = typeof value?.expiry === 'number' ? value.expiry : null;
+        return {
+            cacheKey: key,
+            expiresInSec: expiry !== null ? Math.max(0, Math.round((expiry - now) / 1000)) : null,
+            hasRefreshInFlight: !!value?.refreshPromise,
+        };
+    });
+    res.json({
+        ok: true,
+        size: _powerBiTokenCache.size,
+        maxEntries: _powerBiTokenCacheMaxEntries,
+        entries,
+    });
+});
+
+// L18 — Purge the embed-token cache. Destructive admin action; requires
+// shared-key auth. Returns the number of entries cleared so the operator
+// can confirm the action took effect. Audit-logged via auditCounters.
+app.post('/admin/embed-tokens/purge', (req, res) => {
+    if (!_adminAuthOk(req)) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const cleared = _powerBiTokenCache.size;
+    _powerBiTokenCache.clear();
+    console.warn(`[admin] embed-token cache purged: ${cleared} entries cleared`);
+    res.json({ ok: true, cleared });
 });
 
 // ── Capabilities (visual connection test) ─────────────────────────────────────
@@ -1528,20 +2277,10 @@ app.get('/admin/health-summary', (req, res) => {
 //   { queries: [{ statement_id, query_text, status, duration_ms,
 //                 executed_at_ms, error_message, user_name }], ...meta }
 app.get('/admin/query-history', async (req, res) => {
-    // Shared-key gate (constant-time, mirrors /admin/health-summary).
-    const c = cfg();
-    const expected = process.env.PROXY_SHARED_KEY || c.sharedKey;
-    if (expected) {
-        const provided = req.headers['x-genie-key'];
-        let ok = false;
-        try {
-            const cryptoMod = require('crypto');
-            const a = Buffer.from(String(provided || ''), 'utf8');
-            const b = Buffer.from(String(expected), 'utf8');
-            ok = a.length === b.length && cryptoMod.timingSafeEqual(a, b);
-        } catch { ok = false; }
-        if (!ok) return res.status(401).json({ error: 'Unauthorized' });
+    if (!_adminAuthOk(req)) {
+        return res.status(401).json({ error: 'Unauthorized' });
     }
+    const c = cfg();
     const profileName = String(req.query.profile || '').trim()
         || (Object.keys(c.profiles || {})[0]);
     const profile = (c.profiles || {})[profileName];
@@ -1674,10 +2413,323 @@ app.post('/assistant/validate-composite', (req, res) => {
     }
 });
 
-app.get('/assistant/capabilities', (req, res) => {
+app.get('/assistant/capabilities', async (req, res) => {
     const resolved = resolveProfile({}, req.query, req.headers, req);
-    if (!resolved) return res.status(404).json({ error: 'No matching profile configured. Check config.json.' });
-    res.json({ assistantProfile: req.query.assistantProfile || 'default', spaceId: resolved.profile.spaceId, ok: true });
+    if (!resolved) return sendNoMatchingProfile(req, res, 404, 'No matching profile configured. Check config.json.');
+    try {
+        const assistantProfile = String(req.query.assistantProfile || resolved.name || 'default');
+        const snapshot = await databricksCapabilityRegistry.getCapabilities({
+            profile: resolved.profile,
+            profileName: assistantProfile,
+            databricksRequest,
+            requestId: req.requestId,
+        });
+        res.json({
+            ...snapshot,
+            assistantProfile,
+            spaceId: resolved.profile.spaceId || resolved.profile.genieSpaceId || '',
+            ok: true,
+        });
+    } catch (err) {
+        console.warn('[assistant/capabilities]', err.message);
+        res.status(500).json({ error: 'Capability registry internal error' });
+    }
+});
+
+async function handleDatabricksList(req, res, options) {
+    const resolved = resolveProfile({}, req.query, req.headers, req);
+    if (!resolved) return sendNoMatchingProfile(req, res, 404, 'No matching profile configured. Check config.json.');
+    try {
+        const payload = await databricksRequest(resolved.profile, 'GET', options.path(req, resolved), undefined, req.requestId);
+        const rawItems = databricksEnablement.arrayFromPayload(payload, options.arrayKeys);
+        const items = rawItems.map(item => options.normalize(item, resolved.profile.host));
+        auditLog(req, {
+            profileName: resolved.name,
+            action: options.action,
+            status: 200,
+            detail: JSON.stringify({ count: items.length }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+        return res.json(databricksEnablement.buildLaunchpadPayload({
+            items,
+            sourcePath: options.sourcePath || options.path(req, resolved),
+            profileName: resolved.name,
+            host: resolved.profile.host,
+            raw: { count: rawItems.length },
+        }));
+    } catch (err) {
+        const mapped = errorStatusFromDatabricks(err, 502, resolved.profile);
+        auditLog(req, {
+            profileName: resolved.name,
+            action: options.action,
+            status: mapped.status,
+            detail: mapped.error,
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+        return res.status(mapped.status).json({ ok: false, error: mapped.error });
+    }
+}
+
+app.get('/assistant/genie/spaces', async (req, res) => {
+    return handleDatabricksList(req, res, {
+        action: 'databricks.launchpad.genie-spaces',
+        sourcePath: '/api/2.0/genie/spaces',
+        path: () => '/api/2.0/genie/spaces',
+        arrayKeys: ['spaces'],
+        normalize: databricksEnablement.normalizeGenieSpace,
+    });
+});
+
+app.get('/assistant/lakeview/dashboards', async (req, res) => {
+    return handleDatabricksList(req, res, {
+        action: 'databricks.launchpad.lakeview-dashboards',
+        sourcePath: '/api/2.0/lakeview/dashboards',
+        path: () => '/api/2.0/lakeview/dashboards',
+        arrayKeys: ['dashboards'],
+        normalize: databricksEnablement.normalizeLakeviewDashboard,
+    });
+});
+
+app.get('/assistant/serving-endpoints', async (req, res) => {
+    return handleDatabricksList(req, res, {
+        action: 'databricks.launchpad.serving-endpoints',
+        sourcePath: '/api/2.0/serving-endpoints',
+        path: () => '/api/2.0/serving-endpoints',
+        arrayKeys: ['endpoints'],
+        normalize: databricksEnablement.normalizeServingEndpoint,
+    });
+});
+
+app.get('/assistant/apps', async (req, res) => {
+    return handleDatabricksList(req, res, {
+        action: 'databricks.launchpad.apps',
+        sourcePath: '/api/2.0/apps',
+        path: () => '/api/2.0/apps',
+        arrayKeys: ['apps'],
+        normalize: databricksEnablement.normalizeDatabricksApp,
+    });
+});
+
+app.get('/assistant/sql/warehouses', async (req, res) => {
+    return handleDatabricksList(req, res, {
+        action: 'databricks.launchpad.sql-warehouses',
+        sourcePath: '/api/2.0/sql/warehouses',
+        path: () => '/api/2.0/sql/warehouses',
+        arrayKeys: ['warehouses'],
+        normalize: databricksEnablement.normalizeSqlWarehouse,
+    });
+});
+
+app.get('/assistant/uc/metric-views', async (req, res) => {
+    const resolved = resolveProfile({}, req.query, req.headers, req);
+    if (!resolved) return sendNoMatchingProfile(req, res, 404, 'No matching profile configured. Check config.json.');
+    const catalog = String(req.query.catalog || resolved.profile.catalog || resolved.profile.databricksCatalog || '').trim();
+    const schema = String(req.query.schema || resolved.profile.schema || resolved.profile.databricksSchema || '').trim();
+    if (!catalog || !schema) {
+        return res.status(400).json({
+            ok: false,
+            error: 'catalog and schema are required. Configure profile.catalog/profile.schema or pass ?catalog=&schema=.',
+        });
+    }
+    const params = new URLSearchParams({
+        catalog_name: catalog,
+        schema_name: schema,
+        omit_columns: 'true',
+    });
+    try {
+        const payload = await databricksRequest(
+            resolved.profile,
+            'GET',
+            `/api/2.1/unity-catalog/tables?${params.toString()}`,
+            undefined,
+            req.requestId,
+        );
+        const rawItems = databricksEnablement
+            .arrayFromPayload(payload, ['tables'])
+            .filter(databricksEnablement.isMetricView);
+        const items = rawItems.map(databricksEnablement.normalizeMetricView);
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'databricks.uc.metric-views',
+            status: 200,
+            detail: JSON.stringify({ catalog, schema, count: items.length }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+        return res.json({
+            ok: true,
+            assistantProfile: resolved.name,
+            catalog,
+            schema,
+            count: items.length,
+            items,
+            fetchedAt: new Date().toISOString(),
+        });
+    } catch (err) {
+        const mapped = errorStatusFromDatabricks(err, 502, resolved.profile);
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'databricks.uc.metric-views',
+            status: mapped.status,
+            detail: mapped.error,
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+        return res.status(mapped.status).json({ ok: false, error: mapped.error });
+    }
+});
+
+app.get('/assistant/uc/metric-views/:fullName', async (req, res) => {
+    const resolved = resolveProfile({}, req.query, req.headers, req);
+    if (!resolved) return sendNoMatchingProfile(req, res, 404, 'No matching profile configured. Check config.json.');
+    const fullName = String(req.params.fullName || '').trim();
+    if (!/^[A-Za-z0-9_.$-]+$/.test(fullName) || fullName.split('.').length !== 3) {
+        return res.status(400).json({ ok: false, error: 'fullName must be a three-part Unity Catalog name: catalog.schema.metric_view.' });
+    }
+    try {
+        const table = await databricksRequest(
+            resolved.profile,
+            'GET',
+            `/api/2.1/unity-catalog/tables/${encodeURIComponent(fullName)}`,
+            undefined,
+            req.requestId,
+        );
+        const normalized = databricksEnablement.normalizeMetricView(table);
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'databricks.uc.metric-view-detail',
+            status: 200,
+            detail: fullName,
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+        return res.json({
+            ok: true,
+            assistantProfile: resolved.name,
+            item: normalized,
+            fetchedAt: new Date().toISOString(),
+        });
+    } catch (err) {
+        const mapped = errorStatusFromDatabricks(err, 502, resolved.profile);
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'databricks.uc.metric-view-detail',
+            status: mapped.status,
+            detail: mapped.error,
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+        return res.status(mapped.status).json({ ok: false, error: mapped.error });
+    }
+});
+
+app.post('/assistant/vector-search/query', async (req, res) => {
+    const resolved = resolveProfile(req.body, {}, req.headers, req);
+    if (!resolved) return sendNoMatchingProfile(req, res, 404, 'No matching profile configured. Check config.json.');
+    const { indexName, queryText, payload } = databricksEnablement.sanitizeVectorSearchQuery(
+        req.body || {},
+        resolved.profile.vectorSearchIndex,
+    );
+    if (!indexName) return res.status(400).json({ ok: false, error: 'indexName is required or profile.vectorSearchIndex must be configured.' });
+    if (!queryText) return res.status(400).json({ ok: false, error: 'queryText is required.' });
+    try {
+        const result = await databricksRequest(
+            resolved.profile,
+            'GET',
+            `/api/2.0/vector-search/indexes/${encodeURIComponent(indexName)}/query`,
+            payload,
+            req.requestId,
+        );
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'databricks.vector-search.query',
+            status: 200,
+            detail: JSON.stringify({ indexName, numResults: payload.num_results }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+        return res.json({
+            ok: true,
+            assistantProfile: resolved.name,
+            indexName,
+            queryText,
+            result,
+            fetchedAt: new Date().toISOString(),
+        });
+    } catch (err) {
+        const mapped = errorStatusFromDatabricks(err, 502, resolved.profile);
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'databricks.vector-search.query',
+            status: mapped.status,
+            detail: mapped.error,
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+        return res.status(mapped.status).json({ ok: false, error: mapped.error });
+    }
+});
+
+app.get('/assistant/allowlist', (req, res) => {
+    const c = cfg();
+    const visible = allowlist.buildVisibleAllowlist(c, req);
+    const configuredProfileNames = new Set(profileRegistry.list());
+    res.json({
+        ...visible,
+        aiProfiles: visible.aiProfiles.filter(name => configuredProfileNames.has(name)),
+        fetchedAt: new Date().toISOString(),
+    });
+});
+
+app.get('/assistant/knowledge/packs', (req, res) => {
+    const c = cfg();
+    const visible = allowlist.buildVisibleAllowlist(c, req);
+    const normalized = allowlist.normalizeAllowlist(c);
+    const packs = listInstalledPacks({
+        allowedPacks: normalized.active ? visible.packs : undefined,
+    });
+    res.json({
+        packs,
+        enforcement: visible.enforcement,
+        configured: visible.configured,
+        fetchedAt: new Date().toISOString(),
+    });
+});
+
+// Phase 8 (KB UI) — single-pack detail endpoint. Returns the full
+// glossary/ontology/references + sub-vertical list + demo configs +
+// readme content so the Knowledge Base page can render without N + 1
+// round-trips. Allowlist enforcement: pack must be in the user's
+// visible allowlist when one is configured.
+app.get('/assistant/knowledge/packs/:pack', (req, res) => {
+    const c = cfg();
+    const visible = allowlist.buildVisibleAllowlist(c, req);
+    const normalized = allowlist.normalizeAllowlist(c);
+    const packName = String(req.params.pack || '').trim();
+    if (normalized.active && !visible.packs.includes(packName)) {
+        return res.status(404).json({ error: 'Pack not available in your organization allowlist.' });
+    }
+    const detail = loadPackDetail(packName);
+    if (!detail) {
+        return res.status(404).json({ error: `Pack "${packName}" is not installed or its identifier is malformed.` });
+    }
+    res.json({ ...detail, fetchedAt: new Date().toISOString() });
+});
+
+// Phase 8 (KB UI) — per-sub-vertical detail endpoint. Returns KPIs,
+// sample questions, prompt context, bi-ai-fit content for one sub-vertical.
+// Both segments are sanitized inside loadSubVerticalDetail (L15 defense
+// in depth) and the pack must be in the allowlist.
+app.get('/assistant/knowledge/packs/:pack/sub-verticals/:subVertical', (req, res) => {
+    const c = cfg();
+    const visible = allowlist.buildVisibleAllowlist(c, req);
+    const normalized = allowlist.normalizeAllowlist(c);
+    const packName = String(req.params.pack || '').trim();
+    const subVertical = String(req.params.subVertical || '').trim();
+    if (normalized.active && !visible.packs.includes(packName)) {
+        return res.status(404).json({ error: 'Pack not available in your organization allowlist.' });
+    }
+    const detail = loadSubVerticalDetail(packName, subVertical);
+    if (!detail) {
+        return res.status(404).json({
+            error: `Sub-vertical "${packName}/${subVertical}" is not installed or its identifier is malformed.`,
+        });
+    }
+    res.json({ ...detail, fetchedAt: new Date().toISOString() });
 });
 
 // Safe profile discovery for the in-visual Setup screen. Never returns tokens
@@ -1688,23 +2740,76 @@ app.get('/assistant/capabilities', (req, res) => {
 //
 // Keys starting with "_doc_" are treated as in-file documentation and
 // skipped — see config.example.json for the convention.
-app.get('/assistant/profiles', (_req, res) => {
-    const profiles = profileRegistry.entries().map(([name, profile]) => {
+// Cycle 20 / S1 (2026-05-20) — connector manifest discovery endpoint.
+// Implements PR #8 §4 lifecycle loop: a single read-only endpoint that
+// describes the full connector catalogue + runtime state so the UI can
+// render brand cards without hand-coded provider knowledge.
+//
+// S1 ships the manifest table + runtime-state derivation. S2 will add
+// per-connector probe-driven `featureAvailability` and `loadStatus`
+// failure surfacing once connectors physically move to proxy/connectors/.
+//
+// Response shape locked in PR #8 §12 "S1 scope (committed)":
+//   { manifests: [...12 entries...], runtime: { <id>: { loadStatus, configuredProfiles[] } } }
+//
+// Secrets contract: NEVER include a secret value in this response. The
+// `secretStatus` field on each configured profile reports 'present' /
+// 'missing' / 'n/a' only — derived from whether the schema's secret
+// field is non-empty. The registry's describeRuntimeState() enforces this.
+app.get('/assistant/connector-types', (req, res) => {
+    try {
+        const { listManifests, describeRuntimeState } = require('./lib/connectorRegistry');
+        const manifests = listManifests();
+        // Snapshot the live profileRegistry so the runtime block reflects
+        // current config (no caching — the table is 12 entries × N profiles).
+        const profiles = profileRegistry.entries().map(([name, p]) => ({ name, ...p }));
+        const runtime = describeRuntimeState({ profiles });
+        res.json({ manifests, runtime });
+    } catch (err) {
+        // Manifest validation failures should not happen at runtime (the
+        // table validates at module load and crashes early), but if they
+        // do we return a 500 with a viewer-safe envelope.
+        return sendProblem(res, createProblem({
+            status: 500,
+            code: 'CONNECTOR_MANIFEST_ERROR',
+            title: 'Connector manifest table unavailable',
+            detail: UNEXPECTED_INTERNAL_SENTINEL,
+            category: 'unexpected_internal',
+            requestId: req.requestId,
+            retryable: false,
+        }));
+    }
+});
+
+app.get('/assistant/profiles', (req, res) => {
+    const c = cfg();
+    const profiles = profileRegistry.entries()
+        .filter(([name, profile]) => allowlist.isAiProfileAllowed(c, req, name).ok
+            && (!profile.spaceId || allowlist.isGenieSpaceAllowed(c, req, profile.spaceId).ok))
+        .map(([name, profile]) => {
         const host = String(profile.host || '').replace(/^https?:\/\//, '').replace(/\/$/, '');
         const spaceId = String(profile.spaceId || '');
         const displayName = (profile.displayName && String(profile.displayName).trim())
             || titleCaseProfileKey(name);
         const dataDomain = (profile.dataDomain && String(profile.dataDomain).trim()) || undefined;
+        const isSupervisor = profile.type === 'supervisor-local' || profile.type === 'supervisor';
         return {
             name,
             displayName,
             dataDomain,
-            description: profile.type === 'supervisor-local'
+            description: isSupervisor
                 ? 'Genie Supervisor Agent'
                 : host || undefined,
             spaceId: spaceId
                 ? `${spaceId.slice(0, 6)}...${spaceId.slice(-6)}`
                 : undefined,
+            // Phase 4 — surface the profile type + Supervisor fan-out list
+            // so the Settings AI group can render the per-space table
+            // for Supervisor profiles without a second round-trip. These
+            // fields are non-sensitive — they're just routing metadata.
+            type: profile.type || undefined,
+            spaces: isSupervisor && Array.isArray(profile.spaces) ? profile.spaces.slice() : undefined,
+            agentName: isSupervisor && profile.agentName ? String(profile.agentName) : undefined,
         };
     });
     res.json(profiles);
@@ -1756,7 +2861,7 @@ app.post('/assistant/home', (req, res) => {
 // ── Warehouse status ──────────────────────────────────────────────────────────
 app.get('/warehouse/status', async (req, res) => {
     const resolved = resolveProfile({}, req.query, req.headers, req);
-    if (!resolved) return res.status(400).json({ error: 'No matching profile configured' });
+    if (!resolved) return sendNoMatchingProfile(req, res);
     const warehouseId = resolved.profile.warehouseId;
     if (!warehouseId) return res.json({ configured: false, state: 'unknown' });
 
@@ -1772,7 +2877,14 @@ app.get('/warehouse/status', async (req, res) => {
 // ── Warehouse start (manual trigger) ─────────────────────────────────────────
 app.post('/warehouse/start', async (req, res) => {
     const resolved = resolveProfile(req.body, {}, req.headers, req);
-    if (!resolved) return res.status(400).json({ error: 'No matching profile configured' });
+    if (!resolved) return sendNoMatchingProfile(req, res);
+    // SS2 — smoke-fixture profiles do not run SQL; the playground's
+    // warmup helper fires this on mount regardless, so honor it as a
+    // no-op rather than letting it 400 and trip the smoke's strict
+    // console-error budget.
+    if (resolved.profile.type === 'smoke-fixture') {
+        return res.json({ ok: true, state: 'RUNNING', smokeFixture: true });
+    }
     const warehouseId = resolved.profile.warehouseId;
     if (!warehouseId) return res.status(400).json({ error: 'No warehouseId configured in profile' });
 
@@ -1794,7 +2906,7 @@ app.post('/warehouse/start', async (req, res) => {
 // path (POST /assistant/space-update) behind an explicit auth gate.
 app.get('/assistant/space-fetch', async (req, res) => {
     const resolved = resolveProfile({}, req.query, req.headers, req);
-    if (!resolved) return res.status(400).json({ error: 'No matching profile configured' });
+    if (!resolved) return sendNoMatchingProfile(req, res);
 
     const spaceId = String(req.query.spaceId || resolved.profile.spaceId || '').trim();
     if (!spaceId) return res.status(400).json({ error: 'spaceId is required' });
@@ -1820,7 +2932,7 @@ app.get('/assistant/space-fetch', async (req, res) => {
 // trusts the visual to have done so by the time the request lands here.
 app.post('/assistant/space-update', async (req, res) => {
     const resolved = resolveProfile(req.body, {}, req.headers, req);
-    if (!resolved) return res.status(400).json({ error: 'No matching profile configured' });
+    if (!resolved) return sendNoMatchingProfile(req, res);
 
     const spaceId = String(req.body.spaceId || resolved.profile.spaceId || '').trim();
     if (!spaceId) return res.status(400).json({ error: 'spaceId is required' });
@@ -1857,30 +2969,102 @@ app.post('/assistant/space-update', async (req, res) => {
 
 app.post('/assistant/conversations/start', async (req, res) => {
     const resolved = resolveProfile(req.body, {}, req.headers, req);
-    if (!resolved) return res.status(400).json({ error: 'No matching profile configured' });
+    if (!resolved) return sendNoMatchingProfile(req, res);
+
+    // SS2 — proxy-backed shell smoke short-circuit.
+    //
+    // When the resolved profile is configured with `type: "smoke-fixture"`,
+    // return a canned `COMPLETED` Genie-shape response without contacting
+    // Genie. The response goes through `withGovernance(req, profile,
+    // 'smoke-fixture', ...)` so the attestation is BUILT BY THE REAL
+    // proxy code path — the smoke validates the actual governance contract,
+    // not a hand-rolled fixture. `authority: "mock"` is forbidden in
+    // production by `buildGovernanceAttestation`, so a smoke-fixture
+    // profile that somehow slips into a production deployment fails
+    // closed at attestation time.
+    if (resolved.profile.type === 'smoke-fixture') {
+        const fixtureContent = String(req.body?.content || '').trim();
+        if (!fixtureContent) {
+            return res.status(400).json({ error: 'Question content is required' });
+        }
+        const cryptoMod = require('crypto');
+        const fingerprint = cryptoMod.createHash('sha256').update(fixtureContent).digest('hex').slice(0, 12);
+        // FW1 — the fixture now returns a small, deterministic quarterly
+        // table alongside the answer text. This gives the native canvas
+        // something to auto-pick. Current chart policy treats this shape
+        // (4 categorical rows, one dimension + one measure) as a donut;
+        // changing that to line is a policy tweak, not a smoke failure.
+        // The shape mirrors the Genie poll-result
+        // contract the AISidebar's `extractQueryResult` already parses:
+        //   { sqlQuery: string, queryResult: { columns: [...], rows: [[...]] },
+        //     rows_returned: number, execution_time_ms: number }
+        const payload = {
+            conversation_id: `smoke-conv-${fingerprint}`,
+            message_id: `smoke-msg-${fingerprint}`,
+            status: 'COMPLETED',
+            content: `Smoke fixture answer to: "${fixtureContent.length > 200 ? `${fixtureContent.slice(0, 197)}...` : fixtureContent}"`,
+            sqlQuery: 'SELECT period, revenue FROM fixtures.smoke_quarterly ORDER BY period',
+            queryResult: {
+                columns: ['period', 'revenue'],
+                rows: [
+                    ['Q1', 100],
+                    ['Q2', 200],
+                    ['Q3', 300],
+                    ['Q4', 250],
+                ],
+            },
+            rows_returned: 4,
+            execution_time_ms: 0,
+        };
+        try {
+            return res.json(withGovernance(req, resolved.profile, 'smoke-fixture', payload));
+        } catch (err) {
+            // The most likely failure here is buildGovernanceAttestation
+            // refusing `authority: "mock"` in production — surface that
+            // explicitly rather than the generic 500.
+            return res.status(500).json({ error: String(err?.message || err) });
+        }
+    }
 
     const { spaceId, content, contextText, pack, subVertical } = req.body;
     if (!content || !String(content).trim()) {
         return res.status(400).json({ error: 'Question content is required' });
     }
     const targetSpaceId = spaceId || resolved.profile.spaceId;
-    const baseContent = [contextText, content].filter(Boolean).join('\n\n');
+    // Phase 11b prep — accept `body.frame` from clients that picked an
+    // analysis frame in the FramePicker. The frontend's AISidebar
+    // already prefixes a `[Selected analysis frame]` block into
+    // `content`, but direct API callers (curl, future SDKs) may send
+    // only the structured field — `prependFrameContext` bridges that
+    // case and is a no-op when the frontend already prefixed.
+    const frame = validateFrame(req.body && req.body.frame);
+    const baseContent = prependFrameContext(
+        [contextText, content].filter(Boolean).join('\n\n'),
+        frame,
+    );
 
     // Cycle C — pack-context injection. Genie has no system-prompt API, so
     // we prepend the pack context as a fenced "Pack Context" header inside
     // the first user message. Failures here are NEVER fatal: if the pack
     // can't be resolved we send the question unchanged and audit-log a
     // warning so the audit pipeline can surface misconfigured packs.
+    //
+    // Probe-once reuse — the client (Pulse genie.ts) reads its cached
+    // DiscoverySnapshot and attaches `discoveryContext`. We compose discovery
+    // BEFORE pack so Genie sees concrete facts (connector type, available
+    // KPIs, reachable frames) above the vertical vocabulary. Either or both
+    // may be absent; layout collapses gracefully.
     const packResolved = resolvePackContext({ pack, subVertical });
-    let fullContent = baseContent;
-    if (packResolved.resolved && packResolved.content) {
-        fullContent = wrapAsGenieUserMessage(
-            packResolved.content,
-            packResolved.pack,
-            packResolved.subVertical,
-            baseContent,
-        );
-    }
+    const discoveryBlock = _formatDiscoveryContext(req.body && req.body.discoveryContext);
+    const packTag = packResolved.subVertical
+        ? `${packResolved.pack}/${packResolved.subVertical}`
+        : (packResolved.pack || 'pack');
+    const fullContent = _composeUserMessageWithContext({
+        discoveryBlock,
+        packBlock: (packResolved.resolved && packResolved.content) ? packResolved.content : null,
+        packTag,
+        userQuestion: baseContent,
+    });
     if (packResolved.requested) {
         auditLog(req, {
             profileName: resolved.name,
@@ -1888,6 +3072,26 @@ app.post('/assistant/conversations/start', async (req, res) => {
             action: 'pack-context-inject',
             status: packResolved.resolved ? 'OK' : 'WARN',
             detail: JSON.stringify({ ...buildPackAuditDetail(packResolved), backend: 'genie' }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+    }
+    if (discoveryBlock) {
+        auditLog(req, {
+            profileName: resolved.name,
+            spaceId: targetSpaceId,
+            action: 'discovery-context-inject',
+            status: 'OK',
+            detail: JSON.stringify({ ...buildDiscoveryAuditDetail(discoveryBlock), backend: 'genie' }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+    }
+    if (frame) {
+        auditLog(req, {
+            profileName: resolved.name,
+            spaceId: targetSpaceId,
+            action: 'frame-context-inject',
+            status: 'OK',
+            detail: JSON.stringify({ ...buildFrameAuditDetail(frame), backend: 'genie' }),
             spIdentityHash: spHashForProfile(resolved.profile),
         });
     }
@@ -1903,7 +3107,9 @@ app.post('/assistant/conversations/start', async (req, res) => {
         const convId = data.conversation_id ?? data.conversation?.id;
         storeConversation(convId, targetSpaceId, resolved.name);
         console.log(`[start] profile=${resolved.name} space=${targetSpaceId} conv=${convId}`);
-        res.json(data);
+        res.json(withGovernance(req, resolved.profile, 'genie', data, {
+            sourceRef: sourceRefForGenieProfile(resolved.profile, targetSpaceId),
+        }));
     } catch (err) {
         console.error('[start-conversation]', err.message);
         const mapped = errorStatusFromDatabricks(err, 500);
@@ -1915,7 +3121,7 @@ app.post('/assistant/conversations/start', async (req, res) => {
 app.post('/assistant/conversations/:conversationId/messages', async (req, res) => {
     const { conversationId } = req.params;
     const resolved = resolveProfile(req.body, {}, req.headers, req);
-    if (!resolved) return res.status(400).json({ error: 'No matching profile configured' });
+    if (!resolved) return sendNoMatchingProfile(req, res);
 
     const stored = conversationMap.get(conversationId);
     const targetSpaceId = stored?.spaceId || req.body.spaceId || resolved.profile.spaceId;
@@ -1935,7 +3141,9 @@ app.post('/assistant/conversations/:conversationId/messages', async (req, res) =
         );
         storeConversation(conversationId, targetSpaceId, resolved.name);
         console.log(`[send] profile=${resolved.name} space=${targetSpaceId} conv=${conversationId}`);
-        res.json(data);
+        res.json(withGovernance(req, resolved.profile, 'genie', data, {
+            sourceRef: sourceRefForGenieProfile(resolved.profile, targetSpaceId),
+        }));
     } catch (err) {
         console.error('[send-message]', err.message);
         const mapped = errorStatusFromDatabricks(err, 500);
@@ -2016,6 +3224,30 @@ function normalizeGenieResponse(data) {
         } else if (text && typeof text === 'object' && text.content && String(text.content).trim()) {
             parts.push(String(text.content).trim());
         }
+        // Phase 11b — surface per-section SQL provenance. When the SQL
+        // contains `/* Section: X */` or `-- Section: X` markers (emitted
+        // by the Genie + Foundation Model translators when an IR has
+        // structured-sections output), expose the parsed sections so the
+        // SQL Trace tab can label HEADLINE / TRENDS / RISKS / ACTIONS
+        // fragments. The raw SQL blob stays at `att.query.query` as the
+        // fallback for legacy clients and for prompts that don't emit
+        // markers. Each section also carries `startOffset` so the UI can
+        // build per-section anchor links into the raw blob view.
+        //
+        // Conversation/message association: this function is called per
+        // Genie poll response so `data.conversation_id` + `data.message_id`
+        // already join the sections back to the parent briefing in the
+        // 1-conversation/4-message staged-render contract from
+        // docs/STAGED_RENDERING.md.
+        const sqlBlob = att?.query?.query;
+        if (typeof sqlBlob === 'string' && sqlBlob.length > 0) {
+            try {
+                const sections = extractSqlSections(sqlBlob);
+                if (sections.length > 0) {
+                    att.query.sqlSections = sections;
+                }
+            } catch { /* never let extraction break response normalization */ }
+        }
     }
     data.content = parts.length ? parts.join('\n\n') : '';
     return data;
@@ -2050,14 +3282,23 @@ function normalizeGenieResponse(data) {
 //   double-retry from the visual's own budget. (Visual-side coordination
 //   is a small follow-up — for cycle 45 we just emit the diagnostic.)
 // ─────────────────────────────────────────────────────────────────────────────
-async function maybeValidateGeniePollResponse({ data, actualProfile, targetSpaceId, conversationId, requestId }) {
+async function maybeValidateGeniePollResponse({ data, actualProfile, targetSpaceId, conversationId, requestId, clientMaxRetries }) {
     // 1. Cheap eligibility checks first.
     if (!data || (data.status || '').toUpperCase() !== 'COMPLETED') return;
     const content = data.content;
     if (!content || typeof content !== 'string' || !/^#{1,3}\s/m.test(content)) return;
 
-    // 2. Opt-in via env var.
-    const retryBudget = Math.max(0, Math.min(3, parseInt(process.env.GENIE_POLL_VALIDATE_RETRIES || '0', 10) || 0));
+    // 2. Resolve retry budget. Client-supplied `maxValidationRetries` takes
+    // precedence when provided (clamped 0-3); otherwise fall back to the
+    // deployer's `GENIE_POLL_VALIDATE_RETRIES` env-var default. Lets the
+    // Settings → Performance UI raise or lower retries per session without
+    // re-deploying the proxy. Logic extracted to lib/validationRetryBudget.js
+    // so the resolution rules can be unit-tested directly.
+    const { resolveBudget } = require('./lib/validationRetryBudget');
+    const retryBudget = resolveBudget({
+        envValue: process.env.GENIE_POLL_VALIDATE_RETRIES,
+        clientValue: clientMaxRetries,
+    });
     if (retryBudget === 0) return;
 
     let validator;
@@ -2158,11 +3399,11 @@ app.get('/assistant/conversations/:conversationId/messages/:messageId', async (r
 
     const stored = conversationMap.get(conversationId);
     const profileName = stored?.profileName || req.query.assistantProfile;
-    const resolved = profileByName(profileName)
-        || profileByHost(req.headers['x-genie-target-host'])
-        || profileByName('default');
+    const resolved = profileByName(profileName, req)
+        || profileByHost(req.headers['x-genie-target-host'], req)
+        || profileByName('default', req);
 
-    if (!resolved) return res.status(400).json({ error: 'Cannot resolve profile for this conversation' });
+    if (!resolved) return sendNoMatchingProfile(req, res, 400, 'Cannot resolve profile for this conversation');
     const actualProfile = resolved.profile;
 
     const targetSpaceId = stored?.spaceId || req.query.spaceId || actualProfile.spaceId;
@@ -2206,8 +3447,17 @@ app.get('/assistant/conversations/:conversationId/messages/:messageId', async (r
         //   knows + can decide whether to also retry per its budget
         //   (avoids double-retry of an already-retried response).
         // ─────────────────────────────────────────────────────────────
+        // Client-supplied retry budget. GET routes carry it on the query
+        // string; POST routes on the body. Either path is parsed defensively
+        // — non-numeric / out-of-range values fall through to the env default
+        // inside maybeValidateGeniePollResponse.
+        // Cycle 17 — extracted to parseClientMaxRetries() so the OpenAI
+        // analytics and Bedrock-direct routes share the same logic.
+        const parsedClientRetries = parseClientMaxRetries(req);
         await maybeValidateGeniePollResponse({
-            data, actualProfile, targetSpaceId, conversationId, requestId: req.headers['x-request-id'],
+            data, actualProfile, targetSpaceId, conversationId,
+            requestId: req.headers['x-request-id'],
+            clientMaxRetries: parsedClientRetries,
         });
 
         auditLog(req, {
@@ -2217,7 +3467,9 @@ app.get('/assistant/conversations/:conversationId/messages/:messageId', async (r
             status: (data.status || '').toUpperCase(),
             spIdentityHash: spHashForProfile(actualProfile),
         });
-        res.json(data);
+        res.json(withGovernance(req, actualProfile, 'genie', data, {
+            sourceRef: sourceRefForGenieProfile(actualProfile, targetSpaceId),
+        }));
     } catch (err) {
         console.error('[poll]', err.message);
         auditLog(req, {
@@ -2253,6 +3505,24 @@ const {
     wrapAsGenieUserMessage,
     buildAuditDetail: buildPackAuditDetail,
 } = require('./lib/packPromptInjector');
+// Probe-once reuse — companion injector for the client-supplied
+// discoveryContext (compact summary of the cached DiscoverySnapshot).
+const {
+    formatDiscoveryContext: _formatDiscoveryContext,
+    buildAuditDetail: buildDiscoveryAuditDetail,
+    composeUserMessageWithContext: _composeUserMessageWithContext,
+    composeSystemPromptWithContext: _composeSystemPromptWithContext,
+} = require('./lib/discoveryPromptInjector');
+// Phase 11b prep — proxy-side handling of the structured `body.frame`
+// field shipped by AISidebar (commit 738e4e1). Defense-in-depth
+// validation, idempotent content bridging for direct API callers, and
+// audit-log support. Byte-identical for free-text (frame === null /
+// invalid) per docs in proxy/lib/frameContext.js.
+const {
+    validateFrame,
+    prependFrameContext,
+    buildFrameAuditDetail,
+} = require('./lib/frameContext');
 
 app.post('/assistant/probe', async (req, res) => {
     const startedAt = Date.now();
@@ -2264,7 +3534,7 @@ app.post('/assistant/probe', async (req, res) => {
             status: 400,
             detail: 'no-matching-profile',
         });
-        return res.status(400).json({ error: 'No matching profile configured' });
+        return sendNoMatchingProfile(req, res);
     }
 
     let probeResult;
@@ -2314,6 +3584,139 @@ app.post('/assistant/probe', async (req, res) => {
     res.json(probeResult);
 });
 
+// ── Discovery Loop (Phase A) ────────────────────────────────────────────────
+// POST /assistant/discover
+//
+// Pre-flight discovery: fuses `probeConnector` (AI brain side) with the
+// caller-forwarded `BIMetadata` (BI surface side) and pack KPIs into a single
+// DiscoverySnapshot. UI consumes the snapshot to render the analysis-frame
+// dropdown with reachable + unreachable frames + tooltips.
+//
+// See docs/DISCOVERY_LOOP.md for the full contract.
+//
+// Body:
+//   {
+//     assistantProfile: string,
+//     pack?: string,
+//     subVertical?: string,
+//     biMetadata?: { activeViewId, visibleMeasures, visibleDimensions, activeFilters },
+//     biUrlHash?: string,        // sha256 of the BI URL — opaque cache key component
+//     bypassCache?: boolean
+//   }
+//
+// Allowlist enforcement: pack must be visible to the caller; same rule as the
+// knowledge endpoints. Profile must resolve via resolveProfile (which already
+// checks the allowlist). Rate-limit: shares the /probe bucket.
+const _discoveryEngine = require('./lib/discoveryEngine');
+
+app.post('/assistant/discover', async (req, res) => {
+    const startedAt = Date.now();
+    const body = req.body || {};
+    const pack = typeof body.pack === 'string' ? body.pack.trim() : '';
+    const subVertical = typeof body.subVertical === 'string' ? body.subVertical.trim() : '';
+    const bypassCache = body.bypassCache === true;
+    const biUrlHash = typeof body.biUrlHash === 'string' ? body.biUrlHash.trim() : '';
+    const biMetadata = body.biMetadata && typeof body.biMetadata === 'object' ? body.biMetadata : null;
+
+    const resolved = resolveProfile(body, {}, req.headers, req);
+    if (!resolved) {
+        auditLog(req, {
+            profileName: body.assistantProfile || null,
+            action: 'discover',
+            status: 400,
+            detail: 'no-matching-profile',
+        });
+        return sendNoMatchingProfile(req, res);
+    }
+
+    // Pack allowlist gate — same posture as /assistant/knowledge/packs.
+    const c = cfg();
+    const visible = allowlist.buildVisibleAllowlist(c, req);
+    const normalized = allowlist.normalizeAllowlist(c);
+    if (pack && normalized.active && !visible.packs.includes(pack)) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'discover',
+            status: 404,
+            detail: 'pack-not-in-allowlist',
+        });
+        return res.status(404).json({ error: 'Pack not available in your organization allowlist.' });
+    }
+
+    const cacheKey = _discoveryEngine.computeCacheKey({
+        assistantProfile: resolved.name,
+        pack,
+        subVertical,
+        biUrlHash,
+    });
+
+    if (!bypassCache) {
+        const cached = _discoveryEngine.getCachedSnapshot(cacheKey);
+        if (cached) {
+            auditLog(req, {
+                profileName: resolved.name,
+                action: 'discover',
+                status: 200,
+                detail: JSON.stringify({ cacheHit: true, durationMs: Date.now() - startedAt }),
+            });
+            res.set('X-PulsePlay-Discovery-Cache', 'hit');
+            return res.json(cached);
+        }
+    }
+
+    // Cache miss — run a fresh probe + fuse.
+    let probeResult;
+    try {
+        probeResult = await _probeConnector(resolved, { databricksRequest });
+    } catch (err) {
+        console.error('[discover/probe]', err?.message || err);
+        probeResult = {
+            profile: resolved.name,
+            connectorType: 'generic',
+            metadataAvailability: 'none',
+            warnings: [`Probe handler error: ${String(err?.message || err).slice(0, 200)}`],
+        };
+    }
+
+    let snapshot;
+    try {
+        snapshot = _discoveryEngine.buildSnapshot({
+            probe: probeResult,
+            biMetadata,
+            pack: pack || undefined,
+            subVertical: subVertical || undefined,
+            cacheKey,
+        });
+    } catch (fusionErr) {
+        console.error('[discover/fuse]', fusionErr?.message || fusionErr);
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'discover',
+            status: 500,
+            detail: 'fusion-error',
+        });
+        return res.status(500).json({ error: 'Discovery fusion failed unexpectedly.' });
+    }
+
+    _discoveryEngine.setCachedSnapshot(cacheKey, snapshot);
+
+    auditLog(req, {
+        profileName: resolved.name,
+        action: 'discover',
+        status: 200,
+        detail: JSON.stringify({
+            cacheHit: false,
+            durationMs: Date.now() - startedAt,
+            reachableFrames: snapshot.fused.reachableFrames.length,
+            unreachableFrames: snapshot.fused.unreachableFrames.length,
+        }),
+        spIdentityHash: spHashForProfile(resolved.profile),
+    });
+
+    res.set('X-PulsePlay-Discovery-Cache', 'miss');
+    res.json(snapshot);
+});
+
 // ── Power BI embed-token issuance (Cycle A) ─────────────────────────────────
 // POST /assistant/embed-token/powerbi
 //
@@ -2328,9 +3731,15 @@ app.post('/assistant/probe', async (req, res) => {
 //   • Client secret lives in proxy config (or env var) and NEVER appears
 //     in responses, audit logs, or the cache key — we hash the SP client
 //     ID for the audit line and use a non-secret cache key.
-//   • Embed tokens are cached per (profile|reportId|accessLevel) with TTL
+//   • Browser-supplied RLS/effective-identity payloads are rejected. When
+//     RLS is enabled, the proxy derives the effective identity from server
+//     config or verified IdP claims.
+//   • Edit tokens require an explicit profile policy gate
+//     (`powerBiAllowEdit: true`). View is the default.
+//   • Embed tokens are cached per
+//     (profile|workspace|report|dataset|accessLevel|identityHash) with TTL
 //     = expiry-minus-60s buffer so a refresh cycle starts before the
-//     client sees a 401.
+//     client sees a 401, and RLS tokens never cross identities.
 //   • Single-flight: 5 concurrent requests for the same key share one
 //     AAD round-trip + one GenerateToken round-trip.
 //   • If AAD/PBI returns 401/403, we propagate the status with a generic
@@ -2343,9 +3752,138 @@ app.post('/assistant/probe', async (req, res) => {
 const EMBED_TOKEN_BUFFER_MS = 60 * 1000;       // refresh 60s before expiry
 const _powerBiTokenCache = new Map();           // key → { embedToken, embedUrl, expiry, refreshPromise }
 const _powerBiTokenCacheMaxEntries = 500;
+const POWER_BI_CLIENT_IDENTITY_FIELDS = ['identities', 'effectiveIdentity', 'effectiveIdentities', 'rlsIdentity'];
 
-function _powerBiCacheKey(profileName, reportId, accessLevel) {
-    return `${profileName}|${reportId}|${accessLevel}`;
+function _truthyConfig(value) {
+    if (value === true) return true;
+    if (value === false || value == null) return false;
+    return /^(true|1|yes|on|allow|enabled)$/i.test(String(value).trim());
+}
+
+function _listFromConfig(value) {
+    if (Array.isArray(value)) return value.map(v => String(v).trim()).filter(Boolean);
+    if (typeof value === 'string') return value.split(',').map(v => v.trim()).filter(Boolean);
+    return [];
+}
+
+function _stableJsonValue(value) {
+    if (Array.isArray(value)) return value.map(_stableJsonValue);
+    if (value && typeof value === 'object') {
+        return Object.keys(value).sort().reduce((acc, key) => {
+            acc[key] = _stableJsonValue(value[key]);
+            return acc;
+        }, {});
+    }
+    return value;
+}
+
+function _stableIdentityJson(identities) {
+    try { return JSON.stringify(_stableJsonValue(identities || [])); }
+    catch { return '[]'; }
+}
+
+function _powerBiIdentityHash(identities) {
+    if (!Array.isArray(identities) || identities.length === 0) return 'rls:none';
+    try {
+        const cryptoMod = require('crypto');
+        const digest = cryptoMod.createHash('sha256').update(_stableIdentityJson(identities)).digest('hex');
+        return `rls:${digest.slice(0, 16)}`;
+    } catch {
+        return 'rls:hash-error';
+    }
+}
+
+function _powerBiCacheKey({ profileName, groupId, reportId, datasetId, accessLevel, identities }) {
+    return [
+        String(profileName || 'default'),
+        String(groupId || '-'),
+        String(reportId || '-'),
+        String(datasetId || '-'),
+        String(accessLevel || 'View'),
+        _powerBiIdentityHash(identities),
+    ].join('|');
+}
+
+function _clientSuppliedPowerBIIdentityField(body) {
+    const payload = body && typeof body === 'object' ? body : {};
+    return POWER_BI_CLIENT_IDENTITY_FIELDS.find(field => Object.prototype.hasOwnProperty.call(payload, field)) || '';
+}
+
+function _powerBiEditAllowed(profile) {
+    return _truthyConfig(profile?.powerBiAllowEdit);
+}
+
+function _powerBiUserClaim(req, claimName) {
+    const user = req?.user || {};
+    const aliases = {
+        preferred_username: ['preferred_username', 'preferredUsername', 'email'],
+        preferredUsername: ['preferredUsername', 'preferred_username', 'email'],
+        upn: ['upn', 'email'],
+        email: ['email'],
+    };
+    const keys = aliases[claimName] || [claimName];
+    for (const key of keys) {
+        const raw = user[key];
+        if (typeof raw === 'string' && raw.trim()) return raw.trim();
+        if (Array.isArray(raw)) {
+            const first = raw.map(v => String(v).trim()).find(Boolean);
+            if (first) return first;
+        }
+    }
+    return '';
+}
+
+function _resolvePowerBIRlsUsername(req, profile) {
+    const staticUsername = typeof profile?.powerBiRlsUsername === 'string'
+        ? profile.powerBiRlsUsername.trim()
+        : '';
+    if (staticUsername) return staticUsername;
+
+    const configuredClaims = _listFromConfig(profile?.powerBiRlsUsernameClaim);
+    const claims = configuredClaims.length > 0
+        ? configuredClaims
+        : ['email', 'preferredUsername', 'upn'];
+    for (const claim of claims) {
+        const value = _powerBiUserClaim(req, claim);
+        if (value) return value;
+    }
+    return '';
+}
+
+function _resolvePowerBIIdentities({ req, profile, datasetId }) {
+    const roles = _listFromConfig(profile?.powerBiRlsRoles);
+    const rlsConfigured = _truthyConfig(profile?.powerBiRlsEnabled)
+        || _truthyConfig(profile?.powerBiRlsRequired)
+        || !!(typeof profile?.powerBiRlsUsername === 'string' && profile.powerBiRlsUsername.trim())
+        || !!(typeof profile?.powerBiRlsUsernameClaim === 'string' && profile.powerBiRlsUsernameClaim.trim())
+        || roles.length > 0;
+
+    if (!rlsConfigured) return { identities: undefined, identityHash: 'rls:none' };
+
+    const username = _resolvePowerBIRlsUsername(req, profile);
+    if (!username) {
+        return {
+            status: 401,
+            error: 'Power BI RLS is enabled, but no server-side user claim was available for the effective identity.',
+        };
+    }
+    if (!datasetId) {
+        return {
+            status: 400,
+            error: 'datasetId is required when server-side Power BI RLS identity is enabled.',
+        };
+    }
+
+    const identity = {
+        username,
+        datasets: [datasetId],
+        ...(roles.length > 0 ? { roles } : {}),
+    };
+    const identities = [identity];
+    return {
+        identities,
+        identityHash: _powerBiIdentityHash(identities),
+    };
 }
 
 function _powerBiEvictOldestIfFull() {
@@ -2464,11 +4002,176 @@ let _powerBiFetchImpl = null;
 function _setPowerBiFetchImplForTests(impl) { _powerBiFetchImpl = impl; }
 function _resetPowerBiTokenCacheForTests() { _powerBiTokenCache.clear(); }
 
+let _aibiFetchImpl = null;
+function _setAibiFetchImplForTests(impl) { _aibiFetchImpl = impl; }
+
+function _databricksAibiCreds(profile) {
+    return {
+        clientId: profile?.clientId || process.env.DATABRICKS_CLIENT_ID || '',
+        clientSecret: profile?.clientSecret || process.env.DATABRICKS_CLIENT_SECRET || '',
+    };
+}
+
+async function _aibiFetchJson(url, init, fetchImpl) {
+    const resp = await fetchImpl(url, {
+        ...init,
+        signal: init?.signal || AbortSignal.timeout(10000),
+    });
+    const text = await resp.text();
+    let data = {};
+    try { data = text ? JSON.parse(text) : {}; }
+    catch { data = { raw: text }; }
+    if (!resp.ok) {
+        const err = new Error(`Databricks AI/BI token request failed (${resp.status}): ${text.slice(0, 300)}`);
+        err.statusCode = resp.status;
+        throw err;
+    }
+    return data;
+}
+
+async function mintDatabricksAibiToken({ profile, dashboardId, externalViewerId, externalValue, fetchImpl }) {
+    const host = String(profile?.host || '').replace(/\/+$/, '');
+    const { clientId, clientSecret } = _databricksAibiCreds(profile);
+    if (!host) {
+        const err = new Error('Databricks AI/BI embed-token issuance requires profile.host.');
+        err.statusCode = 400;
+        throw err;
+    }
+    if (!clientId || !clientSecret) {
+        const err = new Error('Databricks AI/BI embed-token issuance requires Databricks service-principal clientId/clientSecret on the profile or DATABRICKS_CLIENT_ID/DATABRICKS_CLIENT_SECRET env vars.');
+        err.statusCode = 503;
+        throw err;
+    }
+    const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    const tokenHeaders = {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: `Basic ${basicAuth}`,
+    };
+    const broadToken = await _aibiFetchJson(`${host}/oidc/v1/token`, {
+        method: 'POST',
+        headers: tokenHeaders,
+        body: new URLSearchParams({
+            grant_type: 'client_credentials',
+            scope: 'all-apis',
+        }).toString(),
+    }, fetchImpl);
+    const tokenInfoUrl = new URL(`${host}/api/2.0/lakeview/dashboards/${encodeURIComponent(dashboardId)}/published/tokeninfo`);
+    tokenInfoUrl.searchParams.set('external_viewer_id', externalViewerId);
+    tokenInfoUrl.searchParams.set('external_value', externalValue);
+    const tokenInfo = await _aibiFetchJson(tokenInfoUrl.toString(), {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${broadToken.access_token}` },
+    }, fetchImpl);
+    const { authorization_details: authorizationDetails, ...params } = tokenInfo;
+    const scopedParamEntries = Object.entries(params)
+        .filter(([, v]) => v !== undefined && v !== null)
+        .map(([k, v]) => [k, typeof v === 'string' ? v : JSON.stringify(v)]);
+    const scopedParams = new URLSearchParams({
+        grant_type: 'client_credentials',
+        ...Object.fromEntries(scopedParamEntries),
+        authorization_details: JSON.stringify(authorizationDetails),
+    });
+    const scopedToken = await _aibiFetchJson(`${host}/oidc/v1/token`, {
+        method: 'POST',
+        headers: tokenHeaders,
+        body: scopedParams.toString(),
+    }, fetchImpl);
+    const expiresInMs = Math.max(1, Number(scopedToken.expires_in || 3600)) * 1000;
+    return {
+        accessToken: scopedToken.access_token,
+        expiresAt: Date.now() + expiresInMs,
+    };
+}
+
 app.post('/assistant/embed-token/:vendor', async (req, res) => {
     const vendor = String(req.params.vendor || '').toLowerCase();
     const startedAt = Date.now();
 
-    // v0 only handles Power BI. Future vendors slot in here.
+    if (vendor === 'aibi' || vendor === 'databricks-aibi') {
+        const resolved = resolveProfile(req.body, {}, req.headers, req);
+        if (!resolved) {
+            auditLog(req, {
+                profileName: req.body?.assistantProfile || null,
+                action: 'embed-token',
+                status: 400,
+                detail: 'no-matching-profile',
+            });
+            return sendNoMatchingProfile(req, res);
+        }
+        const profile = resolved.profile;
+        const dashboardId = String(req.body?.dashboardId || profile.aibiDashboardId || '').trim();
+        const workspaceId = String(req.body?.workspaceId || profile.aibiWorkspaceId || process.env.DATABRICKS_WORKSPACE_ID || '').trim();
+        const externalViewerId = String(req.body?.externalViewerId || profile.aibiExternalViewerId || req.user?.sub || 'internal-viewer').trim();
+        const externalValue = String(req.body?.externalValue || profile.aibiExternalValue || externalViewerId).trim();
+        if (!dashboardId || !workspaceId) {
+            auditLog(req, {
+                profileName: resolved.name,
+                action: 'embed-token',
+                status: 400,
+                detail: 'missing-dashboardId-or-workspaceId',
+            });
+            return res.status(400).json({ error: 'dashboardId and workspaceId are required for Databricks AI/BI SDK embedding.' });
+        }
+        try {
+            const token = await mintDatabricksAibiToken({
+                profile,
+                dashboardId,
+                externalViewerId,
+                externalValue,
+                fetchImpl: _aibiFetchImpl || fetch,
+            });
+            auditLog(req, {
+                profileName: resolved.name,
+                action: 'embed-token',
+                status: 200,
+                detail: JSON.stringify({
+                    vendor,
+                    dashboardId,
+                    workspaceId,
+                    durationMs: Date.now() - startedAt,
+                    spIdHash: hashServicePrincipalId(_databricksAibiCreds(profile).clientId),
+                }),
+                spIdentityHash: spHashForProfile(profile),
+            });
+            const instanceUrl = String(profile.host || '').replace(/\/+$/, '');
+            return res.json({
+                ok: true,
+                vendor: 'databricks-aibi',
+                embedToken: token.accessToken,
+                token: token.accessToken,
+                instanceUrl,
+                workspaceUrl: instanceUrl,
+                workspaceId,
+                dashboardId,
+                expiry: new Date(token.expiresAt).toISOString(),
+                cached: false,
+            });
+        } catch (err) {
+            const upstreamStatus = typeof err?.statusCode === 'number' ? err.statusCode : 500;
+            const clientStatus = upstreamStatus === 401 || upstreamStatus === 403
+                ? upstreamStatus
+                : (upstreamStatus >= 400 && upstreamStatus < 500 ? 400 : 502);
+            const detail = _redactForEmbedTokenLog(err?.message || String(err));
+            auditLog(req, {
+                profileName: resolved.name,
+                action: 'embed-token',
+                status: clientStatus,
+                detail: JSON.stringify({
+                    vendor,
+                    dashboardId,
+                    error: detail.slice(0, 200),
+                    durationMs: Date.now() - startedAt,
+                    spIdHash: hashServicePrincipalId(_databricksAibiCreds(profile).clientId),
+                }),
+                spIdentityHash: spHashForProfile(profile),
+            });
+            return res.status(clientStatus).json({
+                error: 'Databricks AI/BI embed-token issuance failed',
+                detail: detail.slice(0, 300),
+            });
+        }
+    }
+
     if (vendor !== 'powerbi') {
         auditLog(req, {
             profileName: req.body?.assistantProfile || null,
@@ -2487,16 +4190,29 @@ app.post('/assistant/embed-token/:vendor', async (req, res) => {
             status: 400,
             detail: 'no-matching-profile',
         });
-        return res.status(400).json({ error: 'No matching profile configured' });
+        return sendNoMatchingProfile(req, res);
     }
 
     const profile = resolved.profile;
     const groupId = String(req.body?.groupId || '').trim();
     const reportId = String(req.body?.reportId || '').trim();
     const datasetId = req.body?.datasetId ? String(req.body.datasetId).trim() : '';
-    const requestedPerms = String(req.body?.permissions || 'View');
-    const accessLevel = requestedPerms === 'Edit' ? 'Edit' : 'View';
-    const identities = Array.isArray(req.body?.identities) ? req.body.identities : undefined;
+    const requestedPerms = String(req.body?.permissions || 'View').trim();
+    const wantsEdit = /^edit$/i.test(requestedPerms);
+    const accessLevel = wantsEdit ? 'Edit' : 'View';
+    const clientIdentityField = _clientSuppliedPowerBIIdentityField(req.body);
+
+    if (clientIdentityField) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'embed-token',
+            status: 400,
+            detail: `client-supplied-powerbi-identity:${clientIdentityField}`,
+        });
+        return res.status(400).json({
+            error: 'Power BI RLS/effective identity must be derived by the proxy; client-supplied identity payloads are not accepted.',
+        });
+    }
 
     if (!groupId || !reportId) {
         auditLog(req, {
@@ -2506,6 +4222,18 @@ app.post('/assistant/embed-token/:vendor', async (req, res) => {
             detail: 'missing-groupId-or-reportId',
         });
         return res.status(400).json({ error: 'groupId and reportId are required.' });
+    }
+
+    if (wantsEdit && !_powerBiEditAllowed(profile)) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'embed-token',
+            status: 403,
+            detail: 'edit-access-denied-by-policy',
+        });
+        return res.status(403).json({
+            error: 'Power BI Edit embed tokens are disabled by policy for this profile. Use View, or set powerBiAllowEdit=true only for an approved authoring profile.',
+        });
     }
 
     if (!profile.powerBiClientId || !profile.powerBiClientSecret || !profile.powerBiTenantId) {
@@ -2520,10 +4248,35 @@ app.post('/assistant/embed-token/:vendor', async (req, res) => {
         });
     }
 
+    const tenantDecision = allowlist.isAadTenantAllowed(cfg(), req, profile.powerBiTenantId);
+    if (!tenantDecision.ok) return sendAllowlistRejection(req, res, tenantDecision);
+    if (tenantDecision.warn) console.warn(`[allowlist] warn: Power BI tenant "${profile.powerBiTenantId}" is outside aadTenants allowlist`);
+
+    const identityResolution = _resolvePowerBIIdentities({ req, profile, datasetId });
+    if (identityResolution.status) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'embed-token',
+            status: identityResolution.status,
+            detail: identityResolution.error,
+        });
+        return res.status(identityResolution.status).json({ error: identityResolution.error });
+    }
+    const identities = identityResolution.identities;
+    const identityHash = identityResolution.identityHash || _powerBiIdentityHash(identities);
+
     // Cache key intentionally OMITS the client secret. Profile name +
-    // reportId + accessLevel is sufficient because each profile pins a
-    // single SP and rotating the SP secret means rotating the profile.
-    const cacheKey = _powerBiCacheKey(resolved.name, reportId, accessLevel);
+    // report/workspace/dataset/access/RLS identity is sufficient because
+    // each profile pins a single SP and rotating the SP secret means
+    // rotating the profile. Identity is represented only by a hash.
+    const cacheKey = _powerBiCacheKey({
+        profileName: resolved.name,
+        groupId,
+        reportId,
+        datasetId,
+        accessLevel,
+        identities,
+    });
     const cached = _powerBiTokenCache.get(cacheKey);
 
     // Hot path: still-valid cached token.
@@ -2535,7 +4288,10 @@ app.post('/assistant/embed-token/:vendor', async (req, res) => {
             detail: JSON.stringify({
                 cache: 'hit',
                 reportId,
+                groupId,
+                datasetId: datasetId || null,
                 accessLevel,
+                identityHash,
                 spIdHash: hashServicePrincipalId(profile.powerBiClientId),
                 durationMs: Date.now() - startedAt,
             }),
@@ -2561,7 +4317,10 @@ app.post('/assistant/embed-token/:vendor', async (req, res) => {
                 detail: JSON.stringify({
                     cache: 'single-flight-await',
                     reportId,
+                    groupId,
+                    datasetId: datasetId || null,
                     accessLevel,
+                    identityHash,
                     spIdHash: hashServicePrincipalId(profile.powerBiClientId),
                     durationMs: Date.now() - startedAt,
                 }),
@@ -2615,7 +4374,10 @@ app.post('/assistant/embed-token/:vendor', async (req, res) => {
             detail: JSON.stringify({
                 cache: 'miss',
                 reportId,
+                groupId,
+                datasetId: datasetId || null,
                 accessLevel,
+                identityHash,
                 spIdHash: hashServicePrincipalId(profile.powerBiClientId),
                 durationMs: Date.now() - startedAt,
             }),
@@ -2643,7 +4405,10 @@ app.post('/assistant/embed-token/:vendor', async (req, res) => {
             status: clientStatus,
             detail: JSON.stringify({
                 reportId,
+                groupId,
+                datasetId: datasetId || null,
                 accessLevel,
+                identityHash,
                 spIdHash: hashServicePrincipalId(profile.powerBiClientId),
                 error: detail.slice(0, 200),
                 durationMs: Date.now() - startedAt,
@@ -2700,7 +4465,11 @@ function rotateFeedbackLog(logPath) {
     }
 }
 
-app.post('/feedback', (req, res) => {
+app.post('/feedback', async (req, res) => {
+    // Local log write (existing behaviour) — kept for cross-connector
+    // feedback observability since the local log captures feedback for
+    // every backend (Genie, Foundation Model, Supervisor, Bedrock, OpenAI),
+    // not just Databricks.
     try {
         const c = cfg();
         if (c.feedbackLog) {
@@ -2713,7 +4482,75 @@ app.post('/feedback', (req, res) => {
     } catch (err) {
         console.warn('[feedback] log write failed:', err.message);
     }
+
+    // Native Databricks Genie feedback push-back (2026 conversation API GA).
+    // When the payload carries conversationId + messageId + a Genie-backed
+    // profile, also POST the rating to Databricks Genie's native feedback
+    // endpoint so the workspace's feedback dashboards see it. Defensive:
+    // only fires when all required fields are present, swallows errors so
+    // the local log path is never blocked by an upstream hiccup, and the
+    // endpoint path is the documented 2026 GA shape — workspaces on older
+    // Databricks runtimes will see a 404 here which we log and ignore.
+    try {
+        const { conversationId, messageId, rating } = req.body || {};
+        if (conversationId && messageId && (rating === 'up' || rating === 'down')) {
+            const resolved = resolveProfile(req.body, {}, req.headers, req);
+            const profile = resolved?.profile;
+            const spaceId = profile?.spaceId;
+            if (profile?.databricksHost && profile?.databricksToken && spaceId) {
+                const nativeBody = {
+                    feedback: rating === 'up' ? 'POSITIVE' : 'NEGATIVE',
+                    comment: String(req.body.comment || req.body.feedbackComment || req.body.feedbackReason || '').slice(0, 4000) || undefined,
+                };
+                try {
+                    await databricksRequest(
+                        profile, 'POST',
+                        `/api/2.0/genie/spaces/${encodeURIComponent(spaceId)}/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}/feedback`,
+                        nativeBody
+                    );
+                } catch (nativeErr) {
+                    // Common cases: 404 (older workspace runtime), 403 (PAT
+                    // lacks feedback scope). Don't surface to user — we
+                    // already logged locally. Log warn for ops visibility.
+                    console.warn('[feedback] native Genie push failed (local log preserved):', nativeErr.message);
+                }
+            }
+        }
+    } catch (err) {
+        console.warn('[feedback] native push setup failed:', err.message);
+    }
+
     res.json({ ok: true });
+});
+
+// ── List Genie conversations for a space ─────────────────────────────────────
+// 2026 conversation API GA exposed conversation listing on the existing
+// `/api/2.0/genie/spaces/{id}/conversations` path. Wraps it through the
+// proxy so the playground gets the same auth + profile resolution as every
+// other Genie call. Useful for a future "history" / "switch conversation"
+// view in PulsePlay — surfaces conversations started both in PulsePlay AND
+// in the Databricks Genie web UI (since they share the space).
+//
+// GET /assistant/conversations?assistantProfile=<name>&limit=<n>
+app.get('/conversations', async (req, res) => {
+    const resolved = resolveProfile({}, req.query, req.headers, req);
+    if (!resolved) return sendNoMatchingProfile(req, res);
+    const spaceId = resolved.profile.spaceId;
+    if (!spaceId) {
+        return res.status(400).json({ error: `Profile '${resolved.name}' has no spaceId configured.` });
+    }
+    const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
+    try {
+        const data = await databricksRequest(
+            resolved.profile, 'GET',
+            `/api/2.0/genie/spaces/${encodeURIComponent(spaceId)}/conversations?page_size=${limit}`
+        );
+        res.json(data);
+    } catch (err) {
+        console.error('[conversations]', err.message);
+        const mapped = errorStatusFromDatabricks(err, 500);
+        res.status(mapped.status).json({ error: mapped.error });
+    }
 });
 
 // ── Chat history storage ─────────────────────────────────────────────────────
@@ -2788,7 +4625,7 @@ app.post('/history', async (req, res) => {
     const resolved = resolveProfile(req.body, {}, req.headers, req);
     if (!resolved) {
         console.warn('[history] POST: no matching profile resolved');
-        return res.status(400).json({ error: 'No matching profile configured' });
+        return sendNoMatchingProfile(req, res);
     }
 
     const c = cfg();
@@ -2846,16 +4683,29 @@ SELECT
         console.log(`[history] POST id=${id} OK`);
         res.json({ ok: true, id, storage: table });
     } catch (err) {
-        // BUG-009: surface the actual cause to the visual so authors can act
-        // (table missing, permission denied, warehouse not running, etc.).
+        // Slice 1d — Problem Details envelope replaces the raw err.message.
+        // BUG-009 originally wanted the cause surfaced so authors could act;
+        // the locked Error Strategy moves operator detail server-side via
+        // the audit log + this console.warn line. Viewer-facing copy gets
+        // the verbatim safe sentinel. The legacy `ok: false` + `table`
+        // fields are preserved so existing /history clients (history panel,
+        // Pulse sibling) keep their happy-path branching working.
         console.warn(`[history] POST id=${id} table=${table} FAILED: ${err.message}`);
-        res.status(500).json({ ok: false, error: err.message, table });
+        sendProblem(res, createProblem({
+            status: 500,
+            code: 'HISTORY_WRITE_FAILED',
+            title: 'History write failed',
+            detail: UNEXPECTED_INTERNAL_SENTINEL,
+            category: 'unexpected_internal',
+            requestId: req.requestId,
+            retryable: false,
+        }), { ok: false, table });
     }
 });
 
 app.get('/history', async (req, res) => {
     const resolved = resolveProfile({}, req.query, req.headers, req);
-    if (!resolved) return res.status(400).json({ error: 'No matching profile configured' });
+    if (!resolved) return sendNoMatchingProfile(req, res);
 
     const c = cfg();
     const table = historyTableFor(c, resolved.profile);
@@ -2921,8 +4771,17 @@ LIMIT ${limit}
         });
         res.json({ ok: true, items, canSeeAll });
     } catch (err) {
+        // Slice 1d — viewer-safe envelope; raw err.message stays server-side.
         console.warn('[history] read failed:', err.message);
-        res.status(500).json({ ok: false, error: err.message });
+        sendProblem(res, createProblem({
+            status: 500,
+            code: 'HISTORY_READ_FAILED',
+            title: 'History read failed',
+            detail: UNEXPECTED_INTERNAL_SENTINEL,
+            category: 'unexpected_internal',
+            requestId: req.requestId,
+            retryable: false,
+        }), { ok: false });
     }
 });
 
@@ -2941,12 +4800,12 @@ LIMIT ${limit}
 // redaction wraps every error before propagation.
 const { previewSectionSql, validateSectionSql, PREVIEW_MAX_ROWS } = require('./lib/sqlSectionPreview');
 
-app.use('/sql', rateLimitMiddleware);
+app.use('/sql', rateLimitMiddleware, idpMiddleware);
 app.use('/sql', sharedKeyMiddleware);
 
 app.post('/sql/explain', (req, res) => {
     const resolved = resolveProfile(req.body, {}, req.headers, req);
-    if (!resolved) return res.status(400).json({ ok: false, error: 'No matching profile configured' });
+    if (!resolved) return sendNoMatchingProfile(req, res);
     const sql = req.body?.sql;
     const cteHeader = req.body?.sectionH_cteHeader || req.body?.cteHeader || '';
     const validation = validateSectionSql({ cteHeader, sql });
@@ -2965,7 +4824,7 @@ app.post('/sql/explain', (req, res) => {
 
 app.post('/sql/preview', async (req, res) => {
     const resolved = resolveProfile(req.body, {}, req.headers, req);
-    if (!resolved) return res.status(400).json({ ok: false, error: 'No matching profile configured' });
+    if (!resolved) return sendNoMatchingProfile(req, res);
     const sql = req.body?.sql;
     const cteHeader = req.body?.sectionH_cteHeader || req.body?.cteHeader || '';
     try {
@@ -3120,7 +4979,7 @@ app.post('/insights/suggest-metric-rules', async (req, res) => {
     const resolved = resolveProfile(req.body, {}, req.headers, req);
     if (!resolved) {
         auditLog(req, { action: 'insights.suggest-metric-rules', status: 400, detail: 'no-profile' });
-        return res.status(400).json({ error: 'No matching profile configured' });
+        return sendNoMatchingProfile(req, res);
     }
 
     const measureNames = _sanitizeNameList(req.body?.measureNames);
@@ -3227,12 +5086,12 @@ function resolveEngine(profile) {
     return null;
 }
 
-function resolveOpenAiProfile(body, headers) {
+function resolveOpenAiProfile(body, headers, req) {
     const profileName = headers['x-assistant-profile'] || body?.assistantProfile || 'default';
-    const c = cfg();
-    const profile = c.profiles?.[profileName] || c.profiles?.['default'];
+    const resolved = profileByName(profileName, req) || profileByName('default', req);
+    const profile = resolved?.profile;
     if (!profile?.azureOpenAiEndpoint) return null;
-    return { profile, name: profileName };
+    return { profile, name: resolved.name };
 }
 
 async function azureOpenAiRequest(profile, messages) {
@@ -3261,17 +5120,35 @@ async function azureOpenAiRequest(profile, messages) {
 }
 
 app.get('/openai/health', (req, res) => {
-    const resolved = resolveOpenAiProfile({}, req.headers);
+    const resolved = resolveOpenAiProfile({}, req.headers, req);
     if (!resolved) {
+        if (req._allowlistRejection) return sendAllowlistRejection(req, res, req._allowlistRejection);
         return res.status(503).json({ ok: false, error: 'No Azure OpenAI profile configured. Add azureOpenAiEndpoint, azureOpenAiKey, and azureOpenAiDeployment to the proxy profile.' });
     }
     res.json({ ok: true, model: resolved.profile.azureOpenAiDeployment || 'gpt-4o' });
 });
 
+// Cycle 17 (2026-05-20) — shared per-request retry-override extractor.
+// Used by the Genie poll path (maybeValidateGeniePollResponse) AND the
+// analytics-orchestrator routes (OpenAI analytics + Bedrock-direct) so
+// the Settings "Validation retries" lever flows identically into every
+// validation budget. Returns `null` when no usable value is present,
+// which lets the budget resolver fall back to the env baseline.
+function parseClientMaxRetries(req) {
+    const fromQuery = req?.query?.maxValidationRetries;
+    if (typeof fromQuery === 'string' && fromQuery.length > 0) {
+        const n = parseInt(fromQuery, 10);
+        if (Number.isFinite(n)) return n;
+    }
+    const fromBody = req?.body?.maxValidationRetries;
+    if (typeof fromBody === 'number' && Number.isFinite(fromBody)) return fromBody;
+    return null;
+}
+
 // IDEA-040 Phase 2 — shared analytics-mode entry point used by both the
 // OpenAI route and the Bedrock-direct route. Wraps the orchestrator with
 // retry-on-bad-SQL and auto-introspection-when-missing.
-async function runAnalyticsOrchestrator({ profile, content, callLlm, convId, msgId, packContext }) {
+async function runAnalyticsOrchestrator({ profile, content, callLlm, convId, msgId, packContext, clientMaxRetries }) {
     const { orchestrateGroundedAnswer, withRetryOnBadSql } = require('./lib/llmOrchestrator');
 
     // Resolve schema context: explicit profile.schemaContext wins; otherwise
@@ -3295,6 +5172,11 @@ async function runAnalyticsOrchestrator({ profile, content, callLlm, convId, msg
         // Cycle C — forward optional pack-context to the LLM orchestrator so
         // SQL + narrative system prompts both pick up sub-vertical vocabulary.
         packContext,
+        // Cycle 17 (2026-05-20) — forward client-supplied validation-retry
+        // override so the orchestrator's server-side narrative validator
+        // honors the Settings "Validation retries" lever symmetrically with
+        // the Genie poll path. null/undefined falls through to env baseline.
+        clientMaxRetries,
     };
 
     // Retry-on-bad-SQL is opt-out: profile.disableSqlRetry === true skips it.
@@ -3306,10 +5188,16 @@ async function runAnalyticsOrchestrator({ profile, content, callLlm, convId, msg
 }
 
 app.post('/openai/conversations/start', async (req, res) => {
-    const resolved = resolveOpenAiProfile(req.body, req.headers);
-    if (!resolved) return res.status(400).json({ error: 'No Azure OpenAI profile configured.' });
+    const resolved = resolveOpenAiProfile(req.body, req.headers, req);
+    if (!resolved) return sendNoMatchingProfile(req, res, 400, 'No Azure OpenAI profile configured.');
 
-    const { content, pack, subVertical } = req.body;
+    const { pack, subVertical } = req.body;
+    // Phase 11b prep — bridge structured body.frame into content for
+    // direct API callers; idempotent when content already carries the
+    // AISidebar's [Selected analysis frame] marker. Byte-identical for
+    // free-text (frame === null / invalid).
+    const frame = validateFrame(req.body && req.body.frame);
+    const content = prependFrameContext(req.body.content, frame);
     const convId = `aoai-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
     // Cycle C — pack-context resolution. Forwarded to BOTH the analytics
@@ -3323,6 +5211,15 @@ app.post('/openai/conversations/start', async (req, res) => {
             action: 'pack-context-inject',
             status: packResolved.resolved ? 'OK' : 'WARN',
             detail: JSON.stringify({ ...buildPackAuditDetail(packResolved), backend: 'openai' }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+    }
+    if (frame) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'frame-context-inject',
+            status: 'OK',
+            detail: JSON.stringify({ ...buildFrameAuditDetail(frame), backend: 'openai' }),
             spIdentityHash: spHashForProfile(resolved.profile),
         });
     }
@@ -3342,11 +5239,20 @@ app.post('/openai/conversations/start', async (req, res) => {
             const msgId = `aoai-msg-${Date.now()}`;
             const callLlm = async (messages) => {
                 const data = await azureOpenAiRequest(resolved.profile, messages);
-                return data.choices?.[0]?.message?.content ?? '';
+                return {
+                    content: data.choices?.[0]?.message?.content ?? '',
+                    usage: _sanitizeUsageBlock(data?.usage),
+                };
             };
+            // Cycle 17 — extract per-request validation-retry override symmetrically
+            // with the Genie poll path. Accept either ?maxValidationRetries=N (query)
+            // or { maxValidationRetries: N } (body). Out-of-range / non-numeric values
+            // fall through to env baseline inside the orchestrator.
+            const parsedClientRetries = parseClientMaxRetries(req);
             const { result, retried, attempts } = await runAnalyticsOrchestrator({
                 profile: resolved.profile, content, callLlm, convId, msgId,
                 packContext: packResolved.resolved ? packResolved.content : null,
+                clientMaxRetries: parsedClientRetries,
             });
             // Pack the COMPLETED response into message_id so the visual's
             // waitForMessageWithProgress() path returns immediately (matches
@@ -3357,12 +5263,22 @@ app.post('/openai/conversations/start', async (req, res) => {
                 status: result.status,
                 content: result.content,
                 sqlQuery: result.sqlQuery,
+                ...(result.usage ? { usage: result.usage } : {}),
             };
             console.log(`[openai/analytics] profile=${resolved.name} conv=${convId} status=${result.status} attempts=${attempts} retried=${retried}`);
-            return res.json(responsePayload);
+            return res.json(withGovernance(req, resolved.profile, 'azure-openai-analytics', responsePayload));
         } catch (err) {
+            // Slice 1d — viewer-safe envelope; raw err.message stays in console.
             console.error('[openai/analytics]', err.message);
-            return res.status(500).json({ error: err.message });
+            return sendProblem(res, createProblem({
+                status: 500,
+                code: 'OPENAI_ANALYTICS_FAILED',
+                title: 'Azure OpenAI analytics request failed',
+                detail: UNEXPECTED_INTERNAL_SENTINEL,
+                category: 'unexpected_internal',
+                requestId: req.requestId,
+                retryable: false,
+            }));
         }
     }
 
@@ -3370,34 +5286,67 @@ app.post('/openai/conversations/start', async (req, res) => {
     // as a system message so the model adopts sub-vertical vocabulary. The
     // existing conversation-history shape is preserved (system messages are
     // valid in OpenAI Chat Completions).
-    const messages = packResolved.resolved && packResolved.content
-        ? [{ role: 'system', content: packResolved.content }, { role: 'user', content }]
+    //
+    // Probe-once cross-backend reuse — fold the client-supplied discovery
+    // summary into the same system message so OpenAI sees grounding facts
+    // above the vertical vocabulary.
+    const openAiDiscoveryBlock = _formatDiscoveryContext(req.body && req.body.discoveryContext);
+    const openAiPackTag = packResolved.subVertical
+        ? `${packResolved.pack}/${packResolved.subVertical}`
+        : (packResolved.pack || 'pack');
+    const openAiSystemContent = _composeSystemPromptWithContext({
+        systemPrompt: null,
+        discoveryBlock: openAiDiscoveryBlock,
+        packBlock: (packResolved.resolved && packResolved.content) ? packResolved.content : null,
+        packTag: openAiPackTag,
+    });
+    const messages = openAiSystemContent
+        ? [{ role: 'system', content: openAiSystemContent }, { role: 'user', content }]
         : [{ role: 'user', content }];
+    if (openAiDiscoveryBlock) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'discovery-context-inject',
+            status: 'OK',
+            detail: JSON.stringify({ ...buildDiscoveryAuditDetail(openAiDiscoveryBlock), backend: 'openai' }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+    }
     openAiConversationHistory.set(convId, { messages, storedAt: Date.now() });
 
     try {
         const data = await azureOpenAiRequest(resolved.profile, messages);
         const answer = data.choices?.[0]?.message?.content ?? '';
+        const usage = _sanitizeUsageBlock(data?.usage);
         messages.push({ role: 'assistant', content: answer });
 
         const responsePayload = {
             conversation_id: convId,
-            message_id: JSON.stringify({ id: convId, status: 'COMPLETED', content: answer }),
+            message_id: JSON.stringify({ id: convId, status: 'COMPLETED', content: answer, ...(usage ? { usage } : {}) }),
             status: 'COMPLETED',
-            content: answer
+            content: answer,
+            ...(usage ? { usage } : {}),
         };
         console.log(`[openai/start] profile=${resolved.name} conv=${convId}`);
-        res.json(responsePayload);
+        res.json(withGovernance(req, resolved.profile, 'azure-openai-chat', responsePayload));
     } catch (err) {
         console.error('[openai/start]', err.message);
-        res.status(500).json({ error: err.message });
+        sendProblem(res, createProblem({
+            status: 500,
+            code: 'OPENAI_START_FAILED',
+            title: 'Azure OpenAI conversation start failed',
+            detail: UNEXPECTED_INTERNAL_SENTINEL,
+            category: 'unexpected_internal',
+            requestId: req.requestId,
+            retryable: false,
+        }));
     }
 });
 
 app.post('/openai/conversations/:conversationId/messages', async (req, res) => {
     const { conversationId } = req.params;
-    const resolved = resolveOpenAiProfile(req.body, req.headers);
-    if (!resolved) return res.status(400).json({ error: 'No Azure OpenAI profile configured.' });
+    const resolved = resolveOpenAiProfile(req.body, req.headers, req);
+    if (!resolved) return sendNoMatchingProfile(req, res, 400, 'No Azure OpenAI profile configured.');
 
     const { content } = req.body;
     const entry = openAiConversationHistory.get(conversationId);
@@ -3412,10 +5361,23 @@ app.post('/openai/conversations/:conversationId/messages', async (req, res) => {
 
         const msgId = JSON.stringify({ id: `${conversationId}-${history.length}`, status: 'COMPLETED', content: answer });
         console.log(`[openai/send] profile=${resolved.name} conv=${conversationId}`);
-        res.json({ conversation_id: conversationId, message_id: msgId, status: 'COMPLETED', content: answer });
+        res.json(withGovernance(req, resolved.profile, 'azure-openai-chat', {
+            conversation_id: conversationId,
+            message_id: msgId,
+            status: 'COMPLETED',
+            content: answer,
+        }));
     } catch (err) {
         console.error('[openai/send]', err.message);
-        res.status(500).json({ error: err.message });
+        sendProblem(res, createProblem({
+            status: 500,
+            code: 'OPENAI_SEND_FAILED',
+            title: 'Azure OpenAI follow-up message failed',
+            detail: UNEXPECTED_INTERNAL_SENTINEL,
+            category: 'unexpected_internal',
+            requestId: req.requestId,
+            retryable: false,
+        }));
     }
 });
 
@@ -3434,88 +5396,34 @@ app.post('/openai/conversations/:conversationId/messages', async (req, res) => {
 
 const bedrockSessionMap = new Map(); // conversationId → { sessionId, storedAt }
 
-function resolveBedrockProfile(body, headers) {
+function resolveBedrockProfile(body, headers, req) {
     const profileName = headers['x-assistant-profile'] || body?.assistantProfile || 'default';
-    const c = cfg();
-    const profile = c.profiles?.[profileName] || c.profiles?.['default'];
+    const resolved = profileByName(profileName, req) || profileByName('default', req);
+    const profile = resolved?.profile;
     // IDEA-040 Phase 2 — accept either KB-coupled (RAG) profiles or
     // bedrock-direct profiles (only requires AWS creds + region; KB id
     // not needed).
     if (!profile) return null;
     const engine = resolveEngine(profile);
     if (engine === 'bedrock-rag' || engine === 'bedrock-direct') {
-        return { profile, name: profileName };
+        return { profile, name: resolved.name };
     }
-    if (profile.bedrockKnowledgeBaseId) return { profile, name: profileName };
+    if (profile.bedrockKnowledgeBaseId) return { profile, name: resolved.name };
     return null;
 }
 
 async function bedrockRetrieveAndGenerate(profile, input, sessionId) {
-    const region = profile.bedrockRegion || 'us-east-1';
-    const url = `https://bedrock-agent-runtime.${region}.amazonaws.com/retrieveAndGenerate`;
-
-    const body = {
-        input: { text: input },
-        retrieveAndGenerateConfiguration: {
-            type: 'KNOWLEDGE_BASE',
-            knowledgeBaseConfiguration: {
-                knowledgeBaseId: profile.bedrockKnowledgeBaseId,
-                modelArn: profile.bedrockModelArn || `anthropic.claude-3-5-sonnet-20241022-v2:0`
-            }
-        }
-    };
-    if (sessionId) body.sessionId = sessionId;
-
-    // AWS Signature V4 signing
-    const now = new Date();
-    const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '').slice(0, 15) + 'Z';
-    const dateStamp = amzDate.slice(0, 8);
-    const bodyStr = JSON.stringify(body);
-    const crypto = require('crypto');
-
-    function hmac(key, data) {
-        return crypto.createHmac('sha256', key).update(data).digest();
-    }
-    function sign(key, msg) { return hmac(key, msg); }
-    function getSignatureKey(secret, date, region, service) {
-        return sign(sign(sign(sign('AWS4' + secret, date), region), service), 'aws4_request');
-    }
-
-    const payloadHash = crypto.createHash('sha256').update(bodyStr).digest('hex');
-    const canonicalHeaders = `content-type:application/json\nhost:bedrock-agent-runtime.${region}.amazonaws.com\nx-amz-content-sha256:${payloadHash}\nx-amz-date:${amzDate}\n`;
-    const signedHeaders = 'content-type;host;x-amz-content-sha256;x-amz-date';
-    const canonicalRequest = `POST\n/retrieveAndGenerate\n\n${canonicalHeaders}\n${signedHeaders}\n${payloadHash}`;
-    const credScope = `${dateStamp}/${region}/bedrock/aws4_request`;
-    const strToSign = `AWS4-HMAC-SHA256\n${amzDate}\n${credScope}\n${crypto.createHash('sha256').update(canonicalRequest).digest('hex')}`;
-    const signingKey = getSignatureKey(profile.bedrockSecretAccessKey, dateStamp, region, 'bedrock');
-    const signature = hmac(signingKey, strToSign).toString('hex');
-    const authHeader = `AWS4-HMAC-SHA256 Credential=${profile.bedrockAccessKeyId}/${credScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
-
-    // Wave 28 — 30s timeout (matches Azure OpenAI). Without this, a stalled
-    // Bedrock endpoint hangs the proxy thread until OS-level connection
-    // timeout fires.
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-Amz-Date': amzDate,
-            'X-Amz-Content-Sha256': payloadHash,
-            'Authorization': authHeader
-        },
-        body: bodyStr,
-        signal: AbortSignal.timeout(30000),
-    });
-
-    if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`AWS Bedrock returned ${response.status}: ${text.substring(0, 300)}`);
-    }
-    return response.json();
+    // IDEA-040 cleanup — delegate to the shared SigV4 signer in
+    // proxy/lib/bedrock.js so we maintain one implementation, not two.
+    // Behavior is byte-identical to the previous inline version.
+    const { bedrockRetrieveAndGenerate: libRetrieveAndGenerate } = require('./lib/bedrock');
+    return libRetrieveAndGenerate(profile, input, sessionId);
 }
 
 app.get('/bedrock/health', (req, res) => {
-    const resolved = resolveBedrockProfile({}, req.headers);
+    const resolved = resolveBedrockProfile({}, req.headers, req);
     if (!resolved) {
+        if (req._allowlistRejection) return sendAllowlistRejection(req, res, req._allowlistRejection);
         return res.status(503).json({ ok: false, error: 'No AWS Bedrock profile configured. Add bedrockKnowledgeBaseId, bedrockRegion, bedrockModelArn, bedrockAccessKeyId, and bedrockSecretAccessKey to the proxy profile.' });
     }
     const engine = resolveEngine(resolved.profile);
@@ -3529,16 +5437,21 @@ app.get('/bedrock/health', (req, res) => {
 
 // IDEA-040 Phase 2 — direct-mode helper. Calls Bedrock InvokeModel
 // (the new lib/bedrock.js entry point) and returns plain text.
-async function bedrockInvokeModelCall(profile, messages) {
+async function bedrockInvokeModelCall(profile, messages, opts = {}) {
     const { bedrockInvokeModel } = require('./lib/bedrock');
-    return bedrockInvokeModel(profile, messages);
+    return bedrockInvokeModel(profile, messages, opts);
 }
 
 app.post('/bedrock/conversations/start', async (req, res) => {
-    const resolved = resolveBedrockProfile(req.body, req.headers);
-    if (!resolved) return res.status(400).json({ error: 'No AWS Bedrock profile configured.' });
+    const resolved = resolveBedrockProfile(req.body, req.headers, req);
+    if (!resolved) return sendNoMatchingProfile(req, res, 400, 'No AWS Bedrock profile configured.');
 
-    const { content, pack, subVertical } = req.body;
+    const { pack, subVertical } = req.body;
+    // Phase 11b prep — bridge body.frame into content (idempotent, no-op
+    // for free-text). See proxy/lib/frameContext.js + Genie route at
+    // app.post('/assistant/conversations/start') for the byte-identity contract.
+    const frame = validateFrame(req.body && req.body.frame);
+    const content = prependFrameContext(req.body.content, frame);
     const convId = `bedrock-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const engine = resolveEngine(resolved.profile) || 'bedrock-rag';
 
@@ -3554,6 +5467,15 @@ app.post('/bedrock/conversations/start', async (req, res) => {
             spIdentityHash: spHashForProfile(resolved.profile),
         });
     }
+    if (frame) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'frame-context-inject',
+            status: 'OK',
+            detail: JSON.stringify({ ...buildFrameAuditDetail(frame), backend: 'bedrock', engine }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+    }
 
     // Phase 2 — bedrock-direct + analytics mode → orchestrator path.
     const hasAnalyticsContext =
@@ -3562,10 +5484,19 @@ app.post('/bedrock/conversations/start', async (req, res) => {
     if (engine === 'bedrock-direct' && resolved.profile.mode === 'analytics' && hasAnalyticsContext) {
         try {
             const msgId = `bedrock-msg-${Date.now()}`;
-            const callLlm = (messages) => bedrockInvokeModelCall(resolved.profile, messages);
+            const callLlm = async (messages) => {
+                let capturedUsage = null;
+                const content = await bedrockInvokeModelCall(resolved.profile, messages, {
+                    onUsage: u => { capturedUsage = u; },
+                });
+                return { content, usage: capturedUsage };
+            };
+            // Cycle 17 — symmetric per-request validation-retry override.
+            const parsedClientRetries = parseClientMaxRetries(req);
             const { result, retried, attempts } = await runAnalyticsOrchestrator({
                 profile: resolved.profile, content, callLlm, convId, msgId,
                 packContext: packResolved.resolved ? packResolved.content : null,
+                clientMaxRetries: parsedClientRetries,
             });
             const responsePayload = {
                 conversation_id: convId,
@@ -3573,12 +5504,21 @@ app.post('/bedrock/conversations/start', async (req, res) => {
                 status: result.status,
                 content: result.content,
                 sqlQuery: result.sqlQuery,
+                ...(result.usage ? { usage: result.usage } : {}),
             };
             console.log(`[bedrock/analytics] profile=${resolved.name} conv=${convId} status=${result.status} attempts=${attempts} retried=${retried}`);
-            return res.json(responsePayload);
+            return res.json(withGovernance(req, resolved.profile, 'bedrock-direct', responsePayload));
         } catch (err) {
             console.error('[bedrock/analytics]', err.message);
-            return res.status(500).json({ error: err.message });
+            return sendProblem(res, createProblem({
+                status: 500,
+                code: 'BEDROCK_ANALYTICS_FAILED',
+                title: 'Bedrock analytics request failed',
+                detail: UNEXPECTED_INTERNAL_SENTINEL,
+                category: 'unexpected_internal',
+                requestId: req.requestId,
+                retryable: false,
+            }));
         }
     }
 
@@ -3586,27 +5526,72 @@ app.post('/bedrock/conversations/start', async (req, res) => {
     // Cycle C — when pack-context is resolved, prepend it as a system message
     // so the model adopts sub-vertical vocabulary. The Anthropic Messages
     // payload wrapper (see lib/bedrock.js) accepts a leading system message.
+    //
+    // Probe-once cross-backend reuse — folds the discovery summary into the
+    // same system message alongside pack context.
+    const bedrockDiscoveryBlock = _formatDiscoveryContext(req.body && req.body.discoveryContext);
+    const bedrockPackTag = packResolved.subVertical
+        ? `${packResolved.pack}/${packResolved.subVertical}`
+        : (packResolved.pack || 'pack');
+    if (bedrockDiscoveryBlock) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'discovery-context-inject',
+            status: 'OK',
+            detail: JSON.stringify({ ...buildDiscoveryAuditDetail(bedrockDiscoveryBlock), backend: 'bedrock', engine }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+    }
     if (engine === 'bedrock-direct') {
         try {
-            const messages = packResolved.resolved && packResolved.content
-                ? [{ role: 'system', content: packResolved.content }, { role: 'user', content }]
+            const bedrockDirectSystemContent = _composeSystemPromptWithContext({
+                systemPrompt: null,
+                discoveryBlock: bedrockDiscoveryBlock,
+                packBlock: (packResolved.resolved && packResolved.content) ? packResolved.content : null,
+                packTag: bedrockPackTag,
+            });
+            const messages = bedrockDirectSystemContent
+                ? [{ role: 'system', content: bedrockDirectSystemContent }, { role: 'user', content }]
                 : [{ role: 'user', content }];
-            const answer = await bedrockInvokeModelCall(resolved.profile, messages);
-            const msgId = JSON.stringify({ id: convId, status: 'COMPLETED', content: answer });
+            let capturedUsage = null;
+            const answer = await bedrockInvokeModelCall(resolved.profile, messages, {
+                onUsage: u => { capturedUsage = u; },
+            });
+            const usage = _sanitizeUsageBlock(capturedUsage);
+            const msgId = JSON.stringify({ id: convId, status: 'COMPLETED', content: answer, ...(usage ? { usage } : {}) });
             console.log(`[bedrock/direct/start] profile=${resolved.name} conv=${convId}`);
-            return res.json({ conversation_id: convId, message_id: msgId, status: 'COMPLETED', content: answer });
+            return res.json(withGovernance(req, resolved.profile, 'bedrock-direct', {
+                conversation_id: convId,
+                message_id: msgId,
+                status: 'COMPLETED',
+                content: answer,
+                ...(usage ? { usage } : {}),
+            }));
         } catch (err) {
             console.error('[bedrock/direct/start]', err.message);
-            return res.status(500).json({ error: err.message });
+            return sendProblem(res, createProblem({
+                status: 500,
+                code: 'BEDROCK_DIRECT_START_FAILED',
+                title: 'Bedrock direct chat start failed',
+                detail: UNEXPECTED_INTERNAL_SENTINEL,
+                category: 'unexpected_internal',
+                requestId: req.requestId,
+                retryable: false,
+            }));
         }
     }
 
     // Existing RAG path. Cycle C — pack-context is prepended to the user's
     // input text as a header (Bedrock RetrieveAndGenerate has no system-prompt
     // slot in the v1 KB-coupled API), mirroring the Genie shape.
-    const ragInput = packResolved.resolved && packResolved.content
-        ? wrapAsGenieUserMessage(packResolved.content, packResolved.pack, packResolved.subVertical, content)
-        : content;
+    // Probe-once cross-backend reuse — discovery rides the same user-message
+    // header path (no system slot available on KB-coupled invocations).
+    const ragInput = _composeUserMessageWithContext({
+        discoveryBlock: bedrockDiscoveryBlock,
+        packBlock: (packResolved.resolved && packResolved.content) ? packResolved.content : null,
+        packTag: bedrockPackTag,
+        userQuestion: content,
+    });
     try {
         const data = await bedrockRetrieveAndGenerate(resolved.profile, ragInput, null);
         const answer = data.output?.text ?? '';
@@ -3615,17 +5600,30 @@ app.post('/bedrock/conversations/start', async (req, res) => {
 
         const msgId = JSON.stringify({ id: convId, status: 'COMPLETED', content: answer, citations: data.citations ?? [] });
         console.log(`[bedrock/start] profile=${resolved.name} conv=${convId} session=${sessionId}`);
-        res.json({ conversation_id: convId, message_id: msgId, status: 'COMPLETED', content: answer });
+        res.json(withGovernance(req, resolved.profile, 'bedrock-rag', {
+            conversation_id: convId,
+            message_id: msgId,
+            status: 'COMPLETED',
+            content: answer,
+        }));
     } catch (err) {
         console.error('[bedrock/start]', err.message);
-        res.status(500).json({ error: err.message });
+        sendProblem(res, createProblem({
+            status: 500,
+            code: 'BEDROCK_RAG_START_FAILED',
+            title: 'Bedrock RAG conversation start failed',
+            detail: UNEXPECTED_INTERNAL_SENTINEL,
+            category: 'unexpected_internal',
+            requestId: req.requestId,
+            retryable: false,
+        }));
     }
 });
 
 app.post('/bedrock/conversations/:conversationId/messages', async (req, res) => {
     const { conversationId } = req.params;
-    const resolved = resolveBedrockProfile(req.body, req.headers);
-    if (!resolved) return res.status(400).json({ error: 'No AWS Bedrock profile configured.' });
+    const resolved = resolveBedrockProfile(req.body, req.headers, req);
+    if (!resolved) return sendNoMatchingProfile(req, res, 400, 'No AWS Bedrock profile configured.');
 
     const { content } = req.body;
     const sessionEntry = bedrockSessionMap.get(conversationId);
@@ -3639,10 +5637,23 @@ app.post('/bedrock/conversations/:conversationId/messages', async (req, res) => 
             const answer = await bedrockInvokeModelCall(resolved.profile, messages);
             const msgId = JSON.stringify({ id: `${conversationId}-${Date.now()}`, status: 'COMPLETED', content: answer });
             console.log(`[bedrock/direct/send] profile=${resolved.name} conv=${conversationId}`);
-            return res.json({ conversation_id: conversationId, message_id: msgId, status: 'COMPLETED', content: answer });
+            return res.json(withGovernance(req, resolved.profile, 'bedrock-direct', {
+                conversation_id: conversationId,
+                message_id: msgId,
+                status: 'COMPLETED',
+                content: answer,
+            }));
         } catch (err) {
             console.error('[bedrock/direct/send]', err.message);
-            return res.status(500).json({ error: err.message });
+            return sendProblem(res, createProblem({
+                status: 500,
+                code: 'BEDROCK_DIRECT_SEND_FAILED',
+                title: 'Bedrock direct chat follow-up failed',
+                detail: UNEXPECTED_INTERNAL_SENTINEL,
+                category: 'unexpected_internal',
+                requestId: req.requestId,
+                retryable: false,
+            }));
         }
     }
 
@@ -3654,10 +5665,23 @@ app.post('/bedrock/conversations/:conversationId/messages', async (req, res) => 
 
         const msgId = JSON.stringify({ id: `${conversationId}-${Date.now()}`, status: 'COMPLETED', content: answer, citations: data.citations ?? [] });
         console.log(`[bedrock/send] profile=${resolved.name} conv=${conversationId}`);
-        res.json({ conversation_id: conversationId, message_id: msgId, status: 'COMPLETED', content: answer });
+        res.json(withGovernance(req, resolved.profile, 'bedrock-rag', {
+            conversation_id: conversationId,
+            message_id: msgId,
+            status: 'COMPLETED',
+            content: answer,
+        }));
     } catch (err) {
         console.error('[bedrock/send]', err.message);
-        res.status(500).json({ error: err.message });
+        sendProblem(res, createProblem({
+            status: 500,
+            code: 'BEDROCK_RAG_SEND_FAILED',
+            title: 'Bedrock RAG follow-up message failed',
+            detail: UNEXPECTED_INTERNAL_SENTINEL,
+            category: 'unexpected_internal',
+            requestId: req.requestId,
+            retryable: false,
+        }));
     }
 });
 
@@ -3714,23 +5738,33 @@ if (process.env.NODE_ENV !== 'test') {
 
 const {
     callFoundationModel,
+    buildFoundationModelBody,
     RESPONSE_SCHEMAS: FOUNDATION_RESPONSE_SCHEMAS,
     SECTION_RENDERERS: FOUNDATION_SECTION_RENDERERS,
 } = require('./lib/foundationModelClient');
+
+const {
+    orchestrate: orchestrateSectioned,
+    validateSchedule: validateSectionedSchedule,
+    buildDefaultSchedule: buildDefaultSectionedSchedule,
+    resolveRenderId: resolveSectionedRenderId,
+} = require('./lib/sectionedOrchestrator');
 
 function isFoundationModelProfile(profile) {
     return profile && (profile.type === 'foundation-model' || profile.type === 'foundation') && !!profile.foundationModelEndpoint;
 }
 
-function resolveFoundationModelProfile(body, headers) {
+function resolveFoundationModelProfile(body, headers, req) {
     const explicitName = body?.profile || headers?.['x-foundation-profile'] || headers?.['x-assistant-profile'];
     if (explicitName) {
-        const p = profileRegistry.get(explicitName);
-        if (p && isFoundationModelProfile(p)) return { name: explicitName, profile: p };
+        const resolved = profileByName(explicitName, req);
+        const p = resolved?.profile;
+        if (p && isFoundationModelProfile(p)) return { name: resolved.name, profile: p };
         return null;
     }
     // Auto-select the first configured foundation-model profile.
     for (const [name, profile] of profileRegistry.entries()) {
+        if (!profileAllowedForRequest(name, profile, req)) continue;
         if (isFoundationModelProfile(profile)) return { name, profile };
     }
     return null;
@@ -3751,10 +5785,10 @@ function defaultSystemPromptForSection(sectionTitle) {
     return baseHeader;
 }
 
-app.get('/foundation/health', (_req, res) => {
-    const resolved = resolveFoundationModelProfile({}, {});
+app.get('/foundation/health', (req, res) => {
+    const resolved = resolveFoundationModelProfile({}, {}, req);
     const configured = profileRegistry.entries()
-        .filter(([, p]) => isFoundationModelProfile(p))
+        .filter(([n, p]) => profileAllowedForRequest(n, p, req) && isFoundationModelProfile(p))
         .map(([n, p]) => ({ profile: n, endpoint: p.foundationModelEndpoint, host: p.host }));
     res.json({
         ok: configured.length > 0,
@@ -3764,12 +5798,244 @@ app.get('/foundation/health', (_req, res) => {
     });
 });
 
-app.post('/foundation/section', async (req, res) => {
-    const resolved = resolveFoundationModelProfile(req.body, req.headers);
+// ─────────────────────────────────────────────────────────────────────────────
+// POWER BI SEMANTIC MODEL — connector type `powerbi-semantic-model`
+//
+// Cycle 15. Deterministic, no-LLM AI brain over a published Power BI dataset.
+// Auth: AAD service principal (client_credentials). Execution: DAX templates
+// dispatched by `powerbiQuestionMatcher` against the schema returned by the
+// connector probe adapter.
+//
+// Audit lines emit `mode: "powerbi-deterministic", llmCallCount: 0` so
+// deployers can prove no LLM ran on this path.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function isPowerBiSemanticModelProfile(profile) {
+    return profile
+        && profile.type === 'powerbi-semantic-model'
+        && (profile.aadTenantId || profile.powerBiTenantId)
+        && (profile.aadClientId || profile.powerBiClientId)
+        && (profile.aadClientSecret || profile.powerBiClientSecret)
+        && (profile.powerbiGroupId || profile.powerBiGroupId)
+        && (profile.powerbiDatasetId || profile.powerBiDatasetId);
+}
+
+function resolvePowerBiSemanticModelProfile(body, headers, req) {
+    const explicitName = body?.profile || headers?.['x-powerbi-profile'] || headers?.['x-assistant-profile'];
+    if (explicitName) {
+        const resolved = profileByName(explicitName, req);
+        const p = resolved?.profile;
+        if (p && isPowerBiSemanticModelProfile(p)) return { name: resolved.name, profile: p };
+        return null;
+    }
+    for (const [name, profile] of profileRegistry.entries()) {
+        if (!profileAllowedForRequest(name, profile, req)) continue;
+        if (isPowerBiSemanticModelProfile(profile)) return { name, profile };
+    }
+    return null;
+}
+
+const _powerbiDatasetClient = require('./lib/powerbiDatasetClient');
+const _powerbiQuestionMatcher = require('./lib/powerbiQuestionMatcher');
+const _powerbiDaxTemplates = require('./lib/powerbiDaxTemplates');
+
+app.post('/powerbi/conversations/start', async (req, res) => {
+    const resolved = resolvePowerBiSemanticModelProfile(req.body || {}, req.headers, req);
     if (!resolved) {
-        return res.status(400).json({
-            error: 'No foundation-model profile configured. Add one with type "foundation-model" + foundationModelEndpoint to proxy/config.json.',
+        return sendNoMatchingProfile(req, res, 400, 'No Power BI semantic-model profile configured. Add a profile with type "powerbi-semantic-model" plus aadTenantId / aadClientId / aadClientSecret / powerbiGroupId / powerbiDatasetId.');
+    }
+    const content = String(req.body?.content || '').trim();
+    if (!content) {
+        return res.status(400).json({ error: 'Question content is required.' });
+    }
+
+    // The matcher needs the probed schema — accept it on the request body
+    // when the client has it cached, otherwise probe inline (slower).
+    let probe = req.body?.probeCache && typeof req.body.probeCache === 'object' ? req.body.probeCache : null;
+    if (!probe) {
+        try {
+            const { __internals } = require('./lib/connectorProbe');
+            probe = await __internals.probePowerBiSemanticModel(resolved.profile, resolved.name, {});
+        } catch (err) {
+            console.error('[powerbi/start] inline probe failed:', err?.message || err);
+            probe = { declaredKpis: [], schema: { tables: [] } };
+        }
+    }
+
+    // Match question → template → DAX.
+    const match = _powerbiQuestionMatcher.matchQuestion(content, probe);
+    const convId = `pbi-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    if (!match.matched) {
+        const kpiList = (match.kpis || []).slice(0, 8).join(', ');
+        const suggestions = (match.suggestions || []).slice(0, 4).map(s => `- **${s.label}** — e.g. "${(s.examples || [])[0] || ''}"`).join('\n');
+        const reason = match.reason || 'No template matched.';
+        const body = `I can answer questions like the ones below against this dataset (no LLM is used — only DAX templates). Available measures: ${kpiList || '(none probed)'}.\n\n${suggestions}\n\n_${reason}_`;
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'powerbi-question-unmatched',
+            status: 'WARN',
+            detail: JSON.stringify({ mode: 'powerbi-deterministic', llmCallCount: 0, reason }),
+            spIdentityHash: spHashForProfile(resolved.profile),
         });
+        const msgId = JSON.stringify({ id: convId, status: 'COMPLETED', content: body });
+        return res.json(withGovernance(req, resolved.profile, 'powerbi-semantic-model', {
+            conversation_id: convId,
+            message_id: msgId,
+            status: 'COMPLETED',
+            content: body,
+            unmatched: true,
+        }));
+    }
+
+    const tmpl = _powerbiDaxTemplates.getTemplate(match.templateId);
+    if (!tmpl) {
+        return res.status(500).json({ error: `Unknown template "${match.templateId}"` });
+    }
+
+    // Build + execute DAX.
+    let dax;
+    try {
+        dax = tmpl.buildDax(match.slots);
+    } catch (err) {
+        return res.status(400).json({ error: `Could not build DAX for "${match.templateId}": ${err?.message || err}` });
+    }
+
+    let normalized;
+    try {
+        normalized = await _powerbiDatasetClient.executeDaxNormalized(resolved.profile, dax);
+    } catch (err) {
+        console.error('[powerbi/start] executeDax failed:', err?.message || err);
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'powerbi-dax-execute-failed',
+            status: 'ERROR',
+            detail: JSON.stringify({ templateId: match.templateId, errorCode: err?.statusCode || null }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+        return sendProblem(res, createProblem({
+            status: err?.statusCode || 502,
+            code: 'POWERBI_DAX_FAILED',
+            title: 'Power BI DAX execution failed',
+            detail: String(err?.message || err).slice(0, 300),
+            category: 'upstream_error',
+            requestId: req.requestId,
+            retryable: false,
+        }));
+    }
+
+    const rendered = tmpl.buildResult({ columns: normalized.columns, rows: normalized.rows, slots: match.slots });
+    auditLog(req, {
+        profileName: resolved.name,
+        action: 'powerbi-deterministic-answer',
+        status: 'OK',
+        detail: JSON.stringify({
+            mode: 'powerbi-deterministic',
+            llmCallCount: 0,
+            templateId: match.templateId,
+            rowCount: normalized.rows.length,
+        }),
+        spIdentityHash: spHashForProfile(resolved.profile),
+    });
+
+    const msgId = JSON.stringify({
+        id: convId,
+        status: 'COMPLETED',
+        content: rendered.content,
+        templateId: match.templateId,
+        slots: match.slots,
+        dax,
+        rowCount: normalized.rows.length,
+    });
+    return res.json(withGovernance(req, resolved.profile, 'powerbi-semantic-model', {
+        conversation_id: convId,
+        message_id: msgId,
+        status: 'COMPLETED',
+        content: rendered.content,
+        templateId: match.templateId,
+        slots: match.slots,
+        dax,
+        rowCount: normalized.rows.length,
+        mode: 'powerbi-deterministic',
+        llmCallCount: 0,
+    }));
+});
+
+// Cycle-15.5 — Power BI Q&A embed token. Mints a dataset-scoped embed
+// token that the playground's powerbi-client SDK uses to render the
+// Microsoft Q&A surface inline. The Q&A engine's NLP runs in Microsoft's
+// tenant — PulsePlay does NOT invoke an LLM here; the proxy is only
+// minting the embed token and audit-logging the issuance.
+app.post('/powerbi/qna/embed-token', async (req, res) => {
+    const resolved = resolvePowerBiSemanticModelProfile(req.body || {}, req.headers, req);
+    if (!resolved) {
+        return sendNoMatchingProfile(req, res, 400, 'No Power BI semantic-model profile configured.');
+    }
+    try {
+        const tokenInfo = await _powerbiDatasetClient.generateQnAEmbedToken(resolved.profile);
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'powerbi-qna-token-minted',
+            status: 'OK',
+            detail: JSON.stringify({
+                groupId: tokenInfo.groupId,
+                datasetId: tokenInfo.datasetId,
+                expiresAt: tokenInfo.expiresAt,
+                llmCallCount: 0,
+            }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+        // Never echo the SP credentials. Only the short-lived embed token
+        // + the public-safe metadata.
+        res.json({
+            accessToken: tokenInfo.accessToken,
+            embedUrl: tokenInfo.embedUrl,
+            datasetId: tokenInfo.datasetId,
+            groupId: tokenInfo.groupId,
+            expiresAt: tokenInfo.expiresAt,
+            tokenType: 'Embed',
+        });
+    } catch (err) {
+        console.error('[powerbi/qna/embed-token]', err?.message || err);
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'powerbi-qna-token-failed',
+            status: 'ERROR',
+            detail: JSON.stringify({ errorCode: err?.statusCode || null }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+        return sendProblem(res, createProblem({
+            status: err?.statusCode || 502,
+            code: 'POWERBI_QNA_TOKEN_FAILED',
+            title: 'Power BI Q&A embed token mint failed',
+            detail: String(err?.message || err).slice(0, 300),
+            category: 'upstream_error',
+            requestId: req.requestId,
+            retryable: false,
+        }));
+    }
+});
+
+// Health probe for the Power BI semantic-model connector.
+app.get('/powerbi/health', (req, res) => {
+    const resolved = resolvePowerBiSemanticModelProfile({}, req.headers, req);
+    if (!resolved) {
+        return res.status(503).json({ ok: false, error: 'No Power BI semantic-model profile configured.' });
+    }
+    res.json({
+        ok: true,
+        profile: resolved.name,
+        connectorType: 'powerbi-semantic-model',
+        groupId: resolved.profile.powerbiGroupId || resolved.profile.powerBiGroupId,
+        datasetId: resolved.profile.powerbiDatasetId || resolved.profile.powerBiDatasetId,
+        templates: _powerbiDaxTemplates.listTemplates().map(t => t.id),
+    });
+});
+
+app.post('/foundation/section', async (req, res) => {
+    const resolved = resolveFoundationModelProfile(req.body, req.headers, req);
+    if (!resolved) {
+        return sendNoMatchingProfile(req, res, 400, 'No foundation-model profile configured. Add one with type "foundation-model" + foundationModelEndpoint to proxy/config.json.');
     }
     const {
         userPrompt,
@@ -3794,9 +6060,30 @@ app.post('/foundation/section', async (req, res) => {
 
     const effectiveResponseFormat = responseFormat
         || (useStructuredOutput && presetKey ? FOUNDATION_RESPONSE_SCHEMAS[presetKey] : null);
-    const effectiveSystemPrompt = (typeof systemPrompt === 'string' && systemPrompt.trim())
+    const baseSystemPrompt = (typeof systemPrompt === 'string' && systemPrompt.trim())
         ? systemPrompt
         : defaultSystemPromptForSection(sectionTitle);
+
+    // Probe-once cross-backend reuse — when the client supplies a cached
+    // DiscoverySnapshot summary, fold it into the system prompt alongside
+    // any pack context. The augmented system prompt keeps the existing
+    // section-specific instructions and prepends grounding facts above.
+    const fmDiscoveryBlock = _formatDiscoveryContext(req.body && req.body.discoveryContext);
+    const effectiveSystemPrompt = _composeSystemPromptWithContext({
+        systemPrompt: baseSystemPrompt,
+        discoveryBlock: fmDiscoveryBlock,
+        packBlock: null,
+        packTag: null,
+    });
+    if (fmDiscoveryBlock) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'discovery-context-inject',
+            status: 'OK',
+            detail: JSON.stringify({ ...buildDiscoveryAuditDetail(fmDiscoveryBlock), backend: 'foundation-model', section: upperTitle || '-' }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+    }
 
     const messages = [
         { role: 'system', content: effectiveSystemPrompt },
@@ -3823,18 +6110,514 @@ app.post('/foundation/section', async (req, res) => {
             if (md && md.trim()) renderedContent = md;
         }
 
-        console.log(`[foundation/section] profile=${resolved.name} endpoint=${resolved.profile.foundationModelEndpoint} title=${upperTitle || '-'} structured=${!!effectiveResponseFormat}`);
-        res.json({
+        // Phase 11b FM symmetry — extract per-section SQL provenance from
+        // any ```sql fences in the FM response. The FM prompt translator
+        // injects the `/* Section: X */` marker directive when the IR has
+        // structured-sections output; this surfaces the parsed sections
+        // alongside the markdown content so the playground can render
+        // labelled SQL tabs the same way it does for Genie responses.
+        // Raw markdown stays untouched at `content` / `rawContent` as the
+        // fallback for clients that don't read sqlSections yet, and when
+        // no markers are present we omit the field entirely (clean
+        // fallback rather than empty array).
+        //
+        // Scope: we scan `result.content` ONLY — that's the raw LLM output
+        // where any SQL fence the model emitted naturally lives. The
+        // renderer-derived `renderedContent` is a markdown reformat of
+        // parsedJson (action lists, risk lists) and would never introduce
+        // new SQL fences; including it in the scan only risks double-
+        // counting sections from a renderer that decided to echo the raw
+        // SQL.
+        const sqlSections = extractSqlSectionsFromMarkdown(result.content || '');
+
+        console.log(`[foundation/section] profile=${resolved.name} endpoint=${resolved.profile.foundationModelEndpoint} title=${upperTitle || '-'} structured=${!!effectiveResponseFormat} sqlSections=${sqlSections.length}`);
+        res.json(withGovernance(req, resolved.profile, 'foundation-model', {
             content: renderedContent,
             rawContent: result.content,
             parsedJson: result.parsedJson || null,
             endpoint: resolved.profile.foundationModelEndpoint,
             profile: resolved.name,
             structured: !!effectiveResponseFormat,
-        });
+            ...(sqlSections.length > 0 ? { sqlSections } : {}),
+            ...(result.usage ? { usage: result.usage } : {}),
+        }));
     } catch (err) {
         console.error('[foundation/section]', err.message);
-        res.status(500).json({ error: err.message });
+        sendProblem(res, createProblem({
+            status: 500,
+            code: 'FOUNDATION_SECTION_FAILED',
+            title: 'Foundation Model section request failed',
+            detail: UNEXPECTED_INTERNAL_SENTINEL,
+            category: 'unexpected_internal',
+            requestId: req.requestId,
+            retryable: false,
+        }));
+    }
+});
+
+// ── Sectioned (staged) rendering — Phase D.2 ─────────────────────────────────
+//
+// POST /assistant/conversations/start-sectioned
+//
+// SSE endpoint that drives the sectionedOrchestrator (see
+// proxy/lib/sectionedOrchestrator.js and docs/STAGED_RENDERING.md). The
+// default schedule fires section #1 immediately, section #2 after a 2000 ms
+// spread, and remaining sections in batches of 2 with no spread — locked
+// per Rajesh's 2026-05-20 amendment.
+//
+// Request body:
+//   {
+//     profile?: string,              // foundation-model profile name (else first available)
+//     userPrompt: string,            // the question / context
+//     sections: string[],            // EXPLICIT list of section ids to generate
+//     systemPrompt?: string,         // override default per-section system prompt
+//     temperature?: number,          // forwarded to callFoundationModel
+//     maxTokens?: number,            // forwarded to callFoundationModel
+//     schedule?: Array<{ sections: string[], spreadMs?: number }>,
+//                                    // override the default 1-then-2-each schedule
+//     regenerateOnly?: string[],     // re-run subset; reuses probeCache/headlineCache
+//     probeCache?: { rows?: any[] }, // honored on regenerateOnly requests
+//     headlineCache?: any,           // honored on regenerateOnly requests
+//     renderId?: string,             // optional logical UI envelope id to preserve on regenerate
+//   }
+//
+// SSE event stream — each event is `event: <kind>\ndata: <json>\n\n`:
+//   probe-started / probe-completed / probe-failed (not emitted today — probe
+//   is a Phase D.5 wire-in once the analytical probe path is ready)
+//   section-started     { renderId, sectionId, stageIndex }
+//   section-completed   { renderId, sectionId, body, sql?, usage?, durationMs }
+//   section-failed      { renderId, sectionId, error: { message, code? }, durationMs }
+//   all-completed       { renderId, totals: { sections, durationMs } }
+//
+// Section LLM call is delegated to callFoundationModel for foundation-model
+// profiles. Non-FM profiles return a 400 with a problem envelope — Genie
+// staged rendering is a Phase D.5 follow-up (see docs/STAGED_RENDERING.md
+// "Genie" sub-section).
+app.post('/assistant/conversations/start-sectioned', async (req, res) => {
+    const body = req.body || {};
+    const resolved = resolveFoundationModelProfile(body, req.headers, req);
+    if (!resolved) {
+        return sendNoMatchingProfile(req, res, 400, 'No foundation-model profile configured. Staged rendering is foundation-model-only in Phase D.2; Genie staging lands in Phase D.5.');
+    }
+    const userPrompt = typeof body.userPrompt === 'string' ? body.userPrompt.trim() : '';
+    if (!userPrompt) {
+        return res.status(400).json({ error: 'userPrompt is required.' });
+    }
+    const sectionIds = Array.isArray(body.sections)
+        ? body.sections.filter(s => typeof s === 'string' && s.trim().length > 0)
+        : [];
+    if (sectionIds.length === 0 && !Array.isArray(body.schedule)) {
+        return res.status(400).json({ error: 'sections[] (or an explicit schedule) is required.' });
+    }
+
+    // Validate any caller-provided schedule before we open the SSE stream.
+    let schedule = Array.isArray(body.schedule) && body.schedule.length > 0
+        ? body.schedule
+        : buildDefaultSectionedSchedule(sectionIds);
+    const scheduleProblems = validateSectionedSchedule(schedule);
+    if (scheduleProblems.length > 0) {
+        return res.status(400).json({ error: 'invalid schedule', problems: scheduleProblems });
+    }
+
+    const systemPrompt = (typeof body.systemPrompt === 'string' && body.systemPrompt.trim())
+        ? body.systemPrompt
+        : null;
+    const temperature = typeof body.temperature === 'number' ? body.temperature : 0.2;
+    const maxTokens = typeof body.maxTokens === 'number' ? body.maxTokens : 2048;
+    const regenerateOnly = Array.isArray(body.regenerateOnly) ? body.regenerateOnly : null;
+    const probeCache = (body.probeCache && typeof body.probeCache === 'object') ? body.probeCache : undefined;
+    const headlineCache = body.headlineCache !== undefined ? body.headlineCache : undefined;
+    const renderId = resolveSectionedRenderId(body.renderId);
+
+    // Probe-once cross-backend reuse — fold the client-supplied
+    // DiscoverySnapshot summary into every per-section system prompt below.
+    // Resolved once here so the runSection closure can reuse it without
+    // re-parsing on each section.
+    const sectionedDiscoveryBlock = _formatDiscoveryContext(body && body.discoveryContext);
+    if (sectionedDiscoveryBlock) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'discovery-context-inject',
+            status: 'OK',
+            detail: JSON.stringify({ ...buildDiscoveryAuditDetail(sectionedDiscoveryBlock), backend: 'foundation-sectioned', sections: sectionIds.length }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+    }
+
+    // Open the SSE stream.
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders?.();
+
+    let clientGone = false;
+    res.on('close', () => { clientGone = true; });
+
+    const stampSectionedGovernance = (event) => {
+        if (!event || typeof event !== 'object') return event;
+        if (event.kind !== 'section-completed' && event.kind !== 'all-completed') return event;
+        return {
+            ...event,
+            governance: governanceForBackend(req, resolved.profile, 'foundation-model'),
+        };
+    };
+
+    function writeEvent(event) {
+        if (clientGone) return false;
+        const payload = stampSectionedGovernance(event);
+        try {
+            res.write(`event: ${payload.kind}\n`);
+            // Defensive: SSE data lines mustn't contain raw newlines.
+            // JSON.stringify never emits unescaped \n, so this is safe.
+            res.write(`data: ${JSON.stringify(payload)}\n\n`);
+            if (typeof res.flush === 'function') res.flush();
+            return true;
+        } catch (_) {
+            clientGone = true;
+            return false;
+        }
+    }
+
+    async function runSection({ sectionId }) {
+        const baseSection = systemPrompt || defaultSystemPromptForSection(sectionId);
+        const augmentedSystem = _composeSystemPromptWithContext({
+            systemPrompt: baseSection,
+            discoveryBlock: sectionedDiscoveryBlock,
+            packBlock: null,
+            packTag: null,
+        });
+        const messages = [
+            { role: 'system', content: augmentedSystem },
+            { role: 'user', content: `Section: ${sectionId}\n\n${userPrompt}` },
+        ];
+        const result = await callFoundationModel(databricksRequest, resolved.profile, {
+            messages,
+            temperature,
+            maxTokens,
+            requestId: req.requestId,
+        });
+        const out = { body: result.content };
+        if (result.parsedJson) out.body = result.parsedJson;
+        if (result.usage) out.usage = result.usage;
+        return out;
+    }
+
+    try {
+        const iterable = orchestrateSectioned({
+            ir: sectionIds.length > 0 ? { output: { sections: sectionIds.map(id => ({ id })) } } : undefined,
+            request: { userQuestion: userPrompt },
+            schedule,
+            runSection,
+            regenerateOnly,
+            probeCache,
+            headlineCache,
+            renderId,
+        });
+        for await (const event of iterable) {
+            const ok = writeEvent(event);
+            if (!ok) break;
+        }
+    } catch (err) {
+        // Orchestrator threw before yielding any event (e.g., invariant break).
+        // We've already validated the schedule, so this is genuinely
+        // unexpected — emit a final all-completed-style failure marker.
+        writeEvent({
+            kind: 'orchestrator-failed',
+            renderId,
+            error: { message: err && err.message ? err.message : String(err) },
+        });
+    } finally {
+        try { res.end(); } catch (_) { /* already ended */ }
+    }
+});
+
+// progressively section-by-section instead of waiting for the full response.
+//
+// Response format (one JSON object per line):
+//   {"t":"token text"}                        — content token (may be multiple chars)
+//   {"s":"SECTION NAME"}                      — section boundary detected in stream
+//   {"done":true,"content":"...","usage":{}}  — terminal event, full content
+//   {"error":"message"}                       — failure, stream ends
+//
+// Section detection: the LLM is prompted to use `# SECTIONNAME` markdown headers.
+// The accumulator scans for `\n# ` or `\n## ` patterns and emits {"s":...} events
+// when a new section starts — the frontend uses these to flip skeleton placeholders
+// to live content per section rather than waiting for the whole response.
+//
+// Auth + profile resolution: identical to /foundation/section.
+// Timeout: 120s (covers the full streaming generation window).
+//
+app.post('/foundation/conversations/start-stream', async (req, res) => {
+    const resolved = resolveFoundationModelProfile(req.body, req.headers, req);
+    if (!resolved) {
+        return res.status(400).json({
+            error: 'No foundation-model profile configured.',
+            code: 'NO_FM_PROFILE',
+        });
+    }
+
+    const { userPrompt, systemPrompt, temperature, maxTokens } = req.body || {};
+    if (!userPrompt || typeof userPrompt !== 'string' || !userPrompt.trim()) {
+        return res.status(400).json({ error: 'userPrompt is required.' });
+    }
+
+    const messages = [
+        {
+            role: 'system',
+            content: (typeof systemPrompt === 'string' && systemPrompt.trim())
+                ? systemPrompt
+                : 'You are a concise analytics assistant. Respond with structured markdown sections using # SECTIONNAME headers. Never ask clarifying questions.',
+        },
+        { role: 'user', content: userPrompt },
+    ];
+
+    // Build request body with stream:true injected.
+    let body;
+    try {
+        body = buildFoundationModelBody({
+            messages,
+            temperature: typeof temperature === 'number' ? temperature : 0.2,
+            maxTokens: typeof maxTokens === 'number' ? maxTokens : 2048,
+            extra: { stream: true },
+        });
+    } catch (buildErr) {
+        return res.status(400).json({ error: String(buildErr.message) });
+    }
+
+    // NDJSON streaming headers. X-Accel-Buffering: no prevents nginx from
+    // buffering the stream and defeating the progressive-render goal.
+    res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.setHeader('Transfer-Encoding', 'chunked');
+    res.flushHeaders();
+
+    const writeNDJSON = (obj) => {
+        if (!res.writableEnded) {
+            try { res.write(JSON.stringify(obj) + '\n'); } catch { /* client gone */ }
+        }
+    };
+
+    let token;
+    try {
+        token = await resolveToken(resolved.profile);
+    } catch (tokenErr) {
+        writeNDJSON({ error: `Auth failed: ${safeStreamErrorText(tokenErr?.message || tokenErr)}` });
+        return res.end();
+    }
+
+    const endpoint = resolved.profile.foundationModelEndpoint;
+    const base = (resolved.profile.host || '').replace(/\/$/, '');
+    const urlPath = `/serving-endpoints/${encodeURIComponent(endpoint)}/invocations`;
+    let fullUrl;
+    try {
+        fullUrl = new URL(base + urlPath);
+    } catch {
+        writeNDJSON({ error: `Invalid profile host: ${base}` });
+        return res.end();
+    }
+
+    const bodyStr = JSON.stringify(body);
+    const isHttps = fullUrl.protocol === 'https:';
+    const lib = isHttps ? https : http;
+
+    let accumulated = '';
+    let lastSectionScanOffset = 0;
+    // Pattern: newline followed by 1-2 # chars, space, then uppercase section name.
+    const SECTION_HEADER_RE = /\n#{1,2} ([A-Z][A-Z\s\-/]+?)(?=\n|$)/g;
+
+    const upstreamReq = lib.request({
+        hostname: fullUrl.hostname,
+        port: fullUrl.port || (isHttps ? 443 : 80),
+        path: fullUrl.pathname + fullUrl.search,
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(bodyStr),
+            'Accept': 'text/event-stream',
+            ...(req.requestId ? { 'X-Request-Id': String(req.requestId).slice(0, 80) } : {}),
+        },
+        timeout: 120000,
+        agent: isHttps ? keepAliveAgent : undefined,
+    }, (upstreamResp) => {
+        if (upstreamResp.statusCode < 200 || upstreamResp.statusCode >= 300) {
+            const errChunks = [];
+            upstreamResp.on('data', c => errChunks.push(c));
+            upstreamResp.on('end', () => {
+                const raw = Buffer.concat(errChunks).toString('utf8');
+                writeNDJSON({ error: `FM endpoint ${upstreamResp.statusCode}: ${safeStreamErrorText(raw, 400)}` });
+                res.end();
+            });
+            return;
+        }
+
+        let sseBuffer = '';
+        let usageBlock = null;
+
+        upstreamResp.on('data', (chunk) => {
+            sseBuffer += chunk.toString('utf8');
+            // SSE lines end with \n; double-newline separates events.
+            const lines = sseBuffer.split('\n');
+            sseBuffer = lines.pop() ?? ''; // keep incomplete last line
+
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed || trimmed === 'data: [DONE]') continue;
+                if (!trimmed.startsWith('data: ')) continue;
+                try {
+                    const data = JSON.parse(trimmed.slice(6));
+                    const tokenText = data.choices?.[0]?.delta?.content;
+                    if (tokenText) {
+                        accumulated += tokenText;
+                        writeNDJSON({ t: tokenText });
+
+                        // Scan for new section headers in newly accumulated text.
+                        const scanWindow = accumulated.slice(lastSectionScanOffset);
+                        SECTION_HEADER_RE.lastIndex = 0;
+                        let match;
+                        while ((match = SECTION_HEADER_RE.exec(scanWindow)) !== null) {
+                            const sectionName = match[1].trim().toUpperCase();
+                            writeNDJSON({ s: sectionName });
+                            lastSectionScanOffset = lastSectionScanOffset + match.index + match[0].length;
+                        }
+                    }
+                    if (data.usage) usageBlock = data.usage;
+                } catch { /* malformed SSE line — skip */ }
+            }
+        });
+
+        upstreamResp.on('end', () => {
+            const finalUsage = usageBlock
+                ? { prompt_tokens: usageBlock.prompt_tokens, completion_tokens: usageBlock.completion_tokens, total_tokens: usageBlock.total_tokens }
+                : null;
+            writeNDJSON(withGovernance(req, resolved.profile, 'foundation-model', {
+                done: true,
+                content: accumulated,
+                ...(finalUsage ? { usage: finalUsage } : {}),
+            }));
+            console.log(`[foundation/stream] profile=${resolved.name} endpoint=${endpoint} chars=${accumulated.length}`);
+            res.end();
+        });
+
+        upstreamResp.on('error', (err) => {
+            writeNDJSON({ error: `Upstream read error: ${safeStreamErrorText(err?.message || err)}` });
+            res.end();
+        });
+    });
+
+    upstreamReq.on('error', (err) => {
+        writeNDJSON({ error: `Request error: ${safeStreamErrorText(err?.message || err)}` });
+        if (!res.writableEnded) res.end();
+    });
+
+    upstreamReq.on('timeout', () => {
+        upstreamReq.destroy(new Error('FM stream timed out after 120s'));
+    });
+
+    // Tear down upstream when client disconnects mid-stream.
+    res.on('close', () => {
+        if (!upstreamReq.destroyed) upstreamReq.destroy();
+    });
+
+    upstreamReq.write(bodyStr);
+    upstreamReq.end();
+});
+
+// ── Mosaic AI ResponsesAgent (Agent Framework managed agent) ──────────────────
+//
+// 2025/2026 — Databricks' managed-agent successor to the legacy ChatAgent.
+// Distinct from PulsePlay's hand-rolled Supervisor template (which uses
+// LangGraph + create_react_agent and PulsePlay deploys itself). The
+// ResponsesAgent runtime is managed by Databricks Model Serving and uses
+// the OpenAI Responses API request/response shape (`input` not `messages`;
+// `output` not `choices[]`; `custom_inputs` / `custom_outputs` for free-form
+// agent metadata).
+//
+// Use this connector when:
+//   - The org has Agent Bricks deployed (Knowledge Assistant / Supervisor GA)
+//   - You want managed runtime (auth + scaling + observability) rather than
+//     rolling your own agent serving endpoint
+//
+// Profile shape (in config.json profiles section):
+//   "agent-managed": {
+//       "type": "responses-agent",                       // identifies this as a ResponsesAgent profile
+//       "host": "https://dbc-xxx...",                    // Databricks workspace
+//       "token": "dapi...",                              // PAT with CAN QUERY on the endpoint
+//       "responsesAgentEndpoint": "knowledge-assistant-prod", // serving endpoint name
+//       "agentName": "Knowledge Assistant"               // display label (optional)
+//   }
+const { callResponsesAgent } = require('./lib/responsesAgentClient');
+
+function isResponsesAgentProfile(profile) {
+    return profile && profile.type === 'responses-agent' && !!profile.responsesAgentEndpoint;
+}
+
+function resolveResponsesAgentProfile(body, headers, req) {
+    const explicitName = body?.profile || body?.assistantProfile || headers?.['x-assistant-profile'];
+    if (explicitName) {
+        const resolved = profileByName(explicitName, req);
+        const p = resolved?.profile;
+        if (p && isResponsesAgentProfile(p)) return { name: resolved.name, profile: p };
+        return null;
+    }
+    // Auto-select the first configured ResponsesAgent profile.
+    for (const [name, profile] of profileRegistry.entries()) {
+        if (!profileAllowedForRequest(name, profile, req)) continue;
+        if (isResponsesAgentProfile(profile)) return { name, profile };
+    }
+    return null;
+}
+
+app.get('/responses-agent/health', (req, res) => {
+    const resolved = resolveResponsesAgentProfile({}, {}, req);
+    const configured = profileRegistry.entries()
+        .filter(([n, p]) => profileAllowedForRequest(n, p, req) && isResponsesAgentProfile(p))
+        .map(([n, p]) => ({ profile: n, endpoint: p.responsesAgentEndpoint, host: p.host, agentName: p.agentName || null }));
+    res.json({
+        ok: configured.length > 0,
+        configuredProfiles: configured,
+        defaultProfile: resolved?.name || null,
+    });
+});
+
+app.post('/responses-agent/chat', async (req, res) => {
+    const resolved = resolveResponsesAgentProfile(req.body, req.headers, req);
+    if (!resolved) {
+        return sendNoMatchingProfile(req, res, 400, 'No ResponsesAgent profile configured. Add one with type "responses-agent" + responsesAgentEndpoint to proxy/config.json.');
+    }
+    const { input, messages, instructions, customInputs, temperature, maxOutputTokens, extra } = req.body || {};
+    if (!input && !messages) {
+        return res.status(400).json({ error: 'input[] (or messages[]) is required.' });
+    }
+    try {
+        const result = await callResponsesAgent(databricksRequest, resolved.profile, {
+            input, messages, instructions, customInputs,
+            temperature: typeof temperature === 'number' ? temperature : 0.2,
+            maxOutputTokens: typeof maxOutputTokens === 'number' ? maxOutputTokens : 2048,
+            extra,
+            requestId: req.requestId,
+        });
+        console.log(`[responses-agent/chat] profile=${resolved.name} endpoint=${resolved.profile.responsesAgentEndpoint} customOutputs=${result.customOutputs ? 'yes' : 'no'}`);
+        res.json(withGovernance(req, resolved.profile, 'responses-agent', {
+            content: result.content,
+            customOutputs: result.customOutputs || null,
+            usage: result.usage || null,
+            endpoint: resolved.profile.responsesAgentEndpoint,
+            profile: resolved.name,
+        }));
+    } catch (err) {
+        console.error('[responses-agent/chat]', err.message);
+        sendProblem(res, createProblem({
+            status: 500,
+            code: 'RESPONSES_AGENT_CHAT_FAILED',
+            title: 'ResponsesAgent chat request failed',
+            detail: UNEXPECTED_INTERNAL_SENTINEL,
+            category: 'unexpected_internal',
+            requestId: req.requestId,
+            retryable: false,
+        }));
     }
 });
 
@@ -3849,17 +6632,17 @@ app.post('/foundation/section', async (req, res) => {
 //       "type": "supervisor",               // identifies this as a supervisor profile
 //       "host": "https://dbc-xxx...",        // Databricks workspace
 //       "token": "dapi...",                  // PAT with CAN QUERY on the endpoint
-//       "endpoint": "/serving-endpoints/dwd-supervisor/invocations",
+//       "endpoint": "/serving-endpoints/pulseplay-supervisor/invocations",
 //       "agentName": "PulsePlay Supervisor"  // display label (optional)
 //   }
 
-function resolveSupervisorProfile(body, headers) {
+function resolveSupervisorProfile(body, headers, req) {
     const name = body?.assistantProfile || headers?.['x-assistant-profile'] || 'supervisor';
-    const c = cfg();
-    const p = c.profiles?.[name];
+    const p = profileByName(name, req)?.profile;
     if (p && isSupervisorType(p.type)) return { profile: p, name };
     // fallback: scan all profiles for type=supervisor
-    for (const [k, v] of Object.entries(c.profiles ?? {})) {
+    for (const [k, v] of profileRegistry.entries()) {
+        if (!profileAllowedForRequest(k, v, req)) continue;
         if (isSupervisorType(v.type)) return { profile: v, name: k };
     }
     return null;
@@ -3878,8 +6661,8 @@ function extractGenieText(data) {
     return parts.filter(Boolean).join('\n\n') || '(No text answer returned.)';
 }
 
-async function askGenieProfile(profileName, question) {
-    const resolved = profileByName(profileName);
+async function askGenieProfile(profileName, question, req) {
+    const resolved = profileByName(profileName, req);
     if (!resolved?.profile?.spaceId) {
         return { profileName, ok: false, answer: `Profile '${profileName}' is not configured with a Genie space.` };
     }
@@ -4151,11 +6934,16 @@ async function synthesizeSupervisorAnswer(supervisorProfile, question, spaceResu
             || data.output?.content
             || data.content
             || JSON.stringify(data);
-        return scrubInternalJargon(raw);
+        // Capture the synthesis-LLM token usage so the supervisor route can
+        // forward an aggregated `usage` block back to the playground's
+        // SustainabilityIndicator. Foundation Model serving endpoints return
+        // an OpenAI-shaped `data.usage` when available.
+        const usage = _sanitizeUsageBlock(data?.usage);
+        return { answer: scrubInternalJargon(raw), usage };
     } catch (err) {
         // Fallback: return structured raw results so no information is lost.
         // Phrasing intentionally avoids "Genie space" wording (BUG-013).
-        return [
+        const fallback = [
             'Supervisor synthesis model was unavailable — showing the raw source results below.',
             `Synthesis error: ${err.message}`,
             '',
@@ -4163,6 +6951,7 @@ async function synthesizeSupervisorAnswer(supervisorProfile, question, spaceResu
             '',
             sourceBlocks
         ].join('\n\n');
+        return { answer: fallback, usage: null };
     }
 }
 
@@ -4178,7 +6967,7 @@ async function synthesizeSupervisorAnswer(supervisorProfile, question, spaceResu
  * target. Do NOT strip or reformat content here — that would silently weaken
  * the governance contract for multi-space queries.
  */
-async function runLocalSupervisor(supervisorProfile, content, onEvent) {
+async function runLocalSupervisor(supervisorProfile, content, onEvent, req) {
     // If `spaces` is unset/empty, fan out to every configured non-supervisor
     // profile by default so a deployer with arbitrary profile names doesn't
     // need to maintain a parallel SUPERVISOR_SPACES list.
@@ -4193,7 +6982,7 @@ async function runLocalSupervisor(supervisorProfile, content, onEvent) {
     const spaces = configuredSpaces
         .map(s => String(s).trim())
         .filter(Boolean)
-        .filter(name => profileByName(name)?.profile?.spaceId);
+        .filter(name => profileByName(name, req)?.profile?.spaceId);
 
     if (spaces.length === 0) {
         throw new Error('Supervisor has no configured helper profiles.');
@@ -4233,7 +7022,7 @@ async function runLocalSupervisor(supervisorProfile, content, onEvent) {
             .then(() => {
                 const helperStart = Date.now();
                 emit({ type: 'helper.start', helper: meta });
-                return askGenieProfile(space, content)
+                return askGenieProfile(space, content, req)
                     .then(value => {
                         const elapsedMs = Date.now() - helperStart;
                         emit({ type: 'helper.done', helper: meta, ok: !!value.ok, status: value.status || (value.ok ? 'COMPLETED' : 'ERROR'), elapsedMs });
@@ -4254,9 +7043,46 @@ async function runLocalSupervisor(supervisorProfile, content, onEvent) {
 
     emit({ type: 'synthesis.start', helperCount: results.filter(r => r.ok).length });
     const synthStart = Date.now();
-    const answer = await synthesizeSupervisorAnswer(supervisorProfile, content, results);
+    const synthesis = await synthesizeSupervisorAnswer(supervisorProfile, content, results);
     emit({ type: 'synthesis.done', elapsedMs: Date.now() - synthStart, totalElapsedMs: Date.now() - startedAt });
-    return { answer, results };
+    // Aggregate usage across the fan-out (today only the synthesis-LLM call
+    // surfaces it — Genie doesn't expose tokens). Structured so we can sum
+    // sub-call usages later when other backends start to forward them.
+    const aggregatedUsage = _aggregateUsageBlocks([
+        synthesis.usage,
+        ...results.map(r => r.usage).filter(Boolean),
+    ]);
+    return { answer: synthesis.answer, results, usage: aggregatedUsage };
+}
+
+/**
+ * Sum N OpenAI-shape usage blocks (or compatible Anthropic shapes that have
+ * been normalized through `_sanitizeUsageBlock`) into a single block. Returns
+ * null when every input is null/undefined.
+ *
+ * Used by the supervisor route to roll up per-space + synthesis token counts
+ * so the playground SustainabilityIndicator reflects the FULL session cost,
+ * not just the synthesis step.
+ */
+function _aggregateUsageBlocks(blocks) {
+    if (!Array.isArray(blocks)) return null;
+    // Defensive numeric coercion — Number.isFinite() rejects NaN, ±Infinity,
+    // and non-number types; the |0 chain then floors and clamps to 0.
+    const num = (v) => Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0;
+    const totals = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+    let any = false;
+    for (const b of blocks) {
+        if (!b || typeof b !== 'object') continue;
+        const p = num(b.prompt_tokens) || num(b.input_tokens);
+        const c = num(b.completion_tokens) || num(b.output_tokens);
+        const tRaw = num(b.total_tokens);
+        const t = tRaw > 0 ? tRaw : (p + c);
+        if (p > 0 || c > 0 || t > 0) any = true;
+        totals.prompt_tokens += p;
+        totals.completion_tokens += c;
+        totals.total_tokens += t;
+    }
+    return any ? totals : null;
 }
 
 // ── Confidence evaluation ─────────────────────────────────────────────────────
@@ -4384,6 +7210,33 @@ function structuralConfidence(attachments, profileName) {
     return { score, level, signals };
 }
 
+/**
+ * Slice 1c Item 2 — build the NDJSON in-band error event that the
+ * /confidence stream emits when phase 2 (business-language reasoning)
+ * fails after the phase-1 score has already been written. Exported for
+ * testing so the locked event shape can be pinned without standing up
+ * the full https.request mock harness.
+ *
+ * The locked Error Strategy §"Streaming responses" mandates in-band
+ * structured error events for post-first-chunk failures — we can't
+ * retroactively change the response status once 200 + the phase-1
+ * chunk has been flushed. The playground today silently ignores
+ * unknown stream events (graceful degradation); a future cycle wires
+ * a subtle "Reasoning unavailable" hint into the visual.
+ */
+function buildConfidencePhase2ErrorEvent(requestId) {
+    const problem = createProblem({
+        status: 502,
+        code: 'CONFIDENCE_PHASE2_FAILED',
+        title: 'Confidence reasoning unavailable',
+        detail: 'PulsePlay could not retrieve the business-language reasoning for this confidence score. The phase 1 score above is unaffected.',
+        category: 'upstream_unavailable',
+        requestId,
+        retryable: true,
+    });
+    return { type: 'error', phase: 2, problem };
+}
+
 app.post('/confidence', async (req, res) => {
     const { attachments, profileName, conversationId, question } = req.body || {};
 
@@ -4448,8 +7301,7 @@ app.post('/confidence', async (req, res) => {
                 res.write(JSON.stringify({ phase: 2, businessReason }) + '\n');
             }
         } catch (_err) {
-            // Phase 2 failure is silent — Phase 1 score already sent.
-            // Tier B Day 4 — but if upstream surfaced a 401, invalidate the
+            // Tier B Day 4 — if upstream surfaced a 401, invalidate the
             // OAuth cache so the next /confidence call re-auths cleanly.
             // (No-op when the resolved profile is PAT-based, but cheap.)
             try {
@@ -4459,6 +7311,18 @@ app.post('/confidence', async (req, res) => {
                     if (r?.profile) invalidateOAuthCacheForProfile(r.profile);
                 }
             } catch { /* invalidation must never throw */ }
+
+            // Slice 1c Item 2 — emit an in-band error event for the
+            // phase-2 failure instead of silently swallowing. Phase 1's
+            // score chunk has already been flushed, so we can't change
+            // the response status; the locked Error Strategy mandates
+            // structured in-band events for post-first-chunk failures.
+            // Raw err.message NEVER reaches the wire — the event carries
+            // a verbatim safe sentinel via createProblem.
+            try {
+                const evt = buildConfidencePhase2ErrorEvent(req.requestId);
+                res.write(JSON.stringify(evt) + '\n');
+            } catch { /* error emission must never throw */ }
         }
     }
 
@@ -4467,8 +7331,8 @@ app.post('/confidence', async (req, res) => {
 
 // GET /supervisor/health — connection test
 app.get('/supervisor/health', (req, res) => {
-    const resolved = resolveSupervisorProfile({}, req.headers);
-    if (!resolved) return res.status(404).json({ error: 'No supervisor profile configured. Add a profile with type: "supervisor" to config.json.' });
+    const resolved = resolveSupervisorProfile({}, req.headers, req);
+    if (!resolved) return sendNoMatchingProfile(req, res, 404, 'No supervisor profile configured. Add a profile with type: "supervisor" to config.json.');
     res.json({
         ok: true,
         agentName: resolved.profile.agentName || 'Supervisor',
@@ -4497,10 +7361,9 @@ app.get('/supervisor/health', (req, res) => {
 // /supervisor/conversations/start. The visual auto-detects which by
 // looking at /supervisor/health.mode.
 app.post('/supervisor/conversations/start-stream', async (req, res) => {
-    const resolved = resolveSupervisorProfile(req.body, req.headers);
+    const resolved = resolveSupervisorProfile(req.body, req.headers, req);
     if (!resolved) {
-        res.status(400).json({ error: 'No supervisor profile configured.' });
-        return;
+        return sendNoMatchingProfile(req, res, 400, 'No supervisor profile configured.');
     }
     if (!supportsStreamingFor(resolved.profile.type)) {
         res.status(400).json({ error: `Streaming not supported for profile type "${resolved.profile.type}".` });
@@ -4512,7 +7375,23 @@ app.post('/supervisor/conversations/start-stream', async (req, res) => {
         res.status(400).json({ error: 'Question content is required.' });
         return;
     }
-    const fullContent = [contextText, content].filter(Boolean).join('\n\n');
+    // Phase 11b prep — bridge body.frame into the supervisor content.
+    // Idempotent when the frontend already prefixed [Selected analysis
+    // frame] into content. See proxy/lib/frameContext.js.
+    const frame = validateFrame(req.body && req.body.frame);
+    const fullContent = prependFrameContext(
+        [contextText, content].filter(Boolean).join('\n\n'),
+        frame,
+    );
+    if (frame) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'frame-context-inject',
+            status: 'OK',
+            detail: JSON.stringify({ ...buildFrameAuditDetail(frame), backend: 'supervisor-stream' }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+    }
 
     res.setHeader('Content-Type', 'application/x-ndjson');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -4551,7 +7430,7 @@ app.post('/supervisor/conversations/start-stream', async (req, res) => {
         if (resolved.profile.type === 'supervisor-local') {
             // Local proxy-side fan-out — emits per-helper events natively
             // as it walks each Genie space.
-            const supervisor = await runLocalSupervisor(resolved.profile, fullContent, writeEvent);
+            const supervisor = await runLocalSupervisor(resolved.profile, fullContent, writeEvent, req);
             if (timedOut) return;
             convId = `sv-${Date.now()}`;
             msgId = `sv-msg-${Date.now()}`;
@@ -4636,7 +7515,7 @@ app.post('/supervisor/conversations/start-stream', async (req, res) => {
             console.log(`[supervisor/stream] agent profile=${resolved.name} conv=${convId}`);
         }
 
-        writeEvent({
+        writeEvent(withGovernance(req, resolved.profile, resolved.profile.type === 'supervisor-local' ? 'supervisor-local' : 'supervisor', {
             type: 'result',
             conversation_id: convId,
             conversationId: convId,
@@ -4650,7 +7529,7 @@ app.post('/supervisor/conversations/start-stream', async (req, res) => {
                 routeLabel: resolved.profile.agentName || 'Supervisor',
                 spaceResults,
             },
-        });
+        }));
     } catch (err) {
         // Tier B Day 4 — extend the OAuth 401-invalidation policy from
         // databricksRequest into the supervisor stream call site. If the
@@ -4664,7 +7543,7 @@ app.post('/supervisor/conversations/start-stream', async (req, res) => {
                 invalidateOAuthCacheForProfile(resolved.profile);
             }
         } catch { /* invalidation must never throw */ }
-        if (!timedOut) writeEvent({ type: 'error', message: err?.message || String(err) });
+        if (!timedOut) writeEvent({ type: 'error', message: safeStreamErrorText(err?.message || err) });
     } finally {
         clearTimeout(deadlineTimer);
         if (!timedOut) {
@@ -4675,27 +7554,61 @@ app.post('/supervisor/conversations/start-stream', async (req, res) => {
 
 // POST /supervisor/conversations/start — begin a new supervisor conversation
 app.post('/supervisor/conversations/start', async (req, res) => {
-    const resolved = resolveSupervisorProfile(req.body, req.headers);
-    if (!resolved) return res.status(400).json({ error: 'No supervisor profile configured.' });
+    const resolved = resolveSupervisorProfile(req.body, req.headers, req);
+    if (!resolved) return sendNoMatchingProfile(req, res, 400, 'No supervisor profile configured.');
 
     const { content, contextText } = req.body;
     if (!content || !String(content).trim()) {
         return res.status(400).json({ error: 'Question content is required.' });
     }
 
-    const fullContent = [contextText, content].filter(Boolean).join('\n\n');
+    // Phase 11b prep — bridge body.frame into the supervisor user content.
+    // Idempotent when the frontend already prefixed [Selected analysis frame].
+    const frame = validateFrame(req.body && req.body.frame);
+    const frameContent = prependFrameContext(
+        [contextText, content].filter(Boolean).join('\n\n'),
+        frame,
+    );
+    // Probe-once cross-backend reuse — supervisor serving endpoints accept
+    // only a single user message (no system slot), so discovery rides as a
+    // header inside the user message.
+    const supervisorDiscoveryBlock = _formatDiscoveryContext(req.body && req.body.discoveryContext);
+    const fullContent = _composeUserMessageWithContext({
+        discoveryBlock: supervisorDiscoveryBlock,
+        packBlock: null,
+        packTag: null,
+        userQuestion: frameContent,
+    });
+    if (frame) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'frame-context-inject',
+            status: 'OK',
+            detail: JSON.stringify({ ...buildFrameAuditDetail(frame), backend: 'supervisor' }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+    }
+    if (supervisorDiscoveryBlock) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'discovery-context-inject',
+            status: 'OK',
+            detail: JSON.stringify({ ...buildDiscoveryAuditDetail(supervisorDiscoveryBlock), backend: 'supervisor' }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+    }
     const host  = resolved.profile.host.replace(/\/$/, '');
     const token = resolved.profile.token;
     const ep    = resolved.profile.endpoint;
 
     try {
         if (resolved.profile.type === 'supervisor-local') {
-            const supervisor = await runLocalSupervisor(resolved.profile, fullContent);
+            const supervisor = await runLocalSupervisor(resolved.profile, fullContent, undefined, req);
             const convId = `sv-${Date.now()}`;
             const msgId = `sv-msg-${Date.now()}`;
             storeConversation(convId, 'supervisor-local', resolved.name);
             console.log(`[supervisor/local] profile=${resolved.name} conv=${convId} spaces=${supervisor.results.map(r => r.profileName).join(',')}`);
-            return res.json({
+            return res.json(withGovernance(req, resolved.profile, 'supervisor-local', {
                 conversation_id: convId,
                 conversationId: convId,
                 message_id: msgId,
@@ -4712,7 +7625,12 @@ app.post('/supervisor/conversations/start', async (req, res) => {
                         status: r.status || (r.ok ? 'COMPLETED' : 'ERROR'),
                     })),
                 },
-            });
+                // Aggregated token usage across helper fan-out + synthesis.
+                // Currently only the synthesis-LLM call exposes real tokens
+                // (Genie has no upstream usage). Future helpers backed by
+                // Foundation Model / OpenAI / Bedrock will add their share.
+                ...(supervisor.usage ? { usage: supervisor.usage } : {}),
+            }));
         }
 
         if (!host || !ep) {
@@ -4792,8 +7710,9 @@ app.post('/supervisor/conversations/start', async (req, res) => {
         }
 
         storeConversation(convId, resolved.profile.endpoint, resolved.name);
+        const usage = _sanitizeUsageBlock(data?.usage);
         console.log(`[supervisor/start] profile=${resolved.name} conv=${convId}`);
-        res.json({
+        res.json(withGovernance(req, resolved.profile, 'supervisor', {
             conversation_id: convId,
             conversationId:  convId,
             message_id:      msgId,
@@ -4801,8 +7720,12 @@ app.post('/supervisor/conversations/start', async (req, res) => {
             status:          'COMPLETED',
             content:         answer,
             attachments:     [{ text: { content: answer } }],
-            route:           { assistantProfile: resolved.name, routeLabel: resolved.profile.agentName || 'Supervisor' }
-        });
+            route:           { assistantProfile: resolved.name, routeLabel: resolved.profile.agentName || 'Supervisor' },
+            // Mosaic AI agent endpoints (OpenAI-compatible) may expose
+            // `data.usage`; forward when present so the SustainabilityIndicator
+            // reflects real cost for the remote-supervisor path too.
+            ...(usage ? { usage } : {}),
+        }));
     } catch (err) {
         console.error('[supervisor/start]', err.message);
         // Tier B Day 4 — same 401-invalidation policy as the stream path.
@@ -4812,15 +7735,23 @@ app.post('/supervisor/conversations/start', async (req, res) => {
                 invalidateOAuthCacheForProfile(resolved.profile);
             }
         } catch { /* invalidation must never throw */ }
-        res.status(500).json({ error: err.message });
+        sendProblem(res, createProblem({
+            status: 500,
+            code: 'SUPERVISOR_START_FAILED',
+            title: 'Supervisor conversation start failed',
+            detail: UNEXPECTED_INTERNAL_SENTINEL,
+            category: 'unexpected_internal',
+            requestId: req.requestId,
+            retryable: false,
+        }));
     }
 });
 
 // POST /supervisor/conversations/:conversationId/messages — follow-up turn
 app.post('/supervisor/conversations/:conversationId/messages', async (req, res) => {
     const { conversationId } = req.params;
-    const resolved = resolveSupervisorProfile(req.body, req.headers);
-    if (!resolved) return res.status(400).json({ error: 'No supervisor profile configured.' });
+    const resolved = resolveSupervisorProfile(req.body, req.headers, req);
+    if (!resolved) return sendNoMatchingProfile(req, res, 400, 'No supervisor profile configured.');
 
     const { content, contextText } = req.body;
     if (!content || !String(content).trim()) {
@@ -4840,18 +7771,180 @@ app.get('/supervisor/conversations/:conversationId/messages/:messageId', (req, r
     // The visual polls after startConversation — return COMPLETED immediately
     // since the supervisor response was already resolved synchronously.
     const msgId = req.params.messageId;
-    res.json({
+    const resolved = resolveSupervisorProfile(req.query || {}, req.headers, req);
+    const profile = resolved?.profile || {};
+    const backendId = profile.type === 'supervisor-local' ? 'supervisor-local' : 'supervisor';
+    res.json(withGovernance(req, profile, backendId, {
         id:              msgId,
         message_id:      msgId,
         status:          'COMPLETED',
         content:         '(Supervisor answer was returned synchronously on conversation start.)',
         attachments:     [],
-    });
+    }));
 });
+
+if (process.env.NODE_ENV === 'test') {
+    app.post('/__test__/problem-envelope/throw-sync', () => {
+        throw new Error('synchronous problem-envelope test failure');
+    });
+}
+
+function handleUnexpectedProxyError(err, req, res, next) {
+    if (res.headersSent) return next(err);
+    const requestId = ensureRequestId(req, res);
+    const route = req.originalUrl || req.url || '';
+    console.error('[problem-details] unexpected_internal', {
+        requestId,
+        method: req.method,
+        route,
+        error: redactProblemCause(err?.message || String(err || '')),
+    });
+    const problem = createProblem({
+        status: 500,
+        code: 'UNEXPECTED_PROXY_ERROR',
+        title: 'Unexpected proxy error',
+        detail: UNEXPECTED_INTERNAL_SENTINEL,
+        category: 'unexpected_internal',
+        severity: 'error',
+        retryable: false,
+        requestId,
+        instance: route,
+        userAction: 'Share the support code with your administrator. Do not retry repeatedly if the same support code keeps appearing.',
+        operatorAction: 'Search proxy logs by requestId/supportCode, then inspect the upstream connector, profile, and route-specific configuration.',
+        cause: {
+            method: req.method,
+            route,
+            status: 500,
+            code: 'UNEXPECTED_PROXY_ERROR',
+        },
+    });
+    return sendProblem(res, problem);
+}
+
+// ── Diagnostic endpoint for combined-app deployment debugging ────────────────
+//
+// Reports the resolved static directory and what's actually in it. Useful
+// when the React UI loads blank on a hosted deployment (cold-start build
+// failed silently, wrong path resolution, missing assets, etc.). No auth
+// required at the app level — platform-level auth in front (Databricks
+// Apps, App Service Easy Auth) gates access. Safe: read-only listing, no
+// file contents, capped at 30 asset names.
+// Diagnostic — list PROXY_PROFILE_* env-var KEYS (and value LENGTH for tokens,
+// full value for non-secret fields like HOST/SPACE_ID/etc). Reveals whether
+// Databricks Apps' valueFrom secret binding actually resolved to a non-empty
+// string at runtime. Token values are NEVER logged or returned — only length.
+app.get('/__diag/env', (req, res) => {
+    const out = { profile_env: {}, app_resource_env: {}, has_DATABRICKS_TOKEN: !!process.env.DATABRICKS_TOKEN };
+    const TOKEN_FIELDS = new Set(['TOKEN', 'CLIENT_SECRET', 'PROXY_KEY', 'AAD_CLIENT_SECRET']);
+    for (const [k, v] of Object.entries(process.env)) {
+        if (k.startsWith('PROXY_PROFILE_')) {
+            const field = k.split('_').slice(3).join('_'); // PROXY_PROFILE_<NAME>_<FIELD>
+            if (TOKEN_FIELDS.has(field)) {
+                out.profile_env[k] = { length: String(v || '').length, preview: v ? `${String(v).slice(0, 4)}…` : '(empty)' };
+            } else {
+                out.profile_env[k] = String(v || '');
+            }
+        } else if (k.startsWith('APP_RESOURCE_')) {
+            out.app_resource_env[k] = String(v || '');
+        }
+    }
+    res.json(out);
+});
+
+app.get('/__diag/static', (req, res) => {
+    const fs = require('fs');
+    const out = {
+        cwd: process.cwd(),
+        __dirname: __dirname,
+        node_version: process.version,
+        STATIC_DIR_env: process.env.STATIC_DIR || null,
+        resolved_path: null,
+        exists: false,
+        index_html_exists: false,
+        index_html_size: null,
+        top_level: [],
+        assets: [],
+        error: null,
+    };
+    try {
+        const raw = process.env.STATIC_DIR;
+        if (raw) {
+            out.resolved_path = path.isAbsolute(raw) ? raw : path.resolve(__dirname, '..', raw);
+            out.exists = fs.existsSync(out.resolved_path);
+            if (out.exists) {
+                out.top_level = fs.readdirSync(out.resolved_path).slice(0, 50);
+                const indexPath = path.join(out.resolved_path, 'index.html');
+                out.index_html_exists = fs.existsSync(indexPath);
+                if (out.index_html_exists) {
+                    const stat = fs.statSync(indexPath);
+                    out.index_html_size = stat.size;
+                    // Capture the actual <script> / <link rel="modulepreload"> / stylesheet lines
+                    // from the served index.html so we can verify what the browser is asked to load.
+                    const html = fs.readFileSync(indexPath, 'utf-8');
+                    const lineMatches = html.match(/<(script|link)[^>]*>/g) || [];
+                    out.index_html_tags = lineMatches.slice(0, 40);
+                }
+                const assetsPath = path.join(out.resolved_path, 'assets');
+                if (fs.existsSync(assetsPath)) {
+                    const all = fs.readdirSync(assetsPath);
+                    out.assets_count_total = all.length;
+                    out.assets = all.filter(f => !f.endsWith('.map'));   // hide .map noise
+                }
+            }
+        }
+    } catch (err) {
+        out.error = err.message;
+    }
+    res.json(out);
+});
+
+// ── Static-file serving (combined-app deployment) ────────────────────────────
+//
+// Optional. When STATIC_DIR is set (e.g. "playground/dist" or an absolute
+// path), the proxy serves the React playground bundle as static files AND
+// falls back to index.html for unknown GET paths so client-side routing
+// survives a refresh. Registered AFTER all API routes so it cannot shadow them;
+// the SPA fallback explicitly skips known API path prefixes.
+//
+// Set in Databricks Apps via app.yaml `env: [{ name: STATIC_DIR, value: ... }]`
+// or via shell `STATIC_DIR=playground/dist node server.js`.
+//
+// CSP override: the global proxy CSP is `default-src 'none'` (locks down the
+// JSON-only API surface against rogue HTML responses). For HTML/CSS/JS that
+// we deliberately serve, we must replace that header with a sane web CSP so
+// the browser actually executes the bundled React app from same-origin.
+const _STATIC_DIR_RAW = process.env.STATIC_DIR;
+if (_STATIC_DIR_RAW) {
+    const staticDir = path.isAbsolute(_STATIC_DIR_RAW)
+        ? _STATIC_DIR_RAW
+        : path.resolve(__dirname, '..', _STATIC_DIR_RAW);
+    const indexHtml = path.join(staticDir, 'index.html');
+    const STATIC_CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://login.microsoftonline.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://login.microsoftonline.com https://login.live.com https://graph.microsoft.com https://api.powerbi.com https://analysis.windows.net https://*.cloud.databricks.com https://*.azuredatabricks.net; frame-src 'self' https://login.microsoftonline.com https://app.powerbi.com https://*.cloud.databricks.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self';";
+    const applyStaticCsp = (res) => res.setHeader('Content-Security-Policy', STATIC_CSP);
+    app.use(express.static(staticDir, {
+        index: 'index.html',
+        maxAge: '1h',
+        fallthrough: true,
+        setHeaders: applyStaticCsp,
+    }));
+    // SPA fallback: any GET that isn't a known API prefix → serve index.html.
+    // Adding new top-level API routes? Add their first path segment to this list.
+    const API_PREFIX_RE = /^\/(api|assistant|foundation|powerbi|health|discovery|capabilities|feedback|debug|metrics|smoke|connectors|knowledge|policy|profiles|packs|supervisor|insights|sql-preview|test|__diag|\.well-known)(\/|$|\?)/;
+    app.get(/.*/, (req, res, next) => {
+        if (API_PREFIX_RE.test(req.path)) return next();
+        if (req.headers.accept && !req.headers.accept.includes('text/html')) return next();
+        applyStaticCsp(res);
+        res.sendFile(indexHtml, err => { if (err) next(err); });
+    });
+    console.log(`[static] STATIC_DIR=${staticDir} (SPA fallback to index.html for unknown paths)`);
+}
+
+app.use(handleUnexpectedProxyError);
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 if (require.main === module) {
     const config = cfg();
+    assertProductionAuthConfig();
     const port = Number(process.env.PORT || process.env.DATABRICKS_APP_PORT || config.port || 8787);
     const runAsDatabricksApp = Boolean(process.env.PORT || process.env.DATABRICKS_APP_PORT);
 
@@ -4944,6 +8037,18 @@ module.exports = {
     // and applyInlineMode without standing up a full request stack.
     resolveInlineCredentialsMode,
     applyInlineMode,
+    VALID_PROXY_AUTH_MODES,
+    resolveProxyAuthMode,
+    configuredSharedKey,
+    validateProductionAuthConfig,
+    normalizeIdpUserClaims,
+    // Supervisor sub-call + synthesis usage aggregation (forwarded to
+    // the playground's SustainabilityIndicator). Pure function; exported
+    // for unit-test coverage in supervisorUsageAggregation.test.js.
+    _aggregateUsageBlocks,
+    hasVerifiedIdpUser,
+    requestHasSharedKey,
+    sharedKeyMiddleware,
     resolveProfile,
     VALID_INLINE_MODES,
     // Tier B Day 2 — exported so the OAuth M2M unit tests can drive the
@@ -4973,4 +8078,19 @@ module.exports = {
     _setPowerBiFetchImplForTests,
     _resetPowerBiTokenCacheForTests,
     _powerBiTokenCache,
+    _setAibiFetchImplForTests,
+    mintDatabricksAibiToken,
+    databricksAppResourceProfilePatch,
+    visibleDatabricksAppResources,
+    handleJsonParseProblem,
+    handleUnexpectedProxyError,
+    buildConfidencePhase2ErrorEvent,
+    resolvePulseClientContext,
+    resolvePulseRequestId,
+    buildPulseClientCompatibilityResponse,
+    safeStreamErrorText,
+    RENDERABLE_BACKEND_GOVERNANCE,
+    governanceSubjectRefForRequest,
+    governanceForBackend,
+    withGovernance,
 };

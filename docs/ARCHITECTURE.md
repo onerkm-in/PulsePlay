@@ -3,6 +3,8 @@
 > **Status:** v0.1.0 scaffold. The architecture below is the contract; the implementation is partial — see `docs/research/CODEBASE_AUDIT.md` for the brutal-honest gap analysis at HEAD.
 >
 > **Scope:** internal-org enabler. Path C — inner-source-first, public-OSS-later. This doc is for engineers and architects working inside the org that owns PulsePlay.
+>
+> **Strategic posture:** Databricks-forward, bridge-friendly, adapter-safe. See [DATABRICKS_FORWARD_STRATEGY.md](DATABRICKS_FORWARD_STRATEGY.md) for the canonical shift-left / shift-middle plan, and [MODULAR_INTEGRATION_ARCHITECTURE.md](MODULAR_INTEGRATION_ARCHITECTURE.md) for the addable/removable building-block model.
 
 ## One sentence
 
@@ -29,15 +31,35 @@ PulsePlay's defining design decision is independence between two axes:
 
 Any cell of the matrix is valid:
 
-|                          | Genie (Databricks) | Azure OpenAI | AWS Bedrock | Foundation Model | Supervisor |
-|--------------------------|--------------------|--------------|-------------|------------------|------------|
-| **Power BI**             | yes (Pulse pattern)| yes          | yes         | yes              | yes        |
-| **Tableau**              | yes                | yes          | yes         | yes              | yes        |
-| **Qlik Sense / View**    | yes                | yes          | yes         | yes              | yes        |
-| **Looker**               | yes                | yes          | yes         | yes              | yes        |
-| **Generic iframe**       | yes                | yes          | yes         | yes              | yes        |
+|                          | Genie (Databricks) | Azure OpenAI | AWS Bedrock | Foundation Model | Supervisor | ResponsesAgent |
+|--------------------------|--------------------|--------------|-------------|------------------|------------|----------------|
+| **Power BI**             | yes (Pulse pattern)| yes          | yes         | yes              | yes        | yes            |
+| **Tableau**              | yes                | yes          | yes         | yes              | yes        | yes            |
+| **Qlik Sense / View**    | yes                | yes          | yes         | yes              | yes        | yes            |
+| **Looker**               | yes                | yes          | yes         | yes              | yes        | yes            |
+| **Generic iframe**       | yes                | yes          | yes         | yes              | yes        | yes            |
 
 The user picks both axes independently in the sidebar. Switching either does not disturb the other.
+
+## The Knowledge plane
+
+Knowledge is a first-class context plane, not a third product axis that competes with BI vendor and AI connector.
+
+```text
+Y-axis: BI Runtime       -> what the user is looking at
+X-axis: AI Runtime       -> what reasoning backend answers
+Knowledge plane          -> what governed context grounds the answer
+```
+
+This split keeps the product understandable:
+
+- **BI adapters observe.** They emit canonical context, events, and capabilities.
+- **Knowledge retrieves.** It loads packs, source documents, indexes, policies, and retrieval profiles.
+- **AI connectors reason.** They consume the user question, BI context, and a normalized grounding bundle.
+
+PulsePacks are the curated domain-content substrate: glossary, ontology, KPIs, sample questions, prompt context, references, and demo configs. They are not the same thing as a vector index. The retrieval layer can use PulsePack content, BI metadata, Unity Catalog data, SharePoint/S3/docs, or provider-native knowledge bases, then return the same `GroundingBundle` shape to any connector.
+
+The active design is captured in [KNOWLEDGE_BASE_ARCHITECTURE.md](KNOWLEDGE_BASE_ARCHITECTURE.md). The brutal-honest current state: PulsePlay already has pack matching and pack prompt-context injection, but it does **not** yet have a full governed RAG/knowledge-base runtime.
 
 ## How a BI vendor adapter works (Y-axis)
 
@@ -99,9 +121,9 @@ The host can issue `BICommand` instances back into the embedded view. Adapters i
 
 Independent of which BI tool is loaded, the AI sidebar talks to **one connector at a time**. Connector profiles are configured in `proxy/config.json` (or via `PROXY_PROFILE_*` env vars) and listed via `GET /assistant/profiles`. The user picks one in the `ConnectorPicker`; subsequent prompts include `assistantProfile: <name>` so the proxy routes to the right backend.
 
-### Eight runtime backend paths
+### Ten runtime backend paths (updated 2026-05-20)
 
-The `MULTI_BI_ARCHITECTURE.md` predecessor of this doc and the README claimed six. The 2026-05-10 codebase audit confirmed eight. Listed here in the order the proxy detects them, with the file:line that hosts each.
+The `MULTI_BI_ARCHITECTURE.md` predecessor of this doc and the README claimed six. The 2026-05-10 codebase audit confirmed eight; the 2026-05-17 ResponsesAgent connector made nine; the 2026-05-20 Power BI semantic-model cycle made **ten**. Listed here in the order the proxy detects them, with the file:line that hosts each.
 
 | # | Backend | Detection | Code path | Source |
 |---|---|---|---|---|
@@ -113,8 +135,16 @@ The `MULTI_BI_ARCHITECTURE.md` predecessor of this doc and the README claimed si
 | 6 | Mosaic AI Foundation Model | `profile.type === 'foundation-model'` + `foundationModelEndpoint` | `callFoundationModel` | [foundationModelClient.js:125-155](../proxy/lib/foundationModelClient.js#L125) |
 | 7 | Supervisor (real Mosaic AI agent endpoint) | `profile.type === 'supervisor'` | inline `https.request` against `host + endpoint` | [server.js:4054-4078](../proxy/server.js#L4054) |
 | 8 | Supervisor-local (proxy-side fan-out) | `profile.type === 'supervisor-local'` | `runLocalSupervisor` -> `askGenieProfile x N + synthesizeSupervisorAnswer` | [server.js:3509-3588](../proxy/server.js#L3509) |
+| 9 | Mosaic AI ResponsesAgent (managed Agent Framework endpoint) | `profile.type === 'responses-agent'` + `responsesAgentEndpoint` | `callResponsesAgent` via `/responses-agent/chat` | [server.js:5311-5389](../proxy/server.js#L5311), [responsesAgentClient.js](../proxy/lib/responsesAgentClient.js) |
+| 10 | **Power BI semantic-model (no-LLM, deterministic)** | `profile.type === 'powerbi-semantic-model'` + AAD SP creds + `powerbiGroupId` + `powerbiDatasetId` | NL question → keyword matcher → DAX template → `POST .../datasets/{id}/executeQueries` → Markdown | [server.js#/powerbi/conversations/start](../proxy/server.js), [powerbiDatasetClient.js](../proxy/lib/powerbiDatasetClient.js), [powerbiDaxTemplates.js](../proxy/lib/powerbiDaxTemplates.js), [powerbiQuestionMatcher.js](../proxy/lib/powerbiQuestionMatcher.js) |
 
-Eight, not six. The README and prior architecture doc were wrong; this one is the corrected reference.
+Ten, not nine. Older audit/migration notes may still say eight or nine because they are historical snapshots; this doc is the corrected reference.
+
+The PBI semantic-model brain (#10) **does not invoke any LLM** at any step. Every response emits `mode: "powerbi-deterministic", llmCallCount: 0` in both the JSON payload and the audit log so deployers can prove that contract. A separate Q&A surface at `/powerbi/qna` (embedded `powerbi-client` Q&A visual) lets users access Microsoft's NLP if they want; that NLP runs in Microsoft's tenant — PulsePlay only mints the dataset-scoped embed token.
+
+### Connector plugin architecture (direction locked 2026-05-20)
+
+The proxy's connector dispatch is the dominant friction point as it grows past ten backends. Direction agreed: refactor into a **`proxy/connectors/` directory of drop-in/drop-out modules** where each file exports `{ id, displayName, matchProfile, probe, register, unregister }` and only touches a shared `host` API surface. Phased rollout queued — Phase A (scaffolding) → B (one pilot) → C (rest). See [AGENT_SYNC.md](AGENT_SYNC.md) `[DECISION]` block for the full contract + host API spec.
 
 ### The orchestrator
 
@@ -132,7 +162,7 @@ This is acceptable for the internal-org charter (the org is on Databricks). If t
 
 ### The supervisor-local fan-out island
 
-`runLocalSupervisor` is a proxy-side multi-Genie orchestrator. The user prompt fans out to N helper Genie spaces in parallel; each response is collected, then a synthesis pass (typically Foundation Model or OpenAI) merges them into one answer. The stagger between fan-out requests is documented in [ADR-0003](adr/0003-supervisor-stagger-800ms.md) — note that the title says 800 ms but the actual code uses 2000 ms. Update pending.
+`runLocalSupervisor` is a proxy-side multi-Genie orchestrator. The user prompt fans out to N helper Genie spaces in parallel; each response is collected, then a synthesis pass (typically Foundation Model or OpenAI) merges them into one answer. The stagger between fan-out requests is documented in [ADR-0003](adr/0003-supervisor-stagger.md). Actual code uses 2000 ms.
 
 This is the architectural ancestor of "cross-vendor single pane of glass" — the v0.5 roadmap item. The supervisor-local pattern proves the proxy can fan out and synthesize.
 
@@ -167,7 +197,7 @@ The proxy was extracted from Pulse and the wires of that origin are still showin
 - Headers: `X-Genie-Key`, `X-Genie-Target-Host`, `X-Databricks-Host`, `X-Databricks-Token`, `X-Genie-Space-Id`. Five of six allowed CORS headers are Databricks-vocabulary; only `X-Profile-Name` is generic.
 - Helper `errorStatusFromDatabricks()` is the only error-mapping helper; only Databricks-shaped errors route through it. Bedrock and OpenAI have separate error paths.
 - The CORS comment claims "Power BI Desktop WebView requires permissive headers." That justification doesn't apply in PulsePlay (real browser, not PBI Desktop iframe).
-- `databricks-agents/supervisor/README.md` still says "DwD Supervisor Agent."
+- `databricks-agents/supervisor/README.md` still says "PulsePlay Supervisor Agent."
 
 Tracked for a future cleanup cycle. None of these block today's work.
 
@@ -198,12 +228,13 @@ PulsePlay/
 ├── proxy/                   # X-axis: AI connector backbone (4,298-line server.js + 8 lib modules)
 │   ├── server.js            # Express; routes for /assistant/*, /openai/*, /bedrock/*, /supervisor/*, /foundation/*
 │   ├── lib/                 # foundationModelClient, insightsValidator, llmOrchestrator, sqlExecutor, bedrock signer, ...
-│   └── tests/               # 418 jest tests in latest local validation
+│   └── tests/               # 1137 jest tests in latest recorded validation
 ├── databricks-agents/       # Mosaic AI Supervisor Agent template
 │   └── supervisor/          # LangGraph agent definition + deploy notebook
 ├── pulsepacks/              # Vertical packs (CPG/FMCG, manufacturing, ...). Pack architecture lives here.
 ├── scripts/                 # llm_onboard, llm_wrapup, smoke helpers, deploy helper
 └── docs/                    # See docs/MIGRATION_NOTES.md for current map
+    └── KNOWLEDGE_BASE_ARCHITECTURE.md # Knowledge plane, retrieval contracts, and Settings/KB IA
 ```
 
 ## Cross-origin iframe security
@@ -238,9 +269,40 @@ The Pulse-origin proxy ships with these defense-in-depth layers (mostly applicab
 
 For the internal-org security baseline (SSO, SCIM, vault, audit, allowlists), see [SECURITY.md](SECURITY.md).
 
+## First-run onboarding wizard
+
+When PulsePlay loads with no embed config + no AI connector configured, a full-bleed 4-step modal (`playground/src/components/FirstRunWizard.tsx`) appears in place of the empty placeholder. It's the user's first interaction with the 2-axis abstraction and is intentionally surface-agnostic + connector-agnostic.
+
+Step contract:
+
+| Step | Surface | Captures |
+|---|---|---|
+| 1 — Welcome & Persona | 4 persona cards (Analyst / Executive / Developer / Designer) | `persona: PersonaKey` |
+| 2 — Choose tools | Vendor cards (from `visibleVendors`) + Connector cards (from `/api/assistant/profiles`) | `vendor`, `connector` |
+| 3 — Connect | `<EmbedConfigForm>` + optional connectivity probe (`/api/assistant/probe`) | `embedConfig` |
+| 4 — Explore | `<PackPicker>` + pre-filled suggested-question textarea | `packSelection`, `suggestedQuestion`, `autoAsk` |
+
+Persona presets (`applyPersonaDefaults`) seed `uiMode` + `layoutMode` + a preferred connector type when the user picks a role. They are **surface- and connector-agnostic** — Analyst persona must work over any allowlisted (vendor × connector) pair. See ROADMAP.md Track 4 modularity guarantees #7 + #8.
+
+Persistence keys (all `pulseplay:*` namespace, redacted in support bundles):
+
+| Key | Lifetime | Purpose |
+|---|---|---|
+| `pulseplay:wizard-dismissed` | sticky | Sets on Done/Skip; suppresses wizard on subsequent loads |
+| `pulseplay:wizard-draft` | mid-flow | Step + persona + vendor + connector; resumes from furthest reached step. Schema-validated on load (RISK-P1 4.1 fix) |
+| `pulseplay:wizard-force` | single-use | Set by `forceWizard()` (Settings → "Re-run setup wizard"); consumed by `clearDraft()` on Done/Skip. Bypasses `hasEmbedConfig`/`hasConnector` gate (RISK-P1 4.5 fix) |
+| `pulseplay:last-persona` | sticky | Last persona on Done; pre-selected on next wizard run via `initialPersona` prop |
+
+Recovery surface: `<WizardErrorBoundary>` wraps the wizard subtree in App.tsx with `key={wizardForceTick}` so a Retry button bumps the remount key and the wizard re-mounts fresh. Skip falls through to the existing dismissal path.
+
+The wizard's "Done & ask →" finish action sets `autoSubmitQuestion` state in App.tsx, which propagates to `<AISidebar>` and fires `ask()` exactly once per unique value (de-duped via `autoSubmittedRef`). This is the magic-moment UX — user finishes the wizard, immediately sees an AI answer without typing.
+
+The Settings → System → "Re-run setup wizard" leaf calls `forceWizard()` to re-arm the flow at any time. Settings IA fix #8 adds a "🔗 Copy link" button next to every leaf header so users can deep-link to the exact section (`/settings/<group>/<slug>`).
+
 ## What's implemented vs still stubbed
 
 **Implemented today:**
+- 4-step first-run wizard with persona presets, draft persistence, `inert` focus trap, force-rerun flag, `WizardErrorBoundary`, autoAsk wiring, persona persistence across runs
 - Whole proxy stack — keep-alive, OAuth M2M, OpenAI/Bedrock/Foundation routes, Genie integration, validator framework, query history audit
 - `databricks-agents/supervisor/` Mosaic AI agent template
 - Power BI `powerbi-client` adapter with event and command mapping
@@ -281,15 +343,17 @@ See [ROADMAP.md](ROADMAP.md) for the sequenced plan.
 
 ## Where to start when you come back
 
-1. Pick ONE vendor (probably Power BI since the org has the credentials) and graduate its adapter from stub to real `powerbi-client` integration
-2. Add the `/api/powerbi/embed-token` route in `proxy/server.js` (Azure AD service principal flow)
-3. Wire one canonical event end-to-end (e.g., `page-changed`) so the AI sidebar can SEE what page the user is on and prompt accordingly
-4. Then unlock streaming AI (v0.4) — the most demo-worthy first "gateway" vector
+1. Finish the 10-minute Genie + Power BI first-run flow: preflight, Power BI connect, Genie probe, pack suggestion, author review, live smoke.
+2. Build the `/settings` shell from the Settings IA: BI, AI, Preferences, System, Advanced.
+3. Tighten the remaining pilot loopholes: generated CSP from the allowlist, inline-credential startup gate, and localStorage/settings revalidation.
+4. Add the first read-only Knowledge Base surface so users can inspect what a pack contributes before they ask the AI.
+5. Then wire governed retrieval (`GroundingBundle`) behind the AI sidebar, starting with local PulsePack content and Databricks Vector Search as the first enterprise provider.
 
 Everything else is creativity surface area. See [AGENDA.md](AGENDA.md) for the open-work tracker.
 
 ## Related docs
 
+- [UNIFIED_ASK_PULSE_WORKBENCH.md](UNIFIED_ASK_PULSE_WORKBENCH.md) — locked Ask Pulse strategy: 3-mode workbench (Native Embed / PulsePlay Verified / Hybrid), no-ungrounded-artifacts contract, ECharts + Vega-Lite stack, 7-step build sequence
 - [ROADMAP.md](ROADMAP.md) — sequenced plan v0.1 through v1.2
 - [SECURITY.md](SECURITY.md) — internal-scoped security guardrails
 - [PROXY_REFERENCE.md](PROXY_REFERENCE.md) — proxy API surface, scopes, route table
@@ -297,6 +361,16 @@ Everything else is creativity surface area. See [AGENDA.md](AGENDA.md) for the o
 - [AGENDA.md](AGENDA.md) — open-work tracker (active items)
 - [PUBLIC_OSS_AGENDA.md](PUBLIC_OSS_AGENDA.md) — what gets done IF/WHEN we go public-OSS
 - [PACKS.md](PACKS.md) — pack architecture overview
+- [MODULAR_INTEGRATION_ARCHITECTURE.md](MODULAR_INTEGRATION_ARCHITECTURE.md) — integrated experience, modular capability fabric, block lifecycle, capability registry, and progressive spine/spectrum model
+- [STRUCTURED_AUTHORING_STANDARD.md](STRUCTURED_AUTHORING_STANDARD.md) — standard for prompt/guidance editors, required sections, parameter chips, validation, and compiled middleware previews
+- [SETUP_SETTINGS_RELATIONSHIP_AUDIT.md](SETUP_SETTINGS_RELATIONSHIP_AUDIT.md) — setup/settings dependency map, connector readiness gaps, progressive setup model, and first implementation slices
+- [AI_CONTEXT_CONFIGURATION_MODEL.md](AI_CONTEXT_CONFIGURATION_MODEL.md) — common AI context model for Knowledge Base-derived domain, preset, metric, AI Insights, and Chat settings
+- [CHAT_VISUALIZATION_KNOWLEDGE_BASE.md](CHAT_VISUALIZATION_KNOWLEDGE_BASE.md) — Chat-facing chart recommendation, critique, and legacy-to-modern visualization rules
+- [KNOWLEDGE_BASE_SOURCE_GOVERNANCE.md](KNOWLEDGE_BASE_SOURCE_GOVERNANCE.md) — source register, provenance, credibility tiers, and claim-level audit rules for every Knowledge Base module
+- [KNOWLEDGE_BASE_ARCHITECTURE.md](KNOWLEDGE_BASE_ARCHITECTURE.md) — Knowledge plane, retrieval contracts, Knowledge Base IA
+- [SETTINGS_SPEC.md](SETTINGS_SPEC.md) — Settings page master spec: IA, layout, microcopy, state model, interaction rules, enterprise guardrails, security setup, maintenance, administration, loophole audit
+- [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md) — board-ready enterprise security audit
+- [DEPLOY_MVP_0.2.md](DEPLOY_MVP_0.2.md) — MVP 0.2 deployer checklist: prereqs, `config.json` template, env vars, smoke verification, common pitfalls
 - [research/CODEBASE_AUDIT.md](research/CODEBASE_AUDIT.md) — brutal-honest gap analysis at HEAD
 - [research/MARKET_AND_STANDARDS.md](research/MARKET_AND_STANDARDS.md) — market + standards research
 - [adr/](adr/) — architecture decision records (immutable history)

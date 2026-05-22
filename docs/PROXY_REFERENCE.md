@@ -2,7 +2,7 @@
 
 > **Audience:** engineers wiring the proxy, IT/InfoSec teams reviewing what it calls, future contributors adding new connectors.
 >
-> **Scope:** the 8 backend paths the proxy supports today, every external API it touches, OAuth/M2M setup for production, and the route table the playground talks to. Pulse-specific user-identity propagation and PBI-sandbox limitations have been removed — they are archived at [inherited/API_AUTH_AND_LIMITATIONS_FULL.md](inherited/API_AUTH_AND_LIMITATIONS_FULL.md).
+> **Scope:** the **10 backend paths** the proxy supports today (the 2026-05-20 Power BI semantic-model cycle added the tenth), every external API it touches, OAuth/M2M setup for production, and the route table the playground talks to. Pulse-specific user-identity propagation and PBI-sandbox limitations have been removed — they are archived at [inherited/API_AUTH_AND_LIMITATIONS_FULL.md](inherited/API_AUTH_AND_LIMITATIONS_FULL.md).
 
 ## 1. APIs the proxy calls
 
@@ -65,7 +65,15 @@ The agent definition lives in [databricks-agents/supervisor/](../databricks-agen
 
 No new endpoints — proxy fans out to N Genie spaces (1.1 row 2-4 above) in parallel, then synthesizes via either Foundation Model (1.5) or OpenAI (1.2).
 
-### 1.8 Localhost only (playground -> proxy)
+### 1.8 Mosaic AI ResponsesAgent (`profile.type === 'responses-agent'`)
+
+| HTTP | Endpoint | Used by |
+|---|---|---|
+| POST | `https://<workspace>/serving-endpoints/{responsesAgentEndpoint}/invocations` | Managed Agent Framework / ResponsesAgent invocation |
+
+See [proxy/lib/responsesAgentClient.js](../proxy/lib/responsesAgentClient.js). The public proxy routes are `/responses-agent/health` and `/responses-agent/chat`; both inherit the same rate-limit, IdP, shared-key, and allowlist posture as the other cost-bearing AI connector paths.
+
+### 1.9 Localhost only (playground -> proxy)
 
 | HTTP | Endpoint | Used by |
 |---|---|---|
@@ -74,6 +82,7 @@ No new endpoints — proxy fans out to N Genie spaces (1.1 row 2-4 above) in par
 | GET | `/admin/query-history` | Genie Query Audit panel |
 | GET | `/assistant/profiles` | Profile listing for the ConnectorPicker |
 | GET | `/assistant/capabilities` | Per-profile capability listing |
+| POST | `/assistant/embed-token/powerbi` | Power BI service-principal embed token issuance |
 | POST | `/assistant/conversations/start` | Each new sidebar prompt |
 | POST | `/assistant/conversations/{id}/messages` | Follow-up turns |
 | GET | `/assistant/conversations/{id}/messages/{id}` | Polling for completion |
@@ -85,8 +94,96 @@ No new endpoints — proxy fans out to N Genie spaces (1.1 row 2-4 above) in par
 | POST | `/bedrock/invoke` | Direct Bedrock InvokeModel |
 | POST | `/supervisor/run` | Real Supervisor Agent invocation |
 | POST | `/supervisor-local/run` | Proxy-side fan-out |
+| GET | `/responses-agent/health` | Managed ResponsesAgent profile discovery/health |
+| POST | `/responses-agent/chat` | Managed ResponsesAgent invocation |
+| POST | `/powerbi/conversations/start` | Power BI semantic-model deterministic Q (cycle 15) |
+| GET | `/powerbi/health` | Power BI semantic-model profile health + template inventory |
+| POST | `/powerbi/qna/embed-token` | Power BI Q&A embed token mint for `/powerbi/qna` (cycle 15.5) |
+| GET | `/clients/compatibility` | PX1 compatibility handshake for PulsePlay, Pulse PBI, and desktop EXE clients |
 
 The Vite dev server proxies `/api/*` from the playground at `http://127.0.0.1:5173` to the proxy at `http://127.0.0.1:8787`. So the React app fetches `/api/assistant/conversations/start` and the proxy receives it at `/assistant/conversations/start`.
+
+### 1.9.1 PX1 client identity contract
+
+PulsePlay, Pulse PBI, and the future desktop EXE use the same proxy API. Clients SHOULD identify themselves on every request with:
+
+| Header | Required | Notes |
+|---|---:|---|
+| `X-Pulse-Client` | no | Normalized to `pulseplay`, `pulse-pbi`, `pulseplay-desktop`, or `unknown`. Unknown values are not trusted or echoed raw. |
+| `X-Pulse-Client-Version` | no | Sanitized, max 80 chars, audit-only/debug-only. |
+| `X-Pulse-Request-Id` | no | Pulse-named alias for correlation. `X-Request-Id` still wins when both are present. |
+
+The proxy echoes `X-Request-Id`, `X-Pulse-Request-Id`, and `X-Pulse-Client` on responses, and CORS exposes all three. Audit lines now include `clientApp` and optional `clientVersion`, so shared proxy logs can distinguish hosted PulsePlay, Power BI custom visual traffic, and the future bundled desktop proxy without forking connector routes.
+
+`GET /clients/compatibility` is auth-free like `/health` and returns:
+
+```json
+{
+  "ok": true,
+  "contractVersion": "px1",
+  "client": {
+    "app": "pulse-pbi",
+    "version": "1.2.3",
+    "requestId": "rid-123"
+  },
+  "supportedClients": ["pulseplay", "pulse-pbi", "pulseplay-desktop"],
+  "requestHeaders": ["X-Pulse-Client", "X-Pulse-Client-Version", "X-Pulse-Request-Id", "X-Request-Id"],
+  "responseHeaders": ["X-Request-Id", "X-Pulse-Request-Id", "X-Pulse-Client"],
+  "compatibility": {
+    "host": "power-bi-custom-visual",
+    "xhrSafe": true,
+    "fetchAvailable": false,
+    "powerBiSandbox": true,
+    "bundledLocalProxy": false
+  }
+}
+```
+
+This is metadata only. It does not loosen auth, governance, allowlists, RLS/OLS, rate limits, or connector behavior.
+
+**Request-body fields that span backends (added in cycles 12-14):**
+
+- `discoveryContext` (object): cached summary of the client's DiscoverySnapshot. When present, the proxy injects a `[Discovery Context]` block above `[Pack Context]` and `[User Question]` for backends with a user-only prompt (Genie, Bedrock-RAG, Supervisor) OR augments the system prompt for backends with one (Foundation Model, OpenAI, Bedrock direct). Audit-log action: `discovery-context-inject`. Lets one screen-load probe ground every subsequent question without re-probing.
+- `maxValidationRetries` (integer, 0..3): client override for `GENIE_POLL_VALIDATE_RETRIES`. Accepted on the Genie poll route as query string OR POST body. Cycle 13 latency-lever; lets Settings → Advanced → Performance raise/lower retries per session without re-deploying.
+
+Power BI embed tokens are minted only by the proxy. Required profile fields are `powerBiClientId`, `powerBiClientSecret`, and `powerBiTenantId`. Optional hardening fields:
+
+- `powerBiAllowEdit`: defaults false; must be true before the route will request `accessLevel: "Edit"`.
+- `powerBiRlsEnabled` / `powerBiRlsRequired`: enable or require server-derived effective identity.
+- `powerBiRlsUsernameClaim`: claim order for RLS username; default is `email`, `preferredUsername`, `upn`.
+- `powerBiRlsUsername`: server-configured override for controlled pilots.
+- `powerBiRlsRoles`: comma-separated or array of Power BI RLS role names.
+
+The route rejects browser-supplied `identities` / `effectiveIdentity` payloads and caches tokens by non-secret `(profile, workspace, report, dataset, access, identityHash)`.
+
+### 1.8 Power BI semantic-model (`profile.type === 'powerbi-semantic-model'`)
+
+Added 2026-05-20 (Cycle 15). **Backend #10 — no LLM is invoked at any step.** PulsePlay probes the published Power BI dataset via INFO.* DAX functions, matches each user question to one of 4 deterministic DAX templates (top-n / aggregate-by / trend / total), executes the template through `executeQueries`, and renders the result as Markdown.
+
+| HTTP | Endpoint | Used by | Frequency |
+|---|---|---|---|
+| POST | `https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token` | AAD Service Principal token mint, scope `https://analysis.windows.net/powerbi/api/.default` | First call + every ~55 min (5-min early-refresh window) |
+| GET | `https://api.powerbi.com/v1.0/myorg/groups/{groupId}/datasets/{datasetId}` | Dataset metadata fetch on probe | Once per probe |
+| POST | `https://api.powerbi.com/v1.0/myorg/groups/{groupId}/datasets/{datasetId}/executeQueries` | Per-question DAX execution (probe schema via INFO.MEASURES / INFO.TABLES / INFO.COLUMNS + every user-question template) | 3 calls on probe + 1 per question |
+| POST | `https://api.powerbi.com/v1.0/myorg/groups/{groupId}/datasets/{datasetId}/GenerateToken` | Q&A embed token mint (when the browser opens `/powerbi/qna`) | Once per Q&A session + every ~55 min |
+
+**Profile fields:**
+
+| Field | Required | Notes |
+|---|---|---|
+| `type` | yes | Must be `"powerbi-semantic-model"`. |
+| `aadTenantId` | yes | Or legacy alias `powerBiTenantId`. |
+| `aadClientId` | yes | Or legacy alias `powerBiClientId`. AAD app must be added to the Power BI workspace as a Member. |
+| `aadClientSecret` | yes | Or legacy alias `powerBiClientSecret`. Never logged, never echoed to the browser. |
+| `powerbiGroupId` | yes | Or legacy alias `powerBiGroupId`. Workspace GUID; `me` is not supported. |
+| `powerbiDatasetId` | yes | Or legacy alias `powerBiDatasetId`. Dataset GUID. |
+| `displayName`, `dataDomain` | no | UI labels. |
+
+**Tenant setting required:** "Service principals can use Power BI APIs" must be ON in the Power BI admin portal.
+
+Every response from the deterministic conversations/start path emits `mode: "powerbi-deterministic", llmCallCount: 0` in both the JSON payload and the audit log. The Q&A embed surface uses Microsoft's NLP inside an iframe — that NLP runs in Microsoft's tenant; PulsePlay only mints the dataset-scoped embed token.
+
+See [proxy/lib/powerbiDatasetClient.js](../proxy/lib/powerbiDatasetClient.js), [powerbiDaxTemplates.js](../proxy/lib/powerbiDaxTemplates.js), [powerbiQuestionMatcher.js](../proxy/lib/powerbiQuestionMatcher.js).
 
 ## 2. Permissions, scopes, network
 

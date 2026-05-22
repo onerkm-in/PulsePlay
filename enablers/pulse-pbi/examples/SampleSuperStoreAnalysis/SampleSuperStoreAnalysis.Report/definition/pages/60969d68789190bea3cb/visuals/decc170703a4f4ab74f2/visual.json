@@ -1,0 +1,247 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.7.0/schema.json",
+  "name": "decc170703a4f4ab74f2",
+  "position": {
+    "x": 600.18879887284254,
+    "y": 20.198661500528356,
+    "z": 0,
+    "height": 699.73934483973233,
+    "width": 667.99859105318774,
+    "tabOrder": 0
+  },
+  "visual": {
+    "visualType": "PBIGenieVisual87799D3556EA4890BCBE3FF9F9A095F5",
+    "query": {
+      "queryState": {
+        "category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "vw_superstore_analysis_flat"
+                    }
+                  },
+                  "Property": "Category"
+                }
+              },
+              "queryRef": "vw_superstore_analysis_flat.Category",
+              "nativeQueryRef": "Category"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "vw_superstore_analysis_flat"
+                    }
+                  },
+                  "Property": "City"
+                }
+              },
+              "queryRef": "vw_superstore_analysis_flat.City",
+              "nativeQueryRef": "City"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "vw_superstore_analysis_flat"
+                    }
+                  },
+                  "Property": "Country"
+                }
+              },
+              "queryRef": "vw_superstore_analysis_flat.Country",
+              "nativeQueryRef": "Country"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "vw_superstore_analysis_flat"
+                    }
+                  },
+                  "Property": "Customer Name"
+                }
+              },
+              "queryRef": "vw_superstore_analysis_flat.Customer Name",
+              "nativeQueryRef": "Customer Name"
+            }
+          ]
+        },
+        "measure": {
+          "projections": [
+            {
+              "field": {
+                "Aggregation": {
+                  "Expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "vw_superstore_analysis_flat"
+                        }
+                      },
+                      "Property": "Sales"
+                    }
+                  },
+                  "Function": 0
+                }
+              },
+              "queryRef": "Sum(vw_superstore_analysis_flat.Sales)",
+              "nativeQueryRef": "Sum of Sales"
+            },
+            {
+              "field": {
+                "Aggregation": {
+                  "Expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "vw_superstore_analysis_flat"
+                        }
+                      },
+                      "Property": "Quantity"
+                    }
+                  },
+                  "Function": 0
+                }
+              },
+              "queryRef": "Sum(vw_superstore_analysis_flat.Quantity)",
+              "nativeQueryRef": "Sum of Quantity"
+            },
+            {
+              "field": {
+                "Aggregation": {
+                  "Expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "vw_superstore_analysis_flat"
+                        }
+                      },
+                      "Property": "Profit"
+                    }
+                  },
+                  "Function": 0
+                }
+              },
+              "queryRef": "Sum(vw_superstore_analysis_flat.Profit)",
+              "nativeQueryRef": "Sum of Profit"
+            },
+            {
+              "field": {
+                "Aggregation": {
+                  "Expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "vw_superstore_analysis_flat"
+                        }
+                      },
+                      "Property": "Discount"
+                    }
+                  },
+                  "Function": 0
+                }
+              },
+              "queryRef": "Sum(vw_superstore_analysis_flat.Discount)",
+              "nativeQueryRef": "Sum of Discount"
+            }
+          ]
+        }
+      },
+      "sortDefinition": {
+        "sort": [
+          {
+            "field": {
+              "Aggregation": {
+                "Expression": {
+                  "Column": {
+                    "Expression": {
+                      "SourceRef": {
+                        "Entity": "vw_superstore_analysis_flat"
+                      }
+                    },
+                    "Property": "Sales"
+                  }
+                },
+                "Function": 0
+              }
+            },
+            "direction": "Descending"
+          }
+        ],
+        "isDefaultSort": true
+      }
+    },
+    "objects": {
+      "genieSettings": [
+        {
+          "properties": {
+            "host": {
+              "expr": {
+                "Literal": {
+                  "Value": "'https://<your-workspace>.cloud.databricks.com'"
+                }
+              }
+            },
+            "apiBaseUrl": {
+              "expr": {
+                "Literal": {
+                  "Value": "'http://127.0.0.1:8787'"
+                }
+              }
+            },
+            "token": {
+              "expr": {
+                "Literal": {
+                  "Value": "''"
+                }
+              }
+            },
+            "spaceId": {
+              "expr": {
+                "Literal": {
+                  "Value": "'<your-genie-space-id>'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "visualHeader": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

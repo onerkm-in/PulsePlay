@@ -17,7 +17,8 @@ import * as React from "react";
 export type IconName =
     | "copy" | "check" | "refresh" | "stop" | "code" | "settings"
     | "external-link" | "download" | "search" | "filter" | "x"
-    | "file-html" | "printer";
+    | "file-html" | "printer" | "maximize" | "minimize" | "restore"
+    | "float-window" | "pin" | "show-both" | "more-vertical";
 
 interface IconProps {
     name: IconName;
@@ -110,6 +111,66 @@ const PATHS: Record<IconName, React.ReactElement> = {
             <path d="M4 6V2.5h8V6" />
             <rect x="2.5" y="6" width="11" height="6" rx="1" />
             <rect x="4.5" y="9.5" width="7" height="4" />
+        </>
+    ),
+    // Maximize — pane focus.
+    maximize: (
+        <>
+            <path d="M6 2.5H2.5V6" />
+            <path d="M10 2.5h3.5V6" />
+            <path d="M13.5 10v3.5H10" />
+            <path d="M6 13.5H2.5V10" />
+            <path d="M5.5 5.5L2.5 2.5" />
+            <path d="M10.5 5.5l3-3" />
+            <path d="M10.5 10.5l3 3" />
+            <path d="M5.5 10.5l-3 3" />
+        </>
+    ),
+    // Minimize — collapse pane to dock.
+    minimize: <path d="M3 12.5h10" />,
+    // Restore — return from focused pane to split layout.
+    restore: (
+        <>
+            <rect x="3" y="5.5" width="7.5" height="7.5" rx="1" />
+            <path d="M6 3h7v7" />
+        </>
+    ),
+    // Float window — two stacked window-shaped rects, the inner offset to
+    // suggest a detached popup floating over the host. Distinct from
+    // external-link (arrow-in-corner = open-in-tab) and restore (single rect
+    // emerging from another = return-to-split).
+    "float-window": (
+        <>
+            <rect x="2" y="4.5" width="8" height="7" rx="1" />
+            <rect x="6" y="2" width="8" height="7" rx="1" />
+        </>
+    ),
+    // Pin — thumbtack-style head + needle. Tilted slightly so it reads as
+    // "pin" rather than "lollipop". Used on PaneChrome's Pin/Unpin toggle
+    // for the focused-pane layout-persistence affordance.
+    pin: (
+        <>
+            <path d="M9.5 2.5l4 4" />
+            <path d="M11 4l-5.5 5.5" />
+            <path d="M6 8l-3 5 5-3" />
+            <path d="M3 13l3.5-3.5" />
+        </>
+    ),
+    // Show both — two equal-height rects side by side, suggesting two panes
+    // returning to the split layout. Used on the "Show both panels" action.
+    "show-both": (
+        <>
+            <rect x="2.5" y="4" width="4.5" height="8" rx="0.5" />
+            <rect x="9"   y="4" width="4.5" height="8" rx="0.5" />
+        </>
+    ),
+    // Three vertical dots — secondary actions overflow trigger.
+    // Phase C 2026-05-18 — Pulse toolbar noise reduction.
+    "more-vertical": (
+        <>
+            <circle cx="8" cy="3.5" r="1.25" fill="currentColor" />
+            <circle cx="8" cy="8"   r="1.25" fill="currentColor" />
+            <circle cx="8" cy="12.5" r="1.25" fill="currentColor" />
         </>
     ),
 };

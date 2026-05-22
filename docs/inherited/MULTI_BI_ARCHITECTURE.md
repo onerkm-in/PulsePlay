@@ -15,7 +15,7 @@ ANY cell of the matrix is valid:
 
 |                          | Genie (Databricks) | Azure OpenAI | AWS Bedrock | Foundation Model | Supervisor |
 |--------------------------|--------------------|--------------|-------------|------------------|------------|
-| **Power BI**             | ✓ (DwD's pattern)  | ✓            | ✓           | ✓                | ✓          |
+| **Power BI**             | ✓ (the sister project's pattern)  | ✓            | ✓           | ✓                | ✓          |
 | **Tableau**              | ✓                  | ✓            | ✓           | ✓                | ✓          |
 | **Qlik Sense**           | ✓                  | ✓            | ✓           | ✓                | ✓          |
 | **Looker**               | ✓                  | ✓            | ✓           | ✓                | ✓          |
@@ -60,7 +60,7 @@ The host normalizes vendor-specific events into a small canonical set so the AI 
 | `data-refreshed` | `report.on('dataRefreshed')` | (refresh) | (data reloaded) | (n/a) |
 | `error` | `report.on('error')` | `tableau:error` | `error` | `dashboard:error` |
 
-The AI sidebar consumes these to build a "what is the user currently looking at?" context block that gets prepended to every prompt — same pattern as DwD_AI_Assistant_for_PBI's `contextBuilder`, but sourced from BI vendor events instead of Power BI's DataView.
+The AI sidebar consumes these to build a "what is the user currently looking at?" context block that gets prepended to every prompt — same pattern as sister Pulse project's `contextBuilder`, but sourced from BI vendor events instead of Power BI's DataView.
 
 ## Canonical command vocabulary
 
@@ -79,7 +79,7 @@ The host can issue `BICommand` instances back into the embedded view. Adapters i
 
 Independent of which BI tool is loaded, the AI sidebar talks to **one connector at a time**. Connector profiles are configured in `proxy/config.json` and listed via `GET /assistant/profiles`. The user picks one in the `ConnectorPicker`; subsequent prompts include `assistantProfile: <name>` so the proxy routes to the right backend.
 
-Profile types inherited from DwD_AI_Assistant_for_PBI's cycle 1-47:
+Profile types inherited from sister Pulse project's cycle 1-47:
 
 | Profile `type` | What it talks to | Use case |
 |---|---|---|
@@ -92,7 +92,7 @@ Profile types inherited from DwD_AI_Assistant_for_PBI's cycle 1-47:
 
 ## Security posture (inherited)
 
-Same posture as DwD_AI_Assistant_for_PBI — see [SECURITY_REVIEW.md](SECURITY_REVIEW.md), [ENTERPRISE_READINESS.md](ENTERPRISE_READINESS.md), [API_AUTH_AND_LIMITATIONS.md](API_AUTH_AND_LIMITATIONS.md). Tighter constraints to add for PulsePlay specifically:
+Same posture as sister Pulse project — see [SECURITY_REVIEW.md](SECURITY_REVIEW.md), [ENTERPRISE_READINESS.md](ENTERPRISE_READINESS.md), [API_AUTH_AND_LIMITATIONS.md](API_AUTH_AND_LIMITATIONS.md). Tighter constraints to add for PulsePlay specifically:
 
 - **Cross-origin iframes** — every adapter sets a sandbox attribute. Default: `allow-scripts allow-same-origin allow-forms allow-popups`. Adapters MUST narrow this where the vendor permits (Looker can run with just `allow-scripts allow-same-origin`).
 - **Embed token issuance** — vendor-specific embed-token endpoints will live in the proxy (Azure AD service principal for Power BI, trusted-ticket for Tableau, OAuth M2M for Qlik Cloud, signed-URL HMAC for Looker). NEVER browser-side.
@@ -100,7 +100,7 @@ Same posture as DwD_AI_Assistant_for_PBI — see [SECURITY_REVIEW.md](SECURITY_R
 
 ## Gateway of madness — the unconstrained roadmap
 
-PulsePlay's playground architecture removes the constraints DwD_AI_Assistant_for_PBI lived with (PBI Desktop sandbox blocked fetch, no PNG/Excel exports, no streaming, no Web Workers, no Web Speech, no WebRTC, no IndexedDB, no DuckDB-WASM lazy chunks). What becomes possible:
+PulsePlay's playground architecture removes the constraints sister Pulse project lived with (PBI Desktop sandbox blocked fetch, no PNG/Excel exports, no streaming, no Web Workers, no Web Speech, no WebRTC, no IndexedDB, no DuckDB-WASM lazy chunks). What becomes possible:
 
 | Vector | Enabled by |
 |---|---|
@@ -141,19 +141,19 @@ PulsePlay/
 │   ├── qlik/                # Stub today, qlik-embed in v1
 │   ├── looker/              # Stub today, @looker/embed-sdk in v1
 │   └── generic-iframe/      # Always-works escape hatch
-├── proxy/                   # X-axis: AI connector backbone (copied from DwD)
+├── proxy/                   # X-axis: AI connector backbone (copied from the sister project)
 │   ├── server.js                      # Express; routes for /assistant/*, /openai/*, /bedrock/*, /supervisor/*, /foundation/*
 │   ├── lib/                           # foundationModelClient, insightsValidator, llmOrchestrator, sqlExecutor, ...
 │   └── tests/                         # 342 jest tests
-├── databricks-agents/       # Mosaic AI Supervisor Agent template (copied from DwD)
+├── databricks-agents/       # Mosaic AI Supervisor Agent template (copied from the sister project)
 │   └── supervisor/                    # LangGraph agent definition + deploy notebook
-├── scripts/                 # llm_onboard, llm_wrapup, smoke helpers (copied from DwD)
-└── docs/                    # ARCHITECTURE, SECURITY_REVIEW, ENTERPRISE_READINESS, API_AUTH_AND_LIMITATIONS, BEAST_MODE_MEMORY, taxonomies (copied from DwD), MULTI_BI_ARCHITECTURE (this doc)
+├── scripts/                 # llm_onboard, llm_wrapup, smoke helpers (copied from the sister project)
+└── docs/                    # ARCHITECTURE, SECURITY_REVIEW, ENTERPRISE_READINESS, API_AUTH_AND_LIMITATIONS, BEAST_MODE_MEMORY, taxonomies (copied from the sister project), MULTI_BI_ARCHITECTURE (this doc)
 ```
 
 ## What's stubbed vs production-ready
 
-**Production-ready (inherited from DwD_AI_Assistant_for_PBI cycle 1-47):**
+**Production-ready (inherited from sister Pulse project cycle 1-47):**
 - Whole `proxy/` stack — keep-alive, OAuth M2M, OpenAI/Bedrock/foundation routes, Genie integration, validator framework, query history audit
 - `databricks-agents/supervisor/` Mosaic AI agent template
 - Cross-cutting docs — security posture, enterprise readiness, API & auth surface
@@ -161,12 +161,12 @@ PulsePlay/
 **Stubbed (v0 here, v1 next):**
 - All four vendor adapters (PowerBI/Tableau/Qlik/Looker) — currently inherit from generic-iframe; v1 wires real vendor SDKs
 - `EmbedConfigForm` — currently single URL field; v1 per-vendor credential helpers
-- `AISidebar` — submits + shows initial response; v1 polls for completion (see DwD's runStage pattern), streams tokens, shows progress
+- `AISidebar` — submits + shows initial response; v1 polls for completion (see the sister project's runStage pattern), streams tokens, shows progress
 - Embed-token issuance routes in proxy — `/api/powerbi/embed-token`, `/api/tableau/trusted-ticket`, etc.
 
 ## Where to start when you come back
 
-1. Pick ONE vendor (probably Power BI since DwD already has the credentials) and graduate its adapter from stub → real powerbi-client integration
+1. Pick ONE vendor (probably Power BI since the sister project already has the credentials) and graduate its adapter from stub → real powerbi-client integration
 2. Add the `/api/powerbi/embed-token` route in `proxy/server.js` (Azure AD service principal flow)
 3. Wire one canonical event end-to-end (e.g., `page-changed`) so the AI sidebar can SEE what page the user is on and prompt accordingly
 4. Then unlock one "gateway of madness" vector — streaming AI is the most demo-worthy starting point

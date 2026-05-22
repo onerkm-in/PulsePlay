@@ -1,0 +1,3845 @@
+{
+  "stamp": "2026-05-19-1320",
+  "evidence": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\naming-audit-2026-05-19-1320",
+  "routes": [
+    {
+      "bodyText": "PulsePlay AI playground · multi-BI host Setup needed AI profile ✨ AI Insights 💬 Ask Pulse BI BI Viz ✨ AI Insights Configure an AI connector in Settings → AI to generate insights.",
+      "controls": [
+        {
+          "aria": "Open setup in Settings. Missing AI profile",
+          "tag": "button",
+          "text": "Setup needed AI profile",
+          "title": "Open Settings → Setup",
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "✨ AI Insights",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "💬 Ask Pulse",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Open BI Viz surface",
+          "tag": "button",
+          "text": "BI BI Viz",
+          "title": "Open BI Viz surface",
+          "visible": true
+        },
+        {
+          "aria": "Maximize AI panel",
+          "tag": "button",
+          "text": "Maximize AI panel",
+          "title": "Maximize AI pane",
+          "visible": true
+        },
+        {
+          "aria": "Minimize AI panel",
+          "tag": "button",
+          "text": "Minimize AI panel",
+          "title": "Minimize AI pane",
+          "visible": true
+        },
+        {
+          "aria": "Open AI panel in separate page",
+          "tag": "button",
+          "text": "Open AI panel in separate page",
+          "title": "Open AI pane in a separate page",
+          "visible": true
+        },
+        {
+          "aria": "Pop out AI panel as window",
+          "tag": "button",
+          "text": "Pop out AI panel as window",
+          "title": "Pop out AI pane as a detached browser window you can keep alongside the main app",
+          "visible": true
+        },
+        {
+          "aria": "Open Tanstack query devtools",
+          "tag": "button",
+          "text": "Open Tanstack query devtools",
+          "title": null,
+          "visible": true
+        }
+      ],
+      "headings": [
+        "PulsePlay",
+        "AI Insights"
+      ],
+      "url": "http://127.0.0.1:5174/",
+      "label": "root-ai",
+      "route": "/",
+      "screenshot": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\naming-audit-2026-05-19-1320\\001-root-ai.png",
+      "issues": [
+        {
+          "type": "decorative-symbol",
+          "value": "✨",
+          "index": 64,
+          "context": "ound · multi-BI host Setup needed AI profile ✨ AI Insights 💬 Ask Pulse BI BI Viz ✨ AI Insights Configure an A"
+        },
+        {
+          "type": "decorative-symbol",
+          "value": "\ud83d",
+          "index": 78,
+          "context": "I host Setup needed AI profile ✨ AI Insights 💬 Ask Pulse BI BI Viz ✨ AI Insights Configure an AI connector in"
+        },
+        {
+          "type": "decorative-symbol",
+          "value": "\udcac",
+          "index": 79,
+          "context": " host Setup needed AI profile ✨ AI Insights 💬 Ask Pulse BI BI Viz ✨ AI Insights Configure an AI connector in "
+        },
+        {
+          "type": "decorative-symbol",
+          "value": "✨",
+          "index": 101,
+          "context": "profile ✨ AI Insights 💬 Ask Pulse BI BI Viz ✨ AI Insights Configure an AI connector in Settings → AI to gener"
+        },
+        {
+          "type": "direction-symbol",
+          "value": "→",
+          "index": 153,
+          "context": "sights Configure an AI connector in Settings → AI to generate insights."
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "·",
+          "index": 24,
+          "context": "PulsePlay AI playground · multi-BI host Setup needed AI profile ✨ AI Insights 💬 Ask Puls"
+        },
+        {
+          "type": "jargon",
+          "value": "BI Viz",
+          "index": 94,
+          "context": "ded AI profile ✨ AI Insights 💬 Ask Pulse BI BI Viz ✨ AI Insights Configure an AI connector in Settings → AI t"
+        }
+      ],
+      "controlIssues": [
+        {
+          "index": 0,
+          "control": {
+            "aria": "Open setup in Settings. Missing AI profile",
+            "tag": "button",
+            "text": "Setup needed AI profile",
+            "title": "Open Settings → Setup",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "→",
+              "index": 85,
+              "context": "Settings. Missing AI profile | Open Settings → Setup"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "control": {
+            "aria": null,
+            "tag": "button",
+            "text": "✨ AI Insights",
+            "title": null,
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "decorative-symbol",
+              "value": "✨",
+              "index": 0,
+              "context": "✨ AI Insights"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "control": {
+            "aria": null,
+            "tag": "button",
+            "text": "💬 Ask Pulse",
+            "title": null,
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "decorative-symbol",
+              "value": "\ud83d",
+              "index": 0,
+              "context": "💬 Ask Pulse"
+            },
+            {
+              "type": "decorative-symbol",
+              "value": "\udcac",
+              "index": 1,
+              "context": "💬 Ask Pulse"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "control": {
+            "aria": "Open BI Viz surface",
+            "tag": "button",
+            "text": "BI BI Viz",
+            "title": "Open BI Viz surface",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "jargon",
+              "value": "BI Viz",
+              "index": 3,
+              "context": "BI BI Viz | Open BI Viz surface | Open BI Viz surface"
+            },
+            {
+              "type": "jargon",
+              "value": "BI Viz",
+              "index": 17,
+              "context": "BI BI Viz | Open BI Viz surface | Open BI Viz surface"
+            },
+            {
+              "type": "jargon",
+              "value": "BI Viz",
+              "index": 39,
+              "context": "BI BI Viz | Open BI Viz surface | Open BI Viz surface"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "bodyText": "⚙ Settings Configure how PulsePlay looks, what it embeds, and how it reasons. ← Back to app 🔍 Ctrl / Setup AI profile BI powerbi AI (none) Pack (none) Proxy ok Security strict Setup Three short steps to get PulsePlay running. Each card configures one axis inline; deeper tuning lives in the BI, AI, and Preferences pages. Setup needed Missing: AI profile 1 BI tool i The dashboard, report, or canvas users look at. Configured Provider * i — Pick a BI tool — Databricks AI/BI Databricks Genie Power BI Tableau Qlik Sense Looker Generic iframe The BI vendor PulsePlay will embed in the canvas pane. Embed URL or iframe HTML i Paste the full embed URL (Power BI / Tableau / generic) OR the iframe HTML from Databricks Genie Share → Embed. Apply embed Clear Full embed form → 2 AI brain i The assistant powering AI Insights and Ask Pulse. Not picked ⚡ Test proxy AI profile * i — Pick an AI profile — Maps to a profile in proxy/config.json. The proxy holds all credentials — your browser never sees a token. ⚡ Test selected profile Tune Insights behavior → 3 Knowledge pack i Domain vocabulary the assistant uses to interpret your data. Optional Pack i — No pack (generic vocabulary) — Optional but recommended. Picks vocab + metric direction rules tuned for the industry. FINE-TUNE FURTHER Layout & display → Proxy & diagnostics → Advanced / reset →",
+      "controls": [
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "← Back to app",
+          "title": "Return to the playground (Esc)",
+          "visible": true
+        },
+        {
+          "aria": "Search settings",
+          "tag": "input",
+          "text": "Search settings",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Jump to Setup group",
+          "tag": "button",
+          "text": "Setup AI profile",
+          "title": "Jump to Setup group",
+          "visible": true
+        },
+        {
+          "aria": "Jump to BI group",
+          "tag": "button",
+          "text": "BI powerbi",
+          "title": "Jump to BI group",
+          "visible": true
+        },
+        {
+          "aria": "Jump to AI group",
+          "tag": "button",
+          "text": "AI (none)",
+          "title": "Jump to AI group",
+          "visible": true
+        },
+        {
+          "aria": "Jump to ai › Pack",
+          "tag": "button",
+          "text": "Pack (none)",
+          "title": "Jump to ai › Pack",
+          "visible": true
+        },
+        {
+          "aria": "Jump to system › Proxy",
+          "tag": "button",
+          "text": "Proxy ok",
+          "title": "Jump to system › Proxy",
+          "visible": true
+        },
+        {
+          "aria": "Jump to system › Security",
+          "tag": "button",
+          "text": "Security strict",
+          "title": "Jump to system › Security",
+          "visible": true
+        },
+        {
+          "aria": "More info",
+          "tag": "button",
+          "text": "i",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "More info",
+          "tag": "button",
+          "text": "i",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "select",
+          "text": "— Pick a BI tool — Databricks AI/BI Databricks Genie Power BI Tableau Qlik Sense Looker Generic iframe",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "More info",
+          "tag": "button",
+          "text": "i",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "textarea",
+          "text": "https://app.powerbi.com/reportEmbed?reportId=…",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Apply embed",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Clear",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Full embed form →",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "More info",
+          "tag": "button",
+          "text": "i",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "⚡ Test proxy",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "More info",
+          "tag": "button",
+          "text": "i",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "select",
+          "text": "— Pick an AI profile —",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "⚡ Test selected profile",
+          "title": "Pick a profile first",
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Tune Insights behavior →",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "More info",
+          "tag": "button",
+          "text": "i",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "More info",
+          "tag": "button",
+          "text": "i",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "select",
+          "text": "— No pack (generic vocabulary) —",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Layout & display →",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Proxy & diagnostics →",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Advanced / reset →",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Open Tanstack query devtools",
+          "tag": "button",
+          "text": "Open Tanstack query devtools",
+          "title": null,
+          "visible": true
+        }
+      ],
+      "headings": [
+        "⚙ Settings",
+        "Setup",
+        "BI tool i",
+        "AI brain i",
+        "Knowledge pack i"
+      ],
+      "url": "http://127.0.0.1:5174/settings/setup",
+      "label": "settings-setup",
+      "route": "/settings/setup",
+      "screenshot": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\naming-audit-2026-05-19-1320\\002-settings-setup.png",
+      "issues": [
+        {
+          "type": "decorative-symbol",
+          "value": "⚙",
+          "index": 0,
+          "context": "⚙ Settings Configure how PulsePlay looks, what it embeds, and how"
+        },
+        {
+          "type": "decorative-symbol",
+          "value": "\ud83d",
+          "index": 92,
+          "context": "it embeds, and how it reasons. ← Back to app 🔍 Ctrl / Setup AI profile BI powerbi AI (none) Pack (none) Proxy"
+        },
+        {
+          "type": "decorative-symbol",
+          "value": "⚡",
+          "index": 847,
+          "context": "wering AI Insights and Ask Pulse. Not picked ⚡ Test proxy AI profile * i — Pick an AI profile — Maps to a prof"
+        },
+        {
+          "type": "decorative-symbol",
+          "value": "⚡",
+          "index": 1005,
+          "context": "edentials — your browser never sees a token. ⚡ Test selected profile Tune Insights behavior → 3 Knowledge pack"
+        },
+        {
+          "type": "direction-symbol",
+          "value": "←",
+          "index": 78,
+          "context": "y looks, what it embeds, and how it reasons. ← Back to app 🔍 Ctrl / Setup AI profile BI powerbi AI (none) Pac"
+        },
+        {
+          "type": "direction-symbol",
+          "value": "→",
+          "index": 728,
+          "context": " the iframe HTML from Databricks Genie Share → Embed. Apply embed Clear Full embed form → 2 AI brain i The ass"
+        },
+        {
+          "type": "direction-symbol",
+          "value": "→",
+          "index": 771,
+          "context": "e → Embed. Apply embed Clear Full embed form → 2 AI brain i The assistant powering AI Insights and Ask Pulse. "
+        },
+        {
+          "type": "direction-symbol",
+          "value": "→",
+          "index": 1052,
+          "context": "Test selected profile Tune Insights behavior → 3 Knowledge pack i Domain vocabulary the assistant uses to inte"
+        },
+        {
+          "type": "direction-symbol",
+          "value": "→",
+          "index": 1305,
+          "context": "industry. FINE-TUNE FURTHER Layout & display → Proxy & diagnostics → Advanced / reset →"
+        },
+        {
+          "type": "direction-symbol",
+          "value": "→",
+          "index": 1327,
+          "context": "RTHER Layout & display → Proxy & diagnostics → Advanced / reset →"
+        },
+        {
+          "type": "direction-symbol",
+          "value": "→",
+          "index": 1346,
+          "context": "lay → Proxy & diagnostics → Advanced / reset →"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 440,
+          "context": "anvas users look at. Configured Provider * i — Pick a BI tool — Databricks AI/BI Databricks Genie Power BI Tab"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 457,
+          "context": "at. Configured Provider * i — Pick a BI tool — Databricks AI/BI Databricks Genie Power BI Tableau Qlik Sense L"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 875,
+          "context": "ulse. Not picked ⚡ Test proxy AI profile * i — Pick an AI profile — Maps to a profile in proxy/config.json. Th"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 896,
+          "context": "st proxy AI profile * i — Pick an AI profile — Maps to a profile in proxy/config.json. The proxy holds all cre"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 970,
+          "context": "config.json. The proxy holds all credentials — your browser never sees a token. ⚡ Test selected profile Tune I"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 1150,
+          "context": "uses to interpret your data. Optional Pack i — No pack (generic vocabulary) — Optional but recommended. Picks "
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 1181,
+          "context": "tional Pack i — No pack (generic vocabulary) — Optional but recommended. Picks vocab + metric direction rules "
+        },
+        {
+          "type": "jargon",
+          "value": "powerbi",
+          "index": 122,
+          "context": " ← Back to app 🔍 Ctrl / Setup AI profile BI powerbi AI (none) Pack (none) Proxy ok Security strict Setup Thre"
+        },
+        {
+          "type": "jargon",
+          "value": "Proxy ok",
+          "index": 152,
+          "context": " AI profile BI powerbi AI (none) Pack (none) Proxy ok Security strict Setup Three short steps to get PulsePlay"
+        },
+        {
+          "type": "jargon",
+          "value": "Security strict",
+          "index": 161,
+          "context": "le BI powerbi AI (none) Pack (none) Proxy ok Security strict Setup Three short steps to get PulsePlay running."
+        },
+        {
+          "type": "jargon",
+          "value": "AI brain",
+          "index": 775,
+          "context": "Embed. Apply embed Clear Full embed form → 2 AI brain i The assistant powering AI Insights and Ask Pulse. Not "
+        }
+      ],
+      "controlIssues": [
+        {
+          "index": 0,
+          "control": {
+            "aria": null,
+            "tag": "button",
+            "text": "← Back to app",
+            "title": "Return to the playground (Esc)",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "←",
+              "index": 0,
+              "context": "← Back to app | Return to the playground (Esc)"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "control": {
+            "aria": "Jump to BI group",
+            "tag": "button",
+            "text": "BI powerbi",
+            "title": "Jump to BI group",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "jargon",
+              "value": "powerbi",
+              "index": 3,
+              "context": "BI powerbi | Jump to BI group | Jump to BI group"
+            }
+          ]
+        },
+        {
+          "index": 5,
+          "control": {
+            "aria": "Jump to ai › Pack",
+            "tag": "button",
+            "text": "Pack (none)",
+            "title": "Jump to ai › Pack",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 25,
+              "context": "Pack (none) | Jump to ai › Pack | Jump to ai › Pack"
+            },
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 45,
+              "context": "Pack (none) | Jump to ai › Pack | Jump to ai › Pack"
+            }
+          ]
+        },
+        {
+          "index": 6,
+          "control": {
+            "aria": "Jump to system › Proxy",
+            "tag": "button",
+            "text": "Proxy ok",
+            "title": "Jump to system › Proxy",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 26,
+              "context": "Proxy ok | Jump to system › Proxy | Jump to system › Proxy"
+            },
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 51,
+              "context": "ok | Jump to system › Proxy | Jump to system › Proxy"
+            },
+            {
+              "type": "jargon",
+              "value": "Proxy ok",
+              "index": 0,
+              "context": "Proxy ok | Jump to system › Proxy | Jump to system › Proxy"
+            }
+          ]
+        },
+        {
+          "index": 7,
+          "control": {
+            "aria": "Jump to system › Security",
+            "tag": "button",
+            "text": "Security strict",
+            "title": "Jump to system › Security",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 33,
+              "context": "Security strict | Jump to system › Security | Jump to system › Security"
+            },
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 61,
+              "context": "| Jump to system › Security | Jump to system › Security"
+            },
+            {
+              "type": "jargon",
+              "value": "Security strict",
+              "index": 0,
+              "context": "Security strict | Jump to system › Security | Jump to system › Se"
+            }
+          ]
+        },
+        {
+          "index": 10,
+          "control": {
+            "aria": null,
+            "tag": "select",
+            "text": "— Pick a BI tool — Databricks AI/BI Databricks Genie Power BI Tableau Qlik Sense Looker Generic iframe",
+            "title": null,
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "dash-ellipsis",
+              "value": "—",
+              "index": 0,
+              "context": "— Pick a BI tool — Databricks AI/BI Databricks Genie Power BI Tab"
+            },
+            {
+              "type": "dash-ellipsis",
+              "value": "—",
+              "index": 17,
+              "context": "— Pick a BI tool — Databricks AI/BI Databricks Genie Power BI Tableau Qlik Sense L"
+            }
+          ]
+        },
+        {
+          "index": 12,
+          "control": {
+            "aria": null,
+            "tag": "textarea",
+            "text": "https://app.powerbi.com/reportEmbed?reportId=…",
+            "title": null,
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "dash-ellipsis",
+              "value": "…",
+              "index": 45,
+              "context": "https://app.powerbi.com/reportEmbed?reportId=…"
+            },
+            {
+              "type": "jargon",
+              "value": "powerbi",
+              "index": 12,
+              "context": "https://app.powerbi.com/reportEmbed?reportId=…"
+            }
+          ]
+        },
+        {
+          "index": 15,
+          "control": {
+            "aria": null,
+            "tag": "button",
+            "text": "Full embed form →",
+            "title": null,
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "→",
+              "index": 16,
+              "context": "Full embed form →"
+            }
+          ]
+        },
+        {
+          "index": 17,
+          "control": {
+            "aria": null,
+            "tag": "button",
+            "text": "⚡ Test proxy",
+            "title": null,
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "decorative-symbol",
+              "value": "⚡",
+              "index": 0,
+              "context": "⚡ Test proxy"
+            }
+          ]
+        },
+        {
+          "index": 19,
+          "control": {
+            "aria": null,
+            "tag": "select",
+            "text": "— Pick an AI profile —",
+            "title": null,
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "dash-ellipsis",
+              "value": "—",
+              "index": 0,
+              "context": "— Pick an AI profile —"
+            },
+            {
+              "type": "dash-ellipsis",
+              "value": "—",
+              "index": 21,
+              "context": "— Pick an AI profile —"
+            }
+          ]
+        },
+        {
+          "index": 20,
+          "control": {
+            "aria": null,
+            "tag": "button",
+            "text": "⚡ Test selected profile",
+            "title": "Pick a profile first",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "decorative-symbol",
+              "value": "⚡",
+              "index": 0,
+              "context": "⚡ Test selected profile | Pick a profile first"
+            }
+          ]
+        },
+        {
+          "index": 21,
+          "control": {
+            "aria": null,
+            "tag": "button",
+            "text": "Tune Insights behavior →",
+            "title": null,
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "→",
+              "index": 23,
+              "context": "Tune Insights behavior →"
+            }
+          ]
+        },
+        {
+          "index": 24,
+          "control": {
+            "aria": null,
+            "tag": "select",
+            "text": "— No pack (generic vocabulary) —",
+            "title": null,
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "dash-ellipsis",
+              "value": "—",
+              "index": 0,
+              "context": "— No pack (generic vocabulary) —"
+            },
+            {
+              "type": "dash-ellipsis",
+              "value": "—",
+              "index": 31,
+              "context": "— No pack (generic vocabulary) —"
+            }
+          ]
+        },
+        {
+          "index": 25,
+          "control": {
+            "aria": null,
+            "tag": "button",
+            "text": "Layout & display →",
+            "title": null,
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "→",
+              "index": 17,
+              "context": "Layout & display →"
+            }
+          ]
+        },
+        {
+          "index": 26,
+          "control": {
+            "aria": null,
+            "tag": "button",
+            "text": "Proxy & diagnostics →",
+            "title": null,
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "→",
+              "index": 20,
+              "context": "Proxy & diagnostics →"
+            }
+          ]
+        },
+        {
+          "index": 27,
+          "control": {
+            "aria": null,
+            "tag": "button",
+            "text": "Advanced / reset →",
+            "title": null,
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "→",
+              "index": 17,
+              "context": "Advanced / reset →"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "bodyText": "⚙ Settings Configure how PulsePlay looks, what it embeds, and how it reasons. ← Back to app 🔍 Ctrl / Setup AI profile BI powerbi AI (none) Pack (none) Proxy ok Security strict BI What you're looking at — the BI surface, its embed config, and the governance + license posture around it. CURRENT STATE Active provider and allowlist. The sections below either configure them or surface the policy that governs them. Provider Copy link The BI tool PulsePlay embeds. Restricted to the providers your organization allows. Active: powerbi Allowed: (allowlist unavailable) CONNECT AND EMBED Wire the vendor connection, token mode, and workspace/report IDs. Edits live-update without a refresh. Embed Copy link Power BI report / dashboard wiring. Three modes: Secure embed (paste an app.powerbi.com URL), AAD SSO (user identity), or Service principal (proxy mints the token). Live-updates the playground in this tab and any other tab open on this origin. Changes save to pulseplay:bi-embed-config and broadcast a pulseplay:embed-config-change event. App.tsx subscribes via useEmbedConfig so the BI canvas picks up edits live — no refresh required. Power BI embed EMBED MODE Secure embed link - quick preview AAD SSO — Embed for your organization (seamless) Service principal — Embed for your customers (proxy) SECURE EMBED LINK OR IFRAME Quick preview uses Power BI's website/portal embed. Viewers authenticate with Power BI, but SDK commands such as AI-applied filters and page navigation need AAD SSO or service-principal mode. Load secure embed Clear embed config Authentication Copy link Sign-in mode + tenant. Tenant is locked to your organization's allowlist. Choose your AAD sign-in flow in the Embed leaf above; this view is read-only governance state. Allowed AAD tenants: (allowlist unavailable) Token mode: secure Workspace (groupId): (unset) Report ID: (unset) GOVERNANCE AND POLICY Read-only governance and license posture surrounding the active provider. Admin-configured, surfaced here so you know what to ask for. Canvas Copy link How many Power BI frames render side-by-side. Controlled by backend display policy; this view is read-only. Tile mode: 1 Admin-controlled by allowlist.display.biTileMode. Use 1 for the normal viewer surface; 2 or 4 only for governed comparison deployments. Status Copy link Live state of the embed: mount mode, last load, recent events, license posture (Premium tier, embed-token availability, Fabric capability). Live control lands in Phase 3. Current value is read-only above. Unsaved changes Discard Save changes",
+      "controls": [
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "← Back to app",
+          "title": "Return to the playground (Esc)",
+          "visible": true
+        },
+        {
+          "aria": "Search settings",
+          "tag": "input",
+          "text": "Search settings",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Jump to Setup group",
+          "tag": "button",
+          "text": "Setup AI profile",
+          "title": "Jump to Setup group",
+          "visible": true
+        },
+        {
+          "aria": "Jump to BI group",
+          "tag": "button",
+          "text": "BI powerbi",
+          "title": "Jump to BI group",
+          "visible": true
+        },
+        {
+          "aria": "Jump to AI group",
+          "tag": "button",
+          "text": "AI (none)",
+          "title": "Jump to AI group",
+          "visible": true
+        },
+        {
+          "aria": "Jump to ai › Pack",
+          "tag": "button",
+          "text": "Pack (none)",
+          "title": "Jump to ai › Pack",
+          "visible": true
+        },
+        {
+          "aria": "Jump to system › Proxy",
+          "tag": "button",
+          "text": "Proxy ok",
+          "title": "Jump to system › Proxy",
+          "visible": true
+        },
+        {
+          "aria": "Jump to system › Security",
+          "tag": "button",
+          "text": "Security strict",
+          "title": "Jump to system › Security",
+          "visible": true
+        },
+        {
+          "aria": "Copy link to Provider",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": "Copy link to Embed",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "select",
+          "text": "Secure embed link - quick preview AAD SSO — Embed for your organization (seamless) Service principal — Embed for your customers (proxy)",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "textarea",
+          "text": "https://app.powerbi.com/reportEmbed?... or <iframe src=\"https://app.powerbi.com/reportEmbed?...\">",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Load secure embed",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Clear embed config",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Copy link to Authentication",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": "Copy link to Canvas",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": "Copy link to Status",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Discard",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Save changes",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Open Tanstack query devtools",
+          "tag": "button",
+          "text": "Open Tanstack query devtools",
+          "title": null,
+          "visible": true
+        }
+      ],
+      "headings": [
+        "⚙ Settings",
+        "BI",
+        "CURRENT STATE",
+        "CONNECT AND EMBED",
+        "Power BI embed",
+        "GOVERNANCE AND POLICY"
+      ],
+      "url": "http://127.0.0.1:5174/settings/bi",
+      "label": "settings-bi",
+      "route": "/settings/bi",
+      "screenshot": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\naming-audit-2026-05-19-1320\\003-settings-bi.png",
+      "issues": [
+        {
+          "type": "decorative-symbol",
+          "value": "⚙",
+          "index": 0,
+          "context": "⚙ Settings Configure how PulsePlay looks, what it embeds, and how"
+        },
+        {
+          "type": "decorative-symbol",
+          "value": "\ud83d",
+          "index": 92,
+          "context": "it embeds, and how it reasons. ← Back to app 🔍 Ctrl / Setup AI profile BI powerbi AI (none) Pack (none) Proxy"
+        },
+        {
+          "type": "direction-symbol",
+          "value": "←",
+          "index": 78,
+          "context": "y looks, what it embeds, and how it reasons. ← Back to app 🔍 Ctrl / Setup AI profile BI powerbi AI (none) Pac"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 203,
+          "context": "ok Security strict BI What you're looking at — the BI surface, its embed config, and the governance + license "
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 1117,
+          "context": "dConfig so the BI canvas picks up edits live — no refresh required. Power BI embed EMBED MODE Secure embed lin"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 1208,
+          "context": "DE Secure embed link - quick preview AAD SSO — Embed for your organization (seamless) Service principal — Embe"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 1267,
+          "context": "ur organization (seamless) Service principal — Embed for your customers (proxy) SECURE EMBED LINK OR IFRAME Qu"
+        },
+        {
+          "type": "jargon",
+          "value": "powerbi",
+          "index": 122,
+          "context": " ← Back to app 🔍 Ctrl / Setup AI profile BI powerbi AI (none) Pack (none) Proxy ok Security strict BI What yo"
+        },
+        {
+          "type": "jargon",
+          "value": "Proxy ok",
+          "index": 152,
+          "context": " AI profile BI powerbi AI (none) Pack (none) Proxy ok Security strict BI What you're looking at — the BI surfa"
+        },
+        {
+          "type": "jargon",
+          "value": "Security strict",
+          "index": 161,
+          "context": "le BI powerbi AI (none) Pack (none) Proxy ok Security strict BI What you're looking at — the BI surface, its e"
+        },
+        {
+          "type": "jargon",
+          "value": "powerbi",
+          "index": 525,
+          "context": " providers your organization allows. Active: powerbi Allowed: (allowlist unavailable) CONNECT AND EMBED Wire t"
+        },
+        {
+          "type": "jargon",
+          "value": "powerbi",
+          "index": 779,
+          "context": "ing. Three modes: Secure embed (paste an app.powerbi.com URL), AAD SSO (user identity), or Service principal ("
+        }
+      ],
+      "controlIssues": [
+        {
+          "index": 0,
+          "control": {
+            "aria": null,
+            "tag": "button",
+            "text": "← Back to app",
+            "title": "Return to the playground (Esc)",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "←",
+              "index": 0,
+              "context": "← Back to app | Return to the playground (Esc)"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "control": {
+            "aria": "Jump to BI group",
+            "tag": "button",
+            "text": "BI powerbi",
+            "title": "Jump to BI group",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "jargon",
+              "value": "powerbi",
+              "index": 3,
+              "context": "BI powerbi | Jump to BI group | Jump to BI group"
+            }
+          ]
+        },
+        {
+          "index": 5,
+          "control": {
+            "aria": "Jump to ai › Pack",
+            "tag": "button",
+            "text": "Pack (none)",
+            "title": "Jump to ai › Pack",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 25,
+              "context": "Pack (none) | Jump to ai › Pack | Jump to ai › Pack"
+            },
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 45,
+              "context": "Pack (none) | Jump to ai › Pack | Jump to ai › Pack"
+            }
+          ]
+        },
+        {
+          "index": 6,
+          "control": {
+            "aria": "Jump to system › Proxy",
+            "tag": "button",
+            "text": "Proxy ok",
+            "title": "Jump to system › Proxy",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 26,
+              "context": "Proxy ok | Jump to system › Proxy | Jump to system › Proxy"
+            },
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 51,
+              "context": "ok | Jump to system › Proxy | Jump to system › Proxy"
+            },
+            {
+              "type": "jargon",
+              "value": "Proxy ok",
+              "index": 0,
+              "context": "Proxy ok | Jump to system › Proxy | Jump to system › Proxy"
+            }
+          ]
+        },
+        {
+          "index": 7,
+          "control": {
+            "aria": "Jump to system › Security",
+            "tag": "button",
+            "text": "Security strict",
+            "title": "Jump to system › Security",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 33,
+              "context": "Security strict | Jump to system › Security | Jump to system › Security"
+            },
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 61,
+              "context": "| Jump to system › Security | Jump to system › Security"
+            },
+            {
+              "type": "jargon",
+              "value": "Security strict",
+              "index": 0,
+              "context": "Security strict | Jump to system › Security | Jump to system › Se"
+            }
+          ]
+        },
+        {
+          "index": 10,
+          "control": {
+            "aria": null,
+            "tag": "select",
+            "text": "Secure embed link - quick preview AAD SSO — Embed for your organization (seamless) Service principal — Embed for your customers (proxy)",
+            "title": null,
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "dash-ellipsis",
+              "value": "—",
+              "index": 42,
+              "context": "Secure embed link - quick preview AAD SSO — Embed for your organization (seamless) Service principal — Embe"
+            },
+            {
+              "type": "dash-ellipsis",
+              "value": "—",
+              "index": 101,
+              "context": "ur organization (seamless) Service principal — Embed for your customers (proxy)"
+            }
+          ]
+        },
+        {
+          "index": 11,
+          "control": {
+            "aria": null,
+            "tag": "textarea",
+            "text": "https://app.powerbi.com/reportEmbed?... or <iframe src=\"https://app.powerbi.com/reportEmbed?...\">",
+            "title": null,
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "jargon",
+              "value": "powerbi",
+              "index": 12,
+              "context": "https://app.powerbi.com/reportEmbed?... or <iframe src=\"https://app.powerbi.c"
+            },
+            {
+              "type": "jargon",
+              "value": "powerbi",
+              "index": 68,
+              "context": "/reportEmbed?... or <iframe src=\"https://app.powerbi.com/reportEmbed?...\">"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "bodyText": "⚙ Settings Configure how PulsePlay looks, what it embeds, and how it reasons. ← Back to app 🔍 Ctrl / Setup AI profile BI powerbi AI (none) Pack (none) Proxy ok Security strict AI What's thinking, and what it knows — provider, model, knowledge, behavior. MVP 0.2: Databricks Genie + Supervisor only. CONNECT AND TEST Pick the AI brain and the knowledge bundle it grounds answers in. Provider Copy link The AI brain that answers your questions. Restricted to the providers your organization allows. DefaultSales Team SupervisorGenie Supervisor Agent SUPERVISOR · 0 SPACES Model / Agent Copy link For Genie: the single Genie space this profile is bound to. Configured server-side via proxy/config.json. Pick a provider above to see the model / agent details. Knowledge pack Copy link Vertical domain bundle the AI uses for vocabulary, KPIs, and starter questions. Restricted to packs your organization installs. Pack Pack — Select a pack — CPG / FMCG Sub-vertical — Pick a pack first — Vector Search KB Copy link Databricks Vector Search is not currently live in this workspace. Keep the target index here so the feature wakes up cleanly when an endpoint is enabled. Status: Hibernating Endpoints: 0 Planned Vector Search index TEST AND VALIDATE Probe the active connector. Fast and safe — uses the same path the AI sidebar's discovery loop runs on every conversation start. Connection test Copy link Live probe against the proxy. Shows reachability, schema hints, and the inferred pack. Pick a provider first. GENERATION BEHAVIOR How the AI talks back — prompt strategy, domain guidance, sections, metric semantics. Saves to Pulse genieSettings and live-updates the playground. AI Insights Copy link Canonical setup for AI Insights and Ask Pulse behavior: prompt strategy, domain guidance, section schema, metric semantics, and evidence display. Saves to Pulse genieSettings and live-updates the playground. This replaces the old Pulse Console setup tab. Provider selection above writes the same genieSettings.assistantProfile value used by Pulse at runtime. Runtime profile: (provider not selected) Available AI surfaces Both — AI Insights + Ask Pulse AI Insights only Ask Pulse only Authoring mode Preset — pick domain + sections AI-assisted — infer from data Manual — write prompt Analytics domain Custom insights prompt Domain guidance Custom sections JSON Included stages HEADLINE TRENDS RISKS ACTIONS Metric direction rules Metric direction map JSON Show provenance footer Cache TTL Disabled 5 minutes 15 minutes 30 minutes 1 hour 2 hours Stage-specific instruction overrides UC Metric View Copy link Discover governed Databricks metric views and use one as the semantic source for AI Insights. Catalog Schema Discovering Selected metric view No metric views returned for this catalog/schema. Browse library ↗ Copy link Open the Knowledge Base content browser — glossary, ontology, KPIs, sample questions per pack. Browse Knowledge Base → Unsaved changes Discard Save changes",
+      "controls": [
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "← Back to app",
+          "title": "Return to the playground (Esc)",
+          "visible": true
+        },
+        {
+          "aria": "Search settings",
+          "tag": "input",
+          "text": "Search settings",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Jump to Setup group",
+          "tag": "button",
+          "text": "Setup AI profile",
+          "title": "Jump to Setup group",
+          "visible": true
+        },
+        {
+          "aria": "Jump to BI group",
+          "tag": "button",
+          "text": "BI powerbi",
+          "title": "Jump to BI group",
+          "visible": true
+        },
+        {
+          "aria": "Jump to AI group",
+          "tag": "button",
+          "text": "AI (none)",
+          "title": "Jump to AI group",
+          "visible": true
+        },
+        {
+          "aria": "Jump to ai › Pack",
+          "tag": "button",
+          "text": "Pack (none)",
+          "title": "Jump to ai › Pack",
+          "visible": true
+        },
+        {
+          "aria": "Jump to system › Proxy",
+          "tag": "button",
+          "text": "Proxy ok",
+          "title": "Jump to system › Proxy",
+          "visible": true
+        },
+        {
+          "aria": "Jump to system › Security",
+          "tag": "button",
+          "text": "Security strict",
+          "title": "Jump to system › Security",
+          "visible": true
+        },
+        {
+          "aria": "Copy link to Provider",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "DefaultSales Team",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "SupervisorGenie Supervisor Agent SUPERVISOR · 0 SPACES",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Copy link to Model / Agent",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": "Copy link to Knowledge pack",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "select",
+          "text": "— Select a pack — CPG / FMCG",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "select",
+          "text": "— Pick a pack first —",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Copy link to Vector Search KB",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "input",
+          "text": "catalog.schema.index_name",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Copy link to Connection test",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": "Copy link to AI Insights",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "select",
+          "text": "Both — AI Insights + Ask Pulse AI Insights only Ask Pulse only",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "select",
+          "text": "Preset — pick domain + sections AI-assisted — infer from data Manual — write prompt",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "input",
+          "text": "Example: cpg-fmcg, finance, supply-chain",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "textarea",
+          "text": "## Objective Explain what the AI should prioritize. ## Required output - HEADLINE - TRENDS - RISKS - ACTIONS",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "textarea",
+          "text": "## Business rules Define KPI semantics and exception handling. ## Formatting standards Metric | Format | Direction",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "textarea",
+          "text": "[{\"id\":\"headline\",\"title\":\"HEADLINE\",\"instruction\":\"Summarize the key movement.\"}]",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "input",
+          "text": "on",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "input",
+          "text": "on",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "input",
+          "text": "on",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "input",
+          "text": "on",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "textarea",
+          "text": "Revenue: higher is better Returns: lower is better Inventory days: lower is better",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "textarea",
+          "text": "{\"Revenue\":{\"good\":\"up\"},\"Returns\":{\"good\":\"down\"}}",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "input",
+          "text": "on",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "select",
+          "text": "Disabled 5 minutes 15 minutes 30 minutes 1 hour 2 hours",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "textarea",
+          "text": "",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "textarea",
+          "text": "",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "textarea",
+          "text": "",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "textarea",
+          "text": "",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Copy link to UC Metric View",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "input",
+          "text": "workspace",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "input",
+          "text": "databrickspractice",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Discovering",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "input",
+          "text": "catalog.schema.metric_view",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Copy link to Browse library ↗",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Browse Knowledge Base →",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Discard",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Save changes",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Open Tanstack query devtools",
+          "tag": "button",
+          "text": "Open Tanstack query devtools",
+          "title": null,
+          "visible": true
+        }
+      ],
+      "headings": [
+        "⚙ Settings",
+        "AI",
+        "CONNECT AND TEST",
+        "Pack",
+        "TEST AND VALIDATE",
+        "GENERATION BEHAVIOR"
+      ],
+      "url": "http://127.0.0.1:5174/settings/ai",
+      "label": "settings-ai",
+      "route": "/settings/ai",
+      "screenshot": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\naming-audit-2026-05-19-1320\\004-settings-ai.png",
+      "issues": [
+        {
+          "type": "decorative-symbol",
+          "value": "⚙",
+          "index": 0,
+          "context": "⚙ Settings Configure how PulsePlay looks, what it embeds, and how"
+        },
+        {
+          "type": "decorative-symbol",
+          "value": "\ud83d",
+          "index": 92,
+          "context": "it embeds, and how it reasons. ← Back to app 🔍 Ctrl / Setup AI profile BI powerbi AI (none) Pack (none) Proxy"
+        },
+        {
+          "type": "direction-symbol",
+          "value": "←",
+          "index": 78,
+          "context": "y looks, what it embeds, and how it reasons. ← Back to app 🔍 Ctrl / Setup AI profile BI powerbi AI (none) Pac"
+        },
+        {
+          "type": "direction-symbol",
+          "value": "↗",
+          "index": 2813,
+          "context": "rned for this catalog/schema. Browse library ↗ Copy link Open the Knowledge Base content browser — glossary, o"
+        },
+        {
+          "type": "direction-symbol",
+          "value": "→",
+          "index": 2942,
+          "context": "le questions per pack. Browse Knowledge Base → Unsaved changes Discard Save changes"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 215,
+          "context": "strict AI What's thinking, and what it knows — provider, model, knowledge, behavior. MVP 0.2: Databricks Genie"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "·",
+          "index": 560,
+          "context": " SupervisorGenie Supervisor Agent SUPERVISOR · 0 SPACES Model / Agent Copy link For Genie: the single Genie sp"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 920,
+          "context": " packs your organization installs. Pack Pack — Select a pack — CPG / FMCG Sub-vertical — Pick a pack first — V"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 936,
+          "context": "nization installs. Pack Pack — Select a pack — CPG / FMCG Sub-vertical — Pick a pack first — Vector Search KB "
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 962,
+          "context": "ck — Select a pack — CPG / FMCG Sub-vertical — Pick a pack first — Vector Search KB Copy link Databricks Vecto"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 982,
+          "context": " CPG / FMCG Sub-vertical — Pick a pack first — Vector Search KB Copy link Databricks Vector Search is not curr"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 1286,
+          "context": "TE Probe the active connector. Fast and safe — uses the same path the AI sidebar's discovery loop runs on ever"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 1551,
+          "context": "t. GENERATION BEHAVIOR How the AI talks back — prompt strategy, domain guidance, sections, metric semantics. S"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 2126,
+          "context": "der not selected) Available AI surfaces Both — AI Insights + Ask Pulse AI Insights only Ask Pulse only Authori"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 2206,
+          "context": "ts only Ask Pulse only Authoring mode Preset — pick domain + sections AI-assisted — infer from data Manual — w"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 2243,
+          "context": " Preset — pick domain + sections AI-assisted — infer from data Manual — write prompt Analytics domain Custom i"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 2268,
+          "context": "ections AI-assisted — infer from data Manual — write prompt Analytics domain Custom insights prompt Domain gui"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 2865,
+          "context": "link Open the Knowledge Base content browser — glossary, ontology, KPIs, sample questions per pack. Browse Kno"
+        },
+        {
+          "type": "jargon",
+          "value": "powerbi",
+          "index": 122,
+          "context": " ← Back to app 🔍 Ctrl / Setup AI profile BI powerbi AI (none) Pack (none) Proxy ok Security strict AI What's "
+        },
+        {
+          "type": "jargon",
+          "value": "Proxy ok",
+          "index": 152,
+          "context": " AI profile BI powerbi AI (none) Pack (none) Proxy ok Security strict AI What's thinking, and what it knows — "
+        },
+        {
+          "type": "jargon",
+          "value": "Security strict",
+          "index": 161,
+          "context": "le BI powerbi AI (none) Pack (none) Proxy ok Security strict AI What's thinking, and what it knows — provider,"
+        },
+        {
+          "type": "jargon",
+          "value": "AI brain",
+          "index": 326,
+          "context": "+ Supervisor only. CONNECT AND TEST Pick the AI brain and the knowledge bundle it grounds answers in. Provider"
+        },
+        {
+          "type": "jargon",
+          "value": "AI brain",
+          "index": 406,
+          "context": "t grounds answers in. Provider Copy link The AI brain that answers your questions. Restricted to the providers"
+        }
+      ],
+      "controlIssues": [
+        {
+          "index": 0,
+          "control": {
+            "aria": null,
+            "tag": "button",
+            "text": "← Back to app",
+            "title": "Return to the playground (Esc)",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "←",
+              "index": 0,
+              "context": "← Back to app | Return to the playground (Esc)"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "control": {
+            "aria": "Jump to BI group",
+            "tag": "button",
+            "text": "BI powerbi",
+            "title": "Jump to BI group",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "jargon",
+              "value": "powerbi",
+              "index": 3,
+              "context": "BI powerbi | Jump to BI group | Jump to BI group"
+            }
+          ]
+        },
+        {
+          "index": 5,
+          "control": {
+            "aria": "Jump to ai › Pack",
+            "tag": "button",
+            "text": "Pack (none)",
+            "title": "Jump to ai › Pack",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 25,
+              "context": "Pack (none) | Jump to ai › Pack | Jump to ai › Pack"
+            },
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 45,
+              "context": "Pack (none) | Jump to ai › Pack | Jump to ai › Pack"
+            }
+          ]
+        },
+        {
+          "index": 6,
+          "control": {
+            "aria": "Jump to system › Proxy",
+            "tag": "button",
+            "text": "Proxy ok",
+            "title": "Jump to system › Proxy",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 26,
+              "context": "Proxy ok | Jump to system › Proxy | Jump to system › Proxy"
+            },
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 51,
+              "context": "ok | Jump to system › Proxy | Jump to system › Proxy"
+            },
+            {
+              "type": "jargon",
+              "value": "Proxy ok",
+              "index": 0,
+              "context": "Proxy ok | Jump to system › Proxy | Jump to system › Proxy"
+            }
+          ]
+        },
+        {
+          "index": 7,
+          "control": {
+            "aria": "Jump to system › Security",
+            "tag": "button",
+            "text": "Security strict",
+            "title": "Jump to system › Security",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 33,
+              "context": "Security strict | Jump to system › Security | Jump to system › Security"
+            },
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 61,
+              "context": "| Jump to system › Security | Jump to system › Security"
+            },
+            {
+              "type": "jargon",
+              "value": "Security strict",
+              "index": 0,
+              "context": "Security strict | Jump to system › Security | Jump to system › Se"
+            }
+          ]
+        },
+        {
+          "index": 10,
+          "control": {
+            "aria": null,
+            "tag": "button",
+            "text": "SupervisorGenie Supervisor Agent SUPERVISOR · 0 SPACES",
+            "title": null,
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "dash-ellipsis",
+              "value": "·",
+              "index": 44,
+              "context": "SupervisorGenie Supervisor Agent SUPERVISOR · 0 SPACES"
+            }
+          ]
+        },
+        {
+          "index": 13,
+          "control": {
+            "aria": null,
+            "tag": "select",
+            "text": "— Select a pack — CPG / FMCG",
+            "title": null,
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "dash-ellipsis",
+              "value": "—",
+              "index": 0,
+              "context": "— Select a pack — CPG / FMCG"
+            },
+            {
+              "type": "dash-ellipsis",
+              "value": "—",
+              "index": 16,
+              "context": "— Select a pack — CPG / FMCG"
+            }
+          ]
+        },
+        {
+          "index": 14,
+          "control": {
+            "aria": null,
+            "tag": "select",
+            "text": "— Pick a pack first —",
+            "title": null,
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "dash-ellipsis",
+              "value": "—",
+              "index": 0,
+              "context": "— Pick a pack first —"
+            },
+            {
+              "type": "dash-ellipsis",
+              "value": "—",
+              "index": 20,
+              "context": "— Pick a pack first —"
+            }
+          ]
+        },
+        {
+          "index": 19,
+          "control": {
+            "aria": null,
+            "tag": "select",
+            "text": "Both — AI Insights + Ask Pulse AI Insights only Ask Pulse only",
+            "title": null,
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "dash-ellipsis",
+              "value": "—",
+              "index": 5,
+              "context": "Both — AI Insights + Ask Pulse AI Insights only Ask Pulse only"
+            }
+          ]
+        },
+        {
+          "index": 20,
+          "control": {
+            "aria": null,
+            "tag": "select",
+            "text": "Preset — pick domain + sections AI-assisted — infer from data Manual — write prompt",
+            "title": null,
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "dash-ellipsis",
+              "value": "—",
+              "index": 7,
+              "context": "Preset — pick domain + sections AI-assisted — infer from data Manual — w"
+            },
+            {
+              "type": "dash-ellipsis",
+              "value": "—",
+              "index": 44,
+              "context": "Preset — pick domain + sections AI-assisted — infer from data Manual — write prompt"
+            },
+            {
+              "type": "dash-ellipsis",
+              "value": "—",
+              "index": 69,
+              "context": "ections AI-assisted — infer from data Manual — write prompt"
+            }
+          ]
+        },
+        {
+          "index": 42,
+          "control": {
+            "aria": "Copy link to Browse library ↗",
+            "tag": "button",
+            "text": "Copy link",
+            "title": "Copy link to this section",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "↗",
+              "index": 40,
+              "context": "Copy link | Copy link to Browse library ↗ | Copy link to this section"
+            }
+          ]
+        },
+        {
+          "index": 43,
+          "control": {
+            "aria": null,
+            "tag": "button",
+            "text": "Browse Knowledge Base →",
+            "title": null,
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "→",
+              "index": 22,
+              "context": "Browse Knowledge Base →"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "bodyText": "⚙ Settings Configure how PulsePlay looks, what it embeds, and how it reasons. ← Back to app 🔍 Ctrl / Setup AI profile BI powerbi AI (none) Pack (none) Proxy ok Security strict Preferences How the playground is laid out — UI mode, visible panels, AI position, canvas tiles. MODE Choose which AI experience surface runs. Pulse is the rich ported experience; v0 is the lightweight sidebar. UI mode Copy link Pulse is the ported PBI-heritage UI. v0 is the lightweight cycle-C sidebar. Pulse v0 LAYOUT Where the AI and BI panes live + which ones are visible. Live-updates immediately. Layout preset Copy link Pick a starting shape, then fine-tune below if needed. Unified default. AI Insights, Ask Pulse, and BI Viz are peer surfaces; BI opens on demand instead of taking a permanent second section. Balanced Split + Mix BI focus AI Insights focus Ask Pulse focus Visible panels Copy link Author choice: unified surface, split review, or focused single-surface deployments. AI/BI verticals stay independent — pick what you've wired up. AI only BI only Unified Split AI position Copy link Where the AI panel sits relative to the BI canvas. Applies to the explicit Split preset, not the unified default. Left Right Top Bottom MIX COMPOSITION Cherry-pick which AI surfaces and BI composition modes render. Author choice — end users only see what's checked. AI surfaces Copy link Which AI views to expose. Cross-linked with Settings → AI → AI Insights (changes here update there). Insights + Ask Pulse Insights only Ask Pulse only Research Agent traces Copy link When Genie's Agent Mode runs on a message (started in the Databricks Genie UI), render its reasoning trace as a separate section. PulsePlay does not start Agent Mode itself — Databricks' REST API doesn't expose that trigger — but we surface the trace when it's present in the message response (new Genie field, 2026-04-16). Show when present Hide Managed agent surface Copy link (Coming next cycle — wires Mosaic AI ResponsesAgent serving endpoints as a dedicated agentic pane. Distinct from the existing Supervisor connector template.) Available when ResponsesAgent connector is configured BI composition Copy link How BI surfaces render in Mix mode. Per-tile cherry-pick (selecting specific Power BI tiles / Tableau worksheets / Qlik objects / Looker tiles) requires vendor-SDK work and lands in the next cycle. Full canvas Per-tile cherry-pick (coming next cycle) DISPLAY POLICY Read-only canvas policy — set by your admin in the proxy allowlist. Canvas tiles Copy link How many BI frames render in the BI pane. Managed by backend display policy, not a viewer toolbar. Backend tile mode: 1 Set by proxy/config.json allowlist.display.biTileMode. Use 1 for the normal viewer experience; 2 or 4 only for governed comparison deployments. Unsaved changes Discard Save changes",
+      "controls": [
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "← Back to app",
+          "title": "Return to the playground (Esc)",
+          "visible": true
+        },
+        {
+          "aria": "Search settings",
+          "tag": "input",
+          "text": "Search settings",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Jump to Setup group",
+          "tag": "button",
+          "text": "Setup AI profile",
+          "title": "Jump to Setup group",
+          "visible": true
+        },
+        {
+          "aria": "Jump to BI group",
+          "tag": "button",
+          "text": "BI powerbi",
+          "title": "Jump to BI group",
+          "visible": true
+        },
+        {
+          "aria": "Jump to AI group",
+          "tag": "button",
+          "text": "AI (none)",
+          "title": "Jump to AI group",
+          "visible": true
+        },
+        {
+          "aria": "Jump to ai › Pack",
+          "tag": "button",
+          "text": "Pack (none)",
+          "title": "Jump to ai › Pack",
+          "visible": true
+        },
+        {
+          "aria": "Jump to system › Proxy",
+          "tag": "button",
+          "text": "Proxy ok",
+          "title": "Jump to system › Proxy",
+          "visible": true
+        },
+        {
+          "aria": "Jump to system › Security",
+          "tag": "button",
+          "text": "Security strict",
+          "title": "Jump to system › Security",
+          "visible": true
+        },
+        {
+          "aria": "Copy link to UI mode",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Pulse",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "v0",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Copy link to Layout preset",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Balanced",
+          "title": "Unified default. AI Insights, Ask Pulse, and BI Viz are peer surfaces; BI opens on demand instead of taking a permanent second section.",
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Split + Mix",
+          "title": "Both AI and BI panes visible with draggable divider. Power-user side-by-side view — best for the \"look and ask\" workflow PulsePlay was originally designed for.",
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "BI focus",
+          "title": "Show only the BI canvas. AI is hidden. For viewer-only kiosks or governed dashboards where AI is disabled by policy.",
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "AI Insights focus",
+          "title": "Auto-generated AI Insights only. No BI canvas, no Ask Pulse tab. For exec dashboards where the briefing IS the product.",
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Ask Pulse focus",
+          "title": "Chat-first. Ask Pulse only — no Insights tab, no BI canvas. For internal tools where users come in with specific questions.",
+          "visible": true
+        },
+        {
+          "aria": "Copy link to Visible panels",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "AI only",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "BI only",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Unified",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Split",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Copy link to AI position",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Left",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Right",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Top",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Bottom",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Copy link to AI surfaces",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Insights + Ask Pulse",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Insights only",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Ask Pulse only",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Copy link to Research Agent traces",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Show when present",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Hide",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Copy link to Managed agent surface",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Available when ResponsesAgent connector is configured",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Copy link to BI composition",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Full canvas",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Per-tile cherry-pick (coming next cycle)",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Copy link to Canvas tiles",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Discard",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Save changes",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Open Tanstack query devtools",
+          "tag": "button",
+          "text": "Open Tanstack query devtools",
+          "title": null,
+          "visible": true
+        }
+      ],
+      "headings": [
+        "⚙ Settings",
+        "Preferences",
+        "MODE",
+        "LAYOUT",
+        "MIX COMPOSITION",
+        "DISPLAY POLICY"
+      ],
+      "url": "http://127.0.0.1:5174/settings/preferences",
+      "label": "settings-preferences",
+      "route": "/settings/preferences",
+      "screenshot": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\naming-audit-2026-05-19-1320\\005-settings-preferences.png",
+      "issues": [
+        {
+          "type": "decorative-symbol",
+          "value": "⚙",
+          "index": 0,
+          "context": "⚙ Settings Configure how PulsePlay looks, what it embeds, and how"
+        },
+        {
+          "type": "decorative-symbol",
+          "value": "\ud83d",
+          "index": 92,
+          "context": "it embeds, and how it reasons. ← Back to app 🔍 Ctrl / Setup AI profile BI powerbi AI (none) Pack (none) Proxy"
+        },
+        {
+          "type": "direction-symbol",
+          "value": "←",
+          "index": 78,
+          "context": "y looks, what it embeds, and how it reasons. ← Back to app 🔍 Ctrl / Setup AI profile BI powerbi AI (none) Pac"
+        },
+        {
+          "type": "direction-symbol",
+          "value": "→",
+          "index": 1425,
+          "context": " views to expose. Cross-linked with Settings → AI → AI Insights (changes here update there). Insights + Ask Pu"
+        },
+        {
+          "type": "direction-symbol",
+          "value": "→",
+          "index": 1430,
+          "context": "s to expose. Cross-linked with Settings → AI → AI Insights (changes here update there). Insights + Ask Pulse I"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 220,
+          "context": "t Preferences How the playground is laid out — UI mode, visible panels, AI position, canvas tiles. MODE Choose"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 1003,
+          "context": "eployments. AI/BI verticals stay independent — pick what you've wired up. AI only BI only Unified Split AI pos"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 1313,
+          "context": "d BI composition modes render. Author choice — end users only see what's checked. AI surfaces Copy link Which "
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 1728,
+          "context": ". PulsePlay does not start Agent Mode itself — Databricks' REST API doesn't expose that trigger — but we surfa"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 1779,
+          "context": "bricks' REST API doesn't expose that trigger — but we surface the trace when it's present in the message respo"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 1953,
+          "context": "d agent surface Copy link (Coming next cycle — wires Mosaic AI ResponsesAgent serving endpoints as a dedicated"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 2461,
+          "context": "ycle) DISPLAY POLICY Read-only canvas policy — set by your admin in the proxy allowlist. Canvas tiles Copy lin"
+        },
+        {
+          "type": "jargon",
+          "value": "powerbi",
+          "index": 122,
+          "context": " ← Back to app 🔍 Ctrl / Setup AI profile BI powerbi AI (none) Pack (none) Proxy ok Security strict Preference"
+        },
+        {
+          "type": "jargon",
+          "value": "Proxy ok",
+          "index": 152,
+          "context": " AI profile BI powerbi AI (none) Pack (none) Proxy ok Security strict Preferences How the playground is laid o"
+        },
+        {
+          "type": "jargon",
+          "value": "Security strict",
+          "index": 161,
+          "context": "le BI powerbi AI (none) Pack (none) Proxy ok Security strict Preferences How the playground is laid out — UI m"
+        },
+        {
+          "type": "jargon",
+          "value": "v0",
+          "index": 357,
+          "context": "e runs. Pulse is the rich ported experience; v0 is the lightweight sidebar. UI mode Copy link Pulse is the por"
+        },
+        {
+          "type": "jargon",
+          "value": "v0",
+          "index": 443,
+          "context": "py link Pulse is the ported PBI-heritage UI. v0 is the lightweight cycle-C sidebar. Pulse v0 LAYOUT Where the "
+        },
+        {
+          "type": "jargon",
+          "value": "v0",
+          "index": 488,
+          "context": "v0 is the lightweight cycle-C sidebar. Pulse v0 LAYOUT Where the AI and BI panes live + which ones are visible"
+        },
+        {
+          "type": "jargon",
+          "value": "BI Viz",
+          "index": 705,
+          "context": "Unified default. AI Insights, Ask Pulse, and BI Viz are peer surfaces; BI opens on demand instead of taking a "
+        }
+      ],
+      "controlIssues": [
+        {
+          "index": 0,
+          "control": {
+            "aria": null,
+            "tag": "button",
+            "text": "← Back to app",
+            "title": "Return to the playground (Esc)",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "←",
+              "index": 0,
+              "context": "← Back to app | Return to the playground (Esc)"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "control": {
+            "aria": "Jump to BI group",
+            "tag": "button",
+            "text": "BI powerbi",
+            "title": "Jump to BI group",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "jargon",
+              "value": "powerbi",
+              "index": 3,
+              "context": "BI powerbi | Jump to BI group | Jump to BI group"
+            }
+          ]
+        },
+        {
+          "index": 5,
+          "control": {
+            "aria": "Jump to ai › Pack",
+            "tag": "button",
+            "text": "Pack (none)",
+            "title": "Jump to ai › Pack",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 25,
+              "context": "Pack (none) | Jump to ai › Pack | Jump to ai › Pack"
+            },
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 45,
+              "context": "Pack (none) | Jump to ai › Pack | Jump to ai › Pack"
+            }
+          ]
+        },
+        {
+          "index": 6,
+          "control": {
+            "aria": "Jump to system › Proxy",
+            "tag": "button",
+            "text": "Proxy ok",
+            "title": "Jump to system › Proxy",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 26,
+              "context": "Proxy ok | Jump to system › Proxy | Jump to system › Proxy"
+            },
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 51,
+              "context": "ok | Jump to system › Proxy | Jump to system › Proxy"
+            },
+            {
+              "type": "jargon",
+              "value": "Proxy ok",
+              "index": 0,
+              "context": "Proxy ok | Jump to system › Proxy | Jump to system › Proxy"
+            }
+          ]
+        },
+        {
+          "index": 7,
+          "control": {
+            "aria": "Jump to system › Security",
+            "tag": "button",
+            "text": "Security strict",
+            "title": "Jump to system › Security",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 33,
+              "context": "Security strict | Jump to system › Security | Jump to system › Security"
+            },
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 61,
+              "context": "| Jump to system › Security | Jump to system › Security"
+            },
+            {
+              "type": "jargon",
+              "value": "Security strict",
+              "index": 0,
+              "context": "Security strict | Jump to system › Security | Jump to system › Se"
+            }
+          ]
+        },
+        {
+          "index": 10,
+          "control": {
+            "aria": null,
+            "tag": "button",
+            "text": "v0",
+            "title": null,
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "jargon",
+              "value": "v0",
+              "index": 0,
+              "context": "v0"
+            }
+          ]
+        },
+        {
+          "index": 12,
+          "control": {
+            "aria": null,
+            "tag": "button",
+            "text": "Balanced",
+            "title": "Unified default. AI Insights, Ask Pulse, and BI Viz are peer surfaces; BI opens on demand instead of taking a permanent second section.",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "jargon",
+              "value": "BI Viz",
+              "index": 56,
+              "context": "Unified default. AI Insights, Ask Pulse, and BI Viz are peer surfaces; BI opens on demand instead of taking a "
+            }
+          ]
+        },
+        {
+          "index": 13,
+          "control": {
+            "aria": null,
+            "tag": "button",
+            "text": "Split + Mix",
+            "title": "Both AI and BI panes visible with draggable divider. Power-user side-by-side view — best for the \"look and ask\" workflow PulsePlay was originally designed for.",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "dash-ellipsis",
+              "value": "—",
+              "index": 96,
+              "context": "ggable divider. Power-user side-by-side view — best for the \"look and ask\" workflow PulsePlay was originally d"
+            }
+          ]
+        },
+        {
+          "index": 16,
+          "control": {
+            "aria": null,
+            "tag": "button",
+            "text": "Ask Pulse focus",
+            "title": "Chat-first. Ask Pulse only — no Insights tab, no BI canvas. For internal tools where users come in with specific questions.",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "dash-ellipsis",
+              "value": "—",
+              "index": 45,
+              "context": "Ask Pulse focus | Chat-first. Ask Pulse only — no Insights tab, no BI canvas. For internal tools where users c"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "bodyText": "⚙ Settings Configure how PulsePlay looks, what it embeds, and how it reasons. ← Back to app 🔍 Ctrl / Setup AI profile BI powerbi AI (none) Pack (none) Proxy ok Security strict System Is it safe, and is anything broken — proxy health, governance, diagnostics, tools. STATUS Live signal from the PulsePlay proxy, governance allowlist, and auth posture. Proxy status Copy link Live /health from the PulsePlay proxy. Polled every 10 seconds; click Re-run to refresh immediately. Reachable 120ms Re-run Profiles configured: 2 Config source: config.json Auth mode: none Port: 8787 Last checked: 13:12:20 Network and auth Copy link Detected auth mode + how this proxy expects clients to authenticate. Read-only; configured via PROXY_AUTH_MODE / PROXY_IDP_* / PROXY_SHARED_KEY env vars on proxy startup. Auth mode: none Databricks App: no Config source: config.json Detailed IdP fields (JWKS URL, issuer, audience, required) are configured viaPROXY_IDP_*env vars on proxy startup and are not exposed by the /health route for security reasons. See docs/SECURITY.md. POLICY Allowlist contents and Power BI license posture. Read-only — configured by your admin in proxy/config.json. Security posture Copy link Read-only view of the organization-controlled allowlist. Configured via proxy/config.json. Do not edit here. Enforcement: strict BI providers: (empty) AAD tenants: (empty) AI profiles: (empty) Packs: (empty) PBI workspaces: (any) Genie spaces: (any) Fetched at: 2026-05-19T07:42:20.145Z License posture Copy link What's licensed in this deployment. Read-only; configured by the admin via proxy/config.json allowlist.license. License: (no license block in allowlist) LOGS AND TRACES What's been happening — proxy profiles, recent BI events, and errors. Read-only, for troubleshooting. Profile inventory Copy link Connector profiles the proxy loaded from config.json. Each profile is a (name, type) pair the AI sidebar can target. Configured via proxy/config.json or PROXY_PROFILE_* env vars. Count: 2 Profiles: default supervisor Per-profile details (type, space ID, warehouse ID, host) live in proxy/config.json and are not exposed by the /health route. See docs/PROXY_REFERENCE.md. Diagnostics Copy link Last 20 BI events + last 20 console errors. Use Export bundle below to save a redacted snapshot for support. Recent BI events (0) No events captured yet. Load a BI report to start receiving events. Last errors (0) No errors captured this session. ACTIONS Re-run setup or export a support bundle. Non-destructive. Setup wizard Copy link Re-run the first-run setup wizard to change your BI vendor, AI connector, persona, or knowledge pack. Clears the dismissal flag and any saved draft so you start fresh. Re-run setup wizard Takes you back to the Welcome screen. Your existing embed config and connector are preserved in localStorage — the wizard just re-applies whatever you pick on Done. Export support bundle Copy link Download a redacted JSON snapshot of state for support tickets. Tokens and secrets are masked before download. Download support bundle (.json) Contains: settings, allowlist contents, proxy health, last 20 BI events, last 20 errors, pulseplay:* localStorage keys (tokens redacted), browser info. Approx 10-50 KB. Unsaved changes Discard Save changes",
+      "controls": [
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "← Back to app",
+          "title": "Return to the playground (Esc)",
+          "visible": true
+        },
+        {
+          "aria": "Search settings",
+          "tag": "input",
+          "text": "Search settings",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Jump to Setup group",
+          "tag": "button",
+          "text": "Setup AI profile",
+          "title": "Jump to Setup group",
+          "visible": true
+        },
+        {
+          "aria": "Jump to BI group",
+          "tag": "button",
+          "text": "BI powerbi",
+          "title": "Jump to BI group",
+          "visible": true
+        },
+        {
+          "aria": "Jump to AI group",
+          "tag": "button",
+          "text": "AI (none)",
+          "title": "Jump to AI group",
+          "visible": true
+        },
+        {
+          "aria": "Jump to ai › Pack",
+          "tag": "button",
+          "text": "Pack (none)",
+          "title": "Jump to ai › Pack",
+          "visible": true
+        },
+        {
+          "aria": "Jump to system › Proxy",
+          "tag": "button",
+          "text": "Proxy ok",
+          "title": "Jump to system › Proxy",
+          "visible": true
+        },
+        {
+          "aria": "Jump to system › Security",
+          "tag": "button",
+          "text": "Security strict",
+          "title": "Jump to system › Security",
+          "visible": true
+        },
+        {
+          "aria": "Copy link to Proxy status",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Re-run",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Copy link to Network and auth",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": "Copy link to Security posture",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": "Copy link to License posture",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": "Copy link to Profile inventory",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": "Copy link to Diagnostics",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": "Copy link to Setup wizard",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Re-run setup wizard",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Copy link to Export support bundle",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Download support bundle (.json)",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Discard",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Save changes",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Open Tanstack query devtools",
+          "tag": "button",
+          "text": "Open Tanstack query devtools",
+          "title": null,
+          "visible": true
+        }
+      ],
+      "headings": [
+        "⚙ Settings",
+        "System",
+        "STATUS",
+        "POLICY",
+        "LOGS AND TRACES",
+        "ACTIONS"
+      ],
+      "url": "http://127.0.0.1:5174/settings/system",
+      "label": "settings-system",
+      "route": "/settings/system",
+      "screenshot": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\naming-audit-2026-05-19-1320\\006-settings-system.png",
+      "issues": [
+        {
+          "type": "decorative-symbol",
+          "value": "⚙",
+          "index": 0,
+          "context": "⚙ Settings Configure how PulsePlay looks, what it embeds, and how"
+        },
+        {
+          "type": "decorative-symbol",
+          "value": "\ud83d",
+          "index": 92,
+          "context": "it embeds, and how it reasons. ← Back to app 🔍 Ctrl / Setup AI profile BI powerbi AI (none) Pack (none) Proxy"
+        },
+        {
+          "type": "direction-symbol",
+          "value": "←",
+          "index": 78,
+          "context": "y looks, what it embeds, and how it reasons. ← Back to app 🔍 Ctrl / Setup AI profile BI powerbi AI (none) Pac"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 219,
+          "context": "ct System Is it safe, and is anything broken — proxy health, governance, diagnostics, tools. STATUS Live signa"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 1124,
+          "context": "ents and Power BI license posture. Read-only — configured by your admin in proxy/config.json. Security posture"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 1704,
+          "context": "wlist) LOGS AND TRACES What's been happening — proxy profiles, recent BI events, and errors. Read-only, for tr"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 2838,
+          "context": " and connector are preserved in localStorage — the wizard just re-applies whatever you pick on Done. Export su"
+        },
+        {
+          "type": "jargon",
+          "value": "powerbi",
+          "index": 122,
+          "context": " ← Back to app 🔍 Ctrl / Setup AI profile BI powerbi AI (none) Pack (none) Proxy ok Security strict System Is "
+        },
+        {
+          "type": "jargon",
+          "value": "Proxy ok",
+          "index": 152,
+          "context": " AI profile BI powerbi AI (none) Pack (none) Proxy ok Security strict System Is it safe, and is anything broke"
+        },
+        {
+          "type": "jargon",
+          "value": "Security strict",
+          "index": 161,
+          "context": "le BI powerbi AI (none) Pack (none) Proxy ok Security strict System Is it safe, and is anything broken — proxy"
+        }
+      ],
+      "controlIssues": [
+        {
+          "index": 0,
+          "control": {
+            "aria": null,
+            "tag": "button",
+            "text": "← Back to app",
+            "title": "Return to the playground (Esc)",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "←",
+              "index": 0,
+              "context": "← Back to app | Return to the playground (Esc)"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "control": {
+            "aria": "Jump to BI group",
+            "tag": "button",
+            "text": "BI powerbi",
+            "title": "Jump to BI group",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "jargon",
+              "value": "powerbi",
+              "index": 3,
+              "context": "BI powerbi | Jump to BI group | Jump to BI group"
+            }
+          ]
+        },
+        {
+          "index": 5,
+          "control": {
+            "aria": "Jump to ai › Pack",
+            "tag": "button",
+            "text": "Pack (none)",
+            "title": "Jump to ai › Pack",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 25,
+              "context": "Pack (none) | Jump to ai › Pack | Jump to ai › Pack"
+            },
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 45,
+              "context": "Pack (none) | Jump to ai › Pack | Jump to ai › Pack"
+            }
+          ]
+        },
+        {
+          "index": 6,
+          "control": {
+            "aria": "Jump to system › Proxy",
+            "tag": "button",
+            "text": "Proxy ok",
+            "title": "Jump to system › Proxy",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 26,
+              "context": "Proxy ok | Jump to system › Proxy | Jump to system › Proxy"
+            },
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 51,
+              "context": "ok | Jump to system › Proxy | Jump to system › Proxy"
+            },
+            {
+              "type": "jargon",
+              "value": "Proxy ok",
+              "index": 0,
+              "context": "Proxy ok | Jump to system › Proxy | Jump to system › Proxy"
+            }
+          ]
+        },
+        {
+          "index": 7,
+          "control": {
+            "aria": "Jump to system › Security",
+            "tag": "button",
+            "text": "Security strict",
+            "title": "Jump to system › Security",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 33,
+              "context": "Security strict | Jump to system › Security | Jump to system › Security"
+            },
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 61,
+              "context": "| Jump to system › Security | Jump to system › Security"
+            },
+            {
+              "type": "jargon",
+              "value": "Security strict",
+              "index": 0,
+              "context": "Security strict | Jump to system › Security | Jump to system › Se"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "bodyText": "⚙ Settings Configure how PulsePlay looks, what it embeds, and how it reasons. ← Back to app 🔍 Ctrl / Setup AI profile BI powerbi AI (none) Pack (none) Proxy ok Security strict Advanced Destructive + maintenance actions. Each requires typing the action name to confirm. Local storage inspector Copy link Every PulsePlay localStorage key on this origin. Read-only. WIZARD STATE 1 key First-run setup wizard dismissal + draft + force flag + last-chosen persona. pulseplay:wizard-dismissed true BI SELECTIONS 2 keys What you're looking at — vendor + embed config + SSO + canvas tile preference. pulseplay:bi-embed-config {\"vendor\":\"powerbi\",\"mode\":\"secure\",\"secureLink\":\"https://app.powerbi.com/reportEmbed?reportId=c6afe35e-5dba-453a-9720-871d48f0ad0a&autoAuth=true&ctid=2b983dc1-08a4-4b13-87d9-065f8db8f99b&actionBarEnabled=true\"} pulseplay:bi-vendor powerbi AI SELECTIONS 1 key What's thinking — active profile, knowledge pack, and the full Pulse genieSettings JSON. pulseplay:visual-settings:genieSettings {\"showSetupAccess\":false,\"themeName\":\"default\"} NAVIGATION MEMORY 1 key Where you were last in Settings; not a feature setting. pulseplay:settings-last-group system OTHER 1 key Keys that don't fit a known bucket — usually new features or legacy entries. pulseplay:databricks-capabilities:default {\"ok\":true,\"assistantProfile\":\"default\",\"spaceId\":\"01f13fe275b515608abb4182d0a37373\",\"profile\":{\"name\":\"default\",\"host\":\"https://dbc-f88d29ce-4aa2.cloud.databricks.com\",\"spaceId\":\"01f13fe275b515608abb4182d0a37373\",\"warehouseId\":\"6510da5032… Reset section Copy link Clear localStorage keys owned by one settings group. The other groups keep their state. Section to reset: BI (3 keys) AI (2 keys) Preferences (5 keys) Keys to clear: pulseplay:bi-vendor, pulseplay:pbi-sso-config, pulseplay:bi-tile-mode Type Reset bi to enable: Clear 3 keys Reset all Copy link Clear every PulsePlay setting on this origin. The app's BI and AI selections, layout, and pack will all be gone. Pulse's persisted visual-settings keys also clear. Type Reset all to enable: Clear all PulsePlay settings Danger zone Copy link Sign out of Power BI and clear cached MSAL sessions. The browser drops the AAD session — you'll need to sign in again to embed. Sign out of Power BI (clears MSAL sessionStorage): Sign out Power BI Type Clear Pulse settings to enable: Clear Pulse persisted settings Unsaved changes Discard Save changes",
+      "controls": [
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "← Back to app",
+          "title": "Return to the playground (Esc)",
+          "visible": true
+        },
+        {
+          "aria": "Search settings",
+          "tag": "input",
+          "text": "Search settings",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Jump to Setup group",
+          "tag": "button",
+          "text": "Setup AI profile",
+          "title": "Jump to Setup group",
+          "visible": true
+        },
+        {
+          "aria": "Jump to BI group",
+          "tag": "button",
+          "text": "BI powerbi",
+          "title": "Jump to BI group",
+          "visible": true
+        },
+        {
+          "aria": "Jump to AI group",
+          "tag": "button",
+          "text": "AI (none)",
+          "title": "Jump to AI group",
+          "visible": true
+        },
+        {
+          "aria": "Jump to ai › Pack",
+          "tag": "button",
+          "text": "Pack (none)",
+          "title": "Jump to ai › Pack",
+          "visible": true
+        },
+        {
+          "aria": "Jump to system › Proxy",
+          "tag": "button",
+          "text": "Proxy ok",
+          "title": "Jump to system › Proxy",
+          "visible": true
+        },
+        {
+          "aria": "Jump to system › Security",
+          "tag": "button",
+          "text": "Security strict",
+          "title": "Jump to system › Security",
+          "visible": true
+        },
+        {
+          "aria": "Copy link to Local storage inspector",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": "Copy link to Reset section",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "select",
+          "text": "BI (3 keys) AI (2 keys) Preferences (5 keys)",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Type Reset bi to confirm",
+          "tag": "input",
+          "text": "Type Reset bi to confirm",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Clear 3 keys",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Copy link to Reset all",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": "Type Reset all to confirm",
+          "tag": "input",
+          "text": "Type Reset all to confirm",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Clear all PulsePlay settings",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Copy link to Danger zone",
+          "tag": "button",
+          "text": "Copy link",
+          "title": "Copy link to this section",
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Sign out Power BI",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Type Clear Pulse settings to confirm",
+          "tag": "input",
+          "text": "Type Clear Pulse settings to confirm",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Clear Pulse persisted settings",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Discard",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Save changes",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Open Tanstack query devtools",
+          "tag": "button",
+          "text": "Open Tanstack query devtools",
+          "title": null,
+          "visible": true
+        }
+      ],
+      "headings": [
+        "⚙ Settings",
+        "Advanced",
+        "WIZARD STATE",
+        "BI SELECTIONS",
+        "AI SELECTIONS",
+        "NAVIGATION MEMORY",
+        "OTHER"
+      ],
+      "url": "http://127.0.0.1:5174/settings/advanced",
+      "label": "settings-advanced",
+      "route": "/settings/advanced",
+      "screenshot": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\naming-audit-2026-05-19-1320\\007-settings-advanced.png",
+      "issues": [
+        {
+          "type": "decorative-symbol",
+          "value": "⚙",
+          "index": 0,
+          "context": "⚙ Settings Configure how PulsePlay looks, what it embeds, and how"
+        },
+        {
+          "type": "decorative-symbol",
+          "value": "\ud83d",
+          "index": 92,
+          "context": "it embeds, and how it reasons. ← Back to app 🔍 Ctrl / Setup AI profile BI powerbi AI (none) Pack (none) Proxy"
+        },
+        {
+          "type": "direction-symbol",
+          "value": "←",
+          "index": 78,
+          "context": "y looks, what it embeds, and how it reasons. ← Back to app 🔍 Ctrl / Setup AI profile BI powerbi AI (none) Pac"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 536,
+          "context": " BI SELECTIONS 2 keys What you're looking at — vendor + embed config + SSO + canvas tile preference. pulseplay"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 894,
+          "context": " powerbi AI SELECTIONS 1 key What's thinking — active profile, knowledge pack, and the full Pulse genieSetting"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 1219,
+          "context": "HER 1 key Keys that don't fit a known bucket — usually new features or legacy entries. pulseplay:databricks-ca"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "…",
+          "index": 1542,
+          "context": "608abb4182d0a37373\",\"warehouseId\":\"6510da5032… Reset section Copy link Clear localStorage keys owned by one se"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 2190,
+          "context": " sessions. The browser drops the AAD session — you'll need to sign in again to embed. Sign out of Power BI (cl"
+        },
+        {
+          "type": "jargon",
+          "value": "powerbi",
+          "index": 122,
+          "context": " ← Back to app 🔍 Ctrl / Setup AI profile BI powerbi AI (none) Pack (none) Proxy ok Security strict Advanced D"
+        },
+        {
+          "type": "jargon",
+          "value": "Proxy ok",
+          "index": 152,
+          "context": " AI profile BI powerbi AI (none) Pack (none) Proxy ok Security strict Advanced Destructive + maintenance actio"
+        },
+        {
+          "type": "jargon",
+          "value": "Security strict",
+          "index": 161,
+          "context": "le BI powerbi AI (none) Pack (none) Proxy ok Security strict Advanced Destructive + maintenance actions. Each "
+        },
+        {
+          "type": "jargon",
+          "value": "powerbi",
+          "index": 629,
+          "context": "erence. pulseplay:bi-embed-config {\"vendor\":\"powerbi\",\"mode\":\"secure\",\"secureLink\":\"https://app.powerbi.com/re"
+        },
+        {
+          "type": "jargon",
+          "value": "powerbi",
+          "index": 680,
+          "context": "i\",\"mode\":\"secure\",\"secureLink\":\"https://app.powerbi.com/reportEmbed?reportId=c6afe35e-5dba-453a-9720-871d48f0"
+        },
+        {
+          "type": "jargon",
+          "value": "powerbi",
+          "index": 850,
+          "context": "&actionBarEnabled=true\"} pulseplay:bi-vendor powerbi AI SELECTIONS 1 key What's thinking — active profile, kno"
+        }
+      ],
+      "controlIssues": [
+        {
+          "index": 0,
+          "control": {
+            "aria": null,
+            "tag": "button",
+            "text": "← Back to app",
+            "title": "Return to the playground (Esc)",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "←",
+              "index": 0,
+              "context": "← Back to app | Return to the playground (Esc)"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "control": {
+            "aria": "Jump to BI group",
+            "tag": "button",
+            "text": "BI powerbi",
+            "title": "Jump to BI group",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "jargon",
+              "value": "powerbi",
+              "index": 3,
+              "context": "BI powerbi | Jump to BI group | Jump to BI group"
+            }
+          ]
+        },
+        {
+          "index": 5,
+          "control": {
+            "aria": "Jump to ai › Pack",
+            "tag": "button",
+            "text": "Pack (none)",
+            "title": "Jump to ai › Pack",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 25,
+              "context": "Pack (none) | Jump to ai › Pack | Jump to ai › Pack"
+            },
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 45,
+              "context": "Pack (none) | Jump to ai › Pack | Jump to ai › Pack"
+            }
+          ]
+        },
+        {
+          "index": 6,
+          "control": {
+            "aria": "Jump to system › Proxy",
+            "tag": "button",
+            "text": "Proxy ok",
+            "title": "Jump to system › Proxy",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 26,
+              "context": "Proxy ok | Jump to system › Proxy | Jump to system › Proxy"
+            },
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 51,
+              "context": "ok | Jump to system › Proxy | Jump to system › Proxy"
+            },
+            {
+              "type": "jargon",
+              "value": "Proxy ok",
+              "index": 0,
+              "context": "Proxy ok | Jump to system › Proxy | Jump to system › Proxy"
+            }
+          ]
+        },
+        {
+          "index": 7,
+          "control": {
+            "aria": "Jump to system › Security",
+            "tag": "button",
+            "text": "Security strict",
+            "title": "Jump to system › Security",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 33,
+              "context": "Security strict | Jump to system › Security | Jump to system › Security"
+            },
+            {
+              "type": "direction-symbol",
+              "value": "›",
+              "index": 61,
+              "context": "| Jump to system › Security | Jump to system › Security"
+            },
+            {
+              "type": "jargon",
+              "value": "Security strict",
+              "index": 0,
+              "context": "Security strict | Jump to system › Security | Jump to system › Se"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "bodyText": "Knowledge Base Browse installed packs — glossary, ontology, KPIs, sample questions, prompt context. Settings ← Back to app INSTALLED PACKS CPG / FMCG 10 sub-verticals Pick a pack to browse The Knowledge Base shows the curated content each installed pack contributes — the AI uses this content for grounding when the pack is selected in Settings. CPG / FMCG Consumer Packaged Goods / Fast-Moving Consumer Goods preset pack. Ten sub-verticals plus a sustainability cross-cutting overlay, anchored in industry-standard taxonomies (GS1, ISA-95, ISO 22400, GHG Protocol). Includes a curated reference set from Gartner, Deloitte, KPMG, WEF, NielsenIQ, and Circana research published 2025-2026.",
+      "controls": [
+        {
+          "aria": "Open Settings",
+          "tag": "button",
+          "text": "Settings",
+          "title": "Open Settings (also: Cmd/Ctrl+, anywhere in the app)",
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "← Back to app",
+          "title": "Back to playground (Esc)",
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "CPG / FMCG 10 sub-verticals",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "CPG / FMCG Consumer Packaged Goods / Fast-Moving Consumer Goods preset pack. Ten sub-verticals plus a sustainability cross-cutting overlay, anchored in industry-standard taxonomies (GS1, ISA-95, ISO 22400, GHG Protocol). Includes a curated reference set from Gartner, Deloitte, KPMG, WEF, NielsenIQ, and Circana research published 2025-2026.",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Open Tanstack query devtools",
+          "tag": "button",
+          "text": "Open Tanstack query devtools",
+          "title": null,
+          "visible": true
+        }
+      ],
+      "headings": [
+        "Knowledge Base",
+        "Pick a pack to browse"
+      ],
+      "url": "http://127.0.0.1:5174/knowledge",
+      "label": "knowledge",
+      "route": "/knowledge",
+      "screenshot": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\naming-audit-2026-05-19-1320\\008-knowledge.png",
+      "issues": [
+        {
+          "type": "direction-symbol",
+          "value": "←",
+          "index": 109,
+          "context": ", sample questions, prompt context. Settings ← Back to app INSTALLED PACKS CPG / FMCG 10 sub-verticals Pick a "
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 38,
+          "context": "Knowledge Base Browse installed packs — glossary, ontology, KPIs, sample questions, prompt context. Set"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 266,
+          "context": "ated content each installed pack contributes — the AI uses this content for grounding when the pack is selecte"
+        }
+      ],
+      "controlIssues": [
+        {
+          "index": 1,
+          "control": {
+            "aria": null,
+            "tag": "button",
+            "text": "← Back to app",
+            "title": "Back to playground (Esc)",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "←",
+              "index": 0,
+              "context": "← Back to app | Back to playground (Esc)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "bodyText": "Databricks Launchpad Live workspace discovery for PulsePlay enablement. Back to app AI/BI dashboards Published Databricks dashboards that can become the active BI surface. checking Discovering live assets... Genie Spaces Business-facing natural-language rooms. Embed as their own surface or use as the active AI context. checking Discovering live assets... Serving endpoints Model Serving and agent endpoints available to the workspace. checking Discovering live assets... Databricks Apps Internal apps deployed in Databricks that PulsePlay can launch or reference. ready test-superuser-genie-powerbi test-superuser-genie-powerbi Kind databricks-app ID test-superuser-genie-powerbi Open in workspace SQL warehouses Query compute backing dashboards, Genie, metric views, and evidence. checking Discovering live assets...",
+      "controls": [
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Back to app",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Open in workspace",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Open Tanstack query devtools",
+          "tag": "button",
+          "text": "Open Tanstack query devtools",
+          "title": null,
+          "visible": true
+        }
+      ],
+      "headings": [
+        "Databricks Launchpad",
+        "AI/BI dashboards",
+        "Genie Spaces",
+        "Serving endpoints",
+        "Databricks Apps",
+        "test-superuser-genie-powerbi",
+        "SQL warehouses"
+      ],
+      "url": "http://127.0.0.1:5174/launchpad",
+      "label": "launchpad",
+      "route": "/launchpad",
+      "screenshot": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\naming-audit-2026-05-19-1320\\009-launchpad.png",
+      "issues": [
+        {
+          "type": "jargon",
+          "value": "powerbi",
+          "index": 593,
+          "context": "nch or reference. ready test-superuser-genie-powerbi test-superuser-genie-powerbi Kind databricks-app ID test-"
+        },
+        {
+          "type": "jargon",
+          "value": "powerbi",
+          "index": 622,
+          "context": "superuser-genie-powerbi test-superuser-genie-powerbi Kind databricks-app ID test-superuser-genie-powerbi Open "
+        },
+        {
+          "type": "jargon",
+          "value": "powerbi",
+          "index": 674,
+          "context": " Kind databricks-app ID test-superuser-genie-powerbi Open in workspace SQL warehouses Query compute backing da"
+        }
+      ],
+      "controlIssues": []
+    },
+    {
+      "bodyText": "Unified Ask Pulse Workbench — preview The workbench is preview-grade. Steps 1–5 (capability model, Genie native embed, artifact card shell, validation gates, ECharts renderer) have shipped. Steps 6 (Pulse-asset refactor) and 7 (theme) are queued. Opt in to preview the surface in this browser: Enable preview To enable for everyone on this build, set VITE_PULSEPLAY_ENABLE_WORKBENCH=true.",
+      "controls": [
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "Enable preview",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Open Tanstack query devtools",
+          "tag": "button",
+          "text": "Open Tanstack query devtools",
+          "title": null,
+          "visible": true
+        }
+      ],
+      "headings": [
+        "Unified Ask Pulse Workbench — preview"
+      ],
+      "url": "http://127.0.0.1:5174/workbench",
+      "label": "workbench",
+      "route": "/workbench",
+      "screenshot": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\naming-audit-2026-05-19-1320\\010-workbench.png",
+      "issues": [
+        {
+          "type": "dash-ellipsis",
+          "value": "—",
+          "index": 28,
+          "context": "Unified Ask Pulse Workbench — preview The workbench is preview-grade. Steps 1–5 (capability m"
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "–",
+          "index": 77,
+          "context": "eview The workbench is preview-grade. Steps 1–5 (capability model, Genie native embed, artifact card shell, va"
+        }
+      ],
+      "controlIssues": []
+    },
+    {
+      "bodyText": "PulsePlay AI playground · multi-BI host Setup needed AI profile ✨ AI Insights 💬 Ask Pulse BI BI Viz ✨ AI Insights Configure an AI connector in Settings → AI to generate insights.",
+      "controls": [
+        {
+          "aria": "Open setup in Settings. Missing AI profile",
+          "tag": "button",
+          "text": "Setup needed AI profile",
+          "title": "Open Settings → Setup",
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "✨ AI Insights",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": null,
+          "tag": "button",
+          "text": "💬 Ask Pulse",
+          "title": null,
+          "visible": true
+        },
+        {
+          "aria": "Open BI Viz surface",
+          "tag": "button",
+          "text": "BI BI Viz",
+          "title": "Open BI Viz surface",
+          "visible": true
+        },
+        {
+          "aria": "Maximize AI panel",
+          "tag": "button",
+          "text": "Maximize AI panel",
+          "title": "Maximize AI pane",
+          "visible": true
+        },
+        {
+          "aria": "Minimize AI panel",
+          "tag": "button",
+          "text": "Minimize AI panel",
+          "title": "Minimize AI pane",
+          "visible": true
+        },
+        {
+          "aria": "Open AI panel in separate page",
+          "tag": "button",
+          "text": "Open AI panel in separate page",
+          "title": "Open AI pane in a separate page",
+          "visible": true
+        },
+        {
+          "aria": "Pop out AI panel as window",
+          "tag": "button",
+          "text": "Pop out AI panel as window",
+          "title": "Pop out AI pane as a detached browser window you can keep alongside the main app",
+          "visible": true
+        },
+        {
+          "aria": "Open Tanstack query devtools",
+          "tag": "button",
+          "text": "Open Tanstack query devtools",
+          "title": null,
+          "visible": true
+        }
+      ],
+      "headings": [
+        "PulsePlay",
+        "AI Insights"
+      ],
+      "url": "http://127.0.0.1:5174/",
+      "label": "root-bi-viz-after-click",
+      "route": "/",
+      "screenshot": "D:\\Working_Folder\\Projects\\PulsePlay\\docs\\evidence\\naming-audit-2026-05-19-1320\\011-root-bi-viz-after-click.png",
+      "issues": [
+        {
+          "type": "decorative-symbol",
+          "value": "✨",
+          "index": 64,
+          "context": "ound · multi-BI host Setup needed AI profile ✨ AI Insights 💬 Ask Pulse BI BI Viz ✨ AI Insights Configure an A"
+        },
+        {
+          "type": "decorative-symbol",
+          "value": "\ud83d",
+          "index": 78,
+          "context": "I host Setup needed AI profile ✨ AI Insights 💬 Ask Pulse BI BI Viz ✨ AI Insights Configure an AI connector in"
+        },
+        {
+          "type": "decorative-symbol",
+          "value": "\udcac",
+          "index": 79,
+          "context": " host Setup needed AI profile ✨ AI Insights 💬 Ask Pulse BI BI Viz ✨ AI Insights Configure an AI connector in "
+        },
+        {
+          "type": "decorative-symbol",
+          "value": "✨",
+          "index": 101,
+          "context": "profile ✨ AI Insights 💬 Ask Pulse BI BI Viz ✨ AI Insights Configure an AI connector in Settings → AI to gener"
+        },
+        {
+          "type": "direction-symbol",
+          "value": "→",
+          "index": 153,
+          "context": "sights Configure an AI connector in Settings → AI to generate insights."
+        },
+        {
+          "type": "dash-ellipsis",
+          "value": "·",
+          "index": 24,
+          "context": "PulsePlay AI playground · multi-BI host Setup needed AI profile ✨ AI Insights 💬 Ask Puls"
+        },
+        {
+          "type": "jargon",
+          "value": "BI Viz",
+          "index": 94,
+          "context": "ded AI profile ✨ AI Insights 💬 Ask Pulse BI BI Viz ✨ AI Insights Configure an AI connector in Settings → AI t"
+        }
+      ],
+      "controlIssues": [
+        {
+          "index": 0,
+          "control": {
+            "aria": "Open setup in Settings. Missing AI profile",
+            "tag": "button",
+            "text": "Setup needed AI profile",
+            "title": "Open Settings → Setup",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "direction-symbol",
+              "value": "→",
+              "index": 85,
+              "context": "Settings. Missing AI profile | Open Settings → Setup"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "control": {
+            "aria": null,
+            "tag": "button",
+            "text": "✨ AI Insights",
+            "title": null,
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "decorative-symbol",
+              "value": "✨",
+              "index": 0,
+              "context": "✨ AI Insights"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "control": {
+            "aria": null,
+            "tag": "button",
+            "text": "💬 Ask Pulse",
+            "title": null,
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "decorative-symbol",
+              "value": "\ud83d",
+              "index": 0,
+              "context": "💬 Ask Pulse"
+            },
+            {
+              "type": "decorative-symbol",
+              "value": "\udcac",
+              "index": 1,
+              "context": "💬 Ask Pulse"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "control": {
+            "aria": "Open BI Viz surface",
+            "tag": "button",
+            "text": "BI BI Viz",
+            "title": "Open BI Viz surface",
+            "visible": true
+          },
+          "issues": [
+            {
+              "type": "jargon",
+              "value": "BI Viz",
+              "index": 3,
+              "context": "BI BI Viz | Open BI Viz surface | Open BI Viz surface"
+            },
+            {
+              "type": "jargon",
+              "value": "BI Viz",
+              "index": 17,
+              "context": "BI BI Viz | Open BI Viz surface | Open BI Viz surface"
+            },
+            {
+              "type": "jargon",
+              "value": "BI Viz",
+              "index": 39,
+              "context": "BI BI Viz | Open BI Viz surface | Open BI Viz surface"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

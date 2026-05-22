@@ -9,7 +9,7 @@ env:
   - name: GENIE_SPACE_ID_HSE
     value: "01f13d2bcd0a1be2a333d78bca0911b6"
   - name: GENIE_SPACE_ID_SALES
-    value: "01f13fe275b515608abb4182d0a37373"
+    value: "01fENTER_YOUR_GENIE_SPACE_ID_HERE"
   - name: GENIE_SPACE_ID_CUSTOMER
     value: "01f13fe2c42f13c4a8f80254aab32c0f"
   - name: GENIE_SPACE_ID_OPS
@@ -23,6 +23,6 @@ env:
   - name: SUPERVISOR_SYNTHESIS_ENDPOINT
     value: "databricks-gpt-5-4"
   - name: WAREHOUSE_ID
-    value: "6510da50329f1e85"
+    value: "ENTER_WAREHOUSE_ID"
   - name: FEEDBACK_LOG
     value: "feedback.log"

@@ -8,6 +8,9 @@ package-lock.json.bak
 # Vite
 playground/dist/
 playground/.vite/
+enablers/desktop/out/
+enablers/desktop/PulsePlayData/
+enablers/desktop/*.exe
 
 # Proxy runtime artifacts (never commit credentials or session-specific logs)
 proxy/config.json
@@ -18,7 +21,6 @@ proxy/.env
 proxy/.env.local
 
 # LLM session state (per-session, gitignored)
-.dwd-session.state.json
 .pulseplay-session.state.json
 
 # Claude Code session cache (per-user, never committed)
@@ -40,6 +42,8 @@ playground/tsconfig*.tsbuildinfo
 coverage/
 playground/coverage/
 proxy/coverage/
+playwright-report/
+test-results/
 
 # Python venvs (if you use scripts/ locally)
 .venv/
@@ -49,4 +53,9 @@ __pycache__/
 # Misc temp
 .cache/
 .tmp/
+.databricks-app-build/
 *.log
+
+# Local HAR captures (may contain secrets)
+*.har
+

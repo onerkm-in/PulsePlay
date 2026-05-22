@@ -84,6 +84,26 @@ describe('sqlSectionPreview.validateSectionSql', () => {
         }
     });
 
+    test('rejects metadata statements that are not SELECT/WITH queries', () => {
+        for (const sql of ['SHOW TABLES', 'DESCRIBE HISTORY main.sales']) {
+            const v = validateSectionSql({ cteHeader: '', sql });
+            expect(v.ok).toBe(false);
+            expect(v.errors.join(' ')).toMatch(/SELECT\/WITH|read-only/i);
+        }
+    });
+
+    test('rejects unsafe browser-supplied CTE preambles before composing', () => {
+        const unsafe = [
+            'DROP TABLE main.sales',
+            'WITH scoped AS (SELECT * FROM sales); DELETE FROM sales',
+            'SELECT * FROM raw_sales',
+        ];
+        for (const cteHeader of unsafe) {
+            const v = validateSectionSql({ cteHeader, sql: 'SELECT * FROM scoped' });
+            expect(v.ok).toBe(false);
+        }
+    });
+
     test('rejects multi-statement SQL', () => {
         const v = validateSectionSql({ cteHeader: '', sql: 'SELECT 1; SELECT 2' });
         expect(v.ok).toBe(false);

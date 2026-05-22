@@ -346,6 +346,31 @@ export function MetricRuleForm(props: MetricRuleFormProps) {
                                         />
                                     </label>
                                 </div>
+
+                                {/* Unfavorable-direction tone preference. Optional, defaults to
+                                    "bad" (red). Picking "warn" makes any nudge in the wrong
+                                    direction render amber instead of red when no threshold
+                                    band fires — useful for Return Rate, NPS, retention metrics
+                                    the author wants to track as "watch" not "critical". */}
+                                <div className="gn-metric-rule-card-row gn-metric-rule-card-row--unfavorable">
+                                    <label className="gn-metric-rule-card-unfavorable">
+                                        <span className="gn-metric-rule-card-label">
+                                            On unfavorable movement (no threshold breach)
+                                        </span>
+                                        <select
+                                            value={rule.unfavorableMovementTone ?? "bad"}
+                                            onChange={e => updateRule(idx, {
+                                                unfavorableMovementTone: e.target.value === "warn" ? "warn" : "bad"
+                                            })}
+                                            disabled={readOnly}
+                                            aria-label="Unfavorable-movement tone"
+                                            data-testid={`metric-rule-unfavorable-tone-${idx}`}
+                                        >
+                                            <option value="bad">Red — treat as critical (default)</option>
+                                            <option value="warn">Amber — treat as watch</option>
+                                        </select>
+                                    </label>
+                                </div>
                             </li>
                         );
                     })}

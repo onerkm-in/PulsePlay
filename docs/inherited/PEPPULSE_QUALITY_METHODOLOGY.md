@@ -22,7 +22,7 @@ These tests assert that the code emits the **right shape** of output (correct pr
 - Pre-commit hook gates
 
 ### 3. Live qualitative review (manual)
-After each Wave shipment, the maintainer manually clicks through the visual against the canonical demo PBIP (`PBI/DwD_PBI_Demo.Report/`) and reviews 5-10 representative AI Insights / Chat outputs. Defects are filed in the feedback tracker (now [`CONTINUITY.md`](CONTINUITY.md) Part 1) and addressed in the next cycle.
+After each Wave shipment, the maintainer manually clicks through the visual against the canonical demo PBIP (`PBI/PulsePlay-PBI-demo.Report/`) and reviews 5-10 representative AI Insights / Chat outputs. Defects are filed in the feedback tracker (now [`CONTINUITY.md`](CONTINUITY.md) Part 1) and addressed in the next cycle.
 
 ---
 

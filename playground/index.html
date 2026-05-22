@@ -4,6 +4,15 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <!--
+            Audit 2026-05-19 — PulsePlay does NOT yet ship a dark theme.
+            Declaring `color-scheme: light only` keeps the browser from
+            painting form controls / scrollbars in dark colors when the OS
+            preference is dark, which would otherwise sit on top of the
+            still-light surface CSS. Remove this when a real dark theme
+            lands (see Settings → Preferences → Appearance).
+        -->
+        <meta name="color-scheme" content="light only" />
+        <!--
             Content-Security-Policy — defence-in-depth allowlist covering
             every external origin PulsePlay legitimately reaches:
               • PulsePlay proxy (127.0.0.1:8787 in dev; deployers override

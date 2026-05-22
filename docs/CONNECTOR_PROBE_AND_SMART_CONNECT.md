@@ -2,7 +2,7 @@
 
 > **Status:** Partially implemented. Proxy probe, pack matcher, playground probe client, Test Connection panel, and Pack Picker are present. The 10-minute Genie + Power BI setup wizard still needs to compose these into one novice-author flow.
 > **Scope:** Connector-agnostic. Works for Genie / Supervisor / OpenAI / Bedrock / Foundation Model / MCP / future custom backends.
-> **Companion docs:** [ARCHITECTURE.md](ARCHITECTURE.md), [PACKS.md](PACKS.md), [pulsepacks/PACK_SPECIFICATION.md](../pulsepacks/PACK_SPECIFICATION.md)
+> **Companion docs:** [ARCHITECTURE.md](ARCHITECTURE.md), [PACKS.md](PACKS.md), [KNOWLEDGE_BASE_ARCHITECTURE.md](KNOWLEDGE_BASE_ARCHITECTURE.md), [pulsepacks/PACK_SPECIFICATION.md](../pulsepacks/PACK_SPECIFICATION.md)
 > **First-build use:** [TEN_MINUTE_AUTHOR_SETUP.md](TEN_MINUTE_AUTHOR_SETUP.md)
 
 ---
@@ -17,6 +17,8 @@ When a user connects PulsePlay to an AI brain (a Databricks Genie space, a Mosai
 4. **Confirm** — The author *always* gets the final say. Suggestions can be kept, edited, or removed. PulsePlay never silently locks in an inferred choice.
 
 This is what makes PulsePlay feel "smart" without giving up agnosticism. Genie spaces happen to expose rich metadata (descriptions, instructions, table schemas, sample SQLs); chat-only OpenAI deployments expose almost nothing. The probe interface treats both uniformly and **degrades gracefully** — the experience is better when more metadata is available, but PulsePlay still works when none is.
+
+Smart Connect is the setup/inference front door for the broader Knowledge plane. It can suggest a pack and explain why. It does not by itself provide governed retrieval, vector indexing, citations, ACL-trimmed source search, or a Knowledge Base browser. Those responsibilities live in [KNOWLEDGE_BASE_ARCHITECTURE.md](KNOWLEDGE_BASE_ARCHITECTURE.md).
 
 ---
 
@@ -293,7 +295,7 @@ PulsePlay never silently locks in an inference.
 - [docs/PACKS.md](PACKS.md) — pack architecture overview
 - [pulsepacks/PACK_SPECIFICATION.md](../pulsepacks/PACK_SPECIFICATION.md) — pack manifest schema
 - [pulsepacks/cpg-fmcg/](../pulsepacks/cpg-fmcg/) — first reference pack
-- [docs/research/CODEBASE_AUDIT.md](research/CODEBASE_AUDIT.md) — current proxy state, including the 8 backend paths the probe must cover
+- [docs/ARCHITECTURE.md](ARCHITECTURE.md) — current proxy state, including the 10 backend paths the probe must cover
 - [docs/research/MARKET_AND_STANDARDS.md](research/MARKET_AND_STANDARDS.md) — competitive landscape and the MCP-everything hypothesis
 
 ---

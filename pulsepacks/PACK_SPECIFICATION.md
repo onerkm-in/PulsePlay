@@ -107,32 +107,59 @@ A pack is identified by its directory name under `pulsepacks/`. Conventions:
 
 ## File-by-file conventions
 
+## Provenance and source governance
+
+Every pack module must be auditable. Use [docs/KNOWLEDGE_BASE_SOURCE_GOVERNANCE.md](../docs/KNOWLEDGE_BASE_SOURCE_GOVERNANCE.md) as the detailed policy.
+
+Minimum rules:
+
+- `knowledge-base/references.md` is the human source register for v0.x. Each source must include a stable `sourceId`, publisher/authoring body, URL, source date when available, last verification date, credibility tier, and the claims/modules it supports.
+- Every durable claim in `glossary.md`, `ontology.md`, `kpis.md`, `bi-ai-fit.md`, `sample-questions.md`, `prompt-context.md`, `prompt-ir.yaml`, and demo configs must either cite a source ID or carry an explicit `SME REVIEW NEEDED` / illustrative marker.
+- Machine-readable modules (`prompt-ir.yaml`, `demo-configs/*.json`) should include a `provenance` block with `owner`, `author`, `lastReviewed`, `confidence`, and `sourceIds`.
+- Source tiers: `tier-1-standard`, `tier-2-official-product`, `tier-3-research`, `tier-4-industry-analysis`, `tier-5-internal-sme`, `tier-6-illustrative`.
+- Do not use analyst/consulting/market material as the sole authority for formulas, compliance obligations, accessibility rules, or product runtime capability.
+- When a source is credible but paywalled, partial, or not fully verifiable by the author, mark the limitation in the source card.
+
+Recommended Markdown module header:
+
+```markdown
+> **Owner:** <team or pack maintainer>
+> **Author:** <person / team / scaffold>
+> **Last reviewed:** YYYY-MM-DD
+> **Source register:** `knowledge-base/references.md`
+> **Source IDs:** `SOURCE-ID-1`, `SOURCE-ID-2`
+> **Confidence:** draft | reviewed | SME-approved
+```
+
 ### `README.md` (pack root)
 
 - One-paragraph "what this pack is for".
 - A table or bullet list of sub-verticals with a one-line description each.
 - A "How to use this pack" section pointing at demo configs.
 - A "Status and known gaps" section that is honest about what is scaffold vs. SME-validated.
+- A provenance block naming the pack owner, authoring body, review date, and source register.
 
 ### `knowledge-base/glossary.md`
 
 - Alphabetical.
-- Each entry: bold term, optional acronym expansion, one-sentence definition, source/standard where applicable.
+- Each entry: bold term, optional acronym expansion, one-sentence definition, source ID / standard where applicable.
 - Cite a URL or a standards body for any term whose definition has a canonical source.
 - Example:
-  > **OEE (Overall Equipment Effectiveness)** — Availability x Performance x Quality, expressed as a percentage of theoretical maximum output. Source: TPM (Total Productive Maintenance) practice, embedded in ISO 22400 manufacturing KPI standard.
+  > **OEE (Overall Equipment Effectiveness)** - Availability x Performance x Quality, expressed as a percentage of theoretical maximum output. Source: `ISO-22400`; local formula variants require SME review.
 
 ### `knowledge-base/references.md`
 
 - Organised by sub-vertical or theme.
-- Every entry: organisation, title, year, URL.
+- Every entry: source ID, organisation/publisher, authoring body or named authors when available, title, year/source date, URL, credibility tier, last verified date, and claim scope.
 - Mark `[unverified]` next to any URL the author could not load successfully at authoring time.
+- Mark `[paywalled]`, `[partial]`, or `[requires-membership]` when relevant. Do not pretend a source was fully reviewed when only a public abstract or press release was available.
 
 ### `knowledge-base/ontology.md`
 
 - Domain entity model. Group entities by area (Product, Customer, Supply, Commercial, Manufacturing, Finance, Sustainability, etc.).
 - Each entity: short description, key attributes, relationships to other entities.
 - Use Markdown headings and bullet lists; ASCII relationship diagrams are fine.
+- Identify whether each entity relationship is standard-derived, source-derived, or a PulsePlay modeling assumption.
 
 ### `sub-verticals/<x>/README.md`
 
@@ -140,6 +167,7 @@ A pack is identified by its directory name under `pulsepacks/`. Conventions:
 - A "Why a CPG team uses this" section: the actual decisions a team in this seat makes.
 - A "Typical data sources" section: ERP modules, planning tools, MES/WMS/TMS, retailer feeds, etc.
 - A pointer at the cross-cutting overlays that touch this sub-vertical (e.g. sustainability).
+- Source IDs for external process claims; `SME REVIEW NEEDED` for internal-only process assumptions.
 
 ### `sub-verticals/<x>/sample-questions.md`
 
@@ -147,6 +175,7 @@ A pack is identified by its directory name under `pulsepacks/`. Conventions:
 - Group by intent: descriptive ("what happened"), diagnostic ("why"), predictive ("what will"), prescriptive ("what should we do"), exploratory ("show me").
 - For each question, indicate which AI shape can answer it (chat-completion / conversation / agent / mcp). A question that requires multi-step tool use should NOT be tagged chat-completion.
 - No fabricated context numbers ("our service level dropped 4 points last week" is fine as a TEMPLATE for a question; "Acme Corp's service level dropped 4 points" is not).
+- Mark each question set as external-process-derived, SME-derived, or illustrative.
 
 ### `sub-verticals/<x>/kpis.md`
 
@@ -155,8 +184,9 @@ A pack is identified by its directory name under `pulsepacks/`. Conventions:
   - One-sentence definition.
   - Formula (where calculable; otherwise mark "definition-only").
   - Direction (higher-is-better / lower-is-better / target-band).
-  - Authoritative source / standard.
+  - Authoritative source ID / standard.
   - Typical refresh cadence (real-time / hourly / daily / weekly / monthly).
+- Confidence (`draft`, `reviewed`, `SME-approved`) and owner.
 - Cross-reference glossary entries.
 
 ### `sub-verticals/<x>/bi-ai-fit.md`
@@ -164,12 +194,14 @@ A pack is identified by its directory name under `pulsepacks/`. Conventions:
 - Which BI surfaces typically host this sub-vertical's analytics in a CPG enterprise.
 - Which AI shapes work for this sub-vertical's question types and why.
 - Known anti-patterns. Example: "Do not use stateless chat-completion for OTIF root-cause questions; the agent will need at least three tool calls and short-term memory to traverse customer / lane / DC dimensions."
+- Cite official vendor docs for product capability claims and mark PulsePlay-specific recommendations as internal design decisions.
 
 ### `sub-verticals/<x>/prompt-context.md` (optional)
 
 - A snippet that gets concatenated into the AI sidebar's system prompt when this sub-vertical is selected.
 - Should be terse: 200-500 words. Long context degrades model performance and inflates token cost.
 - No proprietary client names, no internal-only metric names. Use generic placeholders the runtime substitutes.
+- Include provenance metadata before a prompt context is treated as runtime authority.
 
 ### `demo-configs/<x>.json`
 
@@ -177,6 +209,8 @@ A pack is identified by its directory name under `pulsepacks/`. Conventions:
 - Must reference a `vendor` (Y-axis) and a `connector` (X-axis) that the playground knows.
 - Must reference a `subVertical` from this pack.
 - Include `metadata.scenario` describing what the demo proves.
+- Include `metadata.illustrative: true` unless the scenario is backed by a cited public case study or an approved internal source.
+- Include `metadata.sourceIds` when demo assumptions are derived from external or internal sources.
 
 ## Content quality rules
 

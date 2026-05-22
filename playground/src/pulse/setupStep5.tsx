@@ -64,7 +64,13 @@ import { getDescriptor } from "./backend/connectorRegistry";
 // when authors apply SWOT / BCG / Pareto / Variance / Anomaly presets. The
 // domains are silently written into the field today; promoting them to the
 // dropdown closes the inconsistency surfaced in ANALYTICS_DOMAIN_TAXONOMY.md.
-export const DOMAIN_PRESETS: string[] = [
+//
+// PulsePlay 2026-05-16 — keep the visible domain list related to the preset
+// libraries. The runtime Knowledge Base is the future source of truth; until
+// that loader drives setup directly, custom-section and metric-rule preset
+// domains are appended here so the domain picker, preset picker, and metric
+// editor no longer drift apart.
+const CORE_DOMAIN_PRESETS: string[] = [
     "Sales Performance",
     "Marketing Analytics",
     "Operations & Logistics",
@@ -81,6 +87,47 @@ export const DOMAIN_PRESETS: string[] = [
     "Financial Analysis",
     "Quality / Risk"
 ];
+
+function uniqueDomains(values: string[]): string[] {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const value of values) {
+        const trimmed = value.trim();
+        const key = trimmed.toLowerCase();
+        if (!trimmed || seen.has(key)) continue;
+        seen.add(key);
+        out.push(trimmed);
+    }
+    return out;
+}
+
+export const DOMAIN_PRESETS: string[] = uniqueDomains([
+    ...CORE_DOMAIN_PRESETS,
+    ...CUSTOM_SECTION_PRESETS.map(p => p.domain),
+    ...METRIC_DIRECTION_PRESETS.map(p => p.domain),
+]);
+
+const DOMAIN_STOPWORDS = new Set([
+    "analytics", "analysis", "performance", "operations", "operation",
+    "strategic", "quality", "risk", "cpg", "fmcg"
+]);
+
+function domainTokens(value: string): string[] {
+    return value
+        .toLowerCase()
+        .split(/[^a-z0-9]+/u)
+        .map(t => t.trim())
+        .filter(t => t.length > 2 && !DOMAIN_STOPWORDS.has(t));
+}
+
+export function isDomainRelated(currentDomain: string, presetDomain: string): boolean {
+    const current = currentDomain.trim().toLowerCase();
+    const preset = presetDomain.trim().toLowerCase();
+    if (!current || !preset) return false;
+    if (current === preset) return true;
+    const presetTokens = new Set(domainTokens(presetDomain));
+    return domainTokens(currentDomain).some(t => presetTokens.has(t));
+}
 
 // ────────────────────────────────────────────────────────────────────────
 // Public types
@@ -126,9 +173,9 @@ const SECTION_0: FieldMeta[] = [
         hint: "Which user-facing tabs the visual exposes. Both is the default and matches existing behaviour.",
         example: "both | insightsOnly | chatOnly",
         defaultValue: "both",
-        preview: d => d.enabledFeatures === "both" ? "AI Insights + Chat (tab strip visible)"
+        preview: d => d.enabledFeatures === "both" ? "AI Insights + Ask Pulse (tab strip visible)"
                   : d.enabledFeatures === "insightsOnly" ? "AI Insights only"
-                  : "Chat only",
+                  : "Ask Pulse only",
     },
 ];
 
@@ -136,7 +183,7 @@ const SECTION_A: FieldMeta[] = [
     {
         name: "genieFields", section: "A",
         label: "AI metric fields",
-        hint: "Shared field allowlist used by BOTH AI Insights and Chat. Comma- or line-separated field names from your AI metric view. PulsePlay checks bound fields from the active BI surface against this list and surfaces missing-binding warnings.",
+        hint: "Shared field allowlist used by BOTH AI Insights and Ask Pulse. Comma- or line-separated field names from your AI metric view. PulsePlay checks bound fields from the active BI surface against this list and surfaces missing-binding warnings.",
         example: "Country, Region, Sales, Profit, Quantity",
         defaultValue: "",
         preview: d => {
@@ -325,12 +372,12 @@ const SECTION_B: FieldMeta[] = [
     {
         name: "kbEnabled", section: "B",
         label: "Enable analytics intelligence",
-        hint: "Master toggle for the shared knowledge base. When ON, the rules below are injected into BOTH AI Insights stage prompts AND Chat sessions, improving framing/tone/structure across both surfaces.",
+        hint: "Master toggle for the shared knowledge base. When ON, the rules below are injected into BOTH AI Insights stage prompts AND Ask Pulse sessions, improving framing/tone/structure across both surfaces.",
         defaultValue: true,
     },
-    { name: "kbChartRules",     section: "B", label: "Chart selection rules",   hint: "Inject chart-type decision rules into both AI Insights and Chat prompts. Requires master toggle ON.",                            defaultValue: true },
-    { name: "kbStatRules",      section: "B", label: "Statistical standards",   hint: "Inject statistical best practices (confidence intervals, sample-size guidance) into both AI Insights and Chat. Requires master ON.",  defaultValue: true },
-    { name: "kbReportingRules", section: "B", label: "Reporting & storytelling", hint: "Inject reporting principles (BLUF, KPI context, action framing) into both AI Insights and Chat prompts. Requires master ON.",        defaultValue: true },
+    { name: "kbChartRules",     section: "B", label: "Chart selection rules",   hint: "Inject chart-type decision rules into both AI Insights and Ask Pulse prompts. Requires master toggle ON.",                            defaultValue: true },
+    { name: "kbStatRules",      section: "B", label: "Statistical standards",   hint: "Inject statistical best practices (confidence intervals, sample-size guidance) into both AI Insights and Ask Pulse. Requires master ON.",  defaultValue: true },
+    { name: "kbReportingRules", section: "B", label: "Reporting & storytelling", hint: "Inject reporting principles (BLUF, KPI context, action framing) into both AI Insights and Ask Pulse prompts. Requires master ON.",        defaultValue: true },
 ];
 
 const SECTION_C: FieldMeta[] = [
@@ -424,13 +471,13 @@ const SECTION_D: FieldMeta[] = [
     {
         name: "multiSpaceEnabled", section: "D",
         label: "Enable multiple spaces",
-        hint: "CHAT-tab feature only. When ON, a space selector tab strip appears in the Chat header so users can ask the same question across helper spaces. AI Insights always runs against the PRIMARY space and ignores helper spaces.",
+        hint: "Ask Pulse feature only. When ON, a space selector tab strip appears in the Ask Pulse header so users can ask the same question across helper spaces. AI Insights always runs against the PRIMARY space and ignores helper spaces.",
         defaultValue: false,
     },
     {
         name: "multiSpaceCount", section: "D",
         label: "Additional space count",
-        hint: "How many additional helper spaces to reveal below; primary is always present. Slots above this count are ignored at runtime. (Chat-tab only; AI Insights uses the primary space.)",
+        hint: "How many additional helper spaces to reveal below; primary is always present. Slots above this count are ignored at runtime. (Ask Pulse only; AI Insights uses the primary space.)",
         example: "1-9 additional",
         defaultValue: 3,
         preview: d => d.multiSpaceEnabled
@@ -444,35 +491,35 @@ const SECTION_E: FieldMeta[] = [
     {
         name: "supervisorEndpoint", section: "E",
         label: "Supervisor agent endpoint",
-        hint: "CHAT-tab feature only. Databricks Mosaic AI serving endpoint URL that orchestrates multi-space queries when Chat is set to Supervisor connection mode. AI Insights does not use the supervisor; it runs the briefing against the primary space directly.",
-        example: "https://dbc-xxx.cloud.databricks.com/serving-endpoints/dwd-supervisor/invocations",
+        hint: "Ask Pulse feature only. Databricks Mosaic AI serving endpoint URL that orchestrates multi-space queries when Ask Pulse is set to Supervisor connection mode. AI Insights does not use the supervisor; it runs the briefing against the primary space directly.",
+        example: "https://dbc-xxx.cloud.databricks.com/serving-endpoints/pulseplay-supervisor/invocations",
         scope: ["supervisor"],
         defaultValue: "",
     },
     {
         name: "supervisorAgentName", section: "E",
         label: "Supervisor display name",
-        hint: "Name shown in the Chat header and progress text when supervisor mode is active. Defaults to 'Supervisor' when blank. (Chat-tab only.)",
+        hint: "Name shown in the Ask Pulse header and progress text when supervisor mode is active. Defaults to 'Supervisor' when blank. (Ask Pulse only.)",
         example: "Supervisor",
         defaultValue: "",
     },
     {
         name: "supervisorSynthesisProfile", section: "E",
         label: "Synthesis profile / space ID",
-        hint: "For the proxy-side local supervisor (Chat fan-out + fusion). Profile or AI workspace ID that performs the synthesis call. (Chat-tab only.)",
+        hint: "For the proxy-side local supervisor (Ask Pulse fan-out + fusion). Profile or AI workspace ID that performs the synthesis call. (Ask Pulse only.)",
         example: "space1 (default)",
         defaultValue: "",
     },
     {
         name: "supervisorAutoFusion", section: "E",
         label: "Auto-fuse synchronised answers",
-        hint: "CHAT-tab only. Trigger answer fusion automatically when 2+ spaces have responded. Off = user clicks manually. Requires Multi-space + Supervisor mode.",
+        hint: "Ask Pulse only. Trigger answer fusion automatically when 2+ spaces have responded. Off = user clicks manually. Requires Multi-space + Supervisor mode.",
         defaultValue: false,
     },
     {
         name: "supervisorSynthesisPrompt", section: "E",
         label: "Synthesis / fusion system prompt",
-        hint: "Instructions guiding the supervisor when synthesising multiple space answers in the Chat tab. Leave blank to use the bundled default. (Chat-tab only.)",
+        hint: "Instructions guiding the supervisor when synthesising multiple space answers in Ask Pulse. Leave blank to use the bundled default. (Ask Pulse only.)",
         example: "Leave blank to use the bundled default prompt.",
         defaultValue: "",
     },
@@ -480,16 +527,16 @@ const SECTION_E: FieldMeta[] = [
 
 const SECTION_F: FieldMeta[] = [
     { name: "devMode",            section: "F", label: "Developer mode",                       hint: "Shows the on-canvas diagnostics panel. Turn OFF before publishing.",               defaultValue: false },
-    { name: "showSql",            section: "F", label: "Show generated SQL",                   hint: "Display the SQL the AI generated. No effect for Azure OpenAI / Bedrock / Foundation Model modes (these answer from indexed knowledge bases / serving endpoints, no SQL).",     noOp: ["azure-openai", "bedrock", "foundation-model"], defaultValue: false },
+    { name: "showSql",            section: "F", label: "Show generated SQL",                   hint: "Renders the </> View SQL icon on each AI Insights section card; click to expand a panel with the SQL Genie generated. Default ON for PulsePlay's author/debug audience. No effect for Azure OpenAI / Bedrock / Foundation Model modes (these answer from indexed knowledge bases / serving endpoints, no SQL).",     noOp: ["azure-openai", "bedrock", "foundation-model"], defaultValue: true  },
     { name: "showTrace",          section: "F", label: "Show routing trace",                   hint: "Surface proxy routing details. Only meaningful in Proxy mode; ignored in Direct.", noOp: ["direct"], defaultValue: false },
     { name: "showGuidedFilters",  section: "F", label: "Show guided filter bar",               hint: "Filter selector below the chat area. Intended for authoring + testing.",            defaultValue: false },
     { name: "allowReportActions", section: "F", label: "Allow visual to apply report filters", hint: "When ON, guided filter selections can push to the surrounding BI report or dashboard.",                     defaultValue: true  },
 ];
 
 const SECTION_G: FieldMeta[] = [
-    { name: "genieTextInstructionsJson", section: "G", label: "AI text instructions",  hint: "Pushed to the upstream AI workspace. Affects BOTH AI Insights and Chat (the workspace's instructions are used wherever it answers). JSON-stringified array of {id, content[]}.",  defaultValue: "" },
-    { name: "genieSampleQuestionsJson",  section: "G", label: "AI sample questions",      hint: "Curated suggestions surfaced in the Chat tab's prompt picker AND used by AI Insights as candidate framings. JSON-stringified array of {id, question[]}.",                       defaultValue: "" },
-    { name: "genieExampleSqlsJson",      section: "G", label: "AI trusted SQL examples",  hint: "Few-shot SQL examples pushed to the upstream AI workspace. Improves SQL accuracy for BOTH AI Insights stage queries AND Chat. JSON-stringified array of {id, question, sql, parameters[]}.", defaultValue: "" },
+    { name: "genieTextInstructionsJson", section: "G", label: "AI text instructions",  hint: "Pushed to the upstream AI workspace. Affects BOTH AI Insights and Ask Pulse (the workspace's instructions are used wherever it answers). JSON-stringified array of {id, content[]}.",  defaultValue: "" },
+    { name: "genieSampleQuestionsJson",  section: "G", label: "AI sample questions",      hint: "Curated suggestions surfaced in Ask Pulse's prompt picker AND used by AI Insights as candidate framings. JSON-stringified array of {id, question[]}.",                       defaultValue: "" },
+    { name: "genieExampleSqlsJson",      section: "G", label: "AI trusted SQL examples",  hint: "Few-shot SQL examples pushed to the upstream AI workspace. Improves SQL accuracy for BOTH AI Insights stage queries AND Ask Pulse. JSON-stringified array of {id, question, sql, parameters[]}.", defaultValue: "" },
     { name: "lastSpaceSyncAt",           section: "G", label: "Last space sync (epoch ms)", hint: "Timestamp of the last Push-to-AI write. 0 = never synced. Read-only; updated automatically when you click Push.",                                                                  defaultValue: 0 },
 ];
 
@@ -619,6 +666,18 @@ export function SectionIntro(props: { children: ReactNode; audience?: string }) 
  */
 export function SectionToolbar(props: { children: ReactNode }) {
     return <div className="gn-setup-section-toolbar">{props.children}</div>;
+}
+
+function SetupSubgroup(props: { title: string; description: ReactNode; children?: ReactNode }) {
+    return (
+        <div className="gn-setup-subgroup">
+            <div className="gn-setup-subgroup-head">
+                <strong>{props.title}</strong>
+                <span>{props.description}</span>
+            </div>
+            {props.children}
+        </div>
+    );
 }
 
 /**
@@ -1048,8 +1107,8 @@ export function copyJsonToClipboard(pretty: string, onFeedback: (msg: string) =>
             document.body.removeChild(ta);
             onFeedback("Copied to clipboard");
         } catch (e) {
-            onFeedback(`Copy failed (${(e as Error).message}). DevTools console has the JSON on window.__dwdInsightsSectionsJson.`);
-            try { (window as unknown as { __dwdInsightsSectionsJson?: string }).__dwdInsightsSectionsJson = pretty; } catch { /* sandboxed */ }
+            onFeedback(`Copy failed (${(e as Error).message}). DevTools console has the JSON on window.__pulseplayInsightsSectionsJson.`);
+            try { (window as unknown as { __pulseplayInsightsSectionsJson?: string }).__pulseplayInsightsSectionsJson = pretty; } catch { /* sandboxed */ }
         }
     };
     try {
@@ -1080,6 +1139,12 @@ export function CustomSectionPresetPicker(props: {
     // switching preset doesn't carry stale numbers from a previous one.
     const [paramValues, setParamValues] = React.useState<Record<string, string>>({});
     const selected = CUSTOM_SECTION_PRESETS.find(p => p.id === selectedId);
+    const relatedPresets = props.currentDomain.trim()
+        ? CUSTOM_SECTION_PRESETS.filter(p => isDomainRelated(props.currentDomain, p.domain))
+        : [];
+    const otherPresets = relatedPresets.length
+        ? CUSTOM_SECTION_PRESETS.filter(p => !isDomainRelated(props.currentDomain, p.domain))
+        : CUSTOM_SECTION_PRESETS;
     React.useEffect(() => {
         if (selected && selected.params) {
             setParamValues(defaultParamValues(selected));
@@ -1125,9 +1190,18 @@ export function CustomSectionPresetPicker(props: {
                 title="Apply a generated custom-section preset"
             >
                 <option value="">Choose a custom-section preset</option>
-                {CUSTOM_SECTION_PRESETS.map(p => (
-                    <option key={p.id} value={p.id}>{p.label}</option>
-                ))}
+                {relatedPresets.length > 0 && (
+                    <optgroup label={`Recommended for ${props.currentDomain.trim()}`}>
+                        {relatedPresets.map(p => (
+                            <option key={p.id} value={p.id}>{p.label}</option>
+                        ))}
+                    </optgroup>
+                )}
+                <optgroup label={relatedPresets.length > 0 ? "Other presets" : "All presets"}>
+                    {otherPresets.map(p => (
+                        <option key={p.id} value={p.id}>{p.label}</option>
+                    ))}
+                </optgroup>
             </select>
             <button
                 type="button"
@@ -1210,6 +1284,12 @@ export function MetricDirectionPresetPicker(props: {
 }) {
     const [selectedId, setSelectedId] = React.useState("");
     const selected = METRIC_DIRECTION_PRESETS.find(p => p.id === selectedId);
+    const relatedPresets = props.currentDomain.trim()
+        ? METRIC_DIRECTION_PRESETS.filter(p => isDomainRelated(props.currentDomain, p.domain))
+        : [];
+    const otherPresets = relatedPresets.length
+        ? METRIC_DIRECTION_PRESETS.filter(p => !isDomainRelated(props.currentDomain, p.domain))
+        : METRIC_DIRECTION_PRESETS;
     const apply = (preset: MetricDirectionPreset | undefined) => {
         if (!preset) return;
         if (!props.currentDomain.trim()) props.onApplyDomain(preset.domain);
@@ -1224,9 +1304,18 @@ export function MetricDirectionPresetPicker(props: {
                 title="Apply generated metric direction rules"
             >
                 <option value="">Choose a metric-rules preset</option>
-                {METRIC_DIRECTION_PRESETS.map(p => (
-                    <option key={p.id} value={p.id}>{p.label}</option>
-                ))}
+                {relatedPresets.length > 0 && (
+                    <optgroup label={`Recommended for ${props.currentDomain.trim()}`}>
+                        {relatedPresets.map(p => (
+                            <option key={p.id} value={p.id}>{p.label}</option>
+                        ))}
+                    </optgroup>
+                )}
+                <optgroup label={relatedPresets.length > 0 ? "Other presets" : "All presets"}>
+                    {otherPresets.map(p => (
+                        <option key={p.id} value={p.id}>{p.label}</option>
+                    ))}
+                </optgroup>
             </select>
             <button
                 type="button"
@@ -1257,8 +1346,10 @@ export function MetricDirectionPresetPicker(props: {
  * source so the form is the single source going forward.
  */
 export function MetricKnowledgeBaseEditor(props: {
+    currentDomain?: string;
     legacyText: string;
     legacyJson: string;
+    onApplyDomain?: (domain: string) => void;
     onApplyText: (text: string) => void;
     onApplyJson: (json: string) => void;
     /** Wave 41 cycle 12 — per-card suggest callback. Hosts (the SetupPanel
@@ -1332,8 +1423,8 @@ export function MetricKnowledgeBaseEditor(props: {
                 </div>
             )}
             <MetricDirectionPresetPicker
-                currentDomain=""
-                onApplyDomain={() => { /* domain handled at the FieldRow level */ }}
+                currentDomain={props.currentDomain || ""}
+                onApplyDomain={props.onApplyDomain || (() => { /* optional */ })}
                 onApplyRules={prose => {
                     // Preset library still emits prose; convert to rules and
                     // funnel through the form's state so JSON + prose stay in
@@ -1601,7 +1692,7 @@ export function CustomSectionsEditor(props: { value: string; onChange: (json: st
             } catch (e) {
                 setExportFeedback(`Copy failed (${(e as Error).message}). Open browser DevTools console to grab the JSON.`);
                 // Best-effort: stash on window so user can pick it up.
-                try { (window as unknown as { __dwdInsightsSectionsJson?: string }).__dwdInsightsSectionsJson = pretty; } catch { /* sandboxed */ }
+                try { (window as unknown as { __pulseplayInsightsSectionsJson?: string }).__pulseplayInsightsSectionsJson = pretty; } catch { /* sandboxed */ }
             }
             window.setTimeout(() => setExportFeedback(null), 4000);
         };
@@ -2539,7 +2630,7 @@ export function HybridPreview(props: {
     );
 }
 
-const STEP5_MODE_LS_KEY = "dwd-setup-step5-mode";
+const STEP5_MODE_LS_KEY = "pulseplay-setup-step5-mode";
 
 /** Read the persisted Step 5 mode from localStorage. New PBIPs default to
  *  Guided so first-time authors get the wizard; once an author switches to
@@ -3050,9 +3141,9 @@ export function SetupStep5(props: SetupStep5Props) {
                         the `enabledFeatures` setting. */}
                     <p
                         className="gn-setup-step-header-summary"
-                        title="Configure the AI Insights and/or Chat features. The tabs below switch between feature-specific settings; Shared sections (Knowledge Base, Security, Developer) appear in both tabs."
+                        title="Configure the AI Insights and/or Ask Pulse features. The tabs below switch between feature-specific settings; Shared sections (Knowledge Base, Security, Developer) appear in both tabs."
                     >
-                        Configure the AI Insights and/or Chat features.
+                        Configure the AI Insights and/or Ask Pulse features.
                     </p>
                 </div>
             </header>
@@ -3239,8 +3330,8 @@ export function SetupStep5(props: SetupStep5Props) {
                 Section 0 field matches the query. */}
             {(q ? matchingSections.has("0") : true) && (
             <fieldset className="gn-setup-features-gate" role="radiogroup" aria-label="Enabled features">
-                <legend title="Controls which assistant surfaces are available: insights, chat, or both. Adjust when a report should limit the experience to a single surface.">0. Enabled features <span className="gn-setup-advanced-summary-hint">Choose active assistant surfaces</span></legend>
-                <p className="gn-setup-features-gate-intro">Decide whether viewers see AI Insights, Chat, or both. Picks below shape every other section: chat-only skips AI Insights pipelines entirely, insights-only hides the chat compose bar.</p>
+                <legend title="Controls which assistant surfaces are available: insights, Ask Pulse, or both. Adjust when a report should limit the experience to a single surface.">0. Enabled features <span className="gn-setup-advanced-summary-hint">Choose active assistant surfaces</span></legend>
+                <p className="gn-setup-features-gate-intro">Decide whether viewers see AI Insights, Ask Pulse, or both. Picks below shape every other section: Ask Pulse-only skips AI Insights pipelines entirely, insights-only hides the conversational compose bar.</p>
                 <div className="gn-setup-features-gate-options">
                     <label className={`gn-setup-features-gate-option${draft.enabledFeatures === "both" ? " gn-setup-features-gate-option--active" : ""}`}>
                         <input
@@ -3250,7 +3341,7 @@ export function SetupStep5(props: SetupStep5Props) {
                             checked={draft.enabledFeatures === "both"}
                             onChange={() => setField("enabledFeatures", "both")}
                         />
-                        <span className="gn-setup-features-gate-title">Both: AI Insights + Chat</span>
+                        <span className="gn-setup-features-gate-title">Both: AI Insights + Ask Pulse</span>
                         <span className="gn-setup-features-gate-desc">Default. Tab strip visible; viewers can switch between auto analytics and conversational Q&amp;A.</span>
                     </label>
                     <label className={`gn-setup-features-gate-option${draft.enabledFeatures === "insightsOnly" ? " gn-setup-features-gate-option--active" : ""}`}>
@@ -3262,7 +3353,7 @@ export function SetupStep5(props: SetupStep5Props) {
                             onChange={() => setField("enabledFeatures", "insightsOnly")}
                         />
                         <span className="gn-setup-features-gate-title">AI Insights only</span>
-                        <span className="gn-setup-features-gate-desc">Auto-generated descriptive analytics on load. No chat tab; no compose bar. Best for executive dashboards.</span>
+                        <span className="gn-setup-features-gate-desc">Auto-generated descriptive analytics on load. No Ask Pulse tab; no compose bar. Best for executive dashboards.</span>
                     </label>
                     <label className={`gn-setup-features-gate-option${draft.enabledFeatures === "chatOnly" ? " gn-setup-features-gate-option--active" : ""}`}>
                         <input
@@ -3272,14 +3363,14 @@ export function SetupStep5(props: SetupStep5Props) {
                             checked={draft.enabledFeatures === "chatOnly"}
                             onChange={() => setField("enabledFeatures", "chatOnly")}
                         />
-                        <span className="gn-setup-features-gate-title">Chat only</span>
+                        <span className="gn-setup-features-gate-title">Ask Pulse only</span>
                         <span className="gn-setup-features-gate-desc">Conversational Q&amp;A only. Auto-insights effect is skipped; no AI calls are made on visual load.</span>
                     </label>
                 </div>
                 <span className="gn-setup-features-gate-preview" aria-live="polite">
                     Visual will show: <strong>{
-                        draft.enabledFeatures === "both" ? "AI Insights + Chat (tab strip visible)" :
-                        draft.enabledFeatures === "insightsOnly" ? "AI Insights only" : "Chat only"
+                        draft.enabledFeatures === "both" ? "AI Insights + Ask Pulse (tab strip visible)" :
+                        draft.enabledFeatures === "insightsOnly" ? "AI Insights only" : "Ask Pulse only"
                     }</strong>
                 </span>
             </fieldset>
@@ -3298,7 +3389,7 @@ export function SetupStep5(props: SetupStep5Props) {
                             className={`gn-setup-feature-tab gn-setup-feature-tab--${t}${activeTab === t ? " gn-setup-feature-tab--active" : ""}`}
                             onClick={() => setActiveTab(t)}
                         >
-                            {t === "ai-insights" ? "AI Insights setup" : "Chat setup"}
+                            {t === "ai-insights" ? "AI Insights setup" : "Ask Pulse setup"}
                         </button>
                     ))}
                     <span className="gn-setup-feature-tabs-hint">
@@ -3308,7 +3399,7 @@ export function SetupStep5(props: SetupStep5Props) {
             ) : (
                 <div className="gn-setup-feature-tabs gn-setup-feature-tabs--single">
                     <span className={`gn-setup-feature-tab gn-setup-feature-tab--${activeTab} gn-setup-feature-tab--active`}>
-                        {activeTab === "ai-insights" ? "AI Insights setup" : "Chat setup"}
+                        {activeTab === "ai-insights" ? "AI Insights setup" : "Ask Pulse setup"}
                     </span>
                     <span className="gn-setup-feature-tabs-hint">
                         Single feature enabled. Shared sections (Knowledge Base, Security, Developer) shown below.
@@ -3419,23 +3510,26 @@ export function SetupStep5(props: SetupStep5Props) {
                 const fRefresh = findMeta("refreshInsights");
                 const authoringMode = (draft.insightsAuthoringMode || "preset") as "manual" | "preset" | "ai-assisted";
                 return (
-                    <details className="gn-setup-advanced-section gn-affinity-insights" data-affinity="ai-insights" open={isOpen("A")} onToggle={onSectionToggle("A")}>
-                        <summary title="Groups the main AI settings: domain guidance, fields, context sharing, authoring mode, custom sections, refresh behavior, and cache timing. Use when shaping generated insight content.">
-                            A. AI Insights authoring
+                    <details className="gn-setup-advanced-section gn-affinity-shared" data-affinity="shared" open={isOpen("A")} onToggle={onSectionToggle("A")}>
+                        <summary title="Groups common AI context first, then the AI Insights-specific output strategy. Ask Pulse inherits the common context and keeps its specific controls in the Ask Pulse sections.">
+                            A. Common AI context
                             <SectionStatus state={sectionA_state} />
-                            <span className="gn-setup-advanced-summary-hint">Set guidance and insight behavior</span>
+                            <span className="gn-setup-advanced-summary-hint">Shared grounding first; output-specific controls below</span>
                         </summary>
                         <div className="gn-setup-advanced-body">
 
-                            <SectionIntro audience="Data steward / lead analyst — anyone who knows the report's KPIs, definitions, and join paths.">
-                                Teach the AI about your data. Field-name hints catch binding drift; domain instructions
-                                shape every AI answer; the AI Insights prompt steers the auto-analytics view.
-                                These are the highest-leverage settings in Step 5. Small edits here often outweigh
-                                everything in Sections B-F.
+                            <SectionIntro audience="Data steward / lead analyst — anyone who knows the report's KPIs, definitions, join paths, and answer standards.">
+                                Start with the context that both AI Insights and Ask Pulse should share: field names, BI context sharing,
+                                domain guidance, metric definitions, and formatting standards. Then tune only the surface-specific
+                                behavior that needs to differ.
                             </SectionIntro>
 
                             {renderSectionTools("A")}
 
+                            <SetupSubgroup
+                                title="Common AI context"
+                                description="Single source of truth for field vocabulary, business rules, KPI definitions, formatting standards, and BI-scope sharing. Applies to both AI Insights and Ask Pulse."
+                            >
                             <FieldRow
                                 name={fGenieFields.name as string}
                                 label={fGenieFields.label}
@@ -3503,7 +3597,20 @@ export function SetupStep5(props: SetupStep5Props) {
                                     onChange={e => setBool("sendContextToGenie", e.target.checked)}
                                 />
                             </FieldRow>
+                            </SetupSubgroup>
 
+                            {activeTab === "chat" && (
+                                <SetupSubgroup
+                                    title="Ask Pulse behavior"
+                                    description="Ask Pulse inherits the common context above plus the shared Knowledge Base toggles below. Conversational connection, memory/history, multi-space, and sync controls live in the Ask Pulse sections on this tab."
+                                />
+                            )}
+
+                            {activeTab !== "chat" && (
+                            <SetupSubgroup
+                                title="AI Insights output strategy"
+                                description="Controls the generated briefing shape: authoring mode, domain label, preset sections, universal stages, metric color semantics, provenance, cache, and refresh behavior."
+                            >
                             {/* 49.19 / IDEA-037 phase 3 — Authoring mode radio.
                                 Drives which fields are visible AND which path
                                 the runInsights pipeline takes at runtime. All
@@ -3776,8 +3883,10 @@ export function SetupStep5(props: SetupStep5Props) {
                                 }
                             >
                                 <MetricKnowledgeBaseEditor
+                                    currentDomain={draft.insightsDomain || ""}
                                     legacyText={draft.metricDirectionRules}
                                     legacyJson={draft.insightsMetricDirections}
+                                    onApplyDomain={d => setField("insightsDomain", d)}
                                     onApplyText={text => setField("metricDirectionRules", text)}
                                     onApplyJson={json => setField("insightsMetricDirections", json)}
                                     onSuggestForCard={onSuggestMetricRuleForCard}
@@ -3792,7 +3901,7 @@ export function SetupStep5(props: SetupStep5Props) {
                                 preview={fShowProvenanceFooter.preview?.(draft)}
                                 helpBody={
                                     <>
-                                        <p><strong>What it adds:</strong> a thin grey footer line below each Insights section card that reads <code>AI-generated | Source: &lt;profile&gt; | &lt;relative-time&gt;</code>. Helps reviewers + auditors trace which AI workspace produced the output and when.</p>
+                                        <p><strong>What it adds:</strong> a thin grey footer line below each Insights section card that reads <code>Generated by PulsePlay · Source: &lt;profile&gt; · Updated &lt;relative-time&gt;</code>. Helps reviewers + auditors trace which assistant profile produced the output and when.</p>
                                         <p><strong>When to turn OFF:</strong> if the report is for a polished executive view where the footer chrome is visual noise. The provenance is still available in Developer Tools → Diagnostics regardless of this toggle.</p>
                                     </>
                                 }
@@ -3857,6 +3966,9 @@ export function SetupStep5(props: SetupStep5Props) {
                                     onChange={e => setBool("refreshInsights", e.target.checked)}
                                 />
                             </FieldRow>
+
+                            </SetupSubgroup>
+                            )}
 
                         </div>
                     </details>
@@ -4339,7 +4451,7 @@ WITH scoped AS (
                 return (
                     <details className="gn-setup-advanced-section gn-affinity-chat" data-affinity="chat" open={isOpen("D")} onToggle={onSectionToggle("D")}>
                         <summary title="Adds up to 8 helper spaces with separate labels, profiles, space IDs, hosts, and tokens. Use when insight generation needs multiple specialized AI workspaces.">
-                            D. Chat: multi-AI workspaces
+                            D. Ask Pulse: multi-AI workspaces
                             <SectionStatus state={sectionD_state} />
                             <span className="gn-setup-advanced-summary-hint">Configure helper AI workspaces</span>
                         </summary>
@@ -4527,7 +4639,7 @@ WITH scoped AS (
                 return (
                     <details className="gn-setup-advanced-section gn-affinity-chat" data-affinity="chat" open={isOpen("E")} onToggle={onSectionToggle("E")}>
                         <summary title="Defines the supervisor endpoint, agent, synthesis profile, fusion behavior, and synthesis prompt. Use when multiple helper outputs need one combined answer.">
-                            E. Chat: supervisor agent
+                            E. Ask Pulse: supervisor agent
                             <SectionStatus state={sectionE_state} />
                             <span className="gn-setup-advanced-summary-hint">Coordinate helper synthesis</span>
                         </summary>
@@ -4562,7 +4674,7 @@ WITH scoped AS (
                                     value={draft.supervisorEndpoint}
                                     onChange={e => setField("supervisorEndpoint", e.target.value)}
                                     onBlur={e => { const t = e.target.value.replace(/[ \s]+/g, "").trim(); if (t !== e.target.value) setField("supervisorEndpoint", t); }}
-                                    placeholder="https://dbc-xxx.cloud.databricks.com/serving-endpoints/dwd-supervisor/invocations"
+                                    placeholder="https://dbc-xxx.cloud.databricks.com/serving-endpoints/pulseplay-supervisor/invocations"
                                 />
                             </FieldRow>
 
@@ -4818,7 +4930,7 @@ WITH scoped AS (
                 return (
                     <details className="gn-setup-advanced-section gn-affinity-chat" data-affinity="chat" open={isOpen("G")} onToggle={onSectionToggle("G")}>
                         <summary title="Pulls instructions, sample questions, and trusted SQL from the upstream AI workspace for local editing and pushback. Use as the strongest hallucination-reducer.">
-                            G. Chat: AI workspace sync
+                            G. Ask Pulse: AI workspace sync
                             <SectionStatus state={sectionG_state} />
                             <span className="gn-setup-advanced-summary-hint">Sync trusted workspace context</span>
                         </summary>

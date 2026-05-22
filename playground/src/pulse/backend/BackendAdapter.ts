@@ -94,11 +94,26 @@ export interface ConversationOptions {
 export type ProgressCallback = (status: string) => void;
 
 /**
+ * Optional streaming callback — called by backends that support SSE/NDJSON
+ * token streaming as partial content accumulates. Callers use this to update
+ * the section content incrementally so the UI renders section-by-section as
+ * tokens arrive rather than waiting for the full response.
+ *
+ * Only implemented by FoundationModelStreamBackend today. All other backends
+ * ignore it — the 4th parameter of waitForMessageWithProgress is optional.
+ *
+ * Argument: the full accumulated content string up to this point (not just
+ * the new token) so callers can replace the rendered content rather than
+ * appending, which is simpler and race-condition-free.
+ */
+export type ContentChunkCallback = (accumulatedContent: string) => void;
+
+/**
  * SINGLE-SPACE CONNECTOR — one upstream backend. The visual orchestrates
  * multi-stage Insights pipelines by issuing N sequential calls.
  *
  * Implemented today by GenieClient when `connectionMode` is one of:
- *   - "proxy" (route through UniBridge proxy)
+ *   - "proxy" (route through PulsePlay proxy)
  *   - "direct" (browser → Databricks REST with PAT, dev only)
  *   - "gateway" (Databricks AI Gateway / MCP — wired but not end-to-end)
  *   - "azure-openai" (proxy → Azure OpenAI Chat Completions)
@@ -118,8 +133,11 @@ export interface SingleSpaceBackend {
     startConversation(request: any, options?: ConversationOptions): Promise<ConversationResult>;
     /** Continue an existing conversation thread. */
     sendMessage(conversationId: string, request: any, options?: ConversationOptions): Promise<ConversationResult>;
-    /** Poll until the message reaches a terminal state (COMPLETED / FAILED / CANCELLED). */
-    waitForMessageWithProgress(conversationId: string, messageId: string, onProgress?: ProgressCallback): Promise<GenieMessage>;
+    /** Poll until the message reaches a terminal state (COMPLETED / FAILED / CANCELLED).
+     *  Streaming backends (FoundationModelStreamBackend) additionally call onContentChunk
+     *  as tokens arrive so the caller can render content progressively. Poll-based backends
+     *  (Genie, OpenAI, Bedrock) ignore the 4th argument — it is always optional. */
+    waitForMessageWithProgress(conversationId: string, messageId: string, onProgress?: ProgressCallback, onContentChunk?: ContentChunkCallback): Promise<GenieMessage>;
     /** Abort all in-flight requests. */
     cancel(): void;
     /** Cheap connectivity probe — usually a /health-style call. */

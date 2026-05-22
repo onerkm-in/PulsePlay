@@ -60,11 +60,35 @@ let _missingPacksRootWarned = false;
  * @param {{ packsRoot?: string }} [opts]
  * @returns {PromptContext | null}
  */
+// L15 closure — pack/subVertical identifiers must match a strict allowlist
+// regex before they're passed to path.join. `_safeIsDirectory` already
+// catches non-existent directories, but a malicious value like
+// `../../etc/passwd` could traverse if the layout ever changes. The
+// regex keeps the boundary tight: lowercase alphanumeric + hyphens only.
+const PACK_NAME_REGEX = /^[a-z0-9][a-z0-9-]{0,62}$/;
+
+function isValidPackIdentifier(value) {
+    return typeof value === 'string' && PACK_NAME_REGEX.test(value);
+}
+
 function loadPromptContext(pack, subVertical, opts) {
     const packsRoot = (opts && opts.packsRoot) || DEFAULT_PACKS_ROOT;
 
     if (!pack || typeof pack !== 'string') return null;
     if (subVertical !== undefined && subVertical !== null && typeof subVertical !== 'string') return null;
+
+    // L15 — reject path-traversal-shaped identifiers BEFORE constructing any
+    // filesystem path. The proxy allowlist (`allowlist.packs`) is the
+    // primary gate; this is defense in depth so a misconfigured allowlist
+    // can't expose the filesystem.
+    if (!isValidPackIdentifier(pack)) {
+        console.warn(`[packPromptLoader] rejected pack identifier (regex fail): ${JSON.stringify(pack).slice(0, 80)}`);
+        return null;
+    }
+    if (subVertical && !isValidPackIdentifier(subVertical)) {
+        console.warn(`[packPromptLoader] rejected subVertical identifier (regex fail): ${JSON.stringify(subVertical).slice(0, 80)}`);
+        return null;
+    }
 
     const cacheKey = `${packsRoot}::${pack}::${subVertical || ''}`;
     if (_cache.has(cacheKey)) {
@@ -156,6 +180,7 @@ function _safeReadFile(p) {
 module.exports = {
     loadPromptContext,
     __rebuildCache,
+    isValidPackIdentifier,
     // Exposed for tests / observability.
     DEFAULT_PACKS_ROOT,
     GLOSSARY_FALLBACK_MAX_CHARS,

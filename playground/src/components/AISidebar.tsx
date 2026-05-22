@@ -29,6 +29,20 @@
 import { useEffect, useRef, useState } from "react";
 import type { BIEvent } from "../biPanel/BIAdapter";
 import type { PackSelection } from "./PackPicker";
+import { FramePicker } from "./FramePicker";
+import { getDiscoverySnapshot, type DiscoverySnapshot, type ReachableFrame } from "../lib/discoveryClient";
+import { SustainabilityIndicator } from "./SustainabilityIndicator";
+import { recordResponse as recordUsageResponse } from "../lib/usageTracker";
+import { EvidenceDrawer, type EvidenceItem } from "./EvidenceDrawer";
+import { dumpRun, resetRun, stageEnd, stageStart } from "../lib/perfInstrumentation";
+import { renderMarkdown } from "../lib/renderMarkdown";
+
+// 2026-05-19 Codex post-UAT-1840 follow-up: wire the perf instrumentation
+// utility (added in b71270f) into the actual Ask Pulse pipeline so DevTools
+// Performance + the console table show real backend / polling / render
+// segment durations against Rajesh's 5-10 s budget. The utility itself does
+// nothing to latency — this wiring just exposes the numbers so the next
+// cycle has concrete bottlenecks to attack instead of guessing.
 
 /** Hard upper bound on how long we poll before giving up. */
 export const MAX_POLL_DURATION_MS = 60_000;
@@ -48,6 +62,39 @@ export interface AISidebarProps {
      *  the proxy on every question so the prompt context is enriched
      *  with the right vertical vocabulary. */
     packSelection?: PackSelection | null;
+    /** Live BI adapter for the mounted panel. When present, the discovery
+     *  effect calls `adapter.getMetadata()` and forwards the result to
+     *  `/assistant/discover` so the Discovery Loop computes honest
+     *  reachable-frame signals from what the user is actually looking at,
+     *  not just from the pack KPIs. Optional — when null, discovery
+     *  degrades to pack-only signals (today's behaviour). */
+    biAdapter?: { getMetadata?(): Promise<unknown | null> } | null;
+    /** When set (non-null, non-empty), AISidebar auto-submits this
+     *  question exactly once on the next render. Used by the first-run
+     *  wizard's "Done & ask" finish action so the user sees a live AI
+     *  response the moment the wizard closes. String values keep the
+     *  legacy "once per unique question" behavior; event values use
+     *  `id` so two separate wizard completions can submit the same
+     *  question intentionally. */
+    autoSubmitQuestion?: AutoSubmitQuestionEvent | string | null;
+    /** FW1 — fires when an entry transitions to a terminal `completed`
+     *  status. The host (App.tsx) builds an `AIResultEnvelope` via
+     *  `entryToAIResultEnvelope(...)` and, when the runtime BI vendor is
+     *  native, sends `{ kind: "renderResult", result: envelope }` to the
+     *  primary BI adapter so the canvas paints alongside the sidebar
+     *  answer text. The callback is intentionally narrow — only firing on
+     *  successful completion — because failed/aborted entries have no
+     *  attested result to render.
+     *
+     *  The handler should be cheap; it runs inside `finalize(...)`
+     *  before React commits the next render. Heavy lifting (adapter
+     *  send, telemetry, etc) should be fire-and-forget or post-effect. */
+    onEntryCompleted?: (entry: AnswerEntry) => void;
+}
+
+export interface AutoSubmitQuestionEvent {
+    id:       string | number;
+    question: string;
 }
 
 export type AISidebarStatus =
@@ -82,6 +129,20 @@ export interface AnswerEntry {
     executionTimeMs?: number;
     validationDiagnostics?: Record<string, unknown>;
     error?: string;
+    /** Optional token usage from the backend (OpenAI / Anthropic shape).
+     *  Surfaced by SustainabilityIndicator. Absent for pure Genie responses. */
+    usage?: ProxyMessageResponse["usage"];
+    /** Latest upstream poll status reported by the proxy (e.g.
+     *  `ASKING_AI`, `EXECUTING_QUERY`, `PENDING_WAREHOUSE`). Used to render
+     *  a contextual loading message instead of a blanket "Thinking…" so
+     *  the user sees that a 40-second wait is a cold-start warehouse,
+     *  not the proxy hanging. Cleared on terminal status. */
+    pollStatus?: string;
+    /** FW1 — proxy-built governance attestation forwarded as-is from the
+     *  upstream response. Validated shape-wise by the envelope mapper;
+     *  the AISidebar treats it as opaque metadata. Absent for backends
+     *  that haven't been wired through `withGovernance(...)` yet. */
+    governance?: unknown;
 }
 
 let nextEntryId = 1;
@@ -107,6 +168,21 @@ interface ProxyMessageResponse {
     rows_returned?: number;
     validationDiagnostics?: Record<string, unknown>;
     error?: string;
+    /** OpenAI / Anthropic-shape token usage block; absent from pure Genie
+     *  responses. Surfaced by SustainabilityIndicator when present. */
+    usage?: {
+        prompt_tokens?: number;
+        completion_tokens?: number;
+        input_tokens?: number;
+        output_tokens?: number;
+        total_tokens?: number;
+    };
+    /** FW1 — opaque governance attestation. The proxy attaches a typed
+     *  `GovernanceAttestation` via `withGovernance(...)` for renderable
+     *  backend paths; AISidebar carries it through to the renderer
+     *  without validating shape here (the entryToEnvelope mapper +
+     *  native adapter render gate own shape validation + policy). */
+    governance?: unknown;
 }
 
 /** Pull the narrative answer text out of a Genie-shape response, falling
@@ -150,21 +226,127 @@ function projectEntryFromResponse(data: ProxyMessageResponse): Partial<AnswerEnt
         rowsReturned: typeof data.rows_returned === "number" ? data.rows_returned : undefined,
         executionTimeMs: typeof data.execution_time_ms === "number" ? data.execution_time_ms : undefined,
         validationDiagnostics: data.validationDiagnostics,
+        usage: data.usage,
+        pollStatus: typeof data.status === "string" ? data.status : undefined,
+        // FW1 — forward the opaque governance field if the proxy populated
+        // one. AISidebar carries it through; the envelope mapper validates
+        // shape and the native adapter's render gate applies policy.
+        governance: data.governance,
+    };
+}
+
+/** Map a raw upstream poll status (Genie / Databricks Apps state machine)
+ *  to a viewer-friendly loading message + an optional "typical wait" hint.
+ *
+ *  Live-smoke 2026-05-14: warehouse cold-start regularly takes 30-60 s.
+ *  Generic "Thinking…" left users thinking the proxy was hung. Surfacing
+ *  the upstream state with a sympathetic explanation closes the
+ *  perceived-time gap without making us faster.
+ *
+ *  Returns null when the status is unknown so the caller renders the
+ *  default loading line. */
+export function describePollStatus(status: string | undefined): { label: string; hint?: string } | null {
+    if (!status) return null;
+    switch (status.toUpperCase()) {
+        case "PENDING_WAREHOUSE":
+        case "STARTING":
+            return {
+                label: "Warming the SQL warehouse",
+                hint: "First question after the warehouse goes idle takes ~30-60 s while Databricks spins compute. Follow-up questions reuse the warm cluster.",
+            };
+        case "ASKING_AI":
+        case "PENDING":
+            return { label: "Asking the AI for SQL" };
+        case "EXECUTING_QUERY":
+        case "RUNNING_QUERY":
+            return { label: "Running the SQL on the warehouse" };
+        case "SUMMARIZING":
+        case "NARRATING":
+            return { label: "Writing the narrative answer" };
+        case "FETCHING_METADATA":
+            return { label: "Fetching warehouse metadata" };
+        case "COMPLETED":
+        case "FAILED":
+            return null;
+        default:
+            return null;
+    }
+}
+
+/** Cross-backend probe-once envelope. Mirrors the shape Pulse genie.ts
+ *  produces; the proxy's discoveryPromptInjector consumes either source
+ *  identically. Bounds: 20 KPIs, 12 frames. */
+function summariseSnapshotForRequest(snap: DiscoverySnapshot): Record<string, unknown> {
+    const probe = snap.sources?.probe as Record<string, unknown> | null | undefined;
+    const availableKpis = Array.isArray(snap.fused?.availableKpis)
+        ? snap.fused.availableKpis.map(k => k?.name).filter((s): s is string => !!s).slice(0, 20)
+        : [];
+    const reachableFrames = Array.isArray(snap.fused?.reachableFrames)
+        ? snap.fused.reachableFrames.map(f => f?.label).filter((s): s is string => !!s).slice(0, 12)
+        : [];
+    return {
+        snapshotVersion: snap.snapshotVersion,
+        sources: {
+            probe: probe
+                ? {
+                    connectorType: typeof probe.connectorType === "string" ? probe.connectorType : undefined,
+                    displayName: typeof probe.displayName === "string" ? probe.displayName : undefined,
+                    tableCount: typeof probe.tableCount === "number" ? probe.tableCount : undefined,
+                    metadataAvailability: typeof probe.metadataAvailability === "string" ? probe.metadataAvailability : undefined,
+                }
+                : null,
+            packKpiCount: Array.isArray(snap.sources?.packKpis) ? snap.sources.packKpis.length : 0,
+        },
+        availableKpis,
+        reachableFrames,
     };
 }
 
 /** Build a small context block from the recent BI events so the LLM
- *  knows what the user is looking at. Same idea as DwD's contextBuilder,
+ *  knows what the user is looking at. Same idea as the sister project's contextBuilder,
  *  but sourced from BI vendor events. */
-function buildContextBlock(activeVendor: string, recentEvents: BIEvent[]): string {
+/**
+ * Build the [BI Context] preamble that prefixes the user question on every
+ * ask. Phase B of frame-to-prompt wiring: when a reachable analysis frame is
+ * selected in the FramePicker, append a "[Selected analysis frame]" block so
+ * the AI brain knows the user committed to a specific analysis intent (e.g.
+ * "BCG growth–share matrix on the current category mix") instead of an
+ * open-ended question. The proxy doesn't need to know about this field —
+ * it lives in the same `content` string the proxy already forwards verbatim.
+ */
+function buildContextBlock(
+    activeVendor: string,
+    recentEvents: BIEvent[],
+    selectedFrame?: ReachableFrame | null,
+): string {
     const eventLines = recentEvents
         .slice(-5)
         .map(e => `- ${e.type}${e.payload ? ": " + JSON.stringify(e.payload).slice(0, 120) : ""}`);
-    return [
+    const blocks: string[] = [
         `[BI Context]`,
         `- Active vendor: ${activeVendor}`,
         ...(eventLines.length > 0 ? ["- Recent events:", ...eventLines] : ["- No recent events captured."]),
-    ].join("\n");
+    ];
+    if (selectedFrame) {
+        const paramKeys = Object.keys(selectedFrame.params || {});
+        const paramSummary = paramKeys.length > 0
+            ? paramKeys.map(k => {
+                const v = (selectedFrame.params as Record<string, unknown>)[k];
+                const display = typeof v === "string" || typeof v === "number" || typeof v === "boolean"
+                    ? String(v)
+                    : JSON.stringify(v);
+                return `  - ${k}: ${display.slice(0, 80)}`;
+            }).join("\n")
+            : "  (no parameters)";
+        blocks.push("");
+        blocks.push("[Selected analysis frame]");
+        blocks.push(`- Frame: ${selectedFrame.label} (${selectedFrame.frameId})`);
+        blocks.push(`- Domain: ${selectedFrame.domain}`);
+        blocks.push(`- Rationale: ${selectedFrame.rationale}`);
+        blocks.push(`- Params:`);
+        blocks.push(paramSummary);
+    }
+    return blocks.join("\n");
 }
 
 /** Lightweight elapsed-time pretty-printer. */
@@ -181,10 +363,16 @@ export function AISidebar(props: AISidebarProps) {
      *  flight, so the elapsed-time counter updates in the UI. */
     const [, setNowTick] = useState(0);
 
+    /** Tracks the most recently auto-submitted event signature so a
+     *  prop-only re-render doesn't re-fire ask(). Wizard completions pass
+     *  an incrementing id, which keeps a later same-question completion
+     *  distinct from an accidental same-prop render. */
+    const autoSubmittedRef = useRef<string | null>(null);
     /** Per-entry abort controllers for in-flight fetches. */
     const abortControllers = useRef<Map<number, AbortController>>(new Map());
     /** Per-entry polling interval timer ids. */
     const pollTimers = useRef<Map<number, ReturnType<typeof setInterval>>>(new Map());
+    const recordedUsageEntryIds = useRef<Set<number>>(new Set());
 
     // While there's at least one in-flight entry, keep ticking so the
     // elapsed time UI stays current. Stops when nothing is pending.
@@ -208,6 +396,76 @@ export function AISidebar(props: AISidebarProps) {
             timers.clear();
         };
     }, []);
+
+    useEffect(() => {
+        for (const completed of history) {
+            if (completed.status !== "completed" || recordedUsageEntryIds.current.has(completed.id)) continue;
+            recordedUsageEntryIds.current.add(completed.id);
+            recordUsageResponse({
+                usage: completed.usage,
+                texts: {
+                    userQuestion: completed.question,
+                    response: completed.answer || "",
+                },
+            });
+        }
+    }, [history]);
+
+    // Phase A discovery state: fetch a DiscoverySnapshot whenever the
+    // connector or pack changes. The snapshot is cached in sessionStorage
+    // by discoveryClient with a 15-min TTL, so navigating back to a
+    // previously-loaded combo is instant.
+    const [snapshot, setSnapshot] = useState<DiscoverySnapshot | null>(null);
+    const [discoveryLoading, setDiscoveryLoading] = useState(false);
+    const [selectedFrame, setSelectedFrame] = useState<string | null>(null);
+    useEffect(() => {
+        if (!props.activeConnector) {
+            setSnapshot(null);
+            return;
+        }
+        let cancelled = false;
+        setDiscoveryLoading(true);
+
+        // Optional live BI metadata. The adapter is allowed to omit the
+        // method entirely (iframe adapters) or return null (SDK mode not
+        // available yet). We swallow failures — discovery already degrades
+        // to pack-only signals when biMetadata is null.
+        const collectBiMetadata = async (): Promise<unknown | null> => {
+            const adapter = props.biAdapter;
+            if (!adapter || typeof adapter.getMetadata !== "function") return null;
+            try {
+                return await adapter.getMetadata();
+            } catch {
+                return null;
+            }
+        };
+
+        collectBiMetadata().then(biMetadata => {
+            if (cancelled) return;
+            return getDiscoverySnapshot({
+                assistantProfile: props.activeConnector,
+                pack: props.packSelection?.pack,
+                subVertical: props.packSelection?.subVertical,
+                // Cast: BIAdapter's BIMetadata is structurally compatible
+                // with discoveryClient's local BIMetadata. The optional
+                // chain + cast keeps the wiring loose so an adapter that
+                // returns extra fields doesn't break the proxy call.
+                biMetadata: biMetadata as Parameters<typeof getDiscoverySnapshot>[0]["biMetadata"],
+            });
+        }).then(snap => {
+            if (!cancelled && snap !== undefined) {
+                setSnapshot(snap);
+                setDiscoveryLoading(false);
+            }
+        }).catch(() => {
+            // Discovery is non-blocking — UI just falls back to free text.
+            if (!cancelled) {
+                setSnapshot(null);
+                setDiscoveryLoading(false);
+            }
+        });
+        return () => { cancelled = true; };
+    }, [props.activeConnector, props.packSelection?.pack, props.packSelection?.subVertical, props.biAdapter]);
 
     const stopEntry = (entryId: number, reason: string) => {
         const ctrl = abortControllers.current.get(entryId);
@@ -234,11 +492,55 @@ export function AISidebar(props: AISidebarProps) {
             pollTimers.current.delete(entryId);
         }
         abortControllers.current.delete(entryId);
-        setHistory(prev => prev.map(h =>
-            h.id === entryId
-                ? { ...h, ...patch, status, finishedAt: Date.now() }
-                : h
-        ));
+        // Close any still-open perf stages and dump the table for this run.
+        // Harmless when the stage was already closed (stageEnd no-ops on
+        // already-closed entries). Lets the DevTools console show the
+        // breakdown for every terminal Ask Pulse — success OR failure.
+        const runId = `ask:${entryId}`;
+        stageEnd(runId, "polling");
+        stageEnd(runId, "submit");
+        stageEnd(runId, "total");
+        dumpRun(runId, `Ask Pulse #${entryId} → ${status}`);
+        let completedEntry: AnswerEntry | null = null;
+        setHistory(prev => {
+            const finishedAt = Date.now();
+            const next = prev.map(h =>
+                h.id === entryId
+                    ? { ...h, ...patch, status, finishedAt }
+                    : h
+            );
+            // FW1 — capture the post-patch entry so the onEntryCompleted
+            // callback below can fire with the same object the sidebar
+            // just rendered. The updater runs synchronously inside React's
+            // commit so completedEntry is populated before the `if` block
+            // below executes.
+            if (status === "completed") {
+                completedEntry = next.find(h => h.id === entryId) ?? null;
+            }
+            return next;
+        });
+        // Fire the FW1 completion callback after setHistory dispatches.
+        // Wrapped in try/catch so a misbehaved host can't break the AI
+        // sidebar's state machine.
+        if (status === "completed" && props.onEntryCompleted) {
+            // If completedEntry wasn't populated (React batched the
+            // updater past this point), reconstruct the completed shape
+            // from the function arguments — the caller already has the
+            // patch + entryId, so this is a guaranteed-correct fallback.
+            const entry: AnswerEntry = completedEntry ?? {
+                id: entryId,
+                question: "",
+                status: "completed",
+                startedAt: 0,
+                finishedAt: Date.now(),
+                ...patch,
+            };
+            try {
+                props.onEntryCompleted(entry);
+            } catch (err) {
+                console.warn("[AISidebar] onEntryCompleted handler threw:", err);
+            }
+        }
     };
 
     /** One poll tick. Resolves the message status from the proxy and
@@ -295,8 +597,28 @@ export function AISidebar(props: AISidebarProps) {
         pollTimers.current.set(entryId, timer);
     };
 
-    const ask = async () => {
-        const q = question.trim();
+    /** Auto-submit on prop change — wizard's "Done & ask" path. Fires
+     *  once per legacy string value, or once per event id when the caller
+     *  supplies an event object. */
+    useEffect(() => {
+        const auto = props.autoSubmitQuestion;
+        if (!auto) return;
+        const q = (typeof auto === "string" ? auto : auto.question).trim();
+        if (!q) return;
+        const signature = typeof auto === "string" ? `question:${q}` : `event:${String(auto.id)}`;
+        if (autoSubmittedRef.current === signature) return;
+        autoSubmittedRef.current = signature;
+        // Fire-and-forget; ask() handles its own state + error paths.
+        void ask(q);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [props.autoSubmitQuestion]);
+
+    /** Question state that the input is bound to.
+     *  ask(overrideQ) lets the caller supply a question directly without
+     *  going through the input — used by the auto-submit effect below
+     *  for the wizard's "Done & ask" path. */
+    const ask = async (overrideQ?: string) => {
+        const q = (typeof overrideQ === "string" ? overrideQ : question).trim();
         if (!q) return;
         const entryId = nextEntryId++;
         const startedAt = Date.now();
@@ -309,7 +631,26 @@ export function AISidebar(props: AISidebarProps) {
         setHistory(prev => [...prev, entry]);
         setQuestion("");
 
-        const contextBlock = buildContextBlock(props.activeVendor, props.recentEvents);
+        // Perf instrumentation — start two open stages: `total` (the whole
+        // user-facing duration) and `submit` (the POST /start RTT). The
+        // `polling` stage opens later when (and only if) polling kicks in.
+        // Marks are emitted into the Performance API entry buffer so DevTools
+        // Performance tab shows vertical lines at each boundary.
+        const runId = `ask:${entryId}`;
+        resetRun(runId);
+        stageStart(runId, "total", q.length > 60 ? `${q.slice(0, 57)}…` : q);
+        stageStart(runId, "submit", `profile=${props.activeConnector || "(default)"}`);
+
+        // Resolve the selected analysis frame (if any) from the snapshot so we
+        // can include both a structured `frame` JSON field (additive — proxy
+        // ignores unknown fields permissively) AND a "[Selected analysis frame]"
+        // section in the content preamble (so prompt-strategy benefits even
+        // before the proxy is updated to consume the structured field).
+        const selectedFrameObj: ReachableFrame | null = (selectedFrame && snapshot)
+            ? (snapshot.fused.reachableFrames.find(f => f.frameId === selectedFrame) || null)
+            : null;
+
+        const contextBlock = buildContextBlock(props.activeVendor, props.recentEvents, selectedFrameObj);
         const ctrl = new AbortController();
         abortControllers.current.set(entryId, ctrl);
 
@@ -326,10 +667,35 @@ export function AISidebar(props: AISidebarProps) {
                     // Pack/sub-vertical drives prompt enrichment on the proxy.
                     pack: props.packSelection?.pack,
                     subVertical: props.packSelection?.subVertical,
+                    // Frame-to-prompt wiring (Phase B). Additive field; the
+                    // proxy ignores unknown JSON keys, so a stale proxy
+                    // version silently drops this without failing the call.
+                    // When the proxy is updated to consume it, this becomes
+                    // the canonical machine-readable signal of the user's
+                    // selected analysis intent (vs free-text question).
+                    ...(selectedFrameObj ? {
+                        frame: {
+                            frameId: selectedFrameObj.frameId,
+                            label: selectedFrameObj.label,
+                            domain: selectedFrameObj.domain,
+                            params: selectedFrameObj.params,
+                        },
+                    } : {}),
+                    // Probe-once cross-backend reuse — when AISidebar already
+                    // has the snapshot in hand, distil it into the same
+                    // discoveryContext envelope the Pulse genie pipeline uses.
+                    // Proxy ignores unknown keys, so a stale proxy version
+                    // drops it silently; updated routes (Genie / FM / OpenAI /
+                    // Bedrock / Supervisor) inject it as system-prompt or
+                    // user-header augmentation.
+                    ...(snapshot ? { discoveryContext: summariseSnapshotForRequest(snapshot) } : {}),
                 }),
                 signal: ctrl.signal,
             });
             const data = (await res.json()) as ProxyMessageResponse;
+            // Backend RTT done — close `submit` regardless of terminal vs
+            // pending status. finalize() also closes it as a safety net.
+            stageEnd(runId, "submit");
             if (!res.ok) {
                 finalize(entryId, { error: data?.error || `HTTP ${res.status}` }, "failed");
                 return;
@@ -369,6 +735,7 @@ export function AISidebar(props: AISidebarProps) {
                     ? { ...h, ...projection, conversationId: cid, messageId: mid, status: "polling" }
                     : h
             ));
+            stageStart(runId, "polling", `cid=${cid}`);
             startPolling(entryId, cid, mid, startedAt);
         } catch (err) {
             if ((err as { name?: string })?.name === "AbortError") return; // user clicked Stop
@@ -390,7 +757,7 @@ export function AISidebar(props: AISidebarProps) {
     return (
         <section className="pp-ai-sidebar">
             <header className="pp-ai-sidebar__header">
-                <h2 className="pp-ai-sidebar__title">AI Assistant</h2>
+                <h2 className="pp-ai-sidebar__title">PulsePlay AI</h2>
                 <p
                     className="pp-ai-sidebar__pack-indicator"
                     data-testid="pp-ai-sidebar-pack-indicator"
@@ -418,6 +785,13 @@ export function AISidebar(props: AISidebarProps) {
                 ))}
             </div>
             <div className="pp-ai-sidebar__composer">
+                <FramePicker
+                    snapshot={snapshot}
+                    loading={discoveryLoading}
+                    value={selectedFrame}
+                    onChange={setSelectedFrame}
+                    compact
+                />
                 <textarea
                     className="pp-ai-sidebar__input"
                     rows={3}
@@ -462,6 +836,7 @@ export function AISidebar(props: AISidebarProps) {
                     </button>
                 </div>
             </div>
+            <SustainabilityIndicator showReset />
         </section>
     );
 }
@@ -470,28 +845,75 @@ export function AISidebar(props: AISidebarProps) {
 function AnswerEntryView(props: { entry: AnswerEntry; onStop: () => void; onRetry: () => void }) {
     const { entry } = props;
     const elapsedMs = (entry.finishedAt ?? Date.now()) - entry.startedAt;
+    const evidenceItems: EvidenceItem[] = [
+        ...(entry.sqlQuery ? [{
+            kind: "sql" as const,
+            label: "Generated query",
+            value: entry.sqlQuery,
+            source: "Proxy response field: sqlQuery",
+        }] : []),
+        ...(entry.validationDiagnostics ? [{
+            kind: "source" as const,
+            label: "Validation diagnostics",
+            value: JSON.stringify(entry.validationDiagnostics, null, 2),
+            source: "Proxy response field: validationDiagnostics",
+        }] : []),
+    ];
 
     return (
         <article className="pp-ai-sidebar__entry" data-testid={`pp-ai-entry-${entry.id}`} data-status={entry.status}>
             <div className="pp-ai-sidebar__q"><strong>You:</strong> {entry.question}</div>
 
             {entry.status === "submitting" && (
-                <div className="pp-ai-sidebar__pending">Submitting…</div>
-            )}
-            {entry.status === "polling" && (
-                <div className="pp-ai-sidebar__pending">
-                    Thinking… (elapsed: {formatElapsed(elapsedMs)})
+                // Audit 2026-05-19 P2-11: aria-live so screen-reader users
+                // hear that work is in flight; without it the spinner state
+                // was invisible to assistive tech.
+                <div
+                    className="pp-ai-sidebar__pending"
+                    role="status"
+                    aria-live="polite"
+                >
+                    Submitting…
                 </div>
             )}
+            {entry.status === "polling" && (() => {
+                const detail = describePollStatus(entry.pollStatus);
+                return (
+                    <div
+                        className="pp-ai-sidebar__pending"
+                        data-testid={`pp-ai-poll-${entry.id}`}
+                        data-poll-status={(entry.pollStatus || "").toUpperCase()}
+                        // Audit 2026-05-19 P2-11: aria-live so the rotating
+                        // "Warming warehouse → Asking the AI → Running the SQL"
+                        // copy gets announced as it changes. polite (not
+                        // assertive) — these are status updates, not alerts.
+                        role="status"
+                        aria-live="polite"
+                    >
+                        <div style={{ fontWeight: 500 }}>
+                            {detail ? detail.label : "Thinking…"} <span style={{ opacity: 0.6, fontWeight: 400 }}>(elapsed: {formatElapsed(elapsedMs)})</span>
+                        </div>
+                        {detail?.hint && (
+                            <div style={{ fontSize: 11, opacity: 0.65, marginTop: 4, lineHeight: 1.35 }}>
+                                {detail.hint}
+                            </div>
+                        )}
+                    </div>
+                );
+            })()}
 
             {entry.answer && (
                 <div className="pp-ai-sidebar__a">
                     <strong>AI:</strong>
-                    <div
-                        className="pp-ai-sidebar__narrative"
-                        style={{ whiteSpace: "pre-wrap", marginTop: 4 }}
-                    >
-                        {entry.answer}
+                    {/* Audit 2026-05-19 P2-2: was `whiteSpace: pre-wrap` + raw
+                      * text — every backend that emits Markdown (Genie /
+                      * Foundation Model / Supervisor / Bedrock) leaked `**`,
+                      * `|`, and `#` characters into the chat. The minimal
+                      * renderer in lib/renderMarkdown is safe-by-construction
+                      * (no innerHTML, link protocols vetted) and covers the
+                      * subset of Markdown those backends actually use. */}
+                    <div className="pp-ai-sidebar__narrative pp-md" style={{ marginTop: 4 }}>
+                        {renderMarkdown(entry.answer)}
                     </div>
                 </div>
             )}
@@ -533,6 +955,8 @@ function AnswerEntryView(props: { entry: AnswerEntry; onStop: () => void; onRetr
             {entry.validationDiagnostics && (
                 <ValidationFooter diagnostics={entry.validationDiagnostics} />
             )}
+
+            <EvidenceDrawer items={evidenceItems} />
 
             {entry.status === "failed" && (
                 <div className="pp-ai-sidebar__error" data-testid={`pp-ai-error-${entry.id}`}>

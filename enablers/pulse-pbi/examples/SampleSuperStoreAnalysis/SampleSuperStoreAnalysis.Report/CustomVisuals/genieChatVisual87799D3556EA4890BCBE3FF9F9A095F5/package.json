@@ -1,0 +1,29 @@
+{
+  "version": "1.0.0.0",
+  "author": {
+    "name": "Databricks Explorer",
+    "email": "admin@databricks.local"
+  },
+  "resources": [
+    {
+      "resourceId": "rId0",
+      "sourceType": 5,
+      "file": "resources/genieChatVisual87799D3556EA4890BCBE3FF9F9A095F5.pbiviz.json"
+    }
+  ],
+  "visual": {
+    "guid": "genieChatVisual87799D3556EA4890BCBE3FF9F9A095F5",
+    "name": "genieChatVisual",
+    "displayName": "Databricks Genie AI Assistant",
+    "version": "1.0.0.0",
+    "description": "Enterprise AI/BI assistant powered by Databricks Genie. Shows orchestration flow, context enrichment, reasoning breakdown, and business-formatted outputs.",
+    "supportUrl": "https://docs.databricks.com/api/workspace/genie",
+    "gitHubUrl": "",
+    "visualClassName": "Visual"
+  },
+  "metadata": {
+    "pbivizjson": {
+      "resourceId": "rId0"
+    }
+  }
+}

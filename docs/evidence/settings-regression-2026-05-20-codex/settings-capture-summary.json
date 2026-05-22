@@ -1,0 +1,56 @@
+[
+  {
+    "name": "setup",
+    "url": "http://127.0.0.1:5173/settings/setup",
+    "hasAlert": false,
+    "hasUnsaved": false,
+    "hasNoProfiles": true,
+    "hasNoPacksDisabled": true,
+    "textStart": "- banner: - heading \"Settings\" [level=1]: - text: Settings - paragraph: Configure how PulsePlay looks, what it embeds, and how it reasons. - button \"Back to app\": - text: Back to app - searchbox \"Search settings\" - generic: Ctrl / - button \"Jump to Setup group\": - generic: Setup - generic: BI config - button \"Jump to BI group\": - generic: BI - generic: Power BI - button \"Jump to AI group\": - generic: AI - generic: Default profile - button \"Jump to ai › Pack\": - generic: Pack - generic: No knowledge source - button \"Jump to system › Proxy\": - generic: Proxy - g"
+  },
+  {
+    "name": "bi",
+    "url": "http://127.0.0.1:5173/settings/bi",
+    "hasAlert": false,
+    "hasUnsaved": false,
+    "hasNoProfiles": false,
+    "hasNoPacksDisabled": false,
+    "textStart": "- banner: - heading \"Settings\" [level=1]: - text: Settings - paragraph: Configure how PulsePlay looks, what it embeds, and how it reasons. - button \"Back to app\": - text: Back to app - searchbox \"Search settings\" - generic: Ctrl / - button \"Jump to Setup group\": - generic: Setup - generic: BI config - button \"Jump to BI group\": - generic: BI - generic: Power BI - button \"Jump to AI group\": - generic: AI - generic: Default profile - button \"Jump to ai › Pack\": - generic: Pack - generic: No knowledge source - button \"Jump to system › Proxy\": - generic: Proxy - g"
+  },
+  {
+    "name": "ai",
+    "url": "http://127.0.0.1:5173/settings/ai",
+    "hasAlert": false,
+    "hasUnsaved": false,
+    "hasNoProfiles": false,
+    "hasNoPacksDisabled": false,
+    "textStart": "- banner: - heading \"Settings\" [level=1]: - text: Settings - paragraph: Configure how PulsePlay looks, what it embeds, and how it reasons. - button \"Back to app\": - text: Back to app - searchbox \"Search settings\" - generic: Ctrl / - button \"Jump to Setup group\": - generic: Setup - generic: BI config - button \"Jump to BI group\": - generic: BI - generic: Power BI - button \"Jump to AI group\": - generic: AI - generic: Default profile - button \"Jump to ai › Pack\": - generic: Pack - generic: No knowledge source - button \"Jump to system › Proxy\": - generic: Proxy - g"
+  },
+  {
+    "name": "preferences",
+    "url": "http://127.0.0.1:5173/settings/preferences",
+    "hasAlert": false,
+    "hasUnsaved": false,
+    "hasNoProfiles": false,
+    "hasNoPacksDisabled": false,
+    "textStart": "- banner: - heading \"Settings\" [level=1]: - text: Settings - paragraph: Configure how PulsePlay looks, what it embeds, and how it reasons. - button \"Back to app\": - text: Back to app - searchbox \"Search settings\" - generic: Ctrl / - button \"Jump to Setup group\": - generic: Setup - generic: BI config - button \"Jump to BI group\": - generic: BI - generic: Power BI - button \"Jump to AI group\": - generic: AI - generic: Default profile - button \"Jump to ai › Pack\": - generic: Pack - generic: No knowledge source - button \"Jump to system › Proxy\": - generic: Proxy - g"
+  },
+  {
+    "name": "system",
+    "url": "http://127.0.0.1:5173/settings/system",
+    "hasAlert": false,
+    "hasUnsaved": false,
+    "hasNoProfiles": false,
+    "hasNoPacksDisabled": false,
+    "textStart": "- banner: - heading \"Settings\" [level=1]: - text: Settings - paragraph: Configure how PulsePlay looks, what it embeds, and how it reasons. - button \"Back to app\": - text: Back to app - searchbox \"Search settings\" - generic: Ctrl / - button \"Jump to Setup group\": - generic: Setup - generic: BI config - button \"Jump to BI group\": - generic: BI - generic: Power BI - button \"Jump to AI group\": - generic: AI - generic: Default profile - button \"Jump to ai › Pack\": - generic: Pack - generic: No knowledge source - button \"Jump to system › Proxy\": - generic: Proxy - g"
+  },
+  {
+    "name": "advanced",
+    "url": "http://127.0.0.1:5173/settings/advanced",
+    "hasAlert": false,
+    "hasUnsaved": false,
+    "hasNoProfiles": false,
+    "hasNoPacksDisabled": false,
+    "textStart": "- banner: - heading \"Settings\" [level=1]: - text: Settings - paragraph: Configure how PulsePlay looks, what it embeds, and how it reasons. - button \"Back to app\": - text: Back to app - searchbox \"Search settings\" - generic: Ctrl / - button \"Jump to Setup group\": - generic: Setup - generic: BI config - button \"Jump to BI group\": - generic: BI - generic: Power BI - button \"Jump to AI group\": - generic: AI - generic: Default profile - button \"Jump to ai › Pack\": - generic: Pack - generic: No knowledge source - button \"Jump to system › Proxy\": - generic: Proxy - g"
+  }
+]

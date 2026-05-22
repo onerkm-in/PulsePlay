@@ -491,7 +491,7 @@ export const STEP5_PRESETS: Preset[] = [
         id: "D.hse-4space",
         section: "D",
         label: "HSE 4-space demo",
-        description: "Sales, Customer + Returns, Targets + HSE, plus the primary HSE space. Matches the bundled DwD_PBI_Demo multi-space configuration.",
+        description: "Sales, Customer + Returns, Targets + HSE, plus the primary HSE space. Matches the bundled PulsePlay-PBI-demo multi-space configuration.",
         apply: {
             multiSpaceEnabled: true,
             multiSpaceCount: 3,

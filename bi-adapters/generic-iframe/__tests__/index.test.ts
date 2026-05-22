@@ -106,4 +106,25 @@ describe("GenericIframeAdapter — iframe behaviour", () => {
         iframe.dispatchEvent(new Event("load"));
         expect(okCalls).toBe(1);
     });
+
+    // ── getMetadata() defensive null contract ──────────────────────────
+    //
+    // Iframe-only adapters cannot introspect what the user is looking at.
+    // The defensive null return is explicit (not "method absent") so:
+    //   1. TypeScript discovers the method on GenericIframeAdapter
+    //      subclasses without needing each subclass to declare it.
+    //   2. The AISidebar discovery effect's `typeof adapter.getMetadata
+    //      === "function"` check still passes; the null result then flows
+    //      to Discovery Loop which falls back to pack-only signals.
+    //   3. Future vendor SDK graduations override this with a real impl.
+    test("getMetadata() returns null even before mount", async () => {
+        const a = new GenericIframeAdapter();
+        expect(await a.getMetadata()).toBeNull();
+    });
+
+    test("getMetadata() still returns null after a successful mount", async () => {
+        const a = new GenericIframeAdapter();
+        await a.mount(containerEl, VALID_CONFIG);
+        expect(await a.getMetadata()).toBeNull();
+    });
 });

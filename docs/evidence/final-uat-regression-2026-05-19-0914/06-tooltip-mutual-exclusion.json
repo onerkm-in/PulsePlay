@@ -1,0 +1,16 @@
+{
+  "buttonCount": 7,
+  "afterReplace": {
+    "expanded": [
+      {
+        "describedby": "_r_1_",
+        "expanded": "true",
+        "i": 1
+      }
+    ],
+    "texts": [
+      "Microsoft Power BI. Embed reports via the official powerbi-client SDK. Requires an embed URL, workspace ID, and report ID. Authentication can be SSO (AAD), service principal, or a paste-in secure embed link."
+    ],
+    "tooltipCount": 1
+  }
+}

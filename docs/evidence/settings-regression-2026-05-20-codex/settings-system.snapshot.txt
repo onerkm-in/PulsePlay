@@ -1,0 +1,133 @@
+- banner:
+  - heading "Settings" [level=1]:
+    - text: Settings
+  - paragraph: Configure how PulsePlay looks, what it embeds, and how it reasons.
+  - button "Back to app":
+    - text: Back to app
+- searchbox "Search settings"
+- generic: Ctrl /
+- button "Jump to Setup group":
+  - generic: Setup
+  - generic: BI config
+- button "Jump to BI group":
+  - generic: BI
+  - generic: Power BI
+- button "Jump to AI group":
+  - generic: AI
+  - generic: Default profile
+- button "Jump to ai › Pack":
+  - generic: Pack
+  - generic: No knowledge source
+- button "Jump to system › Proxy":
+  - generic: Proxy
+  - generic: Connected
+- button "Jump to system › Security":
+  - generic: Security
+  - generic: Enforced
+- main:
+  - region "System":
+    - heading "System" [level=2]
+    - paragraph: Is it safe, and is anything broken — proxy health, governance, diagnostics, tools.
+    - heading "Status" [level=3]
+    - paragraph: Live signal from the PulsePlay proxy, governance allowlist, and auth posture.
+    - article:
+      - generic: Proxy status
+      - button "Copy link to Proxy status": Copy link
+      - paragraph: Live /health from the PulsePlay proxy. Polled every 10 seconds; click Re-run to refresh immediately.
+      - strong: Reachable
+      - generic: 93ms
+      - button "Re-run"
+      - generic: "Profiles configured:"
+      - generic: "3"
+      - generic: "Config source:"
+      - generic: config.json
+      - generic: "Auth mode:"
+      - generic: none
+      - generic: "Port:"
+      - generic: "8787"
+      - generic: "Last checked: 17:26:39"
+    - article:
+      - generic: Network and auth
+      - button "Copy link to Network and auth": Copy link
+      - paragraph: Detected auth mode + how this proxy expects clients to authenticate. Read-only; configured via PROXY_AUTH_MODE / PROXY_IDP_* / PROXY_SHARED_KEY env vars on proxy startup.
+      - generic: "Auth mode:"
+      - generic: none
+      - generic: "Databricks App:"
+      - generic: "no"
+      - generic: "Config source:"
+      - generic: config.json
+      - text: Detailed IdP fields (JWKS URL, issuer, audience, required) are configured via
+      - code: PROXY_IDP_*
+      - text: env vars on proxy startup and are not exposed by the
+      - code: /health
+      - text: route for security reasons. See
+      - code: docs/SECURITY.md
+      - text: .
+    - heading "Policy" [level=3]
+    - paragraph: Allowlist contents and Power BI license posture. Read-only — configured by your admin in proxy/config.json.
+    - article:
+      - generic: Security posture
+      - button "Copy link to Security posture": Copy link
+      - paragraph: Read-only view of the organization-controlled allowlist. Configured via proxy/config.json. Do not edit here.
+      - generic: "Enforcement:"
+      - generic: strict
+      - generic: "BI providers:"
+      - generic: (empty)
+      - generic: "AAD tenants:"
+      - generic: (empty)
+      - generic: "AI profiles:"
+      - generic: (empty)
+      - generic: "Packs:"
+      - generic: (empty)
+      - generic: "PBI workspaces:"
+      - generic: (any)
+      - generic: "Genie spaces:"
+      - generic: (any)
+      - generic: "Fetched at:"
+      - generic: 2026-05-20T11:56:39.231Z
+    - article:
+      - generic: License posture
+      - button "Copy link to License posture": Copy link
+      - paragraph: What's licensed in this deployment. Read-only; configured by the admin via proxy/config.json allowlist.license.
+      - generic: "License:"
+      - generic: (no license block in allowlist)
+    - heading "Logs and traces" [level=3]
+    - paragraph: What's been happening — proxy profiles, recent BI events, and errors. Read-only, for troubleshooting.
+    - article:
+      - generic: Profile inventory
+      - button "Copy link to Profile inventory": Copy link
+      - paragraph: Connector profiles the proxy loaded from config.json. Each profile is a (name, type) pair the AI sidebar can target. Configured via proxy/config.json or PROXY_PROFILE_* env vars.
+      - generic: "Count:"
+      - generic: "3"
+      - generic: "Profiles:"
+      - list:
+        - listitem: default
+        - listitem: supervisor
+        - listitem: foundation
+      - text: Per-profile details (type, space ID, warehouse ID, host) live in proxy/config.json and are not exposed by the
+      - code: /health
+      - text: route. See
+      - code: docs/PROXY_REFERENCE.md
+      - text: .
+    - article:
+      - generic: Diagnostics
+      - button "Copy link to Diagnostics": Copy link
+      - paragraph: Last 20 BI events + last 20 console errors. Use Export bundle below to save a redacted snapshot for support.
+      - generic: Recent BI events (0)
+      - text: No events captured yet. Load a BI report to start receiving events.
+      - generic: Last errors (0)
+      - text: No errors captured this session.
+    - heading "Actions" [level=3]
+    - paragraph: Re-run setup or export a support bundle. Non-destructive.
+    - article:
+      - generic: Setup wizard
+      - button "Copy link to Setup wizard": Copy link
+      - paragraph: Re-run the first-run setup wizard to change your BI vendor, AI connector, persona, or knowledge pack. Clears the dismissal flag and any saved draft so you start fresh.
+      - button "Re-run setup wizard"
+      - generic: Takes you back to the Welcome screen. Your existing embed config and connector are preserved in localStorage — the wizard just re-applies whatever you pick on Done.
+    - article:
+      - generic: Export support bundle
+      - button "Copy link to Export support bundle": Copy link
+      - paragraph: Download a redacted JSON snapshot of state for support tickets. Tokens and secrets are masked before download.
+      - button "Download support bundle (.json)"
+      - generic: "Contains: settings, allowlist contents, proxy health, last 20 BI events, last 20 errors, pulseplay:* localStorage keys (tokens redacted), browser info. Approx 10-50 KB."

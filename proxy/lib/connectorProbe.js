@@ -119,6 +119,7 @@ function pickAdapter(profile) {
     if (profile?.type === 'supervisor-local') return probeSupervisorLocal;
     if (profile?.type === 'supervisor') return probeSupervisorReal;
     if (profile?.type === 'foundation-model' || profile?.type === 'foundation') return probeFoundationModel;
+    if (profile?.type === 'powerbi-semantic-model') return probePowerBiSemanticModel;
     if (profile?.azureOpenAiEndpoint) {
         return profile.schemaContext ? probeOpenAiAnalytics : probeOpenAiChatOnly;
     }
@@ -134,6 +135,7 @@ function classifyConnectorType(profile) {
     if (profile.type === 'supervisor-local') return 'supervisor-local';
     if (profile.type === 'supervisor') return 'supervisor';
     if (profile.type === 'foundation-model' || profile.type === 'foundation') return 'foundation-model';
+    if (profile.type === 'powerbi-semantic-model') return 'powerbi-semantic-model';
     if (profile.azureOpenAiEndpoint) return profile.schemaContext ? 'openai-analytics' : 'openai-chat';
     if (profile.bedrockKnowledgeBaseId) return 'bedrock-rag';
     if (profile.bedrockAccessKeyId) return 'bedrock-direct';
@@ -370,6 +372,119 @@ async function probeBedrockDirect(profile, profileName, _helpers) {
     };
 }
 
+/**
+ * Power BI semantic-model probe — reads dataset metadata via the Power BI
+ * REST API and pulls measure + table inventory via INFO.* DAX functions.
+ * Output measures become `declaredKpis` so downstream pack matching can
+ * align them with vertical KPIs the same way Genie KPIs do.
+ *
+ * Defensive: a deployer with a valid token but no INFO.* DAX permissions
+ * (rare; happens on some Premium-Per-User datasets) still gets metadata-
+ * only "minimal" availability rather than a hard failure.
+ */
+async function probePowerBiSemanticModel(profile, profileName, _helpers) {
+    const warnings = [];
+    /** @type {ConnectorProbeResult} */
+    const result = {
+        profile: profileName,
+        connectorType: 'powerbi-semantic-model',
+        metadataAvailability: 'none',
+        probeDurationMs: 0,
+        warnings,
+    };
+    let client;
+    try { client = require('./powerbiDatasetClient'); }
+    catch (e) {
+        warnings.push(`powerbiDatasetClient module unavailable: ${truncate(e?.message)}`);
+        return result;
+    }
+
+    // Step 1 — dataset metadata. If THIS fails the probe is essentially
+    // useless; surface the error and return a none-availability shell.
+    let dataset = null;
+    try {
+        dataset = await client.getDatasetMetadata(profile);
+    } catch (err) {
+        warnings.push(`Power BI dataset metadata fetch failed: ${truncate(err?.message)}`);
+        return result;
+    }
+    if (dataset?.name) result.displayName = String(dataset.name);
+    if (dataset?.description) result.description = String(dataset.description);
+    if (dataset?.configuredBy) result.owner = String(dataset.configuredBy);
+    if (dataset?.createdDate) result.lastUpdated = String(dataset.createdDate);
+
+    // Step 2 — INFO.MEASURES() via DAX → declaredKpis. Power BI exposes
+    // measure name + table + description + display folder via this view.
+    try {
+        const measuresQuery = 'EVALUATE SELECTCOLUMNS(INFO.MEASURES(), '
+            + '"Name", [Name], "TableName", [Table], "Description", [Description])';
+        const measures = await client.executeDaxNormalized(profile, measuresQuery);
+        if (measures.rows.length > 0) {
+            const colIndex = (name) => measures.columns.findIndex(c => c.toLowerCase().includes(name.toLowerCase()));
+            const nameIdx = colIndex('Name');
+            const descIdx = colIndex('Description');
+            const kpis = measures.rows.map(r => ({
+                name: nameIdx >= 0 ? String(r[nameIdx] || '') : '',
+                description: descIdx >= 0 && r[descIdx] ? String(r[descIdx]) : undefined,
+            })).filter(k => k.name);
+            if (kpis.length > 0) result.declaredKpis = kpis;
+        }
+    } catch (err) {
+        warnings.push(`Power BI INFO.MEASURES probe failed: ${truncate(err?.message)}`);
+    }
+
+    // Step 3 — INFO.TABLES() + INFO.COLUMNS() via DAX → schema. Two DAX
+    // calls instead of one because Power BI's INFO functions don't join.
+    try {
+        const tablesQuery = 'EVALUATE SELECTCOLUMNS(INFO.TABLES(), "Name", [Name], "Description", [Description])';
+        const tablesResp = await client.executeDaxNormalized(profile, tablesQuery);
+        const tableMap = new Map();
+        if (tablesResp.rows.length > 0) {
+            const nameIdx = tablesResp.columns.findIndex(c => c.toLowerCase().includes('name'));
+            const descIdx = tablesResp.columns.findIndex(c => c.toLowerCase().includes('description'));
+            for (const row of tablesResp.rows) {
+                const name = nameIdx >= 0 ? String(row[nameIdx] || '').trim() : '';
+                if (!name) continue;
+                tableMap.set(name, { name, description: descIdx >= 0 && row[descIdx] ? String(row[descIdx]) : undefined, columns: [] });
+            }
+        }
+        const columnsQuery = 'EVALUATE SELECTCOLUMNS(INFO.COLUMNS(), '
+            + '"Table", [Table], "Name", [ExplicitName], "DataType", [DataType])';
+        const columnsResp = await client.executeDaxNormalized(profile, columnsQuery);
+        if (columnsResp.rows.length > 0) {
+            const tableIdx = columnsResp.columns.findIndex(c => c.toLowerCase() === 'table' || c.toLowerCase().includes('table'));
+            const nameIdx = columnsResp.columns.findIndex(c => c.toLowerCase().includes('name'));
+            const typeIdx = columnsResp.columns.findIndex(c => c.toLowerCase().includes('type') || c.toLowerCase().includes('datatype'));
+            for (const row of columnsResp.rows) {
+                const tname = tableIdx >= 0 ? String(row[tableIdx] || '').trim() : '';
+                const cname = nameIdx >= 0 ? String(row[nameIdx] || '').trim() : '';
+                if (!tname || !cname) continue;
+                if (!tableMap.has(tname)) tableMap.set(tname, { name: tname, columns: [] });
+                const t = tableMap.get(tname);
+                t.columns.push({
+                    name: cname,
+                    type: typeIdx >= 0 && row[typeIdx] ? String(row[typeIdx]) : undefined,
+                });
+            }
+        }
+        const tables = Array.from(tableMap.values()).filter(t => t.columns.length > 0 || t.description);
+        if (tables.length > 0) result.schema = { tables };
+    } catch (err) {
+        warnings.push(`Power BI INFO.TABLES/COLUMNS probe failed: ${truncate(err?.message)}`);
+    }
+
+    // Availability classification.
+    if (result.schema && result.declaredKpis) result.metadataAvailability = 'rich';
+    else if (result.schema || result.declaredKpis) result.metadataAvailability = 'rich';
+    else if (result.displayName) {
+        result.metadataAvailability = 'minimal';
+        warnings.push('Power BI dataset reached but no schema or measures were returned; pack inference will be weak');
+    } else {
+        result.metadataAvailability = 'none';
+    }
+    return result;
+}
+
 /** Foundation Model serving endpoint — minimal (just the endpoint name). */
 async function probeFoundationModel(profile, profileName, _helpers) {
     const endpoint = profile.foundationModelEndpoint || profile.endpoint || '';
@@ -543,6 +658,7 @@ module.exports = {
         probeBedrockRag,
         probeBedrockDirect,
         probeFoundationModel,
+        probePowerBiSemanticModel,
         probeGeneric,
         parseSchemaContextString,
         extractTables,

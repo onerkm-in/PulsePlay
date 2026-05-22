@@ -46,7 +46,7 @@ export const GUIDED_PAGE_TITLES: Record<GuidedPageId, string> = {
     7: "Review",
 };
 
-const GUIDED_PAGE_LS_KEY = "dwd-setup-step5-guided-page";
+const GUIDED_PAGE_LS_KEY = "pulseplay-setup-step5-guided-page";
 
 function readPersistedPage(): GuidedPageId {
     try {
@@ -245,7 +245,7 @@ export function SetupStep5Guided(props: SetupStep5GuidedProps) {
                 total={total}
                 title="Enabled features"
                 summary="Choose active assistant surfaces"
-                tooltip="Selects which surfaces appear in the report: insights, chat, or both. Fill when the report needs a narrower experience; keep both when unsure."
+                tooltip="Selects which surfaces appear in the report: insights, Ask Pulse, or both. Fill when the report needs a narrower experience; keep both when unsure."
                 question={<>What experience do you want this report to offer? You can change this later.</>}
                 onBack={undefined}
                 onSkip={() => goNext()}
@@ -254,9 +254,9 @@ export function SetupStep5Guided(props: SetupStep5GuidedProps) {
             >
                 <div className="gn-setup-guided-radio-grid">
                     {([
-                        { value: "both", title: "Both — AI Insights + Chat", desc: "Default. Tab strip visible; viewers switch between auto analytics and conversational Q&A." },
+                        { value: "both", title: "Both — AI Insights + Ask Pulse", desc: "Default. Tab strip visible; viewers switch between auto analytics and conversational Q&A." },
                         { value: "insightsOnly", title: "AI Insights only", desc: "Auto-generated descriptive analytics on load. No chat tab. Best for executive dashboards." },
-                        { value: "chatOnly", title: "Chat only", desc: "Conversational Q&A only. No auto-insights — no Genie calls are made on visual load." },
+                        { value: "chatOnly", title: "Ask Pulse only", desc: "Conversational Q&A only. No auto-insights — no Genie calls are made on visual load." },
                     ] as const).map(opt => (
                         <label
                             key={opt.value}
@@ -278,14 +278,14 @@ export function SetupStep5Guided(props: SetupStep5GuidedProps) {
                     <strong>Preview:</strong>
                     <div>
                         Visual will show <strong>{
-                            draft.enabledFeatures === "both" ? "AI Insights + Chat (tab strip visible)"
+                            draft.enabledFeatures === "both" ? "AI Insights + Ask Pulse (tab strip visible)"
                             : draft.enabledFeatures === "insightsOnly" ? "AI Insights only"
-                            : "Chat only"
+                            : "Ask Pulse only"
                         }</strong>.
                     </div>
                     {draft.enabledFeatures === "chatOnly" && (
                         <div className="gn-setup-guided-preview-note">
-                            ℹ Chat-only mode skips the AI Insights pipeline entirely — no Genie calls are made on visual load.
+                            Ask Pulse-only mode skips the AI Insights pipeline entirely — no Genie calls are made on visual load.
                         </div>
                     )}
                 </aside>
@@ -374,7 +374,7 @@ export function SetupStep5Guided(props: SetupStep5GuidedProps) {
                 question={
                     insightsActive
                         ? <>How should AI Insights behave when a viewer opens the report? You can also tune the embedded analytics knowledge base.</>
-                        : <>Chat-only mode is selected — AI Insights settings have no effect, but you can still tune the analytics knowledge base used in Chat answers.</>
+                        : <>Ask Pulse-only mode is selected — AI Insights settings have no effect, but you can still tune the analytics knowledge base used in Ask Pulse answers.</>
                 }
                 onBack={goBack}
                 onSkip={goNext}

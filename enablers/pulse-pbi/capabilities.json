@@ -1,0 +1,140 @@
+{
+    "dataRoles": [
+        {
+            "displayName": "Dimension (for context)",
+            "name": "category",
+            "kind": "Grouping",
+            "description": "Optional. Bind one or more business dimensions so the assistant can explain answers in the context of selected categories or filtered report slices."
+        },
+        {
+            "displayName": "Measure (for context)",
+            "name": "measure",
+            "kind": "Measure",
+            "description": "Optional. Bind one or more measures so the assistant can summarize totals, compare selected values, and ground answers in visible metrics."
+        }
+    ],
+    "objects": {
+        "genieSettings": {
+            "displayName": "Genie Settings",
+            "properties": {
+                "host": {
+                    "displayName": "Step 1 - Databricks Workspace URL",
+                    "description": "Enter the full Databricks workspace URL for your environment, for example an AWS host like https://dbc-xxxx.cloud.databricks.com or an Azure host like https://adb-<workspace>.<region>.azuredatabricks.net.",
+                    "type": { "text": true }
+                },
+                "apiBaseUrl": {
+                    "displayName": "Step 1 - PulsePlay Proxy URL",
+                    "description": "Recommended for production. Use the shared PulsePlay proxy instead of direct browser-to-Databricks calls, for example http://localhost:8787 or https://proxy.company.com.",
+                    "type": { "text": true }
+                },
+                "assistantProfile": {
+                    "displayName": "Optional - Proxy Profile Name",
+                    "description": "Optional. Name of the assistant profile configured in the shared PulsePlay proxy. Leave blank to use the default profile.",
+                    "type": { "text": true }
+                },
+                "proxyKey": {
+                    "displayName": "Optional - Proxy Shared Secret",
+                    "description": "Optional. Sent as the PulsePlay proxy shared-key header when your proxy requires API-key authentication. Leave blank for local or IdP-only proxies.",
+                    "type": { "text": true }
+                },
+                "token": {
+                    "displayName": "Optional - Databricks Access Token",
+                    "description": "Use a Databricks PAT for direct mode. Leave this blank when a proxy or gateway handles authentication server-side.",
+                    "type": { "text": true }
+                },
+                "spaceId": {
+                    "displayName": "Step 2 - Genie Space ID",
+                    "description": "Paste the Genie room or space identifier used by this report.",
+                    "type": { "text": true }
+                },
+                "genieFields": {
+                    "displayName": "Optional - Approved Genie Fields For Validation",
+                    "description": "Optional. Paste approved Genie metric-view field names, one per line or comma-separated, so the visual can validate that the Power BI fields bound to the visual exist in Genie.",
+                    "type": { "text": true }
+                },
+                "domainGuidance": {
+                    "displayName": "Prompt - Domain Guidance",
+                    "description": "Optional. Add business rules or KPI interpretation guidance that should be included with every question.",
+                    "type": { "text": true }
+                },
+                "darkMode": {
+                    "displayName": "Appearance - Dark Mode",
+                    "description": "Switch the visual between dark and light presentation modes for report readability.",
+                    "type": { "bool": true }
+                },
+                "showSql": {
+                    "displayName": "Validation - Show Generated SQL",
+                    "description": "Turn on only for analyst or developer review when you want to inspect the SQL returned with a Genie answer.",
+                    "type": { "bool": true }
+                },
+                "devMode": {
+                    "displayName": "Developer Mode - Show Setup And Reasoning Tools",
+                    "description": "Turns on the builder-oriented panel with setup guidance, context diagnostics, and orchestration details for testing and troubleshooting.",
+                    "type": { "bool": true }
+                }
+            }
+        }
+    },
+    "dataViewMappings": [
+        {
+            "conditions": [
+                {
+                    "category": { "max": 0 },
+                    "measure": { "min": 1 }
+                }
+            ],
+            "categorical": {
+                "values": {
+                    "select": [{ "bind": { "to": "measure" } }]
+                }
+            }
+        },
+        {
+            "conditions": [
+                {
+                    "category": { "min": 1 },
+                    "measure": { "max": 0 }
+                }
+            ],
+            "categorical": {
+                "categories": {
+                    "for": { "in": "category" },
+                    "dataReductionAlgorithm": { "top": { "count": 100 } }
+                }
+            }
+        },
+        {
+            "conditions": [
+                {
+                    "category": { "min": 1 },
+                    "measure": { "min": 1 }
+                }
+            ],
+            "categorical": {
+                "categories": {
+                    "for": { "in": "category" },
+                    "dataReductionAlgorithm": { "top": { "count": 100 } }
+                },
+                "values": {
+                    "select": [{ "bind": { "to": "measure" } }]
+                }
+            }
+        }
+    ],
+    "supportsHighlight": true,
+    "privileges": [
+        {
+            "name": "WebAccess",
+            "essential": true,
+            "parameters": [
+                "https://*.cloud.databricks.com",
+                "https://*.databricks.com",
+                "https://*.azuredatabricks.net",
+                "https://localhost",
+                "http://localhost",
+                "https://127.0.0.1",
+                "http://127.0.0.1"
+            ]
+        }
+    ]
+}

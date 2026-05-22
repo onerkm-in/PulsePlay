@@ -25,7 +25,7 @@ app.
 `app.yaml` currently points the default profile at:
 
 - Genie space: `01f13d2bcd0a1be2a333d78bca0911b6`
-- SQL warehouse: `6510da50329f1e85`
+- SQL warehouse: `ENTER_WAREHOUSE_ID`
 
 Update those IDs if you want the app to route to a different Genie space or
 warehouse.

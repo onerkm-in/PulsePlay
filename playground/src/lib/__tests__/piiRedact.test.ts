@@ -44,9 +44,13 @@ describe("redactPiiFromString", () => {
     });
 
     it("redacts API-key-ish long alphanumeric tokens", () => {
-        const r = redactPiiFromString("Token: dapi006f1dc40b9a0862f6078f257d9c4acf");
+        // Obvious placeholder — reads as "enter your PAT here" so no
+        // reviewer ever mistakes it for a real Databricks token. The
+        // redaction regex matches on length / charset (≥32 alphanumeric
+        // + underscore + dash), not on the actual value.
+        const r = redactPiiFromString("Token: dapi00sdfENTER_YOUR_DATABRICKS_PAT_HERE");
         expect(r.value).toContain("[KEY]");
-        expect(r.value).not.toContain("dapi006f1dc40b9a0862f6078f257d9c4acf");
+        expect(r.value).not.toContain("dapi00sdfENTER_YOUR_DATABRICKS_PAT_HERE");
     });
 
     it("preserves non-PII numbers and short identifiers", () => {

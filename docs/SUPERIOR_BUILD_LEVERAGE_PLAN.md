@@ -4,7 +4,7 @@
 
 ## Position
 
-The sister project at `D:\Working_Folder\Projects\DwD_AI_Assistant_for_PBI` is not just legacy input. It is the strongest evidence bank for PulsePlay's first copy: live Power BI testing, Databricks Genie iteration, setup UX polish, proxy hardening, smoke scripts, PBIP demo assets, and many more tests than the playground currently has.
+The sister project at `D:\Working_Folder\Projects\sister Pulse project` is not just legacy input. It is the strongest evidence bank for PulsePlay's first copy: live Power BI testing, Databricks Genie iteration, setup UX polish, proxy hardening, smoke scripts, PBIP demo assets, and many more tests than the playground currently has.
 
 PulsePlay should use two simple rules:
 
@@ -22,7 +22,7 @@ Old Power BI visual:
 
 - Mature handover history through Session 76 / Cycle 47, including live-test polish.
 - 37 visual test files in `genieChatVisual/tests`.
-- PBIP demo assets under `PBI/DwD_PBI_Demo.*`.
+- PBIP demo assets under `PBI/PulsePlay-PBI-demo.*`.
 - Proven smoke scripts: `smoke-full.ps1`, `smoke-rls-ols.ps1`, stress/eval helper scripts.
 - Mature setup, security, prompt, SQL, cache, trace, export, and rendering flows.
 - Known tripwires documented: XHR-only in Power BI Desktop, `127.0.0.1` over `localhost`, setup belongs inside the visual, security badge is informational, request-id correlation is load-bearing.

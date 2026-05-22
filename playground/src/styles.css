@@ -1,147 +1,537 @@
-/* PulsePlay playground — minimal v0 styles. Sidebar (320px) + canvas. */
+/* ═══════════════════════════════════════════════════════════════════
+   PulsePlay playground — Design System v2
+   Full token layer + polished component styles.
+   ═══════════════════════════════════════════════════════════════════ */
 
+/* ── Design Tokens ───────────────────────────────────────────────── */
 :root {
-    --pp-bg: #f6f7f9;
-    --pp-surface: #ffffff;
-    --pp-text: #111;
-    --pp-text-muted: #5a5a5a;
-    --pp-border: rgba(0, 0, 0, 0.10);
-    --pp-accent: #1a6fd4;
-    --pp-accent-soft: rgba(58, 119, 245, 0.10);
-    --pp-error: #c1392b;
+    /* Backgrounds */
+    --pp-bg:               #f4f6f9;
+    --pp-surface:          #ffffff;
+    --pp-surface-raised:   #ffffff;
+    --pp-surface-overlay:  rgba(255, 255, 255, 0.92);
+
+    /* Text */
+    --pp-text:             #0f172a;
+    --pp-text-muted:       #64748b;
+    --pp-text-subtle:      #94a3b8;
+    --pp-fg:               #0f172a;
+
+    /* Borders */
+    --pp-border:           rgba(15, 23, 42, 0.10);
+    --pp-border-subtle:    rgba(15, 23, 42, 0.06);
+    --pp-border-strong:    rgba(15, 23, 42, 0.18);
+
+    /* Accent */
+    --pp-accent:           #2563eb;
+    --pp-accent-hover:     #1d4ed8;
+    --pp-accent-soft:      rgba(37, 99, 235, 0.08);
+    --pp-accent-border:    rgba(37, 99, 235, 0.30);
+
+    /* Semantic */
+    --pp-success:          #059669;
+    --pp-success-soft:     rgba(5, 150, 105, 0.08);
+    --pp-success-border:   rgba(5, 150, 105, 0.28);
+    --pp-warning:          #d97706;
+    --pp-warning-soft:     rgba(217, 119, 6, 0.08);
+    --pp-warning-border:   rgba(217, 119, 6, 0.28);
+    --pp-error:            #dc2626;
+    --pp-error-soft:       rgba(220, 38, 38, 0.07);
+    --pp-error-border:     rgba(220, 38, 38, 0.25);
+
+    /* Input */
+    --pp-input-bg:         #ffffff;
+
+    /* Radius scale */
+    --pp-radius-xs:        4px;
+    --pp-radius-sm:        6px;
+    --pp-radius:           10px;
+    --pp-radius-lg:        14px;
+    --pp-radius-xl:        20px;
+    --pp-radius-pill:      999px;
+
+    /* Spacing scale (4px base) */
+    --pp-s1:   4px;
+    --pp-s2:   8px;
+    --pp-s3:   12px;
+    --pp-s4:   16px;
+    --pp-s5:   20px;
+    --pp-s6:   24px;
+    --pp-s8:   32px;
+    --pp-s10:  40px;
+
+    /* Typography */
+    --pp-font:             "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    --pp-font-mono:        "Cascadia Code", "Fira Code", "Consolas", monospace;
+    --pp-text-xs:          11px;
+    --pp-text-sm:          12px;
+    --pp-text-base:        13px;
+    --pp-text-md:          14px;
+    --pp-text-lg:          16px;
+    --pp-text-xl:          18px;
+    --pp-text-2xl:         22px;
+    --pp-lh-tight:         1.25;
+    --pp-lh-base:          1.5;
+    --pp-lh-relaxed:       1.65;
+
+    /* Shadow scale */
+    --pp-shadow-xs:        0 1px 2px rgba(15, 23, 42, 0.06);
+    --pp-shadow-sm:        0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.05);
+    --pp-shadow-md:        0 4px 12px rgba(15, 23, 42, 0.10), 0 2px 4px rgba(15, 23, 42, 0.06);
+    --pp-shadow-lg:        0 8px 28px rgba(15, 23, 42, 0.13), 0 4px 8px rgba(15, 23, 42, 0.07);
+    --pp-shadow-xl:        0 16px 48px rgba(15, 23, 42, 0.16), 0 8px 16px rgba(15, 23, 42, 0.08);
+    --pp-control-shadow:   0 1px 2px rgba(15, 23, 42, 0.06), 0 4px 10px rgba(15, 23, 42, 0.05);
+    --pp-control-inset:    inset 0 1px 0 rgba(255, 255, 255, 0.90);
+    --pp-control-focus:    0 0 0 3px rgba(37, 99, 235, 0.18), 0 1px 3px rgba(15, 23, 42, 0.08);
+
+    /* Motion */
+    --pp-ease:             cubic-bezier(0.22, 1, 0.36, 1);
+    --pp-ease-in:          cubic-bezier(0.4, 0, 1, 1);
+    --pp-ease-out:         cubic-bezier(0, 0, 0.2, 1);
+    --pp-t-fast:           100ms;
+    --pp-t-base:           160ms;
+    --pp-t-slow:           240ms;
 }
 
-* { box-sizing: border-box; }
+/* ── Base Reset ──────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
 
 html, body, #root {
     height: 100%;
     margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-family: var(--pp-font);
+    font-size: var(--pp-text-base);
+    line-height: var(--pp-lh-base);
     color: var(--pp-text);
     background: var(--pp-bg);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
+/* ── App Shell ───────────────────────────────────────────────────── */
 .pp-app {
     display: flex;
     height: 100vh;
     overflow: hidden;
+    background: var(--pp-bg);
 }
+
 .pp-app__sidebar {
     width: 100%;
     max-width: 100%;
     min-width: 0;
     flex: 1 1 auto;
     background: var(--pp-surface);
-    border-right: 1px solid var(--pp-border);
+    border-right: 1px solid var(--pp-border-subtle);
     display: flex;
     flex-direction: column;
     overflow-x: hidden;
     overflow-y: auto;
-    padding: 16px;
-    gap: 14px;
+    padding: var(--pp-s4);
+    gap: var(--pp-s3);
+    box-shadow: 2px 0 12px rgba(15, 23, 42, 0.04);
 }
+
 .pp-app__canvas {
     flex: 1 1 auto;
     min-width: 0;
     max-width: 100%;
     overflow: hidden;
     position: relative;
-    background: var(--pp-bg);
+    /* 2026-05-19: was `var(--pp-bg)` (page gray-blue), but the canvas
+     * always sits INSIDE a panel chrome which paints itself white. The
+     * mismatch made the BI pane look "out of this world" — a sharp gray
+     * canvas inside a white panel, with an empty-state card floating on
+     * the gray. Inherit transparent so the panel's white shows through
+     * and the surfaces fuse. The AI panel already renders its content
+     * directly on white the same way. */
+    background: transparent;
 }
+
 .pp-app__brand h1 {
     margin: 0;
-    font-size: 22px;
-    letter-spacing: -0.01em;
+    font-size: var(--pp-text-2xl);
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    background: linear-gradient(135deg, var(--pp-text) 0%, #4f46e5 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
 }
+
 .pp-app__brand-tag {
     margin: 2px 0 0;
-    font-size: 12px;
+    font-size: var(--pp-text-xs);
     color: var(--pp-text-muted);
+    letter-spacing: 0.01em;
 }
-.pp-app__empty {
-    padding: 32px 40px;
-    max-width: 600px;
-    color: var(--pp-text-muted);
-}
-.pp-app__empty h2 { color: var(--pp-text); margin-top: 0; font-size: 18px; }
 
+/* 2026-05-19: empty state used to center vertically with min-height: 100%,
+ * which made the content "float in the middle of empty space" when the
+ * containing pane was large (e.g. maximized BI Viz on a wide viewport).
+ * Pull content to the top, and style it as a SECTION using the same
+ * border vocabulary as AI Insights' section bubbles (border color
+ * #e4e9ef, subtle 1px-2px shadow) so the empty state reads as a peer to
+ * the populated AI Insights briefing instead of a foreign white card. */
+.pp-app__empty {
+    padding: 20px 24px 22px;
+    max-width: 640px;
+    margin: 24px auto 0;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    color: var(--pp-text-muted);
+    background: #ffffff;
+    border: 1px solid #e4e9ef;
+    border-radius: 6px;
+    box-shadow: rgba(0, 0, 0, 0.04) 0px 1px 2px 0px;
+}
+.pp-app__empty h2 {
+    color: var(--pp-text);
+    margin-top: 0;
+    font-size: var(--pp-text-xl);
+    font-weight: 600;
+}
+
+/* ── Form Controls ───────────────────────────────────────────────── */
 .pp-vendor-picker__label,
 .pp-embed-config__label {
     display: block;
-    font-size: 11px;
+    font-size: var(--pp-text-xs);
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.06em;
     color: var(--pp-text-muted);
-    margin-bottom: 4px;
+    margin-bottom: var(--pp-s1);
 }
+
 .pp-vendor-picker__select,
+.pp-connector-picker__select,
+.pp-pack-picker__select,
+.pp-frame-picker__select,
 .pp-embed-config__input {
     width: 100%;
-    padding: 6px 8px;
-    border: 1px solid var(--pp-border);
-    border-radius: 4px;
-    font-size: 13px;
-    background: var(--pp-surface);
+    min-height: 34px;
+    padding: 7px 10px;
+    border: 1px solid var(--pp-border-strong);
+    border-radius: var(--pp-radius-sm);
+    font-size: var(--pp-text-base);
+    font-family: var(--pp-font);
+    background: linear-gradient(180deg, #ffffff 0%, #fafbfd 100%);
     color: var(--pp-text);
+    box-shadow: var(--pp-control-shadow), var(--pp-control-inset);
+    transition:
+        border-color var(--pp-t-base) var(--pp-ease),
+        box-shadow var(--pp-t-base) var(--pp-ease),
+        background var(--pp-t-base) var(--pp-ease);
+    appearance: none;
 }
+
+.pp-vendor-picker__select:hover,
+.pp-connector-picker__select:hover,
+.pp-pack-picker__select:hover,
+.pp-frame-picker__select:hover,
+.pp-embed-config__input:hover {
+    border-color: var(--pp-accent-border);
+    background: linear-gradient(180deg, #ffffff 0%, #f0f5ff 100%);
+}
+
+.pp-vendor-picker__select:focus,
+.pp-connector-picker__select:focus,
+.pp-pack-picker__select:focus,
+.pp-frame-picker__select:focus,
+.pp-embed-config__input:focus,
+.pp-ai-sidebar__input:focus,
+.pp-settings input:focus,
+.pp-settings select:focus,
+.pp-settings textarea:focus {
+    outline: none;
+    border-color: var(--pp-accent);
+    box-shadow: var(--pp-control-focus), var(--pp-control-inset);
+}
+
+.pp-embed-config__input--textarea,
+.pp-ai-sidebar__input,
+.pp-settings textarea {
+    min-height: 84px;
+    resize: vertical;
+    line-height: var(--pp-lh-relaxed);
+    background:
+        linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.98) 100%),
+        repeating-linear-gradient(180deg, transparent 0, transparent 27px, rgba(15,23,42,0.03) 28px);
+}
+
+.pp-settings input:not([type="checkbox"]):not([type="radio"]),
+.pp-settings select,
+.pp-settings textarea {
+    border-radius: var(--pp-radius-sm);
+    box-shadow: var(--pp-control-shadow), var(--pp-control-inset);
+    transition:
+        border-color var(--pp-t-base) var(--pp-ease),
+        box-shadow var(--pp-t-base) var(--pp-ease),
+        background var(--pp-t-base) var(--pp-ease);
+}
+
 .pp-vendor-picker__desc,
 .pp-embed-config__hint {
-    margin: 4px 0 0;
-    font-size: 11px;
+    margin: var(--pp-s1) 0 0;
+    font-size: var(--pp-text-xs);
     color: var(--pp-text-muted);
-    line-height: 1.4;
+    line-height: var(--pp-lh-relaxed);
 }
-.pp-embed-config__apply {
-    margin-top: 6px;
-    padding: 6px 12px;
-    border: 1px solid var(--pp-accent);
-    background: var(--pp-accent);
-    color: #ffffff;
-    border-radius: 4px;
-    font-size: 12px;
-    cursor: pointer;
-}
-.pp-embed-config__apply:hover { filter: brightness(1.05); }
 
-.pp-ai-sidebar {
-    margin-top: auto;
-    border-top: 1px solid var(--pp-border);
-    padding-top: 12px;
+.pp-embed-config__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--pp-s2);
+    margin-top: var(--pp-s2);
+}
+
+.pp-embed-config__grid label {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--pp-s1);
+    min-width: 0;
+    font-size: var(--pp-text-xs);
+    color: var(--pp-text-muted);
 }
-.pp-ai-sidebar__title { margin: 0; font-size: 14px; }
-.pp-ai-sidebar__intro { margin: 0; font-size: 11px; color: var(--pp-text-muted); }
-.pp-ai-sidebar__history { display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow-y: auto; }
-.pp-ai-sidebar__entry { font-size: 12px; line-height: 1.45; padding: 6px 8px; border: 1px solid var(--pp-border); border-radius: 4px; background: var(--pp-bg); }
-.pp-ai-sidebar__q { margin-bottom: 4px; }
-.pp-ai-sidebar__a { margin-top: 4px; }
+
+.pp-embed-config__apply {
+    margin-top: var(--pp-s2);
+    padding: 7px 16px;
+    border: none;
+    background: linear-gradient(135deg, var(--pp-accent) 0%, var(--pp-accent-hover) 100%);
+    color: #ffffff;
+    border-radius: var(--pp-radius-sm);
+    font-size: var(--pp-text-base);
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.36), var(--pp-control-inset);
+    transition:
+        opacity var(--pp-t-fast),
+        transform var(--pp-t-fast) var(--pp-ease),
+        box-shadow var(--pp-t-base) var(--pp-ease);
+}
+
+.pp-embed-config__apply:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.42), var(--pp-control-inset);
+}
+.pp-embed-config__apply:active:not(:disabled) { transform: translateY(0); }
+.pp-embed-config__apply:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.pp-embed-config__error {
+    margin: var(--pp-s2) 0 0;
+    font-size: var(--pp-text-xs);
+    color: var(--pp-error);
+    line-height: var(--pp-lh-relaxed);
+}
+
+/* ── AI Sidebar (v0 fallback) ────────────────────────────────────── */
+.pp-ai-sidebar {
+    margin-top: auto;
+    border-top: 1px solid var(--pp-border-subtle);
+    padding-top: var(--pp-s3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--pp-s2);
+}
+.pp-ai-sidebar__title  { margin: 0; font-size: var(--pp-text-md); font-weight: 600; }
+.pp-ai-sidebar__intro  { margin: 0; font-size: var(--pp-text-xs); color: var(--pp-text-muted); }
+.pp-ai-sidebar__history {
+    display: flex;
+    flex-direction: column;
+    gap: var(--pp-s2);
+    max-height: 280px;
+    overflow-y: auto;
+}
+.pp-ai-sidebar__entry {
+    font-size: var(--pp-text-sm);
+    line-height: var(--pp-lh-relaxed);
+    padding: 8px 10px;
+    border: 1px solid var(--pp-border);
+    border-radius: var(--pp-radius-sm);
+    background: var(--pp-bg);
+}
+.pp-ai-sidebar__q    { margin-bottom: var(--pp-s1); font-weight: 500; }
+.pp-ai-sidebar__a    { margin-top: var(--pp-s1); color: var(--pp-text-muted); }
 .pp-ai-sidebar__pending { font-style: italic; color: var(--pp-text-muted); }
-.pp-ai-sidebar__error { color: var(--pp-error); margin-top: 4px; }
-.pp-ai-sidebar__composer { display: flex; gap: 6px; align-items: flex-start; }
+.pp-ai-sidebar__error   { color: var(--pp-error); margin-top: var(--pp-s1); }
+.pp-ai-sidebar__composer {
+    display: flex;
+    gap: var(--pp-s2);
+    align-items: flex-start;
+}
 .pp-ai-sidebar__input {
     flex: 1;
-    padding: 6px 8px;
-    border: 1px solid var(--pp-border);
-    border-radius: 4px;
-    font-size: 12px;
-    font-family: inherit;
+    padding: 7px 10px;
+    border: 1px solid var(--pp-border-strong);
+    border-radius: var(--pp-radius-sm);
+    font-size: var(--pp-text-sm);
+    font-family: var(--pp-font);
     resize: vertical;
     background: var(--pp-surface);
     color: var(--pp-text);
+    box-shadow: var(--pp-control-shadow), var(--pp-control-inset);
+    transition: border-color var(--pp-t-base) var(--pp-ease), box-shadow var(--pp-t-base) var(--pp-ease);
 }
 .pp-ai-sidebar__ask {
-    padding: 6px 12px;
-    border: 1px solid var(--pp-accent);
-    background: var(--pp-accent);
-    color: #ffffff;
-    border-radius: 4px;
-    font-size: 12px;
+    padding: 7px 14px;
+    border: none;
+    background: linear-gradient(135deg, var(--pp-accent) 0%, var(--pp-accent-hover) 100%);
+    color: #fff;
+    border-radius: var(--pp-radius-sm);
+    font-size: var(--pp-text-sm);
+    font-weight: 600;
     cursor: pointer;
     align-self: stretch;
+    box-shadow: 0 2px 5px rgba(37, 99, 235, 0.32);
+    transition: opacity var(--pp-t-fast), transform var(--pp-t-fast) var(--pp-ease);
 }
+.pp-ai-sidebar__ask:hover { opacity: 0.92; transform: translateY(-1px); }
 
+/* ── Pane empty states (shared visual vocabulary) ────────────────
+ * Audit 2026-05-20 — bring the Dashboard tab's empty state into parity
+ * with AI Insights + Ask Pulse. Same structure: centered icon →
+ * heading → description → optional capability list → CTAs. These
+ * `.pp-empty-state*` classes mirror the `.gn-insights-placeholder` /
+ * `.gn-cta-*` rules in pulse/style/visual.less so the look is identical
+ * whether Pulse styles are loaded (mix / pulse mode) or not (biOnly). */
+.pp-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 48px 16px;
+    color: var(--pp-text-muted);
+    width: 100%;
+    max-width: 520px;
+    margin: 0 auto;
+}
+.pp-empty-state__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    background: var(--pp-accent-subtle, rgba(37, 99, 235, 0.10));
+    color: var(--pp-accent);
+    margin-bottom: 14px;
+}
+.pp-empty-state__icon svg { width: 28px; height: 28px; }
+.pp-empty-state__heading {
+    margin: 0 0 6px;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--pp-text);
+    line-height: 1.25;
+}
+.pp-empty-state__description {
+    margin: 0 0 14px;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--pp-text-muted);
+}
+.pp-empty-state__capabilities {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 18px;
+    text-align: left;
+    display: inline-block;
+    font-size: 12px;
+    line-height: 1.65;
+    color: var(--pp-text-muted);
+}
+.pp-empty-state__capabilities li { margin: 0; }
+.pp-empty-state__ctas {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+.pp-empty-state__hint {
+    margin: 14px 0 0;
+    font-size: 11px;
+    color: var(--pp-text-muted);
+    opacity: 0.8;
+}
+.pp-cta-primary {
+    padding: 8px 14px;
+    border: none;
+    background: var(--pp-accent);
+    color: #fff;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.28);
+    transition: opacity 120ms ease, transform 120ms ease;
+}
+.pp-cta-primary:hover { opacity: 0.92; transform: translateY(-1px); }
+.pp-cta-primary:focus-visible { outline: 2px solid var(--pp-accent); outline-offset: 2px; }
+.pp-cta-secondary {
+    padding: 8px 14px;
+    border: 1px solid var(--pp-border-strong, var(--pp-border));
+    background: var(--pp-surface);
+    color: var(--pp-text);
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease;
+}
+.pp-cta-secondary:hover { background: var(--pp-surface-raised, var(--pp-surface)); border-color: var(--pp-accent); }
+.pp-cta-secondary:focus-visible { outline: 2px solid var(--pp-accent); outline-offset: 2px; }
+
+/* ── Markdown rendering (lib/renderMarkdown.tsx) ──────────────────
+ * Audit 2026-05-19 P2-2: shared class set used by AISidebar narrative.
+ * Tight typographic rhythm — these render inside a sidebar bubble so
+ * headings stay close to body size, lists keep tight gaps, and code
+ * blocks scroll horizontally on overflow instead of breaking layout. */
+.pp-md > * + *          { margin-top: var(--pp-s1); }
+.pp-md-p                { margin: 0; line-height: var(--pp-lh-relaxed); color: var(--pp-text); }
+.pp-md-h1, .pp-md-h2,
+.pp-md-h3, .pp-md-h4,
+.pp-md-h5, .pp-md-h6    { margin: 6px 0 2px; line-height: 1.25; font-weight: 600; color: var(--pp-text); }
+.pp-md-h1               { font-size: var(--pp-text-md); }
+.pp-md-h2               { font-size: var(--pp-text-md); }
+.pp-md-h3               { font-size: var(--pp-text-sm); }
+.pp-md-h4, .pp-md-h5,
+.pp-md-h6               { font-size: var(--pp-text-sm); color: var(--pp-text-muted); }
+.pp-md-ul, .pp-md-ol    { margin: 2px 0; padding-left: 20px; color: var(--pp-text); }
+.pp-md-ul li,
+.pp-md-ol li            { margin: 1px 0; line-height: var(--pp-lh-relaxed); }
+.pp-md-pre              {
+    margin: 4px 0;
+    padding: 6px 8px;
+    background: var(--pp-bg);
+    border: 1px solid var(--pp-border);
+    border-radius: 4px;
+    overflow-x: auto;
+    font-size: 11px;
+}
+.pp-md-pre code         { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+.pp-md-code-inline      {
+    padding: 1px 5px;
+    background: var(--pp-bg);
+    border: 1px solid var(--pp-border);
+    border-radius: 3px;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.92em;
+}
+.pp-md-quote            {
+    margin: 4px 0;
+    padding: 2px 8px;
+    border-left: 3px solid var(--pp-border-strong);
+    color: var(--pp-text-muted);
+    font-style: italic;
+}
+.pp-md a                { color: var(--pp-accent); text-decoration: underline; }
+.pp-md a:hover          { opacity: 0.85; }
+
+/* ── BI Panel ────────────────────────────────────────────────────── */
 .pp-bi-panel {
     width: 100%;
     height: 100%;
@@ -151,126 +541,609 @@ html, body, #root {
 }
 .pp-bi-panel__container { flex: 1 1 auto; min-height: 0; position: relative; background: #fff; }
 .pp-bi-panel__container > iframe { width: 100%; height: 100%; border: 0; display: block; }
+
 .pp-bi-panel__loading,
 .pp-bi-panel__error {
     position: absolute;
     inset: 0;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    background: rgba(255,255,255,0.9);
+    background: rgba(255,255,255,0.94);
     z-index: 1;
-    padding: 24px;
+    padding: var(--pp-s6);
     text-align: center;
     color: var(--pp-text-muted);
+    gap: var(--pp-s2);
 }
 .pp-bi-panel__error { color: var(--pp-error); }
 
+/* ── PBI Dev Strip ───────────────────────────────────────────────── */
 .pp-pbi-dev {
     flex: 0 0 auto;
-    border-bottom: 1px solid var(--pp-border);
-    background: #ffffff;
+    border-bottom: 1px solid var(--pp-border-subtle);
+    background: var(--pp-surface);
 }
 .pp-pbi-dev__summary {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    padding: 8px 12px;
+    gap: var(--pp-s3);
+    padding: var(--pp-s2) var(--pp-s3);
     cursor: pointer;
-    font-size: 12px;
-    font-weight: 650;
+    font-size: var(--pp-text-sm);
+    font-weight: 600;
+    user-select: none;
 }
-.pp-pbi-dev__status {
-    color: var(--pp-text-muted);
-    font-size: 11px;
-    font-weight: 500;
-}
-.pp-pbi-dev__body {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 0 12px 12px;
-}
-.pp-pbi-dev__actions,
-.pp-pbi-dev__filter {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: end;
-    gap: 8px;
-}
+.pp-pbi-dev__status { color: var(--pp-text-muted); font-size: var(--pp-text-xs); font-weight: 500; }
+.pp-pbi-dev__body { display: flex; flex-direction: column; gap: 10px; padding: 0 var(--pp-s3) var(--pp-s3); }
+.pp-pbi-dev__actions, .pp-pbi-dev__filter { display: flex; flex-wrap: wrap; align-items: end; gap: var(--pp-s2); }
+
 .pp-pbi-dev button {
     min-height: 30px;
-    padding: 5px 10px;
-    border: 1px solid var(--pp-border);
-    border-radius: 4px;
+    padding: 5px 11px;
+    border: 1px solid var(--pp-border-strong);
+    border-radius: var(--pp-radius-sm);
     background: var(--pp-surface);
     color: var(--pp-text);
     cursor: pointer;
-    font-size: 12px;
+    font-size: var(--pp-text-sm);
+    font-family: var(--pp-font);
+    box-shadow: var(--pp-shadow-xs), var(--pp-control-inset);
+    transition:
+        border-color var(--pp-t-base) var(--pp-ease),
+        box-shadow var(--pp-t-base) var(--pp-ease),
+        transform var(--pp-t-fast) var(--pp-ease);
 }
 .pp-pbi-dev button:hover:not(:disabled) {
-    border-color: var(--pp-accent);
+    border-color: var(--pp-accent-border);
+    box-shadow: var(--pp-shadow-sm), var(--pp-control-inset);
+    transform: translateY(-1px);
 }
-.pp-pbi-dev button:disabled {
-    cursor: not-allowed;
-    opacity: 0.55;
-}
+.pp-pbi-dev button:active:not(:disabled) { transform: translateY(0); }
+.pp-pbi-dev button:disabled { cursor: not-allowed; opacity: 0.48; }
+
 .pp-pbi-dev__filter label {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: var(--pp-s1);
     min-width: 160px;
     color: var(--pp-text-muted);
-    font-size: 11px;
+    font-size: var(--pp-text-xs);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
 }
 .pp-pbi-dev__filter input {
     width: 100%;
     min-height: 30px;
     padding: 5px 8px;
-    border: 1px solid var(--pp-border);
-    border-radius: 4px;
+    border: 1px solid var(--pp-border-strong);
+    border-radius: var(--pp-radius-sm);
     background: var(--pp-surface);
     color: var(--pp-text);
     font: inherit;
-    font-size: 12px;
+    font-size: var(--pp-text-sm);
 }
 .pp-pbi-dev__grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 8px;
+    gap: var(--pp-s2);
 }
 .pp-pbi-dev__grid section {
     min-width: 0;
     border: 1px solid var(--pp-border);
-    border-radius: 4px;
+    border-radius: var(--pp-radius-sm);
     background: var(--pp-bg);
     overflow: hidden;
 }
-.pp-pbi-dev__grid h3 {
-    margin: 0;
-    padding: 6px 8px;
-    border-bottom: 1px solid var(--pp-border);
-    font-size: 11px;
+.pp-pbi-dev__grid h3 { margin: 0; padding: 6px 8px; border-bottom: 1px solid var(--pp-border); font-size: var(--pp-text-xs); font-weight: 600; }
+.pp-pbi-dev__grid pre { margin: 0; max-height: 180px; overflow: auto; padding: var(--pp-s2); font-size: var(--pp-text-xs); line-height: 1.4; white-space: pre-wrap; }
+
+/* ── Launchpad ───────────────────────────────────────────────────── */
+.pp-launchpad {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    background: var(--pp-bg);
+    color: var(--pp-text);
 }
-.pp-pbi-dev__grid pre {
+
+.pp-launchpad__header {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--pp-s4);
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--pp-border-subtle);
+    background: var(--pp-surface);
+    box-shadow: var(--pp-shadow-sm);
+}
+
+.pp-launchpad__header h1 {
     margin: 0;
-    max-height: 180px;
+    font-size: var(--pp-text-xl);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+.pp-launchpad__header p {
+    margin: 3px 0 0;
+    font-size: var(--pp-text-sm);
+    color: var(--pp-text-muted);
+}
+
+.pp-launchpad__header button,
+.pp-launchpad__actions button {
+    min-height: 32px;
+    padding: 6px 14px;
+    border: 1px solid var(--pp-border-strong);
+    border-radius: var(--pp-radius-sm);
+    background: var(--pp-surface);
+    color: var(--pp-text);
+    cursor: pointer;
+    font-size: var(--pp-text-base);
+    font-family: var(--pp-font);
+    font-weight: 500;
+    box-shadow: var(--pp-shadow-xs), var(--pp-control-inset);
+    transition:
+        border-color var(--pp-t-base) var(--pp-ease),
+        box-shadow var(--pp-t-base) var(--pp-ease),
+        transform var(--pp-t-fast) var(--pp-ease);
+}
+.pp-launchpad__actions button:hover,
+.pp-launchpad__header button:hover {
+    border-color: var(--pp-accent-border);
+    box-shadow: var(--pp-shadow-sm), var(--pp-control-inset);
+    transform: translateY(-1px);
+}
+.pp-launchpad__actions button:active,
+.pp-launchpad__header button:active { transform: translateY(0); }
+
+.pp-launchpad__note {
+    flex: 0 0 auto;
+    padding: 9px 24px;
+    border-bottom: 1px solid var(--pp-accent-border);
+    background: var(--pp-accent-soft);
+    color: #1e3a8a;
+    font-size: var(--pp-text-sm);
+    font-weight: 500;
+}
+
+.pp-launchpad__main {
+    flex: 1 1 auto;
+    min-height: 0;
     overflow: auto;
-    padding: 8px;
-    font-size: 11px;
-    line-height: 1.4;
+    padding: 20px 24px 48px;
+    display: grid;
+    gap: var(--pp-s4);
+}
+
+.pp-launchpad__section {
+    border-bottom: 1px solid var(--pp-border-subtle);
+    padding-bottom: 20px;
+}
+
+.pp-launchpad__section > header {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: var(--pp-s3);
+    margin-bottom: 12px;
+}
+
+.pp-launchpad__section h2 {
+    margin: 0;
+    font-size: var(--pp-text-lg);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+.pp-launchpad__section p {
+    margin: 3px 0 0;
+    color: var(--pp-text-muted);
+    font-size: var(--pp-text-sm);
+}
+
+.pp-launchpad__section header span {
+    border: 1px solid var(--pp-warning-border);
+    border-radius: var(--pp-radius-pill);
+    padding: 3px 10px;
+    font-size: var(--pp-text-xs);
+    font-weight: 600;
+    color: #92400e;
+    background: var(--pp-warning-soft);
+}
+
+.pp-launchpad__section header span[data-ready="true"] {
+    color: #065f46;
+    background: var(--pp-success-soft);
+    border-color: var(--pp-success-border);
+}
+
+.pp-launchpad__cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--pp-s3);
+}
+
+.pp-launchpad__card {
+    min-width: 0;
+    border: 1px solid var(--pp-border);
+    border-radius: var(--pp-radius);
+    background: var(--pp-surface);
+    padding: var(--pp-s3) var(--pp-s4);
+    box-shadow: var(--pp-shadow-sm);
+    transition:
+        box-shadow var(--pp-t-base) var(--pp-ease),
+        border-color var(--pp-t-base) var(--pp-ease),
+        transform var(--pp-t-base) var(--pp-ease);
+}
+.pp-launchpad__card:hover {
+    box-shadow: var(--pp-shadow-md);
+    border-color: var(--pp-accent-border);
+    transform: translateY(-2px);
+}
+
+.pp-launchpad__card h3 { margin: 0; font-size: var(--pp-text-md); font-weight: 600; }
+.pp-launchpad__card p { min-height: 34px; margin: 5px 0 8px; font-size: var(--pp-text-sm); line-height: var(--pp-lh-relaxed); color: var(--pp-text-muted); }
+.pp-launchpad__card dl { display: grid; gap: var(--pp-s1); margin: 0 0 10px; font-size: var(--pp-text-xs); }
+.pp-launchpad__card dl div { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: var(--pp-s2); }
+.pp-launchpad__card dt { color: var(--pp-text-muted); font-weight: 500; }
+.pp-launchpad__card dd { margin: 0; overflow-wrap: anywhere; font-weight: 500; }
+
+.pp-launchpad__actions { display: flex; flex-wrap: wrap; gap: var(--pp-s2); }
+
+.pp-launchpad__empty,
+.pp-launchpad__error {
+    padding: 12px 14px;
+    border: 1px solid var(--pp-border);
+    border-radius: var(--pp-radius-sm);
+    background: rgba(255, 255, 255, 0.7);
+    color: var(--pp-text-muted);
+    font-size: var(--pp-text-sm);
+}
+.pp-launchpad__error { color: var(--pp-error); background: var(--pp-error-soft); border-color: var(--pp-error-border); }
+
+/* ── Sectioned Answer ────────────────────────────────────────────── */
+.pp-sectioned-answer {
+    display: grid;
+    gap: var(--pp-s3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pp-sectioned-item {
+    min-width: 0;
+    border: 1px solid var(--pp-border);
+    border-radius: var(--pp-radius);
+    background: var(--pp-surface);
+    box-shadow: var(--pp-shadow-sm);
+    overflow: hidden;
+}
+
+.pp-sectioned-item--streaming {
+    border-color: var(--pp-accent-border);
+    box-shadow: 0 10px 28px rgba(37, 99, 235, 0.12);
+}
+
+.pp-sectioned-item--failed {
+    border-color: var(--pp-error-border);
+    background: linear-gradient(180deg, #fff 0%, var(--pp-error-soft) 100%);
+}
+
+.pp-sectioned-head {
+    display: flex;
+    align-items: center;
+    gap: var(--pp-s2);
+    min-height: 42px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--pp-border-subtle);
+    background: linear-gradient(180deg, rgba(248, 250, 252, 0.92) 0%, rgba(255, 255, 255, 0.94) 100%);
+}
+
+.pp-sectioned-title {
+    min-width: 0;
+    flex: 1 1 auto;
+    color: var(--pp-text);
+    font-size: var(--pp-text-base);
+    font-weight: 700;
+    line-height: var(--pp-lh-tight);
+}
+
+.pp-sectioned-status {
+    flex: 0 0 auto;
+    border: 1px solid var(--pp-border);
+    border-radius: var(--pp-radius-pill);
+    padding: 3px 8px;
+    background: var(--pp-bg);
+    color: var(--pp-text-muted);
+    font-size: var(--pp-text-xs);
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.pp-sectioned-item--streaming .pp-sectioned-status {
+    border-color: var(--pp-accent-border);
+    background: var(--pp-accent-soft);
+    color: var(--pp-accent);
+}
+
+.pp-sectioned-item--failed .pp-sectioned-status {
+    border-color: var(--pp-error-border);
+    background: var(--pp-error-soft);
+    color: var(--pp-error);
+}
+
+.pp-sectioned-skeleton,
+.pp-sectioned-streaming,
+.pp-sectioned-body,
+.pp-sectioned-error {
+    padding: 12px;
+}
+
+.pp-skel-line {
+    width: 100%;
+    height: 10px;
+    border-radius: var(--pp-radius-pill);
+    background: linear-gradient(90deg, #e5e7eb 0%, #f8fafc 48%, #e5e7eb 100%);
+}
+
+.pp-skel-line + .pp-skel-line { margin-top: 8px; }
+.pp-skel-line--short { width: min(68%, 420px); }
+
+.pp-skel-line--pulse {
+    animation: pp-sectioned-pulse 1.15s ease-in-out infinite;
+    background: linear-gradient(90deg, rgba(37, 99, 235, 0.16) 0%, rgba(14, 165, 233, 0.22) 50%, rgba(37, 99, 235, 0.16) 100%);
+}
+
+@keyframes pp-sectioned-pulse {
+    0%, 100% { opacity: 0.55; }
+    50% { opacity: 1; }
+}
+
+.pp-sectioned-body {
+    color: var(--pp-text);
+    font-size: var(--pp-text-sm);
+    line-height: var(--pp-lh-relaxed);
+}
+
+.pp-sectioned-body p,
+.pp-sectioned-body ul,
+.pp-sectioned-body ol { margin-top: 0; }
+
+.pp-sectioned-body-json {
+    max-height: 260px;
+    margin: 0;
+    overflow: auto;
+    border: 1px solid var(--pp-border-subtle);
+    border-radius: var(--pp-radius-sm);
+    padding: 10px;
+    background: var(--pp-bg);
+    color: var(--pp-text);
+    font-size: var(--pp-text-xs);
+    line-height: 1.45;
     white-space: pre-wrap;
 }
 
-@media (max-width: 1100px) {
-    .pp-pbi-dev__grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+.pp-sectioned-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+    color: var(--pp-text-subtle);
+    font-size: var(--pp-text-xs);
+}
+
+.pp-sectioned-error {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--pp-s3);
+    color: var(--pp-error);
+    font-size: var(--pp-text-sm);
+}
+
+.pp-sectioned-error-msg {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.pp-sectioned-regen {
+    flex: 0 0 auto;
+    border: 1px solid var(--pp-border-strong);
+    border-radius: var(--pp-radius-sm);
+    padding: 5px 9px;
+    background: var(--pp-surface);
+    color: var(--pp-text-muted);
+    cursor: pointer;
+    font: inherit;
+    font-size: var(--pp-text-xs);
+    font-weight: 700;
+    line-height: 1.2;
+    box-shadow: var(--pp-shadow-xs);
+    transition:
+        border-color var(--pp-t-base) var(--pp-ease),
+        color var(--pp-t-base) var(--pp-ease),
+        background var(--pp-t-base) var(--pp-ease);
+}
+
+.pp-sectioned-regen:hover:not(:disabled) {
+    border-color: var(--pp-accent-border);
+    background: var(--pp-accent-soft);
+    color: var(--pp-accent);
+}
+
+.pp-sectioned-regen:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pp-skel-line--pulse { animation: none; }
+}
+
+/* ── Evidence ────────────────────────────────────────────────────── */
+.pp-evidence { margin-top: var(--pp-s2); }
+
+.pp-evidence__toggle {
+    padding: 4px 10px;
+    border: 1px solid var(--pp-border-strong);
+    border-radius: var(--pp-radius-sm);
+    background: var(--pp-surface);
+    color: var(--pp-text-muted);
+    cursor: pointer;
+    font-size: var(--pp-text-xs);
+    font-weight: 500;
+    box-shadow: var(--pp-shadow-xs);
+    transition: all var(--pp-t-base) var(--pp-ease);
+}
+.pp-evidence__toggle:hover { border-color: var(--pp-accent-border); color: var(--pp-accent); }
+
+.pp-evidence__drawer { display: grid; gap: var(--pp-s2); margin-top: var(--pp-s2); }
+
+.pp-evidence__item {
+    border: 1px solid var(--pp-border);
+    border-radius: var(--pp-radius-sm);
+    background: rgba(255, 255, 255, 0.7);
+    overflow: hidden;
+}
+.pp-evidence__item header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--pp-s2);
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--pp-border-subtle);
+    font-size: var(--pp-text-xs);
+    background: var(--pp-bg);
+}
+.pp-evidence__item header span { color: var(--pp-text-muted); }
+.pp-evidence__item pre { margin: 0; max-height: 220px; overflow: auto; padding: 8px; font-size: var(--pp-text-xs); line-height: 1.4; white-space: pre-wrap; }
+.pp-evidence__item p { margin: 0; padding: 0 8px 8px; color: var(--pp-text-subtle); font-size: 10px; }
+
+/* ── Surface Switcher (unified shell tab control) ───────────────── */
+/* Peer segmented control for AI Insights / Ask Pulse / BI Viz.
+ * Codex 2026-05-19 finding: the previous implementation had visible
+ * label-icon duplication ("AI AI Insights", "Ask Ask Pulse", "BI BI Viz")
+ * because the icon well rendered the same text as the label. Rebuilt
+ * with proper SVG glyphs, smooth segmented-control feel, single label. */
+.pp-surface-switcher-wrap {
+    padding: 12px 18px;
+    flex: 0 0 auto;
+    display: flex;
+    /* 2026-05-19: bottom hairline rule anchors the switcher to the pane
+     * header above. No background tint — the canvas below is now white
+     * (matches the panel), so a tint would just create a stripe instead
+     * of fusing. The hairline alone is enough separation. */
+    border-bottom: 1px solid #f0f3f7;
+}
+
+.pp-surface-switcher {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 4px;
+    border: 1px solid var(--pp-border, rgba(15, 23, 42, 0.10));
+    border-radius: var(--pp-radius-pill, 999px);
+    background: var(--pp-surface-overlay, rgba(255, 255, 255, 0.92));
+    box-shadow: var(--pp-shadow-md, 0 8px 24px rgba(15, 23, 42, 0.08));
+    backdrop-filter: saturate(140%) blur(10px);
+}
+
+.pp-surface-switcher__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+    padding: 6px 14px;
+    border: 1px solid transparent;
+    border-radius: var(--pp-radius-pill, 999px);
+    background: transparent;
+    color: var(--pp-text-muted, #475569);
+    font: inherit;
+    font-size: var(--pp-text-base, 13px);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--pp-t-base, 160ms) var(--pp-ease, cubic-bezier(0.22, 1, 0.36, 1));
+    white-space: nowrap;
+}
+
+.pp-surface-switcher__item:hover:not(.pp-surface-switcher__item--active) {
+    background: var(--pp-accent-soft, rgba(37, 99, 235, 0.08));
+    color: var(--pp-text, #0f172a);
+}
+
+.pp-surface-switcher__item--active {
+    background: linear-gradient(180deg, var(--pp-accent, #2563eb) 0%, var(--pp-accent-hover, #1d4ed8) 100%);
+    color: #ffffff;
+    border-color: rgba(37, 99, 235, 0.75);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.32);
+}
+
+/* F5.1 — Surface unavailable in the current deployment configuration.
+ * The pill stays in the tablist (configuration options are never
+ * hidden globally), but it's visibly de-emphasised and not clickable.
+ * Both `:disabled` and the class selector apply: HTML disabled prevents
+ * clicks, the class keeps styling reliable across browsers that
+ * sometimes drop the pseudo-class on focus/hover transitions. The
+ * existing `:hover:not(--active)` rule above would otherwise re-tone
+ * the pill on hover; we explicitly cancel that here. */
+.pp-surface-switcher__item:disabled,
+.pp-surface-switcher__item--unavailable {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.pp-surface-switcher__item:disabled:hover,
+.pp-surface-switcher__item--unavailable:hover {
+    background: transparent;
+    color: var(--pp-text-muted, #475569);
+}
+
+.pp-surface-switcher__item svg {
+    flex: 0 0 14px;
+    /* Icon inherits currentColor so active state flips to white automatically. */
+}
+
+.pp-surface-switcher__label {
+    line-height: 1;
+}
+
+.pp-surface-switcher__trailing {
+    display: inline-flex;
+    align-items: center;
+    padding-left: 6px;
+    margin-left: 4px;
+    border-left: 1px solid var(--pp-border-subtle, rgba(15, 23, 42, 0.06));
+}
+
+/* Narrow viewport: tighten the pill but KEEP labels visible.
+ * Audit 2026-05-20 nav-IA pass: when the BI pane is half-width in mix
+ * mode (~640 px on a 1280 px viewport), this media query used to hide
+ * the labels entirely and the pill collapsed to three identical-shape
+ * icon discs. That made the BI-side picker feel like a different
+ * control from the AI-side picker (which always shows labels). Keep
+ * labels visible so the three tabs read the same on both panes. */
+@media (max-width: 640px) {
+    .pp-surface-switcher-wrap { padding: 10px 12px 6px; }
+    .pp-surface-switcher__item {
+        padding: 6px 10px;
+        gap: 6px;
+        font-size: 12px;
     }
 }
 
+/* ── Responsive ──────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+    .pp-pbi-dev__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 @media (max-width: 700px) {
-    .pp-pbi-dev__grid {
-        grid-template-columns: 1fr;
-    }
+    .pp-pbi-dev__grid, .pp-embed-config__grid { grid-template-columns: 1fr; }
 }

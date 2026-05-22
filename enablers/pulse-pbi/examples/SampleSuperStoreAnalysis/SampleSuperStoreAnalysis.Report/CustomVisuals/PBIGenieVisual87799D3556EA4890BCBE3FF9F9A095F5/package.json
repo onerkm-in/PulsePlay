@@ -1,0 +1,29 @@
+{
+  "version": "2.0.0.0",
+  "author": {
+    "name": "PBIGenieVisual",
+    "email": "admin@databricks.local"
+  },
+  "resources": [
+    {
+      "resourceId": "rId0",
+      "sourceType": 5,
+      "file": "resources/PBIGenieVisual87799D3556EA4890BCBE3FF9F9A095F5.pbiviz.json"
+    }
+  ],
+  "visual": {
+    "guid": "PBIGenieVisual87799D3556EA4890BCBE3FF9F9A095F5",
+    "name": "PBIGenieVisual",
+    "displayName": "PBI Genie Visual",
+    "version": "2.0.0.0",
+    "description": "Power BI custom visual for asking Databricks Genie questions from report context.",
+    "supportUrl": "https://docs.databricks.com/api/workspace/genie",
+    "gitHubUrl": "",
+    "visualClassName": "Visual"
+  },
+  "metadata": {
+    "pbivizjson": {
+      "resourceId": "rId0"
+    }
+  }
+}

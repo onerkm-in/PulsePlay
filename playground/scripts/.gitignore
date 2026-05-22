@@ -1,0 +1,6 @@
+# Smoke screenshots are generated artifacts; the .mjs runner produces
+# them on each run. Keep them out of version control so we don't bloat
+# history with binary snapshots that change every cycle.
+native-canvas-smoke.png
+shell-smoke.png
+shell-smoke-proxy.png

@@ -1,0 +1,65 @@
+command:
+  - "bash"
+  - "-c"
+  - |
+    set -e
+    echo "[boot] installing playground deps"
+    (cd playground && npm ci --no-audit --no-fund)
+    echo "[boot] building playground (vite)"
+    (cd playground && npm run build)
+    echo "[boot] installing proxy deps"
+    (cd proxy && npm ci --no-audit --no-fund)
+    echo "[boot] starting proxy with STATIC_DIR=playground/dist"
+    cd proxy && exec node server.js
+
+env:
+  # Auth posture — Databricks Apps gates the URL with platform auth, so the
+  # in-proxy mode can be "none". Switch to shared-key/idp for non-Databricks hosts.
+  - name: PROXY_AUTH_MODE
+    value: "none"
+
+  # Static-serve: relative to repo root (proxy resolves via __dirname + '..').
+  - name: STATIC_DIR
+    value: "playground/dist"
+
+  # Default Genie profile — Sample Superstore - Sales Performance space.
+  - name: PROXY_PROFILE_DEFAULT_HOST
+    value: "https://dbc-f88d29ce-4aa2.cloud.databricks.com"
+  - name: PROXY_PROFILE_DEFAULT_TOKEN
+    valueFrom: databricks-pat
+  - name: PROXY_PROFILE_DEFAULT_SPACE_ID
+    value: "01f13fe275b515608abb4182d0a37373"
+  - name: PROXY_PROFILE_DEFAULT_WAREHOUSE_ID
+    value: "6510da50329f1e85"
+  - name: PROXY_PROFILE_DEFAULT_DISPLAY_NAME
+    value: "Default (Sample Superstore Genie)"
+  - name: PROXY_PROFILE_DEFAULT_DATA_DOMAIN
+    value: "Sales performance"
+
+  # Foundation Model profile — Llama 3.1 405B serving endpoint on same workspace.
+  - name: PROXY_PROFILE_FOUNDATION_TYPE
+    value: "foundation-model"
+  - name: PROXY_PROFILE_FOUNDATION_HOST
+    value: "https://dbc-f88d29ce-4aa2.cloud.databricks.com"
+  - name: PROXY_PROFILE_FOUNDATION_TOKEN
+    valueFrom: databricks-pat
+  - name: PROXY_PROFILE_FOUNDATION_FOUNDATION_MODEL_ENDPOINT
+    value: "databricks-meta-llama-3.1-405b-instruct"
+  - name: PROXY_PROFILE_FOUNDATION_DISPLAY_NAME
+    value: "Foundation (Llama 3.1 405B)"
+
+  # Supervisor (local fan-out) — orchestrator profile, no creds of its own.
+  - name: PROXY_PROFILE_SUPERVISOR_TYPE
+    value: "supervisor-local"
+  - name: PROXY_PROFILE_SUPERVISOR_AGENT_NAME
+    value: "PulsePlay Supervisor"
+  - name: PROXY_PROFILE_SUPERVISOR_SYNTHESIS_ENDPOINT
+    value: "databricks-meta-llama-3.1-405b-instruct"
+
+resources:
+  - name: databricks-pat
+    description: PAT used by the proxy for all Databricks workspace calls (Genie + warehouse + Foundation Model).
+    secret:
+      scope: pulseplay
+      key: databricks_pat
+      permission: READ

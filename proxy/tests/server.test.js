@@ -45,8 +45,53 @@ jest.mock('fs', () => {
 // @azure/identity is optional — mock it as absent (PAT-only mode for tests).
 jest.mock('@azure/identity', () => { throw new Error('not installed'); }, { virtual: true });
 
+const mockGetCapabilities = jest.fn(async ({ profile, profileName }) => ({
+    ok: true,
+    assistantProfile: profileName || 'default',
+    spaceId: profile?.spaceId || '',
+    profile: {
+        name: profileName || 'default',
+        host: profile?.host || '',
+        spaceId: profile?.spaceId || '',
+        warehouseId: profile?.warehouseId || '',
+        type: profile?.type || 'genie',
+    },
+    capabilities: {
+        genie: true,
+        lakeview: false,
+        servingEndpoints: false,
+        apps: false,
+        vectorSearch: false,
+        jobs: false,
+    },
+    details: {},
+    counts: {},
+    ttlMs: 300000,
+    fetchedAt: '2026-05-17T00:00:00.000Z',
+    cacheExpiresAt: '2026-05-17T00:05:00.000Z',
+    cached: false,
+}));
+
+jest.mock('../lib/databricksCapabilityRegistry', () => ({
+    getCapabilities: mockGetCapabilities,
+    reset: jest.fn(),
+}));
+
 const request = require('supertest');
-const { app, conversationMap, normalizeGenieResponse, loadEnvProfiles, isTransientNetError } = require('../server');
+const {
+    app,
+    conversationMap,
+    normalizeGenieResponse,
+    loadEnvProfiles,
+    isTransientNetError,
+    handleUnexpectedProxyError,
+    RENDERABLE_BACKEND_GOVERNANCE,
+    governanceSubjectRefForRequest,
+    governanceForBackend,
+    withGovernance,
+    safeStreamErrorText,
+} = require('../server');
+const { UNEXPECTED_INTERNAL_SENTINEL } = require('../lib/problemDetails');
 const fs = require('fs');
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -57,6 +102,23 @@ function withConfig(overrides, fn) {
     beforeEach(() => fs.readFileSync.mockReturnValue(merged));
     afterEach(() => fs.readFileSync.mockReturnValue(JSON.stringify(MOCK_CONFIG_BASE)));
     fn();
+}
+
+async function withEnv(overrides, fn) {
+    const previous = {};
+    for (const key of Object.keys(overrides)) {
+        previous[key] = process.env[key];
+        if (overrides[key] === undefined) delete process.env[key];
+        else process.env[key] = overrides[key];
+    }
+    try {
+        return await fn();
+    } finally {
+        for (const key of Object.keys(overrides)) {
+            if (previous[key] === undefined) delete process.env[key];
+            else process.env[key] = previous[key];
+        }
+    }
 }
 
 // H2 — suppress expected console.error/warn noise from negative-path tests
@@ -83,6 +145,87 @@ beforeEach(() => {
     conversationMap.clear();
 });
 
+// ── G3 governance route registry ─────────────────────────────────────────────
+describe('G3 renderable backend governance registry', () => {
+    const expectedBackendIds = [
+        'genie',
+        'azure-openai-chat',
+        'azure-openai-analytics',
+        'bedrock-rag',
+        'bedrock-direct',
+        'foundation-model',
+        'supervisor',
+        'supervisor-local',
+        'responses-agent',
+        'powerbi-semantic-model',
+        // SS2 — proxy-backed shell smoke. Dev/test only; `authority: "mock"`
+        // is rejected by buildGovernanceAttestation in production.
+        'smoke-fixture',
+    ];
+
+    it('declares every renderable backend path exactly once', () => {
+        expect(Object.keys(RENDERABLE_BACKEND_GOVERNANCE).sort()).toEqual([...expectedBackendIds].sort());
+    });
+
+    it('stamps a valid attestation for every registered backend', () => {
+        for (const backendId of expectedBackendIds) {
+            const payload = withGovernance(
+                { requestId: `req-${backendId}`, headers: {}, pulseClient: { clientApp: 'pulseplay' } },
+                { type: backendId },
+                backendId,
+                { status: 'COMPLETED', content: 'ok' },
+            );
+            expect(payload.governance).toMatchObject({
+                enforced: true,
+                authority: RENDERABLE_BACKEND_GOVERNANCE[backendId].authority,
+                subjectRef: 'local-dev',
+                requestId: `req-${backendId}`,
+                policyVersion: 'g3-v1',
+            });
+        }
+    });
+
+    it('refuses unknown backend ids so new routes cannot silently skip mapping', () => {
+        expect(() => governanceForBackend({ requestId: 'req-1', headers: {} }, {}, 'new-backend'))
+            .toThrow(/No governance mapping registered/);
+    });
+
+    it('does not let route-local extras override registry-owned attestation fields', () => {
+        const attestation = governanceForBackend(
+            { requestId: 'req-real', headers: {}, user: { email: 'viewer@example.com' } },
+            {},
+            'bedrock-direct',
+            {
+                authority: 'unity-catalog',
+                subjectRef: 'spoofed-user',
+                requestId: 'spoofed-request',
+                policyVersion: 'spoofed-policy',
+                enforced: false,
+                cacheHit: true,
+            },
+        );
+        expect(attestation).toMatchObject({
+            enforced: true,
+            authority: 'warehouse',
+            requestId: 'req-real',
+            policyVersion: 'g3-v1',
+            cacheHit: true,
+        });
+        expect(attestation.subjectRef).toMatch(/^user:[a-f0-9]{12}$/);
+        expect(attestation.subjectRef).not.toBe('spoofed-user');
+    });
+
+    it('hashes verified user identifiers instead of echoing PII', () => {
+        const subjectRef = governanceSubjectRefForRequest(
+            { user: { email: 'person@example.com' }, headers: {} },
+            {},
+        );
+        expect(subjectRef).toMatch(/^user:[a-f0-9]{12}$/);
+        expect(subjectRef).not.toContain('person');
+        expect(subjectRef).not.toContain('@');
+    });
+});
+
 // ── /health ────────────────────────────────────────────────────────────────────
 describe('GET /health', () => {
     it('returns 200 with profile names', async () => {
@@ -92,10 +235,28 @@ describe('GET /health', () => {
         expect(res.body.profiles).toEqual(expect.arrayContaining(['default', 'analytics']));
     });
 
-    it('reports authMode based on whether a sharedKey is configured (IDEA-015)', async () => {
+    it('reports the effective authMode (IDEA-015)', async () => {
         const res = await request(app).get('/health');
-        // No PROXY_SHARED_KEY env var and no sharedKey in MOCK_CONFIG_BASE.
-        expect(res.body.authMode).toBe('anonymous');
+        // No auth env var and no sharedKey in MOCK_CONFIG_BASE.
+        expect(res.body.authMode).toBe('none');
+    });
+
+    it('echoes PX1 client identity and request id without auth', async () => {
+        const res = await request(app)
+            .get('/health')
+            .set('X-Pulse-Client', 'pulse-pbi')
+            .set('X-Pulse-Client-Version', '3.4.5 beta')
+            .set('X-Pulse-Request-Id', 'pulse rid<>');
+
+        expect(res.status).toBe(200);
+        expect(res.headers['x-request-id']).toBe('pulserid');
+        expect(res.headers['x-pulse-request-id']).toBe('pulserid');
+        expect(res.headers['x-pulse-client']).toBe('pulse-pbi');
+        expect(res.body.client).toEqual({
+            app: 'pulse-pbi',
+            version: '3.4.5beta',
+            requestId: 'pulserid',
+        });
     });
 
     it('filters _doc_* keys out of the public profile list (BUG-013 + IDEA-015)', async () => {
@@ -112,6 +273,54 @@ describe('GET /health', () => {
         const res = await request(app).get('/health');
         expect(res.body.profiles).not.toContain('_doc_displayName');
         expect(res.body.profiles).toEqual(expect.arrayContaining(['default', 'analytics']));
+    });
+});
+
+// ── /clients/compatibility ───────────────────────────────────────────────────
+describe('GET /clients/compatibility', () => {
+    it.each([
+        ['pulseplay', 'top-level-browser', false],
+        ['pulse-pbi', 'power-bi-custom-visual', true],
+        ['pulseplay-desktop', 'desktop-portable', false],
+    ])('returns PX1 contract metadata for %s', async (clientApp, host, powerBiSandbox) => {
+        const res = await request(app)
+            .get('/clients/compatibility')
+            .set('X-Pulse-Client', clientApp)
+            .set('X-Pulse-Client-Version', '1.2.3')
+            .set('X-Request-Id', `rid-${clientApp}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body).toMatchObject({
+            ok: true,
+            contractVersion: 'px1',
+            client: {
+                app: clientApp,
+                version: '1.2.3',
+                requestId: `rid-${clientApp}`,
+            },
+            compatibility: {
+                host,
+                powerBiSandbox,
+                xhrSafe: true,
+            },
+            notes: {
+                singleProxyContract: true,
+            },
+        });
+        expect(res.body.supportedClients).toEqual(['pulseplay', 'pulse-pbi', 'pulseplay-desktop']);
+        expect(res.body.requestHeaders).toContain('X-Pulse-Client');
+        expect(res.body.responseHeaders).toContain('X-Pulse-Client');
+    });
+
+    it('normalizes unknown clients to unknown rather than trusting arbitrary header values', async () => {
+        const res = await request(app)
+            .get('/clients/compatibility')
+            .set('X-Pulse-Client', 'rogue-tool');
+
+        expect(res.status).toBe(200);
+        expect(res.body.client.app).toBe('unknown');
+        expect(res.body.compatibility.host).toBe('unknown');
+        expect(res.headers['x-pulse-client']).toBe('unknown');
     });
 });
 
@@ -133,24 +342,74 @@ describe('GET /admin/health-summary', () => {
     });
 
     it('rejects calls without the shared key when one is configured', async () => {
-        fs.readFileSync.mockReturnValueOnce(JSON.stringify({
+        fs.readFileSync.mockReturnValue(JSON.stringify({
             ...MOCK_CONFIG_BASE,
             sharedKey: 'super-secret-key',
         }));
-        const res = await request(app).get('/admin/health-summary');
-        expect(res.status).toBe(401);
+        try {
+            const res = await request(app).get('/admin/health-summary');
+            expect(res.status).toBe(401);
+        } finally {
+            fs.readFileSync.mockReturnValue(JSON.stringify(MOCK_CONFIG_BASE));
+        }
     });
 
     it('accepts calls with a matching shared key', async () => {
-        fs.readFileSync.mockReturnValueOnce(JSON.stringify({
+        fs.readFileSync.mockReturnValue(JSON.stringify({
             ...MOCK_CONFIG_BASE,
             sharedKey: 'super-secret-key',
         }));
-        const res = await request(app)
-            .get('/admin/health-summary')
-            .set('x-genie-key', 'super-secret-key');
-        expect(res.status).toBe(200);
-        expect(res.body.ok).toBe(true);
+        try {
+            const res = await request(app)
+                .get('/admin/health-summary')
+                .set('x-genie-key', 'super-secret-key');
+            expect(res.status).toBe(200);
+            expect(res.body.ok).toBe(true);
+        } finally {
+            fs.readFileSync.mockReturnValue(JSON.stringify(MOCK_CONFIG_BASE));
+        }
+    });
+
+    it('accepts calls with the canonical X-PulsePlay-Key header', async () => {
+        fs.readFileSync.mockReturnValue(JSON.stringify({
+            ...MOCK_CONFIG_BASE,
+            sharedKey: 'super-secret-key',
+        }));
+        try {
+            const res = await request(app)
+                .get('/admin/health-summary')
+                .set('X-PulsePlay-Key', 'super-secret-key');
+            expect(res.status).toBe(200);
+            expect(res.body.ok).toBe(true);
+        } finally {
+            fs.readFileSync.mockReturnValue(JSON.stringify(MOCK_CONFIG_BASE));
+        }
+    });
+
+    it('rejects admin access when PROXY_AUTH_MODE=idp has no verified user', async () => {
+        await withEnv({ PROXY_AUTH_MODE: 'idp' }, async () => {
+            const res = await request(app).get('/admin/health-summary');
+            expect(res.status).toBe(401);
+        });
+    });
+
+    it('applies the same canonical-key gate to query-history', async () => {
+        fs.readFileSync.mockReturnValue(JSON.stringify({
+            ...MOCK_CONFIG_BASE,
+            sharedKey: 'super-secret-key',
+        }));
+        try {
+            const rejected = await request(app).get('/admin/query-history?profile=missing-profile');
+            expect(rejected.status).toBe(401);
+
+            const accepted = await request(app)
+                .get('/admin/query-history?profile=missing-profile')
+                .set('X-PulsePlay-Key', 'super-secret-key');
+            expect(accepted.status).toBe(400);
+            expect(accepted.body.error).toMatch(/Unknown profile/);
+        } finally {
+            fs.readFileSync.mockReturnValue(JSON.stringify(MOCK_CONFIG_BASE));
+        }
     });
 });
 
@@ -203,6 +462,83 @@ describe('CORS headers', () => {
     });
 });
 
+// ── Problem Details foundation (Slice 1b) ────────────────────────────────────
+describe('Problem Details foundation', () => {
+    it('returns application/problem+json for malformed JSON before auth runs', async () => {
+        const res = await request(app)
+            .post('/assistant/conversations/start')
+            .set('Content-Type', 'application/json')
+            .set('X-Request-Id', 'bad id<>')
+            .send('{"content":');
+
+        expect(res.status).toBe(400);
+        expect(res.headers['content-type']).toMatch(/application\/problem\+json/);
+        expect(res.headers['x-request-id']).toBe('badid');
+        expect(res.body).toMatchObject({
+            type: 'https://pulseplay.local/problems/invalid-json',
+            title: 'Invalid JSON body',
+            status: 400,
+            code: 'INVALID_JSON',
+            category: 'validation',
+            requestId: 'badid',
+            error: 'The request body is not valid JSON. Fix the JSON syntax and try again.',
+        });
+        expect(res.body.supportCode).toMatch(/^INVALID_JSON-/);
+    });
+
+    it('keeps the unexpected fallback as the final Express middleware', () => {
+        const stack = (app._router && app._router.stack) || (app.router && app.router.stack) || [];
+        const finalLayer = stack[stack.length - 1];
+        expect(finalLayer.handle.name).toBe('handleUnexpectedProxyError');
+    });
+
+    it('turns uncaught errors into a safe 500 problem envelope', () => {
+        const err = new Error('boom dapi12345678901234567890 client_secret=do-not-leak');
+        const req = {
+            headers: { 'x-request-id': 'rid-500' },
+            method: 'POST',
+            originalUrl: '/assistant/fail',
+        };
+        const problemPayloads = [];
+        const res = {
+            headersSent: false,
+            setHeader: jest.fn(),
+            status: jest.fn().mockReturnThis(),
+            type: jest.fn().mockReturnThis(),
+            json: jest.fn(body => { problemPayloads.push(body); return body; }),
+        };
+        const next = jest.fn();
+
+        handleUnexpectedProxyError(err, req, res, next);
+
+        expect(next).not.toHaveBeenCalled();
+        expect(res.status).toHaveBeenCalledWith(500);
+        expect(res.type).toHaveBeenCalledWith('application/problem+json');
+        expect(problemPayloads[0]).toMatchObject({
+            title: 'Unexpected proxy error',
+            status: 500,
+            code: 'UNEXPECTED_PROXY_ERROR',
+            category: 'unexpected_internal',
+            detail: UNEXPECTED_INTERNAL_SENTINEL,
+            error: UNEXPECTED_INTERNAL_SENTINEL,
+            requestId: 'rid-500',
+        });
+        expect(JSON.stringify(problemPayloads[0])).not.toContain('do-not-leak');
+        expect(JSON.stringify(problemPayloads[0])).not.toContain('dapi12345678901234567890');
+    });
+
+    it('passes streaming failures through when headers were already sent', () => {
+        const err = new Error('stream already started');
+        const req = { headers: {}, method: 'GET', originalUrl: '/supervisor/stream' };
+        const res = { headersSent: true };
+        const next = jest.fn();
+
+        handleUnexpectedProxyError(err, req, res, next);
+
+        expect(next).toHaveBeenCalledWith(err);
+    });
+});
+
 // ── /assistant/capabilities ───────────────────────────────────────────────────
 describe('GET /assistant/capabilities', () => {
     it('returns profile info for known profile', async () => {
@@ -211,6 +547,8 @@ describe('GET /assistant/capabilities', () => {
         expect(res.status).toBe(200);
         expect(res.body.ok).toBe(true);
         expect(res.body.spaceId).toBe('space-default-123');
+        expect(res.body.capabilities.genie).toBe(true);
+        expect(res.body.capabilities.vectorSearch).toBe(false);
     });
 
     it('returns profile info for named analytics profile', async () => {
@@ -365,6 +703,92 @@ describe('POST /assistant/conversations/start — profile resolution', () => {
         expect(res.status).toBe(400);
         expect(res.body.error).toMatch(/No matching profile/i);
     });
+});
+
+// ── SS2 — smoke-fixture profile short-circuit ─────────────────────────────────
+describe('POST /assistant/conversations/start — smoke-fixture profile', () => {
+    const SMOKE_CONFIG = {
+        ...MOCK_CONFIG_BASE,
+        profiles: {
+            ...(MOCK_CONFIG_BASE.profiles || {}),
+            smoke: {
+                type: 'smoke-fixture',
+                displayName: 'SS2 Smoke Fixture',
+                dataDomain: 'synthetic smoke data',
+            },
+        },
+    };
+
+    beforeEach(() => {
+        fs.readFileSync.mockReturnValue(JSON.stringify(SMOKE_CONFIG));
+    });
+    afterEach(() => {
+        fs.readFileSync.mockReturnValue(JSON.stringify(MOCK_CONFIG_BASE));
+    });
+
+    it('returns COMPLETED + governance attestation without contacting upstream', async () => {
+        const res = await request(app)
+            .post('/assistant/conversations/start')
+            .send({ assistantProfile: 'smoke', content: 'What is the SS2 smoke answer?' });
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe('COMPLETED');
+        expect(res.body.conversation_id).toMatch(/^smoke-conv-[a-f0-9]{12}$/);
+        expect(res.body.message_id).toMatch(/^smoke-msg-[a-f0-9]{12}$/);
+        expect(res.body.content).toMatch(/^Smoke fixture answer to: ".+"$/);
+        expect(res.body.governance).toMatchObject({
+            enforced: true,
+            authority: 'mock',
+            policyVersion: 'g3-v1',
+        });
+    });
+
+    it('FW1 — returns a small time-series queryResult the native canvas can paint', async () => {
+        const res = await request(app)
+            .post('/assistant/conversations/start')
+            .send({ assistantProfile: 'smoke', content: 'Quarterly trend?' });
+        expect(res.status).toBe(200);
+        expect(res.body.sqlQuery).toMatch(/SELECT period/);
+        expect(res.body.queryResult).toEqual({
+            columns: ['period', 'revenue'],
+            rows: [
+                ['Q1', 100],
+                ['Q2', 200],
+                ['Q3', 300],
+                ['Q4', 250],
+            ],
+        });
+        expect(res.body.rows_returned).toBe(4);
+        expect(typeof res.body.execution_time_ms).toBe('number');
+    });
+
+    it('returns deterministic ids for the same question', async () => {
+        const a = await request(app)
+            .post('/assistant/conversations/start')
+            .send({ assistantProfile: 'smoke', content: 'deterministic test' });
+        const b = await request(app)
+            .post('/assistant/conversations/start')
+            .send({ assistantProfile: 'smoke', content: 'deterministic test' });
+        expect(a.body.conversation_id).toBe(b.body.conversation_id);
+        expect(a.body.message_id).toBe(b.body.message_id);
+    });
+
+    it('rejects empty content', async () => {
+        const res = await request(app)
+            .post('/assistant/conversations/start')
+            .send({ assistantProfile: 'smoke', content: '' });
+        expect(res.status).toBe(400);
+        expect(res.body.error).toMatch(/content is required/i);
+    });
+
+    // Production-mode rejection is enforced at the attestation builder level —
+    // `buildGovernanceAttestation` throws on `authority: "mock"` when
+    // NODE_ENV=production, regardless of which route called it. That contract
+    // is covered by the unit tests in `proxy/tests/governance.test.js`; we
+    // don't re-test it here because the auth middleware would reject this
+    // unauthenticated test request with 401 before the route handler runs
+    // in production mode anyway. The composition is: middleware blocks
+    // first; even if auth was provided, the governance builder still throws
+    // and the route returns 500.
 });
 
 // ── /assistant/conversations/:id/messages — profile resolution ────────────────
@@ -574,7 +998,7 @@ describe('resolveProfile precedence', () => {
 
 // ── Token resolution — PAT mode ───────────────────────────────────────────────
 describe('token validation', () => {
-    it('rejects template-style token (contains YOUR_)', async () => {
+    it('rejects template-style token (contains YOUR_) with the locked safe sentinel', async () => {
         fs.readFileSync.mockReturnValue(JSON.stringify({
             ...MOCK_CONFIG_BASE,
             profiles: {
@@ -585,9 +1009,15 @@ describe('token validation', () => {
             .post('/assistant/conversations/start')
             .send({ assistantProfile: 'bad', content: 'Test' });
         fs.readFileSync.mockReturnValue(JSON.stringify(MOCK_CONFIG_BASE));
-        // Server should fail at token resolution (no azure identity installed)
+        // Slice 1d — token-resolution failures fall through
+        // errorStatusFromDatabricks to the verbatim safe sentinel. The
+        // previous assertion (`/@azure\/identity/i`) leaked the underlying
+        // auth-implementation module name to the client; the sentinel
+        // removes that disclosure surface. Server-side console.error still
+        // has the raw message for operator triage.
         expect(res.status).toBe(500);
-        expect(res.body.error).toMatch(/@azure\/identity/i);
+        expect(res.body.error).toMatch(/PulsePlay could not complete this request/i);
+        expect(res.body.error).not.toMatch(/@azure\/identity/i);
     });
 });
 
@@ -619,6 +1049,26 @@ describe('sharedKey authentication — when sharedKey is configured', () => {
             .query({ assistantProfile: 'default' });
         expect(res.status).toBe(401);
         expect(res.body.error).toMatch(/X-Genie-Key/i);
+    });
+
+    it('stamps PX1 client identity on auth audit lines', async () => {
+        _consoleLogSpy.mockClear();
+        const res = await request(app)
+            .get('/assistant/capabilities')
+            .set('X-Pulse-Client', 'pulse-pbi')
+            .set('X-Pulse-Client-Version', '4.5.6')
+            .set('X-Pulse-Request-Id', 'audit-rid')
+            .query({ assistantProfile: 'default' });
+
+        expect(res.status).toBe(401);
+        const auditCall = _consoleLogSpy.mock.calls.find(
+            args => args[0] === '[audit]' && typeof args[1] === 'string' && args[1].includes('auth.missing-shared-key')
+        );
+        expect(auditCall).toBeTruthy();
+        const parsed = JSON.parse(auditCall[1]);
+        expect(parsed.requestId).toBe('audit-rid');
+        expect(parsed.clientApp).toBe('pulse-pbi');
+        expect(parsed.clientVersion).toBe('4.5.6');
     });
 
     it('returns 401 when the header value is wrong', async () => {
@@ -680,6 +1130,27 @@ describe('CORS — required custom headers are advertised', () => {
         const allowed = res.headers['access-control-allow-headers'] || '';
         expect(allowed).toMatch(/X-Genie-Target-Host/i);
         expect(allowed).toMatch(/X-Genie-Key/i);
+    });
+
+    it('advertises PX1 client identity headers and exposes response correlation headers', async () => {
+        const res = await request(app).get('/health');
+        const allowed = res.headers['access-control-allow-headers'] || '';
+        const exposed = res.headers['access-control-expose-headers'] || '';
+        expect(allowed).toMatch(/X-Pulse-Client/i);
+        expect(allowed).toMatch(/X-Pulse-Client-Version/i);
+        expect(allowed).toMatch(/X-Pulse-Request-Id/i);
+        expect(exposed).toMatch(/X-Pulse-Request-Id/i);
+        expect(exposed).toMatch(/X-Pulse-Client/i);
+    });
+});
+
+describe('streaming error redaction', () => {
+    it('redacts token and secret shaped substrings before in-band stream writes', () => {
+        const safe = safeStreamErrorText('upstream failed client_secret=stream-secret-123 with Bearer abc.def.ghi and dapiABC1234567890', 400);
+        expect(safe).not.toContain('stream-secret-123');
+        expect(safe).not.toContain('abc.def.ghi');
+        expect(safe).not.toContain('dapiABC1234567890');
+        expect(safe).toContain('[redacted]');
     });
 });
 
@@ -905,7 +1376,7 @@ describe('POST /confidence — structural confidence evaluation', () => {
 });
 
 describe('databricksRequest — URL validation', () => {
-    it('rejects profiles with non-URL hosts', async () => {
+    it('rejects profiles with non-URL hosts (Slice 1d: sentinel only, no config-introspection leak)', async () => {
         fs.readFileSync.mockReturnValue(JSON.stringify({
             ...MOCK_CONFIG_BASE,
             profiles: {
@@ -916,7 +1387,15 @@ describe('databricksRequest — URL validation', () => {
             .post('/assistant/conversations/start')
             .send({ assistantProfile: 'bad', content: 'hi' });
         expect(res.status).toBe(500);
-        expect(res.body.error).toMatch(/Invalid target URL|not a valid/i);
+        // Slice 1d — URL-validation failures fall through
+        // errorStatusFromDatabricks to the verbatim safe sentinel. The
+        // previous assertion (`/Invalid target URL|not a valid/i`) leaked
+        // the raw URL parser output (which echoed the misconfigured host
+        // back to any caller). The sentinel removes that disclosure
+        // surface; the operator sees the actual host in console.warn.
+        expect(res.body.error).toMatch(/PulsePlay could not complete this request/i);
+        expect(res.body.error).not.toMatch(/Invalid target URL/i);
+        expect(res.body.error).not.toContain('not a url');
     });
 });
 
@@ -1041,6 +1520,62 @@ describe('GET /assistant/profiles — friendly metadata for the Setup screen (BU
     });
 });
 
+describe('allowlist routes and profile filtering', () => {
+    const ALLOWLISTED_CONFIG = {
+        ...MOCK_CONFIG_BASE,
+        allowlistEnforcement: 'strict',
+        allowlist: {
+            biProviders: ['powerbi'],
+            embedOrigins: { powerbi: ['app.powerbi.com'] },
+            powerbiWorkspaces: ['workspace-1'],
+            powerbiReports: [],
+            aadTenants: ['tenant-1'],
+            aiProfiles: { default: ['default'], byGroup: {} },
+            genieSpaces: ['space-default-123'],
+            supervisorProfiles: [],
+            packs: ['cpg-fmcg'],
+            knowledgeSources: [],
+        },
+    };
+
+    beforeEach(() => {
+        const actualFs = jest.requireActual('fs');
+        fs.readFileSync.mockImplementation((filePath, ...rest) => {
+            if (String(filePath).endsWith('config.json')) return JSON.stringify(ALLOWLISTED_CONFIG);
+            return actualFs.readFileSync(filePath, ...rest);
+        });
+    });
+    afterEach(() => fs.readFileSync.mockReturnValue(JSON.stringify(MOCK_CONFIG_BASE)));
+
+    it('returns user-visible allowlist contents', async () => {
+        const res = await request(app).get('/assistant/allowlist');
+        expect(res.status).toBe(200);
+        expect(res.body.configured).toBe(true);
+        expect(res.body.biProviders).toEqual(['powerbi']);
+        expect(res.body.aiProfiles).toEqual(['default']);
+        expect(res.body.packs).toEqual(['cpg-fmcg']);
+    });
+
+    it('filters /assistant/profiles to allowlisted profiles', async () => {
+        const res = await request(app).get('/assistant/profiles');
+        expect(res.status).toBe(200);
+        expect(res.body.map(p => p.name)).toEqual(['default']);
+    });
+
+    it('rejects a configured but non-allowlisted profile before connector use', async () => {
+        const res = await request(app).get('/assistant/capabilities?assistantProfile=analytics');
+        expect(res.status).toBe(403);
+        expect(res.body.kind).toBe('aiProfile');
+    });
+
+    it('returns the allowlisted pack registry', async () => {
+        const res = await request(app).get('/assistant/knowledge/packs');
+        expect(res.status).toBe(200);
+        expect(Array.isArray(res.body.packs)).toBe(true);
+        expect(res.body.packs.map(p => p.name)).toContain('cpg-fmcg');
+    });
+});
+
 describe('POST /history — supervisor warehouse fallback (BUG-009)', () => {
     // /history POST calls cfg() multiple times during one request (resolveProfile,
     // historyTableFor, pickHistoryProfile). mockReturnValue keeps the override
@@ -1050,7 +1585,7 @@ describe('POST /history — supervisor warehouse fallback (BUG-009)', () => {
         ...MOCK_CONFIG_BASE,
         // History table must be set so we exercise the warehouse check below;
         // without it the "history disabled" branch fires first.
-        chatHistoryTable: 'workspace.test.dwd_ai_chat_history',
+        chatHistoryTable: 'workspace.test.pulseplay_ai_chat_history',
         profiles: {
             supervisor: {
                 type: 'supervisor-local',
@@ -1195,10 +1730,11 @@ describe('env-var profile layering — overrides config.json fields per-profile'
 describe('BUG-015 — cost-bearing route gating invariants', () => {
     // The full set of prefixes that must carry rateLimitMiddleware. Update
     // this list when adding a new cost-bearing backend (e.g. /vertex).
-    const RATE_LIMITED_PREFIXES = ['/assistant', '/warehouse', '/supervisor', '/confidence', '/openai', '/bedrock'];
+    const RATE_LIMITED_PREFIXES = ['/assistant', '/warehouse', '/supervisor', '/confidence', '/openai', '/bedrock', '/responses-agent'];
     // The full set of prefixes that must carry sharedKeyMiddleware. /feedback
     // and /history are not rate-limited but are still gated.
-    const SHARED_KEY_PREFIXES = ['/assistant', '/warehouse', '/supervisor', '/confidence', '/openai', '/bedrock', '/feedback', '/history'];
+    const SHARED_KEY_PREFIXES = ['/assistant', '/warehouse', '/supervisor', '/confidence', '/openai', '/bedrock', '/responses-agent', '/feedback', '/history'];
+    const ALLOWLISTED_PREFIXES = ['/assistant', '/warehouse', '/history', '/openai', '/bedrock', '/responses-agent', '/foundation', '/supervisor', '/confidence', '/sql', '/insights'];
 
     // Walk the Express app's router stack and collect every (prefix, layer-name)
     // pair from `app.use(prefix, middleware)` mounts. Express stores prefix
@@ -1243,6 +1779,11 @@ describe('BUG-015 — cost-bearing route gating invariants', () => {
             const found = mounts.some(m => m.prefix === prefix && m.handleName === 'sharedKeyMiddleware');
             expect(found).toBe(true);
         });
+
+        it.each(ALLOWLISTED_PREFIXES)('allowlistGuard mounted at %s', (prefix) => {
+            const found = mounts.some(m => m.prefix === prefix && m.handleName === 'allowlistGuard');
+            expect(found).toBe(true);
+        });
     });
 
     describe('behavioural — sharedKey gating actually fires on each cost-bearing path', () => {
@@ -1264,6 +1805,7 @@ describe('BUG-015 — cost-bearing route gating invariants', () => {
             { method: 'post', url: '/confidence', body: { question: 'q', attachments: [] } },
             { method: 'post', url: '/openai/chat', body: { messages: [] } },
             { method: 'post', url: '/bedrock/retrieve', body: { input: 'q' } },
+            { method: 'get',  url: '/responses-agent/health' },
             { method: 'post', url: '/feedback', body: { rating: 'up' } },
             { method: 'post', url: '/history', body: { conversationId: 'x' } },
         ];

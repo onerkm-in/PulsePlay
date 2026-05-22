@@ -57,42 +57,38 @@ import {
 import { GenieVisualSettings } from "./settings";
 import { getKBSystemPrompt, getKBChatHint, parseOrgRules } from "./knowledgeBase";
 import { describeGenieStatus } from "./progressVocab";
-import { redactAuthorPrompt } from "./promptRedaction";
+import { safeAuthorPrompt } from "./promptRedaction";
+import {
+    analyzeDataShape as analyzeSharedDataShape,
+    CHART_OPTIONS,
+    detectViewIntent,
+    formatCellForTooltip as formatSharedCellForTooltip,
+    formatChartDate,
+    isRankOrIndexColumn,
+    type ChartKind,
+    type ChartSeriesPoint,
+    type ClusteredSeriesPoint,
+    type DataShape,
+    type ForcedViewMode,
+    type ViewIntent,
+} from "../visualization/chartAutoPick";
 
 import DataView = powerbi.DataView;
 import PrimitiveValue = powerbi.PrimitiveValue;
 import IFilter = powerbi.IFilter;
 
+export { CHART_OPTIONS, detectViewIntent, formatChartDate, isRankOrIndexColumn };
+export type { ChartKind, ChartSeriesPoint, ClusteredSeriesPoint, DataShape, ForcedViewMode, ViewIntent };
+
 /* ── Types & Interfaces ──────────────────────────────────────────── */
 
 export type GuidedArea = "performance" | "issue" | "risk" | "opportunity";
-
-export interface ChartSeriesPoint {
-    label: string;
-    value: number;
-    tooltipParts?: { col: string; val: string }[];
-}
-
-export interface ClusteredSeriesPoint {
-    label: string;
-    values: { name: string; value: number }[];
-}
 
 export interface ChartRange {
     minValue: number;
     maxValue: number;
     range: number;
     zeroRatio: number;
-}
-
-export type ChartKind = "bar" | "clustered-bar" | "line" | "donut" | "area";
-
-export interface DataShape {
-    series: ChartSeriesPoint[];
-    clustered: ClusteredSeriesPoint[];
-    numericColCount: number;
-    rowCount: number;
-    recommended: ChartKind;
 }
 
 export interface FormatRule {
@@ -105,14 +101,6 @@ export interface FormatRule {
 
 /* ── Constants ───────────────────────────────────────────────────── */
 
-export const CHART_OPTIONS: { value: ChartKind; label: string; supported: boolean }[] = [
-    { value: "bar", label: "Bar", supported: true },
-    { value: "clustered-bar", label: "Clustered Bar", supported: true },
-    { value: "line", label: "Line", supported: true },
-    { value: "donut", label: "Donut", supported: true },
-    { value: "area", label: "Area", supported: true },
-];
-
 export const ALL_FILTER_VALUE = "__all__";
 export const BASIC_FILTER_SCHEMA = "http" + "://powerbi.com/product/schema#basic";
 
@@ -123,21 +111,36 @@ export const AREA_PROMPTS: Record<GuidedArea, string> = {
     opportunity: "Highlight the top opportunities in the current scope, explain the strongest drivers, and suggest where to act first."
 };
 
+// 2026-05-19 Option A — KPI preload prompt. Fired silently in the background
+// when the user first opens the Ask Pulse tab. Short by design: fast response,
+// brief content, fits naturally as the opening "state snapshot" before the user
+// asks follow-up questions. The conversation started here becomes the base
+// thread for all subsequent chat in that session.
+export const CHAT_PRELOAD_PROMPT =
+    "Quick snapshot of the 3-4 most important visible metrics. " +
+    "Format strictly as:\n" +
+    "Line 1: One-sentence bottom line.\n" +
+    "Then 3-4 bullets, each exactly: `- <metric name>: <current value> · <up|down|stable> (was <prior value>)`.\n" +
+    "Final line: `Action: <one short actionable sentence>`.\n" +
+    "No tables, no SQL, no preamble, no clarifying questions. Under 90 words total.";
+
 export const STATIC_ACTIONS: AssistantAction[] = [
     { id: "drivers", label: "Rank key drivers", kind: "ask", prompt: "Rank the key drivers behind the current result and explain the largest contributors.", intent: "drivers" },
     { id: "leadership", label: "Summarize for leadership", kind: "ask", prompt: "Summarize this analysis for leadership with key points, risks, actions, and impact.", intent: "leadership" },
     { id: "scenario", label: "Run what-if", kind: "ask", prompt: "Run a simple what-if analysis and explain the likely trade-offs and impact.", intent: "scenario" }
 ];
 
+// 2026-05-19 PulsePlay rebrand: replaced Pulse-PBI heritage copy that
+// referenced "inside Power BI" and hardcoded Databricks Genie. PulsePlay
+// is a multi-BI / multi-AI platform — no single vendor is assumed.
 const ROLE_SUBTITLES: Record<string, string> = {
-    executive: "Board-ready snapshot, top risks, top opportunities, and leadership summaries with Databricks Genie behind the scenes.",
-    analyst: "Guided exploration with Databricks-native SQL, table, and trace views available on demand.",
-    frontline: "Action-oriented investigations with guided filters, fast drill-ins, and practical next steps.",
-    manager: "Guided-first business exploration with Databricks Genie Chat inside Power BI."
+    executive: "Board-ready briefings, top risks, and leadership summaries — powered by your connected AI across any BI surface.",
+    analyst: "Full SQL, data trace, and drill-down access across your BI surfaces and AI connectors — on demand.",
+    frontline: "Action-oriented investigation with guided filters, fast drill-ins, and practical next steps.",
+    manager: "Guided business exploration across your BI and AI surfaces — insights without writing SQL."
 };
 
 export const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}(?:T[\d:.]+Z?)?$/;
-const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 // Genie poll status → friendly text mapping moved to `progressVocab.ts`
 // (single source of truth shared by AI Insights, Chat, and Supervisor).
@@ -318,15 +321,15 @@ export function getConfigIssues(settings: GenieVisualSettings): string[] {
         }
     } else if (mode === "azure-openai") {
         if (!settings.apiBaseUrl.trim()) {
-            issues.push("Azure OpenAI mode requires an API Base URL pointing to the UniBridge AI Proxy (e.g. http://127.0.0.1:8787).");
+            issues.push("Azure OpenAI mode requires an API Base URL pointing to the PulsePlay Proxy (e.g. http://127.0.0.1:8787).");
         }
     } else if (mode === "bedrock") {
         if (!settings.apiBaseUrl.trim()) {
-            issues.push("AWS Bedrock mode requires an API Base URL pointing to the UniBridge AI Proxy (e.g. http://127.0.0.1:8787).");
+            issues.push("AWS Bedrock mode requires an API Base URL pointing to the PulsePlay Proxy (e.g. http://127.0.0.1:8787).");
         }
     } else if (mode === "supervisor") {
         if (!settings.apiBaseUrl.trim()) {
-            issues.push("Supervisor mode requires an API Base URL pointing to the UniBridge AI Proxy (e.g. http://127.0.0.1:8787).");
+            issues.push("Supervisor mode requires an API Base URL pointing to the PulsePlay Proxy (e.g. http://127.0.0.1:8787).");
         }
     } else {
         // Auto \u2014 infer from whether apiBaseUrl is set.
@@ -497,7 +500,7 @@ export function computeConnectionStatus(
             level: "caution",
             label: "Connected",
             modeLabel: "AI Gateway",
-            tooltip: "Experimental route: Genie is connected through Databricks AI Gateway / MCP rather than the normal UniBridge AI Proxy. Use Proxy mode for standard Genie deployments.",
+            tooltip: "Experimental route: Genie is connected through Databricks AI Gateway / MCP rather than the normal PulsePlay Proxy. Use Proxy mode for standard Genie deployments.",
             details: []
         };
     }
@@ -594,7 +597,7 @@ export function normalizeUserMode(userMode: string): UserMode {
 }
 
 export function getRoleSubtitle(userMode: UserMode): string {
-    return ROLE_SUBTITLES[userMode] ?? `Databricks Genie assistant — ${userMode} view.`;
+    return ROLE_SUBTITLES[userMode] ?? `PulsePlay AI assistant — ${userMode} view.`;
 }
 
 /* ── Home model ──────────────────────────────────────────────────── */
@@ -608,13 +611,17 @@ export function buildLocalHomeModel(context: ContextSummary, userMode: UserMode)
             detail: index === 0 ? `Current ${userMode} snapshot` : undefined,
             tone: (value < 0 ? "risk" : "neutral") as "risk" | "neutral"
         }));
-    if (snapshot.length === 0) {
-        snapshot.push(
-            { label: "Scope", value: context.hasSelection ? "Filtered" : "Full dataset", detail: "Pulled from the active Power BI context", tone: "neutral" },
-            { label: "Guided filters", value: String(context.availableFilters.length), detail: "Available for region, time, and segment control", tone: "neutral" },
-            { label: "Measures", value: String(Object.keys(context.measures).length || 0), detail: "Bound to this visual", tone: "neutral" }
-        );
-    }
+    // 2026-05-19 PulsePlay UX: when no real measures are bound the fallback
+    // "Scope / Guided filters / Measures" snapshot cards showed "Full dataset"
+    // / 0 / 0 — accurate but noise. WelcomeSection already renders a clean
+    // role subtitle when snapshot is empty; leave the array empty so that
+    // path runs instead. The Pulse-PBI sibling still sends its own home
+    // payload via the proxy when configured (mergeHomePayload gives remote
+    // data priority), so this only affects the local-fallback state.
+    // Original fallback preserved as comment for reference:
+    //   { label: "Scope", value: context.hasSelection ? "Filtered" : "Full dataset", ... }
+    //   { label: "Guided filters", value: String(context.availableFilters.length), ... }
+    //   { label: "Measures", value: String(Object.keys(context.measures).length || 0), ... }
 
     return {
         snapshot,
@@ -854,13 +861,18 @@ export function buildFastHybridInsightsStagePrompts(
     universalStages?: { headline?: boolean; trends?: boolean; risks?: boolean; actions?: boolean },
     universalOverrides?: { headline?: string; trends?: string; risks?: string; actions?: string }
 ): InsightsStagePrompts {
-    metricRules = redactAuthorPrompt(metricRules);
-    authorGuidance = redactAuthorPrompt(authorGuidance);
+    // L12 — author-supplied free text passes through `safeAuthorPrompt`
+    // before reaching the AI prompt builder: existing secret-redaction
+    // (PAT / JWT / email / etc.) PLUS prompt-injection keyword stripping
+    // (ignore-previous-instructions, you-are-now, developer-mode, etc.).
+    // See playground/src/pulse/promptRedaction.ts.
+    metricRules = safeAuthorPrompt(metricRules);
+    authorGuidance = safeAuthorPrompt(authorGuidance);
     const aiSections = customSections
         .filter(s => s.kind !== "sql")
         .map(s => ({
-            name: redactAuthorPrompt(s.name).trim().toUpperCase(),
-            instruction: redactAuthorPrompt(s.instruction).trim(),
+            name: safeAuthorPrompt(s.name).trim().toUpperCase(),
+            instruction: safeAuthorPrompt(s.instruction).trim(),
         }))
         .filter(s => s.name && s.instruction);
 
@@ -1136,8 +1148,13 @@ export function buildHybridInsightsStagePrompts(
     // fields; we don't want raw PATs / bearer tokens / emails ending up in
     // Databricks request logs forever. Redaction runs at prompt assembly so
     // it covers every code path that hits this function.
-    metricRules = redactAuthorPrompt(metricRules);
-    authorGuidance = redactAuthorPrompt(authorGuidance);
+    //
+    // L12 (SETTINGS_SPEC § 15) — now also strips prompt-injection keywords
+    // ("ignore previous instructions", "you are now…", etc.) via
+    // `safeAuthorPrompt`. Best-effort heuristic; the AI vendor's prompt
+    // hierarchy + the validator framework are the real fence.
+    metricRules = safeAuthorPrompt(metricRules);
+    authorGuidance = safeAuthorPrompt(authorGuidance);
     customSections = customSections
         // Wave 35 Phase 2 — SQL sections aren't part of the prompt-engineering
         // pipeline. Strip them out before assembling stage prompts so the
@@ -1146,8 +1163,8 @@ export function buildHybridInsightsStagePrompts(
         // separately (see visual.tsx kind-aware render branch).
         .filter(s => s.kind !== "sql")
         .map(s => ({
-            name: redactAuthorPrompt(s.name),
-            instruction: redactAuthorPrompt(s.instruction),
+            name: safeAuthorPrompt(s.name),
+            instruction: safeAuthorPrompt(s.instruction),
             disableTrendPills: s.disableTrendPills,
         }));
 
@@ -1841,16 +1858,21 @@ export function buildGenieRequest(
     sendContextToGenie: boolean,
     options?: {
         omitDomainGuidance?: boolean;
+        omitAnalyticsKB?: boolean;
         kbFlags?: { enabled: boolean; charts: boolean; stats: boolean; reporting: boolean };
     }
 ): string {
     const kb = options?.kbFlags ?? { enabled: true, charts: true, stats: true, reporting: true };
+    // Backend-neutral framing: PulsePlay orchestrates many AI connectors
+    // (Genie / Foundation Model / Supervisor / ResponsesAgent / …) and hosts
+    // many BI surfaces — the prompt must not assume any specific pair.
     const sections = [
-        "You are Azure Databricks Genie operating inside a Power BI custom visual.",
+        "You are the analytics assistant for a business-intelligence pane of glass.",
         "Respect the report context, explain business meaning clearly, and keep the response decision-oriented.",
         `Intent: ${intent}`,
-        // Inject compact analytics KB hint on every chat call
-        kb.enabled ? getKBChatHint(kb.stats, kb.reporting) : ""
+        // Inject compact analytics KB hint on every chat call (skippable for
+        // short snapshot prompts where the KB rules would dwarf the question).
+        !options?.omitAnalyticsKB && kb.enabled ? getKBChatHint(kb.stats, kb.reporting) : ""
     ];
 
     if (sendContextToGenie) {
@@ -1964,18 +1986,8 @@ export function describeScope(selectedFilters: Record<string, string>, filters: 
 
 /* ── Chart label helpers ─────────────────────────────────────────── */
 
-export function formatChartDate(raw: string): string {
-    const d = new Date(raw);
-    if (isNaN(d.getTime())) return raw;
-    return `${SHORT_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
-}
-
 export function formatCellForTooltip(col: string, raw: any): string {
-    if (raw === null || raw === undefined) return "-";
-    if (typeof raw === "string" && ISO_DATE_RE.test(raw)) return formatChartDate(raw);
-    if (typeof raw === "number") return formatNumber(raw);
-    if (isNumericString(raw)) return formatNumber(Number(raw));
-    return String(raw);
+    return formatSharedCellForTooltip(col, raw, { formatNumber });
 }
 
 export function mapAreaToIntent(area: GuidedArea): AssistantIntent {
@@ -1994,189 +2006,8 @@ export function buildBasicFilter(target: FilterTarget, value: string): IFilter {
 
 /* ── Data analysis & chart ───────────────────────────────────────── */
 
-/**
- * Detects whether a column is a rank/index/row-number column that should be
- * excluded from chart auto-recommendation. Uses word boundaries to avoid
- * false positives on legitimate columns like "Return_Revenue" or "region".
- *
- * A column is treated as rank/index when EITHER:
- *   - Its name matches a whole-word rank-ish token (rank|index|row_id|rn|seq|id), OR
- *   - ALL its values form a strict 1..N or 0..N-1 sequence (requires rows.length >= 3).
- */
-export function isRankOrIndexColumn(colName: string, values: number[]): boolean {
-    // Rank/index/surrogate key names
-    if (/\b(rank|index|row[\s_]?num(ber)?|row[\s_]?id|rn|seq(uence)?)\b/i.test(colName || "")) {
-        return true;
-    }
-    // Bare "id" column (exact match, not a suffix like order_id/product_id)
-    if (/^id$/i.test((colName || "").trim())) {
-        return true;
-    }
-    // Sequential 1-based or 0-based index run
-    if (values.length >= 3) {
-        const allOneBased = values.every((v, i) => v === i + 1);
-        const allZeroBased = values.every((v, i) => v === i);
-        if (allOneBased || allZeroBased) return true;
-    }
-    return false;
-}
-
-/**
- * Lightweight intent detector for business-user phrasing.
- *
- * Scans a question for explicit chart-type / view cues so the chat path
- * can honour requests like "show me a bar chart of sales by region" or
- * "give me a pie of profit by category" instead of falling through to
- * the auto-detected recommendation. Returns an empty object when the
- * question carries no explicit cue — caller then uses the default
- * view + auto-recommended chart type.
- *
- * Recognised cues (case-insensitive):
- *   • table            → "show as table", "in tabular form", "a table"
- *   • sql              → "show me the sql", "underlying sql", "in sql"
- *   • bar              → "bar chart", "bar graph", just "bar"
- *   • clustered-bar    → "clustered bar", "grouped bar", "side-by-side"
- *   • line             → "line chart", "line graph", "trend line"
- *   • area             → "area chart", "area graph"
- *   • donut            → "donut", "doughnut", "pie chart"
- *   • generic chart    → "show as a chart", "visualise", "graph it"
- *
- * Order matters: more specific phrases (e.g. "clustered bar") match
- * before the generic ones (e.g. "bar") so a clustered-bar request
- * doesn't degrade to a plain bar chart.
- */
-export type ForcedViewMode = "chart" | "table" | "narrative" | "sql";
-
-export interface ViewIntent {
-    /** Explicit view-mode override (when caller's available views allow it). */
-    viewMode?: ForcedViewMode;
-    /** Forced chart type — only meaningful when viewMode === "chart". */
-    chartType?: ChartKind;
-}
-
-export function detectViewIntent(question: string | null | undefined): ViewIntent {
-    const q = String(question || "").toLowerCase();
-    if (!q) return {};
-
-    // Table — match before chart so "show me a table of bar sales" is a table.
-    if (/\b(?:as|in)\s+(?:a\s+)?table\b|\bshow\s+(?:me\s+)?(?:a\s+)?table\b|\btabular\b/.test(q)) {
-        return { viewMode: "table" };
-    }
-    // SQL
-    if (/\bshow\s+(?:me\s+)?(?:the\s+)?sql\b|\b(?:as|in)\s+sql\b|\b(?:underlying|generated)\s+sql\b/.test(q)) {
-        return { viewMode: "sql" };
-    }
-
-    // Specific chart types — order: specific → generic.
-    if (/\b(?:donut|doughnut|pie)(?:\s*(?:chart|graph))?\b/.test(q)) {
-        return { viewMode: "chart", chartType: "donut" };
-    }
-    if (/\b(?:clustered|grouped|side[-\s]?by[-\s]?side)\s+bar\b/.test(q)) {
-        return { viewMode: "chart", chartType: "clustered-bar" };
-    }
-    if (/\bbar(?:\s*(?:chart|graph))?\b/.test(q)) {
-        return { viewMode: "chart", chartType: "bar" };
-    }
-    if (/\bline(?:\s*(?:chart|graph))?\b|\btrend(?:line)?\b/.test(q)) {
-        return { viewMode: "chart", chartType: "line" };
-    }
-    if (/\barea(?:\s*(?:chart|graph))?\b/.test(q)) {
-        return { viewMode: "chart", chartType: "area" };
-    }
-
-    // Generic chart ask without specific type — leave chart auto-pick.
-    if (/\bvisuali[sz]e\b|\b(?:show\s+(?:me\s+)?)?(?:as\s+a\s+|in\s+a\s+)?chart\b|\bgraph\s+it\b|\bplot\s+it\b/.test(q)) {
-        return { viewMode: "chart" };
-    }
-
-    return {};
-}
-
 export function analyzeDataShape(columns: string[], rows: any[][]): DataShape {
-    if (!columns.length || !rows.length) {
-        return { series: [], clustered: [], numericColCount: 0, rowCount: 0, recommended: "bar" };
-    }
-
-    const numericIndices: number[] = [];
-    const labelIndices: number[] = [];
-    rows[0].forEach((cell, i) => {
-        if (typeof cell === "number" || isNumericString(cell)) {
-            numericIndices.push(i);
-        } else {
-            labelIndices.push(i);
-        }
-    });
-
-    // Filter out rank/index columns using a shared helper with word boundaries
-    // and full-row sequential detection (see isRankOrIndexColumn).
-    const meaningfulNumeric = numericIndices.filter(ni => {
-        const colName = columns[ni] ?? "";
-        const vals = rows.map(r => Number(r[ni] ?? 0));
-        return !isRankOrIndexColumn(colName, vals);
-    });
-
-    // Build short label for axes (format dates, truncate composites)
-    const buildLabel = (row: any[], index: number): string => {
-        if (labelIndices.length === 0) return `Row ${index + 1}`;
-        const parts = labelIndices.map(li => {
-            const raw = String(row[li] ?? "");
-            return ISO_DATE_RE.test(raw) ? formatChartDate(raw) : raw;
-        }).filter(Boolean);
-        return parts.join(", ") || `Row ${index + 1}`;
-    };
-
-    // Build rich tooltip parts for all columns
-    const buildTooltipParts = (row: any[]): { col: string; val: string }[] =>
-        columns.map((col, ci) => ({ col, val: formatCellForTooltip(col, row[ci]) }));
-
-    const rowCount = rows.length;
-    const numericColCount = meaningfulNumeric.length;
-
-    // Multiple meaningful numeric columns → clustered bar candidate
-    if (numericColCount >= 2) {
-        const clustered: ClusteredSeriesPoint[] = rows.slice(0, 12).map((row, ri) => ({
-            label: buildLabel(row, ri),
-            values: meaningfulNumeric.map(ni => ({
-                name: columns[ni] ?? `Series ${ni}`,
-                value: Number(row[ni] ?? 0)
-            }))
-        }));
-
-        // Also build a flat series using the primary (first meaningful) numeric column
-        const primaryIdx = meaningfulNumeric[0];
-        const flatSeries: ChartSeriesPoint[] = rows.slice(0, 12).map((row, ri) => ({
-            label: buildLabel(row, ri),
-            value: Number(row[primaryIdx] ?? 0),
-            tooltipParts: buildTooltipParts(row)
-        }));
-
-        // Recommend clustered bar only for genuine comparisons (not ranked lists)
-        const recommended: ChartKind = rowCount === 1 ? "clustered-bar" : "clustered-bar";
-
-        return { series: flatSeries, clustered, numericColCount, rowCount, recommended };
-    }
-
-    // Single meaningful numeric column — use it for standard series
-    const primaryNumIdx = meaningfulNumeric[0] ?? numericIndices[0];
-    if (primaryNumIdx === undefined) {
-        return { series: [], clustered: [], numericColCount: 0, rowCount, recommended: "bar" };
-    }
-
-    const series: ChartSeriesPoint[] = rows.slice(0, 12).map((row, ri) => ({
-        label: buildLabel(row, ri),
-        value: Number(row[primaryNumIdx] ?? 0),
-        tooltipParts: buildTooltipParts(row)
-    }));
-
-    let recommended: ChartKind = "bar";
-    if (rowCount >= 6) {
-        recommended = "line";
-    }
-    if (rowCount >= 3 && rowCount <= 6 && series.every(p => p.value >= 0)) {
-        recommended = "donut";
-    }
-
-    return { series, clustered: [], numericColCount, rowCount, recommended };
+    return analyzeSharedDataShape(columns, rows, { formatNumber });
 }
 
 export function extractChartSeries(columns: string[], rows: any[][]): ChartSeriesPoint[] {

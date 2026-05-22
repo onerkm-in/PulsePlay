@@ -19,4 +19,27 @@ declare global {
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
+// ECharts uses HTMLCanvasElement.getContext('2d'). jsdom returns null,
+// which crashes zrender. Provide a no-op 2D context shim sufficient for
+// ECharts to draw without throwing. We do not assert on pixels — only on
+// the host element being present — so the stub does not need to track
+// state.
+if (typeof HTMLCanvasElement !== 'undefined') {
+    const noop = () => undefined;
+    const fakeContext = new Proxy({}, {
+        get: (target, prop) => {
+            if (prop === 'canvas') return null;
+            if (prop === 'getImageData') return () => ({ data: new Uint8ClampedArray() });
+            if (prop === 'createImageData') return () => ({ data: new Uint8ClampedArray() });
+            if (prop === 'measureText') return () => ({ width: 0 });
+            if (prop === 'getLineDash') return () => [];
+            if (prop === 'isPointInPath' || prop === 'isPointInStroke') return () => false;
+            return noop;
+        },
+    });
+    HTMLCanvasElement.prototype.getContext = function getContext() {
+        return fakeContext as unknown as CanvasRenderingContext2D;
+    } as typeof HTMLCanvasElement.prototype.getContext;
+}
+
 export {};

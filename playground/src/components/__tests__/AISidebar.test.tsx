@@ -8,6 +8,17 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
+
+// Phase A — AISidebar now fires a /api/assistant/discover fetch on mount via
+// discoveryClient. These tests pre-date that effect and assume each test's
+// fetchMock.mock.calls contains only ask + poll traffic. Mock the discovery
+// client to a no-op resolved promise so existing assertions on mock.calls[0]
+// remain valid. discoveryClient itself has dedicated tests in
+// src/lib/__tests__/discoveryClient.test.ts.
+vi.mock("../../lib/discoveryClient", () => ({
+    getDiscoverySnapshot: vi.fn().mockResolvedValue(null),
+}));
+
 import { AISidebar, MAX_POLL_DURATION_MS, POLL_INTERVAL_MS } from "../AISidebar";
 import type { PackSelection } from "../PackPicker";
 
@@ -83,9 +94,120 @@ describe("AISidebar", () => {
                 recentEvents={[]}
             />,
         );
-        expect(state.container.querySelector(".pp-ai-sidebar__title")?.textContent).toBe("AI Assistant");
+        expect(state.container.querySelector(".pp-ai-sidebar__title")?.textContent).toBe("PulsePlay AI");
         // No history entries.
         expect(state.container.querySelectorAll(".pp-ai-sidebar__entry").length).toBe(0);
+        unmount(state);
+    });
+
+    it("autoSubmitQuestion fires ask() exactly once on mount without user typing", async () => {
+        const fetchMock = vi.fn().mockResolvedValue(
+            jsonResponse({ status: "COMPLETED", content: "auto-answer" }),
+        );
+        globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+        const state = mount(
+            <AISidebar
+                activeVendor="generic-iframe"
+                activeConnector="genie-default"
+                recentEvents={[]}
+                autoSubmitQuestion="What's our biggest risk this quarter?"
+            />,
+        );
+        // The auto-submit effect fires synchronously on first render;
+        // let the resulting ask() promise + setState chain flush.
+        await act(async () => { await Promise.resolve(); });
+        await act(async () => { await Promise.resolve(); });
+
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        const [url, init] = fetchMock.mock.calls[0];
+        expect(url).toBe("/api/assistant/conversations/start");
+        const body = JSON.parse((init as RequestInit).body as string);
+        expect(body.content).toContain("What's our biggest risk this quarter?");
+        unmount(state);
+    });
+
+    it("autoSubmitQuestion does not re-fire on subsequent renders with the same value", async () => {
+        const fetchMock = vi.fn().mockResolvedValue(
+            jsonResponse({ status: "COMPLETED", content: "answer" }),
+        );
+        globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+        const state = mount(
+            <AISidebar
+                activeVendor="generic-iframe"
+                activeConnector="genie-default"
+                recentEvents={[]}
+                autoSubmitQuestion="Repeat me"
+            />,
+        );
+        await act(async () => { await Promise.resolve(); });
+        await act(async () => { await Promise.resolve(); });
+        // Force a re-render with the SAME prop value — should not re-submit.
+        await act(async () => {
+            state.root.render(
+                <AISidebar
+                    activeVendor="generic-iframe"
+                    activeConnector="genie-default"
+                    recentEvents={[]}
+                    autoSubmitQuestion="Repeat me"
+                />,
+            );
+        });
+        await act(async () => { await Promise.resolve(); });
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        unmount(state);
+    });
+
+    it("autoSubmitQuestion event id allows a later wizard run to ask the same question again", async () => {
+        const fetchMock = vi.fn().mockResolvedValue(
+            jsonResponse({ status: "COMPLETED", content: "answer" }),
+        );
+        globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+        const state = mount(
+            <AISidebar
+                activeVendor="generic-iframe"
+                activeConnector="genie-default"
+                recentEvents={[]}
+                autoSubmitQuestion={{ id: 1, question: "Repeat me" }}
+            />,
+        );
+        await act(async () => { await Promise.resolve(); });
+        await act(async () => { await Promise.resolve(); });
+
+        await act(async () => {
+            state.root.render(
+                <AISidebar
+                    activeVendor="generic-iframe"
+                    activeConnector="genie-default"
+                    recentEvents={[]}
+                    autoSubmitQuestion={{ id: 2, question: "Repeat me" }}
+                />,
+            );
+        });
+        await act(async () => { await Promise.resolve(); });
+        await act(async () => { await Promise.resolve(); });
+
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        unmount(state);
+    });
+
+    it("autoSubmitQuestion null/empty does NOT trigger ask()", async () => {
+        const fetchMock = vi.fn();
+        globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+        const state = mount(
+            <AISidebar
+                activeVendor="generic-iframe"
+                activeConnector="genie-default"
+                recentEvents={[]}
+                autoSubmitQuestion={null}
+            />,
+        );
+        await act(async () => { await Promise.resolve(); });
+        await act(async () => { await Promise.resolve(); });
+        expect(fetchMock).not.toHaveBeenCalled();
         unmount(state);
     });
 
@@ -360,5 +482,110 @@ describe("AISidebar", () => {
         expect(body.pack).toBeUndefined();
         expect(body.subVertical).toBeUndefined();
         unmount(state);
+    });
+
+    /* ─── Frame-to-prompt wiring (Phase B) ────────────────────────────── */
+    //
+    // The FramePicker selects a `ReachableFrame` from the DiscoverySnapshot.
+    // Phase A surfaced it visually only; Phase B threads it into the request
+    // payload (structured `frame` JSON field, additive) AND into the content
+    // preamble's `[Selected analysis frame]` section so prompt-strategy
+    // benefits even when the proxy is still oblivious to the structured key.
+
+    describe("frame-to-prompt wiring (Phase B)", () => {
+        it("omits the `frame` JSON field and the [Selected analysis frame] block when nothing is selected", async () => {
+            const fetchMock = vi.fn().mockResolvedValue(
+                jsonResponse({ status: "COMPLETED", content: "hi" }),
+            );
+            globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+            const state = mount(
+                <AISidebar activeVendor="generic-iframe" activeConnector="genie" recentEvents={[]} />,
+            );
+            await ask(state, "q");
+            await act(async () => { await Promise.resolve(); });
+
+            const [, init] = fetchMock.mock.calls[0];
+            const body = JSON.parse((init as RequestInit).body as string);
+            expect(body.frame).toBeUndefined();
+            expect(body.content).not.toContain("[Selected analysis frame]");
+            unmount(state);
+        });
+
+        it("threads the selected reachable frame into both body.frame and the content preamble", async () => {
+            const fetchMock = vi.fn().mockResolvedValue(
+                jsonResponse({ status: "COMPLETED", content: "hi" }),
+            );
+            globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+            // Override the module-level mock for this test: return a snapshot
+            // with one reachable frame so the FramePicker actually has an
+            // option to select.
+            const discoveryMod = await import("../../lib/discoveryClient");
+            const synthetic = {
+                snapshotVersion: 1 as const,
+                fetchedAt: new Date().toISOString(),
+                expiresAt: new Date(Date.now() + 60_000).toISOString(),
+                cacheKey: "test",
+                sources: { probe: null, biMetadata: null, packKpis: [] },
+                fused: {
+                    availableKpis: [],
+                    reachableFrames: [
+                        {
+                            frameId: "bcg",
+                            label: "BCG growth–share matrix",
+                            description: "Plot SKUs by growth vs share.",
+                            domain: "portfolio",
+                            rationale: "Sales + share columns are reachable.",
+                            params: { metric: "revenue", grouping: "sku" },
+                        },
+                    ],
+                    unreachableFrames: [],
+                },
+                warnings: [],
+            };
+            (discoveryMod.getDiscoverySnapshot as unknown as { mockResolvedValueOnce: (v: unknown) => void })
+                .mockResolvedValueOnce(synthetic);
+
+            const state = mount(
+                <AISidebar activeVendor="powerbi" activeConnector="genie" recentEvents={[]} />,
+            );
+            // Let the discovery effect settle so FramePicker has options.
+            await act(async () => { await Promise.resolve(); });
+            await act(async () => { await Promise.resolve(); });
+
+            // Find the FramePicker's <select> (the only <select> in the
+            // composer at this stage) and choose the synthetic frame.
+            const select = state.container.querySelector("select") as HTMLSelectElement | null;
+            expect(select, "FramePicker select is rendered").not.toBeNull();
+            const nativeSetter = Object.getOwnPropertyDescriptor(
+                window.HTMLSelectElement.prototype,
+                "value",
+            )?.set;
+            await act(async () => {
+                nativeSetter?.call(select!, "bcg");
+                select!.dispatchEvent(new Event("change", { bubbles: true }));
+            });
+
+            await ask(state, "what's the portfolio risk?");
+            await act(async () => { await Promise.resolve(); });
+
+            const [, init] = fetchMock.mock.calls[0];
+            const body = JSON.parse((init as RequestInit).body as string);
+            // Structured field.
+            expect(body.frame).toEqual({
+                frameId: "bcg",
+                label: "BCG growth–share matrix",
+                domain: "portfolio",
+                params: { metric: "revenue", grouping: "sku" },
+            });
+            // Content preamble block.
+            expect(body.content).toContain("[Selected analysis frame]");
+            expect(body.content).toContain("BCG growth–share matrix (bcg)");
+            expect(body.content).toContain("Domain: portfolio");
+            expect(body.content).toContain("metric: revenue");
+            expect(body.content).toContain("grouping: sku");
+            unmount(state);
+        });
     });
 });

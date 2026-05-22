@@ -15,7 +15,7 @@ The first production-grade build target is **Databricks Genie + Power BI** becau
 
 ## Why it exists
 
-The sister project [DwD_AI_Assistant_for_PBI](../DwD_AI_Assistant_for_PBI) (Pulse) proved out the AI-over-BI pattern as a Power BI custom visual. That product is locked into the Power BI sandbox (no `fetch`, no streaming, no Web Workers, single-vendor). PulsePlay flips the model: **the React playground is the host, BI tools are guests** — which removes the sandbox constraints AND opens the door to multi-vendor BI orchestration.
+The sister project [sister Pulse project](../sister Pulse project) (Pulse) proved out the AI-over-BI pattern as a Power BI custom visual. That product is locked into the Power BI sandbox (no `fetch`, no streaming, no Web Workers, single-vendor). PulsePlay flips the model: **the React playground is the host, BI tools are guests** — which removes the sandbox constraints AND opens the door to multi-vendor BI orchestration.
 
 PulsePlay's role inside the org: a thin pane of glass that connects to the platform team's existing AI services (Databricks Genie, Mosaic Supervisor, Foundation Model serving) and the org's existing BI deployments (Power BI / Tableau / Qlik / Looker). We don't build LLMs; we don't build agents; we orchestrate and provide the experience layer.
 
@@ -47,9 +47,13 @@ Once both are running, the playground will:
 
 ## Status
 
-**First production target in flight — Genie + Power BI.** Proxy + databricks-agents + cross-cutting docs inherited from DwD_AI_Assistant_for_PBI cycles 1-47. The ported Pulse AI experience now runs inside the playground, Power BI has a real `powerbi-client` adapter, and Tableau/Qlik/Looker remain modular iframe stubs until the first cell passes the production gate.
+**First production target in flight — Genie + Power BI.** Proxy + databricks-agents + cross-cutting docs inherited from sister Pulse project cycles 1-47. The ported Pulse AI experience runs inside the playground, Power BI has a real `powerbi-client` adapter, and Tableau/Qlik/Looker remain modular iframe stubs until the first cell passes the production gate.
 
-Current local validation: proxy tests 418/418, playground tests 161/161, playground production build passing.
+Current local validation: proxy **1137/1137**; playground **1382/1382**, lint clean, and `vite build` clean; Pulse PBI enabler **93/93**, lint clean, and local `pbiviz package` clean after PB1a. The proxy-backed shell smoke also passes via `node playground/scripts/shell-smoke-proxy.mjs` with native canvas paint.
+
+**The connector axis grew in May 2026.** PulsePlay now hosts **10 backend paths** on the AI side: Genie / Azure OpenAI (chat + analytics) / Bedrock (RAG + direct) / Foundation Model / Supervisor (managed + local) / ResponsesAgent / **Power BI semantic-model** (the latest — deterministic DAX templates, no LLM in the loop). The Power BI brain also exposes a **Q&A embed surface** at `/powerbi/qna` so deployers who want Microsoft's NLP can get it without PulsePlay invoking any LLM (Microsoft handles it in their tenant). See [docs/PROXY_REFERENCE.md](docs/PROXY_REFERENCE.md) for the full backend table.
+
+Next major architectural cycle: **connector plugin system** — drop-in/drop-out per-connector modules under `proxy/connectors/`. Direction locked 2026-05-20; phased rollout queued. See [docs/AGENT_SYNC.md](docs/AGENT_SYNC.md) `[DECISION]` block for the contract.
 
 ## Repository layout
 
@@ -72,15 +76,20 @@ PulsePlay/
 
 | Doc | What it covers |
 |---|---|
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 2-axis design, BIAdapter contract, proxy backbone, 8 backend paths |
+| [docs/README.md](docs/README.md) | Documentation hub: what to read, what to skip, and consolidation map |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 2-axis design, BIAdapter contract, proxy backbone, 10 backend paths |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Sequenced plan v0.1 -> v1.2 |
 | [docs/AGENDA.md](docs/AGENDA.md) | Open-work tracker, near-term + medium-term + blockers |
 | [docs/SUPERIOR_BUILD_LEVERAGE_PLAN.md](docs/SUPERIOR_BUILD_LEVERAGE_PLAN.md) | How we harvest the mature Power BI visual without reintroducing Power BI-only coupling |
 | [docs/TEN_MINUTE_AUTHOR_SETUP.md](docs/TEN_MINUTE_AUTHOR_SETUP.md) | Novice-author setup target for the production Genie + Power BI cell |
+| [docs/HOSTING_OPTIONS.md](docs/HOSTING_OPTIONS.md) | Hosting decision guide: Databricks App, Azure Static Web Apps, Container Apps, App Service, AKS, VM, and no-proxy rejection path |
 | [docs/SECURITY.md](docs/SECURITY.md) | Internal-scoped security guardrails |
 | [docs/PROXY_REFERENCE.md](docs/PROXY_REFERENCE.md) | Proxy API surface, scopes, OAuth M2M setup |
 | [docs/QUALITY.md](docs/QUALITY.md) | What we measure, what we don't, what's roadmap |
 | [docs/PACKS.md](docs/PACKS.md) | Pack architecture overview |
+| [docs/SETTINGS_SPEC.md](docs/SETTINGS_SPEC.md) | Settings page master spec — IA + microcopy + state + guardrails + loophole audit |
+| [docs/KNOWLEDGE_BASE_ARCHITECTURE.md](docs/KNOWLEDGE_BASE_ARCHITECTURE.md) | Knowledge plane, retrieval contracts, Settings IA, and Knowledge Base IA |
+| [docs/DEPLOY_MVP_0.2.md](docs/DEPLOY_MVP_0.2.md) | MVP 0.2 deployer checklist — `config.json` template, env vars, smoke verification |
 | [docs/PUBLIC_OSS_AGENDA.md](docs/PUBLIC_OSS_AGENDA.md) | What gets done IF/WHEN we go public-OSS later |
 | [docs/MIGRATION_NOTES.md](docs/MIGRATION_NOTES.md) | Doc consolidation 2026-05-10 (this cycle's notes) |
 | [docs/research/CODEBASE_AUDIT.md](docs/research/CODEBASE_AUDIT.md) | Brutal-honest gap analysis at HEAD |
@@ -96,4 +105,4 @@ No `LICENSE` file is committed yet. License decision pending; recommendation whe
 
 ## Sister project
 
-This is a sibling of [DwD_AI_Assistant_for_PBI](../DwD_AI_Assistant_for_PBI) (the Pulse Power BI custom visual). Cross-pollination is intentional: bug fixes in `proxy/` should be ported between both projects manually until a shared library extraction is done. PulsePlay's `proxy/`, `databricks-agents/`, and `scripts/` were copied verbatim from Pulse cycles 1-47 and still carry some Pulse vocabulary in headers and comments — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) "Vocabulary leak items" for the cleanup list.
+This is a sibling of [sister Pulse project](../sister Pulse project) (the Pulse Power BI custom visual). Cross-pollination is intentional: bug fixes in `proxy/` should be ported between both projects manually until a shared library extraction is done. PulsePlay's `proxy/`, `databricks-agents/`, and `scripts/` were copied verbatim from Pulse cycles 1-47 and still carry some Pulse vocabulary in headers and comments — see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) "Vocabulary leak items" for the cleanup list.

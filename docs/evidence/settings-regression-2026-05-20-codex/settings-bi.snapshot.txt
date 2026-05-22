@@ -1,0 +1,94 @@
+- banner:
+  - heading "Settings" [level=1]:
+    - text: Settings
+  - paragraph: Configure how PulsePlay looks, what it embeds, and how it reasons.
+  - button "Back to app":
+    - text: Back to app
+- searchbox "Search settings"
+- generic: Ctrl /
+- button "Jump to Setup group":
+  - generic: Setup
+  - generic: BI config
+- button "Jump to BI group":
+  - generic: BI
+  - generic: Power BI
+- button "Jump to AI group":
+  - generic: AI
+  - generic: Default profile
+- button "Jump to ai › Pack":
+  - generic: Pack
+  - generic: No knowledge source
+- button "Jump to system › Proxy":
+  - generic: Proxy
+  - generic: Connected
+- button "Jump to system › Security":
+  - generic: Security
+  - generic: Enforced
+- main:
+  - region "BI":
+    - heading "BI" [level=2]
+    - paragraph: What you're looking at — the BI surface, its embed config, and the governance + license posture around it.
+    - heading "Current state" [level=3]
+    - paragraph: Active provider and allowlist. The sections below either configure them or surface the policy that governs them.
+    - article:
+      - generic: Provider
+      - button "Copy link to Provider": Copy link
+      - paragraph: The BI tool PulsePlay embeds. Restricted to the providers your organization allows.
+      - generic: "Active:"
+      - generic: powerbi
+      - generic: "Allowed:"
+      - generic: (allowlist unavailable)
+    - heading "Connect and embed" [level=3]
+    - paragraph: Wire the vendor connection, token mode, and workspace/report IDs. Edits live-update without a refresh.
+    - article:
+      - generic: Embed
+      - button "Copy link to Embed": Copy link
+      - paragraph: "Power BI report / dashboard wiring. Three modes: Secure embed (paste an app.powerbi.com URL), AAD SSO (user identity), or Service principal (proxy mints the token). Live-updates the playground in this tab and any other tab open on this origin."
+      - note:
+        - text: Changes save to
+        - code: pulseplay:bi-embed-config
+        - text: and broadcast a
+        - code: pulseplay:embed-config-change
+        - text: event. App.tsx subscribes via
+        - code: useEmbedConfig
+        - text: so the BI canvas picks up edits live — no refresh required.
+      - heading "Power BI embed" [level=3]
+      - generic: Embed mode
+      - combobox "Embed mode":
+        - option "Secure embed link - quick preview" [selected]
+        - option "AAD SSO — Embed for your organization (seamless)"
+        - option "Service principal — Embed for your customers (proxy)"
+      - generic: Secure embed link or iframe
+      - textbox "Secure embed link or iframe":
+        - /placeholder: https://app.powerbi.com/reportEmbed?... or <iframe src="https://app.powerbi.com/reportEmbed?...">
+      - paragraph: Quick preview uses Power BI's website/portal embed. Viewers authenticate with Power BI, but SDK commands such as AI-applied filters and page navigation need AAD SSO or service-principal mode.
+      - button "Load secure embed"
+    - article:
+      - generic: Authentication
+      - button "Copy link to Authentication": Copy link
+      - paragraph: Sign-in mode + tenant. Tenant is locked to your organization's allowlist. Choose your AAD sign-in flow in the Embed leaf above; this view is read-only governance state.
+      - generic: "Allowed AAD tenants:"
+      - generic: (allowlist unavailable)
+      - generic: "Token mode:"
+      - generic: (none — pick Embed mode above)
+      - generic: "Workspace (groupId):"
+      - generic: (unset)
+      - generic: "Report ID:"
+      - generic: (unset)
+    - heading "Governance and policy" [level=3]
+    - paragraph: Read-only governance and license posture surrounding the active provider. Admin-configured, surfaced here so you know what to ask for.
+    - article:
+      - generic: Canvas
+      - button "Copy link to Canvas": Copy link
+      - paragraph: How many Power BI frames render side-by-side. Controlled by backend display policy; this view is read-only.
+      - generic: "Tile mode:"
+      - generic: "1"
+      - paragraph:
+        - text: Admin-controlled by
+        - code: allowlist.display.biTileMode
+        - text: . Use 1 for the normal viewer surface; 2 or 4 only for governed comparison deployments.
+    - article:
+      - generic: Status
+      - button "Copy link to Status": Copy link
+      - paragraph: "Live state of the embed: mount mode, last load, recent events, license posture (Premium tier, embed-token availability, Fabric capability)."
+      - generic: Live control lands in Phase 3. Current value is read-only above.
