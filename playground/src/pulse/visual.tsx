@@ -5736,34 +5736,42 @@ function App(props: AppProps) {
                                     );
                                 })}
                             </div>
-                        ) : messages.length === 0 ? (
-                            <WelcomeSection
-                                home={home}
-                                roleMode={roleMode}
-                                isConfigured={isConfigured}
-                                busy={busy}
-                                area={area}
-                                setArea={setArea}
-                                latestActions={latestActions}
-                                onRunArea={() => void runAssistant(AREA_PROMPTS[area], mapAreaToIntent(area))}
-                                onAction={handleSuggestedAction}
-                                kpiSnapshot={kpiSnapshotMap[activeSpaceKey] ?? null}
-                                kpiLoading={kpiLoadingMap[activeSpaceKey] ?? false}
-                            />
                         ) : (
-                            messages.map(message => (
-                                <MessageCard
-                                    key={message.id}
-                                    canShowSql={canShowSql}
-                                    canShowTrace={canShowTrace}
-                                    message={message}
-                                    settings={props.settings}
-                                    onFeedback={handleFeedback}
-                                    setMessages={setActiveMessages}
-                                    submit={(input, intent) => void runAssistant(input, intent)}
-                                    nowTick={nowTick}
+                            <>
+                                {/* 2026-05-22 — always render WelcomeSection above the
+                                    message list so users can scroll back to the probe
+                                    snapshot after asking follow-up questions. When
+                                    messages exist, render the compact variant: just
+                                    the KPI snapshot row, hide Quick start + Try asking
+                                    (they'd duplicate the strip rendered below). */}
+                                <WelcomeSection
+                                    home={home}
+                                    roleMode={roleMode}
+                                    isConfigured={isConfigured}
+                                    busy={busy}
+                                    area={area}
+                                    setArea={setArea}
+                                    latestActions={latestActions}
+                                    onRunArea={() => void runAssistant(AREA_PROMPTS[area], mapAreaToIntent(area))}
+                                    onAction={handleSuggestedAction}
+                                    kpiSnapshot={kpiSnapshotMap[activeSpaceKey] ?? null}
+                                    kpiLoading={kpiLoadingMap[activeSpaceKey] ?? false}
+                                    compact={messages.length > 0}
                                 />
-                            ))
+                                {messages.map(message => (
+                                    <MessageCard
+                                        key={message.id}
+                                        canShowSql={canShowSql}
+                                        canShowTrace={canShowTrace}
+                                        message={message}
+                                        settings={props.settings}
+                                        onFeedback={handleFeedback}
+                                        setMessages={setActiveMessages}
+                                        submit={(input, intent) => void runAssistant(input, intent)}
+                                        nowTick={nowTick}
+                                    />
+                                ))}
+                            </>
                         )}
 
                         {(messages.length > 0 || activeFollowUps.length > 0) && (
@@ -7780,9 +7788,14 @@ function WelcomeSection(props: {
     /** True while the background preload is in flight — shows a subtle
      *  "Analysing your data…" hint under the snapshot area. */
     kpiLoading?: boolean;
+    /** Compact mode (2026-05-22): when the chat thread already has messages,
+     *  render only the KPI snapshot at the top so users can scroll up and
+     *  refer back to the probe answer — without duplicating Quick start /
+     *  Try asking strips (which already render below the message list). */
+    compact?: boolean;
 }) {
     return (
-        <div className="gn-welcome">
+        <div className={`gn-welcome${props.compact ? " gn-welcome--compact" : ""}`}>
             {/* Option A — KPI preload panel. Shows when the background
                 Genie call has returned a snapshot. Falls back to either
                 the home.snapshot pills or the role subtitle when nothing
@@ -7828,45 +7841,49 @@ function WelcomeSection(props: {
                 <p className="gn-welcome-caption">{getRoleSubtitle(props.roleMode)}</p>
             )}
 
-            <div className="gn-welcome-section">
-                <span className="gn-welcome-section-label">Quick start</span>
-                <div className="gn-suggestion-pills" style={{ justifyContent: "center" }}>
-                    {(["performance", "issue", "risk", "opportunity"] as GuidedArea[]).map(item => (
+            {!props.compact && (
+                <div className="gn-welcome-section">
+                    <span className="gn-welcome-section-label">Quick start</span>
+                    <div className="gn-suggestion-pills" style={{ justifyContent: "center" }}>
+                        {(["performance", "issue", "risk", "opportunity"] as GuidedArea[]).map(item => (
+                            <button
+                                key={item}
+                                className={`gn-pill${props.area === item ? " gn-pill--active" : ""}`}
+                                onClick={() => props.setArea(item)}
+                            >
+                                {titleCase(item)}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="gn-suggestion-pills" style={{ justifyContent: "center" }}>
                         <button
-                            key={item}
-                            className={`gn-pill${props.area === item ? " gn-pill--active" : ""}`}
-                            onClick={() => props.setArea(item)}
-                        >
-                            {titleCase(item)}
-                        </button>
-                    ))}
-                </div>
-                <div className="gn-suggestion-pills" style={{ justifyContent: "center" }}>
-                    <button
-                        className="gn-pill gn-pill--active"
-                        disabled={!props.isConfigured || props.busy}
-                        onClick={props.onRunArea}
-                    >
-                        Run {titleCase(props.area)} View
-                    </button>
-                </div>
-            </div>
-
-            <div className="gn-welcome-section">
-                <span className="gn-welcome-section-label">Try asking</span>
-                <div className="gn-suggestion-pills" style={{ justifyContent: "center" }}>
-                    {props.latestActions.slice(0, 3).map(action => (
-                        <button
-                            key={action.id}
-                            className="gn-pill"
+                            className="gn-pill gn-pill--active"
                             disabled={!props.isConfigured || props.busy}
-                            onClick={() => props.onAction(action)}
+                            onClick={props.onRunArea}
                         >
-                            {action.label}
+                            Run {titleCase(props.area)} View
                         </button>
-                    ))}
+                    </div>
                 </div>
-            </div>
+            )}
+
+            {!props.compact && (
+                <div className="gn-welcome-section">
+                    <span className="gn-welcome-section-label">Try asking</span>
+                    <div className="gn-suggestion-pills" style={{ justifyContent: "center" }}>
+                        {props.latestActions.slice(0, 3).map(action => (
+                            <button
+                                key={action.id}
+                                className="gn-pill"
+                                disabled={!props.isConfigured || props.busy}
+                                onClick={() => props.onAction(action)}
+                            >
+                                {action.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
