@@ -10,11 +10,65 @@
 
 ## Topic index (newest first)
 
+- [2026-05-22 — Databricks Genie + Unity Catalog column metadata propagation](#2026-05-22--databricks-genie--unity-catalog-column-metadata-propagation)
+- [2026-05-22 — Azure App Service configuration challenges](#2026-05-22--azure-app-service-configuration-challenges)
 - [2026-05-22 — Chart axis label humanization + value formatting (G2)](#2026-05-22--chart-axis-label-humanization--value-formatting-g2)
 - [2026-05-22 — Auto-route vs click-to-switch when chart shape is wrong (G4)](#2026-05-22--auto-route-vs-click-to-switch-when-chart-shape-is-wrong-g4)
 - [2026-05-22 — Azure Databricks Apps enterprise installation guide](#2026-05-22--azure-databricks-apps-enterprise-installation-guide)
 - [2026-05-22 — Executive briefing card patterns (Ask Pulse narrative regression)](#2026-05-22--executive-briefing-card-patterns-ask-pulse-narrative-regression)
 - [2026-05-22 — Chart rationale popover design (data-shape-aware narrative + warnings)](#2026-05-22--chart-rationale-popover-design-data-shape-aware-narrative--warnings)
+
+---
+
+## 2026-05-22 — Databricks Genie + Unity Catalog column metadata propagation
+
+**Context.** Asked whether the "backend complement to G2" (UC `COMMENT` on columns) would actually translate to friendly chart labels in PulsePlay. Two research agents (offline in-tree + online Databricks docs) ran in parallel. Findings corrected three of my initial guesses.
+
+### Authoritative Databricks sources
+
+| URL (signature) | Title / publisher | One-line takeaway | Applied to |
+|---|---|---|---|
+| https://docs.databricks.com/aws/en/genie/best-practices | Databricks — Curate an effective Genie Space (Best practices) | *"Genie relies on quality table and column descriptions to understand what the data represents."* UC `COMMENT` IS consumed by Genie — but for prompt context, not result labels. | Corrects initial guess that UC comments weren't used |
+| https://docs.databricks.com/aws/en/ai-bi/release-notes/2026 | Databricks — AI/BI release notes 2026 (April 2 entry) | Space authors can set `column_configs.display_name` on **stored** table/view columns. **"Display names appear in query results and in downloaded CSVs."** First-class friendly-label feature, shipped 2026-04-02. STORED COLUMNS ONLY. | The actual lever for backend-driven friendly labels |
+| https://docs.databricks.com/aws/en/genie/knowledge-store | Databricks — Build a knowledge store for more reliable Genie Spaces | Knowledge store = friendly column names + canonical metrics + business definitions; scoped to space, doesn't overwrite UC. | Architecture layer for canonical labels |
+| https://docs.databricks.com/aws/en/genie/tune-quality | Databricks — Tune Genie Space quality | Column synonyms + format assistance + edit descriptions are space-level annotations distinct from UC. | Space-level annotation surface |
+| https://www.databricks.com/blog/data-dialogue-best-practices-guide-building-high-performing-genie-spaces | Databricks blog — From Data to Dialogue: Building High-Performing Genie Spaces | Example SQL queries act as "style templates" — Genie learns preferred alias styles but does NOT guarantee them for LLM-invented derived columns. | Justification for hybrid (backend + frontend) approach |
+| https://github.com/databricks-solutions/vibe-coding-workshop-template/blob/main/data_product_accelerator/skills/semantic-layer/03-genie-space-patterns/SKILL.md | Databricks Solutions — Vibe Coding Workshop: Genie Space Patterns | Official guidance: synonyms belong in `column_configs[].synonyms`, NOT in UC `COMMENT` strings; UC `COMMENT` is for business definitions/grain/valid-values. | Separation of concerns between UC and Genie space |
+| https://www.aimpointdigital.com/blog/talk-to-your-data-but-make-it-count-operationalizing-the-semantic-layer-in-databricks | Aimpoint Digital — Operationalizing the Semantic Layer in Databricks | Practitioner view: semantic layer is plumbing; presentation-layer humanization stays the consumer's responsibility. | Confirms frontend humanization as durable floor |
+
+### Synthesis takeaway
+
+- **UC `COMMENT` does NOT change rendered column names.** It feeds Genie's NL→SQL prompt context (helps Genie pick the right columns + write correct SQL) but doesn't replace the column name in the response shape.
+- **The real friendly-label lever is `column_configs.display_name`** (Genie Space annotation, shipped 2026-04-02). Stored columns only — does NOT cover LLM-invented derived columns (the `prev_order_count`, `sales_change_pct`, `margin_change_pp` cases that motivated G2).
+- **PulsePlay's plumbing is dead code.** [`genieSpaceTypes.ts:65-68`](../../playground/src/pulse/genieSpaceTypes.ts) defines `ColumnConfig.description` but the proxy strips columns to `{ name, type }` in `enrichQueryResults` and the frontend models `queryResult.columns` as `string[]`. The metadata channel is closed; opening it is a real code change (~3-4 hr).
+- **Hybrid is the only viable architecture.** Backend `display_name` for stored columns + frontend humanization for derived columns. Industry consensus across Databricks docs + practitioner blogs treats presentation-layer humanization as the consumer's job regardless of semantic-layer effort.
+- **Cost ladder:**
+  - UC `COMMENT` on canonical columns: ~30 min in SQL. Doesn't change rendering. Improves Genie SQL quality.
+  - Genie Space `display_name` for stored columns: ~1-2 days (Databricks UI work) for a 10-table dataset.
+  - Sample SQL queries + SQL Expressions in Genie: ~2-4 hr — *encourages* (doesn't guarantee) LLM to mimic friendly aliasing.
+  - PulsePlay code to consume `display_name`: ~3-4 hr (proxy enrichment + frontend type + chart-label override).
+
+### Decision recorded 2026-05-22
+
+User direction (pending — research presented as `(c) Hybrid` recommendation). Backlog framing:
+
+- Frontend G2 humanization (`acc3a89`) remains the floor and ships TODAY.
+- Backend `display_name` adoption queued as opportunistic future work — only worth doing alongside an actual Databricks-side Genie space configuration effort.
+
+---
+
+## 2026-05-22 — Azure App Service Configuration Challenges
+
+**Context.** Rajesh asked to attempt Azure App Service hosting after the Databricks Apps deployment and then asked to document the App Service configuration challenges and guidance. The result is [DEPLOY_AZURE_APP_SERVICE.md](../DEPLOY_AZURE_APP_SERVICE.md), a docs-only runbook focused on monorepo/Oryx build, startup command, App Service Authentication vs PulsePlay proxy auth, Key Vault references, diagnostics exposure, package layout, scale, slots, and logging.
+
+| URL (signature) | Title / publisher | One-line takeaway | Applied to |
+|---|---|---|---|
+| https://learn.microsoft.com/en-us/azure/app-service/configure-language-nodejs | Microsoft Learn — Configure Node.js apps in Azure App Service | Node version, startup command, PM2 foreground mode, app settings, logs, and URL rewrites are the key Node App Service levers. | Runtime/startup guidance |
+| https://learn.microsoft.com/en-us/azure/app-service/deploy-zip | Microsoft Learn — Deploy files to Azure App Service | ZIP contents must be at the app root; deployment uses Kudu and can run build automation. | ZIP/package-layout guidance |
+| https://learn.microsoft.com/en-us/azure/app-service/configure-common | Microsoft Learn — Configure an App Service app | App settings are injected as environment variables, encrypted at rest, and trigger restarts when changed. | App settings guidance |
+| https://learn.microsoft.com/en-us/azure/app-service/reference-app-settings | Microsoft Learn — Environment variables and app settings in Azure App Service | App Service exposes many platform env vars and Key Vault reference status metadata. | Config diagnostics |
+| https://learn.microsoft.com/en-gb/azure/app-service/app-service-key-vault-references | Microsoft Learn — Use Key Vault references as app settings | Managed identity plus Key Vault Secrets User access lets app settings resolve secrets without code changes. | Secret storage guidance |
+| https://learn.microsoft.com/en-us/azure/app-service/overview-authentication-authorization | Microsoft Learn — Authentication and authorization in Azure App Service | Easy Auth can require authentication before requests reach the app and injects identity headers, but app-level authorization still needs deliberate design. | Auth challenge section |
 
 ---
 
