@@ -5,6 +5,44 @@
 
 ---
 
+## 2026-05-22 - Azure login re-attempt still blocked by TLS verification
+
+**Scope.** User asked to attempt Azure login again. Ran a normal `az login --use-device-code --tenant common --allow-no-subscriptions` with a workspace-local Azure CLI profile. No TLS bypass was used, no device code was issued, no Azure inventory ran, and no Azure resources were touched.
+
+**Result.** Login still fails before device-code flow with `SSLCertVerificationError: unable to get local issuer certificate` against `login.microsoftonline.com`. Temporary `.azure/azcli-session` was removed after the failed attempt.
+
+---
+
+## 2026-05-22 - Azure connectivity check blocked by Norton TLS scanning
+
+**Scope.** User asked to check whether Azure connectivity is available and what is already set up, with a reminder that this is a free personal Azure account with limited $200 credit. Kept the pass read-only: no Azure resources were created, changed, deployed, started, or deleted.
+
+**Findings.** Azure CLI is installed (`2.85.0`) and configured for `AzureCloud`. `Test-NetConnection login.microsoftonline.com -Port 443` succeeds, so basic TCP connectivity exists. Neither the workspace-local Azure CLI profile nor the default user Azure CLI profile is logged in (`az account show` returns "Please run 'az login'").
+
+**Blocker.** `az login --use-device-code` is blocked by local TLS interception from **Norton Web/Mail Shield**. The live certificate for `login.microsoftonline.com` is issued by `Norton Web/Mail Shield Root`; that root exists in the Windows cert stores, but Azure CLI's Python/certifi path rejects it with `Basic Constraints of CA cert not marked critical`. A temporary CA bundle was tested and still failed. A TLS-verification bypass was not used because it needs explicit user approval for the security risk.
+
+**Cleanup.** Temporary Azure CLI session directory `.azure/azcli-session` was removed. No token cache was retained.
+
+**Next.** To complete the inventory/cost check, either disable Norton HTTPS scanning for Azure CLI / Microsoft login endpoints, provide a CLI-compatible CA bundle, or explicitly approve temporary `AZURE_CLI_DISABLE_CONNECTION_VERIFICATION=1` for a short read-only `az login` + inventory pass. After login, run only read-only commands: `az account list`, `az group list`, `az resource list`, App Service lists, and Cost Management reads if permissions allow.
+
+---
+
+## 2026-05-22 - Azure App Service configuration challenge guide
+
+**Scope.** User asked to attempt Azure App Service hosting, then specifically asked to document the App Service configuration challenges and guidance before live deployment. This is a docs-only pass: no Azure resources were created, no deployment command was run, and no runtime code changed.
+
+**Plan artifact.** [.azure/deployment-plan.md](../.azure/deployment-plan.md) now records the App Service modernization plan and remains **Docs Guidance Prepared - Awaiting User Approval For Infra/Deploy**. First-proof recommendation is a single Linux Azure App Service serving both the Vite-built React app and the Node proxy from one origin. Live deployment remains blocked until Azure subscription/location/auth are confirmed.
+
+**Guide.** Added [DEPLOY_AZURE_APP_SERVICE.md](DEPLOY_AZURE_APP_SERVICE.md) with the concrete App Service challenge matrix: root `package.json`/Oryx monorepo detection, nested `playground` + `proxy` installs, build vs curated ZIP package, `STATIC_DIR=playground/dist`, `PORT` startup behavior, Easy Auth vs PulsePlay `PROXY_AUTH_MODE`, Key Vault references, VNet/private endpoint and outbound allowlist concerns, diagnostic endpoint exposure, logging/Application Insights, deployment slots, scale/cost, and the Azure CLI profile permission issue seen locally.
+
+**Docs links.** [docs/README.md](README.md) now lists the App Service guide. [HOSTING_OPTIONS.md](HOSTING_OPTIONS.md) now points App Service deployers to the new guide once the hosting shape is chosen. [research/EXTERNAL_REFERENCES.md](research/EXTERNAL_REFERENCES.md) logs the Microsoft Learn sources used.
+
+**Brutal honesty.** The largest App Service blocker is auth. Easy Auth can protect the App Service edge, but PulsePlay's existing `idp` mode verifies `Authorization: Bearer <jwt>` itself; Easy Auth headers are not yet consumed as verified proxy identity. A production App Service deployment needs either an Easy Auth header trust enhancement, a frontend token flow for `PROXY_AUTH_MODE=idp`, or another reviewed edge-auth pattern. A lab proof can sit behind Easy Auth with `PROXY_AUTH_MODE=none`, but that must not be overclaimed as full proxy-level authorization.
+
+**Validation.** Docs-only `git diff --check` passed with LF-to-CRLF warnings only; no tests were needed because no runtime code changed.
+
+---
+
 ## 2026-05-22 - G2 column humanization + G4 click-to-switch on chart-rationale (LIVE on Databricks Apps at acc3a89)
 
 **Scope.** Two coordinated chart-viz improvements landed via the full 7-step research-first process (4 parallel agents — offline in-tree archaeology × G2/G4 + online industry research × G2/G4). User-approved direction via AskUserQuestion: G2 = full three-tier (registry + algorithm + value formatter); G4 = click-to-switch button (NOT auto-route).
@@ -26,14 +64,24 @@
 - The G4 button uses the warning's severity colour for `border-color`. If a new severity is added without a corresponding palette entry, the button falls back to `var(--pp-text-muted)` via the `WARNING_PALETTE.caution` fallback in `ChartRationalePill`. Tested mentally — should be safe.
 - The G4 regex mapper covers the 16 chart kinds in the picker. The popover's `generateWarnings()` only emits 4 distinct `suggestedView` strings today (`"KPI tile"`, `"Matrix view"`, `"Table with sorting"`, `"Sparkline"`) — all handled. If a new suggestion text is added, extend the mapper at `visual.tsx` `GenieChart`.
 
-**Backend complement (queued, separate effort).** Add Unity Catalog `COMMENT` on canonical metrics + push Genie's system prompt to alias derived columns with friendly names (`AS "Sales (prior)"` instead of `AS prev_order_count`). Frontend humanization handles the long tail of LLM-invented aliases; UC comments handle the stable warehouse measures.
+**Backend complement (queued, honest framing — research added 2026-05-22; see [docs/research/EXTERNAL_REFERENCES.md](research/EXTERNAL_REFERENCES.md) "Databricks Genie + Unity Catalog column metadata propagation").** The original framing was wrong — UC `COMMENT` does NOT change rendered column names by itself; it only feeds Genie's NL→SQL prompt context. The actual lever is Genie Space `column_configs.display_name`, a feature Databricks shipped 2026-04-02 that surfaces friendly names in query results — but only for STORED columns. LLM-invented derived columns (`prev_order_count`, `sales_change_pct`, `margin_change_pp`) stay on the frontend G2 humanization path regardless.
+
+Full chain has 3 optional steps:
+
+| Step | What | Effort | What you get |
+|---|---|---|---|
+| 1 | UC `COMMENT` on canonical columns | ~30 min SQL | Better Genie NL→SQL accuracy. **No label change.** |
+| 2 | Genie Space `display_name` on stored columns | ~1-2 hr per space | `display_name` populated in Genie API response — invisible to PulsePlay until Step 3 |
+| 3 | PulsePlay code: proxy enrichment + frontend `queryResult` type extension + chart-label override that prefers Genie's `display_name` over `humanizeColumnName` | ~3-4 hr | End-to-end win for stored columns; derived columns stay on G2 frontend |
+
+**Decision 2026-05-22: defer all 3 steps to a Databricks-side cycle.** Don't touch UC / Genie / PulsePlay code now. Revisit when there's an actual Genie space configuration effort under way. Frontend G2 humanization (`acc3a89`) remains the durable source of truth.
 
 **Next.**
 
 - Sustainability gauge on Ask Pulse workbench (queued).
 - G3 first-sync flicker (needs user description).
 - Unit tests for the G2 + G4 helpers + the existing parseExecutiveBriefing / isBriefingQuestion / clarifier guard / renderHeadlineCard wrap-strip / SQL copy icon all queued together.
-- Backend UC + Genie prompt effort (queued).
+- Backend UC + Genie `display_name` effort (deferred to a Databricks-side cycle per 2026-05-22 research; see entry above).
 
 ---
 
