@@ -5,6 +5,38 @@
 
 ---
 
+## 2026-05-22 - G2 column humanization + G4 click-to-switch on chart-rationale (LIVE on Databricks Apps at acc3a89)
+
+**Scope.** Two coordinated chart-viz improvements landed via the full 7-step research-first process (4 parallel agents — offline in-tree archaeology × G2/G4 + online industry research × G2/G4). User-approved direction via AskUserQuestion: G2 = full three-tier (registry + algorithm + value formatter); G4 = click-to-switch button (NOT auto-route).
+
+**G2 — humanized column labels + per-unit value formatting.** Ask Pulse Chart tab was rendering raw SQL aliases (`prev_order_count`, `sales_change_pct`, `margin_change_pp`) in legends/axes and raw floats (`0.05747126436781609`) for values. New [`playground/src/lib/columnLabels.ts`](../playground/src/lib/columnLabels.ts) ships a `TOKEN_REGISTRY` of ~60 common analytics tokens (prev/yoy/qoq/mom/wow/ytd/qtd/mtd, avg/median/sum, cnt/qty/amt, pct/pp, delta/change, prior etc.) + `humanizeColumnName()` (registry + suffix unit-extraction + parenthetical prior-prefix + snake-to-Title fallback) + `formatValueByUnit()` (currency with SI prefix, ratio → 5.7%, percentage-point → +1.9 pp, count with locale grouping, duration with unit-aware suffix). Wired into [`buildEChartsOption.ts`](../playground/src/lib/buildEChartsOption.ts) — `extractCategorySeries` now carries `rawName + unit` per series; bar / column / clustered-bar / line / area / sparkline cases get `axisLabel.formatter` + `tooltip.valueFormatter`. **Gold mine:** `chartAutoPick.detectColumnUnit()` was already detecting units but only the popover narrative was consuming them; now the axis labels and tooltips consume them too.
+
+**G4 — click-to-switch on chart-rationale warning.** Today's chart-rationale popover ("Why did we pick this chart?") emits warnings like *"Only 1 row of data — KPI tile shows the value more clearly. Try: KPI tile"* but the "Try" line was italic text only. Now [`ChartRationalePill.tsx`](../playground/src/visualization/ChartRationalePill.tsx) accepts an optional `onSuggestedViewClick` callback — when provided, the italic line becomes a **"Switch to X →" button** styled with the warning's severity colour. [`GenieChart`](../playground/src/pulse/visual.tsx) wires it to `setChartType` via a regex mapper (`KPI tile` → `kpi`, `Bar chart` → `bar`, etc). Industry consensus (Tableau / Power BI / Looker / ThoughtSpot / Datawrapper) is suggest-then-apply, NEVER silent auto-route — MIT VizML + LogRocket UX research backs this; auto-switching triggers automation bias and "where did my chart go?" confusion.
+
+**Research-first artifacts.** [`docs/research/EXTERNAL_REFERENCES.md`](research/EXTERNAL_REFERENCES.md) gained two new topic entries with 21 web URLs (Tableau, ThoughtSpot, Looker, Tabular Editor, SQLBI, ONS Style Guide, Datawrapper Academy, D3-format, dbt style, Power BI Q&A schema, MIT VizML, Draco 2, LogRocket on AI UX, Gmail Smart Compose). All URL-signed and indexed at the top.
+
+**Test + lint.** **1442/1442** playground tests pass, lint clean. New code paths gated behind detection / explicit callback prop. Unit tests for `humanizeColumnName` + `formatValueByUnit` + G4 click handler queued as follow-up.
+
+**Deploy.** `acc3a89` → Databricks Apps `state: SUCCEEDED`, app `RUNNING`.
+
+**Tripwires.**
+
+- The humanization registry is English-only. Non-English column names get title-cased but unrecognised tokens stay verbatim. If a profile uses a non-English schema, the registry needs extension; algorithmic fallback still works.
+- `formatValueByUnit` distinguishes `_pct` from `_pp` via a `columnHint` regex (`/\bpp\b|_pp$|_pp_/i`). Columns named `application_pp` would mis-fire. Acceptable risk — vanishingly rare in BI schemas.
+- The G4 button uses the warning's severity colour for `border-color`. If a new severity is added without a corresponding palette entry, the button falls back to `var(--pp-text-muted)` via the `WARNING_PALETTE.caution` fallback in `ChartRationalePill`. Tested mentally — should be safe.
+- The G4 regex mapper covers the 16 chart kinds in the picker. The popover's `generateWarnings()` only emits 4 distinct `suggestedView` strings today (`"KPI tile"`, `"Matrix view"`, `"Table with sorting"`, `"Sparkline"`) — all handled. If a new suggestion text is added, extend the mapper at `visual.tsx` `GenieChart`.
+
+**Backend complement (queued, separate effort).** Add Unity Catalog `COMMENT` on canonical metrics + push Genie's system prompt to alias derived columns with friendly names (`AS "Sales (prior)"` instead of `AS prev_order_count`). Frontend humanization handles the long tail of LLM-invented aliases; UC comments handle the stable warehouse measures.
+
+**Next.**
+
+- Sustainability gauge on Ask Pulse workbench (queued).
+- G3 first-sync flicker (needs user description).
+- Unit tests for the G2 + G4 helpers + the existing parseExecutiveBriefing / isBriefingQuestion / clarifier guard / renderHeadlineCard wrap-strip / SQL copy icon all queued together.
+- Backend UC + Genie prompt effort (queued).
+
+---
+
 ## 2026-05-22 - Chat fidelity + AI Insights toolbar reach + SQL copy icon (LIVE on Databricks Apps at ece47d4)
 
 **Scope.** Three coordinated UX changes per Rajesh's same-day direction. The first locks a new collaboration rule into memory; the other two are visible-chrome additions.
