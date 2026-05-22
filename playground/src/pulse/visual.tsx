@@ -8068,35 +8068,50 @@ function renderMessageBody(
     onViewChange: (view: OutputMode) => void,
     nowTick: number
 ) {
-    if (message.status === "RUNNING") {
-        // Unified ProgressIndicator (IDEA-020 Phase 3 + 5). The chat poll
-        // path already runs every status through formatGenieStatus →
-        // friendly text, so we infer an icon for each entry from the label
-        // rather than carrying the raw enum through. The active step is
-        // the last one; everything before it is rendered as ✓ done.
-        // Helper chips (Phase 5) populate when the supervisor stream is
-        // active — empty for single-space chat.
-        const steps = message.statusSteps ?? [];
-        const current = message.currentStatus ?? "Starting";
-        const indicatorSteps: ProgressStep[] = steps.length > 0
-            ? steps.map((label, i) => ({
-                id: `chat-step-${i}`,
-                label,
-                icon: inferIconFromLabel(label),
-                state: i === steps.length - 1 ? "active" : "done"
-            }))
-            : [{ id: "chat-step-0", label: current, icon: inferIconFromLabel(current), state: "active" }];
-        const elapsedMs = message.startedAt ? Math.max(0, nowTick - message.startedAt) : 0;
+    // Build the progress indicator once. Live (running) state shows the active
+    // step + spinner; completed state stays mounted as a collapsed "View steps"
+    // pill so the user can expand back to see which stages ran and how long
+    // each took. This was a real gap: previously the indicator unmounted on
+    // status transition out of RUNNING, leaving the user no way to review the
+    // trace (per 2026-05-22 live-testing feedback: "the spinner disappears
+    // there should be some drop icon giving access to it").
+    const stepLabels = message.statusSteps ?? [];
+    const currentStatusLabel = message.currentStatus ?? (message.status === "RUNNING" ? "Starting" : "Completed");
+    const isRunning = message.status === "RUNNING";
+    const isFailed = message.status === "FAILED";
+    const progressSteps: ProgressStep[] = stepLabels.length > 0
+        ? stepLabels.map((label, i) => ({
+            id: `chat-step-${i}`,
+            label,
+            icon: inferIconFromLabel(label),
+            // While running, the LAST step is active; everything before is done.
+            // After completion, every step is done.
+            state: !isRunning
+                ? "done"
+                : (i === stepLabels.length - 1 ? "active" : "done"),
+        }))
+        : (isRunning
+            ? [{ id: "chat-step-0", label: currentStatusLabel, icon: inferIconFromLabel(currentStatusLabel), state: "active" as StepState }]
+            : []);
+    const progressElapsedMs = message.startedAt
+        ? Math.max(0, nowTick - message.startedAt)
+        : 0;
+    const progressNode = progressSteps.length > 0 ? (
+        <ProgressIndicator
+            className="gn-chat-progress"
+            steps={progressSteps}
+            elapsedMs={progressElapsedMs}
+            isComplete={!isRunning}
+            isFailed={isFailed}
+            activeOverride={isRunning ? currentStatusLabel : undefined}
+            helperChips={message.helperChips}
+        />
+    ) : null;
+
+    if (isRunning) {
         return (
             <div className="gn-msg-body">
-                <ProgressIndicator
-                    className="gn-chat-progress"
-                    steps={indicatorSteps}
-                    elapsedMs={elapsedMs}
-                    isComplete={false}
-                    activeOverride={current}
-                    helperChips={message.helperChips}
-                />
+                {progressNode}
             </div>
         );
     }
@@ -8125,19 +8140,22 @@ function renderMessageBody(
 
     if ((view === "chart" || view === "table") && message.queryResult) {
         return (
-            <div className="gn-chart-wrap">
-                {toggles}
-                {view === "chart"
-                    ? <GenieChart columns={message.queryResult.columns} rows={message.queryResult.rows} preferredChart={message.forcedChartType} />
-                    : <GenieTable columns={message.queryResult.columns} rows={message.queryResult.rows} />
-                }
-                <div className="gn-chart-meta">
-                    <span>{message.queryResult.rows.length} row{message.queryResult.rows.length !== 1 ? "s" : ""} returned</span>
-                    <div className="gn-export-btns">
-                        <button className="gn-export-btn" onClick={() => copyText(formatTableAsCsv(message.queryResult!.columns, message.queryResult!.rows))}>Export data</button>
+            <>
+                {progressNode}
+                <div className="gn-chart-wrap">
+                    {toggles}
+                    {view === "chart"
+                        ? <GenieChart columns={message.queryResult.columns} rows={message.queryResult.rows} preferredChart={message.forcedChartType} />
+                        : <GenieTable columns={message.queryResult.columns} rows={message.queryResult.rows} />
+                    }
+                    <div className="gn-chart-meta">
+                        <span>{message.queryResult.rows.length} row{message.queryResult.rows.length !== 1 ? "s" : ""} returned</span>
+                        <div className="gn-export-btns">
+                            <button className="gn-export-btn" onClick={() => copyText(formatTableAsCsv(message.queryResult!.columns, message.queryResult!.rows))}>Export data</button>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </>
         );
     }
 
@@ -8164,6 +8182,7 @@ function renderMessageBody(
         const labels = sectionTabs.length > 0 ? sectionTabs.map(tab => tab.label) : undefined;
         return (
             <>
+                {progressNode}
                 {toggles}
                 <SqlTabs queries={queries} labels={labels} ariaLabel={labels ? "SQL sections" : "SQL queries"} />
             </>
@@ -8173,6 +8192,7 @@ function renderMessageBody(
     if (view === "trace" && (message.stageTraces?.length || message.trace?.length)) {
         return (
             <>
+                {progressNode}
                 {toggles}
                 {message.stageTraces?.length ? (
                     <div className="gn-stage-traces" data-testid="gn-stage-traces">
@@ -8215,6 +8235,7 @@ function renderMessageBody(
 
     return (
         <>
+            {progressNode}
             {toggles}
             <div className="gn-msg-body">{renderKpiSnapshot(message.content || "No response returned.")}</div>
             {message.dmlWarning && (
