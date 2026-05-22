@@ -2448,6 +2448,12 @@ function App(props: AppProps) {
                 props.settings.sendContextToGenie,
                 {
                     omitDomainGuidance: !!conversationId,
+                    // 2026-05-22 chat-fidelity rule (memory/feedback_chat_fidelity.md):
+                    // briefing-format only fires on the FIRST message of a
+                    // conversation. Follow-ups stay plain chat ("what you ask is
+                    // what you get") so the experience matches a native vendor
+                    // chatbot.
+                    omitBriefingFormat: !!conversationId,
                     kbFlags
                 }
             );
@@ -8765,10 +8771,34 @@ function renderKpiSnapshot(raw: string): React.ReactNode {
     // replies get the SAME rich card grid as the AI Insights surface.
     // Triggered by buildGenieRequest's briefing-format instruction in
     // visualHelpers.ts when intent is summary/performance OR the question
-    // matches briefing heuristics.
+    // matches briefing heuristics (first-message-only per chat-fidelity rule).
+    //
+    // 2026-05-22 — also surface the same per-section action toolbar
+    // (📋 Copy + ✻ provenance footer) that AI Insights uses, by passing a
+    // minimal InsightsRenderOptions with an onCopySection handler and
+    // showProvenanceFooter=true. SQL/retry/raw-data callbacks are intentionally
+    // omitted — the chat path's SQL lives in the existing SQL tab (tabs above)
+    // rather than per-section inline panels, and retries don't apply to a
+    // one-shot chat response.
     const hasSectionHeaders = /^#{1,3}\s+[A-Z][A-Z0-9 /&-]{2,}$/m.test(text);
     if (hasSectionHeaders) {
-        return renderInsightsSections(text);
+        return renderInsightsSections(text, {
+            showProvenanceFooter: true,
+            sourceLabel: "Ask Pulse",
+            generatedAt: Date.now(),
+            onCopySection: async (title, body) => {
+                // Best-effort clipboard write. Format: "# <Title>\n\n<body>".
+                const text = `# ${title}\n\n${body}`.trim();
+                try {
+                    await navigator.clipboard.writeText(text);
+                } catch {
+                    // Clipboard API can be blocked by permissions or sandbox;
+                    // silent failure is preferable to a runtime throw in a
+                    // render path. The user will notice the section didn't
+                    // copy and can use the SQL tab fallback.
+                }
+            },
+        });
     }
     // Fallback structured markdown (tables, code blocks, blockquotes,
     // mid/low-level headings) — still better as narrative than as flex
@@ -10172,6 +10202,7 @@ interface SqlTabsProps {
 const SqlTabs: React.FC<SqlTabsProps> = (props) => {
     const list = props.queries.filter(s => typeof s === "string" && s.trim().length > 0);
     const [activeIdx, setActiveIdx] = React.useState(0);
+    const [copiedAt, setCopiedAt] = React.useState<number | null>(null);
     const safeIdx = list.length === 0 ? 0 : Math.min(activeIdx, list.length - 1);
     const activeSql = list[safeIdx] || "";
     const labels = props.labels?.filter(label => typeof label === "string" && label.trim().length > 0);
@@ -10179,15 +10210,43 @@ const SqlTabs: React.FC<SqlTabsProps> = (props) => {
     React.useEffect(() => {
         if (props.onActiveSqlChange) props.onActiveSqlChange(activeSql);
     }, [activeSql, props.onActiveSqlChange]);
+    // 2026-05-22 user direction: SQL copy icon. Anchored top-right of the
+    // <pre> block so it sits in the same visual position as the AI Insights
+    // section toolbar icons. Two-second "copied" feedback via setCopiedAt.
+    const renderCopyIcon = (sqlToCopy: string): React.ReactElement => {
+        const copied = copiedAt !== null && Date.now() - copiedAt < 2000;
+        return (
+            <button
+                type="button"
+                className="gn-sql-copy-btn"
+                aria-label={copied ? "SQL copied" : "Copy SQL"}
+                title={copied ? "Copied" : "Copy SQL to clipboard"}
+                onClick={async () => {
+                    try {
+                        await navigator.clipboard.writeText(sqlToCopy);
+                        setCopiedAt(Date.now());
+                    } catch {
+                        // Clipboard API can be blocked by permissions or sandbox;
+                        // fail silently rather than throw inside a render path.
+                    }
+                }}
+            >
+                <span aria-hidden="true">{copied ? "✓" : "⎘"}</span>
+            </button>
+        );
+    };
     if (list.length === 0) return null;
     if (list.length === 1) {
         return (
             <>
                 {labels?.[0] && <div className="gn-sql-section-label">{labels[0]}</div>}
-                <pre
-                    className="gn-code"
-                    dangerouslySetInnerHTML={{ __html: highlightSql(list[0]) }}
-                />
+                <div className="gn-sql-pre-wrap">
+                    {renderCopyIcon(list[0])}
+                    <pre
+                        className="gn-code"
+                        dangerouslySetInnerHTML={{ __html: highlightSql(list[0]) }}
+                    />
+                </div>
             </>
         );
     }
@@ -10208,10 +10267,13 @@ const SqlTabs: React.FC<SqlTabsProps> = (props) => {
                     </button>
                 ))}
             </div>
-            <pre
-                className="gn-code"
-                dangerouslySetInnerHTML={{ __html: highlightSql(activeSql) }}
-            />
+            <div className="gn-sql-pre-wrap">
+                {renderCopyIcon(activeSql)}
+                <pre
+                    className="gn-code"
+                    dangerouslySetInnerHTML={{ __html: highlightSql(activeSql) }}
+                />
+            </div>
         </>
     );
 };

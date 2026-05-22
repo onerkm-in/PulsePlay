@@ -8781,6 +8781,45 @@
     line-height: 1.2;
 }
 
+/* 2026-05-22 — SQL copy icon. User direction: "let's keep the sql copy
+ * icon as well" — mirrors the AI Insights section toolbar pattern.
+ * Anchored top-right of the SQL <pre> via .gn-sql-pre-wrap (position:
+ * relative parent). 2-second "copied" feedback morphs the glyph to ✓. */
+.gn-sql-pre-wrap {
+    position: relative;
+}
+.gn-sql-copy-btn {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    z-index: 1;
+    appearance: none;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 1px solid var(--gn-border, rgba(0, 0, 0, 0.14));
+    border-radius: 4px;
+    background: var(--gn-surface, #ffffff);
+    color: var(--gn-accent, #1a6fd4);
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.85;
+    transition: opacity 120ms ease, background 120ms ease, border-color 120ms ease;
+    &:hover {
+        opacity: 1;
+        background: var(--gn-accent-soft, rgba(26, 111, 212, 0.10));
+        border-color: var(--gn-accent, #1a6fd4);
+    }
+    &:focus-visible {
+        outline: 2px solid var(--gn-accent, #1a6fd4);
+        outline-offset: 1px;
+    }
+}
+
 /* Cycle 37 — empty state for the per-section SQL panel. Renders when
    the viewer toggles View SQL on a narrative stage that didn't produce
    SQL. Soft, italicized, smaller font — reads as an explanation rather
