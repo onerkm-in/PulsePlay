@@ -78,6 +78,10 @@ import { SetupStep5, countCustomisedTotal, countDirtyVsBaseline } from "./setupS
 // Wave 41 cycle 12 — type-only import for the per-card metric-rule suggest prop.
 import type { MetricRule as MetricRuleType } from "./metricRulesEngine";
 import { SetupWizard, shouldShowWizard, WizardDraft } from "./setupWizard";
+// 2026-05-22 — shared chart-rationale "i" button. Used in BOTH NativeCanvas
+// and here so users get the same "Why this chart?" affordance whether they're
+// looking at the native canvas or the Ask Pulse chart tab.
+import { ChartRationalePill } from "../visualization/ChartRationalePill";
 import {
     ALL_FILTER_VALUE,
     AREA_PROMPTS,
@@ -8328,7 +8332,7 @@ function GenieChart(props: { columns: string[]; rows: any[][]; preferredChart?: 
 
     return (
         <div className="gn-chart-container">
-            <div className="gn-chart-type-bar">
+            <div className="gn-chart-type-bar" style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <select
                     className="gn-chart-type-select"
                     value={chartType}
@@ -8344,6 +8348,15 @@ function GenieChart(props: { columns: string[]; rows: any[][]; preferredChart?: 
                         </optgroup>
                     ))}
                 </select>
+                {/* 2026-05-22 — shared "Why this chart?" pill. Same component used in
+                    NativeCanvas. Anchored next to the chart-type dropdown so the
+                    rationale is visible at the point of decision. */}
+                <ChartRationalePill
+                    columns={props.columns}
+                    rows={props.rows}
+                    pickedKind={chartType}
+                    popoverPlacement="below-left"
+                />
             </div>
             {renderEChartsBody(chartType, props.columns, props.rows, dataShape)}
         </div>
