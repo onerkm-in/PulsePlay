@@ -10,6 +10,11 @@
 
 ## Topic index (newest first)
 
+- [2026-05-23 — Persona + First-Launch Architecture for PulsePlay](#2026-05-23--persona--first-launch-architecture-for-pulseplay)
+- [2026-05-22 — PulsePlay end-to-end feature and journey research](#2026-05-22--pulseplay-end-to-end-feature-and-journey-research)
+- [2026-05-22 — Settings alignment observation + Figma VS Code handoff](#2026-05-22--settings-alignment-observation--figma-vs-code-handoff)
+- [2026-05-22 — Settings progressive setup design + sustainability gauge study](#2026-05-22--settings-progressive-setup-design--sustainability-gauge-study)
+- [2026-05-22 — Power BI DAX / Q&A enablement guide](#2026-05-22--power-bi-dax--qa-enablement-guide)
 - [2026-05-22 — Settings page IA: progressive parent-child + engagement patterns](#2026-05-22--settings-page-ia-progressive-parent-child--engagement-patterns)
 - [2026-05-22 — `powerbi-semantic-model` deep-dive: durable PBI NL path post-Q&A retirement](#2026-05-22--powerbi-semantic-model-deep-dive-durable-pbi-nl-path-post-qa-retirement)
 - [2026-05-22 — Power BI Q&A readiness assessment + deprecation finding (CRITICAL)](#2026-05-22--power-bi-qa-readiness-assessment--deprecation-finding-critical)
@@ -22,6 +27,76 @@
 - [2026-05-22 — Azure Databricks Apps enterprise installation guide](#2026-05-22--azure-databricks-apps-enterprise-installation-guide)
 - [2026-05-22 — Executive briefing card patterns (Ask Pulse narrative regression)](#2026-05-22--executive-briefing-card-patterns-ask-pulse-narrative-regression)
 - [2026-05-22 — Chart rationale popover design (data-shape-aware narrative + warnings)](#2026-05-22--chart-rationale-popover-design-data-shape-aware-narrative--warnings)
+
+---
+
+## 2026-05-23 — Persona + First-Launch Architecture for PulsePlay
+
+**Context.** Live-demo regression: AI Insights briefing came back trimmed to 2 sections due to cross-helper leak (fixed at `5363ff9`). Audience also described the design as "clumsy" and "confused." User directed: model identity-optional persona architecture + first-launch UX, no asking the user their role, behavioral learning with visibility. 4 parallel agents (1 offline + 3 online) ran the full 7-step cycle. Full proposal: [PERSONA_AND_FIRST_LAUNCH_ARCHITECTURE_2026-05-23.md](PERSONA_AND_FIRST_LAUNCH_ARCHITECTURE_2026-05-23.md).
+
+### Non-blocking guided setup patterns
+
+| URL (signature) | Title / publisher | One-line takeaway | Applied to |
+|---|---|---|---|
+| https://docs.stripe.com/connect/hosted-onboarding | Stripe — Hosted onboarding (Connect) | Re-entrant setup surface; account links re-issuable; not a one-shot wizard. | Drawer pattern + re-entry |
+| https://docs.stripe.com/connect/supported-embedded-components/account-onboarding | Stripe — Account onboarding embedded component | Embedded component lets users complete onboarding across sessions. | Resumable flow pattern |
+| https://onboardme.substack.com/p/how-notion-solved-the-blank-page-product-strategy-deepdive | OnboardMe — How Notion Solved the Blank Page | Blank canvas + 3-question intent quiz preloads templates. Zero setup tax. | Defaults must be functional on day zero |
+| https://vercel.com/docs/project-configuration/project-settings | Vercel — Project Settings | Framework presets auto-fill; per-field OVERRIDE toggle. No setup flow. | Per-field opt-in customization |
+| https://vercel.com/blog/advanced-project-settings | Vercel — Advanced Project Settings blog | Pre-filled, greyed; flip to OVERRIDE per field. | Per-field reveal pattern |
+| https://linear.app/docs/account-preferences | Linear — Account Preferences | Preferences pane is overlay, not blocking. Per-setting mutability. | Drawer-style preferences |
+| https://linear.app/docs/display-options | Linear — Display Options | Each display setting independently mutable. No wizard. | Persistent preferences surface |
+| https://riyajawandhiya.medium.com/deferral-button-in-saas-onboarding-how-ux-copy-of-these-buttons-can-reduce-the-churn-313ed7212f2b | Medium — Deferral buttons in SaaS onboarding | "Not now" / "Maybe later" beats "Skip" for re-engagement. Microcopy matters. | "Maybe later" not "Skip" |
+| https://userguiding.com/blog/progressive-onboarding | UserGuiding — Progressive Onboarding | Progressive over wizard; short lists 3-5 items. | 3-question layout drawer |
+| https://www.nngroup.com/articles/wizards/ | NN/G — Wizards: Definition and Design | Wizards have specific use cases; overuse is the anti-pattern. | Justification for non-wizard approach |
+| http://stef.thewalter.net/installer-anti-pattern.html | Stef Walter — The Wizard Anti-Pattern | Installer-style wizards force linear decisions and block exploration. | Anti-pattern reference |
+| https://help.figma.com/hc/en-us/articles/18888057155991-Create-an-onboarding-flow-with-advanced-prototyping | Figma — Onboarding flow tooltips | Dismissible overlay tips, Skip available, tips re-enableable. | Re-triggerable hints pattern |
+| https://slack.com/help/articles/360000355143-Review-your-workspaces-settings | Slack — Workspace Settings | Workspace customization journey, separate from end-user prefs. | Author vs end-user split |
+
+### Anonymous-first SaaS state patterns
+
+| URL (signature) | Title / publisher | One-line takeaway | Applied to |
+|---|---|---|---|
+| https://linear.app/docs/login-methods | Linear — Login methods | Auth-walled (anti-pattern for open BI tool). | Validates Linear is wrong precedent for PulsePlay |
+| https://www.junoschool.org/article/how-to-use-figma-community-files/ | Figma — Community files | Read without account; fork requires sign-in. | Read-anonymous, write-identified line |
+| https://forum.figma.com/ask-the-community-7/anyone-can-edit-1008 | Figma community — FigJam Open Sessions | Anonymous edit scoped to session link. Identity surfaces as colored avatars. | Session-bounded anonymous edit |
+| https://vercel.com/docs/deployments/sharing-deployments | Vercel — Sharing a Preview Deployment | "Anyone with the link" can view + comment; sign-in only at write/protected | Read anonymous, light interact OK |
+| https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection | Vercel — Bypass deployment protection | Identity-optional viewer access pattern. | Optional identity escalation |
+| https://www.notion.com/help/sharing-and-permissions | Notion — Sharing and permissions | Anonymous = consumer; sign-in = producer. | Anonymous-first consumer model |
+| https://blog.codepen.io/2019/08/06/anonymous-pen-save-option-removed/ | CodePen — Anonymous Pen Save Option Removed | Removed anonymous save after abuse + user confusion (lost work they couldn't reopen). | Anti-pattern guardrail: don't promise persistence you can't deliver |
+| https://blog.replit.com/anon | Replit — reCAPTCHA and the anonymous experience | Phased out anonymous create/save. Read-only language pages only. | Same anti-pattern lesson |
+| https://dev.to/github/vscode-in-the-browser-for-free-github-web-editor-k4h | DEV — GitHub Web Editor (github.dev) | Pure anonymous editor; identity only at write-back to GitHub. **Best precedent for PulsePlay.** | "Edit anonymously, identity only at write-back" |
+| https://blog.logto.io/implement-guest-mode-with-logto | Logto — Implement guest mode | 3-phase pattern: guest session token → OIDC carry → server-side merge into user account. | Phase-2 identity escalation plan |
+| https://firebase.google.com/docs/auth/web/auth-state-persistence | Firebase — Auth state persistence | Anonymous user upgrade pattern (same shape as Logto). | Alternative implementation |
+| https://medium.com/@emadalam/namespace-localstorage-e2d1d2e68b20 | Medium — Namespace localStorage | Prefix keys with `app:user:{userId}:` for per-user isolation; migrate from `app:anon:{sessionId}:`. | Storage namespace plan |
+| https://ui-patterns.com/patterns/autosave | ui-patterns — Autosave pattern | Visible "Save" button even with autosave because users trust what they see. | Save-bar honesty |
+| https://brianlovin.com/writing/design-to-save-people-from-themselves | Brian Lovin — Design to save people from themselves | Recovery affordance is non-negotiable for anonymous draft state. | Honesty about persistence |
+| https://algolytics.com/how-to-unify-user-data-across-multiple-devices-real-time-identity-graph-fingerprinting-crossuid/ | Algolytics — identity graph + fingerprinting | Fingerprinting is probabilistic; deterministic link only forms at login. | Don't use fingerprinting as quasi-login |
+
+### BI tool first-launch UX comparison
+
+| URL (signature) | Title / publisher | One-line takeaway | Applied to |
+|---|---|---|---|
+| https://thereportinghub.com/blog/its-all-a-big-mess-why-power-bi-feels-overwhelming-to-new-users | The Reporting Hub — "It's all a big mess: why Power BI feels overwhelming" | **The canonical "clumsy" complaint.** Packed with options, jargon, no clear starting point. | The anti-pattern PulsePlay matched in tonight's demo |
+| https://medium.com/@kaleighspitz/simplifying-power-bi-onboarding-designing-a-guided-workflow-feca0ec6b9e8 | Kaleigh Spitzer / Medium — Simplifying Power BI Onboarding | Proposes 5-step guided flow: pick goal → sample data → connect → customize → publish. | Sample-data-ready hero pattern |
+| https://www.tableau.com/blog/top-new-tableau-pulse-feature-releases-know | Tableau Pulse — 2025 feature releases | Metrics homepage on first launch; finished insight above the fold; no wizard. | Hero-first first-launch precedent |
+| https://genesysgrowth.com/blog/tableau-pulse-vs-power-bi-copilot-vs-looker-looker-studio-(gemini) | Genesys Growth — Tableau Pulse vs Power BI Copilot vs Looker | Pulse wins because curated metrics show immediately; Copilot needs an existing report. | Why Pulse-style works for first launch |
+| https://docs.thoughtspot.com/cloud/latest/user-onboarding-experience | ThoughtSpot — User Onboarding Experience | Single search bar + auto-tour. Re-runnable via Profile → Revisit onboarding. | Single high-affordance entry point |
+| https://docs.thoughtspot.com/cloud/latest/business-user-onboarding | ThoughtSpot — Business User Onboarding | Search Assist walks user through sample searches → picks a Liveboard. | Auto-tour pattern |
+| https://medium.com/@gaillereports/how-to-use-looker-studio-beginner-guide-2025-841529422ab3 | Medium — Looker Studio beginner guide 2025 | "Big empty page" — explicit anti-pattern callout. Templates as antidote. | Empty-state is the void to avoid |
+| https://www.capterra.com/p/188405/Sigma/reviews/ | Capterra — Sigma Computing reviews | Spreadsheet shape feels familiar but role/governance gaps confuse first sessions. | Pattern: familiar shape + lurking complexity |
+| https://aipulsechecker.com/mode-analytics.html | AI Pulse Checker — Mode Analytics review | SQL-first onboarding works only because Mode targets analysts who already know SQL. | Audience-matched onboarding |
+| https://docs.databricks.com/aws/en/workspace/genie | Databricks AWS — Use the Genie interface | "For you" homepage + Common Questions pre-seeded in Genie Spaces. | Common Questions pattern for AI sidebar |
+| https://docs.databricks.com/aws/en/genie/best-practices | Databricks — Curate an effective Genie Space | Recommend ≥5 example questions per space; iterative curation. | Validates 3-5 starter prompts in AI sidebar |
+| https://www.userflow.com/blog/onboarding-user-experience-the-ultimate-guide-to-creating-exceptional-first-impressions | Userflow — Onboarding UX guide | Populate new accounts with sample data + one-click dismiss. | Sample-data-ready hero |
+| https://carbondesignsystem.com/patterns/empty-states-pattern/ | Carbon Design — Empty States pattern | Hybrid (sample + clear dismiss) beats pure empty state. | Empty-state alternative |
+| https://www.assistant-ui.com/docs/guides/suggestions | assistant-ui — Suggestions API | Pre-seeded click-to-send starter prompts. The library-supported pattern. | Implementation reference |
+| https://www.capterra.com/p/208764/Tableau/reviews/ | Capterra — Tableau reviews | Reviewers cite "so many options and configuration settings to navigate." | Configuration density = clumsy reaction |
+
+### Synthesis takeaway
+
+The "clumsy" reaction is documented industry-wide and the fix shape is consensus. Three patterns to copy (sample insight above fold + Common Questions in sidebar + single high-affordance entry point) + three to avoid (wizard before value + configuration density + jargon-first labeling). Storage architecture (Logto 3-phase + per-user namespacing) is a known solved pattern, not new design work.
+
+**Decision pending user direction.** Implementation effort estimated at ~38-50 hours across 10 work items in [PERSONA_AND_FIRST_LAUNCH_ARCHITECTURE_2026-05-23.md](PERSONA_AND_FIRST_LAUNCH_ARCHITECTURE_2026-05-23.md).
 
 ---
 
@@ -589,3 +664,99 @@ If a URL turns out to be dead, broken, or wrong, add a `*[verified-dead 2026-MM-
 | https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/environment-variables | Microsoft Learn — Databricks Apps environment variables | Use `valueFrom` for app resources/secrets instead of plaintext values. | Databricks baseline comparison |
 | https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/secrets | Microsoft Learn — Databricks Apps secret resources | Secret resources inject env vars; use separate scopes where possible. | Databricks secret guidance |
 | https://learn.microsoft.com/azure/databricks/dev-tools/databricks-apps/networking | Microsoft Learn — Databricks Apps networking | Databricks Apps supports IP lists, private connectivity, NCC, and network policies. | Enterprise hosting comparison |
+
+---
+
+## 2026-05-22 — Power BI DAX / Q&A Enablement Guide
+
+**Context.** Rajesh asked for a research-agent-backed document on what it takes to enable Power BI DAX / Q&A connection for AI in PulsePlay. One read-only agent mapped local code paths while the main session verified current Microsoft docs. The result is [POWERBI_DAX_QNA_ENABLEMENT.md](../POWERBI_DAX_QNA_ENABLEMENT.md).
+
+| URL (signature) | Title / publisher | One-line takeaway | Applied to |
+|---|---|---|---|
+| https://learn.microsoft.com/en-us/rest/api/power-bi/datasets/execute-queries | Microsoft Learn — Datasets: Execute Queries REST API | DAX-only API; tenant setting required; read/build permission required; one query/table; 100K rows / 1M values / 15 MB / 120 req/min/user; service principals not supported for RLS/SSO datasets; INFO/DMV unsupported. | Semantic-model DAX prerequisites, limits, and INFO.* probe risk |
+| https://learn.microsoft.com/en-us/power-bi/developer/embedded/embed-service-principal | Microsoft Learn — Embed Power BI content with service principal and application secret | Service principal setup requires Entra app, optional security group, tenant settings, and workspace access; Microsoft recommends certificates over secrets. | Entra/tenant/workspace checklist |
+| https://learn.microsoft.com/en-us/power-bi/developer/embedded/generate-embed-token | Microsoft Learn — Generate an embed token | GenerateToken authorizes embedded reports/semantic models; effective identities are the RLS control for embedded data. | Q&A token route and RLS identity guidance |
+| https://learn.microsoft.com/en-us/power-bi/developer/embedded/qanda | Microsoft Learn — Q&A in Power BI embedded analytics | Embedded Q&A uses `type: "qna"`, supports interactive/result-only modes, and currently supports one dataset in the embed config. | `/powerbi/qna` behavior and limitations |
+| https://learn.microsoft.com/en-us/power-bi/natural-language/q-and-a-limitations | Microsoft Learn — Limitations of Power BI Q&A | Q&A is going away in December 2026; supported data-source and RLS/OLS caveats remain before retirement. | Q&A bridge-only stance |
+| https://powerbi.microsoft.com/en-us/blog/deprecating-power-bi-qa/ | Power BI Updates Blog / Fabric Community — Deprecating Power BI Q&A | Official Microsoft announcement: Q&A deprecated December 2025 and fully retired December 2026 across reports, dashboards, mobile, embedded, and Q&A Setup. | Strategic warning in guide and UI roadmap |
+| https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app | Microsoft Learn — Register an application in Microsoft Entra ID | App registration establishes trust with Microsoft identity platform and captures client ID/tenant details. | Entra app-registration setup section |
+
+---
+
+## 2026-05-22 — Settings Progressive Setup Design + Sustainability Gauge Study
+
+**Context.** Rajesh asked for deep design research with multiple agents because Settings still feels confusing: too many open cards, weak parent-child progression, unsurfaced areas, and uncertainty around the sustainability gauge. Four read-only research agents covered Settings code/IA, cross-page consistency, sustainability gauge behavior, and external UI patterns. Main session verified official/free design references, checked Canva templates, and attempted a Figma FigJam generation. The result is [SETTINGS_PROGRESSIVE_DESIGN_RESEARCH_2026-05-22.md](SETTINGS_PROGRESSIVE_DESIGN_RESEARCH_2026-05-22.md).
+
+| URL (signature) | Title / publisher | One-line takeaway | Applied to |
+|---|---|---|---|
+| https://www.nngroup.com/articles/progressive-disclosure/ | Nielsen Norman Group — Progressive Disclosure | Show only the most important options first; reveal advanced or rare options on request; avoid going beyond two useful disclosure levels. | Setup Home first, mode cards before child forms, advanced/support gating |
+| https://www.nngroup.com/articles/wizards/ | Nielsen Norman Group — Wizards: Definition and Design Recommendations | Wizards work for occasional complex input when subsequent steps depend on previous choices; dynamic branching keeps users on the shortest relevant path. | First-run Settings setup can be guided; ongoing Settings should remain task-list/detail, not modal-only |
+| https://www.patternfly.org/components/wizard/design-guidelines/ | PatternFly — Wizard Design Guidelines | Progressive wizards can add or change later steps based on earlier choices. | BI mode determines required child fields |
+| https://design-system.service.gov.uk/components/task-list/ | GOV.UK Design System — Task List | Task lists suit long complex services where users may complete tasks in different orders or sessions; each row has task name, hint, and status. | Setup Home readiness checklist |
+| https://design-system.service.gov.uk/patterns/check-answers/ | GOV.UK Design System — Check Answers | Review pages increase confidence, reduce errors, and let users change specific answers without repeating the whole flow. | Review and publish step |
+| https://fluent2.microsoft.design/components/web/react/core/nav/usage | Microsoft Fluent 2 — Nav | Navigation should be brief, scannable, goal-focused, and no deeper than one nesting level before using a tree/detail model. | Two-level parent nav, deeper content in detail pages |
+| https://fluent2.microsoft.design/components/web/react/core/field/usage | Microsoft Fluent 2 — Field | Fields need visible labels, helper text, validation state, and accessible required/disabled behavior. | Always-visible labels and inline probe results |
+| https://design-system-docs-proxy.services.atlassian.com/patterns/forms/ | Atlassian Design System — Forms | Long forms should be split with multi-step forms or progressive disclosure; each step groups fields that logically belong together. | Split BI/AI setup into parent choice, required fields, test, and review |
+| https://carbondesignsystem.com/patterns/disclosures-pattern/ | Carbon Design System — Disclosures | Use one disclosure at a time, avoid nested disclosures, and do not hide critical workflow information. | Progressive sections with one open child and required setup visible |
+| https://carbondesignsystem.com/patterns/empty-states-pattern/ | Carbon Design System — Empty States | Empty states should be contextual, replace the missing content, and focus on one next action. | Blocked profile/allowlist and missing BI content states |
+| https://www.patternfly.org/patterns/status-and-severity/ | PatternFly — Status and Severity | Status and severity are not interchangeable; status requires text plus icon/color, not color alone. | Readiness chips with source/freshness and separate risk severity |
+| https://m1.material.io/patterns/settings.html | Material Design — Settings | Settings should show important options first, move less-important options to subscreens, and use brief meaningful labels with current-state secondary text. | Current-state headers and dedicated child pages for dense controls |
+| https://m1.material.io/patterns/empty-states.html | Material Design — Empty States | Avoid completely empty states; starter or educational content can help when it is brief and dismissible. | Viewer preview and setup recovery states |
+| https://www.canva.com/learn/visual-hierarchy/ | Canva — Visual Hierarchy | Size and scale guide attention; the most important decision should have the strongest visual rank. | Reduce equal-weight card grids; make the next setup decision dominant |
+| https://fluent2.microsoft.design/ | Microsoft Fluent 2 — Figma UI kits entry | Fluent provides Figma-oriented design resources and accessibility utilities. | Figma handoff should use established enterprise component grammar |
+| https://www.figma.com/templates/dashboard-designs/ | Figma — Dashboard Design Templates | Figma has many dashboard templates and components, but templates should inspire layout only, not replace product-specific IA. | Avoid generic dashboard skin; produce annotated Settings flow frames |
+| https://vercel.com/docs/pricing/manage-and-optimize-usage | Vercel Docs — Manage and optimize usage | Usage experiences usually show current usage, trends/projections, and controls/alerts when account-level data exists. | Future AI usage panel only if persisted usage/budget data is added |
+| https://docs.stripe.com/billing/subscriptions/usage-based/how-it-works | Stripe Docs — How usage-based billing works | Usage systems need ingestion, aggregation, billing/ownership, and monitoring before presenting account-level usage claims. | Current gauge must stay labelled as session token usage, not sustainability/account spend |
+
+### Connector notes
+
+- Canva connector: `_search_brand_templates` with query `settings dashboard` and dataset `any` returned no connected workspace template matches.
+- Figma connector: generated a plan for "PulsePlay Settings Progressive Setup Model", but `_generate_diagram` requires selecting a team or organization plan in the connector widget before FigJam creation.
+
+### Synthesis takeaway
+
+The Settings redesign should be structural first: Setup Home task list, parent mode cards, child-field reveal, test/source/freshness, review-and-publish, honest save semantics, mobile parent nav, and a calm token/session efficiency indicator near Ask with a small digital wellbeing gesture. Decorative styling alone will not solve the confusion Rajesh reported.
+
+---
+
+## 2026-05-22 — Settings Alignment Observation + Figma VS Code Handoff
+
+**Context.** Rajesh asked for one more deep observation pass before brainstorming: re-observe all Settings screenshot evidence, align with the existing design brief, and ground the Figma/VS Code handoff path in official sources. The result is [SETTINGS_ALIGNMENT_OBSERVATION_2026-05-22.md](SETTINGS_ALIGNMENT_OBSERVATION_2026-05-22.md).
+
+| URL (signature) | Title / publisher | One-line takeaway | Applied to |
+|---|---|---|---|
+| https://help.figma.com/hc/en-us/articles/15023121296151-Figma-for-VS-Code | Figma Help Center — Figma for VS Code | Official VS Code extension supports inspecting Figma files, seeing comments/activity, linking code files to design components, and code suggestions. | Handoff path once Settings frames exist |
+| https://marketplace.visualstudio.com/items?itemName=figma.figma-vscode-extension | Visual Studio Marketplace — Figma for VS Code | Confirms the extension ID Rajesh shared and its inspect/comment/code-suggestion positioning. | Extension verification |
+| https://help.figma.com/hc/en-us/articles/39890361040535-VS-Code-and-Figma-Set-up-the-MCP-server | Figma Help Center — VS Code and Figma: Set up the MCP server | Remote Figma MCP is the preferred broad path; desktop MCP is for specific organization/enterprise cases. | Future VS Code/Figma MCP setup guidance |
+| https://help.figma.com/hc/en-us/articles/15023124644247-Guide-to-Dev-Mode | Figma Help Center — Guide to Dev Mode | Dev Mode supports ready-for-development statuses, inspect, annotations, and side-by-side VS Code handoff, but requires a paid plan and Full or Dev seat. | Explains Figma handoff prerequisites |
+| https://help.figma.com/hc/en-us/articles/23920389749655-Code-Connect | Figma Help Center — Code Connect | Code Connect maps Figma components to code paths and contributes component context to Figma MCP. | Later component-library handoff after primitives are named |
+| https://help.figma.com/hc/en-us/articles/22012921621015-Guide-to-inspecting | Figma Help Center — Guide to inspecting | Dev Mode inspect exposes layout, color, typography, variables, assets, measurements, and annotations. | Why annotated frames are useful before implementation |
+| https://design-system.service.gov.uk/components/task-list/ | GOV.UK Design System — Task List | Task lists support complex services completed across sessions and show task status beside each row. | Setup Home readiness model |
+| https://carbondesignsystem.com/patterns/disclosures-pattern/ | Carbon Design System — Disclosures | Only one disclosure should open at a time to avoid screen clutter and preserve focus. | Progressive detail sections |
+| https://m1.material.io/patterns/settings.html | Material Design — Settings | Settings should use brief labels, current-state secondary text, and secondary screens for longer explanations. | Current-state-first Settings detail pages |
+| https://learn.microsoft.com/en-us/windows/win32/uxguide/ctrl-progressive-disclosure-controls | Microsoft Learn — Progressive Disclosure Controls | Progressive disclosure keeps essential information visible first and reveals additional fields or follow-up steps as needed. | Parent choice before child fields |
+| https://fluent2.microsoft.design/accessibility | Microsoft Fluent 2 — Accessibility | Layouts should reflow down to 320px and support text zoom without clipping. | Mobile Settings parent navigation requirement |
+| https://fluent2.microsoft.design/layout | Microsoft Fluent 2 — Layout | Responsive layouts can reposition, reflow, show/hide, or re-architect content to preserve focus. | Mobile should be re-architected, not only compressed |
+
+---
+
+## 2026-05-22 — PulsePlay End-To-End Feature And Journey Research
+
+**Context.** Rajesh asked for multiple research agents to map every fused feature in PulsePlay so far, review the information flow, study the Author and Viewer journeys, and prepare for a later brainstorming session. Six read-only agents mapped feature inventory, Author journey, Viewer journey, information flow, cross-page storytelling, and Figma/design handoff. The result is [PULSEPLAY_END_TO_END_FEATURE_AND_JOURNEY_RESEARCH_2026-05-22.md](PULSEPLAY_END_TO_END_FEATURE_AND_JOURNEY_RESEARCH_2026-05-22.md).
+
+| URL (signature) | Title / publisher | One-line takeaway | Applied to |
+|---|---|---|---|
+| https://www.nngroup.com/articles/journey-mapping-101/ | Nielsen Norman Group — Journey Mapping 101 | Journey maps need one actor, scenario/expectations, phases, actions/mindsets/emotions, and opportunities. | Separate Author and Viewer journey maps |
+| https://www.nngroup.com/articles/service-blueprints-definition/ | Nielsen Norman Group — Service Blueprints: Definition | Service blueprints visualize people, props, and processes tied to a specific customer journey. | PulsePlay service blueprint recommendation |
+| https://www.nngroup.com/articles/ux-mapping-cheat-sheet/ | Nielsen Norman Group — UX Mapping Methods Compared | Pick map type by product goal: journey for user experience, blueprint for operational delivery, flow for task path. | Figma artifact sequencing |
+| https://www.figma.com/resource-library/user-journey-map/ | Figma — User Journey Mapping | Journey maps align teams around user goals, phases, actions, pain points, and opportunities. | Author and Viewer journey structure |
+| https://www.figma.com/resource-library/service-blueprint/ | Figma — Service Blueprint | Service blueprints connect frontstage user actions to backstage systems and support processes. | Browser/UI/proxy/BI/token/governance blueprint |
+| https://www.figma.com/resource-library/what-is-information-architecture/ | Figma — Information Architecture | IA organizes content and interaction so users can understand where they are and where to go next. | Cross-page IA critique |
+| https://www.figma.com/resource-library/user-flow/ | Figma — User Flow | User flows show the path a user takes to complete a task. | First FigJam flow recommendation |
+| https://help.figma.com/hc/en-us/articles/15023124644247-Guide-to-Dev-Mode | Figma Help Center — Guide to Dev Mode | Dev Mode supports inspect and developer handoff after designs are ready. | Dev handoff should follow IA/framing |
+| https://help.figma.com/hc/en-us/articles/20774752502935-Add-measurements-and-annotate-designs | Figma Help Center — Add measurements and annotate designs | Annotations and measurements clarify design intent and implementation detail. | Annotated setup frames |
+| https://help.figma.com/hc/en-us/articles/23920389749655-Code-Connect | Figma Help Center — Code Connect | Code Connect maps Figma components to code and requires the right Figma plan/seat. | Code Connect should come after stable primitives |
+| https://www.microsoft.com/en-us/haxtoolkit/ai-guidelines/ | Microsoft HAX Toolkit — Guidelines for Human-AI Interaction | Human-AI experiences should be planned across initial interaction, ongoing interaction, failures, and long-term use. | Ask Pulse trust/recovery guidance |
+| https://pair.withgoogle.com/guidebook-v2/ | Google People + AI Guidebook | AI design patterns are organized around onboarding, explanation, trust calibration, control, and failure recovery. | AI onboarding and recovery questions |
+| https://www.ibm.com/design/ai/ethics/explainability/ | IBM Design for AI — Explainability | Users should understand when they are interacting with AI and be able to review why it made recommendations. | Evidence/source/freshness recommendations |
+| https://atlassian.design/foundations/tokens/design-tokens | Atlassian Design System — Design tokens explained | Tokens name reusable design decisions and support theming, responsive design, and consistent handoff. | Component primitive and token recommendation |
