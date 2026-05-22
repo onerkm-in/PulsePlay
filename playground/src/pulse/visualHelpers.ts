@@ -1860,8 +1860,16 @@ export function buildFullContext(
 // questions into briefing chrome.
 const BRIEFING_QUESTION_RE = /\b(?:summari[sz]e|summary|overview|brief(?:ing)?|executive|exec\s+brief|snapshot|top\s+risks?|top\s+opportunit(?:y|ies)|what\s+changed|recent\s+change|key\s+takeaway|state\s+of\s+the\s+business|how\s+(?:are\s+we|is\s+the\s+business)\s+doing)\b/i;
 
-export function isBriefingQuestion(question: string, intent: AssistantIntent): boolean {
-    if (intent === "summary" || intent === "performance") return true;
+// 2026-05-22 refined per Rajesh: *"Ask Pulse should be dialogue with data
+// simple and insightful... let's not try mould it."* Briefing trigger
+// requires an EXPLICIT keyword match in the question. The previous
+// shortcut `intent === "summary"` fired on every typed chat message
+// (because "summary" is the DEFAULT intent for typed input, see
+// visual.tsx:2855), which moulded ad-hoc questions like "show me the
+// top 10 sales performances" into a briefing structure they didn't ask
+// for. Now only briefing-flavoured keywords trigger the format
+// instructions; everything else stays plain chat.
+export function isBriefingQuestion(question: string, _intent: AssistantIntent): boolean {
     return BRIEFING_QUESTION_RE.test(question || "");
 }
 

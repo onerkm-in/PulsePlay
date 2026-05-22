@@ -8903,8 +8903,18 @@ function renderKpiSnapshot(raw: string): React.ReactNode {
     // omitted — the chat path's SQL lives in the existing SQL tab (tabs above)
     // rather than per-section inline panels, and retries don't apply to a
     // one-shot chat response.
-    const hasSectionHeaders = /^#{1,3}\s+[A-Z][A-Z0-9 /&-]{2,}$/m.test(text);
-    if (hasSectionHeaders) {
+    //
+    // 2026-05-22 refined per Rajesh: *"let's not try mould it. Ask Pulse
+    // should be dialogue with data simple and insightful."* Tightened the
+    // gate to require AT LEAST TWO recognized briefing-section headers
+    // before routing to renderInsightsSections. Previously, ANY single
+    // uppercase `## SECTION` line would trigger the card grid — which
+    // moulded ad-hoc replies (Genie sometimes emits `## INSIGHTS` or
+    // `## TRENDS` alone via conversation-memory bleed-through) into
+    // sectioned chrome the question didn't warrant.
+    const BRIEFING_SECTION_RE = /^#{1,3}\s+(HEADLINE|KPI SNAPSHOT|TRENDS|RISKS|OPPORTUNITIES|RECOMMENDED ACTIONS|WHAT CHANGED|WHAT NEEDS ATTENTION|NEXT BEST ACTIONS|EXECUTIVE BRIEF)\s*$/gmi;
+    const recognizedBriefingSections = (text.match(BRIEFING_SECTION_RE) ?? []).length;
+    if (recognizedBriefingSections >= 2) {
         return renderInsightsSections(text, {
             showProvenanceFooter: true,
             sourceLabel: "Ask Pulse",
