@@ -8772,6 +8772,17 @@ function renderKpiSnapshot(raw: string): React.ReactNode {
         return renderNarrative(text);
     }
 
+    // 2026-05-22 — Executive briefing path. When the LLM emits an exec brief
+    // (Current performance + Top risk/opportunity + Recent change + Action)
+    // render a semantic-coloured card grid instead of the flex-rows list
+    // that produced the "label far left, content far right" regression.
+    // Falls through to the legacy bullet path if briefing intent isn't
+    // detected, and to renderNarrative if neither produces a usable card.
+    const briefing = parseExecutiveBriefing(text);
+    if (briefing) {
+        return renderExecutiveBriefing(briefing);
+    }
+
     const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
 
     interface MetricRow { name: string; value: string; trend: "up" | "down" | "stable" | null; prior: string | null; }
@@ -8850,6 +8861,200 @@ function renderKpiSnapshot(raw: string): React.ReactNode {
             </ul>
             {action && (
                 <p className="gn-kpi-action"><strong>Action ·</strong> {action}</p>
+            )}
+        </div>
+    );
+}
+
+/**
+ * Executive briefing parser (2026-05-22).
+ *
+ * Recognises the LLM's exec-summary shape used by Ask Pulse:
+ *   Sales and profit have declined this month, but profit margin improved.
+ *   Current performance: Sales $83.8K (down from $118.4K), Profit $8.5K (...)
+ *   Top risk: Significant drop in sales and order volume...
+ *   Top opportunity: Improved profit margin (+2.4pp)...
+ *   Recent change: Sales and orders fell, but profitability per sale...
+ *   Action: Investigate causes of sales decline and reinforce margin-improving...
+ *
+ * Section labels are matched COLON-OPTIONAL (`Top risk:` and `Top risk` both
+ * parse) — the regex regression that caused the "label far left, content far
+ * right" layout was that the old bullet parser REQUIRED a colon.
+ *
+ * Sources informing this design: see docs/research/EXTERNAL_REFERENCES.md
+ * — Tableau Pulse, Power BI Smart Narrative, Carbon Status Indicator,
+ * shadcn Alert (CSS grid not flex), Ant Design Alert palette.
+ */
+interface BriefingKpi {
+    readonly label: string;
+    readonly value: string;
+    readonly prior: string | null;
+    readonly direction: "up" | "down" | "neutral";
+}
+
+type BriefingSectionKind = "risk" | "opportunity" | "change";
+
+interface BriefingSection {
+    readonly kind: BriefingSectionKind;
+    readonly label: string;
+    readonly body: string;
+}
+
+interface ExecutiveBriefing {
+    readonly headline: string | null;
+    readonly kpis: ReadonlyArray<BriefingKpi>;
+    readonly sections: ReadonlyArray<BriefingSection>;
+    readonly action: string | null;
+}
+
+const SECTION_PATTERNS: ReadonlyArray<{ kind: BriefingSectionKind; re: RegExp; canonical: string }> = Object.freeze([
+    { kind: "risk",        re: /^\s*(?:top\s+)?risk(?:s)?\s*:?\s*(.+)$/i,                                  canonical: "Top risk" },
+    { kind: "opportunity", re: /^\s*(?:top\s+)?opportunit(?:y|ies)\s*:?\s*(.+)$/i,                          canonical: "Top opportunity" },
+    { kind: "change",      re: /^\s*(?:recent|latest|notable)\s+(?:change|shift|movement)s?\s*:?\s*(.+)$/i, canonical: "Recent change" },
+]);
+
+const KPI_INLINE_RE = /\b([A-Z][A-Za-z][A-Za-z ]{0,30}?)\s+([$€£¥]?-?[\d.,]+\s*[%KMBkmb]?(?:pp)?)\s*\((up|down|increased|decreased)\s+from\s+([$€£¥]?-?[\d.,]+\s*[%KMBkmb]?(?:pp)?)\)/g;
+
+function parseExecutiveBriefing(text: string): ExecutiveBriefing | null {
+    const rawLines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    if (rawLines.length === 0) return null;
+
+    let headline: string | null = null;
+    let kpis: BriefingKpi[] = [];
+    const sections: BriefingSection[] = [];
+    let action: string | null = null;
+
+    for (const line of rawLines) {
+        const stripped = line.replace(/^[-*•]\s+/, "");
+
+        // Action line — accept "Action:", "Action ·", "Action -"
+        const actionMatch = stripped.match(/^(?:\*+\s*)?action\b\s*[:·\-—–]?\s*(.+)$/i);
+        if (actionMatch && !action) {
+            action = actionMatch[1].trim().replace(/^\*+|\*+$/g, "");
+            continue;
+        }
+
+        // "Current performance:" — extract the KPI strip
+        const perfMatch = stripped.match(/^(?:\*+\s*)?(?:current\s+performance|performance|snapshot)\s*[:·\-—–]?\s*(.+)$/i);
+        if (perfMatch && kpis.length === 0) {
+            kpis = extractKpisFromInline(perfMatch[1]);
+            continue;
+        }
+
+        // Section labels (risk / opportunity / change) — colon optional
+        let matched = false;
+        for (const pattern of SECTION_PATTERNS) {
+            const m = stripped.match(pattern.re);
+            if (m && m[1] && m[1].trim().length >= 4) {
+                sections.push({
+                    kind: pattern.kind,
+                    label: pattern.canonical,
+                    body: m[1].trim().replace(/^\*+|\*+$/g, ""),
+                });
+                matched = true;
+                break;
+            }
+        }
+        if (matched) continue;
+
+        if (!headline && stripped.length >= 8) {
+            headline = stripped.replace(/^\*+|\*+$/g, "");
+        }
+    }
+
+    // Briefing intent threshold — require at least the headline OR the KPI
+    // strip, AND at least one named section (risk/opportunity/change) OR an
+    // action. Below this we hand the text back to the legacy parser and then
+    // renderNarrative, so freeform replies don't get forced into card shape.
+    const hasShape = (headline !== null || kpis.length > 0) && (sections.length > 0 || action !== null);
+    if (!hasShape) return null;
+
+    return { headline, kpis, sections, action };
+}
+
+function extractKpisFromInline(text: string): BriefingKpi[] {
+    const out: BriefingKpi[] = [];
+    const re = new RegExp(KPI_INLINE_RE.source, "g");
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(text)) !== null) {
+        const dir = match[3].toLowerCase();
+        out.push({
+            label: match[1].trim(),
+            value: match[2].trim(),
+            prior: match[4].trim(),
+            direction: dir === "up" || dir === "increased" ? "up" : dir === "down" || dir === "decreased" ? "down" : "neutral",
+        });
+    }
+    return out;
+}
+
+function renderExecutiveBriefing(brief: ExecutiveBriefing): React.ReactNode {
+    const sectionIcon: Record<BriefingSectionKind, string> = {
+        risk: "⚠",
+        opportunity: "↗",
+        change: "▲",
+    };
+
+    return (
+        <div className="gn-briefing-card" data-testid="pp-exec-briefing">
+            {brief.headline && (
+                <p className="gn-briefing-headline">{brief.headline}</p>
+            )}
+
+            {brief.kpis.length > 0 && (
+                <div className="gn-kpi-tile-grid" data-testid="pp-briefing-kpis">
+                    {brief.kpis.map((k, i) => {
+                        const dirClass = k.direction === "up" ? "gn-kpi-tile--up"
+                                       : k.direction === "down" ? "gn-kpi-tile--down"
+                                       : "gn-kpi-tile--neutral";
+                        const deltaClass = k.direction === "up" ? "gn-kpi-tile-delta--up"
+                                          : k.direction === "down" ? "gn-kpi-tile-delta--down"
+                                          : "gn-kpi-tile-delta--neutral";
+                        const cue = k.direction === "up" ? "↑" : k.direction === "down" ? "↓" : "→";
+                        return (
+                            <div key={`${k.label}-${i}`} className={`gn-kpi-tile ${dirClass}`}>
+                                <div className="gn-kpi-tile-head">
+                                    <span className="gn-kpi-tile-label" title={k.label}>{k.label}</span>
+                                </div>
+                                <div className="gn-kpi-tile-value">{k.value}</div>
+                                {k.prior && (
+                                    <div className="gn-kpi-tile-foot">
+                                        <span className={`gn-kpi-tile-delta ${deltaClass}`}>
+                                            <span className="gn-kpi-tile-delta-cue" aria-hidden="true">{cue}</span>
+                                            {k.direction === "down" ? "down" : k.direction === "up" ? "up" : "flat"}
+                                        </span>
+                                        <span className="gn-kpi-tile-prior">from {k.prior}</span>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            {brief.sections.length > 0 && (
+                <div className="gn-briefing-sections">
+                    {brief.sections.map((s, i) => (
+                        <section
+                            key={`${s.kind}-${i}`}
+                            className={`gn-briefing-section gn-briefing-section--${s.kind}`}
+                            data-section-kind={s.kind}
+                        >
+                            <header className="gn-briefing-section-head">
+                                <span className="gn-briefing-section-icon" aria-hidden="true">{sectionIcon[s.kind]}</span>
+                                <span className="gn-briefing-section-label">{s.label}</span>
+                            </header>
+                            <p className="gn-briefing-section-body">{s.body}</p>
+                        </section>
+                    ))}
+                </div>
+            )}
+
+            {brief.action && (
+                <p className="gn-narrative-action" data-testid="pp-briefing-action">
+                    <span className="gn-narrative-action-label">Action ·</span>
+                    {brief.action}
+                </p>
             )}
         </div>
     );
