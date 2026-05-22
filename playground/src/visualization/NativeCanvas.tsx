@@ -35,6 +35,7 @@
 // PURE contracts in `playground/src/visualization/` from Pulse PBI; do
 // not import this file from the sibling project.
 
+import * as React from "react";
 import { useEffect, useMemo, useRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
@@ -57,10 +58,11 @@ import {
     type VizIntent,
 } from "./resultToVizIntent";
 import {
-    analyzeDataShape,
+    chartAutoPick,
     type ChartKind,
     type DataShape,
 } from "./chartAutoPick";
+import { buildChartRationale } from "./chartRationale";
 import { validateChartRenderSpec, type ChartRenderSpec } from "./chartSpecValidation";
 import { compileVegaLiteToECharts } from "../lib/vegaLiteToECharts";
 import { sourceRefDisplayLabel } from "./sourceRef";
@@ -731,22 +733,143 @@ function ChartState({
 }): React.ReactElement {
     // Memo the option so changing only `theme` higher up does not retrigger
     // chart init. Adapter swaps envelope on real updates.
-    const option = useMemo<EChartsOption>(() => {
+    const { option, autoPick, pickedKind, shape } = useMemo(() => {
         const columns = (envelope.schema ?? []).map(c => c.name);
         const rows = envelope.rows ?? [];
-        const shape = analyzeDataShape(columns, rows);
-        return buildEChartsOption(intent.chartType ?? shape.recommended, shape);
+        const ap = chartAutoPick(columns, rows);
+        const kind: ChartKind = intent.chartType ?? ap.chartType;
+        return {
+            option: buildEChartsOption(kind, ap.dataShape),
+            autoPick: ap,
+            pickedKind: kind,
+            shape: ap.dataShape,
+        };
     }, [envelope, intent]);
 
+    const rationale = useMemo(
+        () => buildChartRationale(autoPick.reason, autoPick.chartType, shape),
+        [autoPick, shape],
+    );
+    const userOverrode = intent.chartType !== undefined && intent.chartType !== autoPick.chartType;
+
     return (
-        <div className="pp-native-bi__chart-wrap" style={{ width: "100%", height: "100%" }}>
-            <strong style={{ ...titleStyle, marginBottom: "4px" }}>AI result accepted.</strong>
+        <div className="pp-native-bi__chart-wrap" style={{ width: "100%", height: "100%", position: "relative" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                <strong style={titleStyle}>AI result accepted.</strong>
+                <ChartRationaleInfoButton
+                    rationale={rationale}
+                    pickedKind={pickedKind}
+                    userOverrode={userOverrode}
+                />
+            </div>
             <EChartsOptionView
                 option={option}
-                chartKind={intent.chartType ?? "bar"}
+                chartKind={pickedKind}
                 testId="pp-native-bi-chart"
             />
         </div>
+    );
+}
+
+// Inline "i" info button + popover. Sourced entirely from the local CHART_RULES
+// knowledge base via buildChartRationale — no network, no LLM tokens, ~1ms lookup.
+// Inlined rather than extracted to its own component file per user direction
+// (2026-05-22 live-testing session: "no extra component, fix what's there").
+function ChartRationaleInfoButton({
+    rationale,
+    pickedKind,
+    userOverrode,
+}: {
+    rationale: ReturnType<typeof buildChartRationale>;
+    pickedKind: ChartKind;
+    userOverrode: boolean;
+}): React.ReactElement {
+    const [open, setOpen] = React.useState(false);
+    const popRef = React.useRef<HTMLDivElement | null>(null);
+
+    React.useEffect(() => {
+        if (!open) return;
+        const onDocClick = (e: MouseEvent): void => {
+            if (popRef.current && !popRef.current.contains(e.target as Node)) setOpen(false);
+        };
+        document.addEventListener("mousedown", onDocClick);
+        return () => document.removeEventListener("mousedown", onDocClick);
+    }, [open]);
+
+    return (
+        <span style={{ position: "relative", display: "inline-flex" }}>
+            <button
+                type="button"
+                aria-label="Why this chart?"
+                title="Why this chart?"
+                onClick={() => setOpen(v => !v)}
+                data-testid="pp-chart-info-button"
+                style={{
+                    width: 18, height: 18,
+                    border: "1px solid var(--pp-border, #d1d5db)",
+                    borderRadius: "50%",
+                    background: "var(--pp-surface, #fff)",
+                    color: "var(--pp-text-muted, #6b7280)",
+                    fontSize: 11, fontWeight: 600, lineHeight: 1,
+                    cursor: "pointer", padding: 0,
+                    display: "inline-flex", alignItems: "center", justifyContent: "center",
+                }}
+            >
+                i
+            </button>
+            {open && (
+                <div
+                    ref={popRef}
+                    role="dialog"
+                    data-testid="pp-chart-info-popover"
+                    style={{
+                        position: "absolute",
+                        top: "calc(100% + 6px)",
+                        left: 0,
+                        zIndex: 40,
+                        width: 320,
+                        padding: "10px 12px",
+                        background: "var(--pp-surface, #ffffff)",
+                        border: "1px solid var(--pp-border, #e5e7eb)",
+                        borderRadius: 6,
+                        boxShadow: "0 4px 16px rgba(0,0,0,0.10)",
+                        color: "var(--pp-text, #111827)",
+                        fontSize: 12,
+                        lineHeight: 1.5,
+                    }}
+                >
+                    <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                        Why <span style={{ textTransform: "uppercase" }}>{pickedKind}</span>?
+                    </div>
+                    {userOverrode && (
+                        <div style={{ fontSize: 11, color: "var(--pp-text-muted, #6b7280)", marginBottom: 6 }}>
+                            (You override-picked {pickedKind}; auto-pick would have chosen {rationale.chartType}.)
+                        </div>
+                    )}
+                    <p style={{ margin: "0 0 8px" }}>{rationale.why}</p>
+                    {rationale.avoid && rationale.avoid !== "n/a" && (
+                        <p style={{ margin: "0 0 8px", color: "var(--pp-text-muted, #6b7280)" }}>
+                            <strong>Avoid for this shape:</strong> {rationale.avoid}
+                        </p>
+                    )}
+                    {rationale.alternatives.length > 0 && (
+                        <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px solid var(--pp-border, #e5e7eb)" }}>
+                            <div style={{ fontWeight: 600, fontSize: 11, marginBottom: 4 }}>Alternatives</div>
+                            <ul style={{ margin: 0, paddingLeft: 16 }}>
+                                {rationale.alternatives.map(alt => (
+                                    <li key={alt.recommended} style={{ marginBottom: 2 }}>
+                                        <strong>{alt.recommended}</strong> — {alt.when}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                    <div style={{ marginTop: 8, fontSize: 10, color: "var(--pp-text-muted, #9ca3af)" }}>
+                        Source: PulsePlay knowledge base · {rationale.relationship}{rationale.fellBack ? " (fallback)" : ""}
+                    </div>
+                </div>
+            )}
+        </span>
     );
 }
 
