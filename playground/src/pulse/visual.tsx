@@ -8759,10 +8759,20 @@ function renderKpiSnapshot(raw: string): React.ReactNode {
     const text = String(raw || "").trim();
     if (!text) return null;
 
-    // Conservative: if the content has structural markdown that the KPI
-    // parser can't represent (headings, tables, code blocks, blockquotes),
-    // fall back to the generic narrative renderer immediately so we never
-    // strip rich content out of a chat reply.
+    // 2026-05-22 Ask Pulse parity — when the reply carries `## SECTION`
+    // markdown (HEADLINE / KPI SNAPSHOT / TRENDS / RISKS / OPPORTUNITIES /
+    // RECOMMENDED ACTIONS) route through renderInsightsSections so chat
+    // replies get the SAME rich card grid as the AI Insights surface.
+    // Triggered by buildGenieRequest's briefing-format instruction in
+    // visualHelpers.ts when intent is summary/performance OR the question
+    // matches briefing heuristics.
+    const hasSectionHeaders = /^#{1,3}\s+[A-Z][A-Z0-9 /&-]{2,}$/m.test(text);
+    if (hasSectionHeaders) {
+        return renderInsightsSections(text);
+    }
+    // Fallback structured markdown (tables, code blocks, blockquotes,
+    // mid/low-level headings) — still better as narrative than as flex
+    // rows, but doesn't qualify as an insights briefing.
     const hasStructuredMarkdown =
         /^#{1,6}\s/m.test(text) ||
         /^\s*\|.+\|\s*$/m.test(text) ||
@@ -8918,6 +8928,22 @@ const KPI_INLINE_RE = /\b([A-Z][A-Za-z][A-Za-z ]{0,30}?)\s+([$€£¥]?-?[\d.,]+
 function parseExecutiveBriefing(text: string): ExecutiveBriefing | null {
     const rawLines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
     if (rawLines.length === 0) return null;
+
+    // 2026-05-22 G1 fix — clarifying-question guard. If the whole reply is
+    // shaped like a clarifying question ("Would you like…?" / "Do you want…?"
+    // / a single line ending in "?"), do NOT trigger the briefing path; let
+    // the caller fall through to the existing clarifying-question card
+    // (visual.tsx ~line 8316). Without this, a briefing-flavoured prompt
+    // that gets a clarifier back was rendering the question as a sparse
+    // briefing card with just a "headline" — which is what the user
+    // reported as "all that I see in briefing is a question."
+    if (rawLines.length <= 2) {
+        const joined = rawLines.join(" ").trim();
+        const looksLikeClarifier =
+            /\?\s*$/.test(joined) &&
+            /^(?:Would you (?:like|prefer)|Do you (?:want|prefer)|Should I|Are you interested|Shall I|Can I|Which|What|Could you (?:specify|clarify))\b/i.test(joined);
+        if (looksLikeClarifier) return null;
+    }
 
     let headline: string | null = null;
     let kpis: BriefingKpi[] = [];

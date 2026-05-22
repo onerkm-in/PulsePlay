@@ -1849,6 +1849,51 @@ export function buildFullContext(
     return lines.join("\n");
 }
 
+// 2026-05-22 Ask Pulse parity — briefing-intent heuristic. When the
+// question matches, buildGenieRequest appends a briefing-format
+// instruction so the LLM emits `## SECTION` markdown that the chat
+// renderer routes through renderInsightsSections (same rich card grid
+// as AI Insights). Triggers on either:
+//   (a) intent enum value that signals briefing flavour (summary / performance), OR
+//   (b) free-text keyword match in the user question
+// Keep the keyword list tight — overly broad triggers shape narrow
+// questions into briefing chrome.
+const BRIEFING_QUESTION_RE = /\b(?:summari[sz]e|summary|overview|brief(?:ing)?|executive|exec\s+brief|snapshot|top\s+risks?|top\s+opportunit(?:y|ies)|what\s+changed|recent\s+change|key\s+takeaway|state\s+of\s+the\s+business|how\s+(?:are\s+we|is\s+the\s+business)\s+doing)\b/i;
+
+export function isBriefingQuestion(question: string, intent: AssistantIntent): boolean {
+    if (intent === "summary" || intent === "performance") return true;
+    return BRIEFING_QUESTION_RE.test(question || "");
+}
+
+// The briefing-format block — mirrors the AI Insights stage prompts in
+// composeInsightsPrompts() (HEADLINE / KPI SNAPSHOT / TRENDS / RISKS /
+// OPPORTUNITIES / RECOMMENDED ACTIONS). Kept compact: chat replies must
+// stay snappy, so each section is a single instruction with shape, not
+// the full Insights skeleton.
+const BRIEFING_FORMAT_INSTRUCTION = [
+    "Output format — produce these markdown sections in this exact order, each with a `## ` heading. Skip a section only if the data genuinely doesn't support it.",
+    "",
+    "## HEADLINE",
+    "One sentence (max 25 words). Lead with the single most important number for the current period, its change vs prior, and whether overall performance is on-track / at-risk / off-track.",
+    "",
+    "## KPI SNAPSHOT",
+    "A markdown pipe table with columns: `KPI | Current | Prior | Δ % / Δ pp | Status`. Cover Sales, Profit, Quantity (or Orders), and the most material derived metric. Status column: 🟢 on-track / 🟡 watch / 🔴 at-risk. Use ▲/▼ in the Δ column.",
+    "",
+    "## TRENDS",
+    "3-5 short bullets describing directional movement. Each bullet: metric + direction (▲/▼) + magnitude + most likely cause in one clause.",
+    "",
+    "## RISKS",
+    "2-4 short bullets. Each names a concrete risk with the metric that signals it.",
+    "",
+    "## OPPORTUNITIES",
+    "2-4 short bullets. Each names a concrete upside with the metric that signals it.",
+    "",
+    "## RECOMMENDED ACTIONS",
+    "2-4 short bullets. Each starts with a verb (Investigate / Increase / Reduce / Audit / Validate) and names what to act on.",
+    "",
+    "Rules: Never ask a clarifying question. Never offer alternatives. If data is ambiguous, pick the most material metric and state your assumption in HEADLINE. Start directly with `## HEADLINE` — no preamble.",
+].join("\n");
+
 export function buildGenieRequest(
     question: string,
     intent: AssistantIntent,
@@ -1859,6 +1904,7 @@ export function buildGenieRequest(
     options?: {
         omitDomainGuidance?: boolean;
         omitAnalyticsKB?: boolean;
+        omitBriefingFormat?: boolean;
         kbFlags?: { enabled: boolean; charts: boolean; stats: boolean; reporting: boolean };
     }
 ): string {
@@ -1866,10 +1912,16 @@ export function buildGenieRequest(
     // Backend-neutral framing: PulsePlay orchestrates many AI connectors
     // (Genie / Foundation Model / Supervisor / ResponsesAgent / …) and hosts
     // many BI surfaces — the prompt must not assume any specific pair.
+    const briefingFlavoured = !options?.omitBriefingFormat && isBriefingQuestion(question, intent);
     const sections = [
         "You are the analytics assistant for a business-intelligence pane of glass.",
         "Respect the report context, explain business meaning clearly, and keep the response decision-oriented.",
         `Intent: ${intent}`,
+        // Briefing format injected when the question/intent signals a
+        // summary/snapshot ask. The chat renderer detects the resulting
+        // `## SECTION` headers and routes them through renderInsightsSections
+        // (same rich card grid as AI Insights).
+        briefingFlavoured ? BRIEFING_FORMAT_INSTRUCTION : "",
         // Inject compact analytics KB hint on every chat call (skippable for
         // short snapshot prompts where the KB rules would dwarf the question).
         !options?.omitAnalyticsKB && kb.enabled ? getKBChatHint(kb.stats, kb.reporting) : ""
