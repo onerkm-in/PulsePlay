@@ -10,14 +10,98 @@
 
 ## Topic index (newest first)
 
+- [2026-05-22 — Power BI Q&A readiness assessment + deprecation finding (CRITICAL)](#2026-05-22--power-bi-qa-readiness-assessment--deprecation-finding-critical)
 - [2026-05-22 — G3 initial-render flicker: preventing CLS in staged AI chat reveal](#2026-05-22--g3-initial-render-flicker-preventing-cls-in-staged-ai-chat-reveal)
 - [2026-05-22 — Databricks Genie + Unity Catalog column metadata propagation](#2026-05-22--databricks-genie--unity-catalog-column-metadata-propagation)
+- [2026-05-22 — Azure App Service deep deployment findings](#2026-05-22--azure-app-service-deep-deployment-findings)
 - [2026-05-22 — Azure App Service configuration challenges](#2026-05-22--azure-app-service-configuration-challenges)
 - [2026-05-22 — Chart axis label humanization + value formatting (G2)](#2026-05-22--chart-axis-label-humanization--value-formatting-g2)
 - [2026-05-22 — Auto-route vs click-to-switch when chart shape is wrong (G4)](#2026-05-22--auto-route-vs-click-to-switch-when-chart-shape-is-wrong-g4)
 - [2026-05-22 — Azure Databricks Apps enterprise installation guide](#2026-05-22--azure-databricks-apps-enterprise-installation-guide)
 - [2026-05-22 — Executive briefing card patterns (Ask Pulse narrative regression)](#2026-05-22--executive-briefing-card-patterns-ask-pulse-narrative-regression)
 - [2026-05-22 — Chart rationale popover design (data-shape-aware narrative + warnings)](#2026-05-22--chart-rationale-popover-design-data-shape-aware-narrative--warnings)
+
+---
+
+## 2026-05-22 — Power BI Q&A readiness assessment + deprecation finding (CRITICAL)
+
+**Context.** User asked "every leaf should be checked no leaf unturned" on Power BI Q&A readiness as an AI source for PulsePlay. 5 parallel agents (2 offline + 3 online) ran the full 7-step research-first cycle. **The single most important finding: Microsoft officially deprecated Power BI Q&A on 2025-12-01 with retirement on 2026-12-31.**
+
+### Authoritative Microsoft sources (deprecation evidence)
+
+| URL (signature) | Title / publisher | One-line takeaway | Applied to |
+|---|---|---|---|
+| https://powerbi.microsoft.com/en-us/blog/deprecating-power-bi-qa/ | Power BI Updates Blog — Deprecating Power BI Q&A (2025-12-01) | **OFFICIAL ANNOUNCEMENT.** Q&A retired entirely December 2026. ALL surfaces (reports / dashboards / mobile / embedded / Q&A Setup). Migration target: Copilot. | The single most-load-bearing fact in this research |
+| https://mc.merill.net/message/MC1218421 | Microsoft 365 Message Center notice MC1218421 (2026-01-16) | Tenant-admin notice with hard end-of-life 2026-12-31. Includes the `powerbi.qna.embed()` JS SDK path. | Confirms enterprise-customer-facing sunset date |
+| https://learn.microsoft.com/en-us/power-bi/natural-language/q-and-a-copilot-enhancements | Microsoft Learn — Enhance Q&A with Copilot | Microsoft's named migration path. Q&A docs now lead with red deprecation banner. | Migration architecture target |
+| https://learn.microsoft.com/en-us/power-bi/developer/embedded/qanda | Microsoft Learn — Q&A in Power BI embedded analytics | Embed surface: `type:'qna'`, single dataset only, two modes (Interactive / ResultOnly). Auth: AAD token OR embed token. | The specific surface PulsePlay implements at `/powerbi/qna` |
+| https://learn.microsoft.com/en-us/javascript/api/overview/powerbi/embed-q-and-a | Microsoft Learn — Embed a Q&A visual (JS SDK reference) | `ILoadQnaConfiguration` shape; `setQuestion(string): Promise<void>`; `visualRendered` event; **no new features 2024-2026** (pure maintenance mode). | Confirms zero Microsoft investment in Q&A SDK |
+| https://learn.microsoft.com/en-us/power-bi/natural-language/q-and-a-tooling-advanced | Microsoft Learn — Edit Q&A linguistic schema | `.lsdl.yaml` format, authored in Power BI Desktop ONLY, no programmatic deploy API. **Now opens with deprecation banner.** | Why investing in linguistic-schema tooling is a stranded asset |
+| https://learn.microsoft.com/en-us/power-bi/natural-language/q-and-a-limitations | Microsoft Learn — Q&A limitations | Object-level security unsupported on AAS live-connect; composite models only index import/DirectQuery; opaque "We weren't able to load suggestions" failures. | Practical failure modes |
+| https://learn.microsoft.com/en-us/power-bi/developer/embedded/embed-tokens | Microsoft Learn — Permission tokens for embed | A/EM/P-SKU for embed-for-customers; F64+/Pro/PPU for embed-for-organization. Q&A NOT "free" for SaaS. | Licensing reality check |
+| https://learn.microsoft.com/en-us/power-bi/create-reports/copilot-introduction | Microsoft Learn — Copilot for Power BI overview | Migration target. Available F2+ since 2025-04-28. **NOT yet supported in App-Owns-Data / embed-for-customers JS SDK**. | The migration gap that creates a "dead zone" risk |
+| https://learn.microsoft.com/en-us/fabric/enterprise/fabric-copilot-capacity | Microsoft Learn — Fabric Copilot Capacity | F2+ availability for Copilot (loosened 2025-04-28). Excludes trial SKUs. Region-gated. | Copilot license gating for the migration |
+| https://learn.microsoft.com/en-us/power-bi/developer/embedded/cloud-rls | Microsoft Learn — Cloud RLS with embedded | `effectiveIdentity` (username + roles) passed at `GenerateToken` time; RLS applies to Q&A queries. | RLS is supported; that's not the issue |
+| https://learn.microsoft.com/en-us/javascript/api/overview/powerbi/refresh-token | Microsoft Learn — Refresh access token in Power BI embedded | Embed-for-customers (app-owns-data) does NOT support automatic token refresh in client ≥2.20.1. Multi-tenant SaaS must hand-roll. | PulsePlay's existing 5-min-before-expiry refresh in PowerBiQnA.tsx is correct |
+| https://powerbi.microsoft.com/en-us/blog/power-bi-january-2026-feature-summary/ | Power BI January 2026 Feature Summary | Wave 2 release notes confirming Copilot consolidation. Zero Q&A entries. | Microsoft investment signal (silence on Q&A is the signal) |
+
+### Practitioner + community sources
+
+| URL (signature) | Title / publisher | One-line takeaway | Applied to |
+|---|---|---|---|
+| https://www.magnetismsolutions.com/news/power-bi-qampa-to-retire-by-december-2026-what-you-need-to-know | Magnetism Solutions — Power BI Q&A to Retire | Independent confirmation of Dec 2026 sunset. | Validates Microsoft announcement |
+| https://sumproduct.com/news/no-more-qa-in-power-bi/ | SumProduct — No More Q&A in Power BI | MVP reaction: matter-of-fact, no nostalgia. | Sentiment signal: community already moved on |
+| https://medium.com/@kyle.hale/the-5-key-differences-between-databricks-genie-and-power-bi-copilot-67ea663e128e | Kyle Hale (Databricks) — Genie vs Power BI Copilot | Genie answers across full semantic model + emits SQL; Copilot is scope-bounded to existing visuals. **Q&A isn't even in his shortlist** — already legacy. | Comparative strategic context |
+| https://community.fabric.microsoft.com/t5/Developer/Embedded-Q-amp-A-only-displays-quot-We-weren-t-able-to-load/m-p/327419 | Fabric Community — Embedded Q&A loading failures | Opaque "We weren't able to load suggestions" failures, no usable error envelope. | Failure mode in production |
+| https://github.com/microsoft/powerbi-client-react | microsoft/powerbi-client-react (official) | Lists `qna` as supported type. v2.0.0 (Jan 2025) is last release; no Q&A-specific changes. **No dedicated Q&A sample in the official demo.** | Microsoft's own investment signal |
+| https://venturebeat.com/data-infrastructure/snowflake-launches-cortex-analyst-an-agentic-ai-system-for-accurate-data-analytics | VentureBeat — Snowflake Cortex Analyst (vendor benchmark) | Cortex Analyst ~90% accuracy vs Genie ~79% vs raw GPT-4o ~51% on text-to-SQL. Q&A not benchmarked. | Q&A is pre-LLM technology |
+| https://www.neenopal.com/blog/NaturalLanguageProcessing | NeenOpal — Q&A NLP analysis | Q&A's traditional NLP cannot reason, cannot multi-step, depends on hand-tuned synonyms. | Q&A's intrinsic ceiling |
+| https://learn.microsoft.com/en-us/power-bi/natural-language/q-and-a-best-practices | Microsoft Learn — Q&A best practices | Linguistic schema authoring "requires time and effort" with ongoing synonym maintenance. | Why authoring is high-cost low-payback |
+| https://arxiv.org/abs/2404.14618 | arXiv 2404.14618 — Small model fallback / cost routing | Up to 40% fewer big-model calls with hybrid routing. Patterns apply to LLM-LLM, not Q&A-LLM. | Hybrid pattern doesn't help here |
+
+### PulsePlay in-tree state (offline-agent findings)
+
+**Already implemented (75% scaffolded):**
+
+| Layer | Where | Status |
+|---|---|---|
+| Proxy route | [proxy/server.js:5969](../../proxy/server.js) `POST /powerbi/qna/embed-token` | Production-ready. `llmCallCount: 0` audit-logged. |
+| Embed-token mint | [proxy/lib/powerbiDatasetClient.js:342](../../proxy/lib/powerbiDatasetClient.js) `generateQnAEmbedToken()` | Calls `/v1.0/myorg/groups/{id}/datasets/{id}/GenerateToken`. Supports RLS. |
+| Connector manifest | [proxy/lib/connectorManifests.js:98](../../proxy/lib/connectorManifests.js) `powerbi-dataset-qna` | Marked `maturity: "beta"`, `capabilities.llm: false`. |
+| Frontend client | [playground/src/lib/powerbiQnAClient.ts](../../playground/src/lib/powerbiQnAClient.ts) | Sanitizes profile names; handles Problem+JSON errors. |
+| Embed component | [playground/src/components/PowerBiQnA.tsx](../../playground/src/components/PowerBiQnA.tsx) | Lazy-loads `powerbi-client` SDK; 5-min-before-expiry token refresh. |
+| Full-page route | [playground/src/powerbi/PowerBiQnARoute.tsx](../../playground/src/powerbi/PowerBiQnARoute.tsx) | Mounted at `/powerbi/qna`. |
+| Settings launcher | [playground/src/settings/groups/AiGroup.tsx](../../playground/src/settings/groups/AiGroup.tsx) | Conditional Leaf when `isPowerBiSemanticModel === true`. |
+| Tests | proxy 5 + frontend 7 (total 12) | All passing. |
+
+**Missing (25% — not catastrophic):**
+
+| Layer | Where | Status |
+|---|---|---|
+| Pulse-tab integration | Pulse visual `activeTab` state machine | Would be 3rd tab alongside Chat / Insights. Deferred per HANDOVER. |
+| Connector registry entry | [playground/src/pulse/backend/connectorRegistry.ts](../../playground/src/pulse/backend/connectorRegistry.ts) | Intentionally absent — Q&A isn't an "AI connector," it's Microsoft's NLP in their tenant. |
+| Author first-time setup form | Settings UI | Today: must configure `powerbi-semantic-model` profile FIRST, then "Power BI Q&A" Leaf appears. |
+| `/powerbi/qna/health` endpoint | proxy | Spec exists in S2 contract; not yet built. |
+| **EOL countdown marker** | UI + docs | **NEW REQUIREMENT** — surface scheduled for retirement 2026-12-31; users + authors must know. |
+
+### Synthesis takeaway
+
+- **Microsoft retires Power BI Q&A on 2026-12-31.** 7 months from today. ALL surfaces — including the `powerbi.qna.embed()` JS SDK path PulsePlay uses.
+- **PulsePlay's existing Q&A implementation is 75% complete** and production-ready for the next 7 months. The proxy embed-token mint, the React component, the full-page route — all work.
+- **Practitioner community has already migrated to Copilot.** Zero recent (2025-2026) third-party Q&A case studies. No MVP defends Q&A. Microsoft has shipped no Q&A features since 2024.
+- **Migration target (Copilot) has a gap:** Copilot is NOT yet supported in App-Owns-Data / embed-for-customers JS SDK. There may be a dead zone between Dec 2026 (Q&A off) and Copilot-for-ISV-embed ship date.
+- **PulsePlay's `powerbi-semantic-model` backend (already shipped as #10)** is the durable replacement for "deterministic NL over PBI" use cases. No Microsoft dependency. No sunset.
+
+### Decision recorded 2026-05-22 (pending user direction)
+
+**Recommended path (all 5 agents converge):**
+
+1. **Keep the existing Q&A surface as a tactical bridge through Dec 2026.** Don't delete what works.
+2. **Add an EOL countdown to the UI** + a banner in Settings → AI → Power BI Q&A: *"Microsoft is retiring this feature on December 31, 2026. PulsePlay will continue to mint embed tokens until that date."*
+3. **DO NOT invest in linguistic-schema authoring, featured-questions curation, or Q&A-specific tooling.** Stranded asset.
+4. **DO NOT add Q&A to the Pulse-tab system as a permanent 3rd tab.** Acceptable as a transitional setting.
+5. **Mark `proxy/connectors/powerbi-dataset-qna` as `EOL: 2026-12-31`** in the manifest. Plan deletion for Q1 2027.
+6. **Plan Copilot-for-PBI-embed adoption** when Microsoft ships ISV/SaaS support. Until then, route durable "NL over PBI" through the existing `powerbi-semantic-model` backend.
 
 ---
 
@@ -286,3 +370,29 @@ If a URL turns out to be dead, broken, or wrong, add a `*[verified-dead 2026-MM-
 | https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/monitor | Microsoft Learn — Logging and monitoring for Databricks Apps | Use stdout/stderr, external logging/APM where needed, and system audit tables for app security events. | Ops checklist |
 | https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/best-practices | Microsoft Learn — Best practices for Databricks Apps | App compute is for UI/control plane; bind to `0.0.0.0:$DATABRICKS_APP_PORT`, avoid privileged operations, minimize cold start. | Challenge matrix |
 | https://learn.microsoft.com/en-us/azure/databricks/resources/limits | Microsoft Learn — Azure Databricks resource limits | Enterprise resource limits differ from Free Edition; Databricks Apps quota is workspace-scoped. | Free Edition vs enterprise caution |
+
+---
+
+## 2026-05-22 — Azure App Service Deep Deployment Findings
+
+**Context.** Rajesh asked for a deep multi-agent research document before planning a clean PulsePlay deployment on Azure App Service. Four research slices covered repo/package readiness, current Microsoft App Service docs, Azure account/cost guardrails, and enterprise auth/security. The result is [AZURE_APP_SERVICE_DEPLOYMENT_FINDINGS_2026-05-22.md](AZURE_APP_SERVICE_DEPLOYMENT_FINDINGS_2026-05-22.md).
+
+| URL (signature) | Title / publisher | One-line takeaway | Applied to |
+|---|---|---|---|
+| https://learn.microsoft.com/en-us/azure/app-service/overview-hosting-plans | Microsoft Learn — Azure App Service plans | Free/Shared use shared compute; Basic+ uses dedicated compute. | SKU recommendation and F1/B1 framing |
+| https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/azure-subscription-service-limits | Microsoft Learn — Azure subscription/service limits | App Service Free has tight CPU/storage limits and Linux support differs by tier. | Personal-account cost guardrails |
+| https://azure.microsoft.com/en-us/pricing/details/app-service/linux/ | Microsoft Azure — App Service on Linux pricing | Linux F1 free is smoke-only scale; B1 is the lowest practical paid sandbox. | SKU/cost caveats |
+| https://learn.microsoft.com/en-us/azure/app-service/configure-language-nodejs | Microsoft Learn — Configure Node.js apps in App Service | Node apps need dependencies, startup command, PM2 foreground mode if used, and build automation awareness. | Runtime/startup/package plan |
+| https://learn.microsoft.com/en-us/azure/app-service/deploy-zip | Microsoft Learn — Deploy files to App Service | ZIP package contents must be rooted at the app root, not a nested repo folder; Kudu can run build automation when enabled. | Curated ZIP package guidance |
+| https://learn.microsoft.com/en-us/azure/app-service/reference-app-settings | Microsoft Learn — App settings/env var reference | `SCM_DO_BUILD_DURING_DEPLOYMENT` enables ZIP build automation; platform settings are exposed as env vars. | App settings checklist |
+| https://learn.microsoft.com/en-us/azure/app-service/configure-common | Microsoft Learn — Configure App Service app settings | App settings are environment variables and encrypted at rest. | Lab settings vs production secret posture |
+| https://learn.microsoft.com/en-us/azure/app-service/overview-authentication-authorization | Microsoft Learn — App Service Authentication / Easy Auth | Easy Auth can authenticate before app code, but app authorization still needs deliberate design. | Easy Auth vs proxy-auth blocker |
+| https://learn.microsoft.com/en-us/azure/app-service/configure-authentication-user-identities | Microsoft Learn — Access user claims in app code | App Service can inject authenticated user claims headers. | Possible future Easy Auth header trust mode |
+| https://learn.microsoft.com/en-us/azure/app-service/overview-managed-identity | Microsoft Learn — Managed identity in App Service | Managed identity represents the app for Azure resources, not the end user. | Key Vault and per-user auth distinction |
+| https://learn.microsoft.com/en-us/azure/app-service/app-service-key-vault-references | Microsoft Learn — Key Vault references as app settings | Key Vault references let App Service resolve secrets via managed identity; network-restricted vaults need VNet routing. | Production secrets guidance |
+| https://learn.microsoft.com/en-us/azure/app-service/troubleshoot-diagnostic-logs | Microsoft Learn — App Service diagnostic logging | Linux app logs can stream from file system; logging/storage choices can add cost. | Logs/App Insights caution |
+| https://learn.microsoft.com/en-us/azure/cost-management-billing/manage/avoid-charges-free-account | Microsoft Learn — Avoid charges with Azure free account | Free accounts start with limited-time credit and need portal/billing checks before spend. | Approval gate before resource creation |
+| https://learn.microsoft.com/azure/databricks/dev-tools/databricks-apps/auth | Microsoft Learn — Databricks Apps authorization | User authorization can forward a user token and enforce Unity Catalog permissions, but is public preview. | Databricks Apps vs App Service comparison |
+| https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/environment-variables | Microsoft Learn — Databricks Apps environment variables | Use `valueFrom` for app resources/secrets instead of plaintext values. | Databricks baseline comparison |
+| https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/secrets | Microsoft Learn — Databricks Apps secret resources | Secret resources inject env vars; use separate scopes where possible. | Databricks secret guidance |
+| https://learn.microsoft.com/azure/databricks/dev-tools/databricks-apps/networking | Microsoft Learn — Databricks Apps networking | Databricks Apps supports IP lists, private connectivity, NCC, and network policies. | Enterprise hosting comparison |
