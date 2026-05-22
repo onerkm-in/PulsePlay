@@ -5,6 +5,52 @@
 
 ---
 
+## 2026-05-22 - Chat fidelity + AI Insights toolbar reach + SQL copy icon (LIVE on Databricks Apps at ece47d4)
+
+**Scope.** Three coordinated UX changes per Rajesh's same-day direction. The first locks a new collaboration rule into memory; the other two are visible-chrome additions.
+
+**(1) Chat fidelity rule locked.** New memory file `feedback_chat_fidelity.md`. User verbatim: *"I really feel it should be like 'What you ask is what you get' kind of response desired... the better approach would be on first question show this briefing and on all the follow-ups just interact with the end user."* Implementation: [`buildGenieRequest`](../playground/src/pulse/visualHelpers.ts) already accepted an `omitBriefingFormat` option; [`visual.tsx`](../playground/src/pulse/visual.tsx) chat-submit path now passes `omitBriefingFormat: !!conversationId` alongside the existing `omitDomainGuidance: !!conversationId`. **First message** of a conversation → briefing-format injected. **Follow-ups** → plain chat. The renderer's briefing-detection is unchanged; if the LLM emits `## SECTION` shape on its own mid-conversation, the rich render still works.
+
+**(2) Action toolbar reaches Ask Pulse briefing.** `renderKpiSnapshot` now passes a minimal `InsightsRenderOptions` (`showProvenanceFooter: true`, `sourceLabel: "Ask Pulse"`, `generatedAt: Date.now()`, `onCopySection` writing to navigator.clipboard) into `renderInsightsSections`. The existing AI Insights per-section toolbar (📋 Copy + provenance footer) now appears on Ask Pulse briefing cards with the SAME visual language. SQL/retry/raw-data callbacks intentionally omitted — chat has its own SQL tab; sections aren't retryable.
+
+**(3) SQL copy icon.** [`SqlTabs`](../playground/src/pulse/visual.tsx) now wraps each `<pre className="gn-code">` in a `position: relative` `.gn-sql-pre-wrap` with a small `⎘` button anchored top:6 right:8. Click writes the active SQL to clipboard with 2-second `✓` feedback. Both single-query and multi-query branches covered. The existing "⎘ Copy answer" button on the chat action strip is retained — the new icon is the always-visible chrome inside the SQL panel itself, matching the AI Insights toolbar visual pattern. CSS in `.gn-sql-copy-btn` (visual.less) with hover, focus-visible, and copied states.
+
+**Pre-existing EXECUTIVE BRIEF bug fix at cdd7683.** Earlier in the same session: [`renderHeadlineCard`](../playground/src/pulse/visual.tsx) strips whole-sentence `**...**` wrap. The LLM over-complies with "Use bold for numbers" in the HEADLINE prompt and wraps the entire sentence in bold; `inlineFormat`'s trend-pill regex then consumes mid-sentence numbers like `20.4%`, which orphans the opening + closing `**` because `parseBold`'s regex can't survive substitution mid-span. The orphaned asterisks rendered literally. Localized fix + `.gn-headline-card-text` font-weight 500 → 600.
+
+**Test + lint.** **1442/1442** playground tests pass, lint clean across all three commits.
+
+**Deploy.** `ece47d4` → Databricks Apps `state: SUCCEEDED`, app `RUNNING` at https://pulseplay-7474646467214591.aws.databricksapps.com/.
+
+**Tripwires.**
+
+- The chat-fidelity gate uses `conversationId === null` as "first message." If the chat-submit path is refactored to reuse a sticky conversationId across page loads, every message becomes a follow-up and the briefing format never fires. Tripwire: if a user reports "briefing never appears anymore," check the conversationId lifecycle first.
+- The `onCopySection` clipboard write swallows clipboard failures silently (permissions/sandbox). If a user reports "copy doesn't work," check console for clipboard exceptions; the section button won't surface them.
+- SQL copy button positioning assumes the `<pre>` has padding > 30px on top-right. If the `.gn-code` styling tightens, the button could overlap the first line of SQL.
+
+**Next.**
+
+- Sustainability gauge on the Ask Pulse workbench surface — queued (user said "queue it as backlog").
+- G2 raw column names → friendly labels in chart axes.
+- G3 first-sync flicker (needs user description).
+- G4 auto-route to KB-suggested view (e.g. 1-row → KPI tile).
+- Unit tests for `parseExecutiveBriefing`, `isBriefingQuestion`, clarifier guard, `renderHeadlineCard` wrap-strip, and SQL copy icon.
+
+---
+
+## 2026-05-22 - Azure Databricks Apps enterprise installation guide consolidated
+
+**Scope.** User asked for a research-agent-backed single installation guide after yesterday's Databricks Apps deploy worked but was not a straightforward win. A research agent reviewed the local deploy guide, long-form lessons, root `app.yaml`, hosting options, and the older proxy-only Databricks README while the main session verified current Azure Databricks Apps docs.
+
+**Guide.** [DEPLOY_DATABRICKS_APP.md](DEPLOY_DATABRICKS_APP.md) is now the deployer-facing installation guide for Azure Databricks Apps. It covers the outcome, official-docs-vs-PulsePlay-reality deltas, enterprise prerequisites, app authorization vs user authorization vs transitional secret-bound credentials, the root `app.yaml` command/env contract, Git-backed app creation, resource/secret binding, pinned-commit deployment, browser smoke, challenge matrix, production checklist, and official references.
+
+**Consolidation.** [proxy/README.databricks-app.md](../proxy/README.databricks-app.md) is now a signpost to the guide, replacing the inherited proxy-only `test-superuser-genie-powerbi` instructions so deployers do not follow stale hardcoded Genie-space notes.
+
+**Research trail.** [research/EXTERNAL_REFERENCES.md](research/EXTERNAL_REFERENCES.md) now logs the Microsoft Learn / Azure Databricks sources used for the guide. The guide phrases the painful May 22 findings as environment-specific where appropriate: `git_source.commit` is the promoted path even though current docs allow branch/tag/commit; `app.yaml resources:` was ignored in the tested workspace, so resource binding must be verified through the app object; `DATABRICKS_TOKEN` must not be assumed.
+
+**Validation.** Docs-only `git diff --check` passed for the touched files with only existing LF-to-CRLF working-copy warnings.
+
+---
+
 ## 2026-05-22 - Ask Pulse ↔ AI Insights parity (LIVE on Databricks Apps at 817fade)
 
 **Scope.** User direction: *"can we not keep the same [rich briefing rendering] for Ask Pulse as well"* — AI Insights renders the full briefing (KPI strip + mini insight cards + What Needs Attention + Next Best Actions). Ask Pulse was emitting just headline+action when the LLM didn't shape the response itself. Two-lever fix lands both ends in one shot.
