@@ -5,6 +5,35 @@
 
 ---
 
+## 2026-05-22 - Ask Pulse ↔ AI Insights parity (LIVE on Databricks Apps at 817fade)
+
+**Scope.** User direction: *"can we not keep the same [rich briefing rendering] for Ask Pulse as well"* — AI Insights renders the full briefing (KPI strip + mini insight cards + What Needs Attention + Next Best Actions). Ask Pulse was emitting just headline+action when the LLM didn't shape the response itself. Two-lever fix lands both ends in one shot.
+
+**Lever A — render router.** [`playground/src/pulse/visual.tsx`](../playground/src/pulse/visual.tsx) — `renderKpiSnapshot()` now detects `## SECTION` markdown and routes through `renderInsightsSections()` (the SAME function the AI Insights surface uses). Lower-priority markdown (tables, code, blockquotes, mid-level headings) still falls through to `renderNarrative`. The Explore agent's finding was the key: `renderInsightsSections` already accepts plain content and handles section splitting — no AI-Insights coupling, just wasn't being called.
+
+**Lever B — briefing-format prompt.** [`playground/src/pulse/visualHelpers.ts`](../playground/src/pulse/visualHelpers.ts) — new `isBriefingQuestion(question, intent)` heuristic + new `BRIEFING_FORMAT_INSTRUCTION` block injected into `buildGenieRequest()` when intent is `summary` / `performance` OR question matches `/summari[sz]e|overview|brief|executive|snapshot|top risks?|top opportunit|what changed|recent change|key takeaway|state of the business|how (are we|is the business) doing/i`. The format block instructs the LLM to emit `## HEADLINE / ## KPI SNAPSHOT / ## TRENDS / ## RISKS / ## OPPORTUNITIES / ## RECOMMENDED ACTIONS` — compact-style mirror of the AI Insights stage prompts so chat replies ship the section shape without the multi-stage Insights latency. Skippable via new `omitBriefingFormat` option.
+
+**G1 fix — clarifying-question guard.** User: *"G1 - all that I see in briefing is a question, I think there might be some issue with triggering it."* `parseExecutiveBriefing()` now returns null when the reply is ≤2 lines, joins to one sentence ending in `?`, and starts with a clarifier opener (`Would | Do you | Should I | Are you | Shall I | Can I | Which | What | Could you specify`). The existing "Genie needs a choice" card at visual.tsx:8316 takes over instead.
+
+**Research-first artifacts (steps 1+2 in parallel).** Step 1 (offline Explore agent) mapped the divergence: AISidebar.tsx has its own dumb `renderMarkdown` path but the deployed `?surface=ask-pulse` surface routes through `visual.tsx renderKpiSnapshot` which already had a structured-markdown branch falling back to `renderNarrative` instead of `renderInsightsSections`. The minimum re-wire was exactly one branch. Step 2 (online) — N/A; pure in-tree alignment between two surfaces in the same repo. Steps 3-5 (reasoning + reference doc + brainstorm) → user picked option (1) "both levers" via `AskUserQuestion`. Step 6 documented here + in commit. Step 7 awaits user test.
+
+**Test + lint.** **1442/1442** playground tests pass, lint clean. New code paths gated behind detection (briefing heuristic + section-header regex) so existing snapshots unaffected.
+
+**Deploy.** `817fade` → Databricks Apps redeploy `state: SUCCEEDED`. Live at https://pulseplay-7474646467214591.aws.databricksapps.com/?surface=ask-pulse. Same test prompt as the prior round should now render with the full AI Insights briefing shape.
+
+**Tripwires.**
+
+- The briefing trigger is **prompt-driven** — the LLM must comply with the `## SECTION` instruction. Some backends/profiles may strip or ignore the system prompt; if a deployed profile shows only HEADLINE + RECOMMENDED ACTIONS with no KPI SNAPSHOT, that's a backend prompt-compliance issue, not a renderer bug. Inspect the raw `message.content` via the SQL/Trace tab to confirm.
+- The briefing-question heuristic uses English keywords. Non-English queries won't trigger. Acceptable for now (PulsePlay is English-only); revisit when localization lands.
+- The clarifier guard fires only when reply is ≤2 lines. A multi-line response that includes a question line WITHIN the briefing still parses as a briefing — the question line just becomes a section body. This is intentional; the alternative would suppress legitimate briefings that mention rhetorical questions.
+
+**Next.**
+
+- User just flagged the sustainability gauge (leaf + smile token indicator) is missing from the `?surface=ask-pulse` surface. The gauge lives in `AISidebar.tsx` footer per `memory/feature_sustainability_indicator.md`; the workbench surface (`visual.tsx`) doesn't mount it. Queued as the next gap to investigate.
+- G2 (raw column names in chart axes), G3 (first-sync flicker — needs more detail), G4 (auto-route to KB-suggested view) still queued.
+
+---
+
 ## 2026-05-22 - Executive briefing card + research-first 7-step process locked (LIVE on Databricks Apps at e37921e)
 
 **Scope.** Fixed the Ask Pulse "label far left, content far right" regression on executive briefing responses (Sales/Profit/Top risk/Top opportunity/Recent change/Action). Replaced the broken `flex justify-between` row layout with a CSS-grid briefing card using existing `.gn-kpi-tile-grid` (KPI strip) + new `.gn-briefing-section--{risk,opportunity,change}` variants.
