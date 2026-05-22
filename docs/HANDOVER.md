@@ -5,6 +5,78 @@
 
 ---
 
+## 2026-05-22 - Power BI Q&A + powerbi-semantic-model + Settings IA research consolidated (DOCUMENT-ONLY)
+
+**Scope.** Three deep research threads ran sequentially this session — all conclude with documented findings + research-backed proposals for future discussion. Per user direction: *"if genie works, then let's keep it minimal for now, this is just to show case that this is one of possibility... let's not divert"* and *"make sure we keep everything documented so that it will help in the future, taking a discussion."*
+
+### Thread 1 — Power BI Q&A readiness (5-agent research, 2026-12 retirement finding)
+
+- **Critical finding**: Microsoft retires Power BI Q&A entirely on **2026-12-31** ([Power BI Updates Blog](https://powerbi.microsoft.com/en-us/blog/deprecating-power-bi-qa/) + [MC1218421](https://mc.merill.net/message/MC1218421)). 7-month runway. All surfaces (reports / dashboards / mobile / **embedded**) stop working.
+- **PulsePlay state**: 75% scaffolded `/powerbi/qna` route + token mint + React component + Settings launcher + 12 passing tests.
+- **Decision**: EOL marker shipped at `0ee9d87`. Tactical bridge through Dec 2026. Migration target for the org (Copilot/Fabric) is **blocked by org policy** — only PulsePlay-native paths remain durable.
+- **Research artifact**: [EXTERNAL_REFERENCES.md "Power BI Q&A readiness assessment"](research/EXTERNAL_REFERENCES.md#2026-05-22--power-bi-qa-readiness-assessment--deprecation-finding-critical) with 13 Microsoft + 9 practitioner URLs.
+
+### Thread 2 — powerbi-semantic-model deep-dive (3-agent research, durable PBI NL path)
+
+- **Verdict**: 45% ready to be the Q&A replacement. Production-ready proxy foundation (DAX exec + 4 templates + matcher + 37 tests). Missing P1: RLS-at-route + frontend UI + template extensibility + matcher robustness + result cap.
+- **Hard Microsoft constraint** documented: Service Principal + RLS = **blocked** on executeQueries. Only OAuth On-Behalf-Of (user-delegated) path works for RLS datasets.
+- **No major third-party tool** (ThoughtSpot/Sigma/Pyramid/AtScale) does NL over PBI semantic models — they all replace PBI's model. **PulsePlay would fill an open market gap.**
+- **OBO spike checkpoint** committed at `cc1f53f`: `acquirePbiAccessTokenOnBehalfOf()` function + `executeDax(opts.userAssertion)` support, with per-user JWT-sub-hash cache. Route wiring + tests + setup docs are NOT done (intentional checkpoint — re-evaluated direction below).
+- **Decision per user 2026-05-22**: *"if genie works, then let's keep it minimal for now... let's not divert."* No further investment in this path. Existing 4-template deterministic backend is the showcase. OBO spike code remains on branch as a future-revisit option.
+- **Research artifact**: [EXTERNAL_REFERENCES.md "powerbi-semantic-model deep-dive"](research/EXTERNAL_REFERENCES.md#2026-05-22--powerbi-semantic-model-deep-dive-durable-pbi-nl-path-post-qa-retirement) with 18 Microsoft + practitioner URLs.
+
+### Thread 3 — Settings page IA (4-agent research, full proposal)
+
+- **Trigger**: user reports Settings is *"very confusing, no parent-child progression, not interactive, author should feel engaged and well-informed"*.
+- **Finding**: existing IA in [docs/SETTINGS_SPEC.md](SETTINGS_SPEC.md) is well-documented and principled. User frustration is **execution gaps**, not architecture.
+- **5 high-impact additions** proposed: Cmd+K palette · Live impact callout · Save-bar honesty · Cloudscape 2-tier nav guard · "Recommended" pill metadata.
+- **4 P1 fixes from heritage**: role/scope metadata · save-bar semantic fix · mobile-nav restoration · AuthoringStateSnapshot facade.
+- **Research artifact**: full proposal at [docs/research/SETTINGS_IA_PROPOSAL_2026-05-22.md](research/SETTINGS_IA_PROPOSAL_2026-05-22.md) — 12-item priority queue, suggested sequencing, decisions-for-discussion section. 28 industry URLs at [EXTERNAL_REFERENCES.md "Settings page IA"](research/EXTERNAL_REFERENCES.md#2026-05-22--settings-page-ia-progressive-parent-child--engagement-patterns).
+- **Decision per user**: implementation deferred. Documented for future discussion.
+
+### Code state on branch `codex/f5-g0-native-layout-2026-05-21`
+
+- `cc1f53f` — OBO grant flow added to `powerbiDatasetClient.js` (checkpoint, no route/tests/docs)
+- `0ee9d87` — Power BI Q&A EOL banner + manifest annotation
+- `4e9b718` — semantic-model research findings logged
+- `e589ba7` — Q&A retirement research logged
+- `3b4ab6b` — UC + Genie column metadata research logged
+- Local dev servers still running at `127.0.0.1:8787` (proxy) and `127.0.0.1:5173` (vite)
+
+### Next session
+
+Three threads are now fully documented and discussion-ready. Implementation decisions deferred to a fresh session per user's *"let's not divert"* direction. Active backlog stays as it was (G3 in-context test, sustainability gauge, unit tests, render slowness investigation). The three research artifacts above are the input for any future conversation on PBI strategy or Settings UX.
+
+---
+
+## 2026-05-22 - Azure App Service deep deployment findings packet
+
+**Scope.** User asked for a deep research document with multiple subagents before attempting a clean PulsePlay deployment on Azure App Service. Spawned four parallel research slices: repo/package readiness, current Microsoft App Service docs, Azure account/cost guardrails, and enterprise auth/security. No Azure resources were created, changed, started, deployed, or deleted.
+
+**Guide.** Added [research/AZURE_APP_SERVICE_DEPLOYMENT_FINDINGS_2026-05-22.md](research/AZURE_APP_SERVICE_DEPLOYMENT_FINDINGS_2026-05-22.md). It consolidates the current account state, PulsePlay repo fit, App Service package gaps, Databricks Apps comparison, Easy Auth vs proxy auth blocker, cost guardrails for the personal $200 credit account, config checklist, clean phased deployment plan, approval gates, official source links, and local evidence.
+
+**Bottom line.** App Service is viable, but not ready for live deployment without Phase 0 repo prep. The first Azure proof should be one Linux App Service serving React `playground/dist` plus `proxy/server.js` from the same origin. Production remains blocked until proxy-level auth is solved: Easy Auth at the App Service edge does not automatically satisfy `PROXY_AUTH_MODE=idp`.
+
+**Account/cost finding.** VS Code Azure tooling already sees `Azure subscription 1` and no deployed resource footprint, but Azure CLI remains blocked locally and remaining free credit was not queried. Azure Portal Cost Management must be checked before any resource creation.
+
+**Docs links.** Cross-linked the findings packet from [README.md](../README.md), [docs/README.md](README.md), [HOSTING_OPTIONS.md](HOSTING_OPTIONS.md), [DEPLOY_AZURE_APP_SERVICE.md](DEPLOY_AZURE_APP_SERVICE.md), [.azure/deployment-plan.md](../.azure/deployment-plan.md), [AGENDA.md](AGENDA.md), and [research/EXTERNAL_REFERENCES.md](research/EXTERNAL_REFERENCES.md).
+
+---
+
+## 2026-05-22 - Azure VS Code MCP inventory succeeded; subscription is empty
+
+**Scope.** User pointed out VS Code Azure sidebar already shows `Azure subscription 1`. Rechecked connectivity through the installed VS Code Azure MCP Server (`azmcp.exe`) instead of plain Azure CLI. All commands were read-only; no resources were created, changed, started, deployed, or deleted.
+
+**Auth finding.** Plain `az` CLI is still not logged in / not usable from this shell path (`az account list` asks for login or hits profile permission/TLS issues). But VS Code's Azure MCP server can use the VS Code/Azure extension sign-in when run outside the sandbox.
+
+**Subscription found.** `Azure subscription 1` is enabled. Subscription ID: `1ae0670a-e564-439b-93d1-ad2115aee5df`. Tenant ID: `2b983dc1-08a4-4b13-87d9-065f8db8f99b`.
+
+**Inventory result.** Resource group list returned `[]`. App Service web apps returned `[]`. Storage accounts returned `[]`. Container Apps returned `[]`. Function Apps returned `[]`. Cosmos DB accounts returned `[]`. Because there are no resource groups, the subscription is effectively empty for deployable Azure resources and should not currently be burning service charges from deployed resources.
+
+**Cost caveat.** Azure MCP server did not expose a direct Cost Management/billing query in this session, so actual free-credit remaining was not queried. Empty resource groups are strong evidence of no active deployed-resource spend, but the portal Cost Management view is still the source of truth for credit balance.
+
+---
+
 ## 2026-05-22 - Azure login re-attempt still blocked by TLS verification
 
 **Scope.** User asked to attempt Azure login again. Ran a normal `az login --use-device-code --tenant common --allow-no-subscriptions` with a workspace-local Azure CLI profile. No TLS bypass was used, no device code was issued, no Azure inventory ran, and no Azure resources were touched.

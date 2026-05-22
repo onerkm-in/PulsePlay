@@ -10,6 +10,7 @@
 
 ## Topic index (newest first)
 
+- [2026-05-22 — Settings page IA: progressive parent-child + engagement patterns](#2026-05-22--settings-page-ia-progressive-parent-child--engagement-patterns)
 - [2026-05-22 — `powerbi-semantic-model` deep-dive: durable PBI NL path post-Q&A retirement](#2026-05-22--powerbi-semantic-model-deep-dive-durable-pbi-nl-path-post-qa-retirement)
 - [2026-05-22 — Power BI Q&A readiness assessment + deprecation finding (CRITICAL)](#2026-05-22--power-bi-qa-readiness-assessment--deprecation-finding-critical)
 - [2026-05-22 — G3 initial-render flicker: preventing CLS in staged AI chat reveal](#2026-05-22--g3-initial-render-flicker-preventing-cls-in-staged-ai-chat-reveal)
@@ -21,6 +22,110 @@
 - [2026-05-22 — Azure Databricks Apps enterprise installation guide](#2026-05-22--azure-databricks-apps-enterprise-installation-guide)
 - [2026-05-22 — Executive briefing card patterns (Ask Pulse narrative regression)](#2026-05-22--executive-briefing-card-patterns-ask-pulse-narrative-regression)
 - [2026-05-22 — Chart rationale popover design (data-shape-aware narrative + warnings)](#2026-05-22--chart-rationale-popover-design-data-shape-aware-narrative--warnings)
+
+---
+
+## 2026-05-22 — Settings page IA: progressive parent-child + engagement patterns
+
+**Context.** User: *"the menu or navigations are not smooth for the author, it's very confusing, it should follow Parent - Child pattern and should be progressive and should be interactive, I mean the author should feel like they are engaged and well informed of the settings they are doing, this applies for all the sections those fall in the setting page, can we please do a proper mapping here."*
+
+4 parallel agents ran the full 7-step cycle: in-tree IA audit + design-spec archaeology + industry IA patterns + engagement-pattern research. Full proposal in [docs/research/SETTINGS_IA_PROPOSAL_2026-05-22.md](SETTINGS_IA_PROPOSAL_2026-05-22.md).
+
+### Industry IA + engagement sources
+
+| URL (signature) | Title / publisher | One-line takeaway | Applied to |
+|---|---|---|---|
+| https://www.nngroup.com/articles/menu-design/ | NN/g — Menu Design Checklist: 17 Guidelines | 2-3 tier max for menu structures. Industry consensus. | Validates 3-level cap |
+| https://www.nngroup.com/articles/local-navigation/ | NN/g — Local Navigation Wayfinding | Same-plane sibling navigation for L2/L3 feels fastest. | Left-rail + breadcrumb pattern |
+| https://www.nngroup.com/articles/efficiency-vs-expectations/ | NN/g — Don't Prioritize Efficiency Over Expectations | Autosave caveats: don't surprise users. | Save-model decision |
+| https://uxmovement.com/navigation/the-fastest-navigation-layout-for-a-three-level-menu/ | UX Movement — Fastest 3-level layout | Left-left-left or left-top-top fastest. | Nav layout choice |
+| https://www.uxpin.com/studio/blog/what-is-progressive-disclosure/ | UXPin — Progressive Disclosure | Core → Advanced → Expert pattern is dominant 2026. | Disclosure model |
+| https://pixxen.com/progressive-disclosure-saas/ | Pixxen — Progressive Disclosure in SaaS | "Show advanced" reveal at moment of readiness. | Sub-section expand pattern |
+| https://ixdf.org/literature/topics/progressive-disclosure | Interaction Design Foundation — Progressive Disclosure | Jakob Nielsen's 1995 principle still rules. | Theoretical foundation |
+| https://docs.stripe.com/stripe-apps/patterns | Stripe Apps Design Patterns / SettingsView | 2-level + 3-level islands. SettingsView standardises leaf page header. | Pattern reference for Leaf primitive |
+| https://docs.stripe.com/stripe-apps/build-ui | Stripe Apps Build a UI | Form patterns + explicit save per leaf. | Save model |
+| https://docs.stripe.com/stripe-apps/patterns/onboarding-experience | Stripe Apps Onboarding patterns | OnboardingView component pattern for first-run. | First-run UX |
+| https://docs.stripe.com/connect/onboarding | Stripe Connect onboarding | "Recommended" pill + one-line rationale on trade-off settings. | Decision-guidance affordance |
+| https://linear.app/docs/display-options | Linear — Display Options / Parent-child | Strict 2-level minimalism. No nested expanders. | Counter-example to 42-setting scale |
+| https://vercel.com/docs/project-configuration/project-settings | Vercel — Project Settings | 3-level: Scope (Team/Project/Personal) → Settings → leaf. | Scope-first pattern |
+| https://vercel.com/changelog/dashboard-universal-search | Vercel — Universal Search + AI Nav Assistant | Cmd-K + AI navigation assistant for large surfaces. | Search-first affordance |
+| https://noteforms.com/notion-glossary/sub-page | Notion — Sub-pages glossary | Breadcrumbs for nested context at L3+. | Breadcrumb necessity |
+| https://primer.style/product/ui-patterns/saving/ | Primer (GitHub) — Saving pattern | Explicit save for forms; autosave for imperative toggles. | Save-model split |
+| https://www.damianwajer.com/blog/autosave/ | Damian Wajer — Autosave vs explicit save | Mixing within one form is the cardinal sin. | Save-model rule |
+| https://carbondesignsystem.com/patterns/status-indicator-pattern/ | Carbon Design System — Status Indicators | Severity rollup + 3-5 chips max + filled icons for high-severity. | Status chip rules |
+| https://www.patternfly.org/patterns/dashboard/design-guidelines/ | PatternFly — Dashboard | Status chip aggregation rules. | Status chip aggregation |
+| https://tutorialsdojo.com/why-aws-feels-overwhelming-at-first-and-how-to-approach-it-properly/ | Tutorials Dojo — Why AWS Feels Overwhelming | "Visibility ≠ complexity" — 4-5 levels is the anti-pattern. | Don't go deeper than 3 |
+| https://ui-patterns.com/patterns/LivePreview | ui-patterns.com — Live Preview pattern | Update result on every keystroke; commit-or-explore. | Engagement affordance #2 |
+| https://launchdarkly.com/platform/feature-flags/ | LaunchDarkly — Feature flag platform | Simulate targeting rules before publishing. Admin-grade live preview. | Live impact callout reference |
+| https://www.smashingmagazine.com/2022/01/software-administration-ux/ | Smashing Magazine — Software Administration UX | Settings should point out which service is affected + next step. | Engagement principle |
+| https://cloudscape.design/patterns/general/unsaved-changes/ | AWS Cloudscape — Unsaved changes | 2-tier nav guard (in-page modal + beforeunload). Most concrete public spec. | Save-aware navigation pattern |
+| https://blog.superhuman.com/how-to-build-a-remarkable-command-palette/ | Superhuman — Command Palette | Always-on shortcut, fuzzy, synonyms, frequency-weighted. | Cmd+K spec |
+| https://mobbin.com/glossary/command-palette | Mobbin — Command Palette variants | Linear/Figma/Notion/Vercel/Raycast all converged on Cmd+K. | Pattern validation |
+| https://www.useronboard.com/onboarding-ux-patterns/empty-states/ | UserOnboard — Empty States | Checklists drive activation 25-30% → 40%+. | First-run guidance |
+| https://userpilot.medium.com/onboarding-ux-patterns-and-best-practices-in-saas-c46bcc7d562f | Userpilot — SaaS Onboarding | One CTA per uninitialized section. | Empty-state pattern |
+| https://brianlovin.com/writing/design-to-save-people-from-themselves | Brian Lovin — Design to save people from themselves | Dirty-state safety net for settings. | Save-bar honesty |
+
+### In-tree state (offline-agent findings)
+
+- **42 leaf settings** across 6 groups (Setup / BI / AI / Preferences / System / Advanced).
+- **3-tier IA**: Group → SubSection → Leaf, with sub-routes for dense surfaces (Appearance, Knowledge Base, Supervisor Fusion, Governance, Developer Tools).
+- **Status strip**: 6 chips at top (Setup / BI / AI / Pack / Proxy / Security) — live-bound to system state.
+- **Save model**: Draft-based via `useSettingsDraft` — many leaves write live to localStorage; "Save" bar implies semantics that don't match.
+- **Search**: Ctrl+/ focuses search input; indexes leaf labels only, not helper text.
+- **Test anchor**: `GROUP_LEAF_LABELS` drift-detector enforces every rendered leaf is in the dictionary.
+
+### 12 friction points identified (in-tree)
+
+1. No breadcrumbs at depth 3
+2. Sub-route navigation is button-click indirect
+3. Conditional leaves have silent fallback when not rendered
+4. Settings change → silent impact on app state
+5. 42 leaves without progressive disclosure within groups
+6. Search doesn't index helper text
+7. Left rail subitems don't show conditional/sub-route distinction
+8. Orphan badges only on setup/advanced (not the group with the actual orphan)
+9. Sub-pages don't preserve scroll position
+10. No "what does this control" cross-reference
+11. Mixed immediate vs draft application is confusing
+12. Save bar semantics don't match the live-write reality
+
+### 10 strengths to preserve
+
+1. Explicit save gate (draft + commit pattern)
+2. Left rail + chip navigation dualism
+3. Search spans all 42 leaves
+4. Deep-link per-leaf via copy button
+5. Live edit preview in app
+6. SubSection + Leaf semantic clarity
+7. Multi-form sub-pages for dense UIs
+8. Orphan detection + banners
+9. Read-only display of governed state
+10. Status badges per setting
+
+### Synthesis takeaway
+
+**The Settings IA design contract in [docs/SETTINGS_SPEC.md](../SETTINGS_SPEC.md) is well-documented and principled.** User frustration is about **execution gaps** flagged in `docs/inherited/SETTINGS_AUTHOR_VIEWER_UX_SCAN.md`, not the IA itself.
+
+**5 highest-impact affordances** (ranked):
+
+1. **Cmd+K settings palette** — Linear/Superhuman pattern. Fuzzy match + frequency-weighted ranking. Collapses 42-setting IA to one keypress.
+2. **Live impact callout** — "Changing this affects: Connector X, 3 active sessions, Embed-token cache." Makes consequences visible *before* save.
+3. **Sticky dirty-state action bar + Cloudscape 2-tier nav guard** — fixes the "wait, I had unsaved changes" disaster.
+4. **"Recommended" pill + one-line rationale on trade-off settings** — Stripe pattern. Turns dropdown roulette into guided choice.
+5. **Time-stamped status chips that deep-link to their check source** — "Proxy Connected · checked 12s ago →"
+
+**Plus the documented P1 items from heritage lessons:**
+
+- Settings role/scope metadata (`SettingRole`, `SettingScope`, `SettingLifecycle`) so the IA can render scope-aware UI.
+- Make the Save bar honest: either real draft semantics or rename the affordance.
+- Restore mobile navigation (rail → horizontal tab strip below 720px; chips → dots below 480px).
+- Unified `AuthoringStateSnapshot` facade so the app can reason about state without grepping localStorage.
+
+### Decision recorded 2026-05-22
+
+User direction: *"make sure we keep everything documented so that it will help in the future, taking a discussion."* + *"if genie works, then let's keep it minimal for now... let's not divert."*
+
+Implementation deferred. Full research preserved in [docs/research/SETTINGS_IA_PROPOSAL_2026-05-22.md](SETTINGS_IA_PROPOSAL_2026-05-22.md) for future discussion. Quick-win candidates (Cmd+K palette, time-stamped status chips, Save bar honesty) flagged but not started.
 
 ---
 
