@@ -8355,7 +8355,7 @@ function GenieChart(props: { columns: string[]; rows: any[][]; preferredChart?: 
                     columns={props.columns}
                     rows={props.rows}
                     pickedKind={chartType}
-                    popoverPlacement="below-left"
+                    popoverPlacement="below-right"
                 />
             </div>
             {renderEChartsBody(chartType, props.columns, props.rows, dataShape)}
