@@ -8070,6 +8070,30 @@ function formatProvenanceSourceLabel(raw: string | undefined): string {
     return raw.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+// 2026-05-22 — classify the SHAPE of a Genie response so the UI can render
+// clarifying questions as a distinct "needs choice" card instead of as plain
+// narrative. Borrowed structurally from PepPulse blueprint §14 (error-redaction
+// pattern): classify response → friendly user message + structured choice UI.
+//
+// Heuristic rules (intentionally conservative — false negatives are fine,
+// false positives are not):
+//   - "clarifier" if content ends with ? AND length < 400 AND is a single
+//     block (no double-newline). Catches "Would you prefer X or Y?" etc.
+//   - "narrative" otherwise.
+//
+// Future extension: classify "error" shape too (when proxy returns an error
+// envelope masquerading as content), or "partial-with-clarifier" when Genie
+// returns BOTH a clarifier AND data.
+type ResponseShape = "narrative" | "clarifier";
+function classifyResponseShape(content: string | undefined | null): ResponseShape {
+    const text = (content || "").trim();
+    if (!text) return "narrative";
+    const endsWithQuestion = /[?]\s*$/.test(text);
+    const singleBlock = !text.includes("\n\n");
+    if (endsWithQuestion && singleBlock && text.length < 400) return "clarifier";
+    return "narrative";
+}
+
 function formatSqlSectionLabel(section: GenieSqlSection): string {
     const id = String(section.sectionId || "").trim();
     const pretty = id
@@ -8254,11 +8278,55 @@ function renderMessageBody(
         );
     }
 
+    const responseShape = classifyResponseShape(message.content);
     return (
         <>
             {progressNode}
             {toggles}
-            <div className="gn-msg-body">{renderKpiSnapshot(message.content || "No response returned.")}</div>
+            {responseShape === "clarifier" ? (
+                // §14 pattern — Genie returned a clarifying question, not an answer.
+                // Render as a distinct "needs choice" card so the user understands
+                // this isn't the final answer; the follow-up suggestion chips below
+                // the message offer the actionable choices.
+                <div
+                    className="gn-msg-body gn-msg-body--clarifier"
+                    role="status"
+                    aria-live="polite"
+                    data-testid="gn-clarifier-card"
+                    style={{
+                        padding: "12px 14px",
+                        borderLeft: "3px solid var(--pp-accent, #2563eb)",
+                        background: "var(--pp-surface-subtle, #f0f9ff)",
+                        borderRadius: 4,
+                        marginTop: 4,
+                    }}
+                >
+                    <div
+                        style={{
+                            fontSize: 11,
+                            fontWeight: 600,
+                            textTransform: "uppercase",
+                            letterSpacing: "0.04em",
+                            color: "var(--pp-accent, #2563eb)",
+                            marginBottom: 6,
+                        }}
+                    >
+                        Genie needs a choice
+                    </div>
+                    <div style={{ fontSize: 14, lineHeight: 1.5 }}>{message.content}</div>
+                    <div
+                        style={{
+                            marginTop: 8,
+                            fontSize: 11,
+                            color: "var(--pp-text-muted, #6b7280)",
+                        }}
+                    >
+                        Pick an option below to continue, or type a more specific question.
+                    </div>
+                </div>
+            ) : (
+                <div className="gn-msg-body">{renderKpiSnapshot(message.content || "No response returned.")}</div>
+            )}
             {message.dmlWarning && (
                 <div className="gn-dml-warning" role="alert" aria-live="assertive">
                     {message.dmlVerb
