@@ -5,6 +5,38 @@
 
 ---
 
+## 2026-05-22 - Executive briefing card + research-first 7-step process locked (LIVE on Databricks Apps at e37921e)
+
+**Scope.** Fixed the Ask Pulse "label far left, content far right" regression on executive briefing responses (Sales/Profit/Top risk/Top opportunity/Recent change/Action). Replaced the broken `flex justify-between` row layout with a CSS-grid briefing card using existing `.gn-kpi-tile-grid` (KPI strip) + new `.gn-briefing-section--{risk,opportunity,change}` variants.
+
+**What's now in the card** (when LLM emits exec-summary intent):
+- Headline sentence (14.5px / 600 weight, dashed bottom border)
+- KPI tile strip via `.gn-kpi-tile-grid` — each tile = label + value + direction arrow + prior period. Existing styling was unused; now wired in.
+- Stacked semantic sections — risk = amber (#fffbe6 bg / #ffe58f border / #b45309 accent), opportunity = green (#f6ffed / #b7eb8f / #1a8c3f), recent change = sky (#e6f4ff / #91caff / #1a6fd4). Each card uses `grid-template-columns: auto 1fr` so label + content align as a proper two-column grid instead of flex space-between.
+- Action callout via existing `.gn-narrative-action` (blue left border).
+
+**Parser change.** New `parseExecutiveBriefing()` in [playground/src/pulse/visual.tsx](../playground/src/pulse/visual.tsx) detects briefing intent (Current performance + named section + Action) and matches section labels with COLON OPTIONAL. The old `metricRe` required a colon, which is why "Top risk" and "Recent change" rendered as empty `name` slots + flex-pushed values. Falls back to the legacy bullet-KPI parser → renderNarrative, so freeform replies are unaffected.
+
+**Research-first 7-step process locked (Rajesh's verbatim direction).** Saved to `memory/feedback_research_first.md`:
+
+> *"so let's please always follow this approch - per scenario and per decision  1) deep research in code in system project(s) as and if applicable 2) deep research on the web 3) resoning 4) update reference doc 5) brainstrom 6) document findings 7) iterrate if needed"*
+
+Today's session is the first full execution of the 7 steps: (1) Explore agent mapped the broken renderer + the unused `.gn-kpi-tile-grid` "gold mine"; (2) parallel general-purpose agents pulled 17 web sources across industry exec-briefing patterns + design-system component references; (3) reasoning identified the gold mine + CSS-grid-not-flex fix; (4) new [docs/research/EXTERNAL_REFERENCES.md](research/EXTERNAL_REFERENCES.md) created as the append-only audit trail (every URL signed); (5) brainstormed via AskUserQuestion — user picked "full card + tabs-always-show"; (6) commit message + this entry document the findings; (7) tabs question deferred for next-round iteration after user tests.
+
+**Test + lint.** **1442/1442** playground tests pass, lint clean. No new tests added in this commit — the briefing path is gated behind detection so existing snapshots are unaffected. Unit tests for `parseExecutiveBriefing` queued as follow-up.
+
+**Deploy.** `e37921e` → Databricks Apps redeploy `state: SUCCEEDED` in ~2 s. App `RUNNING` at https://pulseplay-7474646467214591.aws.databricksapps.com/. Live test path: `?surface=ask-pulse` → "Summarize the current performance snapshot, top risks, top opportunities, and what changed recently."
+
+**Tripwires.**
+
+- The briefing parser fires only when both a KPI strip (or headline) AND a named section (or action) are present. If the LLM drops one of those, we fall through to the legacy parser. Watch live for cases where intent is borderline.
+- The `.gn-kpi-tile-grid` was a "found in the codebase" component — `.gn-kpi-tile-delta--down` / `--up` colour classes already existed for both dark and light shells. The light-shell variant resolves to `#1a8c3f / #b22020` (visual.less:8421-8424). If a user reports the briefing tiles look wrong in dark mode, the shell-class on the wrapping container is the lever.
+- Section regex tolerates English variants — "Risk", "Top risk", "Risks", "Top risks" all match (similarly for opportunity / recent change). The "change" regex matches `(recent|latest|notable) (change|shift|movement)s?`. If the LLM emits an unusual label, add it to `SECTION_PATTERNS` at visual.tsx ~line 8920.
+
+**Next.** Iterate based on live user test. If the briefing card looks right and the user still wants tabs (Chart/SQL/Trace) even for narrative-only responses, that's the next ticket — widen `getAvailableMessageViews` and add empty-state UI for the missing tabs. If the briefing card itself needs tweaks (colour, padding, icon), iterate from the brief in this entry.
+
+---
+
 ## 2026-05-22 - Chart rationale upgrade: data-shape-aware narrative + warnings (LIVE on Databricks Apps)
 
 **Scope.** Replaced the generic KB-rule blurb in the "Why did we pick this chart?" popover with a personalised, data-driven explanation. Always speaks about the auto-pick (no user-override comparison framing — per Rajesh's direction "picked X wrongly it should be Y only"). Implementation drew on four research signals: in-tree Explore-agent scan of the OLD `DwD_for_BI` reference + web research on Tableau/Power BI/Looker rationale patterns + Figma/Material Design tooltip-popover conventions + user-shared OLD reference screenshots (`D:\Working_Folder\Artifacts\Pulse_ref\*`).
