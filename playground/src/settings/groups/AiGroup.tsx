@@ -271,13 +271,49 @@ export function AiGroup(): React.ReactElement {
                 <Leaf
                     group="ai"
                     label="Power BI Q&A"
-                    helper="Open Microsoft's natural-language Q&A surface bound to this dataset. The token mint stays server-side; PulsePlay makes no LLM call on this path."
+                    helper="Open Microsoft's natural-language Q&A surface bound to this dataset. The token mint stays server-side; PulsePlay makes no LLM call on this path. Microsoft is retiring Q&A on 31 Dec 2026 — for durable PBI natural-language work, use the powerbi-semantic-model deterministic DAX path."
                 >
+                    {/* 2026-05-22 — EOL countdown chip per the research-
+                     *  first finding. Microsoft officially deprecated Power
+                     *  BI Q&A on 2025-12-01 with hard end-of-life
+                     *  2026-12-31. Full research with 24 URL signatures in
+                     *  docs/research/EXTERNAL_REFERENCES.md "Power BI Q&A
+                     *  readiness assessment + deprecation finding". */}
+                    <div
+                        role="status"
+                        data-testid="powerbi-qna-eol-chip"
+                        style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 8,
+                            padding: "6px 10px",
+                            marginBottom: 8,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            color: "#92400e",
+                            background: "#fffbe6",
+                            border: "1px solid #ffe58f",
+                            borderLeft: "3px solid #b45309",
+                            borderRadius: 4,
+                        }}
+                    >
+                        <span aria-hidden="true">⚠</span>
+                        Microsoft retires this feature on 31 Dec 2026.{" "}
+                        <a
+                            href="https://powerbi.microsoft.com/en-us/blog/deprecating-power-bi-qa/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ color: "#92400e", textDecoration: "underline" }}
+                        >
+                            Microsoft announcement →
+                        </a>
+                    </div>
                     <button
                         type="button"
                         onClick={() => navigateToPowerBiQna()}
                         data-action="open-powerbi-qna"
                         style={{
+                            display: "block",
                             padding: "8px 16px",
                             fontSize: 13,
                             fontWeight: 600,

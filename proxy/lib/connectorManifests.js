@@ -99,10 +99,21 @@ const MANIFESTS = [
         version: '1.0.0',
         displayName: 'Power BI Dataset — Q&A Embed',
         tagline: "Microsoft's NLP surface over a Power BI dataset",
-        description: "Mints a dataset-scoped embed token and renders Microsoft's Q&A surface in PulsePlay. NLP runs in the Microsoft tenant; PulsePlay makes no LLM call. Surface mounts at /powerbi/qna.",
+        description: "Mints a dataset-scoped embed token and renders Microsoft's Q&A surface in PulsePlay. NLP runs in the Microsoft tenant; PulsePlay makes no LLM call. Surface mounts at /powerbi/qna. NOTE: Microsoft is retiring Power BI Q&A on 2026-12-31; durable replacement is the powerbi-semantic-model connector.",
         icon: 'powerbi-qna',
         category: 'microsoft',
         maturity: 'beta',
+        // 2026-05-22 research finding: Microsoft officially deprecated
+        // Power BI Q&A on 2025-12-01 (Power BI Updates Blog) with hard
+        // end-of-life 2026-12-31 per Microsoft 365 Message Center notice
+        // MC1218421. Full research + 24 URL signatures in
+        // docs/research/EXTERNAL_REFERENCES.md "Power BI Q&A readiness
+        // assessment + deprecation finding". This connector remains as a
+        // tactical bridge through Dec 2026 — no new investment.
+        eol: '2026-12-31',
+        eolReason: 'Microsoft retiring Power BI Q&A; migrate to Copilot for Power BI or powerbi-semantic-model.',
+        eolMigrationTarget: 'powerbi-semantic-model',
+        eolDocsUrl: 'https://powerbi.microsoft.com/en-us/blog/deprecating-power-bi-qa/',
         profileType: 'powerbi-semantic-model',  // Legacy combined type also activates this card; new explicit type below.
         profileTypes: ['powerbi-semantic-model', 'powerbi-dataset-qna'],
         capabilities: {
