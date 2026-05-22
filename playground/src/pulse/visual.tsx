@@ -10490,9 +10490,16 @@ function InsightsSectionPlaceholder(props: { title: string; status?: string }): 
                 )}
             </div>
             <div className="gn-insights-section-body">
-                <div className="gn-insights-skeleton-line" style={{ width: "92%" }} />
-                <div className="gn-insights-skeleton-line" style={{ width: "78%" }} />
-                <div className="gn-insights-skeleton-line" style={{ width: "85%" }} />
+                {/* 2026-05-22 G3 — unified skeleton-bar widths. Previous mix
+                    (92/78/85%) didn't match final content widths and produced
+                    a visible horizontal jump on swap. Sources logged in
+                    docs/research/EXTERNAL_REFERENCES.md (eBay Playbook
+                    skeleton, UX Patterns: match skeleton to 95th-percentile
+                    of final content). 90% width tracks the typical
+                    section body content width without jumping per-bar. */}
+                <div className="gn-insights-skeleton-line" style={{ width: "90%" }} />
+                <div className="gn-insights-skeleton-line" style={{ width: "90%" }} />
+                <div className="gn-insights-skeleton-line" style={{ width: "70%" }} />
             </div>
         </section>
     );

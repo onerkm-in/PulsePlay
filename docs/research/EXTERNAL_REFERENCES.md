@@ -10,6 +10,7 @@
 
 ## Topic index (newest first)
 
+- [2026-05-22 — G3 initial-render flicker: preventing CLS in staged AI chat reveal](#2026-05-22--g3-initial-render-flicker-preventing-cls-in-staged-ai-chat-reveal)
 - [2026-05-22 — Databricks Genie + Unity Catalog column metadata propagation](#2026-05-22--databricks-genie--unity-catalog-column-metadata-propagation)
 - [2026-05-22 — Azure App Service configuration challenges](#2026-05-22--azure-app-service-configuration-challenges)
 - [2026-05-22 — Chart axis label humanization + value formatting (G2)](#2026-05-22--chart-axis-label-humanization--value-formatting-g2)
@@ -17,6 +18,58 @@
 - [2026-05-22 — Azure Databricks Apps enterprise installation guide](#2026-05-22--azure-databricks-apps-enterprise-installation-guide)
 - [2026-05-22 — Executive briefing card patterns (Ask Pulse narrative regression)](#2026-05-22--executive-briefing-card-patterns-ask-pulse-narrative-regression)
 - [2026-05-22 — Chart rationale popover design (data-shape-aware narrative + warnings)](#2026-05-22--chart-rationale-popover-design-data-shape-aware-narrative--warnings)
+
+---
+
+## 2026-05-22 — G3 initial-render flicker: preventing CLS in staged AI chat reveal
+
+**Context.** User reported the Ask Pulse briefing card "first sync was off" — initial render flicker, skeleton → partial → final visible jump. Offline agent mapped six concrete in-tree culprits; online agent researched industry consensus on streaming-response stability.
+
+### Industry consensus sources
+
+| URL (signature) | Title / publisher | One-line takeaway | Applied to |
+|---|---|---|---|
+| https://www.smashingmagazine.com/2026/04/designing-stable-interfaces-streaming-content/ | Smashing Magazine — Designing Stable Interfaces For Streaming Content | Five patterns: append-don't-rebuild, rAF buffering, defer-incomplete-structures, scroll-intent threshold, reduced-motion one-paint. | Streaming reveal architecture |
+| https://web.dev/articles/content-visibility | web.dev — content-visibility | `content-visibility: auto` + `contain-intrinsic-size: auto <h>` — browser remembers last-rendered size, ideal for stacked briefing cards. | Section-card containment |
+| https://web.dev/articles/defining-core-web-vitals-thresholds | web.dev — Defining Core Web Vitals Thresholds | CLS thresholds: 0.1 = good, 0.25 = needs improvement; internal data ≥ 0.15 perceived as disruptive. | Target CLS budget |
+| https://uxpatterns.dev/glossary/s/skeleton-screen | UX Patterns — Skeleton Screen | Sizing rules: skeleton must match 95th percentile of content; skeletons shown < 300 ms INCREASE perceived disruption. | Skeleton sizing + min-latency gate |
+| https://www.sitepoint.com/streaming-backends-react-controlling-re-render-chaos/ | SitePoint — Streaming Backends & React | Network layer should NEVER directly drive React renders. Buffer outside state, flush snapshots at display cadence. | Cadence-gated reveal pattern |
+| https://www.erwinhofman.com/blog/skeleton-loading-and-perceived-performance-cro/ | Erwin Hofman — Skeleton Loading and Perceived Performance | < 300 ms loads anti-pattern; users prefer "instant partial content in a STABLE frame" over "slightly slower full render." | Justification for min-height pre-allocation |
+| https://www.npmjs.com/package/react-loading-skeleton | react-loading-skeleton (npm) | Production sizing guidance for skeleton placeholders. | Reference implementation |
+| https://playbook.ebay.com/design-system/components/loading-skeleton | eBay Playbook — Loading Skeleton | Match skeleton to FINAL content dimensions, not arbitrary widths. | Eliminates the 92/78/85% width mismatch in PulsePlay's current skeleton |
+| https://help.tableau.com/current/online/en-us/pulse_intro.htm | Tableau — About Tableau Pulse | Insight cards have fixed-height frame with "empty insight" affordance — height preserved even when content sparse. | Pre-allocated frame pattern |
+| https://learn.microsoft.com/en-us/power-bi/visuals/power-bi-visualization-smart-narrative | Microsoft Learn — Create Smart Narrative | Desktop: placeholder symbols preserve height. Service: placeholders hidden (accepting small CLS at publish-time). | Two-mode rendering reference |
+| https://react.dev/reference/react-dom/flushSync | react.dev — flushSync | Synchronous commit; useful to measure DOM before painting next stage. CAVEAT: breaks `<ViewTransition>` + conflicts with router `startTransition`. | Render-batching trade-off |
+| https://react.dev/reference/react/ViewTransition | react.dev — ViewTransition | Animates state changes; pairs with `useTransition` for non-urgent reveals. | Optional perceptual polish |
+
+### In-tree culprits (offline-agent findings)
+
+| # | Where | What's wrong | Visibility |
+|---|---|---|---|
+| 1 | [visual.tsx:10493-10495](../../playground/src/pulse/visual.tsx) skeleton bars at 92% / 78% / 85% | Hardcoded widths don't match final content; visible horizontal jump on swap | HIGH |
+| 2 | [visual.less:8123-8150](../../playground/src/pulse/style/visual.less) `.gn-insights-section` | No `min-height`. Placeholder ~49-65px; real content 70-120px+ → vertical jump on swap | HIGH (2-4× height variance) |
+| 3 | [visual.less:3488-3490](../../playground/src/pulse/style/visual.less) `.gn-chart-container` | No `min-height`. ECharts mounts, container grows post-render | MEDIUM |
+| 4 | [progressIndicator.tsx:50-66](../../playground/src/pulse/progressIndicator.tsx) → placeholder transition | Progress indicator collapses (~120px), cards above jump up before placeholder→content swap | MEDIUM |
+| 5 | [visual.less:8131-8157](../../playground/src/pulse/style/visual.less) `.gn-insights-section` animation | 300ms reveal + 6px lift per section; React key change forces DOM recycle | LOW (subtle stutter) |
+| 6 | [visual.tsx:10622](../../playground/src/pulse/visual.tsx) `renderSectionBody` | Body content height varies wildly per section type (prose / table / KPI strip / chart) — placeholder doesn't model the variance | HIGH |
+
+### Synthesis takeaway
+
+**Two complementary patterns** (online agent's recommendation):
+
+1. **Pattern 1 (structural, kills CLS):** CSS Grid with `grid-template-rows` + `min-height` per row sized to 95th-percentile content. Skeleton placeholders render INTO the grid rows from the start; content swaps in place. `aspect-ratio` on chart slot + `content-visibility: auto` on section stack so browser memoizes per-section sizes after first render.
+
+2. **Pattern 2 (perceptual, kills the "jump" feel):** Cadence-gated reveal driven OUTSIDE React state. Sections arrive into a buffer; rAF loop commits one stage per ~300 ms tick via `startTransition`. HEADLINE keeps "ship first" priority; rest reveals on fixed rhythm.
+
+Pattern 1 is the cheaper, more durable fix. Pattern 2 makes the feel buttery. **Both compose without conflict.**
+
+**Minimum-viable fix (offline agent's 2 small changes):**
+
+- Add `min-height: 65px` to placeholder sections in CSS.
+- Add `min-height: 350px` to `.gn-chart-container` (320 chart + 30 axis overflow).
+- Bonus: unify skeleton bar widths to a single consistent `~90%` (eliminates horizontal micro-flicker).
+
+**Acceptance signal:** Web Vitals CLS ≤ 0.1 on briefing render. Manual eye-test: no visible cards jumping during the skeleton → content transition.
 
 ---
 

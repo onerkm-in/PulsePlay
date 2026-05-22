@@ -3493,6 +3493,15 @@
      * the gn-chat-area beyond the viewport and push gn-compose off screen.
      * The chart itself is scrollable within this cap. */
     max-height: 420px;
+    /* 2026-05-22 G3 — pre-allocate vertical space so ECharts mounting
+     * doesn't cause a visible container growth. ECharts inner height
+     * is 320 (renderEChartsBody hardcoded); plus axis label overflow
+     * (~10px) + chart-type-bar row (~36px) + legend wrap (~14px) =
+     * ~380px typical, settling toward the 420 max. Setting min-height
+     * to 380 reserves the frame; final chart paints in-place rather
+     * than expanding the container. Source: web.dev content-visibility
+     * + UX Patterns skeleton-screen (95th-percentile sizing). */
+    min-height: 380px;
     overflow: hidden;
 }
 
@@ -8645,6 +8654,15 @@
 .gn-insights-section--placeholder {
     /* Inherit border, padding, radius from .gn-insights-section. Just
        gently desaturate the title + raise the body bar opacity. */
+    /* 2026-05-22 G3 — pre-allocate vertical space so the card doesn't
+     * grow visibly when the placeholder is swapped for real content.
+     * 95th-percentile measured: title (~22px) + body (3 lines ~50px) +
+     * padding (~22px) = ~94px. Setting min-height = 95px reserves the
+     * frame; final content with more text grows DOWN past this without
+     * pushing siblings (matches Tableau Pulse + Power BI Smart Narrative
+     * "fixed-height frame" pattern). Sources in
+     * docs/research/EXTERNAL_REFERENCES.md (G3 entry). */
+    min-height: 95px;
     .gn-insights-section-title {
         opacity: 0.55;
     }
