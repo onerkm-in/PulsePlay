@@ -9393,10 +9393,20 @@ function shouldRenderInsightCards(sectionTitle: string | undefined, itemCount: n
 }
 
 function renderHeadlineCard(body: string, sectionTitle: string | undefined, metricRules?: InlineMetricRules): React.ReactNode {
-    const cleaned = body
+    let cleaned = body
         .replace(/^[-*•]\s+/, "")
         .replace(/^\d+[.)]\s+/, "")
         .trim();
+    // 2026-05-22 — strip whole-sentence bold wrapper. The HEADLINE prompt
+    // says "Use bold for numbers", but the LLM often over-complies and
+    // wraps the entire sentence in `**...**`. inlineFormat's trend-pill
+    // regex then consumes mid-sentence numbers, which orphans the
+    // opening + closing `**` and they render as literal asterisks
+    // (user-reported 2026-05-22 on EXECUTIVE BRIEF surface). The headline
+    // card has its own font-weight emphasis so we don't lose visual rank.
+    if (cleaned.startsWith("**") && cleaned.endsWith("**") && cleaned.length > 4) {
+        cleaned = cleaned.slice(2, -2).trim();
+    }
     return (
         <div className="gn-headline-card">
             <div className="gn-headline-card-text">

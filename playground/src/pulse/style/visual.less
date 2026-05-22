@@ -8288,7 +8288,10 @@
     color: @gn-text;
     font-size: 15px;
     line-height: 1.48;
-    font-weight: 500;
+    /* 2026-05-22 — bumped from 500 to 600 so the executive headline
+     * keeps its visual rank even after we strip a whole-sentence `**`
+     * bold wrapper that the LLM emits in some compliance scenarios. */
+    font-weight: 600;
 }
 
 .gn-insight-card-grid {
