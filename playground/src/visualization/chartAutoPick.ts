@@ -245,3 +245,99 @@ export function chartAutoPick(columns: ReadonlyArray<string>, rows: ReadonlyArra
         dataShape,
     };
 }
+
+// ─── Column unit + range analysis (2026-05-22) ──────────────────────────────
+//
+// Drives the data-shape-aware narrative + warnings in the ChartRationalePill
+// popover. Heuristics are intentionally conservative — false negatives are
+// fine (we just don't show a warning); false positives would be confusing.
+//
+// detectColumnUnit() infers a UnitType from a column NAME (we don't have
+// type metadata from the source). Order matters: more-specific patterns
+// win. Single-word names ('sales') are treated as the most common unit
+// for their domain ('currency').
+
+export type UnitType = "currency" | "percentage" | "count" | "duration" | "ratio" | "generic";
+
+export interface ColumnRange {
+    readonly colIdx: number;
+    readonly colName: string;
+    readonly inferredUnit: UnitType;
+    readonly minValue: number;
+    readonly maxValue: number;
+    /** True when min < 0 AND max > 0 — values cross zero, single-axis charts misleading. */
+    readonly hasMixedSign: boolean;
+}
+
+/** Map a unit type to a short human label used in warning text. */
+export const UNIT_LABELS: Readonly<Record<UnitType, string>> = Object.freeze({
+    currency: "dollars",
+    percentage: "percentages",
+    count: "counts",
+    duration: "durations",
+    ratio: "ratios",
+    generic: "generic numbers",
+});
+
+export function detectColumnUnit(colName: string): UnitType {
+    const lower = String(colName || "").toLowerCase().trim();
+    if (!lower) return "generic";
+    // Order matters: percentage/rate/margin must beat currency-domain matches
+    // because "Profit Margin" is a percentage (15%, 20%), not a dollar value.
+    // The /\bword\b/ boundaries keep us from matching substrings like 'rate'
+    // inside 'crate'.
+
+    // 1. Percentage / rate / margin / share (most specific)
+    if (/%|\brate\b|\bmargin\b|\bshare\b|\bpct\b|\bpercent(age)?\b|\bproportion\b|\bratio_pct\b/.test(lower)) return "percentage";
+    // 2. Duration / time-period (specific suffix words)
+    if (/\b(?:days|hours|minutes|seconds|duration|elapsed|latency|cycle_time|lead_time)\b/.test(lower)) return "duration";
+    // 3. Counts / volumes
+    if (/\b(?:count|orders|qty|quantity|units|users|sessions|visits|clicks|impressions|tickets|customers|transactions|num(?:ber)?(?:_of)?)\b/.test(lower)) return "count";
+    // 4. Currency (catches the broad "sales/revenue/profit/cost/price" domain
+    //    only after the more-specific percentage/duration/count patterns above
+    //    have had their chance).
+    if (/\$|€|£|¥|₹|\busd\b|\beur\b|\bgbp\b|\bjpy\b|\bcny\b|\binr\b|\brevenue\b|\bsales\b|\bprofit\b|\bcost\b|\bprice\b|\bspend\b|\bexpense\b|\bamount\b/.test(lower)) return "currency";
+    // 5. Ratios / per-something / averages
+    if (/\bper[\s_]|\bavg\b|\baverage\b|\bmean\b|\bmedian\b/.test(lower)) return "ratio";
+    return "generic";
+}
+
+/**
+ * For each numeric column in the dataset, compute the inferred unit type and
+ * min/max range. Skips rank/index columns and non-numeric columns. Returns
+ * the result as a frozen array.
+ */
+export function analyzeColumnRanges(
+    columns: ReadonlyArray<string>,
+    rows: ReadonlyArray<ReadonlyArray<unknown>>,
+): ReadonlyArray<ColumnRange> {
+    if (!columns.length || !rows.length) return Object.freeze([]);
+    const firstRow = rows[0] ?? [];
+    const ranges: ColumnRange[] = [];
+    firstRow.forEach((cell, i) => {
+        const isNumeric = typeof cell === "number" || isNumericString(cell);
+        if (!isNumeric) return;
+        const colName = columns[i] ?? `col_${i}`;
+        const numericValues: number[] = [];
+        let min = Number.POSITIVE_INFINITY;
+        let max = Number.NEGATIVE_INFINITY;
+        for (const row of rows) {
+            const n = Number(row[i] ?? 0);
+            if (!Number.isFinite(n)) continue;
+            numericValues.push(n);
+            if (n < min) min = n;
+            if (n > max) max = n;
+        }
+        if (!Number.isFinite(min) || !Number.isFinite(max)) return;
+        if (isRankOrIndexColumn(colName, numericValues)) return;
+        ranges.push(Object.freeze({
+            colIdx: i,
+            colName,
+            inferredUnit: detectColumnUnit(colName),
+            minValue: min,
+            maxValue: max,
+            hasMixedSign: min < 0 && max > 0,
+        }));
+    });
+    return Object.freeze(ranges);
+}
