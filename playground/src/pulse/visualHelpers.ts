@@ -1865,33 +1865,29 @@ export function isBriefingQuestion(question: string, intent: AssistantIntent): b
     return BRIEFING_QUESTION_RE.test(question || "");
 }
 
-// The briefing-format block — mirrors the AI Insights stage prompts in
-// composeInsightsPrompts() (HEADLINE / KPI SNAPSHOT / TRENDS / RISKS /
-// OPPORTUNITIES / RECOMMENDED ACTIONS). Kept compact: chat replies must
-// stay snappy, so each section is a single instruction with shape, not
-// the full Insights skeleton.
+// The briefing-format block — first-message "probe" only. Two sections
+// (Executive Brief + What Changed), BARE format. Per Rajesh's two
+// 2026-05-22 directions:
+//   1. *"as a probe What Changed is the section only section we should
+//      start with and rest should just be what you ask is what you get."*
+//   2. *"no need to have narrative like this"* (pointing at narrative
+//      cause clauses on What Changed bullets).
+// Rationale: first-message briefing must stay lightweight. Bullets are
+// metric + direction + magnitude, NOTHING ELSE. KPI SNAPSHOT / RISKS /
+// OPPORTUNITIES / RECOMMENDED ACTIONS get answered IF the user asks
+// for them — that's chat fidelity (memory/feedback_chat_fidelity.md).
+// The renderer still handles any of those sections gracefully if the
+// LLM emits them anyway (legacy compat); we just don't REQUEST them.
 const BRIEFING_FORMAT_INSTRUCTION = [
-    "Output format — produce these markdown sections in this exact order, each with a `## ` heading. Skip a section only if the data genuinely doesn't support it.",
+    "Output format — produce these TWO markdown sections in this exact order, each with a `## ` heading. No other sections, no preamble, no closing remarks.",
     "",
     "## HEADLINE",
     "One sentence (max 25 words). Lead with the single most important number for the current period, its change vs prior, and whether overall performance is on-track / at-risk / off-track.",
     "",
-    "## KPI SNAPSHOT",
-    "A markdown pipe table with columns: `KPI | Current | Prior | Δ % / Δ pp | Status`. Cover Sales, Profit, Quantity (or Orders), and the most material derived metric. Status column: 🟢 on-track / 🟡 watch / 🔴 at-risk. Use ▲/▼ in the Δ column.",
-    "",
     "## TRENDS",
-    "3-5 short bullets describing directional movement. Each bullet: metric + direction (▲/▼) + magnitude + most likely cause in one clause.",
+    "3-5 short bullets — one per metric. Each bullet is JUST: `<metric> ▲/▼ <magnitude>`. NO narrative, NO causes, NO explanation, NO commentary clauses. Examples: `Sales ▼ 29.2%`, `Profit margin ▲ +1.9pp`, `Orders ▼ 14.2%`. Stop at the magnitude.",
     "",
-    "## RISKS",
-    "2-4 short bullets. Each names a concrete risk with the metric that signals it.",
-    "",
-    "## OPPORTUNITIES",
-    "2-4 short bullets. Each names a concrete upside with the metric that signals it.",
-    "",
-    "## RECOMMENDED ACTIONS",
-    "2-4 short bullets. Each starts with a verb (Investigate / Increase / Reduce / Audit / Validate) and names what to act on.",
-    "",
-    "Rules: Never ask a clarifying question. Never offer alternatives. If data is ambiguous, pick the most material metric and state your assumption in HEADLINE. Start directly with `## HEADLINE` — no preamble.",
+    "Rules: Never ask a clarifying question. Never offer alternatives. If data is ambiguous, pick the most material metric and state your assumption in HEADLINE. Start directly with `## HEADLINE` — no preamble. Do NOT add `## KPI SNAPSHOT`, `## RISKS`, `## OPPORTUNITIES`, or `## RECOMMENDED ACTIONS` — the user will ask for those as follow-ups if they want them. Do NOT explain WHY metrics moved — the user will ask if they want causes.",
 ].join("\n");
 
 export function buildGenieRequest(
