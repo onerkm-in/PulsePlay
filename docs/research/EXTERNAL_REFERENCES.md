@@ -10,6 +10,7 @@
 
 ## Topic index (newest first)
 
+- [2026-05-22 — `powerbi-semantic-model` deep-dive: durable PBI NL path post-Q&A retirement](#2026-05-22--powerbi-semantic-model-deep-dive-durable-pbi-nl-path-post-qa-retirement)
 - [2026-05-22 — Power BI Q&A readiness assessment + deprecation finding (CRITICAL)](#2026-05-22--power-bi-qa-readiness-assessment--deprecation-finding-critical)
 - [2026-05-22 — G3 initial-render flicker: preventing CLS in staged AI chat reveal](#2026-05-22--g3-initial-render-flicker-preventing-cls-in-staged-ai-chat-reveal)
 - [2026-05-22 — Databricks Genie + Unity Catalog column metadata propagation](#2026-05-22--databricks-genie--unity-catalog-column-metadata-propagation)
@@ -20,6 +21,93 @@
 - [2026-05-22 — Azure Databricks Apps enterprise installation guide](#2026-05-22--azure-databricks-apps-enterprise-installation-guide)
 - [2026-05-22 — Executive briefing card patterns (Ask Pulse narrative regression)](#2026-05-22--executive-briefing-card-patterns-ask-pulse-narrative-regression)
 - [2026-05-22 — Chart rationale popover design (data-shape-aware narrative + warnings)](#2026-05-22--chart-rationale-popover-design-data-shape-aware-narrative--warnings)
+
+---
+
+## 2026-05-22 — `powerbi-semantic-model` deep-dive: durable PBI NL path post-Q&A retirement
+
+**Context.** Org constraints: cannot use Microsoft Copilot (not approved), no Fabric in roadmap, Power BI Premium P-SKU for 1-2 years. With Q&A retiring Dec 2026, PulsePlay's `powerbi-semantic-model` backend (#10) becomes the SOLE viable durable PBI natural-language path. 3 parallel agents (1 offline + 2 online) ran the deep-dive.
+
+### Power BI executeQueries API + LLM grounding
+
+| URL (signature) | Title / publisher | One-line takeaway | Applied to |
+|---|---|---|---|
+| https://learn.microsoft.com/en-us/rest/api/power-bi/datasets/execute-queries | Microsoft Learn — Datasets: Execute Queries REST API | The ONLY Microsoft-blessed programmatic path. DAX only (no MDX). 100K rows / 1M values / 15 MB / 120 req/min/user. | The API PulsePlay's semantic-model backend uses |
+| https://community.fabric.microsoft.com/t5/Developer/Service-Principal-RLS-ExecuteQueries-REST-API/m-p/4805401 | Fabric Community — Service Principal + RLS blocked | **HARD ARCHITECTURAL CONSTRAINT:** Service Principal blocked on RLS datasets via executeQueries. Must use OAuth On-Behalf-Of. | Forces user-delegation auth model |
+| https://powerbi.microsoft.com/en-us/blog/executequeries-rest-api-versus-xmla-endpoints-at-scale/ | Power BI Blog — executeQueries vs XMLA at scale | 120 q/min cap is tenant-wide, cannot be raised by Premium. XMLA fallback path needed at scale (PPU-only). | Day-1 architectural risk to plan around |
+| https://learn.microsoft.com/en-us/power-bi/developer/embedded/rls-sso | Microsoft Learn — RLS with token-based identities | `effectiveIdentity` for embed-token RLS. Distinct from executeQueries RLS path. | Two separate enforcement points |
+| https://pbidax.wordpress.com/2025/05/14/llms-and-dax-where-things-stand-today/ | pbidax — LLMs and DAX: Where things stand today | Reasoning models hit 80-90% accuracy; non-reasoning GPT-4o unpredictable; common failure modes (row-vs-filter, missing CALCULATE, SQL keyword leakage). | LLM-DAX-gen risk profile |
+| https://www.daxbench.com/ | DAXBench (benchmark site) | 123 models × 30 tasks. Reasoning models lead: Gemini 3.1 Flash Lite Preview 97.4%, GPT-5.3 Chat 96.2%, Claude Sonnet 4.6 84.5%. | Quantified model-tier ranking |
+| https://pbidax.wordpress.com/2025/08/10/first-look-at-gpt-5-on-an-nl2dax-benchmark/ | pbidax — First Look at GPT-5 on NL2DAX | GPT-5 near-perfect on NL2DAX benchmark; reasoning tier is the bar for production. | Model selection guidance |
+| https://powerbi.microsoft.com/en-us/blog/announcing-public-preview-of-the-tabular-model-definition-language-tmdl/ | Power BI Blog — TMDL public preview | Human-readable semantic-model definition format. Best grounding for LLM DAX generation. | Grounding strategy |
+| https://learn.microsoft.com/en-us/analysis-services/tom/tom-pbi-datasets | Microsoft Learn — Programming PBI semantic models with TOM | Tabular Object Model API for full schema introspection. Required when DMVs blocked in executeQueries. | Metadata fetch path |
+| https://data-goblins.com/power-bi/dmvs | Data Goblins — Query DMVs to assess a dataset | XMLA endpoint required for `$SYSTEM.TMSCHEMA_*` DMVs (PPU minimum). | Schema fetch requires XMLA read endpoint |
+| https://medium.com/data-science-collective/intent-driven-natural-language-interface-a-hybrid-llm-intent-classification-approach-e1d96ad6f35d | Medium — Hybrid LLM + intent classification | Pattern: embedding classifier → templates first, LLM raw-gen fallback on miss. Best cost/coverage trade-off. | Recommended architecture pattern |
+
+### Third-party landscape
+
+| URL (signature) | Title / publisher | One-line takeaway | Applied to |
+|---|---|---|---|
+| https://docs.thoughtspot.com/cloud/latest/connections | ThoughtSpot Embrace — Connections | Live-query over Snowflake/BigQuery/Databricks etc. **Does NOT integrate with PBI semantic models.** Replaces PBI's model. | Confirms NL-over-PBI is an open market gap |
+| https://www.pyramidanalytics.com/lp/genbi/ | Pyramid Analytics GenBI | Own semantic layer (Snowflake/Databricks/Fabric/SAP). Not PBI-integrated. | Same — competitors sidestep PBI |
+| https://www.sigmacomputing.com/product/ai | Sigma AI | NL over Snowflake Semantic Views + dbt Semantic Layer. Not PBI. | Same gap |
+| https://www.atscale.com/use-cases/universal-semantic-layer/ | AtScale Universal Semantic Layer | Sits UNDERNEATH PBI (XMLA endpoint), not OVER PBI's model. | Inversion — confirms gap remains |
+| https://python.langchain.com/docs/integrations/toolkits/powerbi/ | LangChain — Power BI toolkit | NL→DAX→executeQueries agent. Production-ready with reasoning model + grounded schema. | Existing OSS pattern PulsePlay can adapt |
+| https://github.com/microsoft/powerbi-modeling-mcp | Microsoft — Power BI Modeling MCP | Official MCP server; "query and validate DAX" against model. Honors Fabric RBAC. | Microsoft-blessed pattern; not RLS-bypass |
+| https://platform.claude.com/docs/en/about-claude/pricing | Anthropic — Claude API Pricing | Sonnet 4.6: $3/M input, $15/M output. ~$0.015/query for 3K in + 400 out. | Cost estimate baseline |
+
+### `powerbi-semantic-model` in-tree state (offline-agent findings)
+
+**45% ready to be the Q&A replacement.** Production-ready foundation, missing critical product layers.
+
+**Already implemented:**
+- Proxy: `proxy/lib/powerbiDatasetClient.js` (407 lines) — Azure AD auth (SP + user-refresh), single-flight token cache, `executeDax()` + `executeDaxNormalized()`, separate `generateQnAEmbedToken()`
+- Proxy: `proxy/lib/powerbiDaxTemplates.js` (262 lines) — 4 hardcoded templates: `top-n`, `aggregate-by`, `trend`, `total`. Slot validation (DAX injection prevention). Markdown output.
+- Proxy: `proxy/lib/powerbiQuestionMatcher.js` (332 lines) — Deterministic NL→template router. 5-pass algorithm: measure → time → top-N → dimension → fallback. Brittle (keyword + substring; no fuzzy / semantic).
+- Routes: `POST /powerbi/conversations/start`, `GET /powerbi/health`
+- Tests: 37 total (20 client + 14 templates + ~17 matcher). All happy-path; no security/scale tests.
+- Manifest: `powerbi-dataset-dax` declared with profile schema + RLS fields.
+
+**Missing (P1, must-have for production Q&A replacement):**
+1. **RLS at the proxy route** — `executeDax()` accepts `impersonatedUserName` but `/powerbi/conversations/start` doesn't extract user identity from request headers. Per Microsoft docs, executeQueries requires OAuth On-Behalf-Of for RLS datasets (SP blocked entirely).
+2. **Frontend question-input UI** — No PulsePlay surface for user typing. Backend route only. Q&A has UI; semantic-model doesn't.
+3. **Template extensibility** — 4 templates hardcoded in JavaScript. Deployers need code patch to add domain-specific patterns.
+4. **Matcher robustness** — Brittle on partial measure names, ambiguous questions, non-English. No fuzzy matching / semantic similarity.
+5. **Result pagination / row cap** — No `TOPN` wrapper. Unbounded queries could OOM.
+
+**Missing (P2, nice-to-have):**
+- Probe caching with TTL management
+- User-facing error messages (current path returns raw Power BI errors)
+- Streaming/progress
+- Security tests (DAX injection edge cases, scale)
+
+### Recommended hybrid architecture (consolidated from all 3 agents)
+
+**Pattern:** Tier 1 templated DAX → Tier 2 grounded LLM raw-DAX → Tier 3 reasoning-model retry on validator failure.
+
+| Layer | What | Why |
+|---|---|---|
+| Tier 1 | Existing 4 templates + matcher | 80% of common questions, deterministic, $0 LLM cost, ~200ms p50 |
+| Tier 2 | Claude Sonnet 4.x (Bedrock) raw-DAX with TMDL grounding | Long-tail coverage; ~$0.015/query; ~3s p50 |
+| Tier 3 | GPT-5 / o3-mini reasoning escalation on Tier 2 validator failure | <5% of queries; ~$0.07/query; 6-9s p95 |
+| Validator | AST parse + function whitelist + dry-run before execute | Catches DAX hallucination failure modes documented in DAXBench |
+| Grounding | TMSCHEMA cached 24h (fetched via XMLA read, PPU minimum) | Per DAXBench: grounded measure descriptions move accuracy from 50%→90% |
+| RLS | OAuth On-Behalf-Of (user-delegated), NOT Service Principal | Hard Microsoft constraint: SP + RLS = blocked on executeQueries |
+| Caching | 3 layers: semantic question (1h, per-RLS-bucket) / generated DAX (24h) / result-set (60s) | Cuts LLM bill ~40%; respects data freshness |
+| Cost (100 users × 10 q/day, blended w/ cache) | ~$200-500/month | Production-viable for an internal org |
+| Latency (p50 / p95) | 3s / 6-9s (non-reasoning) | Below 10s "business user tolerance" |
+
+### Major risks (named honestly)
+
+1. **120 q/min/user tenant cap.** Cannot be raised by P-SKU. If assistant gets popular, 429s before budget. **Plan XMLA-endpoint fallback Day 1** (requires PPU minimum).
+2. **executeQueries returns no column-type metadata.** Type inference from JSON values is fragile (dates vs numbers vs currency). **Lift types from cached TMSCHEMA, not from result.**
+3. **OBO requires PBI user to have dataset access.** PulsePlay cannot grant what user doesn't have. Org needs workspace-membership governance for the assistant to be useful broadly.
+4. **No SP+RLS path = no headless batch.** Scheduled "morning briefing" features cannot reuse this connector → need different design (pre-computed materialized briefings under a service-account workspace).
+5. **LLM DAX hallucination floor:** even reasoning models hit ~10% failure on novel questions. Validator catches some; user-facing recovery UI needed for the rest.
+
+### Decision recorded 2026-05-22 (pending user direction)
+
+The architecture is sound and PulsePlay would be filling a real market gap (no major third-party tool does NL over PBI semantic models). The work to make it production-ready is ~10-15 focused hours across the 5 P1 items.
 
 ---
 
