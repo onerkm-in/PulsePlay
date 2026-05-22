@@ -8010,6 +8010,95 @@ function MessageCard(props: {
                     </div>
                 )}
 
+                {/* 2026-05-22 — unified message-level action toolbar.
+                 *   Rajesh's direction (with annotated screenshot of chart-view
+                 *   icons): "I was talking to have like this" — wants the same
+                 *   📋 ⬇ ↻ </> chrome at bottom-right of EVERY chat reply,
+                 *   matching the visual language of the AI Insights section
+                 *   footer + the existing chart-view toolbar. Single
+                 *   message-level toolbar rather than per-section, so the
+                 *   chrome is consistent across narrative/chart/table/SQL views.
+                 *   SVGs match InsightsSectionFooter for visual parity. */}
+                {props.message.status === "COMPLETED" && (
+                    <div className="gn-msg-actions" role="toolbar" aria-label="Message actions">
+                        <button
+                            type="button"
+                            className="gn-msg-action gn-msg-action--icon"
+                            onClick={() => {
+                                const v = activeView;
+                                if (v === "sql" && props.message.sqlQuery) copyText(props.message.sqlQuery);
+                                else if (v === "table" && props.message.queryResult) copyText(formatTableAsCsv(props.message.queryResult.columns, props.message.queryResult.rows));
+                                else copyText(props.message.content ?? "");
+                            }}
+                            title={`Copy ${activeView === "sql" ? "SQL" : activeView === "table" ? "table as CSV" : "answer"}`}
+                            aria-label={`Copy ${activeView === "sql" ? "SQL" : activeView === "table" ? "table as CSV" : "answer"}`}
+                        >
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <rect x="9" y="2" width="6" height="4" rx="1" />
+                                <path d="M9 4H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2" />
+                            </svg>
+                        </button>
+                        {props.message.queryResult && props.message.queryResult.columns.length > 0 && (
+                            <button
+                                type="button"
+                                className="gn-msg-action gn-msg-action--icon"
+                                onClick={() => {
+                                    const qr = props.message.queryResult!;
+                                    const csv = formatTableAsCsv(qr.columns, qr.rows);
+                                    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement("a");
+                                    a.href = url;
+                                    a.download = `ask-pulse-${props.message.id}.csv`;
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    document.body.removeChild(a);
+                                    URL.revokeObjectURL(url);
+                                }}
+                                title="Download data as CSV"
+                                aria-label="Download data as CSV"
+                            >
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                    <polyline points="7 10 12 15 17 10" />
+                                    <line x1="12" y1="15" x2="12" y2="3" />
+                                </svg>
+                            </button>
+                        )}
+                        {props.message.sourceQuestion && (
+                            <button
+                                type="button"
+                                className="gn-msg-action gn-msg-action--icon"
+                                onClick={() => props.submit(props.message.sourceQuestion!, "summary")}
+                                title="Re-run this question"
+                                aria-label="Re-run this question"
+                            >
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <polyline points="23 4 23 10 17 10" />
+                                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                                </svg>
+                            </button>
+                        )}
+                        {props.message.sqlQuery && availableViews.includes("sql") && (
+                            <button
+                                type="button"
+                                className={`gn-msg-action gn-msg-action--icon${activeView === "sql" ? " gn-msg-action--active" : ""}`}
+                                onClick={() => props.setMessages(previous => previous.map(message =>
+                                    message.id === props.message.id ? { ...message, viewMode: "sql" } : message
+                                ))}
+                                title={activeView === "sql" ? "Already viewing SQL" : "View SQL"}
+                                aria-label={activeView === "sql" ? "Already viewing SQL" : "View SQL"}
+                                aria-pressed={activeView === "sql"}
+                            >
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <polyline points="16 18 22 12 16 6" />
+                                    <polyline points="8 6 2 12 8 18" />
+                                </svg>
+                            </button>
+                        )}
+                    </div>
+                )}
+
                 {/* Supervisor breadcrumbs — show which spaces were consulted */}
                 {props.message.route?.spaceResults && props.message.route.spaceResults.length > 0 && (
                     <div className="gn-breadcrumbs">

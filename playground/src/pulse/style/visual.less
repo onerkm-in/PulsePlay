@@ -8781,6 +8781,57 @@
     line-height: 1.2;
 }
 
+/* 2026-05-22 — unified chat-message action toolbar (📋 ⬇ ↻ </>).
+ * Rajesh's direction: "I was talking to have like this" — wants the same
+ * 4-icon chrome at bottom-right of EVERY chat reply, matching the AI
+ * Insights section footer + the existing chart-view toolbar visual
+ * language. Justify-end so the cluster floats right. Sits below the
+ * Helpful?/feedback row and above supervisor breadcrumbs. Icons share
+ * the same SVG glyphs as InsightsSectionFooter for parity. */
+.gn-msg-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 4px;
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px solid var(--gn-border-subtle, rgba(0, 0, 0, 0.06));
+}
+.gn-msg-action {
+    appearance: none;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--gn-accent, #1a6fd4);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.85;
+    transition: opacity 120ms ease, background 120ms ease, border-color 120ms ease;
+    &:hover:not(:disabled) {
+        opacity: 1;
+        background: var(--gn-accent-soft, rgba(26, 111, 212, 0.10));
+        border-color: var(--gn-accent, #1a6fd4);
+    }
+    &:focus-visible {
+        outline: 2px solid var(--gn-accent, #1a6fd4);
+        outline-offset: 1px;
+    }
+    &.gn-msg-action--active {
+        background: var(--gn-accent-soft, rgba(26, 111, 212, 0.10));
+        border-color: var(--gn-accent, #1a6fd4);
+        opacity: 1;
+    }
+    &:disabled {
+        cursor: not-allowed;
+        opacity: 0.4;
+    }
+}
+
 /* 2026-05-22 — SQL copy icon. User direction: "let's keep the sql copy
  * icon as well" — mirrors the AI Insights section toolbar pattern.
  * Anchored top-right of the SQL <pre> via .gn-sql-pre-wrap (position:
