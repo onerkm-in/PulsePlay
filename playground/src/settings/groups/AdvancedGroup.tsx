@@ -48,7 +48,7 @@ export function AdvancedGroup(): React.ReactElement {
             <header style={{ marginBottom: 20 }}>
                 <h2 id="settings-advanced-title" style={{ margin: 0, fontSize: 20 }}>Advanced</h2>
                 <p style={{ margin: "4px 0 0", opacity: 0.7, fontSize: 13 }}>
-                    Performance levers + destructive maintenance actions. Levers take effect immediately; destructive actions require type-to-confirm.
+                    Performance levers, diagnostics, developer tools, and destructive maintenance. Phase F (queued) will split this into Advanced AI / Advanced BI / Shared sub-tabs; today the controls live in one stream.
                 </p>
             </header>
 

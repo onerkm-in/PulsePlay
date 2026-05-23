@@ -44,9 +44,9 @@ export function PreferencesGroup(): React.ReactElement {
     return (
         <section aria-labelledby="settings-preferences-title">
             <header style={{ marginBottom: 20 }}>
-                <h2 id="settings-preferences-title" style={{ margin: 0, fontSize: 20 }}>Preferences</h2>
+                <h2 id="settings-preferences-title" style={{ margin: 0, fontSize: 20 }}>Display</h2>
                 <p style={{ margin: "4px 0 0", opacity: 0.7, fontSize: 13 }}>
-                    How the playground is laid out — UI mode, visible panels, AI position, canvas tiles.
+                    How the playground looks — theme, density, layout, AI position, canvas tiles. Industry convention puts visual preferences at the top so we follow suit.
                 </p>
             </header>
 

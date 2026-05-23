@@ -84,10 +84,13 @@ describe("SettingsShell — render", () => {
     });
 
     it("renders PreferencesGroup when URL is /settings/preferences", async () => {
+        // UX-ARCH-0B.2 Phase D/E header rename — "Preferences" → "Display"
+        // (industry-research recommendation; theme/density/layout are
+        // visual preferences which conventionally lead the group).
         const state = mount("/settings/preferences");
         await act(async () => { await Promise.resolve(); });
         const heading = state.container.querySelector("#settings-preferences-title");
-        expect(heading?.textContent).toBe("Preferences");
+        expect(heading?.textContent).toBe("Display");
         unmount(state);
     });
 

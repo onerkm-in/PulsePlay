@@ -139,13 +139,70 @@ export function AiGroup(): React.ReactElement {
     const vectorSearchDetail = databricksCapabilities.details.vectorSearch;
     const vectorSearchReady = databricksCapabilities.capabilities.vectorSearch === true && (vectorSearchDetail?.count || 0) > 0;
 
+    // UX-ARCH-0B.2 Phase D 2026-05-23 — progressive setup state for the
+    // AI Setup page header. Three gates: connector picked, pack picked,
+    // assistant test-connection passed. Each gate is glanceable as a small
+    // numbered pill so the user sees at-a-glance what's left without
+    // scrolling. Mirrors the legacy `/settings/setup` AI-side checklist
+    // but in-place inside the page that absorbs that checklist.
+    const aiSetupGates = [
+        { n: 1, label: "Connector",       done: !!activeAiProfile,        hint: "Pick from the catalogue below" },
+        { n: 2, label: "Knowledge pack",  done: !!packSelection?.pack,    hint: "Optional but recommended" },
+        { n: 3, label: "Ready to ask",    done: !!activeAiProfile,        hint: "Auto-completes when a connector is active" },
+    ];
+    const completedGates = aiSetupGates.filter(g => g.done).length;
+
     return (
         <section aria-labelledby="settings-ai-title">
             <header style={{ marginBottom: 20 }}>
-                <h2 id="settings-ai-title" style={{ margin: 0, fontSize: 20 }}>AI</h2>
+                <h2 id="settings-ai-title" style={{ margin: 0, fontSize: 20 }}>AI Setup</h2>
                 <p style={{ margin: "4px 0 0", opacity: 0.7, fontSize: 13 }}>
-                    One assistant powers both AI Insights and Ask Pulse. Configure the assistant, give it context, tune how it responds, then tune per-surface behavior. MVP 0.2: Databricks Genie + Supervisor only.
+                    Everything AI-side — connector, knowledge pack, AI Insights config, Ask Pulse config, Vector Search, UC Metric View. One assistant powers both AI Insights and Ask Pulse; change once, both benefit.
                 </p>
+                {/* UX-ARCH-0B.2 Phase D — progressive step indicator. */}
+                <div
+                    role="status"
+                    aria-label={`AI setup progress: ${completedGates} of ${aiSetupGates.length} steps complete`}
+                    style={{
+                        marginTop: 12,
+                        display: "flex",
+                        gap: 8,
+                        flexWrap: "wrap",
+                        padding: "10px 12px",
+                        background: completedGates === aiSetupGates.length
+                            ? "rgba(34, 197, 94, 0.06)"
+                            : "rgba(245, 158, 11, 0.05)",
+                        border: `1px solid ${completedGates === aiSetupGates.length ? "rgba(34, 197, 94, 0.25)" : "rgba(245, 158, 11, 0.20)"}`,
+                        borderRadius: 6,
+                        fontSize: 12,
+                    }}
+                >
+                    <span style={{ fontWeight: 600, color: "var(--pp-text)" }}>
+                        {completedGates === aiSetupGates.length
+                            ? "✓ AI ready"
+                            : `${completedGates} of ${aiSetupGates.length} steps`}
+                    </span>
+                    {aiSetupGates.map(g => (
+                        <span
+                            key={g.n}
+                            title={g.hint}
+                            style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 4,
+                                padding: "2px 8px",
+                                background: g.done ? "rgba(34, 197, 94, 0.12)" : "transparent",
+                                color: g.done ? "#166534" : "var(--pp-text-muted, #6b7280)",
+                                border: `1px solid ${g.done ? "rgba(34, 197, 94, 0.30)" : "rgba(0,0,0,0.10)"}`,
+                                borderRadius: 999,
+                                fontWeight: g.done ? 600 : 400,
+                            }}
+                        >
+                            <span aria-hidden="true">{g.done ? "✓" : g.n}</span>
+                            <span>{g.label}</span>
+                        </span>
+                    ))}
+                </div>
             </header>
 
             {/* ─── Cycle 20 / S1: Connector catalogue (brand grid) ──────

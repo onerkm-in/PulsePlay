@@ -29,13 +29,68 @@ export function BiGroup(): React.ReactElement {
         requestedVendor: biVendor,
         hasVendorEmbedConfig: hasEmbedConfig,
     });
+    // UX-ARCH-0B.2 Phase E 2026-05-23 — progressive setup state for the
+    // BI Setup page header. Mirrors AI Setup's gate ribbon so users see at-a-
+    // glance which steps are done. Three gates: vendor picked, embed wired
+    // (or native canvas chosen), governance review passed (allowlist healthy).
+    const biSetupGates = [
+        { n: 1, label: "Vendor",       done: !!biVendor,                                     hint: "Power BI / Tableau / Qlik / Looker / Native canvas" },
+        { n: 2, label: "Embed",        done: hasEmbedConfig || biSurfaceMode === "native",   hint: "URL / IDs / iframe HTML, or native-canvas mode" },
+        { n: 3, label: "Governance",   done: (allowedProviders.length > 0),                  hint: "Allowlist healthy" },
+    ];
+    const completedBiGates = biSetupGates.filter(g => g.done).length;
+
     return (
         <section aria-labelledby="settings-bi-title">
             <header style={{ marginBottom: 20 }}>
-                <h2 id="settings-bi-title" style={{ margin: 0, fontSize: 20 }}>BI</h2>
+                <h2 id="settings-bi-title" style={{ margin: 0, fontSize: 20 }}>BI Setup</h2>
                 <p style={{ margin: "4px 0 0", opacity: 0.7, fontSize: 13 }}>
-                    What you're looking at — the BI surface, its embed config, and the governance + license posture around it.
+                    Everything BI-side — vendor, surface mode, embed config, sandbox, governance. Vendor-agnostic by design; one set of controls handles Power BI, Tableau, Qlik, Looker, generic iframe, and the native canvas.
                 </p>
+                {/* UX-ARCH-0B.2 Phase E — progressive step indicator. */}
+                <div
+                    role="status"
+                    aria-label={`BI setup progress: ${completedBiGates} of ${biSetupGates.length} steps complete`}
+                    style={{
+                        marginTop: 12,
+                        display: "flex",
+                        gap: 8,
+                        flexWrap: "wrap",
+                        padding: "10px 12px",
+                        background: completedBiGates === biSetupGates.length
+                            ? "rgba(34, 197, 94, 0.06)"
+                            : "rgba(245, 158, 11, 0.05)",
+                        border: `1px solid ${completedBiGates === biSetupGates.length ? "rgba(34, 197, 94, 0.25)" : "rgba(245, 158, 11, 0.20)"}`,
+                        borderRadius: 6,
+                        fontSize: 12,
+                    }}
+                >
+                    <span style={{ fontWeight: 600, color: "var(--pp-text)" }}>
+                        {completedBiGates === biSetupGates.length
+                            ? "✓ BI ready"
+                            : `${completedBiGates} of ${biSetupGates.length} steps`}
+                    </span>
+                    {biSetupGates.map(g => (
+                        <span
+                            key={g.n}
+                            title={g.hint}
+                            style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 4,
+                                padding: "2px 8px",
+                                background: g.done ? "rgba(34, 197, 94, 0.12)" : "transparent",
+                                color: g.done ? "#166534" : "var(--pp-text-muted, #6b7280)",
+                                border: `1px solid ${g.done ? "rgba(34, 197, 94, 0.30)" : "rgba(0,0,0,0.10)"}`,
+                                borderRadius: 999,
+                                fontWeight: g.done ? 600 : 400,
+                            }}
+                        >
+                            <span aria-hidden="true">{g.done ? "✓" : g.n}</span>
+                            <span>{g.label}</span>
+                        </span>
+                    ))}
+                </div>
             </header>
 
             {/* ─── Tier 1: Current state ──────────────────────────────── */}
