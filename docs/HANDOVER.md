@@ -5,6 +5,20 @@
 
 ---
 
+## 2026-05-23 - Azure Databricks integration offering research
+
+**Scope.** Rajesh asked for deep research on the Databricks Technology Partners page, with an Azure Databricks inclination. Added [research/AZURE_DATABRICKS_INTEGRATION_OFFERING_2026-05-23.md](research/AZURE_DATABRICKS_INTEGRATION_OFFERING_2026-05-23.md). No runtime code changed.
+
+**Verdict.** The partner page is a useful catalog, but not the PulsePlay north star. Azure Databricks-native assets should be destination: AI/BI dashboards, Genie Spaces, Databricks Apps, SQL Warehouses, Unity Catalog assets, Unity Catalog business semantics / metric views, Model Serving, and Vector Search. Power BI is still the current bridge. Partner Connect is setup acceleration, not the policy spine.
+
+**Findings.** The AWS and Azure partner pages broadly align but have per-cloud/listing differences (for example Qlik is manual-first on the Azure page excerpt, ThoughtSpot/Hunters/Precisely visibility differs, and Prophecy's UC signal differs). The SQL Warehouse Connection Details page is a compute/data connection hub, not an embed URL. Power BI metric-view support is currently risky: the dedicated Azure Databricks BI metric-view page warns Microsoft removed the BI compatibility option from the Power BI connector and recommends AI/BI dashboards as the native metric-view path.
+
+**Next slice.** Add a static Azure Databricks Integration Capability Map seed, then graduate it into `/assistant/capabilities` so Launchpad/Settings can explain destination vs bridge vs upstream/evidence-only integrations without hardcoded vendor branching.
+
+**Validation.** Docs-only slice. Run `git diff --check` before wrapup.
+
+---
+
 ## 2026-05-23 - Simplification beast-mode decisions locked (T1-T7)
 
 **Scope.** Rajesh said "Beast Mode On" and asked to address all 7 tensions surfaced by the post-blueprint research pass. Dispatched 5 parallel research lanes (competitor 3-parent setup patterns, trust + confidence display standards, multiplicity controls codebase map, generated-defaults feasibility, mobile parent-nav restoration) and locked a decision for each tension. Added [research/SIMPLIFICATION_BEAST_MODE_DECISIONS_2026-05-23.md](research/SIMPLIFICATION_BEAST_MODE_DECISIONS_2026-05-23.md). No runtime code changed.

@@ -10,6 +10,7 @@
 
 ## Topic index (newest first)
 
+- [2026-05-23 - Azure Databricks integration offering](#2026-05-23---azure-databricks-integration-offering)
 - [2026-05-23 — Enterprise UX architecture blueprint and typeahead system](#2026-05-23--enterprise-ux-architecture-blueprint-and-typeahead-system)
 - [2026-05-23 — Flow limits and multiplicity simplification](#2026-05-23--flow-limits-and-multiplicity-simplification)
 - [2026-05-23 — Business Context claims audit and source hardening](#2026-05-23--business-context-claims-audit-and-source-hardening)
@@ -850,3 +851,43 @@ The Settings redesign should be structural first: Setup Home task list, parent m
 ### Synthesis takeaway
 
 Enterprise-grade PulsePlay should be structured around a Viewer Experience, Authoring Console, and Command Surface. The command palette must be deterministic and fast first, AI-assisted second. Settings should become progressive Authoring, and every answer should carry the same source/scope/freshness/request-id trust grammar.
+
+---
+
+## 2026-05-23 - Azure Databricks Integration Offering
+
+**Context.** Rajesh asked for deep research on the Databricks Technology Partners page, with an explicit Azure Databricks inclination. Synthesis document: [AZURE_DATABRICKS_INTEGRATION_OFFERING_2026-05-23.md](AZURE_DATABRICKS_INTEGRATION_OFFERING_2026-05-23.md).
+
+| URL (signature) | Title / publisher | One-line takeaway | Applied to |
+|---|---|---|---|
+| https://docs.databricks.com/aws/en/integrations | Databricks AWS - Technology partners | Clean source for the linked Partner Connect partner categories and Unity Catalog support signals. | Partner category inventory |
+| https://learn.microsoft.com/en-us/azure/databricks/integrations/ | Microsoft Learn - Technology partners for Azure Databricks | Azure equivalent of the partner page; broadly mirrors AWS but has per-cloud/listing differences. | Azure parity caution |
+| https://learn.microsoft.com/en-us/azure/databricks/partner-connect/ | Microsoft Learn - What is Databricks Partner Connect? | Partner Connect provisions/passes resources such as SQL warehouses, service principals, and PATs; requirements and regional exclusions matter. | Partner Connect threat model |
+| https://docs.databricks.com/aws/en/partner-connect/best-practice | Databricks - Partner Connect setup best practices | Prefer SSO, same-region hosting, and gateway clusters where relevant. | Integration setup guardrails |
+| https://docs.databricks.com/aws/en/partner-connect/admin | Databricks - Manage Partner Connect connections | Admins own partner account users, service principals, PAT lifecycle, disconnect/reset cleanup, and UC partner access. | Admin lifecycle caveats |
+| https://learn.microsoft.com/en-us/azure/databricks/getting-started/connect/ | Microsoft Learn - Azure Databricks integrations overview | Azure Databricks integration space spans data sources, BI tools, ETL, developer tools, and Git. | Broader integration map |
+| https://learn.microsoft.com/en-us/azure/databricks/compute/sql-warehouse/ | Microsoft Learn - Connect to a SQL warehouse | SQL warehouses are the compute/data access hub for BI and developer tools; serverless is recommended when available. | Screenshot interpretation |
+| https://learn.microsoft.com/en-us/azure/databricks/dev-tools/sql-drivers-tools | Microsoft Learn - SQL connectors, libraries, drivers, APIs, and tools | Official programmatic surface: JDBC, ODBC, Python, Go, Node.js, REST Statement Execution, CLI, and SQL IDEs. | Developer connector matrix |
+| https://learn.microsoft.com/en-us/azure/databricks/partners/bi/power-bi | Microsoft Learn - Power BI with Azure Databricks | Power BI supports Desktop, service publishing, M2M OAuth, ADBC/ODBC options, and metric-view guidance. | Power BI bridge summary |
+| https://learn.microsoft.com/en-us/azure/databricks/partners/bi/power-bi-desktop | Microsoft Learn - Connect Power BI Desktop to Azure Databricks | Desktop can use Partner Connect or manual hostname/HTTP path setup; SQL warehouse recommended for DirectQuery. | Power BI author setup |
+| https://learn.microsoft.com/en-us/azure/databricks/partners/bi/power-bi-service | Microsoft Learn - Publish to Power BI service from Azure Databricks | Publishing requires UC, SQL warehouse, Premium/Fabric capacity, XMLA read/write, and Entra consent/credentials. | Power BI service caveats |
+| https://learn.microsoft.com/en-us/azure/databricks/partners/bi/bi-metric-view | Microsoft Learn - Query metric views from BI tools | Beta BI compatibility mode exists generally, but the page warns Microsoft removed the Power BI connector option. | Metric-view Power BI risk |
+| https://learn.microsoft.com/en-us/azure/databricks/partners/bi/tableau | Microsoft Learn - Tableau with Azure Databricks | Tableau has Partner Connect/manual paths, UC requirements for Tableau Cloud exploration, and performance guidance. | Tableau bridge assessment |
+| https://learn.microsoft.com/en-us/azure/databricks/ai-bi/ | Microsoft Learn - Databricks AI/BI | Native BI umbrella for dashboards, Genie Spaces, business semantics, admin/API/audit, and consumer access. | Databricks-native destination |
+| https://learn.microsoft.com/en-us/azure/databricks/dashboards/ | Microsoft Learn - Dashboards | AI/BI dashboards support authoring, filters, embedding, source control, bundles, REST APIs, jobs, and usage monitoring. | Native dashboard adapter priority |
+| https://docs.databricks.com/aws/en/dashboards/share/embedding | Databricks - Embed a dashboard | Embedding has basic and external-user modes, permission tradeoffs, no Ask Genie for external-user embed, light-mode caveat, and cookie caveat. | Embedding guardrails |
+| https://learn.microsoft.com/en-us/azure/databricks/genie-ui/genie | Microsoft Learn - Use the Genie interface | Genie is the simplified business-user entry point for dashboards, natural-language questions, apps, favorites, search, and domains. | Launchpad pattern validation |
+| https://learn.microsoft.com/en-us/azure/databricks/genie/ | Microsoft Learn - What is a Genie Space | Genie Spaces use UC data, knowledge stores, sample SQL, SQL functions, trusted assets, benchmarks, and UC row/column governance. | Genie evidence model |
+| https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/ | Microsoft Learn - Databricks Apps | Apps host Python/Node apps on Databricks serverless and integrate with UC, SQL, and OAuth. | PulsePlay hosting stance |
+| https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/resources | Microsoft Learn - Add resources to a Databricks app | App resources bind Genie, SQL warehouses, model serving, secrets, UC assets, functions, volumes, and vector indexes without hardcoding IDs. | Resource binding guidance |
+| https://learn.microsoft.com/en-us/azure/databricks/business-semantics/ | Microsoft Learn - Unity Catalog business semantics | Metric views and agent metadata define governed metrics and business language for dashboards, Genie, and tools. | First-party semantic layer |
+| https://learn.microsoft.com/en-us/azure/databricks/connect/uc-connections | Microsoft Learn - Unity Catalog connections | UC connections cover managed ingestion, query federation, catalog federation, JDBC, and HTTP/MCP/API tools. | Governed connection model |
+| https://learn.microsoft.com/en-us/azure/databricks/connect/ | Microsoft Learn - Connect to data sources and external services | External access patterns include object storage, UC connections, federation, managed ingestion, streaming, drivers, and Partner Connect. | Data-source integration map |
+| https://learn.microsoft.com/en-us/azure/databricks/data-engineering/ | Microsoft Learn - Data engineering with Databricks | Lakeflow covers Connect, Spark Declarative Pipelines, Jobs, and runtime foundations. | Ingestion/orchestration boundary |
+| https://learn.microsoft.com/en-us/azure/databricks/ingestion/lakeflow-connect/faq | Microsoft Learn - Lakeflow managed connector FAQs | Managed connectors include Salesforce, Workday, SQL Server, ServiceNow, GA4, and SharePoint, with UI/API/bundle differences. | Upstream data-provider inventory |
+| https://learn.microsoft.com/en-us/azure/databricks/machine-learning/model-serving/ | Microsoft Learn - Model Serving | Model Serving provides governed REST endpoints for custom models, agents, Databricks foundation models, and external models. | AI connector capability |
+| https://learn.microsoft.com/en-us/azure/databricks/vector-search/create-vector-search | Microsoft Learn - Vector Search endpoints and indexes | Vector Search supports UI/Python/REST endpoint/index creation, Delta Sync indexes, direct vector access, and production SP auth. | Knowledge provider capability |
+
+### Synthesis takeaway
+
+Azure Databricks-native assets should be PulsePlay's destination posture. Partner Connect is a useful setup accelerator and partner discovery surface, but it must not become PulsePlay's security, policy, or experience spine. The next useful implementation artifact is a capability map that classifies each integration as destination, bridge, upstream provider, governance signal, future action provider, or deferred.
