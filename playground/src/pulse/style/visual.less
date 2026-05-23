@@ -3827,6 +3827,16 @@
     transition: border-color @gn-t-base @gn-ease, box-shadow @gn-t-base @gn-ease;
 }
 
+/* UX-VIEWER-1.3 — sustainability chip footer row. Sits above the input,
+   right-aligned so the chip docks near the corner without crowding the
+   placeholder. Small vertical gap before the input field. */
+.gn-compose-footer-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 6px;
+    min-height: 22px;
+}
+
 .gn-compose-input-wrap:focus-within {
     border-color: @gn-accent;
     box-shadow: 0 0 0 3px @gn-accent-subtle;

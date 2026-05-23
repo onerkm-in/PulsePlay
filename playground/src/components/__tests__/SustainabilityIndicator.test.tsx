@@ -108,6 +108,34 @@ describe("SustainabilityIndicator — rendering states", () => {
         unmount(state);
     });
 
+    // UX-VIEWER-1.3 — chip mode: inline pill near the chat input, drops
+    // the bar AND the inline token count (panel still surfaces the number).
+    it("chip mode marks the root with the chip class and drops the bar + tokens span", () => {
+        const state = mount(<SustainabilityIndicator override={leanUsage()} chip />);
+        const root = state.container.querySelector("[data-testid='pp-sustainability']") as HTMLElement;
+        expect(root.className).toContain("pp-sustainability--chip");
+        // Bar is hidden in chip mode (would overflow the inline pill).
+        const bar = state.container.querySelector(".pp-sustainability__bar");
+        expect(bar).toBeNull();
+        // Inline token count is hidden in chip mode — the hover panel still has it.
+        const tokens = state.container.querySelector("[data-testid='pp-sustainability-tokens']");
+        expect(tokens).toBeNull();
+        // Label remains visible so the tier label sits next to the leaf.
+        const label = state.container.querySelector("[data-testid='pp-sustainability-label']");
+        expect(label?.textContent).toBe("Lean");
+        unmount(state);
+    });
+
+    it("chip mode panel still opens on focus and includes the token note", () => {
+        const state = mount(<SustainabilityIndicator override={leanUsage()} chip />);
+        const root = state.container.querySelector("[data-testid='pp-sustainability']") as HTMLElement;
+        act(() => { root.focus(); });
+        const tt = state.container.querySelector("[data-testid='pp-sustainability-tooltip']");
+        expect(tt).not.toBeNull();
+        expect(tt!.textContent || "").toMatch(/1\.5k.*tokens/);
+        unmount(state);
+    });
+
     it("prefixes a '~' marker when token counts are estimates only", () => {
         const estimated: SessionUsage = {
             ...leanUsage(),

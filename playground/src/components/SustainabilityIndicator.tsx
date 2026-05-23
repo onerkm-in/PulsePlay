@@ -30,6 +30,14 @@ export interface SustainabilityIndicatorProps {
     override?: SessionUsage | null;
     compact?: boolean;
     showReset?: boolean;
+    /**
+     * UX-VIEWER-1.3 — inline chip mode. When true the indicator renders as a
+     * small inline pill (leaf + tier label only, no progress bar, no top
+     * border, no full-width footer) suitable for docking next to a chat
+     * input. The hover/click panel still works the same way so users can
+     * drill into the tier explanation and token detail.
+     */
+    chip?: boolean;
 }
 
 // ── Animation keyframes injected once ────────────────────────────────────
@@ -172,10 +180,12 @@ export function SustainabilityIndicator(props: SustainabilityIndicatorProps): Re
         ? null
         : `${usage.hasEstimates && !usage.hasRealData ? "~" : ""}${_formatTokens(usage.totalTokens)} tokens · ${usage.questionCount} question${usage.questionCount === 1 ? "" : "s"}`;
 
+    const isChip = !!props.chip;
+
     return (
         <div
             ref={rootRef}
-            className="pp-sustainability"
+            className={`pp-sustainability${isChip ? " pp-sustainability--chip" : ""}`}
             data-testid="pp-sustainability"
             data-tier={usage.tier}
             onMouseEnter={() => setHover(true)}
@@ -192,7 +202,21 @@ export function SustainabilityIndicator(props: SustainabilityIndicatorProps): Re
             role="status"
             aria-label={`Session sustainability: ${label}`}
             aria-expanded={isOpen}
-            style={{
+            style={isChip ? {
+                position: "relative",
+                padding: "3px 9px",
+                fontSize: 11,
+                color: "var(--pp-text-muted, #6b7280)",
+                background: "var(--pp-surface, #ffffff)",
+                border: `1px solid ${color}55`,
+                borderRadius: 999,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                cursor: "pointer",
+                userSelect: "none",
+                lineHeight: 1.2,
+            } : {
                 position: "relative",
                 padding: props.compact ? "4px 8px" : "6px 10px",
                 fontSize: 11,
@@ -229,17 +253,21 @@ export function SustainabilityIndicator(props: SustainabilityIndicatorProps): Re
             >
                 {label}
             </span>
-            {/* Compact token count — still in the bar for scanability */}
-            <span
-                className="pp-sustainability__tokens"
-                data-testid="pp-sustainability-tokens"
-                style={{ color: "var(--pp-text-muted, #6b7280)", fontSize: 10 }}
-            >
-                {usage.questionCount === 0
-                    ? "0 tokens"
-                    : `${usage.hasEstimates && !usage.hasRealData ? "~" : ""}${_formatTokens(usage.totalTokens)} tokens`}
-            </span>
-            {!props.compact && (
+            {/* Compact token count — still in the bar for scanability.
+                Hidden in chip mode (too wide for an inline pill); the
+                hover/click panel still surfaces the same number. */}
+            {!isChip && (
+                <span
+                    className="pp-sustainability__tokens"
+                    data-testid="pp-sustainability-tokens"
+                    style={{ color: "var(--pp-text-muted, #6b7280)", fontSize: 10 }}
+                >
+                    {usage.questionCount === 0
+                        ? "0 tokens"
+                        : `${usage.hasEstimates && !usage.hasRealData ? "~" : ""}${_formatTokens(usage.totalTokens)} tokens`}
+                </span>
+            )}
+            {!props.compact && !isChip && (
                 <span
                     className="pp-sustainability__bar"
                     aria-hidden="true"
@@ -299,6 +327,7 @@ export function SustainabilityIndicator(props: SustainabilityIndicatorProps): Re
                     leaf={leaf}
                     face={face}
                     tokenNote={tokenNote}
+                    chip={isChip}
                 />
             )}
         </div>
@@ -315,8 +344,11 @@ function Panel(props: {
     leaf: string;
     face: string;
     tokenNote: string | null;
+    /** Chip-mode anchors are inline-narrow; the panel needs an explicit
+     *  width and right-edge clamp so it doesn't squish to the chip width. */
+    chip?: boolean;
 }): ReactElement {
-    const { usage, label, color, leaf, face, tokenNote } = props;
+    const { usage, label, color, leaf, face, tokenNote, chip } = props;
     const headline = tierHeadline(usage.tier, usage.questionCount);
     const explanation = tierExplanation(usage.tier, usage.questionCount);
 
@@ -328,8 +360,7 @@ function Panel(props: {
             style={{
                 position: "absolute",
                 bottom: "calc(100% + 8px)",
-                left: 0,
-                right: 0,
+                ...(chip ? { right: 0, width: 280 } : { left: 0, right: 0 }),
                 padding: "12px 14px",
                 background: "var(--pp-surface, #ffffff)",
                 border: `1px solid ${color}44`,

@@ -169,6 +169,7 @@ import { useAskPulseHomeMeta } from "../features/config/useAskPulseHomeMeta";
 import "../visualization/translators";  // side-effect: registers translators
 import { resolveChartSpec } from "../visualization/translators";
 import { irMarkToChartKind } from "../visualization/chartIR";
+import { SustainabilityIndicator } from "../components/SustainabilityIndicator";
 // Wave 44 — Power BI theme inheritance + per-element typography. Pure
 // helpers; the Visual class flushes the resulting plan onto `this.target`.
 import { planThemeWrites, applyThemeWrites } from "./themeInheritance";
@@ -6084,6 +6085,15 @@ function App(props: AppProps) {
                     )}
 
                     <div className="gn-compose">
+                        {/* UX-VIEWER-1.3 — sustainability chip docked above the
+                            input. Tiny inline pill (animated leaf + tier label)
+                            with the same hover/click panel as the legacy
+                            full-width gauge. Replaces the unsignposted footer
+                            slab with a glanceable in-context cue near where
+                            the user is typing. */}
+                        <div className="gn-compose-footer-row">
+                            <SustainabilityIndicator chip />
+                        </div>
                         <div className="gn-compose-input-wrap" title="Enter to send · Shift+Enter for new line">
                             <textarea
                                 className="gn-input"
