@@ -1959,6 +1959,11 @@ function App(props: AppProps) {
     // on React batching. Keyed per spaceKey so a stop in one space doesn't
     // affect a parallel run in another.
     const insightsStopRef = useRef<Record<string, boolean>>({});
+    // UX-VIEWER-1.5b — per-space stop flag for chat/Ask Pulse runs. Mirrors
+    // the AI Insights pattern above. runAssistant's catch block checks this
+    // when an XHR abort lands and converts the resulting error into a clean
+    // "Stopped by user" COMPLETED state instead of a red failure card.
+    const chatStopRef = useRef<Record<string, boolean>>({});
     // Wave 22 cycle 5d: per-session flag so the supervisor+Insights perf
     // warning fires at most once per visual lifetime (not on every run).
     const sessionWarnedSupervisorInsightsRef = useRef<boolean>(false);
@@ -2453,6 +2458,9 @@ function App(props: AppProps) {
         const pendingId = createLocalId("pending");
 
         setBusy(true);
+        // UX-VIEWER-1.5b — reset the chat-stop flag at the start of every run
+        // so a stop from a prior run can't immediately kill this one.
+        chatStopRef.current[spaceKey] = false;
         logSession("INFO", `Question: ${trimmed.slice(0, 120)}${trimmed.length > 120 ? "..." : ""}`);
         setSpaceMessages(spaceKey, previous => [...previous, userMessage, {
             id: pendingId,
@@ -2694,23 +2702,72 @@ function App(props: AppProps) {
             setQuestion("");
         } catch (error: any) {
             const errMsg = error?.message ?? "The assistant request failed.";
-            logSession("ERROR", errMsg);
-            setSpaceMessages(spaceKey, previous => previous.map(message =>
-                message.id === pendingId
-                    ? {
-                        id: pendingId,
-                        role: "system",
-                        status: "FAILED",
-                        content: errMsg
-                    }
-                    : message
-            ));
-            // BUG-006: a stale "Checking…" pending flag from this failed run would
-            // otherwise outlive the request and display alongside the error.
-            setConfidencePending(false);
+            // UX-VIEWER-1.5b — if the user clicked Stop, the underlying XHR
+            // abort surfaces as a request failure here. Detect it (either via
+            // our stop flag or via the typical abort message shapes) and
+            // convert the failure into a clean "Stopped by user" COMPLETED
+            // state instead of a red error card. Matches the AI Insights
+            // stop-handling shape (see line ~3905).
+            const looksLikeAbort = /aborted|cancell?ed|network error/i.test(errMsg);
+            if (chatStopRef.current[spaceKey] || looksLikeAbort) {
+                logSession("INFO", `Run stopped by user (space=${spaceKey})`);
+                setSpaceMessages(spaceKey, previous => previous.map(message =>
+                    message.id === pendingId
+                        ? {
+                            ...message,
+                            id: pendingId,
+                            role: "assistant",
+                            status: "COMPLETED",
+                            currentStatus: "Stopped by user",
+                            content: "Stopped before a response arrived."
+                        }
+                        : message
+                ));
+                chatStopRef.current[spaceKey] = false;
+                setConfidencePending(false);
+            } else {
+                logSession("ERROR", errMsg);
+                setSpaceMessages(spaceKey, previous => previous.map(message =>
+                    message.id === pendingId
+                        ? {
+                            id: pendingId,
+                            role: "system",
+                            status: "FAILED",
+                            content: errMsg
+                        }
+                        : message
+                ));
+                // BUG-006: a stale "Checking…" pending flag from this failed run would
+                // otherwise outlive the request and display alongside the error.
+                setConfidencePending(false);
+            }
         } finally {
             setBusy(false);
         }
+    };
+
+    // UX-VIEWER-1.5b — chat stop callback. Sets the per-space stop flag and
+    // aborts the in-flight XHR(s) so the polling loop in waitForMessageWithProgress
+    // throws. runAssistant's catch block then sees the flag and converts the
+    // resulting abort into a clean "Stopped by user" message.
+    const stopChat = (spaceKey: SpaceKey) => {
+        chatStopRef.current[spaceKey] = true;
+        // Update the currently pending bubble immediately so the user gets
+        // feedback that the click registered, even though the actual XHR
+        // abort + state finalisation happens via the catch block above.
+        setSpaceMessages(spaceKey, previous => previous.map(message =>
+            message.role === "assistant" && message.status === "RUNNING"
+                ? { ...message, currentStatus: "Stopping…" }
+                : message
+        ));
+        // Single-space mode aborts the active client. Sync mode also aborts
+        // every other client to keep behaviour symmetric across the broadcast.
+        try {
+            activeClient?.cancel?.();
+            if (syncMode) {
+                clientMap.forEach(c => c.cancel?.());
+            }
+        } catch { /* best-effort */ }
     };
 
     // Broadcast one question to every active space in parallel.
@@ -5806,6 +5863,7 @@ function App(props: AppProps) {
                                                             setMessages={(next) => setSpaceMessages(space.key, next)}
                                                             submit={(input, intent) => void runAssistant(input, intent)}
                                                             nowTick={nowTick}
+                                                            onStop={message.status === "RUNNING" ? () => stopChat(space.key) : undefined}
                                                         />
                                                     ))
                                                 }
@@ -5848,6 +5906,7 @@ function App(props: AppProps) {
                                         setMessages={setActiveMessages}
                                         submit={(input, intent) => void runAssistant(input, intent)}
                                         nowTick={nowTick}
+                                        onStop={message.status === "RUNNING" ? () => stopChat(activeSpaceKey) : undefined}
                                     />
                                 ))}
                             </>
@@ -7993,6 +8052,9 @@ function MessageCard(props: {
     /** Wall-clock tick from App so the embedded ProgressIndicator timer
      * can update without each MessageCard owning its own interval. */
     nowTick: number;
+    /** UX-VIEWER-1.5b — invoked when the user clicks Stop on a running
+     *  pending bubble. Undefined for completed/failed/system messages. */
+    onStop?: () => void;
 }) {
     const availableViews = getAvailableMessageViews(props.message, props.canShowSql, props.canShowTrace);
     const activeView = props.message.viewMode && availableViews.includes(props.message.viewMode)
@@ -8029,7 +8091,8 @@ function MessageCard(props: {
                     props.setMessages(previous => previous.map(message =>
                         message.id === props.message.id ? { ...message, viewMode: viewId } : message
                     )),
-                    props.nowTick
+                    props.nowTick,
+                    props.onStop
                 )}
 
                 {props.message.suggestedActions?.length ? (
@@ -8290,7 +8353,8 @@ function renderMessageBody(
     availableViews: OutputMode[],
     settings: OperationalSettingsModel,
     onViewChange: (view: OutputMode) => void,
-    nowTick: number
+    nowTick: number,
+    onStop?: () => void
 ) {
     // Build the progress indicator once. Live (running) state shows the active
     // step + spinner; completed state stays mounted as a collapsed "View steps"
@@ -8333,9 +8397,29 @@ function renderMessageBody(
     ) : null;
 
     if (isRunning) {
+        // UX-VIEWER-1.5b — running bubble surfaces a Stop button so users can
+        // exit a slow query (matches Genie + ChatGPT escape-hatch pattern).
+        // Hidden when no onStop is provided (e.g. AI Insights sync runs that
+        // already own a Stop button at the pane header).
+        const isStopping = (message.currentStatus || "").toLowerCase().startsWith("stopping");
         return (
-            <div className="gn-msg-body">
+            <div className="gn-msg-body gn-msg-body--running">
                 {progressNode}
+                {onStop ? (
+                    <div className="gn-chat-stop-row">
+                        <button
+                            type="button"
+                            className="gn-chat-stop-btn"
+                            onClick={onStop}
+                            disabled={isStopping}
+                            aria-label="Stop generating this response"
+                            title={isStopping ? "Stopping…" : "Stop generating this response"}
+                        >
+                            <span aria-hidden="true">■</span>
+                            <span>{isStopping ? "Stopping…" : "Stop"}</span>
+                        </button>
+                    </div>
+                ) : null}
             </div>
         );
     }

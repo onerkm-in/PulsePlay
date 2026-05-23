@@ -2384,6 +2384,51 @@
 .gn-chat-progress { margin: 0; }
 .gn-fusion-progress { margin: 0; }
 
+/* UX-VIEWER-1.5b — Stop button on running chat bubbles.
+   Positioned beneath the progress indicator so it does not crowd the
+   marquee label. Subtle outline so the indicator stays the focus until
+   the user actively reaches for the escape hatch. */
+.gn-msg-body--running { display: flex; flex-direction: column; gap: 8px; }
+
+.gn-chat-stop-row {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0 12px;
+}
+
+.gn-chat-stop-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.4;
+    color: #b91c1c;
+    background: rgba(254, 226, 226, 0.55);
+    border: 1px solid rgba(185, 28, 28, 0.35);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background-color 100ms ease, border-color 100ms ease;
+}
+.gn-chat-stop-btn:hover:not(:disabled) {
+    background: rgba(254, 202, 202, 0.85);
+    border-color: rgba(185, 28, 28, 0.55);
+}
+.gn-chat-stop-btn:disabled {
+    opacity: 0.6;
+    cursor: progress;
+}
+.gn-shell--dark .gn-chat-stop-btn {
+    color: #fca5a5;
+    background: rgba(127, 29, 29, 0.30);
+    border-color: rgba(252, 165, 165, 0.45);
+}
+.gn-shell--dark .gn-chat-stop-btn:hover:not(:disabled) {
+    background: rgba(127, 29, 29, 0.50);
+    border-color: rgba(252, 165, 165, 0.65);
+}
+
 /* ── Chart container ── */
 
 .gn-chart-wrap {
