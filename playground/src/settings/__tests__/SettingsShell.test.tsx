@@ -56,26 +56,30 @@ afterEach(() => {
 });
 
 describe("SettingsShell — render", () => {
-    it("renders all group buttons in the left rail", async () => {
+    it("renders the 4 visible rail groups (AI Setup, BI Setup, Advanced, Display)", async () => {
+        // UX-ARCH-0B.2 Phase C — rail collapsed from 6 groups to 4. Legacy
+        // `setup` and `system` are absorbed (still routable for back-compat
+        // deep links; just not in the rail). Selecting via the group-level
+        // class so expanded leaf buttons (which the previously-active group
+        // surfaces inline) don't inflate the count.
         const state = mount("/settings");
         await act(async () => { await Promise.resolve(); });
-        const buttons = state.container.querySelectorAll<HTMLButtonElement>("nav button");
-        // Each button concatenates label + description in its textContent; we
-        // just need to confirm each canonical group name appears somewhere
-        // inside one of the rail buttons.
-        const text = Array.from(buttons).map(b => b.textContent || "").join(" | ");
-        for (const label of ["Setup", "BI", "AI", "Preferences", "System", "Advanced"]) {
+        const groupButtons = state.container.querySelectorAll<HTMLButtonElement>(".pp-settings-rail__item");
+        const text = Array.from(groupButtons).map(b => b.textContent || "").join(" | ");
+        for (const label of ["AI Setup", "BI Setup", "Advanced", "Display"]) {
             expect(text).toContain(label);
         }
-        expect(buttons.length).toBe(6);
+        expect(groupButtons.length).toBe(4);
         unmount(state);
     });
 
-    it("renders SetupGroup by default when no group in URL", async () => {
+    it("lands on AiGroup by default when no group in URL", async () => {
+        // UX-ARCH-0B.2 Phase C — default landing changed from SetupGroup to
+        // AiGroup since `setup` is being absorbed into AI/BI Setup.
         const state = mount("/settings");
         await act(async () => { await Promise.resolve(); });
-        const heading = state.container.querySelector("#settings-setup-title");
-        expect(heading?.textContent).toBe("Setup");
+        const heading = state.container.querySelector("#settings-ai-title");
+        expect(heading?.textContent).toBeTruthy();
         unmount(state);
     });
 
@@ -114,10 +118,12 @@ describe("SettingsShell — search filter", () => {
             searchInput!.dispatchEvent(new Event("input", { bubbles: true }));
         });
 
-        // "Canvas tiles" leaf is under Preferences -> only Preferences should render.
+        // UX-ARCH-0B.2 Phase C — Preferences group renamed to "Display" in
+        // the rail. "Canvas tiles" leaf is still indexed under preferences,
+        // so a "tile" search filters down to the Display rail entry.
         const buttons = state.container.querySelectorAll<HTMLButtonElement>("nav button");
         const labels = Array.from(buttons).map(b => (b.textContent || "").trim());
-        expect(labels.some(l => l.includes("Preferences"))).toBe(true);
+        expect(labels.some(l => l.includes("Display"))).toBe(true);
         expect(labels.some(l => l.includes("Advanced"))).toBe(false);
         unmount(state);
     });

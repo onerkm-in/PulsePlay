@@ -42,14 +42,18 @@ function isValidGroup(value: string): value is SettingsGroupId {
 }
 
 function readLastGroup(): SettingsGroupId {
-    if (typeof window === "undefined") return "setup";
+    // UX-ARCH-0B.2 Phase C — default landing is now AI Setup (was "setup").
+    // The legacy `setup` group is being absorbed into AI/BI Setup; defaulting
+    // fresh visits to `ai` lands them on a stable rebuilt surface instead of
+    // the migration-banner'd Quick start.
+    if (typeof window === "undefined") return "ai";
     try {
         const raw = window.localStorage.getItem(LAST_GROUP_KEY);
         if (raw && isValidGroup(raw)) return raw;
     } catch {
         /* swallow */
     }
-    return "setup";
+    return "ai";
 }
 
 function writeLastGroup(group: SettingsGroupId): void {

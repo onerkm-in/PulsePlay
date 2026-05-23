@@ -22,7 +22,10 @@ describe("parseSettingsRoute", () => {
     it("returns isSettingsRoute=true with default group for bare /settings", () => {
         const state = parseSettingsRoute("/settings");
         expect(state.isSettingsRoute).toBe(true);
-        expect(state.group).toBe("setup"); // first group, last-visited never set
+        // UX-ARCH-0B.2 Phase C — default landing changed from "setup" to "ai".
+        // The legacy `setup` group is being absorbed into AI/BI Setup, so a
+        // fresh visit (no last-visited record) lands on AI Setup.
+        expect(state.group).toBe("ai");
         expect(state.leaf).toBeNull();
     });
 

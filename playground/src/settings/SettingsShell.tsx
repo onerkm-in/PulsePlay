@@ -31,22 +31,29 @@ import { SystemDeveloper } from "./groups/sub/SystemDeveloper";
 import { BiGovernance } from "./groups/sub/BiGovernance";
 import "./settings.css";
 
+// UX-ARCH-0B.2 Phase C — rail collapsed from 6 groups to 4 per user
+// 2026-05-23 direction. Internal route IDs unchanged (so deep links + tests
+// keep working) but the visible rail shows AI Setup / BI Setup / Advanced /
+// Display. `setup` and `system` are hidden from the rail (absorbed by
+// AI/BI Setup and Advanced respectively); their routes still resolve so
+// existing handoff bundles and bookmarks don't break. The Phase D/E/F page
+// rebuilds will physically merge content; this slice is nav-only.
 const GROUP_LABELS: Record<SettingsGroupId, string> = {
-    setup:       "Setup",
-    bi:          "BI",
-    ai:          "AI",
-    preferences: "Preferences",
-    system:      "System",
+    setup:       "Quick start",       // legacy route, hidden from rail
+    bi:          "BI Setup",
+    ai:          "AI Setup",
+    preferences: "Display",
+    system:      "System",            // legacy route, hidden from rail
     advanced:    "Advanced",
 };
 
 const GROUP_DESCRIPTIONS: Record<SettingsGroupId, string> = {
-    setup:       "Get PulsePlay ready in three short steps",
-    bi:          "Pick a BI tool and wire its embed",
-    ai:          "Configure the assistant powering Insights and Ask Pulse",
-    preferences: "Layout, visible panels, and display policy",
-    system:      "Network, governance, and diagnostics",
-    advanced:    "Developer tools and reset utilities",
+    setup:       "Legacy quick-start checklist (use AI Setup or BI Setup instead)",
+    bi:          "BI vendor, embed, sandbox, governance — everything Y-axis",
+    ai:          "Assistant, knowledge pack, AI Insights, Ask Pulse — everything X-axis",
+    preferences: "Theme, layout, density, AI position",
+    system:      "Legacy diagnostics (use Advanced instead)",
+    advanced:    "Performance, developer tools, runtime guards, danger zone",
 };
 
 const GROUP_ICONS: Record<SettingsGroupId, string> = {
@@ -56,6 +63,31 @@ const GROUP_ICONS: Record<SettingsGroupId, string> = {
     preferences: "◉",
     system:      "⬢",
     advanced:    "⚙",
+};
+
+// Phase C rail filter — order shown to users and which groups are HIDDEN.
+// `setup` and `system` are not in this list (still routable for back-compat,
+// just not in the rail). Order: AI Setup first (most users touch this most),
+// BI Setup second, Advanced third, Display fourth.
+const VISIBLE_RAIL_GROUPS: ReadonlyArray<SettingsGroupId> = [
+    "ai",
+    "bi",
+    "advanced",
+    "preferences",
+];
+
+// Phase C absorption map — when a search query matches a legacy group, the
+// rail surfaces the absorbing destination instead. `setup` content is being
+// split across AI Setup and BI Setup; for the nav-first phase it absorbs to
+// AI Setup since that's where the connector+pack quick-start lives. `system`
+// surfaces are diagnostic/dev (matches Advanced naturally).
+const GROUP_ABSORPTION: Record<SettingsGroupId, SettingsGroupId> = {
+    setup:       "ai",          // Phase D will split AI vs BI content explicitly
+    bi:          "bi",
+    ai:          "ai",
+    preferences: "preferences",
+    system:      "advanced",
+    advanced:    "advanced",
 };
 
 // Decorative rail glyph CSS spacing — rendered via the .pp-settings-rail__glyph
@@ -201,14 +233,26 @@ export function SettingsShell(): React.ReactElement {
 
     const filteredGroups = useMemo(() => {
         const needle = search.trim().toLowerCase();
-        if (!needle) return SETTINGS_GROUP_IDS;
-        return SETTINGS_GROUP_IDS.filter(id => {
+        // Phase C — rail shows 4 visible groups. When the user types in the
+        // search box, we DO scan all 6 internal groups (including legacy
+        // `setup` and `system`) so no settings disappear from discoverability
+        // — but we only RETURN matches that resolve through the visible 4.
+        // Legacy-group matches surface under their absorbing destination
+        // (setup → ai, system → advanced) per the GROUP_ABSORPTION map below.
+        if (!needle) return VISIBLE_RAIL_GROUPS;
+        const visibleSet = new Set<SettingsGroupId>(VISIBLE_RAIL_GROUPS);
+        const matched = new Set<SettingsGroupId>();
+        for (const id of SETTINGS_GROUP_IDS) {
             const groupMatches =
                 GROUP_LABELS[id].toLowerCase().includes(needle) ||
                 GROUP_DESCRIPTIONS[id].toLowerCase().includes(needle);
             const leafMatches = GROUP_LEAF_LABELS[id].some(label => label.toLowerCase().includes(needle));
-            return groupMatches || leafMatches;
-        });
+            if (!groupMatches && !leafMatches) continue;
+            const dest = visibleSet.has(id) ? id : GROUP_ABSORPTION[id];
+            matched.add(dest);
+        }
+        // Preserve the configured rail order (ai → bi → advanced → preferences).
+        return VISIBLE_RAIL_GROUPS.filter(id => matched.has(id));
     }, [search]);
 
     return (
@@ -521,15 +565,81 @@ function ActiveGroup(props: { group: SettingsGroupId; leaf?: string | null }): R
     if (props.group === "preferences" && props.leaf === "appearance")        return <PreferencesAppearance />;
     if (props.group === "system"      && props.leaf === "developer-tools")   return <SystemDeveloper />;
     if (props.group === "bi"          && props.leaf === "governance")        return <BiGovernance />;
+
+    // Phase C migration banner — legacy `setup` and `system` groups are
+    // being absorbed (Phase D folds Setup quick-start checklist into
+    // AI/BI Setup; Phase F folds System diagnostics + dev tools into
+    // Advanced). Show a one-row banner so users landing on legacy deep
+    // links know where the content is heading.
     switch (props.group) {
-        case "setup":       return <SetupGroup />;
+        case "setup":
+            return (
+                <>
+                    <LegacyGroupBanner kind="setup" />
+                    <SetupGroup />
+                </>
+            );
+        case "system":
+            return (
+                <>
+                    <LegacyGroupBanner kind="system" />
+                    <SystemGroup />
+                </>
+            );
         case "bi":          return <BiGroup />;
         case "ai":          return <AiGroup />;
         case "preferences": return <PreferencesGroup />;
-        case "system":      return <SystemGroup />;
         case "advanced":    return <AdvancedGroup />;
-        default:            return <SetupGroup />;
+        default:            return <AiGroup />;
     }
+}
+
+function LegacyGroupBanner(props: { kind: "setup" | "system" }): React.ReactElement {
+    const dest = props.kind === "setup"
+        ? { label: "AI Setup or BI Setup", id: "ai" as const }
+        : { label: "Advanced", id: "advanced" as const };
+    return (
+        <div
+            role="status"
+            style={{
+                margin: "0 0 16px",
+                padding: "10px 14px",
+                background: "rgba(245, 158, 11, 0.08)",
+                border: "1px solid rgba(245, 158, 11, 0.30)",
+                borderLeft: "3px solid rgba(245, 158, 11, 0.85)",
+                borderRadius: 6,
+                fontSize: 13,
+                color: "var(--pp-text, #111827)",
+                display: "flex",
+                gap: 12,
+                alignItems: "center",
+                flexWrap: "wrap",
+            }}
+        >
+            <span aria-hidden="true">⚠</span>
+            <span style={{ flex: 1, minWidth: 240 }}>
+                This page is being folded into <strong>{dest.label}</strong>. Existing
+                deep links keep working; the rebuilt view is being rolled out
+                progressively. Open the new home →
+            </span>
+            <button
+                type="button"
+                onClick={() => navigateToSettings(dest.id)}
+                style={{
+                    padding: "4px 12px",
+                    background: "var(--pp-accent, #2563eb)",
+                    color: "#ffffff",
+                    border: "none",
+                    borderRadius: 4,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                }}
+            >
+                Go to {dest.label}
+            </button>
+        </div>
+    );
 }
 
 export function __resolveActiveGroup(pathname: string): SettingsGroupId {
