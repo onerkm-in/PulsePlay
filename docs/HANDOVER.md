@@ -5,9 +5,19 @@
 
 ---
 
+## 2026-05-23 - Chrome DevTools MCP clone moved under Projects
+
+**Scope.** Rajesh asked to bring the Chrome DevTools MCP clone under the parent `Projects` folder. Moved the verified clone to `D:\Working_Folder\Projects\chrome-devtools-mcp`, verified HEAD `57f32b0` and upstream remote, removed the leftover `C:\tmp` stub, and removed the duplicate clean untracked `PulsePlay\chrome-devtools-mcp` copy after confirming it matched the same upstream HEAD.
+
+**Docs.** Updated [research/CHROME_DEVTOOLS_MCP_TOOLING_2026-05-23.md](research/CHROME_DEVTOOLS_MCP_TOOLING_2026-05-23.md), [AGENDA.md](AGENDA.md), [memory/project_state.md](memory/project_state.md), and [research/EXTERNAL_REFERENCES.md](research/EXTERNAL_REFERENCES.md) so future sessions use the sibling path.
+
+**Validation.** Sibling clone verified with one-off Git safe-directory override. Docs-only PulsePlay change; run `git diff --check` before wrapup.
+
+---
+
 ## 2026-05-23 - Chrome DevTools MCP research clone inspected
 
-**Scope.** Rajesh asked to use `gh repo clone ChromeDevTools/chrome-devtools-mcp` to get more data. `gh repo clone` hit a GitHub CLI auth requirement in this sandbox, so a public `git clone` fallback succeeded into `C:\tmp\chrome-devtools-mcp`. Added [research/CHROME_DEVTOOLS_MCP_TOOLING_2026-05-23.md](research/CHROME_DEVTOOLS_MCP_TOOLING_2026-05-23.md). No runtime code changed.
+**Scope.** Rajesh asked to use `gh repo clone ChromeDevTools/chrome-devtools-mcp` to get more data. `gh repo clone` hit a GitHub CLI auth requirement in this sandbox, so a public `git clone` fallback succeeded, and the clone now lives at `D:\Working_Folder\Projects\chrome-devtools-mcp`. Added [research/CHROME_DEVTOOLS_MCP_TOOLING_2026-05-23.md](research/CHROME_DEVTOOLS_MCP_TOOLING_2026-05-23.md). No runtime code changed.
 
 **Findings.** Chrome DevTools MCP package `1.0.1` exposes an MCP server plus experimental CLI for browser automation, network/console inspection, screenshots, accessibility snapshots, Lighthouse, traces, memory snapshots, extension testing, third-party developer tools, and experimental WebMCP. It is useful as optional deep browser evidence for Databricks UI research and PulsePlay local smoke/debug work.
 

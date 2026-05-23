@@ -24,15 +24,16 @@ gh repo clone ChromeDevTools/chrome-devtools-mcp
 Observed in this environment:
 
 - `gh repo clone ChromeDevTools/chrome-devtools-mcp C:\tmp\chrome-devtools-mcp` failed with `HTTP 401: Requires authentication`.
-- Public fallback clone succeeded:
+- Public fallback clone first succeeded into `C:\tmp`, then the verified clone was moved under the shared project parent:
 
 ```powershell
 git clone https://github.com/ChromeDevTools/chrome-devtools-mcp.git C:\tmp\chrome-devtools-mcp
+Move-Item C:\tmp\chrome-devtools-mcp D:\Working_Folder\Projects\chrome-devtools-mcp
 ```
 
 Research clone:
 
-- Path: `C:\tmp\chrome-devtools-mcp`
+- Path: `D:\Working_Folder\Projects\chrome-devtools-mcp`
 - Remote: `https://github.com/ChromeDevTools/chrome-devtools-mcp.git`
 - HEAD inspected: `57f32b0cd4afe1775b96ba35c27f25d6f0770331`
 - Latest commit inspected: `57f32b0 2026-05-22 10:08:56 +0200 fix: Fix throttling info in performance trace output (#2096)`
@@ -41,7 +42,7 @@ Research clone:
 - MCP name: `io.github.ChromeDevTools/chrome-devtools-mcp`
 - Transport: stdio npm package `chrome-devtools-mcp`
 
-There is also an untracked `chrome-devtools-mcp/` directory inside the PulsePlay worktree. I did not modify it. The clean research copy is under `C:\tmp` to avoid polluting PulsePlay commits.
+The clean research copy now lives beside PulsePlay rather than inside it. A duplicate untracked `PulsePlay\chrome-devtools-mcp` folder matched the same clean upstream HEAD and was removed after the sibling clone was verified.
 
 ## What It Offers
 
@@ -149,7 +150,7 @@ Available fallback today:
 
 - Existing in-app Browser plugin for local browser screenshots/inspection when available.
 - Existing Playwright/Chromium smoke scripts in the PulsePlay repo.
-- The cloned Chrome DevTools MCP source/docs under `C:\tmp\chrome-devtools-mcp`.
+- The cloned Chrome DevTools MCP source/docs under `D:\Working_Folder\Projects\chrome-devtools-mcp`.
 
 ## Recommendation
 
@@ -172,4 +173,4 @@ Do not commit the cloned upstream repo into PulsePlay. Keep it external or insta
 | https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main/docs/tool-reference.md | Full MCP tool categories and tool names. |
 | https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main/docs/cli.md | Experimental CLI behavior and command shape. |
 | https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main/docs/troubleshooting.md | Windows and sandbox troubleshooting notes. |
-| `C:\tmp\chrome-devtools-mcp\server.json` | MCP package identity, version, npm package, stdio transport. |
+| `D:\Working_Folder\Projects\chrome-devtools-mcp\server.json` | MCP package identity, version, npm package, stdio transport. |

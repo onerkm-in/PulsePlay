@@ -37,7 +37,7 @@
 
 ## 2026-05-23 - Chrome DevTools MCP tooling
 
-**Context.** Rajesh asked to use `gh repo clone ChromeDevTools/chrome-devtools-mcp` to get more data. The repo was cloned into `C:\tmp\chrome-devtools-mcp` via public `git clone` fallback after GitHub CLI required auth. Applied in [CHROME_DEVTOOLS_MCP_TOOLING_2026-05-23.md](CHROME_DEVTOOLS_MCP_TOOLING_2026-05-23.md).
+**Context.** Rajesh asked to use `gh repo clone ChromeDevTools/chrome-devtools-mcp` to get more data. The repo was cloned via public `git clone` fallback after GitHub CLI required auth and now lives at `D:\Working_Folder\Projects\chrome-devtools-mcp`. Applied in [CHROME_DEVTOOLS_MCP_TOOLING_2026-05-23.md](CHROME_DEVTOOLS_MCP_TOOLING_2026-05-23.md).
 
 | URL (signature) | Title / publisher | One-line takeaway | Applied to |
 |---|---|---|---|
