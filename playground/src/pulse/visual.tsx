@@ -154,6 +154,12 @@ import {
     validateAssignedFields,
 } from "./visualHelpers";
 import { buildThemeFromHost, buildThemeStyle, mergeTheme, ThemeName } from "./themeConfig";
+// UX-VIEWER-1.2B — Ask Pulse home metadata hook. Replaces STATIC_ACTIONS
+// on the empty state with data-shaped starter questions (curated from
+// the active Genie space when the profile is Genie, or pack evergreen
+// for non-Genie backends). Strategy: PulsePlay is the enabler — features
+// are built into PulsePlay's own surface, not embedded from Databricks.
+import { useAskPulseHomeMeta } from "../features/config/useAskPulseHomeMeta";
 // Wave 44 — Power BI theme inheritance + per-element typography. Pure
 // helpers; the Visual class flushes the resulting plan onto `this.target`.
 import { planThemeWrites, applyThemeWrites } from "./themeInheritance";
@@ -1145,6 +1151,15 @@ function App(props: AppProps) {
     const [selectedFilters, setSelectedFilters] = useState<Record<string, string>>({});
     const [showFilters, setShowFilters] = useState(true);
     const [home, setHome] = useState<AssistantHomePayload>(() => buildLocalHomeModel(props.context, roleMode));
+    // UX-VIEWER-1.2B — fetch the Ask Pulse home meta (data identity + curated
+    // starter questions) for the active assistant profile. The hook returns
+    // pack-derived evergreen questions for non-Genie backends and real
+    // Genie space metadata + curated_questions for Genie profiles. Errors
+    // fall through silently to the existing STATIC_ACTIONS merge below —
+    // the home must never break just because home-meta is unavailable.
+    const askPulseHomeMeta = useAskPulseHomeMeta({
+        assistantProfile: props.settings.assistantProfile || undefined,
+    });
     const [question, setQuestion] = useState("");
     const [busy, setBusy] = useState(false);
     const [devPanel, setDevPanel] = useState<"" | "diagnostics" | "session" | "setup" | "genieQueries" | "display">("");
@@ -2972,9 +2987,26 @@ function App(props: AppProps) {
     const contextActions = latestAssistantMsg?.suggestedActions?.length
         ? latestAssistantMsg.suggestedActions
         : [];
+    // UX-VIEWER-1.2B — derive starter actions from the home-meta hook
+    // (real Genie curated_questions OR pack evergreen). These replace
+    // the generic STATIC_ACTIONS ("Rank key drivers" / "Summarize for
+    // leadership" / "Run what-if") on the empty state. STATIC_ACTIONS
+    // stays as a final fallback only when the hook + home.suggestedActions
+    // both return empty.
+    const homeMetaActions: AssistantAction[] = (askPulseHomeMeta.data?.curatedQuestions ?? []).map(q => ({
+        id: q.id,
+        label: q.text,
+        kind: "ask",
+        prompt: q.text,
+        // `intent` left undefined — proxy categories ("numerical-distribution",
+        // "evergreen", etc.) don't map to the strict AssistantIntent enum and
+        // it's optional on AssistantAction.
+    }));
     const latestActions = contextActions.length > 0
         ? dedupeActions(contextActions)
-        : dedupeActions([...STATIC_ACTIONS, ...(home.suggestedActions ?? [])]);
+        : homeMetaActions.length > 0
+            ? dedupeActions(homeMetaActions)
+            : dedupeActions([...STATIC_ACTIONS, ...(home.suggestedActions ?? [])]);
 
     const handleSpaceSwitch = useCallback((key: SpaceKey) => {
         if (key === activeSpaceKey) return;
@@ -5794,6 +5826,7 @@ function App(props: AppProps) {
                                     kpiSnapshot={kpiSnapshotMap[activeSpaceKey] ?? null}
                                     kpiLoading={kpiLoadingMap[activeSpaceKey] ?? false}
                                     compact={messages.length > 0}
+                                    homeMeta={askPulseHomeMeta.data}
                                 />
                                 {messages.map(message => (
                                     <MessageCard
@@ -7830,9 +7863,32 @@ function WelcomeSection(props: {
      *  refer back to the probe answer — without duplicating Quick start /
      *  Try asking strips (which already render below the message list). */
     compact?: boolean;
+    /** UX-VIEWER-1.2B — Ask Pulse home metadata from `/assistant/home-meta`.
+     *  Provides displayName + description (the data identity block at the
+     *  top of the empty state) and the source provenance tag. Curated
+     *  questions are already plumbed via `latestActions`. Optional — when
+     *  absent, the empty state degrades to the role subtitle. */
+    homeMeta?: {
+        displayName: string | null;
+        description: string | null;
+        source: string;
+    };
 }) {
+    const showDataIdentity = !props.compact
+        && !!props.homeMeta
+        && (!!props.homeMeta.displayName || !!props.homeMeta.description);
     return (
         <div className={`gn-welcome${props.compact ? " gn-welcome--compact" : ""}`}>
+            {showDataIdentity && (
+                <div className="gn-welcome-identity" data-testid="askpulse-data-identity">
+                    {props.homeMeta?.displayName && (
+                        <h3 className="gn-welcome-identity__title">{props.homeMeta.displayName}</h3>
+                    )}
+                    {props.homeMeta?.description && (
+                        <p className="gn-welcome-identity__description">{props.homeMeta.description}</p>
+                    )}
+                </div>
+            )}
             {/* Option A — KPI preload panel. Shows when the background
                 Genie call has returned a snapshot. Falls back to either
                 the home.snapshot pills or the role subtitle when nothing

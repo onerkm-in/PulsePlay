@@ -1830,6 +1830,38 @@
     letter-spacing: 0.05em;
 }
 
+/* UX-VIEWER-1.2B — Data identity block at the top of the Ask Pulse empty
+   state. Mirrors the Databricks Genie home shape: the connected dataset's
+   title + a one-line description sit above the starter-question list so
+   users know what data their question will be answered against before
+   they ask it. Driven by the /assistant/home-meta proxy endpoint via the
+   useAskPulseHomeMeta hook — works for every backend (real Genie space
+   metadata for Genie profiles, pack-derived fallback for the rest). */
+.gn-welcome-identity {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+    max-width: 720px;
+    margin: 0 0 8px;
+    padding: 0 4px;
+}
+
+.gn-welcome-identity__title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--gn-text, inherit);
+    line-height: 1.25;
+}
+
+.gn-welcome-identity__description {
+    margin: 0;
+    font-size: 13px;
+    color: var(--gn-text-muted);
+    line-height: 1.4;
+}
+
 /* UX-VIEWER-1.2A — Genie-shape vertical starter list. Replaces the prior
    horizontal chip arrangement in the Ask Pulse empty state. Each question
    sits on its own row with a hairline divider; rows are full-width clickable
