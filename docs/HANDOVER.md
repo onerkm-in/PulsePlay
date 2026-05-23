@@ -5,6 +5,18 @@
 
 ---
 
+## 2026-05-23 - DevTools MCP Databricks feed mining
+
+**Scope.** Rajesh pointed at `D:\Working_Folder\Artifacts\Databricks_PulsePlay_Feed\DevToolMCPFeed` and asked to keep mining/discovering what is on offer. Added [research/DEVTOOLS_MCP_DATABRICKS_FEED_MINING_2026-05-23.md](research/DEVTOOLS_MCP_DATABRICKS_FEED_MINING_2026-05-23.md) and mirrored the same summary into the feed folder as `MINING-SUMMARY-20260523.md`.
+
+**Findings.** The feed captured a live signed-in Genie Space, safe network/API metadata, safe response bodies, screenshots, accessibility snapshots, console issues, traces, and a still-running continuous capture loop. Genie Space is a richer product surface than simple chat: metadata, run-as mode, schema, accepted instructions, curated/sample questions, generated SQL, progress/verification attachments, result manifests, visualization specs, comments, feedback, review, sharing, Monitor/Benchmark tabs, plus adjacent Genie Code / Model Serving / custom-code-agent evidence.
+
+**Decision.** PulsePlay should integrate through official Genie Conversation APIs and use DevTools MCP only as evidence for UX parity, debugging, and acceptance tests. Do not build production behavior against observed internal `/ajax-api/...` or UI GraphQL routes.
+
+**Validation.** Docs/evidence-only slice. Run `git diff --check`; no runtime tests required.
+
+---
+
 ## 2026-05-23 - Chrome DevTools MCP clone moved under Projects
 
 **Scope.** Rajesh asked to bring the Chrome DevTools MCP clone under the parent `Projects` folder. Moved the verified clone to `D:\Working_Folder\Projects\chrome-devtools-mcp`, verified HEAD `57f32b0` and upstream remote, removed the leftover `C:\tmp` stub, and removed the duplicate clean untracked `PulsePlay\chrome-devtools-mcp` copy after confirming it matched the same upstream HEAD.

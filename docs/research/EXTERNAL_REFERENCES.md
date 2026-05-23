@@ -10,6 +10,7 @@
 
 ## Topic index (newest first)
 
+- [2026-05-23 - DevTools MCP Databricks feed mining](#2026-05-23---devtools-mcp-databricks-feed-mining)
 - [2026-05-23 - Chrome DevTools MCP tooling](#2026-05-23---chrome-devtools-mcp-tooling)
 - [2026-05-23 - Azure Databricks integration offering](#2026-05-23---azure-databricks-integration-offering)
 - [2026-05-23 — Enterprise UX architecture blueprint and typeahead system](#2026-05-23--enterprise-ux-architecture-blueprint-and-typeahead-system)
@@ -32,6 +33,26 @@
 - [2026-05-22 — Azure Databricks Apps enterprise installation guide](#2026-05-22--azure-databricks-apps-enterprise-installation-guide)
 - [2026-05-22 — Executive briefing card patterns (Ask Pulse narrative regression)](#2026-05-22--executive-briefing-card-patterns-ask-pulse-narrative-regression)
 - [2026-05-22 — Chart rationale popover design (data-shape-aware narrative + warnings)](#2026-05-22--chart-rationale-popover-design-data-shape-aware-narrative--warnings)
+
+---
+
+## 2026-05-23 - DevTools MCP Databricks feed mining
+
+**Context.** Mined the local signed-in Chrome DevTools MCP capture feed at `D:\Working_Folder\Artifacts\Databricks_PulsePlay_Feed\DevToolMCPFeed` and cross-checked the product/API interpretation against official Azure Databricks docs. Applied in [DEVTOOLS_MCP_DATABRICKS_FEED_MINING_2026-05-23.md](DEVTOOLS_MCP_DATABRICKS_FEED_MINING_2026-05-23.md).
+
+| URL (signature) | Title / publisher | One-line takeaway | Applied to |
+|---|---|---|---|
+| https://learn.microsoft.com/en-us/azure/databricks/genie/conversation-api | Azure Databricks - Genie Conversation API | Official app-integration path for stateful Genie conversations, management APIs, and query-result retrieval. | Production integration posture |
+| https://learn.microsoft.com/en-us/azure/databricks/genie/ | Azure Databricks - What is a Genie space | Genie spaces are curated NL analytics spaces with metadata, instructions, sample queries, feedback, and governance. | Genie Space product model |
+| https://learn.microsoft.com/azure/databricks/workspace/genie | Azure Databricks - Genie UI | Genie UI aggregates dashboards, Genie Spaces, and Databricks Apps for business users. | Destination surface model |
+| https://learn.microsoft.com/en-us/azure/databricks/dashboards/genie-spaces | Azure Databricks - Genie spaces with dashboards | Published dashboards can include companion Genie spaces; external embedding should use the Genie Conversation API. | Embed caveat |
+| https://learn.microsoft.com/en-us/azure/databricks/genie-code/ | Azure Databricks - Genie Code | Genie Code is a Databricks-native autonomous AI partner integrated across workspace surfaces. | Adjacent AI surface |
+| https://learn.microsoft.com/en-us/azure/databricks/genie-code/use-genie-code | Azure Databricks - Use Genie Code | Genie Code provides context-aware help, documentation-sourced answers, and Agent mode for multi-step tasks. | Genie Code interpretation |
+| https://learn.microsoft.com/en-us/azure/databricks/genie-code/mcp | Azure Databricks - Connect Genie Code to MCP servers | Databricks itself is leaning into MCP for making external context available to Genie Code. | MCP strategy |
+| https://learn.microsoft.com/en-us/azure/databricks/machine-learning/model-serving/ | Azure Databricks - Mosaic AI Model Serving | Model Serving provides governed APIs for custom, foundation, and external models and is accessible through AI Playground. | Agent/model endpoint posture |
+| https://learn.microsoft.com/en-us/azure/databricks/machine-learning/model-serving/custom-models | Azure Databricks - Custom models overview | Custom Python/MLflow models and code can be served through Databricks endpoints. | Custom code agent evidence |
+| https://learn.microsoft.com/en-us/azure/databricks/machine-learning/model-serving/model-serving-limits | Azure Databricks - Model Serving limits and regions | Custom model and AI agent endpoints have workspace/resource limits that affect deployment. | Quota caveat |
+| https://learn.microsoft.com/en-us/azure/databricks/ai-bi/tools | Azure Databricks - Business intelligence tools | AI/BI includes dashboards and Genie spaces, plus external BI tool connection paths. | BI/AI positioning |
 
 ---
 
