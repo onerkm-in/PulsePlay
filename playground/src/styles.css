@@ -402,8 +402,19 @@ html, body, #root {
 .pp-ai-sidebar__error   { color: var(--pp-error); margin-top: var(--pp-s1); }
 .pp-ai-sidebar__composer {
     display: flex;
+    flex-direction: column;
+    gap: var(--pp-s2);
+}
+.pp-ai-sidebar__composer-row {
+    display: flex;
     gap: var(--pp-s2);
     align-items: flex-start;
+}
+.pp-ai-sidebar__composer-footer {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    min-height: 22px;
 }
 .pp-ai-sidebar__input {
     flex: 1;

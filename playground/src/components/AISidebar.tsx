@@ -785,6 +785,12 @@ export function AISidebar(props: AISidebarProps) {
                 ))}
             </div>
             <div className="pp-ai-sidebar__composer">
+                {/* UX-VIEWER-1.3 fix-up — composer is now a vertical stack:
+                    FramePicker row, then [textarea + buttons], then a small
+                    right-aligned footer holding the sustainability chip.
+                    Previously the composer was a single flex row containing
+                    all of these, which crushed the textarea to ~30 px when
+                    the FramePicker took its full width. */}
                 <FramePicker
                     snapshot={snapshot}
                     loading={discoveryLoading}
@@ -792,51 +798,55 @@ export function AISidebar(props: AISidebarProps) {
                     onChange={setSelectedFrame}
                     compact
                 />
-                <textarea
-                    className="pp-ai-sidebar__input"
-                    rows={3}
-                    value={question}
-                    onChange={(e) => setQuestion(e.target.value)}
-                    placeholder="Ask about the loaded view…"
-                    onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) void ask(); }}
-                />
-                <div className="pp-ai-sidebar__buttons" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    <button
-                        type="button"
-                        className="pp-ai-sidebar__ask"
-                        onClick={() => void ask()}
-                        disabled={!question.trim()}
-                    >
-                        Ask
-                    </button>
-                    <button
-                        type="button"
-                        className="pp-ai-sidebar__stop"
-                        onClick={() => {
-                            // Stop the most recent in-flight entry. There's
-                            // usually only one because the textarea blocks
-                            // until the user submits the next question.
-                            const inFlight = [...history].reverse().find(
-                                h => h.status === "submitting" || h.status === "polling",
-                            );
-                            if (inFlight) stopEntry(inFlight.id, "stopped by user");
-                        }}
-                        disabled={!hasInFlight}
-                        style={{
-                            padding: "6px 12px",
-                            border: "1px solid var(--pp-border)",
-                            background: "var(--pp-surface)",
-                            color: "var(--pp-text)",
-                            borderRadius: 4,
-                            fontSize: 12,
-                            cursor: hasInFlight ? "pointer" : "not-allowed",
-                        }}
-                    >
-                        Stop
-                    </button>
+                <div className="pp-ai-sidebar__composer-row">
+                    <textarea
+                        className="pp-ai-sidebar__input"
+                        rows={3}
+                        value={question}
+                        onChange={(e) => setQuestion(e.target.value)}
+                        placeholder="Ask about the loaded view…"
+                        onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) void ask(); }}
+                    />
+                    <div className="pp-ai-sidebar__buttons" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <button
+                            type="button"
+                            className="pp-ai-sidebar__ask"
+                            onClick={() => void ask()}
+                            disabled={!question.trim()}
+                        >
+                            Ask
+                        </button>
+                        <button
+                            type="button"
+                            className="pp-ai-sidebar__stop"
+                            onClick={() => {
+                                // Stop the most recent in-flight entry. There's
+                                // usually only one because the textarea blocks
+                                // until the user submits the next question.
+                                const inFlight = [...history].reverse().find(
+                                    h => h.status === "submitting" || h.status === "polling",
+                                );
+                                if (inFlight) stopEntry(inFlight.id, "stopped by user");
+                            }}
+                            disabled={!hasInFlight}
+                            style={{
+                                padding: "6px 12px",
+                                border: "1px solid var(--pp-border)",
+                                background: "var(--pp-surface)",
+                                color: "var(--pp-text)",
+                                borderRadius: 4,
+                                fontSize: 12,
+                                cursor: hasInFlight ? "pointer" : "not-allowed",
+                            }}
+                        >
+                            Stop
+                        </button>
+                    </div>
+                </div>
+                <div className="pp-ai-sidebar__composer-footer">
+                    <SustainabilityIndicator chip showReset />
                 </div>
             </div>
-            <SustainabilityIndicator showReset />
         </section>
     );
 }
