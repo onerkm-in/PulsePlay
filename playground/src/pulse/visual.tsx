@@ -169,7 +169,8 @@ import { useAskPulseHomeMeta } from "../features/config/useAskPulseHomeMeta";
 import "../visualization/translators";  // side-effect: registers translators
 import { resolveChartSpec } from "../visualization/translators";
 import { irMarkToChartKind } from "../visualization/chartIR";
-import { SustainabilityIndicator } from "../components/SustainabilityIndicator";
+// SustainabilityIndicator is mounted once in App.tsx as a fixed bottom-right
+// orb; pulse/visual.tsx no longer renders its own chip.
 // Wave 44 — Power BI theme inheritance + per-element typography. Pure
 // helpers; the Visual class flushes the resulting plan onto `this.target`.
 import { planThemeWrites, applyThemeWrites } from "./themeInheritance";
@@ -6085,15 +6086,12 @@ function App(props: AppProps) {
                     )}
 
                     <div className="gn-compose">
-                        {/* UX-VIEWER-1.3 — sustainability chip docked above the
-                            input. Tiny inline pill (animated leaf + tier label)
-                            with the same hover/click panel as the legacy
-                            full-width gauge. Replaces the unsignposted footer
-                            slab with a glanceable in-context cue near where
-                            the user is typing. */}
-                        <div className="gn-compose-footer-row">
-                            <SustainabilityIndicator chip />
-                        </div>
+                        {/* UX-ARCH-0B.2 follow-up 2026-05-23 — sustainability
+                            chip removed from the composer. The single-source
+                            sustainability gauge now lives as a fixed orb in
+                            the bottom-right of the viewport (mounted once in
+                            App.tsx); duplicate mounts here cluttered the chat
+                            input area without adding signal. */}
                         <div className="gn-compose-input-wrap" title="Enter to send · Shift+Enter for new line">
                             <textarea
                                 className="gn-input"

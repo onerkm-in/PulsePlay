@@ -26,6 +26,7 @@ import type { BIAdapter, BICapabilities, BICommand, BIEvent, BIEmbedConfig } fro
 import type powerbi from "./pulse/_adapter/powerbi-visuals-api";
 import { Icon } from "./pulse/_adapter/Icon";
 import { AISidebar, type AnswerEntry, type AutoSubmitQuestionEvent } from "./components/AISidebar";
+import { SustainabilityIndicator } from "./components/SustainabilityIndicator";
 import { entryToAIResultEnvelope } from "./visualization/entryToEnvelope";
 // Phase A 2026-05-23 — VendorPicker / ConnectorPicker / EmbedConfigForm
 // were the main-viewport pickers leaking the Settings UI. They now live
@@ -1695,6 +1696,23 @@ function PlaygroundApp(): React.ReactElement {
                     onRestore={handleShowBothPanes}
                 />
             )}
+            </div>
+            {/* UX-ARCH-0B.2 follow-up 2026-05-23 — single-source sustainability
+                gauge as a fixed bottom-right orb (36px gradient circle with
+                animated leaf emoji). Replaces the duplicate chip mounts that
+                cluttered both the AISidebar composer and the Pulse compose
+                footer. Hover/click opens the existing panel with tier copy.
+                One mount, whole app, no clutter near the chat input. */}
+            <div
+                style={{
+                    position: "fixed",
+                    right: 20,
+                    bottom: 20,
+                    zIndex: 50,
+                    pointerEvents: "auto",
+                }}
+            >
+                <SustainabilityIndicator orb />
             </div>
         </div>
     );

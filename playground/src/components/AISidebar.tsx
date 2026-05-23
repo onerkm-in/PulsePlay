@@ -31,7 +31,8 @@ import type { BIEvent } from "../biPanel/BIAdapter";
 import type { PackSelection } from "./PackPicker";
 import { FramePicker } from "./FramePicker";
 import { getDiscoverySnapshot, type DiscoverySnapshot, type ReachableFrame } from "../lib/discoveryClient";
-import { SustainabilityIndicator } from "./SustainabilityIndicator";
+// SustainabilityIndicator is mounted once in App.tsx as a fixed bottom-right
+// orb; AISidebar no longer renders its own chip.
 import { recordResponse as recordUsageResponse } from "../lib/usageTracker";
 import { EvidenceDrawer, type EvidenceItem } from "./EvidenceDrawer";
 import { dumpRun, resetRun, stageEnd, stageStart } from "../lib/perfInstrumentation";
@@ -859,9 +860,10 @@ export function AISidebar(props: AISidebarProps) {
                         </button>
                     </div>
                 </div>
-                <div className="pp-ai-sidebar__composer-footer">
-                    <SustainabilityIndicator chip showReset />
-                </div>
+                {/* UX-ARCH-0B.2 follow-up 2026-05-23 — sustainability chip
+                    removed from the composer. The single-source sustainability
+                    gauge lives once in App.tsx as a fixed bottom-right orb;
+                    duplicate mounts cluttered the input area without signal. */}
             </div>
         </section>
     );

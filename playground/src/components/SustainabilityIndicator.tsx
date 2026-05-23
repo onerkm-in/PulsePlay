@@ -38,6 +38,15 @@ export interface SustainabilityIndicatorProps {
      * drill into the tier explanation and token detail.
      */
     chip?: boolean;
+    /**
+     * UX-ARCH-0B.2 follow-up 2026-05-23 — single-gauge orb mode. When true
+     * the indicator renders as a 36px gradient circle with just the leaf
+     * emoji inside. Designed to live in ONE place across the whole app
+     * (fixed bottom-right of the viewport) so users don't see duplicate
+     * chips next to the composer. Hover/click still opens the same panel
+     * with tier explanation and token detail.
+     */
+    orb?: boolean;
 }
 
 // ── Animation keyframes injected once ────────────────────────────────────
@@ -181,6 +190,83 @@ export function SustainabilityIndicator(props: SustainabilityIndicatorProps): Re
         : `${usage.hasEstimates && !usage.hasRealData ? "~" : ""}${_formatTokens(usage.totalTokens)} tokens · ${usage.questionCount} question${usage.questionCount === 1 ? "" : "s"}`;
 
     const isChip = !!props.chip;
+    const isOrb = !!props.orb;
+
+    // UX-ARCH-0B.2 follow-up 2026-05-23 — single-gauge ORB mode. 36px gradient
+    // circle with just the leaf emoji inside; tier color drives the gradient.
+    // Hover/click opens the existing panel so the explanation copy is unchanged.
+    // Designed for ONE fixed mount across the whole app — no duplicates.
+    if (isOrb) {
+        return (
+            <div
+                ref={rootRef}
+                className="pp-sustainability pp-sustainability--orb"
+                data-testid="pp-sustainability"
+                data-tier={usage.tier}
+                onMouseEnter={() => setHover(true)}
+                onMouseLeave={() => setHover(false)}
+                onFocus={() => setHover(true)}
+                onBlur={(e) => {
+                    if (!rootRef.current?.contains(e.relatedTarget as Node)) setHover(false);
+                }}
+                onClick={() => setPinned(p => !p)}
+                tabIndex={0}
+                role="status"
+                aria-label={`Session sustainability: ${label}. ${tagline}`}
+                aria-expanded={isOpen}
+                title={`Session sustainability — ${label}. Click for details.`}
+                style={{
+                    position: "relative",
+                    width: 36,
+                    height: 36,
+                    borderRadius: "50%",
+                    background: `radial-gradient(circle at 30% 30%, ${color}ee 0%, ${color}bb 55%, ${color}66 100%)`,
+                    boxShadow: `0 4px 14px ${color}55, 0 0 0 2px #ffffffaa inset`,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    userSelect: "none",
+                    lineHeight: 1,
+                    transition: "transform 120ms ease",
+                    border: "1px solid #ffffff80",
+                }}
+            >
+                <span
+                    aria-hidden="true"
+                    style={{
+                        fontSize: 18,
+                        lineHeight: 1,
+                        animation: anim,
+                        transformOrigin: "center center",
+                        willChange: anim !== "none" ? "transform, opacity" : "auto",
+                    }}
+                >
+                    {leaf}
+                </span>
+                {/* Hidden text label for screen readers + dev tooling */}
+                <span
+                    className="pp-sustainability__label"
+                    data-testid="pp-sustainability-label"
+                    style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}
+                >
+                    {label}
+                </span>
+                {isOpen && (
+                    <Panel
+                        usage={usage}
+                        label={label}
+                        tagline={tagline}
+                        color={color}
+                        leaf={leaf}
+                        face={face}
+                        tokenNote={tokenNote}
+                        chip
+                    />
+                )}
+            </div>
+        );
+    }
 
     return (
         <div

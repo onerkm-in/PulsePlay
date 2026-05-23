@@ -136,6 +136,36 @@ describe("SustainabilityIndicator — rendering states", () => {
         unmount(state);
     });
 
+    // UX-ARCH-0B.2 follow-up — single-gauge ORB mode. 36px gradient circle,
+    // leaf emoji only (no face, no inline label). The hidden SR-only label
+    // is still present so screen readers announce the tier; the visible
+    // chip-mode token count is suppressed.
+    it("orb mode renders a 36px circle with the leaf emoji and hidden label", () => {
+        const state = mount(<SustainabilityIndicator override={leanUsage()} orb />);
+        const root = state.container.querySelector("[data-testid='pp-sustainability']") as HTMLElement;
+        expect(root.className).toContain("pp-sustainability--orb");
+        // Tier color drives the radial gradient.
+        expect(root.style.borderRadius).toBe("50%");
+        // The hidden SR-only label survives so a11y is intact.
+        const label = state.container.querySelector("[data-testid='pp-sustainability-label']");
+        expect(label?.textContent).toBe("Lean");
+        // The inline token count is NOT rendered in orb mode (it's in the
+        // panel that opens on hover instead).
+        const tokens = state.container.querySelector("[data-testid='pp-sustainability-tokens']");
+        expect(tokens).toBeNull();
+        unmount(state);
+    });
+
+    it("orb mode panel still opens on focus and surfaces the token detail", () => {
+        const state = mount(<SustainabilityIndicator override={leanUsage()} orb />);
+        const root = state.container.querySelector("[data-testid='pp-sustainability']") as HTMLElement;
+        act(() => { root.focus(); });
+        const tt = state.container.querySelector("[data-testid='pp-sustainability-tooltip']");
+        expect(tt).not.toBeNull();
+        expect(tt!.textContent || "").toMatch(/1\.5k.*tokens/);
+        unmount(state);
+    });
+
     it("prefixes a '~' marker when token counts are estimates only", () => {
         const estimated: SessionUsage = {
             ...leanUsage(),
