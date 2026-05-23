@@ -504,36 +504,56 @@ export function SetupGroup(): React.ReactElement {
 
     return (
         <section aria-labelledby="settings-setup-title" className="pp-setup" style={{ maxWidth: "100%", margin: 0 }}>
-            {/* Header Area */}
-            <header className="pp-setup__head" style={{ borderBottom: "1px solid var(--pp-border-subtle, rgba(0,0,0,0.06))", paddingBottom: 16 }}>
-                <div>
-                    <h2 id="settings-setup-title" className="pp-setup__title">
-                        Setup
-                    </h2>
-                    <p className="pp-setup__subtitle">{setupSubtitle}</p>
-                </div>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    {/* Top-right pill: readiness state + Preview as Viewer action.
-                       The pill body is the status badge; the trailing button reveals
-                       the viewer-side rendering surface so authors can sanity-check
-                       what end users will see without leaving the Setup flow. The
-                       Pulse-era persona toggle's preview function lives here now. */}
-                    <div className="pp-setup__readiness pp-setup__pill" style={{ margin: 0 }}>
-                        <span
-                            className={`pp-settings-chip pp-settings-chip--${pillState.tone}`}
-                            style={{ cursor: "default", transform: "none" }}
-                        >
-                            <span className="pp-settings-chip__dot" />
-                            <span className="pp-settings-chip__label">{pillState.label}</span>
-                        </span>
-                        <a
-                            href="/ai-insights"
-                            className="pp-setup__pill-action"
-                            title={pillState.tone === "ok" ? "Open the viewer-side rendering surface" : "Open viewer rendering (partial config — viewer may see limited results)"}
-                        >
-                            👁 Preview as viewer →
-                        </a>
-                    </div>
+            {/* UX-ARCH-0B.2 follow-up 2026-05-23 — title + subtitle visually
+                hidden. The page already says "Settings" + gear icon up top and
+                the rail makes the active group obvious; a giant duplicate "Setup"
+                h2 was wasting vertical space. Title kept as sr-only so a11y
+                consumers + existing tests still find the labelledby anchor.
+                The previous subtitle copy lives in a hoverable (?) info pill
+                next to the readiness pill so authors can still read it when
+                they want it. */}
+            <header className="pp-setup__head" style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, paddingBottom: 8, borderBottom: "1px solid var(--pp-border-subtle, rgba(0,0,0,0.06))" }}>
+                <h2 id="settings-setup-title" className="pp-setup__title" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>
+                    Setup
+                </h2>
+                <p className="pp-setup__subtitle" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>{setupSubtitle}</p>
+                <button
+                    type="button"
+                    aria-label="About this page"
+                    title={setupSubtitle}
+                    style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: "50%",
+                        border: "1px solid var(--pp-border, rgba(0,0,0,0.18))",
+                        background: "var(--pp-surface, #fff)",
+                        color: "var(--pp-text-muted, #6b7280)",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: "help",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                    }}
+                >
+                    i
+                </button>
+                {/* Top-right pill: readiness state + Preview as Viewer action. */}
+                <div className="pp-setup__readiness pp-setup__pill" style={{ margin: 0 }}>
+                    <span
+                        className={`pp-settings-chip pp-settings-chip--${pillState.tone}`}
+                        style={{ cursor: "default", transform: "none" }}
+                    >
+                        <span className="pp-settings-chip__dot" />
+                        <span className="pp-settings-chip__label">{pillState.label}</span>
+                    </span>
+                    <a
+                        href="/ai-insights"
+                        className="pp-setup__pill-action"
+                        title={pillState.tone === "ok" ? "Open the viewer-side rendering surface" : "Open viewer rendering (partial config — viewer may see limited results)"}
+                    >
+                        👁 Preview as viewer →
+                    </a>
                 </div>
             </header>
 

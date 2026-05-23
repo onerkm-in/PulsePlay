@@ -40,23 +40,24 @@ export function BiGroup(): React.ReactElement {
     ];
     const completedBiGates = biSetupGates.filter(g => g.done).length;
 
+    const biIntroText = "Everything BI-side — vendor, surface mode, embed config, sandbox, governance. Vendor-agnostic by design; one set of controls handles Power BI, Tableau, Qlik, Looker, generic iframe, and the native canvas.";
+
     return (
         <section aria-labelledby="settings-bi-title">
-            <header style={{ marginBottom: 20 }}>
-                <h2 id="settings-bi-title" style={{ margin: 0, fontSize: 20 }}>BI Setup</h2>
-                <p style={{ margin: "4px 0 0", opacity: 0.7, fontSize: 13 }}>
-                    Everything BI-side — vendor, surface mode, embed config, sandbox, governance. Vendor-agnostic by design; one set of controls handles Power BI, Tableau, Qlik, Looker, generic iframe, and the native canvas.
-                </p>
-                {/* UX-ARCH-0B.2 Phase E — progressive step indicator. */}
+            {/* UX-ARCH-0B.2 follow-up 2026-05-23 — h2 + intro hidden; intro
+                lives on the (i) tooltip. Page id is already obvious from rail
+                + status strip. */}
+            <h2 id="settings-bi-title" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>BI Setup</h2>
+            <header style={{ marginBottom: 16 }}>
                 <div
                     role="status"
                     aria-label={`BI setup progress: ${completedBiGates} of ${biSetupGates.length} steps complete`}
                     style={{
-                        marginTop: 12,
                         display: "flex",
                         gap: 8,
                         flexWrap: "wrap",
-                        padding: "10px 12px",
+                        alignItems: "center",
+                        padding: "8px 12px",
                         background: completedBiGates === biSetupGates.length
                             ? "rgba(34, 197, 94, 0.06)"
                             : "rgba(245, 158, 11, 0.05)",
@@ -90,6 +91,28 @@ export function BiGroup(): React.ReactElement {
                             <span>{g.label}</span>
                         </span>
                     ))}
+                    <button
+                        type="button"
+                        aria-label="About BI Setup"
+                        title={biIntroText}
+                        style={{
+                            marginLeft: "auto",
+                            width: 20,
+                            height: 20,
+                            borderRadius: "50%",
+                            border: "1px solid rgba(0,0,0,0.18)",
+                            background: "var(--pp-surface, #fff)",
+                            color: "var(--pp-text-muted, #6b7280)",
+                            fontSize: 11,
+                            fontWeight: 600,
+                            cursor: "help",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                        }}
+                    >
+                        i
+                    </button>
                 </div>
             </header>
 

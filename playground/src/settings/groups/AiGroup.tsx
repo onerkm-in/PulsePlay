@@ -152,23 +152,26 @@ export function AiGroup(): React.ReactElement {
     ];
     const completedGates = aiSetupGates.filter(g => g.done).length;
 
+    const aiIntroText = "Everything AI-side — connector, knowledge pack, AI Insights config, Ask Pulse config, Vector Search, UC Metric View. One assistant powers both AI Insights and Ask Pulse; change once, both benefit.";
+
     return (
         <section aria-labelledby="settings-ai-title">
-            <header style={{ marginBottom: 20 }}>
-                <h2 id="settings-ai-title" style={{ margin: 0, fontSize: 20 }}>AI Setup</h2>
-                <p style={{ margin: "4px 0 0", opacity: 0.7, fontSize: 13 }}>
-                    Everything AI-side — connector, knowledge pack, AI Insights config, Ask Pulse config, Vector Search, UC Metric View. One assistant powers both AI Insights and Ask Pulse; change once, both benefit.
-                </p>
-                {/* UX-ARCH-0B.2 Phase D — progressive step indicator. */}
+            {/* UX-ARCH-0B.2 follow-up 2026-05-23 — h2 + intro paragraph now
+                visually hidden. The page already shows "Settings" + gear at
+                top and the rail marks the active group; a duplicate "AI Setup"
+                heading was wasted space. Intro text lives on the (i) button's
+                tooltip + the gate ribbon's own labels carry the same scope info. */}
+            <h2 id="settings-ai-title" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>AI Setup</h2>
+            <header style={{ marginBottom: 16 }}>
                 <div
                     role="status"
                     aria-label={`AI setup progress: ${completedGates} of ${aiSetupGates.length} steps complete`}
                     style={{
-                        marginTop: 12,
                         display: "flex",
                         gap: 8,
                         flexWrap: "wrap",
-                        padding: "10px 12px",
+                        alignItems: "center",
+                        padding: "8px 12px",
                         background: completedGates === aiSetupGates.length
                             ? "rgba(34, 197, 94, 0.06)"
                             : "rgba(245, 158, 11, 0.05)",
@@ -202,6 +205,28 @@ export function AiGroup(): React.ReactElement {
                             <span>{g.label}</span>
                         </span>
                     ))}
+                    <button
+                        type="button"
+                        aria-label="About AI Setup"
+                        title={aiIntroText}
+                        style={{
+                            marginLeft: "auto",
+                            width: 20,
+                            height: 20,
+                            borderRadius: "50%",
+                            border: "1px solid rgba(0,0,0,0.18)",
+                            background: "var(--pp-surface, #fff)",
+                            color: "var(--pp-text-muted, #6b7280)",
+                            fontSize: 11,
+                            fontWeight: 600,
+                            cursor: "help",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                        }}
+                    >
+                        i
+                    </button>
                 </div>
             </header>
 

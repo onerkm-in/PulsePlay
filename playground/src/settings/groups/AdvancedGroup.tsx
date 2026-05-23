@@ -46,9 +46,10 @@ export function AdvancedGroup(): React.ReactElement {
     return (
         <section aria-labelledby="settings-advanced-title">
             <header style={{ marginBottom: 20 }}>
-                <h2 id="settings-advanced-title" style={{ margin: 0, fontSize: 20 }}>Advanced</h2>
-                <p style={{ margin: "4px 0 0", opacity: 0.7, fontSize: 13 }}>
-                    Performance levers, diagnostics, developer tools, and destructive maintenance. Phase F (queued) will split this into Advanced AI / Advanced BI / Shared sub-tabs; today the controls live in one stream.
+                {/* UX-ARCH-0B.2 follow-up 2026-05-23 — h2 + intro hidden. */}
+                <h2 id="settings-advanced-title" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>Advanced</h2>
+                <p style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>
+                    Performance levers, diagnostics, developer tools, and destructive maintenance.
                 </p>
             </header>
 

@@ -108,8 +108,9 @@ export function SystemGroup(): React.ReactElement {
     return (
         <section aria-labelledby="settings-system-title">
             <header style={{ marginBottom: 20 }}>
-                <h2 id="settings-system-title" style={{ margin: 0, fontSize: 20 }}>System</h2>
-                <p style={{ margin: "4px 0 0", opacity: 0.7, fontSize: 13 }}>
+                {/* UX-ARCH-0B.2 follow-up 2026-05-23 — h2 + intro hidden. */}
+                <h2 id="settings-system-title" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>System</h2>
+                <p style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>
                     Is it safe, and is anything broken — proxy health, governance, diagnostics, tools.
                 </p>
             </header>

@@ -44,9 +44,11 @@ export function PreferencesGroup(): React.ReactElement {
     return (
         <section aria-labelledby="settings-preferences-title">
             <header style={{ marginBottom: 20 }}>
-                <h2 id="settings-preferences-title" style={{ margin: 0, fontSize: 20 }}>Display</h2>
-                <p style={{ margin: "4px 0 0", opacity: 0.7, fontSize: 13 }}>
-                    How the playground looks — theme, density, layout, AI position, canvas tiles. Industry convention puts visual preferences at the top so we follow suit.
+                {/* UX-ARCH-0B.2 follow-up 2026-05-23 — h2 + intro visually
+                    hidden. Rail + page chrome already identify the group. */}
+                <h2 id="settings-preferences-title" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>Display</h2>
+                <p style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>
+                    How the playground looks — theme, density, layout, AI position, canvas tiles.
                 </p>
             </header>
 
