@@ -80,6 +80,10 @@ export function SetupGroup(): React.ReactElement {
         { id: "ai", label: "Prompt preview (7 stages)", hint: "Synthesized prompt the AI receives at runtime (advanced — opens in AI Insights Developer Tools)", section: "AI Assistant", step: 2 },
         { id: "ai", label: "Domain guidance override", hint: "AI Insights domain-specific guidance textarea (advanced — opens in AI Insights Developer Tools)", section: "AI Assistant", step: 2 },
         { id: "ai", label: "Suggest from data", hint: "AI-assisted suggestion using bound dimensions and measures (advanced — opens in AI Insights Developer Tools)", section: "AI Assistant", step: 2 },
+        { id: "ai", label: "Metric direction rules", hint: "Per-metric Higher/Lower direction + Green/Amber/Red thresholds + aliases (advanced — opens in AI Insights Developer Tools)", section: "AI Assistant", step: 2 },
+        { id: "ai", label: "Metric thresholds (green/amber/red)", hint: "Color bands for KPI values; threshold ordering is validated automatically (advanced — opens in AI Insights Developer Tools)", section: "AI Assistant", step: 2 },
+        { id: "ai", label: "Metric-rules preset", hint: "Apply a domain preset of metric direction rules (advanced — opens in AI Insights Developer Tools)", section: "AI Assistant", step: 2 },
+        { id: "ai", label: "Metric aliases", hint: "Alternative names that should resolve to the same metric rule (advanced — opens in AI Insights Developer Tools)", section: "AI Assistant", step: 2 },
         { id: "pack", label: "Knowledge pack", hint: "CPG/FMCG, Retail/Digital, SaaS/Product, or none", section: "Knowledge Pack", step: 3 },
         { id: "gov", label: "Governance allowlist", hint: "Allowed BI providers and AI profiles", section: "Governance", step: 4 },
         { id: "gov", label: "Iframe sandbox policy", hint: "Allowlist and sandbox policy enforcement", section: "Governance", step: 4 },
@@ -482,7 +486,7 @@ export function SetupGroup(): React.ReactElement {
                 <input
                     type="search"
                     className="pp-setup__search-input"
-                    placeholder='Search settings (try: "domain guidance", "section editor", "sandbox")'
+                    placeholder='Search settings (try: "domain guidance", "metric direction", "sandbox")'
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     aria-label="Search setup fields"
@@ -752,7 +756,7 @@ export function SetupGroup(): React.ReactElement {
                                         <div className="pp-setup__callout-body">
                                             <strong className="pp-setup__callout-title">Advanced authoring (Pulse-ported)</strong>
                                             <p className="pp-setup__callout-desc">
-                                                Authoring mode, Section editor (HEADLINE / TRENDS / RISKS / RECOMMENDED ACTIONS), Prompt preview (7 stages), Domain guidance override, Suggest from data, and the 96-field search live in AI Insights Developer Tools.
+                                                Authoring mode, Section editor (HEADLINE / TRENDS / RISKS / RECOMMENDED ACTIONS), Prompt preview (7 stages), Domain guidance override, Suggest from data, Metric direction rules (Higher/Lower + Green/Amber/Red thresholds), and the 96-field search live in AI Insights Developer Tools.
                                             </p>
                                         </div>
                                         <a href="/ai-insights" className="pp-setup__callout-action">
