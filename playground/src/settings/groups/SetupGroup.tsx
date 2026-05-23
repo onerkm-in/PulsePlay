@@ -96,6 +96,22 @@ export function SetupGroup(): React.ReactElement {
         ).slice(0, 8);
     }, [searchQuery, searchIndex]);
 
+    // Adaptive page subtitle — makes the "everything stays editable" promise
+    // visible without a footnote. Computed from current section completion so
+    // the copy adapts on return visits (audit-honest: doesn't claim "done" if
+    // sections are still pending; doesn't claim "incomplete" if they're all OK).
+    const setupSubtitle = useMemo(() => {
+        const total = 5;
+        const completed = [1, 2, 3, 4, 5].filter(n => checkedSteps[n]).length;
+        if (completed === 0) {
+            return "Progressively configure your BI + AI experience. Each section stays editable on return visits.";
+        }
+        if (completed === total) {
+            return "All sections configured. Click any section to review or update.";
+        }
+        return `${completed} of ${total} sections configured. Continue where you left off, or jump to any bookmark.`;
+    }, [checkedSteps]);
+
     const defaultMeta = useMemo(() => ({
         bi: {
             source: hasVendorEmbedConfig ? "Saved embed configuration" : biSurfaceMode === "native" ? "Native canvas mode" : "Not configured",
@@ -412,13 +428,15 @@ export function SetupGroup(): React.ReactElement {
                     <h2 id="settings-setup-title" className="pp-setup__title">
                         Setup
                     </h2>
-                    <p className="pp-setup__subtitle">
-                        Progressively configure, validate, and preview your BI + AI integration draft. Active layout updates remain locally cached until published live.
-                    </p>
+                    <p className="pp-setup__subtitle">{setupSubtitle}</p>
                 </div>
-                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                    {/* Readiness chip */}
-                    <div className="pp-setup__readiness" style={{ margin: 0 }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    {/* Top-right pill: readiness state + Preview as Viewer action.
+                       The pill body is the status badge; the trailing button reveals
+                       the viewer-side rendering surface so authors can sanity-check
+                       what end users will see without leaving the Setup flow. The
+                       Pulse-era persona toggle's preview function lives here now. */}
+                    <div className="pp-setup__readiness pp-setup__pill" style={{ margin: 0 }}>
                         <span
                             className={`pp-settings-chip pp-settings-chip--${readiness.ready ? "ok" : "warn"}`}
                             style={{ cursor: "default", transform: "none" }}
@@ -426,6 +444,13 @@ export function SetupGroup(): React.ReactElement {
                             <span className="pp-settings-chip__dot" />
                             <span className="pp-settings-chip__label">{readiness.ready ? "Ready to preview" : "Config needed"}</span>
                         </span>
+                        <a
+                            href="/ai-insights"
+                            className="pp-setup__pill-action"
+                            title={readiness.ready ? "Open the viewer-side rendering surface" : "Open viewer rendering (partial config — viewer may see limited results)"}
+                        >
+                            👁 Preview as viewer →
+                        </a>
                     </div>
                 </div>
             </header>

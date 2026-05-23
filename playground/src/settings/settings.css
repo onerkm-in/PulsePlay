@@ -808,6 +808,36 @@
     line-height: 1;
 }
 
+/* Top-right pill: readiness chip + Preview-as-viewer action sit together */
+.pp-setup__pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 4px 2px 2px;
+    border: 1px solid var(--pp-border, rgba(15,23,42,0.10));
+    border-radius: 999px;
+    background: var(--pp-surface, #fff);
+}
+.pp-setup__pill-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(37, 99, 235, 0.08);
+    color: var(--pp-accent);
+    font-size: 11px;
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background-color 120ms ease;
+}
+.pp-setup__pill-action:hover,
+.pp-setup__pill-action:focus-visible {
+    background: rgba(37, 99, 235, 0.14);
+    outline: none;
+}
+
 /* Advanced authoring callout inside AI Assistant section */
 .pp-setup__callout {
     margin-top: 12px;
