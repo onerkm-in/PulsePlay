@@ -2690,6 +2690,186 @@ app.get('/assistant/knowledge/packs', (req, res) => {
     });
 });
 
+// UX-VIEWER-1.2B — Ask Pulse home metadata.
+//
+// Returns the data identity (displayName + description) + curated starter
+// questions for the active AI profile. Mirrors the Databricks Genie home
+// shape that we mined from the DevTools MCP capture (2026-05-23):
+//   1) GET /api/2.0/genie/spaces/{spaceId} → display_name + description
+//   2) serialized_space.sample_questions / common_questions → starter list
+// For non-Genie profiles, falls back to evergreen pack-derived questions so
+// every Ask Pulse home shows real, data-shaped suggestions regardless of
+// backend. Returns a unified shape with `source` so the FE can tag
+// provenance (genie | pack-fallback | genie-fetch-failed | no-profile).
+const _ASK_PULSE_HOME_EVERGREEN_STARTERS = Object.freeze({
+    default: {
+        displayName: null,
+        description: null,
+        questions: [
+            'What metrics matter most for this dataset?',
+            'Show me the top trends.',
+            'What anomalies or risks should I investigate?',
+        ],
+    },
+    'cpg-fmcg': {
+        displayName: 'CPG / FMCG',
+        description: 'Consumer-goods supply, sell-through, and category insights.',
+        questions: [
+            'Which SKUs lost velocity last month?',
+            'How is on-time delivery trending this quarter?',
+            'Which regions are over or under their inventory targets?',
+            'Where is margin pressure showing up across categories?',
+        ],
+    },
+    'retail-digital': {
+        displayName: 'E-Commerce & Digital Retail',
+        description: 'Merchandising velocity, growth-marketing performance, and digital-channel mix.',
+        questions: [
+            'Which campaigns drove the most growth this period?',
+            'What is the conversion funnel performance by channel?',
+            'Which product categories have the highest return rate?',
+            'How does CAC compare to LTV across segments?',
+        ],
+    },
+    'saas-product': {
+        displayName: 'SaaS & Digital Products',
+        description: 'ARR, NRR, retention cohorts, and growth-efficiency signals.',
+        questions: [
+            'How is ARR trending month over month?',
+            'What is the NRR by customer segment?',
+            'Which features drive retention vs churn?',
+            'How is LTV:CAC trending across recent cohorts?',
+        ],
+    },
+});
+
+function _askPulseEvergreenForPack(pack, _subVertical) {
+    const table = _ASK_PULSE_HOME_EVERGREEN_STARTERS[String(pack || '').trim()]
+        || _ASK_PULSE_HOME_EVERGREEN_STARTERS.default;
+    return {
+        displayName: table.displayName,
+        description: table.description,
+        curatedQuestions: table.questions.map((q, idx) => ({
+            id: `evergreen-${idx}`,
+            text: q,
+            category: 'evergreen',
+        })),
+    };
+}
+
+function _askPulseExtractCuratedQuestions(spaceData) {
+    if (!spaceData) return [];
+    // Try BOTH the top-level field (newer responses) AND the parsed
+    // serialized_space blob (current GA contract). Returns at most 5.
+    const candidates = [];
+    const ss = spaceData.serialized_space;
+    if (ss) {
+        try {
+            const parsed = typeof ss === 'string' ? JSON.parse(ss) : ss;
+            candidates.push(parsed?.sample_questions);
+            candidates.push(parsed?.common_questions);
+            candidates.push(parsed?.curated_questions);
+            candidates.push(parsed?.starter_questions);
+        } catch { /* malformed serialized_space — skip */ }
+    }
+    candidates.push(spaceData.sample_questions);
+    candidates.push(spaceData.curated_questions);
+    for (const candidate of candidates) {
+        if (!Array.isArray(candidate) || candidate.length === 0) continue;
+        const out = candidate.slice(0, 5).map((q, idx) => {
+            if (typeof q === 'string') {
+                const text = q.trim();
+                return text ? { id: `curated-${idx}`, text: text.slice(0, 500), category: 'general' } : null;
+            }
+            if (q && typeof q === 'object') {
+                const text = String(q.question_text || q.text || q.question || '').trim().slice(0, 500);
+                if (!text) return null;
+                return {
+                    id: String(q.id || q.question_id || `curated-${idx}`),
+                    text,
+                    category: String(q.category || q.question_type || 'general').toLowerCase(),
+                };
+            }
+            return null;
+        }).filter(Boolean);
+        if (out.length > 0) return out;
+    }
+    return [];
+}
+
+app.get('/assistant/home-meta', async (req, res) => {
+    const resolved = resolveProfile(req.query, {}, req.headers, req);
+    const pack = String(req.query.pack || '').trim();
+    const subVertical = String(req.query.subVertical || '').trim();
+
+    // No profile resolved → return the default evergreen shape so the FE
+    // can still render a sensible Ask Pulse home before configuration.
+    if (!resolved) {
+        return res.json({
+            ..._askPulseEvergreenForPack(pack, subVertical),
+            source: 'no-profile',
+            fetchedAt: new Date().toISOString(),
+        });
+    }
+
+    const profile = resolved.profile;
+    const profileType = profile.type || (profile.spaceId ? 'genie' : 'unknown');
+
+    // Genie path — fetch real space metadata + sample_questions. On any
+    // failure, fall through to the pack-derived evergreen list rather
+    // than surfacing a Databricks error to the Ask Pulse home (the
+    // existing allowlist chip already covers the "proxy unreachable"
+    // signal; this endpoint should never break the home).
+    if (profileType === 'genie' && profile.spaceId) {
+        try {
+            const data = await databricksRequest(
+                profile, 'GET',
+                `/api/2.0/genie/spaces/${encodeURIComponent(profile.spaceId)}?include_serialized_space=true`,
+                null, req.requestId,
+            );
+            const displayName = String(data?.title || data?.display_name || '').slice(0, 200) || null;
+            const description = String(data?.description || '').slice(0, 1000) || null;
+            const curatedQuestions = _askPulseExtractCuratedQuestions(data);
+            if (curatedQuestions.length === 0) {
+                // Space exists but has no curated questions — combine its
+                // identity with the pack evergreen questions so the user
+                // still sees data-relevant suggestions.
+                const fallback = _askPulseEvergreenForPack(pack, subVertical);
+                return res.json({
+                    displayName: displayName || fallback.displayName,
+                    description: description || fallback.description,
+                    curatedQuestions: fallback.curatedQuestions,
+                    source: 'genie-no-curated',
+                    spaceId: profile.spaceId,
+                    fetchedAt: new Date().toISOString(),
+                });
+            }
+            return res.json({
+                displayName,
+                description,
+                curatedQuestions,
+                source: 'genie',
+                spaceId: profile.spaceId,
+                fetchedAt: new Date().toISOString(),
+            });
+        } catch (err) {
+            console.warn('[home-meta] genie space fetch failed:', err?.message || String(err));
+            return res.json({
+                ..._askPulseEvergreenForPack(pack, subVertical),
+                source: 'genie-fetch-failed',
+                fetchedAt: new Date().toISOString(),
+            });
+        }
+    }
+
+    // All non-Genie profile types — pack-derived evergreen list.
+    return res.json({
+        ..._askPulseEvergreenForPack(pack, subVertical),
+        source: 'pack-fallback',
+        fetchedAt: new Date().toISOString(),
+    });
+});
+
 // Phase 8 (KB UI) — single-pack detail endpoint. Returns the full
 // glossary/ontology/references + sub-vertical list + demo configs +
 // readme content so the Knowledge Base page can render without N + 1
