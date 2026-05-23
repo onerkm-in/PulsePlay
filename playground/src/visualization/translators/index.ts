@@ -12,16 +12,22 @@
 
 import { registerChartTranslator, heuristicTranslator } from "./registry";
 import { heliosTranslator } from "./helios";
+import { vegaLiteTranslator } from "./vegaLite";
 
 // Order matters: more-specific shape detectors register first. The
 // heuristic adapter (detect: () => true) MUST be last so vendor-
 // specific translators get first shot at every chart.
 //
-// FUTURE: register additional vendor translators BEFORE the heuristic:
-//   import { vegaLiteTranslator } from "./vegaLite";  // UX-VIEWER-1.7b.3
-//   registerChartTranslator(vegaLiteTranslator);
+// Registration order — most-specific to most-general:
+//   1. HELIOS — requires chart_library === "HELIOS" + status === "GENERATED"
+//      and parses a definition JSON. Very specific shape signature.
+//   2. Vega-Lite — requires $schema referencing vega-lite OR a top-level
+//      mark field. Catches Cortex Agents, Looker CA, Streamlit, future
+//      Vega-Lite-emitting backends.
+//   3. Heuristic — detect: () => true. Last resort fallback.
 
 registerChartTranslator(heliosTranslator);
+registerChartTranslator(vegaLiteTranslator);
 registerChartTranslator(heuristicTranslator);
 
 export {
