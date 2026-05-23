@@ -27,9 +27,9 @@ import type powerbi from "./pulse/_adapter/powerbi-visuals-api";
 import { Icon } from "./pulse/_adapter/Icon";
 import { AISidebar, type AnswerEntry, type AutoSubmitQuestionEvent } from "./components/AISidebar";
 import { entryToAIResultEnvelope } from "./visualization/entryToEnvelope";
-import { VendorPicker } from "./components/VendorPicker";
-import { ConnectorPicker } from "./components/ConnectorPicker";
-import { EmbedConfigForm } from "./components/EmbedConfigForm";
+// Phase A 2026-05-23 — VendorPicker / ConnectorPicker / EmbedConfigForm
+// were the main-viewport pickers leaking the Settings UI. They now live
+// only inside playground/src/settings/groups/{BiGroup,AiGroup}.tsx.
 import { useEmbedConfig } from "./settings/embedConfigStore";
 import { warmGenieWarehouse, startWarehouseKeepalive, stopWarehouseKeepalive } from "./lib/warehouseWarmup";
 import { FirstRunWizard, WizardErrorBoundary, shouldShowWizard, type PersonaKey } from "./components/FirstRunWizard";
@@ -42,8 +42,8 @@ import {
     type EnabledFeaturesInput,
 } from "./surfaces/surfaceAvailability";
 import { readPulseAiVisualSettings } from "./settings/pulseVisualSettingsStore";
-import { TestConnectionPanel } from "./components/TestConnectionPanel";
-import { PackPicker } from "./components/PackPicker";
+// Phase A — TestConnectionPanel + PackPicker (component) now live only in
+// Settings → AI; type-only imports remain for state plumbing.
 import type { PackInfo, PackSelection } from "./components/PackPicker";
 import type { ConnectorProbeResult } from "./types/probe";
 import type { PulsePlayAllowlist } from "./types/allowlist";
@@ -1368,7 +1368,7 @@ function PlaygroundApp(): React.ReactElement {
                     <PaneChrome
                         pane="ai"
                         title="PulsePlay AI"
-                        subtitle={uiMode === "pulse" ? "Pulse mode" : "v0 mode"}
+                        subtitle="AI playground"
                         isFocused={false}
                         isBackgrounded={false}
                         isPinned={false}
@@ -1436,7 +1436,7 @@ function PlaygroundApp(): React.ReactElement {
                     <PaneChrome
                         pane="ai"
                         title="PulsePlay AI"
-                        subtitle={uiMode === "pulse" ? "Pulse mode" : "v0 mode"}
+                        subtitle="AI playground"
                         isFocused={focusedPane === "ai"}
                         isBackgrounded={focusedPane === "bi"}
                         isPinned={pinnedViewportPane === "ai"}
@@ -1486,60 +1486,23 @@ function PlaygroundApp(): React.ReactElement {
                                     </Suspense>
                                 </>
                             ) : (
-                                <>
-                                    <BiSurfaceModeMiniControl
-                                        mode={biSurfaceMode}
-                                        runtimeVendor={runtimeBiVendor}
-                                        resolutionReason={biSurfaceResolution.reason}
-                                        onChange={handleBiSurfaceModeChange}
-                                    />
-                                    <VendorPicker
-                                        vendors={visibleVendors}
-                                        activeVendor={activeVendor}
-                                        onChange={(v) => {
-                                            setActiveVendor(v);
-                                            if (v === "native") handleBiSurfaceModeChange("native");
-                                            setEmbedConfig({});
-                                            setRecentEvents([]);
-                                            biAdaptersRef.current.clear();
-                                            setPrimaryBIAdapter(null);
-                                        }}
-                                    />
-                                    <EmbedConfigForm
-                                        vendor={activeVendor}
-                                        value={embedConfig}
-                                        onChange={setEmbedConfig}
-                                        assistantProfile={activeConnector}
-                                        allowlist={allowlistState.allowlist}
-                                    />
-                                    <ConnectorPicker
-                                        activeConnector={activeConnector}
-                                        onChange={handleConnectorChange}
-                                    />
-                                    {activeConnector && (
-                                        <TestConnectionPanel
-                                            profile={activeConnector}
-                                            onProbeComplete={handleProbeComplete}
-                                        />
-                                    )}
-                                    {activeConnector && (
-                                        <PackPicker
-                                            availablePacks={availablePacks}
-                                            suggested={probeSuggested}
-                                            value={packSelection}
-                                            onChange={setPackSelection}
-                                        />
-                                    )}
-                                    <AISidebar
-                                        activeVendor={runtimeBiVendor}
-                                        activeConnector={activeConnector}
-                                        recentEvents={recentEvents}
-                                        packSelection={packSelection}
-                                        biAdapter={primaryBIAdapter}
-                                        autoSubmitQuestion={wizardAutoSubmit}
-                                        onEntryCompleted={handleEntryCompleted}
-                                    />
-                                </>
+                                // UX-ARCH-0B.2 Phase A — v0 mode no longer renders
+                                // BiSurfaceModeMiniControl / VendorPicker / EmbedConfigForm
+                                // / ConnectorPicker / TestConnectionPanel / PackPicker in
+                                // the main viewport. Each of these has a canonical home
+                                // in Settings (BiGroup / AiGroup); the duplicate inline
+                                // mounts here were the "scattered settings leaking into
+                                // the main screen" the 2026-05-23 audit traced. The
+                                // AISidebar is the single thing v0 mode should show.
+                                <AISidebar
+                                    activeVendor={runtimeBiVendor}
+                                    activeConnector={activeConnector}
+                                    recentEvents={recentEvents}
+                                    packSelection={packSelection}
+                                    biAdapter={primaryBIAdapter}
+                                    autoSubmitQuestion={wizardAutoSubmit}
+                                    onEntryCompleted={handleEntryCompleted}
+                                />
                             )}
                         </aside>
                     </PaneChrome>
@@ -1598,12 +1561,24 @@ function PlaygroundApp(): React.ReactElement {
                         }
                     >
                         <main className="pp-app__canvas" style={{ ...panelInnerStyle(), display: "flex", flexDirection: "column" }}>
-                            <PowerBIDeveloperPanel
-                                activeVendor={runtimeBiVendor}
-                                hasEmbedConfig={hasEmbedConfig}
-                                adapter={primaryBIAdapter}
-                                recentEvents={recentEvents}
-                            />
+                            {/* UX-ARCH-0B.2 Phase A — Power BI Developer Tools
+                                strip is now gated behind a localStorage flag
+                                instead of always-on for PBI authors. Settings
+                                → Advanced → Developer Tools will expose the
+                                toggle in Phase D. Default off keeps the BI
+                                canvas clean for end-viewers. */}
+                            {(() => {
+                                try {
+                                    return localStorage.getItem("pulseplay:powerbi-dev-tools") === "on";
+                                } catch { return false; }
+                            })() && (
+                                <PowerBIDeveloperPanel
+                                    activeVendor={runtimeBiVendor}
+                                    hasEmbedConfig={hasEmbedConfig}
+                                    adapter={primaryBIAdapter}
+                                    recentEvents={recentEvents}
+                                />
+                            )}
                             <div style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
                             {hasRenderableBiSurface ? (
                                 <BITileGrid

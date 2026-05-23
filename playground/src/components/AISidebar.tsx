@@ -785,19 +785,35 @@ export function AISidebar(props: AISidebarProps) {
                 ))}
             </div>
             <div className="pp-ai-sidebar__composer">
-                {/* UX-VIEWER-1.3 fix-up — composer is now a vertical stack:
-                    FramePicker row, then [textarea + buttons], then a small
-                    right-aligned footer holding the sustainability chip.
-                    Previously the composer was a single flex row containing
-                    all of these, which crushed the textarea to ~30 px when
-                    the FramePicker took its full width. */}
-                <FramePicker
-                    snapshot={snapshot}
-                    loading={discoveryLoading}
-                    value={selectedFrame}
-                    onChange={setSelectedFrame}
-                    compact
-                />
+                {/* UX-ARCH-0B.2 Phase A — FramePicker collapsed under a
+                    "Use a frame…" disclosure. Default-closed so the composer
+                    leads with the input (the dominant 2026 pattern); the
+                    picker is one click away when the user wants it.
+                    Selected frame surfaces as a chip in the summary so the
+                    state is glanceable without opening. */}
+                <details className="pp-ai-sidebar__frame-disclosure">
+                    <summary>
+                        <span className="pp-ai-sidebar__frame-disclosure-label">
+                            Use a frame
+                        </span>
+                        {selectedFrame ? (
+                            <span className="pp-ai-sidebar__frame-disclosure-chip">
+                                {snapshot?.fused.reachableFrames.find(f => f.frameId === selectedFrame)?.label ?? selectedFrame}
+                            </span>
+                        ) : (
+                            <span className="pp-ai-sidebar__frame-disclosure-hint">
+                                Optional · pick an analysis frame
+                            </span>
+                        )}
+                    </summary>
+                    <FramePicker
+                        snapshot={snapshot}
+                        loading={discoveryLoading}
+                        value={selectedFrame}
+                        onChange={setSelectedFrame}
+                        compact
+                    />
+                </details>
                 <div className="pp-ai-sidebar__composer-row">
                     <textarea
                         className="pp-ai-sidebar__input"

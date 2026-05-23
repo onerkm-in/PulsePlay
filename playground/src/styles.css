@@ -416,6 +416,42 @@ html, body, #root {
     align-items: center;
     min-height: 22px;
 }
+
+/* UX-ARCH-0B.2 Phase A — collapsible frame picker. Closed by default so
+   the composer leads with the input; chip shows the current selection. */
+.pp-ai-sidebar__frame-disclosure { font-size: var(--pp-text-sm); }
+.pp-ai-sidebar__frame-disclosure > summary {
+    cursor: pointer;
+    list-style: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 8px;
+    border: 1px dashed var(--pp-border);
+    border-radius: 999px;
+    color: var(--pp-text-muted);
+    font-size: 11px;
+    user-select: none;
+}
+.pp-ai-sidebar__frame-disclosure > summary::-webkit-details-marker { display: none; }
+.pp-ai-sidebar__frame-disclosure > summary::before {
+    content: "▸";
+    font-size: 9px;
+    color: var(--pp-text-muted);
+    transition: transform 120ms ease;
+}
+.pp-ai-sidebar__frame-disclosure[open] > summary::before { transform: rotate(90deg); }
+.pp-ai-sidebar__frame-disclosure-label { font-weight: 600; color: var(--pp-text); }
+.pp-ai-sidebar__frame-disclosure-chip {
+    padding: 1px 7px;
+    background: var(--pp-accent-soft, rgba(37, 99, 235, 0.12));
+    color: var(--pp-accent, #2563eb);
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 600;
+}
+.pp-ai-sidebar__frame-disclosure-hint { color: var(--pp-text-muted); }
+.pp-ai-sidebar__frame-disclosure[open] > *:not(summary) { margin-top: 6px; }
 .pp-ai-sidebar__input {
     flex: 1;
     padding: 7px 10px;
