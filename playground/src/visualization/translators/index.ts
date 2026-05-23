@@ -11,13 +11,17 @@
 // a fallback when no vendor shape matches.
 
 import { registerChartTranslator, heuristicTranslator } from "./registry";
+import { heliosTranslator } from "./helios";
 
-// FUTURE: import vendor translators here, BEFORE the heuristic, e.g.:
-//   import { heliosTranslator } from "./helios";  // UX-VIEWER-1.7b.2
+// Order matters: more-specific shape detectors register first. The
+// heuristic adapter (detect: () => true) MUST be last so vendor-
+// specific translators get first shot at every chart.
+//
+// FUTURE: register additional vendor translators BEFORE the heuristic:
 //   import { vegaLiteTranslator } from "./vegaLite";  // UX-VIEWER-1.7b.3
-//   registerChartTranslator(heliosTranslator);
 //   registerChartTranslator(vegaLiteTranslator);
 
+registerChartTranslator(heliosTranslator);
 registerChartTranslator(heuristicTranslator);
 
 export {

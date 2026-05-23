@@ -191,6 +191,23 @@ export interface GenieMessage {
      * undefined when Genie didn't suggest any.
      */
     suggestedFollowUps?: string[];
+    /**
+     * UX-VIEWER-1.7b.2 — Genie's HELIOS chart spec (the `viz` attachment).
+     *
+     * When a Genie message includes a chart, the response carries one or
+     * more `attachments[].viz` objects shaped like
+     *   { chart_library: "HELIOS", definition: "<json string>", type, status }
+     * where `definition` parses to `{ renderSpec: { widgetType, version,
+     * encodings, frame, ... } }`. We lift the FIRST viz attachment with
+     * `status: "GENERATED"` here so the chart renderer doesn't have to
+     * walk attachments. The HELIOS translator (in playground/src/
+     * visualization/translators/helios.ts) turns this into PulsePlay's
+     * ChartIR which the renderer consumes.
+     *
+     * Passed through unchanged from the wire — the translator handles
+     * shape variance and version drift.
+     */
+    genieViz?: unknown;
 }
 
 /** One step from a Genie Research Agent / Agent Mode reasoning trace.
@@ -807,6 +824,31 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
         }
         if (followUps.length > 0 && !Array.isArray(res.suggestedFollowUps)) {
             res.suggestedFollowUps = followUps;
+        }
+
+        // UX-VIEWER-1.7b.2 — Genie HELIOS chart spec extraction.
+        //
+        // When Genie's message has a chart, one of the attachments carries
+        // a `viz` object: { chart_library, definition, type, status }.
+        // The HELIOS translator (visualization/translators/helios.ts)
+        // converts this to PulsePlay's ChartIR; here we just lift the
+        // first ready viz to a top-level field so the chart renderer
+        // doesn't have to walk attachments.
+        //
+        // We accept only viz objects with status === "GENERATED" (or no
+        // status field, since some older Genie responses omit it). A viz
+        // attachment that's still being generated would render an
+        // incomplete chart spec.
+        if (res.genieViz === undefined) {
+            for (const att of attachments) {
+                const viz = att?.viz;
+                if (!viz || typeof viz !== "object") continue;
+                const status = (viz as { status?: string }).status;
+                if (status && status !== "GENERATED") continue;
+                if (!(viz as { definition?: unknown }).definition) continue;
+                res.genieViz = viz;
+                break;
+            }
         }
     }
 

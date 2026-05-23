@@ -205,6 +205,38 @@ export function chartIRFromHeuristic(data: ChartIRData): ChartIR {
 }
 
 /**
+ * Reverse mapping — ChartIR mark → ChartKind. Used by the GenieChart
+ * component to translate a resolved IR back into the ChartKind that
+ * the existing `buildEChartsOption` consumes. The IR mark vocabulary
+ * is a curated subset of ChartKind, so the reverse is total (no null
+ * branches). Add a case here when you widen the IR mark set.
+ */
+export function irMarkToChartKind(mark: ChartIRMark): ChartKind {
+    switch (mark) {
+        case "bar":     return "bar";
+        case "column":  return "column";
+        case "line":    return "line";
+        case "area":    return "area";
+        case "point":   return "scatter";
+        case "pie":     return "pie";
+        case "donut":   return "donut";
+        case "heatmap": return "heatmap";
+        case "kpi":     return "kpi";
+        // text / table marks aren't chart kinds — degrade to bar so
+        // the renderer paints something rather than crashing. In
+        // practice the HELIOS translator returns null for table-shaped
+        // widgets so we shouldn't see these here.
+        case "text":
+        case "table":   return "bar";
+        default: {
+            const _exhaustive: never = mark;
+            void _exhaustive;
+            return "bar";
+        }
+    }
+}
+
+/**
  * Map PulsePlay's existing `ChartKind` enum to the IR mark set.
  * The ChartKind has more variants than the IR's curated marks — extras
  * fold into their closest supported sibling so renderer behavior stays

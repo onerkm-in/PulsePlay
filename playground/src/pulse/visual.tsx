@@ -160,6 +160,15 @@ import { buildThemeFromHost, buildThemeStyle, mergeTheme, ThemeName } from "./th
 // for non-Genie backends). Strategy: PulsePlay is the enabler — features
 // are built into PulsePlay's own surface, not embedded from Databricks.
 import { useAskPulseHomeMeta } from "../features/config/useAskPulseHomeMeta";
+// UX-VIEWER-1.7b.2 — chart-spec passthrough. resolveChartSpec walks the
+// translator registry (registered in visualization/translators/index.ts);
+// when Genie returns a HELIOS viz attachment, the HELIOS translator
+// turns it into a ChartIR which we then map back to ChartKind. Defers
+// to Databricks' chart-type pick for Genie responses; falls back to
+// PulsePlay's heuristic for non-Genie backends.
+import "../visualization/translators";  // side-effect: registers translators
+import { resolveChartSpec } from "../visualization/translators";
+import { irMarkToChartKind } from "../visualization/chartIR";
 // Wave 44 — Power BI theme inheritance + per-element typography. Pure
 // helpers; the Visual class flushes the resulting plan onto `this.target`.
 import { planThemeWrites, applyThemeWrites } from "./themeInheritance";
@@ -8360,7 +8369,7 @@ function renderMessageBody(
                 <div className="gn-chart-wrap">
                     {toggles}
                     {view === "chart"
-                        ? <GenieChart columns={message.queryResult.columns} rows={message.queryResult.rows} preferredChart={message.forcedChartType} />
+                        ? <GenieChart columns={message.queryResult.columns} rows={message.queryResult.rows} preferredChart={message.forcedChartType} genieViz={message.genieViz} />
                         : <GenieTable columns={message.queryResult.columns} rows={message.queryResult.rows} />
                     }
                     <div className="gn-chart-meta">
@@ -8550,10 +8559,30 @@ function GenieTable(props: { columns: string[]; rows: any[][]; isNarrative?: boo
     );
 }
 
-function GenieChart(props: { columns: string[]; rows: any[][]; preferredChart?: ChartKind }) {
+function GenieChart(props: { columns: string[]; rows: any[][]; preferredChart?: ChartKind; genieViz?: unknown }) {
     const dataShape = useMemo(() => analyzeDataShape(props.columns, props.rows), [props.columns, props.rows]);
     const recommended = dataShape.recommended;
-    const initial: ChartKind = props.preferredChart ?? recommended;
+    // UX-VIEWER-1.7b.2 — when Genie returns a HELIOS viz spec, defer to
+    // Databricks' chart-type pick (their type inference + chart picker
+    // is more reliable than name-pattern heuristics). resolveChartSpec
+    // walks the translator registry; HELIOS detects this shape and
+    // returns a ChartIR. We then map ChartIR.mark back to ChartKind for
+    // the existing buildEChartsOption call.
+    //
+    // Precedence: user override (preferredChart) > Genie HELIOS pick >
+    // PulsePlay heuristic recommendation. User choice always wins so
+    // the chart-type dropdown still works for manual override.
+    const genieIRChartKind = useMemo<ChartKind | null>(() => {
+        if (!props.genieViz) return null;
+        const ir = resolveChartSpec(props.genieViz, {
+            columns: props.columns.map(name => ({ name })),
+            rows: props.rows,
+        });
+        // Skip the heuristic fallback — only honor real translator hits.
+        if (!ir || ir.sourceTranslator === "heuristic") return null;
+        return irMarkToChartKind(ir.mark);
+    }, [props.genieViz, props.columns, props.rows]);
+    const initial: ChartKind = props.preferredChart ?? genieIRChartKind ?? recommended;
     const [chartType, setChartType] = useState<ChartKind>(initial);
 
     useEffect(() => { setChartType(initial); }, [initial]);
