@@ -134,11 +134,11 @@ describe("Vendor matrix: Databricks-only (Genie BI + Foundation Model AI)", () =
         unmount(state);
     });
 
-    it("Quick Setup renders 3 cards (BI / AI / Knowledge pack)", async () => {
+    it("Quick Setup renders 5 accordion gates (BI / AI / Pack / Gov / Preflight)", async () => {
         const state = mount(async () => fullAllowlist());
         await act(async () => { await Promise.resolve(); });
-        const cards = state.container.querySelectorAll(".pp-card");
-        expect(cards.length).toBe(3);
+        const gates = state.container.querySelectorAll(".pp-setup-gate");
+        expect(gates.length).toBe(5);
         unmount(state);
     });
 });
@@ -260,12 +260,12 @@ describe("Vendor matrix: AI-only (no BI)", () => {
         window.localStorage.setItem("pulseplay:active-ai-profile", "genie-default");
         const state = mount(async () => fullAllowlist());
         await act(async () => { await Promise.resolve(); });
-        const badge = state.container.querySelector(".pp-setup__readiness .pp-badge");
+        const badge = state.container.querySelector(".pp-setup__readiness .pp-settings-chip");
         // The contract-level readiness tests above prove the tone wiring;
         // here we just verify the chip mounts so the author always sees
         // a status signal in the header regardless of the combo.
         expect(badge).not.toBeNull();
-        expect(badge?.textContent).toMatch(/Ready|Setup needed/);
+        expect(badge?.textContent).toMatch(/Ready|Config needed/);
         unmount(state);
     });
 });
@@ -340,7 +340,7 @@ describe("Vendor matrix: error handling", () => {
         });
         const state = mount(emptyAllowlist);
         await act(async () => { await Promise.resolve(); });
-        const vendorSelect = state.container.querySelector<HTMLSelectElement>("#pp-setup-vendor");
+        const vendorSelect = state.container.querySelector<HTMLSelectElement>("#pp-bi-vendor");
         expect(vendorSelect).not.toBeNull();
         // First option is "— Pick a BI tool —", plus 7 vendors
         expect(vendorSelect!.options.length).toBeGreaterThanOrEqual(2);
@@ -380,12 +380,23 @@ describe("Vendor matrix: error handling", () => {
             await Promise.resolve();
         });
 
-        const profileSelect = state.container.querySelector<HTMLSelectElement>("#pp-setup-ai-profile");
+        const headers = state.container.querySelectorAll(".pp-setup-gate__header");
+        await act(async () => {
+            headers[1].dispatchEvent(new MouseEvent("click", { bubbles: true }));
+            await Promise.resolve();
+        });
+
+        const profileSelect = state.container.querySelector<HTMLSelectElement>("#pp-ai-profile");
         expect(profileSelect).not.toBeNull();
         expect(profileSelect!.disabled).toBe(false);
         expect(Array.from(profileSelect!.options).map(o => o.value)).toEqual(["", "default", "foundation"]);
 
-        const packSelect = state.container.querySelector<HTMLSelectElement>("#pp-setup-pack");
+        await act(async () => {
+            headers[2].dispatchEvent(new MouseEvent("click", { bubbles: true }));
+            await Promise.resolve();
+        });
+
+        const packSelect = state.container.querySelector<HTMLSelectElement>("#pp-pack-select");
         expect(packSelect).not.toBeNull();
         expect(packSelect!.disabled).toBe(false);
         expect(Array.from(packSelect!.options).map(o => o.value)).toEqual(["", "cpg-fmcg"]);
@@ -421,16 +432,40 @@ describe("Vendor matrix: error handling", () => {
             await Promise.resolve();
             await Promise.resolve();
         });
+
+        const headers = state.container.querySelectorAll(".pp-setup-gate__header");
+        await act(async () => {
+            headers[1].dispatchEvent(new MouseEvent("click", { bubbles: true }));
+            await Promise.resolve();
+        });
+
         const profileTest = Array.from(state.container.querySelectorAll<HTMLButtonElement>("button"))
-            .find(b => (b.textContent || "").includes("Test selected profile"));
+            .find(b => (b.textContent || "").includes("Test connector handshake"));
         expect(profileTest).toBeDefined();
+
+        // Track that fetch was actually called for the profile-test endpoint with
+        // the direct-array response shape the test stubbed. We previously asserted
+        // by visually scraping a "Support Logs" preview tab; that tab was removed
+        // when the Setup page collapsed to single-page progressive shape, so this
+        // assertion now lives at the API call layer.
+        const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
         await act(async () => {
             profileTest!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
             await Promise.resolve();
             await Promise.resolve();
             await Promise.resolve();
         });
-        expect(state.container.textContent || "").toContain("Profile reachable");
+
+        const calledProfilesEndpoint = fetchMock.mock.calls.some(call => {
+            const url = String(call[0]);
+            return url.includes("/api/assistant/profiles?assistantProfile=default");
+        });
+        expect(calledProfilesEndpoint).toBe(true);
+
+        // The handshake-success path must not surface an allowlist alert — the
+        // direct-array response shape parses cleanly.
+        const alertEl = state.container.querySelector(".pp-setup__alert");
+        expect(alertEl).toBeNull();
         unmount(state);
     });
 
@@ -457,7 +492,9 @@ describe("Vendor matrix: error handling", () => {
         const state = mount(async () => fullAllowlist());
         await act(async () => { await Promise.resolve(); });
 
-        const vendorSelect = state.container.querySelector<HTMLSelectElement>("#pp-setup-vendor");
+        const headers = state.container.querySelectorAll(".pp-setup-gate__header");
+
+        const vendorSelect = state.container.querySelector<HTMLSelectElement>("#pp-bi-vendor");
         expect(vendorSelect).not.toBeNull();
 
         await act(async () => {
@@ -465,9 +502,9 @@ describe("Vendor matrix: error handling", () => {
             vendorSelect!.dispatchEvent(new Event("change", { bubbles: true }));
             await Promise.resolve();
         });
-        const embedText = state.container.querySelector<HTMLTextAreaElement>("#pp-setup-embed");
+        const embedText = state.container.querySelector<HTMLTextAreaElement>("#pp-embed-url");
         const apply = Array.from(state.container.querySelectorAll<HTMLButtonElement>("button"))
-            .find(button => button.textContent?.includes("Apply embed"));
+            .find(button => button.textContent?.includes("Apply & Validate"));
         expect(embedText).not.toBeNull();
         expect(apply).toBeDefined();
         await act(async () => {
@@ -483,19 +520,33 @@ describe("Vendor matrix: error handling", () => {
             iframe: '<iframe src="https://dbc-1234.cloud.databricks.com/embed/genie/abc"></iframe>',
         });
 
+        // Expand Gate 1 again as it collapsed on save
         await act(async () => {
-            vendorSelect!.value = "powerbi";
-            vendorSelect!.dispatchEvent(new Event("change", { bubbles: true }));
+            headers[0].dispatchEvent(new MouseEvent("click", { bubbles: true }));
             await Promise.resolve();
         });
-        const powerBiEmbedText = state.container.querySelector<HTMLTextAreaElement>("#pp-setup-embed");
+
+        const vendorSelect2 = state.container.querySelector<HTMLSelectElement>("#pp-bi-vendor");
+        expect(vendorSelect2).not.toBeNull();
+
+        await act(async () => {
+            vendorSelect2!.value = "powerbi";
+            vendorSelect2!.dispatchEvent(new Event("change", { bubbles: true }));
+            await Promise.resolve();
+        });
+        const powerBiEmbedText = state.container.querySelector<HTMLTextAreaElement>("#pp-embed-url");
         expect(powerBiEmbedText).not.toBeNull();
         await act(async () => {
             setTextareaValue(powerBiEmbedText!, "https://app.powerbi.com/reportEmbed?reportId=abc&groupId=xyz");
             await Promise.resolve();
         });
+
+        const apply2 = Array.from(state.container.querySelectorAll<HTMLButtonElement>("button"))
+            .find(button => button.textContent?.includes("Apply & Validate"));
+        expect(apply2).toBeDefined();
+
         await act(async () => {
-            apply!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+            apply2!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
             await Promise.resolve();
         });
         expect(JSON.parse(window.localStorage.getItem("pulseplay:bi-embed-config") || "{}")).toEqual({
@@ -515,7 +566,7 @@ describe("Vendor matrix: registry coverage for Databricks + Power BI", () => {
     it("Power BI vendor is in the registry", async () => {
         const state = mount(async () => fullAllowlist());
         await act(async () => { await Promise.resolve(); });
-        const select = state.container.querySelector<HTMLSelectElement>("#pp-setup-vendor");
+        const select = state.container.querySelector<HTMLSelectElement>("#pp-bi-vendor");
         const options = Array.from(select?.options ?? []).map(o => o.value);
         expect(options).toContain("powerbi");
         unmount(state);
@@ -524,7 +575,7 @@ describe("Vendor matrix: registry coverage for Databricks + Power BI", () => {
     it("Databricks AI/BI vendor is in the registry", async () => {
         const state = mount(async () => fullAllowlist());
         await act(async () => { await Promise.resolve(); });
-        const select = state.container.querySelector<HTMLSelectElement>("#pp-setup-vendor");
+        const select = state.container.querySelector<HTMLSelectElement>("#pp-bi-vendor");
         const options = Array.from(select?.options ?? []).map(o => o.value);
         expect(options).toContain("databricks-aibi");
         unmount(state);
@@ -533,7 +584,7 @@ describe("Vendor matrix: registry coverage for Databricks + Power BI", () => {
     it("Databricks Genie vendor is in the registry", async () => {
         const state = mount(async () => fullAllowlist());
         await act(async () => { await Promise.resolve(); });
-        const select = state.container.querySelector<HTMLSelectElement>("#pp-setup-vendor");
+        const select = state.container.querySelector<HTMLSelectElement>("#pp-bi-vendor");
         const options = Array.from(select?.options ?? []).map(o => o.value);
         expect(options).toContain("databricks-genie");
         unmount(state);
@@ -542,7 +593,7 @@ describe("Vendor matrix: registry coverage for Databricks + Power BI", () => {
     it("Generic iframe escape hatch is always available", async () => {
         const state = mount(async () => fullAllowlist());
         await act(async () => { await Promise.resolve(); });
-        const select = state.container.querySelector<HTMLSelectElement>("#pp-setup-vendor");
+        const select = state.container.querySelector<HTMLSelectElement>("#pp-bi-vendor");
         const options = Array.from(select?.options ?? []).map(o => o.value);
         // generic-iframe is in the registry but may be filtered out by
         // allowlist; either way it's part of the underlying vendor list.
@@ -553,7 +604,7 @@ describe("Vendor matrix: registry coverage for Databricks + Power BI", () => {
         unmount(state);
         const state2 = mount(fullAllowAllList);
         await act(async () => { await Promise.resolve(); });
-        const select2 = state2.container.querySelector<HTMLSelectElement>("#pp-setup-vendor");
+        const select2 = state2.container.querySelector<HTMLSelectElement>("#pp-bi-vendor");
         const options2 = Array.from(select2?.options ?? []).map(o => o.value);
         expect(options2).toContain("generic-iframe");
         unmount(state2);
@@ -566,7 +617,7 @@ describe("Vendor matrix: registry coverage for Databricks + Power BI", () => {
             biProviders: [],
         }));
         await act(async () => { await Promise.resolve(); });
-        const select = state.container.querySelector<HTMLSelectElement>("#pp-setup-vendor");
+        const select = state.container.querySelector<HTMLSelectElement>("#pp-bi-vendor");
         const options = Array.from(select?.options ?? []).map(o => o.value);
         expect(options).toContain("native");
         unmount(state);
