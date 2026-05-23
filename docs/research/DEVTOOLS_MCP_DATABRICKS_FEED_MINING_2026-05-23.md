@@ -8,6 +8,8 @@ The feed proves that Chrome DevTools MCP can be a serious discovery and evidence
 
 Most important discovery: Genie's UI is not just "ask question, get answer." It is a workflow surface with room metadata, curated questions, instructions, schema, generated SQL, progress reports, reasoning/verification attachments, tabular result retrieval, visualization specs, feedback, comments, sharing, review requests, Monitor/Benchmark tabs, and adjacent Genie Code / Model Serving / Agent surfaces.
 
+Detailed companion: [DEVTOOLS_MCP_DATABRICKS_CAPTURE_RUNBOOK_2026-05-23.md](DEVTOOLS_MCP_DATABRICKS_CAPTURE_RUNBOOK_2026-05-23.md) records the capture ladder, artifact map, heartbeat counts, route taxonomy, and next safe mining procedure.
+
 ## Feed Inventory
 
 Feed root:
@@ -27,13 +29,15 @@ Important captured artifacts:
 | `comprehensive-20260523-141643/` | DOM, render tree, stylesheets, performance entries, screenshots, API bodies. | Broad replay/debug substrate. |
 | `continuous-capture-20260523-150913/` | Iterative captures with heartbeat and API body capture. | Long-running session archaeology. |
 | `chrome-debug-profile/` | Dedicated debug Chrome profile. | Enables signed-in capture without sharing credentials in chat. |
+| `CAPTURE-RUNBOOK-20260523.md` / repo runbook | Detailed runbook and evidence appendix. | Shows how to mine the feed safely and what details deserve attention. |
 
 Current continuous capture status at inspection time:
 
 - Process: `powershell` PID `12556`
-- Latest heartbeat inspected: iteration `5`
-- Latest iteration: `continuous-capture-20260523-150913\iter-00005-20260523-151916`
-- Iteration 5 totals: 767 raw requests, 760 safe requests, 7 skipped auth/credential requests, 109 API metadata entries, 30 safe API bodies captured, 125 console messages.
+- Latest heartbeat inspected in the detailed follow-up pass: iteration `21`
+- Latest heartbeat iteration: `continuous-capture-20260523-150913\iter-00021-20260523-161656`
+- Iteration 21 totals: 327 raw requests, 315 safe requests, 12 skipped auth/credential requests, 106 API metadata entries, 30 safe API bodies captured, 439 console messages.
+- Continuous event log inspected through 22 completed iteration events: 12,974 raw network entries, 12,598 safe entries, 376 skipped auth/credential entries, 3,573 API metadata entries, and 634 successful API body captures out of 636 attempts. These are repeated capture-volume counts, not unique API counts.
 
 I did not stop the continuous capture process.
 

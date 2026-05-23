@@ -10,6 +10,7 @@
 
 ## Topic index (newest first)
 
+- [2026-05-23 - DevTools MCP Databricks detailed capture runbook](#2026-05-23---devtools-mcp-databricks-detailed-capture-runbook)
 - [2026-05-23 - DevTools MCP Databricks feed mining](#2026-05-23---devtools-mcp-databricks-feed-mining)
 - [2026-05-23 - Chrome DevTools MCP tooling](#2026-05-23---chrome-devtools-mcp-tooling)
 - [2026-05-23 - Azure Databricks integration offering](#2026-05-23---azure-databricks-integration-offering)
@@ -33,6 +34,22 @@
 - [2026-05-22 — Azure Databricks Apps enterprise installation guide](#2026-05-22--azure-databricks-apps-enterprise-installation-guide)
 - [2026-05-22 — Executive briefing card patterns (Ask Pulse narrative regression)](#2026-05-22--executive-briefing-card-patterns-ask-pulse-narrative-regression)
 - [2026-05-22 — Chart rationale popover design (data-shape-aware narrative + warnings)](#2026-05-22--chart-rationale-popover-design-data-shape-aware-narrative--warnings)
+
+---
+
+## 2026-05-23 - DevTools MCP Databricks detailed capture runbook
+
+**Context.** Expanded the local DevTools MCP Databricks feed research into a detailed capture runbook and evidence appendix. Applied in [DEVTOOLS_MCP_DATABRICKS_CAPTURE_RUNBOOK_2026-05-23.md](DEVTOOLS_MCP_DATABRICKS_CAPTURE_RUNBOOK_2026-05-23.md).
+
+| URL (signature) | Title / publisher | One-line takeaway | Applied to |
+|---|---|---|---|
+| https://learn.microsoft.com/en-us/azure/databricks/genie/conversation-api | Azure Databricks - Genie Conversation API | Production app path for stateful Genie conversations, message lifecycle, and query-result retrieval. | Official-vs-internal API boundary |
+| https://learn.microsoft.com/en-us/azure/databricks/genie/ | Azure Databricks - What is a Genie space | Genie spaces are curated, governed natural-language analytics spaces. | Genie Space product model |
+| https://learn.microsoft.com/en-us/azure/databricks/dashboards/genie-spaces | Azure Databricks - Genie spaces with dashboards | Dashboard companion Genie exists, and external integration should use the Conversation API. | Next capture target and embed posture |
+| https://learn.microsoft.com/en-us/azure/databricks/genie-code/mcp | Azure Databricks - Connect Genie Code to MCP servers | Databricks supports MCP as an extension path for Genie Code context. | MCP strategy interpretation |
+| https://learn.microsoft.com/en-us/azure/databricks/machine-learning/model-serving/ | Azure Databricks - Mosaic AI Model Serving | Serving endpoints provide governed access to custom, foundation, and external models. | Model Serving endpoint evidence |
+| https://learn.microsoft.com/en-us/azure/databricks/machine-learning/model-serving/model-serving-limits | Azure Databricks - Model Serving limits and regions | Endpoint and agent serving have resource and workspace limits. | Endpoint health / quota caveats |
+| https://learn.microsoft.com/en-us/azure/databricks/ai-bi/tools | Azure Databricks - Business intelligence tools | AI/BI includes dashboards and Genie spaces alongside external BI connection paths. | Surface taxonomy |
 
 ---
 

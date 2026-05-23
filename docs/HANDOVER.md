@@ -5,6 +5,18 @@
 
 ---
 
+## 2026-05-23 - DevTools MCP detailed capture runbook
+
+**Scope.** Rajesh asked to "document everything in details with proper documentation and detailed steps and capture greater detail to the attention." Added [research/DEVTOOLS_MCP_DATABRICKS_CAPTURE_RUNBOOK_2026-05-23.md](research/DEVTOOLS_MCP_DATABRICKS_CAPTURE_RUNBOOK_2026-05-23.md) and linked it from the earlier mining summary. Mirrored the sanitized runbook into the feed folder as `CAPTURE-RUNBOOK-20260523.md`.
+
+**Findings added.** The runbook records the full capture ladder, artifact map, safety policy, continuous-capture heartbeat/event-log counts, high-volume route families, Genie Space metadata/schema/curated questions/message envelope/query-result/visualization details, Model Serving endpoint state, console/performance notes, and next target list. Continuous capture was still running during inspection and was not stopped.
+
+**Decision.** Keep the previous production rule: DevTools MCP captures are evidence and acceptance-test fuel; production should integrate through official Azure Databricks APIs behind the PulsePlay proxy.
+
+**Validation.** Docs/evidence-only slice. Run `git diff --check`; no runtime tests required.
+
+---
+
 ## 2026-05-23 - DevTools MCP Databricks feed mining
 
 **Scope.** Rajesh pointed at `D:\Working_Folder\Artifacts\Databricks_PulsePlay_Feed\DevToolMCPFeed` and asked to keep mining/discovering what is on offer. Added [research/DEVTOOLS_MCP_DATABRICKS_FEED_MINING_2026-05-23.md](research/DEVTOOLS_MCP_DATABRICKS_FEED_MINING_2026-05-23.md) and mirrored the same summary into the feed folder as `MINING-SUMMARY-20260523.md`.
