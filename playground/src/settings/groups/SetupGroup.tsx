@@ -548,9 +548,9 @@ export function SetupGroup(): React.ReactElement {
                         <span className="pp-settings-chip__label">{pillState.label}</span>
                     </span>
                     <a
-                        href="/ai-insights"
+                        href="/?surface=ai-insights"
                         className="pp-setup__pill-action"
-                        title={pillState.tone === "ok" ? "Open the viewer-side rendering surface" : "Open viewer rendering (partial config — viewer may see limited results)"}
+                        title={pillState.tone === "ok" ? "Open the playground with AI Insights as the active surface" : "Open viewer rendering (partial config — viewer may see limited results)"}
                     >
                         👁 Preview as viewer →
                     </a>
@@ -850,13 +850,13 @@ export function SetupGroup(): React.ReactElement {
                                        follow-up slice. */}
                                     <div className="pp-setup__callout">
                                         <div className="pp-setup__callout-body">
-                                            <strong className="pp-setup__callout-title">Advanced authoring (Pulse-ported)</strong>
+                                            <strong className="pp-setup__callout-title">Advanced authoring</strong>
                                             <p className="pp-setup__callout-desc">
-                                                Authoring mode, Section editor (HEADLINE / TRENDS / RISKS / RECOMMENDED ACTIONS), Prompt preview (7 stages), Domain guidance override, Suggest from data, Metric direction rules (Higher/Lower + Green/Amber/Red thresholds), and the 96-field search live in AI Insights Developer Tools.
+                                                Authoring mode, Section editor (HEADLINE / TRENDS / RISKS / RECOMMENDED ACTIONS), Prompt preview, Domain guidance override, Suggest from data, and Metric direction rules (Higher/Lower + Green/Amber/Red thresholds) live in AI Setup → <em>04 Response behavior</em>.
                                             </p>
                                         </div>
-                                        <a href="/ai-insights" className="pp-setup__callout-action">
-                                            Open AI Insights Developer Tools →
+                                        <a href="/settings/ai" className="pp-setup__callout-action">
+                                            Open AI Setup · Response behavior →
                                         </a>
                                     </div>
                                 </div>
