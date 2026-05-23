@@ -5,6 +5,18 @@
 
 ---
 
+## 2026-05-23 - Chrome DevTools MCP research clone inspected
+
+**Scope.** Rajesh asked to use `gh repo clone ChromeDevTools/chrome-devtools-mcp` to get more data. `gh repo clone` hit a GitHub CLI auth requirement in this sandbox, so a public `git clone` fallback succeeded into `C:\tmp\chrome-devtools-mcp`. Added [research/CHROME_DEVTOOLS_MCP_TOOLING_2026-05-23.md](research/CHROME_DEVTOOLS_MCP_TOOLING_2026-05-23.md). No runtime code changed.
+
+**Findings.** Chrome DevTools MCP package `1.0.1` exposes an MCP server plus experimental CLI for browser automation, network/console inspection, screenshots, accessibility snapshots, Lighthouse, traces, memory snapshots, extension testing, third-party developer tools, and experimental WebMCP. It is useful as optional deep browser evidence for Databricks UI research and PulsePlay local smoke/debug work.
+
+**Tripwire.** Cloning the repo does not hot-load the MCP server into the current Codex session. Tool discovery did not expose a callable Chrome DevTools MCP tool. To use it as MCP, add the Windows `cmd /c npx -y chrome-devtools-mcp@latest` config and restart Codex. Use `--no-usage-statistics`, `--no-performance-crux`, and `--redact-network-headers=true` by default.
+
+**Validation.** Docs/tooling-only slice. Run `git diff --check` before wrapup.
+
+---
+
 ## 2026-05-23 - Azure Databricks integration offering research
 
 **Scope.** Rajesh asked for deep research on the Databricks Technology Partners page, with an Azure Databricks inclination. Added [research/AZURE_DATABRICKS_INTEGRATION_OFFERING_2026-05-23.md](research/AZURE_DATABRICKS_INTEGRATION_OFFERING_2026-05-23.md). No runtime code changed.

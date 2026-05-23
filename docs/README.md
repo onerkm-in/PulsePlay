@@ -20,6 +20,7 @@
 | Current branch/state/test memory | [memory/project_state.md](memory/project_state.md) |
 | Latest session log | [HANDOVER.md](HANDOVER.md) |
 | Open work, ordered by impact | [AGENDA.md](AGENDA.md) |
+| Chrome DevTools MCP tooling note | [research/CHROME_DEVTOOLS_MCP_TOOLING_2026-05-23.md](research/CHROME_DEVTOOLS_MCP_TOOLING_2026-05-23.md) |
 | Azure Databricks integration offering | [research/AZURE_DATABRICKS_INTEGRATION_OFFERING_2026-05-23.md](research/AZURE_DATABRICKS_INTEGRATION_OFFERING_2026-05-23.md) |
 | **Simplification beast-mode decisions (T1-T7)** | [research/SIMPLIFICATION_BEAST_MODE_DECISIONS_2026-05-23.md](research/SIMPLIFICATION_BEAST_MODE_DECISIONS_2026-05-23.md) |
 | Simplified context and Authoring model | [research/SIMPLIFIED_CONTEXT_AND_AUTHORING_MODEL_2026-05-23.md](research/SIMPLIFIED_CONTEXT_AND_AUTHORING_MODEL_2026-05-23.md) |

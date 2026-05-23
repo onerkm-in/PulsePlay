@@ -10,6 +10,7 @@
 
 ## Topic index (newest first)
 
+- [2026-05-23 - Chrome DevTools MCP tooling](#2026-05-23---chrome-devtools-mcp-tooling)
 - [2026-05-23 - Azure Databricks integration offering](#2026-05-23---azure-databricks-integration-offering)
 - [2026-05-23 — Enterprise UX architecture blueprint and typeahead system](#2026-05-23--enterprise-ux-architecture-blueprint-and-typeahead-system)
 - [2026-05-23 — Flow limits and multiplicity simplification](#2026-05-23--flow-limits-and-multiplicity-simplification)
@@ -31,6 +32,20 @@
 - [2026-05-22 — Azure Databricks Apps enterprise installation guide](#2026-05-22--azure-databricks-apps-enterprise-installation-guide)
 - [2026-05-22 — Executive briefing card patterns (Ask Pulse narrative regression)](#2026-05-22--executive-briefing-card-patterns-ask-pulse-narrative-regression)
 - [2026-05-22 — Chart rationale popover design (data-shape-aware narrative + warnings)](#2026-05-22--chart-rationale-popover-design-data-shape-aware-narrative--warnings)
+
+---
+
+## 2026-05-23 - Chrome DevTools MCP tooling
+
+**Context.** Rajesh asked to use `gh repo clone ChromeDevTools/chrome-devtools-mcp` to get more data. The repo was cloned into `C:\tmp\chrome-devtools-mcp` via public `git clone` fallback after GitHub CLI required auth. Applied in [CHROME_DEVTOOLS_MCP_TOOLING_2026-05-23.md](CHROME_DEVTOOLS_MCP_TOOLING_2026-05-23.md).
+
+| URL (signature) | Title / publisher | One-line takeaway | Applied to |
+|---|---|---|---|
+| https://github.com/ChromeDevTools/chrome-devtools-mcp | ChromeDevTools/chrome-devtools-mcp | Official repo for Chrome DevTools MCP server and CLI. | Tooling note |
+| https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main/README.md | Chrome DevTools MCP README | Codex/Windows config, privacy flags, server options, and browser connection modes. | Safe MCP config |
+| https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main/docs/tool-reference.md | Chrome DevTools MCP Tool Reference | Full tool inventory across automation, network, console, screenshots, performance, memory, extensions, and WebMCP. | Capability matrix |
+| https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main/docs/cli.md | Chrome DevTools MCP CLI | Experimental CLI shape for non-MCP browser automation. | Fallback workflow |
+| https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main/docs/troubleshooting.md | Chrome DevTools MCP Troubleshooting | Windows, sandbox, npx, and plugin installation caveats. | Tripwires |
 
 ---
 
