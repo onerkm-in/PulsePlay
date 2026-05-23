@@ -66,30 +66,87 @@ export function SetupGroup(): React.ReactElement {
     });
 
     // Sticky top search — type-ahead filter over known PulsePlay setting fields.
-    // Cross-surface index for Pulse setupStep5 fields lands in the next slice.
+    // UX-ARCH-0B.2 Phase B — index expanded from 22 to ~60 items covering BI /
+    // AI / Preferences / System / Advanced PLUS hidden routes (/launchpad,
+    // /workbench, /knowledge, /powerbi/qna). Each item is either in-Setup
+    // (resolved by step bookmark) or cross-Settings (resolved by `href` deep
+    // link). Replaces the 8 dead "AI Insights Developer Tools" references that
+    // pointed at a page that doesn't exist with proper paths to the real
+    // editors at /settings/ai.
     const [searchQuery, setSearchQuery] = useState<string>("");
     const searchIndex = useMemo(() => [
+        // ── BI Surface (in-Setup) ──────────────────────────────────────
         { id: "bi", label: "BI provider / vendor", hint: "Power BI, Tableau, Qlik, Looker, generic iframe", section: "BI Surface", step: 1 },
         { id: "bi", label: "Surface mode", hint: "Auto, Vendor, Native canvas", section: "BI Surface", step: 1 },
         { id: "bi", label: "Embed URL or iframe HTML", hint: "Vendor embed configuration", section: "BI Surface", step: 1 },
         { id: "bi", label: "Sandbox attributes", hint: "Corporate iframe sandbox restrictions", section: "BI Surface", step: 1 },
+        // ── BI deep-links (cross-Settings) ─────────────────────────────
+        { label: "Power BI Secure embed / SSO / Backend / Manual modes", hint: "AAD client ID, tenant, token issuance mode", section: "Settings → BI", href: "/settings/bi" },
+        { label: "BI governance review", hint: "Per-vendor production readiness gate", section: "Settings → BI", href: "/settings/bi/governance" },
+        // ── AI Assistant (in-Setup) ────────────────────────────────────
         { id: "ai", label: "AI profile / connector", hint: "Genie, Foundation Model, Supervisor, Bedrock, Power BI semantic-model", section: "AI Assistant", step: 2 },
         { id: "ai", label: "Profile handshake test", hint: "Probe the proxy connection for the selected AI profile", section: "AI Assistant", step: 2 },
-        { id: "ai", label: "Authoring mode", hint: "AI-assisted: auto-detect from data (advanced — opens in AI Insights Developer Tools)", section: "AI Assistant", step: 2 },
-        { id: "ai", label: "Section editor", hint: "HEADLINE, TRENDS, RISKS, RECOMMENDED ACTIONS (advanced — opens in AI Insights Developer Tools)", section: "AI Assistant", step: 2 },
-        { id: "ai", label: "Prompt preview (7 stages)", hint: "Synthesized prompt the AI receives at runtime (advanced — opens in AI Insights Developer Tools)", section: "AI Assistant", step: 2 },
-        { id: "ai", label: "Domain guidance override", hint: "AI Insights domain-specific guidance textarea (advanced — opens in AI Insights Developer Tools)", section: "AI Assistant", step: 2 },
-        { id: "ai", label: "Suggest from data", hint: "AI-assisted suggestion using bound dimensions and measures (advanced — opens in AI Insights Developer Tools)", section: "AI Assistant", step: 2 },
-        { id: "ai", label: "Metric direction rules", hint: "Per-metric Higher/Lower direction + Green/Amber/Red thresholds + aliases (advanced — opens in AI Insights Developer Tools)", section: "AI Assistant", step: 2 },
-        { id: "ai", label: "Metric thresholds (green/amber/red)", hint: "Color bands for KPI values; threshold ordering is validated automatically (advanced — opens in AI Insights Developer Tools)", section: "AI Assistant", step: 2 },
-        { id: "ai", label: "Metric-rules preset", hint: "Apply a domain preset of metric direction rules (advanced — opens in AI Insights Developer Tools)", section: "AI Assistant", step: 2 },
-        { id: "ai", label: "Metric aliases", hint: "Alternative names that should resolve to the same metric rule (advanced — opens in AI Insights Developer Tools)", section: "AI Assistant", step: 2 },
+        // ── AI deep-links (cross-Settings) — replace 8 dead refs ───────
+        { label: "Authoring mode", hint: "Preset / AI-assisted / Manual authoring of AI Insights prompts", section: "Settings → AI", href: "/settings/ai" },
+        { label: "Section editor", hint: "HEADLINE, TRENDS, RISKS, RECOMMENDED ACTIONS toggles + custom sections", section: "Settings → AI", href: "/settings/ai" },
+        { label: "Prompt preview", hint: "Synthesized prompt the AI receives at runtime", section: "Settings → AI", href: "/settings/ai" },
+        { label: "Domain guidance override", hint: "AI Insights domain-specific guidance textarea", section: "Settings → AI", href: "/settings/ai" },
+        { label: "Suggest from data", hint: "AI-assisted suggestion using bound dimensions and measures", section: "Settings → AI", href: "/settings/ai" },
+        { label: "Metric direction rules", hint: "Per-metric Higher/Lower direction + Green/Amber/Red thresholds + aliases", section: "Settings → AI", href: "/settings/ai" },
+        { label: "Metric thresholds (green/amber/red)", hint: "Color bands for KPI values", section: "Settings → AI", href: "/settings/ai" },
+        { label: "Metric-rules preset", hint: "Apply a domain preset of metric direction rules", section: "Settings → AI", href: "/settings/ai" },
+        { label: "Metric aliases", hint: "Alternative names that resolve to the same metric rule", section: "Settings → AI", href: "/settings/ai" },
+        { label: "Analytics domain", hint: "Sales / Supply Chain / Hospital Operations / Generic — sets AI tone", section: "Settings → AI", href: "/settings/ai" },
+        { label: "Custom sections (JSON)", hint: "Domain-specific sections beyond the universal five", section: "Settings → AI", href: "/settings/ai" },
+        { label: "Included Insights stages", hint: "Headline / Trends / Risks / Recommended Actions on/off", section: "Settings → AI", href: "/settings/ai" },
+        { label: "Provenance footer", hint: "Generated by PulsePlay … attribution at the bottom of answers", section: "Settings → AI", href: "/settings/ai" },
+        { label: "Vector Search KB", hint: "Databricks Vector Search index for grounding", section: "Settings → AI", href: "/settings/ai" },
+        { label: "UC Metric View", hint: "Unity Catalog metric view bound to this assistant", section: "Settings → AI", href: "/settings/ai" },
+        { label: "Knowledge Base toggles", hint: "Enable chart / stat / reporting analytics KB injections", section: "Settings → AI · Knowledge Base", href: "/settings/ai/knowledge-base" },
+        { label: "Supervisor Fusion editor", hint: "Synthesis prompt, profile, endpoint, agent name, auto-fusion", section: "Settings → AI · Supervisor Fusion", href: "/settings/ai/supervisor-fusion" },
+        { label: "Power BI Q&A surface", hint: "Microsoft NLP runs in MS tenant; PulsePlay only mints embed token", section: "Power BI Q&A", href: "/powerbi/qna" },
+        // ── Knowledge pack (in-Setup) ──────────────────────────────────
         { id: "pack", label: "Knowledge pack", hint: "CPG/FMCG, Retail/Digital, SaaS/Product, or none", section: "Knowledge Pack", step: 3 },
+        { label: "Browse knowledge library", hint: "All packs, sub-verticals, evidence, sample questions", section: "Knowledge Library", href: "/knowledge" },
+        // ── Governance (in-Setup) ──────────────────────────────────────
         { id: "gov", label: "Governance allowlist", hint: "Allowed BI providers and AI profiles", section: "Governance", step: 4 },
         { id: "gov", label: "Iframe sandbox policy", hint: "Allowlist and sandbox policy enforcement", section: "Governance", step: 4 },
         { id: "gov", label: "Identity and RLS review", hint: "Row-level security and delegated identity", section: "Governance", step: 4 },
+        // ── Test & Handoff (in-Setup) ──────────────────────────────────
         { id: "test", label: "Diagnostic preflight", hint: "Proxy health, BI mount, AI handshake, attestation", section: "Test & Handoff", step: 5 },
         { id: "test", label: "Redacted handoff bundle", hint: "Diagnostic JSON for support / deployer handoff", section: "Test & Handoff", step: 5 },
+        // ── Preferences (cross-Settings) ───────────────────────────────
+        { label: "Theme (light / dark / system)", hint: "Surface color scheme and accent brand tokens", section: "Settings → Preferences · Appearance", href: "/settings/preferences/appearance" },
+        { label: "Brand colors", hint: "Header / accent / surface color tokens", section: "Settings → Preferences · Appearance", href: "/settings/preferences/appearance" },
+        { label: "Layout (AI position: left / right / top / bottom)", hint: "Where the AI pane sits relative to the BI canvas", section: "Settings → Preferences", href: "/settings/preferences" },
+        { label: "Layout preset", hint: "Balanced / Focus / Canvas-first / AI-only / BI-only template", section: "Settings → Preferences", href: "/settings/preferences" },
+        { label: "Default landing surface", hint: "Which tab fresh visitors see", section: "Settings → Preferences", href: "/settings/preferences" },
+        { label: "Visible panels", hint: "AI-only / BI-only / Mix / Both — what end users get to see", section: "Settings → Preferences", href: "/settings/preferences" },
+        { label: "Mix composition", hint: "AI Insights vs Ask Pulse vs Dashboard share on shared surfaces", section: "Settings → Preferences", href: "/settings/preferences" },
+        { label: "Research Agent traces", hint: "Show reasoning_traces when Agent Mode runs upstream", section: "Settings → Preferences", href: "/settings/preferences" },
+        { label: "Density / UI scale", hint: "Compact, normal, large rendering", section: "Settings → Preferences", href: "/settings/preferences" },
+        { label: "Guided filters bar", hint: "Quick filter chips above Ask Pulse", section: "Settings → Preferences", href: "/settings/preferences" },
+        // ── System / Developer Tools (cross-Settings) ──────────────────
+        { label: "Proxy health status", hint: "Live /healthz poll for the configured proxy", section: "Settings → System", href: "/settings/system" },
+        { label: "Developer Tools", hint: "SQL trace, prompt context dump, session log, dev mode, retries", section: "Settings → System · Developer Tools", href: "/settings/system/developer-tools" },
+        { label: "Show generated SQL", hint: "Render the SQL Genie emitted on every section", section: "Settings → System · Developer Tools", href: "/settings/system/developer-tools" },
+        { label: "Show reasoning trace", hint: "Diagnostic trace for Agent-Mode and Supervisor calls", section: "Settings → System · Developer Tools", href: "/settings/system/developer-tools" },
+        { label: "Validation retry count", hint: "How many times the validator retries before giving up", section: "Settings → System · Developer Tools", href: "/settings/system/developer-tools" },
+        { label: "Connector compatibility warnings", hint: "Show banner when chosen connector lacks features", section: "Settings → System · Developer Tools", href: "/settings/system/developer-tools" },
+        { label: "Allow report actions", hint: "AI can push filters / drill / focus into the host BI surface", section: "Settings → System · Developer Tools", href: "/settings/system/developer-tools" },
+        { label: "Re-run setup wizard", hint: "Restart the guided first-run wizard", section: "Settings → System", href: "/settings/system" },
+        // ── Advanced (cross-Settings) ──────────────────────────────────
+        { label: "Performance levers", hint: "Cache TTL, max retries, reveal cadence, discovery prewarm", section: "Settings → Advanced", href: "/settings/advanced" },
+        { label: "AI Insights cache TTL", hint: "How long cached briefings stay fresh before re-running", section: "Settings → Advanced", href: "/settings/advanced" },
+        { label: "Reveal cadence", hint: "Instant / Fast / Balanced / Full progressive reveal timing", section: "Settings → Advanced", href: "/settings/advanced" },
+        { label: "Discovery prewarm", hint: "Fire schema/KPI/reachability fusion on screen load", section: "Settings → Advanced", href: "/settings/advanced" },
+        { label: "Local storage inspector", hint: "View every pulseplay:* key currently persisted", section: "Settings → Advanced", href: "/settings/advanced" },
+        { label: "Reset section / Reset all", hint: "Scoped or full restore of defaults", section: "Settings → Advanced", href: "/settings/advanced" },
+        { label: "Danger zone — sign out of Power BI", hint: "Clear MSAL tokens and PBI-cached identity", section: "Settings → Advanced", href: "/settings/advanced" },
+        // ── Hidden routes (made discoverable here) ─────────────────────
+        { label: "Launchpad", hint: "Pack / connector landing page", section: "Launchpad", href: "/launchpad" },
+        { label: "Workbench preview", hint: "Unified workbench (preview-flag gated)", section: "Workbench", href: "/workbench" },
+        { label: "Knowledge base browser", hint: "Browse all knowledge packs + sub-verticals + evidence", section: "Knowledge", href: "/knowledge" },
     ] as const, []);
 
     const searchResults = useMemo(() => {
@@ -493,27 +550,46 @@ export function SetupGroup(): React.ReactElement {
                 />
                 {searchResults.length > 0 && (
                     <ul className="pp-setup__search-results" role="listbox">
-                        {searchResults.map((result, idx) => (
-                            <li key={`${result.id}-${result.label}-${idx}`} role="option" aria-selected={false}>
-                                <button
-                                    type="button"
-                                    className="pp-setup__search-result"
-                                    onClick={() => {
-                                        scrollToSection(result.id, result.step);
-                                        setSearchQuery("");
-                                    }}
-                                >
-                                    <span className="pp-setup__search-result-label">{result.label}</span>
-                                    <span className="pp-setup__search-result-section">{result.section}</span>
-                                    <span className="pp-setup__search-result-hint">{result.hint}</span>
-                                </button>
-                            </li>
-                        ))}
+                        {searchResults.map((result, idx) => {
+                            const hasHref = "href" in result && typeof result.href === "string";
+                            const key = hasHref
+                                ? `${result.href}-${result.label}-${idx}`
+                                : `${(result as { id: string }).id}-${result.label}-${idx}`;
+                            return (
+                                <li key={key} role="option" aria-selected={false}>
+                                    <button
+                                        type="button"
+                                        className="pp-setup__search-result"
+                                        onClick={() => {
+                                            if (hasHref) {
+                                                // UX-ARCH-0B.2 Phase B — cross-Settings deep link.
+                                                // Use SPA navigation so React Router picks up the
+                                                // route change without a full reload.
+                                                try {
+                                                    window.history.pushState({}, "", (result as { href: string }).href);
+                                                    window.dispatchEvent(new PopStateEvent("popstate"));
+                                                } catch {
+                                                    window.location.href = (result as { href: string }).href;
+                                                }
+                                            } else {
+                                                const r = result as { id: string; step: number };
+                                                scrollToSection(r.id, r.step);
+                                            }
+                                            setSearchQuery("");
+                                        }}
+                                    >
+                                        <span className="pp-setup__search-result-label">{result.label}</span>
+                                        <span className="pp-setup__search-result-section">{result.section}</span>
+                                        <span className="pp-setup__search-result-hint">{result.hint}</span>
+                                    </button>
+                                </li>
+                            );
+                        })}
                     </ul>
                 )}
                 {searchQuery.trim() && searchResults.length === 0 && (
                     <p className="pp-setup__search-empty">
-                        No matches in this Setup page. For advanced authoring fields (Authoring mode, Section editor, Prompt preview, Domain guidance, Suggest from data), open <a href="/ai-insights">AI Insights Developer Tools</a>.
+                        No matches found. Try a different keyword, or browse <a href="/settings/ai">Settings → AI</a> · <a href="/settings/preferences">Preferences</a> · <a href="/settings/system">System</a> · <a href="/settings/advanced">Advanced</a> directly.
                     </p>
                 )}
             </div>
