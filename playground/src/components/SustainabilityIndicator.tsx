@@ -217,25 +217,26 @@ export function SustainabilityIndicator(props: SustainabilityIndicatorProps): Re
                 title={`Session sustainability — ${label}. Click for details.`}
                 style={{
                     position: "relative",
-                    width: 36,
-                    height: 36,
+                    width: 22,
+                    height: 22,
                     borderRadius: "50%",
-                    background: `radial-gradient(circle at 30% 30%, ${color}ee 0%, ${color}bb 55%, ${color}66 100%)`,
-                    boxShadow: `0 4px 14px ${color}55, 0 0 0 2px #ffffffaa inset`,
+                    background: `radial-gradient(circle at 30% 30%, ${color}66 0%, ${color}33 60%, ${color}11 100%)`,
+                    boxShadow: `0 1px 4px ${color}22`,
+                    opacity: isOpen ? 1 : 0.55,
                     display: "inline-flex",
                     alignItems: "center",
                     justifyContent: "center",
                     cursor: "pointer",
                     userSelect: "none",
                     lineHeight: 1,
-                    transition: "transform 120ms ease",
-                    border: "1px solid #ffffff80",
+                    transition: "opacity 160ms ease, transform 120ms ease, box-shadow 160ms ease",
+                    border: `1px solid ${color}33`,
                 }}
             >
                 <span
                     aria-hidden="true"
                     style={{
-                        fontSize: 18,
+                        fontSize: 12,
                         lineHeight: 1,
                         animation: anim,
                         transformOrigin: "center center",

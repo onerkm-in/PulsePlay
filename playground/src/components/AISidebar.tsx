@@ -759,22 +759,31 @@ export function AISidebar(props: AISidebarProps) {
         <section className="pp-ai-sidebar">
             <header className="pp-ai-sidebar__header">
                 <h2 className="pp-ai-sidebar__title">PulsePlay AI</h2>
-                <p
+                {/* UX-ARCH-0B.2 follow-up 2026-05-23 — pack-context subtitle
+                    removed from the composer header. The pack is a setting;
+                    its value belongs in Settings → AI, not on every chat
+                    render. Kept the test-id'd element as a hidden SR-only
+                    span so a11y consumers + existing tests still find the
+                    current pack on demand. */}
+                <span
                     className="pp-ai-sidebar__pack-indicator"
                     data-testid="pp-ai-sidebar-pack-indicator"
-                    style={{
-                        margin: "2px 0 0",
-                        fontSize: "11px",
-                        color: "var(--pp-text-muted)",
-                    }}
+                    style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}
                 >
                     {packIndicator}
-                </p>
+                </span>
             </header>
-            <p className="pp-ai-sidebar__intro">
-                Ask questions across whichever BI tool is loaded. Context from the active panel's
-                recent events ({props.recentEvents.length} captured) is sent with every prompt.
-            </p>
+            {/* Intro paragraph is onboarding copy. Show ONLY on empty state
+                (no history yet); fade out once the user starts a conversation
+                so the chat surface stays clean. */}
+            {history.length === 0 && (
+                <p className="pp-ai-sidebar__intro">
+                    Ask about whatever's loaded.{" "}
+                    {props.recentEvents.length > 0
+                        ? `${props.recentEvents.length} BI event${props.recentEvents.length === 1 ? "" : "s"} captured for context.`
+                        : "BI events are captured for context as you interact."}
+                </p>
+            )}
             <div className="pp-ai-sidebar__history">
                 {history.map(h => (
                     <AnswerEntryView
@@ -786,35 +795,37 @@ export function AISidebar(props: AISidebarProps) {
                 ))}
             </div>
             <div className="pp-ai-sidebar__composer">
-                {/* UX-ARCH-0B.2 Phase A — FramePicker collapsed under a
-                    "Use a frame…" disclosure. Default-closed so the composer
-                    leads with the input (the dominant 2026 pattern); the
-                    picker is one click away when the user wants it.
-                    Selected frame surfaces as a chip in the summary so the
-                    state is glanceable without opening. */}
-                <details className="pp-ai-sidebar__frame-disclosure">
-                    <summary>
-                        <span className="pp-ai-sidebar__frame-disclosure-label">
-                            Use a frame
-                        </span>
-                        {selectedFrame ? (
-                            <span className="pp-ai-sidebar__frame-disclosure-chip">
-                                {snapshot?.fused.reachableFrames.find(f => f.frameId === selectedFrame)?.label ?? selectedFrame}
+                {/* UX-ARCH-0B.2 follow-up 2026-05-23 — FramePicker disclosure
+                    auto-hides when no reachable frames exist OR discovery is
+                    still loading. Previously the "Use a frame…" pill showed
+                    on every render even with nothing to pick. The composer
+                    now leads with just the textarea + buttons until frames
+                    are actually available. */}
+                {snapshot?.fused.reachableFrames && snapshot.fused.reachableFrames.length > 0 && (
+                    <details className="pp-ai-sidebar__frame-disclosure">
+                        <summary>
+                            <span className="pp-ai-sidebar__frame-disclosure-label">
+                                Use a frame
                             </span>
-                        ) : (
-                            <span className="pp-ai-sidebar__frame-disclosure-hint">
-                                Optional · pick an analysis frame
-                            </span>
-                        )}
-                    </summary>
-                    <FramePicker
-                        snapshot={snapshot}
-                        loading={discoveryLoading}
-                        value={selectedFrame}
-                        onChange={setSelectedFrame}
-                        compact
-                    />
-                </details>
+                            {selectedFrame ? (
+                                <span className="pp-ai-sidebar__frame-disclosure-chip">
+                                    {snapshot.fused.reachableFrames.find(f => f.frameId === selectedFrame)?.label ?? selectedFrame}
+                                </span>
+                            ) : (
+                                <span className="pp-ai-sidebar__frame-disclosure-hint">
+                                    Optional · pick an analysis frame
+                                </span>
+                            )}
+                        </summary>
+                        <FramePicker
+                            snapshot={snapshot}
+                            loading={discoveryLoading}
+                            value={selectedFrame}
+                            onChange={setSelectedFrame}
+                            compact
+                        />
+                    </details>
+                )}
                 <div className="pp-ai-sidebar__composer-row">
                     <textarea
                         className="pp-ai-sidebar__input"
