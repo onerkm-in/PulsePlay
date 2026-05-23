@@ -1387,19 +1387,17 @@ function PlaygroundApp(): React.ReactElement {
                             {allowlistState.error && (
                                 <div
                                     role={allowlistFailClosed ? "alert" : "status"}
-                                    style={{
-                                        padding: "8px 10px",
-                                        borderBottom: "1px solid rgba(120,0,0,0.18)",
-                                        background: "rgba(255,245,245,0.86)",
-                                        color: "#7f1d1d",
-                                        fontSize: 12,
-                                        lineHeight: 1.4,
-                                    }}
+                                    className="pp-allowlist-chip"
+                                    data-fail-closed={allowlistFailClosed ? "true" : "false"}
                                 >
-                                    {allowlistFailClosed
-                                        ? <><strong>Governance allowlist unreachable — fail-closed.</strong> Check the proxy.</>
-                                        : <>Governance config unavailable. Pickers may be incomplete.</>
-                                    }
+                                    <span className="pp-allowlist-chip__icon" aria-hidden="true">⚠</span>
+                                    <span className="pp-allowlist-chip__label">
+                                        {allowlistFailClosed
+                                            ? "Proxy unreachable — config locked"
+                                            : "Governance config unavailable"
+                                        }
+                                    </span>
+                                    <a className="pp-allowlist-chip__more" href="/settings/setup" title="Open Setup to verify proxy configuration">Open Setup</a>
                                 </div>
                             )}
                             {uiMode === "pulse" ? (
@@ -1457,35 +1455,21 @@ function PlaygroundApp(): React.ReactElement {
                             {allowlistState.error && (
                                 <div
                                     role={allowlistFailClosed ? "alert" : "status"}
-                                    style={{
-                                        padding: "8px 10px",
-                                        borderBottom: "1px solid rgba(120,0,0,0.18)",
-                                        background: "rgba(255,245,245,0.86)",
-                                        color: "#7f1d1d",
-                                        fontSize: 12,
-                                        lineHeight: 1.4,
-                                    }}
+                                    className="pp-allowlist-chip"
+                                    data-fail-closed={allowlistFailClosed ? "true" : "false"}
+                                    title={allowlistFailClosed
+                                        ? `BI surfaces will not mount until the proxy responds. Check the proxy is running on ${readConfiguredProxyBase()} and reload.`
+                                        : "Governance config could not be loaded; pickers may be incomplete until the proxy responds."
+                                    }
                                 >
-                                    {allowlistFailClosed ? (
-                                        <>
-                                            <strong>Governance allowlist unreachable — fail-closed.</strong>{" "}
-                                            BI surfaces will not mount and selections are refused until the proxy responds.
-                                            {/* Audit 2026-05-19 P2-13: was a hardcoded
-                                              * http://127.0.0.1:8787 — fine for local dev,
-                                              * misleading on any other deploy. Derive the
-                                              * displayed proxy URL from the configured
-                                              * apiBaseUrl (stored in the genieSettings
-                                              * JSON the settings store writes), falling
-                                              * back to the local default only when no
-                                              * override is set. */}
-                                            {(() => {
-                                                const base = readConfiguredProxyBase();
-                                                return <> Check the proxy is running on <code>{base}</code> and reload.</>;
-                                            })()}
-                                        </>
-                                    ) : (
-                                        <>Governance config unavailable. Pickers may be incomplete until the proxy responds.</>
-                                    )}
+                                    <span className="pp-allowlist-chip__icon" aria-hidden="true">⚠</span>
+                                    <span className="pp-allowlist-chip__label">
+                                        {allowlistFailClosed
+                                            ? "Proxy unreachable — config locked"
+                                            : "Governance config unavailable"
+                                        }
+                                    </span>
+                                    <a className="pp-allowlist-chip__more" href="/settings/setup" title="Open Setup to verify proxy configuration">Open Setup</a>
                                 </div>
                             )}
                             {uiMode === "pulse" ? (

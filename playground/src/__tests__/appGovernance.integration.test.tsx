@@ -55,6 +55,12 @@ describe("App Governance and React Query Integration", () => {
         render(<App />);
 
         const alert = await screen.findByRole("alert");
-        expect(alert.textContent).toContain("Governance allowlist unreachable");
+        // UX-VIEWER-1.1: the prior full-width "Governance allowlist unreachable —
+        // fail-closed. BI surfaces will not mount..." banner was demoted to a
+        // compact chip with plain-language copy. The fail-closed contract is
+        // unchanged; the visible label is now operator-friendly.
+        expect(alert.textContent).toContain("Proxy unreachable");
+        expect(alert.textContent).toContain("config locked");
+        expect(alert.getAttribute("data-fail-closed")).toBe("true");
     });
 });

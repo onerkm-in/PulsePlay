@@ -5623,9 +5623,12 @@ function App(props: AppProps) {
                                 <span>Author view: all users</span>
                             </label>
                         )}
-                        {!viewerUserKey && (
-                            <span className="gn-history-hint">Bind User Identity to enable per-user retrieval.</span>
-                        )}
+                        {/* T7 anonymous-first: prior "Bind User Identity to enable per-user
+                           retrieval." hint was dev-tooling phrasing and rendered as
+                           noise on the Ask Pulse home. Anonymous chat is now first-
+                           class; identity is optional. A follow-up slice surfaces a
+                           sign-in nudge at risk-of-loss moments (save / share / export),
+                           not as a passive hint on the landing surface. */}
                     </div>
                     {showHistory && (
                         <div className="gn-history-panel">
