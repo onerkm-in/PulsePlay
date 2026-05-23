@@ -17,9 +17,11 @@
 //   - AI Insights settings are edited here directly; the Pulse Console
 //     links here instead of hosting a duplicate setup form.
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSettings } from "../settingsStore";
 import { CurrentValue, Leaf, OrphanBanner, SubSection } from "./BiGroup";
+import { BookmarkNav, type BookmarkSection } from "../primitives/BookmarkNav";
+import { ProgressiveSection } from "../primitives/ProgressiveSection";
 import { TestConnectionPanel } from "../../components/TestConnectionPanel";
 import { PackPicker, type PackInfo, type PackSelection } from "../../components/PackPicker";
 import { probeConnector } from "../../lib/probeClient";
@@ -154,6 +156,41 @@ export function AiGroup(): React.ReactElement {
 
     const aiIntroText = "Everything AI-side — connector, knowledge pack, AI Insights config, Ask Pulse config, Vector Search, UC Metric View. One assistant powers both AI Insights and Ask Pulse; change once, both benefit.";
 
+    // UX-ARCH-0B.2 Phase F 2026-05-23 — universal progressive-section
+    // pattern: numbered bookmark chips at top, numbered collapsible cards
+    // below. Default is "all sections expanded" so a returning author sees
+    // every control they configured without re-expanding each time; the
+    // collapse affordance is opt-in for de-cluttering. Jump-to-section
+    // (bookmark click) just scrolls — doesn't toggle — so users don't lose
+    // context they had open elsewhere.
+    const ALL_AI_SECTION_IDS = ["connector", "assistant", "context", "response", "surface"] as const;
+    const [expandedAiSections, setExpandedAiSections] = useState<Set<string>>(() => new Set(ALL_AI_SECTION_IDS));
+    const aiBookmarks: ReadonlyArray<BookmarkSection> = useMemo(() => [
+        { id: "connector", step: 1, label: "Connector",        checked: !!activeAiProfile,     active: expandedAiSections.has("connector") },
+        { id: "assistant", step: 2, label: "Assistant",        checked: !!activeAiProfile,     active: expandedAiSections.has("assistant") },
+        { id: "context",   step: 3, label: "Shared context",   checked: !!packSelection?.pack, active: expandedAiSections.has("context")   },
+        { id: "response",  step: 4, label: "Response",         checked: !!activeAiProfile,     active: expandedAiSections.has("response")  },
+        { id: "surface",   step: 5, label: "Surface-specific", checked: !!activeAiProfile,     active: expandedAiSections.has("surface")   },
+    ], [activeAiProfile, packSelection, expandedAiSections]);
+    const jumpToAiSection = useCallback((id: string) => {
+        setExpandedAiSections(prev => {
+            if (prev.has(id)) return prev;
+            const next = new Set(prev); next.add(id); return next;
+        });
+        if (typeof document !== "undefined") {
+            const el = document.getElementById(`pp-setup-section-${id}`);
+            el?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+    }, []);
+    const toggleAiSection = useCallback((id: string) => {
+        setExpandedAiSections(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+        });
+    }, []);
+    const isAiSectionActive = (id: string) => expandedAiSections.has(id);
+
     return (
         <section aria-labelledby="settings-ai-title">
             {/* UX-ARCH-0B.2 follow-up 2026-05-23 — h2 + intro paragraph now
@@ -228,6 +265,16 @@ export function AiGroup(): React.ReactElement {
                         i
                     </button>
                 </div>
+                {/* Phase F — bookmark navigation for the 5 progressive
+                    sections below. Mirrors the SetupGroup pattern users
+                    flagged as "slick design". */}
+                <div style={{ marginTop: 12 }}>
+                    <BookmarkNav
+                        sections={aiBookmarks}
+                        onJump={(id) => jumpToAiSection(id)}
+                        ariaLabel="AI Setup sections"
+                    />
+                </div>
             </header>
 
             {/* ─── Cycle 20 / S1: Connector catalogue (brand grid) ──────
@@ -243,10 +290,20 @@ export function AiGroup(): React.ReactElement {
               * picker below stays as the "configured profiles only" shortcut
               * for users who already know which profile they want.
               */}
-            <SubSection
-                group="ai"
-                label="Connector catalogue"
-                helper="Every connector PulsePlay can wire up. The compact view shows only what's configured today — click '+ Show all 12 →' to browse what else is available. Each card has a copy-paste config snippet."
+            <ProgressiveSection
+                anchorId="connector"
+                number="01"
+                title="Connector catalogue"
+                subtitle={activeAiProfile ? `Active: ${activeAiProfile}` : "Pick a connector to power the assistant"}
+                active={isAiSectionActive("connector")}
+                checked={!!activeAiProfile}
+                onToggle={() => toggleAiSection("connector")}
+                metadata={{
+                    source: activeAiProfile ? "Selected proxy profile" : "No profile selected",
+                    freshness: activeAiProfile ? "Current session" : "Pending setup",
+                    owner: "AI platform owner",
+                    nextAction: activeAiProfile ? "Test connection in section 02" : "Pick a configured connector below",
+                }}
             >
                 <ConnectorBrandGrid
                     activeProfileName={activeAiProfile || null}
@@ -256,7 +313,7 @@ export function AiGroup(): React.ReactElement {
                     }}
                     showOnlyConfiguredByDefault
                 />
-            </SubSection>
+            </ProgressiveSection>
 
             {/* ─── Tier 1: Assistant — who is answering ─────────────────
               * 2026-05-19 Codex IA restructure: pick the assistant (provider,
@@ -264,9 +321,20 @@ export function AiGroup(): React.ReactElement {
               * context or response tuning because nothing else matters until
               * a working assistant is wired.
               */}
-            <SubSection
-                label="Assistant"
-                helper="The currently active assistant — its model/agent details and a live reachability probe. Switch the active connector via the catalogue above."
+            <ProgressiveSection
+                anchorId="assistant"
+                number="02"
+                title="Assistant"
+                subtitle={activeAiProfile ? "Model / Agent + Connection test" : "Pick a connector first"}
+                active={isAiSectionActive("assistant")}
+                checked={!!activeAiProfile}
+                onToggle={() => toggleAiSection("assistant")}
+                metadata={{
+                    source: activeProfileMeta ? (activeProfileMeta.displayName || activeProfileMeta.name) : "(none)",
+                    freshness: activeAiProfile ? "Live probe ready" : "Pending",
+                    owner: "AI platform owner",
+                    nextAction: activeAiProfile ? "Run the connection test" : "Pick a connector in 01",
+                }}
             >
 
             {/* ── Provider picker removed 2026-05-20 (cycle 20 follow-up) ──
@@ -411,20 +479,22 @@ export function AiGroup(): React.ReactElement {
                 </Leaf>
             )}
 
-            </SubSection>
+            </ProgressiveSection>
 
-            {/* ─── Tier 2: Shared context — what the assistant grounds on ─
-              * Codex 2026-05-19 IA restructure: knowledge, domain
-              * guidance, metric semantics, retrieval sources are SHARED
-              * between AI Insights and Ask Pulse. Grouping them under
-              * one bucket fixes the mental-model bug where authors
-              * thought "Knowledge pack" was AI-Insights-only.
-              * Knowledge Pack stays here; UC Metric View and Vector
-              * Search KB join it.
-              */}
-            <SubSection
-                label="Shared context"
-                helper="Knowledge, vocabulary, and grounding sources used by both AI Insights and Ask Pulse. Change once; both surfaces benefit."
+            <ProgressiveSection
+                anchorId="context"
+                number="03"
+                title="Shared context"
+                subtitle={packSelection?.pack ? `Pack: ${packSelection.pack}` : "Knowledge pack, Vector Search, UC Metric View"}
+                active={isAiSectionActive("context")}
+                checked={!!packSelection?.pack}
+                onToggle={() => toggleAiSection("context")}
+                metadata={{
+                    source: packSelection?.pack ? "Selected knowledge pack" : "No pack selected",
+                    freshness: packSelection?.pack ? "Current session" : "Optional",
+                    owner: "Data product owner",
+                    nextAction: packSelection?.pack ? "Tune response behavior in 04" : "Pick a knowledge pack (optional)",
+                }}
             >
 
             {/* ── Knowledge pack (Domain knowledge) ──────────────────── */}
@@ -516,20 +586,22 @@ export function AiGroup(): React.ReactElement {
                 />
             </Leaf>
 
-            </SubSection>
+            </ProgressiveSection>
 
-            {/* ─── Tier 3: Response behavior — how the assistant answers ─
-              * Codex IA restructure: prompt strategy, sections, evidence,
-              * tone. These apply to BOTH surfaces; surface-specific knobs
-              * (Insights stage toggles, Ask Pulse chat suggestions) belong
-              * to the next tier. The Pulse genieSettings panel is the
-              * single editor today — when the surface-specific knobs are
-              * separated into their own controls, this leaf will shrink to
-              * the truly-shared bits only.
-              */}
-            <SubSection
-                label="Response behavior"
-                helper="How the assistant talks back — prompt strategy, section schema, metric semantics, evidence and provenance. Shared with both AI Insights and Ask Pulse; saves to Pulse genieSettings."
+            <ProgressiveSection
+                anchorId="response"
+                number="04"
+                title="Response behavior"
+                subtitle="Prompt strategy, sections, metric rules, domain guidance"
+                active={isAiSectionActive("response")}
+                checked={!!activeAiProfile}
+                onToggle={() => toggleAiSection("response")}
+                metadata={{
+                    source: "Pulse AI settings",
+                    freshness: "Saved locally",
+                    owner: "AI Insights / Ask Pulse author",
+                    nextAction: "Tune authoring mode, sections, metric rules",
+                }}
             >
 
             <Leaf
@@ -544,20 +616,22 @@ export function AiGroup(): React.ReactElement {
                 />
             </Leaf>
 
-            </SubSection>
+            </ProgressiveSection>
 
-            {/* ─── Tier 4: Surface-specific behavior ──────────────────
-              * Stub for the future split: AI Insights auto-run, cache,
-              * briefing stages on one side; Ask Pulse chat suggestions,
-              * filter bar, conversation behavior on the other. Today the
-              * controls live inside Response behavior above. This section
-              * exists in the IA so authors see the shape of the future
-              * separation and so the next cycle has a clear home for
-              * each surface's distinct controls.
-              */}
-            <SubSection
-                label="Surface-specific behavior"
-                helper="Settings that apply to ONE surface only — AI Insights auto-run and briefing stages, or Ask Pulse chat behavior and follow-ups. Most controls still live in Response behavior above; the split moves in a follow-up cycle."
+            <ProgressiveSection
+                anchorId="surface"
+                number="05"
+                title="Surface-specific behavior"
+                subtitle="Supervisor Fusion, Knowledge Base toggles"
+                active={isAiSectionActive("surface")}
+                checked={!!activeAiProfile}
+                onToggle={() => toggleAiSection("surface")}
+                metadata={{
+                    source: "Per-surface sub-pages",
+                    freshness: "Saved locally",
+                    owner: "AI platform owner",
+                    nextAction: "Tune surface-specific knobs when needed",
+                }}
             >
                 <Leaf
                     group="ai"
@@ -588,7 +662,7 @@ export function AiGroup(): React.ReactElement {
                         }}
                     />
                 </Leaf>
-            </SubSection>
+            </ProgressiveSection>
         </section>
     );
 }
