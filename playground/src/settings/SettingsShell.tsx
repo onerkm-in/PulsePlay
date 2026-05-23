@@ -441,6 +441,15 @@ interface SettingsLeftRailProps {
 }
 
 function SettingsLeftRail(props: SettingsLeftRailProps & { activeLeaf?: string | null }): React.ReactElement {
+    // UX-ARCH-0B.2 follow-up 2026-05-23 — rail leaves are now collapsible
+    // per group. Default state is COLLAPSED so the rail stays compact even
+    // when a group is active (the previous default of "auto-expand on active"
+    // surfaced 11 leaves under AI Setup that nobody asked for). The user's
+    // current section is still in view via the main page; the rail leaves
+    // are just deep-link shortcuts. Track expanded state in memory; the
+    // currently-active leaf forces its group expanded so a deep-link still
+    // shows context.
+    const [expandedGroups, setExpandedGroups] = useState<Set<SettingsGroupId>>(() => new Set());
     return (
         <nav className="pp-settings-rail" aria-label="Settings sections">
             {props.visibleGroups.map(id => {
@@ -448,39 +457,68 @@ function SettingsLeftRail(props: SettingsLeftRailProps & { activeLeaf?: string |
                 const readiness = props.readinessByGroup[id];
                 const showOrphan = (id === "setup" || id === "advanced") && props.hasOrphans;
                 const subLeaves = GROUP_LEAF_LABELS[id];
+                const hasActiveLeaf = active && !!props.activeLeaf;
+                const isExpanded = expandedGroups.has(id) || hasActiveLeaf;
+                const toggleExpanded = () => {
+                    setExpandedGroups(prev => {
+                        const next = new Set(prev);
+                        if (next.has(id)) next.delete(id); else next.add(id);
+                        return next;
+                    });
+                };
                 return (
                     <div key={id} className="pp-settings-rail__group">
-                        <button
-                            type="button"
-                            className={`pp-settings-rail__item${active ? " pp-settings-rail__item--active" : ""}`}
-                            onClick={() => navigateToSettings(id)}
-                            aria-current={active ? "page" : undefined}
-                        >
-                            <div className="pp-settings-rail__item-row">
-                                <span className="pp-settings-rail__item-left">
-                                    <span
-                                        className="pp-settings-rail__dot"
-                                        aria-label={READINESS_LABEL[readiness]}
-                                        title={READINESS_LABEL[readiness]}
-                                        style={{ background: active ? undefined : READINESS_DOT[readiness] }}
-                                    />
-                                    {/* Decorative glyph hidden from screen readers; visible label
-                                  * carries the accessible name. Codex 2026-05-19 naming audit:
-                                  * "use real icon components with aria-hidden where decorative". */}
-                                <span aria-hidden="true" className="pp-settings-rail__glyph">{GROUP_ICONS[id]}</span>
-                                <span>{GROUP_LABELS[id]}</span>
-                                </span>
-                                {showOrphan && (
-                                    <span className="pp-settings-rail__orphan-badge" aria-label="Orphaned settings">
-                                        Orphans
+                        <div className={`pp-settings-rail__item${active ? " pp-settings-rail__item--active" : ""}`} style={{ display: "flex", alignItems: "stretch", padding: 0 }}>
+                            <button
+                                type="button"
+                                onClick={() => navigateToSettings(id)}
+                                aria-current={active ? "page" : undefined}
+                                style={{ flex: 1, textAlign: "left", border: "none", background: "transparent", padding: "8px 4px 8px 12px", cursor: "pointer", color: "inherit", font: "inherit" }}
+                            >
+                                <div className="pp-settings-rail__item-row">
+                                    <span className="pp-settings-rail__item-left">
+                                        <span
+                                            className="pp-settings-rail__dot"
+                                            aria-label={READINESS_LABEL[readiness]}
+                                            title={READINESS_LABEL[readiness]}
+                                            style={{ background: active ? undefined : READINESS_DOT[readiness] }}
+                                        />
+                                        <span aria-hidden="true" className="pp-settings-rail__glyph">{GROUP_ICONS[id]}</span>
+                                        <span>{GROUP_LABELS[id]}</span>
                                     </span>
-                                )}
-                            </div>
-                            <div className="pp-settings-rail__desc">
-                                {GROUP_DESCRIPTIONS[id]}
-                            </div>
-                        </button>
-                        {active && subLeaves.length > 0 && (
+                                    {showOrphan && (
+                                        <span className="pp-settings-rail__orphan-badge" aria-label="Orphaned settings">
+                                            Orphans
+                                        </span>
+                                    )}
+                                </div>
+                            </button>
+                            {subLeaves.length > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={toggleExpanded}
+                                    aria-label={isExpanded ? `Collapse ${GROUP_LABELS[id]} leaves` : `Expand ${GROUP_LABELS[id]} leaves`}
+                                    aria-expanded={isExpanded}
+                                    title={isExpanded ? "Collapse" : `Show ${subLeaves.length} shortcuts`}
+                                    style={{
+                                        width: 28,
+                                        border: "none",
+                                        background: "transparent",
+                                        cursor: "pointer",
+                                        color: "var(--pp-text-muted, #6b7280)",
+                                        fontSize: 10,
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        transition: "transform 120ms ease",
+                                        transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
+                                    }}
+                                >
+                                    ▶
+                                </button>
+                            )}
+                        </div>
+                        {isExpanded && subLeaves.length > 0 && (
                             <div className="pp-settings-rail__sub" role="list">
                                 {subLeaves.map(label => {
                                     const slug = leafSlugify(label);

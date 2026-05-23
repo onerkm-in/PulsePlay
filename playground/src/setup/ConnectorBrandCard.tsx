@@ -83,19 +83,31 @@ export function ConnectorBrandCard({
             data-status={status}
             style={{
                 border: "1px solid rgba(0, 0, 0, 0.12)",
-                borderRadius: 8,
-                padding: 14,
+                borderRadius: 6,
+                padding: 10,
                 background: "white",
                 display: "flex",
                 flexDirection: "column",
-                gap: 10,
-                minHeight: 180,
+                gap: 6,
             }}
         >
-            <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                    <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>{manifest.displayName}</h3>
-                    <div style={{ fontSize: 11, opacity: 0.7 }}>{manifest.tagline}</div>
+            {/* UX-ARCH-0B.2 follow-up 2026-05-23 — card compacted. minHeight:
+                180 removed; padding 14 → 10; status row + tagline merged into
+                one line; description moved behind a `title` tooltip on the
+                card header (no longer rendered as a separate paragraph). */}
+            <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }} title={manifest.description}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                    <span
+                        aria-hidden="true"
+                        style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: "50%",
+                            background: statusMeta.dot,
+                            flexShrink: 0,
+                        }}
+                    />
+                    <h3 style={{ margin: 0, fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{manifest.displayName}</h3>
                 </div>
                 <span
                     data-maturity={manifest.maturity}
@@ -103,31 +115,22 @@ export function ConnectorBrandCard({
                         fontSize: 9,
                         fontWeight: 700,
                         letterSpacing: 0.5,
-                        padding: "2px 6px",
+                        padding: "1px 5px",
                         borderRadius: 3,
                         background: maturityMeta.bg,
                         color: maturityMeta.fg,
                         whiteSpace: "nowrap",
+                        flexShrink: 0,
                     }}
                 >
                     {maturityMeta.label}
                 </span>
             </header>
 
-            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
-                <span
-                    aria-hidden="true"
-                    style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: "50%",
-                        background: statusMeta.dot,
-                        flexShrink: 0,
-                    }}
-                />
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--pp-text-muted, #6b7280)" }}>
                 <span
                     style={{
-                        padding: "2px 6px",
+                        padding: "1px 6px",
                         borderRadius: 3,
                         background: statusMeta.bg,
                         color: statusMeta.tone,
@@ -138,12 +141,11 @@ export function ConnectorBrandCard({
                 </span>
                 {configuredCount > 0 && (
                     <span style={{ opacity: 0.7 }}>
-                        {configuredCount} profile{configuredCount === 1 ? "" : "s"}
+                        · {configuredCount} profile{configuredCount === 1 ? "" : "s"}
                     </span>
                 )}
+                <span style={{ opacity: 0.6, marginLeft: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{manifest.tagline}</span>
             </div>
-
-            <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, opacity: 0.8 }}>{manifest.description}</p>
 
             {configuredProfiles.length > 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
