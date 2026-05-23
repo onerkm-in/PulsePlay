@@ -25,7 +25,7 @@ interface SetupOption {
 export function SetupGroup(): React.ReactElement {
     const {
         biVendor, activeAiProfile, packSelection,
-        biSurfaceMode,
+        biSurfaceMode, enabledComponents,
         allowlist, allowlistLoading, allowlistError,
         setBiVendor, setBiSurfaceMode, setActiveAiProfile, setPackSelection,
     } = useSettings();
@@ -95,6 +95,27 @@ export function SetupGroup(): React.ReactElement {
             item.label.toLowerCase().includes(q) || item.hint.toLowerCase().includes(q)
         ).slice(0, 8);
     }, [searchQuery, searchIndex]);
+
+    // Connectivity pill state — honest "Connected" / "X not connected"
+    // labeling driven by the author's chosen scope (enabledComponents).
+    // If the author opted into "aiOnly" or "biOnly", the pill only judges
+    // the relevant half. If "both" / "mix", both halves are required.
+    const pillState = useMemo(() => {
+        const needsBI = enabledComponents !== "aiOnly";
+        const needsAI = enabledComponents !== "biOnly";
+        const biConnected = hasVendorEmbedConfig || biSurfaceMode === "native";
+        const aiConnected = !!activeAiProfile;
+        const missing: string[] = [];
+        if (needsBI && !biConnected) missing.push("BI");
+        if (needsAI && !aiConnected) missing.push("AI");
+        if (missing.length === 0) {
+            return { tone: "ok" as const, label: "Connected" };
+        }
+        const label = missing.length === 1
+            ? `${missing[0]} not connected`
+            : `${missing.join(" and ")} not connected`;
+        return { tone: "warn" as const, label };
+    }, [enabledComponents, hasVendorEmbedConfig, biSurfaceMode, activeAiProfile]);
 
     // Adaptive page subtitle — makes the "everything stays editable" promise
     // visible without a footnote. Computed from current section completion so
@@ -438,16 +459,16 @@ export function SetupGroup(): React.ReactElement {
                        Pulse-era persona toggle's preview function lives here now. */}
                     <div className="pp-setup__readiness pp-setup__pill" style={{ margin: 0 }}>
                         <span
-                            className={`pp-settings-chip pp-settings-chip--${readiness.ready ? "ok" : "warn"}`}
+                            className={`pp-settings-chip pp-settings-chip--${pillState.tone}`}
                             style={{ cursor: "default", transform: "none" }}
                         >
                             <span className="pp-settings-chip__dot" />
-                            <span className="pp-settings-chip__label">{readiness.ready ? "Ready to preview" : "Config needed"}</span>
+                            <span className="pp-settings-chip__label">{pillState.label}</span>
                         </span>
                         <a
                             href="/ai-insights"
                             className="pp-setup__pill-action"
-                            title={readiness.ready ? "Open the viewer-side rendering surface" : "Open viewer rendering (partial config — viewer may see limited results)"}
+                            title={pillState.tone === "ok" ? "Open the viewer-side rendering surface" : "Open viewer rendering (partial config — viewer may see limited results)"}
                         >
                             👁 Preview as viewer →
                         </a>

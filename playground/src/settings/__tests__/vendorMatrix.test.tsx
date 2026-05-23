@@ -265,7 +265,11 @@ describe("Vendor matrix: AI-only (no BI)", () => {
         // here we just verify the chip mounts so the author always sees
         // a status signal in the header regardless of the combo.
         expect(badge).not.toBeNull();
-        expect(badge?.textContent).toMatch(/Ready|Config needed/);
+        // Pill label set was renamed for plain-language clarity:
+        //   "Connected" when all author-scoped components are wired
+        //   "{BI|AI|BI and AI} not connected" when one or both are missing
+        // Match any of the new labels so the test stays scope-agnostic.
+        expect(badge?.textContent).toMatch(/Connected|not connected/);
         unmount(state);
     });
 });
