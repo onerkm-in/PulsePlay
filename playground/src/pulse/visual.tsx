@@ -7878,48 +7878,40 @@ function WelcomeSection(props: {
                 <p className="gn-welcome-caption">{getRoleSubtitle(props.roleMode)}</p>
             )}
 
-            {!props.compact && (
-                <div className="gn-welcome-section">
-                    <span className="gn-welcome-section-label">Quick start</span>
-                    <div className="gn-suggestion-pills" style={{ justifyContent: "center" }}>
-                        {(["performance", "issue", "risk", "opportunity"] as GuidedArea[]).map(item => (
-                            <button
-                                key={item}
-                                className={`gn-pill${props.area === item ? " gn-pill--active" : ""}`}
-                                onClick={() => props.setArea(item)}
-                            >
-                                {titleCase(item)}
-                            </button>
-                        ))}
-                    </div>
-                    <div className="gn-suggestion-pills" style={{ justifyContent: "center" }}>
+            {/* UX-VIEWER-1.2A — Genie-shape empty state. Prior layout had two
+               competing affordances stacked: "Quick start" with 4 area tabs
+               + "Run X View" CTA, then "Try asking" with 3 horizontal chips.
+               Three ways to start a single conversation = choice paralysis
+               + a "Run Performance View" button that looked half-disabled.
+               Genie's home is a single vertical list of starter questions
+               with horizontal-rule separators. The Quick start section is
+               removed (the area-tabs concept folds into AI Insights, not
+               Ask Pulse). The Try asking section keeps the same data source
+               (props.latestActions, populated by the LLM probe in 1.2B and
+               STATIC_ACTIONS fallback today) but renders as a vertical list
+               so the questions are scannable and tappable on mobile.
+               */}
+            {!props.compact && props.latestActions.length > 0 && (
+                <div className="gn-welcome-section gn-starter-list" data-testid="askpulse-starter-list">
+                    {props.latestActions.slice(0, 5).map(action => (
                         <button
-                            className="gn-pill gn-pill--active"
+                            key={action.id}
+                            type="button"
+                            className="gn-starter-question"
                             disabled={!props.isConfigured || props.busy}
-                            onClick={props.onRunArea}
+                            onClick={() => props.onAction(action)}
+                            data-testid="askpulse-starter-question"
                         >
-                            Run {titleCase(props.area)} View
+                            <span className="gn-starter-question__label">{action.label}</span>
                         </button>
-                    </div>
+                    ))}
                 </div>
             )}
 
             {!props.compact && (
-                <div className="gn-welcome-section">
-                    <span className="gn-welcome-section-label">Try asking</span>
-                    <div className="gn-suggestion-pills" style={{ justifyContent: "center" }}>
-                        {props.latestActions.slice(0, 3).map(action => (
-                            <button
-                                key={action.id}
-                                className="gn-pill"
-                                disabled={!props.isConfigured || props.busy}
-                                onClick={() => props.onAction(action)}
-                            >
-                                {action.label}
-                            </button>
-                        ))}
-                    </div>
-                </div>
+                <p className="gn-welcome-disclaimer" data-testid="askpulse-disclaimer">
+                    Always review the accuracy of responses.
+                </p>
             )}
         </div>
     );
