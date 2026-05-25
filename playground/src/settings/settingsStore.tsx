@@ -66,6 +66,11 @@ const KEY = {
     // older sessions/exports continue to work. Page[] is the future-
     // canonical shape; this commit just adds the field + migration.
     pages: "pulseplay:pages",
+    // 2026-05-25 (evening) — Phase C scaffolding. Persisted pane registry
+    // so floating panes survive reload at their last positions. Today
+    // contains only the default 1-inline-per-page entries; consumers
+    // (detach overlay, per-pane state) wire in follow-up commits.
+    paneRegistry: "pulseplay:pane-registry",
 } as const;
 
 /** Exported so App.tsx readInitialActiveSurface can read the same key
@@ -183,6 +188,81 @@ export function tabVisibilityFromPages(pages: ReadonlyArray<Page>): TabVisibilit
         dashboard:  pages.some(p => p.type === "dashboard"),
     };
 }
+
+/**
+ * Phase C scaffolding — Duplicative + same-tab multi-mount (2026-05-25 evening).
+ *
+ * A PaneInstance is an INDIVIDUAL mounted copy of a Page's content.
+ * Today the app has exactly ONE pane instance per Page (the in-tab
+ * render). Phase C unlocks DUPLICATIVE detach: when the user clicks
+ * Pop-out, a NEW pane instance is created — the original stays in
+ * its tab AND a floating instance appears, both keyed by distinct
+ * paneId values. Same-tab multi-mount means a single Page can have
+ * N pane instances simultaneously (e.g. one Ask Pulse in-tab plus
+ * two floating Ask Pulse panes asking different questions side by
+ * side).
+ *
+ * Per-pane state isolation is REQUIRED — each PaneInstance carries
+ * its own conversation history, scroll position, composer draft, and
+ * (for Power BI specifically per the existing tripwire) its own
+ * fresh embed token. This commit just scaffolds the registry shape +
+ * storage; the runtime mount/unmount + detach overlay + per-pane
+ * state isolation land in follow-up commits.
+ */
+export type PanePlacement = "inline" | "floating" | "minimized";
+
+export interface PaneInstance {
+    /** Unique identifier — drives per-pane state lookups. Format:
+     *  `pane-${pageId}-${monotonicCounter}`. */
+    paneId: string;
+    /** The Page this instance is rendering. References a Page.id from
+     *  the SettingsState.pages list. */
+    pageId: string;
+    /** Where this pane is currently rendered. */
+    placement: PanePlacement;
+    /** For floating panes: position in viewport. Persisted so floats
+     *  survive reload at the same coordinates. Inline + minimized
+     *  panes ignore this field. */
+    position?: { x: number; y: number };
+    /** Floating panes only: size override. */
+    size?: { width: number; height: number };
+    /** Creation timestamp (ms epoch). Used for paneId disambiguation
+     *  when the same page is mounted multiple times. */
+    createdAt: number;
+}
+
+/** Default pane registry — for each default Page, one inline pane
+ *  instance. Mirrors today's "one render per tab" behavior. */
+export const DEFAULT_PANE_REGISTRY: ReadonlyArray<PaneInstance> = DEFAULT_PAGES.map((p, i) => ({
+    paneId: `pane-${p.id}-0`,
+    pageId: p.id,
+    placement: "inline" as const,
+    createdAt: 0, // 0 sentinel = "default registry, not a runtime mount"
+}));
+
+/** Derive the legacy "one pane per page" registry from a Page[] —
+ *  used during the migration window when consumers don't yet know
+ *  about PaneInstance and just want the canonical inline pane per
+ *  Page. */
+export function paneRegistryFromPages(pages: ReadonlyArray<Page>): PaneInstance[] {
+    return pages.map(p => ({
+        paneId: `pane-${p.id}-0`,
+        pageId: p.id,
+        placement: "inline" as const,
+        createdAt: 0,
+    }));
+}
+
+/** Count of inline pane instances per pageId. Used to detect when a
+ *  Page has been mounted multiple times in the same tab (Phase C
+ *  unlocks; today always returns 0 or 1). */
+export function inlinePaneCountByPage(registry: ReadonlyArray<PaneInstance>): Record<string, number> {
+    const counts: Record<string, number> = {};
+    for (const p of registry) {
+        if (p.placement === "inline") counts[p.pageId] = (counts[p.pageId] ?? 0) + 1;
+    }
+    return counts;
+}
 /**
  * Pane composition mode (set by the AUTHOR in Settings → Preferences → Visible
  * panels). End users see only what the author wired:
@@ -243,6 +323,11 @@ export interface SettingsState {
      *  Setters that mutate one mutate both — they stay in lockstep
      *  during the migration window. */
     pages: Page[];
+    /** 2026-05-25 (evening) — Phase C scaffolding. Persisted pane
+     *  registry. Today auto-derived from pages (1 inline pane per
+     *  page); follow-up commits wire detach (adds floating panes) +
+     *  same-tab multi-mount (adds extra inline panes for one page). */
+    paneRegistry: PaneInstance[];
     /** Values found in localStorage that didn't validate against the
      *  live allowlist on the most-recent reconciliation pass. The
      *  Settings page surfaces these as "deprecated" banners. */
@@ -404,6 +489,43 @@ function readTabVisibility(): TabVisibility {
     return { ...DEFAULT_TAB_VISIBILITY };
 }
 
+function readPaneRegistry(pagesFallback: ReadonlyArray<Page>): PaneInstance[] {
+    // Phase C reader. Prefers persisted pulseplay:pane-registry; falls
+    // back to deriving from pages (1 inline pane per page) so pre-C
+    // sessions transparently work. Strict validation drops malformed
+    // entries and entries referencing unknown pageIds.
+    if (typeof window === "undefined") return paneRegistryFromPages(pagesFallback);
+    try {
+        const raw = window.localStorage.getItem(KEY.paneRegistry);
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+                const validPlacements: PanePlacement[] = ["inline", "floating", "minimized"];
+                const knownPageIds = new Set(pagesFallback.map(p => p.id));
+                const out: PaneInstance[] = parsed
+                    .filter((p: unknown): p is { paneId: string; pageId: string; placement: string; createdAt: number } => {
+                        return !!p && typeof p === "object"
+                            && typeof (p as { paneId?: unknown }).paneId === "string"
+                            && typeof (p as { pageId?: unknown }).pageId === "string"
+                            && validPlacements.includes((p as { placement?: string }).placement as PanePlacement)
+                            && typeof (p as { createdAt?: unknown }).createdAt === "number"
+                            && knownPageIds.has((p as { pageId: string }).pageId);
+                    })
+                    .map((p) => ({
+                        paneId: p.paneId,
+                        pageId: p.pageId,
+                        placement: p.placement as PanePlacement,
+                        createdAt: p.createdAt,
+                        position: typeof (p as { position?: unknown }).position === "object" ? (p as { position?: { x: number; y: number } }).position : undefined,
+                        size:     typeof (p as { size?: unknown }).size === "object" ? (p as { size?: { width: number; height: number } }).size : undefined,
+                    }));
+                if (out.length > 0) return out;
+            }
+        }
+    } catch { /* swallow */ }
+    return paneRegistryFromPages(pagesFallback);
+}
+
 function readPages(tabVisibilityFallback: TabVisibility): Page[] {
     // 2026-05-25 (evening) — Multi-page P1 reader. Prefers the new
     // pulseplay:pages key when present; falls back to deriving from
@@ -446,6 +568,7 @@ function readDefaultLandingSurface(): DefaultLandingSurface | null {
 
 function buildInitialState(): SettingsState {
     const tabVisibility = readTabVisibility();
+    const pages = readPages(tabVisibility);
     return {
         allowlist: null,
         allowlistLoading: true,
@@ -462,7 +585,10 @@ function buildInitialState(): SettingsState {
         tabVisibility,
         // Multi-page P1 — derived from tabVisibility for new sessions;
         // honors persisted pulseplay:pages JSON when present.
-        pages: readPages(tabVisibility),
+        pages,
+        // Phase C scaffolding — derived from pages for new sessions;
+        // honors persisted pulseplay:pane-registry JSON when present.
+        paneRegistry: readPaneRegistry(pages),
         orphans: [],
     };
 }
