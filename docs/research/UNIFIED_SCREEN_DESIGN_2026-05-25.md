@@ -565,6 +565,67 @@ The current architecture mounts BIPanel + UnifiedAssistantSurface as App.tsx sib
 
 ---
 
+## 10.5 Polish defaults (defaulted; revisit during the step they affect)
+
+Six polish items came up in the design brainstorm. None block sign-off; each has a defaulted answer locked here so Steps 2-13 can implement against a known target. If any default turns out wrong in practice, we revise in-step rather than re-opening the foundation.
+
+### 10.5.1 Tab activity indicators
+
+When a tab's content updates while the user is on a different tab (e.g., a sectioned briefing finishes generating on AI Insights while user is reading Dashboard), the tab pill shows a small unread-dot indicator (●). Click-to-clear semantics.
+
+- **Visual:** 6px filled circle in the tab pill's accent color, top-right corner.
+- **State key:** `pulseplay:tab-unread-flags` → `Record<TabId, boolean>`.
+- **Cleared:** on tab activation OR on explicit "mark all read" action in the overflow menu.
+- **Lands in:** Step 3 (tab strip).
+
+### 10.5.2 Drag-to-detach
+
+For v0.1, panes detach via the toolbar Float button ONLY. Drag-to-detach (grab the pane header, drag outside the tab body) is deferred to Phase 2. Reason: drag detection adds significant complexity (drop zones, ghost preview, drag-start threshold) and the toolbar Float button is sufficiently discoverable when paired with the tooltip + keyboard shortcut.
+
+- **Lands in:** Phase 2 polish cycle.
+- **Phase 2 trigger:** if user feedback says "I keep dragging the header expecting it to float," we revisit.
+
+### 10.5.3 Mobile collapse
+
+The 3 tabs stay visible always (mobile + desktop). Dashboard 2-pane mode always stacks vertically on mobile (no horizontal split below 768px width — vertical split looks like one BI canvas atop the other). AI Insights and Ask Pulse tabs collapse their split layout to vertical (AI on top, BI below) below 768px regardless of the author's per-tab layout setting.
+
+- **Breakpoint:** 768px wide.
+- **Storage:** no new keys; runtime decision.
+- **Lands in:** Step 3.5 (per-tab layout settings) — the resolver respects breakpoint overrides.
+
+### 10.5.4 Tab-switch animation
+
+Content swap uses a **150ms cross-fade**. Cheap, feels native, doesn't compete with the briefing/chat content for attention. Honors `prefers-reduced-motion` — when set, the swap is instant.
+
+- **Implementation:** CSS opacity transition on the `<TabBody>` content layer; key the layer on `activeTab` so React re-mounts.
+- **Lands in:** Step 3 (tab strip).
+
+### 10.5.5 Empty state when no AI profile configured
+
+The unified screen shows a **notice strip** (full-width banner at top of the canvas) when no AI profile is configured. The 3 tabs all stay visible:
+
+- **AI Insights tab + Ask Pulse tab:** main canvas shows a focused empty state — "Connect an AI assistant to start. Settings → AI →  Connector catalogue" with a single deep-link button. NO briefing / chat content area.
+- **Dashboard tab:** works fully — BI doesn't require AI. The notice strip stays visible reminding the user that AI tabs are inactive.
+
+This is better than today's full-screen hijack (which makes Dashboard unreachable until AI is configured).
+
+- **Lands in:** Step 2 (PulsePlayScreen wrapper) — the empty-state logic is a peer of the tab body.
+
+### 10.5.6 Keyboard shortcuts to switch tabs
+
+- `Ctrl+1` → AI Insights tab
+- `Ctrl+2` → Ask Pulse tab
+- `Ctrl+3` → Dashboard tab
+- `Ctrl+Tab` → cycle next tab
+- `Ctrl+Shift+Tab` → cycle previous tab
+
+Plus the existing toolbar keyboard shortcuts (per §4.5.1: Ctrl+Alt+M for Maximize, etc.).
+
+- **Implementation:** `window.addEventListener("keydown", …)` in PulsePlayScreen; respects standard "don't fire while user is in an input field" pattern.
+- **Lands in:** Step 3 (tab strip).
+
+---
+
 ## 11. Sign-off checklist
 
 Before any code lands, Rajesh confirms:
