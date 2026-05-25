@@ -140,23 +140,20 @@ export const GROUP_LEAF_LABELS: Record<SettingsGroupId, string[]> = {
         "Supervisor Fusion",
         "Knowledge Base",
     ],
-    // Canvas tiles intentionally LAST (under "Display policy" SubSection).
-    // PreferencesGroup.tsx renders: Mode → Layout → MixCompositionPanel
-    // (AI surfaces / Research Agent / Managed agent / BI composition)
-    // → Display policy (Canvas tiles). Mix panel sits between Layout and
-    // Display policy — Canvas tiles is the FINAL leaf.
+    // PreferencesGroup.tsx renders: Tabs (Visible tabs + Default landing
+    // tab) → Display policy (Canvas tiles).
     preferences: [
-        // 2026-05-25 — "UI mode" leaf removed per the unified-surface plan.
-        // UnifiedAssistantSurface is the always-default. PulseShell remains as a dev-tools
-        // escape hatch via localStorage["pulseplay:ui-mode"]="pulse".
-        "Layout preset",
-        "Visible panels",
-        "AI position",
+        // 2026-05-25 (Commit 2 of per-tab-visibility ship) — collapsed
+        // 7 redundant pickers (Layout preset / Visible panels / AI position
+        // / Mix-composition AI surfaces / Research Agent traces / Managed
+        // agent / BI composition) into ONE per-tab-visibility control.
+        // The PulseShell 3-tab strip is the sole canonical layout; per-tab
+        // visibility decides which of AI Insights / Ask Pulse / Dashboard
+        // render. Removed leaves are not relocated; advanced toggles
+        // (Research Agent traces, etc.) move to Settings → AI in a
+        // follow-up commit.
+        "Visible tabs",
         "Default landing tab",
-        "AI surfaces",
-        "Research Agent traces",
-        "Managed agent surface",
-        "BI composition",
         "Canvas tiles",
         "Appearance",
     ],

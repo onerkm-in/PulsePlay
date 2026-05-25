@@ -54,6 +54,13 @@ const KEY = {
     // author's chosen home tab. See App.tsx readInitialActiveSurface
     // for the priority order (URL > this > stored > "ai-insights").
     defaultLandingSurface: "pulseplay:default-landing-surface",
+    // 2026-05-25 — per-tab-visibility model. ONE canonical layout
+    // (PulseShell 3-tab strip). Per-tab visibility booleans replace the
+    // enabledComponents (aiOnly/biOnly/mix/both) + layoutMode (left/
+    // right/top/bottom) enums in the user-facing Settings UI. The legacy
+    // enums stay as reducer state for backward-compat with stored
+    // values but are no longer the primary author control.
+    tabVisibility: "pulseplay:tab-visibility",
 } as const;
 
 /** Exported so App.tsx readInitialActiveSurface can read the same key
@@ -74,6 +81,35 @@ const ENABLED_COMPONENTS_LEGACY_BOTH_MIGRATION_KEY = "pulseplay:enabled-componen
 // ─── State shape ─────────────────────────────────────────────────────────
 
 export type UiMode = "pulse" | "v0";
+
+/**
+ * Per-tab visibility booleans (2026-05-25). Each flag controls whether
+ * the corresponding tab button renders in the PulseShell tab strip AND
+ * whether the tab body is reachable. ONE canonical layout (3-tab strip);
+ * disabling tabs is how authors ship "X only" deployments. Auto-collapse:
+ * when only one tab is enabled, the tab strip is hidden and that tab
+ * becomes the main page.
+ *
+ * - aiInsights: AI Insights tab (Pulse insights briefing surface)
+ * - askPulse:   Ask Pulse tab (chat composer + reply surface)
+ * - dashboard:  Dashboard tab (BI canvas — Power BI / Tableau / Qlik / Looker / generic-iframe)
+ */
+export interface TabVisibility {
+    aiInsights: boolean;
+    askPulse: boolean;
+    dashboard: boolean;
+}
+
+export const DEFAULT_TAB_VISIBILITY: Readonly<TabVisibility> = {
+    aiInsights: true,
+    askPulse: true,
+    dashboard: true,
+};
+
+/** Count of currently-enabled tabs. Used for auto-collapse logic. */
+export function enabledTabCount(v: TabVisibility): number {
+    return (v.aiInsights ? 1 : 0) + (v.askPulse ? 1 : 0) + (v.dashboard ? 1 : 0);
+}
 /**
  * Pane composition mode (set by the AUTHOR in Settings → Preferences → Visible
  * panels). End users see only what the author wired:
@@ -122,6 +158,12 @@ export interface SettingsState {
      *  direction). When set, App.tsx readInitialActiveSurface uses this
      *  in preference to the stored localStorage value. */
     defaultLandingSurface: DefaultLandingSurface | null;
+    /** 2026-05-25 — per-tab visibility flags. The single canonical control
+     *  for which of the 3 tabs (AI Insights / Ask Pulse / Dashboard)
+     *  render in the PulseShell tab strip. Supersedes the enabledComponents
+     *  + layoutMode enums in the user-facing UI; the legacy enums stay in
+     *  state for backward-compat with stored values during migration. */
+    tabVisibility: TabVisibility;
     /** Values found in localStorage that didn't validate against the
      *  live allowlist on the most-recent reconciliation pass. The
      *  Settings page surfaces these as "deprecated" banners. */
@@ -261,6 +303,28 @@ function readPackSelection(): PackSelection | null {
     return null;
 }
 
+function readTabVisibility(): TabVisibility {
+    if (typeof window === "undefined") return { ...DEFAULT_TAB_VISIBILITY };
+    try {
+        const raw = window.localStorage.getItem(KEY.tabVisibility);
+        if (!raw) return { ...DEFAULT_TAB_VISIBILITY };
+        const parsed = JSON.parse(raw) as Partial<TabVisibility>;
+        if (parsed && typeof parsed === "object") {
+            // Coerce each field defensively — refuse to leave the user with
+            // ZERO enabled tabs (would render an empty shell with no
+            // affordance to recover).
+            const next: TabVisibility = {
+                aiInsights: typeof parsed.aiInsights === "boolean" ? parsed.aiInsights : true,
+                askPulse:   typeof parsed.askPulse   === "boolean" ? parsed.askPulse   : true,
+                dashboard:  typeof parsed.dashboard  === "boolean" ? parsed.dashboard  : true,
+            };
+            if (enabledTabCount(next) === 0) return { ...DEFAULT_TAB_VISIBILITY };
+            return next;
+        }
+    } catch { /* swallow */ }
+    return { ...DEFAULT_TAB_VISIBILITY };
+}
+
 function readDefaultLandingSurface(): DefaultLandingSurface | null {
     if (typeof window === "undefined") return null;
     try {
@@ -284,6 +348,7 @@ function buildInitialState(): SettingsState {
         biTileMode: readBiTileMode(),
         activeAiProfile: readActiveAiProfile(),
         defaultLandingSurface: readDefaultLandingSurface(),
+        tabVisibility: readTabVisibility(),
         orphans: [],
     };
 }
@@ -353,6 +418,7 @@ type Action =
     | { type: "set/biTileMode"; value: BiTileMode }
     | { type: "set/activeAiProfile"; value: string }
     | { type: "set/defaultLandingSurface"; value: DefaultLandingSurface | "" }
+    | { type: "set/tabVisibility"; value: TabVisibility }
     | { type: "sync/external"; key: string; value: string };
 
 function reducer(state: SettingsState, action: Action): SettingsState {
@@ -407,6 +473,12 @@ function reducer(state: SettingsState, action: Action): SettingsState {
                 ...state,
                 defaultLandingSurface: isDefaultLandingSurface(action.value) ? action.value : null,
             };
+        case "set/tabVisibility": {
+            // Defensive: never let the user end up with 0 enabled tabs.
+            // If they try, fall back to the prior state's value.
+            if (enabledTabCount(action.value) === 0) return state;
+            return { ...state, tabVisibility: action.value };
+        }
         case "sync/external":
             return applyExternalSync(state, action.key, action.value);
         default:
@@ -440,6 +512,21 @@ function applyExternalSync(state: SettingsState, key: string, value: string): Se
             return { ...state, activeAiProfile: value };
         case KEY.defaultLandingSurface:
             return { ...state, defaultLandingSurface: isDefaultLandingSurface(value) ? value : null };
+        case KEY.tabVisibility: {
+            try {
+                const parsed = JSON.parse(value) as Partial<TabVisibility>;
+                if (parsed && typeof parsed === "object") {
+                    const next: TabVisibility = {
+                        aiInsights: typeof parsed.aiInsights === "boolean" ? parsed.aiInsights : true,
+                        askPulse:   typeof parsed.askPulse   === "boolean" ? parsed.askPulse   : true,
+                        dashboard:  typeof parsed.dashboard  === "boolean" ? parsed.dashboard  : true,
+                    };
+                    if (enabledTabCount(next) === 0) return state;
+                    return { ...state, tabVisibility: next };
+                }
+            } catch { /* swallow */ }
+            return state;
+        }
         default:
             return state;
     }
@@ -484,6 +571,9 @@ export interface SettingsActions {
     /** 2026-05-22 — set the author's preferred landing tab. Pass null to
      *  clear the override (app falls back to "ai-insights"). */
     setDefaultLandingSurface: (value: DefaultLandingSurface | null) => void;
+    /** 2026-05-25 — set per-tab visibility. Defensive: refuses to leave
+     *  the user with 0 enabled tabs (the setter no-ops in that case). */
+    setTabVisibility: (value: TabVisibility) => void;
     reloadAllowlist: () => Promise<void>;
 }
 
@@ -620,6 +710,12 @@ export function SettingsProvider(props: SettingsProviderProps): React.ReactEleme
         dispatch({ type: "set/biTileMode", value });
     }, []);
 
+    const setTabVisibility = useCallback<SettingsActions["setTabVisibility"]>((value) => {
+        if (enabledTabCount(value) === 0) return; // refuse: zero-tab state is unrecoverable from the UI
+        persistAndBroadcast(KEY.tabVisibility, JSON.stringify(value));
+        dispatch({ type: "set/tabVisibility", value });
+    }, []);
+
     const setDefaultLandingSurface = useCallback<SettingsActions["setDefaultLandingSurface"]>((value) => {
         // 2026-05-22 — author's preferred landing tab. null clears the
         // override so the app falls back to "ai-insights" (per Rajesh's
@@ -700,6 +796,7 @@ export function SettingsProvider(props: SettingsProviderProps): React.ReactEleme
             setBiTileMode,
             setActiveAiProfile,
             setDefaultLandingSurface,
+            setTabVisibility,
             reloadAllowlist: reload,
         }),
         [
@@ -712,6 +809,7 @@ export function SettingsProvider(props: SettingsProviderProps): React.ReactEleme
             setBiTileMode,
             setActiveAiProfile,
             setDefaultLandingSurface,
+            setTabVisibility,
             reload,
         ],
     );

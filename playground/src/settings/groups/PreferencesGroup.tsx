@@ -4,40 +4,32 @@
 // count is now read-only here because the canvas obeys the proxy-published
 // display policy for controlled enterprise deployments.
 
-import { useSettings } from "../settingsStore";
-import type { DefaultLandingSurface, EnabledComponents, LayoutMode } from "../settingsStore";
-import { usePulseAiVisualSettings } from "../pulseVisualSettingsStore";
-import type { PulseEnabledFeatures } from "../pulseVisualSettingsStore";
+import { useSettings, enabledTabCount, type TabVisibility, type DefaultLandingSurface } from "../settingsStore";
 import { CurrentValue, Leaf, SubSection } from "./BiGroup";
-import {
-    LAYOUT_PRESETS,
-    LAYOUT_PRESET_ORDER,
-    detectActivePreset,
-    type LayoutPreset,
-} from "../layoutPresets";
 
 export function PreferencesGroup(): React.ReactElement {
     const {
-        enabledComponents,
-        layoutMode,
         allowlist,
         defaultLandingSurface,
-        setEnabledComponents,
-        setLayoutMode,
+        tabVisibility,
         setDefaultLandingSurface,
+        setTabVisibility,
     } = useSettings();
-    const { value: pulseSettings, update: updatePulse } = usePulseAiVisualSettings();
-    const activePreset = detectActivePreset({
-        enabledComponents,
-        enabledFeatures: pulseSettings.enabledFeatures,
-    });
-    const applyPreset = (next: LayoutPreset): void => {
-        const cfg = LAYOUT_PRESETS[next];
-        setEnabledComponents(cfg.state.enabledComponents);
-        setLayoutMode(cfg.state.layoutMode);
-        updatePulse({ enabledFeatures: cfg.state.enabledFeatures });
-    };
     const backendBiTileMode = normalizeBackendBiTileMode(allowlist?.display?.biTileMode);
+    const enabledCount = enabledTabCount(tabVisibility);
+
+    const toggleTab = (tab: keyof TabVisibility): void => {
+        const next: TabVisibility = { ...tabVisibility, [tab]: !tabVisibility[tab] };
+        if (enabledTabCount(next) === 0) return; // store refuses; bail before persist
+        setTabVisibility(next);
+    };
+
+    // Default landing tab options are filtered to the currently-enabled tabs.
+    const landingOptions = [
+        { value: "ai-insights" as const, label: "AI Insights", enabled: tabVisibility.aiInsights },
+        { value: "ask-pulse" as const,   label: "Ask Pulse",   enabled: tabVisibility.askPulse },
+        { value: "bi-viz" as const,      label: "Dashboard",   enabled: tabVisibility.dashboard },
+    ].filter(o => o.enabled);
 
     return (
         <section aria-labelledby="settings-preferences-title">
@@ -50,120 +42,48 @@ export function PreferencesGroup(): React.ReactElement {
                 </p>
             </header>
 
-            {/* 2026-05-25 — UI mode picker REMOVED. The "centralized,
-                one-layer" directive locked UnifiedAssistantSurface as the only chat
-                surface. PulseShell (the ported PBI-heritage chat) is
-                still in the codebase as a dev-tools escape hatch
-                (localStorage["pulseplay:ui-mode"]="pulse") during the
-                feature-port migration (Steps 4/5/6 in the beast-mode
-                plan). It will be removed once preset library + history
-                + show-SQL features land in UnifiedAssistantSurface. */}
-
-            {/* ─── Tier 1: Layout ─────────────────────────────────────── */}
+            {/* ─── Tab visibility (the one canonical layout control) ─── */}
             <SubSection
-                label="Layout"
-                helper="Where the AI and BI panes live + which ones are visible. Live-updates immediately."
+                label="Tabs"
+                helper="The PulsePlay shell has 3 tabs (AI Insights / Ask Pulse / Dashboard). Show only the ones your deployment needs — disabled tabs are hidden from the strip. When only one tab is enabled, the strip collapses and that tab becomes the main page."
             >
 
-            {/* 2026-05-17 — Layout preset picker. Maps Rajesh's T1-T5
-             *  templates from docs/Proposed_Preset_Templates.pdf to bundles
-             *  of (enabledComponents + layoutMode + Pulse enabledFeatures).
-             *  Facade over existing state — picking a preset writes through
-             *  to the underlying knobs below. Selecting "Custom" is not an
-             *  option; "Custom" only shows when the underlying knobs don't
-             *  match any preset (user hand-tuned a combination). */}
             <Leaf
                 group="preferences"
-                label="Layout preset"
-                helper={`Pick a starting shape, then fine-tune below if needed. ${LAYOUT_PRESETS[activePreset === "custom" ? "balanced" : activePreset]?.description || ""}`}
+                label="Visible tabs"
+                helper="Per-tab on/off. At least one tab must stay enabled. Detach + dock works on every enabled tab — that's how you compare any tab with any other (or with itself)."
             >
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    <div role="group" style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
-                        {LAYOUT_PRESET_ORDER.map(key => {
-                            const cfg = LAYOUT_PRESETS[key];
-                            const active = activePreset === key;
-                            return (
-                                <button
-                                    key={key}
-                                    type="button"
-                                    onClick={() => applyPreset(key)}
-                                    aria-pressed={active}
-                                    title={cfg.description}
-                                    style={{
-                                        padding: "6px 12px",
-                                        fontSize: 12,
-                                        border: "1px solid var(--pp-border, rgba(0,0,0,0.18))",
-                                        background: active ? "var(--pp-accent, #0078d4)" : "transparent",
-                                        color: active ? "white" : "inherit",
-                                        borderRadius: 4,
-                                        cursor: "pointer",
-                                        fontWeight: active ? 600 : 400,
-                                    }}
-                                >
-                                    {cfg.label}
-                                </button>
-                            );
-                        })}
-                    </div>
-                    {activePreset === "custom" && (
+                <div role="group" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <TabVisibilityCheckbox label="AI Insights" checked={tabVisibility.aiInsights} disabled={enabledCount === 1 && tabVisibility.aiInsights} onChange={() => toggleTab("aiInsights")} />
+                    <TabVisibilityCheckbox label="Ask Pulse"   checked={tabVisibility.askPulse}   disabled={enabledCount === 1 && tabVisibility.askPulse}   onChange={() => toggleTab("askPulse")} />
+                    <TabVisibilityCheckbox label="Dashboard"   checked={tabVisibility.dashboard}  disabled={enabledCount === 1 && tabVisibility.dashboard}  onChange={() => toggleTab("dashboard")} />
+                    {enabledCount === 1 && (
                         <div style={{ fontSize: 11, opacity: 0.65, fontStyle: "italic" }}>
-                            Current settings don't match a preset — you've hand-tuned a combination. Pick a preset above to snap back, or leave as-is.
+                            Only one tab enabled — the tab strip is hidden and this tab is the main page. Enable another tab to bring the strip back.
                         </div>
                     )}
                 </div>
             </Leaf>
 
-            <Leaf group="preferences" label="Visible panels" helper="Author choice: unified surface, split review, or focused single-surface deployments. AI/BI verticals stay independent — pick what you've wired up.">
-                <ButtonGroup<EnabledComponents>
-                    value={enabledComponents}
-                    onChange={setEnabledComponents}
-                    options={[
-                        { value: "aiOnly", label: "AI only" },
-                        { value: "biOnly", label: "BI only" },
-                        { value: "mix", label: "Unified" },
-                        { value: "both", label: "Split" },
-                    ]}
-                />
-            </Leaf>
-
-            <Leaf group="preferences" label="AI position" helper="Where the AI panel sits relative to the BI canvas. Applies to the explicit Split preset, not the unified default.">
-                <ButtonGroup<LayoutMode>
-                    value={layoutMode}
-                    onChange={setLayoutMode}
-                    options={[
-                        { value: "ai-left", label: "Left" },
-                        { value: "ai-right", label: "Right" },
-                        { value: "ai-top", label: "Top" },
-                        { value: "ai-bottom", label: "Bottom" },
-                    ]}
-                />
-            </Leaf>
-
             {/* 2026-05-22 — author-configurable default landing tab.
-             *  Per Rajesh's direction: AI Insights is the home base; this
-             *  control lets the deployment author override for Ask Pulse-
-             *  first or Dashboard-first workflows. Falls back to AI Insights
-             *  when null. Priority in App.tsx readInitialActiveSurface:
+             *  Options are filtered to currently-enabled tabs only — picking
+             *  a disabled tab as the landing surface would be confusing.
+             *  Priority in App.tsx readInitialActiveSurface:
              *    URL ?surface= > this setting > localStorage > "ai-insights". */}
             <Leaf
                 group="preferences"
                 label="Default landing tab"
-                helper="The tab a fresh visitor sees on first load. URL ?surface= still overrides; localStorage stickiness is bypassed in favor of this author choice. Leave on AI Insights for the default home-base experience."
+                helper="Which enabled tab a fresh visitor sees on first load. URL ?surface= still overrides; localStorage stickiness is bypassed in favor of this author choice. Options reflect only currently-enabled tabs above."
             >
                 <ButtonGroup<DefaultLandingSurface>
-                    value={defaultLandingSurface ?? "ai-insights"}
+                    value={defaultLandingSurface && landingOptions.some(o => o.value === defaultLandingSurface)
+                        ? defaultLandingSurface
+                        : (landingOptions[0]?.value ?? "ai-insights")}
                     onChange={setDefaultLandingSurface}
-                    options={[
-                        { value: "ai-insights", label: "AI Insights" },
-                        { value: "ask-pulse", label: "Ask Pulse" },
-                        { value: "bi-viz", label: "Dashboard" },
-                    ]}
+                    options={landingOptions.map(o => ({ value: o.value, label: o.label }))}
                 />
             </Leaf>
             </SubSection>
-
-            {/* ─── Mix composition (only when Mix is selected) ───────── */}
-            {enabledComponents === "mix" && <MixCompositionPanel />}
 
             {/* ─── Tier 3: Display policy ─────────────────────────────── */}
             <SubSection
@@ -186,94 +106,33 @@ function normalizeBackendBiTileMode(value: unknown): "1" | "2" | "4" {
     return asString === "2" || asString === "4" ? asString : "1";
 }
 
-/* ─── Mix composition ──────────────────────────────────────────────────────
- *
- * Visible only when enabledComponents === "mix". Lets the author cherry-pick
- * which AI surfaces render (Insights / Chat / Research Agent traces /
- * managed-agent surface) and which BI composition mode (full canvas /
- * per-tile cherry-pick) to compose a blended deployment.
- *
- * The AI surface picker writes through to the existing Pulse `enabledFeatures`
- * setting (in `pulseplay:visual-settings:genieSettings`) so the cross-link is
- * lossless — toggling here is identical to toggling in Settings → AI →
- * AI Insights.
- *
- * The Research Agent traces toggle writes to `insightsShowResearchTraces` (new
- * field, default true). When true and the response's
- * `attachments[].reasoning_traces` field is populated (set by Databricks Genie
- * when a user starts Agent Mode in the Genie UI — REST API still can't
- * trigger it as of 2026-05), Pulse renders a "Research Agent reasoning"
- * section. We don't trigger Research Agent ourselves; we surface it when
- * present.
- *
- * Per-tile cherry-pick (BI) is a vendor-deep capability deferred to phase 2
- * (Power BI tile embed, Tableau worksheets, Qlik objects, Looker tile-embed).
- */
-function MixCompositionPanel(): React.ReactElement {
-    const { value: pulseSettings, update: updatePulse } = usePulseAiVisualSettings();
+/* MixCompositionPanel REMOVED 2026-05-25 in favor of per-tab-visibility model.
+ * The old controls inside (AI surfaces / Research Agent traces / Managed
+ * agent / BI composition) are tracked for relocation to Settings → AI →
+ * AI Insights in a follow-up commit. The underlying Pulse `enabledFeatures`
+ * field stays in pulseVisualSettingsStore — only the user-facing toggle is
+ * gone; defaults persist. */
+
+interface TabVisibilityCheckboxProps {
+    label: string;
+    checked: boolean;
+    disabled?: boolean;
+    onChange: () => void;
+}
+
+function TabVisibilityCheckbox(props: TabVisibilityCheckboxProps): React.ReactElement {
     return (
-        <SubSection
-            label="Mix composition"
-            helper="Cherry-pick which AI surfaces and BI composition modes render. Author choice — end users only see what's checked."
-        >
-            <Leaf
-                group="preferences"
-                label="AI surfaces"
-                helper="Which AI views to expose. Cross-linked with Settings → AI → AI Insights (changes here update there)."
-            >
-                <ButtonGroup<PulseEnabledFeatures>
-                    value={pulseSettings.enabledFeatures}
-                    onChange={(v) => updatePulse({ enabledFeatures: v })}
-                    options={[
-                        { value: "both", label: "Insights + Ask Pulse" },
-                        { value: "insightsOnly", label: "Insights only" },
-                        { value: "chatOnly", label: "Ask Pulse only" },
-                    ]}
-                />
-            </Leaf>
-
-            <Leaf
-                group="preferences"
-                label="Research Agent traces"
-                helper="When Genie's Agent Mode runs on a message (started in the Databricks Genie UI), render its reasoning trace as a separate section. PulsePlay does not start Agent Mode itself — Databricks' REST API doesn't expose that trigger — but we surface the trace when it's present in the message response (new Genie field, 2026-04-16)."
-            >
-                <ButtonGroup<"on" | "off">
-                    value={pulseSettings.insightsShowResearchTraces ? "on" : "off"}
-                    onChange={(v) => updatePulse({ insightsShowResearchTraces: v === "on" })}
-                    options={[
-                        { value: "on",  label: "Show when present" },
-                        { value: "off", label: "Hide" },
-                    ]}
-                />
-            </Leaf>
-
-            <Leaf
-                group="preferences"
-                label="Managed agent surface"
-                helper="(Coming next cycle — wires Mosaic AI ResponsesAgent serving endpoints as a dedicated agentic pane. Distinct from the existing Supervisor connector template.)"
-            >
-                <div style={{ display: "inline-flex", gap: 4 }}>
-                    <button type="button" disabled style={{ padding: "6px 12px", fontSize: 12, opacity: 0.5, cursor: "not-allowed" }}>
-                        Available when ResponsesAgent connector is configured
-                    </button>
-                </div>
-            </Leaf>
-
-            <Leaf
-                group="preferences"
-                label="BI composition"
-                helper="How BI surfaces render in Mix mode. Per-tile cherry-pick (selecting specific Power BI tiles / Tableau worksheets / Qlik objects / Looker tiles) requires vendor-SDK work and lands in the next cycle."
-            >
-                <ButtonGroup<"full" | "tiles">
-                    value="full"
-                    onChange={() => {/* tiles option is disabled */}}
-                    options={[
-                        { value: "full",  label: "Full canvas" },
-                        { value: "tiles", label: "Per-tile cherry-pick (coming next cycle)" },
-                    ]}
-                />
-            </Leaf>
-        </SubSection>
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: props.disabled ? "not-allowed" : "pointer", opacity: props.disabled ? 0.6 : 1 }}>
+            <input
+                type="checkbox"
+                checked={props.checked}
+                disabled={props.disabled}
+                onChange={props.onChange}
+                style={{ margin: 0 }}
+            />
+            <span style={{ fontSize: 13 }}>{props.label}</span>
+            {props.disabled && <span style={{ fontSize: 11, opacity: 0.7, fontStyle: "italic" }}>(last enabled — can't disable)</span>}
+        </label>
     );
 }
 
