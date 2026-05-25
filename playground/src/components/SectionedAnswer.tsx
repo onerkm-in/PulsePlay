@@ -2,7 +2,7 @@
 //
 // Phase D.3 — staged-rendering UI primitive.
 //
-// Pure render component. Owns no network state. Consumers (AISidebar,
+// Pure render component. Owns no network state. Consumers (UnifiedAssistantSurface,
 // workbench panels) drive it by passing a `sections` map keyed by sectionId
 // whose values describe the current lifecycle state per section.
 //

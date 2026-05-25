@@ -1,9 +1,16 @@
-// playground/src/components/AISidebar.tsx
+// playground/src/components/UnifiedAssistantSurface.tsx
 //
-// The AI assistant — the WHOLE point of PulsePlay. Stays mounted as the
-// user switches between BI vendors, accumulating event context (which
-// page, which filters, which selection) so its prompts can reason about
-// "the thing the user is currently looking at."
+// The unified PulsePlay assistant surface — the WHOLE point of PulsePlay.
+// Renamed from `AISidebar` 2026-05-25 as Step 1.5 of the unified-surface
+// beast-mode plan; the old name implied a side panel, but this is now
+// the single user-visible chat + briefing surface (locked per
+// feature_unified_workbench.md 2026-05-18). PulseShell remains in the
+// codebase as a dev-tools-only escape hatch during the feature-port
+// migration (Steps 4/5/6).
+//
+// Stays mounted as the user switches between BI vendors, accumulating
+// event context (which page, which filters, which selection) so its
+// prompts can reason about "the thing the user is currently looking at."
 //
 // Cycle C v0.5 — full submit -> poll -> render lifecycle.
 //
@@ -32,7 +39,7 @@ import type { PackSelection } from "./PackPicker";
 import { FramePicker } from "./FramePicker";
 import { getDiscoverySnapshot, type DiscoverySnapshot, type ReachableFrame } from "../lib/discoveryClient";
 // SustainabilityIndicator is mounted once in App.tsx as a fixed bottom-right
-// orb; AISidebar no longer renders its own chip.
+// orb; UnifiedAssistantSurface no longer renders its own chip.
 import { recordResponse as recordUsageResponse } from "../lib/usageTracker";
 import { EvidenceDrawer, type EvidenceItem } from "./EvidenceDrawer";
 import { dumpRun, resetRun, stageEnd, stageStart } from "../lib/perfInstrumentation";
@@ -83,7 +90,7 @@ const ELAPSED_TICK_MS = 200;
 /** Cap rows shown in the result table to keep the sidebar readable. */
 const RESULT_PREVIEW_ROWS = 20;
 
-export interface AISidebarProps {
+export interface UnifiedAssistantSurfaceProps {
     activeVendor: string;
     /** PulsePlay 2-axis: connector profile name from /assistant/profiles. */
     activeConnector: string;
@@ -99,7 +106,7 @@ export interface AISidebarProps {
      *  not just from the pack KPIs. Optional — when null, discovery
      *  degrades to pack-only signals (today's behaviour). */
     biAdapter?: { getMetadata?(): Promise<unknown | null> } | null;
-    /** When set (non-null, non-empty), AISidebar auto-submits this
+    /** When set (non-null, non-empty), UnifiedAssistantSurface auto-submits this
      *  question exactly once on the next render. Used by the first-run
      *  wizard's "Done & ask" finish action so the user sees a live AI
      *  response the moment the wizard closes. String values keep the
@@ -120,6 +127,15 @@ export interface AISidebarProps {
      *  before React commits the next render. Heavy lifting (adapter
      *  send, telemetry, etc) should be fire-and-forget or post-effect. */
     onEntryCompleted?: (entry: AnswerEntry) => void;
+    /** Step 2 of the unified-surface plan (2026-05-25): which surface
+     *  intent the user landed on — "briefing" (AI Insights tab) or
+     *  "chat" (Ask Pulse tab). Drives composer placeholder + empty-state
+     *  copy so the user knows whether they're in push-mode (auto-
+     *  generated briefing) or pull-mode (conversational chat). Step 5/6
+     *  will wire briefing intent to actually auto-fire a structured
+     *  briefing on mount. Today (Step 2): cosmetic-only differentiation.
+     *  Defaults to "chat" so existing callers don't break. */
+    entryIntent?: "briefing" | "chat";
 }
 
 export interface AutoSubmitQuestionEvent {
@@ -127,7 +143,7 @@ export interface AutoSubmitQuestionEvent {
     question: string;
 }
 
-export type AISidebarStatus =
+export type UnifiedAssistantSurfaceStatus =
     | "submitting"
     | "polling"
     | "completed"
@@ -141,7 +157,7 @@ export interface QueryResult {
 export interface AnswerEntry {
     id: number;
     question: string;
-    status: AISidebarStatus;
+    status: UnifiedAssistantSurfaceStatus;
     /** Conversation + message IDs (for polling). */
     conversationId?: string;
     messageId?: string;
@@ -170,7 +186,7 @@ export interface AnswerEntry {
     pollStatus?: string;
     /** FW1 — proxy-built governance attestation forwarded as-is from the
      *  upstream response. Validated shape-wise by the envelope mapper;
-     *  the AISidebar treats it as opaque metadata. Absent for backends
+     *  the UnifiedAssistantSurface treats it as opaque metadata. Absent for backends
      *  that haven't been wired through `withGovernance(...)` yet. */
     governance?: unknown;
     /** Thread B — authoritative artifact status emitted by validateArtifact()
@@ -228,7 +244,7 @@ interface ProxyMessageResponse {
     };
     /** FW1 — opaque governance attestation. The proxy attaches a typed
      *  `GovernanceAttestation` via `withGovernance(...)` for renderable
-     *  backend paths; AISidebar carries it through to the renderer
+     *  backend paths; UnifiedAssistantSurface carries it through to the renderer
      *  without validating shape here (the entryToEnvelope mapper +
      *  native adapter render gate own shape validation + policy). */
     governance?: unknown;
@@ -342,7 +358,7 @@ function projectEntryFromResponse(data: ProxyMessageResponse): Partial<AnswerEnt
         usage: data.usage,
         pollStatus: typeof data.status === "string" ? data.status : undefined,
         // FW1 — forward the opaque governance field if the proxy populated
-        // one. AISidebar carries it through; the envelope mapper validates
+        // one. UnifiedAssistantSurface carries it through; the envelope mapper validates
         // shape and the native adapter's render gate applies policy.
         governance: data.governance,
     };
@@ -469,7 +485,7 @@ function formatElapsed(ms: number): string {
     return `${Math.floor(s)}s`;
 }
 
-export function AISidebar(props: AISidebarProps) {
+export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
     const [question, setQuestion] = useState("");
     const [history, setHistory] = useState<AnswerEntry[]>([]);
     /** Drives a re-render every ELAPSED_TICK_MS while any entry is in
@@ -611,7 +627,7 @@ export function AISidebar(props: AISidebarProps) {
         ));
     };
 
-    const finalizeWithStatus = (entryId: number, patch: Partial<AnswerEntry>, status: AISidebarStatus, existing: AnswerEntry | undefined): Partial<AnswerEntry> => {
+    const finalizeWithStatus = (entryId: number, patch: Partial<AnswerEntry>, status: UnifiedAssistantSurfaceStatus, existing: AnswerEntry | undefined): Partial<AnswerEntry> => {
         if (status !== "completed") return patch;
         const projected: AnswerEntry = { ...(existing as AnswerEntry), ...patch, id: entryId, status };
         const validation = computeArtifactStatusForEntry(projected);
@@ -623,7 +639,7 @@ export function AISidebar(props: AISidebarProps) {
         };
     };
 
-    const finalize = (entryId: number, patch: Partial<AnswerEntry>, status: AISidebarStatus) => {
+    const finalize = (entryId: number, patch: Partial<AnswerEntry>, status: UnifiedAssistantSurfaceStatus) => {
         const timer = pollTimers.current.get(entryId);
         if (timer) {
             clearInterval(timer);
@@ -678,7 +694,7 @@ export function AISidebar(props: AISidebarProps) {
             try {
                 props.onEntryCompleted(entry);
             } catch (err) {
-                console.warn("[AISidebar] onEntryCompleted handler threw:", err);
+                console.warn("[UnifiedAssistantSurface] onEntryCompleted handler threw:", err);
             }
         }
     };
@@ -923,7 +939,7 @@ export function AISidebar(props: AISidebarProps) {
                             params: selectedFrameObj.params,
                         },
                     } : {}),
-                    // Probe-once cross-backend reuse — when AISidebar already
+                    // Probe-once cross-backend reuse — when UnifiedAssistantSurface already
                     // has the snapshot in hand, distil it into the same
                     // discoveryContext envelope the Pulse genie pipeline uses.
                     // Proxy ignores unknown keys, so a stale proxy version

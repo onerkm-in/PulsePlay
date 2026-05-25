@@ -27,7 +27,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
-// Phase A — App mounts AISidebar which fires discovery on mount.
+// Phase A — App mounts UnifiedAssistantSurface which fires discovery on mount.
 vi.mock("../lib/discoveryClient", () => ({
     getDiscoverySnapshot: vi.fn().mockResolvedValue(null),
     subscribeDiscoveryCache: vi.fn().mockReturnValue(() => {}),
@@ -121,7 +121,7 @@ function seedExplicitSplitLayout(): void {
     window.localStorage.setItem("pulseplay:enabled-components:legacy-both-migrated", "true");
 }
 
-/** 2026-05-25 — uiMode default is now "v0" (AISidebar). Tests that
+/** 2026-05-25 — uiMode default is now "v0" (UnifiedAssistantSurface). Tests that
  *  exercise PulseShell-mounted chrome (tab strip + the mocked PulseShell
  *  button with "Open dashboard surface" aria-label) must opt INTO pulse
  *  mode via this helper before mounting. Mirrors what a dev would do in

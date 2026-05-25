@@ -88,7 +88,7 @@ export type BIEmbedConfig = Record<string, unknown>;
 /**
  * Live metadata from the BI surface — what the user is actually looking at.
  *
- * Adapters OPTIONALLY surface this via `getMetadata()`. The AISidebar
+ * Adapters OPTIONALLY surface this via `getMetadata()`. The UnifiedAssistantSurface
  * forwards the result to the proxy's `/assistant/discover` endpoint so the
  * Discovery Loop can compute honest reachability for BCG / RFM / variance
  * frames (which need currency measures) and Pareto / anomaly (which need
@@ -164,7 +164,7 @@ export interface BIAdapter {
     /**
      * OPTIONAL — return the live BI metadata (visible measures + dimensions
      * + active filters) for the currently-rendered view. The host calls
-     * this from the AISidebar discovery effect to send honest reachability
+     * this from the UnifiedAssistantSurface discovery effect to send honest reachability
      * signals to the proxy's `/assistant/discover` endpoint.
      *
      * Adapters that can't introspect the embedded view (today: iframe

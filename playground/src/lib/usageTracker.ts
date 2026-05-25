@@ -1,7 +1,7 @@
 // playground/src/lib/usageTracker.ts
 //
 // Session-wide token usage tracker. Powers the SustainabilityIndicator in
-// the AISidebar footer — PulsePlay's "fewer tokens, better accuracy" motto
+// the UnifiedAssistantSurface footer — PulsePlay's "fewer tokens, better accuracy" motto
 // visible to the end-user.
 //
 // Two data sources:

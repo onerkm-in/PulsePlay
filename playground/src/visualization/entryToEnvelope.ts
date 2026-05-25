@@ -1,19 +1,19 @@
 // playground/src/visualization/entryToEnvelope.ts
 //
-// FW1 — pure mapper from an AISidebar completed entry into an
+// FW1 — pure mapper from an UnifiedAssistantSurface completed entry into an
 // AIResultEnvelope that the native BI adapter can render.
 //
 // What this module owns
 // ─────────────────────
-//   * The shape contract for the subset of AISidebar entry fields the
-//     mapper needs (so AISidebar can call it without exposing its full
+//   * The shape contract for the subset of UnifiedAssistantSurface entry fields the
+//     mapper needs (so UnifiedAssistantSurface can call it without exposing its full
 //     internal `AnswerEntry` interface).
 //   * The mapping logic: prefer `messageId` as the envelope id (it's the
 //     proxy-supplied stable identifier; the canvas's `data-result-id`
 //     binding stays auditable to the same response that produced it);
 //     fall back to `fallbackId` (typically the entry's numeric id) only
 //     when the proxy returned no message_id.
-//   * Schema coercion: AISidebar's `queryResult.columns` is currently
+//   * Schema coercion: UnifiedAssistantSurface's `queryResult.columns` is currently
 //     `string[]`; this mapper widens that into `AIResultColumn[]` with
 //     names only (no role inference here — that's the chart-pick
 //     policy's job once it sees the rows).
@@ -44,8 +44,8 @@ import type {
 import { isGovernanceAttestation } from "./governance";
 
 /**
- * Minimal subset of an AISidebar `AnswerEntry` the mapper needs. Keeping
- * this thin means AISidebar can build the snapshot at the finalize site
+ * Minimal subset of an UnifiedAssistantSurface `AnswerEntry` the mapper needs. Keeping
+ * this thin means UnifiedAssistantSurface can build the snapshot at the finalize site
  * without leaking its full internal entry type to consumers.
  */
 export interface CompletedEntrySnapshot {
@@ -85,7 +85,7 @@ function toColumns(rawColumns: ReadonlyArray<string>): AIResultColumn[] {
 }
 
 /**
- * Build an `AIResultEnvelope` from a completed AISidebar entry snapshot.
+ * Build an `AIResultEnvelope` from a completed UnifiedAssistantSurface entry snapshot.
  *
  * - `id` prefers `messageId` (the proxy-supplied stable correlation id)
  *   so the canvas's `data-result-id` binding stays auditable to the

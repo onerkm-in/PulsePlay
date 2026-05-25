@@ -1,6 +1,6 @@
 // playground/src/components/SustainabilityIndicator.tsx
 //
-// "Green leaf" indicator at the bottom of the AISidebar showing how
+// "Green leaf" indicator at the bottom of the UnifiedAssistantSurface showing how
 // efficient (token-wise) the current session is.
 //
 // Motto: fewer tokens, better accuracy — the lean-and-mean solution.

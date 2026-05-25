@@ -1,7 +1,7 @@
 // playground/src/lib/artifactStatus.ts
 //
 // Thread B — shared status-label module so both the Workbench
-// `<ArtifactCard>` and the new `<TrustBadge>` in AISidebar render
+// `<ArtifactCard>` and the new `<TrustBadge>` in UnifiedAssistantSurface render
 // the four artifact statuses with identical labels and tooltips.
 //
 // Per feedback_shared_helper_split: when a shape would have impacted

@@ -2,7 +2,7 @@
 //
 // Phase A — FramePicker rendering tests. Follows the project convention of
 // driving React with react-dom/client + act() rather than @testing-library
-// (not a project dep — see playground/src/components/__tests__/AISidebar.test.tsx).
+// (not a project dep — see playground/src/components/__tests__/UnifiedAssistantSurface.test.tsx).
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act } from "react";

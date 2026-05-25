@@ -2,7 +2,7 @@
 //
 // Lock down the BI-event → synthetic-DataView.categorical contract so
 // regressions in the bridge don't silently empty the AI's context. The
-// renderer / mount path isn't tested here (covered by AISidebar and the
+// renderer / mount path isn't tested here (covered by UnifiedAssistantSurface and the
 // existing adapter conformance suites); this file just guards the
 // pure-function shape conversion.
 

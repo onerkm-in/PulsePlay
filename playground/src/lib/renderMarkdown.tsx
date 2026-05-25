@@ -2,7 +2,7 @@
 //
 // Minimal safe Markdown renderer for AI assistant narrative.
 //
-// Audit 2026-05-19 P2-2: the AISidebar used to render `entry.answer` with
+// Audit 2026-05-19 P2-2: the UnifiedAssistantSurface used to render `entry.answer` with
 // `whiteSpace: pre-wrap` — every Markdown emitter (Genie / Foundation Model
 // / Supervisor / Bedrock) was therefore showing raw "**bold**", "`code`",
 // "## headings", "| a | b |" pipes in the chat. This module renders the

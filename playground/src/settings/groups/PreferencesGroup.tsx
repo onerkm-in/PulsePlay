@@ -51,13 +51,13 @@ export function PreferencesGroup(): React.ReactElement {
             </header>
 
             {/* 2026-05-25 — UI mode picker REMOVED. The "centralized,
-                one-layer" directive locked AISidebar as the only chat
+                one-layer" directive locked UnifiedAssistantSurface as the only chat
                 surface. PulseShell (the ported PBI-heritage chat) is
                 still in the codebase as a dev-tools escape hatch
                 (localStorage["pulseplay:ui-mode"]="pulse") during the
                 feature-port migration (Steps 4/5/6 in the beast-mode
                 plan). It will be removed once preset library + history
-                + show-SQL features land in AISidebar. */}
+                + show-SQL features land in UnifiedAssistantSurface. */}
 
             {/* ─── Tier 1: Layout ─────────────────────────────────────── */}
             <SubSection

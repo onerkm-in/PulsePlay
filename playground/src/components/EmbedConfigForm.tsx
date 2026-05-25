@@ -32,7 +32,7 @@ interface EmbedConfigFormProps {
     value: BIEmbedConfig;
     onChange: (next: BIEmbedConfig) => void;
     /** Optional override for the AI proxy base URL — same env-driven
-     *  pattern AISidebar uses so dev/prod deployments line up. */
+     *  pattern UnifiedAssistantSurface uses so dev/prod deployments line up. */
     apiBaseUrl?: string;
     /** Currently active connector / assistant profile. The proxy embed-
      *  token route resolves AAD credentials from this profile, so it has

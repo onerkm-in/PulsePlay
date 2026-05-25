@@ -59,12 +59,24 @@ export async function fetchQnAEmbedConfig(profile?: string): Promise<PowerBiQnAE
         throw new Error(`${PROXY_UNREACHABLE_MESSAGE} (${detail})`);
     }
 
+    // 2026-05-23 fix — proxy emits `application/problem+json` (RFC 7807) on
+    // error responses, not `application/json`. Previously the client only
+    // recognized `application/json` so problem+json payloads were read as
+    // raw text and surfaced as "HTTP 502: {full JSON dump}" instead of the
+    // human-friendly `detail` field. Accept both content-types; also try
+    // a JSON.parse on text bodies that look like JSON as a last resort.
     let payload: unknown = null;
-    const ct = response.headers.get("content-type") || "";
-    if (ct.includes("application/json")) {
+    const ct = (response.headers.get("content-type") || "").toLowerCase();
+    if (ct.includes("application/json") || ct.includes("application/problem+json")) {
         try { payload = await response.json(); } catch { payload = null; }
     } else {
-        try { payload = await response.text(); } catch { payload = null; }
+        let text: string | null = null;
+        try { text = await response.text(); } catch { text = null; }
+        if (text && text.trim().startsWith("{")) {
+            try { payload = JSON.parse(text); } catch { payload = text; }
+        } else {
+            payload = text;
+        }
     }
 
     if (!response.ok) {

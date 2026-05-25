@@ -1,6 +1,6 @@
-// playground/src/components/__tests__/AISidebar.computeArtifactStatus.test.ts
+// playground/src/components/__tests__/UnifiedAssistantSurface.computeArtifactStatus.test.ts
 //
-// Thread B — proves the AISidebar status helper threads chat responses
+// Thread B — proves the UnifiedAssistantSurface status helper threads chat responses
 // through the same validateArtifact() gate Workbench uses, and that the
 // resulting status correctly classifies each connector shape.
 //
@@ -15,7 +15,7 @@ import { describe, it, expect } from "vitest";
 import {
     computeArtifactStatusForEntry,
     type AnswerEntry,
-} from "../AISidebar";
+} from "../UnifiedAssistantSurface";
 
 function makeEntry(overrides: Partial<AnswerEntry> = {}): AnswerEntry {
     return {

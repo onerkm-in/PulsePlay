@@ -174,29 +174,81 @@ export function PowerBiQnA(props: PowerBiQnAProps): React.ReactElement {
                     <span>Loading Power BI Q&amp;A…</span>
                 </div>
             )}
-            {phase === "failed" && (
-                <div style={{ ...overlayStyle, color: "#a01828" }} data-state="failed">
-                    <div style={{ marginBottom: 12, fontWeight: 600 }}>Couldn't load Power BI Q&amp;A</div>
-                    <div style={{ fontSize: 12, opacity: 0.8, maxWidth: 480, textAlign: "center" }}>{errorMsg || "Unknown error"}</div>
-                    <button
-                        type="button"
-                        onClick={loadToken}
-                        style={{
-                            marginTop: 12,
-                            padding: "6px 14px",
-                            fontSize: 12,
-                            border: "1px solid #a01828",
-                            background: "transparent",
-                            color: "#a01828",
-                            borderRadius: 4,
-                            cursor: "pointer",
-                        }}
-                        data-action="retry"
-                    >
-                        Retry
-                    </button>
-                </div>
-            )}
+            {phase === "failed" && (() => {
+                // UX-ARCH-0B.2 follow-up 2026-05-23 — surface a remediation
+                // hint when the failure is the typical Azure-AD config one
+                // ("Azure AD token request failed (400, mode=service-principal)").
+                // The error is a deployer-side credentials issue; the user
+                // needs to fix proxy/config.json, not retry the embed.
+                const isTokenMintFailure = /azure ad token request failed|service-principal|powerbi.*token|powerbi-qna-token/i.test(errorMsg);
+                const isProxyDown = /proxy unreachable/i.test(errorMsg);
+                return (
+                    <div style={{ ...overlayStyle, color: "#a01828", padding: 24, textAlign: "left", alignItems: "flex-start" }} data-state="failed">
+                        <div style={{ marginBottom: 8, fontWeight: 600 }}>
+                            {isTokenMintFailure ? "Power BI Q&A token mint failed" : "Couldn't load Power BI Q&A"}
+                        </div>
+                        <div style={{ fontSize: 12, opacity: 0.8, maxWidth: 600, marginBottom: 12 }}>
+                            {errorMsg || "Unknown error"}
+                        </div>
+                        {isTokenMintFailure && (
+                            <div
+                                style={{
+                                    fontSize: 12,
+                                    background: "rgba(245, 158, 11, 0.08)",
+                                    border: "1px solid rgba(245, 158, 11, 0.30)",
+                                    borderLeft: "3px solid rgba(245, 158, 11, 0.85)",
+                                    padding: "8px 12px",
+                                    borderRadius: 4,
+                                    color: "#7a5b00",
+                                    maxWidth: 600,
+                                    marginBottom: 12,
+                                }}
+                            >
+                                <strong>What this means:</strong> Azure AD rejected the proxy's service-principal credentials. This is a deployment / config issue, not a code problem. Check the active Power BI profile in <code>proxy/config.json</code> — the <code>tenantId</code>, <code>clientId</code>, and <code>clientSecret</code> all need to match an Azure AD app registration with Power BI API access. Common fixes: rotated secret expired, app not granted Power BI permissions, wrong tenant.
+                            </div>
+                        )}
+                        {isProxyDown && (
+                            <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 12 }}>
+                                Make sure the proxy is running (<code>node proxy/server.js</code> on 127.0.0.1:8787).
+                            </div>
+                        )}
+                        <div style={{ display: "flex", gap: 8 }}>
+                            <button
+                                type="button"
+                                onClick={loadToken}
+                                style={{
+                                    padding: "6px 14px",
+                                    fontSize: 12,
+                                    border: "1px solid #a01828",
+                                    background: "transparent",
+                                    color: "#a01828",
+                                    borderRadius: 4,
+                                    cursor: "pointer",
+                                }}
+                                data-action="retry"
+                            >
+                                Retry
+                            </button>
+                            {isTokenMintFailure && (
+                                <a
+                                    href="/settings/ai"
+                                    style={{
+                                        padding: "6px 14px",
+                                        fontSize: 12,
+                                        border: "1px solid var(--pp-border, rgba(0,0,0,0.18))",
+                                        background: "var(--pp-surface, #fff)",
+                                        color: "var(--pp-text, #111827)",
+                                        borderRadius: 4,
+                                        textDecoration: "none",
+                                    }}
+                                >
+                                    Open AI Setup →
+                                </a>
+                            )}
+                        </div>
+                    </div>
+                );
+            })()}
         </div>
     );
 }

@@ -1,6 +1,6 @@
 // playground/src/lib/__tests__/renderMarkdown.test.tsx
 //
-// Coverage for the minimal Markdown renderer used by AISidebar narrative.
+// Coverage for the minimal Markdown renderer used by UnifiedAssistantSurface narrative.
 // Pins both the supported subset (so removals don't slip through) and the
 // security posture (no inline HTML passthrough, link protocols vetted).
 

@@ -1,7 +1,7 @@
-// playground/src/components/__tests__/AISidebar.test.tsx
+// playground/src/components/__tests__/UnifiedAssistantSurface.test.tsx
 //
 // Cycle C v0.5 frontend test — submit -> poll -> render lifecycle for the
-// AISidebar. We avoid @testing-library/react (not in deps) and drive the
+// UnifiedAssistantSurface. We avoid @testing-library/react (not in deps) and drive the
 // component with React's own act() + react-dom/client. fetch is mocked
 // per test; vi.useFakeTimers() drives the polling cadence deterministically.
 
@@ -9,7 +9,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
-// Phase A — AISidebar now fires a /api/assistant/discover fetch on mount via
+// Phase A — UnifiedAssistantSurface now fires a /api/assistant/discover fetch on mount via
 // discoveryClient. These tests pre-date that effect and assume each test's
 // fetchMock.mock.calls contains only ask + poll traffic. Mock the discovery
 // client to a no-op resolved promise so existing assertions on mock.calls[0]
@@ -19,7 +19,7 @@ vi.mock("../../lib/discoveryClient", () => ({
     getDiscoverySnapshot: vi.fn().mockResolvedValue(null),
 }));
 
-import { AISidebar, MAX_POLL_DURATION_MS, POLL_INTERVAL_MS } from "../AISidebar";
+import { UnifiedAssistantSurface, MAX_POLL_DURATION_MS, POLL_INTERVAL_MS } from "../UnifiedAssistantSurface";
 import type { PackSelection } from "../PackPicker";
 
 interface MountState {
@@ -73,7 +73,7 @@ function jsonResponse(body: unknown, status = 200): Response {
     } as unknown as Response;
 }
 
-describe("AISidebar", () => {
+describe("UnifiedAssistantSurface", () => {
     let originalFetch: typeof fetch;
 
     beforeEach(() => {
@@ -88,7 +88,7 @@ describe("AISidebar", () => {
 
     it("renders empty initial state", () => {
         const state = mount(
-            <AISidebar
+            <UnifiedAssistantSurface
                 activeVendor="generic-iframe"
                 activeConnector=""
                 recentEvents={[]}
@@ -107,7 +107,7 @@ describe("AISidebar", () => {
         globalThis.fetch = fetchMock as unknown as typeof fetch;
 
         const state = mount(
-            <AISidebar
+            <UnifiedAssistantSurface
                 activeVendor="generic-iframe"
                 activeConnector="genie-default"
                 recentEvents={[]}
@@ -134,7 +134,7 @@ describe("AISidebar", () => {
         globalThis.fetch = fetchMock as unknown as typeof fetch;
 
         const state = mount(
-            <AISidebar
+            <UnifiedAssistantSurface
                 activeVendor="generic-iframe"
                 activeConnector="genie-default"
                 recentEvents={[]}
@@ -146,7 +146,7 @@ describe("AISidebar", () => {
         // Force a re-render with the SAME prop value — should not re-submit.
         await act(async () => {
             state.root.render(
-                <AISidebar
+                <UnifiedAssistantSurface
                     activeVendor="generic-iframe"
                     activeConnector="genie-default"
                     recentEvents={[]}
@@ -166,7 +166,7 @@ describe("AISidebar", () => {
         globalThis.fetch = fetchMock as unknown as typeof fetch;
 
         const state = mount(
-            <AISidebar
+            <UnifiedAssistantSurface
                 activeVendor="generic-iframe"
                 activeConnector="genie-default"
                 recentEvents={[]}
@@ -178,7 +178,7 @@ describe("AISidebar", () => {
 
         await act(async () => {
             state.root.render(
-                <AISidebar
+                <UnifiedAssistantSurface
                     activeVendor="generic-iframe"
                     activeConnector="genie-default"
                     recentEvents={[]}
@@ -198,7 +198,7 @@ describe("AISidebar", () => {
         globalThis.fetch = fetchMock as unknown as typeof fetch;
 
         const state = mount(
-            <AISidebar
+            <UnifiedAssistantSurface
                 activeVendor="generic-iframe"
                 activeConnector="genie-default"
                 recentEvents={[]}
@@ -219,7 +219,7 @@ describe("AISidebar", () => {
 
         const pack: PackSelection = { pack: "cpg-fmcg", subVertical: "supply-chain" };
         const state = mount(
-            <AISidebar
+            <UnifiedAssistantSurface
                 activeVendor="generic-iframe"
                 activeConnector="genie-default"
                 recentEvents={[]}
@@ -254,7 +254,7 @@ describe("AISidebar", () => {
         globalThis.fetch = fetchMock as unknown as typeof fetch;
 
         const state = mount(
-            <AISidebar activeVendor="generic-iframe" activeConnector="genie" recentEvents={[]} />,
+            <UnifiedAssistantSurface activeVendor="generic-iframe" activeConnector="genie" recentEvents={[]} />,
         );
         await ask(state, "explain OTIF");
         // Allow microtasks to flush.
@@ -301,7 +301,7 @@ describe("AISidebar", () => {
         globalThis.fetch = fetchMock as unknown as typeof fetch;
 
         const state = mount(
-            <AISidebar activeVendor="generic-iframe" activeConnector="genie" recentEvents={[]} />,
+            <UnifiedAssistantSurface activeVendor="generic-iframe" activeConnector="genie" recentEvents={[]} />,
         );
         await ask(state, "long-running question");
         // Flush start-response microtasks.
@@ -345,7 +345,7 @@ describe("AISidebar", () => {
         globalThis.fetch = fetchMock as unknown as typeof fetch;
 
         const state = mount(
-            <AISidebar activeVendor="generic-iframe" activeConnector="genie" recentEvents={[]} />,
+            <UnifiedAssistantSurface activeVendor="generic-iframe" activeConnector="genie" recentEvents={[]} />,
         );
         await ask(state, "broken q");
         await act(async () => { await Promise.resolve(); });
@@ -376,7 +376,7 @@ describe("AISidebar", () => {
         globalThis.fetch = fetchMock as unknown as typeof fetch;
 
         const state = mount(
-            <AISidebar activeVendor="generic-iframe" activeConnector="genie" recentEvents={[]} />,
+            <UnifiedAssistantSurface activeVendor="generic-iframe" activeConnector="genie" recentEvents={[]} />,
         );
         await ask(state, "q that hangs");
         await act(async () => { await Promise.resolve(); });
@@ -413,7 +413,7 @@ describe("AISidebar", () => {
         globalThis.fetch = fetchMock as unknown as typeof fetch;
 
         const state = mount(
-            <AISidebar activeVendor="generic-iframe" activeConnector="genie" recentEvents={[]} />,
+            <UnifiedAssistantSurface activeVendor="generic-iframe" activeConnector="genie" recentEvents={[]} />,
         );
         await ask(state, "q");
         await act(async () => { await Promise.resolve(); await Promise.resolve(); });
@@ -433,7 +433,7 @@ describe("AISidebar", () => {
 
     it("renders the pack-context indicator when packSelection is set", () => {
         const state = mount(
-            <AISidebar
+            <UnifiedAssistantSurface
                 activeVendor="generic-iframe"
                 activeConnector="genie"
                 recentEvents={[]}
@@ -451,7 +451,7 @@ describe("AISidebar", () => {
 
     it("renders the no-pack indicator when packSelection is null", () => {
         const state = mount(
-            <AISidebar
+            <UnifiedAssistantSurface
                 activeVendor="generic-iframe"
                 activeConnector="genie"
                 recentEvents={[]}
@@ -472,7 +472,7 @@ describe("AISidebar", () => {
         globalThis.fetch = fetchMock as unknown as typeof fetch;
 
         const state = mount(
-            <AISidebar activeVendor="generic-iframe" activeConnector="genie" recentEvents={[]} />,
+            <UnifiedAssistantSurface activeVendor="generic-iframe" activeConnector="genie" recentEvents={[]} />,
         );
         await ask(state, "q");
         await act(async () => { await Promise.resolve(); });
@@ -500,7 +500,7 @@ describe("AISidebar", () => {
             globalThis.fetch = fetchMock as unknown as typeof fetch;
 
             const state = mount(
-                <AISidebar activeVendor="generic-iframe" activeConnector="genie" recentEvents={[]} />,
+                <UnifiedAssistantSurface activeVendor="generic-iframe" activeConnector="genie" recentEvents={[]} />,
             );
             await ask(state, "q");
             await act(async () => { await Promise.resolve(); });
@@ -548,7 +548,7 @@ describe("AISidebar", () => {
                 .mockResolvedValueOnce(synthetic);
 
             const state = mount(
-                <AISidebar activeVendor="powerbi" activeConnector="genie" recentEvents={[]} />,
+                <UnifiedAssistantSurface activeVendor="powerbi" activeConnector="genie" recentEvents={[]} />,
             );
             // Let the discovery effect settle so FramePicker has options.
             await act(async () => { await Promise.resolve(); });

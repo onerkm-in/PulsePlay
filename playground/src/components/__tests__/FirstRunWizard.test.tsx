@@ -108,7 +108,7 @@ describe("shouldShowWizard", () => {
 
 describe("applyPersonaDefaults", () => {
     // 2026-05-25 — every persona now returns uiMode: "v0" per the unified-
-    // surface plan (AISidebar is the always-default; PulseShell is dev-tools
+    // surface plan (UnifiedAssistantSurface is the always-default; PulseShell is dev-tools
     // only). Layout + connector hints stay persona-specific.
     it("Analyst → v0 / ai-left / genie hint", () => {
         const d = applyPersonaDefaults("analyst");

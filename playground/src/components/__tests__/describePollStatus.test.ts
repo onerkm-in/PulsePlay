@@ -1,13 +1,14 @@
 // playground/src/components/__tests__/describePollStatus.test.ts
 //
 // Coverage for the upstream-poll-status → loading-message mapper used by
-// the AISidebar's "polling" state. Live-smoke 2026-05-14 showed users
-// thought the proxy was hung when the warehouse cold-started (~40 s
-// PENDING_WAREHOUSE wait); this helper turns each upstream state into a
-// sympathetic, specific loading line + an optional "typical wait" hint.
+// the UnifiedAssistantSurface's "polling" state. Live-smoke 2026-05-14
+// showed users thought the proxy was hung when the warehouse cold-started
+// (~40 s PENDING_WAREHOUSE wait); this helper turns each upstream state
+// into a sympathetic, specific loading line + an optional "typical wait"
+// hint.
 
 import { describe, it, expect } from "vitest";
-import { describePollStatus } from "../AISidebar";
+import { describePollStatus } from "../UnifiedAssistantSurface";
 
 describe("describePollStatus", () => {
     it("returns null for undefined / null / empty input (caller falls back to 'Thinking…')", () => {

@@ -25,7 +25,7 @@ import { listVendors } from "./biPanel/registry";
 import type { BIAdapter, BICapabilities, BICommand, BIEvent, BIEmbedConfig } from "./biPanel/BIAdapter";
 import type powerbi from "./pulse/_adapter/powerbi-visuals-api";
 import { Icon } from "./pulse/_adapter/Icon";
-import { AISidebar, type AnswerEntry, type AutoSubmitQuestionEvent } from "./components/AISidebar";
+import { UnifiedAssistantSurface, type AnswerEntry, type AutoSubmitQuestionEvent } from "./components/UnifiedAssistantSurface";
 // SustainabilityIndicator dropped 2026-05-23 per user feedback — the gauge
 // wasn't earning the visual real estate it was using. Component file +
 // usageTracker remain in the codebase as dead-but-tested code in case a
@@ -204,7 +204,7 @@ function readConfiguredProxyBase(): string {
  * to "" and only updated it via the wizard or in-app ConnectorPicker.
  * Settings → AI → Provider writes to `pulseplay:active-ai-profile` but
  * App.tsx never read it — so a Settings-only change was invisible to
- * <AISidebar> and the AI request went out with an empty assistantProfile.
+ * <UnifiedAssistantSurface> and the AI request went out with an empty assistantProfile.
  */
 function readInitialActiveConnector(): string {
     if (typeof window === "undefined") return "";
@@ -218,7 +218,7 @@ function readInitialActiveConnector(): string {
 
 function readInitialUiMode(): UiMode {
     // Locked 2026-05-25 (Step 1 of the unified-surface beast-mode plan):
-    // AISidebar (uiMode === "v0") is now the always-default chat surface.
+    // UnifiedAssistantSurface (uiMode === "v0") is now the always-default chat surface.
     // PulseShell (uiMode === "pulse") remains in the codebase as a dev-
     // tools-only escape hatch during the feature-port migration (Steps
     // 4/5/6: presets, history persistence, show-SQL toggle). Setting
@@ -537,7 +537,7 @@ function PlaygroundApp(): React.ReactElement {
     // updated by the wizard's onComplete or the in-app ConnectorPicker.
     // Settings → AI → Provider writes to `pulseplay:active-ai-profile` via
     // settingsStore, but App.tsx never read that key — so a Settings-only
-    // change was invisible to <AISidebar>, which then submitted with empty
+    // change was invisible to <UnifiedAssistantSurface>, which then submitted with empty
     // assistantProfile and the proxy fell through. Hydrating from the
     // canonical key on mount + subscribing to storage events closes the
     // gap without forcing a full settingsStore migration of App.tsx state.
@@ -646,7 +646,7 @@ function PlaygroundApp(): React.ReactElement {
     // the default from readInitialUiMode() — so writing it via the wizard
     // path was redundant. The only remaining writer of `pulseplay:ui-mode`
     // is dev-tools manual localStorage.setItem, which is the explicit
-    // escape hatch during the PulseShell-to-AISidebar feature-port
+    // escape hatch during the PulseShell-to-UnifiedAssistantSurface feature-port
     // migration (beast-mode plan Steps 4/5/6). The local React `setUiMode`
     // state setter is kept so the display-change event listener at line
     // ~877 below can sync mid-session if a dev-tools change fires.
@@ -998,7 +998,7 @@ function PlaygroundApp(): React.ReactElement {
         setPrimaryBIAdapter(biAdaptersRef.current.get(0) || null);
     }, []);
 
-    // FW1 — route a completed AISidebar entry into the active BI adapter as
+    // FW1 — route a completed UnifiedAssistantSurface entry into the active BI adapter as
     // a `renderResult` command when the runtime BI vendor is native. The
     // sidebar continues to show the answer text regardless; this handler
     // adds the canvas paint alongside it. Guarded by:
@@ -1014,7 +1014,7 @@ function PlaygroundApp(): React.ReactElement {
     // `runtimeBiVendor` is computed further down the component body, so
     // the handler reads it through a ref kept current by the effect below.
     // This also lets the callback stay stable across vendor switches,
-    // which keeps AISidebar's prop diffing tight.
+    // which keeps UnifiedAssistantSurface's prop diffing tight.
     //
     // The cast to `BICommand` is a known type widening: `renderResult` is
     // declared on `NativeBICommand`, NOT on the generic `BIAdapter.send`
@@ -1138,7 +1138,7 @@ function PlaygroundApp(): React.ReactElement {
 
     // PROBE-ONCE prewarm — whenever we know the active profile (and pack, if
     // any), pre-fetch the DiscoverySnapshot into the discoveryClient's
-    // sessionStorage cache. Subsequent fetches anywhere in the app — AISidebar,
+    // sessionStorage cache. Subsequent fetches anywhere in the app — UnifiedAssistantSurface,
     // the Pulse genie pipeline, the Frame picker — hit the warm cache instead
     // of paying for a cold round-trip. The client handles in-flight dedupe and
     // 15-min TTL, so repeated fires are no-ops when nothing relevant changed.
@@ -1221,8 +1221,8 @@ function PlaygroundApp(): React.ReactElement {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [allowlistFailClosed, hasRenderableBiSurface, activeConnector, visibleVendors.length, wizardForceTick]);
 
-    /** Wizard "Done & ask" → AISidebar auto-submit. Captured here and
-     *  passed to AISidebar via the `autoSubmitQuestion` prop. The event id
+    /** Wizard "Done & ask" → UnifiedAssistantSurface auto-submit. Captured here and
+     *  passed to UnifiedAssistantSurface via the `autoSubmitQuestion` prop. The event id
      *  makes each wizard completion distinct, so intentionally asking the
      *  same suggested question on a later re-run still fires. */
     const wizardAutoSubmitSeqRef = useRef(0);
@@ -1294,7 +1294,7 @@ function PlaygroundApp(): React.ReactElement {
             // next wizard run pre-selects this role.
             setLastPersona(picks.persona);
             try { window.localStorage.setItem("pulseplay:last-persona", picks.persona); } catch { /* swallow */ }
-            // "Done & ask" path: arm AISidebar to fire ask() once on the
+            // "Done & ask" path: arm UnifiedAssistantSurface to fire ask() once on the
             // next render. Empty / falsy values clear the arm so a normal
             // "Done" doesn't trigger a stale auto-submit.
             if (picks.autoAsk && picks.suggestedQuestion && picks.suggestedQuestion.trim()) {
@@ -1437,7 +1437,7 @@ function PlaygroundApp(): React.ReactElement {
                                     </Suspense>
                                 </>
                             ) : (
-                                <AISidebar
+                                <UnifiedAssistantSurface
                                     activeVendor={runtimeBiVendor}
                                     activeConnector={activeConnector}
                                     recentEvents={recentEvents}
@@ -1516,8 +1516,9 @@ function PlaygroundApp(): React.ReactElement {
                                 // in Settings (BiGroup / AiGroup); the duplicate inline
                                 // mounts here were the "scattered settings leaking into
                                 // the main screen" the 2026-05-23 audit traced. The
-                                // AISidebar is the single thing v0 mode should show.
-                                <AISidebar
+                                // UnifiedAssistantSurface is the single thing the
+                                // default uiMode should show.
+                                <UnifiedAssistantSurface
                                     activeVendor={runtimeBiVendor}
                                     activeConnector={activeConnector}
                                     recentEvents={recentEvents}

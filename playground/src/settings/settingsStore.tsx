@@ -173,7 +173,7 @@ function validatePack(selection: PackSelection | null, allowlist: PulsePlayAllow
 // ─── Initial load + reconciliation ───────────────────────────────────────
 
 function readUiMode(): UiMode {
-    // ESCAPE-HATCH (2026-05-25): default is "v0" (AISidebar). The "pulse"
+    // ESCAPE-HATCH (2026-05-25): default is "v0" (UnifiedAssistantSurface). The "pulse"
     // value still parses so dev-tools `localStorage.setItem("pulseplay:ui-
     // mode", "pulse")` falls through to PulseShell — needed during the
     // feature-port migration (beast-mode plan Steps 4/5/6). Remove this

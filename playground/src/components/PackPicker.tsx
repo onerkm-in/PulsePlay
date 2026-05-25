@@ -67,6 +67,27 @@ export const DEFAULT_AVAILABLE_PACKS: PackInfo[] = [
             { name: "sustainability", displayName: "Sustainability", description: "Cross-cutting overlay: Scope 1/2/3 emissions, water, waste, packaging, ESG reporting." },
         ],
     },
+    {
+        name: "retail-digital",
+        displayName: "E-Commerce & Digital Retail",
+        description:
+            "E-Commerce & Digital Retail preset pack, encompassing merchandising planners, digital marketing growth loops, and green logistics/sustainability overlays.",
+        subVerticals: [
+            { name: "merchandising", displayName: "Merchandising", description: "Gross margin return on investment (GMROI), sell-through velocity, inventory turn, markdowns." },
+            { name: "digital-marketing", displayName: "Digital Marketing", description: "Customer acquisition cost (CAC), LTV, ROAS, conversion funnel, retention cohorts." },
+            { name: "sustainability", displayName: "Sustainability", description: "Cross-cutting overlay: packaging circularity, transportation carbon intensity, Scope 3 EPR." },
+        ],
+    },
+    {
+        name: "saas-product",
+        displayName: "SaaS & Digital Products",
+        description:
+            "SaaS & Digital Products preset pack, encompassing SaaS financial trackers, ARR bridges, LTV/CAC cohort evaluations, and green computing/cloud software sustainability overlays.",
+        subVerticals: [
+            { name: "finance-saas", displayName: "Finance / SaaS", description: "Annual Recurring Revenue (ARR) bridge, Net Revenue Retention (NRR), LTV:CAC, and payback periods." },
+            { name: "sustainability", displayName: "Sustainability", description: "Cross-cutting overlay: cloud infrastructure power usage effectiveness (PUE), green computing, Scope 3 hosting emissions." },
+        ],
+    },
 ];
 
 export function PackPicker(props: PackPickerProps) {
