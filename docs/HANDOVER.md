@@ -5,6 +5,25 @@
 
 ---
 
+## 2026-05-25 - Cell Catalog infrastructure design and implementation + Design research committed
+
+**Scope.** Rajesh agreed that we should commit the AppData design research files to the repo to prevent working tree drift, and refine the Path C "configured mode vs slim build" strategy by designing and implementing a **Cell Catalog** manifest registry. This provides a named, queryable, and conformance-testable contract to identify named product combinations (e.g. "Power BI + Genie") and validate their compliance before building slim configurations.
+
+**What shipped (3 commits on `codex/f5-g0-native-layout-2026-05-21`):**
+
+- **Committed Design Research (`32926ba`):** staged and committed all three local AppData design research files under `docs/research/`: `implementation_plan.md`, `dwd_pulse_feature_comparison.md`, and `MASTER_DESIGN_HANDOFF_TO_CLAUDE.md`. Staged and committed modular research docs (`b522f7a`): `docs/research/MODULAR_DELIVERY_WAY_FORWARD_2026-05-25.md` and `docs/memory/feature_modular_architecture.md`.
+- **Created Cell Manifests:** Added 5 cell manifests in the repository under `docs/cells/` (`powerbi-genie.json`, `tableau-foundation.json`, `qlik-bedrock.json`, `looker-supervisor.json`, `generic-iframe-responses.json`) defining their BI surface specs, AI connector specs, supported packs, and required/optional capabilities.
+- **Implemented Cell Catalog Library:** Added [playground/src/lib/cellCatalog.ts](../playground/src/lib/cellCatalog.ts) implementing the `CellCatalogEntry` interfaces, static frozen registry array `CELL_CATALOG`, dynamic config matcher `matchActiveCell(vendor, profile)`, and the compliance compliance auditor `auditCellCompliance(cell, activeCapabilities)`.
+- **Added Vitest Suite:** Created [playground/src/lib/__tests__/cellCatalog.test.ts](../playground/src/lib/__tests__/cellCatalog.test.ts) covering catalog structures, cell retrieve lookups, dynamic matching, and active capability compliance verification.
+
+**Validation.** Playground tests **1572/1572** passing successfully (all 6 new Vitest catalog tests pass flawlessly). Lint + build are fully clean. No regressions.
+
+**Next steps for Claude execution:**
+- **Surface presets into Ask Pulse:** Parse slash commands (`/swot`, `/bcg`, `/rfm`) in `AISidebar.tsx` composer + request builder, and add the collapsible parameter drawer to dynamically tune strategic parameters in-chat (directly implementing Option 1 from comparison).
+- **Integrate Cell Catalog into Settings UI:** Consume the Cell Catalog inside Settings/Setup groups to display named cell configurations and highlight required/missing capabilities dynamically.
+
+---
+
 ## 2026-05-25 - Beast-mode A/B/C/D sprint — carry AI Insights' magic into Chat (Genie focus)
 
 **Scope.** Rajesh asked for a smart feature comparison between PulsePlay and the predecessor Pulse (DwD_AI_Assistant_for_PBI), focused on AI Insights' "packed" experience and how to carry it into Ask Pulse. Four parallel research agents (Thread A/B/C/D) returned implementation-ready analyses; then beast-mode shipped all four in sequence with the **Genie connector as the focus** per Rajesh's explicit redirect.
@@ -35,11 +54,13 @@
 
 ---
 
-## 2026-05-25 - Dual-User UX/UI Simplification Master Design Handoff
+## 2026-05-25 - Dual-User UX/UI Simplification & Sibling Preset Chat Surfacing Plan
 
-**Scope.** Rajesh asked to act as a design expert, perform a thorough research and assessment of the current project state, evaluate the user stories for both End Users (Viewers) and Super Users (Authors), and build a master design plan to be executed by Claude.
+**Scope.** Rajesh asked to act as a design expert, perform a thorough research and assessment of the current project state, evaluate the user stories for both End Users (Viewers) and Super Users (Authors), compare PulsePlay features with the predecessor `DwD_AI_Assistant_for_PBI` custom visual project, and construct a master design and implementation plan for Claude.
 
-**Plan.** Created a highly detailed [implementation_plan.md](file:///C:/Users/rajes/.gemini/antigravity/brain/85789dd2-bdf4-4d7f-ba3e-de0037ebc3c4/implementation_plan.md) artifact in the local AppData brain directory. The plan includes a detailed critique of current layout friction, dual-user journey blueprints (the "Sugar Candy" Viewer experience and progressive Authoring Console Setup), WAI-ARIA Command Palette (`Ctrl/Cmd+K`) schema, visual and motion grammar (the SlideUpStagger, ActiveTab scale, and depth specifications), and a clean step-by-step implementation guide for Claude to execute.
+**Plan.** Created two key artifacts in the local AppData brain directory:
+1. [implementation_plan.md](file:///C:/Users/rajes/.gemini/antigravity/brain/85789dd2-bdf4-4d7f-ba3e-de0037ebc3c4/implementation_plan.md) - A detailed critique of current layout friction, dual-user journey blueprints (the "Sugar Candy" Viewer experience and progressive Authoring Setup), WAI-ARIA Command Palette (`Ctrl/Cmd+K`) schema, visual and motion grammar (SlideUpStagger, ActiveTab scale, depth), and a step-by-step implementation guide for Claude.
+2. [dwd_pulse_feature_comparison.md](file:///C:/Users/rajes/.gemini/antigravity/brain/85789dd2-bdf4-4d7f-ba3e-de0037ebc3c4/dwd_pulse_feature_comparison.md) - A comprehensive comparison with the legacy visual (`DwD_AI_Assistant_for_PBI`). It validates that 17 research-backed presets (SWOT, BCG, RFM, Pareto, Anomaly detection, and metric rules) are currently "trapped" in the legacy compatibility layer, and blueprints a step-by-step rollout plan to surface them natively inside `Ask Pulse` conversational chat via slash commands (e.g. `/swot`, `/bcg`), interactive parameter adjustment drawers (e.g. tuning thresholds in-chat), and grounded suggestion cards.
 
 **Memory & Docs.** Updated [memory/project_state.md](memory/project_state.md) and [docs/HANDOVER.md](docs/HANDOVER.md).
 

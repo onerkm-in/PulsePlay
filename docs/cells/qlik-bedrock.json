@@ -1,0 +1,20 @@
+{
+  "id": "qlik-bedrock",
+  "label": "Qlik + Bedrock",
+  "surface": {
+    "vendor": "qlik",
+    "adapterMinVersion": "1.0"
+  },
+  "assistant": {
+    "kind": "bedrock",
+    "profileType": "bedrock"
+  },
+  "packs": {
+    "supported": ["finance-budget", "*"]
+  },
+  "capabilities": {
+    "required": ["chat"],
+    "optional": ["trust-badges"]
+  },
+  "status": "preview"
+}
