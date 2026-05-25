@@ -22,6 +22,7 @@ import type { ComponentType } from "react";
 import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
 import { BIPanel } from "./biPanel/BIPanel";
 import { PulsePlayScreen } from "./components/PulsePlayScreen";
+import { TopRightToolbar } from "./components/TopRightToolbar";
 import { listVendors } from "./biPanel/registry";
 import type { BIAdapter, BICapabilities, BICommand, BIEvent, BIEmbedConfig } from "./biPanel/BIAdapter";
 import type powerbi from "./pulse/_adapter/powerbi-visuals-api";
@@ -1360,6 +1361,42 @@ function PlaygroundApp(): React.ReactElement {
                 </div>
                 <SetupStatusPill readiness={setupReadiness} />
             </header>
+
+            {/* 2026-05-25 — Top-right toolbar (Commit 5 of per-tab-visibility
+              * ship). Single global cluster of cross-cutting affordances
+              * (Maximize / Minimize / Pin / Pop-out / Open-in-new / Show-all)
+              * positioned below the green Ready pill. Replaces the per-pane
+              * toolbars in PaneChrome + Pulse's gn-pane-action-cluster as
+              * the canonical entry point. Per-pane button clusters are
+              * hidden via the global stylesheet rule below. */}
+            {!wizardShown && (
+                <TopRightToolbar
+                    activePane={effectiveSurfaceId === "bi-viz" ? "bi" : "ai"}
+                    activeTabName={
+                        effectiveSurfaceId === "ai-insights" ? "AI Insights" :
+                        effectiveSurfaceId === "ask-pulse"   ? "Ask Pulse"   :
+                        effectiveSurfaceId === "bi-viz"      ? "Dashboard"   :
+                        "current"
+                    }
+                    isFocused={focusedPane !== null && (focusedPane === (effectiveSurfaceId === "bi-viz" ? "bi" : "ai"))}
+                    isPinned={pinnedViewportPane !== null && (pinnedViewportPane === (effectiveSurfaceId === "bi-viz" ? "bi" : "ai"))}
+                    canShowAll={focusedPane !== null || enabledComponents === "aiOnly" || enabledComponents === "biOnly"}
+                />
+            )}
+            {/* Hide the legacy per-pane button clusters so they don't
+              * render duplicates of what TopRightToolbar now owns. The
+              * clusters remain in the DOM (preserved for the integration
+              * tests that select on those aria-labels); they're just
+              * visually suppressed. A follow-up commit will remove the
+              * JSX outright. */}
+            <style>{`
+                [data-testid="pp-panel-controls-ai"],
+                [data-testid="pp-panel-controls-bi"],
+                .gn-pane-action-cluster {
+                    display: none !important;
+                }
+            `}</style>
+
             <div style={{ flex: "1 1 auto", minHeight: 0, position: "relative" }}>
             {wizardShown ? (
                 <WizardErrorBoundary
