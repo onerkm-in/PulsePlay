@@ -41,6 +41,31 @@ import type { ArtifactCitation, ArtifactStatus } from "../types/assistant";
 import { validateArtifact, type CandidateArtifact } from "../lib/artifactValidator";
 import { TrustBadge } from "./TrustBadge";
 import { usePulseAiVisualSettings } from "../settings/pulseVisualSettingsStore";
+import { SectionedAnswer, type SectionDescriptor, type SectionState } from "./SectionedAnswer";
+import { streamSectionedAnswer } from "../lib/sectionedStreamClient";
+
+/** Thread C — default section taxonomy when chat-sectioned mode is on.
+ *  Mirrors AI Insights' baseline so authors see the same vocabulary
+ *  across both surfaces. */
+const SECTIONED_DEFAULT_SECTIONS: readonly string[] = Object.freeze([
+    "HEADLINE",
+    "TRENDS",
+    "RISKS",
+    "RECOMMENDED_ACTIONS",
+]);
+
+/** Thread C — feature flag. Default off; the user (or admin) opts into
+ *  sectioned chat by setting `pulseplay:chat-sectioned-enabled` = "1" in
+ *  localStorage. Keeps Genie's classic single-message chat behaviour as
+ *  the default while we iterate on the structured experience. */
+export function isSectionedChatEnabled(): boolean {
+    if (typeof window === "undefined") return false;
+    try {
+        return window.localStorage.getItem("pulseplay:chat-sectioned-enabled") === "1";
+    } catch {
+        return false;
+    }
+}
 
 // 2026-05-19 Codex post-UAT-1840 follow-up: wire the perf instrumentation
 // utility (added in b71270f) into the actual Ask Pulse pipeline so DevTools
@@ -158,6 +183,15 @@ export interface AnswerEntry {
      *  `blocked`. Surfaced inside the badge tooltip so the viewer knows
      *  why the validator refused. */
     artifactStatusReason?: string;
+    /** Thread C — per-section state when the entry is streaming through
+     *  the sectioned SSE endpoint. Absent for flat-mode entries. */
+    sectionStates?: Record<string, SectionState>;
+    /** Thread C — ordered section descriptors so the renderer can lay
+     *  them out top-to-bottom in the canonical order. */
+    sectionDescriptors?: SectionDescriptor[];
+    /** Thread C — true while the SSE stream is open. Disables per-section
+     *  regenerate buttons until the stream terminates. */
+    isStreamingSections?: boolean;
 }
 
 let nextEntryId = 1;
@@ -719,6 +753,100 @@ export function AISidebar(props: AISidebarProps) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [props.autoSubmitQuestion]);
 
+    /** Thread C — sectioned chat path. Opens an SSE stream to the proxy's
+     *  Phase D endpoint, registers section descriptors + initial pending
+     *  states on the entry, and updates section states as events arrive.
+     *  All in-flight sections share one renderId-keyed AnswerEntry.
+     *  Requires a valid activeConnector — sectioned mode is profile-driven. */
+    const askSectioned = async (entryId: number, q: string, runId: string) => {
+        if (!props.activeConnector) {
+            finalize(entryId, { error: "Sectioned chat requires an active AI profile." }, "failed");
+            return;
+        }
+        const sections = SECTIONED_DEFAULT_SECTIONS.slice();
+        const descriptors: SectionDescriptor[] = sections.map(id => ({ id }));
+        const initialStates: Record<string, SectionState> = {};
+        for (const id of sections) initialStates[id] = { status: "pending" };
+
+        // Promote the entry into the "polling" UX state (re-uses the same
+        // visual chrome the flat-mode polling uses) and attach the empty
+        // section grid so SectionedAnswer can render the skeleton.
+        setHistory(prev => prev.map(h => h.id === entryId ? {
+            ...h,
+            status: "polling",
+            sectionDescriptors: descriptors,
+            sectionStates: initialStates,
+            isStreamingSections: true,
+        } : h));
+
+        const ctrl = new AbortController();
+        abortControllers.current.set(entryId, ctrl);
+        stageEnd(runId, "submit");
+        stageStart(runId, "polling", `sectioned profile=${props.activeConnector}`);
+
+        try {
+            await streamSectionedAnswer({
+                profile: props.activeConnector,
+                userPrompt: q,
+                sections,
+                pack: props.packSelection?.pack,
+                subVertical: props.packSelection?.subVertical,
+                discoveryContext: snapshot ? summariseSnapshotForRequest(snapshot) : undefined,
+                signal: ctrl.signal,
+                onEvent: (event) => {
+                    if (event.kind === "section-started" && event.sectionId) {
+                        const sid = event.sectionId;
+                        setHistory(prev => prev.map(h => h.id === entryId ? {
+                            ...h,
+                            sectionStates: {
+                                ...(h.sectionStates ?? {}),
+                                [sid]: { status: "streaming" },
+                            },
+                        } : h));
+                    } else if (event.kind === "section-completed" && event.sectionId) {
+                        const sid = event.sectionId;
+                        setHistory(prev => prev.map(h => h.id === entryId ? {
+                            ...h,
+                            sectionStates: {
+                                ...(h.sectionStates ?? {}),
+                                [sid]: {
+                                    status: "completed",
+                                    body: event.body,
+                                    ...(event.usage ? { usage: event.usage } : {}),
+                                    ...(typeof event.durationMs === "number" ? { durationMs: event.durationMs } : {}),
+                                },
+                            },
+                        } : h));
+                    } else if (event.kind === "section-failed" && event.sectionId) {
+                        const sid = event.sectionId;
+                        setHistory(prev => prev.map(h => h.id === entryId ? {
+                            ...h,
+                            sectionStates: {
+                                ...(h.sectionStates ?? {}),
+                                [sid]: {
+                                    status: "failed",
+                                    error: event.error ?? { message: "section failed" },
+                                    ...(typeof event.durationMs === "number" ? { durationMs: event.durationMs } : {}),
+                                },
+                            },
+                        } : h));
+                    } else if (event.kind === "all-completed") {
+                        finalize(entryId, { isStreamingSections: false }, "completed");
+                    } else if (event.kind === "orchestrator-failed") {
+                        finalize(entryId, {
+                            error: event.error?.message ?? "Sectioned stream failed.",
+                            isStreamingSections: false,
+                        }, "failed");
+                    }
+                },
+            });
+        } catch (err) {
+            if ((err as { name?: string })?.name === "AbortError") return; // user Stop / unmount
+            const msg = err instanceof Error ? err.message : String(err);
+            finalize(entryId, { error: msg, isStreamingSections: false }, "failed");
+        }
+    };
+
     /** Question state that the input is bound to.
      *  ask(overrideQ) lets the caller supply a question directly without
      *  going through the input — used by the auto-submit effect below
@@ -746,6 +874,14 @@ export function AISidebar(props: AISidebarProps) {
         resetRun(runId);
         stageStart(runId, "total", q.length > 60 ? `${q.slice(0, 57)}…` : q);
         stageStart(runId, "submit", `profile=${props.activeConnector || "(default)"}`);
+
+        // Thread C — when sectioned chat is enabled, dispatch to the SSE
+        // path instead of the classic single-message flow. Default-off
+        // feature flag protects existing UX; users opt in via localStorage.
+        if (isSectionedChatEnabled()) {
+            void askSectioned(entryId, q, runId);
+            return;
+        }
 
         // Resolve the selected analysis frame (if any) from the snapshot so we
         // can include both a structured `frame` JSON field (additive — proxy
@@ -1060,7 +1196,31 @@ function AnswerEntryView(props: {
                 );
             })()}
 
-            {entry.answer && (
+            {entry.sectionDescriptors && entry.sectionStates && (
+                // Thread C — when the entry carries sectionDescriptors,
+                // render the structured multi-section view instead of
+                // the flat markdown bubble. Each section is a string
+                // body emitted by Genie, so we route it through
+                // renderMarkdown for consistent inline formatting +
+                // metric tone coloring. Section state pending /
+                // streaming / failed renders skeleton + spinner +
+                // inline error envelope respectively.
+                <div className="pp-ai-sidebar__a" style={{ marginTop: 4 }}>
+                    <strong>AI:</strong>
+                    <SectionedAnswer
+                        sections={entry.sectionDescriptors}
+                        sectionStates={entry.sectionStates}
+                        isStreaming={!!entry.isStreamingSections}
+                        renderBody={(_id, body) =>
+                            typeof body === "string"
+                                ? renderMarkdown(body, props.metricRules ? { metricRules: props.metricRules } : undefined)
+                                : null
+                        }
+                    />
+                </div>
+            )}
+
+            {!entry.sectionDescriptors && entry.answer && (
                 <div className="pp-ai-sidebar__a">
                     <strong>AI:</strong>
                     {/* Audit 2026-05-19 P2-2: was `whiteSpace: pre-wrap` + raw
