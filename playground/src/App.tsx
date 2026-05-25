@@ -1377,19 +1377,15 @@ function PlaygroundApp(): React.ReactElement {
                         onDismiss={handleWizardDismiss}
                     />
                 </WizardErrorBoundary>
-            ) : (<PulsePlayScreen>
-            {/* Step 2a beachhead 2026-05-25: PulsePlayScreen is the named
-              * owner of the user-visible screen. Currently a CSS-neutral
-              * wrapper (display: contents) around the existing pane mount
-              * JSX so behavior is unchanged. Step 2b will absorb the
-              * FloatingPanel + SplitLayout JSX below into
-              * PulsePlayScreen's own render path. See
-              * docs/research/UNIFIED_SCREEN_DESIGN_2026-05-25.md §5. */}
-            {/* In-app floating AI panel — rendered when the user clicks
-              * the float button. The panel is draggable and CSS-resizable.
-              * State is reset on float/dock (acceptable tradeoff vs a
-              * separate browser window losing auth + events). */}
-            {floatedPane === "ai" && (
+            ) : (<PulsePlayScreen
+                /* Step 2b 2026-05-25: PulsePlayScreen now owns the
+                 * COMPOSITION of the three unified-screen slots via
+                 * named render-props. App.tsx still provides each slot's
+                 * content (because helpers like FloatingPanel /
+                 * SplitLayout / MinimizedPaneDock are defined in this
+                 * file and aren't exported). Steps 3/7/8 absorb the
+                 * slot contents into PulsePlayScreen one at a time. */
+                floatingPaneSlot={floatedPane === "ai" ? (
                 <FloatingPanel
                     pos={floatPos}
                     onPosChange={setFloatPos}
@@ -1457,7 +1453,8 @@ function PlaygroundApp(): React.ReactElement {
                         </aside>
                     </PaneChrome>
                 </FloatingPanel>
-            )}
+                ) : null}
+                mainLayoutSlot={(
             <SplitLayout
                 aiVisible={floatedPane === "ai" ? false : mountedAiVisible}
                 biVisible={floatedPane === "ai" ? true : mountedBiVisible}
@@ -1720,16 +1717,14 @@ function PlaygroundApp(): React.ReactElement {
                     </main>
                 )}
             />
-            {/* MinimizedPaneDock is part of the unified screen — moved
-              * inside PulsePlayScreen wrapper as of Step 2a so all pane-
-              * related affordances live under one named component. */}
-            {minimizedPane && (
-                <MinimizedPaneDock
-                    pane={minimizedPane}
-                    onRestore={handleShowBothPanes}
-                />
-            )}
-            </PulsePlayScreen>)}
+                )}
+                minimizedDockSlot={minimizedPane ? (
+                    <MinimizedPaneDock
+                        pane={minimizedPane}
+                        onRestore={handleShowBothPanes}
+                    />
+                ) : null}
+            />)}
             </div>
         </div>
     );
