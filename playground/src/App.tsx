@@ -1416,14 +1416,14 @@ function PlaygroundApp(): React.ReactElement {
             )}
             {/* Hide the legacy per-pane button clusters so they don't
               * render duplicates of what TopRightToolbar now owns. The
-              * clusters remain in the DOM (preserved for the integration
-              * tests that select on those aria-labels); they're just
-              * visually suppressed. A follow-up commit will remove the
-              * JSX outright. */}
+              * Pulse-side cluster (.gn-pane-action-cluster) was REMOVED
+              * from visual.tsx outright in the follow-up commit; only
+              * PaneChrome's per-pane controls remain in the DOM (still
+              * referenced by the viewportControls integration tests).
+              * The next cleanup commit will retire those too. */}
             <style>{`
                 [data-testid="pp-panel-controls-ai"],
-                [data-testid="pp-panel-controls-bi"],
-                .gn-pane-action-cluster {
+                [data-testid="pp-panel-controls-bi"] {
                     display: none !important;
                 }
             `}</style>

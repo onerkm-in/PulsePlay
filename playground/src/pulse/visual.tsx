@@ -4706,52 +4706,14 @@ function App(props: AppProps) {
                             )}
                         </div>
                     )}
-                    <div className="gn-pane-action-cluster" role="toolbar" aria-label="AI pane actions">
-                        <button
-                            type="button"
-                            className="gn-pane-action-btn"
-                            onClick={() => dispatchPulsePlayViewportAction(outerViewportFocus === "ai" ? "restore" : "focus")}
-                            title={outerViewportFocus === "ai" ? "Restore split layout" : "Maximize AI pane"}
-                            aria-label={outerViewportFocus === "ai" ? "Restore AI panel" : "Maximize AI panel"}
-                        >
-                            <Icon name={outerViewportFocus === "ai" ? "restore" : "maximize"} />
-                        </button>
-                        <button
-                            type="button"
-                            className="gn-pane-action-btn"
-                            onClick={() => dispatchPulsePlayViewportAction("minimize")}
-                            title="Minimize AI pane"
-                            aria-label="Minimize AI panel"
-                        >
-                            <Icon name="minimize" />
-                        </button>
-                        <button
-                            type="button"
-                            className="gn-pane-action-btn"
-                            onClick={() => dispatchPulsePlayViewportAction("open-page")}
-                            title="Open AI pane in a separate page"
-                            aria-label="Open AI panel in separate page"
-                        >
-                            <Icon name="external-link" />
-                        </button>
-                        <button
-                            type="button"
-                            className="gn-pane-action-btn"
-                            onClick={() => dispatchPulsePlayViewportAction("float")}
-                            title="Pop out AI pane as a detached browser window you can keep alongside the main app"
-                            aria-label="Pop out AI panel as window"
-                        >
-                            <Icon name="float-window" />
-                        </button>
-                        {/* 2026-05-17 — the pane-level "Refresh" was removed.
-                         *  It dispatched a wholesale remount that users almost
-                         *  never want, and visually duplicated the Insights
-                         *  run-state refresh below (which clears the cache +
-                         *  re-runs the pipeline — what users actually mean by
-                         *  "refresh"). Keeping a single Refresh control prevents
-                         *  the "two reload buttons" trap Rajesh flagged in the
-                         *  2026-05-17 review. */}
-                    </div>
+                    {/* 2026-05-25 — gn-pane-action-cluster REMOVED. The
+                     *  Pulse-side AI pane toolbar (Maximize / Minimize /
+                     *  Open-in-page / Pop-out) was hidden via CSS in Commit
+                     *  5 when the App-level TopRightToolbar took over the
+                     *  cross-cutting affordances. Removing the dead JSX
+                     *  here completes the cleanup — TopRightToolbar
+                     *  dispatches the same pulseplay:viewport-action events
+                     *  via the App.tsx handler, so behavior is unchanged. */}
                     {/* Spacer to push the run-state cluster to the far right. */}
                     {activeTab === "insights" && <div className="gn-header-spacer" />}
                     {/* Insights run-state cluster: clock + copy + refresh, then
