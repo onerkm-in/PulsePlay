@@ -36,6 +36,16 @@ export interface CellCatalogEntry {
     readonly status: "production" | "preview" | "deprecated";
 }
 
+function deepFreeze<T>(obj: T): T {
+    if (obj && typeof obj === "object" && !Object.isFrozen(obj)) {
+        Object.freeze(obj);
+        Object.keys(obj).forEach(key => {
+            deepFreeze((obj as any)[key]);
+        });
+    }
+    return obj;
+}
+
 export const CELL_CATALOG: ReadonlyArray<CellCatalogEntry> = Object.freeze([
     {
         id: "powerbi-genie",
@@ -137,7 +147,7 @@ export const CELL_CATALOG: ReadonlyArray<CellCatalogEntry> = Object.freeze([
         },
         status: "production",
     },
-]);
+].map(deepFreeze));
 
 /**
  * Resolves a Cell ID to its Catalog Entry.
