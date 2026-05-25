@@ -5,6 +5,43 @@
 
 ---
 
+## 2026-05-25 - Unified-screen architecture sprint — design doc signed off + Step 0/1/1.5/2 shipped
+
+**Scope.** Rajesh expanded the centralized-UI directive into a comprehensive unified-screen vision: one PulsePlayScreen component owning the entire user-visible screen, three top tabs (AI Insights / Ask Pulse / Dashboard) with consistent chrome, per-tab layout, BI 1-or-2 panes with author free choice, duplicative detach that persists across tabs, cross-pane BI↔AI sync, and a unified affordance set across all panes. Beast Mode brainstorm produced 6 architectural decisions (D1-D6) + answered 5 open questions + locked 6 polish defaults. Three parallel research agents audited the existing code (pane affordances, BI multi-mount, detach/float plumbing) before any extraction work began.
+
+**Decisions locked in [docs/research/UNIFIED_SCREEN_DESIGN_2026-05-25.md](research/UNIFIED_SCREEN_DESIGN_2026-05-25.md):**
+- **D1** Per-tab layout (author choice via Settings → Display)
+- **D2** Cross-pane sync: BI→AI MVP, AI→BI Phase 2 (filters-only, author-optional)
+- **D3** BI tab supports 1 or 2 panes, author free choice of per-pane vendor
+- **D4** Design doc signed off before code lands
+- **D5** Detach is in-app overlay (NOT `window.open()` in v0.1); duplicative (original slot stays full); multi-pane via Map; persists across reload
+- **D6** Multi-mount safety: per-pane fresh embed-token issuance; same-report-twice prohibited for Power BI; new conformance test gates the unified-screen ship
+
+**Composer drafts** are per-tab default + author-optional shared. **Cell catalog audit** shows plain-English notice when a tab's required capability is missing (never silent fail). **Power BI 2-pane same-report** uses a page picker to disambiguate. **Detached panes** have no URL; "Open in new page" is the bookmarkable path.
+
+**What shipped (8 commits on `codex/f5-g0-native-layout-2026-05-21`):**
+
+- **`9290d92`** Step 0 — Cell catalog: JSON manifests at `playground/src/cells/*.json` are the single source of truth; TS imports them statically; tableau-foundation demoted to "preview"; typed `Capability` union added.
+- **`63d3917`** Step 1 — `uiMode` toggle removed from Settings UI; AISidebar (now UnifiedAssistantSurface) is the always-default chat surface; PulseShell remains as a dev-tools-only escape hatch (`localStorage["pulseplay:ui-mode"]="pulse"`). Hidden settingsStore bug fixed (readUiMode defaulted to "pulse" while App.tsx defaulted to "v0" — invisible state divergence). Dead code deleted (`setUiMode` action, `handleUiModeChange`). 5 viewportControls tests retrofitted with `seedPulseUiMode()` opt-in; 2 async-wrapped for Suspense.
+- **`42b82e7`** Step 1.5 — Mechanical rename `AISidebar` → `UnifiedAssistantSurface`. 73 doc-comment references swept via sed; 4 active code identifiers renamed; tests updated. Preserves the historical "Renamed from `AISidebar`" marker.
+- **`9bdb618` + `fa374b8` + `842676b`** UNIFIED_SCREEN_DESIGN doc v1 → v2 → v2.1. v2 folded in 3 parallel research agent findings (pane affordances, BI multi-mount per-vendor, detach plumbing audit). v2.1 added §10.5 polish defaults so all 6 polish items have a defaulted answer for sign-off readiness.
+- **`2d7baa5`** Step 2a — PulsePlayScreen beachhead. CSS-neutral wrapper (`display: contents`) around the existing pane-mount JSX. Zero behavior change.
+- **`a74dcb9`** Step 2b — PulsePlayScreen promoted to render-prop seam with 3 named slots: `floatingPaneSlot`, `mainLayoutSlot`, `minimizedDockSlot`. PulsePlayScreen now owns canonical COMPOSITION even though App.tsx still owns each slot's CONTENT (avoided extracting 8 App.tsx-internal helpers — 8-12h of mechanical work that Steps 3/7/8 will absorb naturally).
+
+**Validation.** Playground 1581/1581 (+10 across Step 2a/2b PulsePlayScreen tests). Lint + typecheck clean throughout. Proxy untouched this session.
+
+**Tripwires for next session.**
+- **Step 2.5 (unified affordance toolbar) is next** per design doc §10. Surface `BIAdapter.refresh()` + `BIAdapter.export()` (these contracts existed since cycle B but were never wired to UI), add Refresh + Export to UnifiedAssistantSurface's pane toolbar, rename "Pop out window" → "Float" + "Pin layout" → "Save startup layout", standardize Minimize behavior across `enabledComponents` modes. Estimated 6-8h.
+- **PulseShell escape hatch** still works via `localStorage.setItem("pulseplay:ui-mode","pulse")` — for testing legacy behavior during the migration. Removed entirely once Steps 4/5/6 port presets + history + show-SQL features into UnifiedAssistantSurface (~2-3 weeks more).
+- **PulseShell-to-UnifiedAssistantSurface feature migration backlog: 46 features** per the 2026-05-25 audit (16 P1, 14 P2, 16 P3). 8-12 weeks for full parity. The original 2-3 week estimate was wrong.
+- **Multi-mount conformance test** (Power BI two-panes-different-tokens) gates the Dashboard 2-pane mode ship (Step 8). Add to `bi-adapters/powerbi/__tests__/index.test.ts` per design doc §4.6.3.
+- **PulsePlayScreen still receives slot content from App.tsx** — design doc §5.2 calls for absorbing content into PulsePlayScreen via `PulsePlayScreenContext`. Step 2c (deferred) does the context refactor.
+- **Branch is now ~205 commits ahead of main.** Per [feedback_keep_main_current.md](memory/feedback_keep_main_current.md), fast-forward main when shipping is stable enough.
+
+**What to read first next session:** [docs/research/UNIFIED_SCREEN_DESIGN_2026-05-25.md](research/UNIFIED_SCREEN_DESIGN_2026-05-25.md) §10 (step plan) + §4.5 (unified affordance set spec — drives Step 2.5).
+
+---
+
 ## 2026-05-25 - Cell Catalog infrastructure design and implementation + Design research committed
 
 **Scope.** Rajesh agreed that we should commit the AppData design research files to the repo to prevent working tree drift, and refine the Path C "configured mode vs slim build" strategy by designing and implementing a **Cell Catalog** manifest registry. This provides a named, queryable, and conformance-testable contract to identify named product combinations (e.g. "Power BI + Genie") and validate their compliance before building slim configurations.
