@@ -37,6 +37,9 @@ import { recordResponse as recordUsageResponse } from "../lib/usageTracker";
 import { EvidenceDrawer, type EvidenceItem } from "./EvidenceDrawer";
 import { dumpRun, resetRun, stageEnd, stageStart } from "../lib/perfInstrumentation";
 import { renderMarkdown } from "../lib/renderMarkdown";
+import type { ArtifactCitation, ArtifactStatus } from "../types/assistant";
+import { validateArtifact, type CandidateArtifact } from "../lib/artifactValidator";
+import { TrustBadge } from "./TrustBadge";
 
 // 2026-05-19 Codex post-UAT-1840 follow-up: wire the perf instrumentation
 // utility (added in b71270f) into the actual Ask Pulse pipeline so DevTools
@@ -144,6 +147,16 @@ export interface AnswerEntry {
      *  the AISidebar treats it as opaque metadata. Absent for backends
      *  that haven't been wired through `withGovernance(...)` yet. */
     governance?: unknown;
+    /** Thread B — authoritative artifact status emitted by validateArtifact()
+     *  once the entry transitions to `completed`. Drives the <TrustBadge>
+     *  render in the message header. Never set by the LLM; never trusted
+     *  from upstream metadata. Absent on pending / submitting / polling
+     *  entries; absent on failed entries (no artifact to validate). */
+    artifactStatus?: ArtifactStatus;
+    /** Thread B — Problem-Details detail string when artifactStatus is
+     *  `blocked`. Surfaced inside the badge tooltip so the viewer knows
+     *  why the validator refused. */
+    artifactStatusReason?: string;
 }
 
 let nextEntryId = 1;
@@ -213,6 +226,70 @@ function extractQueryResult(data: ProxyMessageResponse): QueryResult | undefined
     const rows = Array.isArray(qr.rows) ? (qr.rows as unknown[][]) : [];
     if (columns.length === 0 && rows.length === 0) return undefined;
     return { columns, rows };
+}
+
+/** Thread B — compute the authoritative artifact status for a completed
+ *  AnswerEntry. Synthesises a CandidateArtifact from the entry's fields
+ *  and runs validateArtifact, which is the SAME gate the Workbench
+ *  surface uses. Status is never trusted from the LLM or upstream
+ *  metadata — only from this validator pass.
+ *
+ *  Citation synthesis rules:
+ *    • `sqlQuery` present → `{ kind: 'sql', statement }` citation
+ *    • `queryResult` with rows → `{ kind: 'result-rows', rowCount }` citation
+ *  Without either, an answer-only entry collapses to `suggestion`.
+ *  Returns null if the entry has no renderable content at all (skip badge). */
+export function computeArtifactStatusForEntry(entry: AnswerEntry): { status: ArtifactStatus; reason?: string } | null {
+    const answerText = typeof entry.answer === "string" ? entry.answer.trim() : "";
+    const sqlText = typeof entry.sqlQuery === "string" ? entry.sqlQuery.trim() : "";
+    const rows = entry.queryResult?.rows ?? [];
+    const hasAnswer = answerText.length > 0;
+    const hasSql = sqlText.length > 0;
+    const hasTable = entry.queryResult ? rows.length > 0 : false;
+    if (!hasAnswer && !hasSql && !hasTable) return null;
+
+    const citations: ArtifactCitation[] = [];
+    if (hasSql) {
+        citations.push({ kind: "sql", statement: sqlText });
+    }
+    if (hasTable) {
+        citations.push({
+            kind: "result-rows",
+            statementId: `entry-${entry.id}`,
+            rowCount: typeof entry.rowsReturned === "number" ? entry.rowsReturned : rows.length,
+        });
+    }
+
+    const candidate: CandidateArtifact = {
+        id: `entry-${entry.id}`,
+        ...(hasAnswer ? { answer: { markdown: answerText } } : {}),
+        ...(hasSql ? { sql: sqlText } : {}),
+        ...(hasTable && entry.queryResult
+            ? {
+                table: {
+                    columns: entry.queryResult.columns.map(c => ({ name: c, type: "string" })),
+                    rows: entry.queryResult.rows.map(row =>
+                        row.map(cell =>
+                            cell === null || cell === undefined
+                                ? null
+                                : typeof cell === "number"
+                                ? cell
+                                : String(cell),
+                        ),
+                    ),
+                },
+            }
+            : {}),
+        ...(citations.length > 0 ? { citations } : {}),
+        ...(typeof entry.executionTimeMs === "number" ? { executionTimeMs: entry.executionTimeMs } : {}),
+        ...(typeof entry.rowsReturned === "number" ? { rowCount: entry.rowsReturned } : {}),
+    };
+
+    const result = validateArtifact(candidate);
+    return {
+        status: result.artifact.status,
+        ...(result.artifact.statusReason ? { reason: result.artifact.statusReason } : {}),
+    };
 }
 
 /** Map a proxy response into the partial AnswerEntry fields it carries. */
@@ -486,6 +563,18 @@ export function AISidebar(props: AISidebarProps) {
         ));
     };
 
+    const finalizeWithStatus = (entryId: number, patch: Partial<AnswerEntry>, status: AISidebarStatus, existing: AnswerEntry | undefined): Partial<AnswerEntry> => {
+        if (status !== "completed") return patch;
+        const projected: AnswerEntry = { ...(existing as AnswerEntry), ...patch, id: entryId, status };
+        const validation = computeArtifactStatusForEntry(projected);
+        if (!validation) return patch;
+        return {
+            ...patch,
+            artifactStatus: validation.status,
+            ...(validation.reason ? { artifactStatusReason: validation.reason } : {}),
+        };
+    };
+
     const finalize = (entryId: number, patch: Partial<AnswerEntry>, status: AISidebarStatus) => {
         const timer = pollTimers.current.get(entryId);
         if (timer) {
@@ -505,9 +594,11 @@ export function AISidebar(props: AISidebarProps) {
         let completedEntry: AnswerEntry | null = null;
         setHistory(prev => {
             const finishedAt = Date.now();
+            const existing = prev.find(h => h.id === entryId);
+            const enrichedPatch = finalizeWithStatus(entryId, patch, status, existing);
             const next = prev.map(h =>
                 h.id === entryId
-                    ? { ...h, ...patch, status, finishedAt }
+                    ? { ...h, ...enrichedPatch, status, finishedAt }
                     : h
             );
             // FW1 — capture the post-patch entry so the onEntryCompleted
@@ -902,6 +993,12 @@ function AnswerEntryView(props: { entry: AnswerEntry; onStop: () => void; onRetr
     return (
         <article className="pp-ai-sidebar__entry" data-testid={`pp-ai-entry-${entry.id}`} data-status={entry.status}>
             <div className="pp-ai-sidebar__q"><strong>You:</strong> {entry.question}</div>
+
+            {entry.artifactStatus && (
+                <div className="pp-ai-sidebar__status" style={{ marginTop: 4, display: "flex", justifyContent: "flex-end" }}>
+                    <TrustBadge status={entry.artifactStatus} statusReason={entry.artifactStatusReason} />
+                </div>
+            )}
 
             {entry.status === "submitting" && (
                 // Audit 2026-05-19 P2-11: aria-live so screen-reader users

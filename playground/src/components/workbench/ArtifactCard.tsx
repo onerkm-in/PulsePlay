@@ -11,10 +11,10 @@
 import React, { useMemo, useState } from 'react';
 import {
     WORKBENCH_TABS,
-    type ArtifactStatus,
     type WorkbenchArtifact,
     type WorkbenchTab,
 } from '../../types/assistant';
+import { STATUS_LABEL } from '../../lib/artifactStatus';
 import {
     AnswerTab,
     ChartTab,
@@ -35,14 +35,6 @@ export interface ArtifactCardProps {
     /** Optional className override on the outer card wrapper. */
     readonly className?: string;
 }
-
-/** Human-readable status labels and semantic class names. */
-const STATUS_LABEL: Readonly<Record<ArtifactStatus, string>> = Object.freeze({
-    'verified': 'Verified',
-    'grounded-draft': 'Grounded draft',
-    'suggestion': 'Suggestion',
-    'blocked': 'Blocked',
-});
 
 /** Stable order for the tab strip — matches WORKBENCH_TABS. */
 function orderedTabs(declared: ReadonlyArray<WorkbenchTab>): WorkbenchTab[] {
