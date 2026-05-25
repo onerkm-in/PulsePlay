@@ -173,19 +173,19 @@ function validatePack(selection: PackSelection | null, allowlist: PulsePlayAllow
 // ─── Initial load + reconciliation ───────────────────────────────────────
 
 function readUiMode(): UiMode {
-    // ESCAPE-HATCH (2026-05-25): default is "v0" (UnifiedAssistantSurface). The "pulse"
-    // value still parses so dev-tools `localStorage.setItem("pulseplay:ui-
-    // mode", "pulse")` falls through to PulseShell — needed during the
-    // feature-port migration (beast-mode plan Steps 4/5/6). Remove this
-    // function's "pulse" branch entirely once PulseShell is removed from
-    // App.tsx's mount path. Mirrors App.tsx readInitialUiMode().
-    if (typeof window === "undefined") return "v0";
+    // Re-locked 2026-05-25 (per-tab-visibility direction): default is
+    // "pulse" (PulseShell — the 3-tab strip is the one canonical layout).
+    // "v0" still parses so dev-tools `localStorage.setItem("pulseplay:ui-
+    // mode", "v0")` falls through to UnifiedAssistantSurface as an escape
+    // hatch if PulseShell hits a regression mid-incident. Mirrors
+    // App.tsx readInitialUiMode().
+    if (typeof window === "undefined") return "pulse";
     try {
         const v = window.localStorage.getItem(KEY.uiMode);
         if (v === "v0") return "v0";
         if (v === "pulse") return "pulse";
     } catch { /* swallow */ }
-    return "v0";
+    return "pulse";
 }
 
 function readEnabledComponents(): EnabledComponents {

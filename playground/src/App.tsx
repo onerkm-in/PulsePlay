@@ -218,22 +218,21 @@ function readInitialActiveConnector(): string {
 }
 
 function readInitialUiMode(): UiMode {
-    // Locked 2026-05-25 (Step 1 of the unified-surface beast-mode plan):
-    // UnifiedAssistantSurface (uiMode === "v0") is now the always-default chat surface.
-    // PulseShell (uiMode === "pulse") remains in the codebase as a dev-
-    // tools-only escape hatch during the feature-port migration (Steps
-    // 4/5/6: presets, history persistence, show-SQL toggle). Setting
-    // `pulseplay:ui-mode = "pulse"` via DevTools still falls through to
-    // PulseShell so a power user who hits a v0 regression can fall back
-    // mid-incident. The Settings UI no longer exposes this choice —
-    // there is one centralized surface for end users, period.
-    if (typeof window === "undefined") return "v0";
+    // Re-locked 2026-05-25 (per-tab-visibility direction): PulseShell
+    // (uiMode === "pulse") is now the always-default mounted shell. The
+    // 3-tab strip (AI Insights / Ask Pulse / Dashboard) is the one
+    // canonical layout; per-tab visibility toggles in Settings decide
+    // which tabs render. UnifiedAssistantSurface (uiMode === "v0") stays
+    // in the codebase as a dev-tools-only escape hatch — set
+    // `pulseplay:ui-mode = "v0"` via DevTools to fall back if PulseShell
+    // hits a regression mid-incident.
+    if (typeof window === "undefined") return "pulse";
     try {
         const stored = window.localStorage.getItem(UI_MODE_STORAGE_KEY);
-        if (stored === "v0") return "v0";
-        if (stored === "pulse") return "pulse"; // escape hatch
+        if (stored === "v0") return "v0"; // escape hatch
+        if (stored === "pulse") return "pulse";
     } catch { /* swallow */ }
-    return "v0";
+    return "pulse";
 }
 
 function readInitialEnabledComponents(): EnabledComponents {
