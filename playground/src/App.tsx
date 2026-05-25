@@ -615,6 +615,12 @@ function PlaygroundApp(): React.ReactElement {
     // fixed-position draggable overlay instead of the split layout slot.
     const [floatedPane, setFloatedPane] = useState<ViewportPane | null>(null);
     const [floatPos, setFloatPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+    // 2026-05-25 — explicit signal for Mix-mode minimize. Mix mode's normal
+    // surface flip (Dashboard nav) and an intentional Minimize click look
+    // identical at the state level (mixSurface="bi") but only the latter
+    // should render the restore dock. handleViewportMinimize sets this;
+    // any SurfaceSwitcher-driven mixSurface change clears it.
+    const [mixMinimizedPane, setMixMinimizedPane] = useState<ViewportPane | null>(null);
 
 
 
@@ -727,7 +733,12 @@ function PlaygroundApp(): React.ReactElement {
         setFocusedPane(null);
         writeViewportFocusToUrl(null);
         if (enabledComponents === "mix") {
+            // 2026-05-25 — flip surfaces AND record the explicit minimize
+            // signal so the dock renders. (Just flipping mixSurface looks
+            // identical to user-driven Dashboard navigation; the dock
+            // needs to distinguish.)
             setMixSurface(pane === "ai" ? "bi" : "ai");
+            setMixMinimizedPane(pane);
             return;
         }
         handleEnabledComponentsChange(pane === "ai" ? "biOnly" : "aiOnly");
@@ -741,6 +752,10 @@ function PlaygroundApp(): React.ReactElement {
         setFocusedPane(null);
         writeViewportFocusToUrl(null);
         setMixSurface(surface);
+        // 2026-05-25 — surface-switcher navigation always reflects user
+        // intent to view that surface, so any prior Mix-minimized signal
+        // is no longer relevant; clear it so the restore dock hides.
+        setMixMinimizedPane(null);
         if (pulseTab) setRequestedPulseTab(pulseTab);
         persistActiveSurface(surfaceFromMixState(surface, pulseTab));
     }, [persistActiveSurface]);
@@ -963,11 +978,26 @@ function PlaygroundApp(): React.ReactElement {
     const biVisible = enabledComponents === "biOnly" || enabledComponents === "both" || mixBiSurfaceActive;
     const mountedAiVisible = focusedPane ? focusedPane === "ai" || aiVisible : aiVisible;
     const mountedBiVisible = focusedPane ? focusedPane === "bi" || biVisible : biVisible;
-    const minimizedPane: ViewportFocus = !focusedPane && enabledComponents === "biOnly"
-        ? "ai"
-        : !focusedPane && enabledComponents === "aiOnly"
-            ? "bi"
-            : null;
+    // 2026-05-25 — minimizedPane drives the bottom dock that lets the user
+    // restore a hidden pane. Beast-mode e2e probe N2 found that in the
+    // default Mix mode, Minimize click flipped mixSurface without ever
+    // setting enabledComponents — so this derivation returned null and
+    // the dock never mounted. The fix has two parts:
+    //   1. (this derivation) Cover the Mix-mode case ONLY when the user
+    //      explicitly minimized — tracked via `mixMinimizedPane` below.
+    //      Otherwise normal Dashboard-navigation in Mix mode (which also
+    //      results in mixSurface="bi") would falsely show a dock.
+    //   2. handleViewportMinimize sets mixMinimizedPane; mixSurface
+    //      changes via SurfaceSwitcher (handleMixSurfaceSelect) clear it.
+    const minimizedPane: ViewportFocus = focusedPane
+        ? null
+        : enabledComponents === "biOnly"
+            ? "ai"
+            : enabledComponents === "aiOnly"
+                ? "bi"
+                : enabledComponents === "mix" && mixMinimizedPane
+                    ? mixMinimizedPane
+                    : null;
     const effectiveBiTileMode = biTileModeFromPolicy(allowlistState.allowlist);
     // Smart Connect state — populated by TestConnectionPanel's probe and the
     // user's pack confirmation (which may override the inferred suggestion).
@@ -1758,7 +1788,21 @@ function PlaygroundApp(): React.ReactElement {
                 minimizedDockSlot={minimizedPane ? (
                     <MinimizedPaneDock
                         pane={minimizedPane}
-                        onRestore={handleShowBothPanes}
+                        // 2026-05-25 — restore is context-aware. In Mix mode
+                        // the user's preference is to keep mix; flipping
+                        // mixSurface back to the hidden pane (and clearing
+                        // the Mix-minimized signal) restores it without
+                        // forcing them into "both" mode. Other modes
+                        // (biOnly / aiOnly) drop the minimized state by
+                        // returning to "both" via handleShowBothPanes.
+                        onRestore={() => {
+                            if (enabledComponents === "mix") {
+                                setMixSurface(minimizedPane === "ai" ? "ai" : "bi");
+                                setMixMinimizedPane(null);
+                            } else {
+                                handleShowBothPanes();
+                            }
+                        }}
                     />
                 ) : null}
             />)}
