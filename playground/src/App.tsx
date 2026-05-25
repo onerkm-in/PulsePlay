@@ -21,6 +21,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import type { ComponentType } from "react";
 import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
 import { BIPanel } from "./biPanel/BIPanel";
+import { PulsePlayScreen } from "./components/PulsePlayScreen";
 import { listVendors } from "./biPanel/registry";
 import type { BIAdapter, BICapabilities, BICommand, BIEvent, BIEmbedConfig } from "./biPanel/BIAdapter";
 import type powerbi from "./pulse/_adapter/powerbi-visuals-api";
@@ -1376,7 +1377,14 @@ function PlaygroundApp(): React.ReactElement {
                         onDismiss={handleWizardDismiss}
                     />
                 </WizardErrorBoundary>
-            ) : (<>
+            ) : (<PulsePlayScreen>
+            {/* Step 2a beachhead 2026-05-25: PulsePlayScreen is the named
+              * owner of the user-visible screen. Currently a CSS-neutral
+              * wrapper (display: contents) around the existing pane mount
+              * JSX so behavior is unchanged. Step 2b will absorb the
+              * FloatingPanel + SplitLayout JSX below into
+              * PulsePlayScreen's own render path. See
+              * docs/research/UNIFIED_SCREEN_DESIGN_2026-05-25.md §5. */}
             {/* In-app floating AI panel — rendered when the user clicks
               * the float button. The panel is draggable and CSS-resizable.
               * State is reset on float/dock (acceptable tradeoff vs a
@@ -1712,13 +1720,16 @@ function PlaygroundApp(): React.ReactElement {
                     </main>
                 )}
             />
-            </>)}
+            {/* MinimizedPaneDock is part of the unified screen — moved
+              * inside PulsePlayScreen wrapper as of Step 2a so all pane-
+              * related affordances live under one named component. */}
             {minimizedPane && (
                 <MinimizedPaneDock
                     pane={minimizedPane}
                     onRestore={handleShowBothPanes}
                 />
             )}
+            </PulsePlayScreen>)}
             </div>
         </div>
     );
