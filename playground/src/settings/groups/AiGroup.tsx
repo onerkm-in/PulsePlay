@@ -36,6 +36,8 @@ import {
     type PulseEnabledFeatures,
     type PulseInsightsAuthoringMode,
 } from "../pulseVisualSettingsStore";
+import { AiAssistedSuggestionPanel } from "../../pulse/setupStep5";
+import { suggestInsightsConfigViaProxy } from "../../lib/insightsSuggestClient";
 
 interface ProfileMetadata {
     name: string;
@@ -613,6 +615,7 @@ export function AiGroup(): React.ReactElement {
                     value={pulseAi.value}
                     onChange={pulseAi.update}
                     activeAiProfile={activeAiProfile}
+                    packSelection={packSelection}
                 />
             </Leaf>
 
@@ -673,8 +676,19 @@ function PulseAiInsightsSettingsPanel(props: {
     value: PulseAiVisualSettings;
     onChange: (patch: Partial<PulseAiVisualSettings>) => void;
     activeAiProfile: string;
+    packSelection: PackSelection | null;
 }): React.ReactElement {
     const { value, onChange } = props;
+    const resolvedProfile = (value.assistantProfile || props.activeAiProfile || "").trim();
+    const onSuggest = useCallback(async () => {
+        if (!resolvedProfile) return null;
+        return suggestInsightsConfigViaProxy({
+            profile: resolvedProfile,
+            pack: props.packSelection?.pack,
+            subVertical: props.packSelection?.subVertical,
+            domainHint: value.insightsDomain || undefined,
+        });
+    }, [resolvedProfile, props.packSelection?.pack, props.packSelection?.subVertical, value.insightsDomain]);
     return (
         <div style={{ display: "grid", gap: 14 }}>
             <div
@@ -717,6 +731,20 @@ function PulseAiInsightsSettingsPanel(props: {
                     { value: "manual", label: "Manual — write prompt" },
                 ]}
             />
+
+            {value.insightsAuthoringMode === "ai-assisted" && (
+                <AiAssistedSuggestionPanel
+                    onSuggest={resolvedProfile ? onSuggest : undefined}
+                    currentDomain={value.insightsDomain}
+                    currentSectionsJson={value.insightsCustomSections}
+                    onApplyDomain={insightsDomain => onChange({ insightsDomain })}
+                    onApplySections={insightsCustomSections => onChange({ insightsCustomSections })}
+                    currentMetricRulesText={value.metricDirectionRules}
+                    currentMetricRulesJson={value.insightsMetricDirections}
+                    onApplyMetricRulesText={metricDirectionRules => onChange({ metricDirectionRules })}
+                    onApplyMetricRulesJson={insightsMetricDirections => onChange({ insightsMetricDirections })}
+                />
+            )}
 
             <SettingsTextInput
                 label="Analytics domain"
