@@ -487,11 +487,18 @@ function governanceAttribute(state: NativeCanvasGovernanceState): string | null 
 // ─── Empty / Text / Blocked / Preview / Spec states ───────────────────────
 
 function EmptyState(): React.ReactElement {
+    // 2026-05-25 — copy revised after the per-tab-visibility ship made
+    // it clear the prior wording ("Ask Pulse a question to render the AI
+    // result here") read as orphan cross-tab context on the Dashboard
+    // tab. The Native canvas IS specifically the AI-result rendering
+    // surface (not a real BI vendor like Power BI/Tableau); the new
+    // copy spells out the cross-tab relationship explicitly + names
+    // the originating tab so the user knows exactly where to go.
     return (
         <div className="pp-native-bi__empty" style={emptyMessageStyle}>
-            <strong style={titleStyle}>Native result canvas</strong>
+            <strong style={titleStyle}>AI chart canvas</strong>
             <span data-native-bi-status="empty">
-                Ask Pulse a question to render the AI result here.
+                This canvas displays AI-generated charts. Open the <b>Ask Pulse</b> tab and ask a question — the chart appears here.
             </span>
         </div>
     );

@@ -104,8 +104,10 @@ describe("NativeCanvas — non-envelope modes", () => {
         const root = container.querySelector<HTMLElement>("[data-native-bi-adapter='true']");
         expect(root).not.toBeNull();
         expect(root?.getAttribute("data-native-bi-status")).toBe("empty");
-        expect(root?.textContent).toContain("Native result canvas");
-        expect(root?.textContent).toContain("Ask Pulse a question");
+        expect(root?.textContent).toContain("AI chart canvas");
+        expect(root?.textContent).toContain("Open the");
+        expect(root?.textContent).toContain("Ask Pulse");
+        expect(root?.textContent).toContain("tab and ask a question");
         expect(root?.hasAttribute("data-native-governance")).toBe(false);
         unmountAndDetach(handle, container);
     });

@@ -85,8 +85,15 @@ describe("NativeBIAdapter — mount and lifecycle", () => {
         await mountAdapter(adapter, containerEl, {});
         const root = containerEl.querySelector<HTMLElement>("[data-native-bi-adapter='true']");
         expect(root).not.toBeNull();
-        expect(root?.textContent).toContain("Native result canvas");
+        // 2026-05-25 — empty-state copy revised from "Native result canvas
+        // / Ask Pulse a question to render the AI result here" to
+        // "AI chart canvas / ... Open the Ask Pulse tab and ask a question
+        // — the chart appears here." Vendor displayName above still
+        // reads "Native result canvas" — that's the vendor identity in
+        // settings, separate from the canvas's user-facing empty state.
+        expect(root?.textContent).toContain("AI chart canvas");
         expect(root?.textContent).toContain("Ask Pulse");
+        expect(root?.textContent).toContain("tab and ask a question");
     });
 
     test("emits loaded and ready events on mount", async () => {
