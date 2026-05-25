@@ -29,6 +29,18 @@
 | 11 | `97ba4e0` | Retire Pulse's `gn-pane-action-cluster` JSX (already CSS-hidden since Commit 5) |
 | 12 | `495f13c` | Annotated user-scenario harness — 5 scenarios with blue banner + yellow ring overlays |
 | 13 | `5e1516a` | Scenario harness Phase-A fixes — S2 graceful-skip when starters disabled, S5 cross-surface via `?surface=` URL |
+| 14 | `f1ec9b6` | HANDOVER + project_state memory — 13-commit session arc captured |
+| 15 | `7a0588d` | **Phase B P1** — `Page[]` parallel storage alongside `TabVisibility`. New `Page` type + `pulseplay:pages` storage + lockstep invariant. Storage refactor only, no consumer changes. +10 tests |
+| 16 | `9dd502b` | **Phase C scaffolding** — `PaneInstance` + `paneRegistry` parallel storage. Types + helpers + storage reader; consumers (detach overlay, per-pane state) ship in follow-up. +6 tests |
+| 17 | `c5d0155` | **Final 20-scenario validation harness** — 5 × SET / AI / AP / BI with annotated banner + ring overlays. Two-run results: 18/20 then 16/20 PASS; all FAILs are test-design issues, zero architecture regressions |
+
+**Phase summary** (this session's user-driven phasing A → D-mid → B → C → final-validation → D-final):
+- **Phase A** (commits 13) — Scenario harness fixes (S2 graceful-skip, S5 cross-surface)
+- **Phase D-mid** (commit 14) — Memory + HANDOVER refresh
+- **Phase B** (commit 15) — Multi-page P1 storage refactor
+- **Phase C scaffolding** (commit 16) — PaneInstance types + storage (runtime deferred)
+- **Final validation** (commit 17) — 20-scenario harness, 2 runs, 16-18 PASS
+- **Phase D-final** (this entry update) — HANDOVER + memory updated again
 
 **Validation status:**
 - **Tests: 1581/1581 passing throughout** the entire session.
@@ -40,8 +52,9 @@
 
 **Tripwires for next session:**
 
-- **PHASE B (Multi-page P1) is next.** Refactor `tabVisibility: { aiInsights, askPulse, dashboard }` → `pages: Page[]` where each Page is `{ id, type, title, config }`. Cap at 3 pages (one per type) initially so today's behavior is a degenerate case. Storage refactor only — no user-visible change. ~1 day estimated.
-- **PHASE C (duplicative + same-tab multi-mount)** is the big architectural unblocker for the user's "compare any with any (including itself)" thesis. Pane registry keyed by `paneId` (not `tabId`); per-pane state isolation; per-pane embed-token issuance. ~2-3 days.
+- ✅ **Phase B P1 SHIPPED** (`7a0588d`) — `Page[]` parallel storage. Next: P2 (multi-page UI + N pages per type).
+- ✅ **Phase C SCAFFOLDING SHIPPED** (`9dd502b`) — PaneInstance types + registry. Next: runtime — detach overlay (React portal for floating panes); per-pane state isolation (each PaneInstance owns conversation/scroll/draft); per-pane Power BI embed-token issuance; bump createdAt monotonic counter for paneId disambiguation. **~2-3 days.**
+- **Phase B P2** (multi-page UI) builds on P1 storage. Add/remove/reorder pages; tab strip renders N tabs from `pages` array; checkboxes-in-Settings UI becomes a page-list editor. ~3-4 days.
 - **D1 full fix deferred** — destroy() rAF defer reduced error count but didn't eliminate. Full fix requires PulseShell restructure to gate container removal on inner-root teardown completion. Non-trivial; not blocking functionality.
 - **6 viewportControls integration test selectors** still reference legacy `Maximize AI panel` / `Maximize BI panel` / `Show both panels` aria-labels. PaneChrome's per-pane button JSX is CSS-hidden but still in DOM to keep these tests passing. Follow-up commit retires that JSX + updates the tests to use TopRightToolbar's tab-name labels.
 - **Settings Display page now has only 3 leaves** ("Visible tabs" / "Default landing tab" / "Canvas tiles") instead of 7. The `enabledComponents` + `layoutMode` enums still exist in `settingsStore` reducer state for backward-compat with stored values; their setters are no longer the user-facing path. Phase B's storage refactor can finally retire them.
