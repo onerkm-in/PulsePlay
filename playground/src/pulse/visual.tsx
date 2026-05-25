@@ -279,6 +279,50 @@ function dispatchPulsePlayViewportAction(action: PulsePlayViewportAction, pane: 
     }));
 }
 
+// 2026-05-25 — per-tab-visibility model. Read by visual.tsx to decide which
+// of AI Insights / Ask Pulse / Dashboard tab buttons render in the strip,
+// and whether the strip itself collapses (when ≤1 tab is enabled, the
+// strip is hidden and the single enabled tab becomes the main page).
+// Source of truth is the settingsStore TabVisibility field; this reader
+// duplicates the shape locally to avoid a hard import dependency from
+// pulse/* into settings/*. Defaults to all-enabled when storage is
+// missing or unparseable; refuses zero-enabled (would brick the UI).
+interface PulsePlayTabVisibility {
+    aiInsights: boolean;
+    askPulse: boolean;
+    dashboard: boolean;
+}
+const PULSEPLAY_TAB_VISIBILITY_KEY = "pulseplay:tab-visibility";
+const DEFAULT_PULSEPLAY_TAB_VISIBILITY: Readonly<PulsePlayTabVisibility> = {
+    aiInsights: true,
+    askPulse: true,
+    dashboard: true,
+};
+
+function readPulsePlayTabVisibility(): PulsePlayTabVisibility {
+    if (typeof window === "undefined") return { ...DEFAULT_PULSEPLAY_TAB_VISIBILITY };
+    try {
+        const raw = window.localStorage.getItem(PULSEPLAY_TAB_VISIBILITY_KEY);
+        if (!raw) return { ...DEFAULT_PULSEPLAY_TAB_VISIBILITY };
+        const parsed = JSON.parse(raw) as Partial<PulsePlayTabVisibility>;
+        if (parsed && typeof parsed === "object") {
+            const next: PulsePlayTabVisibility = {
+                aiInsights: typeof parsed.aiInsights === "boolean" ? parsed.aiInsights : true,
+                askPulse:   typeof parsed.askPulse   === "boolean" ? parsed.askPulse   : true,
+                dashboard:  typeof parsed.dashboard  === "boolean" ? parsed.dashboard  : true,
+            };
+            const count = (next.aiInsights ? 1 : 0) + (next.askPulse ? 1 : 0) + (next.dashboard ? 1 : 0);
+            if (count === 0) return { ...DEFAULT_PULSEPLAY_TAB_VISIBILITY };
+            return next;
+        }
+    } catch { /* swallow */ }
+    return { ...DEFAULT_PULSEPLAY_TAB_VISIBILITY };
+}
+
+function pulsePlayEnabledTabCount(v: PulsePlayTabVisibility): number {
+    return (v.aiInsights ? 1 : 0) + (v.askPulse ? 1 : 0) + (v.dashboard ? 1 : 0);
+}
+
 interface InsightsRenderOptions {
     metricDirectionsJson?: string;
     legacyMetricDirectionRules?: string;
@@ -1245,6 +1289,24 @@ function App(props: AppProps) {
     // feature so the (now-hidden) tab strip can't leave us on a blank pane.
     // 'both' defaults to insights, matching previous behaviour.
     const enabledFeatures = props.settings.enabledFeatures ?? "both";
+
+    // 2026-05-25 — per-tab-visibility (PulsePlay settings, NOT Pulse settings).
+    // Subscribes to display-change events so toggling a tab in Settings →
+    // Preferences updates the strip without a reload.
+    const [tabVisibility, setTabVisibility] = useState<PulsePlayTabVisibility>(() => readPulsePlayTabVisibility());
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const handler = (e: Event) => {
+            const detail = (e as CustomEvent<{ key?: string }>).detail;
+            if (detail?.key === PULSEPLAY_TAB_VISIBILITY_KEY) {
+                setTabVisibility(readPulsePlayTabVisibility());
+            }
+        };
+        window.addEventListener("pulseplay:display-change", handler as EventListener);
+        return () => window.removeEventListener("pulseplay:display-change", handler as EventListener);
+    }, []);
+    const tabVisibilityCount = pulsePlayEnabledTabCount(tabVisibility);
+
     const [activeTab, setActiveTab] = useState<"insights" | "chat">(() => {
         // Honor a host-stashed initial tab so cold-mount through
         // PulseShell (e.g. user clicked "Ask Pulse" while the BI pane was
@@ -4422,21 +4484,16 @@ function App(props: AppProps) {
                     ProgressIndicator on the right. All transient/run-state UI
                     stays in this row so the content area below is pure narrative. */}
                 <div className="gn-header-row gn-header-row--bottom">
-                    {enabledFeatures === "both" && (
+                    {/* 2026-05-25 — strip gate flipped from `enabledFeatures === "both"`
+                      * to PulsePlay's tabVisibility model. The strip is hidden when
+                      * ≤1 tab is enabled (auto-collapse: that single tab becomes the
+                      * main page). Each individual tab button below is also gated on
+                      * its own visibility flag, so when 2 of 3 are enabled, the strip
+                      * shows only those 2. */}
+                    {tabVisibilityCount >= 2 && (
                         <div className="gn-surface-switcher" aria-label="Visual surfaces">
-                            {/* Audit 2026-05-20 navigation pass: Dashboard joins the
-                              * AI-side tablist as a proper role=tab (was a plain
-                              * button outside the list), so the user has consistent
-                              * three-tab navigation on BOTH panes — AI side and BI
-                              * side now mirror each other.
-                              * - aria-selected on Dashboard stays false here because
-                              *   clicking it transfers focus to the BI pane (whose
-                              *   SurfaceSwitcher then shows Dashboard active).
-                              * - Keyboard nav cycles AI Insights → Ask Pulse →
-                              *   Dashboard with arrow keys; Home / End jump to ends.
-                              * - aria-label updated "AI surfaces" → "PulsePlay
-                              *   surfaces" to reflect the inclusion of Dashboard. */}
                             <div className="gn-header-tabs" role="tablist" aria-label="PulsePlay surfaces">
+                                {tabVisibility.aiInsights && (
                                 <button
                                     role="tab"
                                     id="gn-tab-insights"
@@ -4448,31 +4505,34 @@ function App(props: AppProps) {
                                     onKeyDown={(e) => {
                                         if (e.key === "ArrowRight" || e.key === "ArrowDown") {
                                             e.preventDefault();
-                                            setActiveTab("chat");
-                                            // Move focus to the now-active tab so screen readers announce it.
-                                            const next = document.getElementById("gn-tab-chat") as HTMLButtonElement | null;
-                                            next?.focus();
+                                            // Skip disabled neighbors when arrowing.
+                                            if (tabVisibility.askPulse) {
+                                                setActiveTab("chat");
+                                                document.getElementById("gn-tab-chat")?.focus();
+                                            } else if (tabVisibility.dashboard) {
+                                                document.getElementById("gn-tab-dashboard")?.focus();
+                                            }
                                         } else if (e.key === "Home") {
                                             e.preventDefault();
                                             setActiveTab("insights");
                                         } else if (e.key === "End") {
                                             e.preventDefault();
-                                            // End jumps to the last tab — Dashboard.
-                                            document.getElementById("gn-tab-dashboard")?.focus();
+                                            // End jumps to the last enabled tab.
+                                            const last = tabVisibility.dashboard ? "gn-tab-dashboard"
+                                                : tabVisibility.askPulse ? "gn-tab-chat" : "gn-tab-insights";
+                                            document.getElementById(last)?.focus();
                                         }
                                     }}
                                 >
                                     <span className="gn-header-tab-icon" aria-hidden="true">
-                                        {/* Sparkle glyph — matches the SurfaceSwitcher AI Insights icon. Codex
-                                          * 2026-05-19 naming audit: previous emoji "✨" was visible in test
-                                          * text-content snapshots even though aria-hidden; SVG avoids both
-                                          * the screen-reader and the visible-text duplication. */}
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                             <path d="M12 3 L14 10 L21 12 L14 14 L12 21 L10 14 L3 12 L10 10 Z" />
                                         </svg>
                                     </span>
                                     <span>AI Insights</span>
                                 </button>
+                                )}
+                                {tabVisibility.askPulse && (
                                 <button
                                     role="tab"
                                     id="gn-tab-chat"
@@ -4484,21 +4544,24 @@ function App(props: AppProps) {
                                     onKeyDown={(e) => {
                                         if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
                                             e.preventDefault();
-                                            setActiveTab("insights");
-                                            const prev = document.getElementById("gn-tab-insights") as HTMLButtonElement | null;
-                                            prev?.focus();
+                                            if (tabVisibility.aiInsights) {
+                                                setActiveTab("insights");
+                                                document.getElementById("gn-tab-insights")?.focus();
+                                            }
                                         } else if (e.key === "ArrowRight" || e.key === "ArrowDown") {
                                             e.preventDefault();
-                                            // ArrowRight from Ask Pulse focuses Dashboard
-                                            // (and lets the user activate it with Enter / Space).
-                                            document.getElementById("gn-tab-dashboard")?.focus();
+                                            if (tabVisibility.dashboard) {
+                                                document.getElementById("gn-tab-dashboard")?.focus();
+                                            }
                                         } else if (e.key === "Home") {
                                             e.preventDefault();
-                                            setActiveTab("insights");
-                                            document.getElementById("gn-tab-insights")?.focus();
+                                            const first = tabVisibility.aiInsights ? "gn-tab-insights" : "gn-tab-chat";
+                                            if (first === "gn-tab-insights") setActiveTab("insights");
+                                            document.getElementById(first)?.focus();
                                         } else if (e.key === "End") {
                                             e.preventDefault();
-                                            document.getElementById("gn-tab-dashboard")?.focus();
+                                            const last = tabVisibility.dashboard ? "gn-tab-dashboard" : "gn-tab-chat";
+                                            document.getElementById(last)?.focus();
                                         }
                                     }}
                                 >
@@ -4509,6 +4572,8 @@ function App(props: AppProps) {
                                     </span>
                                     <span>Ask Pulse</span>
                                 </button>
+                                )}
+                                {tabVisibility.dashboard && (
                                 <button
                                     role="tab"
                                     id="gn-tab-dashboard"
@@ -4520,18 +4585,24 @@ function App(props: AppProps) {
                                     onKeyDown={(e) => {
                                         if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
                                             e.preventDefault();
-                                            setActiveTab("chat");
-                                            document.getElementById("gn-tab-chat")?.focus();
+                                            if (tabVisibility.askPulse) {
+                                                setActiveTab("chat");
+                                                document.getElementById("gn-tab-chat")?.focus();
+                                            } else if (tabVisibility.aiInsights) {
+                                                setActiveTab("insights");
+                                                document.getElementById("gn-tab-insights")?.focus();
+                                            }
                                         } else if (e.key === "Home") {
                                             e.preventDefault();
-                                            setActiveTab("insights");
-                                            document.getElementById("gn-tab-insights")?.focus();
+                                            const first = tabVisibility.aiInsights ? "gn-tab-insights"
+                                                : tabVisibility.askPulse ? "gn-tab-chat" : "gn-tab-dashboard";
+                                            if (first === "gn-tab-insights") setActiveTab("insights");
+                                            document.getElementById(first)?.focus();
                                         } else if (e.key === "End") {
                                             // Already on the last tab.
                                             e.preventDefault();
                                         } else if (e.key === "Enter" || e.key === " ") {
-                                            // Native button activation already fires onClick; no-op
-                                            // override needed.
+                                            // Native button activation already fires onClick; no-op.
                                         }
                                     }}
                                     aria-label="Open dashboard surface"
@@ -4550,6 +4621,7 @@ function App(props: AppProps) {
                                     </span>
                                     <span>Dashboard</span>
                                 </button>
+                                )}
                             </div>
                         </div>
                     )}
