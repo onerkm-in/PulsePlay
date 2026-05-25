@@ -217,12 +217,22 @@ function readInitialActiveConnector(): string {
 }
 
 function readInitialUiMode(): UiMode {
-    if (typeof window === "undefined") return "pulse";
+    // Locked 2026-05-25 (Step 1 of the unified-surface beast-mode plan):
+    // AISidebar (uiMode === "v0") is now the always-default chat surface.
+    // PulseShell (uiMode === "pulse") remains in the codebase as a dev-
+    // tools-only escape hatch during the feature-port migration (Steps
+    // 4/5/6: presets, history persistence, show-SQL toggle). Setting
+    // `pulseplay:ui-mode = "pulse"` via DevTools still falls through to
+    // PulseShell so a power user who hits a v0 regression can fall back
+    // mid-incident. The Settings UI no longer exposes this choice —
+    // there is one centralized surface for end users, period.
+    if (typeof window === "undefined") return "v0";
     try {
         const stored = window.localStorage.getItem(UI_MODE_STORAGE_KEY);
-        if (stored === "pulse" || stored === "v0") return stored;
+        if (stored === "v0") return "v0";
+        if (stored === "pulse") return "pulse"; // escape hatch
     } catch { /* swallow */ }
-    return "pulse";
+    return "v0";
 }
 
 function readInitialEnabledComponents(): EnabledComponents {
@@ -631,10 +641,15 @@ function PlaygroundApp(): React.ReactElement {
         };
     }, [activeConnector]);
 
-    const handleUiModeChange = useCallback((next: UiMode) => {
-        setUiMode(next);
-        try { window.localStorage.setItem(UI_MODE_STORAGE_KEY, next); } catch { /* swallow */ }
-    }, []);
+    // ESCAPE-HATCH (2026-05-25): the wizard-driven uiMode write was deleted.
+    // All FirstRunWizard personas now return uiMode === "v0", which is also
+    // the default from readInitialUiMode() — so writing it via the wizard
+    // path was redundant. The only remaining writer of `pulseplay:ui-mode`
+    // is dev-tools manual localStorage.setItem, which is the explicit
+    // escape hatch during the PulseShell-to-AISidebar feature-port
+    // migration (beast-mode plan Steps 4/5/6). The local React `setUiMode`
+    // state setter is kept so the display-change event listener at line
+    // ~877 below can sync mid-session if a dev-tools change fires.
 
     const handleBiSurfaceModeChange = useCallback((next: BiSurfaceMode) => {
         setBiSurfaceMode(next);
@@ -1242,7 +1257,11 @@ function PlaygroundApp(): React.ReactElement {
             setActiveConnector(picks.connector);
             setEmbedConfig(picks.embedConfig);
             setPackSelection(picks.packSelection);
-            handleUiModeChange(picks.uiMode);
+            // uiMode write removed (2026-05-25). All wizard personas return
+            // "v0" and that's already the default from readInitialUiMode(),
+            // so writing through the wizard path was redundant. The wizard's
+            // picks.uiMode field is kept in the type contract for future
+            // re-enable but is intentionally not consumed here.
             handleLayoutModeChange(picks.layoutMode as LayoutMode);
             // ──── Persist AI profile to settingsStore (canonical key) ─────
             // Without this the wizard only wrote App.tsx local state and
@@ -1290,7 +1309,7 @@ function PlaygroundApp(): React.ReactElement {
             }
             setWizardForceTick(t => t + 1);
         },
-        [setEmbedConfig, handleUiModeChange, handleLayoutModeChange, settings],
+        [setEmbedConfig, handleLayoutModeChange, settings],
     );
     const handleWizardDismiss = useCallback(() => {
         // Dismissal flag is already set by FirstRunWizard's onDismiss path.

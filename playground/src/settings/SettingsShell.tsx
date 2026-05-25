@@ -146,7 +146,9 @@ export const GROUP_LEAF_LABELS: Record<SettingsGroupId, string[]> = {
     // → Display policy (Canvas tiles). Mix panel sits between Layout and
     // Display policy — Canvas tiles is the FINAL leaf.
     preferences: [
-        "UI mode",
+        // 2026-05-25 — "UI mode" leaf removed per the unified-surface plan.
+        // AISidebar is the always-default. PulseShell remains as a dev-tools
+        // escape hatch via localStorage["pulseplay:ui-mode"]="pulse".
         "Layout preset",
         "Visible panels",
         "AI position",

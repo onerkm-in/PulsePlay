@@ -153,15 +153,12 @@ describe("SettingsProvider — setters", () => {
         unmount(state);
     });
 
-    it("setUiMode persists + broadcasts (no allowlist gate, it's a UX pref)", async () => {
-        const { Probe, captured } = makeProbe();
-        const state = mount(<Probe />, MVP_ALLOWLIST);
-        await act(async () => { await Promise.resolve(); });
-        act(() => { captured.current!.setUiMode("v0"); });
-        expect(window.localStorage.getItem("pulseplay:ui-mode")).toBe("v0");
-        expect(captured.current?.uiMode).toBe("v0");
-        unmount(state);
-    });
+    // setUiMode test removed 2026-05-25 — uiMode is no longer user-editable
+    // via the settings store. PulseShell escape hatch is dev-tools-only
+    // (manual `localStorage.setItem("pulseplay:ui-mode", "pulse")`). The
+    // reducer case "set/uiMode" stays so the display-change event listener
+    // can still sync mid-session if dev-tools writes the storage key; that
+    // listener is exercised by the "sync/external" test below.
 
     it("setBiSurfaceMode persists + broadcasts (runtime choice, vendor config preserved)", async () => {
         window.localStorage.setItem("pulseplay:bi-vendor", "powerbi");

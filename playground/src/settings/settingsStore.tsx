@@ -173,12 +173,19 @@ function validatePack(selection: PackSelection | null, allowlist: PulsePlayAllow
 // ─── Initial load + reconciliation ───────────────────────────────────────
 
 function readUiMode(): UiMode {
-    if (typeof window === "undefined") return "pulse";
+    // ESCAPE-HATCH (2026-05-25): default is "v0" (AISidebar). The "pulse"
+    // value still parses so dev-tools `localStorage.setItem("pulseplay:ui-
+    // mode", "pulse")` falls through to PulseShell — needed during the
+    // feature-port migration (beast-mode plan Steps 4/5/6). Remove this
+    // function's "pulse" branch entirely once PulseShell is removed from
+    // App.tsx's mount path. Mirrors App.tsx readInitialUiMode().
+    if (typeof window === "undefined") return "v0";
     try {
         const v = window.localStorage.getItem(KEY.uiMode);
-        if (v === "pulse" || v === "v0") return v;
+        if (v === "v0") return "v0";
+        if (v === "pulse") return "pulse";
     } catch { /* swallow */ }
-    return "pulse";
+    return "v0";
 }
 
 function readEnabledComponents(): EnabledComponents {
@@ -466,7 +473,10 @@ export interface SettingsActions {
     setBiVendor: (value: string) => { ok: boolean; reason?: string };
     setBiSurfaceMode: (value: BiSurfaceMode) => void;
     setPackSelection: (value: PackSelection | null) => { ok: boolean; reason?: string };
-    setUiMode: (value: UiMode) => void;
+    // setUiMode REMOVED 2026-05-25 — uiMode is no longer user-editable.
+    // PulseShell escape hatch is dev-tools-only (localStorage). The reducer
+    // case "set/uiMode" remains so the existing display-change event
+    // listener can still sync mid-session if a dev-tools change fires.
     setEnabledComponents: (value: EnabledComponents) => void;
     setLayoutMode: (value: LayoutMode) => void;
     setBiTileMode: (value: BiTileMode) => void;
@@ -583,10 +593,11 @@ export function SettingsProvider(props: SettingsProviderProps): React.ReactEleme
         [state],
     );
 
-    const setUiMode = useCallback<SettingsActions["setUiMode"]>((value) => {
-        persistAndBroadcast(KEY.uiMode, value);
-        dispatch({ type: "set/uiMode", value });
-    }, []);
+    // setUiMode action REMOVED 2026-05-25. The reducer case "set/uiMode"
+    // remains for the display-change event listener (which dispatches the
+    // action directly when a dev-tools localStorage write fires). No
+    // component should call this action; if you need to flip uiMode at
+    // dev time, write the storage key directly.
 
     const setEnabledComponents = useCallback<SettingsActions["setEnabledComponents"]>(
         (value) => {
@@ -684,7 +695,6 @@ export function SettingsProvider(props: SettingsProviderProps): React.ReactEleme
             setBiVendor,
             setBiSurfaceMode,
             setPackSelection,
-            setUiMode,
             setEnabledComponents,
             setLayoutMode,
             setBiTileMode,
@@ -697,7 +707,6 @@ export function SettingsProvider(props: SettingsProviderProps): React.ReactEleme
             setBiVendor,
             setBiSurfaceMode,
             setPackSelection,
-            setUiMode,
             setEnabledComponents,
             setLayoutMode,
             setBiTileMode,

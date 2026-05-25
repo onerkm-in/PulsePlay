@@ -107,16 +107,19 @@ describe("shouldShowWizard", () => {
 /* ─── applyPersonaDefaults ──────────────────────────────────────────── */
 
 describe("applyPersonaDefaults", () => {
-    it("Analyst → pulse / ai-left / genie hint", () => {
+    // 2026-05-25 — every persona now returns uiMode: "v0" per the unified-
+    // surface plan (AISidebar is the always-default; PulseShell is dev-tools
+    // only). Layout + connector hints stay persona-specific.
+    it("Analyst → v0 / ai-left / genie hint", () => {
         const d = applyPersonaDefaults("analyst");
-        expect(d.uiMode).toBe("pulse");
+        expect(d.uiMode).toBe("v0");
         expect(d.layoutMode).toBe("ai-left");
         expect(d.preferredConnectorType).toBe("genie");
     });
 
-    it("Executive → pulse / ai-top / foundation-model hint", () => {
+    it("Executive → v0 / ai-top / foundation-model hint", () => {
         const d = applyPersonaDefaults("executive");
-        expect(d.uiMode).toBe("pulse");
+        expect(d.uiMode).toBe("v0");
         expect(d.layoutMode).toBe("ai-top");
         expect(d.preferredConnectorType).toBe("foundation-model");
     });
@@ -128,9 +131,9 @@ describe("applyPersonaDefaults", () => {
         expect(d.preferredConnectorType).toBeUndefined();
     });
 
-    it("Designer → pulse / ai-left / no hint", () => {
+    it("Designer → v0 / ai-left / no hint", () => {
         const d = applyPersonaDefaults("designer");
-        expect(d.uiMode).toBe("pulse");
+        expect(d.uiMode).toBe("v0");
         expect(d.layoutMode).toBe("ai-left");
         expect(d.preferredConnectorType).toBeUndefined();
     });
@@ -234,7 +237,7 @@ describe("Just give me defaults path", () => {
         expect(onComplete).toHaveBeenCalledTimes(1);
         const [picks] = onComplete.mock.calls[0] as [{ persona: string; uiMode: string; layoutMode: string; vendor: string }];
         expect(picks.persona).toBe("analyst");
-        expect(picks.uiMode).toBe("pulse");
+        expect(picks.uiMode).toBe("v0");
         expect(picks.layoutMode).toBe("ai-left");
         expect(picks.vendor).toBe("powerbi"); // first vendor
     });
@@ -275,7 +278,7 @@ describe("Done finalisation", () => {
         const [picks] = onComplete.mock.calls[0] as [{ vendor: string; connector: string; uiMode: string; layoutMode: string; autoAsk: boolean }];
         expect(picks.vendor).toBe("powerbi");
         expect(picks.connector).toBe("genie-default");
-        expect(picks.uiMode).toBe("pulse");
+        expect(picks.uiMode).toBe("v0");
         expect(picks.layoutMode).toBe("ai-left");
         expect(picks.autoAsk).toBe(false);
         expect(window.localStorage.getItem(WIZARD_DISMISSED_KEY)).toBe("true");

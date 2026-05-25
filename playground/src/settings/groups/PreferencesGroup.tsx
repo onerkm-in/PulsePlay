@@ -5,7 +5,7 @@
 // display policy for controlled enterprise deployments.
 
 import { useSettings } from "../settingsStore";
-import type { DefaultLandingSurface, EnabledComponents, LayoutMode, UiMode } from "../settingsStore";
+import type { DefaultLandingSurface, EnabledComponents, LayoutMode } from "../settingsStore";
 import { usePulseAiVisualSettings } from "../pulseVisualSettingsStore";
 import type { PulseEnabledFeatures } from "../pulseVisualSettingsStore";
 import { CurrentValue, Leaf, SubSection } from "./BiGroup";
@@ -18,12 +18,10 @@ import {
 
 export function PreferencesGroup(): React.ReactElement {
     const {
-        uiMode,
         enabledComponents,
         layoutMode,
         allowlist,
         defaultLandingSurface,
-        setUiMode,
         setEnabledComponents,
         setLayoutMode,
         setDefaultLandingSurface,
@@ -52,24 +50,16 @@ export function PreferencesGroup(): React.ReactElement {
                 </p>
             </header>
 
-            {/* ─── Tier 1: Mode ───────────────────────────────────────── */}
-            <SubSection
-                label="Mode"
-                helper="Choose which AI experience surface runs. Pulse is the rich ported experience; v0 is the lightweight sidebar."
-            >
-            <Leaf group="preferences" label="UI mode" helper="Pulse is the ported PBI-heritage UI. v0 is the lightweight cycle-C sidebar.">
-                <ButtonGroup<UiMode>
-                    value={uiMode}
-                    onChange={setUiMode}
-                    options={[
-                        { value: "pulse", label: "Pulse" },
-                        { value: "v0", label: "v0" },
-                    ]}
-                />
-            </Leaf>
-            </SubSection>
+            {/* 2026-05-25 — UI mode picker REMOVED. The "centralized,
+                one-layer" directive locked AISidebar as the only chat
+                surface. PulseShell (the ported PBI-heritage chat) is
+                still in the codebase as a dev-tools escape hatch
+                (localStorage["pulseplay:ui-mode"]="pulse") during the
+                feature-port migration (Steps 4/5/6 in the beast-mode
+                plan). It will be removed once preset library + history
+                + show-SQL features land in AISidebar. */}
 
-            {/* ─── Tier 2: Layout ─────────────────────────────────────── */}
+            {/* ─── Tier 1: Layout ─────────────────────────────────────── */}
             <SubSection
                 label="Layout"
                 helper="Where the AI and BI panes live + which ones are visible. Live-updates immediately."

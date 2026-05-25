@@ -121,6 +121,16 @@ function seedExplicitSplitLayout(): void {
     window.localStorage.setItem("pulseplay:enabled-components:legacy-both-migrated", "true");
 }
 
+/** 2026-05-25 — uiMode default is now "v0" (AISidebar). Tests that
+ *  exercise PulseShell-mounted chrome (tab strip + the mocked PulseShell
+ *  button with "Open dashboard surface" aria-label) must opt INTO pulse
+ *  mode via this helper before mounting. Mirrors what a dev would do in
+ *  DevTools to activate the escape hatch during the feature-port
+ *  migration. */
+function seedPulseUiMode(): void {
+    window.localStorage.setItem("pulseplay:ui-mode", "pulse");
+}
+
 function mountApp(): MountState {
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -292,8 +302,13 @@ describe("App viewport controls — default unified Mix surface", () => {
         unmount(state);
     });
 
-    it("opens the dashboard as the unified primary surface without entering focused-pane mode", () => {
+    it("opens the dashboard as the unified primary surface without entering focused-pane mode", async () => {
+        seedPulseUiMode(); // PulseShell-mounted chrome assertions below
         const state = mountApp();
+        // PulseShell is React.lazy()-loaded behind Suspense. Flush the
+        // microtask queue so the lazy import resolves and the mock's
+        // "Open dashboard surface" button enters the DOM before clickByLabel.
+        await act(async () => { await Promise.resolve(); });
 
         // 2026-05-19 surface switcher rewrite: the mocked PulseShell button
         // carries the verbose "Open dashboard surface" aria-label (it is
@@ -382,6 +397,7 @@ describe("App viewport controls — default unified Mix surface", () => {
     // state must not read "BI-only mode" or tell the user to switch back to
     // Both / AI only.
     it("Dashboard empty state in unified mode reads as a peer surface, not BI-only mode", () => {
+        seedPulseUiMode(); // PulseShell-mounted chrome ("Open dashboard surface")
         const state = mountApp();
         clickByLabel(state, "Open dashboard surface");
         const text = state.container.textContent || "";
@@ -396,6 +412,7 @@ describe("App viewport controls — default unified Mix surface", () => {
     // (e.g. screen-reader hearing "AI AI Insights"). The new SurfaceSwitcher
     // uses visible text as the accessible name with no icon-text duplication.
     it("surface switcher labels are non-duplicative", () => {
+        seedPulseUiMode(); // PulseShell-mounted "Open dashboard surface" button
         const state = mountApp();
         // Move to mix mode and into Dashboard so the SurfaceSwitcher mounts.
         clickByLabel(state, "Open dashboard surface");
@@ -552,13 +569,16 @@ describe("App viewport controls — ?focus= URL", () => {
         unmount(state);
     });
 
-    it("syncs activeSurface to ai-insights on popstate ?focus=ai when previously on bi-viz", () => {
+    it("syncs activeSurface to ai-insights on popstate ?focus=ai when previously on bi-viz", async () => {
         // Symmetric with the bi-viz popstate case. Without this, focus=ai
         // would maximize the AI pane while data-active-surface still reads
         // bi-viz — a telemetry lie. Start on bi-viz so the symmetric path
         // is exercised.
+        seedPulseUiMode(); // PulseShell-mounted chrome below
         window.localStorage.setItem("pulseplay:active-surface", "bi-viz");
         const state = mountApp();
+        // PulseShell lazy-load — wait for Suspense to resolve.
+        await act(async () => { await Promise.resolve(); });
         let shell = state.container.querySelector(viewportControlShellSelector);
         expect(shell?.getAttribute("data-active-surface")).toBe("bi-viz");
 
@@ -673,6 +693,7 @@ describe("App viewport controls — ?focus= URL", () => {
     });
 
     it("hides the outer AI chrome header in Pulse mode while pane icons live in the Pulse row", () => {
+        seedPulseUiMode(); // explicit opt-in: this test asserts Pulse-mode-only chrome
         setLocation("?focus=ai");
         const state = mountApp();
 
