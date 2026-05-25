@@ -150,7 +150,13 @@ export function resolveMetricDirection(
     return BUILTIN_LOWER_IS_BETTER_RULES.find(rule => matchesRule(metric, rule));
 }
 
-function thresholdTone(value: number, rule: MetricDirectionRule): Tone | null {
+/**
+ * Apply a rule's threshold bands to a numeric value and return the
+ * matching tone (good / warn / bad), or null if the rule has no
+ * thresholds defined. Exported so the chat markdown renderer can paint
+ * tones on cell values without re-implementing the band logic.
+ */
+export function thresholdTone(value: number, rule: MetricDirectionRule): Tone | null {
     if (typeof rule.redPct !== "number" || typeof rule.amberPct !== "number") return null;
     if (rule.higherIsBetter) {
         if (value < rule.redPct) return "bad";
@@ -162,7 +168,14 @@ function thresholdTone(value: number, rule: MetricDirectionRule): Tone | null {
     return "good";
 }
 
-function parsePercentValue(raw: string): number | null {
+/**
+ * Extract the first numeric run from a cell value, ignoring currency
+ * symbols and thousands separators. Returns null when no number is
+ * present (e.g. "N/A", "" — chat tone painter skips those cells).
+ * Exported so callers outside the metric-tone engine can reuse the
+ * same parsing rules.
+ */
+export function parsePercentValue(raw: string): number | null {
     const match = raw.replace(/,/g, "").match(/[+-]?\d+(?:\.\d+)?/);
     if (!match) return null;
     const parsed = Number(match[0]);

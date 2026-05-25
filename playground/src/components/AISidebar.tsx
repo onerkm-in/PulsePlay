@@ -26,7 +26,7 @@
 // polling path (e.g. supervisor-async, Bedrock-streamed) is a future
 // cycle.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { BIEvent } from "../biPanel/BIAdapter";
 import type { PackSelection } from "./PackPicker";
 import { FramePicker } from "./FramePicker";
@@ -40,6 +40,7 @@ import { renderMarkdown } from "../lib/renderMarkdown";
 import type { ArtifactCitation, ArtifactStatus } from "../types/assistant";
 import { validateArtifact, type CandidateArtifact } from "../lib/artifactValidator";
 import { TrustBadge } from "./TrustBadge";
+import { usePulseAiVisualSettings } from "../settings/pulseVisualSettingsStore";
 
 // 2026-05-19 Codex post-UAT-1840 follow-up: wire the perf instrumentation
 // utility (added in b71270f) into the actual Ask Pulse pipeline so DevTools
@@ -440,6 +441,19 @@ export function AISidebar(props: AISidebarProps) {
     /** Drives a re-render every ELAPSED_TICK_MS while any entry is in
      *  flight, so the elapsed-time counter updates in the UI. */
     const [, setNowTick] = useState(0);
+
+    /** Thread D — pull metric direction rules from settings so the
+     *  markdown renderer can tone-tint table cells where the column
+     *  header matches a rule. Hook subscribes to PULSE_SETTINGS_EVENT
+     *  so changes propagate without a refresh. Returns `undefined` when
+     *  both fields are empty so renderMarkdown skips the tone path. */
+    const pulseAiSettings = usePulseAiVisualSettings();
+    const metricRulesForRender = useMemo(() => {
+        const structured = pulseAiSettings.value.insightsMetricDirections?.trim() || undefined;
+        const legacy = pulseAiSettings.value.metricDirectionRules?.trim() || undefined;
+        if (!structured && !legacy) return undefined;
+        return { structured, legacy };
+    }, [pulseAiSettings.value.insightsMetricDirections, pulseAiSettings.value.metricDirectionRules]);
 
     /** Tracks the most recently auto-submitted event signature so a
      *  prop-only re-render doesn't re-fire ask(). Wizard completions pass
@@ -882,6 +896,7 @@ export function AISidebar(props: AISidebarProps) {
                         entry={h}
                         onStop={() => stopEntry(h.id, "stopped by user")}
                         onRetry={() => retry(h.id)}
+                        metricRules={metricRulesForRender}
                     />
                 ))}
             </div>
@@ -972,7 +987,14 @@ export function AISidebar(props: AISidebarProps) {
 }
 
 /** Per-entry rendering: question + status + structured response sections. */
-function AnswerEntryView(props: { entry: AnswerEntry; onStop: () => void; onRetry: () => void }) {
+function AnswerEntryView(props: {
+    entry: AnswerEntry;
+    onStop: () => void;
+    onRetry: () => void;
+    /** Thread D — metric direction rules from settings; threaded into
+     *  renderMarkdown so table cells matching a rule get a tone tint. */
+    metricRules?: { structured?: string; legacy?: string };
+}) {
     const { entry } = props;
     const elapsedMs = (entry.finishedAt ?? Date.now()) - entry.startedAt;
     const evidenceItems: EvidenceItem[] = [
@@ -1049,7 +1071,7 @@ function AnswerEntryView(props: { entry: AnswerEntry; onStop: () => void; onRetr
                       * (no innerHTML, link protocols vetted) and covers the
                       * subset of Markdown those backends actually use. */}
                     <div className="pp-ai-sidebar__narrative pp-md" style={{ marginTop: 4 }}>
-                        {renderMarkdown(entry.answer)}
+                        {renderMarkdown(entry.answer, props.metricRules ? { metricRules: props.metricRules } : undefined)}
                     </div>
                 </div>
             )}
