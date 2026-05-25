@@ -61,6 +61,11 @@ const KEY = {
     // enums stay as reducer state for backward-compat with stored
     // values but are no longer the primary author control.
     tabVisibility: "pulseplay:tab-visibility",
+    // 2026-05-25 (evening) — Multi-page P1 parallel storage. Coexists
+    // with `pulseplay:tab-visibility` during the migration window so
+    // older sessions/exports continue to work. Page[] is the future-
+    // canonical shape; this commit just adds the field + migration.
+    pages: "pulseplay:pages",
 } as const;
 
 /** Exported so App.tsx readInitialActiveSurface can read the same key
@@ -109,6 +114,74 @@ export const DEFAULT_TAB_VISIBILITY: Readonly<TabVisibility> = {
 /** Count of currently-enabled tabs. Used for auto-collapse logic. */
 export function enabledTabCount(v: TabVisibility): number {
     return (v.aiInsights ? 1 : 0) + (v.askPulse ? 1 : 0) + (v.dashboard ? 1 : 0);
+}
+
+/**
+ * Multi-page model — Phase B P1 (2026-05-25 evening).
+ *
+ * Page is a typed instance of one of the 3 surface kinds. Today the app
+ * caps at 3 pages (one per type) so the user-facing model is unchanged
+ * from the `TabVisibility` 3-boolean shape; P2 unlocks multi-page
+ * (N pages per type), P3 unlocks per-page config (each page picks its
+ * own AI profile / BI vendor / embed), P4+ unlocks sections-per-page.
+ *
+ * Storage: `pulseplay:pages` JSON. On read, if missing, derive from
+ * the existing `pulseplay:tab-visibility` storage so existing users
+ * migrate transparently on the first load.
+ *
+ * `tabVisibility` stays as the canonical render gate in this commit
+ * — Page is parallel storage. A follow-up commit switches consumers
+ * (visual.tsx tab strip, Settings checkboxes) to read pages directly,
+ * then retires the tabVisibility field.
+ */
+export type PageType = "ai-insights" | "ask-pulse" | "dashboard";
+
+export interface Page {
+    /** Stable identifier — surface routing + future detach paneId roots. */
+    id: string;
+    /** Page type drives which surface component mounts inside. */
+    type: PageType;
+    /** Display name in tab strip + Settings list. Defaults to the
+     *  type-canonical title; user-overridable in P2+. */
+    title: string;
+    /** Per-page config (AI profile / BI vendor / embed config). Empty
+     *  in P1 — every page inherits the App-wide defaults. P3 populates. */
+    config?: Record<string, unknown>;
+}
+
+/** Canonical page titles per type — used for default titles + auto-id. */
+export const DEFAULT_PAGE_TITLE: Readonly<Record<PageType, string>> = {
+    "ai-insights": "AI Insights",
+    "ask-pulse":   "Ask Pulse",
+    "dashboard":   "Dashboard",
+};
+
+/** Default pages list — one per type, mirrors DEFAULT_TAB_VISIBILITY
+ *  (all enabled). When pages-storage is missing this is the fallback. */
+export const DEFAULT_PAGES: ReadonlyArray<Page> = [
+    { id: "page-ai-insights", type: "ai-insights", title: DEFAULT_PAGE_TITLE["ai-insights"] },
+    { id: "page-ask-pulse",   type: "ask-pulse",   title: DEFAULT_PAGE_TITLE["ask-pulse"] },
+    { id: "page-dashboard",   type: "dashboard",   title: DEFAULT_PAGE_TITLE["dashboard"] },
+];
+
+/** Derive Page[] from a TabVisibility shape — used for the one-time
+ *  migration from pre-P1 storage. Order is canonical (insights first). */
+export function pagesFromTabVisibility(v: TabVisibility): Page[] {
+    const out: Page[] = [];
+    if (v.aiInsights) out.push({ id: "page-ai-insights", type: "ai-insights", title: DEFAULT_PAGE_TITLE["ai-insights"] });
+    if (v.askPulse)   out.push({ id: "page-ask-pulse",   type: "ask-pulse",   title: DEFAULT_PAGE_TITLE["ask-pulse"] });
+    if (v.dashboard)  out.push({ id: "page-dashboard",   type: "dashboard",   title: DEFAULT_PAGE_TITLE["dashboard"] });
+    return out.length > 0 ? out : [...DEFAULT_PAGES];
+}
+
+/** Derive TabVisibility from a Page[] — used by consumers that still
+ *  read the legacy shape during the parallel-storage migration window. */
+export function tabVisibilityFromPages(pages: ReadonlyArray<Page>): TabVisibility {
+    return {
+        aiInsights: pages.some(p => p.type === "ai-insights"),
+        askPulse:   pages.some(p => p.type === "ask-pulse"),
+        dashboard:  pages.some(p => p.type === "dashboard"),
+    };
 }
 /**
  * Pane composition mode (set by the AUTHOR in Settings → Preferences → Visible
@@ -164,6 +237,12 @@ export interface SettingsState {
      *  + layoutMode enums in the user-facing UI; the legacy enums stay in
      *  state for backward-compat with stored values during migration. */
     tabVisibility: TabVisibility;
+    /** 2026-05-25 (evening) — Multi-page P1 parallel storage. Today a
+     *  derived projection of tabVisibility (1 page per enabled tab type);
+     *  P2 unlocks multi-page and pages becomes the canonical source.
+     *  Setters that mutate one mutate both — they stay in lockstep
+     *  during the migration window. */
+    pages: Page[];
     /** Values found in localStorage that didn't validate against the
      *  live allowlist on the most-recent reconciliation pass. The
      *  Settings page surfaces these as "deprecated" banners. */
@@ -325,6 +404,37 @@ function readTabVisibility(): TabVisibility {
     return { ...DEFAULT_TAB_VISIBILITY };
 }
 
+function readPages(tabVisibilityFallback: TabVisibility): Page[] {
+    // 2026-05-25 (evening) — Multi-page P1 reader. Prefers the new
+    // pulseplay:pages key when present; falls back to deriving from
+    // tabVisibility so pre-P1 sessions transparently migrate. Returns
+    // a defensive copy so callers can't accidentally mutate state.
+    if (typeof window === "undefined") return pagesFromTabVisibility(tabVisibilityFallback);
+    try {
+        const raw = window.localStorage.getItem(KEY.pages);
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+                // Validate each entry — strict shape check + drop unknowns.
+                const validTypes: Page["type"][] = ["ai-insights", "ask-pulse", "dashboard"];
+                const pages: Page[] = parsed
+                    .filter((p: unknown): p is { id: string; type: string; title?: string } => {
+                        return !!p && typeof p === "object"
+                            && typeof (p as { id?: unknown }).id === "string"
+                            && validTypes.includes((p as { type?: string }).type as Page["type"]);
+                    })
+                    .map((p) => ({
+                        id: p.id,
+                        type: p.type as Page["type"],
+                        title: typeof p.title === "string" && p.title.trim() ? p.title : DEFAULT_PAGE_TITLE[p.type as Page["type"]],
+                    }));
+                if (pages.length > 0) return pages;
+            }
+        }
+    } catch { /* swallow */ }
+    return pagesFromTabVisibility(tabVisibilityFallback);
+}
+
 function readDefaultLandingSurface(): DefaultLandingSurface | null {
     if (typeof window === "undefined") return null;
     try {
@@ -335,6 +445,7 @@ function readDefaultLandingSurface(): DefaultLandingSurface | null {
 }
 
 function buildInitialState(): SettingsState {
+    const tabVisibility = readTabVisibility();
     return {
         allowlist: null,
         allowlistLoading: true,
@@ -348,7 +459,10 @@ function buildInitialState(): SettingsState {
         biTileMode: readBiTileMode(),
         activeAiProfile: readActiveAiProfile(),
         defaultLandingSurface: readDefaultLandingSurface(),
-        tabVisibility: readTabVisibility(),
+        tabVisibility,
+        // Multi-page P1 — derived from tabVisibility for new sessions;
+        // honors persisted pulseplay:pages JSON when present.
+        pages: readPages(tabVisibility),
         orphans: [],
     };
 }
@@ -419,6 +533,7 @@ type Action =
     | { type: "set/activeAiProfile"; value: string }
     | { type: "set/defaultLandingSurface"; value: DefaultLandingSurface | "" }
     | { type: "set/tabVisibility"; value: TabVisibility }
+    | { type: "set/pages"; value: Page[] }
     | { type: "sync/external"; key: string; value: string };
 
 function reducer(state: SettingsState, action: Action): SettingsState {
@@ -477,7 +592,27 @@ function reducer(state: SettingsState, action: Action): SettingsState {
             // Defensive: never let the user end up with 0 enabled tabs.
             // If they try, fall back to the prior state's value.
             if (enabledTabCount(action.value) === 0) return state;
-            return { ...state, tabVisibility: action.value };
+            // Multi-page P1: keep pages in lockstep with tabVisibility.
+            // The setter projects the new visibility into the pages list;
+            // existing pages of types still enabled keep their identity;
+            // pages of newly-enabled types are added; pages of disabled
+            // types are dropped.
+            const next: TabVisibility = action.value;
+            const keepByType: Partial<Record<PageType, Page>> = {};
+            for (const p of state.pages) keepByType[p.type] = p;
+            const projected: Page[] = [];
+            if (next.aiInsights) projected.push(keepByType["ai-insights"] ?? { id: "page-ai-insights", type: "ai-insights", title: DEFAULT_PAGE_TITLE["ai-insights"] });
+            if (next.askPulse)   projected.push(keepByType["ask-pulse"]   ?? { id: "page-ask-pulse",   type: "ask-pulse",   title: DEFAULT_PAGE_TITLE["ask-pulse"] });
+            if (next.dashboard)  projected.push(keepByType["dashboard"]   ?? { id: "page-dashboard",   type: "dashboard",   title: DEFAULT_PAGE_TITLE["dashboard"] });
+            return { ...state, tabVisibility: next, pages: projected };
+        }
+        case "set/pages": {
+            // Defensive: never let the user end up with 0 pages.
+            if (action.value.length === 0) return state;
+            // Multi-page P1: keep tabVisibility in lockstep with pages.
+            // Pages is now the source of truth; tabVisibility is the
+            // derived projection consumers still read.
+            return { ...state, pages: action.value, tabVisibility: tabVisibilityFromPages(action.value) };
         }
         case "sync/external":
             return applyExternalSync(state, action.key, action.value);
@@ -522,7 +657,31 @@ function applyExternalSync(state: SettingsState, key: string, value: string): Se
                         dashboard:  typeof parsed.dashboard  === "boolean" ? parsed.dashboard  : true,
                     };
                     if (enabledTabCount(next) === 0) return state;
-                    return { ...state, tabVisibility: next };
+                    // Mirror the lockstep update from set/tabVisibility.
+                    return { ...state, tabVisibility: next, pages: pagesFromTabVisibility(next) };
+                }
+            } catch { /* swallow */ }
+            return state;
+        }
+        case KEY.pages: {
+            try {
+                const parsed = JSON.parse(value);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    const validTypes: PageType[] = ["ai-insights", "ask-pulse", "dashboard"];
+                    const pages: Page[] = parsed
+                        .filter((p: unknown): p is { id: string; type: string; title?: string } => {
+                            return !!p && typeof p === "object"
+                                && typeof (p as { id?: unknown }).id === "string"
+                                && validTypes.includes((p as { type?: string }).type as PageType);
+                        })
+                        .map((p) => ({
+                            id: p.id,
+                            type: p.type as PageType,
+                            title: typeof p.title === "string" && p.title.trim() ? p.title : DEFAULT_PAGE_TITLE[p.type as PageType],
+                        }));
+                    if (pages.length > 0) {
+                        return { ...state, pages, tabVisibility: tabVisibilityFromPages(pages) };
+                    }
                 }
             } catch { /* swallow */ }
             return state;
@@ -574,6 +733,10 @@ export interface SettingsActions {
     /** 2026-05-25 — set per-tab visibility. Defensive: refuses to leave
      *  the user with 0 enabled tabs (the setter no-ops in that case). */
     setTabVisibility: (value: TabVisibility) => void;
+    /** 2026-05-25 (evening) — Multi-page P1. Set the canonical pages
+     *  list. Defensive: refuses to leave the user with 0 pages. Today
+     *  the page list caps at 3 (one per type); P2 unlocks multiplicity. */
+    setPages: (value: Page[]) => void;
     reloadAllowlist: () => Promise<void>;
 }
 
@@ -713,7 +876,26 @@ export function SettingsProvider(props: SettingsProviderProps): React.ReactEleme
     const setTabVisibility = useCallback<SettingsActions["setTabVisibility"]>((value) => {
         if (enabledTabCount(value) === 0) return; // refuse: zero-tab state is unrecoverable from the UI
         persistAndBroadcast(KEY.tabVisibility, JSON.stringify(value));
+        // Multi-page P1: also persist the lockstep pages projection so
+        // sessions opened after this commit pick up the new shape.
+        // Note: state.pages is read AFTER dispatch so use a projection
+        // here rather than reading stale closure state.
+        // The reducer's set/tabVisibility case handles the lockstep
+        // logic; for storage we just project from the booleans.
+        const projectedPages = pagesFromTabVisibility(value);
+        persistAndBroadcast(KEY.pages, JSON.stringify(projectedPages));
         dispatch({ type: "set/tabVisibility", value });
+    }, []);
+
+    const setPages = useCallback<SettingsActions["setPages"]>((value) => {
+        if (value.length === 0) return; // refuse: zero-pages state is unrecoverable
+        persistAndBroadcast(KEY.pages, JSON.stringify(value));
+        // Lockstep — also write the derived tabVisibility so legacy
+        // consumers (visual.tsx tab strip) keep working until they
+        // switch to reading pages directly in a follow-up commit.
+        const projectedVisibility = tabVisibilityFromPages(value);
+        persistAndBroadcast(KEY.tabVisibility, JSON.stringify(projectedVisibility));
+        dispatch({ type: "set/pages", value });
     }, []);
 
     const setDefaultLandingSurface = useCallback<SettingsActions["setDefaultLandingSurface"]>((value) => {
@@ -797,6 +979,7 @@ export function SettingsProvider(props: SettingsProviderProps): React.ReactEleme
             setActiveAiProfile,
             setDefaultLandingSurface,
             setTabVisibility,
+            setPages,
             reloadAllowlist: reload,
         }),
         [
@@ -810,6 +993,7 @@ export function SettingsProvider(props: SettingsProviderProps): React.ReactEleme
             setActiveAiProfile,
             setDefaultLandingSurface,
             setTabVisibility,
+            setPages,
             reload,
         ],
     );
