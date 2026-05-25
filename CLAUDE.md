@@ -110,24 +110,26 @@ ANY combination of (vendor, connector) is valid. Switching either is independent
 
 ## Canonical run sequence
 
+**Canonical ports (locked 2026-05-25):** proxy on `127.0.0.1:7000`, playground dev server on `127.0.0.1:7001`. The proxy's own default port constant is still `8787` for backward compat — you MUST start it with `PORT=7000` for the Vite dev proxy (`/api/*` → `127.0.0.1:7000`) to land. Starting the proxy without `PORT=7000` makes every `/api/*` call return HTTP 500 from Vite.
+
 ```powershell
 # 1. Start the proxy (in one terminal, with NODE_EXTRA_CA_CERTS set if your TLS chain needs it)
 cd D:\Working_Folder\Projects\PulsePlay\proxy
-npm install   # first time only
-node server.js
+npm install                    # first time only
+$env:PORT=7000; node server.js
 
 # 2. Start the playground dev server (in a second terminal)
 cd D:\Working_Folder\Projects\PulsePlay\playground
-npm install   # first time only
+npm install                    # first time only
 npm run dev
-# Visit http://127.0.0.1:5173
+# Visit http://127.0.0.1:7001
 
 # 3. Run tests
 cd D:\Working_Folder\Projects\PulsePlay\proxy && npm test
 cd D:\Working_Folder\Projects\PulsePlay\playground && npm run lint && npm run test
 ```
 
-The Vite dev server proxies `/api/*` to `http://127.0.0.1:8787` (the proxy's bind address) — see `playground/vite.config.ts`. So fetches to `/api/assistant/conversations/start` from the React app land at the proxy's `/assistant/conversations/start` route.
+The Vite dev server proxies `/api/*` to `http://127.0.0.1:7000` — see `playground/vite.config.ts`. So fetches to `/api/assistant/conversations/start` from the React app land at the proxy's `/assistant/conversations/start` route.
 
 ## Tripwires
 
