@@ -51,7 +51,7 @@ const GROUP_DESCRIPTIONS: Record<SettingsGroupId, string> = {
     setup:       "Legacy quick-start checklist (use AI Setup or BI Setup instead)",
     bi:          "BI vendor, embed, sandbox, governance — everything Y-axis",
     ai:          "Assistant, knowledge pack, AI Insights, Ask Pulse — everything X-axis",
-    preferences: "Theme, layout, density, AI position",
+    preferences: "Tabs, default landing, display policy",
     system:      "Legacy diagnostics (use Advanced instead)",
     advanced:    "Performance, developer tools, runtime guards, danger zone",
 };

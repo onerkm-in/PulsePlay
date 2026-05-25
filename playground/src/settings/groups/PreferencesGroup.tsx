@@ -38,7 +38,7 @@ export function PreferencesGroup(): React.ReactElement {
                     hidden. Rail + page chrome already identify the group. */}
                 <h2 id="settings-preferences-title" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>Display</h2>
                 <p style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>
-                    How the playground looks — theme, density, layout, AI position, canvas tiles.
+                    PulsePlay shell — tab visibility, default landing, display policy.
                 </p>
             </header>
 

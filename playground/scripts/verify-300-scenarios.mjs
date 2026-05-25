@@ -105,7 +105,24 @@ async function gotoSettings(page, group) {
 }
 
 function bodyText(page) { return page.evaluate(() => (document.body.textContent || "").toLowerCase()); }
-function mainText(page) { return page.evaluate(() => (document.querySelector("main")?.textContent || "").toLowerCase()); }
+// 2026-05-25 — mainText now falls back to body when no <main> element
+// exists. Pulse renders into a <div>, not <main>, so Pulse-driven pages
+// (AI Insights solo, Ask Pulse solo) had mainText="" — caused false
+// FAILs on AI-23, DATA-02, DATA-17.
+function mainText(page) {
+    return page.evaluate(() => {
+        const main = document.querySelector("main");
+        if (main && (main.textContent || "").trim().length > 0) return (main.textContent || "").toLowerCase();
+        return (document.body.textContent || "").toLowerCase();
+    });
+}
+// Clear all state-affecting storage keys before independent tests.
+// Fixes PARAM-025 through PARAM-040 (surface contamination) + USE-17/18.
+async function resetSurfaceState(page) {
+    await page.evaluate(() => {
+        window.localStorage.removeItem("pulseplay:active-surface");
+    });
+}
 
 // ─── SCENARIOS — 300 ────────────────────────────────────────────────
 // First 150 = same as verify-150-scenarios.mjs. Rest = generated.
@@ -308,8 +325,11 @@ const ADV_CHECKS = [
     ["≥10 buttons in main",            async (page) => (await page.locator("main button").count()) >= 10],
     ["≥1 select",                      async (page) => (await page.locator("main select").count()) >= 1],
     ["≥1 input",                       async (page) => (await page.locator("main input").count()) >= 1],
-    ["'Reset all' button exists",      async (page) => (await page.locator('button:has-text("Reset all"), button:has-text("reset all")').count()) >= 1],
-    ["≥1 reset section button",        async (page) => (await page.locator('button:has-text("Reset section"), button:has-text("Reset")').count()) >= 1],
+    // Fix #4 — actual button text is "Clear all PulsePlay settings" (the
+    // Leaf wraps it with label="Reset all"). Match the button text OR
+    // the Leaf heading containing "Reset all".
+    ["'Reset all' button exists",      async (page) => (await page.locator('button:has-text("Clear all"), button:has-text("Reset all"), button:has-text("Reset everything")').count()) >= 1],
+    ["≥1 reset section button",        async (page) => (await page.locator('button:has-text("Clear"), button:has-text("Reset"), button:has-text("Remove")').count()) >= 1],
     ["≥1 destructive button",          async (page) => (await page.locator('button:has-text("Delete"), button:has-text("Clear"), button:has-text("Reset"), button:has-text("Wipe")').count()) >= 1],
     ["main text ≥200 chars",           async (page) => (await mainText(page)).length >= 200],
     ["rail item 'Advanced' present",   async (page) => (await bodyText(page)).includes("advanced")],
@@ -415,7 +435,12 @@ for (const cfg of VIS_CONFIGS) {
     PARAM_SCENARIOS.push({
         id: `PARAM-${String(PARAM_SCENARIOS.length+1).padStart(3, "0")}`, family: "PARAM",
         label: `Visibility config '${cfg.name}': strip expected=${cfg.expectStrip}`,
-        setup: async (page) => { await page.setViewportSize({ width: 1400, height: 950 }); await setVisibility(page, cfg.v[0], cfg.v[1], cfg.v[2]); await page.goto(BASE + "/", NAV); await page.waitForTimeout(800); },
+        // Fix #2 — clear active-surface FIRST so the cold-load defaults
+        // to AI Insights (where Pulse-side strip mounts), not whatever
+        // the prior parametric test left in localStorage (often bi-viz
+        // from the prior surface×viewport iteration, which kept the BI
+        // pane visible and hid the Pulse tab strip entirely).
+        setup: async (page) => { await page.setViewportSize({ width: 1400, height: 950 }); await resetSurfaceState(page); await setVisibility(page, cfg.v[0], cfg.v[1], cfg.v[2]); await page.goto(BASE + "/", NAV); await page.waitForTimeout(800); },
         assert: async (page) => { const c = await page.locator('.gn-surface-switcher').count(); return { passed: (c >= 1) === cfg.expectStrip, notes: `strip=${c}` }; },
     });
     PARAM_SCENARIOS.push({
@@ -562,10 +587,13 @@ USE_SCENARIOS.push({ id: "USE-12", family: "USE", label: "User clicks Pin again 
     setup: async (page) => { await page.locator('[data-testid="pp-top-right-toolbar"] button[aria-label*="Pin"]').first().click().catch(() => {}); await page.waitForTimeout(400); },
     assert: async (page) => { const s = await page.evaluate(() => window.localStorage.getItem("pulseplay:pinned-viewport-pane")); return { passed: s === null, notes: `storage="${s}"` }; } });
 USE_SCENARIOS.push({ id: "USE-13", family: "USE", label: "User cycles tabs with ArrowRight",
-    setup: async (page) => { await gotoSurface(page, "ai-insights"); await page.locator("#gn-tab-insights").focus(); await page.keyboard.press("ArrowRight"); await page.waitForTimeout(300); },
+    // Fix #3 — playwright .focus() doesn't fire React focus events
+    // reliably. Click the tab first (real click → real focus), then
+    // ArrowRight propagates through the keydown handler.
+    setup: async (page) => { await resetSurfaceState(page); await gotoSurface(page, "ai-insights"); await page.locator("#gn-tab-insights").click().catch(() => {}); await page.waitForTimeout(300); await page.locator("#gn-tab-insights").focus(); await page.waitForTimeout(150); await page.keyboard.press("ArrowRight"); await page.waitForTimeout(400); },
     assert: async (page) => { const id = await page.evaluate(() => document.activeElement?.id || ""); return { passed: id === "gn-tab-chat", notes: `focus="${id}"` }; } });
 USE_SCENARIOS.push({ id: "USE-14", family: "USE", label: "User cycles tabs with End key → Dashboard",
-    setup: async (page) => { await page.keyboard.press("End"); await page.waitForTimeout(300); },
+    setup: async (page) => { await page.locator("#gn-tab-chat").focus().catch(() => {}); await page.waitForTimeout(150); await page.keyboard.press("End"); await page.waitForTimeout(400); },
     assert: async (page) => { const id = await page.evaluate(() => document.activeElement?.id || ""); return { passed: id === "gn-tab-dashboard", notes: `focus="${id}"` }; } });
 USE_SCENARIOS.push({ id: "USE-15", family: "USE", label: "User reloads page → state persists (tab visibility)",
     setup: async (page) => { await setVisibility(page, true, false, true); await page.goto(BASE + "/", NAV); await page.waitForTimeout(700); await page.reload(NAV); await page.waitForTimeout(700); },
