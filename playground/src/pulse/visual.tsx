@@ -1341,6 +1341,18 @@ function App(props: AppProps) {
         window.addEventListener("pulseplay:pulse-surface-tab", handler as EventListener);
         return () => window.removeEventListener("pulseplay:pulse-surface-tab", handler as EventListener);
     }, [enabledFeatures]);
+    // 2026-05-25 — outgoing tab-change event so the App-level TopRightToolbar
+    // can update its labels when the user flips between AI Insights and
+    // Ask Pulse inside the Pulse tab strip. Without this, the toolbar's
+    // activeTabName stays stale because effectiveSurfaceId (App.tsx) only
+    // updates on Dashboard ↔ AI transitions. Fires on every activeTab
+    // change regardless of trigger (click, keyboard, programmatic).
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        window.dispatchEvent(new CustomEvent("pulseplay:pulse-tab-changed", {
+            detail: { tab: activeTab },
+        }));
+    }, [activeTab]);
     const [insightsCustomPrompt, setInsightsCustomPrompt] = useState("");
     const [insightsActivePromptId, setInsightsActivePromptId] = useState<string | null>(null);
     // Wave 35 Phase 3 — Custom SQL section results, keyed by `${spaceKey}|${sectionTitle}`.

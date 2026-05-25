@@ -15,7 +15,7 @@
 // through the same handlers PaneChrome + Pulse used, so behavior stays
 // identical — only the rendering location changes.
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 
 export type TopRightToolbarPane = "ai" | "bi";
 export type TopRightToolbarAction = "focus" | "restore" | "minimize" | "pin" | "open-page" | "float" | "show-all";
@@ -23,7 +23,11 @@ export type TopRightToolbarAction = "focus" | "restore" | "minimize" | "pin" | "
 export interface TopRightToolbarProps {
     /** Active pane (drives which pane the actions target). */
     activePane: TopRightToolbarPane;
-    /** Human-readable tab name for label-text ("AI Insights" / "Ask Pulse" / "Dashboard"). */
+    /** Human-readable tab name for label-text. For AI panes the toolbar
+     *  ALSO subscribes to Pulse's `pulseplay:pulse-tab-changed` event to
+     *  refine this between "AI Insights" and "Ask Pulse" when the user
+     *  flips inside the Pulse tab strip — App-level effectiveSurfaceId
+     *  doesn't track that internal switch on its own. */
     activeTabName: string;
     /** True if the active pane is currently maximized (toggles Maximize → Restore). */
     isFocused: boolean;
@@ -44,7 +48,34 @@ function dispatchAction(action: string, pane: TopRightToolbarPane): void {
 }
 
 export function TopRightToolbar(props: TopRightToolbarProps): React.ReactElement {
-    const { activePane, activeTabName, isFocused, isPinned, canShowAll } = props;
+    const { activePane, isFocused, isPinned, canShowAll } = props;
+
+    // 2026-05-25 — subscribe to Pulse's internal tab-changed events so
+    // labels stay in sync when the user clicks AI Insights / Ask Pulse
+    // INSIDE the Pulse tab strip (those clicks don't reach App.tsx's
+    // effectiveSurfaceId). Defaults to null; resolved label below uses
+    // the prop-supplied activeTabName when no Pulse signal has arrived
+    // (initial render before Pulse mounts) or when on the BI pane.
+    const [pulseTab, setPulseTab] = useState<"insights" | "chat" | null>(null);
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const handler = (e: Event) => {
+            const tab = (e as CustomEvent<{ tab?: string }>).detail?.tab;
+            if (tab === "insights" || tab === "chat") setPulseTab(tab);
+        };
+        window.addEventListener("pulseplay:pulse-tab-changed", handler as EventListener);
+        return () => window.removeEventListener("pulseplay:pulse-tab-changed", handler as EventListener);
+    }, []);
+
+    // Resolved label: BI pane always uses the prop (Dashboard); AI pane
+    // prefers the live Pulse signal when present, falling back to the prop.
+    const activeTabName: string = activePane === "bi"
+        ? props.activeTabName
+        : pulseTab === "chat"
+            ? "Ask Pulse"
+            : pulseTab === "insights"
+                ? "AI Insights"
+                : props.activeTabName;
 
     // Container — fixed top-right BELOW the green Ready pill (~52px tall).
     const containerStyle: React.CSSProperties = {
