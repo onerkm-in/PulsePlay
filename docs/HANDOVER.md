@@ -5,6 +5,55 @@
 
 ---
 
+## 2026-05-25 (evening) — Per-tab visibility model + TopRightToolbar + bug fixes + scenario harness
+
+**Direction shifts this session (three concentric revisions to the unified-screen plan):**
+1. **Layouts model** — expose PulseShell / v0 / split as user-pickable LAYOUT OPTIONS rather than rebuild ([feedback_layouts_not_rebuilds](memory/feedback_layouts_not_rebuilds.md)). Replaced by:
+2. **Per-tab visibility model** — ONE canonical PulseShell 3-tab layout + 3 per-tab visibility booleans + detach-as-comparison-primitive ([feedback_per_tab_visibility_model](memory/feedback_per_tab_visibility_model.md)). "Compare any screen with any screen including itself" requires same-tab multi-mount. Three tabs must be uniform in chrome + features ([feedback_three_tabs_uniform](memory/feedback_three_tabs_uniform.md)). Then a third expansion to:
+3. **Workbook-of-pages-with-sections** — 1+ pages per tab type, each page holds 1+ typed sections, mixed-type pages possible. Locked as the end state; phased migration P1-P6 (~10 weeks); P1 (storage refactor) is the next coherent commit, P2 ships visible multi-page within a week.
+
+**13 commits shipped on `codex/f5-g0-native-layout-2026-05-21`:**
+
+| # | Commit | Summary |
+|---|---|---|
+| 1 | `dfb579d` | Flip uiMode default v0 → pulse — PulseShell becomes the always-default mounted shell |
+| 2 | `15b7b93` | `tabVisibility` field + 3 checkboxes in Settings → Display; **collapsed 7 redundant pickers to 1** |
+| 3 | `22edc48` | Wire `tabVisibility` into Pulse `visual.tsx` tab strip + auto-collapse when ≤1 tab enabled |
+| 4 | `b57b096` | UI smoke harness — 7/7 visibility configurations PASS |
+| 5 | `329bd3c` | **TopRightToolbar** — single global cluster of cross-cutting affordances below the green Ready pill; legacy per-pane clusters hidden via CSS |
+| 6 | `8e32bd6` | Pin button no-op fix — `pin` action added to App.tsx event handler enum |
+| 7 | `66bb907` | Dashboard empty-state copy: "Native result canvas / Ask Pulse a question…" → "AI chart canvas / Open the **Ask Pulse** tab and ask a question — the chart appears here." |
+| 8 | `ccda2cd` | TopRightToolbar dynamic labels — Pulse dispatches `pulseplay:pulse-tab-changed` so toolbar tracks internal AI Insights ↔ Ask Pulse flip |
+| 9 | `03be440` | D2 fix — `mixMinimizedPane` signal so Minimize click in Mix mode mounts the restore dock |
+| 10 | `cf6249e` | D1 partial — defer Pulse `Visual.destroy()` `root.unmount()` via rAF; error count reduced from many to 1 each; functionality unblocked |
+| 11 | `97ba4e0` | Retire Pulse's `gn-pane-action-cluster` JSX (already CSS-hidden since Commit 5) |
+| 12 | `495f13c` | Annotated user-scenario harness — 5 scenarios with blue banner + yellow ring overlays |
+| 13 | `5e1516a` | Scenario harness Phase-A fixes — S2 graceful-skip when starters disabled, S5 cross-surface via `?surface=` URL |
+
+**Validation status:**
+- **Tests: 1581/1581 passing throughout** the entire session.
+- **TypeScript clean** throughout.
+- **End-to-end scenario harness: 5/5 clean reports** — S1/S3/S4/S5 ✅ pass, S2 SKIP-OK (no Databricks creds in test env honestly reported).
+- **Per-tab UI smoke (verify-tab-visibility.mjs): 7/7 PASS** — every visibility configuration verified.
+- **Toolbar labels (verify-toolbar-labels.mjs): 4/4 PASS** — labels track active tab dynamically.
+- **Dock fix (verify-minimize-dock.mjs): 3/3 PASS** — Minimize → dock mounts → Restore works.
+
+**Tripwires for next session:**
+
+- **PHASE B (Multi-page P1) is next.** Refactor `tabVisibility: { aiInsights, askPulse, dashboard }` → `pages: Page[]` where each Page is `{ id, type, title, config }`. Cap at 3 pages (one per type) initially so today's behavior is a degenerate case. Storage refactor only — no user-visible change. ~1 day estimated.
+- **PHASE C (duplicative + same-tab multi-mount)** is the big architectural unblocker for the user's "compare any with any (including itself)" thesis. Pane registry keyed by `paneId` (not `tabId`); per-pane state isolation; per-pane embed-token issuance. ~2-3 days.
+- **D1 full fix deferred** — destroy() rAF defer reduced error count but didn't eliminate. Full fix requires PulseShell restructure to gate container removal on inner-root teardown completion. Non-trivial; not blocking functionality.
+- **6 viewportControls integration test selectors** still reference legacy `Maximize AI panel` / `Maximize BI panel` / `Show both panels` aria-labels. PaneChrome's per-pane button JSX is CSS-hidden but still in DOM to keep these tests passing. Follow-up commit retires that JSX + updates the tests to use TopRightToolbar's tab-name labels.
+- **Settings Display page now has only 3 leaves** ("Visible tabs" / "Default landing tab" / "Canvas tiles") instead of 7. The `enabledComponents` + `layoutMode` enums still exist in `settingsStore` reducer state for backward-compat with stored values; their setters are no longer the user-facing path. Phase B's storage refactor can finally retire them.
+- **Branch is now ~218 commits ahead of main** (was 205 at start of session). Per [feedback_keep_main_current.md](memory/feedback_keep_main_current.md), fast-forward main when next stable stop.
+
+**Where to start next session:**
+1. Read [memory/project_state.md](memory/project_state.md) — fresh as of this session close.
+2. Read [memory/feedback_per_tab_visibility_model.md](memory/feedback_per_tab_visibility_model.md) + [memory/feedback_three_tabs_uniform.md](memory/feedback_three_tabs_uniform.md) — load-bearing directives.
+3. Resume with **Phase B (Multi-page P1)** — storage refactor.
+
+---
+
 ## 2026-05-25 - Unified-screen architecture sprint — design doc signed off + Step 0/1/1.5/2 shipped
 
 **Scope.** Rajesh expanded the centralized-UI directive into a comprehensive unified-screen vision: one PulsePlayScreen component owning the entire user-visible screen, three top tabs (AI Insights / Ask Pulse / Dashboard) with consistent chrome, per-tab layout, BI 1-or-2 panes with author free choice, duplicative detach that persists across tabs, cross-pane BI↔AI sync, and a unified affordance set across all panes. Beast Mode brainstorm produced 6 architectural decisions (D1-D6) + answered 5 open questions + locked 6 polish defaults. Three parallel research agents audited the existing code (pane affordances, BI multi-mount, detach/float plumbing) before any extraction work began.
