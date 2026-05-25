@@ -899,7 +899,31 @@ export class Visual implements IVisual {
     }
 
     public destroy(): void {
-        this.root.unmount();
+        // 2026-05-25 — D1 fix. The prior synchronous `this.root.unmount()`
+        // ran inside React 18's commit window when PulseShell's effect
+        // cleanup fired during a parent re-render, producing:
+        //   console.error: "Attempted to synchronously unmount a root
+        //     while React was already rendering."
+        //   pageerror:    "Failed to execute 'removeChild' on 'Node':
+        //     The node to be removed is not a child of this node."
+        // Defer the unmount past the current React commit via rAF (which
+        // schedules after the current tick's microtasks AND after React's
+        // commit). queueMicrotask is too early — still inside the commit.
+        // Errors are swallowed because the unmount may race with a parent
+        // remount; either way the orphaned root is GC'd on next render.
+        const root = this.root;
+        const schedule = typeof window !== "undefined" && typeof window.requestAnimationFrame === "function"
+            ? window.requestAnimationFrame
+            : (cb: FrameRequestCallback) => window.setTimeout(() => cb(performance.now()), 0);
+        schedule(() => {
+            try {
+                root.unmount();
+            } catch (err) {
+                // Swallow — root may already be unmounted by a parent
+                // remount race; either way nothing actionable here.
+                console.warn("[pulse/Visual.destroy] deferred unmount swallowed:", err);
+            }
+        });
     }
 }
 
