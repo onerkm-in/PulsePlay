@@ -16,5 +16,5 @@
     "required": ["chat", "trust-badges"],
     "optional": []
   },
-  "status": "production"
+  "status": "preview"
 }

@@ -1,20 +1,51 @@
 // playground/src/lib/cellCatalog.ts
 //
 // Client-side registry and contract for PulsePlay "Product Cells".
-// A Cell is a queryable, nameable, and testable contract combining a
-// BI Surface (Y-axis) with an AI Assistant Connector (X-axis).
 //
-// Governed by docs/cells/ manifests. Helps settings UI and wizards prevent
-// informal configuration drift and validate E2E capability compliance.
+// A Cell is a queryable, nameable, and testable contract combining a
+// BI Surface (Y-axis) with an AI Assistant Connector (X-axis). The
+// catalog lives in JSON manifests at `playground/src/cells/*.json`
+// — those files are the single source of truth. This module imports
+// them statically so:
+//
+//   1. tsc + Vite + tests all see the same data.
+//   2. Platform / admins can edit the JSON without touching TS.
+//   3. Future build-time tooling can prune from the JSON manifest
+//      without parsing TS constants.
+//
+// Locked 2026-05-25 (Step 0 of the unified-surface beast-mode plan):
+// previously the cells were ALSO declared as inline TS constants in
+// this file, which created two sources of truth that would drift. The
+// JSON manifests are now the only place a cell is declared.
+
+import powerbiGenie from "../cells/powerbi-genie.json";
+import tableauFoundation from "../cells/tableau-foundation.json";
+import qlikBedrock from "../cells/qlik-bedrock.json";
+import lookerSupervisor from "../cells/looker-supervisor.json";
+import genericIframeResponses from "../cells/generic-iframe-responses.json";
+
+/** Capabilities a cell can require or optionally consume. Typed so a
+ *  typo in a manifest fails at compile time instead of silently being
+ *  treated as "not active" at audit time. Extend this union when a new
+ *  capability ships. */
+export type Capability =
+    | "chat"
+    | "sectioned-chat"
+    | "trust-badges"
+    | "kpi-tone"
+    | "embed-token-server"
+    | "multi-agent-coordination"
+    | "ai-assisted-authoring"
+    | "preset-library";
 
 export interface CellSurfaceSpec {
-    readonly vendor: "powerbi" | "tableau" | "qlik" | "looker" | "generic-iframe" | string;
+    readonly vendor: "powerbi" | "tableau" | "qlik" | "looker" | "generic-iframe";
     readonly adapterMinVersion: string;
 }
 
 export interface CellAssistantSpec {
-    readonly kind: "genie" | "foundation-model" | "bedrock" | "supervisor" | "responses-agent" | string;
-    readonly profileType: "genie" | "foundation" | "bedrock" | "supervisor" | "responses" | string;
+    readonly kind: "genie" | "foundation-model" | "bedrock" | "supervisor" | "responses-agent";
+    readonly profileType: "genie" | "foundation" | "bedrock" | "supervisor" | "responses";
 }
 
 export interface CellPacksSpec {
@@ -22,9 +53,11 @@ export interface CellPacksSpec {
 }
 
 export interface CellCapabilitiesSpec {
-    readonly required: ReadonlyArray<string>;
-    readonly optional: ReadonlyArray<string>;
+    readonly required: ReadonlyArray<Capability>;
+    readonly optional: ReadonlyArray<Capability>;
 }
+
+export type CellStatus = "production" | "preview" | "deprecated";
 
 export interface CellCatalogEntry {
     readonly id: string;
@@ -33,169 +66,80 @@ export interface CellCatalogEntry {
     readonly assistant: CellAssistantSpec;
     readonly packs: CellPacksSpec;
     readonly capabilities: CellCapabilitiesSpec;
-    readonly status: "production" | "preview" | "deprecated";
+    readonly status: CellStatus;
 }
 
+/** Defensively freeze nested objects so consumers can't accidentally
+ *  mutate the catalog. Top-level Object.freeze only shallow-freezes;
+ *  nested arrays + objects would still be mutable without this. */
 function deepFreeze<T>(obj: T): T {
     if (obj && typeof obj === "object" && !Object.isFrozen(obj)) {
         Object.freeze(obj);
-        Object.keys(obj).forEach(key => {
-            deepFreeze((obj as any)[key]);
-        });
+        for (const key of Object.keys(obj)) {
+            deepFreeze((obj as Record<string, unknown>)[key]);
+        }
     }
     return obj;
 }
 
-export const CELL_CATALOG: ReadonlyArray<CellCatalogEntry> = Object.freeze([
-    {
-        id: "powerbi-genie",
-        label: "Power BI + Genie",
-        surface: {
-            vendor: "powerbi",
-            adapterMinVersion: "1.0",
-        },
-        assistant: {
-            kind: "genie",
-            profileType: "genie",
-        },
-        packs: {
-            supported: ["cpg-fmcg", "retail-digital", "*"],
-        },
-        capabilities: {
-            required: ["chat", "sectioned-chat", "trust-badges"],
-            optional: ["embed-token-server"],
-        },
-        status: "production",
-    },
-    {
-        id: "tableau-foundation",
-        label: "Tableau + Foundation Model",
-        surface: {
-            vendor: "tableau",
-            adapterMinVersion: "1.0",
-        },
-        assistant: {
-            kind: "foundation-model",
-            profileType: "foundation",
-        },
-        packs: {
-            supported: ["supply-chain", "hospital-operations", "*"],
-        },
-        capabilities: {
-            required: ["chat", "trust-badges"],
-            optional: [],
-        },
-        status: "production",
-    },
-    {
-        id: "qlik-bedrock",
-        label: "Qlik + Bedrock",
-        surface: {
-            vendor: "qlik",
-            adapterMinVersion: "1.0",
-        },
-        assistant: {
-            kind: "bedrock",
-            profileType: "bedrock",
-        },
-        packs: {
-            supported: ["finance-budget", "*"],
-        },
-        capabilities: {
-            required: ["chat"],
-            optional: ["trust-badges"],
-        },
-        status: "preview",
-    },
-    {
-        id: "looker-supervisor",
-        label: "Looker + Supervisor Agent",
-        surface: {
-            vendor: "looker",
-            adapterMinVersion: "1.0",
-        },
-        assistant: {
-            kind: "supervisor",
-            profileType: "supervisor",
-        },
-        packs: {
-            supported: ["hr-workforce", "retail-digital", "*"],
-        },
-        capabilities: {
-            required: ["chat", "sectioned-chat", "multi-agent-coordination"],
-            optional: [],
-        },
-        status: "preview",
-    },
-    {
-        id: "generic-iframe-responses",
-        label: "Generic Iframe + Responses Agent",
-        surface: {
-            vendor: "generic-iframe",
-            adapterMinVersion: "1.0",
-        },
-        assistant: {
-            kind: "responses-agent",
-            profileType: "responses",
-        },
-        packs: {
-            supported: ["*"],
-        },
-        capabilities: {
-            required: ["chat"],
-            optional: [],
-        },
-        status: "production",
-    },
-].map(deepFreeze));
+/** The authoritative cell catalog. Each entry is loaded from its
+ *  matching `playground/src/cells/<id>.json` manifest. Adding a new
+ *  cell = create the JSON file + extend this array + extend any
+ *  Capability union members the cell needs. */
+export const CELL_CATALOG: ReadonlyArray<CellCatalogEntry> = Object.freeze(
+    [
+        powerbiGenie,
+        tableauFoundation,
+        qlikBedrock,
+        lookerSupervisor,
+        genericIframeResponses,
+    ].map(entry => deepFreeze(entry as CellCatalogEntry)),
+);
 
-/**
- * Resolves a Cell ID to its Catalog Entry.
- */
+/** Resolve a cell id to its catalog entry, or `undefined` when no cell
+ *  with that id is registered. */
 export function getCellEntry(id: string): CellCatalogEntry | undefined {
     return CELL_CATALOG.find(cell => cell.id === id);
 }
 
-/**
- * Scans the active configuration of BI vendor and AI profile name to
- * check if it matches a registered Product Cell. Returns the matched cell entry.
- */
+/** Resolve an active (vendor, profileType) pair to the matching cell
+ *  entry, or `undefined` when no cell covers that combination. Both
+ *  inputs are compared case-insensitively so settings-store casing
+ *  doesn't matter. */
 export function matchActiveCell(vendor: string, profileType: string): CellCatalogEntry | undefined {
-    return CELL_CATALOG.find(cell => {
-        const matchesVendor = cell.surface.vendor.toLowerCase() === vendor.toLowerCase();
-        const matchesAssistant = cell.assistant.profileType.toLowerCase() === profileType.toLowerCase();
-        return matchesVendor && matchesAssistant;
-    });
+    const v = vendor.toLowerCase();
+    const p = profileType.toLowerCase();
+    return CELL_CATALOG.find(cell =>
+        cell.surface.vendor.toLowerCase() === v
+        && cell.assistant.profileType.toLowerCase() === p,
+    );
 }
 
-/**
- * Audits whether a cell's required capabilities are supported by the active
- * environment's active profile and surface.
- */
 export interface CellAuditResult {
+    /** True iff every required capability is active. */
     readonly conforms: boolean;
-    readonly missingRequired: string[];
-    readonly warnings: string[];
+    /** Required capabilities the active environment does NOT provide. */
+    readonly missingRequired: ReadonlyArray<Capability>;
+    /** Human-readable warnings for missing optional capabilities. */
+    readonly warnings: ReadonlyArray<string>;
 }
 
+/** Audit a cell against an active-capabilities map. Used by Settings +
+ *  Launchpad surfaces to render a cell's readiness state without
+ *  reimplementing the contract. */
 export function auditCellCompliance(
     cell: CellCatalogEntry,
-    activeCapabilities: Record<string, boolean>
+    activeCapabilities: Partial<Record<Capability, boolean>>,
 ): CellAuditResult {
-    const missingRequired: string[] = [];
+    const missingRequired: Capability[] = [];
     const warnings: string[] = [];
 
-    cell.capabilities.required.forEach(cap => {
-        if (!activeCapabilities[cap]) {
-            missingRequired.push(cap);
-        }
-    });
-
-    cell.capabilities.optional.forEach(cap => {
-        if (!activeCapabilities[cap]) {
-            warnings.push(`Optional capability ${cap} is not active.`);
-        }
-    });
+    for (const cap of cell.capabilities.required) {
+        if (!activeCapabilities[cap]) missingRequired.push(cap);
+    }
+    for (const cap of cell.capabilities.optional) {
+        if (!activeCapabilities[cap]) warnings.push(`Optional capability ${cap} is not active.`);
+    }
 
     return {
         conforms: missingRequired.length === 0,
