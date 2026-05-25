@@ -5,6 +5,60 @@
 
 ---
 
+## 2026-05-25 - Beast-mode A/B/C/D sprint — carry AI Insights' magic into Chat (Genie focus)
+
+**Scope.** Rajesh asked for a smart feature comparison between PulsePlay and the predecessor Pulse (DwD_AI_Assistant_for_PBI), focused on AI Insights' "packed" experience and how to carry it into Ask Pulse. Four parallel research agents (Thread A/B/C/D) returned implementation-ready analyses; then beast-mode shipped all four in sequence with the **Genie connector as the focus** per Rajesh's explicit redirect.
+
+**What shipped (5 commits on `codex/f5-g0-native-layout-2026-05-21`):**
+
+- **Thread A — `ae72605` `feat(settings): AI-assisted suggest panel in Settings AI group`.** Surfaces the already-ported `AiAssistedSuggestionPanel` (from `playground/src/pulse/setupStep5.tsx:2207`) inside the full-page Settings → AI panel, conditional on `insightsAuthoringMode === "ai-assisted"`. New [insightsSuggestClient.ts](../playground/src/lib/insightsSuggestClient.ts) module replays Pulse's `GenieClient.suggestInsightsConfig` shape over the proxy's existing `/assistant/conversations/start` + poll endpoints — so Settings doesn't need a constructed `GenieClient`. Measures + dimensions sourced from the cached `DiscoverySnapshot`. Resolves the P1 "7 fixed sections / 1-2 min" Insights perf complaint by enabling 3-4 KPI-derived sections instead. 17 new tests.
+
+- **Thread B — `9cf4154` `feat(chat): TrustBadge in AISidebar`.** Surfaces the four authoritative artifact statuses (`Verified` / `Grounded draft` / `Suggestion` / `Blocked`) on every completed chat reply. Status computed in `AISidebar.finalize()` via the SAME `validateArtifact()` gate Workbench uses — no parallel decision tree. Genie response with SQL + result rows + narrative → synthesises citations (`sql` + `result-rows`) → validator returns `verified`. New shared [artifactStatus.ts](../playground/src/lib/artifactStatus.ts) (per `feedback_shared_helper_split`) so `ArtifactCard` and `TrustBadge` stay in sync. New [TrustBadge.tsx](../playground/src/components/TrustBadge.tsx) component with inline styles (self-contained — works outside Workbench's CSS bundle). 14 new tests. Delivers the "no ungrounded artifacts" promise from [feature_no_ungrounded_artifacts.md](memory/feature_no_ungrounded_artifacts.md).
+
+- **Thread D — `42f74b7` `feat(chat): markdown table parsing + KPI tone coloring in chat`.** `renderMarkdown` now recognises pipe tables (header + separator + rows) and tints cells whose column header matches a metric direction rule. Tone derivation reuses the SAME `thresholdTone` + `resolveMetricDirection` helpers AI Insights uses for KPI tiles, so "Revenue 42%" reads green in both surfaces when the author's rule has `greenPct >= 42`. The regression Pulse had (`renderNarrative` called without metric rules) is now closed in PulsePlay. Background-tint treatment at ~14% opacity; `aria-label` on every toned cell. 15 new tests.
+
+- **Thread C.1 — `8fce58d` `feat(proxy): Genie per-section orchestration in /assistant/conversations/start-sectioned`.** Lifts the FM-only restriction on the sectioned SSE endpoint. New helpers `isGenieProfile`, `resolveGenieProfile`, `buildGenieRunSection`, `extractGenieSql` — all exported for testability. Honors the [CLAUDE.md](../CLAUDE.md) tripwire: "Multi-section Genie flows MUST allocate N message_ids under one shared conversation_id" — HEADLINE opens the conversation via `/start-conversation`; subsequent sections POST to `/conversations/{id}/messages` reusing the same id. SSE envelope keyed on `renderId`. `buildGenieRunSection` accepts injectable `dbRequest` / `ensureWarehouse` / `enrichResults` / `sleep` for unit testing without standing up live Databricks. 18 new tests.
+
+- **Thread C.2 — `0d2f15d` `feat(chat): AISidebar sectioned chat path (Genie SSE)`.** Frontend half of Phase D. New [sectionedStreamClient.ts](../playground/src/lib/sectionedStreamClient.ts) with hand-rolled SSE reader (fetch + getReader; EventSource can't POST JSON bodies). AISidebar gains `sectionStates`, `sectionDescriptors`, `isStreamingSections` fields on `AnswerEntry`; new `askSectioned()` opens the stream, registers initial pending states, mutates section states on every SSE event. Render switches to `<SectionedAnswer>` when `sectionDescriptors` is present. Default sections = `[HEADLINE, TRENDS, RISKS, RECOMMENDED_ACTIONS]` matching Insights' universal taxonomy. **Gated by localStorage flag `pulseplay:chat-sectioned-enabled = "1"`** — default off, zero regression risk for existing users. 11 new tests.
+
+**Validation.** Proxy **1158/1158** (+18). Playground **1566/1566** (+57 across all four threads). Lint + typecheck clean. No regressions on Workbench, no regressions on AI Insights, no regressions on flat-chat path. Built but not deployed — per [feedback_deploy_cadence.md](memory/feedback_deploy_cadence.md), Databricks Apps deploy waits for explicit user signal after local testing.
+
+**To try Genie sectioned chat locally:** in browser devtools, `localStorage.setItem('pulseplay:chat-sectioned-enabled', '1')`, refresh, ask a question with a Genie profile active. Each section streams in as Genie completes it; HEADLINE first, then TRENDS / RISKS / RECOMMENDED_ACTIONS.
+
+**Tripwires for next session.**
+- Sectioned chat is feature-flagged OFF by default. Promoting to default requires (a) live smoke against the deployed Databricks workspace to verify Genie's parallel-message semantics under the orchestrator's stage schedule, (b) per-section TrustBadge integration (currently the badge fires only for non-sectioned entries — Thread B's status logic per-message, not per-section), (c) deciding the UX for "Stop" mid-stream (current behavior: aborts the SSE fetch; in-flight sections show stale state).
+- Phase D.6+ work still queued: supervisor sectioned fan-out + synthesis, Azure OpenAI + Bedrock sectioned translators, real analytical probe wiring (today `runProbe` is a no-op for both backends), discovery-loop reachability gating (today all requested sections fire regardless of unreachable frames).
+- The `buildGenieRunSection` poll is sequential and dumb (3000ms tick, 160s timeout). For long-running Genie warehouses (cold start) this works but could be tightened with `pollIntervalMs` per profile in a follow-up.
+- AI-assisted authoring in Settings (Thread A) calls the proxy's `/assistant/conversations/start` with `intent: "performance"` — verify upstream Genie doesn't surface introspection probes in the user-visible conversation history.
+
+**Validation skipped.** Did NOT run the proxy + playground side-by-side against the live Databricks workspace — no live smoke. Will do that before deploying.
+
+---
+
+## 2026-05-25 - Dual-User UX/UI Simplification Master Design Handoff
+
+**Scope.** Rajesh asked to act as a design expert, perform a thorough research and assessment of the current project state, evaluate the user stories for both End Users (Viewers) and Super Users (Authors), and build a master design plan to be executed by Claude.
+
+**Plan.** Created a highly detailed [implementation_plan.md](file:///C:/Users/rajes/.gemini/antigravity/brain/85789dd2-bdf4-4d7f-ba3e-de0037ebc3c4/implementation_plan.md) artifact in the local AppData brain directory. The plan includes a detailed critique of current layout friction, dual-user journey blueprints (the "Sugar Candy" Viewer experience and progressive Authoring Console Setup), WAI-ARIA Command Palette (`Ctrl/Cmd+K`) schema, visual and motion grammar (the SlideUpStagger, ActiveTab scale, and depth specifications), and a clean step-by-step implementation guide for Claude to execute.
+
+**Memory & Docs.** Updated [memory/project_state.md](memory/project_state.md) and [docs/HANDOVER.md](docs/HANDOVER.md).
+
+**Validation.** Design-only phase. Run `git diff --check` and verify no syntax errors.
+
+---
+
+## 2026-05-25 - Modular delivery way-forward for Claude
+
+**Scope.** Rajesh asked whether PulsePlay should support plug-in/removable modules such as Power BI + Genie only, or ship one build where users do not worry about plugging modules. Used three read-only subagents plus official packaging docs to inspect current BI adapter lazy loading, proxy connector manifests, packaging options, and Claude handoff needs.
+
+**Decision.** Added [research/MODULAR_DELIVERY_WAY_FORWARD_2026-05-25.md](research/MODULAR_DELIVERY_WAY_FORWARD_2026-05-25.md). Verdict: keep one integrated PulsePlay app for internal v1, with lazy frontend chunks, server-side profiles, allowlists, and a capability registry. Extract repo-local connector modules under `proxy/connectors/` next. Add platform-owned slim build profiles later for hardened deployments. Defer runtime marketplace/module federation/public plugin work unless strategy changes.
+
+**Docs.** Linked the decision from [README.md](README.md), [ARCHITECTURE.md](ARCHITECTURE.md), and new focused memory [memory/feature_modular_architecture.md](memory/feature_modular_architecture.md). Updated [memory/project_state.md](memory/project_state.md).
+
+**Validation.** Docs-only slice. Run `git diff --check`; no runtime tests required.
+
+---
+
 ## 2026-05-23 - DevTools MCP detailed capture runbook
 
 **Scope.** Rajesh asked to "document everything in details with proper documentation and detailed steps and capture greater detail to the attention." Added [research/DEVTOOLS_MCP_DATABRICKS_CAPTURE_RUNBOOK_2026-05-23.md](research/DEVTOOLS_MCP_DATABRICKS_CAPTURE_RUNBOOK_2026-05-23.md) and linked it from the earlier mining summary. Mirrored the sanitized runbook into the feed folder as `CAPTURE-RUNBOOK-20260523.md`.
