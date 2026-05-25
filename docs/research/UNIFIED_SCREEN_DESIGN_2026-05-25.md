@@ -34,6 +34,14 @@ Each of the three tabs (`AI Insights`, `Ask Pulse`, `Dashboard`) carries its own
 
 Write this design doc, get sign-off, THEN sequence rebuilt steps. No code lands until the doc is signed.
 
+### D5 — Detach mechanism: in-app overlay (NOT `window.open()`) for v0.1
+
+Detach floats panes as an in-app overlay z-indexed above the tab content. Because the overlay sits above the morphing main canvas, switching tabs (within the same PulsePlay browser window) keeps the float visible — your "detach Dashboard, navigate to Ask Pulse, Dashboard stays floating" works without spawning a real OS-level window. Deferred to Phase 2 (if ever): true `window.open()` floats (separate browser windows, BroadcastChannel state sync, popup-blocker handling, cross-window auth). The in-app overlay needs to become **duplicative**, not relocational — see §3.6 + §5.4 fixes.
+
+### D6 — Multi-mount safety: per-pane fresh token issuance + conformance test
+
+Every detached pane or 2-pane BI mount gets a fresh embed token from `/assistant/embed-token/powerbi` keyed on `paneId`. Same-vendor different-reports + same-vendor different-tokens is permitted. **Same-vendor, same-report, same-token is prohibited** (Power BI's embed token is single-use; sharing one across two embeds breaks both). A new conformance test "two Power BI panes with separate tokens render concurrently" gates the unified-screen ship. Other vendor adapters (currently GenericIframeAdapter stubs) are multi-mount safe by construction — iframes are isolated contexts.
+
 ---
 
 ## 3. The unified screen anatomy
@@ -178,28 +186,30 @@ Primary purpose: rich BI interaction. Full canvas for filter/drill/select/explor
 
 **Author's free choice (D3):** Each pane independently picks from `{Native, Power BI, Tableau, Qlik, Looker, generic-iframe}`. Including duplicates (Pane A = Power BI report 1, Pane B = Power BI report 2) is allowed.
 
-### 3.6 Detach behavior — duplicative
+### 3.6 Detach behavior — duplicative, in-app overlay (locked via D5)
 
 ```
-                  Main PulsePlay window                       Floating window
-┌─────────────── PulsePlay ───────────────┐         ┌─── AI Insights ↗ ────┐
-│ [✨][💬][📊]                              │         │ HEADLINE              │
-│ ┌─────────────┐ ┌───────────────────┐   │         │ TRENDS                │
-│ │             │ │ HEADLINE          │   │ ←┄┄┄┤ RISKS                 │
-│ │ BI canvas   │ │ TRENDS  ← STAYS!  │   │  sync │ ACTIONS               │
-│ │             │ │ RISKS             │   │         │                       │
-│ │             │ │ ACTIONS           │   │         │ Composer  ↑           │
-│ └─────────────┘ └───────────────────┘   │         └───────────────────────┘
-└─────────────────────────────────────────┘
+                  PulsePlay browser window                 In-app overlay (z-index 1200)
+┌─────────────── PulsePlay ─────────────────┐
+│ [✨][💬][📊]                                │       ┌─── AI Insights ↗ ────┐
+│ ┌─────────────┐ ┌─────────────────────┐   │       │ HEADLINE              │
+│ │             │ │ HEADLINE            │   │       │ TRENDS                │
+│ │ BI canvas   │ │ TRENDS  ← STAYS!    │   │ ←┄┄┤ RISKS                 │
+│ │             │ │ RISKS               │   │ sync  │ ACTIONS               │
+│ │             │ │ ACTIONS             │   │       │                       │
+│ └─────────────┘ └─────────────────────┘   │       │ Composer  ↑           │
+└─────────────────────────────────────────────┘       └─── Drag / Resize ────┘
 ```
 
-**Contract:**
-- Detached window is a SYNCHRONIZED CLONE, not a relocation.
-- Edits to either (composer typed, scroll position, section expanded) propagate via shared state.
-- Closing the floating window restores nothing visually (the slot was never empty).
-- Re-docking is a no-op visually (the float just closes).
+**Contract (locked):**
+- Detach is **duplicative**: the original pane slot stays full; the overlay is a synchronized clone (NOT a relocation). [This is the OPPOSITE of today's implementation at [App.tsx:1454](../../playground/src/App.tsx#L1454), which hides the original — that's the bug we fix in Step 2.x of the rebuilt plan.]
+- The overlay is an **in-app fixed-position div** z-indexed above the tab-changing main canvas. Because it's above the canvas, switching tabs (within the same PulsePlay window) keeps the overlay visible — your "detach Dashboard, navigate to Ask Pulse, Dashboard stays floating" works natively.
+- Edits to either (composer text, scroll position, section expanded) propagate via shared React state — they share the same `PulsePlayScreenContext` because they're in the same React tree.
+- **Multi-pane detach**: multiple panes can be floating simultaneously. Each detached pane is keyed on `paneId` in a `Map<paneId, DetachedPaneState>` (see §5.4).
+- Closing a float restores nothing visually (the slot was never empty). Re-docking is a no-op visually (just closes the float).
+- **NOT in v0.1**: true OS-level windows via `window.open()`. Deferred to Phase 2 (if ever) — adds popup-blocker handling, cross-window auth, vendor SDK reissuance per window, BroadcastChannel state sync.
 
-This solves the "feels detached" complaint. The user sees continuity in the main window AND has a floating workspace.
+This solves the "feels detached today" complaint (where the original slot empties when you float) without paying the multi-window complexity cost.
 
 ---
 
@@ -213,7 +223,14 @@ This solves the "feels detached" complaint. The user sees continuity in the main
 | `pulseplay:layout:ask-pulse` | same | Layout preset for Ask Pulse tab |
 | `pulseplay:layout:dashboard` | `"single" \| "split-h" \| "split-v"` | 1-pane (single) or 2-pane (horizontal/vertical split) on Dashboard |
 | `pulseplay:bi-pane-assignment` | `{ paneA: VendorId, paneB: VendorId | null }` | Which BI surface fills each Dashboard pane |
-| `pulseplay:detached-windows` | `Array<{ pane: "ai-insights" \| "ask-pulse" \| "bi-pane-a" \| "bi-pane-b", windowId: string }>` | Currently floating windows; persists across reloads |
+| `pulseplay:detached-panes` | `Record<PaneId, { pos: {x,y}, size: {w,h} }>` | Per-pane float state (position, size). Map keyed on paneId. Persists across reloads. |
+| `pulseplay:float-z-order` | `string[]` | Render order of detached overlays (last item = top). Click-to-focus reorders. |
+| `pulseplay:pane-toolbar:<paneId>` | `Record<ActionId, boolean>` | Per-pane toolbar action visibility (author override). Defaults to all standard actions on. |
+| `pulseplay:bi-token-cache:<paneId>` | string (token) | Power BI embed token issued per-pane via `/assistant/embed-token/powerbi?paneId=<id>&pageId=<id>`. Short-lived; refreshed transparently. Page-specific when same-report-different-page configurations are used. |
+| `pulseplay:composer-draft-scope` | `"per-tab" \| "shared"` | Default `"per-tab"`. Author-configurable in Settings → Display → Composer behavior. Controls whether typed-but-unsent composer text persists per-tab or across tabs. |
+| `pulseplay:composer-draft:<tabId>` | string | The per-tab composer draft (when scope is "per-tab"). |
+| `pulseplay:composer-draft-shared` | string | The shared composer draft (when scope is "shared"). |
+| `pulseplay:bi-ai-sync-enabled` | boolean | Default `true`. Author-configurable. When `false`, AI→BI filter pushes (Phase 2) are disabled even if Phase 2 ships — strict read-only BI posture. |
 
 ### 4.2 Keys deprecated / repurposed
 
@@ -236,10 +253,90 @@ Settings → Display
   │   ├─ Pane A surface:     [Native / Power BI / Tableau / Qlik / Looker / iframe]
   │   └─ Pane B surface:     [— / Native / Power BI / Tableau / Qlik / Looker / iframe]
   ├─ Detach behavior
-  │   └─ "Detach duplicates" (always on; not user-toggleable v1)
+  │   ├─ "Detach duplicates" (always on; not user-toggleable v1)
+  │   └─ "Persist floats on reload" (default on; restores detached panes after page reload)
   └─ Default landing tab
       └─ [AI Insights / Ask Pulse / Dashboard]
 ```
+
+---
+
+## 4.5 Unified pane affordance set (NEW — locked from research findings)
+
+The biggest current inconsistency: BIAdapter declares `refresh` + `export` commands but the toolbar never surfaces them; meanwhile AI panes have no equivalent buttons. Per Rajesh's "features applicable to one should reflect for all" directive, every pane MUST expose the same canonical action set.
+
+### 4.5.1 The 10 canonical actions
+
+Every pane (BI, AI Insights briefing, Ask Pulse chat) gets the same toolbar. Actions a pane doesn't support are GREYED, not hidden, so the layout stays consistent.
+
+| # | Action | Semantic | Icon | Keyboard | BI pane | AI pane |
+|---|---|---|---|---|---|---|
+| 1 | **Maximize / Restore** | Toggle focus mode (full canvas vs split) | ⬜ / ⬛ | `Ctrl+Alt+M` | ✅ | ✅ |
+| 2 | **Minimize** | Hide to dock; show MinimizedPaneDock | − | `Ctrl+Alt+−` | ✅ | ✅ |
+| 3 | **Refresh** | Reload pane content | 🔄 | `F5` (focus-scoped) | ✅ → `BIAdapter.send({kind:"refresh"})` | ✅ → clear AI history or fire Pulse `reload` action |
+| 4 | **Float / Dock** | In-app overlay duplicate (per §3.6) | ⇱ / ⇲ | `Ctrl+Alt+F` | ✅ | ✅ |
+| 5 | **Pin (save startup layout)** | Persist current pane focus as startup default | 📌 | — | ✅ | ✅ |
+| 6 | **Export** | Download pane content | 📥 | — | ✅ → BI adapter export (PNG/PDF/CSV/JSON per adapter capabilities) | ✅ → conversation export (Markdown/JSON) |
+| 7 | **Open in new page** | Spawn full app instance in new tab | ↗ | `Ctrl+Alt+O` | ✅ | ✅ |
+| 8 | **Settings** | Deep-link to pane-relevant Settings group | ⚙ | — | ✅ → Settings → BI | ✅ → Settings → AI |
+| 9 | **Frame selector** | Pick analysis frame / view | ▾ | — | ✅ → BI page picker (where supported) | ✅ → discovery frame picker |
+| 10 | **Overflow ⋯** | Per-pane extras (Show SQL, Show trace, vendor-specific) | ⋯ | — | adapter-defined | pane-defined (Show SQL, Show evidence, etc.) |
+
+### 4.5.2 Tier visibility
+
+- **Tier 1 — always visible in the toolbar header:** Maximize/Restore, Minimize, Refresh, Float, Settings
+- **Tier 2 — visible at normal viewport widths, collapsed to overflow at narrow:** Pin, Export, Open in new page, Frame selector
+- **Tier 3 — always inside overflow:** Pane-specific extras (Show SQL, vendor-specific actions, etc.)
+
+### 4.5.3 Rename mandates
+
+The audit found 2 confusing labels in the current PaneChrome that get locked-in renames:
+
+- **"Pin layout" → "Save startup layout"** (action #5). The current label suggests "always-on-top" semantics; the actual behavior persists `pulseplay:pinned-viewport-pane`. Renaming removes ambiguity. (Always-on-top floats are a separate future feature; not in v0.1.)
+- **"Pop out window" → "Float"** (action #4). The current label implies an OS-level window; v0.1 is an in-app overlay. "Float" is honest about the in-app scope.
+
+### 4.5.4 Implementation contract
+
+- A new `PaneActionId` typed union enumerates the 10 actions.
+- `PaneChrome` accepts an `actions: PaneActionId[]` prop; default includes all 10.
+- Per-pane action handlers wire through `usePulsePlayScreen()` context (Refresh dispatches to either BIAdapter or AI history clear; Export reads the pane type and routes to the right exporter; etc.).
+- Disabled state: an action a pane genuinely can't support (e.g., BIAdapter returns `false` from `supports("refresh")`) renders the icon greyed with a tooltip ("This adapter doesn't support refresh"). NOT hidden — preserves layout consistency.
+
+---
+
+## 4.6 Multi-mount contract (NEW — locked via D6)
+
+Per-vendor rules for concurrent BI mounts (2-pane Dashboard, detached + docked, etc.):
+
+| Scenario | Power BI | Tableau / Qlik / Looker (stubs) | Generic iframe | Native BI |
+|---|---|---|---|---|
+| Two panes, **different vendors** | ✅ | ✅ | ✅ | ✅ |
+| Two panes, **same vendor, different reports, different tokens** | ✅ (per-pane token issuance required) | ✅ | ✅ | ✅ |
+| Two panes, **same vendor, same report, different tokens** | ⚠ UNKNOWN — needs live test; conformance test gates ship | ✅ | ✅ | N/A |
+| Two panes, **same vendor, same report, same token** | ❌ PROHIBITED — Power BI embed token is single-use; sharing breaks both | N/A (stubs don't use tokens) | ✅ (iframes are isolated) | N/A |
+
+### 4.6.1 Per-pane fresh token issuance
+
+The proxy's existing `/assistant/embed-token/powerbi` endpoint gets a new `paneId` query/body parameter. Each concurrent Power BI mount calls it with a unique `paneId` (auto-generated UUID per pane). The proxy issues a fresh token keyed on `(reportId, paneId)`. Tokens are independent — revoking one doesn't affect the other.
+
+Frontend cache key: `pulseplay:bi-token-cache:<paneId>` (see §4 settings).
+
+### 4.6.2 Configuration UI guards
+
+The BI 2-pane assignment UI (Settings → Display → BI panes) **does not block** any combination — author has free choice (per D3). But it guides the author toward valid configurations:
+
+- ❌ red chip + suggested fix: "Power BI doesn't allow two embeds of the same report PAGE. Pick a different page for one of the panes." Shows a page picker dropdown beside each Power BI pane so author can disambiguate (e.g., Pane A = Report X / "Revenue" page, Pane B = Report X / "Margin" page). Token issuance becomes per-page automatically.
+- ⚠ amber chip: "Same vendor, same report — different pages or fresh tokens recommended." (for non-Power-BI vendors where multi-mount-same-report is UNKNOWN and pending conformance test results).
+- ✅ no chip otherwise (different vendors, OR different reports, OR Power BI with different pages selected).
+
+### 4.6.3 New conformance test (gates the unified-screen ship)
+
+`bi-adapters/powerbi/__tests__/index.test.ts` gets a new `describe` block "Concurrent mounts (multi-pane safety)":
+
+- **Test A**: Two PowerBIAdapter instances mounting different reports with different tokens render concurrently; both emit `loaded` events; commands route to the right report.
+- **Test B**: Two PowerBIAdapter instances mounting the **same** report with **different** tokens — assert one of: (a) both render successfully, OR (b) both render but with documented limitations, OR (c) explicit failure mode with a clear error.
+
+The conformance test result determines the warning vs error chip in the configuration UI (§4.6.2).
 
 ---
 
@@ -284,15 +381,60 @@ Children consume via `usePulsePlayScreen()` hook. Both the in-screen render AND 
 
 The `biSelectionState` updates whenever BIPanel emits a `BIEvent`. UnifiedAssistantSurface reads it and includes the summary in its next prompt's `[BI Context]` block (this is already partially implemented). The sync requires NO per-vendor work — every adapter already emits `BIEvent` via the `BIAdapter` contract.
 
-### 5.4 Detached windows (Phase 1: ai-insights + ask-pulse only)
+### 5.4 Detached panes (in-app overlays, multi-pane, per D5)
 
-Detached windows are rendered via `React.createPortal` into a new browser window opened by `window.open()`. Cross-window React state sync is done via the `BroadcastChannel` API (works across same-origin windows in modern browsers). Each floating window has its own React root but consumes the same `PulsePlayScreenContext` snapshot via BroadcastChannel-bridged updates.
+**Revised from v1** based on the detach/float audit finding that current implementation is relocational + singular, and Rajesh's directive that any pane (incl. BI) must be detachable + persist across tabs.
 
-**Constraints:**
-- Floating windows are same-origin (no iframe shenanigans)
-- BroadcastChannel is the sync mechanism (no shared memory)
-- Closing the floating window detaches the BroadcastChannel cleanly
-- BI panes can't be detached in Phase 1 (vendor adapters don't tolerate multiple mounts of the same surface; some embed tokens are single-use)
+Detached panes are **in-app overlays** — fixed-position `<div>` elements z-indexed above the main canvas (current `FloatingPanel` at [App.tsx:2102](../../playground/src/App.tsx#L2102)). Each detached pane is rendered via `React.createPortal` into a fixed-position container so it sits above tab-changing content. Multiple panes can be detached simultaneously via `Map<paneId, DetachedPaneState>`.
+
+**Why NOT `window.open()` for v0.1** (per D5):
+- Pop-up blocker risk on the first-detach click
+- Vendor SDK token reissuance per browser window (every detached Power BI pane needs a NEW token, NEW SDK init)
+- BroadcastChannel state sync adds ~200 LOC + serialization schema
+- Cross-window auth + cookie handling
+- Browser focus management across windows
+- DevTools sees only one root at a time
+- Closing parent leaves orphaned children
+- ~1.5 weeks of engineering vs ~3 days for in-app overlay
+- The "persist across tabs" requirement is met by in-app overlays anyway (overlay sits ABOVE the tab-changing canvas)
+
+**State shape:**
+```typescript
+interface DetachedPaneState {
+    paneId: PaneId;              // "ai-insights" | "ask-pulse" | "bi-pane-a" | "bi-pane-b"
+    pos: { x: number; y: number };
+    size: { w: number; h: number };
+    // Pane-specific snapshot — used for restoring scroll position, expanded sections,
+    // etc. after page reload. Each pane defines its own serializer.
+    snapshot?: Record<string, unknown>;
+}
+
+interface PulsePlayScreenContext {
+    // …
+    detachedPanes: Map<PaneId, DetachedPaneState>;
+    floatZOrder: PaneId[]; // last item = top; click-to-focus reorders
+    detachPane(paneId: PaneId): void;
+    dockPane(paneId: PaneId): void;
+    moveDetachedPane(paneId: PaneId, pos: { x: number; y: number }): void;
+    resizeDetachedPane(paneId: PaneId, size: { w: number; h: number }): void;
+}
+```
+
+**Render contract:**
+- Original pane slot ALWAYS renders the pane in the main canvas (never hidden because of detach).
+- For each entry in `detachedPanes`, a `<DetachedPaneOverlay>` is portal'd into `document.body` with the pane re-rendered inside. **Same React tree → no postMessage bridge needed.** Both renders share the same `PulsePlayScreenContext`.
+- Vendor BI adapters: each rendered instance gets its own `paneId` and its own fresh embed token (per §4.6). Two PowerBIAdapter instances (one docked, one detached) coexist by virtue of independent Report objects.
+- State persistence: on detach/move/resize, write to `pulseplay:detached-panes` localStorage. On page load, restore floats by replaying the saved Map.
+
+**BI pane detach specifics:**
+- BIPanel must accept a `paneId` prop so the detached instance is distinguishable from the docked instance (matters for token cache + DOM mount targets).
+- BIAdapter contract gains an optional `paneId` field in the embed config so the proxy's `/assistant/embed-token/powerbi` request carries it.
+- The conformance test from §4.6.3 gates whether BI detach ships.
+
+**AI pane detach specifics:**
+- UnifiedAssistantSurface is stateless above the composer + history — both can be cleanly rendered twice with shared context.
+- The composer's typed-but-unsent text lives in context, so editing in either render syncs to both.
+- Per-tab composer drafts (open question §11): for v0.1, defer — single shared draft across docked + detached renders of the same pane. Per-tab drafts is a future cycle.
 
 ---
 
@@ -377,17 +519,21 @@ The current architecture mounts BIPanel + UnifiedAssistantSurface as App.tsx sib
 
 ### Risks
 
-- **`window.open()` blocked by browser pop-up blockers** — needs user-initiated trigger (click on Detach button). First-time users may see a pop-up blocker prompt. Need fallback UX.
-- **BroadcastChannel browser support** — IE/old Edge don't have it. PulsePlay already requires modern browsers per ADR-0002, but worth documenting.
-- **BIPanel multiple mounts** — some vendor adapters (Power BI specifically) DO NOT tolerate two embeds of the same report on the same page. 2-pane mode with same-vendor different-reports works; 2-pane mode with same-report-twice may break. Test matrix needed.
-- **Cell catalog audit happens at the wrong moment** — if AI Insights tab requires `sectioned-chat` capability and the active cell doesn't carry it, we either (a) hide the tab, (b) show a "Not available with this cell" empty state, (c) ignore the audit and let it fail at request time. Need to pick one.
+- ~~`window.open()` blocked by browser pop-up blockers~~ — **NOT A RISK in v0.1**, since D5 locked in-app overlays (no `window.open()`). Phase 2 (if ever) re-introduces this risk.
+- ~~BroadcastChannel browser support~~ — **NOT NEEDED in v0.1** (same React tree across docked + detached, no cross-window sync). Phase 2 brings this back.
+- **BIPanel multiple mounts (Power BI same-report-twice)** — **mitigated by D6 + §4.6.** Per-pane fresh token issuance + ⚠ warning chip + conformance test gate. Acceptable risk profile.
+- **Cell catalog audit timing** — **defaulted in §9 above:** empty state with "Switch cell" affordance when a tab requires a missing capability. Lock during Step 10.
+- **State persistence in localStorage** — `pulseplay:detached-panes` could grow unbounded if user repeatedly detaches without explicit dock. Mitigate: cap at 4 simultaneous floats; oldest evicted on detach #5. Document.
+- **Performance: PulsePlayScreenContext re-render storm** — every BIEvent (filter, page-change, etc.) updates `biSelectionState`, potentially re-rendering every detached pane. Mitigate: throttle `biSelectionState` updates to 250ms; use React's `useMemo` aggressively on context consumers.
 
-### Open questions for future cycles
+### Open questions — ALL RESOLVED 2026-05-25
 
-- Does the floating window get its own URL (so users can bookmark a detached view)?
-- Should the Dashboard tab have a "compare mode" pill that auto-syncs cross-pane filters (Pane A filter → Pane B filter)?
-- Does Phase 2 AI→BI sync include "AI asks BI to navigate to a specific page" or only filters/highlights?
-- Per-tab composer state (typed-but-not-sent text) — does it persist across tab switches, or each tab gets its own draft?
+- **Per-tab composer draft** — **LOCKED:** screen-specific by default (each tab gets its own draft). BUT it's an **author-configurable option**: a setting `pulseplay:composer-draft-scope` accepts `"per-tab"` (default) or `"shared"`. Authors can opt the org into shared drafts if their use case wants context to carry across tabs. Surfaced in Settings → Display → "Composer behavior".
+- **Cell catalog audit timing** — **LOCKED:** notify the user in plain English when a tab requires a capability the active cell lacks. Render a friendly notice ("This combination doesn't include the structured-briefing capability — switch cells in Settings → AI, or continue with conversational chat only") with a Settings deep-link. NEVER silently fail at request time. NEVER hide the tab (hiding makes users wonder where it went).
+- **2-pane same-report-twice for Power BI** — **LOCKED:** Power BI rejects two embeds of the same report-page. The UI guides authors to use **page-specific embed URLs** — when same-report is detected, the assignment UI surfaces "Pick a different page" with a page picker (e.g., Pane A = Report X / Page 1, Pane B = Report X / Page 2). The proxy `/assistant/embed-token/powerbi` accepts `pageId` so per-page tokens can be issued. Same-page-twice is still prohibited.
+- **Detached pane URL** — **LOCKED:** detach is ALWAYS an in-app overlay (no separate browser window). Floating panes have no URL. Users who want a separate URL use the **"Open in new page"** action (action #7 from §4.5.1) which spawns a full new tab with its own URL — that path IS bookmarkable, and unlike floats does NOT sync state with the parent. Two distinct actions, two distinct semantics.
+- **Phase 2 AI→BI sync primitives** — **LOCKED for MVP:** filters only. Highlights, page navigation, drill, selection, and other primitives stay in Phase 2 backlog for per-vendor cycles. Filters are universal across BIAdapters (every adapter implements `applyFilter`). **Author-configurable**: a setting `pulseplay:bi-ai-sync-enabled` (default ON) lets the author disable AI→BI filter pushes per org if they want a strict read-only BI posture. Mirrors the "optional" directive — authors choose, viewers consume.
+- **"Compare mode" pill on Dashboard tab** that auto-syncs cross-pane filters (Pane A filter → Pane B filter) — nice but not in MVP. Defer to Phase 2.
 
 ---
 
