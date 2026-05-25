@@ -5950,6 +5950,141 @@ function resolveFoundationModelProfile(body, headers, req) {
     return null;
 }
 
+// Phase D Genie support — a profile is "Genie" when it has a spaceId and is
+// neither a Foundation-Model profile nor a Supervisor. Used by the sectioned
+// endpoint to pick the per-section runner. Single-space (one Databricks
+// AI/BI Genie space) profiles are the only target — supervisor multi-space
+// fan-out remains its own thing.
+function isGenieProfile(profile) {
+    if (!profile || !profile.spaceId) return false;
+    if (isFoundationModelProfile(profile)) return false;
+    if (isSupervisorType(profile.type)) return false;
+    return true;
+}
+
+function resolveGenieProfile(body, headers, req) {
+    const explicitName = body?.profile || body?.assistantProfile || headers?.['x-assistant-profile'];
+    if (explicitName) {
+        const resolved = profileByName(explicitName, req);
+        const p = resolved?.profile;
+        if (p && isGenieProfile(p)) return { name: resolved.name, profile: p };
+        return null;
+    }
+    for (const [name, profile] of profileRegistry.entries()) {
+        if (!profileAllowedForRequest(name, profile, req)) continue;
+        if (isGenieProfile(profile)) return { name, profile };
+    }
+    return null;
+}
+
+// Phase D Genie support — per-section runner factory. Returns an async
+// runSection function compatible with sectionedOrchestrator's contract.
+// All sections in a single sectioned conversation share ONE
+// conversation_id (per CLAUDE.md tripwire — "Multi-section Genie flows
+// MUST allocate N message_id's under one shared conversation_id"). The
+// conversationState closure is the mutable seam: HEADLINE creates the
+// conversation, populates state.conversationId, and subsequent sections
+// POST to /conversations/{id}/messages reusing it.
+function buildGenieRunSection({
+    profile,
+    userPrompt,
+    req,
+    conversationState,
+    systemPromptOverride,
+    discoveryBlock,
+    pollIntervalMs = 3000,
+    pollTimeoutMs = 160_000,
+    // Injectables — tests pass stubs; production callers leave undefined so
+    // the module-level helpers are used.
+    dbRequest = databricksRequest,
+    ensureWarehouse = ensureWarehouseRunning,
+    enrichResults = enrichQueryResults,
+    sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms)),
+}) {
+    const space = profile.spaceId;
+    return async function runSectionGenie({ sectionId, signal }) {
+        await ensureWarehouse(profile);
+        if (signal && signal.aborted) {
+            throw new Error('aborted');
+        }
+        const baseSection = systemPromptOverride || defaultSystemPromptForSection(sectionId);
+        const fullContent = [
+            `# Section: ${sectionId}`,
+            baseSection,
+            discoveryBlock || '',
+            '[User question]',
+            userPrompt,
+        ].filter(Boolean).join('\n\n');
+
+        let cid;
+        let mid;
+        if (!conversationState.conversationId) {
+            const started = await dbRequest(
+                profile,
+                'POST',
+                `/api/2.0/genie/spaces/${space}/start-conversation`,
+                { content: fullContent },
+                req?.requestId,
+            );
+            cid = started?.conversation_id ?? started?.conversation?.id;
+            mid = started?.message_id ?? started?.message?.id;
+            if (!cid || !mid) {
+                throw new Error('Genie did not return a conversation_id / message_id from start-conversation.');
+            }
+            conversationState.conversationId = cid;
+        } else {
+            cid = conversationState.conversationId;
+            const followUp = await dbRequest(
+                profile,
+                'POST',
+                `/api/2.0/genie/spaces/${space}/conversations/${cid}/messages`,
+                { content: fullContent },
+                req?.requestId,
+            );
+            mid = followUp?.message_id ?? followUp?.id;
+            if (!mid) {
+                throw new Error('Genie did not return a message_id for the follow-up section.');
+            }
+        }
+
+        const deadline = Date.now() + pollTimeoutMs;
+        while (Date.now() < deadline) {
+            if (signal && signal.aborted) throw new Error('aborted');
+            await sleep(pollIntervalMs);
+            const poll = await dbRequest(
+                profile,
+                'GET',
+                `/api/2.0/genie/spaces/${space}/conversations/${cid}/messages/${mid}`,
+            );
+            const status = String(poll.status || '').toUpperCase();
+            if (status === 'COMPLETED') {
+                await enrichResults(profile, space, cid, mid, poll);
+                const body = extractGenieText(poll);
+                const sqlText = extractGenieSql(poll);
+                const out = { body };
+                if (sqlText) out.sql = { fragment: sqlText };
+                return out;
+            }
+            if (status === 'FAILED' || status === 'CANCELLED') {
+                throw new Error(`Genie ${status}: ${extractGenieText(poll) || 'no error message'}`);
+            }
+        }
+        throw new Error(`Genie polling timeout after ${Math.round(pollTimeoutMs / 1000)}s for section ${sectionId}`);
+    };
+}
+
+// Extract the FIRST SQL query from a completed Genie message's
+// attachments. Used by Phase D's Genie runSection to surface SQL
+// per-section. Returns null when no query attachment is present
+// (e.g. narrative-only follow-ups).
+function extractGenieSql(data) {
+    for (const att of data?.attachments || []) {
+        const q = att?.query?.query || att?.query?.text;
+        if (typeof q === 'string' && q.trim()) return q.trim();
+    }
+    return null;
+}
+
 function defaultSystemPromptForSection(sectionTitle) {
     const upper = String(sectionTitle || '').trim().toUpperCase();
     const baseHeader = 'You are an analytics formatting assistant. Take the data the user provides and produce ONLY the requested structured output. Do not add preamble, explanation, or closing summary. Use the exact data values verbatim.';
@@ -6375,10 +6510,16 @@ app.post('/foundation/section', async (req, res) => {
 // "Genie" sub-section).
 app.post('/assistant/conversations/start-sectioned', async (req, res) => {
     const body = req.body || {};
-    const resolved = resolveFoundationModelProfile(body, req.headers, req);
+    // Phase D.5 — try Foundation Model first (the original Phase D.2 path),
+    // then fall back to Genie. The two paths share the orchestrator + SSE
+    // frame shape; only the per-section runner differs.
+    const fmResolved = resolveFoundationModelProfile(body, req.headers, req);
+    const genieResolved = !fmResolved ? resolveGenieProfile(body, req.headers, req) : null;
+    const resolved = fmResolved || genieResolved;
     if (!resolved) {
-        return sendNoMatchingProfile(req, res, 400, 'No foundation-model profile configured. Staged rendering is foundation-model-only in Phase D.2; Genie staging lands in Phase D.5.');
+        return sendNoMatchingProfile(req, res, 400, 'No foundation-model or Genie profile configured for sectioned rendering.');
     }
+    const backendKind = fmResolved ? 'foundation-model' : 'genie';
     const userPrompt = typeof body.userPrompt === 'string' ? body.userPrompt.trim() : '';
     if (!userPrompt) {
         return res.status(400).json({ error: 'userPrompt is required.' });
@@ -6419,7 +6560,7 @@ app.post('/assistant/conversations/start-sectioned', async (req, res) => {
             profileName: resolved.name,
             action: 'discovery-context-inject',
             status: 'OK',
-            detail: JSON.stringify({ ...buildDiscoveryAuditDetail(sectionedDiscoveryBlock), backend: 'foundation-sectioned', sections: sectionIds.length }),
+            detail: JSON.stringify({ ...buildDiscoveryAuditDetail(sectionedDiscoveryBlock), backend: `${backendKind}-sectioned`, sections: sectionIds.length }),
             spIdentityHash: spHashForProfile(resolved.profile),
         });
     }
@@ -6439,7 +6580,7 @@ app.post('/assistant/conversations/start-sectioned', async (req, res) => {
         if (event.kind !== 'section-completed' && event.kind !== 'all-completed') return event;
         return {
             ...event,
-            governance: governanceForBackend(req, resolved.profile, 'foundation-model'),
+            governance: governanceForBackend(req, resolved.profile, backendKind),
         };
     };
 
@@ -6459,7 +6600,7 @@ app.post('/assistant/conversations/start-sectioned', async (req, res) => {
         }
     }
 
-    async function runSection({ sectionId }) {
+    async function runSectionFm({ sectionId }) {
         const baseSection = systemPrompt || defaultSystemPromptForSection(sectionId);
         const augmentedSystem = _composeSystemPromptWithContext({
             systemPrompt: baseSection,
@@ -6482,6 +6623,24 @@ app.post('/assistant/conversations/start-sectioned', async (req, res) => {
         if (result.usage) out.usage = result.usage;
         return out;
     }
+
+    // Phase D.5 — Genie runs share ONE conversation_id across all
+    // sections so subsequent message responses can reference HEADLINE's
+    // (Genie automatically threads context for the conversation it owns).
+    // The closure variable is mutated by the first section that completes
+    // a /start-conversation call.
+    const genieConversationState = { conversationId: null };
+    const runSectionGenie = backendKind === 'genie'
+        ? buildGenieRunSection({
+            profile: resolved.profile,
+            userPrompt,
+            req,
+            conversationState: genieConversationState,
+            systemPromptOverride: systemPrompt,
+            discoveryBlock: sectionedDiscoveryBlock,
+        })
+        : null;
+    const runSection = backendKind === 'foundation-model' ? runSectionFm : runSectionGenie;
 
     try {
         const iterable = orchestrateSectioned({
@@ -8231,6 +8390,12 @@ module.exports = {
     sharedKeyMiddleware,
     resolveProfile,
     VALID_INLINE_MODES,
+    // Phase D.5 — Genie sectioned helpers, exported for unit testing
+    // (route-level tests live in proxy/tests/sectionedRouteGenie.test.js).
+    isGenieProfile,
+    resolveGenieProfile,
+    buildGenieRunSection,
+    extractGenieSql,
     // Tier B Day 2 — exported so the OAuth M2M unit tests can drive the
     // helper directly with mocked fetch (real /oidc/v1/token round-trips
     // are infeasible from CI).

@@ -103,12 +103,12 @@ describe('POST /assistant/conversations/start-sectioned — validation', () => {
         expect(res.body.error).toMatch(/sections\[\] \(or an explicit schedule\) is required/);
     });
 
-    test('400 when explicit profile cannot be resolved to a foundation profile', async () => {
+    test('400 when explicit profile cannot be resolved to a foundation or Genie profile', async () => {
         const res = await request(app)
             .post('/assistant/conversations/start-sectioned')
             .send({ profile: 'no-such', userPrompt: 'why?', sections: ['HEADLINE'] });
         expect(res.status).toBe(400);
-        expect(res.body.error).toMatch(/No foundation-model profile/);
+        expect(res.body.error).toMatch(/No foundation-model or Genie profile/);
     });
 
     test('400 when explicit schedule is malformed (duplicate section id)', async () => {
