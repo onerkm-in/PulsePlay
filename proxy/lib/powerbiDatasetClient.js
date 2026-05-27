@@ -81,8 +81,12 @@ const PBI_API_BASE = 'https://api.powerbi.com';
 const AAD_TOKEN_SCOPE = 'https://analysis.windows.net/powerbi/api/.default';
 const AAD_USER_SCOPE = 'https://analysis.windows.net/powerbi/api/.default offline_access';
 const AZURE_CLI_PUBLIC_CLIENT_ID = '04b07795-8ddb-461a-bbee-02f9e1bf7b46';
-const SOCKET_TIMEOUT_MS = 10_000;
-const EXECUTE_QUERIES_TIMEOUT_MS = 30_000;
+// 2026-05-27 — sourced from lib/timeoutPolicy.js per the central
+// policy ("simple → 3 min, complex → 5 min"). Socket = simple
+// metadata fetch; ExecuteQueries = full DAX execution (complex).
+const { SIMPLE_REQUEST_TIMEOUT_MS, COMPLEX_REQUEST_TIMEOUT_MS } = require('./timeoutPolicy');
+const SOCKET_TIMEOUT_MS = SIMPLE_REQUEST_TIMEOUT_MS;   // was 10s
+const EXECUTE_QUERIES_TIMEOUT_MS = COMPLEX_REQUEST_TIMEOUT_MS;  // was 30s
 const TOKEN_EARLY_REFRESH_MS = 5 * 60 * 1000;
 
 // Cache key: `${authMode}|${tenantId}|${clientId}` → { accessToken, expiresAt, refreshToken?, inFlight? }

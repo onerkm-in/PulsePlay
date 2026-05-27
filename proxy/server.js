@@ -64,6 +64,7 @@ try {
 
 const CONFIG_PATH = path.join(__dirname, 'config.json');
 const allowlist = require('./lib/allowlist');
+const TIMEOUT_POLICY = require('./lib/timeoutPolicy');
 const { listInstalledPacks, loadPackDetail, loadSubVerticalDetail } = require('./lib/packRegistry');
 const databricksCapabilityRegistry = require('./lib/databricksCapabilityRegistry');
 const databricksEnablement = require('./lib/databricksEnablement');
@@ -1069,7 +1070,10 @@ function _databricksRequestOnce(profile, method, urlPath, body, requestId) {
                 ...(requestId ? { 'X-Request-Id': String(requestId).slice(0, 80) } : {}),
                 ...(bodyStr ? { 'Content-Length': Buffer.byteLength(bodyStr) } : {})
             },
-            timeout: 35000,
+            // 2026-05-27 — promoted from 35s → COMPLEX (5 min) per the
+            // central timeout policy. Databricks upstream calls can stall
+            // on warehouse warmup or AAD cache misses; 5 min covers it.
+            timeout: TIMEOUT_POLICY.COMPLEX_REQUEST_TIMEOUT_MS,
             agent: isHttps ? keepAliveAgent : undefined
         };
 
@@ -6925,7 +6929,9 @@ app.post('/foundation/conversations/start-stream', async (req, res) => {
             'Accept': 'text/event-stream',
             ...(req.requestId ? { 'X-Request-Id': String(req.requestId).slice(0, 80) } : {}),
         },
-        timeout: 120000,
+        // 2026-05-27 — promoted from 120s → COMPLEX (5 min) per central
+        // timeout policy. FM streaming may need warmup + multi-step LLM.
+        timeout: TIMEOUT_POLICY.COMPLEX_REQUEST_TIMEOUT_MS,
         agent: isHttps ? keepAliveAgent : undefined,
     }, (upstreamResp) => {
         if (upstreamResp.statusCode < 200 || upstreamResp.statusCode >= 300) {

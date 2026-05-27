@@ -28,9 +28,13 @@ import {
     parseInsightsConfigSuggestion,
     type InsightsConfigSuggestion,
 } from "../pulse/genie";
+import { COMPLEX_REQUEST_TIMEOUT_MS } from "./timeoutPolicy";
 
 const POLL_INTERVAL_MS = 1_000;
-const POLL_TIMEOUT_MS = 60_000;
+/** Sourced from the central timeout policy (2026-05-27 — "complex query
+ *  → 5 min"). Insights suggest is an LLM round-trip + parse, falls
+ *  under COMPLEX. */
+const POLL_TIMEOUT_MS = COMPLEX_REQUEST_TIMEOUT_MS;
 const MAX_MEASURES = 20;
 const MAX_DIMENSIONS = 12;
 const MAX_SAMPLE_CONTEXT_CHARS = 500;

@@ -53,6 +53,7 @@ import { streamSectionedAnswer } from "../lib/sectionedStreamClient";
 import { computeSurfaceContext } from "../lib/computeSurfaceContext";
 import { SurfaceContextStrip } from "./SurfaceContextStrip";
 import { AssistantEmptyState } from "./AssistantEmptyState";
+import { COMPLEX_REQUEST_TIMEOUT_MS } from "../lib/timeoutPolicy";
 
 /** Thread C — default section taxonomy when chat-sectioned mode is on.
  *  Mirrors AI Insights' baseline so authors see the same vocabulary
@@ -84,8 +85,11 @@ export function isSectionedChatEnabled(): boolean {
 // nothing to latency — this wiring just exposes the numbers so the next
 // cycle has concrete bottlenecks to attack instead of guessing.
 
-/** Hard upper bound on how long we poll before giving up. */
-export const MAX_POLL_DURATION_MS = 60_000;
+/** Hard upper bound on how long we poll before giving up. Sourced from
+ *  the central timeout policy (2026-05-27 — "complex query → 5 min").
+ *  Ask Pulse is a multi-step Genie roundtrip (auth + warehouse + query
+ *  + sectioned answer) so it falls under COMPLEX. */
+export const MAX_POLL_DURATION_MS = COMPLEX_REQUEST_TIMEOUT_MS;
 /** Cadence between polls. */
 export const POLL_INTERVAL_MS = 1_000;
 /** How often the elapsed-time UI ticks while polling. */

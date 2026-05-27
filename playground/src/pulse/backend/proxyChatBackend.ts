@@ -61,7 +61,10 @@ export class ProxyChatBackend implements SingleSpaceBackend {
             xhr.setRequestHeader("Content-Type", "application/json");
             if (this.config.proxyKey) xhr.setRequestHeader("X-Genie-Key", this.config.proxyKey);
             if (this.config.assistantProfile) xhr.setRequestHeader("X-Assistant-Profile", this.config.assistantProfile);
-            xhr.timeout = 180000;
+            // 2026-05-27 — promoted from 180s → COMPLEX (5 min) per the
+            // central timeout policy. Proxy chat backend handles full
+            // Genie/Foundation roundtrips; 5 min covers cold-cache cases.
+            xhr.timeout = 300_000;  // COMPLEX_REQUEST_TIMEOUT_MS
             xhr.onload = () => {
                 if (xhr.status >= 200 && xhr.status < 300) {
                     try { resolve(JSON.parse(xhr.responseText)); }

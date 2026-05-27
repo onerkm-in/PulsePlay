@@ -51,7 +51,11 @@ export interface FetchSpaceResult {
     status?: number;
 }
 
-const XHR_TIMEOUT_MS = 15_000;
+// 2026-05-27 — promoted from 15s → SIMPLE (3 min) per the central
+// timeout policy. Space sync is a single metadata fetch; should
+// normally return in <1s, but 3 min handles cold AAD / proxy stalls
+// without user-facing failure.
+const XHR_TIMEOUT_MS = 180_000;  // SIMPLE_REQUEST_TIMEOUT_MS
 
 /** XHR helper. Returns { ok, status, body, error }. */
 function xhrJson(method: string, url: string, headers: Record<string, string>, body?: string): Promise<{ ok: boolean; status: number; body: string; error?: string }> {

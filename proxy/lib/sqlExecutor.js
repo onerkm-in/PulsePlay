@@ -14,9 +14,16 @@
  *  - Per-warehouse fan-out and load balancing
  */
 
+const { COMPLEX_REQUEST_TIMEOUT_MS } = require('./timeoutPolicy');
+
 const STATEMENT_PATH = '/api/2.0/sql/statements';
-const DEFAULT_TIMEOUT_S = 50;     // server-side wait_timeout cap
-const DEFAULT_DEADLINE_MS = 90_000; // total client-side deadline
+// 2026-05-27 — wait_timeout caps at 50s in the Databricks SQL API
+// (server-side limit, not ours). Keep DEFAULT_TIMEOUT_S = 50 since the
+// API rejects values >50. The DEADLINE — total time we'll wait for the
+// statement to complete across polls — promotes to COMPLEX (5 min) per
+// the central timeout policy.
+const DEFAULT_TIMEOUT_S = 50;     // server-side wait_timeout cap (DBR API max)
+const DEFAULT_DEADLINE_MS = COMPLEX_REQUEST_TIMEOUT_MS; // was 90s; now 5 min
 const DEFAULT_MAX_ROWS = 10_000;
 
 /**

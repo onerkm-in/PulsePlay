@@ -104,7 +104,10 @@ export class FoundationModelStreamBackend implements SingleSpaceBackend {
             xhr.setRequestHeader("Content-Type", "application/json");
             if (this.config.proxyKey) xhr.setRequestHeader("X-Genie-Key", this.config.proxyKey);
             if (this.config.assistantProfile) xhr.setRequestHeader("X-Assistant-Profile", this.config.assistantProfile);
-            xhr.timeout = 120000;
+            // 2026-05-27 — promoted from 120s → COMPLEX (5 min) per the
+            // central timeout policy. FM streaming may need warmup +
+            // multiple LLM steps; 120s was clipping real completions.
+            xhr.timeout = 300_000;  // COMPLEX_REQUEST_TIMEOUT_MS
 
             let parsedOffset = 0;
             let accumulated = "";

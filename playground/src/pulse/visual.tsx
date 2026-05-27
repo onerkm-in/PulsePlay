@@ -1519,7 +1519,10 @@ function App(props: AppProps) {
             xhr.open("GET", url, true);
             xhr.setRequestHeader("Content-Type", "application/json");
             if (props.settings.proxyKey) xhr.setRequestHeader("X-Genie-Key", props.settings.proxyKey);
-            xhr.timeout = 30000;
+            // 2026-05-27 — promoted from 30s → SIMPLE (3 min) per the
+            // central timeout policy. Query history fetch is read-only
+            // metadata; 3 min handles slow workspaces without failure.
+            xhr.timeout = 180_000;  // SIMPLE_REQUEST_TIMEOUT_MS
             const result = await new Promise<{ ok: boolean; queries?: any[]; error?: string }>((resolve) => {
                 xhr.onload = () => {
                     // Cycle 41 — distinguish error classes so we can give an
