@@ -27,7 +27,7 @@ import { TestConnectionPanel } from "../../components/TestConnectionPanel";
 import { PackPicker, type PackInfo, type PackSelection } from "../../components/PackPicker";
 import { probeConnector } from "../../lib/probeClient";
 import { useDatabricksCapabilities } from "../../lib/databricksCapabilities";
-import { listMetricViews, type MetricViewSummary } from "../../lib/databricksAssets";
+import { listMetricViews, fetchMetricViewDetail, extractMeasureNamesFromMetricView, type MetricViewSummary } from "../../lib/databricksAssets";
 import type { ConnectorProbeResult } from "../../types/probe";
 import { navigateToPowerBiQna } from "../../powerbi/PowerBiQnARoute";
 import { ConnectorBrandGrid } from "../../setup/ConnectorBrandGrid";
@@ -708,12 +708,64 @@ function PulseAiInsightsSettingsPanel(props: {
         return () => { cancelled = true; };
     }, [resolvedProfile, props.packSelection?.pack, props.packSelection?.subVertical]);
 
-    // 2026-05-28 — primary signal: BI adapter's visibleMeasures (Power BI
-    // SDK, Tableau Embedding API, etc.). When the adapter doesn't expose
-    // metadata (Genie-only profiles, iframe-only vendors), fall back to
-    // fused.availableKpis — KPIs the discovery loop synthesized from the
-    // pack + probe results + any bi-surface signals. Dedup by upper-cased
-    // name so a metric in both sources doesn't generate duplicate rules.
+    // 2026-05-28 — 3rd fallback signal: UC Metric View MEASURE NAMES
+    // (not view titles — view titles are often technical like
+    // `vw_metric_*_flat` and don't carry semantic content the heuristic
+    // can match). For each view we list, fetch its detail and extract
+    // columns where metric_view.type === "measure". The extracted names
+    // (e.g., "Sales", "Profit", "Discount") feed the same heuristic as
+    // the BI adapter / availableKpis sources.
+    //
+    // Cost: 1 list call + N detail calls (one per metric view). Limited
+    // to first 5 views to avoid runaway fetching on large catalogs.
+    // Uses the same workspace/databrickspractice defaults the
+    // UCMetricViewExplorer leaf uses; if those aren't right for the
+    // user's profile, the fetch fails silently and the chip stays
+    // hidden — no error noise, just the honest no-signal fallback.
+    const [ucMetricMeasureNames, setUcMetricMeasureNames] = useState<string[]>([]);
+    useEffect(() => {
+        if (!resolvedProfile) {
+            setUcMetricMeasureNames([]);
+            return;
+        }
+        let cancelled = false;
+        (async () => {
+            try {
+                const payload = await listMetricViews({
+                    assistantProfile: resolvedProfile,
+                    catalog: "workspace",
+                    schema: "databrickspractice",
+                });
+                if (cancelled) return;
+                const views = (payload.items ?? []).slice(0, 5);
+                const detailPromises = views.map(v =>
+                    fetchMetricViewDetail({
+                        assistantProfile: resolvedProfile,
+                        fullName: v.fullName,
+                    }).catch(() => ({ item: undefined })),
+                );
+                const details = await Promise.all(detailPromises);
+                if (cancelled) return;
+                const allMeasures: string[] = [];
+                for (const d of details) {
+                    for (const name of extractMeasureNamesFromMetricView(d)) {
+                        allMeasures.push(name);
+                    }
+                }
+                setUcMetricMeasureNames(allMeasures);
+            } catch {
+                if (!cancelled) setUcMetricMeasureNames([]);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [resolvedProfile]);
+
+    // Fallback chain for the metric-direction auto-detect chip:
+    //   1. BI adapter's visibleMeasures (Power BI SDK / etc.)
+    //   2. fused.availableKpis (pack + probe + bi-surface signals)
+    //   3. UC Metric View titles (Databricks Unity Catalog)
+    // Dedup case-insensitively to avoid duplicate rules when a name
+    // appears in more than one source.
     const measureNames = useMemo(() => {
         const fromBiMetadata = (snapshot?.sources?.biMetadata?.visibleMeasures ?? [])
             .map(m => m?.name || "")
@@ -722,18 +774,21 @@ function PulseAiInsightsSettingsPanel(props: {
         const fromAvailableKpis = (snapshot?.fused?.availableKpis ?? [])
             .map(k => k?.name || "")
             .filter(s => s.trim().length > 0);
+        const allCandidates = fromAvailableKpis.length > 0
+            ? fromAvailableKpis
+            : ucMetricMeasureNames;
         // Dedup case-insensitively while preserving the first appearance's
         // original casing for the rules string output.
         const seen = new Set<string>();
         const out: string[] = [];
-        for (const name of fromAvailableKpis) {
+        for (const name of allCandidates) {
             const key = name.trim().toUpperCase();
             if (seen.has(key)) continue;
             seen.add(key);
             out.push(name.trim());
         }
         return out;
-    }, [snapshot]);
+    }, [snapshot, ucMetricMeasureNames]);
     return (
         <div style={{ display: "grid", gap: 14 }}>
             <div
