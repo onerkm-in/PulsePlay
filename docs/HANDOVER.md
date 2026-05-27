@@ -5,6 +5,34 @@
 
 ---
 
+## 2026-05-27 - ARCH-P1 slice 3 SCOPED + SIGNED OFF (no code yet)
+
+**Scope.** Produce a handoff doc the next coding session can implement directly from, without revisiting design. Slice 3 ships the feature-feasibility registry + capability resolver; the coding effort is 1.5–2 days but the design problem warranted its own focused session per `feedback_research_first.md`.
+
+**Process.** 4 parallel read-only research lanes ran in this session:
+1. Codebase feature inventory (46 features cataloged, 8 categories).
+2. Existing capability plumbing audit (7 existing flags + governance allowlist shape + what's missing).
+3. Surface differences matrix (pulse vs v0 vs Dashboard support per-feature + surface-defining quirks that should NOT register).
+4. Industry patterns (VS Code contribution-points + TS discriminated unions converged as the recommendation; @supports-style runtime detection deferred until a real conditional-capability case appears).
+
+Synthesis: [docs/research/ARCH_P1_SLICE_3_FEATURE_FEASIBILITY_REGISTRY_HANDOFF_2026-05-27.md](research/ARCH_P1_SLICE_3_FEATURE_FEASIBILITY_REGISTRY_HANDOFF_2026-05-27.md) (470 lines). 6 design questions in §8 walked through interactively with Rajesh; all resolved.
+
+**Resolved decisions** (now baked into the doc):
+1. Keep 3 top-level surfaces (`pulse | v0 | dashboard`).
+2. Explicit `uiMode` always wins over `tabVisibility` narrowing.
+3. Ship 11 feature entries (was 10; +sectioned-chat to exercise the runtimeGate field); backfill remaining 35 incrementally.
+4. Declare `runtimeGate?: () => boolean` field in slice 3; slice 4 consumes it.
+5. No telemetry on resolver decisions yet — add later if a support incident demands forensic visibility.
+6. Pattern: VS Code-style contribution manifest + TS discriminated union (signed off).
+
+**No code shipped in this slice.** The doc is the deliverable. AGENDA marks slice 3 as scoped + signed off; the next coding session implements directly from §6 of the doc.
+
+**Tripwires.**
+- Slice 3 implementation MUST NOT revisit the 6 resolved questions — they were deliberated. If a concrete reason to revisit emerges mid-implementation, escalate to Rajesh before coding the alternative.
+- Slice 4 ("switch surface to access" affordance) is forward-referenced in §9 but is its own design problem; do NOT start designing it now.
+
+---
+
 ## 2026-05-27 - ARCH-P1 slice 2 of 4: wire BI metadata to v0 trust chip
 
 **Scope.** Finish the half-day follow-up from slice 1: v0 cold boot shows "AI configured · No BI fields" even when a real BI adapter is mounted, because the trust chip never received measure/dimension counts. Slice 2 wires those counts from the discovery snapshot the surface already fetches.
