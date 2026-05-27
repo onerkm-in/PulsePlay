@@ -1036,14 +1036,20 @@ export function buildStagedHybridInsightsPlan(
         ? `Author guidance takes priority over the defaults when they conflict:\n${authorGuidance!.trim()}`
         : "";
 
-    // Build section blocks IDENTICALLY to buildFastHybridInsightsStagePrompts
-    // so behavior is preserved at the block level; only the batching differs.
+    // Build section blocks. 2026-05-27 — HEADLINE and KPI SNAPSHOT used
+    // to be bundled into one block, so the "lead batch" was actually a
+    // medium-weight call (one sentence + KPI table). User feedback in
+    // live test: first section should be a SINGLE, LIGHT block that
+    // renders fast for perceived-latency win. Split into two blocks now:
+    // HEADLINE alone is the lead (one declarative sentence → ~5-15s on
+    // a warm proxy); KPI SNAPSHOT joins the second batch.
     const sectionBlocks: string[] = [];
     if (showHeadline) {
         sectionBlocks.push([
             "## HEADLINE",
             ovHeadline || `One declarative sentence, max 25 words, naming the most important ${domainLabel} number, change vs prior period, and on-track / watch / at-risk signal. Bold the headline number.`,
-            "",
+        ].join("\n"));
+        sectionBlocks.push([
             "## KPI SNAPSHOT",
             `Markdown pipe table: KPI | Current | Prior | Δ % / Δ pp | Status. Cover the bound measures (${meas}). Use ▲/▼ and 🟢/🟡/🔴 where useful.`,
         ].join("\n"));

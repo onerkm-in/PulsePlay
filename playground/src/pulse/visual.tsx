@@ -4112,7 +4112,17 @@ function App(props: AppProps) {
                     // before follow-up batches issue sendMessage on the same
                     // conversation_id. See
                     // AI_INSIGHTS_SECTION_LOADING_CLAUDE_HANDOFF_2026-05-27.md.
-                    const FIRST_LOAD_STAGE_1_DELAY_MS = 3_500;
+                    // 2026-05-27 — bumped from 3500 → 6000ms per user
+                    // direction: "first section renders first, then rest
+                    // delayed by 5-7 seconds, then 2 each load using the
+                    // same conversation." 6000ms = midpoint of 5-7s range.
+                    // Combined with the HEADLINE/KPI SNAPSHOT split in
+                    // visualHelpers.ts, the user-visible behavior is:
+                    //   T+~10s : HEADLINE alone (light, fast)
+                    //   T+~16s : delay (6s after lead returns)
+                    //   T+~25s : KPI SNAPSHOT + TRENDS (batch of 2)
+                    //   T+~35s : RISKS + RECOMMENDED ACTIONS (batch of 2)
+                    const FIRST_LOAD_STAGE_1_DELAY_MS = 6_000;
                     const queue = Array.from({ length: prompts.length }, (_, i) => i);
                     const drainWorker = async (workerIndex: number) => {
                         let isFirstPick = true;
