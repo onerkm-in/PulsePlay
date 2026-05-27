@@ -61,7 +61,8 @@ import {
     PERFORMANCE_LEVERS_EVENT,
     type PerformanceLevers,
 } from "./settings/performanceLevers";
-import { SettingsProvider, useSettings, DEFAULT_UI_MODE } from "./settings/settingsStore";
+import { SettingsProvider, useSettings, DEFAULT_UI_MODE, readTabVisibility } from "./settings/settingsStore";
+import { resolveDefaultSurface } from "./featureRegistry/resolver";
 import { PULSE_VISUAL_SETTINGS_EVENT } from "./settings/pulseVisualSettingsStore";
 import { SettingsShell } from "./settings/SettingsShell";
 import { useSettingsRoute, navigateToSettings } from "./settings/settingsRoute";
@@ -219,16 +220,27 @@ function readInitialActiveConnector(): string {
 }
 
 function readInitialUiMode(): UiMode {
-    // Default sourced from settingsStore's DEFAULT_UI_MODE (single source
-    // of truth). Both surfaces still parse so the DevTools escape hatch
-    // works in either direction. Mirrors settingsStore.readUiMode().
+    // ARCH-P1 slice 3 — delegate to the feature-registry resolver. The
+    // explicit override + DEFAULT_UI_MODE fallback contract from ARCH-P0
+    // is preserved (Step 1 + Step 5 of resolveDefaultSurface). Mirrors
+    // settingsStore.readUiMode() — both readers MUST stay in lockstep
+    // or the cold-boot surface flickers between renderers.
     if (typeof window === "undefined") return DEFAULT_UI_MODE;
+    let explicit: "pulse" | "v0" | null = null;
     try {
         const stored = window.localStorage.getItem(UI_MODE_STORAGE_KEY);
-        if (stored === "v0") return "v0";
-        if (stored === "pulse") return "pulse";
+        if (stored === "v0" || stored === "pulse") explicit = stored;
     } catch { /* swallow */ }
-    return DEFAULT_UI_MODE;
+    const resolved = resolveDefaultSurface({
+        explicitUiMode: explicit,
+        requiredFeatures: [],
+        tabVisibility: readTabVisibility(),
+    });
+    // Resolver can return "dashboard" (a registered surface), but App's
+    // uiMode field only holds "pulse" | "v0" — dashboard surface is
+    // selected via tabVisibility + per-tab routing, not via this field.
+    // Map dashboard → DEFAULT_UI_MODE so the legacy field stays valid.
+    return resolved === "dashboard" ? DEFAULT_UI_MODE : resolved;
 }
 
 function readInitialEnabledComponents(): EnabledComponents {

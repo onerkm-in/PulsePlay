@@ -92,6 +92,15 @@ const ENABLED_COMPONENTS_LEGACY_BOTH_MIGRATION_KEY = "pulseplay:enabled-componen
 
 export type UiMode = "pulse" | "v0";
 
+// Resolver import lives at the top of the readUiMode body's call site
+// rather than at file head to keep the dependency direction explicit:
+// settingsStore exports DEFAULT_UI_MODE + readTabVisibility; the
+// featureRegistry imports from settingsStore; settingsStore re-imports
+// resolveDefaultSurface from featureRegistry. The cycle is one-shot at
+// boot (resolveDefaultSurface is pure), so node/vite resolve it cleanly.
+// eslint-disable-next-line @typescript-eslint/no-use-before-define
+import { resolveDefaultSurface } from "../featureRegistry/resolver";
+
 /**
  * Single source of truth for the cold-boot default surface. Imported by
  * App.tsx readInitialUiMode(), settingsStore readUiMode(), and the wizard's
@@ -396,16 +405,28 @@ function validatePack(selection: PackSelection | null, allowlist: PulsePlayAllow
 // ─── Initial load + reconciliation ───────────────────────────────────────
 
 function readUiMode(): UiMode {
-    // Default sourced from DEFAULT_UI_MODE (single source of truth above).
-    // Both "pulse" and "v0" still parse so the DevTools escape hatch works
-    // in either direction. Mirrors App.tsx readInitialUiMode().
+    // ARCH-P1 slice 3 — delegate to the feature-registry resolver. The
+    // explicit override + DEFAULT_UI_MODE fallback contract from ARCH-P0
+    // is preserved (Step 1 + Step 5 of resolveDefaultSurface). Mirrors
+    // App.tsx readInitialUiMode() — both readers MUST stay in lockstep
+    // or the cold-boot surface flickers as one resolver hits before the
+    // other.
     if (typeof window === "undefined") return DEFAULT_UI_MODE;
+    let explicit: "pulse" | "v0" | null = null;
     try {
         const v = window.localStorage.getItem(KEY.uiMode);
-        if (v === "v0") return "v0";
-        if (v === "pulse") return "pulse";
+        if (v === "v0" || v === "pulse") explicit = v;
     } catch { /* swallow */ }
-    return DEFAULT_UI_MODE;
+    const resolved = resolveDefaultSurface({
+        explicitUiMode: explicit,
+        requiredFeatures: [],
+        tabVisibility: readTabVisibility(),
+    });
+    // Resolver can return "dashboard" (slice 3 candidate), but settingsStore
+    // uiMode field only holds "pulse" | "v0". Map dashboard → DEFAULT_UI_MODE
+    // for the legacy field; the dashboard tab is selected via tabVisibility
+    // + per-tab routing, not via the uiMode escape hatch.
+    return resolved === "dashboard" ? DEFAULT_UI_MODE : resolved;
 }
 
 function readEnabledComponents(): EnabledComponents {
@@ -481,7 +502,10 @@ function readPackSelection(): PackSelection | null {
     return null;
 }
 
-function readTabVisibility(): TabVisibility {
+/** Exported so App.tsx readInitialUiMode() can feed the same tab-visibility
+ *  snapshot into the feature-registry resolver. Pure read from localStorage —
+ *  no side effects, safe at boot. */
+export function readTabVisibility(): TabVisibility {
     if (typeof window === "undefined") return { ...DEFAULT_TAB_VISIBILITY };
     try {
         const raw = window.localStorage.getItem(KEY.tabVisibility);

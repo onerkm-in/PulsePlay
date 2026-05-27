@@ -5,6 +5,32 @@
 
 ---
 
+## 2026-05-27 - ARCH-P1 slice 3 SHIPPED — feature-feasibility registry + capability resolver
+
+**Scope.** Implement the signed-off handoff from earlier in this session ([research/ARCH_P1_SLICE_3_FEATURE_FEASIBILITY_REGISTRY_HANDOFF_2026-05-27.md](research/ARCH_P1_SLICE_3_FEATURE_FEASIBILITY_REGISTRY_HANDOFF_2026-05-27.md)) directly from §6 — no design revisit.
+
+**Shipped.**
+- 3 new files in `playground/src/featureRegistry/`:
+  - `types.ts` — `Surface = "pulse" | "v0" | "dashboard"`, `FeatureId` union (11 literals), `FeatureDescriptor` (with optional `runtimeGate` field), `SurfaceDescriptor`, `SURFACES` const, `FallbackHint` (slice 4 use).
+  - `manifest.ts` — `FEATURE_MANIFEST` with 11 entries: 5 cross-surface chat primitives (chat-composer / chat-history / frame-picker / trust-badge / surface-context-strip), 4 pulse-exclusive briefing-heritage features (executive-briefing / custom-sql-sections / briefing-exports / sustainability-orb), 1 dashboard-exclusive (bi-iframe-canvas), 1 runtime-gated (sectioned-chat → `isSectionedChatEnabled()`). Inlined the localStorage check rather than importing from UnifiedAssistantSurface to avoid a future cycle when slice 4's `<SwitchSurfaceAffordance/>` lives in v0 and reads the manifest.
+  - `resolver.ts` — `resolveDefaultSurface(args)` + `featureSupportsSurface(featureId, surface)`. Pure functions. Decision flow: explicit override → required-feature intersection → tabVisibility narrowing (single-visible-tab wins) → preferredSurface bias → DEFAULT_UI_MODE fallback.
+- `App.tsx readInitialUiMode()` and `settingsStore readUiMode()` both delegate to `resolveDefaultSurface`. The hardcoded "return DEFAULT_UI_MODE" path becomes the resolver's Step 5 fallback. `readTabVisibility` exported from settingsStore so App.tsx can feed the same snapshot.
+- `settingsStore.tsx` resolver import sits ABOVE the resolver's import of `DEFAULT_UI_MODE` from settingsStore — the cycle is one-shot at boot (resolveDefaultSurface is a function, not a top-level executor), so ESM live bindings handle it without TDZ trip.
+- 26 new unit tests (resolver × 18, manifest invariants × 8) including a compile-time `satisfies`-style assertion that every `FeatureId` literal has a matching descriptor.
+
+**Validation.** Playground lint clean. Tests 1646/1646 (was 1620, +26 new). Browser smoke verified all 4 scenarios end-to-end with 0 console errors:
+1. Cold boot, all tabs visible → v0 mounts (DEFAULT_UI_MODE fallback).
+2. Explicit `pulseplay:ui-mode = "pulse"` override → pulse mounts (escape hatch unchanged).
+3. Only Ask Pulse tab visible → v0 mounts (resolver narrows correctly).
+4. **Only AI Insights tab visible → pulse mounts** ⭐ — new resolver-driven behavior. Previously this would have ignored tabVisibility and mounted v0 (the hidden tab), which was a real silent bug.
+
+**Tripwires for next session.**
+- The dashboard surface IS a first-class `Surface` literal in the registry, but the legacy `uiMode` field still holds only `"pulse" | "v0"`. Both readers map `resolver returns "dashboard"` → DEFAULT_UI_MODE, then routing takes the user to the Dashboard tab via the tabVisibility-driven landing logic. Slice 4 may want to introduce a richer "active surface" state to represent dashboard directly.
+- Adding a feature requires TWO edits (FeatureId literal in types.ts + descriptor in manifest.ts). The compile-time `_AssertEveryFeatureIdHasDescriptor` in `manifest.test.ts` flags drift; the manifest count check (`expect(FEATURE_MANIFEST.length).toBe(11)`) will fail on any addition — update both intentionally.
+- `runtimeGate` is declared but NOT yet consumed by the resolver. Slice 4 wires it. Do NOT add a Step 6 to the resolver that consumes it without re-opening the §8 design decisions — the consume path is slice 4's responsibility, not slice 3's.
+
+---
+
 ## 2026-05-27 - ARCH-P1 slice 3 SCOPED + SIGNED OFF (no code yet)
 
 **Scope.** Produce a handoff doc the next coding session can implement directly from, without revisiting design. Slice 3 ships the feature-feasibility registry + capability resolver; the coding effort is 1.5–2 days but the design problem warranted its own focused session per `feedback_research_first.md`.
