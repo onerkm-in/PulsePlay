@@ -117,6 +117,7 @@ export function TopRightToolbar(props: TopRightToolbarProps): React.ReactElement
 
     return (
         <div
+            className="pp-top-right-toolbar"
             role="toolbar"
             aria-label="PulsePlay window controls"
             data-testid="pp-top-right-toolbar"

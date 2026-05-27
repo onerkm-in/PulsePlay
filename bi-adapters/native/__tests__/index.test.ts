@@ -85,15 +85,17 @@ describe("NativeBIAdapter — mount and lifecycle", () => {
         await mountAdapter(adapter, containerEl, {});
         const root = containerEl.querySelector<HTMLElement>("[data-native-bi-adapter='true']");
         expect(root).not.toBeNull();
-        // 2026-05-25 — empty-state copy revised from "Native result canvas
-        // / Ask Pulse a question to render the AI result here" to
-        // "AI chart canvas / ... Open the Ask Pulse tab and ask a question
-        // — the chart appears here." Vendor displayName above still
-        // reads "Native result canvas" — that's the vendor identity in
-        // settings, separate from the canvas's user-facing empty state.
-        expect(root?.textContent).toContain("AI chart canvas");
+        // 2026-05-27 — empty-state copy updated again as part of the
+        // uniformity pass: the canvas now reads "Pulse Canvas" instead
+        // of "AI chart canvas" so the three surfaces use one vocabulary.
+        // Vendor displayName above still reads "Native result canvas" —
+        // that's the vendor identity in settings, separate from the
+        // canvas's user-facing empty state.
+        expect(root?.textContent).toContain("Pulse Canvas");
         expect(root?.textContent).toContain("Ask Pulse");
-        expect(root?.textContent).toContain("tab and ask a question");
+        // 2026-05-27 — copy updated from "tab and ask a question" to the
+        // uniformity-pass phrasing that explains the two Dashboard modes.
+        expect(root?.textContent).toContain("Dashboard tab when connected");
     });
 
     test("emits loaded and ready events on mount", async () => {
@@ -193,7 +195,7 @@ describe("NativeBIAdapter — command surface", () => {
         await mountAdapter(adapter, containerEl, {});
 
         await expect(sendAdapter(adapter, { kind: "renderResult", result: { rows: [] } })).resolves.toBeUndefined();
-        expect(containerEl.textContent).toContain("AI result accepted");
+        expect(containerEl.textContent).toContain("Pulse artifact received");
         await expect(sendAdapter(adapter, { kind: "renderSpec", spec: { mark: "bar" } })).resolves.toBeUndefined();
         expect(containerEl.textContent).toContain("Chart spec could not be rendered");
         expect(containerEl.textContent).toContain("Spec must define data.values");
@@ -260,7 +262,7 @@ describe("NativeBIAdapter — G3 governance render gate", () => {
         await expect(sendAdapter(adapter, { kind: "renderResult", result: VALID_GOVERNED_RESULT }))
             .resolves.toBeUndefined();
 
-        expect(containerEl.textContent).toContain("AI result accepted");
+        expect(containerEl.textContent).toContain("Pulse artifact received");
         expect(containerEl.querySelector("[data-native-bi-adapter='true']")?.getAttribute("data-native-governance"))
             .toBe("enforced");
         expect(events[0].payload).toMatchObject({

@@ -496,9 +496,9 @@ function EmptyState(): React.ReactElement {
     // the originating tab so the user knows exactly where to go.
     return (
         <div className="pp-native-bi__empty" style={emptyMessageStyle}>
-            <strong style={titleStyle}>AI chart canvas</strong>
+            <strong style={titleStyle}>Pulse Canvas</strong>
             <span data-native-bi-status="empty">
-                This canvas displays AI-generated charts. Open the <b>Ask Pulse</b> tab and ask a question — the chart appears here.
+                Ask Pulse can render governed charts, tables, KPIs, and narratives here. Embedded BI reports use the same Dashboard tab when connected.
             </span>
         </div>
     );
@@ -550,7 +550,7 @@ function SpecChartState({
     const mark = typeof spec.mark === "string" ? spec.mark : spec.mark.type;
     return (
         <div className="pp-native-bi__spec" style={{ width: "100%", height: "100%" }}>
-            <strong style={{ ...titleStyle, marginBottom: "4px" }}>Chart render spec accepted.</strong>
+            <strong style={{ ...titleStyle, marginBottom: "4px" }}>Pulse chart</strong>
             <EChartsOptionView
                 option={option}
                 chartKind={spec.chartType ?? mark}
@@ -562,12 +562,10 @@ function SpecChartState({
 
 function AcceptedFallback(): React.ReactElement {
     // Used when the adapter accepted a result whose envelope shape is
-    // not renderable (no rows, malformed schema, etc.). Preserves the
-    // "AI result accepted" telemetry signal that downstream tests +
-    // observers depend on.
+    // not renderable (no rows, malformed schema, etc.).
     return (
         <div className="pp-native-bi__accepted" style={textBlockStyle}>
-            <strong style={titleStyle}>AI result accepted.</strong>
+            <strong style={titleStyle}>Pulse artifact received</strong>
             <p style={mutedParagraphStyle}>(no renderable rows)</p>
         </div>
     );
@@ -591,7 +589,7 @@ function PreviewBadge(): React.ReactElement {
 function TextState({ answer }: { answer: string }): React.ReactElement {
     return (
         <div className="pp-native-bi__text" style={textBlockStyle}>
-            <strong style={titleStyle}>AI result accepted.</strong>
+            <strong style={titleStyle}>Pulse narrative</strong>
             <p style={{ marginTop: "8px", whiteSpace: "pre-wrap", color: "var(--pp-text, #0f172a)" }}>
                 {answer || "(no answer text)"}
             </p>
@@ -610,7 +608,7 @@ function TableState({ envelope }: { envelope: AIResultEnvelope }): React.ReactEl
     const visibleRows = rows.slice(0, CAP);
     return (
         <div className="pp-native-bi__table" style={{ width: "100%", overflow: "auto" }}>
-            <strong style={titleStyle}>AI result accepted.</strong>
+            <strong style={titleStyle}>Pulse table</strong>
             <table
                 style={{ width: "100%", borderCollapse: "collapse", marginTop: "8px", fontSize: "13px" }}
                 data-testid="pp-native-bi-table"
@@ -703,7 +701,7 @@ function KpiState({ envelope }: { envelope: AIResultEnvelope }): React.ReactElem
                 padding: "12px",
             }}
         >
-            <strong style={titleStyle}>AI result accepted.</strong>
+            <strong style={titleStyle}>Pulse KPI</strong>
             <span
                 style={{
                     fontSize: "13px",
@@ -756,7 +754,7 @@ function ChartState({
     return (
         <div className="pp-native-bi__chart-wrap" style={{ width: "100%", height: "100%", position: "relative" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                <strong style={titleStyle}>AI result accepted.</strong>
+                <strong style={titleStyle}>Pulse chart</strong>
                 <ChartRationalePill
                     columns={columns}
                     rows={rows}
@@ -912,12 +910,18 @@ function clusteredBarOption(shape: DataShape): EChartsOption {
 
 // ─── Local styles (inline so the canvas works without a CSS bundle) ──────
 
+// 2026-05-26 — was alignSelf: "center" which dropped the "AI chart
+// canvas" empty-state copy in the vertical middle of the (tall) grid
+// parent, with ~500px of dead space above and below. Anchor to the top
+// of the grid so the empty-state message reads immediately under the
+// tab strip, matching the Ask Pulse + AI Insights top-anchor fixes.
 const emptyMessageStyle: React.CSSProperties = {
     maxWidth: 460,
     textAlign: "center",
     color: "var(--pp-text-muted, #475569)",
-    alignSelf: "center",
+    alignSelf: "start",
     justifySelf: "center",
+    marginTop: 56,
 };
 
 const titleStyle: React.CSSProperties = {

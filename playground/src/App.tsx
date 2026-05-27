@@ -122,7 +122,7 @@ type BiTileMode = "1" | "2" | "4";
 const BI_VENDOR_STORAGE_KEY = "pulseplay:bi-vendor";
 type ViewportPane = "ai" | "bi";
 type ViewportFocus = ViewportPane | null;
-type PulseSurfaceTab = "insights" | "chat";
+type PulseSurfaceTab = "insights" | "chat" | "dashboard";
 type MixSurface = "ai" | "bi";
 const ACTIVE_SURFACE_STORAGE_KEY = "pulseplay:active-surface";
 const ACTIVE_SURFACE_URL_PARAM = "surface";
@@ -298,7 +298,13 @@ function readInitialViewportFocus(): ViewportFocus {
 function readSurfaceFromUrl(): SurfaceId | null {
     if (typeof window === "undefined") return null;
     try {
-        const value = new URL(window.location.href).searchParams.get(ACTIVE_SURFACE_URL_PARAM);
+        const raw = new URL(window.location.href).searchParams.get(ACTIVE_SURFACE_URL_PARAM);
+        // 2026-05-27 — URL alias map. Internal SurfaceId is `bi-viz` (Pulse
+        // heritage name), but the user-facing tab label + showcase URLs use
+        // the friendlier `dashboard`. Accept either; canonicalise to the
+        // internal id before validating. Without this, `?surface=dashboard`
+        // silently fell through to the AI Insights default.
+        const value = raw === "dashboard" ? "bi-viz" : raw;
         return isSurfaceId(value) ? value : null;
     } catch { /* swallow */ }
     return null;
@@ -320,6 +326,7 @@ function surfaceToMixSurface(surface: SurfaceId): MixSurface {
 function surfaceToPulseTab(surface: SurfaceId): PulseSurfaceTab | null {
     if (surface === "ask-pulse") return "chat";
     if (surface === "ai-insights") return "insights";
+    if (surface === "bi-viz") return "dashboard";
     return null;
 }
 
@@ -417,10 +424,20 @@ export function App(): React.ReactElement {
 }
 
 function ReactQueryDevtoolsHost(): React.ReactElement | null {
-    const [Devtools, setDevtools] = useState<ComponentType<{ initialIsOpen?: boolean }> | null>(null);
+    // 2026-05-26 — opt-in via `pulseplay:rq-devtools=1` localStorage flag.
+    // The default-on dev launcher button overlapped the Ask Pulse composer
+    // CTAs (bottom-right collided with Send; bottom-left collided with the
+    // textarea placeholder). Most dev work doesn't actually use the React
+    // Query panel — when you do, set the flag and reload. This keeps the
+    // user-facing chat surface clean without removing the capability.
+    const [Devtools, setDevtools] = useState<ComponentType<{ initialIsOpen?: boolean; buttonPosition?: "top-left" | "top-right" | "bottom-left" | "bottom-right" | "relative" }> | null>(null);
 
     useEffect(() => {
         if (!import.meta.env.DEV || import.meta.env.MODE === "test") return;
+        try {
+            if (typeof window === "undefined") return;
+            if (window.localStorage.getItem("pulseplay:rq-devtools") !== "1") return;
+        } catch { return; }
         let cancelled = false;
         void import("@tanstack/react-query-devtools").then((mod) => {
             if (!cancelled) setDevtools(() => mod.ReactQueryDevtools);
@@ -428,7 +445,7 @@ function ReactQueryDevtoolsHost(): React.ReactElement | null {
         return () => { cancelled = true; };
     }, []);
 
-    return Devtools ? <Devtools initialIsOpen={false} /> : null;
+    return Devtools ? <Devtools initialIsOpen={false} buttonPosition="top-left" /> : null;
 }
 
 /** Renders <SettingsShell /> when the URL is /settings*, <KnowledgeShell />
@@ -1220,6 +1237,26 @@ function PlaygroundApp(): React.ReactElement {
         runtimeBiVendorRef.current = runtimeBiVendor;
     }, [runtimeBiVendor]);
     const hasRenderableBiSurface = biSurfaceResolution.usesNative || hasEmbedConfig;
+    const dashboardSurfaceMode = biSurfaceResolution.usesNative
+        ? "Pulse Canvas"
+        : hasEmbedConfig
+            ? "Embedded BI"
+            : "No surface connected";
+    const dashboardVendorLabel = useMemo(() => {
+        if (biSurfaceResolution.usesNative || runtimeBiVendor === "native") return "Pulse Canvas";
+        return visibleVendors.find(v => v.vendor === runtimeBiVendor)?.displayName || runtimeBiVendor;
+    }, [biSurfaceResolution.usesNative, runtimeBiVendor, visibleVendors]);
+    const dashboardAssistantLabel = pulseAssistantProfile || activeConnector || "No assistant";
+    const dashboardPackLabel = packSelection?.pack
+        ? packSelection.subVertical
+            ? `${packSelection.pack} / ${packSelection.subVertical}`
+            : packSelection.pack
+        : "No pack selected";
+    const dashboardTrustLabel = allowlistFailClosed
+        ? "Locked"
+        : allowlistState.error
+            ? "Governance warning"
+            : "Governed";
     const setupReadiness = getSetupReadiness({
         biVendor: runtimeBiVendor,
         embedConfig,
@@ -1386,9 +1423,6 @@ function PlaygroundApp(): React.ReactElement {
             >
                 <div>
                     <h1 style={{ margin: 0, fontSize: 22, lineHeight: 1.1 }}>PulsePlay</h1>
-                    <p style={{ margin: "2px 0 0", fontSize: 11, opacity: 0.7 }}>
-                        AI playground · multi-BI host
-                    </p>
                 </div>
                 <SetupStatusPill readiness={setupReadiness} />
             </header>
@@ -1523,8 +1557,18 @@ function PlaygroundApp(): React.ReactElement {
                 ) : null}
                 mainLayoutSlot={(
             <SplitLayout
-                aiVisible={floatedPane === "ai" ? false : mountedAiVisible}
-                biVisible={floatedPane === "ai" ? true : mountedBiVisible}
+                // 2026-05-25 — DUPLICATIVE DETACH (mirroring): when a pane
+                // is popped out (floatedPane set), keep it visible in its
+                // main slot too instead of relocating. Per design doc D5
+                // + user direction, the floating pane should be a copy/
+                // mirror of the original. True per-pane state isolation
+                // (so typing in one doesn't echo to the other) is the
+                // Phase C runtime work — pane registry keyed by paneId,
+                // independent React roots per PaneInstance, etc. For now
+                // they share state but the main slot no longer goes
+                // empty when you Pop-out.
+                aiVisible={mountedAiVisible}
+                biVisible={mountedBiVisible}
                 layoutMode={layoutMode}
                 focusedPane={focusedPane}
                 aiContent={(
@@ -1657,6 +1701,13 @@ function PlaygroundApp(): React.ReactElement {
                         }
                     >
                         <main className="pp-app__canvas" style={{ ...panelInnerStyle(), display: "flex", flexDirection: "column" }}>
+                            <DashboardSurfaceContextStrip
+                                mode={dashboardSurfaceMode}
+                                vendor={dashboardVendorLabel}
+                                assistant={dashboardAssistantLabel}
+                                pack={dashboardPackLabel}
+                                trust={dashboardTrustLabel}
+                            />
                             {/* UX-ARCH-0B.2 Phase A — Power BI Developer Tools
                                 strip is now gated behind a localStorage flag
                                 instead of always-on for PBI authors. Settings
@@ -1714,28 +1765,28 @@ function PlaygroundApp(): React.ReactElement {
                                             },
                                             testid: "pp-dashboard-empty-secondary-cta",
                                         };
-                                        if (aiVisible) {
-                                            // AI pane already mounted alongside — the empty
-                                            // state guides the user to wire up the BI surface
-                                            // so all three peer surfaces fill out.
-                                            const description = uiMode === "pulse"
-                                                ? "Use the Setup pill to pick the BI tool you're embedding (Y-axis) and the AI assistant that reasons about it (X-axis). They're independent — any combination works."
-                                                : "Choose a vendor on the left, fill in its embed config, and the AI assistant will reason about whatever you load.";
-                                            return (
-                                                <PaneEmptyState
-                                                    testid="pp-dashboard-empty"
-                                                    icon={DashboardIcon}
-                                                    heading="Dashboard"
-                                                    description={description}
-                                                    capabilities={[
-                                                        "Your BI report renders here as the canvas",
-                                                        "AI Insights briefs you across the visible data",
-                                                        "Ask Pulse answers follow-ups in plain English",
-                                                        "All three surfaces stay in sync as you switch",
-                                                    ]}
-                                                    primaryAction={primaryAction}
-                                                    secondaryAction={secondaryAction}
-                                                    hint={vendorHint}
+                                         if (aiVisible) {
+                                             // AI pane already mounted alongside — the empty
+                                             // state guides the user to wire up the BI surface
+                                             // so all three peer surfaces fill out.
+                                             const description = uiMode === "pulse"
+                                                 ? "Dashboard is the shared data canvas. It can host an embedded BI report or show Pulse Canvas artifacts created from Ask Pulse."
+                                                 : "Choose a BI vendor and embed config, or use Pulse Canvas for governed AI-generated charts, tables, and KPIs.";
+                                             return (
+                                                 <PaneEmptyState
+                                                     testid="pp-dashboard-empty"
+                                                     icon={DashboardIcon}
+                                                     heading="Dashboard"
+                                                     description={description}
+                                                     capabilities={[
+                                                         "Embedded BI mode hosts reports from allowlisted vendors",
+                                                         "Pulse Canvas mode shows AI-generated artifacts",
+                                                         "AI Insights and Ask Pulse use the same context language",
+                                                         "Source, scope, assistant, and trust stay visible",
+                                                     ]}
+                                                     primaryAction={primaryAction}
+                                                     secondaryAction={secondaryAction}
+                                                     hint={vendorHint}
                                                 />
                                             );
                                         }
@@ -1745,26 +1796,26 @@ function PlaygroundApp(): React.ReactElement {
                                         // the user knows the AI surfaces are one click away
                                         // in the switcher above. 2026-05-19 BI-only mode fix.
                                         return (
-                                            <PaneEmptyState
-                                                testid="pp-dashboard-empty"
-                                                icon={DashboardIcon}
-                                                heading="Dashboard"
-                                                description={
-                                                    <>
-                                                        Pick a BI tool and paste its embed URL — your report appears
-                                                        here as one of the peer surfaces alongside AI Insights and
-                                                        Ask Pulse. Switch between them any time with the surface
-                                                        switcher above.
-                                                    </>
-                                                }
-                                                capabilities={[
-                                                    "Embedded BI report renders in this canvas",
-                                                    "AI Insights surfaces a briefing across the data",
-                                                    "Ask Pulse answers follow-up questions",
-                                                    "All within the same shell — no tab switching",
-                                                ]}
-                                                primaryAction={primaryAction}
-                                                secondaryAction={secondaryAction}
+                                                 <PaneEmptyState
+                                                     testid="pp-dashboard-empty"
+                                                     icon={DashboardIcon}
+                                                     heading="Dashboard"
+                                                     description={
+                                                         <>
+                                                         Dashboard is the same workspace surface whether it is showing
+                                                         an embedded BI report or Pulse Canvas output from Ask Pulse.
+                                                         Wire a vendor, then switch between Dashboard, AI Insights,
+                                                         and Ask Pulse without losing context.
+                                                         </>
+                                                     }
+                                                     capabilities={[
+                                                         "Embedded BI mode hosts Power BI, Tableau, Qlik, Looker, Databricks AI/BI, or iframe surfaces",
+                                                         "Pulse Canvas mode shows AI-generated charts, tables, and KPIs",
+                                                         "AI Insights turns the same scope into an executive briefing",
+                                                         "Ask Pulse carries the same source, scope, assistant, and trust",
+                                                     ]}
+                                                     primaryAction={primaryAction}
+                                                     secondaryAction={secondaryAction}
                                                 hint={vendorHint}
                                             />
                                         );
@@ -1807,6 +1858,37 @@ function PlaygroundApp(): React.ReactElement {
                 ) : null}
             />)}
             </div>
+        </div>
+    );
+}
+
+function DashboardSurfaceContextStrip(props: {
+    mode: string;
+    vendor: string;
+    assistant: string;
+    pack: string;
+    trust: string;
+}): React.ReactElement {
+    const items = [
+        { label: "Source", value: props.vendor },
+        { label: "Assistant", value: props.assistant },
+        { label: "Pack", value: props.pack },
+        { label: "Trust", value: props.trust },
+    ];
+    return (
+        <div className="pp-surface-context" role="group" aria-label="Dashboard context">
+            <div className="pp-surface-context__primary">
+                <span className="pp-surface-context__label">Surface</span>
+                <span className="pp-surface-context__value">Dashboard</span>
+                <span className="pp-surface-context__divider" aria-hidden="true" />
+                <span className="pp-surface-context__value">{props.mode}</span>
+            </div>
+            {items.map(item => (
+                <div className="pp-surface-context__item" key={item.label}>
+                    <span className="pp-surface-context__label">{item.label}</span>
+                    <span className="pp-surface-context__value">{item.value}</span>
+                </div>
+            ))}
         </div>
     );
 }

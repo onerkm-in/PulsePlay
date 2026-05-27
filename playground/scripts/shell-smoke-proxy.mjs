@@ -315,9 +315,10 @@ async function runSmoke(baseUrl) {
         await page.waitForSelector("[data-testid^='pp-ai-entry-'][data-status='completed']", { timeout: SMOKE_TIMEOUT_MS });
 
         // FW1 — wait for the native canvas to paint. The proxy fixture's
-        // 4-row queryResult auto-picks to a line chart, so the chart
-        // testid + an ECharts <canvas> child should both appear once
-        // App.tsx's `handleEntryCompleted` dispatches the envelope.
+        // 4-row queryResult currently auto-picks to a donut under the
+        // shared chart policy. The chart testid + an ECharts <canvas>
+        // child should both appear once App.tsx's `handleEntryCompleted`
+        // dispatches the envelope.
         await page.waitForSelector("[data-testid='pp-native-bi-chart'] canvas", { timeout: SMOKE_TIMEOUT_MS });
 
         snapshot = await page.evaluate(() => {

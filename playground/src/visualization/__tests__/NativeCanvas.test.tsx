@@ -104,10 +104,10 @@ describe("NativeCanvas — non-envelope modes", () => {
         const root = container.querySelector<HTMLElement>("[data-native-bi-adapter='true']");
         expect(root).not.toBeNull();
         expect(root?.getAttribute("data-native-bi-status")).toBe("empty");
-        expect(root?.textContent).toContain("AI chart canvas");
-        expect(root?.textContent).toContain("Open the");
+        expect(root?.textContent).toContain("Pulse Canvas");
+        expect(root?.textContent).toContain("governed charts");
         expect(root?.textContent).toContain("Ask Pulse");
-        expect(root?.textContent).toContain("tab and ask a question");
+        expect(root?.textContent).toContain("same Dashboard tab");
         expect(root?.hasAttribute("data-native-governance")).toBe(false);
         unmountAndDetach(handle, container);
     });
@@ -122,7 +122,7 @@ describe("NativeCanvas — non-envelope modes", () => {
         });
         const root = container.querySelector<HTMLElement>("[data-native-bi-adapter='true']");
         expect(root?.getAttribute("data-native-bi-status")).toBe("spec-accepted");
-        expect(root?.textContent).toContain("Chart render spec accepted");
+        expect(root?.textContent).toContain("Pulse chart");
         expect(container.querySelector("[data-testid='pp-native-bi-spec-chart']")).not.toBeNull();
         unmountAndDetach(handle, container);
     });
@@ -168,7 +168,7 @@ describe("NativeCanvas — non-envelope modes", () => {
         });
         const root = container.querySelector<HTMLElement>("[data-native-bi-adapter='true']");
         expect(root?.getAttribute("data-native-governance")).toBe("enforced");
-        expect(root?.textContent).toContain("AI result accepted");
+        expect(root?.textContent).toContain("Pulse artifact received");
         expect(root?.textContent).toContain("(no renderable rows)");
         unmountAndDetach(handle, container);
     });
@@ -293,10 +293,9 @@ describe("NativeCanvas — envelope-driven viz states", () => {
             governanceState: enforcedAttestation(),
         });
         const root = container.querySelector("[data-native-bi-adapter='true']");
-        // empty schema/rows → resultToVizIntent treats as text+answer →
-        // AcceptedFallback renders (no schema to drive a richer view).
-        // Both pathways preserve the "AI result accepted" signal.
-        expect(root?.textContent).toContain("AI result accepted");
+        // empty schema/rows -> resultToVizIntent treats as text+answer,
+        // which renders as a Pulse narrative artifact.
+        expect(root?.textContent).toContain("Pulse narrative");
         unmountAndDetach(handle, container);
     });
 });

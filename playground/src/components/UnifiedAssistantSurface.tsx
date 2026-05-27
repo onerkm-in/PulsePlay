@@ -1090,7 +1090,7 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
                         rows={3}
                         value={question}
                         onChange={(e) => setQuestion(e.target.value)}
-                        placeholder="Ask about the loaded view…"
+                        placeholder={props.recentEvents.length > 0 ? "Ask about the loaded view…" : "Ask Pulse anything about your data…"}
                         onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) void ask(); }}
                     />
                     <div className="pp-ai-sidebar__buttons" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -1102,31 +1102,38 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
                         >
                             Ask
                         </button>
-                        <button
-                            type="button"
-                            className="pp-ai-sidebar__stop"
-                            onClick={() => {
-                                // Stop the most recent in-flight entry. There's
-                                // usually only one because the textarea blocks
-                                // until the user submits the next question.
-                                const inFlight = [...history].reverse().find(
-                                    h => h.status === "submitting" || h.status === "polling",
-                                );
-                                if (inFlight) stopEntry(inFlight.id, "stopped by user");
-                            }}
-                            disabled={!hasInFlight}
-                            style={{
-                                padding: "6px 12px",
-                                border: "1px solid var(--pp-border)",
-                                background: "var(--pp-surface)",
-                                color: "var(--pp-text)",
-                                borderRadius: 4,
-                                fontSize: 12,
-                                cursor: hasInFlight ? "pointer" : "not-allowed",
-                            }}
-                        >
-                            Stop
-                        </button>
+                        {/* 2026-05-26 — hide (not just disable) the composer
+                            Stop when nothing is in flight. The greyed-out
+                            button next to the blue Ask CTA on an idle
+                            screen looked like an inert affordance and made
+                            users wonder what it was for. The per-entry
+                            Stop inside the answer card stays — that's the
+                            contextual one. This composer Stop only appears
+                            as a backup when an entry is scrolled out of
+                            view but the user wants to abort. */}
+                        {hasInFlight && (
+                            <button
+                                type="button"
+                                className="pp-ai-sidebar__stop"
+                                onClick={() => {
+                                    const inFlight = [...history].reverse().find(
+                                        h => h.status === "submitting" || h.status === "polling",
+                                    );
+                                    if (inFlight) stopEntry(inFlight.id, "stopped by user");
+                                }}
+                                style={{
+                                    padding: "6px 12px",
+                                    border: "1px solid var(--pp-border)",
+                                    background: "var(--pp-surface)",
+                                    color: "var(--pp-text)",
+                                    borderRadius: 4,
+                                    fontSize: 12,
+                                    cursor: "pointer",
+                                }}
+                            >
+                                Stop
+                            </button>
+                        )}
                     </div>
                 </div>
                 {/* UX-ARCH-0B.2 follow-up 2026-05-23 — sustainability chip
@@ -1178,12 +1185,23 @@ function AnswerEntryView(props: {
                 // Audit 2026-05-19 P2-11: aria-live so screen-reader users
                 // hear that work is in flight; without it the spinner state
                 // was invisible to assistive tech.
+                // 2026-05-26 visual upgrade: bare "Submitting…" italic
+                // text gave no indication anything was happening. For 1s+
+                // proxy round trips users would assume the app was frozen.
+                // Added an inline animated dot triplet that bounces in
+                // sequence so there's always visible motion while the
+                // submit POST is in flight.
                 <div
-                    className="pp-ai-sidebar__pending"
+                    className="pp-ai-sidebar__pending pp-ai-sidebar__pending--submitting"
                     role="status"
                     aria-live="polite"
                 >
-                    Submitting…
+                    <span aria-hidden="true" style={{ display: "inline-flex", gap: 3, marginRight: 6, verticalAlign: "middle" }}>
+                        <span className="pp-ai-dot" style={{ animationDelay: "0ms" }} />
+                        <span className="pp-ai-dot" style={{ animationDelay: "180ms" }} />
+                        <span className="pp-ai-dot" style={{ animationDelay: "360ms" }} />
+                    </span>
+                    Submitting your question…
                 </div>
             )}
             {entry.status === "polling" && (() => {

@@ -191,6 +191,88 @@ html, body, #root {
     background: transparent;
 }
 
+.pp-surface-context {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--pp-border-subtle, #e4e9ef);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(248, 250, 252, 0.94));
+    color: var(--pp-text-muted);
+    font-size: 11px;
+    line-height: 1.25;
+}
+
+.pp-surface-context__primary,
+.pp-surface-context__item {
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border: 1px solid var(--pp-border-subtle, #e4e9ef);
+    border-radius: 999px;
+    background: var(--pp-surface, #fff);
+}
+
+.pp-surface-context__primary {
+    border-color: var(--pp-accent-border, rgba(37, 99, 235, 0.30));
+    background: var(--pp-accent-subtle, rgba(37, 99, 235, 0.10));
+}
+
+.pp-surface-context__label {
+    flex: 0 0 auto;
+    color: var(--pp-text-muted);
+    font-weight: 600;
+}
+
+.pp-surface-context__value {
+    min-width: 0;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--pp-text);
+    font-weight: 650;
+}
+
+.pp-surface-context__divider {
+    width: 1px;
+    height: 12px;
+    background: var(--pp-border, #d0d7de);
+}
+
+@media (max-width: 640px) {
+    .pp-top-right-toolbar {
+        display: none !important;
+    }
+
+    .pp-surface-context {
+        padding: 8px 10px;
+    }
+
+    .pp-surface-context__primary,
+    .pp-surface-context__item {
+        flex: 1 1 150px;
+    }
+
+    /* 2026-05-27 — Surface+mode pill packs two values + divider. Give it the
+       FULL row on mobile so "Dashboard | Pulse Canvas" doesn't truncate to
+       "Dashbo... | Pulse Ca...". Mirrors the same fix in visual.less for
+       the Pulse-side context strip. */
+    .pp-surface-context__primary {
+        flex: 1 1 100%;
+    }
+
+    .pp-surface-context__value {
+        max-width: none;
+        white-space: normal;
+        flex-shrink: 0;
+    }
+}
+
 .pp-app__brand h1 {
     margin: 0;
     font-size: var(--pp-text-2xl);
@@ -372,7 +454,17 @@ html, body, #root {
 
 /* ── AI Sidebar (v0 fallback) ────────────────────────────────────── */
 .pp-ai-sidebar {
-    margin-top: auto;
+    /* 2026-05-26 — drop `margin-top: auto`. It was load-bearing back
+       when v0 mode also rendered VendorPicker / EmbedConfigForm /
+       PackPicker above the assistant; the UX-ARCH-0B.2 Phase A audit
+       (App.tsx:1593) removed those, so with this surface as the only
+       sidebar child, margin-top:auto pushed the whole 158px component
+       to the bottom of an 849px parent — leaving ~690px of blank
+       canvas above (the "black/white page" UI regression Rajesh
+       caught 2026-05-26). Instead fill the parent vertically so the
+       chat thread + composer occupy the natural top-to-bottom space. */
+    flex: 1 1 auto;
+    min-height: 0;
     border-top: 1px solid var(--pp-border-subtle);
     padding-top: var(--pp-s3);
     display: flex;
@@ -385,7 +477,13 @@ html, body, #root {
     display: flex;
     flex-direction: column;
     gap: var(--pp-s2);
-    max-height: 280px;
+    /* 2026-05-26 — was `max-height: 280px;` (hard cap that left a giant
+       gap below in tall viewports). Switch to flex-grow so the history
+       fills the available height between header and composer, and add
+       `min-height: 0` so the overflow:auto actually scrolls instead of
+       blowing past the flex parent. */
+    flex: 1 1 auto;
+    min-height: 80px;
     overflow-y: auto;
 }
 .pp-ai-sidebar__entry {
@@ -399,6 +497,28 @@ html, body, #root {
 .pp-ai-sidebar__q    { margin-bottom: var(--pp-s1); font-weight: 500; }
 .pp-ai-sidebar__a    { margin-top: var(--pp-s1); color: var(--pp-text-muted); }
 .pp-ai-sidebar__pending { font-style: italic; color: var(--pp-text-muted); }
+/* 2026-05-26 — animated bounce-dot loader paired with the "Submitting…"
+   state so the UI shows visible motion while the proxy POST is in flight.
+   Without this users assumed the app was frozen during 1-3s submit lag. */
+.pp-ai-dot {
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--pp-accent, #2563eb);
+    animation: pp-ai-dot-bounce 0.9s ease-in-out infinite;
+}
+@keyframes pp-ai-dot-bounce {
+    0%, 80%, 100% { transform: scale(0.6); opacity: 0.5; }
+    40%           { transform: scale(1);   opacity: 1;   }
+}
+.pp-ai-sidebar__pending--submitting {
+    font-style: normal;
+    color: var(--pp-text, #0f172a);
+    display: flex;
+    align-items: center;
+    padding: 6px 0;
+}
 .pp-ai-sidebar__error   { color: var(--pp-error); margin-top: var(--pp-s1); }
 .pp-ai-sidebar__composer {
     display: flex;
@@ -487,13 +607,18 @@ html, body, #root {
  * `.pp-empty-state*` classes mirror the `.gn-insights-placeholder` /
  * `.gn-cta-*` rules in pulse/style/visual.less so the look is identical
  * whether Pulse styles are loaded (mix / pulse mode) or not (biOnly). */
+/* 2026-05-26 — anchor to top instead of vertically centering. This rule
+   drives Dashboard's "AI chart canvas" cold-start state which previously
+   floated mid-viewport with ~500px of dead space above and below.
+   Matches the .gn-insights-placeholder + .gn-welcome top-anchor fix so
+   every empty state across the three tabs is visually consistent. */
 .pp-empty-state {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     text-align: center;
-    padding: 48px 16px;
+    padding: 56px 16px 16px;
     color: var(--pp-text-muted);
     width: 100%;
     max-width: 520px;

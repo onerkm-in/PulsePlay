@@ -24,8 +24,8 @@
             builds can drop it. CSP `meta` cannot set frame-ancestors —
             for clickjacking defence set X-Frame-Options at the edge.
         -->
-        <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://login.microsoftonline.com https://*.msauth.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' http://127.0.0.1:8787 https://login.microsoftonline.com https://*.microsoftonline.com https://login.live.com https://graph.microsoft.com https://api.powerbi.com https://analysis.windows.net; frame-src 'self' https://app.powerbi.com https://*.powerbi.com https://login.microsoftonline.com https://*.tableau.com https://*.qlikcloud.com https://*.looker.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self';" />
-        <title>PulsePlay — Multi-BI AI Playground</title>
+        <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://login.microsoftonline.com https://*.msauth.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' http://127.0.0.1:8787 https://login.microsoftonline.com https://*.microsoftonline.com https://login.live.com https://graph.microsoft.com https://api.powerbi.com https://analysis.windows.net https://*.cloud.databricks.com https://*.azuredatabricks.net; frame-src 'self' https://app.powerbi.com https://*.powerbi.com https://login.microsoftonline.com https://*.tableau.com https://*.qlikcloud.com https://*.looker.com https://*.cloud.databricks.com https://*.azuredatabricks.net; worker-src 'self' blob:; object-src 'none'; base-uri 'self';" />
+        <title>PulsePlay</title>
     </head>
     <body>
         <div id="root"></div>

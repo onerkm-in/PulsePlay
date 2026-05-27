@@ -60,8 +60,13 @@ export interface PulseShellProps {
      *  filter targets (e.g. `powerbi`, `tableau`). Default `bi`. */
     biVendor?: string;
     /** App-owned surface navigation can request the internal Pulse tab
-     *  after returning from BI Viz in unified mode. */
-    activeTabRequest?: "insights" | "chat";
+     *  after returning from BI Viz in unified mode.
+     *  2026-05-27 — widened to include "dashboard" to match the
+     *  PulseSurfaceTab union in App.tsx; visual.tsx already renders a
+     *  Dashboard tab (`gn-tab-dashboard`) so this is a real value the
+     *  shell can be asked to surface. Without this widening, lint + build
+     *  failed (Codex audit P0). */
+    activeTabRequest?: "insights" | "chat" | "dashboard";
 }
 
 export function PulseShell(props: PulseShellProps) {
@@ -208,7 +213,13 @@ export function PulseShell(props: PulseShellProps) {
                 maxWidth: "100%",
                 height: "100%",
                 minWidth: 0,
-                minHeight: 600,
+                // 2026-05-26 — was hardcoded 600. At mobile-landscape
+                // (e.g. 667×375), this forced the shell taller than the
+                // viewport so the composer got pushed off-screen.
+                // Switched to 0; the chat-panel flex chain already keeps
+                // content visible, and CSS @media rules in visual.less
+                // tighten the welcome-state padding when height ≤ 480.
+                minHeight: 0,
                 // 2026-05-20 dual-scrollbar fix: Pulse's own panes (e.g.
                 // `.gn-insights-pane`, `.gn-chat-area`) already manage their
                 // internal scroll via `overflow-y: auto`. When we ALSO

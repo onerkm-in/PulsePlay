@@ -82,6 +82,7 @@ import { SetupWizard, shouldShowWizard, WizardDraft } from "./setupWizard";
 // and here so users get the same "Why this chart?" affordance whether they're
 // looking at the native canvas or the Ask Pulse chart tab.
 import { ChartRationalePill } from "../visualization/ChartRationalePill";
+import { renderMarkdown } from "../lib/renderMarkdown";
 import {
     ALL_FILTER_VALUE,
     AREA_PROMPTS,
@@ -627,6 +628,17 @@ interface ChatMessageViewModel extends GenieMessage {
     sourceQuestion?: string;
     statusSteps?: string[];
     currentStatus?: string;
+    /** 2026-05-26 — raw upstream status from the Databricks Genie poll
+     *  loop (e.g. "PENDING_WAREHOUSE", "EXECUTING_QUERY", "ASKING_AI",
+     *  "COMPLETED"). Kept alongside the friendly `currentStatus` so the
+     *  progress card can surface what Databricks is actually doing for
+     *  power users + debugging. */
+    currentStatusRaw?: string;
+    /** 2026-05-26 — append-only log of (rawStatus, timestamp) tuples as
+     *  the Genie poll loop streams. Surfaces inside the progress card's
+     *  "Databricks trace" disclosure so users can see exactly what
+     *  Databricks did and when. */
+    statusTrace?: Array<{ raw: string; friendly: string; t: number }>;
     /** Wall-clock when this message entered RUNNING state. Used by the
      * unified ProgressIndicator to show elapsed time. */
     startedAt?: number;
@@ -1240,6 +1252,40 @@ function App(props: AppProps) {
         assistantProfile: props.settings.assistantProfile || undefined,
     });
     const [question, setQuestion] = useState("");
+    // 2026-05-26 — slash-command autocomplete (Gemini reference, vetted +
+    // pruned to one feature). When the user types `/` at the start of the
+    // composer, a floating dropdown of analytical presets appears: SWOT,
+    // VARIANCE, PARETO, RFM, BCG. Arrow keys navigate; Enter / Tab inserts;
+    // Esc closes. No external dependencies, no behaviour change when the
+    // composer doesn't start with `/`.
+    const SLASH_PRESETS: ReadonlyArray<{ cmd: string; label: string; question: string }> = useMemo(() => [
+        { cmd: "/swot", label: "SWOT analysis", question: "Run a SWOT analysis on this dataset. Cover strengths, weaknesses, opportunities, and threats with evidence per slice." },
+        { cmd: "/variance", label: "Variance breakdown", question: "Show variance vs prior period for the top metrics by region and category. Highlight the biggest movers with directional cues." },
+        { cmd: "/pareto", label: "Pareto contribution", question: "Build a Pareto view showing which slices drive 80% of the total. Identify the vital few vs the trivial many." },
+        { cmd: "/rfm", label: "RFM segmentation", question: "Segment by Recency, Frequency, and Monetary value. Identify which segments deserve investment vs deprioritization." },
+        { cmd: "/bcg", label: "BCG matrix", question: "Place each category on a BCG matrix (stars, cash cows, question marks, dogs) using growth and share signals." },
+        { cmd: "/risks", label: "Risk pockets", question: "Identify the top 5 risk pockets where Sales are material but Profit is weak. Group by State, City, and Sub-Category." },
+        { cmd: "/trends", label: "Trend reversal scan", question: "Scan for trend reversals where momentum changed direction. Show the time window, affected slice, and likely drivers." },
+        { cmd: "/discount", label: "Discount sensitivity", question: "For each Segment, estimate whether higher Discount correlates with lower Profit Margin. Flag exceptions where discounting still earned profit." },
+    ], []);
+    const [slashOpen, setSlashOpen] = useState(false);
+    const [slashSelectedIdx, setSlashSelectedIdx] = useState(0);
+    const slashFiltered = useMemo(() => {
+        const v = question.trim();
+        if (!v.startsWith("/")) return [];
+        const filter = v.slice(1).toLowerCase();
+        const matches = SLASH_PRESETS.filter(p => p.cmd.slice(1).startsWith(filter) || p.label.toLowerCase().includes(filter));
+        return matches.length > 0 ? matches : SLASH_PRESETS.slice(0); // show all if no match
+    }, [question, SLASH_PRESETS]);
+    useEffect(() => {
+        const shouldOpen = question.startsWith("/") && question.length <= 24 && !question.includes("\n");
+        setSlashOpen(shouldOpen);
+        if (shouldOpen) setSlashSelectedIdx(0);
+    }, [question]);
+    const insertSlashPreset = (preset: { question: string }) => {
+        setQuestion(preset.question);
+        setSlashOpen(false);
+    };
     const [busy, setBusy] = useState(false);
     const [devPanel, setDevPanel] = useState<"" | "diagnostics" | "session" | "setup" | "genieQueries" | "display">("");
     const [outerViewportFocus, setOuterViewportFocus] = useState<PulsePlayViewportFocus>(() => readPulsePlayViewportFocus());
@@ -2445,12 +2491,28 @@ function App(props: AppProps) {
         activeSpaceKey
     ]);
 
+    // 2026-05-26 — auto-scroll fires not only on new message added but
+    // also while the active assistant message GROWS (content updates
+    // during polling/streaming). Without the content-length signal,
+    // long answers rendered with their start visible and the user had
+    // to manually scroll down to see new tokens arrive. The dep array
+    // includes the latest message's content length + status so the
+    // effect fires on every growth tick. `auto` (not `smooth`) so the
+    // viewport keeps up with streaming without scroll-animation lag.
+    const latestForScroll = messages.length > 0 ? messages[messages.length - 1] : null;
+    const latestContentLen = latestForScroll ? (latestForScroll.content || "").length : 0;
+    const latestStatus = latestForScroll ? latestForScroll.status : null;
     useEffect(() => {
         const node = chatRef.current;
-        if (node) {
-            node.scrollTo({ top: node.scrollHeight, behavior: "smooth" });
+        if (!node) return;
+        // Only auto-scroll if user is already near the bottom — don't
+        // yank them away from scrolled-up history they're reading.
+        const distanceFromBottom = node.scrollHeight - (node.scrollTop + node.clientHeight);
+        const userIsAtBottom = distanceFromBottom < 120;
+        if (userIsAtBottom || messages.length <= 1) {
+            node.scrollTo({ top: node.scrollHeight, behavior: messages.length <= 1 ? "smooth" : "auto" });
         }
-    }, [messages.length]);
+    }, [messages.length, latestContentLen, latestStatus]);
 
     const activeGenieConfig = activeSpace?.genieConfig;
     const isSupervisorMode = props.settings.connectionMode === "supervisor";
@@ -2467,6 +2529,33 @@ function App(props: AppProps) {
                 ? Boolean((activeGenieConfig.assistantProfile ?? "").trim().length > 0 || (activeGenieConfig.spaceId ?? "").trim().length > 0)
                 : Boolean(activeGenieConfig.host.trim() && activeGenieConfig.token.trim() && (activeGenieConfig.spaceId ?? "").trim())
         : false;
+    const pulseSurfaceContext = useMemo(() => {
+        const selectedFilterCount = Object.values(selectedFilters).filter(value => value && value !== ALL_FILTER_VALUE).length;
+        const measureCount = Object.keys(props.context.measures || {}).length;
+        const dimensionCount = Object.keys(props.context.dimensions || {}).length;
+        const dataSource = props.settings.sendContextToGenie
+            ? measureCount > 0 || dimensionCount > 0
+                ? `${measureCount} metrics / ${dimensionCount} dimensions`
+                : "No BI fields bound"
+            : "BI context off";
+        return {
+            assistant: activeGenieConfig?.assistantProfile || props.settings.assistantProfile || "Default profile",
+            mode: activeTab === "insights" ? "Executive briefing" : "Conversation",
+            scope: selectedFilterCount > 0 ? currentScope : "All visible data",
+            source: dataSource,
+            trust: isConfigured ? "Grounded" : "Setup needed",
+        };
+    }, [
+        activeGenieConfig?.assistantProfile,
+        activeTab,
+        currentScope,
+        isConfigured,
+        props.context.dimensions,
+        props.context.measures,
+        props.settings.assistantProfile,
+        props.settings.sendContextToGenie,
+        selectedFilters,
+    ]);
 
     // Option A trigger — fires exactly once per space per connection context
     // when the user first lands on the chat tab with no existing conversation.
@@ -2683,10 +2772,20 @@ function App(props: AppProps) {
                         if (m.id !== pendingId) return m;
                         const steps = m.statusSteps ?? [];
                         const label = formatGenieStatus(progress);
+                        // 2026-05-26 — also capture the raw upstream status
+                        // + push to the streaming Databricks trace for the
+                        // progress card disclosure. Dedupe consecutive
+                        // identical raw values so the trace is a state
+                        // transition log, not a poll-tick log.
+                        const trace = m.statusTrace ?? [];
+                        const last = trace.length > 0 ? trace[trace.length - 1] : null;
+                        const nextTrace = (last && last.raw === progress)
+                            ? trace
+                            : [...trace, { raw: progress, friendly: label, t: Date.now() }];
                         if (!steps.includes(label)) {
-                            return { ...m, currentStatus: label, statusSteps: [...steps, label] };
+                            return { ...m, currentStatus: label, currentStatusRaw: progress, statusSteps: [...steps, label], statusTrace: nextTrace };
                         }
-                        return { ...m, currentStatus: label };
+                        return { ...m, currentStatus: label, currentStatusRaw: progress, statusTrace: nextTrace };
                     }));
                 }
             );
@@ -5068,6 +5167,17 @@ function App(props: AppProps) {
                 </div>
             </div>
 
+            <PulseSurfaceContextStrip
+                surface={activeTab === "insights" ? "AI Insights" : "Ask Pulse"}
+                mode={pulseSurfaceContext.mode}
+                items={[
+                    { label: "Assistant", value: pulseSurfaceContext.assistant },
+                    { label: "Source", value: pulseSurfaceContext.source },
+                    { label: "Scope", value: pulseSurfaceContext.scope },
+                    { label: "Trust", value: pulseSurfaceContext.trust },
+                ]}
+            />
+
             {activeTab === "insights" && (
                 <div
                     className="gn-insights-pane"
@@ -6162,12 +6272,38 @@ function App(props: AppProps) {
                             the bottom-right of the viewport (mounted once in
                             App.tsx); duplicate mounts here cluttered the chat
                             input area without adding signal. */}
-                        <div className="gn-compose-input-wrap" title="Enter to send · Shift+Enter for new line">
+                        <div className="gn-compose-input-wrap" title="Enter to send · Shift+Enter for new line · Type / for presets">
+                            {slashOpen && slashFiltered.length > 0 && (
+                                <div className="gn-slash-dropdown" role="listbox" aria-label="Analytical preset commands">
+                                    <div className="gn-slash-dropdown-head">Analytical presets · ↑↓ to navigate · ↵ to insert · esc to cancel</div>
+                                    {slashFiltered.map((p, i) => (
+                                        <button
+                                            key={p.cmd}
+                                            type="button"
+                                            role="option"
+                                            aria-selected={i === slashSelectedIdx}
+                                            className={`gn-slash-item${i === slashSelectedIdx ? " gn-slash-item--active" : ""}`}
+                                            onMouseEnter={() => setSlashSelectedIdx(i)}
+                                            onClick={() => insertSlashPreset(p)}
+                                        >
+                                            <span className="gn-slash-cmd">{p.cmd}</span>
+                                            <span className="gn-slash-label">{p.label}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                             <textarea
                                 className="gn-input"
                                 value={question}
                                 onChange={event => setQuestion(event.target.value)}
                                 onKeyDown={event => {
+                                    if (slashOpen && slashFiltered.length > 0) {
+                                        if (event.key === "ArrowDown") { event.preventDefault(); setSlashSelectedIdx((slashSelectedIdx + 1) % slashFiltered.length); return; }
+                                        if (event.key === "ArrowUp") { event.preventDefault(); setSlashSelectedIdx((slashSelectedIdx - 1 + slashFiltered.length) % slashFiltered.length); return; }
+                                        if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); insertSlashPreset(slashFiltered[slashSelectedIdx]); return; }
+                                        if (event.key === "Tab") { event.preventDefault(); insertSlashPreset(slashFiltered[slashSelectedIdx]); return; }
+                                        if (event.key === "Escape") { event.preventDefault(); setSlashOpen(false); return; }
+                                    }
                                     if (event.key === "Enter" && !event.shiftKey) {
                                         event.preventDefault();
                                         if (question.trim() && isConfigured && !busy) {
@@ -6190,6 +6326,16 @@ function App(props: AppProps) {
                                 aria-describedby="gn-compose-input-hint"
                             />
                             <span id="gn-compose-input-hint" className="gn-sr-only">Press Enter to send. Press Shift plus Enter to insert a new line.</span>
+                            {/* 2026-05-26 — visible keyboard hint chip. The
+                                title= on the wrap and the SR-only span both
+                                communicated keyboard shortcuts, but sighted
+                                users never saw them. Showing only when the
+                                composer is focused + has content keeps idle
+                                state clean while still surfacing the hint
+                                exactly when it's useful. */}
+                            <span className="gn-compose-kbd-hint" aria-hidden="true" data-visible={question.trim() ? "true" : "false"}>
+                                <kbd>↵</kbd> send · <kbd>⇧↵</kbd> newline
+                            </span>
                             <button
                                 className="gn-send"
                                 disabled={busy || !question.trim() || !isConfigured}
@@ -7988,6 +8134,34 @@ function SetupEditFlow(props: {
     );
 }
 
+interface PulseSurfaceContextItem {
+    label: string;
+    value: string;
+}
+
+function PulseSurfaceContextStrip(props: {
+    surface: string;
+    mode: string;
+    items: PulseSurfaceContextItem[];
+}): React.ReactElement {
+    return (
+        <div className="gn-surface-context" role="group" aria-label={`${props.surface} context`}>
+            <div className="gn-surface-context__primary">
+                <span className="gn-surface-context__label">Surface</span>
+                <span className="gn-surface-context__value">{props.surface}</span>
+                <span className="gn-surface-context__divider" aria-hidden="true" />
+                <span className="gn-surface-context__value">{props.mode}</span>
+            </div>
+            {props.items.map(item => (
+                <div className="gn-surface-context__item" key={item.label}>
+                    <span className="gn-surface-context__label">{item.label}</span>
+                    <span className="gn-surface-context__value">{item.value}</span>
+                </div>
+            ))}
+        </div>
+    );
+}
+
 function WelcomeSection(props: {
     home: AssistantHomePayload;
     roleMode: UserMode;
@@ -8035,30 +8209,17 @@ function WelcomeSection(props: {
                     )}
                 </div>
             )}
-            {/* Option A — KPI preload panel. Shows when the background
-                Genie call has returned a snapshot. Falls back to either
-                the home.snapshot pills or the role subtitle when nothing
-                is ready yet. */}
-            {props.kpiSnapshot ? (
-                <div className="gn-welcome-kpi-snapshot">
-                    <div
-                        className="gn-msg gn-msg--assistant"
-                        style={{ margin: "0 0 8px" }}
-                    >
-                        <div className="gn-bubble">
-                            {renderKpiSnapshot(props.kpiSnapshot)}
-                        </div>
-                    </div>
-                    <p style={{
-                        textAlign: "center",
-                        fontSize: 11,
-                        color: "var(--gn-text-muted)",
-                        margin: "0 0 12px",
-                    }}>
-                        Current snapshot · ask a follow-up question below to go deeper
-                    </p>
-                </div>
-            ) : props.home.snapshot.length > 0 ? (
+            {/* 2026-05-26 — KPI snapshot briefing card REMOVED from Ask
+                Pulse per user direction: "the Asking insights section is
+                not needed in Ask Pulse". The auto-fired insights summary
+                was leaking AI Insights-style content into the chat
+                surface and adding visual noise above the user's first
+                question. AI Insights tab is where briefings belong; Ask
+                Pulse stays a clean chat composer. The kpiSnapshot is
+                still fetched (other paths consume it) but no longer
+                renders here. Fall through to the snapshot pills /
+                identity block below. */}
+            {props.home.snapshot.length > 0 ? (
                 <div className="gn-welcome-snapshot">
                     {props.home.snapshot.slice(0, 4).map(card => (
                         <div key={`${card.label}-${card.value}`} className="gn-snapshot-pill">
@@ -8067,18 +8228,16 @@ function WelcomeSection(props: {
                         </div>
                     ))}
                 </div>
-            ) : props.kpiLoading ? (
-                // Audit 2026-05-19 P2-11: role=status + aria-live so screen
-                // readers announce "Analysing your data…" while the KPI fetch
-                // is in flight. The animated ↻ glyph is aria-hidden so it
-                // doesn't get re-announced on every spin frame.
-                <p className="gn-welcome-caption" role="status" aria-live="polite" style={{ color: "var(--gn-text-muted)" }}>
-                    <span aria-hidden="true" style={{ animation: "gn-progress-spin 1.2s linear infinite", display: "inline-block", marginRight: 6 }}>↻</span>
-                    Analysing your data…
-                </p>
-            ) : (
+            ) : !props.compact ? (
+                // 2026-05-26 — role subtitle now hidden in COMPACT mode
+                // (when chat has messages). Previously the "Guided
+                // business exploration…" line still rendered above the
+                // chat thread, leaving a ~200px dead zone between the
+                // subtitle and the user's first question bubble. In
+                // active-chat mode the welcome area should collapse so
+                // the conversation owns the surface.
                 <p className="gn-welcome-caption">{getRoleSubtitle(props.roleMode)}</p>
-            )}
+            ) : null}
 
             {/* UX-VIEWER-1.2A — Genie-shape empty state. Prior layout had two
                competing affordances stacked: "Quick start" with 4 area tabs
@@ -8462,16 +8621,63 @@ function renderMessageBody(
     const progressElapsedMs = message.startedAt
         ? Math.max(0, nowTick - message.startedAt)
         : 0;
+    // 2026-05-26 — Databricks-side streaming transparency. The
+    // ProgressIndicator already shows friendly labels mapped via
+    // describeGenieStatus(). For users who want to see what Databricks
+    // is actually doing (which Genie call shape, warehouse state,
+    // streaming status enum), we ALSO surface:
+    //   • a small monospace chip next to the active label showing the
+    //     RAW Genie status (e.g. "PENDING_WAREHOUSE", "EXECUTING_QUERY")
+    //   • a collapsible "Databricks trace" disclosure listing every raw
+    //     status transition with timestamp + elapsed-from-start
+    // Both only render when message.currentStatusRaw / statusTrace is
+    // present (Genie path). Non-Genie connectors (Foundation Model,
+    // Supervisor, Bedrock direct) get the friendly label only.
+    const dbxStreamingChip = isRunning && message.currentStatusRaw ? (
+        <span
+            className="gn-dbx-status-chip"
+            title={`Raw Databricks Genie status: ${message.currentStatusRaw}`}
+            aria-label={`Databricks streaming status ${message.currentStatusRaw}`}
+        >
+            {message.currentStatusRaw}
+        </span>
+    ) : null;
+    const dbxTraceNode = (message.statusTrace && message.statusTrace.length > 0) ? (
+        <details className="gn-dbx-trace">
+            <summary>
+                <span className="gn-dbx-trace-summary-title">Databricks Genie trace</span>
+                <span className="gn-dbx-trace-summary-count">{message.statusTrace.length} event{message.statusTrace.length === 1 ? "" : "s"}</span>
+            </summary>
+            <ol className="gn-dbx-trace-list">
+                {message.statusTrace.map((evt, i) => {
+                    const tBase = message.startedAt ?? evt.t;
+                    const dt = Math.max(0, evt.t - tBase);
+                    const ms = dt < 1000 ? `${dt}ms` : `${(dt / 1000).toFixed(1)}s`;
+                    return (
+                        <li key={i} className="gn-dbx-trace-row">
+                            <span className="gn-dbx-trace-time">+{ms}</span>
+                            <span className="gn-dbx-trace-raw">{evt.raw}</span>
+                            <span className="gn-dbx-trace-friendly">{evt.friendly}</span>
+                        </li>
+                    );
+                })}
+            </ol>
+        </details>
+    ) : null;
     const progressNode = progressSteps.length > 0 ? (
-        <ProgressIndicator
-            className="gn-chat-progress"
-            steps={progressSteps}
-            elapsedMs={progressElapsedMs}
-            isComplete={!isRunning}
-            isFailed={isFailed}
-            activeOverride={isRunning ? currentStatusLabel : undefined}
-            helperChips={message.helperChips}
-        />
+        <>
+            <ProgressIndicator
+                className="gn-chat-progress"
+                steps={progressSteps}
+                elapsedMs={progressElapsedMs}
+                isComplete={!isRunning}
+                isFailed={isFailed}
+                activeOverride={isRunning && message.currentStatusRaw ? `${currentStatusLabel} · ${message.currentStatusRaw}` : (isRunning ? currentStatusLabel : undefined)}
+                helperChips={message.helperChips}
+            />
+            {dbxStreamingChip && <div className="gn-dbx-status-chip-row">{dbxStreamingChip}</div>}
+            {dbxTraceNode}
+        </>
     ) : null;
 
     if (isRunning) {
@@ -8537,7 +8743,41 @@ function renderMessageBody(
                     <div className="gn-chart-meta">
                         <span>{message.queryResult.rows.length} row{message.queryResult.rows.length !== 1 ? "s" : ""} returned</span>
                         <div className="gn-export-btns">
-                            <button className="gn-export-btn" onClick={() => copyText(formatTableAsCsv(message.queryResult!.columns, message.queryResult!.rows))}>Export data</button>
+                            {/* 2026-05-26 — DevToolMCPFeed observed Genie ships
+                                a "Download all rows" CSV affordance on every
+                                result. PulsePlay had "Export data" but it only
+                                copied CSV to clipboard with no user feedback,
+                                so users couldn't tell anything happened. Now
+                                splits into a real file download + a copy
+                                option for users who prefer paste-into-sheet.
+                                Filename mirrors the question excerpt for
+                                lineage. */}
+                            <button
+                                className="gn-export-btn"
+                                title="Download all rows as a .csv file"
+                                onClick={() => {
+                                    const csv = formatTableAsCsv(message.queryResult!.columns, message.queryResult!.rows);
+                                    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement("a");
+                                    const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+                                    a.href = url;
+                                    a.download = `ask-pulse-${message.id}-${stamp}.csv`;
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    document.body.removeChild(a);
+                                    setTimeout(() => URL.revokeObjectURL(url), 1000);
+                                }}
+                            >
+                                Download CSV
+                            </button>
+                            <button
+                                className="gn-export-btn"
+                                title="Copy CSV to clipboard"
+                                onClick={() => copyText(formatTableAsCsv(message.queryResult!.columns, message.queryResult!.rows))}
+                            >
+                                Copy CSV
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -8665,9 +8905,58 @@ function renderMessageBody(
                         Pick an option below to continue, or type a more specific question.
                     </div>
                 </div>
-            ) : (
-                <div className="gn-msg-body">{renderKpiSnapshot(message.content || "No response returned.")}</div>
-            )}
+            ) : (() => {
+                // 2026-05-26 — Narrative view should narrate, not render
+                // raw tabular data. When Genie returns a markdown table in
+                // the narrative AND we already have queryResult (the same
+                // data, structured) for the Table tab, strip the table
+                // from the prose so users get the explanation, not a
+                // duplicate of what's already in Table. If the narrative
+                // is ONLY a table after stripping, show a clear hint
+                // pointing at the Table tab. Per Rajesh 2026-05-26:
+                // "narrative is showing as table-like data in some cases,
+                // it's not actually narrating anything specifically."
+                const raw = message.content || "No response returned.";
+                let prose = raw;
+                let strippedTable = false;
+                if (message.queryResult && message.queryResult.rows?.length) {
+                    // Match markdown table blocks: header row, separator,
+                    // and >= 1 body row, all pipe-delimited. Strip them.
+                    const tableRe = /(^|\n)\s*\|[^\n]+\|\s*\n\s*\|[\s\-:|]+\|\s*\n(?:\s*\|[^\n]+\|\s*\n?)+/g;
+                    if (tableRe.test(raw)) {
+                        prose = raw.replace(tableRe, "\n\n").replace(/\n{3,}/g, "\n\n").trim();
+                        strippedTable = true;
+                    }
+                }
+                const proseHasContent = prose.replace(/[\s•\-*]/g, "").length > 8;
+                if (strippedTable && !proseHasContent) {
+                    return (
+                        <div className="gn-msg-body">
+                            <div className="gn-narrative-redirect" style={{
+                                padding: "14px 16px",
+                                background: "var(--gn-accent-subtle, rgba(37,99,235,0.07))",
+                                border: "1px dashed var(--gn-accent-border, rgba(37,99,235,0.3))",
+                                borderRadius: 6,
+                                fontSize: 13,
+                                color: "var(--gn-text-muted, #475569)",
+                                margin: "4px 14px",
+                            }}>
+                                The answer for this question is the data itself — open the <strong>Table</strong> tab above to view the {message.queryResult?.rows?.length ?? 0} row{(message.queryResult?.rows?.length ?? 0) === 1 ? "" : "s"} returned, or <strong>Chart</strong> for a visualization.
+                            </div>
+                        </div>
+                    );
+                }
+                return (
+                    <div className="gn-msg-body">
+                        {renderKpiSnapshot(prose)}
+                        {strippedTable && (
+                            <p style={{ margin: "10px 14px 4px", fontSize: 11, color: "var(--gn-text-muted, #6b7280)", fontStyle: "italic" }}>
+                                Data table moved to the <strong>Table</strong> tab so the narrative reads as prose.
+                            </p>
+                        )}
+                    </div>
+                );
+            })()}
             {message.dmlWarning && (
                 <div className="gn-dml-warning" role="alert" aria-live="assertive">
                     {message.dmlVerb
@@ -9150,7 +9439,139 @@ function demoteBulletStyleHeadings(text: string): string {
  * If parsing fails to find at least one metric row, the function falls
  * back to the generic renderNarrative so we never lose content.
  */
+/** 2026-05-26 — detect Genie's Deep Research / Agent Mode reasoning
+ *  block and split it from the actual answer. Agent Mode emits a
+ *  verbose meta-trace ("Initial analysis", "Found relevant data",
+ *  "Calculated an answer based on these steps", "Start inspecting",
+ *  "Make a decision", "Conclusion", "Inspection complete!") BEFORE
+ *  the actual answer text. Users want the answer first; the reasoning
+ *  belongs in a collapsed disclosure ("Show reasoning").
+ *  Returns { reasoning, answer } where reasoning is null when the
+ *  Agent Mode markers aren't present. */
+const AGENT_MODE_MARKERS = [
+    /^Initial analysis\b/im,
+    /^Found relevant data\b/im,
+    /^Calculated an answer based on these steps\b/im,
+    /^Start inspecting\b/im,
+    /^Make a decision\b/im,
+    /^Inspection complete!?\s*$/im,
+];
+export function splitAgentModeReasoning(raw: string): { reasoning: string | null; answer: string } {
+    const text = String(raw || "").trim();
+    if (!text) return { reasoning: null, answer: text };
+    // Need at least 3 of the markers to confidently identify Agent Mode
+    // (avoid false positives on prose that happens to contain "Conclusion").
+    const hits = AGENT_MODE_MARKERS.filter(re => re.test(text)).length;
+    if (hits < 3) return { reasoning: null, answer: text };
+    // The reasoning ends at "Inspection complete!"; everything after is
+    // the answer. If the marker is missing fall back to splitting at the
+    // last Agent Mode marker found.
+    const completeIdx = text.search(/^Inspection complete!?\s*$/im);
+    if (completeIdx >= 0) {
+        const lineEnd = text.indexOf("\n", completeIdx);
+        const splitAt = lineEnd >= 0 ? lineEnd + 1 : text.length;
+        const reasoning = text.slice(0, splitAt).trim();
+        const answer = text.slice(splitAt).trim();
+        if (!answer) return { reasoning: null, answer: text }; // no answer remained, keep original
+        return { reasoning, answer };
+    }
+    return { reasoning: null, answer: text };
+}
+
+/** 2026-05-26 — strip a single trailing Genie clarifying question. The
+ *  briefing/snapshot prompt explicitly forbids clarifying questions
+ *  ("No tables, no SQL, no preamble, no clarifying questions") but
+ *  Genie intermittently appends one anyway ("Would you prefer…?",
+ *  "Should I…?", "Do you want me to…?"). When that happens we strip
+ *  it from the main answer and surface it as a clickable suggestion
+ *  chip below — turns a contract violation into a useful affordance.
+ *  Returns { body, clarifier } where clarifier is null when no
+ *  clarifying question was found. Question mark is optional because
+ *  Genie sometimes drops it. */
+export function splitTrailingClarifier(raw: string): { body: string; clarifier: string | null } {
+    const text = String(raw || "").trim();
+    if (!text) return { body: text, clarifier: null };
+    // Match a trailing single sentence that opens with a Genie-style
+    // clarifying lead-in. Anchored to end of string with optional
+    // trailing whitespace. The sentence body may or may not end with
+    // a question mark (Genie sometimes drops it).
+    const clarifierRe = /(?:^|\n)\s*((?:Would you (?:prefer|like|rather)|Should I|Do you want(?:\s+me\s+to)?|Shall I|Could you clarify|Did you mean|Would you also like)\b[^\n]*?)(?:\?|\s*)$/i;
+    const m = text.match(clarifierRe);
+    if (!m) return { body: text, clarifier: null };
+    const clarifier = m[1].trim().replace(/[.\?\s]+$/, "") + "?";
+    const body = text.slice(0, text.length - m[0].length).trimEnd();
+    // Defensive: if stripping leaves only a few characters the
+    // clarifier likely WAS the whole content (rare) — keep original.
+    if (body.replace(/[\s•\-*]/g, "").length < 8) return { body: text, clarifier: null };
+    return { body, clarifier };
+}
+
+/** 2026-05-26 — outer wrapper that handles the trailing-clarifier strip
+ *  + chip render. The actual rendering logic lives in
+ *  renderKpiSnapshotInner below; the wrapper splits the content, calls
+ *  the inner with cleaned body, and appends a "Genie also asked: …"
+ *  chip under the answer when a clarifier was stripped. The chip
+ *  pre-populates the composer with the clarifier text on click so the
+ *  user can refine in one tap. */
 function renderKpiSnapshot(raw: string): React.ReactNode {
+    // Strip Genie's Deep Research / Agent Mode reasoning first; that
+    // wrapper goes into a collapsed disclosure so the answer lands at
+    // the top of the card instead of after 200 words of meta-trace.
+    const { reasoning, answer: afterReasoning } = splitAgentModeReasoning(raw);
+    const { body, clarifier } = splitTrailingClarifier(afterReasoning);
+    const inner = renderKpiSnapshotInner(body);
+    const reasoningNode = reasoning ? (
+        <details className="gn-agent-reasoning">
+            <summary>
+                <span className="gn-agent-reasoning-icon" aria-hidden="true">🔍</span>
+                <span className="gn-agent-reasoning-title">Show Genie's reasoning</span>
+                <span className="gn-agent-reasoning-meta">{(() => {
+                    const lines = reasoning.split("\n").filter(l => l.trim().length > 0).length;
+                    return `${lines} line${lines === 1 ? "" : "s"}`;
+                })()}</span>
+            </summary>
+            <div className="gn-agent-reasoning-body pp-md">
+                {renderMarkdown(reasoning)}
+            </div>
+        </details>
+    ) : null;
+    if (!clarifier && !reasoningNode) return inner;
+    const clarifierText = clarifier ?? "";
+    const onClick = () => {
+        try {
+            if (!clarifierText) return;
+            const ta = document.querySelector("textarea.gn-input") as HTMLTextAreaElement | null;
+            if (ta) {
+                ta.value = clarifierText;
+                ta.dispatchEvent(new Event("input", { bubbles: true }));
+                ta.focus();
+                ta.setSelectionRange(clarifierText.length, clarifierText.length);
+            }
+        } catch { /* swallow */ }
+    };
+    return (
+        <>
+            {inner}
+            {clarifier && (
+                <div className="gn-clarifier-chip-row">
+                    <span className="gn-clarifier-chip-label">Genie also asked:</span>
+                    <button
+                        type="button"
+                        className="gn-clarifier-chip"
+                        onClick={onClick}
+                        title="Use this as your next question"
+                    >
+                        <span className="gn-clarifier-chip-text">{clarifier}</span>
+                        <span aria-hidden="true" className="gn-clarifier-chip-arrow">→</span>
+                    </button>
+                </div>
+            )}
+            {reasoningNode}
+        </>
+    );
+}
+
+function renderKpiSnapshotInner(raw: string): React.ReactNode {
     const text = String(raw || "").trim();
     if (!text) return null;
 
@@ -11549,6 +11970,17 @@ function renderStatusChip(raw: string): React.ReactNode {
     // Strip the colour emoji from the display text — the chip colour carries
     // that signal already, and leaving it in makes the chip look noisy.
     const display = stripStatusGlyphs(clean) || clean;
+
+    // 2026-05-27 — Add a leading tone glyph so the chip unambiguously reads
+    // as a status badge, not an interactive toggle. Without this, the
+    // rounded-pill shape + solid colour fill at small sizes (especially on
+    // mobile) was being mistaken for a switch. The glyph + uppercase text
+    // makes the trust intent obvious.
+    const toneGlyph = tone === "good" ? "✓"
+                   : tone === "warn" ? "⚠"
+                   : tone === "bad"  ? "✗"
+                   : "•";
+
     return (
         <span
             className={`gn-status-chip gn-status-chip--${tone}`}
@@ -11556,6 +11988,7 @@ function renderStatusChip(raw: string): React.ReactNode {
             aria-label={a11y.ariaLabel}
             data-source="ai"
         >
+            <span className="gn-status-chip-glyph" aria-hidden="true">{toneGlyph}</span>
             {display}
         </span>
     );

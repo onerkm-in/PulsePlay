@@ -1726,45 +1726,145 @@
  * remaining shell height so gn-chat-area can flex:1 and gn-compose stays
  * pinned at the bottom. Without this the tabpanel div is display:block,
  * gn-chat-area expands to its full content height, and the compose input
- * is pushed off-screen below the chart. */
+ * is pushed off-screen below the chart.
+ *
+ * 2026-05-27 — added `max-height: 100vh` as a defensive ceiling. The
+ * parent flex chain was breaking when a chart bubble grew large in the
+ * chat thread, letting gn-chat-panel exceed viewport and push compose
+ * off-screen even though the local flex column rules looked correct.
+ * Capping at 100vh forces internal scroll regardless of parent height. */
 .gn-chat-panel {
     display: flex;
     flex-direction: column;
     flex: 1 1 auto;
     min-height: 0;
+    max-height: 100vh;
     overflow: hidden;
 }
 
+/* 2026-05-26 — vertical density pass. Was padding:16px + gap:16px which
+   on a 900-effective viewport (with Windows taskbar + browser chrome
+   eating ~150-170px above) pushed the composer below the visible area.
+   Tightened to padding:12px + gap:10px to claw back ~30px vertically
+   so composer stays in view on standard 1080p laptops. */
 .gn-chat-area {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    padding: 16px;
+    padding: 12px 16px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 10px;
 }
 
+/* 2026-05-26 (third pass) — scrollbar STILL not visible enough.
+   Round 21 bumped colors but Chrome on Windows renders subtle
+   overlay scrollbars by default that fade against the surface.
+   This pass:
+     (1) `overflow-y: scroll` (not auto) so the lane is ALWAYS
+         reserved + the scrollbar is always rendered, even if there
+         happens to be no overflow at that moment
+     (2) 14px wide so the lane is obvious
+     (3) high-contrast track (18% slate) so the gutter is clearly
+         visible against the surface, not a near-invisible 10%
+     (4) very dark thumb (slate-700 at 85% opacity) so contrast
+         against the lane is strong
+     (5) inset border-radius via padding-clip for a polished pill
+         look while keeping the hit-target wide
+   Firefox `auto` width respects scrollbar-color tokens which we set
+   to strong colors. */
+/* 2026-05-26 (final) — smooth + translucent scrollbar per user direction.
+   Modern overlay aesthetic: thin pill-shaped thumb floating over a
+   barely-there track. Visible enough to communicate "scroll lives
+   here" but doesn't pull the eye. Gently fades darker on hover, with
+   smooth color transitions. No arrows, no chunky borders. */
+.gn-chat-area {
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(100, 116, 139, 0.35) transparent;
+    scrollbar-gutter: stable;
+}
 .gn-chat-area::-webkit-scrollbar {
-    width: 8px;
+    width: 10px;
+    height: 10px;
 }
-
+.gn-chat-area::-webkit-scrollbar-track {
+    background: transparent;
+}
 .gn-chat-area::-webkit-scrollbar-thumb {
-    background: @gn-border;
-    border-radius: @gn-radius-pill;
+    background: rgba(100, 116, 139, 0.35);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    min-height: 44px;
+    transition: background-color 200ms ease;
+}
+.gn-chat-area::-webkit-scrollbar-thumb:hover {
+    background: rgba(71, 85, 105, 0.55);
+    background-clip: padding-box;
+}
+.gn-chat-area::-webkit-scrollbar-thumb:active {
+    background: rgba(51, 65, 85, 0.75);
+    background-clip: padding-box;
+}
+.gn-chat-area::-webkit-scrollbar-button { display: none; }
+.gn-chat-area::-webkit-scrollbar-corner { background: transparent; }
+
+/* 2026-05-26 — mobile-landscape (≤420px height) hides composer because
+   content above pushes it off-screen. Compact the empty-state padding
+   + suggested prompts so the composer fits. */
+@media (max-height: 480px) {
+    .gn-welcome {
+        padding: 12px 16px 8px;
+        gap: 8px;
+    }
+    .gn-starter-question {
+        padding: 8px 16px;
+        font-size: 12px;
+    }
+    .gn-welcome-disclaimer {
+        margin-top: 4px;
+        font-size: 10px;
+    }
+    .gn-compose {
+        padding: 4px 12px;
+    }
 }
 
 /* ── Welcome / Empty State ── */
 
+/* 2026-05-26 — was `justify-content: center` which floated the dataset
+   identity + starter prompts in the vertical middle of the viewport with
+   huge whitespace above and below. Anchor content to the top so the
+   dataset title is the first thing the eye lands on after the tab strip,
+   with the starter prompts directly under it. */
 .gn-welcome {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     flex: 1;
     text-align: center;
-    gap: 20px;
-    padding: 24px;
+    gap: 16px;
+    padding: 28px 24px 16px;
+}
+
+/* 2026-05-26 (later) — COMPACT mode overrides. When messages exist,
+   WelcomeSection renders an effectively-empty wrapper (no identity,
+   no subtitle, no starters, no disclaimer per Round 11). The base
+   .gn-welcome rule's `flex: 1` was still claiming the empty space and
+   pushing the chat thread to the bottom of the viewport — exactly the
+   "lot of blank space" Rajesh flagged 2026-05-26. In compact mode the
+   wrapper should not grow and should contribute zero vertical padding
+   so the messages start at the top of the chat-area. */
+.gn-welcome.gn-welcome--compact {
+    flex: 0 0 auto;
+    padding: 0;
+    gap: 0;
+    min-height: 0;
+}
+.gn-welcome.gn-welcome--compact:empty {
+    display: none;
 }
 
 // .gn-welcome-icon, .gn-welcome h3, .gn-welcome p removed in IDEA-004 —
@@ -1878,6 +1978,18 @@
     border-top: 1px solid var(--gn-border-subtle, rgba(15, 23, 42, 0.06));
 }
 
+/* 2026-05-26 — beast-mode UX polish for starter prompts. Previous hover
+   was rgba(37,99,235,0.04) — essentially invisible (4% opacity), so users
+   didn't feel the row light up under their cursor. Switched to a real
+   accent-subtle background, added a leading "›" chevron that slides in
+   on hover for affordance discoverability, and a subtle inset shadow so
+   the row feels selectable. Goal: more engaging, more intuitive. */
+/* 2026-05-26 (revised) — resting padding stays 12/16 (same as before
+   polish) so the questions visually align with the centered dataset
+   title above. Hover uses a 3px inset accent border (zero layout shift),
+   accent-tinted background, and a subtle background-position slide
+   instead of padding-shift for the affordance feel. No content jumps
+   when hover starts/ends. */
 .gn-starter-question {
     display: flex;
     align-items: center;
@@ -1892,15 +2004,20 @@
     color: var(--gn-text, inherit);
     text-align: left;
     cursor: pointer;
-    transition: background-color 120ms ease, color 120ms ease;
+    transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
     border-radius: 0;
 }
 
 .gn-starter-question:hover:not(:disabled),
 .gn-starter-question:focus-visible:not(:disabled) {
-    background: rgba(37, 99, 235, 0.04);
+    background: rgba(37, 99, 235, 0.07);
     color: var(--gn-accent, #2563eb);
     outline: none;
+    box-shadow: inset 3px 0 0 var(--gn-accent, #2563eb);
+}
+
+.gn-starter-question:active:not(:disabled) {
+    background: rgba(37, 99, 235, 0.12);
 }
 
 .gn-starter-question:disabled {
@@ -1937,13 +2054,17 @@
     justify-content: flex-end;
 }
 
+/* 2026-05-26 — user bubble was spanning ~1200px on wide viewports
+   (max-width: 75% × 1600px chat area). Hard-cap at 680px so the bubble
+   reads as a "you said" chat bubble instead of a billboard. Smaller
+   viewports still get the 75% relative cap. */
 .gn-msg--user .gn-bubble {
     background: linear-gradient(135deg, var(--gn-user-bubble, #1a6fd4) 0%, #1260b8 100%);
     color: @gn-user-text;
     border: none;
     border-radius: 18px 18px 4px 18px;
     padding: 10px 16px;
-    max-width: 75%;
+    max-width: min(75%, 680px);
     font-size: 14px;
     box-shadow: @gn-shadow-sm;
     white-space: pre-wrap;
@@ -2450,10 +2571,16 @@
     font-weight: 700;
 }
 
+/* 2026-05-26 — was justify-content: center which put the
+   Narrative/Chart/Table/Sql toggle row in the middle of the answer
+   card, looking orphaned (nothing else centered around it). Left-align
+   so the toggles sit at the natural reading start, matching the answer
+   text below. */
 .gn-chart-toggles {
     display: flex;
     gap: 4px;
-    justify-content: center;
+    justify-content: flex-start;
+    padding: 0 14px;
 }
 
 .gn-toggle {
@@ -2725,13 +2852,18 @@
 
 /* ── Chat history ── */
 
+/* 2026-05-26 — was a full-width header row with the lone "Show history"
+   pill on the left and a thick border-bottom, taking ~38px of vertical
+   space above the chat hero for one orphaned pill. Now right-aligned,
+   slim padding, no divider — it sits in the corner instead of breaking
+   the chat-panel into two sections. */
 .gn-history-bar {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 8px 14px;
-    border-bottom: 1px solid @gn-border-subtle;
-    background: @gn-surface;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 4px 14px 0;
+    background: transparent;
     flex-shrink: 0;
 }
 
@@ -3471,8 +3603,14 @@
 
 /* ── Suggestions bar ── */
 
+/* 2026-05-26 — pin "Try asking" to the bottom of the chat-area scroll
+   region so it doesn't float in the middle of an otherwise-empty
+   chat. Combined with `margin-top: auto` (push-down) the suggestions
+   sit just above the composer with no gap between it and the
+   chat-area's bottom edge. Padding tightened to keep the row slim. */
 .gn-suggestions {
-    padding: 10px 16px 12px;
+    margin-top: auto;
+    padding: 8px 16px 10px;
     border-top: 1px solid @gn-border-subtle;
     background: linear-gradient(180deg, @gn-surface 0%, rgba(248,250,252,0.6) 100%);
 }
@@ -3808,11 +3946,27 @@
 
 /* ── Compose bar ── */
 
+/* 2026-05-26 — composer compacted vertically to keep it on-screen for
+   shorter viewports. Was padding: 8px 16px 8px (16+16 = 32 vert);
+   now 6px 16px (12 vert). Combined with the chat-area density pass
+   above, ~30px reclaimed so the composer stays visible on standard
+   laptops once browser chrome + taskbar are accounted for. */
 .gn-compose {
-    padding: 8px 16px 8px;
+    padding: 6px 16px;
     border-top: 1px solid @gn-border-subtle;
     background: @gn-surface;
     flex-shrink: 0;
+    /* 2026-05-27 — composer was disappearing below the fold when the
+       chat-area's parent flex chain broke (e.g. when a chart bubble
+       pushed total content past viewport). Pinning the composer with
+       position: sticky bottom:0 makes it ALWAYS visible at the bottom
+       of its nearest scrolling ancestor, regardless of whether the
+       parent flex height chain is sound. z-index 5 keeps it above
+       chart artifacts. Background must be opaque (@gn-surface) so the
+       chat content scrolling past underneath doesn't bleed through. */
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
     box-shadow: 0 -2px 8px rgba(0,0,0,0.04);
 }
 
@@ -3837,9 +3991,13 @@
     min-height: 22px;
 }
 
+/* 2026-05-26 — beefier focus ring. The 3px @gn-accent-subtle was thin
+   and the subtle alpha barely showed against the white surface, so the
+   focused composer didn't visually "wake up." 4px ring with explicit
+   accent rgba is more deliberate, signals the composer is hot. */
 .gn-compose-input-wrap:focus-within {
     border-color: @gn-accent;
-    box-shadow: 0 0 0 3px @gn-accent-subtle;
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.18), 0 4px 14px rgba(37, 99, 235, 0.08);
 }
 
 .gn-input {
@@ -3888,6 +4046,350 @@
     opacity: 0.32;
     cursor: not-allowed;
     box-shadow: none;
+}
+
+/* 2026-05-26 — visible keyboard hint that fades in when the composer has
+   typed content. Sits inside the input wrap as a small affordance hint;
+   absolute-positioned bottom-right so it doesn't take any flow space
+   when hidden. <kbd> elements get a subtle chip look. */
+.gn-compose-kbd-hint {
+    position: absolute;
+    bottom: -2px;
+    right: 44px;
+    font-size: 10.5px;
+    color: var(--gn-text-muted, #64748b);
+    opacity: 0;
+    transition: opacity 180ms ease;
+    pointer-events: none;
+    line-height: 1;
+}
+.gn-compose-kbd-hint[data-visible="true"] {
+    opacity: 0.75;
+}
+.gn-compose-input-wrap { position: relative; }
+.gn-compose-kbd-hint kbd {
+    display: inline-block;
+    padding: 1px 5px;
+    border: 1px solid var(--gn-border, rgba(15,23,42,0.12));
+    border-radius: 3px;
+    background: var(--gn-surface-raised, #fff);
+    font-family: inherit;
+    font-size: 9.5px;
+    color: var(--gn-text, #0f172a);
+    margin: 0 1px;
+    box-shadow: 0 1px 0 rgba(15,23,42,0.05);
+}
+
+/* 2026-05-26 — slash-command autocomplete dropdown. Cherry-picked from
+   Gemini's Ask Pulse redesign spec (the one piece that blended cleanly
+   with our existing surface — no theme overhaul, no glass panes, no
+   sliding drawer). Floats above the composer when the user types `/`
+   at the start of the input. Arrow keys navigate, Enter/Tab inserts,
+   Esc closes. Power-user affordance for the analytical presets the
+   spec called out (swot, variance, pareto, rfm, bcg). */
+.gn-slash-dropdown {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    max-height: 280px;
+    overflow-y: auto;
+    background: var(--gn-surface-raised, #ffffff);
+    border: 1px solid var(--gn-border, rgba(15,23,42,0.12));
+    border-radius: 10px;
+    box-shadow: 0 12px 28px rgba(15,23,42,0.16), 0 2px 6px rgba(15,23,42,0.08);
+    padding: 6px;
+    z-index: 50;
+    animation: gn-slash-in 140ms ease-out;
+}
+@keyframes gn-slash-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.gn-slash-dropdown-head {
+    padding: 6px 10px 8px;
+    font-size: 10.5px;
+    color: var(--gn-text-muted, #64748b);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid var(--gn-border-subtle, rgba(15,23,42,0.06));
+    margin-bottom: 4px;
+}
+.gn-slash-item {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 10px;
+    border: none;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--gn-text, inherit);
+    transition: background-color 120ms ease;
+}
+.gn-slash-item:hover,
+.gn-slash-item--active {
+    background: rgba(37, 99, 235, 0.09);
+    color: var(--gn-accent, #2563eb);
+}
+.gn-slash-cmd {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--gn-accent, #2563eb);
+    min-width: 80px;
+    flex-shrink: 0;
+}
+.gn-slash-label {
+    flex: 1;
+    color: var(--gn-text, inherit);
+    font-weight: 500;
+}
+.gn-slash-item--active .gn-slash-label {
+    color: var(--gn-text, inherit);
+}
+
+/* 2026-05-26 — Databricks Genie streaming transparency. Monospace chip
+   shows the RAW Genie poll status (e.g. PENDING_WAREHOUSE) so power
+   users see exactly what's happening on the Databricks side; the
+   friendly mapped label sits above. The trace disclosure expands a
+   full event log with timestamps. Both render under the progress card
+   only while the Genie path is live. */
+.gn-dbx-status-chip-row {
+    margin: 4px 0 0 36px;  /* line up under the progress label, past the leading icon */
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.gn-dbx-status-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border: 1px solid rgba(37, 99, 235, 0.25);
+    border-radius: 999px;
+    background: rgba(37, 99, 235, 0.06);
+    color: var(--gn-accent, #2563eb);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    line-height: 1.3;
+    animation: gn-dbx-chip-pulse 1.8s ease-in-out infinite;
+}
+@keyframes gn-dbx-chip-pulse {
+    0%, 100% { opacity: 0.7; }
+    50%      { opacity: 1; }
+}
+.gn-dbx-trace {
+    margin: 8px 14px 0;
+    border: 1px solid var(--gn-border-subtle, rgba(15,23,42,0.08));
+    border-radius: 6px;
+    background: rgba(15, 23, 42, 0.02);
+    font-size: 11.5px;
+}
+.gn-dbx-trace > summary {
+    cursor: pointer;
+    padding: 6px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    color: var(--gn-text-muted, #64748b);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 600;
+    list-style: none;
+}
+.gn-dbx-trace > summary::-webkit-details-marker { display: none; }
+.gn-dbx-trace > summary::before {
+    content: "▸";
+    margin-right: 4px;
+    transition: transform 140ms ease;
+}
+.gn-dbx-trace[open] > summary::before { transform: rotate(90deg); }
+.gn-dbx-trace-summary-title { flex: 1; }
+.gn-dbx-trace-summary-count {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 10.5px;
+    background: rgba(15, 23, 42, 0.06);
+    padding: 1px 6px;
+    border-radius: 4px;
+    color: var(--gn-text, #0f172a);
+}
+.gn-dbx-trace-list {
+    margin: 0;
+    padding: 4px 10px 8px;
+    list-style: none;
+    border-top: 1px solid var(--gn-border-subtle, rgba(15,23,42,0.06));
+    max-height: 220px;
+    overflow-y: auto;
+}
+.gn-dbx-trace-row {
+    display: grid;
+    grid-template-columns: 56px minmax(180px, 1fr) 1fr;
+    gap: 8px;
+    padding: 4px 0;
+    border-bottom: 1px dashed rgba(15, 23, 42, 0.05);
+    font-size: 11px;
+}
+.gn-dbx-trace-row:last-child { border-bottom: none; }
+.gn-dbx-trace-time {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: var(--gn-text-muted, #64748b);
+    font-size: 10.5px;
+    text-align: right;
+}
+.gn-dbx-trace-raw {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 10.5px;
+    color: var(--gn-accent, #2563eb);
+    font-weight: 600;
+}
+.gn-dbx-trace-friendly {
+    color: var(--gn-text, #0f172a);
+    font-style: italic;
+}
+
+/* 2026-05-26 — clarifier chip strip. When Genie ignores the contract
+   ("no clarifying questions") and appends a trailing "Would you
+   prefer…?" / "Should I…?", we strip it from the body and surface it
+   here as a one-click chip that pre-populates the composer. Sits
+   directly below the rendered answer card. */
+.gn-clarifier-chip-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 10px 14px 0;
+    padding: 8px 12px;
+    border: 1px dashed rgba(37, 99, 235, 0.28);
+    border-radius: 8px;
+    background: rgba(37, 99, 235, 0.04);
+}
+.gn-clarifier-chip-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--gn-text-muted, #64748b);
+    font-weight: 600;
+    flex-shrink: 0;
+}
+.gn-clarifier-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border: 1px solid rgba(37, 99, 235, 0.32);
+    border-radius: 999px;
+    background: var(--gn-surface-raised, #fff);
+    color: var(--gn-text, #0f172a);
+    font-size: 12.5px;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 140ms ease, border-color 140ms ease, transform 80ms ease;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.gn-clarifier-chip:hover {
+    background: rgba(37, 99, 235, 0.08);
+    border-color: var(--gn-accent, #2563eb);
+}
+.gn-clarifier-chip:active { transform: scale(0.98); }
+.gn-clarifier-chip-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.gn-clarifier-chip-arrow {
+    color: var(--gn-accent, #2563eb);
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+/* 2026-05-26 — Genie Deep Research / Agent Mode reasoning disclosure.
+   When Genie returns its 200-word meta-trace before the answer
+   ("Initial analysis / Found relevant data / Calculated… / Start
+   inspecting / Make a decision / Conclusion / Inspection complete!"),
+   we strip the trace and offer it here as a collapsed disclosure.
+   Closed by default so the actual answer lands at the top of the
+   card; user opens to audit Genie's reasoning. */
+.gn-agent-reasoning {
+    margin: 10px 14px 0;
+    border: 1px solid var(--gn-border-subtle, rgba(15,23,42,0.08));
+    border-radius: 6px;
+    background: rgba(15, 23, 42, 0.02);
+    font-size: 12.5px;
+}
+.gn-agent-reasoning > summary {
+    cursor: pointer;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--gn-text-muted, #64748b);
+    font-size: 11.5px;
+    font-weight: 600;
+    list-style: none;
+    user-select: none;
+}
+.gn-agent-reasoning > summary::-webkit-details-marker { display: none; }
+.gn-agent-reasoning > summary::before {
+    content: "▸";
+    margin-right: 2px;
+    transition: transform 140ms ease;
+    color: var(--gn-accent, #2563eb);
+}
+.gn-agent-reasoning[open] > summary::before { transform: rotate(90deg); }
+.gn-agent-reasoning-icon {
+    font-size: 12px;
+    line-height: 1;
+}
+.gn-agent-reasoning-title {
+    flex: 1;
+    color: var(--gn-text, #0f172a);
+}
+.gn-agent-reasoning-meta {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 10.5px;
+    color: var(--gn-text-muted, #64748b);
+    background: rgba(15, 23, 42, 0.05);
+    padding: 1px 6px;
+    border-radius: 3px;
+}
+.gn-agent-reasoning-body {
+    padding: 10px 14px 12px;
+    border-top: 1px solid var(--gn-border-subtle, rgba(15,23,42,0.06));
+    color: var(--gn-text-muted, #475569);
+    font-size: 12px;
+    line-height: 1.55;
+    max-height: 400px;
+    overflow-y: auto;
+}
+.gn-agent-reasoning-body h1,
+.gn-agent-reasoning-body h2,
+.gn-agent-reasoning-body h3 {
+    font-size: 12.5px;
+    font-weight: 600;
+    margin: 12px 0 4px;
+    color: var(--gn-text, #0f172a);
+}
+.gn-agent-reasoning-body h1:first-child,
+.gn-agent-reasoning-body h2:first-child,
+.gn-agent-reasoning-body h3:first-child { margin-top: 0; }
+.gn-agent-reasoning-body p { margin: 4px 0; }
+.gn-agent-reasoning-body code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    background: rgba(15, 23, 42, 0.06);
+    padding: 1px 4px;
+    border-radius: 3px;
 }
 
 .gn-compose-footer {
@@ -8025,6 +8527,101 @@
     font-size: 12px;
 }
 
+/* ── Shared surface context strip ── */
+
+.gn-surface-context {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 8px 16px;
+    border-bottom: 1px solid @gn-border-subtle;
+    background: linear-gradient(180deg, fade(#ffffff, 92%), fade(#f8fafc, 92%));
+    color: @gn-text-muted;
+    font-size: 11px;
+    line-height: 1.25;
+}
+
+.gn-surface-context__primary,
+.gn-surface-context__item {
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border: 1px solid @gn-border-subtle;
+    border-radius: 999px;
+    background: @gn-surface;
+}
+
+.gn-surface-context__primary {
+    border-color: @gn-accent-border;
+    background: @gn-accent-subtle;
+}
+
+.gn-surface-context__label {
+    flex: 0 0 auto;
+    color: @gn-text-muted;
+    font-weight: 600;
+}
+
+.gn-surface-context__value {
+    min-width: 0;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: @gn-text;
+    font-weight: 650;
+}
+
+.gn-surface-context__divider {
+    width: 1px;
+    height: 12px;
+    background: @gn-border;
+}
+
+.gn-shell--dark .gn-surface-context {
+    background: linear-gradient(180deg, rgba(10, 18, 32, 0.94), rgba(15, 23, 42, 0.92));
+}
+
+.gn-shell--dark .gn-surface-context__primary,
+.gn-shell--dark .gn-surface-context__item {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+@media (max-width: 520px) {
+    .gn-surface-context {
+        padding: 8px 12px;
+    }
+
+    .gn-surface-context__primary,
+    .gn-surface-context__item {
+        flex: 1 1 150px;
+    }
+
+    /* 2026-05-27 — Surface+mode pill packs two values + divider. At 150px
+       basis they collide and truncate to "AI I..." / "Executiv...". Give
+       the primary pill the FULL row (flex-basis: 100%) so both values can
+       breathe on small screens; secondary fact pills continue to share rows. */
+    .gn-surface-context__primary {
+        flex: 1 1 100%;
+    }
+
+    /* 2026-05-27 — Even with the primary pill on its own row, the value
+       spans inside kept ellipsising (the flex default lets values shrink
+       below their content size when min-width:0). Belt-and-suspenders:
+       remove max-width cap AND allow wrap AND prevent flex-shrink so
+       values render at full natural width. If a value still overflows
+       the pill, it wraps onto a new line instead of getting truncated. */
+    .gn-surface-context__value {
+        max-width: none;
+        white-space: normal;
+        flex-shrink: 0;
+    }
+}
+
 
 /* ── AI Insights pane ── */
 
@@ -8098,13 +8695,17 @@
     }
 }
 
+/* 2026-05-26 — anchor cold-start hero to top instead of vertically
+   centering. Centering left ~400px of dead zone below the CTAs in a
+   tall viewport. Top-anchored matches the Ask Pulse fix from earlier
+   so all three tabs feel cohesive. */
 .gn-insights-placeholder {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     text-align: center;
-    padding: 48px 16px;
+    padding: 56px 16px 16px;
     color: @gn-text-muted;
     h3 {
         margin: 12px 0 4px;
