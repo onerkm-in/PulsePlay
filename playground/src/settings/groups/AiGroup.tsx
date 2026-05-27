@@ -37,7 +37,8 @@ import {
     type PulseEnabledFeatures,
     type PulseInsightsAuthoringMode,
 } from "../pulseVisualSettingsStore";
-import { AiAssistedSuggestionPanel, CustomSectionPresetPicker, MetricDirectionPresetPicker } from "../../pulse/setupStep5";
+import { AiAssistedSuggestionPanel } from "../../pulse/setupStep5";
+import { CustomSectionPresetCombobox, MetricDirectionPresetCombobox } from "../components/PresetCombobox";
 import { suggestInsightsConfigViaProxy } from "../../lib/insightsSuggestClient";
 import { MetricDirectionAutoDetectChip } from "../../components/MetricDirectionAutoDetectChip";
 import { getDiscoverySnapshot, type DiscoverySnapshot } from "../../lib/discoveryClient";
@@ -881,14 +882,12 @@ function PulseAiInsightsSettingsPanel(props: {
                 label="Custom sections preset library"
                 summary="SWOT / BCG / RFM / Pareto / pack-specific presets — pick one to populate the Custom sections JSON below. Bundled metric direction rules (when the preset declares them) auto-apply to the Metric direction field too."
             >
-                <div className="pp-preset-library-wrap">
-                    <CustomSectionPresetPicker
-                        currentDomain={value.insightsDomain}
-                        onApplyDomain={insightsDomain => onChange({ insightsDomain })}
-                        onApplySections={insightsCustomSections => onChange({ insightsCustomSections })}
-                        onApplyMetricRules={metricDirectionRules => onChange({ metricDirectionRules })}
-                    />
-                </div>
+                <CustomSectionPresetCombobox
+                    currentDomain={value.insightsDomain}
+                    onApplyDomain={insightsDomain => onChange({ insightsDomain })}
+                    onApplySections={insightsCustomSections => onChange({ insightsCustomSections })}
+                    onApplyMetricRules={metricDirectionRules => onChange({ metricDirectionRules })}
+                />
             </Leaf>
 
             <SettingsTextarea
@@ -938,13 +937,11 @@ function PulseAiInsightsSettingsPanel(props: {
                         onDismiss={() => setAutoDetectDismissed(true)}
                     />
                 )}
-                <div className="pp-preset-library-wrap">
-                    <MetricDirectionPresetPicker
-                        currentDomain={value.insightsDomain}
-                        onApplyDomain={insightsDomain => onChange({ insightsDomain })}
-                        onApplyRules={metricDirectionRules => onChange({ metricDirectionRules })}
-                    />
-                </div>
+                <MetricDirectionPresetCombobox
+                    currentDomain={value.insightsDomain}
+                    onApplyDomain={insightsDomain => onChange({ insightsDomain })}
+                    onApplyRules={metricDirectionRules => onChange({ metricDirectionRules })}
+                />
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>
                     <SettingsTextInput
                         label="UC catalog (auto-detect source)"
