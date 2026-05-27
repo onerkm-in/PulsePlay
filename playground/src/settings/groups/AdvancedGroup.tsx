@@ -432,11 +432,14 @@ function broadcastReset(scope: string): void {
 
 // ─── Performance levers panel ────────────────────────────────────────────
 
+// 2026-05-28 — taglines updated to reflect that the cadence preset
+// now drives BOTH frontend reveal animation AND backend batch timing
+// (single source of truth — see performanceLevers.getBackendStagingFromCadence).
 const CADENCE_LABELS: Record<RevealCadence, { title: string; tagline: string }> = {
-    instant:  { title: "Instant",  tagline: "All sections paint together — no staged reveal" },
-    fast:     { title: "Fast",     tagline: "Headline at t=0, the rest at t=4s" },
-    balanced: { title: "Balanced", tagline: "Default — t=0/10/20/30 cadence per section pair" },
-    full:     { title: "Full",     tagline: "Every section its own beat at 8 s spacing" },
+    instant:  { title: "Instant",  tagline: "All sections in one Genie call — single-shot bundle" },
+    fast:     { title: "Fast",     tagline: "Lead first, then batches of 3 with 3s delay" },
+    balanced: { title: "Balanced", tagline: "Default — lead first, then batches of 2 with 6s delay" },
+    full:     { title: "Full",     tagline: "Lead first, then 1 section per batch with 8s delay" },
 };
 
 function PerformanceLeversPanel(): React.ReactElement {

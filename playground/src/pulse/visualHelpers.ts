@@ -1002,7 +1002,7 @@ export function buildStagedHybridInsightsPlan(
     authorGuidance?: string,
     universalStages?: { headline?: boolean; trends?: boolean; risks?: boolean; actions?: boolean },
     universalOverrides?: { headline?: string; trends?: string; risks?: string; actions?: string },
-    opts?: { batchSize?: 2 | 3 }
+    opts?: { batchSize?: 1 | 2 | 3 }
 ): InsightsStagePrompts {
     metricRules = safeAuthorPrompt(metricRules);
     authorGuidance = safeAuthorPrompt(authorGuidance);

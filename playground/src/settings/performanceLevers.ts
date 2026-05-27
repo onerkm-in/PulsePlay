@@ -22,11 +22,47 @@ export const PERFORMANCE_LEVERS_KEY = "pulseplay:performance-levers";
 export const PERFORMANCE_LEVERS_EVENT = "pulseplay:performance-levers-change";
 
 /** Reveal cadence preset — how aggressively to stagger section reveal.
- *  - "instant"  : no staged reveal; all sections paint together.
- *  - "fast"     : t=0 HEADLINE; t=4s rest of body — quick perceived response.
- *  - "balanced" : default; t=0 HEADLINE, t=10s KPI+TRENDS, t=20s RISKS+ACTIONS, t=30s OPPORTUNITIES.
- *  - "full"     : slow, "every section gets its own beat" — t=0/8/16/24/32. */
+ *  Drives BOTH frontend reveal animation AND backend batching strategy
+ *  (single-source preset, wired via getBackendStagingFromCadence below).
+ *  - "instant"  : no staged reveal; all sections paint together; backend = single-shot bundle.
+ *  - "fast"     : t=0 first section; rest in batches of 3 with 3s delay.
+ *  - "balanced" : default; t=0 first section; rest in batches of 2 with 6s delay.
+ *  - "full"     : every section is its own batch with 8s delay between batches. */
 export type RevealCadence = "instant" | "fast" | "balanced" | "full";
+
+/** Backend staging config derived from RevealCadence. Read at runtime by
+ *  visual.tsx's runInsights so the batching strategy changes when the
+ *  author flips the cadence preset in Settings → Advanced → Performance
+ *  Levers. NO standalone backend knobs — one preset controls everything. */
+export interface BackendStagingConfig {
+    /** When true, bypass the staged planner and use the single-shot fast
+     *  builder (all sections in ONE Genie call). Set by "instant" cadence.
+     *  When false, use the staged planner with `batchSize` below. */
+    useSinglePlanner: boolean;
+    /** Group size for batches AFTER the lead. Ignored when
+     *  useSinglePlanner is true. */
+    batchSize: 1 | 2 | 3;
+    /** Milliseconds the second worker waits before its FIRST pick, so the
+     *  lead batch can return its conversation_id before subsequent
+     *  sendMessages issue. Ignored when useSinglePlanner is true. */
+    interBatchDelayMs: number;
+}
+
+/** Map cadence preset → backend staging config. Pure function; no React,
+ *  no localStorage. Called inline by visual.tsx runInsights so changes
+ *  take effect on the NEXT insights run after the user flips the preset. */
+export function getBackendStagingFromCadence(cadence: RevealCadence): BackendStagingConfig {
+    switch (cadence) {
+        case "instant":
+            return { useSinglePlanner: true, batchSize: 2, interBatchDelayMs: 0 };
+        case "fast":
+            return { useSinglePlanner: false, batchSize: 3, interBatchDelayMs: 3_000 };
+        case "balanced":
+            return { useSinglePlanner: false, batchSize: 2, interBatchDelayMs: 6_000 };
+        case "full":
+            return { useSinglePlanner: false, batchSize: 1, interBatchDelayMs: 8_000 };
+    }
+}
 
 export interface PerformanceLevers {
     /** Reveal cadence preset. Default: "balanced". */

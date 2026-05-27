@@ -191,6 +191,7 @@ import {
 import {
     loadPerformanceLevers,
     PERFORMANCE_LEVERS_EVENT,
+    getBackendStagingFromCadence,
     type PerformanceLevers,
 } from "../settings/performanceLevers";
 // IDEA-044 Phase 1 MVP — CSV export of the first pipe-table found in the
@@ -3412,79 +3413,72 @@ function App(props: AppProps) {
             // appear twice in the assembled outgoing payload.
             const effectiveAuthorGuidance = (props.settings.insightsDomainGuidance ?? "").trim()
                 || (props.settings.domainGuidance ?? "").trim();
-            // 2026-05-27 — staged-rendering switch per
-            // AI_INSIGHTS_SECTION_LOADING_CLAUDE_HANDOFF_2026-05-27.md.
-            // Was buildFastHybridInsightsStagePrompts (1 stage = whole briefing
-            // in one Genie message). Now buildStagedHybridInsightsPlan splits
-            // into 2-4 batches: lead section alone, then 2 sections per batch.
-            // The existing runInsights worker pool (concurrency 2 + head-start
-            // delay) handles the rest under ONE conversation_id with distinct
-            // immutable message_ids — see visual.tsx ~line 4050 batch runner.
-            const hybrid = buildStagedHybridInsightsPlan(
-                props.context,
-                settingsDomain,
-                customSections,
-                roleMode,
-                kbFlags,
-                props.settings.metricDirectionRules,
-                effectiveAuthorGuidance,
-                // IDEA-043 — universal-stage visibility flags
-                {
-                    headline: props.settings.insightsShowHeadline,
-                    trends:   props.settings.insightsShowTrends,
-                    risks:    props.settings.insightsShowRisks,
-                    actions:  props.settings.insightsShowActions
-                },
-                // IDEA-043 — per-universal-stage instruction overrides
-                {
-                    headline: props.settings.insightsHeadlineOverride,
-                    trends:   props.settings.insightsTrendsOverride,
-                    risks:    props.settings.insightsRisksOverride,
-                    actions:  props.settings.insightsActionsOverride
-                },
-                { batchSize: 2 }
-            );
+            // 2026-05-28 — staging strategy derived from the user's
+            // revealCadence preset (Settings → Advanced → Performance
+            // Levers). Single source of truth: changing the preset flips
+            // both frontend reveal animation AND backend batching.
+            //   - "instant"  → single-shot bundle (no staging)
+            //   - "fast"     → batches of 3 with 3s delay
+            //   - "balanced" → batches of 2 with 6s delay (today's default)
+            //   - "full"     → batches of 1 with 8s delay (true serial)
+            const stagingFromCadence = getBackendStagingFromCadence(perfLevers.revealCadence);
+            const universalShow = {
+                headline: props.settings.insightsShowHeadline,
+                trends:   props.settings.insightsShowTrends,
+                risks:    props.settings.insightsShowRisks,
+                actions:  props.settings.insightsShowActions
+            };
+            const universalOverrides = {
+                headline: props.settings.insightsHeadlineOverride,
+                trends:   props.settings.insightsTrendsOverride,
+                risks:    props.settings.insightsRisksOverride,
+                actions:  props.settings.insightsActionsOverride
+            };
+            const hybrid = stagingFromCadence.useSinglePlanner
+                ? buildFastHybridInsightsStagePrompts(
+                    props.context, settingsDomain, customSections, roleMode, kbFlags,
+                    props.settings.metricDirectionRules, effectiveAuthorGuidance,
+                    universalShow, universalOverrides
+                )
+                : buildStagedHybridInsightsPlan(
+                    props.context, settingsDomain, customSections, roleMode, kbFlags,
+                    props.settings.metricDirectionRules, effectiveAuthorGuidance,
+                    universalShow, universalOverrides,
+                    { batchSize: stagingFromCadence.batchSize }
+                );
             prompts = hybrid.stages;
             titles = hybrid.titles;
         } else {
-            // Fallback for users with no author-configured hybrid setup:
-            //   - mode=manual but insightsPrompt is empty, OR
-            //   - mode=preset/ai-assisted but Domain + Sections both empty.
-            //
-            // 2026-05-27 — previously called buildFastHybridInsightsStagePrompts
-            // which bundles ALL universal sections (HEADLINE/TRENDS/RISKS/
-            // ACTIONS) into ONE Genie call. User observation in live test:
-            // "AI Insights tries to load everything and slows down." Switch
-            // to buildStagedHybridInsightsPlan so the default user also gets
-            // staged rendering — lead section (HEADLINE+KPI SNAPSHOT) arrives
-            // first, then TRENDS+RISKS together, then RECOMMENDED ACTIONS.
-            // Same underlying section content; differs only in batching.
-            // If a user has disabled all 4 universal stages, the staged
-            // planner falls through to the single-shot fast prompt via its
-            // internal `sectionBlocks.length <= 1` guard (visualHelpers.ts
-            // line 1078), so no behavior change in that edge case.
-            const stagePrompts = buildStagedHybridInsightsPlan(
-                props.context,
-                "",
-                [],
-                roleMode,
-                kbFlags,
-                props.settings.metricDirectionRules,
-                (props.settings.insightsDomainGuidance ?? "").trim() || props.settings.domainGuidance,
-                {
-                    headline: props.settings.insightsShowHeadline,
-                    trends:   props.settings.insightsShowTrends,
-                    risks:    props.settings.insightsShowRisks,
-                    actions:  props.settings.insightsShowActions
-                },
-                {
-                    headline: props.settings.insightsHeadlineOverride,
-                    trends:   props.settings.insightsTrendsOverride,
-                    risks:    props.settings.insightsRisksOverride,
-                    actions:  props.settings.insightsActionsOverride
-                },
-                { batchSize: 2 }
-            );
+            // Fallback for users with no author-configured hybrid setup.
+            // Same cadence-driven staging strategy as the hybrid path —
+            // see comment above.
+            const stagingFromCadence = getBackendStagingFromCadence(perfLevers.revealCadence);
+            const universalShow = {
+                headline: props.settings.insightsShowHeadline,
+                trends:   props.settings.insightsShowTrends,
+                risks:    props.settings.insightsShowRisks,
+                actions:  props.settings.insightsShowActions
+            };
+            const universalOverrides = {
+                headline: props.settings.insightsHeadlineOverride,
+                trends:   props.settings.insightsTrendsOverride,
+                risks:    props.settings.insightsRisksOverride,
+                actions:  props.settings.insightsActionsOverride
+            };
+            const stagePrompts = stagingFromCadence.useSinglePlanner
+                ? buildFastHybridInsightsStagePrompts(
+                    props.context, "", [], roleMode, kbFlags,
+                    props.settings.metricDirectionRules,
+                    (props.settings.insightsDomainGuidance ?? "").trim() || props.settings.domainGuidance,
+                    universalShow, universalOverrides
+                )
+                : buildStagedHybridInsightsPlan(
+                    props.context, "", [], roleMode, kbFlags,
+                    props.settings.metricDirectionRules,
+                    (props.settings.insightsDomainGuidance ?? "").trim() || props.settings.domainGuidance,
+                    universalShow, universalOverrides,
+                    { batchSize: stagingFromCadence.batchSize }
+                );
             prompts = stagePrompts.stages;
             titles = stagePrompts.titles;
         }
@@ -4112,17 +4106,14 @@ function App(props: AppProps) {
                     // before follow-up batches issue sendMessage on the same
                     // conversation_id. See
                     // AI_INSIGHTS_SECTION_LOADING_CLAUDE_HANDOFF_2026-05-27.md.
-                    // 2026-05-27 — bumped from 3500 → 6000ms per user
-                    // direction: "first section renders first, then rest
-                    // delayed by 5-7 seconds, then 2 each load using the
-                    // same conversation." 6000ms = midpoint of 5-7s range.
-                    // Combined with the HEADLINE/KPI SNAPSHOT split in
-                    // visualHelpers.ts, the user-visible behavior is:
-                    //   T+~10s : HEADLINE alone (light, fast)
-                    //   T+~16s : delay (6s after lead returns)
-                    //   T+~25s : KPI SNAPSHOT + TRENDS (batch of 2)
-                    //   T+~35s : RISKS + RECOMMENDED ACTIONS (batch of 2)
-                    const FIRST_LOAD_STAGE_1_DELAY_MS = 6_000;
+                    // 2026-05-28 — delay now sourced from the user's
+                    // revealCadence preset (Settings → Advanced →
+                    // Performance Levers). "balanced" = 6s (default),
+                    // "fast" = 3s, "full" = 8s, "instant" = 0 (single-
+                    // shot bypass — but this worker loop only runs when
+                    // stagingFromCadence.useSinglePlanner === false, so
+                    // we never actually see 0 here).
+                    const FIRST_LOAD_STAGE_1_DELAY_MS = getBackendStagingFromCadence(perfLevers.revealCadence).interBatchDelayMs;
                     const queue = Array.from({ length: prompts.length }, (_, i) => i);
                     const drainWorker = async (workerIndex: number) => {
                         let isFirstPick = true;
