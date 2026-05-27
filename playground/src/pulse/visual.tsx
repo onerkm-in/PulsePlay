@@ -3369,7 +3369,20 @@ function App(props: AppProps) {
         const authoringMode = props.settings.insightsAuthoringMode || "preset";
         const settingsPrompt = props.settings.insightsPrompt.trim();
         const settingsDomain = (props.settings.insightsDomain || "").trim();
-        const customSections = parseCustomSections(props.settings.insightsCustomSections);
+        const customSectionsRaw = parseCustomSections(props.settings.insightsCustomSections);
+        // 2026-05-27 — respect viewer-runtime section visibility BEFORE the
+        // planner runs. Sections the viewer toggled OFF (via the Adjust
+        // popover) are excluded from the plan entirely, so we don't pay
+        // Genie tokens / wall time for sections that won't render. Universal
+        // stages (HEADLINE/TRENDS/RISKS/ACTIONS) stay author-controlled per
+        // the insightsSectionVisibility design contract and are filtered
+        // separately by the universalStages prop below. When the viewer has
+        // no stored prefs (currentVisibleTitles === null), all author
+        // custom sections pass through unchanged — backwards-compatible
+        // default behavior.
+        const customSections = currentVisibleTitles
+            ? customSectionsRaw.filter(s => currentVisibleTitles.has(s.name.trim().toUpperCase()))
+            : customSectionsRaw;
         const hasHybridConfig = !!(settingsDomain || customSections.length > 0);
 
         let prompts: string[];
