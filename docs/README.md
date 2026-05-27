@@ -20,6 +20,7 @@
 | Current branch/state/test memory | [memory/project_state.md](memory/project_state.md) |
 | Latest session log | [HANDOVER.md](HANDOVER.md) |
 | Open work, ordered by impact | [AGENDA.md](AGENDA.md) |
+| Modular delivery decision: one app now, slim builds later | [research/MODULAR_DELIVERY_WAY_FORWARD_2026-05-25.md](research/MODULAR_DELIVERY_WAY_FORWARD_2026-05-25.md) |
 | DevTools MCP Databricks capture runbook | [research/DEVTOOLS_MCP_DATABRICKS_CAPTURE_RUNBOOK_2026-05-23.md](research/DEVTOOLS_MCP_DATABRICKS_CAPTURE_RUNBOOK_2026-05-23.md) |
 | DevTools MCP Databricks feed mining | [research/DEVTOOLS_MCP_DATABRICKS_FEED_MINING_2026-05-23.md](research/DEVTOOLS_MCP_DATABRICKS_FEED_MINING_2026-05-23.md) |
 | Chrome DevTools MCP tooling note | [research/CHROME_DEVTOOLS_MCP_TOOLING_2026-05-23.md](research/CHROME_DEVTOOLS_MCP_TOOLING_2026-05-23.md) |

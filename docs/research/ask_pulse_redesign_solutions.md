@@ -172,3 +172,34 @@ This blueprint acts as a comprehensive reference guide. Developers (such as Clau
 1. Surfacing the preset commands parser inside `UnifiedAssistantSurface.tsx`'s text input keycap listener.
 2. Styling the staggered cards cascade via the `.pp-ai-briefing-card` CSS structures.
 3. Adding the Collapsible parameter drawer alongside the composer input.
+
+---
+
+## 8. Hard Rules for Flawless UI/UX, Space Density, & Visual Blending
+
+To ensure the Ask Pulse conversational pane acts as a natural extension of the parent dashboard rather than an intrusive sidebar, developers must strictly adhere to these visual and layout invariants.
+
+### Rule A: Visual Blending & Theme Harmony (Organic Coexistence)
+* **CSS Variable Inheritance**: Never declare hardcoded color tokens (e.g. `#1e293b`). Always consume the parent container's `--pp-*` and `--gn-*` theme variables, so the AI sidebar automatically adjusts when the report shifts from Slate Dark to Light High-Contrast.
+* **Border Weight & Opacity**: Keep layout framing borders thin and translucent: `border: 1px solid rgba(255, 255, 255, 0.05);`.
+* **Soft Backdrop Filters**: Apply soft glassmorphism filters to container panels: `backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);` so dashboard elements behind floating panels peek through organically.
+
+### Rule B: Optimal Space Density (Zero Pixel Waste)
+* **Collapsible Details**: SQL statements, JSON payloads, and validation diagnostics must always default to collapsed details (`<details className="pp-ai-sidebar__sql">`) with zero top/bottom margin overhead.
+* **Variable Responsive Padding**: Paddings and gutters must scale with the viewport size using container queries:
+  * Mobile viewports (`< 640px`): `padding: 8px 12px; gap: 8px;`
+  * Large desktop (`>= 1280px`): `padding: 16px 20px; gap: 16px;`
+* **Dynamic Table Truncation**: Chat preview result tables must truncate at `RESULT_PREVIEW_ROWS = 20` rows and utilize dense layouts (`padding: 3px 6px` per cell) with thin overflow indicators rather than stretching the viewport.
+
+### Rule C: Perfect Visibility & High Contrast
+* **WCAG AA Compliance**: Ensure every text combination maintains a minimum contrast ratio of `4.5:1` for body text and `7:1` for headers. Use `#f8fafc` (Slate 50) text on dark backgrounds.
+* **Reserved Accent Usage**: Accent colors (Vibrant Blue, Emerald Green, Warm Amber) must never be used for decorative backgrounds. They are strictly reserved for:
+  1. Interactive hover states (Composer CTA buttons).
+  2. Dynamic progress or warning indicators (attestation badges).
+* **Screen Reader Integrity**: Every state change (warming warehouse, executing SQL query, streaming section) must be captured in an `aria-live="polite"` zone with explicit `role="status"` landmarks.
+
+### Rule D: Flawless Interaction Guardrails
+* **No Lost Input Drafts**: The chat composer input must be backed by React local state that is preserved during active layout tab switches.
+* **Instant Abort Control**: Clicking the contextual **Stop** button inside any in-flight card or composer must trigger a fetch stream abort immediately, freeing up background network resources.
+* **Warehouse Warming Progress**: When Databricks SQL warehouses are warming (cold-start cold state), replace generic "Thinking..." text with an explicit progressive explanation to manage user patience honestly.
+

@@ -4,7 +4,7 @@
 >
 > **Scope:** internal-org enabler. Path C — inner-source-first, public-OSS-later. This doc is for engineers and architects working inside the org that owns PulsePlay.
 >
-> **Strategic posture:** Databricks-forward, bridge-friendly, adapter-safe. See [DATABRICKS_FORWARD_STRATEGY.md](DATABRICKS_FORWARD_STRATEGY.md) for the canonical shift-left / shift-middle plan, and [MODULAR_INTEGRATION_ARCHITECTURE.md](MODULAR_INTEGRATION_ARCHITECTURE.md) for the addable/removable building-block model.
+> **Strategic posture:** Databricks-forward, bridge-friendly, adapter-safe. See [DATABRICKS_FORWARD_STRATEGY.md](DATABRICKS_FORWARD_STRATEGY.md) for the canonical shift-left / shift-middle plan, [MODULAR_INTEGRATION_ARCHITECTURE.md](MODULAR_INTEGRATION_ARCHITECTURE.md) for the addable/removable building-block model, and [research/MODULAR_DELIVERY_WAY_FORWARD_2026-05-25.md](research/MODULAR_DELIVERY_WAY_FORWARD_2026-05-25.md) for the delivery decision: one integrated app now, platform-owned slim builds later.
 
 ## One sentence
 
@@ -144,7 +144,7 @@ The PBI semantic-model brain (#10) **does not invoke any LLM** at any step. Ever
 
 ### Connector plugin architecture (direction locked 2026-05-20)
 
-The proxy's connector dispatch is the dominant friction point as it grows past ten backends. Direction agreed: refactor into a **`proxy/connectors/` directory of drop-in/drop-out modules** where each file exports `{ id, displayName, matchProfile, probe, register, unregister }` and only touches a shared `host` API surface. Phased rollout queued — Phase A (scaffolding) → B (one pilot) → C (rest). See [AGENT_SYNC.md](AGENT_SYNC.md) `[DECISION]` block for the full contract + host API spec.
+The proxy's connector dispatch is the dominant friction point as it grows past ten backends. Direction agreed: refactor into a **`proxy/connectors/` directory of drop-in/drop-out modules** where each file exports `{ id, displayName, matchProfile, probe, register, unregister }` and only touches a shared `host` API surface. Phased rollout queued — Phase A (scaffolding) → B (one pilot) → C (rest). See [AGENT_SYNC.md](AGENT_SYNC.md) `[DECISION]` block for the full contract + host API spec, and [research/MODULAR_DELIVERY_WAY_FORWARD_2026-05-25.md](research/MODULAR_DELIVERY_WAY_FORWARD_2026-05-25.md) for the delivery guardrail: avoid runtime marketplace/module federation in v1; prefer one build plus lazy chunks and server-owned capability truth.
 
 ### The orchestrator
 

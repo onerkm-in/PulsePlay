@@ -59,3 +59,27 @@ __pycache__/
 # Local HAR captures (may contain secrets)
 *.har
 
+# 2026-05-27 — Generated probe/smoke evidence (per-run, dated folders).
+# Curated evidence intentionally promoted from these dated folders into
+# docs/evidence/<descriptive-name>/ can still be committed.
+docs/evidence/*-2026-*/
+docs/evidence/all-features-*/
+docs/evidence/preview-all-3-*/
+docs/evidence/one-surface-*/
+docs/evidence/dashboard-*/
+docs/evidence/genie-*/
+docs/evidence/powerbi-*/
+docs/evidence/settings-tour-*/
+docs/evidence/ai-insights-*/
+docs/evidence/ask-pulse-*/
+docs/evidence/beast-*/
+docs/evidence/deep-regression-*/
+docs/evidence/local-smoke-*/
+docs/evidence/responsive-*/
+docs/evidence/settings-control-panel-sweep-*/
+docs/evidence/simple-medium-*/
+docs/evidence/ui-snapshot-*/
+
+# Local probe output scratch dirs
+playground/scripts/.*-out/
+

@@ -5,6 +5,181 @@
 
 ---
 
+## 2026-05-27 - Settings parent-child progressive handoff
+
+**Scope.** Rajesh confirmed the major UX concern is Settings: it needs real design thinking, parent-child progressive setup, tighter space management, and section writeups moved into `i` buttons so Claude can focus implementation.
+
+**Artifact.** Added [research/SETTINGS_PROGRESSIVE_PARENT_CHILD_CLAUDE_HANDOFF_2026-05-27.md](research/SETTINGS_PROGRESSIVE_PARENT_CHILD_CLAUDE_HANDOFF_2026-05-27.md).
+
+**Mantra.** Stay uniform. Stay simple. Stay lean. Stay clean.
+
+**Claude direction.** Reuse existing Settings primitives (`HelpTip`, `FieldRow`, `ProgressiveSection`, `BookmarkNav`) instead of inventing a new design system. Refactor visible helper prose into accessible `HelpTip` info buttons, make Setup Home task/readiness-first, keep parent decisions before child fields, add a mobile parent-map replacement when the rail hides, and preserve deep links/search. Do not hide errors, destructive warnings, RLS/allowlist warnings, or next actions behind info buttons.
+
+**Validation.** Docs-only read pass; no Settings source files changed.
+
+---
+
+## 2026-05-27 - Read-only multi-agent codebase audit for Claude
+
+**Scope.** Rajesh asked for multiple read-only research agents to probe every major code slice, run integration checks, surface hidden loose ends, and prepare a detailed Claude-facing analysis of what works, what is stale, what is broken, and what is architecturally weak.
+
+**Artifact.** Added [research/READ_ONLY_CODEBASE_AUDIT_FOR_CLAUDE_2026-05-27.md](research/READ_ONLY_CODEBASE_AUDIT_FOR_CLAUDE_2026-05-27.md).
+
+**Validation result.** Current dirty workspace is not green: `cd playground && npm run lint` FAILS because `PulseSurfaceTab` includes `dashboard` but `PulseShell.activeTabRequest` accepts only `insights | chat`; `cd playground && npm run build` fails on the same TypeScript error; full playground Vitest is 1594/1597 with stale Native adapter copy assertions. Proxy full Jest remains green at 58 suites / 1164 tests. No `.only` / `.skip` matches found.
+
+**Top findings.** Dashboard must remain an app-level surface, not a Pulse internal tab; direct `/powerbi/*` routes need the same auth/rate-limit/allowlist posture as `/assistant/*`; trust labels overclaim (`Grounded`, `Governed`, `sme-reviewed`); structured embed configs can bypass URL allowlist normalization; the uniform three-surface layout still lacks a real unmocked responsive gate; generated evidence/probe output needs classification before cleanup.
+
+**Claude direction.** Fix the build and stale tests first, then protect `/powerbi/*`, correct trust labels, add a real three-surface Playwright/layout gate, and classify the dirty tree. Do not rebuild the shell, do not revive `AISidebar.tsx`, and do not claim the current workspace is green until lint/test/build pass again.
+
+---
+
+## 2026-05-27 - Claude uniform layout handoff: align layers, do not rebuild
+
+**Scope.** Rajesh clarified the key layout insight after seeing the screenshots: PulsePlay has multiple hidden/stacked layers, and the right answer is not reconstructing everything. Claude needs to understand what is already in place and improve uniformity across AI Insights, Ask Pulse, and Dashboard without compromising the current system.
+
+**Artifact.** Added [research/UNIFORM_LAYOUT_WITHOUT_REBUILD_CLAUDE_HANDOFF_2026-05-27.md](research/UNIFORM_LAYOUT_WITHOUT_REBUILD_CLAUDE_HANDOFF_2026-05-27.md).
+
+**Claude direction.** The doc tells Claude to preserve the current three-surface architecture, keep Dashboard as one tab with internal `Embedded BI` / `Pulse Canvas` modes, preserve the 2026-05-27 context grammar, and fix the owning layout layer when overlap or inconsistency appears. It maps the actual layers: App top bar, fixed `TopRightToolbar`, split layout/pane chrome, Pulse internal header, Pulse context strip, Dashboard context strip, and BI/native canvas.
+
+**Guardrail.** Next UX work should be a reveal-and-align pass: screenshot first, identify the owning layer, prefer CSS/flex/overflow/z-index fixes over structure, avoid new nav/header/card shells, do not revive retired `AISidebar.tsx`, and validate desktop plus 390px mobile.
+
+**Validation.** Docs-only; `git diff --check` pending in this slice.
+
+---
+
+## 2026-05-27 - Uniform AI surfaces context strip implementation
+
+**Scope.** Rajesh asked to make Ask Pulse, AI Insights, and Dashboard uniform after the UI/UX research handoffs.
+
+**Changes.**
+- Added a shared surface/context/trust strip to the active Pulse AI surfaces in [playground/src/pulse/visual.tsx](../playground/src/pulse/visual.tsx) with matching styling in [playground/src/pulse/style/visual.less](../playground/src/pulse/style/visual.less). AI Insights now reads as `Surface / AI Insights / Executive briefing`; Ask Pulse reads as `Surface / Ask Pulse / Conversation`; both expose Assistant, Source, Scope, and Trust.
+- Added the same grammar to Dashboard in [playground/src/App.tsx](../playground/src/App.tsx) and [playground/src/styles.css](../playground/src/styles.css): `Surface / Dashboard / Pulse Canvas|Embedded BI`, Source, Assistant, Pack, Trust.
+- Updated Dashboard empty-state copy and Native Canvas artifact labels in [playground/src/visualization/NativeCanvas.tsx](../playground/src/visualization/NativeCanvas.tsx) from generic "AI result accepted" language to `Pulse Canvas`, `Pulse chart`, `Pulse table`, `Pulse KPI`, and `Pulse narrative`.
+- Fixed the narrow-mobile overlap where the fixed top-right window-controls toolbar intercepted Pulse tab taps by hiding that desktop-only toolbar under 640px in [playground/src/components/TopRightToolbar.tsx](../playground/src/components/TopRightToolbar.tsx) / [playground/src/styles.css](../playground/src/styles.css).
+- Fixed a TypeScript break in the existing Ask Pulse reasoning-disclosure code by importing `renderMarkdown` and narrowing the optional clarifier before composer insertion.
+
+**Validation.**
+- `cd playground && npm run lint` PASS.
+- `cd playground && npm test -- NativeCanvas viewportControls` PASS: 61/61 focused tests.
+- `cd playground && npm run build` PASS, with existing Vite dynamic/static import chunking warnings for BI adapters.
+- Playwright smoke via local Vite server confirmed desktop AI Insights, Ask Pulse, and Dashboard strips render the expected labels; mobile 390px smoke confirmed Ask Pulse and Dashboard tabs are tappable, no horizontal overflow (`bodyWidth=390`), and the desktop toolbar is hidden.
+
+---
+
+## 2026-05-27 - AI Insights and Dashboard UI/UX deep research handoff
+
+**Scope.** Rajesh asked what about the other screens after the Ask Pulse UI/UX brief: specifically AI Insights and Dashboard.
+
+**Artifact.** Added [research/AI_INSIGHTS_AND_DASHBOARD_UI_UX_DEEP_RESEARCH_2026-05-27.md](research/AI_INSIGHTS_AND_DASHBOARD_UI_UX_DEEP_RESEARCH_2026-05-27.md). The brief reviews local AI Insights/Dashboard code and screenshot evidence, then benchmarks against current Power BI dashboard/accessibility guidance, Power BI Copilot summaries, Tableau visual best practices, Tableau Pulse, Databricks AI/BI dashboards and Genie, IBM data visualization guidance, and Microsoft data visualization style guidance.
+
+**Key verdict.** AI Insights is functionally rich but still needs to feel like an executive briefing deck: visible context preflight, trust header, summary band, section navigator, safer mobile/error states, and direct actions into Ask Pulse/Dashboard. Dashboard has the larger identity gap: it currently mixes embedded BI surface and Pulse-generated chart canvas under one tab, so the UI needs explicit internal modes (`Embedded BI` vs `Pulse Canvas`) without adding a new top-level tab.
+
+**Claude handoff.** Recommended first implementation: shared `SurfaceContextStrip` for AI Insights and Dashboard, AI Insights `BriefingTrustHeader` / `BriefingSummaryBand` / `SectionNavigator`, sanitized AI Insights failure copy, Dashboard mode-aware empty state, and artifact-specific `NativeCanvas` labels instead of visible "AI result accepted."
+
+**Validation.** Docs-only; no runtime tests run.
+
+---
+
+## 2026-05-27 - Ask Pulse UI/UX deep research and Claude handoff
+
+**Scope.** Rajesh asked for deep UI/UX research on the Ask Pulse screen versus modern AI chat/data-dialogue standards, with flexible templates Claude can implement.
+
+**Artifact.** Added [research/ASK_PULSE_UI_UX_DEEP_RESEARCH_2026-05-27.md](research/ASK_PULSE_UI_UX_DEEP_RESEARCH_2026-05-27.md). The brief reconciles current local code/evidence with modern AI UI patterns from Microsoft HAX/Fluent, IBM Carbon for AI, Atlassian AI guidelines, OpenAI Canvas, ChatGPT Projects, Claude Artifacts, Databricks Genie, WAI-ARIA combobox guidance, and WCAG 2.2.
+
+**Key verdict.** Ask Pulse is already structurally strong; the missing lift is not a decorative dark/glass rewrite. The right direction is a defensible data-dialogue workbench: visible context strip, grouped starter templates, per-answer trust header, answer artifact card, accessible command composer, parameterized strategic presets, and evidence/trace surfaced progressively.
+
+**Claude handoff.** The doc explicitly warns that the current active Ask Pulse implementation is `playground/src/pulse/visual.tsx` + `playground/src/pulse/style/visual.less`; `AISidebar.tsx` is retired and `UnifiedAssistantSurface.tsx` is a separate parity target. Recommended first implementation is Phase 1 + Phase 2 only: context/trust/starters/artifact toolbar plus strategic command composer.
+
+**Validation.** Docs-only; no runtime tests run.
+
+---
+
+## 2026-05-26 - Power BI SalesPerformance connection + metadata note
+
+**Scope.** Rajesh provided the Power BI Service dataset URL and XMLA connection string for `dwd_pbi_demo` / `SalesPerformance`, and pointed to the installed Microsoft Power BI Modeling MCP Server.
+
+**Connection result.**
+- Confirmed the existing `powerbi-dwd` profile is wired to workspace `7bb52a2a-5028-4887-b8ec-7d13e386da93` and semantic model `965cca80-6dcc-4f37-8a8d-95ac47ad8af3`.
+- Verified Power BI REST access with the stored user-refresh auth path. Workspace listing found `dwd_pbi_demo` with `SalesPerformance` as the matching semantic model.
+- Verified live DAX execution still works: `EVALUATE ROW("Total Sales", [Total Sales])` returned one row with total sales value `2297200.86029998`.
+- Reconfirmed live `INFO.MEASURES()` and `INFO.TABLES()` over `executeQueries` still fail with Power BI `DatasetExecuteQueriesError` / AnalysisServices code `3239575574`, so the static TMDL-derived probe remains necessary for metadata-rich matching.
+
+**Metadata update.** Used Fabric REST `PATCH /v1/workspaces/{workspaceId}/semanticModels/{semanticModelId}` to set the semantic model item description to: `Sales performance semantic model for PulsePlay Ask Pulse deterministic DAX: sales, profit, orders, returns, shipping, region, customer, product, and time analysis.` Verified the description immediately after the PATCH. This was item metadata only; no TMDL/model definition replacement was attempted.
+
+**MCP status.** The VS Code extension exists locally at `C:\Users\rajes\.vscode\extensions\analysis-services.powerbi-modeling-mcp-0.4.0-win32-x64` and the `powerbi-modeling-mcp.exe` stdio server responds to MCP `initialize` / `tools/list`. Read-only `ConnectFabric` failed before login because Azure Identity could not start the localhost browser callback (`HttpListenerException` on `http://localhost:<port>/`; suggested machine fix is `netsh http add iplisten 127.0.0.1` from an admin prompt). Do not silently run that machine-level change.
+
+**Local profile note.** `proxy/config.json` is ignored/local and was corrected in-place to name `SalesPerformance` and `dwd_pbi_demo`; this will not show in git diff.
+
+---
+
+## 2026-05-26 - Power BI semantic-model Ask Pulse smoke stabilized
+
+**Scope.** Rajesh asked to stabilize the headed Ask Pulse smoke for the `powerbi-dwd` profile (`type: powerbi-semantic-model`) without touching the user-facing Ask Pulse UI, adding an LLM call, or changing connector architecture.
+
+**Root cause.** The UI sometimes posted the real user question through the follow-up route after PulseShell's background Ask Pulse preload had seeded `conversationMap`; semantic-model follow-ups were then treated like Databricks Genie follow-ups instead of deterministic Power BI DAX asks. The smoke harness also reused one Chromium context across all 20 questions, and the server could re-run the live probe instead of using the already-available static probe.
+
+**Changes.**
+- `proxy/server.js` now routes `powerbi-semantic-model` follow-ups through `startPowerBiConversation`, prefers useful client/static probes before live probes, and audits unmatched answers with probe/question source details.
+- `proxy/lib/powerbiQuestionMatcher.js` now handles TMDL naming variants (`DimCustomer`, `product_name`, `CustomerName`, `ship_mode`, `manager_name`) and avoids treating measure words like `sales` as implicit dimensions unless the question explicitly asks `by/per`.
+- `proxy/lib/powerbiDaxTemplates.js` now allows percent signs in measure names and renders scalar totals as a small Markdown table, including null totals.
+- `playground/scripts/probe-ask-pulse-powerbi.mjs` now opens a fresh browser context per question and falls back to `playground/scripts/.powerbi-smoke-out/<timestamp>` when `docs/evidence/powerbi-asksulse-2026-05-26` is locked by Windows compression/ACLs.
+
+**Validation.**
+- `node --check proxy/server.js` PASS.
+- `node --check playground/scripts/probe-ask-pulse-powerbi.mjs` PASS.
+- Focused proxy tests PASS: `powerbiQuestionMatcher`, `powerbiDaxTemplates`, `powerbiDatasetClient`.
+- `npm test -- server.test.js --runInBand` PASS: 158 tests.
+- Full proxy `npm test -- --runInBand` PASS: 58 suites, 1164 tests.
+- Headed smoke against local proxy started with `NODE_OPTIONS=--use-system-ca`: 20/20 PASS twice in a row, with the same PASS set both runs. Evidence folders: `playground/scripts/.powerbi-smoke-out/2026-05-26T13-28-52-034Z` and `playground/scripts/.powerbi-smoke-out/2026-05-26T13-31-36-279Z`.
+
+**Tripwires.** `git diff --check` still reports the pre-existing unrelated blank EOF in `docs/research/ask_pulse_redesign_solutions.md` plus LF/CRLF warnings. Do not count that as part of this fix. Local Power BI/AAD calls need the proxy launched with system CAs in this Windows environment.
+
+---
+
+## 2026-05-26 - Ask Pulse visualization extreme smoke catalog, 1250 prompts
+
+**Scope.** Rajesh asked for at least 1000 Ask Pulse-only questions to push visualization generation hard: charts, graphs, maps, diagrams, dense edge cases, custom formatting, export/readability, and unsupported-visual fallbacks. Runtime execution is deferred; this slice prepares Claude's catalog and instructions only.
+
+**Artifact.** Added [scenarios/07_ask_pulse_visual_extreme_1000.md](scenarios/07_ask_pulse_visual_extreme_1000.md). The document contains **1250** concrete `APV-*` prompts generated from 50 visual targets x 25 data domains. Coverage includes bar/line/area/combo/scatter/bubble/histogram/box/violin/heatmap/calendar/treemap/sunburst/icicle/radar/polar/pie/donut/slope/bump/maps/timeline/Gantt/network/Sankey/chord/parallel-coordinates/small-multiples/bullet/gauge/sparklines/candlestick/OHLC/density/hexbin/funnel/cohort/survival/control/Pareto/decomposition/tornado visuals.
+
+**Claude runbook.** The doc tells Claude to run Ask Pulse only, submit prompts exactly as written, capture answer and visual render timings, classify unsupported visuals honestly, save evidence under `docs/evidence/ask-pulse-visual-1250-YYYY-MM-DD/`, and fix only PulsePlay-owned root causes before rerunning failed cases.
+
+**Validation.** Count check passed: 1250 `APV-*` rows. No browser/proxy run was performed.
+
+---
+
+## 2026-05-26 - Flawless Dialogue with Data AI Chat Screen UX/UI Design Reference & Sandbox
+
+**Scope.** Conducted a rigorous visual, structural, and architectural design assessment for the **Ask Pulse** conversational screen (`UnifiedAssistantSurface.tsx`), detailing four core pillars (organic theme harmony, zero-waste space density, high contrast visibility, and flawless interaction controls) and a comparative audit of research-backed strategic presets (SWOT, BCG, RFM, Pareto, Variance).
+
+**Artifacts.**
+- Created [docs/research/flawless_data_dialogue_ui_ux_reference.md](file:///d:/Working_Folder/Projects/PulsePlay/docs/research/flawless_data_dialogue_ui_ux_reference.md) detailing Dialog-with-Data architectural pillars, variable responsive gutters, accessible HSL contrast ratios, details collapsible bounds, and concrete engineering guidelines.
+- Created [docs/research/ask_pulse_interactive_mockup.html](file:///d:/Working_Folder/Projects/PulsePlay/docs/research/ask_pulse_interactive_mockup.html), an ultra-premium, interactive, standalone mockup dashboard that demonstrates dynamic contrast toggles, sliding parameter adjustments drawer, simulated cold-start warehouse notifications, autocomplete slash-command dropdown overlay, and staggered SlideUp card briefings.
+
+**Validation.** Zero functional code changes made to the React playground codebase, maintaining perfect alignment with the assessment-only boundary. Interactive HTML verified as standalone with zero external dependencies and fully responsive CSS rules.
+
+## 2026-05-26 - Ask Pulse 100-question complex/extreme pack for Claude
+
+**Scope.** Rajesh redirected from immediate slow-mo execution to preparing the question/use-case set and run details first, so Claude can run the test and continuous-improvement/fix loop later.
+
+**Artifact.** Added [scenarios/06_ask_pulse_complex_extreme_100.md](scenarios/06_ask_pulse_complex_extreme_100.md). The file contains exactly **100** unique Ask Pulse questions over the Sales Performance Genie data anchor, covering complex through very-high-extreme use cases: executive contradiction detection, margin leakage, discount sensitivity, geography, seasonality, fulfillment, governance/evidence, multi-turn state, artifact tabs, adversarial/ambiguous prompts, and cross-functional operating packets.
+
+**Runbook.** The doc includes Claude instructions, slow-mo execution bands, timing fields (`userBubbleMs`, `firstAssistantPaintMs`, `completedMs`, `artifactPaintMs`, `totalRenderMs`), pass/fail classification, and a continuous-improvement loop. Runtime validation is intentionally deferred; no Ask Pulse browser run was performed in this slice.
+
+**Validation.** Count check passed: 100 `APQ-*` rows. Runtime tests deferred by user direction.
+
+---
+
+## 2026-05-25 - Sales Performance high-complex 1500-case layout catalog
+
+**Scope.** Rajesh asked for one Markdown file containing 1500 Sales Performance Genie-space test cases covering AI Insights, Ask Pulse, and Dashboard/native BI layout settings, then clarified to include only High, Complex, and High-Complex scenarios.
+
+**Artifact.** Added [scenarios/05_sales_performance_high_complex_extreme_1500.md](scenarios/05_sales_performance_high_complex_extreme_1500.md). The file uses a deterministic expansion matrix rather than a huge flat dump: 3 surfaces × 10 layout modes × 10 Sales Performance data slices × 5 high/complex stress packs = **1500** case IDs. It covers sectioned AI Insights, Ask Pulse artifacts/tabs/composer, native BI chart/table/KPI states, split panes, floating panes, mobile/ultrawide/high-contrast paths, evidence/degraded states, and Power BI/native mixed pane safety.
+
+**Validation.** Count checked by matching the 30 expanded layout rows and multiplying by 50 cases per row = 1500. `git diff --check` passed with existing LF/CRLF warnings only. Docs-only; no runtime tests run.
+
+---
+
 ## 2026-05-25 (evening) — Per-tab visibility model + TopRightToolbar + bug fixes + scenario harness
 
 **Direction shifts this session (three concentric revisions to the unified-screen plan):**
