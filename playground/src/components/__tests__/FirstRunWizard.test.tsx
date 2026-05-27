@@ -31,6 +31,7 @@ import {
     type VendorOption,
     type ConnectorOption,
 } from "../FirstRunWizard";
+import { DEFAULT_UI_MODE } from "../../settings/settingsStore";
 
 /* ─── Fixtures ──────────────────────────────────────────────────────── */
 
@@ -107,33 +108,34 @@ describe("shouldShowWizard", () => {
 /* ─── applyPersonaDefaults ──────────────────────────────────────────── */
 
 describe("applyPersonaDefaults", () => {
-    // 2026-05-25 — every persona now returns uiMode: "v0" per the unified-
-    // surface plan (UnifiedAssistantSurface is the always-default; PulseShell is dev-tools
-    // only). Layout + connector hints stay persona-specific.
-    it("Analyst → v0 / ai-left / genie hint", () => {
+    // Every persona returns DEFAULT_UI_MODE (single source of truth in
+    // settingsStore). Asserting against the constant — not a hardcoded
+    // string — so the test cascades automatically if the default flips.
+    // Layout + connector hints stay persona-specific.
+    it("Analyst → DEFAULT_UI_MODE / ai-left / genie hint", () => {
         const d = applyPersonaDefaults("analyst");
-        expect(d.uiMode).toBe("v0");
+        expect(d.uiMode).toBe(DEFAULT_UI_MODE);
         expect(d.layoutMode).toBe("ai-left");
         expect(d.preferredConnectorType).toBe("genie");
     });
 
-    it("Executive → v0 / ai-top / foundation-model hint", () => {
+    it("Executive → DEFAULT_UI_MODE / ai-top / foundation-model hint", () => {
         const d = applyPersonaDefaults("executive");
-        expect(d.uiMode).toBe("v0");
+        expect(d.uiMode).toBe(DEFAULT_UI_MODE);
         expect(d.layoutMode).toBe("ai-top");
         expect(d.preferredConnectorType).toBe("foundation-model");
     });
 
-    it("Developer → v0 / ai-right / no hint", () => {
+    it("Developer → DEFAULT_UI_MODE / ai-right / no hint", () => {
         const d = applyPersonaDefaults("developer");
-        expect(d.uiMode).toBe("v0");
+        expect(d.uiMode).toBe(DEFAULT_UI_MODE);
         expect(d.layoutMode).toBe("ai-right");
         expect(d.preferredConnectorType).toBeUndefined();
     });
 
-    it("Designer → v0 / ai-left / no hint", () => {
+    it("Designer → DEFAULT_UI_MODE / ai-left / no hint", () => {
         const d = applyPersonaDefaults("designer");
-        expect(d.uiMode).toBe("v0");
+        expect(d.uiMode).toBe(DEFAULT_UI_MODE);
         expect(d.layoutMode).toBe("ai-left");
         expect(d.preferredConnectorType).toBeUndefined();
     });

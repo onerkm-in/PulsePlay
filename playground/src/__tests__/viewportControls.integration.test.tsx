@@ -121,12 +121,12 @@ function seedExplicitSplitLayout(): void {
     window.localStorage.setItem("pulseplay:enabled-components:legacy-both-migrated", "true");
 }
 
-/** 2026-05-25 — uiMode default is now "v0" (UnifiedAssistantSurface). Tests that
- *  exercise PulseShell-mounted chrome (tab strip + the mocked PulseShell
- *  button with "Open dashboard surface" aria-label) must opt INTO pulse
- *  mode via this helper before mounting. Mirrors what a dev would do in
- *  DevTools to activate the escape hatch during the feature-port
- *  migration. */
+/** uiMode default is "v0" (UnifiedAssistantSurface — see settingsStore
+ *  DEFAULT_UI_MODE). Tests that exercise PulseShell-mounted chrome (tab
+ *  strip + the mocked PulseShell button with "Open dashboard surface"
+ *  aria-label) must opt INTO pulse mode via this helper before mounting.
+ *  Mirrors what a dev would do in DevTools to activate the escape hatch
+ *  during the feature-port migration. */
 function seedPulseUiMode(): void {
     window.localStorage.setItem("pulseplay:ui-mode", "pulse");
 }

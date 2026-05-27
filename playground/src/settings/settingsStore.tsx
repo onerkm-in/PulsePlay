@@ -93,6 +93,23 @@ const ENABLED_COMPONENTS_LEGACY_BOTH_MIGRATION_KEY = "pulseplay:enabled-componen
 export type UiMode = "pulse" | "v0";
 
 /**
+ * Single source of truth for the cold-boot default surface. Imported by
+ * App.tsx readInitialUiMode(), settingsStore readUiMode(), and the wizard's
+ * persona presets — instead of each site hardcoding the same string.
+ *
+ * 2026-05-27: re-aligned to "v0" (UnifiedAssistantSurface) per user direction.
+ * "pulse" (PulseShell) remains a parseable escape hatch via DevTools
+ * `localStorage.setItem("pulseplay:ui-mode", "pulse")` for power-user
+ * fallback during the feature-port migration.
+ *
+ * Follow-up: this constant is the wedge before a feature-feasibility
+ * registry — features should eventually declare which surface(s) they
+ * support, and a resolver should pick the default. Tracked in
+ * docs/research/READ_ONLY_PRODUCT_TEST_RESULTS_AND_BRUTAL_ARCHITECT_FEEDBACK_FOR_CLAUDE_2026-05-27.md.
+ */
+export const DEFAULT_UI_MODE: UiMode = "v0";
+
+/**
  * Per-tab visibility booleans (2026-05-25). Each flag controls whether
  * the corresponding tab button renders in the PulseShell tab strip AND
  * whether the tab body is reachable. ONE canonical layout (3-tab strip);
@@ -379,19 +396,16 @@ function validatePack(selection: PackSelection | null, allowlist: PulsePlayAllow
 // ─── Initial load + reconciliation ───────────────────────────────────────
 
 function readUiMode(): UiMode {
-    // Re-locked 2026-05-25 (per-tab-visibility direction): default is
-    // "pulse" (PulseShell — the 3-tab strip is the one canonical layout).
-    // "v0" still parses so dev-tools `localStorage.setItem("pulseplay:ui-
-    // mode", "v0")` falls through to UnifiedAssistantSurface as an escape
-    // hatch if PulseShell hits a regression mid-incident. Mirrors
-    // App.tsx readInitialUiMode().
-    if (typeof window === "undefined") return "pulse";
+    // Default sourced from DEFAULT_UI_MODE (single source of truth above).
+    // Both "pulse" and "v0" still parse so the DevTools escape hatch works
+    // in either direction. Mirrors App.tsx readInitialUiMode().
+    if (typeof window === "undefined") return DEFAULT_UI_MODE;
     try {
         const v = window.localStorage.getItem(KEY.uiMode);
         if (v === "v0") return "v0";
         if (v === "pulse") return "pulse";
     } catch { /* swallow */ }
-    return "pulse";
+    return DEFAULT_UI_MODE;
 }
 
 function readEnabledComponents(): EnabledComponents {

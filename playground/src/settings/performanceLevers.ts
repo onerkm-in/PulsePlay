@@ -32,8 +32,9 @@ export interface PerformanceLevers {
     /** Reveal cadence preset. Default: "balanced". */
     revealCadence: RevealCadence;
     /** When false, App.tsx skips the screen-load discovery prewarm (the cached
-     *  snapshot used by Pulse genie.ts). Subsequent queries still benefit if
-     *  UnifiedAssistantSurface populates the cache directly. Default: true. */
+     *  snapshot used by Pulse genie.ts when the escape-hatch PulseShell is
+     *  mounted). Subsequent queries still benefit if UnifiedAssistantSurface
+     *  (the default surface) populates the cache directly. Default: true. */
     discoveryPrewarmEnabled: boolean;
     /** How long an Insights answer is considered fresh before re-running.
      *  Minutes. Range 1..180. Default 30. Mirrors PulseAiVisualSettings

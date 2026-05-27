@@ -5,6 +5,55 @@
 
 ---
 
+## 2026-05-27 - ARCH-P0 resolved: v0 default via DEFAULT_UI_MODE single source of truth
+
+**Scope.** Resolve the uiMode default ownership P0 from the morning's read-only feedback. Rajesh's call: `v0` (UnifiedAssistantSurface) is the default; no hardcoding across sites; features should eventually tag against surfaces based on feasibility.
+
+**Shipped.**
+- New `export const DEFAULT_UI_MODE: UiMode = "v0"` in `playground/src/settings/settingsStore.tsx` — single source of truth with docblock pointing at the feature-feasibility follow-up.
+- `App.tsx readInitialUiMode()` and `settingsStore readUiMode()` reference the constant in both server-side and empty-localStorage fallback paths (was: each duplicated the string `"pulse"`).
+- `FirstRunWizard.tsx` PERSONA_PRESETS — all 4 personas use `DEFAULT_UI_MODE` instead of hardcoded `"v0"`. The wizard contract's `picks.uiMode` field stays in the type for the forthcoming feasibility resolver to consume.
+- `FirstRunWizard.test.tsx` asserts against `DEFAULT_UI_MODE`, not the literal — flipping the default in the future cascades automatically.
+- Stale comments fixed in `App.tsx`, `viewportControls.integration.test.tsx`, `performanceLevers.ts`. The `seedPulseUiMode()` helper IS still load-bearing (tests exercise PulseShell chrome via escape hatch) — kept, just rewrote the docblock.
+- Resolution block added to `docs/research/READ_ONLY_PRODUCT_TEST_RESULTS_AND_BRUTAL_ARCHITECT_FEEDBACK_FOR_CLAUDE_2026-05-27.md` §58 with the open follow-up for the feature-feasibility registry.
+
+**Validation.** Playground lint clean, 1597/1597 tests pass. Browser-verified cold boot mounts UnifiedAssistantSurface; `localStorage.setItem("pulseplay:ui-mode", "pulse")` still mounts PulseShell. 0 console errors in either state.
+
+**Tripwires for next session.**
+- The 2026-05-25 `feedback_per_tab_visibility_model.md` lock ("retire v0 entirely") is **superseded**. The memory file's resolution block is current; refresh per-tab-visibility memory if/when the feature-feasibility registry lands.
+- PulseShell-exclusive chrome (3-tab strip, context chips, trust ladder on cold boot) is NOT yet present on UnifiedAssistantSurface — visible in the screenshots. THAT is the actual UX gap Rajesh flagged ("otherwise it would be confusing"). The follow-up ARCH-P1 registry should make these features tag against surfaces with graceful "switch surface to access" affordances, not silent absence.
+- New AGENDA item ARCH-P1 logged for the multi-day feasibility-registry work; needs a dedicated handoff doc.
+
+---
+
+## 2026-05-27 - Read-only product test results + brutal architect feedback
+
+**Scope.** Rajesh asked for read-only, brutally skeptical product/test feedback while Claude is doing final patch work: review the web app screens, evidence, test-result claims, look and feel, purpose, uniformity, and loose ends without changing runtime/source code.
+
+**Artifact.** Added [research/READ_ONLY_PRODUCT_TEST_RESULTS_AND_BRUTAL_ARCHITECT_FEEDBACK_FOR_CLAUDE_2026-05-27.md](research/READ_ONLY_PRODUCT_TEST_RESULTS_AND_BRUTAL_ARCHITECT_FEEDBACK_FOR_CLAUDE_2026-05-27.md).
+
+**Verdict.** The app has the right spine, but the proof is not clean enough yet. Latest commits source-ship security, Settings, staged AI Insights, and trust-label fixes, but current screenshots/evidence are partly stale. Ask Pulse has the bottom composer; AI Insights and Dashboard do not, which is technically consistent but a UX trap unless the product clearly routes "ask about this" back to Ask Pulse. AI Insights staged rendering exists in code, but still needs network/timeline proof. Settings Slice 2 exists in code, but needs fresh desktop-web and 390px mobile screenshots. Added Rajesh's uiMode finding: the earlier sprint did flip default to `v0`, but HEAD later re-locked cold boot to `PulseShell` / `uiMode === "pulse"`; stale comments/tests still claim `v0` default, so Claude must confirm whether PulseShell default is intended or a regression.
+
+**Claude direction.** Regenerate evidence after the final patches; decide and prove the default shell (`PulseShell` vs `UnifiedAssistantSurface`) before targeting UI fixes; prove AI Insights one-start/multi-message staging with shared `conversation_id`; decide the composer rule across surfaces; prove Settings Setup Home on web desktop and mobile; fix or justify the suspicious Settings governance row state; remove/document the 404 in layout probes; prove Ask Pulse-to-Dashboard artifact round trip; make mobile trust labels non-truncating.
+
+**Validation.** Read-only/source + evidence review only. No source/runtime files changed and no test suite rerun in this slice. "Desktop" in the feedback means web browser desktop viewport, not the packaged Windows EXE.
+
+---
+
+## 2026-05-27 - AI Insights section loading handoff for Claude
+
+**Scope.** Rajesh asked for a read-only, multi-agent, Beast Mode investigation of AI Insights loading after noticing that the screen still behaves like a single probe instead of section-first loading. He also asked for a real latency/quality/performance solution, not cosmetic staging.
+
+**Artifact.** Added [research/AI_INSIGHTS_SECTION_LOADING_CLAUDE_HANDOFF_2026-05-27.md](research/AI_INSIGHTS_SECTION_LOADING_CLAUDE_HANDOFF_2026-05-27.md).
+
+**Verdict.** The active AI Insights screen has the right renderer, skeletons, statuses, cache restore, shared-conversation helper, and sectioned backend assets. The gap is that the normal fast hybrid prompt builder returns one `AI Insights briefing` stage, so the worker pool is bypassed and client-side staged reveal is only cosmetic after the full answer lands.
+
+**Claude direction.** Add a template-ordered section/batch planning layer instead of rebuilding the UI. First enabled section leads immediately; later sections run in batches of 2-3 after a 3-5 second delay/spread; all Genie calls share one `conversation_id` and each upstream call gets its own immutable `message_id`. Group the visible answer by `renderId` or local run id. Preserve manual/runtime override as single-call.
+
+**Validation.** Read-only/source-inspection plus six subagent probes. No runtime source changed; no tests run in this docs-only handoff slice.
+
+---
+
 ## 2026-05-27 - Settings parent-child progressive handoff
 
 **Scope.** Rajesh confirmed the major UX concern is Settings: it needs real design thinking, parent-child progressive setup, tighter space management, and section writeups moved into `i` buttons so Claude can focus implementation.

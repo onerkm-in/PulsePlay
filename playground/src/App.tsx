@@ -61,7 +61,7 @@ import {
     PERFORMANCE_LEVERS_EVENT,
     type PerformanceLevers,
 } from "./settings/performanceLevers";
-import { SettingsProvider, useSettings } from "./settings/settingsStore";
+import { SettingsProvider, useSettings, DEFAULT_UI_MODE } from "./settings/settingsStore";
 import { PULSE_VISUAL_SETTINGS_EVENT } from "./settings/pulseVisualSettingsStore";
 import { SettingsShell } from "./settings/SettingsShell";
 import { useSettingsRoute, navigateToSettings } from "./settings/settingsRoute";
@@ -219,21 +219,16 @@ function readInitialActiveConnector(): string {
 }
 
 function readInitialUiMode(): UiMode {
-    // Re-locked 2026-05-25 (per-tab-visibility direction): PulseShell
-    // (uiMode === "pulse") is now the always-default mounted shell. The
-    // 3-tab strip (AI Insights / Ask Pulse / Dashboard) is the one
-    // canonical layout; per-tab visibility toggles in Settings decide
-    // which tabs render. UnifiedAssistantSurface (uiMode === "v0") stays
-    // in the codebase as a dev-tools-only escape hatch — set
-    // `pulseplay:ui-mode = "v0"` via DevTools to fall back if PulseShell
-    // hits a regression mid-incident.
-    if (typeof window === "undefined") return "pulse";
+    // Default sourced from settingsStore's DEFAULT_UI_MODE (single source
+    // of truth). Both surfaces still parse so the DevTools escape hatch
+    // works in either direction. Mirrors settingsStore.readUiMode().
+    if (typeof window === "undefined") return DEFAULT_UI_MODE;
     try {
         const stored = window.localStorage.getItem(UI_MODE_STORAGE_KEY);
-        if (stored === "v0") return "v0"; // escape hatch
+        if (stored === "v0") return "v0";
         if (stored === "pulse") return "pulse";
     } catch { /* swallow */ }
-    return "pulse";
+    return DEFAULT_UI_MODE;
 }
 
 function readInitialEnabledComponents(): EnabledComponents {
@@ -1335,11 +1330,12 @@ function PlaygroundApp(): React.ReactElement {
             setActiveConnector(picks.connector);
             setEmbedConfig(picks.embedConfig);
             setPackSelection(picks.packSelection);
-            // uiMode write removed (2026-05-25). All wizard personas return
-            // "v0" and that's already the default from readInitialUiMode(),
-            // so writing through the wizard path was redundant. The wizard's
-            // picks.uiMode field is kept in the type contract for future
-            // re-enable but is intentionally not consumed here.
+            // uiMode write removed. All wizard personas now return
+            // DEFAULT_UI_MODE (the same default readInitialUiMode() resolves to),
+            // so writing through the wizard path is redundant. The wizard's
+            // picks.uiMode field is kept in the type contract for the
+            // forthcoming feature-feasibility resolver to consume — see
+            // docs/research/READ_ONLY_PRODUCT_TEST_RESULTS_AND_BRUTAL_ARCHITECT_FEEDBACK_FOR_CLAUDE_2026-05-27.md.
             handleLayoutModeChange(picks.layoutMode as LayoutMode);
             // ──── Persist AI profile to settingsStore (canonical key) ─────
             // Without this the wizard only wrote App.tsx local state and

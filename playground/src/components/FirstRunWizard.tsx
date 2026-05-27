@@ -36,6 +36,7 @@ import type { PulsePlayAllowlist } from "../types/allowlist";
 import type { PackInfo, PackSelection } from "./PackPicker";
 import { EmbedConfigForm } from "./EmbedConfigForm";
 import { PackPicker } from "./PackPicker";
+import { DEFAULT_UI_MODE } from "../settings/settingsStore";
 
 /* ─── Public constants ───────────────────────────────────────────────── */
 
@@ -70,7 +71,7 @@ export const PERSONA_PRESETS: readonly PersonaPreset[] = [
         icon:                   "📊",
         color:                  "#2563eb",
         gradient:               "linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)",
-        uiMode:                 "v0",
+        uiMode:                 DEFAULT_UI_MODE,
         layoutMode:             "ai-left",
         preferredConnectorType: "genie",
     },
@@ -81,7 +82,7 @@ export const PERSONA_PRESETS: readonly PersonaPreset[] = [
         icon:                   "🎯",
         color:                  "#7c3aed",
         gradient:               "linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)",
-        uiMode:                 "v0",
+        uiMode:                 DEFAULT_UI_MODE,
         layoutMode:             "ai-top",
         preferredConnectorType: "foundation-model",
     },
@@ -92,7 +93,7 @@ export const PERSONA_PRESETS: readonly PersonaPreset[] = [
         icon:                   "🛠️",
         color:                  "#0891b2",
         gradient:               "linear-gradient(135deg, #ecfeff 0%, #cffafe 100%)",
-        uiMode:                 "v0",
+        uiMode:                 DEFAULT_UI_MODE,
         layoutMode:             "ai-right",
         preferredConnectorType: undefined,
     },
@@ -103,7 +104,7 @@ export const PERSONA_PRESETS: readonly PersonaPreset[] = [
         icon:                   "✨",
         color:                  "#db2777",
         gradient:               "linear-gradient(135deg, #fdf2f8 0%, #fce7f3 100%)",
-        uiMode:                 "v0",
+        uiMode:                 DEFAULT_UI_MODE,
         layoutMode:             "ai-left",
         preferredConnectorType: undefined,
     },
