@@ -37,7 +37,7 @@ import {
     type PulseEnabledFeatures,
     type PulseInsightsAuthoringMode,
 } from "../pulseVisualSettingsStore";
-import { AiAssistedSuggestionPanel } from "../../pulse/setupStep5";
+import { AiAssistedSuggestionPanel, CustomSectionPresetPicker, MetricDirectionPresetPicker } from "../../pulse/setupStep5";
 import { suggestInsightsConfigViaProxy } from "../../lib/insightsSuggestClient";
 
 interface ProfileMetadata {
@@ -762,6 +762,25 @@ function PulseAiInsightsSettingsPanel(props: {
                 onChange={insightsDomainGuidance => onChange({ insightsDomainGuidance })}
             />
 
+            {/* 2026-05-28 — port the CustomSectionPresetPicker from setupStep5
+              * (PulseShell PBI format pane) into PulsePlay-native Settings.
+              * Closes parity gap reported in live test: "where can I select
+              * the strategy like SWOT or BCG etc but I don't see that
+              * dropdown selection." Same component, same preset library
+              * (insightsPresetLibrary.ts — SWOT/BCG/RFM/Pareto + pack
+              * presets), same parameter editor. */}
+            <Leaf
+                group="ai"
+                label="Custom sections preset library"
+                summary="SWOT / BCG / RFM / Pareto / pack-specific presets — pick one to populate the Custom sections JSON below."
+            >
+                <CustomSectionPresetPicker
+                    currentDomain={value.insightsDomain}
+                    onApplyDomain={insightsDomain => onChange({ insightsDomain })}
+                    onApplySections={insightsCustomSections => onChange({ insightsCustomSections })}
+                />
+            </Leaf>
+
             <SettingsTextarea
                 label="Custom sections JSON"
                 value={value.insightsCustomSections}
@@ -796,6 +815,18 @@ function PulseAiInsightsSettingsPanel(props: {
                     />
                 </div>
             </div>
+
+            <Leaf
+                group="ai"
+                label="Metric direction preset library"
+                summary="Pre-baked metric-direction rule sets (Sales / Finance / Supply Chain / etc.) — pick one to populate the rules below."
+            >
+                <MetricDirectionPresetPicker
+                    currentDomain={value.insightsDomain}
+                    onApplyDomain={insightsDomain => onChange({ insightsDomain })}
+                    onApplyRules={metricDirectionRules => onChange({ metricDirectionRules })}
+                />
+            </Leaf>
 
             <SettingsTextarea
                 label="Metric direction rules"

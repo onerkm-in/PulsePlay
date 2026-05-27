@@ -137,6 +137,11 @@ export const GROUP_LEAF_LABELS: Record<SettingsGroupId, string[]> = {
         "UC Metric View",
         "Browse library",
         "Response behavior",
+        // 2026-05-28 — preset pickers ported from setupStep5.tsx (the
+        // PulseShell PBI format pane) into PulsePlay-native Settings.
+        // Closes parity gap: "where is the SWOT/BCG preset dropdown."
+        "Custom sections preset library",
+        "Metric direction preset library",
         "Supervisor Fusion",
         "Knowledge Base",
     ],
