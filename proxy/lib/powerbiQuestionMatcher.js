@@ -60,6 +60,17 @@ function tokenise(raw) {
     return raw.toLowerCase().replace(/[^\w\s.-]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+function nameVariants(raw) {
+    if (typeof raw !== 'string' || !raw.trim()) return [];
+    const rawBase = tokenise(raw);
+    const camelSpaced = raw.replace(/([a-z0-9])([A-Z])/g, '$1 $2');
+    const base = tokenise(camelSpaced);
+    const spaced = tokenise(camelSpaced.replace(/[_\-.]+/g, ' '));
+    const stripped = spaced.replace(/^(dim|fact)\s+/, '').trim();
+    const withoutNameOrId = stripped.replace(/\s+(name|id|key)$/, '').trim();
+    return Array.from(new Set([rawBase, base, spaced, stripped, withoutNameOrId].filter(Boolean)));
+}
+
 /**
  * Best-effort English plural for a tokenised noun. Used so a column named
  * "Category" matches a user question saying "categories", and vice versa.
@@ -132,6 +143,7 @@ function findDimension(question, schemaTables, opts = {}) {
     const q = tokenise(question);
     if (!q) return null;
     const candidates = [];
+    const skipMeasure = tokenise(opts.skipMeasure || '');
 
     // Pass 1 — explicit column-name match (singular OR plural form).
     for (const t of schemaTables) {
@@ -144,13 +156,21 @@ function findDimension(question, schemaTables, opts = {}) {
             if (!needleC) continue;
             if (opts.skipColumn && needleC === tokenise(opts.skipColumn)) continue;
             const isTime = isTimeColumn(cname, c.type);
-            const isMatch = questionMentions(q, needleC)
-                || q.includes(`by ${needleC}`)
-                || q.includes(`per ${needleC}`)
-                || q.includes(`by ${pluraliseLower(needleC)}`);
+            const variants = nameVariants(cname);
+            const explicitBy = variants.some(v =>
+                q.includes(`by ${v}`)
+                || q.includes(`per ${v}`)
+                || q.includes(`by ${pluraliseLower(v)}`),
+            );
+            // A measure like "Sales YTD" or "Total Sales" naturally contains
+            // the base column token "sales". That is not a grouping dimension
+            // unless the user explicitly says "by sales".
+            if (skipMeasure && variants.some(v => skipMeasure.includes(v)) && !explicitBy) continue;
+            const isMatch = variants.some(v => questionMentions(q, v)) || explicitBy;
             if (isMatch) {
-                const bonus = q.includes(`by ${needleC}`) || q.includes(`by ${pluraliseLower(needleC)}`) ? 10 : 0;
-                candidates.push({ table: tname, column: cname, isTime, score: needleC.length + bonus });
+                const bonus = explicitBy ? 10 : 0;
+                const score = Math.max(...variants.map(v => v.length));
+                candidates.push({ table: tname, column: cname, isTime, score: score + bonus });
             }
         }
     }
@@ -165,8 +185,13 @@ function findDimension(question, schemaTables, opts = {}) {
             const tname = t?.name;
             if (typeof tname !== 'string' || !tname) continue;
             const needleT = tokenise(tname);
+            const tableVariants = nameVariants(tname);
             const singular = needleT.endsWith('s') ? needleT.slice(0, -1) : needleT;
-            const matches = q.includes(needleT) || q.includes(singular) || q.includes(`by ${needleT}`) || q.includes(`by ${singular}`);
+            const matches = q.includes(needleT)
+                || q.includes(singular)
+                || q.includes(`by ${needleT}`)
+                || q.includes(`by ${singular}`)
+                || tableVariants.some(v => questionMentions(q, v) || q.includes(`by ${v}`));
             if (!matches) continue;
             const cols = t.columns || [];
             // Prefer a column whose name embeds the singular table name
@@ -174,11 +199,16 @@ function findDimension(question, schemaTables, opts = {}) {
             const preferred = cols.find(c => {
                 if (typeof c?.name !== 'string') return false;
                 const n = tokenise(c.name);
+                const variants = nameVariants(c.name);
                 if (opts.skipColumn && n === tokenise(opts.skipColumn)) return false;
-                return n.includes(singular) && !isTimeColumn(c.name, c.type);
+                if (skipMeasure && variants.some(v => skipMeasure.includes(v))) return false;
+                return (n.includes(singular) || variants.some(v => tableVariants.some(tv => v.includes(tv))))
+                    && !isTimeColumn(c.name, c.type);
             }) || cols.find(c => {
                 if (typeof c?.name !== 'string') return false;
+                const variants = nameVariants(c.name);
                 if (opts.skipColumn && tokenise(c.name) === tokenise(opts.skipColumn)) return false;
+                if (skipMeasure && variants.some(v => skipMeasure.includes(v))) return false;
                 return !isTimeColumn(c.name, c.type);
             });
             if (preferred?.name) {
@@ -272,7 +302,7 @@ function matchQuestion(question, probe) {
     }
 
     const timeKw = hasTimeKeyword(question);
-    const dimension = findDimension(question, tables, { skipColumn: measure });
+    const dimension = findDimension(question, tables, { skipColumn: measure, skipMeasure: measure });
     const isTimeDimension = dimension?.isTime || (timeKw && !!dimension);
 
     const topN = findTopN(question);
@@ -288,7 +318,7 @@ function matchQuestion(question, probe) {
     if (timeKw && !dimension) {
         // Time-keyword in question but no explicit time column matched —
         // try a fallback to find any date column in the schema.
-        const fallback = findDimension(question, tables, { timeKeywordsOnly: true, skipColumn: measure });
+        const fallback = findDimension(question, tables, { timeKeywordsOnly: true, skipColumn: measure, skipMeasure: measure });
         if (fallback?.isTime) {
             return {
                 matched: true,
@@ -323,6 +353,7 @@ module.exports = {
     matchQuestion,
     __internals: {
         tokenise,
+        nameVariants,
         findMeasure,
         findDimension,
         findTopN,

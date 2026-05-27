@@ -28,20 +28,32 @@
  *
  * DAX safety
  * ──────────
- * Slot values are sanitised before interpolation: only allow word chars,
- * spaces, dots, dashes, and underscores. Anything else → throw. Power BI
+ * Slot values are sanitised before interpolation: dimensions only allow word
+ * chars, spaces, dots, dashes, and underscores; measures also allow `%` because
+ * Power BI measure names commonly encode rates as "YoY %". Anything else →
+ * throw. Power BI
  * `executeQueries` rejects invalid DAX cleanly, but local sanitisation
  * keeps unintended SQL/DAX injection vectors closed even if the matcher
  * misbehaves.
  */
 
 const SLOT_NAME_RE = /^[A-Za-z0-9_][A-Za-z0-9_ .-]{0,80}$/;
+const MEASURE_NAME_RE = /^[A-Za-z0-9_][A-Za-z0-9_ .%()-]{0,80}$/;
 
 function sanitiseSlotName(value, slotName) {
     if (typeof value !== 'string') throw new Error(`Slot "${slotName}" must be a string`);
     const trimmed = value.trim();
     if (!SLOT_NAME_RE.test(trimmed)) {
         throw new Error(`Slot "${slotName}" value "${trimmed.slice(0, 40)}" contains characters not allowed in a Power BI identifier`);
+    }
+    return trimmed;
+}
+
+function sanitiseMeasureName(value) {
+    if (typeof value !== 'string') throw new Error('Slot "measure" must be a string');
+    const trimmed = value.trim();
+    if (!MEASURE_NAME_RE.test(trimmed)) {
+        throw new Error(`Slot "measure" value "${trimmed.slice(0, 40)}" contains characters not allowed in a Power BI measure identifier`);
     }
     return trimmed;
 }
@@ -55,7 +67,7 @@ function bracketColumn(name) {
 }
 
 function bracketMeasure(name) {
-    return `[${sanitiseSlotName(name, 'measure')}]`;
+    return `[${sanitiseMeasureName(name)}]`;
 }
 
 function clampTopN(n) {
@@ -205,8 +217,14 @@ const total = {
     },
     buildResult({ rows, slots }) {
         const value = rows?.[0]?.[0];
-        if (value == null) return { content: `_${slots.measure} returned no value._` };
-        return { content: `**${slots.measure}**: ${formatCell(value)}` };
+        if (value == null) {
+            return {
+                content: `## ${slots.measure}\n\n| Metric | Value |\n| --- | --- |\n| ${formatCell(slots.measure)} | (no value) |`,
+            };
+        }
+        return {
+            content: `## ${slots.measure}\n\n| Metric | Value |\n| --- | --- |\n| ${formatCell(slots.measure)} | ${formatCell(value)} |`,
+        };
     },
 };
 
@@ -258,5 +276,5 @@ module.exports = {
     getTemplate,
     listTemplates,
     // Internal helpers exposed for tests.
-    __internals: { sanitiseSlotName, clampTopN, formatCell, quoteTable, bracketColumn, bracketMeasure },
+    __internals: { sanitiseSlotName, sanitiseMeasureName, clampTopN, formatCell, quoteTable, bracketColumn, bracketMeasure },
 };

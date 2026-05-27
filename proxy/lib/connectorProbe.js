@@ -482,6 +482,50 @@ async function probePowerBiSemanticModel(profile, profileName, _helpers) {
     } else {
         result.metadataAvailability = 'none';
     }
+
+    // 2026-05-26 — STATIC PROBE MERGE. When the live INFO.MEASURES /
+    // INFO.TABLES probes failed (most often because the tenant doesn't
+    // allow executeQueries — Premium/Fabric capacity gate), fall back to
+    // measures/schema baked into the profile config via `staticProbe` or
+    // `staticProbePath`. The static probe is typically derived from the
+    // dataset's PBIP TMDL by scripts/tmdl-to-static-probe.mjs and dropped
+    // into proxy/config.json. This unblocks the deterministic-DAX matcher
+    // without needing live XMLA endpoint access. Live probe wins when
+    // both are present, so flipping XMLA on later transparently upgrades.
+    const liveHasMeasures = Array.isArray(result.declaredKpis) && result.declaredKpis.length > 0;
+    const liveHasSchema = result.schema && Array.isArray(result.schema.tables) && result.schema.tables.length > 0;
+    if (!liveHasMeasures || !liveHasSchema) {
+        let staticProbe = profile?.staticProbe || null;
+        if (!staticProbe && profile?.staticProbePath) {
+            try {
+                const fs = require('node:fs');
+                const path = require('node:path');
+                const resolved = path.isAbsolute(profile.staticProbePath)
+                    ? profile.staticProbePath
+                    : path.resolve(__dirname, '..', profile.staticProbePath);
+                staticProbe = JSON.parse(fs.readFileSync(resolved, 'utf-8'));
+            } catch (err) {
+                warnings.push(`staticProbePath load failed: ${truncate(err?.message)}`);
+            }
+        }
+        if (staticProbe) {
+            if (!liveHasMeasures && Array.isArray(staticProbe.declaredKpis) && staticProbe.declaredKpis.length > 0) {
+                result.declaredKpis = staticProbe.declaredKpis;
+                warnings.push(`measures sourced from staticProbe (${staticProbe.declaredKpis.length} measures) — live INFO.MEASURES failed`);
+            }
+            if (!liveHasSchema && staticProbe.schema && Array.isArray(staticProbe.schema.tables)) {
+                result.schema = staticProbe.schema;
+                warnings.push(`schema sourced from staticProbe (${staticProbe.schema.tables.length} tables) — live INFO.TABLES failed`);
+            }
+            // Upgrade availability tag if static probe added meaningful data
+            const nowHasMeasures = Array.isArray(result.declaredKpis) && result.declaredKpis.length > 0;
+            const nowHasSchema = result.schema && Array.isArray(result.schema.tables) && result.schema.tables.length > 0;
+            if (nowHasMeasures || nowHasSchema) {
+                result.metadataAvailability = (nowHasMeasures && nowHasSchema) ? 'rich' : 'minimal';
+                result.staticProbeApplied = true;
+            }
+        }
+    }
     return result;
 }
 

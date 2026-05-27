@@ -77,6 +77,20 @@ describe('matcher — total template', () => {
         expect(out.templateId).toBe('total');
         expect(out.slots).toEqual({ measure: 'Revenue' });
     });
+
+    test('does not treat a measure base token as an implicit dimension', () => {
+        const out = matchQuestion('Sales YTD', {
+            declaredKpis: [{ name: 'Sales YTD' }],
+            schema: {
+                tables: [
+                    { name: 'FactOrders', columns: [{ name: 'sales', type: 'decimal' }] },
+                ],
+            },
+        });
+        expect(out.matched).toBe(true);
+        expect(out.templateId).toBe('total');
+        expect(out.slots).toEqual({ measure: 'Sales YTD' });
+    });
 });
 
 describe('matcher — aggregate-by template', () => {
@@ -93,6 +107,21 @@ describe('matcher — aggregate-by template', () => {
         expect(out.templateId).toBe('aggregate-by');
         expect(out.slots.measure).toBe('Profit Margin');
         expect(out.slots.dimensionColumn).toBe('Category');
+    });
+
+    test('matches Power BI model naming styles: Dim prefix, snake_case, and name suffix', () => {
+        const out = matchQuestion('total profit by manager', {
+            declaredKpis: [{ name: 'Total Profit' }],
+            schema: {
+                tables: [
+                    { name: 'DimRegionManager', columns: [{ name: 'manager_name', type: 'string' }] },
+                    { name: 'FactOrders', columns: [{ name: 'profit', type: 'decimal' }] },
+                ],
+            },
+        });
+        expect(out.templateId).toBe('aggregate-by');
+        expect(out.slots.dimensionTable).toBe('DimRegionManager');
+        expect(out.slots.dimensionColumn).toBe('manager_name');
     });
 });
 
@@ -120,6 +149,21 @@ describe('matcher — top-n template', () => {
     test('"best/highest/leading" synonyms also trigger top-n', () => {
         expect(matchQuestion('best 3 categories by revenue', probe).templateId).toBe('top-n');
         expect(matchQuestion('highest 5 customers by revenue', probe).templateId).toBe('top-n');
+    });
+
+    test('top-N entity plural matches Dim table and *_name columns', () => {
+        const out = matchQuestion('top 5 products by total sales', {
+            declaredKpis: [{ name: 'Total Sales' }],
+            schema: {
+                tables: [
+                    { name: 'DimProduct', columns: [{ name: 'product_name', type: 'string' }] },
+                    { name: 'FactOrders', columns: [{ name: 'sales', type: 'decimal' }] },
+                ],
+            },
+        });
+        expect(out.templateId).toBe('top-n');
+        expect(out.slots.dimensionTable).toBe('DimProduct');
+        expect(out.slots.dimensionColumn).toBe('product_name');
     });
 });
 
@@ -157,6 +201,12 @@ describe('matcher — tokenise helper', () => {
     test('returns empty string for non-strings', () => {
         expect(__internals.tokenise(null)).toBe('');
         expect(__internals.tokenise(42)).toBe('');
+    });
+
+    test('nameVariants normalizes BI identifier conventions', () => {
+        expect(__internals.nameVariants('DimCustomer')).toContain('customer');
+        expect(__internals.nameVariants('product_name')).toContain('product');
+        expect(__internals.nameVariants('CustomerName')).toContain('customer');
     });
 });
 

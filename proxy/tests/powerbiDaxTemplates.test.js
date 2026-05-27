@@ -8,7 +8,7 @@ const {
     __internals,
 } = require('../lib/powerbiDaxTemplates');
 
-const { sanitiseSlotName, clampTopN, formatCell } = __internals;
+const { sanitiseSlotName, sanitiseMeasureName, clampTopN, formatCell, bracketMeasure } = __internals;
 
 describe('powerbiDaxTemplates — registry', () => {
     test('exposes 4 templates with stable ids', () => {
@@ -42,10 +42,16 @@ describe('powerbiDaxTemplates — sanitisation', () => {
         expect(sanitiseSlotName('Q1-2025', 'col')).toBe('Q1-2025');
     });
 
+    test('accepts Power BI rate measure names with percent signs', () => {
+        expect(sanitiseMeasureName('Sales YoY %')).toBe('Sales YoY %');
+        expect(bracketMeasure('Sales YoY %')).toBe('[Sales YoY %]');
+    });
+
     test('rejects DAX injection vectors', () => {
         expect(() => sanitiseSlotName('Sales]; EVALUATE', 'col')).toThrow(/not allowed/);
         expect(() => sanitiseSlotName("Sales'); --", 'col')).toThrow(/not allowed/);
         expect(() => sanitiseSlotName('Sales[Hack]', 'col')).toThrow(/not allowed/);
+        expect(() => sanitiseMeasureName('Sales]; EVALUATE')).toThrow(/not allowed/);
         expect(() => sanitiseSlotName('', 'col')).toThrow(/not allowed/);
         expect(() => sanitiseSlotName('   ', 'col')).toThrow(/not allowed/);
         expect(() => sanitiseSlotName('a/b', 'col')).toThrow(/not allowed/);
@@ -158,20 +164,22 @@ describe('powerbiDaxTemplates — total DAX shape', () => {
         expect(dax).toBe('EVALUATE { ([Total Revenue]) }');
     });
 
-    test('renders as bold "Measure: value"', () => {
+    test('renders as a one-row Markdown table', () => {
         const out = getTemplate('total').buildResult({
             columns: ['[Total Revenue]'],
             rows: [[1234567]],
             slots: { measure: 'Total Revenue' },
         });
-        expect(out.content).toBe('**Total Revenue**: 1,234,567');
+        expect(out.content).toContain('## Total Revenue');
+        expect(out.content).toContain('| Metric | Value |');
+        expect(out.content).toContain('| Total Revenue | 1,234,567 |');
     });
 
-    test('handles null cell', () => {
+    test('handles null cell with an honest one-row table', () => {
         const out = getTemplate('total').buildResult({
             columns: [], rows: [], slots: { measure: 'X' },
         });
-        expect(out.content).toMatch(/no value/i);
+        expect(out.content).toContain('| X | (no value) |');
     });
 });
 
