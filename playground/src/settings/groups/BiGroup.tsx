@@ -13,6 +13,7 @@ import { useState } from "react";
 import { useSettings } from "../settingsStore";
 import { useEmbedConfig } from "../embedConfigStore";
 import { EmbedConfigForm } from "../../components/EmbedConfigForm";
+import { HelpTip } from "../primitives/HelpTip";
 import {
     resolveBiSurfaceVendor,
     type BiSurfaceMode,
@@ -40,7 +41,9 @@ export function BiGroup(): React.ReactElement {
     ];
     const completedBiGates = biSetupGates.filter(g => g.done).length;
 
-    const biIntroText = "Everything BI-side — vendor, surface mode, embed config, sandbox, governance. Vendor-agnostic by design; one set of controls handles Power BI, Tableau, Qlik, Looker, generic iframe, and the native canvas.";
+    // 2026-05-27 — biIntroText removed; intro now lives inside the HelpTip
+    // body next to the BI Setup header (see below). No more raw `title=`
+    // tooltip per Codex audit.
 
     return (
         <section aria-labelledby="settings-bi-title">
@@ -91,28 +94,19 @@ export function BiGroup(): React.ReactElement {
                             <span>{g.label}</span>
                         </span>
                     ))}
-                    <button
-                        type="button"
-                        aria-label="About BI Setup"
-                        title={biIntroText}
-                        style={{
-                            marginLeft: "auto",
-                            width: 20,
-                            height: 20,
-                            borderRadius: "50%",
-                            border: "1px solid rgba(0,0,0,0.18)",
-                            background: "var(--pp-surface, #fff)",
-                            color: "var(--pp-text-muted, #6b7280)",
-                            fontSize: 11,
-                            fontWeight: 600,
-                            cursor: "help",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                        }}
-                    >
-                        i
-                    </button>
+                    {/* 2026-05-27 — replaced raw title-based `i` with shared HelpTip
+                        (Codex audit P0). HelpTip portal-renders, viewport-aware,
+                        keyboard + pointer accessible. */}
+                    <div style={{ marginLeft: "auto" }}>
+                        <HelpTip
+                            label="About BI Setup"
+                            title="BI Setup"
+                            body={[
+                                "Everything BI-side — vendor, surface mode, embed config, sandbox, governance.",
+                                "Vendor-agnostic by design: one set of controls handles Power BI, Tableau, Qlik, Looker, generic iframe, and the native canvas.",
+                            ]}
+                        />
+                    </div>
                 </div>
             </header>
 
@@ -122,7 +116,19 @@ export function BiGroup(): React.ReactElement {
                 helper="Active provider and allowlist. The sections below either configure them or surface the policy that governs them."
             >
 
-            <Leaf group="bi" label="Provider" helper="The BI tool PulsePlay embeds. Restricted to the providers your organization allows.">
+            <Leaf
+                group="bi"
+                label="Provider"
+                summary={`${biVendor} · ${surfaceResolution.runtimeVendor} runtime · ${biSurfaceMode} mode`}
+                help={{
+                    title: "Provider",
+                    body: [
+                        "The BI tool PulsePlay embeds at runtime.",
+                        "Restricted to the providers your organization allows.",
+                        "Vendor intent is your author choice; runtime is what mounts after the surface-mode resolver runs.",
+                    ],
+                }}
+            >
                 <CurrentValue label="Vendor intent">{biVendor}</CurrentValue>
                 <CurrentValue label="Runtime">{surfaceResolution.runtimeVendor}</CurrentValue>
                 <CurrentValue label="Surface mode">{biSurfaceMode}</CurrentValue>
@@ -149,21 +155,17 @@ export function BiGroup(): React.ReactElement {
             <Leaf
                 group="bi"
                 label="Embed"
-                helper="Power BI report / dashboard wiring. Three modes: Secure embed (paste an app.powerbi.com URL), AAD SSO (user identity), or Service principal (proxy mints the token). Live-updates the playground in this tab and any other tab open on this origin."
+                summary={hasEmbedConfig ? "Configured · live-updates without refresh" : "Not configured"}
+                help={{
+                    title: "Embed",
+                    body: [
+                        "Power BI report / dashboard wiring.",
+                        "Three modes: Secure embed (paste an app.powerbi.com URL); AAD SSO (user identity); Service principal (proxy mints the token).",
+                        "Live-updates the playground in this tab and any other tab open on this origin.",
+                        "Changes save to pulseplay:bi-embed-config and broadcast pulseplay:embed-config-change so the BI canvas picks up edits without a refresh.",
+                    ],
+                }}
             >
-                <div
-                    role="note"
-                    style={{
-                        fontSize: 11,
-                        opacity: 0.7,
-                        background: "rgba(0,0,0,0.03)",
-                        padding: "6px 10px",
-                        borderRadius: 4,
-                        marginBottom: 8,
-                    }}
-                >
-                    Changes save to <code>pulseplay:bi-embed-config</code> and broadcast a <code>pulseplay:embed-config-change</code> event. App.tsx subscribes via <code>useEmbedConfig</code> so the BI canvas picks up edits live — no refresh required.
-                </div>
                 <EmbedConfigForm
                     vendor={biVendor || "powerbi"}
                     value={embedConfig}
@@ -195,7 +197,14 @@ export function BiGroup(): React.ReactElement {
             <Leaf
                 group="bi"
                 label="Authentication"
-                helper="Sign-in mode + tenant. Tenant is locked to your organization's allowlist. Choose your AAD sign-in flow in the Embed leaf above; this view is read-only governance state."
+                help={{
+                    title: "Authentication",
+                    body: [
+                        "Sign-in mode + tenant.",
+                        "Tenant is locked to your organization's allowlist.",
+                        "Choose your AAD sign-in flow in the Embed leaf above; this view is read-only governance state.",
+                    ],
+                }}
             >
                 <CurrentValue label="Allowed AAD tenants">
                     {allowlist?.aadTenants?.length ? allowlist.aadTenants.join(", ") : "(allowlist unavailable)"}
@@ -227,7 +236,14 @@ export function BiGroup(): React.ReactElement {
             <Leaf
                 group="bi"
                 label="Canvas"
-                helper="How many Power BI frames render side-by-side. Controlled by backend display policy; this view is read-only."
+                help={{
+                    title: "Canvas",
+                    body: [
+                        "How many Power BI frames render side-by-side.",
+                        "Controlled by backend display policy; this view is read-only.",
+                        "Use 1 for the normal viewer surface; 2 or 4 only for governed comparison deployments.",
+                    ],
+                }}
             >
                 <CurrentValue label="Tile mode">{normalizeBiTileMode(allowlist?.display?.biTileMode)}</CurrentValue>
                 <p style={{ fontSize: 11, opacity: 0.6, margin: 0 }}>
@@ -235,7 +251,18 @@ export function BiGroup(): React.ReactElement {
                 </p>
             </Leaf>
 
-            <Leaf group="bi" label="Status" helper="Live state of the embed: mount mode, last load, recent events, license posture (Premium tier, embed-token availability, Fabric capability).">
+            <Leaf
+                group="bi"
+                label="Status"
+                help={{
+                    title: "Status",
+                    body: [
+                        "Live state of the embed.",
+                        "Mount mode, last load, recent events.",
+                        "License posture: Premium tier, embed-token availability, Fabric capability.",
+                    ],
+                }}
+            >
                 {allowlist?.license?.powerbi ? (
                     <>
                         <CurrentValue label="Premium tier required">{allowlist.license.powerbi.minTier || "(unset)"}</CurrentValue>
@@ -427,9 +454,53 @@ export function SubSection(props: {
     );
 }
 
-export function Leaf(props: { label: string; helper: string; group?: string; children: React.ReactNode }): React.ReactElement {
+/**
+ * Compact, parent-child friendly settings leaf.
+ *
+ * 2026-05-27 — refactored per Codex Settings handoff
+ * (SETTINGS_PROGRESSIVE_PARENT_CHILD_CLAUDE_HANDOFF_2026-05-27.md, Slice 1).
+ *
+ * The old shape always rendered `helper` as a visible paragraph below the
+ * label. With 41+ Leaf call sites that's 41+ visible paragraphs of inline
+ * explanatory prose — the largest real-estate leak in Settings.
+ *
+ * New shape (backwards-compatible):
+ *   - `help` = structured tip — renders as a small `i` button beside the
+ *     label that opens a `HelpTip` portal-bubble. Use for explanatory
+ *     prose, examples, where-this-is-saved, admin-only background, etc.
+ *   - `summary` = short single-line current-state hint (e.g., "Saved
+ *     locally", "3 profiles configured"). Renders inline under the label.
+ *     Use ONLY when the line is operationally useful at-a-glance.
+ *   - `helper` = legacy plain-text paragraph. Still renders if no `help`
+ *     is provided, so existing call sites keep working until migrated.
+ *
+ * Mantra (Codex): Stay uniform. Stay simple. Stay lean. Stay clean.
+ *
+ * Do NOT hide visible warnings, validation errors, missing-prerequisites,
+ * destructive-action confirmations, or RLS gaps behind a tip.
+ */
+export interface LeafHelp {
+    title: string;
+    body: ReadonlyArray<string>;
+}
+
+export function Leaf(props: {
+    label: string;
+    /** Compact one-line current-state hint. Use sparingly. */
+    summary?: string;
+    /** Structured help bubble — opens a HelpTip beside the label. */
+    help?: LeafHelp;
+    /** Legacy plain-text paragraph. Migration path: replace with `help`. */
+    helper?: string;
+    group?: string;
+    children: React.ReactNode;
+}): React.ReactElement {
     const slug = leafSlug(props.label);
     const id = props.group ? `settings-${props.group}-${slug}` : undefined;
+    // Only render the legacy paragraph if no structured help is provided.
+    // This is the lever that compacts the page: as call sites migrate from
+    // `helper` → `help`, the leaf collapses to label + tip + children.
+    const showLegacyHelper = !props.help && !!props.helper;
     return (
         <article
             id={id}
@@ -442,10 +513,20 @@ export function Leaf(props: { label: string; helper: string; group?: string; chi
         >
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <div data-leaf-label="true" style={{ fontWeight: 600, fontSize: 14, flex: "1 1 auto" }}>{props.label}</div>
+                {props.help && (
+                    <HelpTip title={props.help.title} body={props.help.body} label={`More info about ${props.label}`} />
+                )}
                 {props.group && <LeafDeepLinkButton group={props.group} slug={slug} label={props.label} />}
             </div>
-            <p style={{ margin: "2px 0 8px", fontSize: 12, opacity: 0.72, lineHeight: 1.4 }}>{props.helper}</p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{props.children}</div>
+            {props.summary && (
+                <div data-leaf-summary="true" style={{ margin: "2px 0 6px", fontSize: 12, opacity: 0.72, lineHeight: 1.35 }}>
+                    {props.summary}
+                </div>
+            )}
+            {showLegacyHelper && (
+                <p style={{ margin: "2px 0 8px", fontSize: 12, opacity: 0.72, lineHeight: 1.4 }}>{props.helper}</p>
+            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: (props.summary || showLegacyHelper) ? 0 : 6 }}>{props.children}</div>
         </article>
     );
 }

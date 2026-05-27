@@ -9,6 +9,7 @@ import { useEmbedConfig } from "../embedConfigStore";
 import { getSetupReadiness, isNativeBiVendor } from "../setupReadiness";
 import { resolveBiSurfaceVendor } from "../biSurfaceMode";
 import { listVendors } from "../../biPanel/registry";
+import { HelpTip } from "../primitives/HelpTip";
 import "../primitives/primitives.css";
 
 interface LogMessage {
@@ -517,27 +518,14 @@ export function SetupGroup(): React.ReactElement {
                     Setup
                 </h2>
                 <p className="pp-setup__subtitle" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>{setupSubtitle}</p>
-                <button
-                    type="button"
-                    aria-label="About this page"
-                    title={setupSubtitle}
-                    style={{
-                        width: 22,
-                        height: 22,
-                        borderRadius: "50%",
-                        border: "1px solid var(--pp-border, rgba(0,0,0,0.18))",
-                        background: "var(--pp-surface, #fff)",
-                        color: "var(--pp-text-muted, #6b7280)",
-                        fontSize: 12,
-                        fontWeight: 600,
-                        cursor: "help",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                    }}
-                >
-                    i
-                </button>
+                {/* 2026-05-27 — raw title-based `i` replaced with shared
+                    HelpTip (Codex audit P0). */}
+                <HelpTip
+                    label="About this page"
+                    title="Setup"
+                    text={setupSubtitle}
+                />
+
                 {/* Top-right pill: readiness state + Preview as Viewer action. */}
                 <div className="pp-setup__readiness pp-setup__pill" style={{ margin: 0 }}>
                     <span

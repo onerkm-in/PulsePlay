@@ -22,6 +22,7 @@ import { useSettings } from "../settingsStore";
 import { CurrentValue, Leaf, OrphanBanner, SubSection } from "./BiGroup";
 import { BookmarkNav, type BookmarkSection } from "../primitives/BookmarkNav";
 import { ProgressiveSection } from "../primitives/ProgressiveSection";
+import { HelpTip } from "../primitives/HelpTip";
 import { TestConnectionPanel } from "../../components/TestConnectionPanel";
 import { PackPicker, type PackInfo, type PackSelection } from "../../components/PackPicker";
 import { probeConnector } from "../../lib/probeClient";
@@ -156,7 +157,9 @@ export function AiGroup(): React.ReactElement {
     ];
     const completedGates = aiSetupGates.filter(g => g.done).length;
 
-    const aiIntroText = "Everything AI-side — connector, knowledge pack, AI Insights config, Ask Pulse config, Vector Search, UC Metric View. One assistant powers both AI Insights and Ask Pulse; change once, both benefit.";
+    // 2026-05-27 — aiIntroText now lives in the HelpTip body directly
+    // (see AI Setup header below). Raw title-based info button retired
+    // per Codex audit P0.
 
     // UX-ARCH-0B.2 Phase F 2026-05-23 — universal progressive-section
     // pattern: numbered bookmark chips at top, numbered collapsible cards
@@ -244,28 +247,18 @@ export function AiGroup(): React.ReactElement {
                             <span>{g.label}</span>
                         </span>
                     ))}
-                    <button
-                        type="button"
-                        aria-label="About AI Setup"
-                        title={aiIntroText}
-                        style={{
-                            marginLeft: "auto",
-                            width: 20,
-                            height: 20,
-                            borderRadius: "50%",
-                            border: "1px solid rgba(0,0,0,0.18)",
-                            background: "var(--pp-surface, #fff)",
-                            color: "var(--pp-text-muted, #6b7280)",
-                            fontSize: 11,
-                            fontWeight: 600,
-                            cursor: "help",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                        }}
-                    >
-                        i
-                    </button>
+                    {/* 2026-05-27 — raw title-based `i` replaced with shared
+                        HelpTip (Codex audit P0). */}
+                    <div style={{ marginLeft: "auto" }}>
+                        <HelpTip
+                            label="About AI Setup"
+                            title="AI Setup"
+                            body={[
+                                "Everything AI-side — connector, knowledge pack, AI Insights config, Ask Pulse config, Vector Search, UC Metric View.",
+                                "One assistant powers both AI Insights and Ask Pulse; change once, both benefit.",
+                            ]}
+                        />
+                    </div>
                 </div>
                 {/* Phase F — bookmark navigation for the 5 progressive
                     sections below. Mirrors the SetupGroup pattern users
