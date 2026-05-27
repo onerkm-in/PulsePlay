@@ -881,12 +881,14 @@ function PulseAiInsightsSettingsPanel(props: {
                 label="Custom sections preset library"
                 summary="SWOT / BCG / RFM / Pareto / pack-specific presets — pick one to populate the Custom sections JSON below. Bundled metric direction rules (when the preset declares them) auto-apply to the Metric direction field too."
             >
-                <CustomSectionPresetPicker
-                    currentDomain={value.insightsDomain}
-                    onApplyDomain={insightsDomain => onChange({ insightsDomain })}
-                    onApplySections={insightsCustomSections => onChange({ insightsCustomSections })}
-                    onApplyMetricRules={metricDirectionRules => onChange({ metricDirectionRules })}
-                />
+                <div className="pp-preset-library-wrap">
+                    <CustomSectionPresetPicker
+                        currentDomain={value.insightsDomain}
+                        onApplyDomain={insightsDomain => onChange({ insightsDomain })}
+                        onApplySections={insightsCustomSections => onChange({ insightsCustomSections })}
+                        onApplyMetricRules={metricDirectionRules => onChange({ metricDirectionRules })}
+                    />
+                </div>
             </Leaf>
 
             <SettingsTextarea
@@ -936,11 +938,13 @@ function PulseAiInsightsSettingsPanel(props: {
                         onDismiss={() => setAutoDetectDismissed(true)}
                     />
                 )}
-                <MetricDirectionPresetPicker
-                    currentDomain={value.insightsDomain}
-                    onApplyDomain={insightsDomain => onChange({ insightsDomain })}
-                    onApplyRules={metricDirectionRules => onChange({ metricDirectionRules })}
-                />
+                <div className="pp-preset-library-wrap">
+                    <MetricDirectionPresetPicker
+                        currentDomain={value.insightsDomain}
+                        onApplyDomain={insightsDomain => onChange({ insightsDomain })}
+                        onApplyRules={metricDirectionRules => onChange({ metricDirectionRules })}
+                    />
+                </div>
             </Leaf>
 
             <SettingsTextarea

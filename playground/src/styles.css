@@ -467,6 +467,179 @@ html, body, #root {
     outline: none;
 }
 
+/* 2026-05-28 — pp-* skin for the gn-* preset picker components
+   imported from setupStep5.tsx (CustomSectionPresetPicker +
+   MetricDirectionPresetPicker). The pickers are Pulse-port primitives
+   styled in visual.less with gn-* tokens. Wrap them in
+   .pp-preset-library-wrap so they visually unify with the rest of
+   Settings → AI (rounded inputs, accent-blue hover, pp-* color tokens).
+   Scope is intentionally narrow — these overrides only fire inside
+   the wrapper, so PulseShell setupStep5 continues using its native
+   gn-* skin. */
+.pp-preset-library-wrap .gn-setup-preset-library {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.pp-preset-library-wrap .gn-setup-preset-library select {
+    width: 100%;
+    min-height: auto;
+    padding: 7px 10px;
+    border: 1px solid var(--pp-border, #d0d7de);
+    border-radius: 7px;
+    background: var(--pp-surface, #fff);
+    color: var(--pp-text);
+    font-family: inherit;
+    font-size: 13px;
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+    cursor: pointer;
+}
+
+.pp-preset-library-wrap .gn-setup-preset-library select:hover {
+    border-color: var(--pp-accent, #2563eb);
+}
+
+.pp-preset-library-wrap .gn-setup-preset-library select:focus,
+.pp-preset-library-wrap .gn-setup-preset-library select:focus-visible {
+    border-color: var(--pp-accent, #2563eb);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.18);
+    outline: none;
+}
+
+.pp-preset-library-wrap .gn-btn,
+.pp-preset-library-wrap .gn-btn--compact {
+    min-height: auto;
+    padding: 7px 14px;
+    border-radius: 7px;
+    border: 1px solid var(--pp-border, #d0d7de);
+    background: var(--pp-surface, #fff);
+    color: var(--pp-text);
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
+}
+
+.pp-preset-library-wrap .gn-btn:hover:not(:disabled),
+.pp-preset-library-wrap .gn-btn--compact:hover:not(:disabled),
+.pp-preset-library-wrap .gn-btn:focus-visible:not(:disabled),
+.pp-preset-library-wrap .gn-btn--compact:focus-visible:not(:disabled) {
+    border-color: var(--pp-accent, #2563eb);
+    background: var(--pp-accent-subtle, rgba(37, 99, 235, 0.08));
+    color: var(--pp-accent, #2563eb);
+    outline: none;
+}
+
+.pp-preset-library-wrap .gn-btn:disabled,
+.pp-preset-library-wrap .gn-btn--compact:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.pp-preset-library-wrap .gn-setup-preset-library-desc {
+    color: var(--pp-text-muted);
+    font-size: 11.5px;
+    line-height: 1.45;
+    grid-column: 1 / -1;
+    padding-top: 2px;
+}
+
+/* Advanced preset parameters details panel — re-skin to match the
+   pp-* leaf body. */
+.pp-preset-library-wrap .gn-setup-preset-params {
+    grid-column: 1 / -1;
+    margin-top: 4px;
+    padding: 10px 12px;
+    border: 1px solid var(--pp-border-subtle, #e4e9ef);
+    border-radius: 7px;
+    background: var(--pp-surface, #fff);
+}
+
+.pp-preset-library-wrap .gn-setup-preset-params-header {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+}
+
+.pp-preset-library-wrap .gn-setup-preset-params-title {
+    color: var(--pp-text);
+    font-weight: 600;
+}
+
+.pp-preset-library-wrap .gn-setup-preset-params-count {
+    color: var(--pp-text-muted);
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.pp-preset-library-wrap .gn-setup-preset-params-reset,
+.pp-preset-library-wrap .gn-link-btn {
+    color: var(--pp-accent, #2563eb);
+    background: transparent;
+    border: none;
+    padding: 2px 4px;
+    font-size: 11.5px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.pp-preset-library-wrap .gn-setup-preset-params-reset:hover,
+.pp-preset-library-wrap .gn-link-btn:hover {
+    text-decoration: underline;
+}
+
+.pp-preset-library-wrap .gn-setup-preset-params-help {
+    color: var(--pp-text-muted);
+    font-size: 11.5px;
+    line-height: 1.45;
+    margin: 6px 0 10px;
+}
+
+.pp-preset-library-wrap .gn-setup-preset-param-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    margin: 6px 0;
+    align-items: center;
+}
+
+.pp-preset-library-wrap .gn-setup-preset-param-label {
+    color: var(--pp-text);
+    font-weight: 600;
+    font-size: 12px;
+}
+
+.pp-preset-library-wrap .gn-setup-preset-param-row input {
+    padding: 5px 9px;
+    border: 1px solid var(--pp-border, #d0d7de);
+    border-radius: 6px;
+    background: var(--pp-surface, #fff);
+    color: var(--pp-text);
+    font-family: inherit;
+    font-size: 12.5px;
+    min-width: 110px;
+    transition: border-color 120ms ease;
+}
+
+.pp-preset-library-wrap .gn-setup-preset-param-row input:hover,
+.pp-preset-library-wrap .gn-setup-preset-param-row input:focus {
+    border-color: var(--pp-accent, #2563eb);
+    outline: none;
+}
+
+.pp-preset-library-wrap .gn-setup-preset-param-desc {
+    color: var(--pp-text-muted);
+    font-size: 11px;
+    line-height: 1.4;
+    grid-column: 1 / -1;
+}
+
 .pp-app__brand h1 {
     margin: 0;
     font-size: var(--pp-text-2xl);
