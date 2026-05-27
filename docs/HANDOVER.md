@@ -5,6 +5,22 @@
 
 ---
 
+## 2026-05-27 - ARCH-P1 slice 2 of 4: wire BI metadata to v0 trust chip
+
+**Scope.** Finish the half-day follow-up from slice 1: v0 cold boot shows "AI configured · No BI fields" even when a real BI adapter is mounted, because the trust chip never received measure/dimension counts. Slice 2 wires those counts from the discovery snapshot the surface already fetches.
+
+**Shipped.**
+- `playground/src/components/UnifiedAssistantSurface.tsx` — `surfaceContext` useMemo now reads `snapshot.sources.biMetadata.visibleMeasures?.length` and `visibleDimensions?.length` and feeds them into `computeSurfaceContext`. No new network calls; the snapshot was already being fetched + stored on every connector/pack change.
+- 2 new integration tests in `UnifiedAssistantSurface.test.tsx`: one mocking the discovery snapshot with `biMetadata: null` (asserts chip stays "AI configured · No BI fields"), one mocking it with 3 measures + 2 dimensions (asserts chip promotes to "Grounded to BI context" + source becomes "3 metrics / 2 dimensions").
+
+**Validation.** Lint clean. Tests 1620/1620 (was 1618, +2 integration). Browser smoke confirmed the first two trust states: cold boot mounts "Setup needed", profile-set-but-no-metadata correctly mounts "AI configured · No BI fields". Two `/api/assistant/discover` and `/api/warehouse/start` 400s observed in the second probe are pre-existing — the proxy correctly rejects the fake `"genie-default"` profile name. NOT regressions from slice 2.
+
+**Tripwires for next session.**
+- The "Grounded to BI context" promotion only fires when the active BI adapter implements `getMetadata()` AND returns a `BIMetadata` object with non-empty `visibleMeasures` or `visibleDimensions`. iframe-only adapters (generic-iframe, current Tableau/Qlik/Looker stubs) return null → Trust stays at "AI configured · No BI fields" — honest. Power BI SDK adapter is the first one to actually exercise the Grounded path; that's an in-the-wild verification gate for a future slice.
+- ARCH-P1 remaining: slice 3 (feature registry + capability resolver — multi-day), slice 4 (graceful "switch surface" affordances — depends on 3). Both are bigger architectural work that should get a dedicated handoff doc when kicked off.
+
+---
+
 ## 2026-05-27 - ARCH-P1 slice 1 of 4: port signposting chrome to UnifiedAssistantSurface
 
 **Scope.** Address the visible UX gap Rajesh flagged after the ARCH-P0 resolution: "v0 cold boot looks bare next to pulse, otherwise it would be confusing." This is slice 1 of the 4-slice ARCH-P1 plan (registry + resolver + affordances + chrome port) — the lightest one, focused on closing the visual gap without yet building the full feature-feasibility resolver.

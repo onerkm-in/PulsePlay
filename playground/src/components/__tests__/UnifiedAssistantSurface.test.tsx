@@ -21,6 +21,7 @@ vi.mock("../../lib/discoveryClient", () => ({
 
 import { UnifiedAssistantSurface, MAX_POLL_DURATION_MS, POLL_INTERVAL_MS } from "../UnifiedAssistantSurface";
 import type { PackSelection } from "../PackPicker";
+import { getDiscoverySnapshot } from "../../lib/discoveryClient";
 
 interface MountState {
     container: HTMLElement;
@@ -97,6 +98,78 @@ describe("UnifiedAssistantSurface", () => {
         expect(state.container.querySelector(".pp-ai-sidebar__title")?.textContent).toBe("PulsePlay AI");
         // No history entries.
         expect(state.container.querySelectorAll(".pp-ai-sidebar__entry").length).toBe(0);
+        unmount(state);
+    });
+
+    // ARCH-P1 slice 2 — the trust chip must promote from "AI configured ·
+    // No BI fields" to "Grounded to BI context" once the discovery snapshot
+    // reports visible measures or dimensions from the active BI adapter.
+    // The chip's text is the user-visible promise that "we have BI signal
+    // to ground on" — if the wiring breaks, the chip silently overclaims
+    // (or under-claims) grounding.
+    it("trust chip stays 'AI configured · No BI fields' when snapshot has no biMetadata fields", async () => {
+        vi.mocked(getDiscoverySnapshot).mockResolvedValueOnce({
+            snapshotVersion: 1,
+            fetchedAt: new Date().toISOString(),
+            expiresAt: new Date(Date.now() + 900_000).toISOString(),
+            cacheKey: null,
+            sources: { probe: null, biMetadata: null, packKpis: [] },
+            fused: { availableKpis: [], reachableFrames: [], unreachableFrames: [] },
+            warnings: [],
+        });
+        const state = mount(
+            <UnifiedAssistantSurface
+                activeVendor="generic-iframe"
+                activeConnector="genie-default"
+                recentEvents={[]}
+            />,
+        );
+        // Discovery resolves on a microtask + then setSnapshot triggers a
+        // re-render; flush both before asserting.
+        await act(async () => { await Promise.resolve(); });
+        await act(async () => { await Promise.resolve(); });
+        const trustValue = state.container.querySelector('[data-testid="pp-surface-context-trust"]')?.textContent;
+        expect(trustValue).toBe("AI configured · No BI fields");
+        unmount(state);
+    });
+
+    it("trust chip promotes to 'Grounded to BI context' when snapshot has visible measures/dimensions", async () => {
+        vi.mocked(getDiscoverySnapshot).mockResolvedValueOnce({
+            snapshotVersion: 1,
+            fetchedAt: new Date().toISOString(),
+            expiresAt: new Date(Date.now() + 900_000).toISOString(),
+            cacheKey: null,
+            sources: {
+                probe: null,
+                biMetadata: {
+                    visibleMeasures: [
+                        { name: "Sales" },
+                        { name: "Profit" },
+                        { name: "Margin %" },
+                    ],
+                    visibleDimensions: [
+                        { name: "Region" },
+                        { name: "Category" },
+                    ],
+                },
+                packKpis: [],
+            },
+            fused: { availableKpis: [], reachableFrames: [], unreachableFrames: [] },
+            warnings: [],
+        });
+        const state = mount(
+            <UnifiedAssistantSurface
+                activeVendor="powerbi"
+                activeConnector="genie-default"
+                recentEvents={[]}
+            />,
+        );
+        await act(async () => { await Promise.resolve(); });
+        await act(async () => { await Promise.resolve(); });
+        const trustValue = state.container.querySelector('[data-testid="pp-surface-context-trust"]')?.textContent;
+        const sourceValue = state.container.querySelector('[data-testid="pp-surface-context-source"]')?.textContent;
+        expect(trustValue).toBe("Grounded to BI context");
+        expect(sourceValue).toBe("3 metrics / 2 dimensions");
         unmount(state);
     });
 

@@ -1015,25 +1015,30 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
         ? `Pack context: ${props.packSelection.pack}${props.packSelection.subVertical ? ` / ${props.packSelection.subVertical}` : ""}`
         : "Pack context: none — generic prompts";
 
-    // 2026-05-27 — ARCH-P1 first slice: port the signposting chrome
-    // (context chips + cold-boot empty state) from PulseShell so v0
-    // surfaces don't look bare next to the pulse escape hatch. The
-    // trust label honors the same evidence-aware ladder PulseShell uses
-    // (shared via lib/computeSurfaceContext). v0 has no `sendContextToAi`
-    // toggle yet — it always captures BI events for context — so we pass
-    // true. measureCount/dimensionCount stay at 0 until v0 wires
-    // BI metadata fetching (a separate ARCH-P1 slice).
+    // 2026-05-27 — ARCH-P1 slice 1 ported the signposting chrome (context
+    // chips + empty state) so v0 doesn't look bare. Slice 2 (this code)
+    // wires the trust chip to real BI metadata so it promotes from
+    // "AI configured · No BI fields" → "Grounded to BI context" once the
+    // active BI adapter reports schema. Source comes from the discovery
+    // snapshot's `sources.biMetadata.visibleMeasures` /
+    // `visibleDimensions` — the adapter-reported "what's currently
+    // bound" view. snapshot loads asynchronously, so Trust may flip
+    // mid-discovery; that's honest (user sees AI become grounded as
+    // metadata lands), not a bug. v0 still has no `sendContextToAi`
+    // toggle — it always captures BI events for context — so we pass true.
     const isAiConfigured = Boolean((props.activeConnector || "").trim());
+    const measureCount = snapshot?.sources?.biMetadata?.visibleMeasures?.length ?? 0;
+    const dimensionCount = snapshot?.sources?.biMetadata?.visibleDimensions?.length ?? 0;
     const surfaceContext = useMemo(() => computeSurfaceContext({
         isConfigured: isAiConfigured,
         assistantProfile: props.activeConnector || "",
         mode: "Conversation",
         selectedFilterCount: 0,
         currentScopeLabel: "",
-        measureCount: 0,
-        dimensionCount: 0,
+        measureCount,
+        dimensionCount,
         sendContextToAi: true,
-    }), [isAiConfigured, props.activeConnector]);
+    }), [isAiConfigured, props.activeConnector, measureCount, dimensionCount]);
 
     return (
         <section className="pp-ai-sidebar">
