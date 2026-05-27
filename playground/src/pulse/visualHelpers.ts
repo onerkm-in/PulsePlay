@@ -966,6 +966,180 @@ export function buildFastHybridInsightsStagePrompts(
     };
 }
 
+/**
+ * 2026-05-27 — Staged hybrid plan per
+ * AI_INSIGHTS_SECTION_LOADING_CLAUDE_HANDOFF_2026-05-27.md.
+ *
+ * Where `buildFastHybridInsightsStagePrompts()` bundles ALL sections into
+ * one upstream Genie message, this builder splits the same content into
+ * 2-4 batches:
+ *   - Batch 0 (LEAD): section[0] alone — paints first
+ *   - Batch 1..N: 2 sections each (or 3 for fast/stable profiles)
+ *
+ * The existing concurrency-2 worker pool + 3500ms head-start in
+ * runInsights handles the rest:
+ *   - one startConversation for batch 0
+ *   - sendMessage(conversationId) for each subsequent batch
+ *   - distinct immutable message_id per batch
+ *   - one PulsePlay renderId for the whole answer (UI grouping key)
+ *
+ * Each batch prompt re-uses the same context preamble (cheap to repeat;
+ * Genie discards context between messages anyway). The "use prior
+ * conversation context" hint is added so the model sees its earlier
+ * outputs in-thread.
+ *
+ * BatchSize policy: default 2 for Genie (gentle on throttle). Set
+ * `batchSize` to 3 for Foundation Model / fast profiles when caller knows
+ * the upstream can handle wider parallelism.
+ */
+export function buildStagedHybridInsightsPlan(
+    context: ContextSummary,
+    domain: string,
+    customSections: HybridCustomSection[],
+    _roleMode: UserMode,
+    kbFlags?: { enabled: boolean; charts: boolean; stats: boolean; reporting: boolean },
+    metricRules?: string,
+    authorGuidance?: string,
+    universalStages?: { headline?: boolean; trends?: boolean; risks?: boolean; actions?: boolean },
+    universalOverrides?: { headline?: string; trends?: string; risks?: string; actions?: string },
+    opts?: { batchSize?: 2 | 3 }
+): InsightsStagePrompts {
+    metricRules = safeAuthorPrompt(metricRules);
+    authorGuidance = safeAuthorPrompt(authorGuidance);
+    const aiSections = customSections
+        .filter(s => s.kind !== "sql")
+        .map(s => ({
+            name: safeAuthorPrompt(s.name).trim().toUpperCase(),
+            instruction: safeAuthorPrompt(s.instruction).trim(),
+        }))
+        .filter(s => s.name && s.instruction);
+
+    const dims = Object.keys(context.dimensions).length > 0 ? Object.keys(context.dimensions).join(", ") : "available dimensions";
+    const meas = Object.keys(context.measures).length > 0 ? Object.keys(context.measures).join(", ") : "available measures";
+    const domainLabel = domain.trim() || "this dataset";
+    const ownerLabel = domain.trim() ? `${domain.trim()} owner` : "data owner";
+    const showHeadline = universalStages?.headline !== false;
+    const showTrends = universalStages?.trends !== false;
+    const showRisks = universalStages?.risks !== false;
+    const showActions = universalStages?.actions !== false;
+    const ovHeadline = (universalOverrides?.headline || "").trim();
+    const ovTrends = (universalOverrides?.trends || "").trim();
+    const ovRisks = (universalOverrides?.risks || "").trim();
+    const ovActions = (universalOverrides?.actions || "").trim();
+    const compactKb = kbFlags?.enabled === false
+        ? ""
+        : "Use practical BI/statistical judgement: compare the latest complete period with the prior comparable period, avoid unsupported causality, and surface only decision-useful findings.";
+    const metricDirection = (metricRules ?? "").trim()
+        ? `Metric direction rules: ${metricRules!.trim()}`
+        : "Default metric direction: higher is better unless the metric name implies an inverted-good measure such as rate of returns, defects, churn, cost, or delay.";
+    const authorPrecedence = (authorGuidance ?? "").trim()
+        ? `Author guidance takes priority over the defaults when they conflict:\n${authorGuidance!.trim()}`
+        : "";
+
+    // Build section blocks IDENTICALLY to buildFastHybridInsightsStagePrompts
+    // so behavior is preserved at the block level; only the batching differs.
+    const sectionBlocks: string[] = [];
+    if (showHeadline) {
+        sectionBlocks.push([
+            "## HEADLINE",
+            ovHeadline || `One declarative sentence, max 25 words, naming the most important ${domainLabel} number, change vs prior period, and on-track / watch / at-risk signal. Bold the headline number.`,
+            "",
+            "## KPI SNAPSHOT",
+            `Markdown pipe table: KPI | Current | Prior | Δ % / Δ pp | Status. Cover the bound measures (${meas}). Use ▲/▼ and 🟢/🟡/🔴 where useful.`,
+        ].join("\n"));
+    }
+    if (showTrends) {
+        sectionBlocks.push([
+            "## TRENDS",
+            ovTrends || `3 to 5 compact insight cards as markdown bullets. Use "**Metric or segment:** direction, magnitude, and likely driver" so the UI can render cards instead of a plain bullet list.`,
+        ].join("\n"));
+    }
+    for (const s of aiSections) {
+        sectionBlocks.push([
+            `## ${s.name}`,
+            s.instruction,
+        ].join("\n"));
+    }
+    if (showRisks) {
+        sectionBlocks.push([
+            "## RISKS",
+            ovRisks || `Top 3 risks or warning signs in the current ${domainLabel} data. One markdown bullet each, concise, with numeric evidence. Use "**Risk name:** evidence and implication" so the UI can render risk cards instead of a plain bullet list.`,
+        ].join("\n"));
+    }
+    if (showActions) {
+        sectionBlocks.push([
+            "## RECOMMENDED ACTIONS",
+            ovActions || `Exactly 3 numbered action cards a ${ownerLabel} can take this week. Start each item with an imperative bold label such as "**Audit returns:**", name a specific target, and include expected metric impact.`,
+        ].join("\n"));
+    }
+
+    // If 0 or 1 blocks, fall back to single-shot behavior — no batching
+    // value when there's nothing to split.
+    if (sectionBlocks.length <= 1) {
+        return buildFastHybridInsightsStagePrompts(
+            context, domain, customSections, _roleMode, kbFlags, metricRules, authorGuidance, universalStages, universalOverrides
+        );
+    }
+
+    // Split into batches: lead = block[0] alone; rest in groups of batchSize.
+    const batchSize = Math.max(1, Math.min(3, opts?.batchSize ?? 2));
+    const batches: string[][] = [[sectionBlocks[0]]];
+    for (let i = 1; i < sectionBlocks.length; i += batchSize) {
+        batches.push(sectionBlocks.slice(i, i + batchSize));
+    }
+
+    const titleFor = (blocks: string[]): string => blocks
+        .map(b => (b.match(/^## (.+)$/m)?.[1] || "").trim())
+        .filter(Boolean)
+        .join(" + ") || FAST_INSIGHTS_STAGE_TITLE;
+
+    const sharedPreamble = [
+        `You are an analytics assistant for a ${domainLabel} report.`,
+        `Current scope binds these measures: ${meas}.`,
+        `Current scope includes these dimensions: ${dims}.`,
+        compactKb,
+        metricDirection,
+        authorPrecedence,
+    ].filter(Boolean).join("\n");
+
+    const sharedContract = [
+        "Do not ask clarifying questions. Do not include preamble, alternatives, or a closing summary.",
+        "Use the same current/prior period basis across every section; prefer year-over-year when the data spans multiple years.",
+        "Use exact field/category names from the data. Bold numeric values, not category labels.",
+        "Keep the answer compact enough to render inside a BI side pane.",
+        "POLISH CONTRACT: write like a finished executive card. Use crisp bullets, no filler phrases, no raw audit/debug language, no duplicated explanations.",
+        "Narrative bullets must not contain 🟢/🟡/🔴 status emojis or raw threshold parentheticals such as `(>3%, 🔴 >7%)`. Put status icons only in KPI table cells. If a threshold matters, write it in words, e.g. `above the 3% caution line`.",
+        "Avoid awkward metric-rule fragments such as `caution threshold (>3 ▼ -7%)`, `red threshold`, or bare comparator formulas in prose.",
+    ].join("\n");
+
+    const stages: string[] = batches.map((batchBlocks, batchIdx) => {
+        const batchSectionList = batchBlocks
+            .map(b => (b.match(/^## (.+)$/m)?.[1] || "").trim())
+            .filter(Boolean)
+            .join(" -> ");
+        const role = batchIdx === 0
+            ? "STAGED BRIEFING MODE: this is the LEAD section batch. Paint the most important findings first."
+            : `STAGED BRIEFING MODE: this is FOLLOW-UP BATCH ${batchIdx}. Continue the prior briefing without restating it. Maintain the same period basis and exact field names used earlier in this conversation.`;
+        return [
+            sharedPreamble,
+            "",
+            role,
+            `Output exactly these sections, in this order: ${batchSectionList}.`,
+            sharedContract,
+            "",
+            "SECTION CONTRACTS:",
+            batchBlocks.join("\n\n"),
+            "",
+            "Now emit only the final markdown sections, starting with the first `##` heading.",
+        ].filter(Boolean).join("\n");
+    });
+
+    return {
+        stages,
+        titles: batches.map(titleFor),
+    };
+}
+
 // ────────────────────────────────────────────────────────────────────────
 // 49.17 / IDEA-037 — Hybrid prompt pipeline
 // ────────────────────────────────────────────────────────────────────────

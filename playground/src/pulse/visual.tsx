@@ -94,6 +94,7 @@ import {
     buildGenieRequest,
     buildHomeContextPayload,
     buildFastHybridInsightsStagePrompts,
+    buildStagedHybridInsightsPlan,
     buildInsightsPrompt,
     FAST_INSIGHTS_STAGE_TITLE,
     parseCustomSections,
@@ -2538,12 +2539,23 @@ function App(props: AppProps) {
                 ? `${measureCount} metrics / ${dimensionCount} dimensions`
                 : "No BI fields bound"
             : "BI context off";
+        // 2026-05-27 — split the binary "Grounded" / "Setup needed" trust
+        // label into an evidence-aware ladder per Codex audit P1 #13.
+        // "Grounded" should only fire when AI is configured AND BI context
+        // sending is on AND there are actual BI fields bound. Otherwise we
+        // overclaim grounding when the model has no BI signal.
+        const trustLabel: string = (() => {
+            if (!isConfigured) return "Setup needed";
+            if (!props.settings.sendContextToGenie) return "AI configured · Context off";
+            if (measureCount === 0 && dimensionCount === 0) return "AI configured · No BI fields";
+            return "Grounded to BI context";
+        })();
         return {
             assistant: activeGenieConfig?.assistantProfile || props.settings.assistantProfile || "Default profile",
             mode: activeTab === "insights" ? "Executive briefing" : "Conversation",
             scope: selectedFilterCount > 0 ? currentScope : "All visible data",
             source: dataSource,
-            trust: isConfigured ? "Grounded" : "Setup needed",
+            trust: trustLabel,
         };
     }, [
         activeGenieConfig?.assistantProfile,
@@ -3393,7 +3405,15 @@ function App(props: AppProps) {
             // appear twice in the assembled outgoing payload.
             const effectiveAuthorGuidance = (props.settings.insightsDomainGuidance ?? "").trim()
                 || (props.settings.domainGuidance ?? "").trim();
-            const hybrid = buildFastHybridInsightsStagePrompts(
+            // 2026-05-27 — staged-rendering switch per
+            // AI_INSIGHTS_SECTION_LOADING_CLAUDE_HANDOFF_2026-05-27.md.
+            // Was buildFastHybridInsightsStagePrompts (1 stage = whole briefing
+            // in one Genie message). Now buildStagedHybridInsightsPlan splits
+            // into 2-4 batches: lead section alone, then 2 sections per batch.
+            // The existing runInsights worker pool (concurrency 2 + head-start
+            // delay) handles the rest under ONE conversation_id with distinct
+            // immutable message_ids — see visual.tsx ~line 4050 batch runner.
+            const hybrid = buildStagedHybridInsightsPlan(
                 props.context,
                 settingsDomain,
                 customSections,
@@ -3414,7 +3434,8 @@ function App(props: AppProps) {
                     trends:   props.settings.insightsTrendsOverride,
                     risks:    props.settings.insightsRisksOverride,
                     actions:  props.settings.insightsActionsOverride
-                }
+                },
+                { batchSize: 2 }
             );
             prompts = hybrid.stages;
             titles = hybrid.titles;
@@ -4064,7 +4085,13 @@ function App(props: AppProps) {
                     //      existing cycle-47.2 opener race in obtainMessage()
                     //      — no API change here, just behavior.
                     const CONCURRENCY = 2;
-                    const FIRST_LOAD_STAGE_1_DELAY_MS = 8_000;
+                    // 2026-05-27 — tuned from 8000ms to 3500ms per Rajesh's
+                    // "3-5 second delay" cadence for staged AI Insights.
+                    // 3500 = midpoint; gives the lead batch ~3.5s head-start
+                    // before follow-up batches issue sendMessage on the same
+                    // conversation_id. See
+                    // AI_INSIGHTS_SECTION_LOADING_CLAUDE_HANDOFF_2026-05-27.md.
+                    const FIRST_LOAD_STAGE_1_DELAY_MS = 3_500;
                     const queue = Array.from({ length: prompts.length }, (_, i) => i);
                     const drainWorker = async (workerIndex: number) => {
                         let isFirstPick = true;
