@@ -733,8 +733,8 @@ function PulseAiInsightsSettingsPanel(props: {
             try {
                 const payload = await listMetricViews({
                     assistantProfile: resolvedProfile,
-                    catalog: "workspace",
-                    schema: "databrickspractice",
+                    catalog: (value.insightsUcCatalog || "").trim() || "workspace",
+                    schema: (value.insightsUcSchema || "").trim() || "databrickspractice",
                 });
                 if (cancelled) return;
                 const views = (payload.items ?? []).slice(0, 5);
@@ -758,7 +758,7 @@ function PulseAiInsightsSettingsPanel(props: {
             }
         })();
         return () => { cancelled = true; };
-    }, [resolvedProfile]);
+    }, [resolvedProfile, value.insightsUcCatalog, value.insightsUcSchema]);
 
     // Fallback chain for the metric-direction auto-detect chip:
     //   1. BI adapter's visibleMeasures (Power BI SDK / etc.)
@@ -943,6 +943,20 @@ function PulseAiInsightsSettingsPanel(props: {
                         currentDomain={value.insightsDomain}
                         onApplyDomain={insightsDomain => onChange({ insightsDomain })}
                         onApplyRules={metricDirectionRules => onChange({ metricDirectionRules })}
+                    />
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>
+                    <SettingsTextInput
+                        label="UC catalog (auto-detect source)"
+                        value={value.insightsUcCatalog}
+                        placeholder="workspace"
+                        onChange={insightsUcCatalog => onChange({ insightsUcCatalog })}
+                    />
+                    <SettingsTextInput
+                        label="UC schema (auto-detect source)"
+                        value={value.insightsUcSchema}
+                        placeholder="databrickspractice"
+                        onChange={insightsUcSchema => onChange({ insightsUcSchema })}
                     />
                 </div>
             </Leaf>

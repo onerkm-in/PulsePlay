@@ -39,6 +39,15 @@ export interface PulseAiVisualSettings {
     insightsActionsOverride: string;
     kbVectorSearchIndex: string;
     ucMetricView: string;
+    /** 2026-05-28 — Unity Catalog catalog + schema for metric-view
+     *  discovery. Surfaces what was previously hardcoded ("workspace" /
+     *  "databrickspractice") so other workspaces can override per
+     *  profile. Read by the MetricDirectionAutoDetectChip's UC fallback
+     *  AND by the UCMetricViewExplorer leaf for its initial fetch.
+     *  Empty string falls back to the legacy defaults so existing
+     *  sessions don't break. */
+    insightsUcCatalog: string;
+    insightsUcSchema: string;
     /** When true and a Genie message's `attachments[].reasoning_traces` field
      *  is populated (Databricks added this field 2026-04-16 — it's the first
      *  programmatic surface for Genie Agent Mode / Research Agent output),
@@ -76,6 +85,8 @@ const DEFAULTS: PulseAiVisualSettings = {
     insightsActionsOverride: "",
     kbVectorSearchIndex: "",
     ucMetricView: "",
+    insightsUcCatalog: "",
+    insightsUcSchema: "",
     insightsShowResearchTraces: true,
     insightsStagedRevealEnabled: true,
 };
@@ -142,6 +153,8 @@ export function readPulseAiVisualSettings(): PulseAiVisualSettings {
         insightsActionsOverride: asString(raw.insightsActionsOverride, DEFAULTS.insightsActionsOverride),
         kbVectorSearchIndex: asString(raw.kbVectorSearchIndex, DEFAULTS.kbVectorSearchIndex),
         ucMetricView: asString(raw.ucMetricView, DEFAULTS.ucMetricView),
+        insightsUcCatalog: asString(raw.insightsUcCatalog, DEFAULTS.insightsUcCatalog),
+        insightsUcSchema: asString(raw.insightsUcSchema, DEFAULTS.insightsUcSchema),
         insightsShowResearchTraces: asBool(raw.insightsShowResearchTraces, DEFAULTS.insightsShowResearchTraces),
         insightsStagedRevealEnabled: asBool(raw.insightsStagedRevealEnabled, DEFAULTS.insightsStagedRevealEnabled),
     };

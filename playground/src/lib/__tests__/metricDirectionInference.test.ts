@@ -30,6 +30,8 @@ describe("classifyMetric — LOWER patterns", () => {
         "Defect Rate", "Error Count", "Incident Volume", "Downtime min",
         "Risk Score", "Bounce Rate", "Cart Abandon Rate", "Complaint Count",
         "Backlog Size", "Cycle Time", "Lead Time", "Aging Days",
+        // 2026-05-28 — added discount/spend/burn coverage per user direction
+        "Discount %", "Discount Rate", "Discounts", "Ad Spend", "Cash Burn",
     ])("classifies %s as lower", (name) => {
         expect(classifyMetric(name)).toBe("lower");
     });

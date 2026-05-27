@@ -37,9 +37,11 @@ const HIGHER_PATTERNS = [
     /\b(revenues?|sales|profits?|margins?|growth|conversions?|retentions?|nrr|arr|mrr|aov|ltv|clv|csat|nps|scores?|ratings?|accuracy|throughput|engagements?|attainments?|adoptions?|uptime|productivity|yields?|bookings?|signups?|activations?|reactivations?|win[\s_-]?rates?|fill[\s_-]?rates?|otif|coverages?)\b/i,
 ];
 
-/** Words that signal lower-is-better when present in a metric name. */
+/** Words that signal lower-is-better when present in a metric name.
+ *  2026-05-28 — added discounts? (high discount % erodes margin), and
+ *  kept spend / burn which were already covered. */
 const LOWER_PATTERNS = [
-    /\b(returns?|churns?|attritions?|costs?|spends?|cogs|opex|burns?|delays?|latency|lags?|waits?|ttl|tat|defects?|errors?|incidents?|outages?|down[\s_-]?time|risks?|bounces?|abandons?|complaints?|failures?|rejects?|disputes?|backlogs?|leaks?|loss|losses|breaches?|debts?|aging|cycle[\s_-]?times?|lead[\s_-]?times?)\b/i,
+    /\b(returns?|churns?|attritions?|costs?|spends?|cogs|opex|burns?|discounts?|delays?|latency|lags?|waits?|ttl|tat|defects?|errors?|incidents?|outages?|down[\s_-]?time|risks?|bounces?|abandons?|complaints?|failures?|rejects?|disputes?|backlogs?|leaks?|loss|losses|breaches?|debts?|aging|cycle[\s_-]?times?|lead[\s_-]?times?)\b/i,
 ];
 
 /** Pure name-based classification. Returns CONTEXT for unknown tokens. */
