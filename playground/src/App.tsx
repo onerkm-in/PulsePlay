@@ -63,6 +63,7 @@ import {
 } from "./settings/performanceLevers";
 import { SettingsProvider, useSettings, DEFAULT_UI_MODE, readTabVisibility } from "./settings/settingsStore";
 import { resolveDefaultSurface } from "./featureRegistry/resolver";
+import { SurfaceModeChip } from "./components/SurfaceModeChip";
 import { PULSE_VISUAL_SETTINGS_EVENT } from "./settings/pulseVisualSettingsStore";
 import { SettingsShell } from "./settings/SettingsShell";
 import { useSettingsRoute, navigateToSettings } from "./settings/settingsRoute";
@@ -1441,7 +1442,16 @@ function PlaygroundApp(): React.ReactElement {
                 <div>
                     <h1 style={{ margin: 0, fontSize: 22, lineHeight: 1.1 }}>PulsePlay</h1>
                 </div>
-                <SetupStatusPill readiness={setupReadiness} />
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    {/* 2026-05-27 — Surface-mode chip (Chat ⇄ Workbench).
+                      * New design iteration of the v0 ↔ pulse switch.
+                      * Mounts in the top bar next to SetupStatusPill so
+                      * it's discoverable without burying in Settings.
+                      * Live-flip via pulseplay:display-change event;
+                      * settingsStore + App both listen for it. */}
+                    <SurfaceModeChip currentMode={uiMode} />
+                    <SetupStatusPill readiness={setupReadiness} />
+                </div>
             </header>
 
             {/* 2026-05-25 — Top-right toolbar (Commit 5 of per-tab-visibility
