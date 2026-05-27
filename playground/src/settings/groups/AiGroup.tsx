@@ -984,6 +984,18 @@ function PulseAiInsightsSettingsPanel(props: {
                     checked={value.insightsShowProvenanceFooter}
                     onChange={insightsShowProvenanceFooter => onChange({ insightsShowProvenanceFooter })}
                 />
+                {/* 2026-05-28 — surfaced from PulseAiVisualSettings.
+                  * Was previously only togglable via DevTools localStorage. */}
+                <SettingsCheckbox
+                    label="Staged reveal animation"
+                    checked={value.insightsStagedRevealEnabled}
+                    onChange={insightsStagedRevealEnabled => onChange({ insightsStagedRevealEnabled })}
+                />
+                <SettingsCheckbox
+                    label="Show Research Agent traces"
+                    checked={value.insightsShowResearchTraces}
+                    onChange={insightsShowResearchTraces => onChange({ insightsShowResearchTraces })}
+                />
                 <SettingsSelect<number>
                     label="Cache TTL"
                     value={value.insightsCacheTtlMinutes}
