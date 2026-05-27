@@ -677,11 +677,26 @@ function isSecureEmbedConfig(cfg: PowerBIEmbedConfig): boolean {
     return !cfg.accessToken && isPowerBIReportEmbedUrl(url);
 }
 
+// 2026-05-27 — Codex audit P0 #4. The previous check used
+// `hostname.endsWith("powerbi.com")` which silently accepted spoof domains
+// like `evilpowerbi.com`. Tightened to an explicit hostname allowlist of the
+// official Power BI hosts (commercial app.powerbi.com + sovereign cloud
+// variants for Gov / DoD / China / Germany). Add new sovereign hosts here
+// rather than relaxing the check.
+const POWERBI_REPORT_EMBED_HOSTNAMES: ReadonlyArray<string> = Object.freeze([
+    "app.powerbi.com",
+    "app.powerbigov.us",        // US Gov Community Cloud
+    "app.high.powerbigov.us",   // US DoD
+    "app.mil.powerbigov.us",    // US DoD (alt)
+    "app.powerbi.cn",           // China (Mooncake)
+    "app.powerbi.de",           // Germany (retired but kept defensively)
+]);
+
 function isPowerBIReportEmbedUrl(input: string): boolean {
     try {
         const parsed = new URL(input);
         return parsed.protocol === "https:"
-            && parsed.hostname.toLowerCase().endsWith("powerbi.com")
+            && POWERBI_REPORT_EMBED_HOSTNAMES.includes(parsed.hostname.toLowerCase())
             && /\/reportEmbed$/i.test(parsed.pathname);
     } catch {
         return false;

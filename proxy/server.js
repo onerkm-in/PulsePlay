@@ -1923,6 +1923,12 @@ app.use('/bedrock', rateLimitMiddleware, idpMiddleware);
 // endpoints, so they inherit the same auth/rate-limit posture as the other
 // AI connector families.
 app.use('/responses-agent', rateLimitMiddleware, idpMiddleware);
+// 2026-05-27 — Direct /powerbi/* routes (conversations/start, qna/embed-token,
+// health) were bypassing the common middleware stack. Per Codex audit P0,
+// they now share the same rate-limit + IdP posture as /assistant. Without
+// this, a misconfigured deploy could allow unauthenticated callers to mint
+// Power BI embed tokens or trigger executeQueries.
+app.use('/powerbi', rateLimitMiddleware, idpMiddleware);
 // Cycle 47.6 — Foundation Model serving endpoint (Mosaic AI Model Serving).
 // Same cost + auth posture as the other LLM paths.
 app.use('/foundation', rateLimitMiddleware, idpMiddleware);
@@ -1954,6 +1960,8 @@ app.use('/openai', sharedKeyMiddleware);
 app.use('/bedrock', sharedKeyMiddleware);
 app.use('/responses-agent', sharedKeyMiddleware);
 app.use('/foundation', sharedKeyMiddleware);
+// 2026-05-27 — /powerbi/* shared-key posture (Codex audit P0).
+app.use('/powerbi', sharedKeyMiddleware);
 // Wave 41 PREP — /insights/* is the AI-assisted introspection family. Today
 // it hosts /insights/suggest-metric-rules; future cycles will fold in the
 // existing suggest-config call once the visual stops piggy-backing on the
@@ -2147,6 +2155,10 @@ app.use('/foundation', allowlistGuard);
 app.use('/supervisor', allowlistGuard);
 app.use('/confidence', allowlistGuard);
 app.use('/sql', allowlistGuard);
+// 2026-05-27 — /powerbi/* allowlist guard (Codex audit P0). Direct routes
+// were bypassing per-profile allowlist enforcement that /assistant has had
+// for many cycles.
+app.use('/powerbi', allowlistGuard);
 app.use('/insights', allowlistGuard);
 
 // ── Health ────────────────────────────────────────────────────────────────────
