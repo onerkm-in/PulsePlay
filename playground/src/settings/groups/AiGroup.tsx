@@ -39,6 +39,8 @@ import {
 } from "../pulseVisualSettingsStore";
 import { AiAssistedSuggestionPanel, CustomSectionPresetPicker, MetricDirectionPresetPicker } from "../../pulse/setupStep5";
 import { suggestInsightsConfigViaProxy } from "../../lib/insightsSuggestClient";
+import { MetricDirectionAutoDetectChip } from "../../components/MetricDirectionAutoDetectChip";
+import { getDiscoverySnapshot, type DiscoverySnapshot } from "../../lib/discoveryClient";
 
 interface ProfileMetadata {
     name: string;
@@ -682,6 +684,34 @@ function PulseAiInsightsSettingsPanel(props: {
             domainHint: value.insightsDomain || undefined,
         });
     }, [resolvedProfile, props.packSelection?.pack, props.packSelection?.subVertical, value.insightsDomain]);
+
+    // 2026-05-28 — read the cached discovery snapshot so the metric
+    // direction auto-detect chip can render. Cache-first; if it's been
+    // fetched recently by App or UnifiedAssistantSurface, this is
+    // synchronous via sessionStorage. No prefetch from Settings — we
+    // only show the chip when discovery already ran elsewhere.
+    const [snapshot, setSnapshot] = useState<DiscoverySnapshot | null>(null);
+    const [autoDetectDismissed, setAutoDetectDismissed] = useState(false);
+    useEffect(() => {
+        if (!resolvedProfile) {
+            setSnapshot(null);
+            return;
+        }
+        let cancelled = false;
+        getDiscoverySnapshot({
+            assistantProfile: resolvedProfile,
+            pack: props.packSelection?.pack,
+            subVertical: props.packSelection?.subVertical,
+        })
+            .then(snap => { if (!cancelled) setSnapshot(snap); })
+            .catch(() => { /* swallow — chip just stays hidden */ });
+        return () => { cancelled = true; };
+    }, [resolvedProfile, props.packSelection?.pack, props.packSelection?.subVertical]);
+
+    const measureNames = useMemo(() => {
+        const list = snapshot?.sources?.biMetadata?.visibleMeasures ?? [];
+        return list.map(m => m?.name || "").filter(s => s.trim().length > 0);
+    }, [snapshot]);
     return (
         <div style={{ display: "grid", gap: 14 }}>
             <div
@@ -772,12 +802,13 @@ function PulseAiInsightsSettingsPanel(props: {
             <Leaf
                 group="ai"
                 label="Custom sections preset library"
-                summary="SWOT / BCG / RFM / Pareto / pack-specific presets — pick one to populate the Custom sections JSON below."
+                summary="SWOT / BCG / RFM / Pareto / pack-specific presets — pick one to populate the Custom sections JSON below. Bundled metric direction rules (when the preset declares them) auto-apply to the Metric direction field too."
             >
                 <CustomSectionPresetPicker
                     currentDomain={value.insightsDomain}
                     onApplyDomain={insightsDomain => onChange({ insightsDomain })}
                     onApplySections={insightsCustomSections => onChange({ insightsCustomSections })}
+                    onApplyMetricRules={metricDirectionRules => onChange({ metricDirectionRules })}
                 />
             </Leaf>
 
@@ -819,8 +850,15 @@ function PulseAiInsightsSettingsPanel(props: {
             <Leaf
                 group="ai"
                 label="Metric direction preset library"
-                summary="Pre-baked metric-direction rule sets (Sales / Finance / Supply Chain / etc.) — pick one to populate the rules below."
+                summary="Pre-baked metric-direction rule sets (Sales / Operations / Healthcare) — pick one to populate the rules below. Or use auto-detection if your dataset has bound metrics."
             >
+                {!autoDetectDismissed && (
+                    <MetricDirectionAutoDetectChip
+                        measureNames={measureNames}
+                        onApply={metricDirectionRules => onChange({ metricDirectionRules })}
+                        onDismiss={() => setAutoDetectDismissed(true)}
+                    />
+                )}
                 <MetricDirectionPresetPicker
                     currentDomain={value.insightsDomain}
                     onApplyDomain={insightsDomain => onChange({ insightsDomain })}

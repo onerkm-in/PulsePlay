@@ -1130,6 +1130,11 @@ export function CustomSectionPresetPicker(props: {
     currentDomain: string;
     onApplyDomain: (v: string) => void;
     onApplySections: (json: string) => void;
+    /** 2026-05-28 — when present AND the picked preset has bundled
+     *  metricDirectionRules, apply them in the same action. Optional —
+     *  callers without metric-rule wiring (e.g., legacy setupStep5
+     *  format-pane) pass undefined and only sections are applied. */
+    onApplyMetricRules?: (rules: string) => void;
 }) {
     const [selectedId, setSelectedId] = React.useState("");
     const [feedback, setFeedback] = React.useState<string | null>(null);
@@ -1164,6 +1169,12 @@ export function CustomSectionPresetPicker(props: {
         if (!preset) return;
         if (!props.currentDomain.trim()) props.onApplyDomain(preset.domain);
         props.onApplySections(buildSectionsJson(preset, paramValues));
+        // 2026-05-28 — bundle metric rules with the strategic preset
+        // when both the preset declares them AND the caller wired the
+        // handler. Lets users get one coherent setup in one click.
+        if (preset.metricDirectionRules && props.onApplyMetricRules) {
+            props.onApplyMetricRules(preset.metricDirectionRules);
+        }
     };
     const resetParams = () => {
         if (selected && selected.params) setParamValues(defaultParamValues(selected));
