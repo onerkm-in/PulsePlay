@@ -273,6 +273,115 @@ html, body, #root {
     }
 }
 
+/* 2026-05-27 — PulsePlay-native equivalent of PulseShell's
+   .gn-insights-placeholder empty state. Used by UnifiedAssistantSurface
+   (and any future v0 surface) so the cold-boot screen actually signposts
+   "what is this surface, how do I configure it" instead of showing a
+   bare composer. Honest copy: configured variant says "ask anything",
+   unconfigured variant shows the 4-bullet pitch + 2 CTAs. */
+.pp-assistant-empty {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 28px 20px;
+    color: var(--pp-text);
+    min-height: 240px;
+}
+
+.pp-assistant-empty__icon {
+    font-size: 28px;
+    line-height: 1;
+    margin-bottom: 10px;
+    filter: drop-shadow(0 4px 12px rgba(245, 158, 11, 0.25));
+}
+
+.pp-assistant-empty__title {
+    margin: 0 0 8px;
+    font-size: var(--pp-text-md, 14px);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--pp-text);
+}
+
+.pp-assistant-empty__lede {
+    margin: 0 0 14px;
+    font-size: var(--pp-text-sm, 12.5px);
+    line-height: 1.55;
+    color: var(--pp-text-muted);
+    max-width: 460px;
+}
+
+.pp-assistant-empty__bullets {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 18px;
+    display: inline-block;
+    text-align: left;
+    font-size: 12px;
+    line-height: 1.65;
+    color: var(--pp-text-muted);
+}
+
+.pp-assistant-empty__bullets li {
+    padding-left: 14px;
+    position: relative;
+}
+
+.pp-assistant-empty__bullets li::before {
+    content: "•";
+    position: absolute;
+    left: 0;
+    color: var(--pp-accent, #2563eb);
+    font-weight: 700;
+}
+
+.pp-assistant-empty__cta-row {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.pp-assistant-empty__cta {
+    font-size: 12.5px;
+    padding: 7px 16px;
+    border-radius: 7px;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 600;
+    transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
+}
+
+.pp-assistant-empty__cta--primary {
+    border: 1px solid var(--pp-accent, #2563eb);
+    background: var(--pp-accent, #2563eb);
+    color: #fff;
+}
+
+.pp-assistant-empty__cta--primary:hover,
+.pp-assistant-empty__cta--primary:focus-visible {
+    background: var(--pp-accent-dark, #1d4ed8);
+    border-color: var(--pp-accent-dark, #1d4ed8);
+    outline: none;
+}
+
+.pp-assistant-empty__cta--secondary {
+    border: 1px solid var(--pp-border, #d0d7de);
+    background: transparent;
+    color: var(--pp-text);
+}
+
+.pp-assistant-empty__cta--secondary:hover,
+.pp-assistant-empty__cta--secondary:focus-visible {
+    background: var(--pp-surface-hover, #f3f4f6);
+    border-color: var(--pp-accent, #2563eb);
+    color: var(--pp-accent, #2563eb);
+    outline: none;
+}
+
 .pp-app__brand h1 {
     margin: 0;
     font-size: var(--pp-text-2xl);

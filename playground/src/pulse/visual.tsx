@@ -83,6 +83,7 @@ import { SetupWizard, shouldShowWizard, WizardDraft } from "./setupWizard";
 // looking at the native canvas or the Ask Pulse chart tab.
 import { ChartRationalePill } from "../visualization/ChartRationalePill";
 import { renderMarkdown } from "../lib/renderMarkdown";
+import { computeSurfaceContext } from "../lib/computeSurfaceContext";
 import {
     ALL_FILTER_VALUE,
     AREA_PROMPTS,
@@ -2534,29 +2535,19 @@ function App(props: AppProps) {
         const selectedFilterCount = Object.values(selectedFilters).filter(value => value && value !== ALL_FILTER_VALUE).length;
         const measureCount = Object.keys(props.context.measures || {}).length;
         const dimensionCount = Object.keys(props.context.dimensions || {}).length;
-        const dataSource = props.settings.sendContextToGenie
-            ? measureCount > 0 || dimensionCount > 0
-                ? `${measureCount} metrics / ${dimensionCount} dimensions`
-                : "No BI fields bound"
-            : "BI context off";
-        // 2026-05-27 — split the binary "Grounded" / "Setup needed" trust
-        // label into an evidence-aware ladder per Codex audit P1 #13.
-        // "Grounded" should only fire when AI is configured AND BI context
-        // sending is on AND there are actual BI fields bound. Otherwise we
-        // overclaim grounding when the model has no BI signal.
-        const trustLabel: string = (() => {
-            if (!isConfigured) return "Setup needed";
-            if (!props.settings.sendContextToGenie) return "AI configured · Context off";
-            if (measureCount === 0 && dimensionCount === 0) return "AI configured · No BI fields";
-            return "Grounded to BI context";
-        })();
-        return {
-            assistant: activeGenieConfig?.assistantProfile || props.settings.assistantProfile || "Default profile",
+        // Trust ladder + chip values centralised in lib/computeSurfaceContext
+        // so PulseShell and UnifiedAssistantSurface can't drift on the
+        // evidence-aware trust label shipped in 63efe1e (Codex audit P1 #13).
+        return computeSurfaceContext({
+            isConfigured,
+            assistantProfile: activeGenieConfig?.assistantProfile || props.settings.assistantProfile || "",
             mode: activeTab === "insights" ? "Executive briefing" : "Conversation",
-            scope: selectedFilterCount > 0 ? currentScope : "All visible data",
-            source: dataSource,
-            trust: trustLabel,
-        };
+            selectedFilterCount,
+            currentScopeLabel: currentScope,
+            measureCount,
+            dimensionCount,
+            sendContextToAi: props.settings.sendContextToGenie,
+        });
     }, [
         activeGenieConfig?.assistantProfile,
         activeTab,

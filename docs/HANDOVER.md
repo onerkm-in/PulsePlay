@@ -5,6 +5,28 @@
 
 ---
 
+## 2026-05-27 - ARCH-P1 slice 1 of 4: port signposting chrome to UnifiedAssistantSurface
+
+**Scope.** Address the visible UX gap Rajesh flagged after the ARCH-P0 resolution: "v0 cold boot looks bare next to pulse, otherwise it would be confusing." This is slice 1 of the 4-slice ARCH-P1 plan (registry + resolver + affordances + chrome port) — the lightest one, focused on closing the visual gap without yet building the full feature-feasibility resolver.
+
+**Shipped.**
+- New `playground/src/lib/computeSurfaceContext.ts` shared helper. Trust ladder + chip values are now a single source of truth — PulseShell and UnifiedAssistantSurface call the same function so the 4-state trust label from 63efe1e cannot drift between surfaces.
+- `playground/src/pulse/visual.tsx` `pulseSurfaceContext` useMemo refactored to delegate to the shared helper. Same behavior, less code, no Pulse-port-CSS churn.
+- New `playground/src/components/SurfaceContextStrip.tsx` PulsePlay-native primitive — equivalent to PulseShell's `.gn-surface-context` strip but rendered through pp-* classes. Picks up existing `.pp-surface-context*` styles already in `styles.css` (Dashboard surface uses them too).
+- New `playground/src/components/AssistantEmptyState.tsx` PulsePlay-native primitive — sparkle icon + parameterized title (defaults to "Ask Pulse") + lede + 4-bullet pitch + 2 CTAs ("Connect AI assistant →" / "Browse knowledge packs"). Configured-vs-unconfigured variants matching PulseShell's behavior.
+- New `.pp-assistant-empty*` styles in `playground/src/styles.css`.
+- `playground/src/components/UnifiedAssistantSurface.tsx` wired to render `SurfaceContextStrip` + `AssistantEmptyState` on cold boot.
+- 21 new unit tests (computeSurfaceContext × 14, AssistantEmptyState × 4, SurfaceContextStrip × 3). Trust ladder branches are individually asserted to lock the contract.
+
+**Validation.** Playground lint clean. Tests 1618/1618. Browser cold-boot smoke: v0 with cleared localStorage now mounts the full context strip ("Setup needed" trust, "No BI fields bound" source — honest reflection of unconfigured state) + sparkle empty state + 2 CTAs. 0 console errors. PulseShell still mounts identically when `localStorage.setItem("pulseplay:ui-mode", "pulse")` (no regression to the escape hatch).
+
+**Tripwires for next session.**
+- The "No BI fields bound" trust state on v0 is honest but a real gap: v0 doesn't yet receive measure/dimension counts from the active BI adapter. Slice 2 of ARCH-P1 wires that. Once it lands, the trust chip will promote to "Grounded to BI context" when fields exist.
+- The shared helper is now load-bearing for both surfaces. If you need to change the trust label or source label shape, update `lib/computeSurfaceContext.ts` once — never re-implement in each surface.
+- `SurfaceContextStrip` and `AssistantEmptyState` are PulsePlay-native primitives. They live in `playground/src/components/` (not under `playground/src/pulse/*`), so they DO NOT inherit the Pulse-PBI sandbox constraints. Use them in any future v0 surface.
+
+---
+
 ## 2026-05-27 - ARCH-P0 resolved: v0 default via DEFAULT_UI_MODE single source of truth
 
 **Scope.** Resolve the uiMode default ownership P0 from the morning's read-only feedback. Rajesh's call: `v0` (UnifiedAssistantSurface) is the default; no hardcoding across sites; features should eventually tag against surfaces based on feasibility.

@@ -50,6 +50,9 @@ import { TrustBadge } from "./TrustBadge";
 import { usePulseAiVisualSettings } from "../settings/pulseVisualSettingsStore";
 import { SectionedAnswer, type SectionDescriptor, type SectionState } from "./SectionedAnswer";
 import { streamSectionedAnswer } from "../lib/sectionedStreamClient";
+import { computeSurfaceContext } from "../lib/computeSurfaceContext";
+import { SurfaceContextStrip } from "./SurfaceContextStrip";
+import { AssistantEmptyState } from "./AssistantEmptyState";
 
 /** Thread C — default section taxonomy when chat-sectioned mode is on.
  *  Mirrors AI Insights' baseline so authors see the same vocabulary
@@ -1012,6 +1015,26 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
         ? `Pack context: ${props.packSelection.pack}${props.packSelection.subVertical ? ` / ${props.packSelection.subVertical}` : ""}`
         : "Pack context: none — generic prompts";
 
+    // 2026-05-27 — ARCH-P1 first slice: port the signposting chrome
+    // (context chips + cold-boot empty state) from PulseShell so v0
+    // surfaces don't look bare next to the pulse escape hatch. The
+    // trust label honors the same evidence-aware ladder PulseShell uses
+    // (shared via lib/computeSurfaceContext). v0 has no `sendContextToAi`
+    // toggle yet — it always captures BI events for context — so we pass
+    // true. measureCount/dimensionCount stay at 0 until v0 wires
+    // BI metadata fetching (a separate ARCH-P1 slice).
+    const isAiConfigured = Boolean((props.activeConnector || "").trim());
+    const surfaceContext = useMemo(() => computeSurfaceContext({
+        isConfigured: isAiConfigured,
+        assistantProfile: props.activeConnector || "",
+        mode: "Conversation",
+        selectedFilterCount: 0,
+        currentScopeLabel: "",
+        measureCount: 0,
+        dimensionCount: 0,
+        sendContextToAi: true,
+    }), [isAiConfigured, props.activeConnector]);
+
     return (
         <section className="pp-ai-sidebar">
             <header className="pp-ai-sidebar__header">
@@ -1030,17 +1053,16 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
                     {packIndicator}
                 </span>
             </header>
-            {/* Intro paragraph is onboarding copy. Show ONLY on empty state
-                (no history yet); fade out once the user starts a conversation
-                so the chat surface stays clean. */}
-            {history.length === 0 && (
-                <p className="pp-ai-sidebar__intro">
-                    Ask about whatever's loaded.{" "}
-                    {props.recentEvents.length > 0
-                        ? `${props.recentEvents.length} BI event${props.recentEvents.length === 1 ? "" : "s"} captured for context.`
-                        : "BI events are captured for context as you interact."}
-                </p>
-            )}
+            <SurfaceContextStrip
+                surface="Ask Pulse"
+                context={surfaceContext}
+            />
+            {/* Empty state: show the signposting block on cold boot so the
+                screen doesn't look bare. Once the user starts a conversation,
+                fall back to the lightweight intro line. */}
+            {history.length === 0 ? (
+                <AssistantEmptyState isConfigured={isAiConfigured} />
+            ) : null}
             <div className="pp-ai-sidebar__history">
                 {history.map(h => (
                     <AnswerEntryView
