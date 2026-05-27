@@ -1252,11 +1252,20 @@ function PlaygroundApp(): React.ReactElement {
             ? `${packSelection.pack} / ${packSelection.subVertical}`
             : packSelection.pack
         : "No pack selected";
-    const dashboardTrustLabel = allowlistFailClosed
-        ? "Locked"
-        : allowlistState.error
-            ? "Governance warning"
-            : "Governed";
+    // 2026-05-27 — split the binary "Governed" fall-through into an
+    // evidence-aware ladder per Codex audit P1 #20. The previous default
+    // claimed "Governed" whenever there was no error, even when allowlist
+    // was null+unconfigured (dev permissive) or unreachable. Now:
+    //   - Locked            = allowlist null AND error set (fail-closed)
+    //   - Governance warning = error present (governance unreachable)
+    //   - Governed          = allowlist configured AND reachable
+    //   - Permissive dev    = allowlist null AND not configured (dev local)
+    const dashboardTrustLabel = (() => {
+        if (allowlistFailClosed) return "Locked";
+        if (allowlistState.error) return "Governance warning";
+        if (allowlistState.allowlist?.configured) return "Governed";
+        return "Permissive dev";
+    })();
     const setupReadiness = getSetupReadiness({
         biVendor: runtimeBiVendor,
         embedConfig,

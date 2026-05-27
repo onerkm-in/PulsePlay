@@ -20,7 +20,9 @@ describe("businessContextProfile — buildBusinessContextProfile", () => {
         expect(profile.id).toBe("cpg-fmcg-supply-chain");
         expect(profile.pack).toBe("cpg-fmcg");
         expect(profile.subVertical).toBe("supply-chain");
-        expect(profile.confidence).toBe("sme-reviewed");
+        // 2026-05-27 — was "sme-reviewed" per Codex audit P1 #23. Loader
+        // path has no SME-review evidence; default lowered to "author-confirmed".
+        expect(profile.confidence).toBe("author-confirmed");
         expect(profile.provenance.sourceIds).toContain("SC-001");
         expect(profile.provenance.sourceIds).toContain("SC-002");
 
@@ -139,7 +141,8 @@ describe("businessContextProfile — generateDefaults and applyAuthorOverrides",
         expect(origOtifKpi!.label).toBe("OTIF %");
         expect(origOtifKpi!.thresholds![0].expression).toBe(">= 95");
         expect(profile.retrievalPolicy.citationMode).toBe("required");
-        expect(profile.confidence).toBe("sme-reviewed");
+        // 2026-05-27 — was "sme-reviewed" per Codex audit P1 #23.
+        expect(profile.confidence).toBe("author-confirmed");
 
         // Assert overridden profile updates
         expect(overriddenProfile.confidence).toBe("author-confirmed");

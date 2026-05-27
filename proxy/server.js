@@ -6374,6 +6374,14 @@ async function startPowerBiConversation(req, res) {
     }
 
     const rendered = tmpl.buildResult({ columns: normalized.columns, rows: normalized.rows, slots: match.slots });
+    // 2026-05-27 — userContext: 'global' is the honest claim per Codex
+    // audit P0 #5. The route currently executes DAX with the profile's
+    // service-principal / refresh-token credentials, NOT the viewer's
+    // effective identity. RLS/OLS/filter context is NOT propagated yet.
+    // For RLS-tight datasets, callers MUST treat this as a global-scope
+    // answer. Real per-user filter propagation requires PBI Premium /
+    // Embed SKU + executeQueries `impersonatedUserName` threading; tracked
+    // in AGENDA + the Codex audit.
     auditLog(req, {
         profileName: resolved.name,
         action: 'powerbi-deterministic-answer',
@@ -6385,6 +6393,7 @@ async function startPowerBiConversation(req, res) {
             rowCount: normalized.rows.length,
             questionSource,
             probeSource,
+            userContext: 'global', // honest scope label until OBO + filter propagation ships
         }),
         spIdentityHash: spHashForProfile(resolved.profile),
     });

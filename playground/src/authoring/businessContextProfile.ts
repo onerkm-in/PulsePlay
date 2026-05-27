@@ -792,7 +792,12 @@ export function buildBusinessContextProfile(
         subVertical: subVerticalId,
         overlays: validOverlays,
         audienceLabel,
-        confidence: "sme-reviewed",
+        // 2026-05-27 — was "sme-reviewed" per Codex audit P1 #23. That
+        // claim required an actual SME review event, which the loader
+        // path has no evidence of. Default to "author-confirmed" (the
+        // honest claim for a pack profile that exists and loaded) and
+        // let an explicit review pipeline promote to "sme-reviewed".
+        confidence: "author-confirmed",
         provenance: {
             sourceRegisterPath: `pulsepacks/${packId}/knowledge-base/references.md`,
             sourceIds,
