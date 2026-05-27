@@ -602,6 +602,96 @@ export function SetupGroup(): React.ReactElement {
                 )}
             </div>
 
+            {/* 2026-05-27 — Setup Home compact task list (Settings Slice 2 per
+                SETTINGS_PROGRESSIVE_PARENT_CHILD_CLAUDE_HANDOFF_2026-05-27.md).
+                Task/readiness-first view: rows over field walls. Each row
+                deep-links to the owning Settings group page. The detailed
+                progressive sections below remain reachable via anchor strip
+                + scroll, but the first viewport is now task-first. */}
+            <section className="pp-setup__home" aria-label="Setup home tasks" style={{
+                margin: "16px 0",
+                border: "1px solid var(--pp-border-subtle, rgba(0,0,0,0.08))",
+                borderRadius: 8,
+                background: "var(--pp-surface, #fff)",
+                overflow: "hidden",
+            }}>
+                <header style={{ padding: "10px 14px", borderBottom: "1px solid var(--pp-border-subtle, rgba(0,0,0,0.08))", background: "rgba(0,0,0,0.02)" }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--pp-text)" }}>Setup tasks</div>
+                    <div style={{ fontSize: 11, opacity: 0.65, marginTop: 2 }}>Pick the next step. Each task opens its owning page.</div>
+                </header>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                    <thead>
+                        <tr style={{ background: "rgba(0,0,0,0.015)", textAlign: "left" }}>
+                            <th style={{ padding: "6px 14px", fontSize: 10, fontWeight: 600, opacity: 0.6, textTransform: "uppercase", letterSpacing: "0.04em" }}>Task</th>
+                            <th style={{ padding: "6px 12px", fontSize: 10, fontWeight: 600, opacity: 0.6, textTransform: "uppercase", letterSpacing: "0.04em" }}>State</th>
+                            <th style={{ padding: "6px 12px", fontSize: 10, fontWeight: 600, opacity: 0.6, textTransform: "uppercase", letterSpacing: "0.04em" }}>Owner</th>
+                            <th style={{ padding: "6px 14px", fontSize: 10, fontWeight: 600, opacity: 0.6, textTransform: "uppercase", letterSpacing: "0.04em" }}>Next action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {(() => {
+                            const tasks: Array<{ task: string; state: string; tone: "ok" | "warn" | "info"; owner: string; action: string; href: string }> = [
+                                {
+                                    task: "BI Surface",
+                                    state: readiness.biReady ? "Ready" : (readiness.hasBiProvider ? "Partial" : "Missing"),
+                                    tone: readiness.biReady ? "ok" : (readiness.hasBiProvider ? "warn" : "info"),
+                                    owner: "BI owner",
+                                    action: readiness.biReady ? "Validate embed" : "Choose or test surface",
+                                    href: "/settings/bi",
+                                },
+                                {
+                                    task: "AI Assistant",
+                                    state: readiness.aiReady ? "Ready" : "Missing",
+                                    tone: readiness.aiReady ? "ok" : "info",
+                                    owner: "AI platform",
+                                    action: readiness.aiReady ? "Run test again" : "Choose or test assistant",
+                                    href: "/settings/ai",
+                                },
+                                {
+                                    task: "Business Context",
+                                    state: "Suggested",
+                                    tone: "info",
+                                    owner: "Data product",
+                                    action: "Review defaults",
+                                    href: "/settings/ai",
+                                },
+                                {
+                                    task: "Governance",
+                                    state: allowlist ? "Dev permissive" : "Warning",
+                                    tone: allowlist ? "warn" : "warn",
+                                    owner: "Platform / Security",
+                                    action: "Review allowlist",
+                                    href: "/settings/advanced",
+                                },
+                                {
+                                    task: "Preview & Handoff",
+                                    state: readiness.ready ? "Ready" : "Untested",
+                                    tone: readiness.ready ? "ok" : "info",
+                                    owner: "Author",
+                                    action: readiness.ready ? "Preview as viewer" : "Complete setup first",
+                                    href: readiness.ready ? "/?surface=ai-insights" : "/settings/bi",
+                                },
+                            ];
+                            return tasks.map(t => (
+                                <tr key={t.task} style={{ borderTop: "1px solid var(--pp-border-subtle, rgba(0,0,0,0.06))" }}>
+                                    <td style={{ padding: "8px 14px", fontWeight: 500 }}>{t.task}</td>
+                                    <td style={{ padding: "8px 12px" }}>
+                                        <span
+                                            className={`pp-settings-chip pp-settings-chip--${t.tone}`}
+                                            style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, display: "inline-block" }}
+                                        >{t.state}</span>
+                                    </td>
+                                    <td style={{ padding: "8px 12px", opacity: 0.7 }}>{t.owner}</td>
+                                    <td style={{ padding: "8px 14px" }}>
+                                        <a href={t.href} style={{ color: "#0366d6", textDecoration: "none", fontWeight: 500 }}>{t.action} →</a>
+                                    </td>
+                                </tr>
+                            ));
+                        })()}
+                    </tbody>
+                </table>
+            </section>
+
             {/* Top anchors strip — sticky bookmarks for progressive sections.
                Using <div role="navigation"> instead of <nav> to avoid colliding
                with the parent Settings shell's <nav> in selector-based tests. */}
