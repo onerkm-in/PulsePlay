@@ -236,7 +236,8 @@ import { dumpRun, resetRun, stageEnd, stageStart } from "../lib/perfInstrumentat
 // PulsePlay — ColorRulesBanner (module-level component) needs the preset
 // list available at top level; the file's other consumers import inside
 // the class component so this import IS additive.
-import { METRIC_DIRECTION_PRESETS as PP_METRIC_DIRECTION_PRESETS } from "./insightsPresetLibrary";
+import { METRIC_DIRECTION_PRESETS as PP_METRIC_DIRECTION_PRESETS, CUSTOM_SECTION_PRESETS, interpolatePreset, defaultParamValues } from "./insightsPresetLibrary";
+import { writePulseAiVisualSettingsPatch } from "../settings/pulseVisualSettingsStore";
 import { createBackend } from "./backend/BackendFactory";
 import type { AnyBackend } from "./backend/BackendAdapter";
 import { parseAllowedUsers } from "./setupAccessControl";
@@ -4848,6 +4849,63 @@ function App(props: AppProps) {
                                             }}
                                         >
                                             {sug.label}
+                                        </button>
+                                    ))}
+                                    {/* 2026-05-28 — strategic-framework presets surfaced
+                                      * inline in the Adjust menu so users can re-run
+                                      * insights as a SWOT / BCG / RFM / Pareto briefing
+                                      * in one click without navigating to Settings → AI.
+                                      * Click handler writes the preset's sections (+
+                                      * bundled metric direction rules when present) to
+                                      * settings, then triggers a fresh insights run
+                                      * through the staged planner. */}
+                                    <div
+                                        role="separator"
+                                        aria-orientation="horizontal"
+                                        style={{
+                                            margin: "6px 0 4px",
+                                            padding: "4px 10px 0",
+                                            fontSize: 10.5,
+                                            fontWeight: 700,
+                                            letterSpacing: 0.6,
+                                            color: "var(--gn-text-muted)",
+                                            textTransform: "uppercase",
+                                            borderTop: "1px solid var(--gn-border-subtle)",
+                                        }}
+                                    >
+                                        Apply preset
+                                    </div>
+                                    {CUSTOM_SECTION_PRESETS.map(preset => (
+                                        <button
+                                            key={`preset-${preset.id}`}
+                                            type="button"
+                                            role="menuitem"
+                                            className="gn-adjust-menu-item"
+                                            disabled={insightsBusy}
+                                            title={preset.description}
+                                            onClick={() => {
+                                                try {
+                                                    const sections = preset.params
+                                                        ? interpolatePreset(preset, defaultParamValues(preset))
+                                                        : preset.sections;
+                                                    const patch: { insightsCustomSections: string; insightsDomain?: string; metricDirectionRules?: string } = {
+                                                        insightsCustomSections: JSON.stringify(sections, null, 2),
+                                                    };
+                                                    if (!(props.settings.insightsDomain || "").trim()) {
+                                                        patch.insightsDomain = preset.domain;
+                                                    }
+                                                    if (preset.metricDirectionRules) {
+                                                        patch.metricDirectionRules = preset.metricDirectionRules;
+                                                    }
+                                                    writePulseAiVisualSettingsPatch(patch);
+                                                    setInsightsActivePromptId(null);
+                                                    setInsightsCustomPrompt("");
+                                                    runInsights();
+                                                } catch { /* swallow — never crash the menu */ }
+                                                setShowAdjustChips(false);
+                                            }}
+                                        >
+                                            {preset.label}
                                         </button>
                                     ))}
                                 </div>
