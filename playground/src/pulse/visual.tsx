@@ -3434,10 +3434,23 @@ function App(props: AppProps) {
             prompts = hybrid.stages;
             titles = hybrid.titles;
         } else {
-            // Fallback: default fast briefing. Fires when:
+            // Fallback for users with no author-configured hybrid setup:
             //   - mode=manual but insightsPrompt is empty, OR
             //   - mode=preset/ai-assisted but Domain + Sections both empty.
-            const stagePrompts = buildFastHybridInsightsStagePrompts(
+            //
+            // 2026-05-27 — previously called buildFastHybridInsightsStagePrompts
+            // which bundles ALL universal sections (HEADLINE/TRENDS/RISKS/
+            // ACTIONS) into ONE Genie call. User observation in live test:
+            // "AI Insights tries to load everything and slows down." Switch
+            // to buildStagedHybridInsightsPlan so the default user also gets
+            // staged rendering — lead section (HEADLINE+KPI SNAPSHOT) arrives
+            // first, then TRENDS+RISKS together, then RECOMMENDED ACTIONS.
+            // Same underlying section content; differs only in batching.
+            // If a user has disabled all 4 universal stages, the staged
+            // planner falls through to the single-shot fast prompt via its
+            // internal `sectionBlocks.length <= 1` guard (visualHelpers.ts
+            // line 1078), so no behavior change in that edge case.
+            const stagePrompts = buildStagedHybridInsightsPlan(
                 props.context,
                 "",
                 [],
@@ -3456,7 +3469,8 @@ function App(props: AppProps) {
                     trends:   props.settings.insightsTrendsOverride,
                     risks:    props.settings.insightsRisksOverride,
                     actions:  props.settings.insightsActionsOverride
-                }
+                },
+                { batchSize: 2 }
             );
             prompts = stagePrompts.stages;
             titles = stagePrompts.titles;
