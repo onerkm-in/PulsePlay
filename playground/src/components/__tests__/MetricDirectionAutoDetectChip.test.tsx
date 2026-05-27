@@ -43,7 +43,7 @@ describe("MetricDirectionAutoDetectChip", () => {
             />,
         );
         expect(screen.getByTestId("pp-metric-autodetect-chip")).toBeTruthy();
-        expect(screen.getByText(/Auto-detected from dataset \(2 metrics\)/)).toBeTruthy();
+        expect(screen.getByText(/Auto-detected from available metrics \(2 metrics\)/)).toBeTruthy();
     });
 
     it("fires onApply with the generated rules string", () => {

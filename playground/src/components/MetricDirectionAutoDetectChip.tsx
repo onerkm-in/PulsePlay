@@ -59,7 +59,7 @@ export function MetricDirectionAutoDetectChip({
             <div className="pp-metric-autodetect-chip__icon" aria-hidden="true">🔍</div>
             <div className="pp-metric-autodetect-chip__body">
                 <div className="pp-metric-autodetect-chip__title">
-                    Auto-detected from dataset ({inferred.confidentCount} {inferred.confidentCount === 1 ? "metric" : "metrics"})
+                    Auto-detected from available metrics ({inferred.confidentCount} {inferred.confidentCount === 1 ? "metric" : "metrics"})
                 </div>
                 <div className="pp-metric-autodetect-chip__subtitle">{subtitle}</div>
             </div>

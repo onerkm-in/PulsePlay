@@ -708,9 +708,31 @@ function PulseAiInsightsSettingsPanel(props: {
         return () => { cancelled = true; };
     }, [resolvedProfile, props.packSelection?.pack, props.packSelection?.subVertical]);
 
+    // 2026-05-28 — primary signal: BI adapter's visibleMeasures (Power BI
+    // SDK, Tableau Embedding API, etc.). When the adapter doesn't expose
+    // metadata (Genie-only profiles, iframe-only vendors), fall back to
+    // fused.availableKpis — KPIs the discovery loop synthesized from the
+    // pack + probe results + any bi-surface signals. Dedup by upper-cased
+    // name so a metric in both sources doesn't generate duplicate rules.
     const measureNames = useMemo(() => {
-        const list = snapshot?.sources?.biMetadata?.visibleMeasures ?? [];
-        return list.map(m => m?.name || "").filter(s => s.trim().length > 0);
+        const fromBiMetadata = (snapshot?.sources?.biMetadata?.visibleMeasures ?? [])
+            .map(m => m?.name || "")
+            .filter(s => s.trim().length > 0);
+        if (fromBiMetadata.length > 0) return fromBiMetadata;
+        const fromAvailableKpis = (snapshot?.fused?.availableKpis ?? [])
+            .map(k => k?.name || "")
+            .filter(s => s.trim().length > 0);
+        // Dedup case-insensitively while preserving the first appearance's
+        // original casing for the rules string output.
+        const seen = new Set<string>();
+        const out: string[] = [];
+        for (const name of fromAvailableKpis) {
+            const key = name.trim().toUpperCase();
+            if (seen.has(key)) continue;
+            seen.add(key);
+            out.push(name.trim());
+        }
+        return out;
     }, [snapshot]);
     return (
         <div style={{ display: "grid", gap: 14 }}>
