@@ -82,7 +82,10 @@ async function main() {
         const existing = JSON.parse(localStorage.getItem(k) || "{}");
         existing.assistantProfile = "default";
         existing.connectionMode = "proxy";
-        existing.apiBaseUrl = window.location.origin;
+        // /api prefix is required: Vite dev server only proxies /api/* → proxy.
+        // Without /api, every assistant/* and /health request hits Vite and gets
+        // SPA HTML (200) or 404, causing /health JSON.parse failure + API 404s.
+        existing.apiBaseUrl = window.location.origin + "/api";
         localStorage.setItem(k, JSON.stringify(existing));
     });
     await page.reload({ waitUntil: "networkidle" });
