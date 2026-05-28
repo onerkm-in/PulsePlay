@@ -186,8 +186,17 @@ export function PulseShell(props: PulseShellProps) {
         // can read it on mount via useState initializer (no race), and
         // (2) dispatch the event a few times across paint frames for
         // already-mounted visuals that need to switch in-place. Both arms
-        // are needed: the stash handles cold-mount, the dispatch handles
-        // re-renders.
+        // are needed: the stash handles cold-mount, the dispatch handles a
+        // genuine surface-navigation request.
+        //
+        // 2026-05-28 FIX — this effect MUST depend on activeTabRequest ALONE.
+        // Previously `renderToken` was a dependency, so every settings/Adjust/
+        // refresh action (which bumps renderToken to re-render the visual)
+        // re-dispatched the App's requestedPulseTab over the user's CURRENT
+        // tab. When requestedPulseTab was "chat" (sticky Ask Pulse), selecting
+        // Adjust or clicking Refresh on AI Insights yanked the user back to
+        // Ask Pulse. A re-render is NOT a tab-change — only assert the tab
+        // when the App actually requests a different one.
         const tab = props.activeTabRequest;
         (window as unknown as { __pulseplayInitialTab?: string }).__pulseplayInitialTab = tab;
         const dispatch = () => window.dispatchEvent(new CustomEvent("pulseplay:pulse-surface-tab", {
@@ -202,7 +211,7 @@ export function PulseShell(props: PulseShellProps) {
             window.clearTimeout(t2);
             window.clearTimeout(t3);
         };
-    }, [props.activeTabRequest, props.renderToken]);
+    }, [props.activeTabRequest]);
 
     return (
         <div

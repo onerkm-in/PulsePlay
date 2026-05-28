@@ -377,9 +377,15 @@ function readInitialActiveSurface(): SurfaceId {
     const authorDefault = readAuthorDefaultLandingSurface();
     if (authorDefault) return authorDefault;
 
-    const stored = readStoredActiveSurface();
-    if (focus === "ai") return stored && stored !== "bi-viz" ? stored : "ai-insights";
-    return stored ?? "ai-insights";
+    // 2026-05-28 — AI Insights is the canonical home base. We intentionally do
+    // NOT restore the last-used surface (stored sticky) as the landing default:
+    // authors asked that the app always OPEN on AI Insights unless a deep-link
+    // (?surface= / ?focus=) or an explicit author default (defaultLandingSurface)
+    // says otherwise. The stored surface is still tracked for cross-tab sync +
+    // focus-restore (see the popstate / display-change handlers), just not used
+    // to pick the initial surface — sticky-Ask-Pulse was landing users away
+    // from the home tab on every reload.
+    return "ai-insights";
 }
 
 function writeViewportFocusToUrl(next: ViewportFocus) {
