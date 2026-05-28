@@ -40,6 +40,7 @@ import {
 import { getKBSystemPrompt, getSupervisorSystemPrompt } from "./knowledgeBase";
 import { buildInsightsCacheKey, readInsightsCache, writeInsightsCache, clearInsightsCache, pruneInsightsCache, composeInsightsSettingsFingerprint, computeSchemaHash, computeSqlHash, SQL_SECTION_CACHE_TTL_MS } from "./insightsCache";
 import { SqlSectionRenderer, type SqlSectionResult } from "./sqlSectionRenderer";
+import { parseMaskingRules, maskSqlResult } from "./masking";
 import type { SqlSection } from "./sqlSection";
 // Wave 37 — viewer-side AI Insights section visibility (per-report localStorage).
 import {
@@ -2374,6 +2375,14 @@ function App(props: AppProps) {
 
     const formatRules = useMemo(
         () => parseFormatRules(props.settings.domainGuidance),
+        [props.settings.domainGuidance]
+    );
+
+    // 2026-05-28 — Slice 4b: display-side `## Masking` rules. Applied to SQL
+    // section results before render so masked cells (redact/last4) and hidden
+    // columns never paint. Same activator block 4a uses for the prompt path.
+    const maskingRules = useMemo(
+        () => parseMaskingRules(props.settings.domainGuidance || ""),
         [props.settings.domainGuidance]
     );
 
@@ -5883,7 +5892,7 @@ function App(props: AppProps) {
                                                                     <div key={key} className="gn-sql-section-wrap">
                                                                         <SqlSectionRenderer
                                                                             section={section}
-                                                                            result={cached?.result || null}
+                                                                            result={cached?.result ? maskSqlResult(cached.result, maskingRules) : null}
                                                                             loading={loading}
                                                                         />
                                                                     </div>

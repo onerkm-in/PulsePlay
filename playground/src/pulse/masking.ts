@@ -149,6 +149,34 @@ export function maskContextForPrompt(context: ContextSummary, guidance: string):
     return applyMaskingToContext(context, parseMaskingRules(guidance));
 }
 
+/** Slice 4b — display-side masking for SQL/config-item section results.
+ *  Masks cells in columns whose name matches a rule (redact/last4), and DROPS
+ *  columns whose rule is `hide` (header + every cell). Pure; returns a new
+ *  result object; no-op when there are no rules. Generic over any
+ *  `{ columns, rows }` shape so it works for the KPI / table / chart
+ *  renderers alike (they all read the same columns + rows). */
+export function maskSqlResult<T extends { columns: string[]; rows: unknown[][] }>(
+    result: T,
+    rules: ReadonlyArray<MaskingRule>,
+): T {
+    if (!rules.length || !result || !Array.isArray(result.columns)) return result;
+    const ruleFor = (col: string): MaskingRule | undefined =>
+        rules.find(r => r.field.toLowerCase() === String(col).toLowerCase());
+    const colRules = result.columns.map(ruleFor);
+    const keepIdx: number[] = [];
+    colRules.forEach((r, i) => { if (r?.rule !== "hide") keepIdx.push(i); });
+    // Nothing matched → return the original untouched.
+    if (keepIdx.length === result.columns.length && colRules.every(r => !r)) return result;
+    const columns = keepIdx.map(i => result.columns[i]);
+    const rows = (result.rows || []).map(row =>
+        keepIdx.map(i => {
+            const r = colRules[i];
+            return r && r.rule !== "hide" ? maskValue(row[i] as PrimitiveValue, r.rule) : row[i];
+        }),
+    );
+    return { ...result, columns, rows };
+}
+
 /** Mask selected filter VALUES for fields covered by a masking rule. The
  *  filter key is the field name; `hide` drops the filter entirely. Returns a
  *  new object; no-op when there are no rules. */

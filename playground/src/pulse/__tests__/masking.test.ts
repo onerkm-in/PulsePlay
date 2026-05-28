@@ -5,6 +5,7 @@ import {
     maskValue,
     applyMaskingToContext,
     maskFilters,
+    maskSqlResult,
 } from "../masking";
 import { buildGenieRequest } from "../visualHelpers";
 
@@ -107,6 +108,40 @@ describe("maskFilters", () => {
         expect(out["Account Number"]).toBe("••••7890");
         expect(out.Salary).toBeUndefined(); // hide drops
         expect(out.Region).toBe("West");
+    });
+});
+
+describe("maskSqlResult — display-side masking of SQL section cells (4b)", () => {
+    const result = {
+        columns: ["Customer Name", "Account Number", "Salary", "Region"],
+        rows: [
+            ["Alice Johnson", "1234567890", 95000, "West"],
+            ["Bob Smith", "9876543210", 88000, "East"],
+        ],
+        totalRowCount: 2,
+    };
+    const rules = parseMaskingRules(MASK_GUIDANCE); // redact / last4 / hide(Salary)
+
+    it("redacts/last4 matching columns and drops hidden columns", () => {
+        const out = maskSqlResult(result, rules);
+        // Salary column (hide) dropped entirely.
+        expect(out.columns).toEqual(["Customer Name", "Account Number", "Region"]);
+        expect(out.rows[0]).toEqual(["•••", "••••7890", "West"]);
+        expect(out.rows[1]).toEqual(["•••", "••••3210", "East"]);
+        // Unrelated metadata preserved.
+        expect(out.totalRowCount).toBe(2);
+    });
+
+    it("is a no-op when no rules or no column matches", () => {
+        expect(maskSqlResult(result, [])).toBe(result);
+        const noMatch = maskSqlResult(result, [{ field: "Nonexistent", rule: "redact" }]);
+        expect(noMatch).toBe(result);
+    });
+
+    it("masks a single-column KPI result (the KPI renderer reads rows[0][0])", () => {
+        const kpi = { columns: ["Customer Name"], rows: [["Alice Johnson"]] };
+        const out = maskSqlResult(kpi, rules);
+        expect(out.rows[0][0]).toBe("•••");
     });
 });
 
