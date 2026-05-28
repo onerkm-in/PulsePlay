@@ -228,9 +228,30 @@
   <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">06</div>
 </div></section>
 
-<!-- 7 CONNECTORS -->
+<!-- 7 BI SURFACES (axis Y) -->
 <section class="slide"><div class="pad"><div class="badge">Architecture</div>
-  <div class="kick">Pluggable brains</div>
+  <div class="kick">Pluggable surfaces · axis Y</div>
+  <h2 class="slide-h2">Host any BI tool — vendor-agnostic by design</h2>
+  <div class="grid3" style="margin-top:16px;">
+    <div class="card" style="padding:16px 18px"><h3>Power BI <span class="pill ok">native SDK</span></h3><p>Real powerbi-client embed + secure embed-token fallback, a built-in Q&amp;A surface, and deterministic semantic-model KPIs (no LLM).</p></div>
+    <div class="card" style="padding:16px 18px"><h3>Tableau · Qlik · Looker <span class="pill info">secure embed</span></h3><p>Hosted via secure embedding today; native SDK adapters (Embedding API v3, qlik-embed, Looker embed-sdk) on the roadmap.</p></div>
+    <div class="card" style="padding:16px 18px"><h3>Any other tool <span class="pill ok">generic embed</span></h3><p>The always-works escape hatch — any URL-addressable dashboard in a narrowed, least-privilege sandbox.</p></div>
+  </div>
+  <table style="margin-top:14px;font-size:14px">
+    <tr><th>Vendor</th><th>Embed credential — minted server-side by the proxy (never the browser)</th><th>Status</th></tr>
+    <tr><td><b>Power BI</b></td><td>Embed token (+ Q&amp;A token · semantic-model DAX)</td><td>Native SDK</td></tr>
+    <tr><td>Tableau</td><td>Trusted ticket</td><td>Secure embed</td></tr>
+    <tr><td>Qlik</td><td>OAuth token</td><td>Secure embed</td></tr>
+    <tr><td>Looker</td><td>Signed embed URL</td><td>Secure embed</td></tr>
+    <tr><td>Generic iframe</td><td>Host-controlled URL · narrow sandbox</td><td>Any tool</td></tr>
+  </table>
+  <div class="card" style="margin-top:10px;padding:14px 18px"><p style="font-size:15px"><b>Why it matters:</b> add a vendor as a drop-in adapter, not a rebuild — and any <b>(BI vendor × AI brain)</b> combination is valid.</p></div>
+  <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">07</div>
+</div></section>
+
+<!-- 8 CONNECTORS (axis X) -->
+<section class="slide"><div class="pad"><div class="badge">Architecture</div>
+  <div class="kick">Pluggable brains · axis X</div>
   <h2 class="slide-h2">10 AI connector paths — all implemented</h2>
   <div class="grid2" style="margin-top:18px;flex:1;align-content:start;">
     <div>
@@ -253,7 +274,7 @@
     </div>
   </div>
   <div class="card" style="margin-top:8px"><p style="font-size:17px"><b>Why it matters:</b> different questions warrant different brains — a governed Genie space for grounded SQL, a deterministic DAX path for zero-cost exact KPIs, a Foundation Model for narrative. Chosen per profile, changed without touching the product.</p></div>
-  <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">07</div>
+  <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">08</div>
 </div></section>
 
 <!-- 8 FEATURES -->
@@ -268,7 +289,7 @@
     <div class="card"><h3>Author controls <span class="pill ok">live</span></h3><p>Markdown / SQL sections, presets (SWOT/BCG), format &amp; masking rules.</p></div>
     <div class="card"><h3>Governed by design <span class="pill ok">live</span></h3><p>Allow-lists, server-side tokens, masking/redaction, 4-status trust.</p></div>
   </div>
-  <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">08</div>
+  <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">09</div>
 </div></section>
 
 <!-- 9 BENEFITS -->
@@ -285,7 +306,7 @@
     <tr><td><b>Efficiency</b></td><td>“Fewer tokens, better accuracy” — curbs inference spend vs a naive bot</td><td>Finance</td></tr>
   </table>
   <div class="card" style="margin-top:14px"><p style="font-size:19px;font-weight:700;color:var(--navy)">“Look at anything. Ask in plain language. Trust the answer.”</p></div>
-  <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">09</div>
+  <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">10</div>
 </div></section>
 
 <!-- 10 COMPARISON -->
@@ -303,7 +324,7 @@
     <tr><td>Answer-quality maturity</td><td>✅ mature</td><td>✅ mature</td><td>⚠ depends</td><td>⚠ improving</td></tr>
   </table>
   <div class="card" style="margin-top:12px"><p style="font-size:16px"><b>Honest line:</b> if you're single-vendor and the built-in AI suffices, native Copilot is mature and may be enough. PulsePlay's edge shows the moment you have more than one BI tool, want to choose the AI brain, or need uniform governance.</p></div>
-  <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">10</div>
+  <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">11</div>
 </div></section>
 
 <!-- 11 COSTING -->
@@ -323,7 +344,7 @@
     </ul></div>
   </div>
   <div class="card" style="margin-top:8px"><p style="font-size:18px;font-weight:700;color:var(--navy)">“No new software to buy. We fund a small support team and pay only for the compute &amp; tokens we actually use, on platforms we already run.”</p></div>
-  <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">11</div>
+  <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">12</div>
 </div></section>
 
 <!-- 12 MATURITY -->
@@ -339,7 +360,7 @@
     <tr><td>Streaming · full RAG/citations · multi-tenant · public-OSS</td><td><span class="pill bad">Not in current scope</span></td></tr>
   </table>
   <div class="card" style="margin-top:16px"><p style="font-size:18px"><b>Structural correctness</b> (routing, governance, section shape, UI) is proven by tests. <b>Answer correctness</b> is qualitative-review today — we present it as trust-tagged decision support, not an oracle.</p></div>
-  <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">12</div>
+  <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">13</div>
 </div></section>
 
 <!-- 13 CAVEATS -->
@@ -356,7 +377,7 @@
     <tr><td>Scope</td><td>Internal enabler — multi-tenant &amp; public-OSS are deferred</td></tr>
   </table>
   <div class="card" style="margin-top:14px"><p style="font-size:18px;font-weight:700;color:var(--navy)">Golden rule: commit to the <span style="color:var(--brand)">architecture, governance, and the Power BI + Genie experience</span>. Frame everything else as <span style="color:var(--warn)">roadmap</span>, not “done.”</p></div>
-  <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">13</div>
+  <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">14</div>
 </div></section>
 
 <!-- 14 CHEAT SHEET -->
@@ -371,7 +392,7 @@
     <div class="card"><p style="font-size:15.5px"><b>“What does it cost?”</b><br><span style="color:#475569">No licence — internally built. A small support team + only the compute/tokens we use on platforms we already pay for.</span></p></div>
     <div class="card"><p style="font-size:15.5px"><b>“Is it production-ready?”</b><br><span style="color:#475569">Architecture &amp; backbone tested; Power BI + Genie is the hardening focus. Internal v0.x — solid base, phased rollout.</span></p></div>
   </div>
-  <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">14</div>
+  <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">15</div>
 </div></section>
 
 <!-- 15 CLOSE -->

@@ -66,6 +66,26 @@
   .cta .big{font-size:24px;font-weight:800;color:#fff;max-width:420px;line-height:1.25;}
   .cta .line{font-size:14px;color:#cfe0ff;margin-top:8px;}
   .footer{padding:18px 44px;color:#94a3b8;font-size:11px;display:flex;justify-content:space-between;align-items:center;}
+
+  /* BI-SIDE PAGE */
+  .vendgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:22px;}
+  .vend{border:1px solid var(--line);border-radius:14px;padding:17px 18px;background:#fff;}
+  .vend .vh{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .vend h4{font-size:15px;}
+  .vend p{font-size:12.5px;color:var(--muted);line-height:1.45;margin-top:9px;}
+  .badge{font-size:10.5px;font-weight:800;letter-spacing:.4px;padding:4px 9px;border-radius:999px;white-space:nowrap;}
+  .badge.ok{background:#e8f6ef;color:#047857;border:1px solid #a7e3c6;}
+  .badge.soon{background:#eef3fb;color:#2563eb;border:1px solid #bcd4f5;}
+  .axiswrap{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:22px;}
+  .axiscard{background:var(--soft);border:1px solid var(--line);border-radius:16px;padding:20px 22px;}
+  .axiscard .k{font-size:11.5px;letter-spacing:2px;text-transform:uppercase;font-weight:800;color:var(--brand);}
+  .axiscard h3{font-size:18px;margin:6px 0 8px;}
+  .axiscard p{font-size:13px;color:var(--muted);line-height:1.45;}
+  .axiscard .row{display:flex;flex-wrap:wrap;gap:7px;margin-top:13px;}
+  .chip{font-size:12px;font-weight:600;padding:5px 11px;border-radius:999px;background:#fff;border:1px solid var(--line);color:var(--navy);}
+  .secband{margin-top:22px;background:var(--navy);color:#fff;border-radius:16px;padding:22px 26px;display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  .secband .si h4{color:#fff;font-size:14px;margin-bottom:6px;}
+  .secband .si p{color:#cfe0ff;font-size:12.5px;line-height:1.45;}
 </style>
 </head>
 <body>
@@ -100,13 +120,39 @@
 
   <div class="strip">
     <div class="stat"><div class="big">2</div><div class="lbl">INDEPENDENT AXES</div></div>
+    <div class="stat"><div class="big">5</div><div class="lbl">BI SURFACES HOSTED</div></div>
     <div class="stat"><div class="big">10</div><div class="lbl">AI CONNECTOR PATHS</div></div>
     <div class="stat"><div class="big">4</div><div class="lbl">TRUST STATUSES</div></div>
     <div class="stat"><div class="big">$0</div><div class="lbl">SOFTWARE LICENCE</div></div>
   </div>
 </div>
 
-<!-- PAGE 2 -->
+<!-- PAGE 2 — THE BI SIDE -->
+<div class="page">
+  <div class="section" style="padding-top:44px;">
+    <div class="eyebrow">The BI side of the story</div>
+    <div class="h2">Host any BI tool — vendor-agnostic by design</div>
+    <div class="sub">PulsePlay is the <b>host</b>, not a plugin trapped inside one vendor's surface. Your existing dashboards run inside one screen, embedded securely, and the assistant reasons about whatever you're currently viewing. Change the BI tool without changing anything about the AI.</div>
+
+    <div class="vendgrid">
+      <div class="vend"><div class="vh"><h4>Power BI</h4><span class="badge ok">Native SDK</span></div><p>Deepest integration today: a real powerbi-client embed, secure embed-token fallback, a built-in Q&amp;A surface, and deterministic semantic-model KPIs that need no LLM call.</p></div>
+      <div class="vend"><div class="vh"><h4>Tableau · Qlik · Looker</h4><span class="badge soon">Secure embed</span></div><p>Hosted today through secure embedding; first-class native SDK adapters (Tableau Embedding API v3, qlik-embed, Looker embed-sdk) are on the roadmap.</p></div>
+      <div class="vend"><div class="vh"><h4>Any other tool</h4><span class="badge ok">Generic embed</span></div><p>The always-works escape hatch — host any URL-addressable dashboard or internal report inside a narrowed, least-privilege sandbox.</p></div>
+    </div>
+
+    <div class="axiswrap">
+      <div class="axiscard"><div class="k">Axis Y · what you look at</div><h3>The BI vendor</h3><p>Swap the embedded dashboard tool independently of everything else. Sit it side by side with the assistant, or detach / float either pane.</p><div class="row"><span class="chip">Power BI</span><span class="chip">Tableau</span><span class="chip">Qlik</span><span class="chip">Looker</span><span class="chip">Any iframe</span></div></div>
+      <div class="axiscard"><div class="k">Axis X · the AI brain</div><h3>The AI connector</h3><p>Swap the reasoning engine independently. Ten connector paths — and <b>any</b> combination of (BI vendor × AI brain) is valid.</p><div class="row"><span class="chip">Genie</span><span class="chip">Foundation Model</span><span class="chip">Azure OpenAI</span><span class="chip">Bedrock</span><span class="chip">Agents</span></div></div>
+    </div>
+
+    <div class="secband">
+      <div class="si"><h4>Secure embedding by construction</h4><p>Every embed credential — Power BI embed tokens, Tableau trusted tickets, Qlik OAuth, Looker signed URLs — is minted server-side by the proxy. Nothing sensitive ever reaches the browser, and each vendor runs in the narrowest sandbox it needs.</p></div>
+      <div class="si"><h4>One experience, any dashboard</h4><p>Whatever the user is viewing, the assistant sees the same governed context and returns the same trusted, status-tagged answer — so analysts stop tool-hopping and platform teams govern in one place, not per tool.</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE 3 -->
 <div class="page">
   <div class="section" style="padding-top:40px;">
     <div class="eyebrow">How it works</div>
