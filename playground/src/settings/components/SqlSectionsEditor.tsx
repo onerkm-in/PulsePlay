@@ -94,9 +94,39 @@ export function SqlSectionsEditor({ value, onChange, apiBaseUrl, assistantProfil
     };
 
     const proxyReady = useMemo(() => !!apiBaseUrl.trim(), [apiBaseUrl]);
+    // 2026-05-28 — capability greying (featureRegistry `custom-sql-sections`
+    // gate, surfaced not hidden). SQL sections run a SELECT against a profile's
+    // warehouse via /sql/preview; with no connected AI profile there's no
+    // warehouse to route to. Rather than let the author discover that via a
+    // cryptic Validate error, surface the prerequisite up front + disable
+    // Validate. The editor stays visible so authors can still draft sections.
+    const profileConnected = !!(assistantProfile && assistantProfile.trim());
+    const canValidate = proxyReady && profileConnected;
 
     return (
         <div style={{ display: "grid", gap: 12 }} data-testid="pp-sql-sections-editor">
+            {!profileConnected && (
+                <div
+                    role="note"
+                    data-testid="pp-sql-capability-notice"
+                    style={{
+                        display: "flex", gap: 8, alignItems: "flex-start",
+                        fontSize: 11.5, lineHeight: 1.45,
+                        padding: "8px 10px", borderRadius: 6,
+                        border: "1px solid rgba(217,119,6,0.30)",
+                        background: "rgba(217,119,6,0.06)",
+                        color: "var(--pp-warning-text, #92400e)",
+                    }}
+                >
+                    <span aria-hidden="true">⚠</span>
+                    <span>
+                        <strong>Requires a connected AI profile with a warehouse.</strong>{" "}
+                        SQL sections run a read-only SELECT against the profile's Databricks warehouse — connect one in
+                        {" "}<strong>AI → Provider</strong> to validate + run them. You can still draft sections below; they'll
+                        execute once a profile is connected.
+                    </span>
+                </div>
+            )}
             {rows.length === 0 && (
                 <div style={{ fontSize: 11.5, fontStyle: "italic", color: "var(--pp-text-muted, #64748b)" }}>
                     No SQL sections yet. Add one to fetch KPIs with a read-only SELECT against the warehouse — it renders as a card on the AI Insights screen.
@@ -166,8 +196,10 @@ export function SqlSectionsEditor({ value, onChange, apiBaseUrl, assistantProfil
                             <button
                                 type="button"
                                 onClick={() => runValidate(i)}
-                                disabled={vs.kind === "validating" || !proxyReady}
-                                title={proxyReady ? "Run the SQL against the warehouse to validate it" : "Configure the proxy URL first"}
+                                disabled={vs.kind === "validating" || !canValidate}
+                                title={!proxyReady ? "Configure the proxy URL first"
+                                    : !profileConnected ? "Connect an AI profile with a warehouse (AI → Provider) to validate"
+                                    : "Run the SQL against the warehouse to validate it"}
                                 data-testid={`pp-sql-section-${i}-validate`}
                                 style={{
                                     padding: "6px 12px", borderRadius: 6, border: "1px solid var(--pp-accent, #0078d4)",

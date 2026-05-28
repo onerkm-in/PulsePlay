@@ -1425,3 +1425,17 @@
     line-height: 1.45;
     color: var(--pp-text-muted, #64748b);
 }
+
+/* ─── Micro-polish: consistent focus ring (2026-05-28) ──────────────────
+ * Settings form controls mostly use inline styles, so they had no uniform
+ * focus treatment. Scope a single accent ring to the settings content area
+ * so keyboard focus is obvious + consistent across inputs/textareas/selects.
+ * :focus-visible only — no ring on mouse click, so it isn't noisy. */
+.pp-settings-main input:focus-visible,
+.pp-settings-main textarea:focus-visible,
+.pp-settings-main select:focus-visible {
+    outline: none;
+    border-color: var(--pp-accent, #2563eb);
+    box-shadow: 0 0 0 3px var(--pp-accent-soft, rgba(37, 99, 235, 0.18));
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+}
