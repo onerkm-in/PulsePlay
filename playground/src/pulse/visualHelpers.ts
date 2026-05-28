@@ -59,6 +59,7 @@ import { getKBSystemPrompt, getKBChatHint, parseOrgRules } from "./knowledgeBase
 import { describeGenieStatus } from "./progressVocab";
 import { safeAuthorPrompt } from "./promptRedaction";
 import { parseGuidanceActivators } from "./guidanceActivators";
+import { parseMaskingRules, applyMaskingToContext, maskFilters } from "./masking";
 import {
     analyzeDataShape as analyzeSharedDataShape,
     CHART_OPTIONS,
@@ -2126,6 +2127,15 @@ export function buildGenieRequest(
     }
 ): string {
     const kb = options?.kbFlags ?? { enabled: true, charts: true, stats: true, reporting: true };
+    // 2026-05-28 — Slice 4a: `## Masking` enforcement on the chat path. The
+    // chat prompt serializes context.safeContextText + filter values, so
+    // redact author-declared masked field VALUES before they reach the model.
+    // Defence-in-depth only — UC column masks are the real control.
+    const maskingRules = parseMaskingRules(domainGuidance);
+    if (maskingRules.length > 0) {
+        context = applyMaskingToContext(context, maskingRules);
+        selectedFilters = maskFilters(selectedFilters, maskingRules);
+    }
     // Backend-neutral framing: PulsePlay orchestrates many AI connectors
     // (Genie / Foundation Model / Supervisor / ResponsesAgent / …) and hosts
     // many BI surfaces — the prompt must not assume any specific pair.
