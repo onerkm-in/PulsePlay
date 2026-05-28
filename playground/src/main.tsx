@@ -6,6 +6,7 @@ import {
     ingestLaunchFragmentIfPresent,
     startDesktopRuntime,
 } from "./lib/desktopRuntimeClient";
+import { initThemeSync } from "./lib/themeSync";
 import "./styles.css";
 
 const rootEl = document.getElementById("root");
@@ -30,6 +31,10 @@ if (!rootEl) throw new Error("PulsePlay: missing #root element in index.html");
 (async () => {
     ingestLaunchFragmentIfPresent();
     await bootstrapDesktopMode();
+    // Apply the native --pp-* theme from darkMode BEFORE first render so the
+    // Settings / shell / v0 surfaces paint dark on load (no light flash),
+    // coherent with the Workbench's gn-shell--dark.
+    initThemeSync();
     createRoot(rootEl).render(
         <StrictMode>
             <App />
