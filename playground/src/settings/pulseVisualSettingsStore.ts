@@ -48,6 +48,23 @@ export interface PulseAiVisualSettings {
      *  sessions don't break. */
     insightsUcCatalog: string;
     insightsUcSchema: string;
+    /** 2026-05-28 — DevTools toggles surfaced from GenieVisualSettings
+     *  audit. Each carries a Settings checkbox in System → Developer Tools.
+     *  Previously only togglable via Power BI format pane. */
+    /** Render generated SQL on every AI section (verbose; off by default). */
+    showSql: boolean;
+    /** Diagnostic trace for Agent Mode / Supervisor (verbose; off by default). */
+    showTrace: boolean;
+    /** Developer mode — extra logging + dev-only UI affordances. */
+    devMode: boolean;
+    /** AI is allowed to push filter / drill / focus actions into the
+     *  host BI surface. SECURITY-SENSITIVE: enables agent → BI write
+     *  path. Defaults off; flip only when you trust the AI provider. */
+    allowReportActions: boolean;
+    /** Banner shown when the chosen connector lacks features the current
+     *  section needs (e.g. SQL section + non-Genie connector). Defaults
+     *  on — useful for end users. */
+    showConnectorCompatibilityWarnings: boolean;
     /** When true and a Genie message's `attachments[].reasoning_traces` field
      *  is populated (Databricks added this field 2026-04-16 — it's the first
      *  programmatic surface for Genie Agent Mode / Research Agent output),
@@ -61,6 +78,14 @@ export interface PulseAiVisualSettings {
     /** Phase E.1 — client-side progressive reveal of single-shot Genie
      *  answers. Default true; opt out for instant render. */
     insightsStagedRevealEnabled: boolean;
+    /** 2026-05-28 — author gate for the Chat (v0 / UnifiedAssistantSurface)
+     *  surface. Workbench (pulse) is the default surface; Chat is kept
+     *  wired but only OFFERED to end users when an author flips this on.
+     *  When true, the top-bar Workbench⇄Chat chip renders so users can
+     *  switch; when false (default) the chip is hidden and end users only
+     *  ever see Workbench. Author-only — set in Settings, never exposed
+     *  to end users as a surface control. */
+    allowChatSurface: boolean;
 }
 
 const DEFAULTS: PulseAiVisualSettings = {
@@ -87,8 +112,14 @@ const DEFAULTS: PulseAiVisualSettings = {
     ucMetricView: "",
     insightsUcCatalog: "",
     insightsUcSchema: "",
+    showSql: false,
+    showTrace: false,
+    devMode: false,
+    allowReportActions: false,
+    showConnectorCompatibilityWarnings: true,
     insightsShowResearchTraces: true,
     insightsStagedRevealEnabled: true,
+    allowChatSurface: false,
 };
 
 function readRawGenieSettings(): Record<string, unknown> {
@@ -155,8 +186,14 @@ export function readPulseAiVisualSettings(): PulseAiVisualSettings {
         ucMetricView: asString(raw.ucMetricView, DEFAULTS.ucMetricView),
         insightsUcCatalog: asString(raw.insightsUcCatalog, DEFAULTS.insightsUcCatalog),
         insightsUcSchema: asString(raw.insightsUcSchema, DEFAULTS.insightsUcSchema),
+        showSql: asBool(raw.showSql, DEFAULTS.showSql),
+        showTrace: asBool(raw.showTrace, DEFAULTS.showTrace),
+        devMode: asBool(raw.devMode, DEFAULTS.devMode),
+        allowReportActions: asBool(raw.allowReportActions, DEFAULTS.allowReportActions),
+        showConnectorCompatibilityWarnings: asBool(raw.showConnectorCompatibilityWarnings, DEFAULTS.showConnectorCompatibilityWarnings),
         insightsShowResearchTraces: asBool(raw.insightsShowResearchTraces, DEFAULTS.insightsShowResearchTraces),
         insightsStagedRevealEnabled: asBool(raw.insightsStagedRevealEnabled, DEFAULTS.insightsStagedRevealEnabled),
+        allowChatSurface: asBool(raw.allowChatSurface, DEFAULTS.allowChatSurface),
     };
 }
 

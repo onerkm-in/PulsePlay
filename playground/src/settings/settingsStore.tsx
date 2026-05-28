@@ -106,17 +106,18 @@ import { resolveDefaultSurface } from "../featureRegistry/resolver";
  * App.tsx readInitialUiMode(), settingsStore readUiMode(), and the wizard's
  * persona presets — instead of each site hardcoding the same string.
  *
- * 2026-05-27: re-aligned to "v0" (UnifiedAssistantSurface) per user direction.
- * "pulse" (PulseShell) remains a parseable escape hatch via DevTools
- * `localStorage.setItem("pulseplay:ui-mode", "pulse")` for power-user
- * fallback during the feature-port migration.
+ * 2026-05-28: re-aligned to "pulse" (Workbench / PulseShell) per user
+ * direction — "workbench is the one that we want". Workbench is the
+ * feature-complete 3-tab surface (AI Insights / Ask Pulse / Dashboard).
+ * "v0" (UnifiedAssistantSurface — the single-pane Chat surface) becomes
+ * the opt-in alternative, surfaced only when an author enables it. The
+ * escape hatch still works both ways via DevTools
+ * `localStorage.setItem("pulseplay:ui-mode", "v0" | "pulse")`.
  *
- * Follow-up: this constant is the wedge before a feature-feasibility
- * registry — features should eventually declare which surface(s) they
- * support, and a resolver should pick the default. Tracked in
- * docs/research/READ_ONLY_PRODUCT_TEST_RESULTS_AND_BRUTAL_ARCHITECT_FEEDBACK_FOR_CLAUDE_2026-05-27.md.
+ * (Supersedes the 2026-05-27 "v0 default" call — see project memory
+ * project_uimode_default_p0.md.)
  */
-export const DEFAULT_UI_MODE: UiMode = "v0";
+export const DEFAULT_UI_MODE: UiMode = "pulse";
 
 /**
  * Per-tab visibility booleans (2026-05-25). Each flag controls whether

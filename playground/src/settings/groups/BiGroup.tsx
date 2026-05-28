@@ -20,7 +20,7 @@ import {
 } from "../biSurfaceMode";
 
 export function BiGroup(): React.ReactElement {
-    const { allowlist, biVendor, biSurfaceMode, orphans, activeAiProfile, setBiSurfaceMode } = useSettings();
+    const { allowlist, biVendor, biSurfaceMode, orphans, activeAiProfile, setBiSurfaceMode, setBiVendor } = useSettings();
     const biOrphan = orphans.find(o => o.key === "pulseplay:bi-vendor");
     const allowedProviders = allowlist?.biProviders || [];
     const { embedConfig, setEmbedConfig, clearEmbedConfig } = useEmbedConfig();
@@ -129,12 +129,19 @@ export function BiGroup(): React.ReactElement {
                     ],
                 }}
             >
-                <CurrentValue label="Vendor intent">{biVendor}</CurrentValue>
+                {/* 2026-05-28 — card-based vendor picker (replaces the
+                  * read-only "Vendor intent" line). Picks the author's
+                  * `biVendor` intent; the separate Surface-mode control below
+                  * decides what actually mounts. Cards are the allowlist-
+                  * allowed providers (falls back to the canonical set when
+                  * the allowlist is unavailable). */}
+                <VendorModeCards
+                    allowed={allowedProviders}
+                    value={biVendor}
+                    onChange={setBiVendor}
+                />
                 <CurrentValue label="Runtime">{surfaceResolution.runtimeVendor}</CurrentValue>
                 <CurrentValue label="Surface mode">{biSurfaceMode}</CurrentValue>
-                <CurrentValue label="Allowed">
-                    {allowedProviders.length > 0 ? allowedProviders.join(" · ") : "(allowlist unavailable)"}
-                </CurrentValue>
                 <BiSurfaceModeControl
                     value={biSurfaceMode}
                     onChange={setBiSurfaceMode}
@@ -583,6 +590,59 @@ export function CurrentValue(props: { label: string; children: React.ReactNode }
         <div style={{ fontSize: 12, display: "flex", gap: 8 }}>
             <span style={{ opacity: 0.6, minWidth: 110 }}>{props.label}:</span>
             <span style={{ fontFamily: "var(--pp-mono, monospace)" }}>{props.children}</span>
+        </div>
+    );
+}
+
+/* ─── Card-based BI vendor picker (2026-05-28) ──────────────────────────
+ * `biVendor` is the author's vendor INTENT (a distinct axis from the
+ * surface MODE auto/native/vendor). Known vendor ids get a friendly label
+ * + one-line description; unknown ids fall back to the raw id. "native" is
+ * a real biVendor value (PulsePlay's own governed canvas), not just a
+ * surface mode — so it appears as a card too. */
+const VENDOR_META: Record<string, { label: string; desc: string }> = {
+    powerbi:          { label: "Power BI",       desc: "Power BI client embed with a proxy-minted secure token." },
+    tableau:          { label: "Tableau",        desc: "Tableau Embedding API surface (SDK adapter)." },
+    qlik:             { label: "Qlik",           desc: "Qlik embed surface (SDK adapter)." },
+    looker:           { label: "Looker",         desc: "Looker embed surface (signed-URL adapter)." },
+    "generic-iframe": { label: "Generic iframe", desc: "Always-works fallback — embed any URL in a sandboxed iframe." },
+    native:           { label: "Native canvas",  desc: "Render governed query results as charts in PulsePlay — no vendor SDK." },
+};
+
+const CANONICAL_VENDOR_IDS = ["powerbi", "tableau", "qlik", "looker", "generic-iframe", "native"];
+
+function VendorModeCards(props: {
+    allowed: ReadonlyArray<string>;
+    value: string;
+    onChange: (vendor: string) => void;
+}): React.ReactElement {
+    // Respect the allowlist when present; fall back to the canonical set when
+    // the allowlist is unavailable so the picker is never empty.
+    const ids = props.allowed.length > 0 ? props.allowed : CANONICAL_VENDOR_IDS;
+    return (
+        <div className="pp-mode-grid" role="radiogroup" aria-label="BI vendor">
+            {ids.map(id => {
+                const meta = VENDOR_META[id] ?? { label: id, desc: "Vendor adapter." };
+                const selected = props.value === id;
+                return (
+                    <div
+                        key={id}
+                        className="pp-mode-card"
+                        role="radio"
+                        aria-checked={selected}
+                        data-selected={selected}
+                        data-testid={`pp-vendor-card-${id}`}
+                        tabIndex={0}
+                        onClick={() => props.onChange(id)}
+                        onKeyDown={e => {
+                            if (e.key === " " || e.key === "Enter") { e.preventDefault(); props.onChange(id); }
+                        }}
+                    >
+                        <span className="pp-mode-card__title">{meta.label}</span>
+                        <span className="pp-mode-card__desc">{meta.desc}</span>
+                    </div>
+                );
+            })}
         </div>
     );
 }

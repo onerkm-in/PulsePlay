@@ -142,6 +142,10 @@ export const GROUP_LEAF_LABELS: Record<SettingsGroupId, string[]> = {
         // Closes parity gap: "where is the SWOT/BCG preset dropdown."
         "Custom sections preset library",
         "Metric direction preset library",
+        // 2026-05-28 — Slice 2: markdown section authoring (## Section + prompt).
+        "AI Insights sections",
+        // 2026-05-28 — Slice 3: SQL/config-item sections (warehouse-backed).
+        "SQL sections",
         "Supervisor Fusion",
         "Knowledge Base",
     ],
@@ -157,8 +161,14 @@ export const GROUP_LEAF_LABELS: Record<SettingsGroupId, string[]> = {
         // render. Removed leaves are not relocated; advanced toggles
         // (Research Agent traces, etc.) move to Settings → AI in a
         // follow-up commit.
+        // 2026-05-28 — author-only Workbench template picker (tabs +
+        // landing + scope + section preset bundled per named template).
+        "Workbench template",
         "Visible tabs",
         "Default landing tab",
+        // 2026-05-28 — author gate for the Chat (v0) surface. Workbench is
+        // the default; this exposes the optional Workbench⇄Chat switcher.
+        "Chat surface",
         "Canvas tiles",
         "Appearance",
     ],

@@ -1373,3 +1373,55 @@
     .pp-setup__anchor-label { display: none; }
     .pp-setup__search { padding: 6px 10px; }
 }
+
+/* ─── Mode cards (2026-05-28) ───────────────────────────────────────────
+ * Card-based selection grid (e.g. the BI vendor picker). Solid backgrounds
+ * (no glassmorphism) to fit the enterprise chrome. Uses --pp-* tokens with
+ * literal fallbacks so it renders correctly even before a theme loads. */
+.pp-mode-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px;
+    margin: 8px 0 4px;
+}
+
+.pp-mode-card {
+    border: 1px solid var(--pp-border, rgba(15, 23, 42, 0.12));
+    border-radius: 10px;
+    background: var(--pp-surface, #ffffff);
+    padding: 12px 14px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
+}
+
+.pp-mode-card:hover {
+    transform: translateY(-1px);
+    border-color: var(--pp-accent, #2563eb);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+.pp-mode-card:focus-visible {
+    outline: 2px solid var(--pp-accent, #2563eb);
+    outline-offset: 2px;
+}
+
+.pp-mode-card[data-selected="true"] {
+    border-color: var(--pp-accent, #2563eb);
+    background: var(--pp-accent-soft, rgba(37, 99, 235, 0.07));
+    box-shadow: inset 0 0 0 1px var(--pp-accent, #2563eb);
+}
+
+.pp-mode-card__title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--pp-text, #0f172a);
+}
+
+.pp-mode-card__desc {
+    font-size: 11.5px;
+    line-height: 1.45;
+    color: var(--pp-text-muted, #64748b);
+}

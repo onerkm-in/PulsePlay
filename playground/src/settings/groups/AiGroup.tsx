@@ -30,6 +30,9 @@ import { useDatabricksCapabilities } from "../../lib/databricksCapabilities";
 import { listMetricViews, fetchMetricViewDetail, extractMeasureNamesFromMetricView, type MetricViewSummary } from "../../lib/databricksAssets";
 import type { ConnectorProbeResult } from "../../types/probe";
 import { navigateToPowerBiQna } from "../../powerbi/PowerBiQnARoute";
+import { ACTIVATOR_DESCRIPTORS, buildGuidancePlaceholder } from "../../pulse/guidanceActivators";
+import { SectionMarkdownEditor } from "../components/SectionMarkdownEditor";
+import { SqlSectionsEditor } from "../components/SqlSectionsEditor";
 import { ConnectorBrandGrid } from "../../setup/ConnectorBrandGrid";
 import {
     usePulseAiVisualSettings,
@@ -612,6 +615,7 @@ export function AiGroup(): React.ReactElement {
                     onChange={pulseAi.update}
                     activeAiProfile={activeAiProfile}
                     packSelection={packSelection}
+                    profileNames={allowedProfileNames}
                 />
             </Leaf>
 
@@ -673,9 +677,21 @@ function PulseAiInsightsSettingsPanel(props: {
     onChange: (patch: Partial<PulseAiVisualSettings>) => void;
     activeAiProfile: string;
     packSelection: PackSelection | null;
+    /** Allowed connector profile names — selectable as per-SQL-section targets. */
+    profileNames: ReadonlyArray<string>;
 }): React.ReactElement {
     const { value, onChange } = props;
     const resolvedProfile = (value.assistantProfile || props.activeAiProfile || "").trim();
+    // Proxy base URL for the SQL Validate dry-run. PulsePlay-native canonical
+    // key; falls back to the value Pulse persisted in genieSettings.
+    const sqlApiBaseUrl = useMemo(() => {
+        try { return (window.localStorage.getItem("pulseplay:api-base-url") || "").trim() || "/api"; }
+        catch { return "/api"; }
+    }, []);
+    const sqlProfileOptions = useMemo(
+        () => props.profileNames.map(n => ({ value: n, label: n })),
+        [props.profileNames],
+    );
     const onSuggest = useCallback(async () => {
         if (!resolvedProfile) return null;
         return suggestInsightsConfigViaProxy({
@@ -865,8 +881,24 @@ function PulseAiInsightsSettingsPanel(props: {
             <SettingsTextarea
                 label="Domain guidance"
                 value={value.insightsDomainGuidance}
-                placeholder={"## Business rules\nDefine KPI semantics and exception handling.\n\n## Formatting standards\nMetric | Format | Direction"}
-                rows={5}
+                placeholder={buildGuidancePlaceholder()}
+                rows={9}
+                mono
+                help={(
+                    <HelpTip
+                        label="Guidance keyword help"
+                        title="Guidance keywords (## activators)"
+                        width={380}
+                        body={[
+                            ...ACTIVATOR_DESCRIPTORS.flatMap(d => [
+                                `## ${d.keyword}${d.status === "reserved" ? "  (recognized — enforcement coming)" : ""}`,
+                                d.description,
+                                ...(d.caveat ? [`Note: ${d.caveat}`] : []),
+                            ]),
+                            "Anything outside a ## keyword block is treated as normal business guidance.",
+                        ]}
+                    />
+                )}
                 onChange={insightsDomainGuidance => onChange({ insightsDomainGuidance })}
             />
 
@@ -890,14 +922,59 @@ function PulseAiInsightsSettingsPanel(props: {
                 />
             </Leaf>
 
-            <SettingsTextarea
-                label="Custom sections JSON"
-                value={value.insightsCustomSections}
-                placeholder={'[{"id":"headline","title":"HEADLINE","instruction":"Summarize the key movement."}]'}
-                rows={4}
-                mono
-                onChange={insightsCustomSections => onChange({ insightsCustomSections })}
-            />
+            {/* 2026-05-28 — Slice 2: author sections as markdown. Each
+              * `## <Section>` heading becomes a card on the AI Insights
+              * screen; the body is the per-section AI prompt. Writes the same
+              * canonical insightsCustomSections JSON the runtime consumes,
+              * preserving any SQL/config-item sections. The raw JSON view
+              * below is kept as an advanced escape hatch. */}
+            <Leaf
+                group="ai"
+                label="AI Insights sections"
+                summary="Define each section as a ## heading plus the AI prompt for it. Every heading becomes a card on the AI Insights screen, in order. SQL / config-item sections are authored under 'SQL sections' and preserved when you edit here."
+            >
+                <SectionMarkdownEditor
+                    value={value.insightsCustomSections}
+                    onChange={insightsCustomSections => onChange({ insightsCustomSections })}
+                />
+            </Leaf>
+
+            {/* 2026-05-28 — Slice 3: SQL / config-item sections, surfaced in
+              * native Settings (previously only authorable in the old Pulse
+              * setupStep5 surface). Each runs a read-only SELECT against a
+              * profile's warehouse (Genie space OR direct/underlying data) and
+              * renders as a card — no LLM. The Validate button runs the SQL
+              * dry-run that was stubbed in setupStep5. Writes the same
+              * insightsCustomSections JSON, preserving AI sections. */}
+            <Leaf
+                group="ai"
+                label="SQL sections"
+                summary="Config-item sections backed by a read-only SELECT instead of the AI. Each fetches KPIs from a connector profile's warehouse (a Genie space or direct/underlying data) and renders as a card. Validate runs the query against the warehouse."
+            >
+                <SqlSectionsEditor
+                    value={value.insightsCustomSections}
+                    onChange={insightsCustomSections => onChange({ insightsCustomSections })}
+                    apiBaseUrl={sqlApiBaseUrl}
+                    assistantProfile={resolvedProfile}
+                    profiles={sqlProfileOptions}
+                />
+            </Leaf>
+
+            <details style={{ marginTop: 4 }}>
+                <summary style={{ cursor: "pointer", fontSize: 12, fontWeight: 600, opacity: 0.8 }}>
+                    Advanced — raw sections JSON
+                </summary>
+                <div style={{ marginTop: 8 }}>
+                    <SettingsTextarea
+                        label="Custom sections JSON"
+                        value={value.insightsCustomSections}
+                        placeholder={'[{"name":"HEADLINE","instruction":"Summarize the key movement.","kind":"ai"}]'}
+                        rows={4}
+                        mono
+                        onChange={insightsCustomSections => onChange({ insightsCustomSections })}
+                    />
+                </div>
+            </details>
 
             <div style={{ display: "grid", gap: 8 }}>
                 <div style={{ fontSize: 12, fontWeight: 600 }}>Included stages</div>
@@ -1046,11 +1123,16 @@ function SettingsTextarea(props: {
     rows?: number;
     mono?: boolean;
     placeholder?: string;
+    /** Optional trailing affordance beside the label (e.g. an ⓘ HelpTip). */
+    help?: React.ReactNode;
     onChange: (next: string) => void;
 }): React.ReactElement {
     return (
         <label style={{ display: "grid", gap: 4 }}>
-            <span style={{ fontSize: 12, fontWeight: 600 }}>{props.label}</span>
+            <span style={{ fontSize: 12, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 6 }}>
+                {props.label}
+                {props.help}
+            </span>
             <textarea
                 value={props.value}
                 rows={props.rows ?? 4}

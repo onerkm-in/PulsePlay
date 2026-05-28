@@ -6,6 +6,13 @@
 
 import { useSettings, enabledTabCount, type TabVisibility, type DefaultLandingSurface } from "../settingsStore";
 import { CurrentValue, Leaf, SubSection } from "./BiGroup";
+import { usePulseAiVisualSettings } from "../pulseVisualSettingsStore";
+import {
+    WORKBENCH_TEMPLATES,
+    applyWorkbenchTemplate,
+    detectActiveWorkbenchTemplate,
+    type WorkbenchTemplate,
+} from "../workbenchTemplates";
 
 export function PreferencesGroup(): React.ReactElement {
     const {
@@ -15,8 +22,18 @@ export function PreferencesGroup(): React.ReactElement {
         setDefaultLandingSurface,
         setTabVisibility,
     } = useSettings();
+    const pulseAi = usePulseAiVisualSettings();
     const backendBiTileMode = normalizeBackendBiTileMode(allowlist?.display?.biTileMode);
     const enabledCount = enabledTabCount(tabVisibility);
+
+    const activeTemplate = detectActiveWorkbenchTemplate({
+        tabVisibility,
+        defaultLanding: defaultLandingSurface,
+        enabledFeatures: pulseAi.value.enabledFeatures,
+    });
+    const applyTemplate = (t: WorkbenchTemplate): void => {
+        applyWorkbenchTemplate(t, { setTabVisibility, setDefaultLandingSurface });
+    };
 
     const toggleTab = (tab: keyof TabVisibility): void => {
         const next: TabVisibility = { ...tabVisibility, [tab]: !tabVisibility[tab] };
@@ -41,6 +58,67 @@ export function PreferencesGroup(): React.ReactElement {
                     PulsePlay shell — tab visibility, default landing, display policy.
                 </p>
             </header>
+
+            {/* ─── Workbench template (author-only master control) ───── */}
+            <SubSection
+                label="Workbench template"
+                helper="Named, author-only configurations of the Workbench. Picking one sets the visible tabs, the default landing tab, the AI feature scope, and (for some) a starting AI Insights section preset in a single click. End users never see this picker — they just get whatever you choose. The individual controls below stay editable, so you can pick a template then fine-tune."
+            >
+            <Leaf
+                group="preferences"
+                label="Workbench template"
+                helper="Apply a template to set tabs + landing + scope + section preset at once. After applying you can still adjust any of the controls below; doing so moves the indicator to “Custom”."
+            >
+                <div role="radiogroup" aria-label="Workbench templates" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {WORKBENCH_TEMPLATES.map(t => {
+                        const active = activeTemplate === t.id;
+                        return (
+                            <button
+                                key={t.id}
+                                type="button"
+                                role="radio"
+                                aria-checked={active}
+                                onClick={() => applyTemplate(t)}
+                                style={{
+                                    textAlign: "left",
+                                    padding: "10px 12px",
+                                    borderRadius: 8,
+                                    border: active
+                                        ? "1px solid var(--pp-accent, #0078d4)"
+                                        : "1px solid var(--pp-border-subtle, #e4e9ef)",
+                                    background: active ? "rgba(0,120,212,0.06)" : "transparent",
+                                    cursor: "pointer",
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    gap: 3,
+                                }}
+                            >
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600 }}>
+                                    <span
+                                        aria-hidden="true"
+                                        style={{
+                                            width: 12, height: 12, borderRadius: "50%", flexShrink: 0,
+                                            border: active ? "4px solid var(--pp-accent, #0078d4)" : "2px solid var(--pp-border, #b8c2cc)",
+                                            boxSizing: "border-box",
+                                        }}
+                                    />
+                                    {t.label}
+                                    {active && <span style={{ fontSize: 11, fontWeight: 500, color: "var(--pp-accent, #0078d4)" }}>· current</span>}
+                                </span>
+                                <span style={{ fontSize: 11.5, color: "var(--pp-text-muted, #64748b)", lineHeight: 1.45, marginLeft: 20 }}>
+                                    {t.description}
+                                </span>
+                            </button>
+                        );
+                    })}
+                    {activeTemplate === "custom" && (
+                        <div style={{ fontSize: 11.5, fontStyle: "italic", color: "var(--pp-text-muted, #64748b)", padding: "2px 4px" }}>
+                            Custom — the current tabs / landing / scope don’t match any template. Pick one above to reset, or leave as-is.
+                        </div>
+                    )}
+                </div>
+            </Leaf>
+            </SubSection>
 
             {/* ─── Tab visibility (the one canonical layout control) ─── */}
             <SubSection
@@ -82,6 +160,31 @@ export function PreferencesGroup(): React.ReactElement {
                     onChange={setDefaultLandingSurface}
                     options={landingOptions.map(o => ({ value: o.value, label: o.label }))}
                 />
+            </Leaf>
+            </SubSection>
+
+            {/* ─── Surface (author-only) ──────────────────────────────── */}
+            <SubSection
+                label="Surface"
+                helper="Which assistant surface end users get. Workbench (the 3-tab strip — AI Insights / Ask Pulse / Dashboard) is the default. Chat is an alternative single-pane conversational surface; it stays wired but is only offered to end users when you enable it here."
+            >
+            <Leaf
+                group="preferences"
+                label="Chat surface"
+                helper="When ON, a Workbench⇄Chat switch appears in the top bar so end users can flip between the Workbench and the single-pane Chat surface. When OFF (default), end users only ever see Workbench and no surface switcher is shown. Author-only — this is not exposed to end users as a surface control."
+            >
+                <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                    <input
+                        type="checkbox"
+                        checked={pulseAi.value.allowChatSurface}
+                        onChange={e => pulseAi.update({ allowChatSurface: e.target.checked })}
+                        style={{ margin: 0 }}
+                    />
+                    <span style={{ fontSize: 13 }}>Allow end users to switch to the Chat surface</span>
+                </label>
+                <p style={{ fontSize: 11, opacity: 0.65, margin: "6px 0 0" }}>
+                    Default OFF. Workbench remains the cold-boot surface regardless of this setting; enabling it only adds the optional top-bar switcher.
+                </p>
             </Leaf>
             </SubSection>
 

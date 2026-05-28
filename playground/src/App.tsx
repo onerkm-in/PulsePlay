@@ -629,6 +629,13 @@ function PlaygroundApp(): React.ReactElement {
     const [enabledFeatures, setEnabledFeatures] = useState<EnabledFeaturesInput>(
         () => readPulseAiVisualSettings().enabledFeatures,
     );
+    // 2026-05-28 — author gate for the Chat (v0) surface chip. Workbench is
+    // the default surface; the Workbench⇄Chat top-bar chip only renders when
+    // an author has enabled Chat in Settings. Updated live via the same
+    // PULSE_VISUAL_SETTINGS_EVENT listener that tracks enabledFeatures.
+    const [allowChatSurface, setAllowChatSurface] = useState<boolean>(
+        () => readPulseAiVisualSettings().allowChatSurface,
+    );
     const [pinnedViewportPane, setPinnedViewportPane] = useState<ViewportFocus>(() => readInitialPinnedViewportPane());
     const biAdaptersRef = useRef<Map<number, BIAdapter>>(new Map());
     const [primaryBIAdapter, setPrimaryBIAdapter] = useState<BIAdapter | null>(null);
@@ -989,11 +996,23 @@ function PlaygroundApp(): React.ReactElement {
         const handler = () => {
             setPulseAssistantProfile(readPulseAssistantProfile());
             setPulseRenderToken(t => t + 1);
-            setEnabledFeatures(readPulseAiVisualSettings().enabledFeatures);
+            const next = readPulseAiVisualSettings();
+            setEnabledFeatures(next.enabledFeatures);
+            setAllowChatSurface(next.allowChatSurface);
         };
         window.addEventListener(PULSE_VISUAL_SETTINGS_EVENT, handler as EventListener);
         return () => window.removeEventListener(PULSE_VISUAL_SETTINGS_EVENT, handler as EventListener);
     }, []);
+
+    // 2026-05-28 — when the author has NOT enabled the Chat surface, end
+    // users must always land in Workbench. Coerce uiMode back to "pulse"
+    // if a stale localStorage override (or the dev escape hatch) left it on
+    // "v0" while Chat is disabled — otherwise the user would be stuck in
+    // Chat with no chip to switch back. The author setting wins over the
+    // stored mode; the chip + v0 only come back when allowChatSurface is on.
+    useEffect(() => {
+        if (!allowChatSurface && uiMode !== "pulse") setUiMode("pulse");
+    }, [allowChatSurface, uiMode]);
 
     // "mix" is the unified default: AI Insights / Ask Pulse / BI Viz are
     // peer surfaces in one primary canvas. Authors who want a permanent
@@ -1443,13 +1462,12 @@ function PlaygroundApp(): React.ReactElement {
                     <h1 style={{ margin: 0, fontSize: 22, lineHeight: 1.1 }}>PulsePlay</h1>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    {/* 2026-05-27 — Surface-mode chip (Chat ⇄ Workbench).
-                      * New design iteration of the v0 ↔ pulse switch.
-                      * Mounts in the top bar next to SetupStatusPill so
-                      * it's discoverable without burying in Settings.
-                      * Live-flip via pulseplay:display-change event;
-                      * settingsStore + App both listen for it. */}
-                    <SurfaceModeChip currentMode={uiMode} />
+                    {/* 2026-05-27 — Surface-mode chip (Workbench ⇄ Chat).
+                      * 2026-05-28 — author-gated: Workbench is the default
+                      * surface, and this chip only renders when an author
+                      * has enabled the Chat surface in Settings. End users
+                      * with Chat disabled never see a surface switcher. */}
+                    {allowChatSurface && <SurfaceModeChip currentMode={uiMode} />}
                     <SetupStatusPill readiness={setupReadiness} />
                 </div>
             </header>
@@ -1596,6 +1614,14 @@ function PlaygroundApp(): React.ReactElement {
                 // empty when you Pop-out.
                 aiVisible={mountedAiVisible}
                 biVisible={mountedBiVisible}
+                // 2026-05-28 — mix mode shows one pane at a time, but both
+                // panes are ENABLED. Keep the hidden pane mounted (toggle
+                // visibility, don't unmount) so switching AI ↔ Dashboard
+                // never reloads an already-loaded surface — visuals, chat
+                // history, scroll position all persist. Only a hard reload
+                // re-mounts. aiOnly/biOnly leave this false (the other pane
+                // is genuinely disabled and must not mount).
+                keepHiddenPaneMounted={enabledComponents === "mix"}
                 layoutMode={layoutMode}
                 focusedPane={focusedPane}
                 aiContent={(
@@ -2448,8 +2474,13 @@ function SplitLayout(props: {
     aiContent: React.ReactNode;
     biContent: React.ReactNode;
     emptyContent: React.ReactNode;
+    /** 2026-05-28 — mix mode. When true and exactly one pane is visible,
+     *  render BOTH panes (toggle the hidden one's visibility instead of
+     *  unmounting it) so switching surfaces never reloads loaded content.
+     *  Left false for aiOnly/biOnly where the off pane is truly disabled. */
+    keepHiddenPaneMounted?: boolean;
 }): React.ReactElement {
-    const { aiVisible, biVisible, layoutMode, focusedPane, aiContent, biContent, emptyContent } = props;
+    const { aiVisible, biVisible, layoutMode, focusedPane, aiContent, biContent, emptyContent, keepHiddenPaneMounted } = props;
 
     const orientation: "horizontal" | "vertical" =
         layoutMode === "ai-top" || layoutMode === "ai-bottom" ? "vertical" : "horizontal";
@@ -2460,13 +2491,12 @@ function SplitLayout(props: {
         storage: typeof window !== "undefined" ? window.localStorage : undefined,
     });
 
-    if (!aiVisible && !biVisible) return <>{emptyContent}</>;
-    if (aiVisible && !biVisible) return <>{aiContent}</>;
-    if (!aiVisible && biVisible) return <>{biContent}</>;
-
-    if (focusedPane) {
+    // Stacked-frame renderer — both panes mounted, only the active one
+    // visible. Shared by the focusedPane (maximize) and mix-mode (single-
+    // surface-at-a-time) branches so neither unmounts the inactive pane.
+    const stackedFrames = (activePane: ViewportPane) => {
         const frame = (pane: ViewportPane, content: React.ReactNode) => {
-            const isActive = focusedPane === pane;
+            const isActive = activePane === pane;
             return (
                 <div
                     key={pane}
@@ -2489,14 +2519,29 @@ function SplitLayout(props: {
                 </div>
             );
         };
-
         return (
             <div style={{ position: "relative", width: "100%", height: "100%", minWidth: 0, minHeight: 0 }}>
                 {frame("ai", aiContent)}
                 {frame("bi", biContent)}
             </div>
         );
+    };
+
+    if (focusedPane) {
+        return stackedFrames(focusedPane);
     }
+
+    // Mix mode: exactly one pane visible, but BOTH are enabled. Keep both
+    // mounted and toggle visibility so AI ↔ Dashboard switches preserve
+    // loaded state. (aiVisible !== biVisible guards against the both-on /
+    // both-off cases, which fall through to the split/empty layouts.)
+    if (keepHiddenPaneMounted && aiVisible !== biVisible) {
+        return stackedFrames(aiVisible ? "ai" : "bi");
+    }
+
+    if (!aiVisible && !biVisible) return <>{emptyContent}</>;
+    if (aiVisible && !biVisible) return <>{aiContent}</>;
+    if (!aiVisible && biVisible) return <>{biContent}</>;
 
     const aiFirst = layoutMode === "ai-left" || layoutMode === "ai-top";
     const aiDefaultSize = orientation === "horizontal" ? 35 : 40;

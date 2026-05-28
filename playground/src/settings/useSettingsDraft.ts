@@ -36,8 +36,28 @@ export const META_KEYS: ReadonlySet<string> = new Set<string>([
     'pulseplay:display-change',
 ]);
 
+/**
+ * Live view/layout state that applies INSTANTLY and isn't "configuration to
+ * commit" — which surface is shown, the pane layout/composition, and the
+ * current tab. These already take effect live the moment they change, so
+ * surfacing them in the "Unsaved changes" bar (and offering to Discard them)
+ * is noise: the user toggled a view, they didn't stage a config edit.
+ *
+ * Excluding them from the dirty tracker keeps the Save bar reserved for real
+ * authoring config (connectors, credentials, embed, packs, sections,
+ * guidance, vendor, tab visibility, dev flags). Trade-off: "Discard" no
+ * longer reverts these live view toggles — acceptable, since they're
+ * instant-apply by nature and persist immediately regardless. (2026-05-28)
+ */
+export const LIVE_VIEW_KEYS: ReadonlySet<string> = new Set<string>([
+    'pulseplay:ui-mode',            // Workbench ⇄ Chat surface
+    'pulseplay:layout-mode',        // ai-left / ai-right / ai-top / ai-bottom
+    'pulseplay:enabled-components', // mix / both / aiOnly / biOnly
+    'pulseplay:active-surface',     // current tab (pure view state)
+]);
+
 function isUserSettingsKey(k: string): boolean {
-    return k.startsWith(PREFIX) && !META_KEYS.has(k);
+    return k.startsWith(PREFIX) && !META_KEYS.has(k) && !LIVE_VIEW_KEYS.has(k);
 }
 
 function snapshotStorage(): Record<string, string> {

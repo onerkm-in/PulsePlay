@@ -9,7 +9,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { useSettingsDraft, META_KEYS } from "../useSettingsDraft";
+import { useSettingsDraft, META_KEYS, LIVE_VIEW_KEYS } from "../useSettingsDraft";
 
 interface Captured {
     isDirty: boolean;
@@ -142,5 +142,51 @@ describe("useSettingsDraft", () => {
         expect(META_KEYS.has("pulseplay:wizard-draft")).toBe(true);
         expect(META_KEYS.has("pulseplay:settings-last-group")).toBe(true);
         expect(META_KEYS.has("pulseplay:pinned-viewport-pane")).toBe(true);
+    });
+
+    it("does NOT flip isDirty when only live view/layout keys change (2026-05-28)", async () => {
+        const captured: { current: Captured | null } = { current: null };
+        const state = mountHarness(captured);
+        try {
+            expect(captured.current?.isDirty).toBe(false);
+            await act(async () => {
+                // Live view toggles apply instantly; they must not light the bar.
+                localStorage.setItem("pulseplay:ui-mode", "v0");
+                localStorage.setItem("pulseplay:layout-mode", "ai-right");
+                localStorage.setItem("pulseplay:enabled-components", "both");
+                localStorage.setItem("pulseplay:active-surface", "ask-pulse");
+                window.dispatchEvent(new CustomEvent("pulseplay:display-change"));
+                await new Promise(r => setTimeout(r, 0));
+            });
+            expect(captured.current?.isDirty).toBe(false);
+        } finally {
+            unmountHarness(state);
+        }
+    });
+
+    it("STILL flips isDirty for real config changes alongside live view keys", async () => {
+        const captured: { current: Captured | null } = { current: null };
+        const state = mountHarness(captured);
+        try {
+            await act(async () => {
+                localStorage.setItem("pulseplay:ui-mode", "v0");           // excluded
+                localStorage.setItem("pulseplay:active-ai-profile", "x");  // real config
+                window.dispatchEvent(new CustomEvent("pulseplay:display-change"));
+                await new Promise(r => setTimeout(r, 0));
+            });
+            expect(captured.current?.isDirty).toBe(true);
+        } finally {
+            unmountHarness(state);
+        }
+    });
+
+    it("LIVE_VIEW_KEYS pins the live view/layout exclusion contract", () => {
+        expect(LIVE_VIEW_KEYS.has("pulseplay:ui-mode")).toBe(true);
+        expect(LIVE_VIEW_KEYS.has("pulseplay:layout-mode")).toBe(true);
+        expect(LIVE_VIEW_KEYS.has("pulseplay:enabled-components")).toBe(true);
+        expect(LIVE_VIEW_KEYS.has("pulseplay:active-surface")).toBe(true);
+        // Real authoring config must NOT be excluded.
+        expect(LIVE_VIEW_KEYS.has("pulseplay:active-ai-profile")).toBe(false);
+        expect(LIVE_VIEW_KEYS.has("pulseplay:bi-vendor")).toBe(false);
     });
 });
