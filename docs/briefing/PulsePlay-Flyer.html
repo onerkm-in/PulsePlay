@@ -86,6 +86,11 @@
   .secband{margin-top:22px;background:var(--navy);color:#fff;border-radius:16px;padding:22px 26px;display:grid;grid-template-columns:1fr 1fr;gap:20px;}
   .secband .si h4{color:#fff;font-size:14px;margin-bottom:6px;}
   .secband .si p{color:#cfe0ff;font-size:12.5px;line-height:1.45;}
+  .natband{margin-top:18px;border:1px solid var(--line);border-radius:16px;padding:16px 22px;background:var(--soft);}
+  .natband h4{font-size:14.5px;color:var(--navy);margin-bottom:10px;}
+  .natrow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
+  .natrow .n{font-size:12px;color:var(--muted);line-height:1.42;}
+  .natrow .n b{color:var(--navy);}
 </style>
 </head>
 <body>
@@ -143,6 +148,15 @@
     <div class="axiswrap">
       <div class="axiscard"><div class="k">Axis Y · what you look at</div><h3>The BI vendor</h3><p>Swap the embedded dashboard tool independently of everything else. Sit it side by side with the assistant, or detach / float either pane.</p><div class="row"><span class="chip">Power BI</span><span class="chip">Tableau</span><span class="chip">Qlik</span><span class="chip">Looker</span><span class="chip">Any iframe</span></div></div>
       <div class="axiscard"><div class="k">Axis X · the AI brain</div><h3>The AI connector</h3><p>Swap the reasoning engine independently. Ten connector paths — and <b>any</b> combination of (BI vendor × AI brain) is valid.</p><div class="row"><span class="chip">Genie</span><span class="chip">Foundation Model</span><span class="chip">Azure OpenAI</span><span class="chip">Bedrock</span><span class="chip">Agents</span></div></div>
+    </div>
+
+    <div class="natband">
+      <h4>Rendered in PulsePlay's own chrome — the native panel</h4>
+      <div class="natrow">
+        <div class="n"><b>One canvas, three peer tabs.</b> AI Insights, Ask Pulse and Dashboard share the same toolbar and affordances — not the vendor's OEM chrome.</div>
+        <div class="n"><b>Light &amp; dark, end to end.</b> One coherent design-token system; a single toggle themes every native surface together.</div>
+        <div class="n"><b>Float &amp; dock.</b> Pop a pane out to inspect, then dock it back. <i>(Side-by-side compare is on the roadmap.)</i></div>
+      </div>
     </div>
 
     <div class="secband">

@@ -277,7 +277,20 @@
   <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">08</div>
 </div></section>
 
-<!-- 8 FEATURES -->
+<!-- 8 NATIVE PANEL (axis Y) -->
+<section class="slide"><div class="pad"><div class="badge">Product · axis Y</div>
+  <div class="kick">PulsePlay-native rendering</div>
+  <h2 class="slide-h2">Hosted in PulsePlay's own chrome — not the vendor's</h2>
+  <div class="slide-sub">Whatever dashboard you embed, it lives inside one consistent PulsePlay canvas — the same toolbar, theme and affordances as the AI surfaces beside it.</div>
+  <div class="grid3" style="margin-top:22px;flex:1;align-content:center;">
+    <div class="card"><h3>One canvas, three peer tabs</h3><p><b>AI Insights · Ask Pulse · Dashboard</b> share identical chrome, toolbar verbs and empty states. Single-canvas by default; a permanent split is an author opt-in.</p></div>
+    <div class="card"><h3>Light &amp; dark, end to end</h3><p>One coherent <span style="font-family:var(--mono);font-size:13px">--pp-*</span> design-token system. A single toggle themes every native surface — and bridges to the hosted visual.</p></div>
+    <div class="card"><h3>Float &amp; dock <span class="pill warn">compare · roadmap</span></h3><p>Pop any pane out as a draggable overlay to inspect it, then dock it back. Side-by-side multi-surface comparison is architected, not yet shipped.</p></div>
+  </div>
+  <div class="card" style="margin-top:8px;padding:14px 18px"><p style="font-size:15px"><b>Host, not guest:</b> PulsePlay runs at top-level origin and wraps each vendor surface (sandboxed where it's an iframe) in its own <span style="font-family:var(--mono);font-size:13px">pp-bi-panel</span> chrome — so modern web capabilities (streaming, exports, rich charts, theming) are available and the experience is uniform across every tool.</p></div>
+  <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">09</div>
+</div></section>
+<!-- 9 FEATURES -->
 <section class="slide"><div class="pad"><div class="badge">Product</div>
   <div class="kick">Features</div>
   <h2 class="slide-h2">What it does today</h2>
@@ -289,7 +302,7 @@
     <div class="card"><h3>Author controls <span class="pill ok">live</span></h3><p>Markdown / SQL sections, presets (SWOT/BCG), format &amp; masking rules.</p></div>
     <div class="card"><h3>Governed by design <span class="pill ok">live</span></h3><p>Allow-lists, server-side tokens, masking/redaction, 4-status trust.</p></div>
   </div>
-  <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">09</div>
+  <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">10</div>
 </div></section>
 
 <!-- 9 BENEFITS -->
@@ -306,7 +319,7 @@
     <tr><td><b>Efficiency</b></td><td>“Fewer tokens, better accuracy” — curbs inference spend vs a naive bot</td><td>Finance</td></tr>
   </table>
   <div class="card" style="margin-top:14px"><p style="font-size:19px;font-weight:700;color:var(--navy)">“Look at anything. Ask in plain language. Trust the answer.”</p></div>
-  <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">10</div>
+  <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">11</div>
 </div></section>
 
 <!-- 10 COMPARISON -->
@@ -324,7 +337,7 @@
     <tr><td>Answer-quality maturity</td><td>✅ mature</td><td>✅ mature</td><td>⚠ depends</td><td>⚠ improving</td></tr>
   </table>
   <div class="card" style="margin-top:12px"><p style="font-size:16px"><b>Honest line:</b> if you're single-vendor and the built-in AI suffices, native Copilot is mature and may be enough. PulsePlay's edge shows the moment you have more than one BI tool, want to choose the AI brain, or need uniform governance.</p></div>
-  <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">11</div>
+  <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">12</div>
 </div></section>
 
 <!-- 11 COSTING -->
@@ -344,7 +357,7 @@
     </ul></div>
   </div>
   <div class="card" style="margin-top:8px"><p style="font-size:18px;font-weight:700;color:var(--navy)">“No new software to buy. We fund a small support team and pay only for the compute &amp; tokens we actually use, on platforms we already run.”</p></div>
-  <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">12</div>
+  <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">13</div>
 </div></section>
 
 <!-- 12 MATURITY -->
@@ -360,7 +373,7 @@
     <tr><td>Streaming · full RAG/citations · multi-tenant · public-OSS</td><td><span class="pill bad">Not in current scope</span></td></tr>
   </table>
   <div class="card" style="margin-top:16px"><p style="font-size:18px"><b>Structural correctness</b> (routing, governance, section shape, UI) is proven by tests. <b>Answer correctness</b> is qualitative-review today — we present it as trust-tagged decision support, not an oracle.</p></div>
-  <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">13</div>
+  <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">14</div>
 </div></section>
 
 <!-- 13 CAVEATS -->
@@ -377,7 +390,7 @@
     <tr><td>Scope</td><td>Internal enabler — multi-tenant &amp; public-OSS are deferred</td></tr>
   </table>
   <div class="card" style="margin-top:14px"><p style="font-size:18px;font-weight:700;color:var(--navy)">Golden rule: commit to the <span style="color:var(--brand)">architecture, governance, and the Power BI + Genie experience</span>. Frame everything else as <span style="color:var(--warn)">roadmap</span>, not “done.”</p></div>
-  <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">14</div>
+  <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">15</div>
 </div></section>
 
 <!-- 14 CHEAT SHEET -->
@@ -392,7 +405,7 @@
     <div class="card"><p style="font-size:15.5px"><b>“What does it cost?”</b><br><span style="color:#475569">No licence — internally built. A small support team + only the compute/tokens we use on platforms we already pay for.</span></p></div>
     <div class="card"><p style="font-size:15.5px"><b>“Is it production-ready?”</b><br><span style="color:#475569">Architecture &amp; backbone tested; Power BI + Genie is the hardening focus. Internal v0.x — solid base, phased rollout.</span></p></div>
   </div>
-  <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">15</div>
+  <div class="brandrow"><div class="d"></div>PulsePlay · Confidential</div><div class="pageno">16</div>
 </div></section>
 
 <!-- 15 CLOSE -->

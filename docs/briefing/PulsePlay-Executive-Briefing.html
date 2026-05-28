@@ -224,6 +224,15 @@
     <div class="card"><h4>It is the host, not a guest</h4><p class="small">PulsePlay runs at the top level of a real modern browser and embeds vendor surfaces inside narrowed sandbox iframes that <i>it</i> controls. It is not trapped inside any vendor's sandbox, so modern web capabilities (streaming, exports, rich charts) are available.</p></div>
     <div class="card"><h4>It orchestrates; it doesn't rebuild</h4><p class="small">No new LLM, no new agent framework, no new data warehouse. PulsePlay calls the org's existing Genie spaces, Foundation Model endpoints, Supervisor agents and BI tools — and adds the experience, grounding and governance around them.</p></div>
   </div>
+
+  <h3 style="margin-top:18px;font-size:14px">The PulsePlay-native BI panel — hosted in our chrome, not the vendor's</h3>
+  <p class="small" style="margin-bottom:10px">Whichever vendor you embed, the dashboard renders inside PulsePlay's own canvas — the same toolbar, theming and affordances as the AI surfaces beside it — rather than the vendor's OEM chrome. That is what makes the experience feel like one product across every tool, and it is fully shipped on this build.</p>
+  <div class="grid2">
+    <div class="card"><h4>One canvas, three peer tabs <span class="pill ok">live</span></h4><p class="small"><b>AI Insights · Ask Pulse · Dashboard</b> are peer tabs that share identical chrome, toolbar verbs and empty states. A single canvas by default; authors can opt into a permanent split layout.</p></div>
+    <div class="card"><h4>Light &amp; dark, end to end <span class="pill ok">live</span></h4><p class="small">A coherent set of <span class="mono">--pp-*</span> design tokens drives a complete light and dark theme. One appearance toggle re-themes every native surface at once, and bridges to the hosted visual so nothing is left half-dark.</p></div>
+    <div class="card"><h4>Float &amp; dock <span class="pill warn">single-pane today</span></h4><p class="small">Any pane can pop out as a draggable overlay for closer inspection, then dock back with one click. Multi-surface side-by-side comparison (Dashboard next to AI Insights) is architected but <i>not yet shipped</i> — we flag it rather than imply it.</p></div>
+    <div class="card"><h4>A clean native/ported seam <span class="pill ok">live</span></h4><p class="small">The BI panel and the new app shell are PulsePlay-native (<span class="mono">--pp-*</span>). The ported Pulse Insights/Chat visual keeps its own <span class="mono">gn-*</span> styling; the shared appearance toggle keeps both in lock-step — a seam, not a rewrite.</p></div>
+  </div>
 </div>
 
 <!-- ░░ 04 ARCHITECTURE ░░ -->
