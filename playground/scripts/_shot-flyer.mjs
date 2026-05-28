@@ -1,0 +1,15 @@
+import { chromium } from "playwright";
+import { pathToFileURL } from "node:url";
+import { resolve } from "node:path";
+const b = await chromium.launch({ headless: true });
+const p = await b.newPage({ viewport: { width: 794, height: 1123 } });
+await p.goto(pathToFileURL(resolve("../docs/briefing/PulsePlay-Flyer.html")).href, { waitUntil: "networkidle" });
+await p.waitForTimeout(400);
+await p.screenshot({ path: "screenshots/flyer-1.png" });
+await p.evaluate(()=>document.querySelectorAll('.page')[1].scrollIntoView()); await p.waitForTimeout(250);
+await p.screenshot({ path: "screenshots/flyer-2.png" });
+const d = await b.newPage({ viewport: { width: 1280, height: 720 } });
+await d.goto(pathToFileURL(resolve("../docs/briefing/PulsePlay-Deck.html")).href, { waitUntil: "networkidle" });
+await d.evaluate(()=>document.querySelectorAll('.slide')[5].scrollIntoView()); await d.waitForTimeout(300);
+await d.screenshot({ path: "screenshots/deck-6b.png" });
+await b.close(); console.log("flyer+deck shots done");

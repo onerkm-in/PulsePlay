@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>PulsePlay — Executive Briefing</title>
+<style>
+  :root{
+    --ink:#0f172a; --ink-2:#334155; --muted:#64748b; --subtle:#94a3b8;
+    --bg:#ffffff; --panel:#f6f8fb; --panel-2:#eef2f7; --line:#e2e8f0; --line-2:#cbd5e1;
+    --brand:#2563eb; --brand-2:#1d4ed8; --brand-soft:#eaf1ff; --navy:#0b1f3a;
+    --ok:#059669; --ok-soft:#e7f6ef; --warn:#b45309; --warn-soft:#fdf3e6; --bad:#b91c1c; --bad-soft:#fceaea;
+    --font:"Segoe UI",-apple-system,BlinkMacSystemFont,system-ui,Roboto,Helvetica,Arial,sans-serif;
+    --mono:"Cascadia Code","Consolas",ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:11.5px;line-height:1.5;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .page{padding:0 18mm;}
+  h1,h2,h3,h4{margin:0;line-height:1.2;color:var(--navy);}
+  p{margin:0 0 8px;}
+  a{color:var(--brand);text-decoration:none;}
+  .small{font-size:10px;color:var(--muted);}
+  .muted{color:var(--muted);}
+  .mono{font-family:var(--mono);}
+  .pagebreak{page-break-before:always;}
+  .avoid-break{page-break-inside:avoid;}
+
+  /* Cover */
+  .cover{height:1040px;background:linear-gradient(150deg,#0b1f3a 0%,#13315c 55%,#1d4ed8 130%);color:#fff;padding:0;position:relative;overflow:hidden;}
+  .cover .wave{position:absolute;left:0;right:0;bottom:0;opacity:.20;}
+  .cover .inner{padding:70px 60px;position:relative;z-index:2;height:100%;display:flex;flex-direction:column;}
+  .brandmark{display:flex;align-items:center;gap:12px;}
+  .brandmark .dot{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#3b82f6,#60a5fa);display:flex;align-items:center;justify-content:center;}
+  .brandmark .name{font-size:20px;font-weight:800;letter-spacing:.2px;color:#fff;}
+  .cover .kicker{margin-top:90px;font-size:13px;letter-spacing:3px;text-transform:uppercase;color:#9cc2ff;font-weight:700;}
+  .cover h1{color:#fff;font-size:52px;font-weight:800;margin-top:14px;max-width:760px;}
+  .cover .sub{color:#cfe0ff;font-size:18px;margin-top:18px;max-width:680px;line-height:1.45;}
+  .cover .meta{margin-top:auto;display:flex;gap:40px;color:#bcd2ff;font-size:12px;}
+  .cover .meta b{color:#fff;display:block;font-size:14px;}
+  .confidential{position:absolute;top:36px;right:60px;z-index:2;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#9cc2ff;border:1px solid rgba(156,194,255,.4);padding:5px 10px;border-radius:6px;}
+
+  /* Section chrome */
+  .sec-head{display:flex;align-items:baseline;gap:12px;border-bottom:2px solid var(--brand);padding-bottom:7px;margin:26px 0 14px;}
+  .sec-head .num{font-size:12px;font-weight:800;color:#fff;background:var(--brand);border-radius:6px;padding:2px 9px;}
+  .sec-head h2{font-size:20px;font-weight:800;}
+  .lead{font-size:13px;color:var(--ink-2);margin-bottom:12px;}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:13px 15px;}
+  .card h4{font-size:12.5px;margin-bottom:5px;color:var(--navy);}
+  .card .big{font-size:24px;font-weight:800;color:var(--brand);line-height:1;}
+  .pill{display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:2px 8px;border-radius:999px;}
+  .pill.ok{background:var(--ok-soft);color:var(--ok);}
+  .pill.warn{background:var(--warn-soft);color:var(--warn);}
+  .pill.bad{background:var(--bad-soft);color:var(--bad);}
+  .pill.info{background:var(--brand-soft);color:var(--brand-2);}
+
+  table{width:100%;border-collapse:collapse;font-size:10.5px;margin:6px 0 12px;}
+  th{background:var(--navy);color:#fff;text-align:left;padding:7px 9px;font-weight:700;font-size:10px;}
+  td{padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:top;}
+  tr:nth-child(even) td{background:var(--panel);}
+  table.tight td,table.tight th{padding:5px 8px;}
+
+  ul.clean{margin:4px 0 10px;padding-left:18px;}
+  ul.clean li{margin-bottom:4px;}
+  .callout{border-left:4px solid var(--brand);background:var(--brand-soft);padding:10px 14px;border-radius:0 10px 10px 0;margin:10px 0;}
+  .callout.warn{border-color:var(--warn);background:var(--warn-soft);}
+  .callout.ok{border-color:var(--ok);background:var(--ok-soft);}
+  .callout h4{margin-bottom:3px;}
+
+  .qa{border:1px solid var(--line);border-radius:11px;padding:12px 15px;margin-bottom:9px;background:#fff;}
+  .qa .q{font-weight:800;color:var(--navy);font-size:12px;margin-bottom:4px;}
+  .qa .q::before{content:"Q";display:inline-block;background:var(--navy);color:#fff;font-size:9px;border-radius:5px;padding:1px 6px;margin-right:7px;}
+  .qa .a{color:var(--ink-2);font-size:11px;}
+  .qa .a::before{content:"A";display:inline-block;background:var(--brand);color:#fff;font-size:9px;border-radius:5px;padding:1px 6px;margin-right:7px;}
+
+  .toc{columns:2;column-gap:40px;font-size:12px;}
+  .toc div{margin-bottom:6px;break-inside:avoid;}
+  .toc b{color:var(--brand);margin-right:8px;}
+  .foot{position:running(footer);}
+  figure{margin:6px 0 12px;}
+  figcaption{font-size:9.5px;color:var(--muted);text-align:center;margin-top:5px;}
+  .diagram{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;}
+</style>
+</head>
+<body>
+
+<!-- ░░ COVER ░░ -->
+<section class="cover">
+  <div class="confidential">Internal · Confidential</div>
+  <svg class="wave" viewBox="0 0 1000 220" preserveAspectRatio="none" height="220" width="100%">
+    <path d="M0,140 L120,140 L150,60 L185,190 L220,110 L260,140 L1000,140 L1000,220 L0,220 Z" fill="#3b82f6"/>
+  </svg>
+  <div class="inner">
+    <div class="brandmark">
+      <div class="dot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h4l3-8 4 16 3-8h6"/></svg></div>
+      <div class="name">PulsePlay</div>
+    </div>
+    <div class="kicker">Executive Briefing</div>
+    <h1>One pane of glass for your BI&nbsp;+&nbsp;AI estate</h1>
+    <div class="sub">A vendor-agnostic experience layer that hosts any BI tool and pairs it with the organisation's own AI — grounded, governed, and built on platforms you already own.</div>
+    <div class="meta">
+      <div><b>Audience</b>Leadership &amp; sponsoring team</div>
+      <div><b>Scope</b>Internal-org enabler (Path&nbsp;C)</div>
+      <div><b>Maturity</b>v0.1 — architecture proven, rollout phased</div>
+    </div>
+  </div>
+</section>
+
+<!-- ░░ CONTENTS + TL;DR ░░ -->
+<div class="page pagebreak">
+  <div class="sec-head"><span class="num">00</span><h2>How to use this briefing</h2></div>
+  <p class="lead">This document is written so a non-technical sponsor can present it <i>and</i> defend it. Each section gives the executive message first; the tables and the “Cross-examination cheat sheet” (§12) give the technical backup to answer push-back without over-committing.</p>
+  <div class="toc">
+    <div><b>01</b>Executive summary</div>
+    <div><b>02</b>The problem &amp; why now</div>
+    <div><b>03</b>What PulsePlay is</div>
+    <div><b>04</b>Architecture &amp; moving parts</div>
+    <div><b>05</b>The 10 AI connector paths</div>
+    <div><b>06</b>Features (the product)</div>
+    <div><b>07</b>Benefits</div>
+    <div><b>08</b>Comparative analysis</div>
+    <div><b>09</b>Costing model</div>
+    <div><b>10</b>Security &amp; governance</div>
+    <div><b>11</b>Maturity &amp; honest status</div>
+    <div><b>12</b>Cross-examination cheat sheet</div>
+    <div><b>13</b>Caveats — what NOT to commit</div>
+    <div><b>14</b>Roadmap &amp; glossary</div>
+  </div>
+
+  <div class="callout">
+    <h4>The one-paragraph version</h4>
+    <p style="margin:0">The organisation already owns BI tools (Power BI, Tableau, Qlik, Looker) <i>and</i> AI services (Databricks Genie, Mosaic Foundation Models &amp; agents, Azure OpenAI, Bedrock). They sit in silos. <b>PulsePlay is the thin layer that puts them behind one screen</b>: the user looks at any dashboard, and an AI assistant — wired to whichever brain the org chooses — reasons about exactly what they're looking at, with answers that are <b>grounded in governed data</b> and <b>gated by a trust contract</b> so nothing ungrounded is presented as fact. We don't build LLMs, agents, or data platforms; we orchestrate what exists and own the experience + governance layer.</p>
+  </div>
+</div>
+
+<!-- ░░ 01 EXEC SUMMARY ░░ -->
+<div class="page pagebreak">
+  <div class="sec-head"><span class="num">01</span><h2>Executive summary</h2></div>
+  <div class="grid3">
+    <div class="card"><div class="big">2</div><h4>Independent axes</h4><p class="small">Swap the <b>BI vendor</b> (what you look at) and the <b>AI brain</b> (what answers) independently. No lock-in to either.</p></div>
+    <div class="card"><div class="big">10</div><h4>AI connector paths</h4><p class="small">Genie, Foundation Models, Azure OpenAI, Bedrock, Supervisor agents, Power BI semantic-model — all behind one contract.</p></div>
+    <div class="card"><div class="big">$0</div><h4>New software licence</h4><p class="small">Inner-source &amp; internally built. Cost is <b>people to support it</b> + platform you already pay for — not per-seat software.</p></div>
+  </div>
+  <h3 style="margin-top:16px;font-size:14px">Why this matters to the business</h3>
+  <ul class="clean">
+    <li><b>Consolidation, not another silo.</b> One assistant across heterogeneous BI tools and AI services — reusing existing investments rather than buying a new platform.</li>
+    <li><b>Future-proof by design.</b> The vendor and the AI brain are pluggable. When the org adopts a new BI tool or a better model, you change a setting — not the product.</li>
+    <li><b>Governed and grounded.</b> Embed tokens are issued server-side, sensitive values are masked/redacted before they reach any model, access is allow-listed, and a validator gates every AI artifact with an honest status (Verified / Grounded draft / Suggestion / Blocked).</li>
+    <li><b>Honest maturity.</b> The architecture and the AI connector backbone are solid and tested; Power BI is a real integration; Tableau/Qlik/Looker are iframe-embed today (real SDKs are roadmapped). We say so plainly so commitments stay safe.</li>
+  </ul>
+  <div class="callout ok"><h4>The headline you can say out loud</h4><p style="margin:0">“PulsePlay lets anyone ask questions in plain language about any dashboard we run, using our own AI, on our own data, with our own governance — without us buying or rebuilding anything.”</p></div>
+</div>
+
+<!-- ░░ 02 PROBLEM ░░ -->
+<div class="page pagebreak">
+  <div class="sec-head"><span class="num">02</span><h2>The problem &amp; why now</h2></div>
+  <p class="lead">Enterprises have accumulated multiple BI tools and, separately, multiple AI services. Each AI capability is trapped inside the tool that ships it.</p>
+  <div class="grid2">
+    <div class="card"><h4>The silo tax</h4>
+      <ul class="clean small">
+        <li>Power BI's AI only sees Power BI. Tableau's only sees Tableau. Qlik's only sees Qlik.</li>
+        <li>Each vendor's assistant is tied to that vendor's model — you can't bring your own approved LLM or your governed Genie space.</li>
+        <li>Users learn a different "ask the data" experience per tool; analysts rebuild the same prompt logic everywhere.</li>
+        <li>Governance is fragmented: every tool mints its own tokens, applies its own (or no) masking.</li>
+      </ul>
+    </div>
+    <div class="card"><h4>Why the timing is right</h4>
+      <ul class="clean small">
+        <li>The org has already invested in Databricks (Genie, Unity Catalog, Mosaic Foundation Models &amp; agents) and in cloud LLMs.</li>
+        <li>Those investments are under-leveraged because there's no consistent surface that points them at what users actually look at.</li>
+        <li>A thin orchestration layer turns existing spend into a single, governed, plain-language experience — fast, and without new licences.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="callout"><h4>The gap PulsePlay fills</h4><p style="margin:0">Not “another BI tool” and not “another chatbot.” The missing piece is a <b>context-aware, vendor-neutral experience + governance layer</b> that connects the BI surfaces and the AI brains the org already runs.</p></div>
+</div>
+
+<!-- ░░ 03 WHAT IT IS ░░ -->
+<div class="page pagebreak">
+  <div class="sec-head"><span class="num">03</span><h2>What PulsePlay is — the 2-axis design</h2></div>
+  <p class="lead">PulsePlay's defining idea: two independent axes. <b>What you look at</b> (BI vendor) and <b>what answers you</b> (AI connector) are decoupled. Any combination is valid; switching either is independent of the other.</p>
+  <figure>
+    <div class="diagram">
+      <svg viewBox="0 0 760 300" width="100%" font-family="Segoe UI,sans-serif">
+        <!-- axis labels -->
+        <text x="20" y="24" font-size="13" font-weight="800" fill="#0b1f3a">Y — BI vendor (what the user is looking at)</text>
+        <text x="20" y="285" font-size="13" font-weight="800" fill="#0b1f3a">X — AI connector (what the AI brain is)</text>
+        <!-- vendor chips (left column) -->
+        <g font-size="11">
+          <rect x="20" y="40" width="120" height="26" rx="6" fill="#eaf1ff" stroke="#2563eb"/><text x="80" y="57" text-anchor="middle" fill="#1d4ed8" font-weight="700">Power BI · real</text>
+          <rect x="20" y="72" width="120" height="26" rx="6" fill="#f6f8fb" stroke="#cbd5e1"/><text x="80" y="89" text-anchor="middle" fill="#334155">Tableau</text>
+          <rect x="20" y="104" width="120" height="26" rx="6" fill="#f6f8fb" stroke="#cbd5e1"/><text x="80" y="121" text-anchor="middle" fill="#334155">Qlik</text>
+          <rect x="20" y="136" width="120" height="26" rx="6" fill="#f6f8fb" stroke="#cbd5e1"/><text x="80" y="153" text-anchor="middle" fill="#334155">Looker</text>
+          <rect x="20" y="168" width="120" height="26" rx="6" fill="#f6f8fb" stroke="#cbd5e1"/><text x="80" y="185" text-anchor="middle" fill="#334155">Generic iframe</text>
+        </g>
+        <!-- center: PulsePlay -->
+        <rect x="300" y="95" width="160" height="80" rx="14" fill="#0b1f3a"/>
+        <text x="380" y="128" text-anchor="middle" fill="#fff" font-size="15" font-weight="800">PulsePlay</text>
+        <text x="380" y="148" text-anchor="middle" fill="#9cc2ff" font-size="10">pane of glass + governance</text>
+        <!-- connector chips (right column) -->
+        <g font-size="10.5">
+          <rect x="600" y="36" width="140" height="22" rx="6" fill="#eaf1ff" stroke="#2563eb"/><text x="670" y="51" text-anchor="middle" fill="#1d4ed8" font-weight="700">Databricks Genie</text>
+          <rect x="600" y="62" width="140" height="22" rx="6" fill="#f6f8fb" stroke="#cbd5e1"/><text x="670" y="77" text-anchor="middle" fill="#334155">Foundation Model</text>
+          <rect x="600" y="88" width="140" height="22" rx="6" fill="#f6f8fb" stroke="#cbd5e1"/><text x="670" y="103" text-anchor="middle" fill="#334155">Supervisor agents</text>
+          <rect x="600" y="114" width="140" height="22" rx="6" fill="#f6f8fb" stroke="#cbd5e1"/><text x="670" y="129" text-anchor="middle" fill="#334155">Azure OpenAI</text>
+          <rect x="600" y="140" width="140" height="22" rx="6" fill="#f6f8fb" stroke="#cbd5e1"/><text x="670" y="155" text-anchor="middle" fill="#334155">AWS Bedrock</text>
+          <rect x="600" y="166" width="140" height="22" rx="6" fill="#f6f8fb" stroke="#cbd5e1"/><text x="670" y="181" text-anchor="middle" fill="#334155">Power BI DAX (no-LLM)</text>
+        </g>
+        <!-- connectors -->
+        <g stroke="#94a3b8" stroke-width="1.4" fill="none">
+          <path d="M140 53 C 230 60, 250 120, 300 125"/><path d="M140 85 C 230 100, 255 125, 300 132"/>
+          <path d="M140 117 C 235 130, 260 135, 300 140"/><path d="M140 149 C 235 150, 260 148, 300 150"/>
+          <path d="M140 181 C 235 175, 260 160, 300 158"/>
+          <path d="M460 130 C 520 90, 540 60, 600 47"/><path d="M460 134 C 520 100, 545 78, 600 73"/>
+          <path d="M460 138 C 525 115, 550 100, 600 99"/><path d="M460 142 C 525 130, 555 122, 600 125"/>
+          <path d="M460 148 C 525 150, 555 150, 600 151"/><path d="M460 156 C 525 168, 555 172, 600 177"/>
+        </g>
+      </svg>
+    </div>
+    <figcaption>Any BI vendor (Y) × any AI connector (X). Switching one never forces a change to the other.</figcaption>
+  </figure>
+  <div class="grid2">
+    <div class="card"><h4>It is the host, not a guest</h4><p class="small">PulsePlay runs at the top level of a real modern browser and embeds vendor surfaces inside narrowed sandbox iframes that <i>it</i> controls. It is not trapped inside any vendor's sandbox, so modern web capabilities (streaming, exports, rich charts) are available.</p></div>
+    <div class="card"><h4>It orchestrates; it doesn't rebuild</h4><p class="small">No new LLM, no new agent framework, no new data warehouse. PulsePlay calls the org's existing Genie spaces, Foundation Model endpoints, Supervisor agents and BI tools — and adds the experience, grounding and governance around them.</p></div>
+  </div>
+</div>
+
+<!-- ░░ 04 ARCHITECTURE ░░ -->
+<div class="page pagebreak">
+  <div class="sec-head"><span class="num">04</span><h2>Architecture &amp; moving parts</h2></div>
+  <p class="lead">Three tiers: a browser experience layer, a connector-agnostic proxy (the security &amp; routing backbone), and the platform services the org already owns. The proxy is the only place that holds credentials and mints tokens.</p>
+  <figure>
+    <div class="diagram">
+      <svg viewBox="0 0 760 330" width="100%" font-family="Segoe UI,sans-serif">
+        <!-- Tier 1: browser -->
+        <rect x="14" y="20" width="220" height="290" rx="12" fill="#eaf1ff" stroke="#2563eb" stroke-dasharray="0"/>
+        <text x="124" y="40" text-anchor="middle" font-size="12" font-weight="800" fill="#1d4ed8">Browser (top-level origin)</text>
+        <g font-size="10">
+          <rect x="30" y="54" width="188" height="40" rx="8" fill="#fff" stroke="#cbd5e1"/><text x="124" y="72" text-anchor="middle" font-weight="700" fill="#0b1f3a">PulsePlay React app</text><text x="124" y="86" text-anchor="middle" fill="#64748b">Vite · TypeScript</text>
+          <rect x="30" y="102" width="90" height="58" rx="8" fill="#fff" stroke="#cbd5e1"/><text x="75" y="124" text-anchor="middle" fill="#0b1f3a" font-weight="700">AI surface</text><text x="75" y="138" text-anchor="middle" fill="#64748b">Workbench /</text><text x="75" y="150" text-anchor="middle" fill="#64748b">Ask Pulse</text>
+          <rect x="128" y="102" width="90" height="58" rx="8" fill="#fff" stroke="#cbd5e1"/><text x="173" y="124" text-anchor="middle" fill="#0b1f3a" font-weight="700">BI panel</text><text x="173" y="138" text-anchor="middle" fill="#64748b">sandboxed</text><text x="173" y="150" text-anchor="middle" fill="#64748b">vendor iframe</text>
+          <rect x="30" y="168" width="188" height="34" rx="8" fill="#fff" stroke="#cbd5e1"/><text x="124" y="189" text-anchor="middle" fill="#0b1f3a" font-weight="700">Validator · trust badges · masking (display)</text>
+          <rect x="30" y="210" width="188" height="30" rx="8" fill="#fff" stroke="#cbd5e1"/><text x="124" y="229" text-anchor="middle" fill="#64748b">Settings · governance · themes</text>
+        </g>
+        <!-- Tier 2: proxy -->
+        <rect x="262" y="70" width="200" height="190" rx="12" fill="#0b1f3a"/>
+        <text x="362" y="92" text-anchor="middle" font-size="12" font-weight="800" fill="#fff">AI Proxy (Node / Express)</text>
+        <g font-size="9.5" fill="#cfe0ff">
+          <text x="362" y="116" text-anchor="middle">connector-agnostic router</text>
+          <text x="362" y="134" text-anchor="middle">embed-token issuance (server-only)</text>
+          <text x="362" y="152" text-anchor="middle">OAuth M2M · key rotation</text>
+          <text x="362" y="170" text-anchor="middle">prompt sanitisation · PII redaction</text>
+          <text x="362" y="188" text-anchor="middle">SQL DML gate · rate limit</text>
+          <text x="362" y="206" text-anchor="middle">audit log (X-Request-Id)</text>
+          <text x="362" y="226" text-anchor="middle" fill="#9cc2ff" font-weight="700">10 backend connector paths →</text>
+        </g>
+        <!-- Tier 3: platforms -->
+        <rect x="490" y="20" width="256" height="290" rx="12" fill="#f6f8fb" stroke="#cbd5e1"/>
+        <text x="618" y="40" text-anchor="middle" font-size="12" font-weight="800" fill="#0b1f3a">Platforms you already own</text>
+        <g font-size="10">
+          <rect x="504" y="52" width="228" height="46" rx="8" fill="#fff" stroke="#cbd5e1"/><text x="618" y="71" text-anchor="middle" font-weight="700" fill="#0b1f3a">Databricks</text><text x="618" y="85" text-anchor="middle" fill="#64748b">Genie · Foundation Model · Supervisor · UC · SQL warehouse</text>
+          <rect x="504" y="104" width="228" height="40" rx="8" fill="#fff" stroke="#cbd5e1"/><text x="618" y="122" text-anchor="middle" font-weight="700" fill="#0b1f3a">BI vendors</text><text x="618" y="136" text-anchor="middle" fill="#64748b">Power BI (Premium) · Tableau · Qlik · Looker</text>
+          <rect x="504" y="150" width="228" height="36" rx="8" fill="#fff" stroke="#cbd5e1"/><text x="618" y="167" text-anchor="middle" font-weight="700" fill="#0b1f3a">Cloud LLMs</text><text x="618" y="180" text-anchor="middle" fill="#64748b">Azure OpenAI · AWS Bedrock</text>
+          <rect x="504" y="192" width="228" height="34" rx="8" fill="#fff" stroke="#cbd5e1"/><text x="618" y="211" text-anchor="middle" font-weight="700" fill="#0b1f3a">Identity (SSO/MFA) · Key Vault</text>
+          <rect x="504" y="232" width="228" height="30" rx="8" fill="#fff" stroke="#cbd5e1"/><text x="618" y="251" text-anchor="middle" fill="#64748b">SIEM / audit sink</text>
+        </g>
+        <!-- arrows -->
+        <g stroke="#2563eb" stroke-width="1.8" fill="none" marker-end="url(#ar)">
+          <path d="M234 150 L262 150"/>
+          <path d="M462 150 L490 130"/>
+        </g>
+        <defs><marker id="ar" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2563eb"/></marker></defs>
+        <text x="248" y="143" font-size="8.5" fill="#64748b">/api/*</text>
+      </svg>
+    </div>
+    <figcaption>The browser never holds a credential. All token issuance, routing and policy live in the proxy.</figcaption>
+  </figure>
+  <table class="tight">
+    <tr><th>Layer</th><th>Technology</th><th>Responsibility</th></tr>
+    <tr><td><b>Experience</b></td><td>React · Vite · TypeScript</td><td>Hosts BI vendor surfaces; AI Insights + Ask Pulse; validator &amp; trust display; author Settings + governance UI; theming.</td></tr>
+    <tr><td><b>BI adapters (Y)</b></td><td><span class="mono">BIAdapter</span> contract; powerbi-client SDK</td><td>One contract every vendor implements. Power BI is a real SDK adapter; others embed via iframe today.</td></tr>
+    <tr><td><b>Proxy (X)</b></td><td>Node · Express</td><td>The only credential holder. Routes to 10 AI backends; mints embed tokens; sanitises prompts; redacts secrets/PII; gates SQL; rate-limits; audits.</td></tr>
+    <tr><td><b>Databricks</b></td><td>Genie · Mosaic FM/agents · Unity Catalog · SQL Warehouse</td><td>The data + AI brains. Unity Catalog is the real data-access boundary (row/column security).</td></tr>
+    <tr><td><b>Visualisation</b></td><td>Power BI native canvas · Markdown · (ECharts/Vega-Lite roadmapped)</td><td>Renders the embedded dashboard + AI answers/sections.</td></tr>
+  </table>
+</div>
+
+<!-- ░░ 05 CONNECTORS ░░ -->
+<div class="page pagebreak">
+  <div class="sec-head"><span class="num">05</span><h2>The 10 AI connector paths</h2></div>
+  <p class="lead">The proxy speaks one internal contract and translates it to whichever AI backend a profile selects. This is what makes the AI brain pluggable. All ten are implemented today.</p>
+  <table class="tight">
+    <tr><th>#</th><th>Connector path</th><th>What it is</th><th>Notes</th></tr>
+    <tr><td>1</td><td><b>Databricks Genie</b></td><td>Natural-language → governed SQL over a Genie space</td><td>Primary grounded path</td></tr>
+    <tr><td>2</td><td>Azure OpenAI — chat</td><td>Conversational LLM</td><td>Bring-your-own approved model</td></tr>
+    <tr><td>3</td><td>Azure OpenAI — analytics</td><td>LLM with schema-aware analytics mode</td><td></td></tr>
+    <tr><td>4</td><td>AWS Bedrock — Retrieve&amp;Generate</td><td>RAG over a Bedrock knowledge base</td><td></td></tr>
+    <tr><td>5</td><td>AWS Bedrock — InvokeModel</td><td>Direct model invocation</td><td></td></tr>
+    <tr><td>6</td><td><b>Mosaic AI Foundation Model</b></td><td>Databricks-served model endpoint</td><td>Workaround for Genie Agent-Mode limits (see §13)</td></tr>
+    <tr><td>7</td><td>Supervisor — real endpoint</td><td>Multi-agent orchestration (LangGraph)</td><td></td></tr>
+    <tr><td>8</td><td>Supervisor — local fan-out</td><td>Proxy fans out to N Genie spaces + synthesises</td><td>Cost scales ~(N+1) calls — see §13</td></tr>
+    <tr><td>9</td><td>Mosaic AI ResponsesAgent</td><td>Databricks ResponsesAgent endpoint</td><td></td></tr>
+    <tr><td>10</td><td><b>Power BI semantic-model (DAX)</b></td><td>Deterministic DAX templates — <b>no LLM</b></td><td>Zero token cost; fully deterministic answers</td></tr>
+  </table>
+  <div class="callout"><h4>Why ten matters commercially</h4><p style="margin:0">Different questions warrant different brains: a governed Genie space for grounded SQL, a deterministic DAX path for zero-cost exact KPIs, a Foundation Model for narrative. The org picks per profile — and can change its mind without touching the product.</p></div>
+</div>
+
+<!-- ░░ 06 FEATURES ░░ -->
+<div class="page pagebreak">
+  <div class="sec-head"><span class="num">06</span><h2>Features — the product</h2></div>
+  <div class="grid2">
+    <div class="card"><h4>Host any dashboard <span class="pill ok">live</span></h4><p class="small">Embed the vendor surface; Power BI is a real client integration with secure embed + a developer tools strip. Tableau/Qlik/Looker embed via iframe today.</p></div>
+    <div class="card"><h4>AI Insights briefing <span class="pill ok">live</span></h4><p class="small">Auto-generated executive briefing — Headline, KPI snapshot, Trends, Risks, Recommended actions — plus author-defined sections. Staged reveal for perceived speed.</p></div>
+    <div class="card"><h4>Ask Pulse (conversational) <span class="pill ok">live</span></h4><p class="small">Plain-language Q&amp;A grounded in the active BI context, through whichever connector is selected.</p></div>
+    <div class="card"><h4>Workbench (3 tabs) <span class="pill ok">live</span></h4><p class="small">AI Insights · Ask Pulse · Dashboard, one consistent shell. Author-only “Workbench templates” preset the tabs, landing surface, scope and section set.</p></div>
+    <div class="card"><h4>Author authoring controls <span class="pill ok">live</span></h4><p class="small">Sections in markdown <i>or</i> warehouse-backed SQL config-items; number-format guidance; SWOT/BCG/RFM presets; domain guidance; knowledge packs.</p></div>
+    <div class="card"><h4>Governed by design <span class="pill ok">live</span></h4><p class="small">Allow-listed vendors/profiles/origins; server-side embed tokens; PII redaction + field masking; the 4-status trust contract; capability-aware “requires X” affordances.</p></div>
+  </div>
+  <h3 style="margin-top:14px;font-size:14px">The accuracy contract — “no ungrounded artifacts”</h3>
+  <p class="small">Every AI artifact carries one of four honest statuses, set by PulsePlay's validator (never by the model): <span class="pill ok">Verified</span> <span class="pill info">Grounded&nbsp;draft</span> <span class="pill warn">Suggestion</span> <span class="pill bad">Blocked</span>. This is the difference between a demo chatbot and an enterprise tool: the system tells the user how much to trust each answer. <span class="muted">(Today the validator enforces section <i>shape/structure</i>; factual-correctness scoring is a roadmap item — see §11.)</span></p>
+</div>
+
+<!-- ░░ 07 BENEFITS ░░ -->
+<div class="page pagebreak">
+  <div class="sec-head"><span class="num">07</span><h2>Benefits</h2></div>
+  <table>
+    <tr><th>Benefit</th><th>What it means</th><th>Who feels it</th></tr>
+    <tr><td><b>No vendor lock-in</b></td><td>Change BI tool or AI model via configuration; the experience stays constant.</td><td>Architecture / procurement</td></tr>
+    <tr><td><b>Reuse existing spend</b></td><td>Genie, Foundation Models, UC, BI licences are leveraged — not duplicated.</td><td>Finance / platform owners</td></tr>
+    <tr><td><b>One experience, many tools</b></td><td>Users learn one “ask the data” surface across every dashboard.</td><td>End users / analysts</td></tr>
+    <tr><td><b>Governance in one place</b></td><td>Tokens, masking, allow-lists, audit centralised in the proxy.</td><td>Security / compliance</td></tr>
+    <tr><td><b>Grounded answers</b></td><td>Answers come from governed data with an explicit trust status.</td><td>Decision-makers</td></tr>
+    <tr><td><b>Fast to extend</b></td><td>New connector or adapter is a drop-in module, not a rewrite.</td><td>Engineering</td></tr>
+    <tr><td><b>Efficiency motto</b></td><td>“Fewer tokens, better accuracy” — grounded/staged approach curbs inference spend vs a naive chatbot.</td><td>Finance / sustainability</td></tr>
+  </table>
+  <div class="callout ok"><h4>Marketing one-liners (for the flyer / intranet)</h4>
+    <ul class="clean" style="margin:4px 0 0">
+      <li><b>“Look at anything. Ask in plain language. Trust the answer.”</b></li>
+      <li><b>“Your BI tools. Your AI. Your data. One screen.”</b></li>
+      <li><b>“Bring your own brain — PulsePlay is connector-agnostic and vendor-neutral.”</b></li>
+    </ul>
+  </div>
+</div>
+
+<!-- ░░ 08 COMPARISON ░░ -->
+<div class="page pagebreak">
+  <div class="sec-head"><span class="num">08</span><h2>Comparative analysis</h2></div>
+  <p class="lead">PulsePlay is not competing with a single product — it sits <i>above</i> the BI tools and <i>beside</i> the AI services. The honest comparison is by capability, not feature-for-feature.</p>
+  <table class="tight">
+    <tr><th>Capability</th><th>Native vendor AI<br><span class="small" style="color:#cfe0ff">PBI Copilot · Tableau Pulse · Qlik</span></th><th>Databricks Genie<br><span class="small" style="color:#cfe0ff">used directly</span></th><th>Build a custom AI app<br><span class="small" style="color:#cfe0ff">per tool</span></th><th>PulsePlay</th></tr>
+    <tr><td>Works across multiple BI vendors</td><td>❌ single-vendor</td><td>❌ data-only</td><td>⚠ per app</td><td>✅ vendor-neutral</td></tr>
+    <tr><td>Bring-your-own / swap the AI model</td><td>❌ vendor's model</td><td>⚠ Genie only</td><td>✅ if you build it</td><td>✅ 10 connector paths</td></tr>
+    <tr><td>Reasons about what you're looking at</td><td>✅ within its tool</td><td>❌</td><td>⚠ you wire it</td><td>✅ context-aware</td></tr>
+    <tr><td>Centralised governance / tokens / masking</td><td>❌ per tool</td><td>⚠ UC only</td><td>⚠ you build it</td><td>✅ one proxy</td></tr>
+    <tr><td>Trust/grounding contract on answers</td><td>⚠ varies</td><td>⚠ raw</td><td>⚠ you build it</td><td>✅ 4-status validator</td></tr>
+    <tr><td>New software licence cost</td><td>$$ per seat/capacity</td><td>$ compute</td><td>$$ build + run</td><td>$0 licence (internal)</td></tr>
+    <tr><td>Answer quality maturity</td><td>✅ mature</td><td>✅ mature</td><td>⚠ depends</td><td>⚠ improving (see §11)</td></tr>
+    <tr><td>Time-to-value vs build</td><td>✅ instant (if single-tool)</td><td>✅ instant (data)</td><td>❌ months per tool</td><td>✅ one layer, all tools</td></tr>
+  </table>
+  <div class="grid2">
+    <div class="card"><h4>Where native vendor AI still wins</h4><p class="small">If the org is effectively single-vendor and that vendor's built-in AI meets the need, native Copilot is mature and may be sufficient. PulsePlay's edge appears the moment you have <b>more than one</b> BI tool, or want to <b>choose the AI brain</b>, or need <b>uniform governance</b>.</p></div>
+    <div class="card"><h4>Honest positioning vs ThoughtSpot</h4><p class="small">The closest philosophical peer exposes one vendor's data to any LLM. PulsePlay does the inverse + more: it hosts <i>any</i> BI tool in the browser under one assistant with <i>any</i> connector. Complementary, not the same category.</p></div>
+  </div>
+</div>
+
+<!-- ░░ 09 COSTING ░░ -->
+<div class="page pagebreak">
+  <div class="sec-head"><span class="num">09</span><h2>Costing model</h2></div>
+  <p class="lead">Because this is internally built and inner-sourced, there is <b>no per-seat application licence</b>. Cost has two real buckets: <b>people to support it</b>, and <b>platform services you already pay for</b> (PulsePlay rides on them; it does not add a new platform).</p>
+  <div class="grid2">
+    <div class="card"><h4>1 · People (the real new cost)</h4>
+      <ul class="clean small">
+        <li>Engineering ownership: maintain/extend the React app + proxy, add adapters/connectors.</li>
+        <li>Platform/DevOps: deploy + monitor the proxy and app, manage secrets &amp; rotation.</li>
+        <li>BI / data platform admins: manage Genie spaces, Unity Catalog policy, Power BI capacity.</li>
+        <li>This is the headcount commitment to be explicit about — the application itself is free of licence.</li>
+      </ul>
+    </div>
+    <div class="card"><h4>2 · Platform (pass-through, mostly already owned)</h4>
+      <ul class="clean small">
+        <li>Databricks SQL Warehouse compute (for the deterministic SQL/KPI path).</li>
+        <li>Foundation Model serving + Azure OpenAI / Bedrock <b>token inference</b> — pay-per-use.</li>
+        <li>Power BI Premium capacity (already owned for embedding + RLS).</li>
+        <li>App hosting (Databricks App and/or Azure App Service tier).</li>
+        <li>Identity, Key Vault, SIEM — existing enterprise services.</li>
+      </ul>
+    </div>
+  </div>
+  <table class="tight">
+    <tr><th>Cost lever</th><th>Driver</th><th>How PulsePlay keeps it down</th></tr>
+    <tr><td>LLM inference (tokens)</td><td>Insights + chat volume</td><td>Grounded + staged prompting; deterministic DAX path for exact KPIs costs <b>zero tokens</b>; “fewer tokens, better accuracy” design.</td></tr>
+    <tr><td>Warehouse compute</td><td>SQL sections + Genie queries</td><td>Result caching; warehouse pre-warm/keep-alive to avoid repeated cold starts.</td></tr>
+    <tr><td>Hosting</td><td>Concurrent users</td><td>Lightweight React SPA + Node proxy; scales on standard App Service tiers.</td></tr>
+  </table>
+  <div class="callout"><h4>The cost message in one line</h4><p style="margin:0">“No new software to buy. We fund a small support team and pay only for the compute/tokens we actually use on platforms we already run.”</p></div>
+</div>
+
+<!-- ░░ 10 SECURITY ░░ -->
+<div class="page pagebreak">
+  <div class="sec-head"><span class="num">10</span><h2>Security &amp; governance</h2></div>
+  <table class="tight">
+    <tr><th>Control</th><th>How it works</th></tr>
+    <tr><td><b>Credentials never in the browser</b></td><td>All embed tokens (Power BI, etc.) and AI credentials are issued/held server-side in the proxy. The browser bundle carries no secret.</td></tr>
+    <tr><td><b>Identity</b></td><td>Org IdP (SSO + MFA). No local accounts; PulsePlay does not own the user store.</td></tr>
+    <tr><td><b>Data access boundary</b></td><td>Unity Catalog row/column security is the real boundary. Power BI RLS is derived from verified identity claims (requires Premium — see §13).</td></tr>
+    <tr><td><b>Masking &amp; PII redaction</b></td><td>Author-declared field masking (redact / last-4 / hide) + pattern-based PII redaction strip sensitive values <i>before</i> they reach any model, and from rendered cells. <b>Defence-in-depth, not the primary control</b> — Unity Catalog column masks are.</td></tr>
+    <tr><td><b>Allow-listing</b></td><td>Permitted BI vendors, AI profiles, embedding origins, Power BI workspaces, and AD-group access are all allow-listed; fail-closed when the policy can't be loaded.</td></tr>
+    <tr><td><b>Prompt &amp; SQL safety</b></td><td>Prompt sanitisation + injection-keyword stripping; read-only SQL with a DML blocklist; rate limiting; full audit log with request-ID correlation.</td></tr>
+  </table>
+  <div class="callout warn"><h4>Be precise on this in the room</h4><p style="margin:0">PulsePlay's masking/redaction is <b>defence-in-depth</b>. The authoritative data-security control is <b>Unity Catalog column masks + RLS</b> at the data layer. Don't position PulsePlay's masking as the primary guarantee.</p></div>
+</div>
+
+<!-- ░░ 11 MATURITY ░░ -->
+<div class="page pagebreak">
+  <div class="sec-head"><span class="num">11</span><h2>Maturity &amp; honest status</h2></div>
+  <div class="grid3">
+    <div class="card"><div class="big">10/10</div><h4>Connector paths</h4><p class="small">All AI backend paths implemented + tested.</p></div>
+    <div class="card"><div class="big">1 real</div><h4>BI vendor (Power BI)</h4><p class="small">Tableau/Qlik/Looker embed via iframe today.</p></div>
+    <div class="card"><div class="big">green</div><h4>Test suites</h4><p class="small">Proxy + playground suites pass (structural correctness).</p></div>
+  </div>
+  <p class="small" style="margin-top:12px">The architecture and the AI backbone are solid and well-tested. What's <b>structurally</b> proven (routing, governance, section shape, UI) is distinct from what's <b>qualitatively</b> proven (answer correctness). We are honest about the line:</p>
+  <table class="tight">
+    <tr><th>Area</th><th>Status</th></tr>
+    <tr><td>2-axis architecture, 10 connector paths, governance/allow-list, embed-token issuance (Power BI)</td><td><span class="pill ok">Solid &amp; tested</span></td></tr>
+    <tr><td>Power BI real adapter; AI Insights + Ask Pulse + Workbench; author authoring; masking; theming</td><td><span class="pill ok">Live</span></td></tr>
+    <tr><td>Tableau / Qlik / Looker real SDK adapters</td><td><span class="pill warn">Iframe today · SDKs roadmapped</span></td></tr>
+    <tr><td>Answer-quality evaluation (ground-truth scoring)</td><td><span class="pill warn">Qualitative only · eval suite roadmapped</span></td></tr>
+    <tr><td>Token streaming, full RAG/citations, multi-tenant isolation, public-OSS</td><td><span class="pill bad">Not in current scope</span></td></tr>
+  </table>
+</div>
+
+<!-- ░░ 12 CROSS-EXAM ░░ -->
+<div class="page pagebreak">
+  <div class="sec-head"><span class="num">12</span><h2>Cross-examination cheat sheet</h2></div>
+  <p class="lead">Likely technical push-backs and the safe, true answer. Use these verbatim.</p>
+  <div class="qa"><div class="q">“Why build this instead of just using Power BI Copilot / Tableau Pulse?”</div><div class="a">Those only work inside their own tool and their own model. We run more than one BI tool and we want to choose our own approved AI brain and govern it centrally. PulsePlay is the one layer that spans all of them — without per-tool rebuilds.</div></div>
+  <div class="qa"><div class="q">“Are you building your own LLM / agent / data platform?”</div><div class="a">No. We orchestrate Databricks Genie, Mosaic Foundation Models &amp; agents, Azure OpenAI and Bedrock that we already own. PulsePlay is the experience + governance layer, deliberately thin.</div></div>
+  <div class="qa"><div class="q">“Is the AI accurate? Can we trust it for decisions?”</div><div class="a">Answers are grounded in governed data and every artifact carries a trust status (Verified / Grounded draft / Suggestion / Blocked) set by our validator, not the model. Today we enforce structure; ground-truth quality scoring is a roadmap item — so we present it as decision-support with explicit trust, not an oracle.</div></div>
+  <div class="qa"><div class="q">“Do credentials or data leak to the browser or to the model?”</div><div class="a">Credentials never touch the browser — the proxy holds them and mints scoped tokens server-side. Sensitive fields are masked/redacted before reaching any model. Unity Catalog row/column security is the authoritative boundary.</div></div>
+  <div class="qa"><div class="q">“You say Tableau/Qlik/Looker — is that real today?”</div><div class="a">Power BI is a real SDK integration. Tableau/Qlik/Looker embed via iframe today (they render and are governed, but without the deep event bridge); their real SDK adapters are roadmapped. We won't claim deep integration before it ships.</div></div>
+  <div class="qa"><div class="q">“What does it cost?”</div><div class="a">No application licence — it's internally built. We fund a small support/engineering team and pay only for the compute and tokens we actually use, on platforms (Databricks, Power BI, cloud LLMs) we already pay for.</div></div>
+  <div class="qa"><div class="q">“Can it scale / is it production-ready?”</div><div class="a">The architecture and backbone are tested and the Power BI + Genie path is the production-hardening focus. It's an internal v0.x: solid foundation, phased rollout. Multi-tenant isolation and public-OSS are explicitly out of current scope.</div></div>
+  <div class="qa"><div class="q">“Why not a single chatbot over a data lake?”</div><div class="a">A chatbot doesn't know what the user is looking at, doesn't host the governed dashboards, and doesn't enforce a trust contract. PulsePlay is context-aware, vendor-neutral and governed.</div></div>
+</div>
+
+<!-- ░░ 13 CAVEATS ░░ -->
+<div class="page pagebreak">
+  <div class="sec-head"><span class="num">13</span><h2>Caveats — what NOT to commit to</h2></div>
+  <p class="lead">Read this before you promise anything. These are real, known limits — naming them protects the program.</p>
+  <table class="tight">
+    <tr><th>Caveat</th><th>Don't say → Do say</th></tr>
+    <tr><td><b>Vendor adapters</b></td><td>Don't: “full Tableau/Qlik/Looker integration.” → Do: “Power BI is deep; others embed today, deep SDKs are roadmapped.”</td></tr>
+    <tr><td><b>Genie Agent Mode</b></td><td>The public Genie API ignores the deep-research flag (UI-only). We use the Foundation Model path as the workaround — don't promise Genie “agent mode” via API.</td></tr>
+    <tr><td><b>Genie messages immutable</b></td><td>One request = one message; multi-section briefings allocate multiple messages under a conversation. A technical constraint, handled — just don't design around editing a message in place.</td></tr>
+    <tr><td><b>Power BI RLS</b></td><td>Row-level security through Power BI embedding requires <b>Premium capacity</b>. Pro/Free can embed but not enforce RLS via the token.</td></tr>
+    <tr><td><b>Masking ≠ security guarantee</b></td><td>It's defence-in-depth. Unity Catalog column masks are the authoritative control.</td></tr>
+    <tr><td><b>Answer quality</b></td><td>Validated for structure, not yet scored for factual correctness. Position as trust-tagged decision support.</td></tr>
+    <tr><td><b>Supervisor fan-out cost</b></td><td>Querying N spaces costs ~(N+1) model calls per question — use deliberately, it scales linearly.</td></tr>
+    <tr><td><b>Power BI Q&amp;A surface</b></td><td>Runs Microsoft's NLP in Microsoft's tenant (we only mint the token); it's in defer-mode toward its 2026 EOL — steer new work to Ask Pulse.</td></tr>
+    <tr><td><b>Scope</b></td><td>Internal-org enabler (Path C). Multi-tenant isolation, SBOM signing, conformance, public docs and full external compliance are deferred — not a public SaaS.</td></tr>
+  </table>
+  <div class="callout warn"><h4>The golden rule for commitments</h4><p style="margin:0">Commit to the <b>architecture, the governance model, and the Power BI + Genie experience</b>. Frame everything else (other vendors' deep SDKs, answer-quality scoring, streaming, multi-tenant) as <b>roadmap</b>, not “done.”</p></div>
+</div>
+
+<!-- ░░ 14 ROADMAP + GLOSSARY ░░ -->
+<div class="page pagebreak">
+  <div class="sec-head"><span class="num">14</span><h2>Roadmap &amp; glossary</h2></div>
+  <div class="grid2">
+    <div class="card"><h4>Phased direction</h4>
+      <ul class="clean small">
+        <li><b>Now (v0.x):</b> Harden the Power BI + Genie experience; author tooling; governance; dark theme; masking enforcement.</li>
+        <li><b>Next:</b> Real Tableau/Qlik/Looker SDK adapters; token streaming; answer-quality eval suite.</li>
+        <li><b>Later:</b> Full governed retrieval (RAG + citations); broader knowledge packs.</li>
+        <li><b>Deferred (separate decision):</b> Multi-tenant isolation, public-OSS readiness.</li>
+      </ul>
+    </div>
+    <div class="card"><h4>Glossary (for non-technical readers)</h4>
+      <ul class="clean small">
+        <li><b>Connector / brain:</b> the AI service that answers (Genie, a model, an agent).</li>
+        <li><b>Adapter:</b> the code that embeds a specific BI vendor.</li>
+        <li><b>Genie:</b> Databricks' natural-language-to-SQL over governed data.</li>
+        <li><b>Unity Catalog (UC):</b> Databricks' data governance — the security boundary.</li>
+        <li><b>RLS/OLS:</b> row/object-level security — who can see which rows/fields.</li>
+        <li><b>Grounded:</b> the answer is derived from real, governed data, not invented.</li>
+        <li><b>Proxy:</b> the server that holds credentials, routes AI calls, enforces policy.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="callout ok"><h4>What to leave the room believing</h4><p style="margin:0">PulsePlay turns existing, siloed BI + AI investments into one governed, plain-language experience — no new licences, honest about maturity, and built to outlast any single vendor or model choice.</p></div>
+  <p class="small" style="margin-top:24px;text-align:center;color:#94a3b8">PulsePlay · Internal Executive Briefing · Confidential — for internal distribution only</p>
+</div>
+
+</body>
+</html>

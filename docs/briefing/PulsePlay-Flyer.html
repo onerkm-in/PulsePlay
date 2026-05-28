@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>PulsePlay — Flyer</title>
+<style>
+  :root{
+    --navy:#0b1f3a; --navy2:#13315c; --brand:#2563eb; --brand2:#3b82f6; --brand3:#60a5fa;
+    --ink:#0f172a; --muted:#5b6b80; --soft:#f3f6fb; --line:#e2e8f0; --ok:#059669;
+    --font:"Segoe UI",-apple-system,BlinkMacSystemFont,system-ui,Roboto,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:#fff;color:var(--ink);font-family:var(--font);-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .page{width:210mm;min-height:297mm;position:relative;overflow:hidden;page-break-after:always;background:#fff;}
+  h1,h2,h3{margin:0;line-height:1.1;color:var(--navy);}
+  p{margin:0;}
+
+  /* HERO */
+  .hero{background:linear-gradient(145deg,#0b1f3a 0%,#13315c 50%,#1d4ed8 125%);color:#fff;padding:46px 44px 54px;position:relative;overflow:hidden;}
+  .hero .blob{position:absolute;border-radius:50%;filter:blur(2px);opacity:.25;}
+  .brand{display:flex;align-items:center;gap:12px;}
+  .brand .d{width:40px;height:40px;border-radius:11px;background:linear-gradient(135deg,#3b82f6,#60a5fa);display:flex;align-items:center;justify-content:center;}
+  .brand .n{font-size:23px;font-weight:800;color:#fff;}
+  .brand .tag{margin-left:auto;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#9cc2ff;border:1px solid rgba(156,194,255,.4);padding:5px 11px;border-radius:6px;}
+  .hero h1{color:#fff;font-size:46px;font-weight:800;margin-top:34px;max-width:560px;letter-spacing:-.5px;}
+  .hero .lead{color:#d7e6ff;font-size:17px;margin-top:18px;max-width:540px;line-height:1.5;}
+  .hero .pills{margin-top:26px;display:flex;gap:10px;flex-wrap:wrap;}
+  .hero .pill{background:rgba(255,255,255,.10);border:1px solid rgba(156,194,255,.35);color:#eaf2ff;font-size:13px;font-weight:600;padding:7px 14px;border-radius:999px;}
+  .hero .wave{position:absolute;left:0;right:0;bottom:-2px;opacity:.20;}
+
+  .section{padding:34px 44px;}
+  .eyebrow{font-size:12px;letter-spacing:3px;text-transform:uppercase;font-weight:800;color:var(--brand);}
+  .h2{font-size:27px;font-weight:800;margin:6px 0 4px;}
+  .sub{font-size:15px;color:var(--muted);max-width:640px;line-height:1.5;}
+
+  .benefits{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:22px;}
+  .benefit{background:var(--soft);border:1px solid var(--line);border-radius:16px;padding:20px 22px;display:flex;gap:15px;align-items:flex-start;}
+  .benefit .ic{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#2563eb,#3b82f6);flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+  .benefit h3{font-size:16px;margin-bottom:4px;}
+  .benefit p{font-size:13px;color:var(--muted);line-height:1.45;}
+
+  .strip{background:var(--navy);color:#fff;padding:22px 44px;display:flex;justify-content:space-around;text-align:center;}
+  .strip .stat .big{font-size:34px;font-weight:800;color:#fff;line-height:1;}
+  .strip .stat .lbl{font-size:12px;color:#9cc2ff;margin-top:6px;letter-spacing:.5px;}
+
+  /* PAGE 2 */
+  .steps{display:flex;gap:14px;margin-top:22px;}
+  .step{flex:1;background:var(--soft);border:1px solid var(--line);border-radius:16px;padding:18px;text-align:center;position:relative;}
+  .step .num{width:34px;height:34px;border-radius:50%;background:var(--brand);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;font-size:16px;}
+  .step h4{font-size:15px;margin-bottom:5px;}
+  .step p{font-size:12.5px;color:var(--muted);line-height:1.4;}
+  .arrow{align-self:center;color:var(--brand);font-size:22px;font-weight:800;}
+
+  .features{display:grid;grid-template-columns:1fr 1fr 1fr;gap:13px;margin-top:20px;}
+  .feat{border:1px solid var(--line);border-radius:13px;padding:15px 16px;background:#fff;}
+  .feat .dot{width:9px;height:9px;border-radius:50%;background:var(--ok);display:inline-block;margin-right:7px;}
+  .feat h4{font-size:14px;display:inline;}
+  .feat p{font-size:12px;color:var(--muted);margin-top:7px;line-height:1.4;}
+
+  .who{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:20px;}
+  .who .card{background:var(--soft);border:1px solid var(--line);border-radius:14px;padding:16px 18px;}
+  .who h4{font-size:14px;margin-bottom:5px;color:var(--brand);}
+  .who p{font-size:12.5px;color:var(--muted);line-height:1.45;}
+
+  .cta{margin:30px 44px 0;background:linear-gradient(145deg,#0b1f3a,#1d4ed8);border-radius:18px;color:#fff;padding:28px 34px;display:flex;align-items:center;gap:24px;}
+  .cta .big{font-size:24px;font-weight:800;color:#fff;max-width:420px;line-height:1.25;}
+  .cta .line{font-size:14px;color:#cfe0ff;margin-top:8px;}
+  .footer{padding:18px 44px;color:#94a3b8;font-size:11px;display:flex;justify-content:space-between;align-items:center;}
+</style>
+</head>
+<body>
+
+<!-- PAGE 1 -->
+<div class="page">
+  <div class="hero">
+    <div class="blob" style="width:280px;height:280px;background:#3b82f6;right:-60px;top:-60px;"></div>
+    <div class="blob" style="width:180px;height:180px;background:#60a5fa;right:120px;top:140px;"></div>
+    <div class="brand">
+      <div class="d"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h4l3-8 4 16 3-8h6"/></svg></div>
+      <div class="n">PulsePlay</div>
+      <div class="tag">Internal Platform</div>
+    </div>
+    <h1>One pane of glass for your BI&nbsp;+&nbsp;AI</h1>
+    <div class="lead">Look at any dashboard. Ask it questions in plain language. Get answers grounded in your own governed data — powered by the AI your organisation already runs.</div>
+    <div class="pills"><span class="pill">Any BI tool</span><span class="pill">Any AI brain</span><span class="pill">Your data · your governance</span><span class="pill">No new licence</span></div>
+    <svg class="wave" viewBox="0 0 800 120" preserveAspectRatio="none" height="120" width="100%"><path d="M0,72 L110,72 L140,28 L172,104 L205,52 L240,72 L800,72 L800,120 L0,120 Z" fill="#3b82f6"/></svg>
+  </div>
+
+  <div class="section">
+    <div class="eyebrow">Why teams love it</div>
+    <div class="h2">Stop switching tools to ask your data a question</div>
+    <div class="sub">PulsePlay puts your BI tools and your AI services behind one screen — so everyone gets the same simple, trusted experience, whatever dashboard they're looking at.</div>
+    <div class="benefits">
+      <div class="benefit"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div><div><h3>Every tool, one assistant</h3><p>Power BI, Tableau, Qlik, Looker — hosted side by side under a single AI that understands what you're viewing.</p></div></div>
+      <div class="benefit"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 L4 6 v6 c0 5 3.5 8 8 10 4.5-2 8-5 8-10 V6 Z"/><path d="M9 12 l2 2 4-4"/></svg></div><div><h3>Grounded &amp; governed</h3><p>Answers come from governed data with an honest trust badge. Access is allow-listed; sensitive fields are masked before any model sees them.</p></div></div>
+      <div class="benefit"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-6 4 4 6-7"/><path d="M14 8h6v6"/></svg></div><div><h3>Bring your own brain</h3><p>Genie, Foundation Models, Azure OpenAI, Bedrock, agents — 10 connector paths. Swap the AI without changing the experience.</p></div></div>
+      <div class="benefit"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><div><h3>No new licence, fast to extend</h3><p>Built in-house on platforms you already own. New tool or model? A drop-in module — not a rebuild.</p></div></div>
+    </div>
+  </div>
+
+  <div class="strip">
+    <div class="stat"><div class="big">2</div><div class="lbl">INDEPENDENT AXES</div></div>
+    <div class="stat"><div class="big">10</div><div class="lbl">AI CONNECTOR PATHS</div></div>
+    <div class="stat"><div class="big">4</div><div class="lbl">TRUST STATUSES</div></div>
+    <div class="stat"><div class="big">$0</div><div class="lbl">SOFTWARE LICENCE</div></div>
+  </div>
+</div>
+
+<!-- PAGE 2 -->
+<div class="page">
+  <div class="section" style="padding-top:40px;">
+    <div class="eyebrow">How it works</div>
+    <div class="h2">Three steps, one experience</div>
+    <div class="steps">
+      <div class="step"><div class="num">1</div><h4>Pick your view</h4><p>Choose the BI dashboard — Power BI, Tableau, Qlik, Looker — hosted right inside PulsePlay.</p></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="num">2</div><h4>Ask in plain language</h4><p>The assistant reasons about what you're looking at, routed to your chosen AI brain.</p></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="num">3</div><h4>Get a trusted answer</h4><p>Grounded in governed data, tagged Verified / Grounded / Suggestion / Blocked — never an ungrounded guess.</p></div>
+    </div>
+  </div>
+
+  <div class="section" style="padding-top:6px;">
+    <div class="eyebrow">What's inside</div>
+    <div class="h2">Built for the enterprise</div>
+    <div class="features">
+      <div class="feat"><span class="dot"></span><h4>AI Insights briefings</h4><p>Auto Headline, KPIs, Trends, Risks &amp; Actions — plus your own sections.</p></div>
+      <div class="feat"><span class="dot"></span><h4>Ask Pulse chat</h4><p>Conversational Q&amp;A grounded in the live BI context.</p></div>
+      <div class="feat"><span class="dot"></span><h4>Workbench templates</h4><p>Author-defined layouts: tabs, landing, scope &amp; section presets.</p></div>
+      <div class="feat"><span class="dot"></span><h4>SQL &amp; markdown sections</h4><p>Deterministic warehouse-backed KPIs or AI-authored narrative.</p></div>
+      <div class="feat"><span class="dot"></span><h4>Governance &amp; masking</h4><p>Allow-lists, server-side tokens, field masking, PII redaction.</p></div>
+      <div class="feat"><span class="dot"></span><h4>Light &amp; dark themes</h4><p>A polished, on-brand experience across every surface.</p></div>
+    </div>
+  </div>
+
+  <div class="section" style="padding-top:6px;">
+    <div class="eyebrow">Who it's for</div>
+    <div class="who">
+      <div class="card"><h4>Analysts &amp; business users</h4><p>One “ask the data” experience across every dashboard — no tool-hopping, no prompt rebuilding.</p></div>
+      <div class="card"><h4>Platform &amp; security teams</h4><p>Centralised tokens, allow-lists, masking and audit — governance in one place, not per tool.</p></div>
+      <div class="card"><h4>Architecture &amp; finance</h4><p>Reuse existing Databricks + BI + LLM investments. No vendor lock-in, no new per-seat licence.</p></div>
+      <div class="card"><h4>Decision-makers</h4><p>Answers you can trust, with an explicit status — decision-support, grounded in your governed data.</p></div>
+    </div>
+  </div>
+
+  <div class="cta">
+    <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#9cc2ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h4l3-8 4 16 3-8h6"/></svg>
+    <div>
+      <div class="big">Look at anything. Ask in plain language. Trust the answer.</div>
+      <div class="line">Your BI tools · Your AI · Your data · One screen. — Ask the platform team for a walkthrough.</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>PulsePlay — internal platform</span>
+    <span>One pane of glass for your BI&nbsp;+&nbsp;AI estate</span>
+  </div>
+</div>
+
+</body>
+</html>
