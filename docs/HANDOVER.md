@@ -5,6 +5,27 @@
 
 ---
 
+## 2026-05-28 - Workbench nav fix + AI-Insights default + briefing pack (BI axis + native panel); redeploy BLOCKED by Free-Edition quota
+
+**Shipped (committed + pushed to `origin/codex/f5-g0-native-layout-2026-05-21`, HEAD `209d0b6`).**
+- **Nav fix (`fc1fdc3`).** Two coupled Workbench bugs reported on the live app: (1) reload/Adjust on AI Insights yanked the user to Ask Pulse, and (2) the app defaulted to Ask Pulse.
+  - Root cause of (1): `App.tsx` AI-pane reload + settings-change handlers bump `pulseRenderToken`; `PulseShell`'s tab-dispatch effect depended on `renderToken`, so every re-render re-asserted the App's (stale) `requestedPulseTab` over the user's current tab. Fix: the effect now depends on `activeTabRequest` ALONE — a re-render is not a tab change. ([PulseShell.tsx](../playground/src/components/PulseShell.tsx) tab-dispatch effect.)
+  - Root cause of (2): `readInitialActiveSurface()` restored the sticky last-used surface. Fix: AI Insights is the canonical landing; sticky surface is still tracked for cross-tab sync but no longer picks the initial surface. ([App.tsx](../playground/src/App.tsx) `readInitialActiveSurface`.)
+  - Verified by `playground/scripts/verify-nav-intense.mjs` (10/10): boots on AI Insights despite a seeded sticky ask-pulse, stays put through repeated reload + settings re-renders, tab round-trip clean, 0 console errors.
+- **Briefing pack** under `docs/briefing/` — `PulsePlay-Executive-Briefing` (14 sections), `PulsePlay-Deck` (16×16:9 slides), `PulsePlay-Flyer` (3pp). HTML + Playwright-rendered PDF each (`playground/scripts/docgen-render.mjs`). Honest maturity throughout.
+  - `e09c346` added the **BI-vendor axis** (was AI-axis-heavy): per-vendor server-side embed-credential table, vendor maturity tiers.
+  - `209d0b6` added the **PulsePlay-native BI panel** story (deck slide 09, briefing §03 subsection, flyer band): one-canvas 3-peer-tab model, `--pp-*` light/dark, float/dock. **Honest flag:** single-pane float/dock is shipped; multi-surface side-by-side comparison is architected but NOT shipped — labelled roadmap.
+
+**Deploy status — BLOCKED, not done.** The live AWS app `pulseplay` (`https://pulseplay-7474646467214591.aws.databricksapps.com`) still runs the earlier `999c02b` (pre-nav-fix). Attempting to start it to deploy the fix returned: *"cannot run Databricks App because you have hit your free daily limit."* The workspace is **Databricks Free Edition** with a daily App-runtime cap. Redeploy is teed up for when the cap resets: start the app, then `databricks apps deploy pulseplay --json '{"git_source":{"commit":"209d0b6"}}'`.
+
+**Tripwires for next session.**
+- **Free-Edition daily App limit** is real and hard — apps auto-stop when idle and may refuse to restart once the daily cap is hit. Plan deploys accordingly.
+- The deploy PAT lives at **`proxy/config.json` → `profiles.default.token`** (and host at `profiles.default.host`), NOT a top-level `token`/`host` (those are empty). Auth pattern that works: `DATABRICKS_AUTH_TYPE=pat` + an isolated `DATABRICKS_CONFIG_FILE` so the CLI can't fall back to the expired OAuth login.
+- An app must be **RUNNING** before `databricks apps deploy` is accepted (`apps start` first).
+- Do NOT invent an Azure workspace URL — the live app is the AWS Free-Edition workspace (`profiles.default.host`).
+
+---
+
 ## 2026-05-27 - ARCH-P1 slice 3 SHIPPED — feature-feasibility registry + capability resolver
 
 **Scope.** Implement the signed-off handoff from earlier in this session ([research/ARCH_P1_SLICE_3_FEATURE_FEASIBILITY_REGISTRY_HANDOFF_2026-05-27.md](research/ARCH_P1_SLICE_3_FEATURE_FEASIBILITY_REGISTRY_HANDOFF_2026-05-27.md)) directly from §6 — no design revisit.
