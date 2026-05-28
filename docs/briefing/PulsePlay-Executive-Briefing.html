@@ -25,8 +25,9 @@
   .avoid-break{page-break-inside:avoid;}
 
   /* Cover */
-  .cover{height:1040px;background:linear-gradient(150deg,#0b1f3a 0%,#13315c 55%,#1d4ed8 130%);color:#fff;padding:0;position:relative;overflow:hidden;}
-  .cover .wave{position:absolute;left:0;right:0;bottom:0;opacity:.20;}
+  .cover{height:1040px;background:radial-gradient(900px 520px at 86% 8%,#1e4fd0 0%,rgba(30,79,208,0) 60%),linear-gradient(150deg,#0a1c36 0%,#13315c 55%,#1d4ed8 132%);color:#fff;padding:0;position:relative;overflow:hidden;}
+  .cover .wave{position:absolute;left:0;right:0;bottom:0;opacity:.18;}
+  .cover .panes{position:absolute;right:36px;top:470px;z-index:1;opacity:.92;}
   .cover .inner{padding:70px 60px;position:relative;z-index:2;height:100%;display:flex;flex-direction:column;}
   .brandmark{display:flex;align-items:center;gap:12px;}
   .brandmark .dot{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#3b82f6,#60a5fa);display:flex;align-items:center;justify-content:center;}
@@ -40,35 +41,40 @@
 
   /* Section chrome */
   .sec-head{display:flex;align-items:baseline;gap:12px;border-bottom:2px solid var(--brand);padding-bottom:7px;margin:26px 0 14px;}
-  .sec-head .num{font-size:12px;font-weight:800;color:#fff;background:var(--brand);border-radius:6px;padding:2px 9px;}
+  .sec-head .num{font-size:12px;font-weight:800;color:#fff;background:linear-gradient(135deg,#2563eb,#60a5fa);border-radius:6px;padding:2px 9px;box-shadow:0 3px 8px rgba(37,99,235,.32);}
   .sec-head h2{font-size:20px;font-weight:800;}
   .lead{font-size:13px;color:var(--ink-2);margin-bottom:12px;}
 
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
   .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:13px 15px;}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 15px;box-shadow:0 4px 14px rgba(11,31,58,.06);}
   .card h4{font-size:12.5px;margin-bottom:5px;color:var(--navy);}
   .card .big{font-size:24px;font-weight:800;color:var(--brand);line-height:1;}
+  .icard{display:flex;gap:11px;align-items:flex-start;}
+  .ic{width:34px;height:34px;border-radius:9px;flex-shrink:0;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 9px rgba(37,99,235,.2);}
+  .g-blue{background:linear-gradient(135deg,#2563eb,#60a5fa);} .g-teal{background:linear-gradient(135deg,#0e7490,#22d3ee);}
+  .g-violet{background:linear-gradient(135deg,#6d28d9,#a78bfa);} .g-green{background:linear-gradient(135deg,#059669,#34d399);}
+  .g-amber{background:linear-gradient(135deg,#b45309,#f59e0b);} .g-indigo{background:linear-gradient(135deg,#4338ca,#818cf8);} .g-slate{background:linear-gradient(135deg,#334155,#64748b);}
   .pill{display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:2px 8px;border-radius:999px;}
   .pill.ok{background:var(--ok-soft);color:var(--ok);}
   .pill.warn{background:var(--warn-soft);color:var(--warn);}
   .pill.bad{background:var(--bad-soft);color:var(--bad);}
   .pill.info{background:var(--brand-soft);color:var(--brand-2);}
 
-  table{width:100%;border-collapse:collapse;font-size:10.5px;margin:6px 0 12px;}
-  th{background:var(--navy);color:#fff;text-align:left;padding:7px 9px;font-weight:700;font-size:10px;}
+  table{width:100%;border-collapse:collapse;font-size:10.5px;margin:6px 0 12px;box-shadow:0 4px 14px rgba(11,31,58,.05);}
+  th{background:linear-gradient(180deg,#15355f,#0b1f3a);color:#fff;text-align:left;padding:8px 9px;font-weight:700;font-size:10px;}
   td{padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:top;}
   tr:nth-child(even) td{background:var(--panel);}
   table.tight td,table.tight th{padding:5px 8px;}
 
   ul.clean{margin:4px 0 10px;padding-left:18px;}
   ul.clean li{margin-bottom:4px;}
-  .callout{border-left:4px solid var(--brand);background:var(--brand-soft);padding:10px 14px;border-radius:0 10px 10px 0;margin:10px 0;}
+  .callout{border-left:4px solid var(--brand);background:var(--brand-soft);padding:11px 15px;border-radius:0 12px 12px 0;margin:10px 0;box-shadow:0 4px 12px rgba(11,31,58,.05);}
   .callout.warn{border-color:var(--warn);background:var(--warn-soft);}
   .callout.ok{border-color:var(--ok);background:var(--ok-soft);}
   .callout h4{margin-bottom:3px;}
 
-  .qa{border:1px solid var(--line);border-radius:11px;padding:12px 15px;margin-bottom:9px;background:#fff;}
+  .qa{border:1px solid var(--line);border-radius:12px;padding:12px 15px;margin-bottom:9px;background:#fff;box-shadow:0 3px 10px rgba(11,31,58,.05);}
   .qa .q{font-weight:800;color:var(--navy);font-size:12px;margin-bottom:4px;}
   .qa .q::before{content:"Q";display:inline-block;background:var(--navy);color:#fff;font-size:9px;border-radius:5px;padding:1px 6px;margin-right:7px;}
   .qa .a{color:var(--ink-2);font-size:11px;}
@@ -80,7 +86,7 @@
   .foot{position:running(footer);}
   figure{margin:6px 0 12px;}
   figcaption{font-size:9.5px;color:var(--muted);text-align:center;margin-top:5px;}
-  .diagram{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;}
+  .diagram{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:0 6px 18px rgba(11,31,58,.06);}
 </style>
 </head>
 <body>
@@ -90,6 +96,21 @@
   <div class="confidential">Internal | Confidential</div>
   <svg class="wave" viewBox="0 0 1000 220" preserveAspectRatio="none" height="220" width="100%">
     <path d="M0,140 L120,140 L150,60 L185,190 L220,110 L260,140 L1000,140 L1000,220 L0,220 Z" fill="#3b82f6"/>
+  </svg>
+  <svg class="panes" width="400" height="400" viewBox="0 0 360 360" fill="none">
+    <g opacity="0.55"><rect x="120" y="60" width="210" height="135" rx="14" fill="#fff" opacity="0.10" stroke="#9cc2ff" stroke-opacity="0.35"/></g>
+    <g opacity="0.85"><rect x="92" y="96" width="210" height="135" rx="14" fill="#0b2350" stroke="#9cc2ff" stroke-opacity="0.5"/>
+      <rect x="108" y="150" width="22" height="62" rx="3" fill="#3b82f6"/><rect x="138" y="132" width="22" height="80" rx="3" fill="#60a5fa"/>
+      <rect x="168" y="160" width="22" height="52" rx="3" fill="#3b82f6"/><rect x="198" y="118" width="22" height="94" rx="3" fill="#93c5fd"/>
+      <path d="M112 132 L150 120 L188 128 L226 104" stroke="#bfdbfe" stroke-width="2.5" fill="none"/>
+      <circle cx="112" cy="132" r="3" fill="#fff"/><circle cx="226" cy="104" r="3" fill="#fff"/>
+      <rect x="108" y="112" width="80" height="7" rx="3.5" fill="#9cc2ff" opacity="0.6"/></g>
+    <g><rect x="64" y="138" width="150" height="96" rx="12" fill="#0a1c36" stroke="#60a5fa" stroke-opacity="0.7"/>
+      <circle cx="86" cy="162" r="9" fill="none" stroke="#60a5fa" stroke-width="2.5"/><path d="M86 157 v5 l3 3" stroke="#60a5fa" stroke-width="2" fill="none"/>
+      <rect x="104" y="156" width="92" height="7" rx="3.5" fill="#9cc2ff" opacity="0.7"/>
+      <rect x="80" y="184" width="116" height="6" rx="3" fill="#3b82f6" opacity="0.8"/>
+      <rect x="80" y="198" width="92" height="6" rx="3" fill="#1e40af" opacity="0.9"/>
+      <rect x="80" y="212" width="70" height="6" rx="3" fill="#1e40af" opacity="0.6"/></g>
   </svg>
   <div class="inner">
     <div class="brandmark">
@@ -319,12 +340,12 @@
 <div class="page pagebreak">
   <div class="sec-head"><span class="num">06</span><h2>Features - the product</h2></div>
   <div class="grid2">
-    <div class="card"><h4>Host any dashboard <span class="pill ok">live</span></h4><p class="small">Embed the vendor surface; Power BI is a real client integration with secure embed + a developer tools strip. Tableau/Qlik/Looker embed via iframe today.</p></div>
-    <div class="card"><h4>AI Insights briefing <span class="pill ok">live</span></h4><p class="small">Auto-generated executive briefing - Headline, KPI snapshot, Trends, Risks, Recommended actions - plus author-defined sections. Staged reveal for perceived speed.</p></div>
-    <div class="card"><h4>Ask Pulse (conversational) <span class="pill ok">live</span></h4><p class="small">Plain-language Q&amp;A grounded in the active BI context, through whichever connector is selected.</p></div>
-    <div class="card"><h4>Workbench (3 tabs) <span class="pill ok">live</span></h4><p class="small">AI Insights | Ask Pulse | Dashboard, one consistent shell. Author-only "Workbench templates" preset the tabs, landing surface, scope and section set.</p></div>
-    <div class="card"><h4>Author authoring controls <span class="pill ok">live</span></h4><p class="small">Sections in markdown <i>or</i> warehouse-backed SQL config-items; number-format guidance; SWOT/BCG/RFM presets; domain guidance; knowledge packs.</p></div>
-    <div class="card"><h4>Governed by design <span class="pill ok">live</span></h4><p class="small">Allow-listed vendors/profiles/origins; server-side embed tokens; PII redaction + field masking; the 4-status trust contract; capability-aware "requires X" affordances.</p></div>
+    <div class="card icard"><div class="ic g-blue"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div><div><h4>Host any dashboard <span class="pill ok">live</span></h4><p class="small">Embed the vendor surface; Power BI is a real client integration with secure embed + a developer tools strip. Tableau/Qlik/Looker embed via iframe today.</p></div></div>
+    <div class="card icard"><div class="ic g-indigo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h10l4 4v14H5z"/><path d="M9 12h6M9 16h6M9 8h3"/></svg></div><div><h4>AI Insights briefing <span class="pill ok">live</span></h4><p class="small">Auto-generated executive briefing - Headline, KPI snapshot, Trends, Risks, Recommended actions - plus author-defined sections. Staged reveal for perceived speed.</p></div></div>
+    <div class="card icard"><div class="ic g-teal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8 8 0 0 1-11.5 7.2L4 20l1.3-5A8 8 0 1 1 21 11.5z"/></svg></div><div><h4>Ask Pulse (conversational) <span class="pill ok">live</span></h4><p class="small">Plain-language Q&amp;A grounded in the active BI context, through whichever connector is selected.</p></div></div>
+    <div class="card icard"><div class="ic g-violet"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M3 10h6"/></svg></div><div><h4>Workbench (3 tabs) <span class="pill ok">live</span></h4><p class="small">AI Insights | Ask Pulse | Dashboard, one consistent shell. Author-only "Workbench templates" preset the tabs, landing surface, scope and section set.</p></div></div>
+    <div class="card icard"><div class="ic g-amber"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg></div><div><h4>Author authoring controls <span class="pill ok">live</span></h4><p class="small">Sections in markdown <i>or</i> warehouse-backed SQL config-items; number-format guidance; SWOT/BCG/RFM presets; domain guidance; knowledge packs.</p></div></div>
+    <div class="card icard"><div class="ic g-green"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 L4 6 v6 c0 5 3.5 8 8 10 4.5-2 8-5 8-10 V6 Z"/><path d="M9 12 l2 2 4-4"/></svg></div><div><h4>Governed by design <span class="pill ok">live</span></h4><p class="small">Allow-listed vendors/profiles/origins; server-side embed tokens; PII redaction + field masking; the 4-status trust contract; capability-aware "requires X" affordances.</p></div></div>
   </div>
   <h3 style="margin-top:14px;font-size:14px">The accuracy contract - "no ungrounded artifacts"</h3>
   <p class="small">Every AI artifact carries one of four honest statuses, set by PulsePlay's validator (never by the model): <span class="pill ok">Verified</span> <span class="pill info">Grounded&nbsp;draft</span> <span class="pill warn">Suggestion</span> <span class="pill bad">Blocked</span>. This is the difference between a demo chatbot and an enterprise tool: the system tells the user how much to trust each answer. <span class="muted">(Today the validator enforces section <i>shape/structure</i>; factual-correctness scoring is a roadmap item - see Section 11.)</span></p>
