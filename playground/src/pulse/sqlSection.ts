@@ -27,6 +27,10 @@ export interface SqlSection {
     title: string;
     sql: string;
     resultRender: "kpi" | "table" | "chart";
+    /** 2026-05-28 — optional target connector profile. The section's SQL runs
+     *  against this profile's warehouse (a Genie space OR a direct/underlying-
+     *  data warehouse). Empty/unset → runs against the active profile. */
+    profile?: string;
     format?: {
         numberStyle?: "currency" | "percent" | "compact";
         showPriorPeriodDelta?: boolean;
@@ -78,6 +82,7 @@ export function normalizeSection(input: unknown): AnySection {
         const resultRender: SqlSection["resultRender"] =
             renderRaw === "table" || renderRaw === "chart" ? renderRaw : "kpi";
         const out: SqlSection = { kind: "sql", title, sql, resultRender };
+        if (typeof obj.profile === "string" && obj.profile.trim()) out.profile = obj.profile.trim();
         if (obj.format && typeof obj.format === "object") {
             const f = obj.format as Record<string, unknown>;
             const ns = typeof f.numberStyle === "string" ? f.numberStyle : "";

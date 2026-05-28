@@ -58,6 +58,7 @@ import { GenieVisualSettings } from "./settings";
 import { getKBSystemPrompt, getKBChatHint, parseOrgRules } from "./knowledgeBase";
 import { describeGenieStatus } from "./progressVocab";
 import { safeAuthorPrompt } from "./promptRedaction";
+import { parseGuidanceActivators } from "./guidanceActivators";
 import {
     analyzeDataShape as analyzeSharedDataShape,
     CHART_OPTIONS,
@@ -752,6 +753,16 @@ export interface InsightsStagePrompts {
 
 export const FAST_INSIGHTS_STAGE_TITLE = "AI Insights briefing";
 
+// 2026-05-28 — shared mask-parroting guard. Author Formatting Standards
+// tables use `#`-mask notation (e.g. `#,###.##`, `### ###.##`, `##.##%`).
+// That notation is a SPECIFICATION for formatting real numbers — never a
+// literal value to print. Live bug: with no data bound, the model copied
+// `### ### ###.##` straight into the HEADLINE as if it were the value.
+// Injected into every insights stage (hybrid + legacy) so it applies
+// throughout, exactly as the author intends number formatting to.
+export const FORMAT_MASK_GUARD =
+    "FORMAT-MASK RULE (load-bearing): any `#` placeholder notation in the formatting guidance (e.g. `#,###.##`, `### ###`, `##.##%`) describes HOW to format a real number — it is a pattern, never a value. NEVER print literal `#` characters as a number. If you do not have a concrete value to report (e.g. no data is bound), say so in words (\"no data bound for this metric\") — do NOT emit a mask like `### ### ###.##` in its place.";
+
 export function buildInsightsStagePrompts(
     context: ContextSummary,
     _roleMode: UserMode,
@@ -775,7 +786,8 @@ export function buildInsightsStagePrompts(
         "- Do NOT bold dimensional labels (segment names, region names, category names, product names, time periods). They are context, not the headline data.\n" +
         "- Do NOT use heading markdown (#, ##, ###, ####) inside bullet items, paragraphs, or ANYWHERE in this stage's output beyond the single section heading at the very top. Heading markup renders with larger font and breaks card layout. Use plain text or **bold** only for emphasis.\n" +
         "- Bullet items must use plain \"- \" prefix. The label-then-data pattern is: \"- **Label:** body text with **bold numbers**\" — NOT \"### Label\" followed by body.\n" +
-        "- Inline bold using **text** only. No heading-style emphasis inside narrative or bullets.";
+        "- Inline bold using **text** only. No heading-style emphasis inside narrative or bullets.\n" +
+        FORMAT_MASK_GUARD;
 
     // Stage 1: HEADLINE + KPI SNAPSHOT in one call.
     // One conversation = one SQL execution = no competing cold-starts.
@@ -867,7 +879,10 @@ export function buildFastHybridInsightsStagePrompts(
     // (ignore-previous-instructions, you-are-now, developer-mode, etc.).
     // See playground/src/pulse/promptRedaction.ts.
     metricRules = safeAuthorPrompt(metricRules);
-    authorGuidance = safeAuthorPrompt(authorGuidance);
+    // 2026-05-28 — strip recognized activator blocks (## Numeric Formatting /
+    // ## Masking) and replace with mask-free directives before the guidance
+    // reaches the LLM, so `#`-mask notation can never be parroted into prose.
+    authorGuidance = sanitizeGuidanceForPrompt(safeAuthorPrompt(authorGuidance));
     const aiSections = customSections
         .filter(s => s.kind !== "sql")
         .map(s => ({
@@ -956,6 +971,7 @@ export function buildFastHybridInsightsStagePrompts(
             "POLISH CONTRACT: write like a finished executive card. Use crisp bullets, no filler phrases, no raw audit/debug language, no duplicated explanations.",
             "Narrative bullets must not contain 🟢/🟡/🔴 status emojis or raw threshold parentheticals such as `(>3%, 🔴 >7%)`. Put status icons only in KPI table cells. If a threshold matters, write it in words, e.g. `above the 3% caution line`.",
             "Avoid awkward metric-rule fragments such as `caution threshold (>3 ▼ -7%)`, `red threshold`, or bare comparator formulas in prose.",
+            FORMAT_MASK_GUARD,
             "",
             "SECTION CONTRACTS:",
             sections.join("\n\n"),
@@ -1005,7 +1021,10 @@ export function buildStagedHybridInsightsPlan(
     opts?: { batchSize?: 1 | 2 | 3 }
 ): InsightsStagePrompts {
     metricRules = safeAuthorPrompt(metricRules);
-    authorGuidance = safeAuthorPrompt(authorGuidance);
+    // 2026-05-28 — strip recognized activator blocks (## Numeric Formatting /
+    // ## Masking) and replace with mask-free directives before the guidance
+    // reaches the LLM, so `#`-mask notation can never be parroted into prose.
+    authorGuidance = sanitizeGuidanceForPrompt(safeAuthorPrompt(authorGuidance));
     const aiSections = customSections
         .filter(s => s.kind !== "sql")
         .map(s => ({
@@ -1116,6 +1135,7 @@ export function buildStagedHybridInsightsPlan(
         "POLISH CONTRACT: write like a finished executive card. Use crisp bullets, no filler phrases, no raw audit/debug language, no duplicated explanations.",
         "Narrative bullets must not contain 🟢/🟡/🔴 status emojis or raw threshold parentheticals such as `(>3%, 🔴 >7%)`. Put status icons only in KPI table cells. If a threshold matters, write it in words, e.g. `above the 3% caution line`.",
         "Avoid awkward metric-rule fragments such as `caution threshold (>3 ▼ -7%)`, `red threshold`, or bare comparator formulas in prose.",
+        FORMAT_MASK_GUARD,
     ].join("\n");
 
     const stages: string[] = batches.map((batchBlocks, batchIdx) => {
@@ -1200,6 +1220,10 @@ export interface HybridCustomSection {
      *  Section H CTE preamble is auto-prepended at execution; this field
      *  holds JUST the section's SELECT body. */
     sql?: string;
+    /** 2026-05-28 — optional target connector profile for a SQL section. The
+     *  section's SQL executes against this profile's warehouse (a Genie space
+     *  OR a direct/underlying-data warehouse). Unset → active profile. */
+    profile?: string;
     /** Wave 35 — display variant for the executed SQL result. */
     resultRender?: "kpi" | "table" | "chart";
     /** Wave 35 — display formatting for the executed SQL result. */
@@ -1247,6 +1271,10 @@ export function parseCustomSections(raw: string | undefined | null): HybridCusto
                     out.sql = typeof src.sql === "string" ? src.sql : "";
                     const renderRaw = typeof src.resultRender === "string" ? String(src.resultRender) : "";
                     out.resultRender = (renderRaw === "table" || renderRaw === "chart") ? renderRaw : "kpi";
+                    // 2026-05-28 — optional per-section target profile. Runtime
+                    // routes this section's SQL to this profile's warehouse
+                    // (Genie space or direct warehouse); unset → active profile.
+                    if (typeof src.profile === "string" && src.profile.trim()) out.profile = src.profile.trim();
                     if (src.format && typeof src.format === "object") {
                         const f = src.format as Record<string, unknown>;
                         const ns = typeof f.numberStyle === "string" ? f.numberStyle : "";
@@ -1334,7 +1362,10 @@ export function buildHybridInsightsStagePrompts(
     // `safeAuthorPrompt`. Best-effort heuristic; the AI vendor's prompt
     // hierarchy + the validator framework are the real fence.
     metricRules = safeAuthorPrompt(metricRules);
-    authorGuidance = safeAuthorPrompt(authorGuidance);
+    // 2026-05-28 — strip recognized activator blocks (## Numeric Formatting /
+    // ## Masking) and replace with mask-free directives before the guidance
+    // reaches the LLM, so `#`-mask notation can never be parroted into prose.
+    authorGuidance = sanitizeGuidanceForPrompt(safeAuthorPrompt(authorGuidance));
     customSections = customSections
         // Wave 35 Phase 2 — SQL sections aren't part of the prompt-engineering
         // pipeline. Strip them out before assembling stage prompts so the
@@ -1364,7 +1395,8 @@ export function buildHybridInsightsStagePrompts(
     // stage so currency / decimals / abbreviation behaviour is consistent
     // across stages (no more `£` showing up alongside `$`, no `2,300,000`
     // mixed with `2.30M`). Author can override via domainGuidance.
-    const formatContract = "Number format contract: prefer USD ($) unless the dataset is unambiguously in another currency; format large values as K/M/B (e.g. $2.30M); always 2 decimals for currency and percent; never mix currency symbols within a single response. Percentage-point deltas MUST use the `pp` suffix (e.g. `+0.13pp`, `-0.85pp`, `flat`) — NEVER emit a bare number like `0.13` for a pp delta. Zero / no-change deltas should be written as `flat` or `0pp`, not `0` or `0%`. CRITICAL — never combine a fully-formatted dollar number with a magnitude suffix: write `$733,215.26` OR `$733.22K`, never `$733,215.26M` (that reads as `733 million million`). If the value is six digits or more, either keep it fully formatted ($XXX,XXX.XX) or abbreviate it ($X.XXM / $XXX.XXK), but never both.";
+    const formatContract = "Number format contract: prefer USD ($) unless the dataset is unambiguously in another currency; format large values as K/M/B (e.g. $2.30M); always 2 decimals for currency and percent; never mix currency symbols within a single response. Percentage-point deltas MUST use the `pp` suffix (e.g. `+0.13pp`, `-0.85pp`, `flat`) — NEVER emit a bare number like `0.13` for a pp delta. Zero / no-change deltas should be written as `flat` or `0pp`, not `0` or `0%`. CRITICAL — never combine a fully-formatted dollar number with a magnitude suffix: write `$733,215.26` OR `$733.22K`, never `$733,215.26M` (that reads as `733 million million`). If the value is six digits or more, either keep it fully formatted ($XXX,XXX.XX) or abbreviate it ($X.XXM / $XXX.XXK), but never both. " +
+        FORMAT_MASK_GUARD;
 
     // L5 — naming-fidelity contract. Live-test surfaced a case where the model
     // emitted `Supplies` as a "negative-margin sub-category" while the
@@ -2121,12 +2153,17 @@ export function buildGenieRequest(
 
     // Business guidance is large (~2KB) and static. Send it on the first turn
     // only; subsequent turns ride on the conversation's short-term memory.
+    // 2026-05-28 — sanitize first so `## Numeric Formatting` / `## Masking`
+    // activator blocks are translated to mask-free directives (no `#` for the
+    // model to parrot) on the chat path too. orgRules read from the ORIGINAL
+    // guidance so existing org-rule extraction is unaffected.
     if (!options?.omitDomainGuidance && domainGuidance.trim()) {
         const orgRules = parseOrgRules(domainGuidance);
         const orgHint = orgRules.length > 0
             ? `\n[Org-specific rules]\n${orgRules.slice(0, 8).map(r => `- ${r.rule}`).join("\n")}`
             : "";
-        sections.push(`Business guidance: ${truncateForPrompt(domainGuidance.trim(), MAX_GUIDANCE_CHARS)}${orgHint}`);
+        const safeGuidance = sanitizeGuidanceForPrompt(domainGuidance);
+        sections.push(`Business guidance: ${truncateForPrompt(safeGuidance.trim(), MAX_GUIDANCE_CHARS)}${orgHint}`);
     }
     // Wrap the user question in a fenced block so instructions embedded in
     // question text are less likely to override the surrounding system framing.
@@ -2491,7 +2528,10 @@ export function deriveDivisor(suffix: string, example?: string): number {
 }
 
 export function parseFormatRules(guidance: string): FormatRule[] {
-    const sec = guidance.match(/##\s*Formatting\s+Standards([\s\S]*?)(?=\n##\s|$)/i);
+    // 2026-05-28 — `## Numeric Formatting` is the canonical activator keyword;
+    // `## Formatting Standards` / `## Number Formatting` are recognized aliases
+    // for backward-compatibility with existing author guidance.
+    const sec = guidance.match(/##\s*(?:Numeric\s+Formatting|Number\s+Formatting|Formatting\s+Standards)([\s\S]*?)(?=\n##\s|$)/i);
     if (!sec) return [];
     const lines = sec[1].split("\n").map(l => l.trim()).filter(l => l.startsWith("|"));
     if (lines.length < 3) return [];
@@ -2513,6 +2553,68 @@ export function parseFormatRules(guidance: string): FormatRule[] {
     }
     rules.sort((a, b) => a.min - b.min);
     return rules;
+}
+
+/* ── Activator-keyword guidance handling (2026-05-28) ─────────────── */
+
+/** Translate parsed number-format rules into a plain-English directive for
+ *  the LLM. Crucially this contains NO `#`-mask characters — it describes
+ *  the intended display so the model formats real numbers correctly
+ *  without ever being able to parrot a literal mask into prose. */
+export function describeFormatRules(rules: FormatRule[]): string {
+    if (!rules || rules.length === 0) return "";
+    const human = (n: number): string =>
+        !isFinite(n) ? (n > 0 ? "infinity" : "negative infinity") : new Intl.NumberFormat("en-US").format(n);
+    const parts = rules.map(r => {
+        const range =
+            r.min <= 0 && !isFinite(r.max) ? "all values"
+            : !isFinite(r.max) ? `values ${human(r.min)} and above`
+            : r.min <= 0 ? `values under ${human(r.max)}`
+            : `values from ${human(r.min)} up to ${human(r.max)}`;
+        const dec = r.decimals === 0
+            ? "show as whole numbers (no decimals)"
+            : `show with ${r.decimals} decimal place${r.decimals === 1 ? "" : "s"}`;
+        const grouped = r.divisor === 1 ? ", comma-grouped thousands" : "";
+        const abbr = r.suffix ? `, abbreviated with the "${r.suffix}" suffix` : "";
+        return `${range}: ${dec}${grouped}${abbr}`;
+    });
+    return "Number display rules (apply to EVERY numeric value; these describe formatting only — never print literal hash/pound placeholder symbols as values): "
+        + parts.join("; ") + ".";
+}
+
+/** Prepare author guidance for injection into an LLM prompt. Recognized
+ *  activator blocks (`## Numeric Formatting`, `## Masking`, …) are removed
+ *  from the raw prose and replaced with clean, mask-free directives, so the
+ *  model gets the INTENT without any literal `#`-mask text to parrot.
+ *  Unrecognized prose passes through untouched. When no activators are
+ *  present the original guidance is returned unchanged. */
+export function sanitizeGuidanceForPrompt(guidance: string): string {
+    if (!guidance || !guidance.trim()) return guidance ?? "";
+    const parsed = parseGuidanceActivators(guidance);
+    if (parsed.blocks.length === 0) return guidance;
+
+    const parts: string[] = [];
+    if (parsed.prose.trim()) parts.push(parsed.prose.trim());
+
+    for (const block of parsed.blocks) {
+        if (block.id === "numeric-formatting") {
+            const rules = parseFormatRules(guidance);
+            const described = describeFormatRules(rules);
+            // Prefer the structured translation; fall back to the author's
+            // free text with `#` mask characters stripped so nothing can be
+            // parroted even when the block isn't a parseable table.
+            parts.push(described
+                || ("Number display guidance (apply to all numeric values; describe formatting only, never print literal placeholder characters): "
+                    + block.body.replace(/#/g, "").replace(/\s{2,}/g, " ").trim()));
+        } else if (block.id === "masking") {
+            // Slice 1 — recognized + reserved. Keep the raw masking rules OUT
+            // of the prose and instruct the model to honour masking. Full
+            // enforcement (redacting masked field values from context +
+            // display) is the next slice.
+            parts.push("Data-masking is configured for this report: never reveal, reconstruct, or infer the full value of any field the deployment masks; refer to masked values generically.");
+        }
+    }
+    return parts.join("\n\n");
 }
 
 /* ── Number formatting ───────────────────────────────────────────── */

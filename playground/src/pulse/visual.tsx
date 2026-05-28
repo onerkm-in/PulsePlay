@@ -4431,7 +4431,10 @@ function App(props: AppProps) {
             executeSqlPreviewClient({
                 apiBaseUrl,
                 proxyKey,
-                assistantProfile: profile,
+                // 2026-05-28 — per-section target profile when defined (a Genie
+                // space OR a direct/underlying-data warehouse); else the active
+                // profile. Routes this section's SQL to that profile's warehouse.
+                assistantProfile: (sec.profile && sec.profile.trim()) || profile,
                 sectionH_cteHeader: cteHeader,
                 sql: sec.sql || "",
             }).then(result => {
