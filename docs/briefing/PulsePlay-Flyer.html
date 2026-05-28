@@ -5,92 +5,113 @@
 <title>PulsePlay - Flyer</title>
 <style>
   :root{
-    --navy:#0b1f3a; --navy2:#13315c; --brand:#2563eb; --brand2:#3b82f6; --brand3:#60a5fa;
-    --ink:#0f172a; --muted:#5b6b80; --soft:#f3f6fb; --line:#e2e8f0; --ok:#059669;
+    --navy:#0b1f3a; --navy2:#13315c; --ink:#0f172a; --muted:#566275; --faint:#8a98ab;
+    --brand:#2563eb; --brand2:#3b82f6; --brand3:#60a5fa;
+    --soft:#f4f7fc; --soft2:#eaf1fb; --line:#e4eaf2;
+    --ok:#0e9f6e; --teal:#0891b2; --violet:#6d28d9; --amber:#c2670a; --indigo:#4f46e5;
+    --shadow:0 8px 26px rgba(11,31,58,.08);
+    --shadow-sm:0 4px 14px rgba(11,31,58,.06);
     --font:"Segoe UI",-apple-system,BlinkMacSystemFont,system-ui,Roboto,Arial,sans-serif;
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;background:#fff;color:var(--ink);font-family:var(--font);-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   .page{width:210mm;min-height:297mm;position:relative;overflow:hidden;page-break-after:always;background:#fff;}
-  h1,h2,h3{margin:0;line-height:1.1;color:var(--navy);}
+  h1,h2,h3,h4{margin:0;line-height:1.12;color:var(--navy);}
   p{margin:0;}
 
+  /* gradient icon tiles */
+  .ic{width:46px;height:46px;border-radius:13px;flex-shrink:0;display:flex;align-items:center;justify-content:center;box-shadow:0 5px 12px rgba(37,99,235,.22);}
+  .g-blue{background:linear-gradient(135deg,#2563eb,#60a5fa);} .g-teal{background:linear-gradient(135deg,#0e7490,#22d3ee);}
+  .g-violet{background:linear-gradient(135deg,#6d28d9,#a78bfa);} .g-green{background:linear-gradient(135deg,#059669,#34d399);}
+  .g-amber{background:linear-gradient(135deg,#b45309,#f59e0b);} .g-indigo{background:linear-gradient(135deg,#4338ca,#818cf8);}
+  .g-slate{background:linear-gradient(135deg,#334155,#64748b);}
+
+  .eyebrow{font-size:12px;letter-spacing:3px;text-transform:uppercase;font-weight:800;color:var(--brand);display:flex;align-items:center;gap:9px;}
+  .eyebrow::before{content:"";width:26px;height:3px;border-radius:3px;background:linear-gradient(90deg,#2563eb,#60a5fa);}
+  .h2{font-size:28px;font-weight:800;margin:10px 0 4px;letter-spacing:-.4px;}
+  .sub{font-size:14.5px;color:var(--muted);max-width:660px;line-height:1.55;}
+  .section{padding:34px 46px;}
+  .tint{background:var(--soft);}
+
   /* HERO */
-  .hero{background:linear-gradient(145deg,#0b1f3a 0%,#13315c 50%,#1d4ed8 125%);color:#fff;padding:46px 44px 54px;position:relative;overflow:hidden;}
-  .hero .blob{position:absolute;border-radius:50%;filter:blur(2px);opacity:.25;}
-  .brand{display:flex;align-items:center;gap:12px;}
-  .brand .d{width:40px;height:40px;border-radius:11px;background:linear-gradient(135deg,#3b82f6,#60a5fa);display:flex;align-items:center;justify-content:center;}
-  .brand .n{font-size:23px;font-weight:800;color:#fff;}
-  .brand .tag{margin-left:auto;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#9cc2ff;border:1px solid rgba(156,194,255,.4);padding:5px 11px;border-radius:6px;}
-  .hero h1{color:#fff;font-size:46px;font-weight:800;margin-top:34px;max-width:560px;letter-spacing:-.5px;}
-  .hero .lead{color:#d7e6ff;font-size:17px;margin-top:18px;max-width:540px;line-height:1.5;}
-  .hero .pills{margin-top:26px;display:flex;gap:10px;flex-wrap:wrap;}
-  .hero .pill{background:rgba(255,255,255,.10);border:1px solid rgba(156,194,255,.35);color:#eaf2ff;font-size:13px;font-weight:600;padding:7px 14px;border-radius:999px;}
-  .hero .wave{position:absolute;left:0;right:0;bottom:-2px;opacity:.20;}
+  .hero{background:radial-gradient(1100px 460px at 88% -8%,#1e4fd0 0%,rgba(30,79,208,0) 60%),linear-gradient(150deg,#0a1c36 0%,#13315c 52%,#1d4ed8 132%);color:#fff;padding:44px 46px 60px;position:relative;overflow:hidden;}
+  .brand{display:flex;align-items:center;gap:12px;position:relative;z-index:3;}
+  .brand .d{width:40px;height:40px;border-radius:11px;background:linear-gradient(135deg,#3b82f6,#60a5fa);display:flex;align-items:center;justify-content:center;box-shadow:0 6px 16px rgba(59,130,246,.45);}
+  .brand .n{font-size:23px;font-weight:800;color:#fff;letter-spacing:.2px;}
+  .brand .tag{margin-left:auto;font-size:10.5px;letter-spacing:2px;text-transform:uppercase;color:#bcd6ff;border:1px solid rgba(156,194,255,.45);padding:6px 12px;border-radius:7px;}
+  .hero h1{color:#fff;font-size:47px;font-weight:800;margin-top:30px;max-width:540px;letter-spacing:-1px;line-height:1.05;position:relative;z-index:3;}
+  .hero .lead{color:#d7e6ff;font-size:16.5px;margin-top:18px;max-width:500px;line-height:1.55;position:relative;z-index:3;}
+  .hero .pills{margin-top:26px;display:flex;gap:9px;flex-wrap:wrap;max-width:560px;position:relative;z-index:3;}
+  .hero .pill{background:rgba(255,255,255,.12);border:1px solid rgba(156,194,255,.4);color:#eaf2ff;font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:999px;backdrop-filter:blur(2px);}
+  .hero .panes{position:absolute;right:-30px;top:90px;z-index:1;opacity:.9;}
+  .hero .wave{position:absolute;left:0;right:0;bottom:-1px;z-index:2;opacity:.16;}
 
-  .section{padding:34px 44px;}
-  .eyebrow{font-size:12px;letter-spacing:3px;text-transform:uppercase;font-weight:800;color:var(--brand);}
-  .h2{font-size:27px;font-weight:800;margin:6px 0 4px;}
-  .sub{font-size:15px;color:var(--muted);max-width:640px;line-height:1.5;}
+  /* benefit cards */
+  .benefits{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:24px;}
+  .benefit{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px 22px;display:flex;gap:15px;align-items:flex-start;box-shadow:var(--shadow-sm);}
+  .benefit h3{font-size:16px;margin-bottom:5px;}
+  .benefit p{font-size:13px;color:var(--muted);line-height:1.5;}
 
-  .benefits{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:22px;}
-  .benefit{background:var(--soft);border:1px solid var(--line);border-radius:16px;padding:20px 22px;display:flex;gap:15px;align-items:flex-start;}
-  .benefit .ic{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#2563eb,#3b82f6);flex-shrink:0;display:flex;align-items:center;justify-content:center;}
-  .benefit h3{font-size:16px;margin-bottom:4px;}
-  .benefit p{font-size:13px;color:var(--muted);line-height:1.45;}
+  /* stat strip */
+  .strip{background:linear-gradient(110deg,#0a1c36,#16386a);color:#fff;padding:26px 46px;display:flex;justify-content:space-between;text-align:center;}
+  .strip .stat{flex:1;position:relative;}
+  .strip .stat + .stat::before{content:"";position:absolute;left:0;top:6px;bottom:6px;width:1px;background:rgba(156,194,255,.25);}
+  .strip .big{font-size:36px;font-weight:800;color:#fff;line-height:1;background:linear-gradient(180deg,#fff,#bcd6ff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+  .strip .lbl{font-size:11px;color:#9cc2ff;margin-top:8px;letter-spacing:1px;text-transform:uppercase;}
 
-  .strip{background:var(--navy);color:#fff;padding:22px 44px;display:flex;justify-content:space-around;text-align:center;}
-  .strip .stat .big{font-size:34px;font-weight:800;color:#fff;line-height:1;}
-  .strip .stat .lbl{font-size:12px;color:#9cc2ff;margin-top:6px;letter-spacing:.5px;}
+  /* BI page */
+  .axisviz{display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px;margin-top:20px;box-shadow:var(--shadow-sm);}
+  .vendgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:18px;}
+  .vend{border:1px solid var(--line);border-radius:14px;padding:16px 17px;background:#fff;box-shadow:var(--shadow-sm);position:relative;overflow:hidden;}
+  .vend::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;}
+  .vend.v1::before{background:linear-gradient(180deg,#2563eb,#60a5fa);} .vend.v2::before{background:linear-gradient(180deg,#0e7490,#22d3ee);} .vend.v3::before{background:linear-gradient(180deg,#64748b,#94a3b8);}
+  .vend .vh{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px;}
+  .vend h4{font-size:14.5px;}
+  .vend p{font-size:12px;color:var(--muted);line-height:1.5;}
+  .badge{font-size:10px;font-weight:800;letter-spacing:.3px;padding:4px 9px;border-radius:999px;white-space:nowrap;}
+  .badge.ok{background:#e3f6ee;color:#0e7a52;border:1px solid #a7e3c6;}
+  .badge.soon{background:#eaf1fb;color:#2563eb;border:1px solid #bcd4f5;}
+  .badge.any{background:#f1f3f7;color:#475569;border:1px solid #d8dee8;}
+  .axiswrap{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;}
+  .axiscard{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px 20px;box-shadow:var(--shadow-sm);}
+  .axiscard .k{font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:800;color:var(--brand);}
+  .axiscard h3{font-size:17px;margin:5px 0 7px;}
+  .axiscard p{font-size:12.5px;color:var(--muted);line-height:1.5;}
+  .axiscard .row{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px;}
+  .chip{font-size:11.5px;font-weight:600;padding:5px 11px;border-radius:999px;background:var(--soft);border:1px solid var(--line);color:var(--navy);}
+  .secband{margin-top:16px;background:linear-gradient(110deg,#0a1c36,#16386a);color:#fff;border-radius:16px;padding:22px 26px;display:grid;grid-template-columns:1fr 1fr;gap:24px;}
+  .secband h4{color:#fff;font-size:14px;margin-bottom:6px;display:flex;align-items:center;gap:8px;}
+  .secband p{color:#cfe0ff;font-size:12.5px;line-height:1.5;}
 
-  /* PAGE 2 */
-  .steps{display:flex;gap:14px;margin-top:22px;}
-  .step{flex:1;background:var(--soft);border:1px solid var(--line);border-radius:16px;padding:18px;text-align:center;position:relative;}
-  .step .num{width:34px;height:34px;border-radius:50%;background:var(--brand);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;font-size:16px;}
-  .step h4{font-size:15px;margin-bottom:5px;}
-  .step p{font-size:12.5px;color:var(--muted);line-height:1.4;}
-  .arrow{align-self:center;color:var(--brand);font-size:22px;font-weight:800;}
+  /* steps */
+  .flow{display:flex;align-items:stretch;gap:0;margin-top:24px;}
+  .stepcard{flex:1;background:#fff;border:1px solid var(--line);border-radius:16px;padding:22px 18px 18px;text-align:center;box-shadow:var(--shadow-sm);position:relative;}
+  .stepcard .num{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#2563eb,#60a5fa);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:17px;box-shadow:0 6px 14px rgba(37,99,235,.35);}
+  .stepcard h4{font-size:15px;margin-bottom:6px;}
+  .stepcard p{font-size:12.5px;color:var(--muted);line-height:1.5;}
+  .chev{width:34px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 
-  .features{display:grid;grid-template-columns:1fr 1fr 1fr;gap:13px;margin-top:20px;}
-  .feat{border:1px solid var(--line);border-radius:13px;padding:15px 16px;background:#fff;}
-  .feat .dot{width:9px;height:9px;border-radius:50%;background:var(--ok);display:inline-block;margin-right:7px;}
-  .feat h4{font-size:14px;display:inline;}
-  .feat p{font-size:12px;color:var(--muted);margin-top:7px;line-height:1.4;}
+  /* features */
+  .features{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:20px;}
+  .feat{border:1px solid var(--line);border-radius:14px;padding:16px;background:#fff;box-shadow:var(--shadow-sm);}
+  .feat .ic{width:38px;height:38px;border-radius:10px;margin-bottom:11px;box-shadow:0 4px 10px rgba(37,99,235,.2);}
+  .feat h4{font-size:13.5px;margin-bottom:5px;}
+  .feat p{font-size:11.5px;color:var(--muted);line-height:1.45;}
 
-  .who{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:20px;}
-  .who .card{background:var(--soft);border:1px solid var(--line);border-radius:14px;padding:16px 18px;}
-  .who h4{font-size:14px;margin-bottom:5px;color:var(--brand);}
-  .who p{font-size:12.5px;color:var(--muted);line-height:1.45;}
+  /* audience */
+  .who{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px;}
+  .wcard{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px;display:flex;gap:13px;align-items:flex-start;box-shadow:var(--shadow-sm);}
+  .wcard .ic{width:40px;height:40px;border-radius:11px;}
+  .wcard h4{font-size:13.5px;margin-bottom:4px;color:var(--navy);}
+  .wcard p{font-size:12px;color:var(--muted);line-height:1.5;}
 
-  .cta{margin:30px 44px 0;background:linear-gradient(145deg,#0b1f3a,#1d4ed8);border-radius:18px;color:#fff;padding:28px 34px;display:flex;align-items:center;gap:24px;}
-  .cta .big{font-size:24px;font-weight:800;color:#fff;max-width:420px;line-height:1.25;}
-  .cta .line{font-size:14px;color:#cfe0ff;margin-top:8px;}
-  .footer{padding:18px 44px;color:#94a3b8;font-size:11px;display:flex;justify-content:space-between;align-items:center;}
-
-  /* BI-SIDE PAGE */
-  .vendgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:22px;}
-  .vend{border:1px solid var(--line);border-radius:14px;padding:17px 18px;background:#fff;}
-  .vend .vh{display:flex;align-items:center;justify-content:space-between;gap:8px;}
-  .vend h4{font-size:15px;}
-  .vend p{font-size:12.5px;color:var(--muted);line-height:1.45;margin-top:9px;}
-  .badge{font-size:10.5px;font-weight:800;letter-spacing:.4px;padding:4px 9px;border-radius:999px;white-space:nowrap;}
-  .badge.ok{background:#e8f6ef;color:#047857;border:1px solid #a7e3c6;}
-  .badge.soon{background:#eef3fb;color:#2563eb;border:1px solid #bcd4f5;}
-  .axiswrap{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:22px;}
-  .axiscard{background:var(--soft);border:1px solid var(--line);border-radius:16px;padding:20px 22px;}
-  .axiscard .k{font-size:11.5px;letter-spacing:2px;text-transform:uppercase;font-weight:800;color:var(--brand);}
-  .axiscard h3{font-size:18px;margin:6px 0 8px;}
-  .axiscard p{font-size:13px;color:var(--muted);line-height:1.45;}
-  .axiscard .row{display:flex;flex-wrap:wrap;gap:7px;margin-top:13px;}
-  .chip{font-size:12px;font-weight:600;padding:5px 11px;border-radius:999px;background:#fff;border:1px solid var(--line);color:var(--navy);}
-  .secband{margin-top:22px;background:var(--navy);color:#fff;border-radius:16px;padding:22px 26px;display:grid;grid-template-columns:1fr 1fr;gap:20px;}
-  .secband .si h4{color:#fff;font-size:14px;margin-bottom:6px;}
-  .secband .si p{color:#cfe0ff;font-size:12.5px;line-height:1.45;}
-  .natband{margin-top:18px;border:1px solid var(--line);border-radius:16px;padding:16px 22px;background:var(--soft);}
-  .natband h4{font-size:14.5px;color:var(--navy);margin-bottom:10px;}
-  .natrow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
-  .natrow .n{font-size:12px;color:var(--muted);line-height:1.42;}
-  .natrow .n b{color:var(--navy);}
+  /* CTA */
+  .cta{margin:8px 46px 0;background:radial-gradient(700px 240px at 12% 0%,#2a5bd7 0%,rgba(42,91,215,0) 70%),linear-gradient(120deg,#0a1c36,#1d4ed8);border-radius:20px;color:#fff;padding:30px 36px;display:flex;align-items:center;gap:26px;box-shadow:var(--shadow);}
+  .cta .ring{width:64px;height:64px;border-radius:16px;background:rgba(255,255,255,.12);border:1px solid rgba(156,194,255,.4);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .cta .big{font-size:25px;font-weight:800;color:#fff;max-width:440px;line-height:1.2;letter-spacing:-.3px;}
+  .cta .line{font-size:13.5px;color:#cfe0ff;margin-top:9px;}
+  .footer{padding:16px 46px;color:#94a3b8;font-size:11px;display:flex;justify-content:space-between;align-items:center;}
+  .footer b{color:var(--navy);}
 </style>
 </head>
 <body>
@@ -98,124 +119,158 @@
 <!-- PAGE 1 -->
 <div class="page">
   <div class="hero">
-    <div class="blob" style="width:280px;height:280px;background:#3b82f6;right:-60px;top:-60px;"></div>
-    <div class="blob" style="width:180px;height:180px;background:#60a5fa;right:120px;top:140px;"></div>
+    <!-- stacked "panes of glass" product graphic -->
+    <svg class="panes" width="360" height="360" viewBox="0 0 360 360" fill="none">
+      <g opacity="0.55"><rect x="120" y="60" width="210" height="135" rx="14" fill="#fff" opacity="0.10" stroke="#9cc2ff" stroke-opacity="0.35"/></g>
+      <g opacity="0.8"><rect x="92" y="96" width="210" height="135" rx="14" fill="#0b2350" stroke="#9cc2ff" stroke-opacity="0.5"/>
+        <rect x="108" y="150" width="22" height="62" rx="3" fill="#3b82f6"/><rect x="138" y="132" width="22" height="80" rx="3" fill="#60a5fa"/>
+        <rect x="168" y="160" width="22" height="52" rx="3" fill="#3b82f6"/><rect x="198" y="118" width="22" height="94" rx="3" fill="#93c5fd"/>
+        <path d="M112 132 L150 120 L188 128 L226 104" stroke="#bfdbfe" stroke-width="2.5" fill="none"/>
+        <circle cx="112" cy="132" r="3" fill="#fff"/><circle cx="226" cy="104" r="3" fill="#fff"/>
+        <rect x="108" y="112" width="80" height="7" rx="3.5" fill="#9cc2ff" opacity="0.6"/></g>
+      <g><rect x="64" y="138" width="150" height="96" rx="12" fill="#0a1c36" stroke="#60a5fa" stroke-opacity="0.7"/>
+        <circle cx="86" cy="162" r="9" fill="none" stroke="#60a5fa" stroke-width="2.5"/><path d="M86 157 v5 l3 3" stroke="#60a5fa" stroke-width="2" fill="none"/>
+        <rect x="104" y="156" width="92" height="7" rx="3.5" fill="#9cc2ff" opacity="0.7"/>
+        <rect x="80" y="184" width="116" height="6" rx="3" fill="#3b82f6" opacity="0.8"/>
+        <rect x="80" y="198" width="92" height="6" rx="3" fill="#1e40af" opacity="0.9"/>
+        <rect x="80" y="212" width="70" height="6" rx="3" fill="#1e40af" opacity="0.6"/></g>
+    </svg>
     <div class="brand">
       <div class="d"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h4l3-8 4 16 3-8h6"/></svg></div>
       <div class="n">PulsePlay</div>
       <div class="tag">Internal Platform</div>
     </div>
     <h1>One pane of glass for your BI&nbsp;+&nbsp;AI</h1>
-    <div class="lead">Look at any dashboard. Ask it questions in plain language. Get answers grounded in your own governed data - powered by the AI your organisation already runs.</div>
-    <div class="pills"><span class="pill">Any BI tool</span><span class="pill">Any AI brain</span><span class="pill">Your data | your governance</span><span class="pill">No new licence</span></div>
-    <svg class="wave" viewBox="0 0 800 120" preserveAspectRatio="none" height="120" width="100%"><path d="M0,72 L110,72 L140,28 L172,104 L205,52 L240,72 L800,72 L800,120 L0,120 Z" fill="#3b82f6"/></svg>
+    <div class="lead">Look at any dashboard. Ask it questions in plain language. Get answers grounded in your own governed data, powered by the AI your organisation already runs.</div>
+    <div class="pills"><span class="pill">Any BI tool</span><span class="pill">Any AI brain</span><span class="pill">Your data, your governance</span><span class="pill">No new licence</span></div>
+    <svg class="wave" viewBox="0 0 800 90" preserveAspectRatio="none" height="90" width="100%"><path d="M0,54 L110,54 L140,20 L172,78 L205,40 L240,54 L800,54 L800,90 L0,90 Z" fill="#3b82f6"/></svg>
   </div>
 
   <div class="section">
     <div class="eyebrow">Why teams love it</div>
     <div class="h2">Stop switching tools to ask your data a question</div>
-    <div class="sub">PulsePlay puts your BI tools and your AI services behind one screen - so everyone gets the same simple, trusted experience, whatever dashboard they're looking at.</div>
+    <div class="sub">PulsePlay puts your BI tools and your AI services behind one screen, so everyone gets the same simple, trusted experience whatever dashboard they are looking at.</div>
     <div class="benefits">
-      <div class="benefit"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div><div><h3>Every tool, one assistant</h3><p>Power BI, Tableau, Qlik, Looker - hosted side by side under a single AI that understands what you're viewing.</p></div></div>
-      <div class="benefit"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 L4 6 v6 c0 5 3.5 8 8 10 4.5-2 8-5 8-10 V6 Z"/><path d="M9 12 l2 2 4-4"/></svg></div><div><h3>Grounded &amp; governed</h3><p>Answers come from governed data with an honest trust badge. Access is allow-listed; sensitive fields are masked before any model sees them.</p></div></div>
-      <div class="benefit"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-6 4 4 6-7"/><path d="M14 8h6v6"/></svg></div><div><h3>Bring your own brain</h3><p>Genie, Foundation Models, Azure OpenAI, Bedrock, agents - 10 connector paths. Swap the AI without changing the experience.</p></div></div>
-      <div class="benefit"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><div><h3>No new licence, fast to extend</h3><p>Built in-house on platforms you already own. New tool or model? A drop-in module - not a rebuild.</p></div></div>
+      <div class="benefit"><div class="ic g-blue"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div><div><h3>Every tool, one assistant</h3><p>Power BI, Tableau, Qlik, Looker, hosted side by side under a single AI that understands what you are viewing.</p></div></div>
+      <div class="benefit"><div class="ic g-green"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 L4 6 v6 c0 5 3.5 8 8 10 4.5-2 8-5 8-10 V6 Z"/><path d="M9 12 l2 2 4-4"/></svg></div><div><h3>Grounded and governed</h3><p>Answers come from governed data with an honest trust badge. Access is allow-listed and sensitive fields are masked before any model sees them.</p></div></div>
+      <div class="benefit"><div class="ic g-violet"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/></svg></div><div><h3>Bring your own brain</h3><p>Genie, Foundation Models, Azure OpenAI, Bedrock, agents. Ten connector paths. Swap the AI without changing the experience.</p></div></div>
+      <div class="benefit"><div class="ic g-amber"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 L4 14 h7 l-1 8 9-12 h-7 z"/></svg></div><div><h3>No new licence, fast to extend</h3><p>Built in-house on platforms you already own. A new tool or model is a drop-in module, not a rebuild.</p></div></div>
     </div>
   </div>
 
   <div class="strip">
-    <div class="stat"><div class="big">2</div><div class="lbl">INDEPENDENT AXES</div></div>
-    <div class="stat"><div class="big">5</div><div class="lbl">BI SURFACES HOSTED</div></div>
-    <div class="stat"><div class="big">10</div><div class="lbl">AI CONNECTOR PATHS</div></div>
-    <div class="stat"><div class="big">4</div><div class="lbl">TRUST STATUSES</div></div>
-    <div class="stat"><div class="big">$0</div><div class="lbl">SOFTWARE LICENCE</div></div>
+    <div class="stat"><div class="big">2</div><div class="lbl">Independent axes</div></div>
+    <div class="stat"><div class="big">5</div><div class="lbl">BI surfaces hosted</div></div>
+    <div class="stat"><div class="big">10</div><div class="lbl">AI connector paths</div></div>
+    <div class="stat"><div class="big">4</div><div class="lbl">Trust statuses</div></div>
+    <div class="stat"><div class="big">$0</div><div class="lbl">Software licence</div></div>
   </div>
 </div>
 
-<!-- PAGE 2 - THE BI SIDE -->
+<!-- PAGE 2 -->
 <div class="page">
-  <div class="section" style="padding-top:44px;">
+  <div class="section" style="padding-top:42px;">
     <div class="eyebrow">The BI side of the story</div>
-    <div class="h2">Host any BI tool - vendor-agnostic by design</div>
-    <div class="sub">PulsePlay is the <b>host</b>, not a plugin trapped inside one vendor's surface. Your existing dashboards run inside one screen, embedded securely, and the assistant reasons about whatever you're currently viewing. Change the BI tool without changing anything about the AI.</div>
+    <div class="h2">Host any BI tool, vendor-agnostic by design</div>
+    <div class="sub">PulsePlay is the host, not a plugin trapped inside one vendor's surface. Your existing dashboards run inside one screen, embedded securely, and the assistant reasons about whatever you are viewing.</div>
+
+    <div class="axisviz">
+      <svg width="660" height="150" viewBox="0 0 660 150" fill="none" font-family="Segoe UI,sans-serif">
+        <!-- left: BI vendors -->
+        <text x="20" y="18" font-size="11" font-weight="800" letter-spacing="1.5" fill="#2563eb">WHAT YOU LOOK AT</text>
+        <g font-size="12">
+          <rect x="20" y="30" width="120" height="26" rx="7" fill="#eaf1fb" stroke="#bcd4f5"/><text x="80" y="47" text-anchor="middle" fill="#1d4ed8" font-weight="700">Power BI</text>
+          <rect x="20" y="62" width="120" height="22" rx="7" fill="#f4f7fc" stroke="#e4eaf2"/><text x="80" y="77" text-anchor="middle" fill="#475569">Tableau</text>
+          <rect x="20" y="90" width="120" height="22" rx="7" fill="#f4f7fc" stroke="#e4eaf2"/><text x="80" y="105" text-anchor="middle" fill="#475569">Qlik</text>
+          <rect x="20" y="118" width="120" height="22" rx="7" fill="#f4f7fc" stroke="#e4eaf2"/><text x="80" y="133" text-anchor="middle" fill="#475569">Looker / iframe</text>
+        </g>
+        <!-- center: PulsePlay -->
+        <rect x="262" y="46" width="136" height="58" rx="15" fill="#0b1f3a"/>
+        <text x="330" y="74" text-anchor="middle" fill="#fff" font-size="15" font-weight="800">PulsePlay</text>
+        <text x="330" y="92" text-anchor="middle" fill="#9cc2ff" font-size="10.5">pane of glass</text>
+        <!-- right: AI brains -->
+        <text x="520" y="18" font-size="11" font-weight="800" letter-spacing="1.5" fill="#2563eb" text-anchor="start">THE AI BRAIN</text>
+        <g font-size="12">
+          <rect x="520" y="30" width="120" height="26" rx="7" fill="#eaf1fb" stroke="#bcd4f5"/><text x="580" y="47" text-anchor="middle" fill="#1d4ed8" font-weight="700">Genie</text>
+          <rect x="520" y="62" width="120" height="22" rx="7" fill="#f4f7fc" stroke="#e4eaf2"/><text x="580" y="77" text-anchor="middle" fill="#475569">Foundation Model</text>
+          <rect x="520" y="90" width="120" height="22" rx="7" fill="#f4f7fc" stroke="#e4eaf2"/><text x="580" y="105" text-anchor="middle" fill="#475569">Azure OpenAI</text>
+          <rect x="520" y="118" width="120" height="22" rx="7" fill="#f4f7fc" stroke="#e4eaf2"/><text x="580" y="133" text-anchor="middle" fill="#475569">Bedrock / agents</text>
+        </g>
+        <g stroke="#94a3b8" stroke-width="1.6" fill="none">
+          <path d="M140 43 C 200 50, 220 70, 262 72"/><path d="M140 73 C 200 76, 220 74, 262 75"/>
+          <path d="M140 101 C 200 92, 222 80, 262 78"/><path d="M140 129 C 205 108, 225 86, 262 82"/>
+          <path d="M398 72 C 450 50, 470 43, 520 43"/><path d="M398 75 C 450 76, 470 73, 520 73"/>
+          <path d="M398 78 C 450 92, 470 101, 520 101"/><path d="M398 82 C 455 110, 470 129, 520 129"/>
+        </g>
+      </svg>
+    </div>
 
     <div class="vendgrid">
-      <div class="vend"><div class="vh"><h4>Power BI</h4><span class="badge ok">Native SDK</span></div><p>Deepest integration today: a real powerbi-client embed, secure embed-token fallback, a built-in Q&amp;A surface, and deterministic semantic-model KPIs that need no LLM call.</p></div>
-      <div class="vend"><div class="vh"><h4>Tableau | Qlik | Looker</h4><span class="badge soon">Secure embed</span></div><p>Hosted today through secure embedding; first-class native SDK adapters (Tableau Embedding API v3, qlik-embed, Looker embed-sdk) are on the roadmap.</p></div>
-      <div class="vend"><div class="vh"><h4>Any other tool</h4><span class="badge ok">Generic embed</span></div><p>The always-works escape hatch - host any URL-addressable dashboard or internal report inside a narrowed, least-privilege sandbox.</p></div>
+      <div class="vend v1"><div class="vh"><h4>Power BI</h4><span class="badge ok">Native SDK</span></div><p>Deepest integration today: a real powerbi-client embed, secure embed-token fallback, a built-in Q&amp;A surface, and deterministic semantic-model KPIs that need no LLM call.</p></div>
+      <div class="vend v2"><div class="vh"><h4>Tableau, Qlik, Looker</h4><span class="badge soon">Secure embed</span></div><p>Hosted today through secure embedding. First-class native SDK adapters (Tableau Embedding API v3, qlik-embed, Looker embed-sdk) are on the roadmap.</p></div>
+      <div class="vend v3"><div class="vh"><h4>Any other tool</h4><span class="badge any">Generic embed</span></div><p>The always-works escape hatch: host any URL-addressable dashboard or internal report inside a narrowed, least-privilege sandbox.</p></div>
     </div>
 
     <div class="axiswrap">
-      <div class="axiscard"><div class="k">Axis Y | what you look at</div><h3>The BI vendor</h3><p>Swap the embedded dashboard tool independently of everything else. Sit it side by side with the assistant, or detach / float either pane.</p><div class="row"><span class="chip">Power BI</span><span class="chip">Tableau</span><span class="chip">Qlik</span><span class="chip">Looker</span><span class="chip">Any iframe</span></div></div>
-      <div class="axiscard"><div class="k">Axis X | the AI brain</div><h3>The AI connector</h3><p>Swap the reasoning engine independently. Ten connector paths - and <b>any</b> combination of (BI vendor x AI brain) is valid.</p><div class="row"><span class="chip">Genie</span><span class="chip">Foundation Model</span><span class="chip">Azure OpenAI</span><span class="chip">Bedrock</span><span class="chip">Agents</span></div></div>
-    </div>
-
-    <div class="natband">
-      <h4>Rendered in PulsePlay's own chrome - the native panel</h4>
-      <div class="natrow">
-        <div class="n"><b>One canvas, three peer tabs.</b> AI Insights, Ask Pulse and Dashboard share the same toolbar and affordances - not the vendor's OEM chrome.</div>
-        <div class="n"><b>Light &amp; dark, end to end.</b> One coherent design-token system; a single toggle themes every native surface together.</div>
-        <div class="n"><b>Float &amp; dock.</b> Pop a pane out to inspect, then dock it back. <i>(Side-by-side compare is on the roadmap.)</i></div>
-      </div>
+      <div class="axiscard"><div class="k">Axis Y, what you look at</div><h3>The BI vendor</h3><p>Swap the embedded dashboard tool independently of everything else. Sit it side by side with the assistant, or detach and float either pane.</p><div class="row"><span class="chip">Power BI</span><span class="chip">Tableau</span><span class="chip">Qlik</span><span class="chip">Looker</span><span class="chip">Any iframe</span></div></div>
+      <div class="axiscard"><div class="k">Axis X, the AI brain</div><h3>The AI connector</h3><p>Swap the reasoning engine independently. Ten connector paths, and any combination of BI vendor and AI brain is valid.</p><div class="row"><span class="chip">Genie</span><span class="chip">Foundation Model</span><span class="chip">Azure OpenAI</span><span class="chip">Bedrock</span><span class="chip">Agents</span></div></div>
     </div>
 
     <div class="secband">
-      <div class="si"><h4>Secure embedding by construction</h4><p>Every embed credential - Power BI embed tokens, Tableau trusted tickets, Qlik OAuth, Looker signed URLs - is minted server-side by the proxy. Nothing sensitive ever reaches the browser, and each vendor runs in the narrowest sandbox it needs.</p></div>
-      <div class="si"><h4>One experience, any dashboard</h4><p>Whatever the user is viewing, the assistant sees the same governed context and returns the same trusted, status-tagged answer - so analysts stop tool-hopping and platform teams govern in one place, not per tool.</p></div>
+      <div><h4><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>Secure embedding by construction</h4><p>Every embed credential (Power BI embed tokens, Tableau trusted tickets, Qlik OAuth, Looker signed URLs) is minted server-side by the proxy. Nothing sensitive ever reaches the browser, and each vendor runs in the narrowest sandbox it needs.</p></div>
+      <div><h4><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>One experience, any dashboard</h4><p>Whatever the user is viewing, the assistant sees the same governed context and returns the same trusted, status-tagged answer, so analysts stop tool-hopping and platform teams govern in one place.</p></div>
     </div>
   </div>
 </div>
 
 <!-- PAGE 3 -->
 <div class="page">
-  <div class="section" style="padding-top:40px;">
+  <div class="section" style="padding-top:42px;">
     <div class="eyebrow">How it works</div>
     <div class="h2">Three steps, one experience</div>
-    <div class="steps">
-      <div class="step"><div class="num">1</div><h4>Pick your view</h4><p>Choose the BI dashboard - Power BI, Tableau, Qlik, Looker - hosted right inside PulsePlay.</p></div>
-      <div class="arrow">-></div>
-      <div class="step"><div class="num">2</div><h4>Ask in plain language</h4><p>The assistant reasons about what you're looking at, routed to your chosen AI brain.</p></div>
-      <div class="arrow">-></div>
-      <div class="step"><div class="num">3</div><h4>Get a trusted answer</h4><p>Grounded in governed data, tagged Verified / Grounded / Suggestion / Blocked - never an ungrounded guess.</p></div>
+    <div class="flow">
+      <div class="stepcard"><div class="num">1</div><h4>Pick your view</h4><p>Choose the BI dashboard, Power BI, Tableau, Qlik or Looker, hosted right inside PulsePlay.</p></div>
+      <div class="chev"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></div>
+      <div class="stepcard"><div class="num">2</div><h4>Ask in plain language</h4><p>The assistant reasons about what you are looking at, routed to your chosen AI brain.</p></div>
+      <div class="chev"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></div>
+      <div class="stepcard"><div class="num">3</div><h4>Get a trusted answer</h4><p>Grounded in governed data and tagged Verified, Grounded, Suggestion or Blocked. Never an ungrounded guess.</p></div>
     </div>
   </div>
 
-  <div class="section" style="padding-top:6px;">
-    <div class="eyebrow">What's inside</div>
+  <div class="section tint" style="padding-top:28px;padding-bottom:30px;">
+    <div class="eyebrow">What is inside</div>
     <div class="h2">Built for the enterprise</div>
     <div class="features">
-      <div class="feat"><span class="dot"></span><h4>AI Insights briefings</h4><p>Auto Headline, KPIs, Trends, Risks &amp; Actions - plus your own sections.</p></div>
-      <div class="feat"><span class="dot"></span><h4>Ask Pulse chat</h4><p>Conversational Q&amp;A grounded in the live BI context.</p></div>
-      <div class="feat"><span class="dot"></span><h4>Workbench templates</h4><p>Author-defined layouts: tabs, landing, scope &amp; section presets.</p></div>
-      <div class="feat"><span class="dot"></span><h4>SQL &amp; markdown sections</h4><p>Deterministic warehouse-backed KPIs or AI-authored narrative.</p></div>
-      <div class="feat"><span class="dot"></span><h4>Governance &amp; masking</h4><p>Allow-lists, server-side tokens, field masking, PII redaction.</p></div>
-      <div class="feat"><span class="dot"></span><h4>Light &amp; dark themes</h4><p>A polished, on-brand experience across every surface.</p></div>
+      <div class="feat"><div class="ic g-blue"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h10l4 4v14H5z"/><path d="M9 12h6M9 16h6M9 8h3"/></svg></div><h4>AI Insights briefings</h4><p>Auto Headline, KPIs, Trends, Risks and Actions, plus your own sections.</p></div>
+      <div class="feat"><div class="ic g-teal"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8 8 0 0 1-11.5 7.2L4 20l1.3-5A8 8 0 1 1 21 11.5z"/></svg></div><h4>Ask Pulse chat</h4><p>Conversational Q&amp;A grounded in the live BI context.</p></div>
+      <div class="feat"><div class="ic g-indigo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M3 10h6"/></svg></div><h4>Workbench templates</h4><p>Author-defined layouts: tabs, landing, scope and section presets.</p></div>
+      <div class="feat"><div class="ic g-violet"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9l-3 3 3 3M16 9l3 3-3 3M13 5l-2 14"/></svg></div><h4>SQL and markdown sections</h4><p>Deterministic warehouse-backed KPIs or AI-authored narrative.</p></div>
+      <div class="feat"><div class="ic g-green"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div><h4>Governance and masking</h4><p>Allow-lists, server-side tokens, field masking, PII redaction.</p></div>
+      <div class="feat"><div class="ic g-slate"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v3M12 20v3M4.2 4.2l2 2M17.8 17.8l2 2M1 12h3M20 12h3M4.2 19.8l2-2M17.8 6.2l2-2"/></svg></div><h4>Light and dark themes</h4><p>A polished, on-brand experience across every surface.</p></div>
     </div>
   </div>
 
-  <div class="section" style="padding-top:6px;">
-    <div class="eyebrow">Who it's for</div>
+  <div class="section" style="padding-top:28px;padding-bottom:24px;">
+    <div class="eyebrow">Who it is for</div>
     <div class="who">
-      <div class="card"><h4>Analysts &amp; business users</h4><p>One "ask the data" experience across every dashboard - no tool-hopping, no prompt rebuilding.</p></div>
-      <div class="card"><h4>Platform &amp; security teams</h4><p>Centralised tokens, allow-lists, masking and audit - governance in one place, not per tool.</p></div>
-      <div class="card"><h4>Architecture &amp; finance</h4><p>Reuse existing Databricks + BI + LLM investments. No vendor lock-in, no new per-seat licence.</p></div>
-      <div class="card"><h4>Decision-makers</h4><p>Answers you can trust, with an explicit status - decision-support, grounded in your governed data.</p></div>
+      <div class="wcard"><div class="ic g-blue"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0M17 11a3 3 0 0 0 0-6M21 20a6 6 0 0 0-4-5.6"/></svg></div><div><h4>Analysts and business users</h4><p>One "ask the data" experience across every dashboard. No tool-hopping, no prompt rebuilding.</p></div></div>
+      <div class="wcard"><div class="ic g-green"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg></div><div><h4>Platform and security teams</h4><p>Centralised tokens, allow-lists, masking and audit. Governance in one place, not per tool.</p></div></div>
+      <div class="wcard"><div class="ic g-violet"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/></svg></div><div><h4>Architecture and finance</h4><p>Reuse existing Databricks, BI and LLM investments. No vendor lock-in, no new per-seat licence.</p></div></div>
+      <div class="wcard"><div class="ic g-amber"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg></div><div><h4>Decision-makers</h4><p>Answers you can trust, with an explicit status. Decision-support grounded in your governed data.</p></div></div>
     </div>
   </div>
 
   <div class="cta">
-    <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#9cc2ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h4l3-8 4 16 3-8h6"/></svg>
+    <div class="ring"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#bcd6ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h4l3-8 4 16 3-8h6"/></svg></div>
     <div>
       <div class="big">Look at anything. Ask in plain language. Trust the answer.</div>
-      <div class="line">Your BI tools | Your AI | Your data | One screen. - Ask the platform team for a walkthrough.</div>
+      <div class="line">Your BI tools, your AI, your data, one screen. Ask the platform team for a walkthrough.</div>
     </div>
   </div>
-
   <div class="footer">
-    <span>PulsePlay - internal platform</span>
+    <span><b>PulsePlay</b> &nbsp;Internal platform</span>
     <span>One pane of glass for your BI&nbsp;+&nbsp;AI estate</span>
   </div>
 </div>
-
 </body>
 </html>
