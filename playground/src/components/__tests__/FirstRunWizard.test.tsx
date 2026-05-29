@@ -239,7 +239,7 @@ describe("Just give me defaults path", () => {
         expect(onComplete).toHaveBeenCalledTimes(1);
         const [picks] = onComplete.mock.calls[0] as [{ persona: string; uiMode: string; layoutMode: string; vendor: string }];
         expect(picks.persona).toBe("analyst");
-        expect(picks.uiMode).toBe("v0");
+        expect(picks.uiMode).toBe(DEFAULT_UI_MODE); // every persona returns the settingsStore default
         expect(picks.layoutMode).toBe("ai-left");
         expect(picks.vendor).toBe("powerbi"); // first vendor
     });
@@ -280,7 +280,7 @@ describe("Done finalisation", () => {
         const [picks] = onComplete.mock.calls[0] as [{ vendor: string; connector: string; uiMode: string; layoutMode: string; autoAsk: boolean }];
         expect(picks.vendor).toBe("powerbi");
         expect(picks.connector).toBe("genie-default");
-        expect(picks.uiMode).toBe("v0");
+        expect(picks.uiMode).toBe(DEFAULT_UI_MODE); // every persona returns the settingsStore default
         expect(picks.layoutMode).toBe("ai-left");
         expect(picks.autoAsk).toBe(false);
         expect(window.localStorage.getItem(WIZARD_DISMISSED_KEY)).toBe("true");

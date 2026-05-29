@@ -6,6 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 import { resolveDefaultSurface, featureSupportsSurface } from "../resolver";
+import { DEFAULT_UI_MODE } from "../../settings/settingsStore";
 
 const allTabsVisible = { aiInsights: true, askPulse: true, dashboard: true };
 
@@ -40,12 +41,12 @@ describe("resolveDefaultSurface — Step 1: explicit override always wins (Q2 si
 });
 
 describe("resolveDefaultSurface — Step 2: required-feature intersection", () => {
-    it("returns DEFAULT_UI_MODE ('v0') when no narrowing inputs fire", () => {
+    it("returns DEFAULT_UI_MODE when no narrowing inputs fire", () => {
         const result = resolveDefaultSurface({
             requiredFeatures: [],
             tabVisibility: allTabsVisible,
         });
-        expect(result).toBe("v0"); // matches DEFAULT_UI_MODE
+        expect(result).toBe(DEFAULT_UI_MODE); // single source of truth in settingsStore
     });
 
     it("narrows to 'pulse' when a pulse-exclusive feature is required", () => {
@@ -78,7 +79,7 @@ describe("resolveDefaultSurface — Step 2: required-feature intersection", () =
             requiredFeatures: ["does-not-exist"],
             tabVisibility: allTabsVisible,
         });
-        expect(result).toBe("v0");
+        expect(result).toBe(DEFAULT_UI_MODE); // unknown skipped → falls through to the default
     });
 });
 
@@ -112,7 +113,7 @@ describe("resolveDefaultSurface — Step 3: tabVisibility narrowing", () => {
             requiredFeatures: [],
             tabVisibility: { aiInsights: true, askPulse: true, dashboard: false },
         });
-        expect(result).toBe("v0"); // DEFAULT_UI_MODE
+        expect(result).toBe(DEFAULT_UI_MODE);
     });
 });
 
@@ -136,7 +137,7 @@ describe("resolveDefaultSurface — Step 5: fallback chain", () => {
             requiredFeatures: [],
             tabVisibility: allTabsVisible,
         });
-        expect(result).toBe("v0");
+        expect(result).toBe(DEFAULT_UI_MODE);
     });
 
     it("returns the first remaining candidate when DEFAULT_UI_MODE is filtered out", () => {

@@ -93,6 +93,7 @@ function clearStorage(): void {
         window.localStorage.removeItem("pulseplay:enabled-components:legacy-both-migrated");
         window.localStorage.removeItem("pulseplay:layout-mode");
         window.localStorage.removeItem("pulseplay:active-surface");
+        window.localStorage.removeItem("pulseplay:default-landing-surface");
         window.localStorage.removeItem("pulseplay:bi-tile-mode");
         window.localStorage.removeItem("pulseplay:bi-surface-mode");
         window.localStorage.removeItem("pulseplay:bi-vendor");
@@ -121,14 +122,49 @@ function seedExplicitSplitLayout(): void {
     window.localStorage.setItem("pulseplay:enabled-components:legacy-both-migrated", "true");
 }
 
-/** uiMode default is "v0" (UnifiedAssistantSurface — see settingsStore
- *  DEFAULT_UI_MODE). Tests that exercise PulseShell-mounted chrome (tab
- *  strip + the mocked PulseShell button with "Open dashboard surface"
- *  aria-label) must opt INTO pulse mode via this helper before mounting.
- *  Mirrors what a dev would do in DevTools to activate the escape hatch
- *  during the feature-port migration. */
+/** uiMode default is "pulse" (PulseShell / Workbench — see settingsStore
+ *  DEFAULT_UI_MODE, re-aligned 2026-05-28). Pulse is now the cold-boot
+ *  default, so tests that exercise PulseShell-mounted chrome (tab strip +
+ *  the mocked PulseShell button with "Open dashboard surface" aria-label)
+ *  no longer need to opt in — but the helper is kept (writing the value
+ *  the resolver already defaults to is harmless) so the Pulse-mode tests
+ *  document their intent explicitly. */
 function seedPulseUiMode(): void {
     window.localStorage.setItem("pulseplay:ui-mode", "pulse");
+}
+
+/** Opt INTO the v0 UnifiedAssistantSurface (the single-pane unified "Mix"
+ *  surface). Since 2026-05-28 "pulse" is the DEFAULT_UI_MODE, so tests that
+ *  verify v0-surface behaviour must force it explicitly. Two writes are
+ *  required: the ui-mode escape-hatch key AND allowChatSurface=true in the
+ *  Pulse genieSettings, because App.tsx coerces uiMode back to "pulse" when
+ *  the author has not enabled the Chat surface (App.tsx:1019-1021). Mirrors
+ *  what an author does in Settings → Preferences (allow Chat) plus the dev
+ *  DevTools escape hatch. */
+function seedV0UiMode(): void {
+    window.localStorage.setItem("pulseplay:ui-mode", "v0");
+    const KEY = "pulseplay:visual-settings:genieSettings";
+    let parsed: Record<string, unknown> = {};
+    try {
+        const raw = window.localStorage.getItem(KEY);
+        if (raw) parsed = JSON.parse(raw);
+    } catch { /* swallow */ }
+    parsed.allowChatSurface = true;
+    window.localStorage.setItem(KEY, JSON.stringify(parsed));
+}
+
+/** Returns true when the pane's chrome is mounted but rendered in the
+ *  HIDDEN stacked frame (the off-screen copy). 2026-05-28 ("Workbench
+ *  default" commit) changed mix mode to KEEP both panes mounted and
+ *  toggle visibility — the inactive pane's stacked-frame wrapper carries
+ *  aria-hidden="true" instead of being unmounted. So "BI is not the
+ *  visible primary surface" is now expressed as "BI chrome lives inside
+ *  an aria-hidden frame", not "BI chrome is absent from the DOM". */
+function paneChromeIsHidden(state: MountState, pane: "ai" | "bi"): boolean {
+    const chrome = state.container.querySelector(viewportControlPanelChromeSelector(pane));
+    if (!chrome) return false; // not mounted at all — caller asserts presence separately
+    const hiddenFrame = chrome.closest('[aria-hidden="true"]');
+    return hiddenFrame !== null;
 }
 
 function mountApp(): MountState {
@@ -281,23 +317,38 @@ describe("App viewport controls — default unified Mix surface", () => {
     });
 
     it("renders AI as the primary surface and does not keep BI as a permanent second section", () => {
+        seedV0UiMode(); // v0 UnifiedAssistantSurface — AI is the sole primary surface, BI opens on demand
         const state = mountApp();
+        const shell = state.container.querySelector(viewportControlShellSelector);
         const aiChrome = state.container.querySelector(viewportControlPanelChromeSelector("ai"));
         const biChrome = state.container.querySelector(viewportControlPanelChromeSelector("bi"));
+        // AI is the active/primary surface.
         expect(aiChrome).toBeTruthy();
-        expect(biChrome).toBeNull();
+        expect(paneChromeIsHidden(state, "ai")).toBe(false);
+        expect(shell?.getAttribute("data-active-surface")).toBe("ai-insights");
         expect(aiChrome?.getAttribute("data-panel-state")).toBe("normal");
+        // BI is NOT a permanent co-visible second section. Since the 2026-05-28
+        // "Workbench default" commit, mix mode keeps the hidden BI pane MOUNTED
+        // (so AI↔Dashboard switches don't reload) — so "not a second section"
+        // now means "mounted but in the hidden stacked frame", not "absent".
+        expect(biChrome).toBeTruthy();
+        expect(paneChromeIsHidden(state, "bi")).toBe(true);
         unmount(state);
     });
 
     it("migrates legacy saved split state back to unified mix once", () => {
+        seedV0UiMode(); // v0 UnifiedAssistantSurface is the surface under test
         window.localStorage.setItem("pulseplay:enabled-components", "both");
         const state = mountApp();
 
         expect(window.localStorage.getItem("pulseplay:enabled-components")).toBe("mix");
         expect(window.localStorage.getItem("pulseplay:enabled-components:legacy-both-migrated")).toBe("true");
+        // AI is the visible primary surface; BI is mounted-but-hidden (mix
+        // mode keeps both panes mounted as of the 2026-05-28 Workbench commit).
         expect(state.container.querySelector(viewportControlPanelChromeSelector("ai"))).toBeTruthy();
-        expect(state.container.querySelector(viewportControlPanelChromeSelector("bi"))).toBeNull();
+        expect(paneChromeIsHidden(state, "ai")).toBe(false);
+        expect(state.container.querySelector(viewportControlPanelChromeSelector("bi"))).toBeTruthy();
+        expect(paneChromeIsHidden(state, "bi")).toBe(true);
 
         unmount(state);
     });
@@ -324,8 +375,12 @@ describe("App viewport controls — default unified Mix surface", () => {
         const aiChrome = state.container.querySelector(viewportControlPanelChromeSelector("ai"));
         expect(shell?.getAttribute("data-viewport-focus")).toBe("split");
         expect(shell?.getAttribute("data-active-surface")).toBe("bi-viz");
-        expect(aiChrome).toBeNull();
+        // BI is now the visible primary surface; AI stays mounted-but-hidden
+        // (mix mode keeps both panes mounted — 2026-05-28 Workbench commit).
+        expect(aiChrome).toBeTruthy();
+        expect(paneChromeIsHidden(state, "ai")).toBe(true);
         expect(biChrome?.getAttribute("data-panel-state")).toBe("normal");
+        expect(paneChromeIsHidden(state, "bi")).toBe(false);
         expect(window.localStorage.getItem("pulseplay:enabled-components")).toBeNull();
         expect(window.localStorage.getItem("pulseplay:active-surface")).toBe("bi-viz");
         expect(new URL(window.location.href).searchParams.get("surface")).toBe("bi-viz");
@@ -337,21 +392,34 @@ describe("App viewport controls — default unified Mix surface", () => {
         expect(shellAfterAi?.getAttribute("data-active-surface")).toBe("ai-insights");
         expect(window.localStorage.getItem("pulseplay:active-surface")).toBe("ai-insights");
         expect(new URL(window.location.href).searchParams.get("surface")).toBe("ai-insights");
+        // AI back to visible primary; BI back to mounted-but-hidden.
         expect(state.container.querySelector(viewportControlPanelChromeSelector("ai"))).toBeTruthy();
-        expect(state.container.querySelector(viewportControlPanelChromeSelector("bi"))).toBeNull();
+        expect(paneChromeIsHidden(state, "ai")).toBe(false);
+        expect(state.container.querySelector(viewportControlPanelChromeSelector("bi"))).toBeTruthy();
+        expect(paneChromeIsHidden(state, "bi")).toBe(true);
 
         unmount(state);
     });
 
     it("restores the last active unified surface from localStorage", () => {
-        window.localStorage.setItem("pulseplay:active-surface", "bi-viz");
+        seedV0UiMode(); // v0 UnifiedAssistantSurface is the surface under test
+        // 2026-05-28 — readInitialActiveSurface() no longer restores the
+        // sticky `pulseplay:active-surface` as the LANDING surface (it always
+        // opens on AI Insights unless a deep-link / author default says
+        // otherwise). The author-configured default-landing-surface IS still
+        // honored at boot, so it's the faithful way to express "open on the
+        // previously-chosen unified surface" now that sticky-restore retired.
+        window.localStorage.setItem("pulseplay:default-landing-surface", "bi-viz");
         const state = mountApp();
 
         const shell = state.container.querySelector(viewportControlShellSelector);
         expect(shell?.getAttribute("data-viewport-focus")).toBe("split");
         expect(shell?.getAttribute("data-active-surface")).toBe("bi-viz");
+        // BI is the visible primary surface; AI stays mounted-but-hidden.
         expect(state.container.querySelector(viewportControlPanelChromeSelector("bi"))).toBeTruthy();
-        expect(state.container.querySelector(viewportControlPanelChromeSelector("ai"))).toBeNull();
+        expect(paneChromeIsHidden(state, "bi")).toBe(false);
+        expect(state.container.querySelector(viewportControlPanelChromeSelector("ai"))).toBeTruthy();
+        expect(paneChromeIsHidden(state, "ai")).toBe(true);
 
         unmount(state);
     });
@@ -361,6 +429,12 @@ describe("App viewport controls — default unified Mix surface", () => {
         // and Split + Mix (both) must not lose the user's currently active
         // surface. The active surface is the registry SurfaceId; preset
         // facades only change enabledComponents/layoutMode/enabledFeatures.
+        seedV0UiMode(); // ask-pulse is a v0 UnifiedAssistantSurface surface
+        // 2026-05-28 — sticky `active-surface` is no longer the landing
+        // surface; use the author default-landing-surface to open on
+        // ask-pulse. The sticky key is still tracked, so seed it too for the
+        // localStorage assertions below (they verify it is not lost on flips).
+        window.localStorage.setItem("pulseplay:default-landing-surface", "ask-pulse");
         window.localStorage.setItem("pulseplay:active-surface", "ask-pulse");
         const state = mountApp();
 
@@ -519,13 +593,18 @@ describe("App viewport controls — ?focus= URL", () => {
     });
 
     it("hydrates Dashboard as the active unified surface from ?surface=bi-viz", () => {
+        seedV0UiMode(); // v0 UnifiedAssistantSurface is the surface under test
         setLocation("?surface=bi-viz");
         const state = mountApp();
         const shell = state.container.querySelector(viewportControlShellSelector);
         expect(shell?.getAttribute("data-viewport-focus")).toBe("split");
         expect(shell?.getAttribute("data-active-surface")).toBe("bi-viz");
+        // BI is the visible primary surface; AI stays mounted-but-hidden
+        // (mix mode keeps both panes mounted — 2026-05-28 Workbench commit).
         expect(state.container.querySelector(viewportControlPanelChromeSelector("bi"))).toBeTruthy();
-        expect(state.container.querySelector(viewportControlPanelChromeSelector("ai"))).toBeNull();
+        expect(paneChromeIsHidden(state, "bi")).toBe(false);
+        expect(state.container.querySelector(viewportControlPanelChromeSelector("ai"))).toBeTruthy();
+        expect(paneChromeIsHidden(state, "ai")).toBe(true);
         unmount(state);
     });
 
@@ -574,7 +653,13 @@ describe("App viewport controls — ?focus= URL", () => {
         // would maximize the AI pane while data-active-surface still reads
         // bi-viz — a telemetry lie. Start on bi-viz so the symmetric path
         // is exercised.
-        seedPulseUiMode(); // PulseShell-mounted chrome below
+        seedPulseUiMode(); // PulseShell-mounted chrome (lazy-load flushed below)
+        // 2026-05-28 — sticky `active-surface` is no longer the landing
+        // surface; the author default-landing-surface IS still honored at
+        // boot, so use it to start on bi-viz. The popstate handler reads the
+        // sticky `active-surface` key to decide the focus=ai→ai-insights swap,
+        // so seed that too (the value the handler inspects).
+        window.localStorage.setItem("pulseplay:default-landing-surface", "bi-viz");
         window.localStorage.setItem("pulseplay:active-surface", "bi-viz");
         const state = mountApp();
         // PulseShell lazy-load — wait for Suspense to resolve.
