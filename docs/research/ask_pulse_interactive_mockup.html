@@ -1,0 +1,1577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PulsePlay Ask Pulse Strategic AI Cockpit Mockup</title>
+    <!-- Premium Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    
+    <style>
+        /* Modern, CSS variable-based design system supporting slate-dark and high-contrast light */
+        :root {
+            --pp-font-sans: 'Inter', sans-serif;
+            --pp-font-display: 'Outfit', sans-serif;
+            --pp-font-mono: 'Fira Code', monospace;
+            
+            /* Slate Dark Palette (Default Premium Theme) */
+            --pp-bg: #0f172a;
+            --pp-surface: rgba(30, 41, 59, 0.4);
+            --pp-surface-solid: #1e293b;
+            --pp-surface-hover: rgba(51, 65, 85, 0.5);
+            --pp-border: rgba(255, 255, 255, 0.06);
+            --pp-border-hover: rgba(255, 255, 255, 0.12);
+            --pp-text: #f8fafc;
+            --pp-text-muted: #94a3b8;
+            --pp-accent: #3b82f6;
+            --pp-accent-gradient: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            --pp-accent-glow: rgba(59, 130, 246, 0.25);
+            
+            /* Semantic status indicators */
+            --pp-success: #10b981;
+            --pp-success-bg: rgba(16, 185, 129, 0.08);
+            --pp-success-border: rgba(16, 185, 129, 0.2);
+            
+            --pp-warning: #f59e0b;
+            --pp-warning-bg: rgba(245, 158, 11, 0.08);
+            --pp-warning-border: rgba(245, 158, 11, 0.2);
+            
+            --pp-danger: #ef4444;
+            --pp-danger-bg: rgba(239, 68, 68, 0.08);
+            --pp-danger-border: rgba(239, 68, 68, 0.2);
+            
+            --pp-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            --pp-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.6);
+            
+            --pp-blur: blur(16px);
+            --pp-transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        [data-theme="light-contrast"] {
+            /* Accessible, High-Contrast Light Theme */
+            --pp-bg: #f8fafc;
+            --pp-surface: rgba(255, 255, 255, 0.85);
+            --pp-surface-solid: #ffffff;
+            --pp-surface-hover: rgba(226, 232, 240, 0.6);
+            --pp-border: rgba(15, 23, 42, 0.12);
+            --pp-border-hover: rgba(15, 23, 42, 0.24);
+            --pp-text: #0f172a;
+            --pp-text-muted: #475569;
+            --pp-accent: #2563eb;
+            --pp-accent-gradient: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            --pp-accent-glow: rgba(37, 99, 235, 0.15);
+            
+            --pp-success: #059669;
+            --pp-success-bg: rgba(5, 150, 105, 0.08);
+            --pp-success-border: rgba(5, 150, 105, 0.3);
+            
+            --pp-warning: #d97706;
+            --pp-warning-bg: rgba(217, 119, 6, 0.08);
+            --pp-warning-border: rgba(217, 119, 6, 0.3);
+            
+            --pp-danger: #dc2626;
+            --pp-danger-bg: rgba(220, 38, 38, 0.08);
+            --pp-danger-border: rgba(220, 38, 38, 0.3);
+            
+            --pp-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+            --pp-shadow-lg: 0 12px 40px rgba(15, 23, 42, 0.12);
+            
+            --pp-blur: blur(0px); /* Avoid filters in high-contrast light mode */
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--pp-bg);
+            color: var(--pp-text);
+            font-family: var(--pp-font-sans);
+            font-size: 14px;
+            line-height: 1.5;
+            transition: background-color 0.3s ease, color 0.3s ease;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Top Header Navigation bar */
+        header.app-header {
+            height: 56px;
+            background: var(--pp-surface-solid);
+            border-bottom: 1px solid var(--pp-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            z-index: 10;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo-mark {
+            width: 24px;
+            height: 24px;
+            background: linear-gradient(135deg, #3b82f6 0%, #a855f7 100%);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-family: var(--pp-font-display);
+            color: #ffffff;
+            font-size: 14px;
+        }
+
+        .brand-name {
+            font-family: var(--pp-font-display);
+            font-weight: 700;
+            font-size: 18px;
+            letter-spacing: -0.02em;
+        }
+
+        .brand-tag {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            background: rgba(59, 130, 246, 0.15);
+            color: #3b82f6;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .btn-theme-toggle {
+            background: var(--pp-surface);
+            border: 1px solid var(--pp-border);
+            color: var(--pp-text);
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: var(--pp-transition);
+        }
+
+        .btn-theme-toggle:hover {
+            background: var(--pp-surface-hover);
+            border-color: var(--pp-border-hover);
+        }
+
+        /* Workbench Layout (2-axis: canvas left, cockpit sidebar right) */
+        .workbench {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* left canvas panel */
+        .canvas-area {
+            flex: 1;
+            background: rgba(15, 23, 42, 0.2);
+            padding: 24px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            transition: var(--pp-transition);
+        }
+
+        /* Unified Global Context Bar */
+        .global-context-bar {
+            background: var(--pp-surface);
+            backdrop-filter: var(--pp-blur);
+            -webkit-backdrop-filter: var(--pp-blur);
+            border: 1px solid var(--pp-border);
+            border-radius: 12px;
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .context-chips {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .context-chip {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--pp-border);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--pp-text-muted);
+        }
+
+        .context-chip strong {
+            color: var(--pp-text);
+        }
+
+        .context-chip-active {
+            border-color: rgba(59, 130, 246, 0.3);
+            background: rgba(59, 130, 246, 0.08);
+            color: #3b82f6;
+        }
+
+        .context-telemetry {
+            font-size: 11px;
+            color: var(--pp-text-muted);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .pulse-indicator {
+            width: 8px;
+            height: 8px;
+            background-color: var(--pp-success);
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 8px var(--pp-success);
+            animation: pulse-glow 2s infinite;
+        }
+
+        @keyframes pulse-glow {
+            0% { transform: scale(0.9); opacity: 0.6; }
+            50% { transform: scale(1.1); opacity: 1; box-shadow: 0 0 12px var(--pp-success); }
+            100% { transform: scale(0.9); opacity: 0.6; }
+        }
+
+        /* Visual BI Dashboard Sandbox Mockup */
+        .bi-dashboard-mock {
+            flex: 1;
+            border: 1px solid var(--pp-border);
+            border-radius: 16px;
+            background: var(--pp-surface-solid);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            position: relative;
+            box-shadow: var(--pp-shadow);
+        }
+
+        .dashboard-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .dashboard-title h1 {
+            font-family: var(--pp-font-display);
+            font-weight: 700;
+            font-size: 20px;
+            letter-spacing: -0.01em;
+        }
+
+        .dashboard-title p {
+            color: var(--pp-text-muted);
+            font-size: 12px;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .kpi-card {
+            background: rgba(15, 23, 42, 0.3);
+            border: 1px solid var(--pp-border);
+            border-radius: 10px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            transition: var(--pp-transition);
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--pp-border-hover);
+        }
+
+        .kpi-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--pp-text-muted);
+        }
+
+        .kpi-value {
+            font-family: var(--pp-font-display);
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .kpi-trend {
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-weight: 600;
+        }
+
+        .trend-up { color: var(--pp-success); }
+        .trend-down { color: var(--pp-danger); }
+
+        .chart-placeholder {
+            flex: 1;
+            min-height: 200px;
+            background: rgba(15, 23, 42, 0.4);
+            border: 1px dashed var(--pp-border);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            color: var(--pp-text-muted);
+            position: relative;
+        }
+
+        .chart-visual-simulation {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 60%;
+            display: flex;
+            align-items: flex-end;
+            gap: 10px;
+            padding: 0 40px;
+            opacity: 0.15;
+            pointer-events: none;
+        }
+
+        .chart-bar {
+            flex: 1;
+            background: var(--pp-accent-gradient);
+            border-top-left-radius: 4px;
+            border-top-right-radius: 4px;
+        }
+
+        /* Right Ask Pulse Conversational Cockpit Sidebar */
+        .sidebar-panel {
+            width: 440px;
+            border-left: 1px solid var(--pp-border);
+            background: var(--pp-surface-solid);
+            backdrop-filter: var(--pp-blur);
+            -webkit-backdrop-filter: var(--pp-blur);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            z-index: 5;
+            transition: var(--pp-transition);
+        }
+
+        /* Sidebar Inner Header */
+        .sidebar-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--pp-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .sidebar-title-block h3 {
+            font-family: var(--pp-font-display);
+            font-weight: 700;
+            font-size: 16px;
+            letter-spacing: -0.01em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .sidebar-title-block p {
+            color: var(--pp-text-muted);
+            font-size: 11px;
+            margin-top: 2px;
+        }
+
+        .indicator-pill {
+            background: rgba(16, 185, 129, 0.12);
+            color: var(--pp-success);
+            font-size: 10px;
+            text-transform: uppercase;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            padding: 2px 8px;
+            border-radius: 20px;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        /* History Chat Stream */
+        .sidebar-stream {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            scroll-behavior: smooth;
+        }
+
+        /* Message Bubbles & Cascading Cards Layout */
+        .message-bubble {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-width: 100%;
+        }
+
+        .msg-user {
+            align-self: flex-end;
+            align-items: flex-end;
+        }
+
+        .user-text-box {
+            background: var(--pp-accent-gradient);
+            color: #ffffff;
+            padding: 10px 14px;
+            border-radius: 12px 12px 2px 12px;
+            font-size: 13.5px;
+            font-weight: 500;
+            box-shadow: 0 4px 12px var(--pp-accent-glow);
+            max-width: 85%;
+        }
+
+        .msg-system {
+            align-self: flex-start;
+            align-items: flex-start;
+            width: 100%;
+        }
+
+        .system-sender-info {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--pp-text-muted);
+            margin-bottom: 2px;
+        }
+
+        .attestation-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 9px;
+            text-transform: uppercase;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .badge-verified {
+            background: var(--pp-success-bg);
+            color: var(--pp-success);
+            border: 1px solid var(--pp-success-border);
+        }
+
+        .badge-draft {
+            background: var(--pp-warning-bg);
+            color: var(--pp-warning);
+            border: 1px solid var(--pp-warning-border);
+        }
+
+        /* Choreographed Briefing Cards - Sugar Candy Stagger */
+        .briefing-card-container {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 100%;
+        }
+
+        .briefing-card {
+            background: var(--pp-surface);
+            border: 1px solid var(--pp-border);
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: var(--pp-shadow);
+            opacity: 0;
+            transform: translateY(12px);
+            animation: slideUpStagger 400ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            transition: var(--pp-transition);
+        }
+
+        .briefing-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--pp-border-hover);
+            box-shadow: var(--pp-shadow-lg);
+        }
+
+        /* CSS Stagger offsets */
+        .briefing-card:nth-child(1) { animation-delay: 100ms; }
+        .briefing-card:nth-child(2) { animation-delay: 250ms; }
+        .briefing-card:nth-child(3) { animation-delay: 400ms; }
+        .briefing-card:nth-child(4) { animation-delay: 550ms; }
+
+        @keyframes slideUpStagger {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+            font-family: var(--pp-font-display);
+            font-weight: 600;
+            font-size: 13.5px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            padding-bottom: 6px;
+        }
+
+        .card-header-icon {
+            font-size: 14px;
+        }
+
+        .card-body {
+            font-size: 12.5px;
+            line-height: 1.6;
+            color: var(--pp-text);
+        }
+
+        .card-body p {
+            margin-bottom: 8px;
+        }
+
+        .card-body p:last-child {
+            margin-bottom: 0;
+        }
+
+        .card-body ul {
+            padding-left: 16px;
+            margin-bottom: 8px;
+        }
+
+        .card-body li {
+            margin-bottom: 4px;
+        }
+
+        /* Highly Optimized Density Elements */
+        .collapsible-details {
+            margin-top: 10px;
+            background: rgba(15, 23, 42, 0.3);
+            border: 1px solid var(--pp-border);
+            border-radius: 8px;
+            overflow: hidden;
+            font-size: 11.5px;
+        }
+
+        .collapsible-details summary {
+            padding: 8px 12px;
+            cursor: pointer;
+            font-weight: 600;
+            user-select: none;
+            outline: none;
+            transition: var(--pp-transition);
+            color: var(--pp-text-muted);
+        }
+
+        .collapsible-details summary:hover {
+            background: rgba(255, 255, 255, 0.02);
+            color: var(--pp-text);
+        }
+
+        .collapsible-content {
+            padding: 10px 12px;
+            border-top: 1px solid var(--pp-border);
+            font-family: var(--pp-font-mono);
+            overflow-x: auto;
+            color: #60a5fa;
+            background: #020617;
+            white-space: pre;
+        }
+
+        /* Metric Tone-Colored dense Table styling */
+        .dense-metric-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11.5px;
+            margin-top: 8px;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .dense-metric-table th {
+            background: rgba(0, 0, 0, 0.2);
+            color: var(--pp-text-muted);
+            font-weight: 600;
+            text-align: left;
+            padding: 6px 8px;
+            border-bottom: 1px solid var(--pp-border);
+        }
+
+        .dense-metric-table td {
+            padding: 5px 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+        }
+
+        .metric-cell-green {
+            background-color: var(--pp-success-bg) !important;
+            color: var(--pp-success) !important;
+            font-weight: 600;
+        }
+
+        .metric-cell-red {
+            background-color: var(--pp-danger-bg) !important;
+            color: var(--pp-danger) !important;
+            font-weight: 600;
+        }
+
+        .metric-cell-neutral {
+            color: var(--pp-text);
+        }
+
+        .telemetry-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 10.5px;
+            color: var(--pp-text-muted);
+            margin-top: 8px;
+            border-top: 1px dashed rgba(255, 255, 255, 0.05);
+            padding-top: 6px;
+        }
+
+        /* Composer Shell Input Area */
+        .sidebar-composer-shell {
+            padding: 16px;
+            border-top: 1px solid var(--pp-border);
+            background: rgba(15, 23, 42, 0.3);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            position: relative;
+        }
+
+        .composer-input-row {
+            display: flex;
+            gap: 10px;
+            position: relative;
+        }
+
+        .composer-textarea-wrapper {
+            flex: 1;
+            position: relative;
+        }
+
+        .composer-textarea {
+            width: 100%;
+            min-height: 48px;
+            max-height: 120px;
+            background: #020617;
+            border: 1px solid var(--pp-border);
+            border-radius: 8px;
+            padding: 12px 14px;
+            padding-right: 36px;
+            color: var(--pp-text);
+            font-family: var(--pp-font-sans);
+            font-size: 13px;
+            resize: none;
+            outline: none;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+            transition: var(--pp-transition);
+        }
+
+        .composer-textarea:focus {
+            border-color: var(--pp-accent);
+            box-shadow: 0 0 0 2px var(--pp-accent-glow);
+        }
+
+        .composer-settings-trigger {
+            position: absolute;
+            right: 10px;
+            top: 12px;
+            background: none;
+            border: none;
+            color: var(--pp-text-muted);
+            cursor: pointer;
+            transition: var(--pp-transition);
+            outline: none;
+            padding: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+        }
+
+        .composer-settings-trigger:hover, .composer-settings-trigger.active {
+            color: #3b82f6;
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .btn-ask {
+            background: var(--pp-accent-gradient);
+            color: #ffffff;
+            border: none;
+            width: 48px;
+            height: 48px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px var(--pp-accent-glow);
+            transition: var(--pp-transition);
+            outline: none;
+        }
+
+        .btn-ask:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
+        }
+
+        .btn-ask:active {
+            transform: translateY(0);
+        }
+
+        /* Auto-suggest Slash command Dropdown Overlay */
+        .slash-dropdown {
+            position: absolute;
+            bottom: 100%;
+            left: 16px;
+            right: 16px;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--pp-border-hover);
+            border-radius: 10px;
+            box-shadow: var(--pp-shadow-lg);
+            margin-bottom: 8px;
+            z-index: 100;
+            overflow: hidden;
+            display: none;
+            transform: translateY(4px);
+            transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .slash-dropdown.show {
+            display: block;
+            transform: translateY(0);
+        }
+
+        .slash-dropdown-title {
+            padding: 8px 12px;
+            background: rgba(0, 0, 0, 0.2);
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--pp-text-muted);
+            border-bottom: 1px solid var(--pp-border);
+        }
+
+        .slash-item {
+            padding: 10px 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            transition: var(--pp-transition);
+        }
+
+        .slash-item:hover, .slash-item.selected {
+            background: rgba(59, 130, 246, 0.15);
+            border-left: 3px solid #3b82f6;
+            padding-left: 9px;
+        }
+
+        .slash-item-cmd {
+            font-family: var(--pp-font-mono);
+            font-weight: 700;
+            color: #60a5fa;
+            font-size: 12px;
+            min-width: 70px;
+        }
+
+        .slash-item-desc {
+            font-size: 12px;
+            color: var(--pp-text);
+        }
+
+        /* Collapsible Parameter tuning drawer */
+        .parameter-drawer {
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: 320px;
+            background: hsl(222, 47%, 8%);
+            border-left: 1px solid var(--pp-border-hover);
+            z-index: 80;
+            box-shadow: var(--pp-shadow-lg);
+            transform: translateX(100%);
+            transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .parameter-drawer.open {
+            transform: translateX(0);
+        }
+
+        .drawer-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--pp-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .drawer-header h4 {
+            font-family: var(--pp-font-display);
+            font-weight: 700;
+            font-size: 14px;
+        }
+
+        .btn-drawer-close {
+            background: none;
+            border: none;
+            color: var(--pp-text-muted);
+            cursor: pointer;
+            font-size: 18px;
+            line-height: 1;
+            padding: 4px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-drawer-close:hover {
+            color: var(--pp-text);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .drawer-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .param-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .param-label {
+            font-size: 11.5px;
+            font-weight: 500;
+            color: var(--pp-text-muted);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .param-input-wrapper {
+            display: flex;
+            align-items: center;
+            background: #020617;
+            border: 1px solid var(--pp-border);
+            border-radius: 6px;
+            overflow: hidden;
+            transition: var(--pp-transition);
+        }
+
+        .param-input-wrapper:focus-within {
+            border-color: var(--pp-accent);
+            box-shadow: 0 0 0 2px var(--pp-accent-glow);
+        }
+
+        .param-prefix {
+            padding: 6px 10px;
+            font-size: 12px;
+            background: rgba(255, 255, 255, 0.03);
+            color: var(--pp-text-muted);
+            border-right: 1px solid var(--pp-border);
+        }
+
+        .param-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            padding: 8px 10px;
+            color: var(--pp-text);
+            font-size: 13px;
+            outline: none;
+            width: 100%;
+        }
+
+        .btn-apply-params {
+            background: var(--pp-accent-gradient);
+            color: #ffffff;
+            border: none;
+            padding: 10px 14px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 12px var(--pp-accent-glow);
+            transition: var(--pp-transition);
+            margin-top: 10px;
+        }
+
+        .btn-apply-params:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(59, 130, 246, 0.3);
+        }
+
+        /* Suggestion Domain Chips */
+        .suggestion-chips {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding: 2px 0;
+            scrollbar-width: none;
+        }
+
+        .suggestion-chips::-webkit-scrollbar {
+            display: none;
+        }
+
+        .suggestion-chip {
+            background: var(--pp-surface);
+            border: 1px solid var(--pp-border);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: var(--pp-transition);
+            color: var(--pp-text);
+        }
+
+        .suggestion-chip:hover {
+            background: var(--pp-surface-hover);
+            border-color: var(--pp-border-hover);
+            transform: translateY(-1px);
+        }
+
+        .suggestion-chip-accent {
+            border-color: rgba(16, 185, 129, 0.3);
+            background: rgba(16, 185, 129, 0.08);
+            color: #10b981;
+        }
+
+        /* Status & Thinking Loader Indicator */
+        .thinking-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--pp-text-muted);
+            font-size: 12.5px;
+            background: var(--pp-surface);
+            border: 1px solid var(--pp-border);
+            padding: 12px 16px;
+            border-radius: 12px;
+            animation: pulse-border 1.5s infinite;
+        }
+
+        @keyframes pulse-border {
+            0% { border-color: var(--pp-border); }
+            50% { border-color: rgba(59, 130, 246, 0.3); }
+            100% { border-color: var(--pp-border); }
+        }
+
+        .thinking-dots {
+            display: flex;
+            gap: 4px;
+        }
+
+        .thinking-dot {
+            width: 6px;
+            height: 6px;
+            background-color: var(--pp-accent);
+            border-radius: 50%;
+            animation: dot-bounce 1.4s infinite ease-in-out both;
+        }
+
+        .thinking-dot:nth-child(1) { animation-delay: -0.32s; }
+        .thinking-dot:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes dot-bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1.0); }
+        }
+
+        .warehouse-hint {
+            font-size: 11px;
+            color: var(--pp-text-muted);
+            opacity: 0.75;
+            margin-top: 4px;
+            line-height: 1.35;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- App Shell Header -->
+    <header class="app-header">
+        <div class="brand">
+            <div class="logo-mark">P</div>
+            <span class="brand-name">PulsePlay</span>
+            <span class="brand-tag">v1.0 Strategic Cockpit</span>
+        </div>
+        <div class="controls">
+            <button class="btn-theme-toggle" id="themeToggleBtn" onclick="toggleTheme()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m11.314 11.314l.707.707M12 7a5 5 0 100 10 5 5 0 000-10z"/></svg>
+                <span>Contrast Toggle</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workbench Area -->
+    <div class="workbench">
+        
+        <!-- Left Side Dashboard Canvas Mockup -->
+        <main class="canvas-area">
+            
+            <!-- Global Context Bar showing active variables -->
+            <div class="global-context-bar">
+                <div class="context-chips">
+                    <span class="context-chip context-chip-active">
+                        <span class="pulse-indicator"></span>
+                        Surface: <strong>Dashboard Workspace</strong>
+                    </span>
+                    <span class="context-chip">
+                        Vendor: <strong>Power BI</strong>
+                    </span>
+                    <span class="context-chip">
+                        Connector: <strong>Genie Agent Mode</strong>
+                    </span>
+                    <span class="context-chip">
+                        Vertical: <strong>Retail Performance</strong>
+                    </span>
+                </div>
+                
+                <div class="context-telemetry">
+                    <span>Quality Level: <strong>Grounded</strong></span>
+                    <span>Data Freshness: <strong>Live Stream</strong></span>
+                </div>
+            </div>
+
+            <!-- Dashboard Frame Sandbox -->
+            <div class="bi-dashboard-mock">
+                <div class="dashboard-header">
+                    <div class="dashboard-title">
+                        <h1>East Region Retail Operations</h1>
+                        <p>Aggregated transactional analytics from Databricks Lakehouse views</p>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--pp-border); padding: 4px 10px; border-radius: 6px; font-size: 11px;">
+                        Filtered: <strong style="color:#60a5fa">Region: East · Year: 2026</strong>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="kpi-card">
+                        <span class="kpi-label">Gross Revenue</span>
+                        <span class="kpi-value">$2.48M</span>
+                        <span class="kpi-trend trend-up">▲ +14.2% YoY</span>
+                    </div>
+                    <div class="kpi-card">
+                        <span class="kpi-label">Gross Margin %</span>
+                        <span class="kpi-value">13.8%</span>
+                        <span class="kpi-trend trend-down">▼ -1.5% Target</span>
+                    </div>
+                    <div class="kpi-card">
+                        <span class="kpi-label">Supply Return Rate</span>
+                        <span class="kpi-value">5.1%</span>
+                        <span class="kpi-trend trend-down">▼ +0.8% Limit</span>
+                    </div>
+                    <div class="kpi-card">
+                        <span class="kpi-label">Active Outlets</span>
+                        <span class="kpi-value">24</span>
+                        <span class="kpi-trend trend-up">▲ Net +2 new</span>
+                    </div>
+                </div>
+
+                <!-- Simulating a visual chart with beautiful overlay -->
+                <div class="chart-placeholder">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-bottom: 8px; opacity: 0.5;"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+                    <strong>Revenue & Margin Attribution Bridge</strong>
+                    <span style="font-size: 11px; opacity: 0.65;">Synchronized dynamically from active data query results</span>
+                    
+                    <div class="chart-visual-simulation">
+                        <div class="chart-bar" style="height: 40%"></div>
+                        <div class="chart-bar" style="height: 65%"></div>
+                        <div class="chart-bar" style="height: 50%"></div>
+                        <div class="chart-bar" style="height: 85%"></div>
+                        <div class="chart-bar" style="height: 70%"></div>
+                        <div class="chart-bar" style="height: 90%"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Right Side Ask Pulse Conversational Cockpit -->
+        <aside class="sidebar-panel">
+            
+            <!-- Conversational Header -->
+            <div class="sidebar-header">
+                <div class="sidebar-title-block">
+                    <h3>
+                        Ask Pulse Assistant
+                    </h3>
+                    <p>Natural Language Dialogue with Structured Data</p>
+                </div>
+                <span class="indicator-pill">governed stream</span>
+            </div>
+
+            <!-- Chat Stream Area -->
+            <div class="sidebar-stream" id="chatStream">
+                
+                <!-- Welcome Prompt State -->
+                <div id="welcomeState" style="text-align: center; margin: 40px 0; color: var(--pp-text-muted);">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" style="margin-bottom: 12px; filter: drop-shadow(0 4px 8px rgba(59,130,246,0.25));"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                    <h4 style="font-family: var(--pp-font-display); color: var(--pp-text); font-weight: 600; margin-bottom: 6px;">Initiate Dialogue with Data</h4>
+                    <p style="font-size: 12px; max-width: 280px; margin: 0 auto; line-height: 1.5;">Type a question, pick a suggestion chip, or type <strong style="color: #60a5fa; font-family: var(--pp-font-mono);">/</strong> to run specialized strategic templates.</p>
+                </div>
+
+            </div>
+
+            <!-- Suggestion Chips above Composer -->
+            <div style="padding: 0 16px; margin-bottom: 8px;">
+                <div class="suggestion-chips" id="suggestionChips">
+                    <span class="suggestion-chip suggestion-chip-accent" onclick="selectChip('/swot')">
+                        📊 SWOT Analysis
+                    </span>
+                    <span class="suggestion-chip" onclick="selectChip('/variance')">
+                        🌉 Variance Bridge
+                    </span>
+                    <span class="suggestion-chip" onclick="selectChip('/bcg')">
+                        🎯 BCG Growth
+                    </span>
+                    <span class="suggestion-chip" onclick="selectChip('AnalyzeEastRetailRules')">
+                        🟢 Verify Retail Rules
+                    </span>
+                </div>
+            </div>
+
+            <!-- Slash command autocomplete overlay -->
+            <div class="slash-dropdown" id="slashDropdown">
+                <div class="slash-dropdown-title">Strategic Analytical Frameworks</div>
+                <div class="slash-item" onclick="applySlashCommand('/swot')">
+                    <span class="slash-item-cmd">/swot</span>
+                    <span class="slash-item-desc">Run a quantified SWOT Strategic analysis</span>
+                </div>
+                <div class="slash-item" onclick="applySlashCommand('/bcg')">
+                    <span class="slash-item-cmd">/bcg</span>
+                    <span class="slash-item-desc">Generate a BCG Growth-Share matrix</span>
+                </div>
+                <div class="slash-item" onclick="applySlashCommand('/rfm')">
+                    <span class="slash-item-cmd">/rfm</span>
+                    <span class="slash-item-desc">Perform RFM Customer Segmentation</span>
+                </div>
+                <div class="slash-item" onclick="applySlashCommand('/pareto')">
+                    <span class="slash-item-cmd">/pareto</span>
+                    <span class="slash-item-desc">Execute a Pareto 80/20 Concentration Scan</span>
+                </div>
+                <div class="slash-item" onclick="applySlashCommand('/variance')">
+                    <span class="slash-item-cmd">/variance</span>
+                    <span class="slash-item-desc">Construct a Variance & Waterfall Bridge</span>
+                </div>
+            </div>
+
+            <!-- Composer Shell Input Area -->
+            <div class="sidebar-composer-shell">
+                <div class="composer-input-row">
+                    <div class="composer-textarea-wrapper">
+                        <textarea 
+                            class="composer-textarea" 
+                            id="chatInput" 
+                            placeholder="Ask Pulse anything about your data... (Type / for presets)"
+                            oninput="handleInput(this)"
+                            onkeydown="handleKeyDown(event)"
+                        ></textarea>
+                        
+                        <button class="composer-settings-trigger" id="paramToggleBtn" onclick="toggleDrawer()" title="Adjust Analysis Parameters">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 008 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+                        </button>
+                    </div>
+                    
+                    <button class="btn-ask" id="btnAsk" onclick="triggerAsk()">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Sliding Parameter Tuning Drawer inside Sidebar -->
+            <div class="parameter-drawer" id="parameterDrawer">
+                <div class="drawer-header">
+                    <h4 id="drawerTitle">SWOT Analysis Settings</h4>
+                    <button class="btn-drawer-close" onclick="toggleDrawer()">&times;</button>
+                </div>
+                
+                <div class="drawer-content">
+                    <div class="param-group">
+                        <label class="param-label">
+                            <span>Threat Materiality Threshold</span>
+                            <span style="color:#60a5fa">$5,000 baseline</span>
+                        </label>
+                        <div class="param-input-wrapper">
+                            <span class="param-prefix">$</span>
+                            <input type="number" class="param-input" id="paramMateriality" value="5000">
+                        </div>
+                    </div>
+                    
+                    <div class="param-group">
+                        <label class="param-label">
+                            <span>Healthy Margin Floor (%)</span>
+                            <span style="color:#60a5fa">15% default</span>
+                        </label>
+                        <div class="param-input-wrapper">
+                            <input type="number" class="param-input" id="paramMarginFloor" value="15">
+                            <span class="param-prefix" style="border-right:none; border-left:1px solid var(--pp-border)">%</span>
+                        </div>
+                    </div>
+
+                    <div class="param-group">
+                        <label class="param-label">
+                            <span>High-Growth Threshold (%)</span>
+                            <span style="color:#60a5fa">20% default</span>
+                        </label>
+                        <div class="param-input-wrapper">
+                            <input type="number" class="param-input" id="paramGrowthThreshold" value="20">
+                            <span class="param-prefix" style="border-right:none; border-left:1px solid var(--pp-border)">%</span>
+                        </div>
+                    </div>
+
+                    <button class="btn-apply-params" onclick="applyParameters()">Apply & Update Prompt</button>
+                </div>
+            </div>
+
+        </aside>
+    </div>
+
+    <!-- Interactive script simulating visual transitions, slash dropdowns, parameter storage, and responsive cards -->
+    <script>
+        let isDrawerOpen = false;
+        let activeParameters = {
+            materiality: 5000,
+            marginFloor: 15,
+            growth: 20
+        };
+
+        function toggleTheme() {
+            const body = document.body;
+            const currentTheme = body.getAttribute('data-theme');
+            if (currentTheme === 'light-contrast') {
+                body.removeAttribute('data-theme');
+            } else {
+                body.setAttribute('data-theme', 'light-contrast');
+            }
+        }
+
+        function toggleDrawer() {
+            const drawer = document.getElementById('parameterDrawer');
+            const trigger = document.getElementById('paramToggleBtn');
+            isDrawerOpen = !isDrawerOpen;
+            
+            if (isDrawerOpen) {
+                drawer.classList.add('open');
+                trigger.classList.add('active');
+            } else {
+                drawer.classList.remove('open');
+                trigger.classList.remove('active');
+            }
+        }
+
+        function applyParameters() {
+            activeParameters.materiality = parseInt(document.getElementById('paramMateriality').value) || 5000;
+            activeParameters.marginFloor = parseInt(document.getElementById('paramMarginFloor').value) || 15;
+            activeParameters.growth = parseInt(document.getElementById('paramGrowthThreshold').value) || 20;
+            
+            toggleDrawer();
+            
+            // Glow effect suggestion chip
+            const chips = document.getElementById('suggestionChips');
+            const newChip = document.createElement('span');
+            newChip.className = 'suggestion-chip suggestion-chip-accent';
+            newChip.innerHTML = `⚙️ Parameter Applied ($${activeParameters.materiality.toLocaleString()})`;
+            chips.insertBefore(newChip, chips.firstChild);
+            
+            setTimeout(() => {
+                newChip.style.transform = 'scale(1.05)';
+                setTimeout(() => newChip.style.transform = 'scale(1)', 100);
+            }, 10);
+        }
+
+        function handleInput(textarea) {
+            const value = textarea.value;
+            const dropdown = document.getElementById('slashDropdown');
+            
+            // Simple Slash dropdown detection
+            if (value.startsWith('/')) {
+                dropdown.classList.add('show');
+            } else {
+                dropdown.classList.remove('show');
+            }
+        }
+
+        function handleKeyDown(event) {
+            const textarea = document.getElementById('chatInput');
+            const dropdown = document.getElementById('slashDropdown');
+            
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                triggerAsk();
+            }
+            if (event.key === 'Escape') {
+                dropdown.classList.remove('show');
+            }
+        }
+
+        function applySlashCommand(cmd) {
+            const textarea = document.getElementById('chatInput');
+            const dropdown = document.getElementById('slashDropdown');
+            
+            textarea.value = cmd + ' ';
+            dropdown.classList.remove('show');
+            textarea.focus();
+            
+            // Adjust drawer titles and default parameters dynamically based on command
+            const drawerTitle = document.getElementById('drawerTitle');
+            if (cmd === '/variance') {
+                drawerTitle.innerText = "Variance attribution settings";
+                document.getElementById('paramMateriality').value = 10000;
+            } else {
+                drawerTitle.innerText = cmd.slice(1).toUpperCase() + " Strategic settings";
+            }
+        }
+
+        function selectChip(val) {
+            const textarea = document.getElementById('chatInput');
+            if (val.startsWith('/')) {
+                applySlashCommand(val);
+            } else if (val === 'AnalyzeEastRetailRules') {
+                textarea.value = "Apply East Region Retail Directional rules check";
+                triggerAsk();
+            }
+        }
+
+        function triggerAsk() {
+            const input = document.getElementById('chatInput');
+            const questionText = input.value.trim();
+            if (!questionText) return;
+            
+            const stream = document.getElementById('chatStream');
+            const welcome = document.getElementById('welcomeState');
+            
+            if (welcome) welcome.style.display = 'none';
+            
+            // 1. Add User Question Bubble
+            const userMsg = document.createElement('div');
+            userMsg.className = 'message-bubble msg-user';
+            userMsg.innerHTML = `<div class="user-text-box">${questionText}</div>`;
+            stream.appendChild(userMsg);
+            
+            input.value = '';
+            document.getElementById('slashDropdown').classList.remove('show');
+            stream.scrollTop = stream.scrollHeight;
+            
+            // 2. Add Animated Thinking loader mimicking warehouse warmups
+            const thinking = document.createElement('div');
+            thinking.className = 'thinking-indicator';
+            thinking.style.marginTop = '12px';
+            
+            let labelText = "Asking AI...";
+            let hintText = "";
+            
+            if (questionText.startsWith('/swot') || questionText.startsWith('/variance')) {
+                labelText = "Warming Databricks SQL Warehouse...";
+                hintText = "Cold starts take ~30s while cluster compute spins up. Active parameter: materiality threshold = $" + activeParameters.materiality.toLocaleString();
+            }
+            
+            thinking.innerHTML = `
+                <div class="thinking-dots">
+                    <span class="thinking-dot"></span>
+                    <span class="thinking-dot"></span>
+                    <span class="thinking-dot"></span>
+                </div>
+                <div style="flex: 1">
+                    <div style="font-weight: 600;">${labelText}</div>
+                    ${hintText ? `<div class="warehouse-hint">${hintText}</div>` : ''}
+                </div>
+            `;
+            stream.appendChild(thinking);
+            stream.scrollTop = stream.scrollHeight;
+            
+            // 3. Simulate structured system briefing response after delay
+            setTimeout(() => {
+                thinking.remove();
+                
+                const sysMsg = document.createElement('div');
+                sysMsg.className = 'message-bubble msg-system';
+                
+                let answerHtml = '';
+                
+                if (questionText.startsWith('/swot')) {
+                    answerHtml = `
+                        <div class="system-sender-info">
+                            <span>Assistant Response · Preset: /swot</span>
+                            <span class="attestation-badge badge-verified">[Verified Attestation]</span>
+                        </div>
+                        <div class="briefing-card-container">
+                            <div class="briefing-card">
+                                <div class="card-header">
+                                    <span class="card-header-icon">🟢</span>
+                                    <span>Strengths (Gross Revenue Attribution)</span>
+                                </div>
+                                <div class="card-body">
+                                    <p>East Region sales are leading at <strong>$2.48M</strong>, driven by technology-category outlet expansions. Net new additions are currently outperforming regional targets by 8%.</p>
+                                </div>
+                            </div>
+                            <div class="briefing-card">
+                                <div class="card-header">
+                                    <span class="card-header-icon">⚠️</span>
+                                    <span>Weaknesses (Margin Dilution)</span>
+                                </div>
+                                <div class="card-body">
+                                    <p>Overall gross margin has slipped down to <strong>13.8%</strong> (margin floor target: ${activeParameters.marginFloor}%). Margin degradation is concentrated in two major outlets experiencing promotional leakage.</p>
+                                    
+                                    <table class="dense-metric-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Outlet</th>
+                                                <th>Revenue</th>
+                                                <th>Margin %</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td>Outlet East-04</td>
+                                                <td>$540K</td>
+                                                <td class="metric-cell-red">11.2%</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Outlet East-12</td>
+                                                <td>$310K</td>
+                                                <td class="metric-cell-red">12.5%</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Outlet East-09</td>
+                                                <td>$420K</td>
+                                                <td class="metric-cell-green">16.4%</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="briefing-card">
+                                <div class="card-header">
+                                    <span class="card-header-icon">⚡</span>
+                                    <span>Opportunities & Governance Attestation</span>
+                                </div>
+                                <div class="card-body">
+                                    <p>Opportunity to capture margin recoveries by capping discount allocations at 5% on active tech product catalogs.</p>
+                                    
+                                    <details class="collapsible-details">
+                                        <summary>Inspect compiled SQL telemetry</summary>
+                                        <div class="collapsible-content">SELECT outlet_id, sum(revenue), sum(margin)/sum(revenue) as margin_pct
+FROM hive_metastore.sales.east_outlets_daily
+WHERE region = 'East' AND yr = 2026
+GROUP BY outlet_id
+HAVING sum(revenue) >= ${activeParameters.materiality};</div>
+                                    </details>
+                                    
+                                    <div class="telemetry-row">
+                                        <span>Warehouse execution: <strong>245ms</strong></span>
+                                        <span>Rows previewed: <strong>3 of 24</strong></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else if (questionText.includes('Verify Retail Rules') || questionText.includes('Directional')) {
+                    answerHtml = `
+                        <div class="system-sender-info">
+                            <span>Assistant Response · Rule Check</span>
+                            <span class="attestation-badge badge-verified">[Verified Attestation]</span>
+                        </div>
+                        <div class="briefing-card-container">
+                            <div class="briefing-card">
+                                <div class="card-header">
+                                    <span class="card-header-icon">🛡️</span>
+                                    <span>Governed Domain Directional Audit</span>
+                                </div>
+                                <div class="card-body">
+                                    <p>Audited East Region KPIs against <strong>Retail Domain Rules</strong>:</p>
+                                    <ul>
+                                        <li><strong style="color:var(--pp-success)">PASS:</strong> Gross Revenue is tracking above the $2M baseline milestone.</li>
+                                        <li><strong style="color:var(--pp-danger)">FAIL:</strong> Margin Floor rule breached! Active margin is 13.8% vs 15.0% floor.</li>
+                                        <li><strong style="color:var(--pp-danger)">FAIL:</strong> Return Rate threshold exceeded! Active rate is 5.1% vs 4.0% lock limit.</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    answerHtml = `
+                        <div class="system-sender-info">
+                            <span>Assistant Response · Conversational Mode</span>
+                            <span class="attestation-badge badge-draft">[Grounded Draft]</span>
+                        </div>
+                        <div class="briefing-card-container">
+                            <div class="briefing-card">
+                                <div class="card-header">
+                                    <span class="card-header-icon">💬</span>
+                                    <span>Data Synthesis result</span>
+                                </div>
+                                <div class="card-body">
+                                    <p>Regarding your query: "${questionText}". Analyzing the active dataset, gross revenue is lead by Eastern divisions with a healthy YoY increase. Let me know if you would like me to compile a strategic framework command like <strong style="color:#60a5fa">/swot</strong> or <strong style="color:#60a5fa">/variance</strong> over this view.</p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                sysMsg.innerHTML = answerHtml;
+                stream.appendChild(sysMsg);
+                stream.scrollTop = stream.scrollHeight;
+            }, 1500);
+        }
+    </script>
+</body>
+</html>

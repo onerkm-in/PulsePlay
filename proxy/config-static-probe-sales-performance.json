@@ -1,0 +1,446 @@
+{
+  "metadataAvailability": "rich",
+  "declaredKpis": [
+    {
+      "name": "Total Sales",
+      "table": "_Measures",
+      "displayFolder": "Sales"
+    },
+    {
+      "name": "Total Profit",
+      "table": "_Measures",
+      "displayFolder": "Profitability"
+    },
+    {
+      "name": "Profit Margin",
+      "table": "_Measures",
+      "displayFolder": "Profitability"
+    },
+    {
+      "name": "Total Quantity",
+      "table": "_Measures",
+      "displayFolder": "Sales"
+    },
+    {
+      "name": "Order Count",
+      "table": "_Measures",
+      "displayFolder": "Volume"
+    },
+    {
+      "name": "Line Item Count",
+      "table": "_Measures",
+      "displayFolder": "Volume"
+    },
+    {
+      "name": "Customer Count",
+      "table": "_Measures",
+      "displayFolder": "Volume"
+    },
+    {
+      "name": "Avg Discount",
+      "table": "_Measures",
+      "displayFolder": "Sales"
+    },
+    {
+      "name": "Avg Order Value",
+      "table": "_Measures",
+      "displayFolder": "Sales"
+    },
+    {
+      "name": "Returned Orders",
+      "table": "_Measures",
+      "displayFolder": "Returns"
+    },
+    {
+      "name": "Return Rate",
+      "table": "_Measures",
+      "displayFolder": "Returns"
+    },
+    {
+      "name": "Avg Days To Ship",
+      "table": "_Measures",
+      "displayFolder": "Operations"
+    },
+    {
+      "name": "Sales YoY %",
+      "table": "_Measures",
+      "displayFolder": "Time Intelligence"
+    },
+    {
+      "name": "Profit YoY %",
+      "table": "_Measures",
+      "displayFolder": "Time Intelligence"
+    },
+    {
+      "name": "Sales YTD",
+      "table": "_Measures",
+      "displayFolder": "Time Intelligence"
+    },
+    {
+      "name": "User Identity",
+      "table": "_Measures",
+      "displayFolder": "Security"
+    },
+    {
+      "name": "User Role",
+      "table": "_Measures",
+      "displayFolder": "Security"
+    }
+  ],
+  "schema": {
+    "tables": [
+      {
+        "name": "DimCustomer",
+        "sourceFile": "DimCustomer.tmdl",
+        "columns": [
+          {
+            "name": "customer_id",
+            "dataType": "string",
+            "isHidden": false
+          },
+          {
+            "name": "customer_name",
+            "dataType": "string",
+            "isHidden": false
+          },
+          {
+            "name": "segment",
+            "dataType": "string",
+            "isHidden": false
+          }
+        ],
+        "measures": []
+      },
+      {
+        "name": "DimDate",
+        "sourceFile": "DimDate.tmdl",
+        "columns": [
+          {
+            "name": "date_key",
+            "dataType": "dateTime",
+            "isHidden": false
+          },
+          {
+            "name": "year",
+            "dataType": "int64",
+            "isHidden": false
+          },
+          {
+            "name": "quarter",
+            "dataType": "int64",
+            "isHidden": false
+          },
+          {
+            "name": "year_quarter",
+            "dataType": "string",
+            "isHidden": false
+          },
+          {
+            "name": "month",
+            "dataType": "int64",
+            "isHidden": false
+          },
+          {
+            "name": "month_name",
+            "dataType": "string",
+            "isHidden": false
+          },
+          {
+            "name": "year_month",
+            "dataType": "string",
+            "isHidden": false
+          },
+          {
+            "name": "day",
+            "dataType": "int64",
+            "isHidden": false
+          },
+          {
+            "name": "day_of_week",
+            "dataType": "int64",
+            "isHidden": false
+          },
+          {
+            "name": "day_name",
+            "dataType": "string",
+            "isHidden": false
+          },
+          {
+            "name": "is_weekend",
+            "dataType": "boolean",
+            "isHidden": false
+          }
+        ],
+        "measures": []
+      },
+      {
+        "name": "DimGeography",
+        "sourceFile": "DimGeography.tmdl",
+        "columns": [
+          {
+            "name": "geo_key",
+            "dataType": "string",
+            "isHidden": true
+          },
+          {
+            "name": "country",
+            "dataType": "string",
+            "isHidden": false
+          },
+          {
+            "name": "region",
+            "dataType": "string",
+            "isHidden": false
+          },
+          {
+            "name": "state",
+            "dataType": "string",
+            "isHidden": false
+          },
+          {
+            "name": "city",
+            "dataType": "string",
+            "isHidden": false
+          },
+          {
+            "name": "postal_code",
+            "dataType": "string",
+            "isHidden": false
+          }
+        ],
+        "measures": []
+      },
+      {
+        "name": "DimProduct",
+        "sourceFile": "DimProduct.tmdl",
+        "columns": [
+          {
+            "name": "product_id",
+            "dataType": "string",
+            "isHidden": false
+          },
+          {
+            "name": "product_name",
+            "dataType": "string",
+            "isHidden": false
+          },
+          {
+            "name": "category",
+            "dataType": "string",
+            "isHidden": false
+          },
+          {
+            "name": "sub_category",
+            "dataType": "string",
+            "isHidden": false
+          },
+          {
+            "name": "sub_category_id",
+            "dataType": "string",
+            "isHidden": false
+          }
+        ],
+        "measures": []
+      },
+      {
+        "name": "DimRegionManager",
+        "sourceFile": "DimRegionManager.tmdl",
+        "columns": [
+          {
+            "name": "region",
+            "dataType": "string",
+            "isHidden": false
+          },
+          {
+            "name": "manager_name",
+            "dataType": "string",
+            "isHidden": false
+          }
+        ],
+        "measures": []
+      },
+      {
+        "name": "DimShipMode",
+        "sourceFile": "DimShipMode.tmdl",
+        "columns": [
+          {
+            "name": "ship_mode",
+            "dataType": "string",
+            "isHidden": false
+          },
+          {
+            "name": "ship_mode_priority",
+            "dataType": "int64",
+            "isHidden": false
+          }
+        ],
+        "measures": []
+      },
+      {
+        "name": "FactOrders",
+        "sourceFile": "FactOrders.tmdl",
+        "columns": [
+          {
+            "name": "row_id",
+            "dataType": "int64",
+            "isHidden": false
+          },
+          {
+            "name": "order_id",
+            "dataType": "string",
+            "isHidden": false
+          },
+          {
+            "name": "order_date",
+            "dataType": "dateTime",
+            "isHidden": false
+          },
+          {
+            "name": "ship_date",
+            "dataType": "dateTime",
+            "isHidden": false
+          },
+          {
+            "name": "days_to_ship",
+            "dataType": "int64",
+            "isHidden": false
+          },
+          {
+            "name": "customer_id",
+            "dataType": "string",
+            "isHidden": true
+          },
+          {
+            "name": "product_id",
+            "dataType": "string",
+            "isHidden": true
+          },
+          {
+            "name": "geo_key",
+            "dataType": "string",
+            "isHidden": true
+          },
+          {
+            "name": "region",
+            "dataType": "string",
+            "isHidden": false
+          },
+          {
+            "name": "ship_mode",
+            "dataType": "string",
+            "isHidden": false
+          },
+          {
+            "name": "sales",
+            "dataType": "double",
+            "isHidden": false
+          },
+          {
+            "name": "quantity",
+            "dataType": "int64",
+            "isHidden": false
+          },
+          {
+            "name": "discount",
+            "dataType": "double",
+            "isHidden": false
+          },
+          {
+            "name": "profit",
+            "dataType": "double",
+            "isHidden": false
+          },
+          {
+            "name": "is_returned",
+            "dataType": "boolean",
+            "isHidden": false
+          }
+        ],
+        "measures": []
+      },
+      {
+        "name": "_Measures",
+        "sourceFile": "_Measures.tmdl",
+        "columns": [
+          {
+            "name": "_key",
+            "dataType": "string",
+            "isHidden": true
+          }
+        ],
+        "measures": [
+          {
+            "name": "Total Sales",
+            "displayFolder": "Sales"
+          },
+          {
+            "name": "Total Profit",
+            "displayFolder": "Profitability"
+          },
+          {
+            "name": "Profit Margin",
+            "displayFolder": "Profitability"
+          },
+          {
+            "name": "Total Quantity",
+            "displayFolder": "Sales"
+          },
+          {
+            "name": "Order Count",
+            "displayFolder": "Volume"
+          },
+          {
+            "name": "Line Item Count",
+            "displayFolder": "Volume"
+          },
+          {
+            "name": "Customer Count",
+            "displayFolder": "Volume"
+          },
+          {
+            "name": "Avg Discount",
+            "displayFolder": "Sales"
+          },
+          {
+            "name": "Avg Order Value",
+            "displayFolder": "Sales"
+          },
+          {
+            "name": "Returned Orders",
+            "displayFolder": "Returns"
+          },
+          {
+            "name": "Return Rate",
+            "displayFolder": "Returns"
+          },
+          {
+            "name": "Avg Days To Ship",
+            "displayFolder": "Operations"
+          },
+          {
+            "name": "Sales YoY %",
+            "displayFolder": "Time Intelligence"
+          },
+          {
+            "name": "Profit YoY %",
+            "displayFolder": "Time Intelligence"
+          },
+          {
+            "name": "Sales YTD",
+            "displayFolder": "Time Intelligence"
+          },
+          {
+            "name": "User Identity",
+            "displayFolder": "Security"
+          },
+          {
+            "name": "User Role",
+            "displayFolder": "Security"
+          }
+        ]
+      }
+    ]
+  },
+  "derivedFrom": "tmdl-static-probe",
+  "derivedAt": "2026-05-26T11:36:35.876Z"
+}

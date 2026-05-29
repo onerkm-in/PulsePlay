@@ -1,0 +1,21 @@
+{
+  "name": "retail-marketing-roas",
+  "displayName": "ROAS Campaign Performance",
+  "pack": "retail-digital",
+  "subVertical": "digital-marketing",
+  "vendor": "generic-iframe",
+  "connector": "ResponsesAgent",
+  "metadata": {
+    "scenario": "Analyzes digital marketing spend, ROAS outliers, and customer acquisition costs across Google Ads and Meta platforms.",
+    "illustrative": true,
+    "sourceIds": ["RET-002"]
+  },
+  "overlays": ["sustainability"],
+  "authorOverrides": {
+    "glossary": [],
+    "kpis": [],
+    "insightTemplates": [],
+    "starterQuestions": [],
+    "guidedFilters": []
+  }
+}

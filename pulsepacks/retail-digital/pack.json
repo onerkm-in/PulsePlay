@@ -1,0 +1,69 @@
+{
+  "name": "retail-digital",
+  "displayName": "E-Commerce & Digital Retail",
+  "version": "0.1.0",
+  "description": "E-Commerce & Digital Retail preset pack, encompassing merchandising planners, digital marketing growth loops, and green logistics/sustainability overlays. Grounded in commerce standard taxonomies (Google Analytics 4 Enhanced Ecommerce schema, standard retail merchandising math).",
+  "industries": [
+    "apparel-fashion",
+    "electronics",
+    "home-goods",
+    "grocery-digital",
+    "general-merchandise"
+  ],
+  "subVerticals": [
+    {
+      "name": "merchandising",
+      "path": "sub-verticals/merchandising",
+      "description": "Gross margin return on investment (GMROI), sell-through velocity, inventory turn, markdowns."
+    },
+    {
+      "name": "digital-marketing",
+      "path": "sub-verticals/digital-marketing",
+      "description": "Customer acquisition cost (CAC), LTV, ROAS, conversion funnel, retention cohorts."
+    },
+    {
+      "name": "sustainability",
+      "path": "sub-verticals/sustainability",
+      "description": "Cross-cutting overlay: packaging circularity, transportation carbon intensity, Scope 3 EPR."
+    }
+  ],
+  "crossCutting": [
+    "sustainability"
+  ],
+  "aiCompatibility": [
+    "conversation",
+    "agent",
+    "mcp"
+  ],
+  "biCompatibility": [
+    "powerbi",
+    "tableau",
+    "qlik",
+    "looker",
+    "generic-iframe"
+  ],
+  "knowledgeBase": {
+    "glossary": "knowledge-base/glossary.md",
+    "references": "knowledge-base/references.md",
+    "ontology": "knowledge-base/ontology.md"
+  },
+  "references": [
+    {
+      "label": "Google Analytics 4 Enhanced Ecommerce Schema",
+      "url": "https://developers.google.com/analytics/devguides/collection/ga4/reference/events",
+      "scope": "digital-funnels"
+    },
+    {
+      "label": "National Retail Federation (NRF) Merchandising Guidelines",
+      "url": "https://nrf.com/resources/retail-library",
+      "scope": "merchandising-math"
+    },
+    {
+      "label": "GHG Protocol Corporate Value Chain (Scope 3) Standard",
+      "url": "https://ghgprotocol.org/standards/scope-3-standard",
+      "scope": "sustainability"
+    }
+  ],
+  "maintainers": [],
+  "lastUpdated": "2026-05-23"
+}
