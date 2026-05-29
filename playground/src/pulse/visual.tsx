@@ -1982,6 +1982,20 @@ function App(props: AppProps) {
     const [historyItems, setHistoryItems] = useState<GenieHistoryEntry[]>([]);
     const [historyBusy, setHistoryBusy] = useState(false);
     const [historyError, setHistoryError] = useState("");
+    // 2026-05-29 — the "Show history" button is hidden by default; a Settings
+    // toggle (Display group → genieSettings.showHistoryButton) opts it back in.
+    // Reactive to the shared visual-settings change event so flipping the
+    // toggle shows/hides it live without a reload.
+    const readShowHistoryButton = () => {
+        try { return JSON.parse(window.localStorage.getItem("pulseplay:visual-settings:genieSettings") || "{}").showHistoryButton === true; }
+        catch { return false; }
+    };
+    const [showHistoryButton, setShowHistoryButton] = useState<boolean>(readShowHistoryButton);
+    useEffect(() => {
+        const sync = () => setShowHistoryButton(readShowHistoryButton());
+        window.addEventListener("pulseplay:visual-settings-change", sync);
+        return () => window.removeEventListener("pulseplay:visual-settings-change", sync);
+    }, []);
     const [historyIncludeAll, setHistoryIncludeAll] = useState(false);
     // PulsePlay Settings is now the single setup/configuration surface.
     // The Console stays operational only: status, diagnostics, session logs,
@@ -6004,14 +6018,16 @@ function App(props: AppProps) {
                     aria-labelledby={enabledFeatures === "both" ? "gn-tab-chat" : undefined}
                 >
                     <div className="gn-history-bar">
-                        <button
-                            type="button"
-                            className="gn-pill gn-pill--compact"
-                            disabled={!isConfigured}
-                            onClick={() => setShowHistory(prev => !prev)}
-                        >
-                            {showHistory ? "Hide history" : "Show history"}
-                        </button>
+                        {showHistoryButton && (
+                            <button
+                                type="button"
+                                className="gn-pill gn-pill--compact"
+                                disabled={!isConfigured}
+                                onClick={() => setShowHistory(prev => !prev)}
+                            >
+                                {showHistory ? "Hide history" : "Show history"}
+                            </button>
+                        )}
                         {canViewAllHistory && (
                             <label className="gn-history-toggle">
                                 <input

@@ -186,6 +186,24 @@ export function PreferencesGroup(): React.ReactElement {
                     Default OFF. Workbench remains the cold-boot surface regardless of this setting; enabling it only adds the optional top-bar switcher.
                 </p>
             </Leaf>
+            <Leaf
+                group="preferences"
+                label="Chat history button"
+                helper="Show the 'Show history' button on the Ask Pulse / Chat surface. Default OFF (hidden) to keep the surface clean."
+            >
+                <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                    <input
+                        type="checkbox"
+                        checked={pulseAi.value.showHistoryButton}
+                        onChange={e => pulseAi.update({ showHistoryButton: e.target.checked })}
+                        style={{ margin: 0 }}
+                    />
+                    <span style={{ fontSize: 13 }}>Show the &ldquo;Show history&rdquo; button in chat</span>
+                </label>
+                <p style={{ fontSize: 11, opacity: 0.65, margin: "6px 0 0" }}>
+                    Default OFF (hidden). When ON, end users can open their saved conversation history from the chat surface.
+                </p>
+            </Leaf>
             </SubSection>
 
             {/* ─── Tier 3: Display policy ─────────────────────────────── */}

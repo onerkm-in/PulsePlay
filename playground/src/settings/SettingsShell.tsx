@@ -169,6 +169,9 @@ export const GROUP_LEAF_LABELS: Record<SettingsGroupId, string[]> = {
         // 2026-05-28 — author gate for the Chat (v0) surface. Workbench is
         // the default; this exposes the optional Workbench⇄Chat switcher.
         "Chat surface",
+        // 2026-05-29 — author gate to show/hide the chat "Show history" button
+        // (hidden by default). Lives in the Surface sub-section.
+        "Chat history button",
         "Canvas tiles",
         "Appearance",
     ],

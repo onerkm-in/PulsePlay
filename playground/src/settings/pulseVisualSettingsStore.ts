@@ -86,6 +86,10 @@ export interface PulseAiVisualSettings {
      *  ever see Workbench. Author-only — set in Settings, never exposed
      *  to end users as a surface control. */
     allowChatSurface: boolean;
+    /** 2026-05-29 — author gate for the chat "Show history" button. Default
+     *  false (hidden) so the chat surface stays clean; flip ON in Settings →
+     *  Preferences → Surface to expose the history toggle to end users. */
+    showHistoryButton: boolean;
 }
 
 const DEFAULTS: PulseAiVisualSettings = {
@@ -120,6 +124,7 @@ const DEFAULTS: PulseAiVisualSettings = {
     insightsShowResearchTraces: true,
     insightsStagedRevealEnabled: true,
     allowChatSurface: false,
+    showHistoryButton: false,
 };
 
 function readRawGenieSettings(): Record<string, unknown> {
@@ -194,6 +199,7 @@ export function readPulseAiVisualSettings(): PulseAiVisualSettings {
         insightsShowResearchTraces: asBool(raw.insightsShowResearchTraces, DEFAULTS.insightsShowResearchTraces),
         insightsStagedRevealEnabled: asBool(raw.insightsStagedRevealEnabled, DEFAULTS.insightsStagedRevealEnabled),
         allowChatSurface: asBool(raw.allowChatSurface, DEFAULTS.allowChatSurface),
+        showHistoryButton: asBool(raw.showHistoryButton, DEFAULTS.showHistoryButton),
     };
 }
 
