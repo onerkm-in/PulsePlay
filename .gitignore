@@ -83,3 +83,9 @@ docs/evidence/ui-snapshot-*/
 # Local probe output scratch dirs
 playground/scripts/.*-out/
 
+
+.databricks
+
+# Local Azure deploy metadata (non-secret env-specific local state) + script scratch logs
+scripts/.azure-appservice.json
+scripts/.*.log

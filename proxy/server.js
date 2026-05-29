@@ -140,8 +140,17 @@ function envConfig() {
     // (e.g. Databricks Apps, containerised). Generic — supports any profile
     // names the deployer chooses.
     const envProfiles = loadEnvProfiles();
+    // Match env-profile names to existing profiles ignoring hyphen vs
+    // underscore. App Service app-setting keys don't reliably carry hyphens,
+    // so PROXY_PROFILE_POWERBI_DWD_* (parsed as "powerbi_dwd") must still merge
+    // into a profile named "powerbi-dwd". Falls back to the literal name when
+    // there's no normalized match (new env-only profiles).
+    const normalizeProfileName = s => s.toLowerCase().replace(/[-_]/g, '');
+    const configByNorm = {};
+    for (const k of Object.keys(profiles)) configByNorm[normalizeProfileName(k)] = k;
     for (const [name, envProfile] of Object.entries(envProfiles)) {
-        profiles[name] = { ...(profiles[name] || {}), ...envProfile };
+        const target = configByNorm[normalizeProfileName(name)] || name;
+        profiles[target] = { ...(profiles[target] || {}), ...envProfile };
     }
 
     if (process.env.SUPERVISOR_ENABLED !== 'false') {
@@ -302,7 +311,29 @@ const ENV_PROFILE_FIELDS = {
     POWER_BI_RLS_USERNAME_CLAIM: 'powerBiRlsUsernameClaim',
     POWERBIRLSUSERNAMECLAIM: 'powerBiRlsUsernameClaim',
     POWER_BI_RLS_ROLES: 'powerBiRlsRoles',
-    POWERBIRLSROLES: 'powerBiRlsRoles'
+    POWERBIRLSROLES: 'powerBiRlsRoles',
+    // 2026-05-29 — Power BI semantic-model profile fields, so a complete
+    // `powerbi-semantic-model` profile can be defined purely via env vars
+    // (config.json-free deploys) with the secret supplied as a Key Vault
+    // reference. The SP secret already maps via POWER_BI_CLIENT_SECRET
+    // (the semantic-model path accepts powerBi* as a fallback for aad*);
+    // these add the remaining non-secret fields + the canonical aad* names.
+    AUTH_MODE: 'authMode',
+    AUTHMODE: 'authMode',
+    AAD_TENANT_ID: 'aadTenantId',
+    AADTENANTID: 'aadTenantId',
+    AAD_CLIENT_ID: 'aadClientId',
+    AADCLIENTID: 'aadClientId',
+    AAD_CLIENT_SECRET: 'aadClientSecret',
+    AADCLIENTSECRET: 'aadClientSecret',
+    POWERBI_GROUP_ID: 'powerbiGroupId',
+    POWERBIGROUPID: 'powerbiGroupId',
+    POWER_BI_GROUP_ID: 'powerbiGroupId',
+    POWERBI_DATASET_ID: 'powerbiDatasetId',
+    POWERBIDATASETID: 'powerbiDatasetId',
+    POWER_BI_DATASET_ID: 'powerbiDatasetId',
+    STATIC_PROBE_PATH: 'staticProbePath',
+    STATICPROBEPATH: 'staticProbePath'
 };
 
 function loadEnvProfiles(env = process.env) {
@@ -346,8 +377,17 @@ function mergeConfigWithEnvironment(config) {
     // pass through unchanged. New profiles that don't exist in config.json
     // are appended whole.
     const envProfiles = loadEnvProfiles();
+    // Match env-profile names to existing profiles ignoring hyphen vs
+    // underscore. App Service app-setting keys don't reliably carry hyphens,
+    // so PROXY_PROFILE_POWERBI_DWD_* (parsed as "powerbi_dwd") must still merge
+    // into a profile named "powerbi-dwd". Falls back to the literal name when
+    // there's no normalized match (new env-only profiles).
+    const normalizeProfileName = s => s.toLowerCase().replace(/[-_]/g, '');
+    const configByNorm = {};
+    for (const k of Object.keys(profiles)) configByNorm[normalizeProfileName(k)] = k;
     for (const [name, envProfile] of Object.entries(envProfiles)) {
-        profiles[name] = { ...(profiles[name] || {}), ...envProfile };
+        const target = configByNorm[normalizeProfileName(name)] || name;
+        profiles[target] = { ...(profiles[target] || {}), ...envProfile };
     }
 
     if (process.env.SUPERVISOR_ENABLED === 'true' && !profiles.supervisor) {

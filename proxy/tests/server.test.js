@@ -1746,6 +1746,29 @@ describe('loadEnvProfiles — generic env-var profile loader (IDEA-016 phase 2)'
         expect(loadEnvProfiles({})).toEqual({});
         expect(loadEnvProfiles({ DATABRICKS_HOST: 'https://x' })).toEqual({});
     });
+
+    it('maps the powerbi-semantic-model env fields (2026-05-29) for config.json-free profiles', () => {
+        const profiles = loadEnvProfiles({
+            PROXY_PROFILE_PBI_TYPE: 'powerbi-semantic-model',
+            PROXY_PROFILE_PBI_AUTH_MODE: 'service-principal',
+            PROXY_PROFILE_PBI_AAD_TENANT_ID: 'tenant-guid',
+            PROXY_PROFILE_PBI_AAD_CLIENT_ID: 'client-guid',
+            PROXY_PROFILE_PBI_AAD_CLIENT_SECRET: 'secret-value',
+            PROXY_PROFILE_PBI_POWERBI_GROUP_ID: 'workspace-guid',
+            PROXY_PROFILE_PBI_POWERBI_DATASET_ID: 'dataset-guid',
+            PROXY_PROFILE_PBI_STATIC_PROBE_PATH: 'probe.json',
+        });
+        expect(profiles.pbi).toEqual({
+            type: 'powerbi-semantic-model',
+            authMode: 'service-principal',
+            aadTenantId: 'tenant-guid',
+            aadClientId: 'client-guid',
+            aadClientSecret: 'secret-value',
+            powerbiGroupId: 'workspace-guid',
+            powerbiDatasetId: 'dataset-guid',
+            staticProbePath: 'probe.json',
+        });
+    });
 });
 
 describe('env-var profile layering — overrides config.json fields per-profile', () => {
@@ -1763,6 +1786,26 @@ describe('env-var profile layering — overrides config.json fields per-profile'
         } finally {
             if (ORIG === undefined) delete process.env.PROXY_PROFILE_DEFAULT_DISPLAY_NAME;
             else process.env.PROXY_PROFILE_DEFAULT_DISPLAY_NAME = ORIG;
+        }
+    });
+
+    it('merges an underscore env profile name into a hyphenated config profile (App-Service-safe keys)', async () => {
+        // 2026-05-29 — PROXY_PROFILE_POWERBI_DWD_* (underscore, App-Service-safe)
+        // must merge into the config.json profile "powerbi-dwd" (hyphen). Skips
+        // gracefully if the active config doesn't define that profile.
+        const baseline = await request(app).get('/assistant/profiles');
+        const hasPbi = (baseline.body || []).some(p => p.name === 'powerbi-dwd');
+        if (!hasPbi) return; // profile not in this config — nothing to assert
+        const ORIG = process.env.PROXY_PROFILE_POWERBI_DWD_DISPLAY_NAME;
+        process.env.PROXY_PROFILE_POWERBI_DWD_DISPLAY_NAME = 'PBI (env-normalized)';
+        try {
+            const res = await request(app).get('/assistant/profiles');
+            const pbi = res.body.find(p => p.name === 'powerbi-dwd');
+            expect(pbi).toBeDefined();
+            expect(pbi.displayName).toBe('PBI (env-normalized)');
+        } finally {
+            if (ORIG === undefined) delete process.env.PROXY_PROFILE_POWERBI_DWD_DISPLAY_NAME;
+            else process.env.PROXY_PROFILE_POWERBI_DWD_DISPLAY_NAME = ORIG;
         }
     });
 });

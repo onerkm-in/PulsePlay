@@ -5,6 +5,50 @@
 
 ---
 
+## 2026-05-29 - Azure App Service hosting LIVE ($0) + Easy Auth + proxy env-mapping; CONNECTIVITY closed, FEATURES not yet verified
+
+**Context.** Goal reframed mid-session to **plug-and-play / understand-everything**: configure the full stack by hand so the org can later just swap credentials. Host-agnostic target (Databricks App / Azure App / AWS App). Org: Databricks ON, Azure ON, **Power BI Premium ON**. All work dev-only; **$0** (free F1, no paid resources). See memory `project_plug_and_play_config`, `project_azure_free_account`, `project_dev_connect_first`, `feedback_keep_all_connection_options`.
+
+**Shipped (uncommitted code → this commit).**
+- **Azure App Service hosting LIVE** at `https://pulseplay-onedata-dev.azurewebsites.net` — RG `pulseplay-rg`, **F1 Free** Linux plan `pulseplay-f1`, web app, Node 20, startup `node proxy/server.js`, `STATIC_DIR=playground/dist`, HTTPS-only. Provisioned via a Node ARM script (device-code → ARM REST) because `az` is Norton-TLS-blocked and `azd` isn't installed; the **Azure MCP is authenticated** (read + app-settings only, can't create). Cred-free build deployed + smoked anonymously, then **Entra Easy Auth** enabled (single-tenant, require-auth) → anonymous now **401 (org-only)**, then full `config.json` build redeployed behind the gate. Power BI Q&A + embed-token both proven via a throwaway local proxy earlier.
+- **New dev scripts** (`scripts/`): `verify-pbi-sp.mjs`, `provision-azure-appservice.mjs` (region is a **required** input — nothing hardcoded), `deploy-azure-zip.mjs`, `enable-azure-easyauth.mjs`. Device-code based; dev conveniences (enterprise = manual + multi-team). All must run with **`node --use-system-ca`** (Norton TLS).
+- **Proxy env-mapping enhancement** ([proxy/server.js](../proxy/server.js)) — added `ENV_PROFILE_FIELDS` for `authMode`/`aad*`/`powerbiGroupId`/`powerbiDatasetId`/`staticProbePath`, and made env↔config profile-name matching **hyphen/underscore-insensitive** (so App-Service-safe `PROXY_PROFILE_POWERBI_DWD_*` merges into config's `powerbi-dwd`). Enables a fully env/Key-Vault-driven `powerbi-semantic-model` profile. **+2 unit tests; full proxy suite 1166/1166.**
+- **Docs:** new [docs/PLUG_AND_PLAY_CHECKLIST.md](PLUG_AND_PLAY_CHECKLIST.md) — per-host requirements (Databricks Apps + Azure App Service), connector credential matrix (all auth options per connector), Power BI SP steps, TLS note, and a **Challenges & known limitations** section (code-review findings).
+
+**`/code-review` (xhigh) findings — documented, NOT fixed (one-shot dev scripts).** Top: `enable-azure-easyauth.mjs` is non-idempotent (re-run creates duplicate Entra app + secret); `provision-azure-appservice.mjs` base app-settings PUT is full-replace (re-run after easyauth clobbers `MICROSOFT_PROVIDER_AUTHENTICATION_SECRET`); easyauth SP-create catch swallows all errors; `deploy-azure-zip.mjs` is fire-and-forget + no empty-zip guard. Proxy change itself is clean (no suffix collision across 78 keys). Full list in the checklist §5b.
+
+**BRUTAL-HONEST status — what's NOT done (read before claiming completeness).**
+- ✅ **Connectivity** confirmed: Power BI (SP, Q&A + embed-token mint) + Azure hosting + Easy Auth.
+- ❌ **Databricks Genie end-to-end: UNVERIFIED this session.** Proxy logs earlier showed `[send-message] No access token configured…` — a risk signal the default Genie path may not work. Not tested.
+- ❌ **Power BI report VISUAL render in the Dashboard tab UI: unverified** (token minted ≠ rendered; needs capacity — Fabric trial now / Premium in prod).
+- ❌ **App UI feature flows** (AI Insights sections, Ask Pulse chat, Dashboard) **not exercised** against live backends this session — only backend proxy routes were tested.
+- ⏸️ **PARKED:** (1) Databricks AI/BI adapter "honest graduation" (token-refresh + navigate + loaded/error events + test seam — scoped at session start, not built); (2) **auto-prompt-from-context** feature (one-click generate AI-Insights + Guidance prompts from Genie probe — requested, not built); (3) **Key Vault** migration (planned: vault + MI + grants + KV-ref app settings + de-secret config.json keeping `userRefreshToken`); (4) **Databricks App** redeploy-of-latest + **local end-to-end** feature verification.
+
+**Tripwires.** App settings shown in the Azure portal are the base 5 the provisioner set. The Easy Auth Entra app secret expires **2026-11-29**. Don't re-run `provision` after `easyauth` (clobbers the auth secret). `scripts/.azure-appservice.json` (local target metadata) is now gitignored.
+
+---
+
+## 2026-05-29 - Power BI service-principal LIVE in dev — SP created, both paths verified (Q&A + embed-token)
+
+**Goal (dev-only).** Prove PulsePlay can establish the Power BI connection and perform tasks (Q&A + embed) before any real-environment deploy. Prod will add Okta auth + run on Power BI **Premium** capacity (Fabric NOT rolled out). Free Azure account — no paid resources provisioned.
+
+**Shipped / configured (no code commits; config + Azure only).**
+- **Service principal created** via [scripts/create-pbi-service-principal.mjs](../scripts/create-pbi-service-principal.mjs) (device-code → Graph). App `pulseplay-powerbi-sp`, clientId `a4f4285a-058b-45fd-a753-e086d093e460`, secret expires **2026-11-29**. Tenant `2b983dc1-…` (onedata / ONEDATAANALYTICS).
+- **`proxy/config.json` profile `powerbi-dwd`** now: `authMode: service-principal`, `aadClientId/aadClientSecret` (semantic-model path) **and** mirrored `powerBiClientId/powerBiClientSecret/powerBiTenantId` (embed-token path). `userRefreshToken` retained as fallback (flip `authMode` back to `user-refresh` to revert).
+- **Tenant gate:** this unified-Fabric tenant has **no "Allow service principals to use Power BI APIs"** row — it's replaced by **"Service principals can call Fabric public APIs"**, already **Enabled for the entire organization**. That is the gate; it governs `api.powerbi.com` SP access here. SP added as **Member** of workspace `dwd_pbi_demo` (`7bb52a2a-…`). "Embed content in apps" also enabled org-wide.
+
+**Verified end-to-end (new throwaway helper [scripts/verify-pbi-sp.mjs](../scripts/verify-pbi-sp.mjs)).**
+- SP `client_credentials` → Power BI: sees datasets `SalesPerformance` (`965cca80-…`) + `DwD_PBI_Demo`; reports `SalesPerformance` (reportId `95d196a1-9d2a-4ebd-a222-22fae6bc0149`) + `DwD_PBI_Demo` (`c6afe35e-…`) on WABI-INDIA-CENTRAL capacity.
+- Through a throwaway proxy (`PORT=7010`): **embed-token minted** (app-owns-data, 1805-char token + embedUrl), and **semantic-model Q&A** returned live DAX — "Total Sales by region": West 725,457.82 / East 678,781.24 / Central 501,239.89 / South 391,721.91, `status COMPLETED`, deterministic (0 LLM calls).
+
+**Tripwires for next session.**
+- **TLS / `--use-system-ca` (this machine).** Norton Web/Mail Shield intercepts TLS; Node's bundled CA rejects it (`UNABLE_TO_VERIFY_LEAF_SIGNATURE`). ALL Node processes that call `login.microsoftonline.com` / `api.powerbi.com` (the proxy AND the PBI scripts) must run with **`node --use-system-ca …`** (Node 24 trusts the Windows store where the Norton root lives). The proxy run cmd here is `$env:PORT=7000; node --use-system-ca server.js`. Plain `node server.js` makes every SP/embed call fail TLS.
+- **Running proxy on 7000 still holds the OLD `user-refresh` config in memory** — restart it (with `--use-system-ca`) to pick up `service-principal`.
+- **Visual rendering vs Q&A.** Q&A (`executeQueries`) needs no capacity — free, works now. App-owns-data report *rendering* needs the workspace on capacity; it's currently on a **Fabric trial (42 days left)** so it renders for free during the trial. In PROD it renders on the org's existing **Premium** capacity (no code change — embed path is capacity-agnostic). Do NOT provision paid Power BI Embedded capacity.
+- Secret rotates **2026-11-29** — re-run the bootstrap (or `addPassword`) before then; re-verify with `verify-pbi-sp.mjs`.
+
+---
+
 ## 2026-05-28 - Workbench nav fix + AI-Insights default + briefing pack (BI axis + native panel); redeploy BLOCKED by Free-Edition quota
 
 **Shipped (committed + pushed to `origin/codex/f5-g0-native-layout-2026-05-21`, HEAD `209d0b6`).**
