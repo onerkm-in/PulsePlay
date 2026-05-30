@@ -265,6 +265,10 @@
     --gn-bg:                @gn-dark-bg;
     --gn-surface:           @gn-dark-surface;
     --gn-surface-raised:    @gn-dark-surface-raised;
+    /* AI Insights KPI/section cards read `var(--gn-bubble-bg, #ffffff)`,
+     * which is otherwise undefined → white blaze in dark. Bind it to the
+     * dark raised surface here; light keeps the #ffffff fallback. */
+    --gn-bubble-bg:         @gn-dark-surface-raised;
     --gn-text:              @gn-dark-text;
     --gn-text-muted:        @gn-dark-text-muted;
     --gn-border:            @gn-dark-border;
