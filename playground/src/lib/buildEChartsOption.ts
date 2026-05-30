@@ -24,11 +24,46 @@ import { detectColumnUnit, type UnitType } from '../visualization/chartAutoPick'
 import { humanizeColumnName, formatValueByUnit } from './columnLabels';
 
 // ── Palette ───────────────────────────────────────────────────────────────────
+//
+// Default is a vibrant ("poppy") categorical set — punchier than ECharts'
+// muted stock palette. It is overridable at runtime via CSS custom properties
+// so a theme (or a future Settings palette picker) can re-skin every chart
+// without touching this file: set `--pp-chart-palette` (comma-separated hex)
+// or `--pp-chart-1 … --pp-chart-N` on :root. resolveChartPalette() reads those
+// at build time and falls back to VIBRANT_DEFAULT when none are present (e.g.
+// jsdom in tests, or before the theme has applied).
 
-const PALETTE = [
-    '#5470c6', '#91cc75', '#fac858', '#ee6666',
-    '#73c0de', '#3ba272', '#fc8452', '#9a60b4', '#ea7ccc',
+const VIBRANT_DEFAULT = [
+    '#6366f1', '#ec4899', '#f59e0b', '#10b981',
+    '#06b6d4', '#8b5cf6', '#ef4444', '#14b8a6', '#f97316',
 ];
+
+// Module-level so the existing PALETTE[i] references throughout keep working.
+// buildEChartsOption refreshes this from CSS vars at the top of each call.
+let PALETTE = [...VIBRANT_DEFAULT];
+
+function resolveChartPalette(): string[] {
+    try {
+        if (typeof document === 'undefined' || typeof getComputedStyle !== 'function') {
+            return [...VIBRANT_DEFAULT];
+        }
+        const cs = getComputedStyle(document.documentElement);
+        const list = cs.getPropertyValue('--pp-chart-palette').trim();
+        if (list) {
+            const parsed = list.split(',').map(s => s.trim()).filter(Boolean);
+            if (parsed.length >= 2) return parsed;
+        }
+        const indexed: string[] = [];
+        for (let i = 1; i <= 12; i++) {
+            const v = cs.getPropertyValue(`--pp-chart-${i}`).trim();
+            if (v) indexed.push(v);
+        }
+        if (indexed.length >= 2) return indexed;
+    } catch {
+        /* fall through to default */
+    }
+    return [...VIBRANT_DEFAULT];
+}
 
 // ── Data extraction helpers ───────────────────────────────────────────────────
 
@@ -295,7 +330,26 @@ export { humanizeColumnName, formatValueByUnit };
  * Convert raw tabular Genie data into an ECharts option spec.
  * Returns null when the data doesn't fit the requested chart type.
  */
+// Public entry — resolves the active palette, builds the spec, and ensures the
+// palette is authoritative for EVERY chart type by also setting the option-level
+// `color`. This matters for series that don't set an explicit per-item color
+// (e.g. pie/donut), which would otherwise fall back to ECharts' stock palette.
 export function buildEChartsOption(
+    chartType: string,
+    columns: string[],
+    rows: unknown[][],
+): EChartsOption | null {
+    // Refresh the active palette from theme CSS vars (vibrant default otherwise)
+    // so charts re-skin live when the theme changes. Synchronous single-pass.
+    PALETTE = resolveChartPalette();
+    const option = buildEChartsOptionInner(chartType, columns, rows);
+    if (option && (option as Record<string, unknown>).color === undefined) {
+        (option as Record<string, unknown>).color = [...PALETTE];
+    }
+    return option;
+}
+
+function buildEChartsOptionInner(
     chartType: string,
     columns: string[],
     rows: unknown[][],

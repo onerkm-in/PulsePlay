@@ -244,6 +244,7 @@ import type { AnyBackend } from "./backend/BackendAdapter";
 import { parseAllowedUsers } from "./setupAccessControl";
 import { EChartsRenderer } from '../components/workbench/EChartsRenderer';
 import { buildEChartsOption } from '../lib/buildEChartsOption';
+import { CHART_PALETTES, CHART_PALETTE_EVENT, getActivePaletteId, applyChartPalette } from '../lib/chartPalettes';
 import IViewport = powerbi.IViewport;
 import IVisual = powerbi.extensibility.visual.IVisual;
 import IVisualHost = powerbi.extensibility.visual.IVisualHost;
@@ -2532,27 +2533,68 @@ function App(props: AppProps) {
     const latestForScroll = messages.length > 0 ? messages[messages.length - 1] : null;
     const latestContentLen = latestForScroll ? (latestForScroll.content || "").length : 0;
     const latestStatus = latestForScroll ? latestForScroll.status : null;
+    // Scroll the newest question to the TOP of the chat viewport so the answer
+    // streams in *below* it (ChatGPT-style). `correctOnly` re-asserts the pin
+    // for async layout shifts above (e.g. the previous answer's chart finishing
+    // its ECharts init pushes the question down) WITHOUT fighting a user who has
+    // scrolled away to read.
+    const pinQuestionToTop = useCallback((smooth: boolean, correctOnly = false): boolean => {
+        const node = chatRef.current;
+        if (!node) return false;
+        const users = node.querySelectorAll(".gn-msg--user");
+        const lastUser = users[users.length - 1] as HTMLElement | undefined;
+        if (!lastUser) return false;
+        const offset = lastUser.getBoundingClientRect().top - node.getBoundingClientRect().top;
+        // correctOnly: only fix a question that drifted DOWN from the top band
+        // (content grew above). Ignore big offsets / negative offsets — those
+        // mean the user deliberately scrolled.
+        if (correctOnly && !(offset > 20 && offset < 600)) return false;
+        const target = Math.max(0, node.scrollTop + offset - 12);
+        if (Math.abs(target - node.scrollTop) > 8) {
+            node.scrollTo({ top: target, behavior: smooth ? "smooth" : "auto" });
+        }
+        return true;
+    }, []);
     const prevMsgCountRef = useRef(0);
+    const repinTimersRef = useRef<number[]>([]);
     useEffect(() => {
         const node = chatRef.current;
         if (!node) return;
-        // 2026-05-30 — distinguish a newly ADDED message from mid-answer growth.
-        // Asking a new question (or a fresh assistant turn appearing) must always
-        // pull the view to the bottom so the user lands on what they just sent —
-        // even if they had scrolled up to read a previous answer. Streaming
-        // growth ticks still respect the "near bottom" guard so we never yank
-        // someone off the history they're actively reading.
         const messageAdded = messages.length > prevMsgCountRef.current;
         prevMsgCountRef.current = messages.length;
-        const distanceFromBottom = node.scrollHeight - (node.scrollTop + node.clientHeight);
-        const userIsAtBottom = distanceFromBottom < 120;
-        if (messageAdded || userIsAtBottom || messages.length <= 1) {
-            node.scrollTo({
-                top: node.scrollHeight,
-                behavior: (messageAdded || messages.length <= 1) ? "smooth" : "auto",
-            });
+        if (messageAdded) {
+            const pinned = pinQuestionToTop(true);
+            if (!pinned) {
+                node.scrollTo({ top: node.scrollHeight, behavior: "smooth" });
+            } else {
+                // Re-assert as async layout above settles (charts/tables of the
+                // previous answer finishing their first paint shift the question
+                // down). Absolute timers — independent of streaming content
+                // ticks — over a window that covers paint + post-completion
+                // settle. correctOnly so a manual scroll is never fought.
+                repinTimersRef.current.forEach(clearTimeout);
+                repinTimersRef.current = [350, 800, 1500, 2600, 4000].map(
+                    ms => window.setTimeout(() => pinQuestionToTop(false, true), ms),
+                );
+            }
+            return;
         }
-    }, [messages.length, latestContentLen, latestStatus]);
+        // While the just-asked answer is still streaming, keep its question
+        // pinned near the top — correcting only DOWNWARD drift from async layout
+        // above (e.g. a prior answer's chart finishing its first paint), never
+        // fighting a manual scroll. This catches late shifts the fixed-timeout
+        // re-pins miss.
+        if (latestStatus === "RUNNING") {
+            pinQuestionToTop(false, true);
+            return;
+        }
+        // Settled: only follow to the bottom if the user is already near it.
+        const distanceFromBottom = node.scrollHeight - (node.scrollTop + node.clientHeight);
+        if (distanceFromBottom < 120 || messages.length <= 1) {
+            node.scrollTo({ top: node.scrollHeight, behavior: "auto" });
+        }
+    }, [messages.length, latestContentLen, latestStatus, pinQuestionToTop]);
+    useEffect(() => () => { repinTimersRef.current.forEach(clearTimeout); }, []);
 
     const activeGenieConfig = activeSpace?.genieConfig;
     const isSupervisorMode = props.settings.connectionMode === "supervisor";
@@ -9159,6 +9201,17 @@ function GenieChart(props: { columns: string[]; rows: any[][]; preferredChart?: 
 
     useEffect(() => { setChartType(initial); }, [initial]);
 
+    // End-user palette picker — lives on the chart (end users never see
+    // Settings). Selecting a palette re-skins EVERY chart app-wide via a CSS
+    // var + broadcast; this state just forces THIS chart to rebuild its option
+    // (which reads the var) when the broadcast fires.
+    const [paletteId, setPaletteId] = useState<string>(() => getActivePaletteId());
+    useEffect(() => {
+        const onPalette = (e: Event) => setPaletteId((e as CustomEvent).detail || getActivePaletteId());
+        window.addEventListener(CHART_PALETTE_EVENT, onPalette);
+        return () => window.removeEventListener(CHART_PALETTE_EVENT, onPalette);
+    }, []);
+
     // Group CHART_OPTIONS into optgroup sections for the picker.
     const grouped = useMemo(() => {
         const map = new Map<string, Array<(typeof CHART_OPTIONS)[number]>>();
@@ -9230,6 +9283,23 @@ function GenieChart(props: { columns: string[]; rows: any[][]; preferredChart?: 
                         if (next) setChartType(next);
                     }}
                 />
+                <span className="gn-chart-palette" title="Chart colors" style={{ marginLeft: "auto" }}>
+                    <span className="gn-chart-palette-swatches" aria-hidden="true">
+                        {(CHART_PALETTES.find(p => p.id === paletteId) ?? CHART_PALETTES[0]).colors.slice(0, 5).map((c, i) => (
+                            <span key={i} style={{ background: c }} />
+                        ))}
+                    </span>
+                    <select
+                        className="gn-chart-palette-select"
+                        value={paletteId}
+                        onChange={e => applyChartPalette(e.target.value)}
+                        aria-label="Chart color palette"
+                    >
+                        {CHART_PALETTES.map(p => (
+                            <option key={p.id} value={p.id}>{p.label}</option>
+                        ))}
+                    </select>
+                </span>
             </div>
             {renderEChartsBody(chartType, props.columns, props.rows, dataShape)}
         </div>

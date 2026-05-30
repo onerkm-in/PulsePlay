@@ -7,6 +7,7 @@ import {
     startDesktopRuntime,
 } from "./lib/desktopRuntimeClient";
 import { initThemeSync } from "./lib/themeSync";
+import { initChartPalette } from "./lib/chartPalettes";
 import "./styles.css";
 
 const rootEl = document.getElementById("root");
@@ -35,6 +36,9 @@ if (!rootEl) throw new Error("PulsePlay: missing #root element in index.html");
     // Settings / shell / v0 surfaces paint dark on load (no light flash),
     // coherent with the Workbench's gn-shell--dark.
     initThemeSync();
+    // Apply the persisted chart palette so the first chart paints in the user's
+    // chosen colours (vibrant default otherwise).
+    initChartPalette();
     createRoot(rootEl).render(
         <StrictMode>
             <App />

@@ -95,18 +95,27 @@ async function main() {
         console.log("after submit Q2:", JSON.stringify(afterSubmit));
         await page.screenshot({ path: join(OUT_DIR, "02-after-submit.png") }).catch(() => {});
 
-        // PASS if we moved meaningfully down from the top after submitting.
-        const movedDown = before && afterSubmit && (afterSubmit.scrollTop > before.scrollTop + 200);
         await waitDone(page);
-        await page.waitForTimeout(1500);
+        await page.waitForTimeout(1800);
         const afterAnswer = await scrollMetrics(page);
-        console.log("after Q2 answer:", JSON.stringify(afterAnswer));
+        // Measure where the newest QUESTION sits relative to the scroll viewport.
+        // The fix pins it near the TOP so the (tall) answer streams in below it.
+        const qTop = await page.evaluate((sel) => {
+            const n = document.querySelector(sel.split(",")[0].trim()) || document.querySelector(sel.split(",")[1].trim());
+            const users = n ? n.querySelectorAll(".gn-msg--user") : [];
+            const last = users[users.length - 1];
+            if (!n || !last) return null;
+            return Math.round(last.getBoundingClientRect().top - n.getBoundingClientRect().top);
+        }, SCROLLER);
+        console.log("after Q2 answer:", JSON.stringify(afterAnswer), "questionTopOffset:", qTop);
         await page.screenshot({ path: join(OUT_DIR, "03-after-answer.png") }).catch(() => {});
 
-        verdict = movedDown ? "PASS" : "FAIL";
-        await banner(page, `Auto-scroll ${verdict} · onSubmit scrollTop ${before?.scrollTop} → ${afterSubmit?.scrollTop}`, verdict === "PASS" ? "#10b981" : "#ef4444");
+        // PASS = the question is pinned near the top of the viewport (not buried
+        // at the bottom of a long answer, and not off-screen above).
+        verdict = (qTop != null && qTop >= -10 && qTop < 140) ? "PASS" : "FAIL";
+        await banner(page, `Auto-scroll ${verdict} · question pinned ${qTop}px from top (answer streams below)`, verdict === "PASS" ? "#10b981" : "#ef4444");
         await page.waitForTimeout(2500);
-        console.log(`\nVERDICT: ${verdict} (scrollTop ${before?.scrollTop} → ${afterSubmit?.scrollTop} on submit)`);
+        console.log(`\nVERDICT: ${verdict} (question ${qTop}px from viewport top after answer)`);
     } finally {
         await ctx.close().catch(() => undefined);
         await browser.close().catch(() => undefined);

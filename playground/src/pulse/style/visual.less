@@ -3938,6 +3938,38 @@
     cursor: pointer;
 }
 
+/* 2026-05-30 — on-chart palette picker (end users never see Settings, so the
+   colour control lives right on the chart). A live multi-swatch preview sits
+   next to a compact select; changing it re-skins every chart app-wide. */
+.gn-chart-palette {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.gn-chart-palette-swatches {
+    display: inline-flex;
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: 0 0 0 1px @gn-border-subtle;
+    flex: 0 0 auto;
+}
+.gn-chart-palette-swatches > span {
+    width: 9px;
+    height: 14px;
+    display: block;
+}
+.gn-chart-palette-select {
+    min-height: 26px;
+    padding: 0 6px;
+    border: 1px solid @gn-border;
+    border-radius: @gn-radius-sm;
+    background: @gn-surface;
+    color: @gn-text;
+    font-family: @gn-font;
+    font-size: 11px;
+    cursor: pointer;
+}
+
 /* ── KPI chart tile (single-value render inside Ask Pulse chart pane) ── */
 
 .gn-kpi-chart-tile {
