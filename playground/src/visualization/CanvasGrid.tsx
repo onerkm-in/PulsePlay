@@ -1,14 +1,17 @@
 // playground/src/visualization/CanvasGrid.tsx
 //
-// Pin-to-canvas grid. Renders pinned tiles from the canvasTiles store as an
-// ARRANGEABLE dashboard on the native BI canvas (Dashboard tab): each tile can
-// be dragged to reposition and resized on a 12-column grid; layout persists.
+// Pin-to-canvas grid. Renders pinned tiles as an ARRANGEABLE dashboard on the
+// native BI canvas (Dashboard tab): drag a tile by its header to reposition and
+// drag the corner to resize on a 12-column grid. Dragging is COLLISION-AWARE —
+// tiles you drag near reflow out of the way (vertical compaction, react-grid-
+// layout style) so nothing overlaps. Layout persists per tile.
+//
 // Each tile stays self-contained — renders from its snapshot (columns + rows +
 // chartType) and can Refresh (re-run its bound SQL on the connector) or be
 // edited (Edit query). Themed via --pp-* so it tracks the active theme.
 
 import * as React from "react";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { EChartsRenderer } from "../components/workbench/EChartsRenderer";
 import { buildEChartsOption } from "../lib/buildEChartsOption";
 import { validateSqlViaPreview } from "../lib/sqlPreviewClient";
@@ -30,7 +33,33 @@ const MIN_W = 3;
 const MIN_H = 5;
 
 type Layout = NonNullable<CanvasTile["layout"]>;
+type IdLayout = Layout & { id: string };
 const defaultLayout = (i: number): Layout => ({ x: (i % 2) * 6, y: Math.floor(i / 2) * 9, w: 6, h: 9 });
+const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+const sameLayout = (a?: Layout, b?: Layout) => !!a && !!b && a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
+
+const overlaps = (a: IdLayout, b: IdLayout) =>
+    a.id !== b.id && a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+
+/** react-grid-layout-style arrange: keep `movingId` where the user put it, then
+ *  compact every other tile up and push it below any collision. No overlaps. */
+function arrange(items: IdLayout[], movingId: string | null): Map<string, Layout> {
+    const sorted = items.slice().sort((a, b) =>
+        (a.id === movingId ? -1 : b.id === movingId ? 1 : (a.y - b.y || a.x - b.x)));
+    const placed: IdLayout[] = [];
+    for (const it of sorted) {
+        const l: IdLayout = { ...it };
+        if (l.id !== movingId) {
+            while (l.y > 0 && !placed.some(p => overlaps({ ...l, y: l.y - 1 }, p))) l.y--;
+            let c: IdLayout | undefined;
+            while ((c = placed.find(p => overlaps(l, p)))) l.y = c.y + c.h;
+        }
+        placed.push(l);
+    }
+    const map = new Map<string, Layout>();
+    for (const p of placed) map.set(p.id, { x: p.x, y: p.y, w: p.w, h: p.h });
+    return map;
+}
 
 function readApiBaseUrl(): string {
     try {
@@ -47,12 +76,13 @@ function relTime(ms?: number): string {
     if (m < 60) return `${m}m ago`;
     return `${Math.round(m / 60)}h ago`;
 }
-const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
 export function CanvasGrid(): React.ReactElement | null {
     const [tiles, setTiles] = useState<CanvasTile[]>(() => listCanvasTiles());
     const gridRef = useRef<HTMLDivElement | null>(null);
     const [gridWidth, setGridWidth] = useState(0);
+    // The tile currently being dragged/resized + its proposed layout.
+    const [gesture, setGesture] = useState<{ id: string; layout: Layout } | null>(null);
 
     useEffect(() => {
         const refresh = () => setTiles(listCanvasTiles());
@@ -63,10 +93,7 @@ export function CanvasGrid(): React.ReactElement | null {
             window.removeEventListener("storage", refresh);
         };
     }, []);
-
-    // Give every tile a default layout so positions are stable.
     useEffect(() => { ensureTileLayouts((_t, i) => defaultLayout(i)); }, [tiles]);
-
     useEffect(() => {
         const el = gridRef.current;
         if (!el) return;
@@ -77,18 +104,46 @@ export function CanvasGrid(): React.ReactElement | null {
         return () => ro.disconnect();
     }, []);
 
+    const baseItems: IdLayout[] = useMemo(
+        () => tiles.map((t, i) => ({ id: t.id, ...(t.layout || defaultLayout(i)) })),
+        [tiles],
+    );
+    // Effective (possibly reflowed) layout per tile — live during a gesture.
+    const effective: Map<string, Layout> = useMemo(() => {
+        if (!gesture) {
+            const m = new Map<string, Layout>();
+            for (const b of baseItems) m.set(b.id, { x: b.x, y: b.y, w: b.w, h: b.h });
+            return m;
+        }
+        const withMoving = baseItems.map(b => (b.id === gesture.id ? { id: b.id, ...gesture.layout } : b));
+        return arrange(withMoving, gesture.id);
+    }, [baseItems, gesture]);
+
+    const commit = useCallback(() => {
+        setGesture(g => {
+            if (g) {
+                const withMoving = tiles.map((t, i) => ({ id: t.id, ...(t.id === g.id ? g.layout : (t.layout || defaultLayout(i))) }));
+                const final = arrange(withMoving, g.id);
+                for (const t of tiles) {
+                    const nl = final.get(t.id);
+                    if (nl && !sameLayout(t.layout, nl)) updateCanvasTile(t.id, { layout: nl });
+                }
+            }
+            return null;
+        });
+    }, [tiles]);
+
     if (tiles.length === 0) return null;
 
     const colW = gridWidth > 0 ? gridWidth / COLS : 0;
-    const layoutOf = (t: CanvasTile, i: number): Layout => t.layout || defaultLayout(i);
-    const gridRows = Math.max(9, ...tiles.map((t, i) => { const l = layoutOf(t, i); return l.y + l.h; }));
+    const gridRows = Math.max(9, ...tiles.map(t => { const l = effective.get(t.id)!; return l.y + l.h; }));
     const gridHeight = gridRows * ROW_H + GAP;
 
     return (
         <div className="pp-canvas" data-testid="pp-canvas-grid">
             <div className="pp-canvas__bar">
                 <span className="pp-canvas__title">My Canvas</span>
-                <span className="pp-canvas__count">{tiles.length} pinned {tiles.length === 1 ? "tile" : "tiles"} · drag to arrange, resize from the corner</span>
+                <span className="pp-canvas__count">{tiles.length} pinned {tiles.length === 1 ? "tile" : "tiles"} · drag to arrange (tiles reflow), resize from the corner</span>
                 <button
                     type="button"
                     className="pp-canvas__clear"
@@ -99,13 +154,15 @@ export function CanvasGrid(): React.ReactElement | null {
                 </button>
             </div>
             <div className="pp-canvas__board" ref={gridRef} style={{ position: "relative", height: gridHeight }}>
-                {colW > 0 && tiles.map((tile, i) => (
+                {colW > 0 && tiles.map(tile => (
                     <CanvasTileCard
                         key={tile.id}
                         tile={tile}
-                        layout={layoutOf(tile, i)}
+                        layout={effective.get(tile.id)!}
                         colW={colW}
-                        onLayoutChange={(l) => updateCanvasTile(tile.id, { layout: l })}
+                        dragging={gesture?.id === tile.id}
+                        onGestureMove={(l) => setGesture({ id: tile.id, layout: l })}
+                        onGestureEnd={commit}
                     />
                 ))}
             </div>
@@ -113,11 +170,13 @@ export function CanvasGrid(): React.ReactElement | null {
     );
 }
 
-function CanvasTileCard({ tile, layout, colW, onLayoutChange }: {
+function CanvasTileCard({ tile, layout, colW, dragging, onGestureMove, onGestureEnd }: {
     tile: CanvasTile;
     layout: Layout;
     colW: number;
-    onLayoutChange: (l: Layout) => void;
+    dragging: boolean;
+    onGestureMove: (l: Layout) => void;
+    onGestureEnd: () => void;
 }): React.ReactElement {
     const isChart = tile.kind === "chart";
     const [busy, setBusy] = useState(false);
@@ -126,17 +185,13 @@ function CanvasTileCard({ tile, layout, colW, onLayoutChange }: {
     const [sqlDraft, setSqlDraft] = useState(tile.sqlQuery || "");
     const hasConnector = !!tile.connectorProfileId;
 
-    // Drag / resize ─ live layout during the gesture; persisted on release.
     const sectionRef = useRef<HTMLElement | null>(null);
-    const [live, setLive] = useState<Layout | null>(null);
     const gesture = useRef<{ mode: "move" | "resize"; px: number; py: number; start: Layout } | null>(null);
 
     const onPointerDown = (mode: "move" | "resize") => (e: React.PointerEvent) => {
-        // Don't start a drag from an interactive control.
         if ((e.target as HTMLElement).closest("button, select, textarea, input, a")) return;
         e.preventDefault();
         gesture.current = { mode, px: e.clientX, py: e.clientY, start: { ...layout } };
-        setLive({ ...layout });
         try { sectionRef.current?.setPointerCapture(e.pointerId); } catch { /* ignore */ }
     };
     const onPointerMove = (e: React.PointerEvent) => {
@@ -145,16 +200,15 @@ function CanvasTileCard({ tile, layout, colW, onLayoutChange }: {
         const dCol = Math.round((e.clientX - g.px) / colW);
         const dRow = Math.round((e.clientY - g.py) / ROW_H);
         if (g.mode === "move") {
-            setLive({ ...g.start, x: clamp(g.start.x + dCol, 0, COLS - g.start.w), y: Math.max(0, g.start.y + dRow) });
+            onGestureMove({ ...g.start, x: clamp(g.start.x + dCol, 0, COLS - g.start.w), y: Math.max(0, g.start.y + dRow) });
         } else {
-            setLive({ ...g.start, w: clamp(g.start.w + dCol, MIN_W, COLS - g.start.x), h: Math.max(MIN_H, g.start.h + dRow) });
+            onGestureMove({ ...g.start, w: clamp(g.start.w + dCol, MIN_W, COLS - g.start.x), h: Math.max(MIN_H, g.start.h + dRow) });
         }
     };
     const endGesture = (e: React.PointerEvent) => {
         if (!gesture.current) return;
-        if (live) onLayoutChange(live);
         gesture.current = null;
-        setLive(null);
+        onGestureEnd();
         try { sectionRef.current?.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
     };
 
@@ -168,21 +222,20 @@ function CanvasTileCard({ tile, layout, colW, onLayoutChange }: {
         if (persistSql) setEditing(false);
     };
 
-    const l = live || layout;
     const pos: React.CSSProperties = {
         position: "absolute",
-        left: l.x * colW + GAP / 2,
-        top: l.y * ROW_H + GAP / 2,
-        width: l.w * colW - GAP,
-        height: l.h * ROW_H - GAP,
+        left: layout.x * colW + GAP / 2,
+        top: layout.y * ROW_H + GAP / 2,
+        width: layout.w * colW - GAP,
+        height: layout.h * ROW_H - GAP,
     };
-    const chartHeight = Math.max(150, l.h * ROW_H - GAP - 96);
+    const chartHeight = Math.max(150, layout.h * ROW_H - GAP - 96);
     const option = isChart ? buildEChartsOption(tile.chartType || "bar", tile.columns, tile.rows as unknown[][]) : null;
 
     return (
         <section
             ref={sectionRef}
-            className={`pp-tile${live ? " pp-tile--dragging" : ""}`}
+            className={`pp-tile${dragging ? " pp-tile--dragging" : ""}`}
             style={pos}
             onPointerMove={onPointerMove}
             onPointerUp={endGesture}
@@ -235,13 +288,7 @@ function CanvasTileCard({ tile, layout, colW, onLayoutChange }: {
                 <span title="Connector bound to this tile">{tile.connectorProfileId || "no connector"}</span>
                 <span className="pp-tile__snapshot">{tile.lastRefreshedAt ? `live · ${relTime(tile.lastRefreshedAt)}` : "snapshot"}</span>
             </footer>
-            <span
-                className="pp-tile__resize"
-                onPointerDown={onPointerDown("resize")}
-                title="Drag to resize"
-                aria-hidden="true"
-                style={{ touchAction: "none" }}
-            />
+            <span className="pp-tile__resize" onPointerDown={onPointerDown("resize")} title="Drag to resize" aria-hidden="true" style={{ touchAction: "none" }} />
         </section>
     );
 }

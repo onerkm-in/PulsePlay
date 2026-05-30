@@ -2093,12 +2093,15 @@ html, body, #root {
     border-radius: 10px;
     overflow: hidden;
     box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    /* reflowing tiles glide to their new slot; the dragged one stays instant */
+    transition: left 150ms ease, top 150ms ease, width 150ms ease, height 150ms ease, box-shadow 150ms ease;
 }
 .pp-tile--dragging {
     z-index: 5;
     box-shadow: 0 10px 30px rgba(15,23,42,0.22);
     border-color: var(--pp-accent, #2563eb);
     user-select: none;
+    transition: box-shadow 150ms ease;
 }
 .pp-tile__resize {
     position: absolute;
