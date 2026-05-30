@@ -442,6 +442,26 @@
         color: #fff;
         &:hover { background: @gn-dark-accent; color: #fff; }
     }
+    /* 2026-05-30 — single-view answer switch + stacked sections (dark). */
+    .gn-answer-switch {
+        background: @gn-dark-bg;
+        border-color: @gn-dark-border;
+    }
+    .gn-answer-switch-btn { color: @gn-dark-text-muted; }
+    .gn-answer-switch-btn:hover { color: @gn-dark-text; }
+    .gn-answer-switch-btn--active {
+        background: @gn-dark-surface-raised;
+        color: @gn-dark-accent;
+    }
+    .gn-answer-section-label { border-bottom-color: @gn-dark-border-subtle; }
+    .gn-answer-section-label-text,
+    .gn-answer-section-label-meta { color: @gn-dark-text-muted; }
+    .gn-answer-section--chart .gn-chart-container {
+        background: @gn-dark-surface;
+        border-color: @gn-dark-border;
+    }
+    .gn-answer-table-scroll { border-color: @gn-dark-border; }
+    .gn-answer-table-scroll .gn-table thead th { background: @gn-dark-surface-raised; }
     .gn-chart-meta {
         border-top-color: @gn-dark-border-subtle;
         color: @gn-dark-text-muted;
@@ -637,6 +657,26 @@
         color: #fff;
         &:hover { background: @gn-dark-accent; color: #fff; }
     }
+    /* 2026-05-30 — single-view answer switch + stacked sections (dark). */
+    .gn-answer-switch {
+        background: @gn-dark-bg;
+        border-color: @gn-dark-border;
+    }
+    .gn-answer-switch-btn { color: @gn-dark-text-muted; }
+    .gn-answer-switch-btn:hover { color: @gn-dark-text; }
+    .gn-answer-switch-btn--active {
+        background: @gn-dark-surface-raised;
+        color: @gn-dark-accent;
+    }
+    .gn-answer-section-label { border-bottom-color: @gn-dark-border-subtle; }
+    .gn-answer-section-label-text,
+    .gn-answer-section-label-meta { color: @gn-dark-text-muted; }
+    .gn-answer-section--chart .gn-chart-container {
+        background: @gn-dark-surface;
+        border-color: @gn-dark-border;
+    }
+    .gn-answer-table-scroll { border-color: @gn-dark-border; }
+    .gn-answer-table-scroll .gn-table thead th { background: @gn-dark-surface-raised; }
     .gn-chart-meta {
         border-top-color: @gn-dark-border-subtle;
         color: @gn-dark-text-muted;
@@ -2610,6 +2650,102 @@
 .gn-toggle--active:hover {
     background: @gn-accent;
     color: #fff;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   2026-05-30 — Single-view answer (Narrative → Chart → Table stacked).
+   A slim segmented switch toggles Answer / SQL / Trace; under "Answer" the
+   three representations live together so the viewer never hunts tabs (SQL
+   stays one </> click away). Designed to read crisp and calm: hairline
+   section dividers, restrained uppercase labels, a chart on a faint card,
+   and a scroll-capped table that never dominates the reply.
+   ───────────────────────────────────────────────────────────────────── */
+.gn-answer-switch {
+    display: inline-flex;
+    gap: 2px;
+    margin-bottom: 12px;
+    padding: 3px;
+    background: @gn-bg;
+    border: 1px solid @gn-border-subtle;
+    border-radius: 10px;
+}
+.gn-answer-switch-btn {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: @gn-text-muted;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 15px;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background @gn-t-fast @gn-ease, color @gn-t-fast @gn-ease, box-shadow @gn-t-fast @gn-ease;
+}
+.gn-answer-switch-btn:hover { color: @gn-text; }
+.gn-answer-switch-btn--active {
+    background: @gn-surface;
+    color: @gn-accent;
+    box-shadow: @gn-shadow-xs;
+}
+
+.gn-answer-extra {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    margin-top: 16px;
+}
+.gn-answer-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    animation: gn-section-reveal 280ms @gn-ease both;
+}
+.gn-answer-section--table { animation-delay: 60ms; }
+.gn-answer-section-label {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid @gn-border-subtle;
+}
+.gn-answer-section-label-text {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: @gn-text-muted;
+}
+.gn-answer-section-label-meta {
+    font-size: 11px;
+    font-weight: 500;
+    color: @gn-text-muted;
+    opacity: 0.7;
+}
+/* Chart sits on a faint raised card so it reads as its own artifact. */
+.gn-answer-section--chart .gn-chart-container {
+    background: @gn-surface;
+    border: 1px solid @gn-border-subtle;
+    border-radius: @gn-radius-sm;
+    padding: 10px 12px;
+    box-shadow: @gn-shadow-xs;
+}
+/* Table is scroll-capped so a 25-row result never pushes the rest of the
+   conversation off-screen; sticky header keeps columns labelled mid-scroll. */
+.gn-answer-table-scroll {
+    max-height: 280px;
+    overflow: auto;
+    border: 1px solid @gn-border-subtle;
+    border-radius: @gn-radius-sm;
+    box-shadow: @gn-shadow-xs;
+}
+.gn-answer-table-scroll .gn-table-wrap,
+.gn-answer-table-scroll .gn-table-container { margin: 0; border: 0; }
+.gn-answer-table-scroll .gn-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: @gn-surface-raised;
 }
 
 .gn-chart-meta {

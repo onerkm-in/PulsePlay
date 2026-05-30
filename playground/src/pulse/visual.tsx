@@ -8845,80 +8845,44 @@ function renderMessageBody(
 
     const hasData = Boolean(message.queryResult?.rows?.length);
 
-    const toggles = availableViews.length > 1 ? (
-        <div className="gn-chart-toggles" style={{ marginBottom: 8 }}>
-            {availableViews.map(v => (
+    // 2026-05-30 — single-view answer. Narrative + preferred Chart + Table are
+    // now stacked together in one "Answer" view (no per-representation tabbing);
+    // SQL and Trace stay as dedicated views, reachable from this slim switch and
+    // the </> toolbar button. Rajesh's direction: "keep Narrative + Table +
+    // preferred chart in one screen … reduce the number of clicks — people
+    // don't have to click separate tabs." titleCase retained for the SQL/Trace
+    // labels.
+    const hasSqlView = availableViews.includes("sql");
+    const hasTraceView = availableViews.includes("trace");
+    const isAnswerView = view !== "sql" && view !== "trace";
+    const switchButtons: Array<{ id: OutputMode; label: string; active: boolean }> = [
+        { id: "narrative", label: "Answer", active: isAnswerView },
+        ...(hasSqlView ? [{ id: "sql" as OutputMode, label: "SQL", active: view === "sql" }] : []),
+        ...(hasTraceView ? [{ id: "trace" as OutputMode, label: "Trace", active: view === "trace" }] : []),
+    ];
+    const toggles = switchButtons.length > 1 ? (
+        <div className="gn-answer-switch" role="tablist" aria-label="Answer views">
+            {switchButtons.map(b => (
                 <button
-                    key={v}
-                    className={`gn-toggle${view === v ? " gn-toggle--active" : ""}`}
-                    onClick={() => onViewChange(v)}
-                    title={v === "trace"
-                        ? (view === "trace" ? "Hide trace details" : "Show trace details")
-                        : `Switch to ${titleCase(v)} view`}
-                    aria-label={v === "trace"
-                        ? (view === "trace" ? "Hide prompts and SQL for each insight stage" : "Show prompts and SQL for each insight stage")
-                        : `Switch to ${titleCase(v)} view`}
+                    key={b.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={b.active}
+                    className={`gn-answer-switch-btn${b.active ? " gn-answer-switch-btn--active" : ""}`}
+                    onClick={() => onViewChange(b.id)}
+                    title={b.label === "Answer" ? "Narrative, chart and table together" : `Show ${b.label}`}
                 >
-                    {titleCase(v)}
+                    {b.label}
                 </button>
             ))}
         </div>
     ) : null;
 
-    if ((view === "chart" || view === "table") && message.queryResult) {
-        return (
-            <>
-                {progressNode}
-                <div className="gn-chart-wrap">
-                    {toggles}
-                    {view === "chart"
-                        ? <GenieChart columns={message.queryResult.columns} rows={message.queryResult.rows} preferredChart={message.forcedChartType} genieViz={message.genieViz} />
-                        : <GenieTable columns={message.queryResult.columns} rows={message.queryResult.rows} />
-                    }
-                    <div className="gn-chart-meta">
-                        <span>{message.queryResult.rows.length} row{message.queryResult.rows.length !== 1 ? "s" : ""} returned</span>
-                        <div className="gn-export-btns">
-                            {/* 2026-05-26 — DevToolMCPFeed observed Genie ships
-                                a "Download all rows" CSV affordance on every
-                                result. PulsePlay had "Export data" but it only
-                                copied CSV to clipboard with no user feedback,
-                                so users couldn't tell anything happened. Now
-                                splits into a real file download + a copy
-                                option for users who prefer paste-into-sheet.
-                                Filename mirrors the question excerpt for
-                                lineage. */}
-                            <button
-                                className="gn-export-btn"
-                                title="Download all rows as a .csv file"
-                                onClick={() => {
-                                    const csv = formatTableAsCsv(message.queryResult!.columns, message.queryResult!.rows);
-                                    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-                                    const url = URL.createObjectURL(blob);
-                                    const a = document.createElement("a");
-                                    const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-                                    a.href = url;
-                                    a.download = `ask-pulse-${message.id}-${stamp}.csv`;
-                                    document.body.appendChild(a);
-                                    a.click();
-                                    document.body.removeChild(a);
-                                    setTimeout(() => URL.revokeObjectURL(url), 1000);
-                                }}
-                            >
-                                Download CSV
-                            </button>
-                            <button
-                                className="gn-export-btn"
-                                title="Copy CSV to clipboard"
-                                onClick={() => copyText(formatTableAsCsv(message.queryResult!.columns, message.queryResult!.rows))}
-                            >
-                                Copy CSV
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </>
-        );
-    }
+    // 2026-05-30 — the former dedicated "chart" / "table" views are gone:
+    // both render inline in the stacked Answer view below. Export lives on the
+    // message-level toolbar (Copy / Download CSV). If a stale viewMode of
+    // "chart" or "table" is restored from storage, isAnswerView is true so it
+    // falls through to the stacked Answer render.
 
     if (view === "sql" && message.sqlQuery) {
         const sectionTabs = Array.isArray(message.sqlSections)
@@ -8995,6 +8959,12 @@ function renderMessageBody(
     }
 
     const responseShape = classifyResponseShape(message.content);
+    // 2026-05-30 — first-message briefing replies already render rich KPI /
+    // section cards (incl. a data table) via renderInsightsSections. In that
+    // case the dedicated Table section below would duplicate the table, so we
+    // suppress it (the preferred Chart is still additive — briefings don't
+    // render an ECharts viz). Plain prose replies get both Chart + Table.
+    const isBriefingReply = /^#{1,3}\s+(HEADLINE|KPI SNAPSHOT|TRENDS|RISKS|OPPORTUNITIES|RECOMMENDED ACTIONS|WHAT CHANGED|WHAT NEEDS ATTENTION|NEXT BEST ACTIONS|EXECUTIVE BRIEF)\b/im.test(message.content || "");
     return (
         <>
             {progressNode}
@@ -9064,34 +9034,40 @@ function renderMessageBody(
                     }
                 }
                 const proseHasContent = prose.replace(/[\s•\-*]/g, "").length > 8;
+                // 2026-05-30 — when the answer IS the data (no real prose after
+                // stripping the duplicate markdown table), skip the narrative
+                // block entirely; the Chart + Table sections below carry it.
+                // No more "open the Table tab" redirect — there is no tab.
                 if (strippedTable && !proseHasContent) {
-                    return (
-                        <div className="gn-msg-body">
-                            <div className="gn-narrative-redirect" style={{
-                                padding: "14px 16px",
-                                background: "var(--gn-accent-subtle, rgba(37,99,235,0.07))",
-                                border: "1px dashed var(--gn-accent-border, rgba(37,99,235,0.3))",
-                                borderRadius: 6,
-                                fontSize: 13,
-                                color: "var(--gn-text-muted, #475569)",
-                                margin: "4px 14px",
-                            }}>
-                                The answer for this question is the data itself — open the <strong>Table</strong> tab above to view the {message.queryResult?.rows?.length ?? 0} row{(message.queryResult?.rows?.length ?? 0) === 1 ? "" : "s"} returned, or <strong>Chart</strong> for a visualization.
-                            </div>
-                        </div>
-                    );
+                    return null;
                 }
                 return (
                     <div className="gn-msg-body">
                         {renderKpiSnapshot(prose)}
-                        {strippedTable && (
-                            <p style={{ margin: "10px 14px 4px", fontSize: 11, color: "var(--gn-text-muted, #6b7280)", fontStyle: "italic" }}>
-                                Data table moved to the <strong>Table</strong> tab so the narrative reads as prose.
-                            </p>
-                        )}
                     </div>
                 );
             })()}
+            {isAnswerView && responseShape !== "clarifier" && message.queryResult && message.queryResult.rows.length > 0 && (
+                <div className="gn-answer-extra">
+                    <section className="gn-answer-section gn-answer-section--chart">
+                        <div className="gn-answer-section-label">
+                            <span className="gn-answer-section-label-text">Chart</span>
+                        </div>
+                        <GenieChart columns={message.queryResult.columns} rows={message.queryResult.rows} preferredChart={message.forcedChartType} genieViz={message.genieViz} />
+                    </section>
+                    {!isBriefingReply && (
+                        <section className="gn-answer-section gn-answer-section--table">
+                            <div className="gn-answer-section-label">
+                                <span className="gn-answer-section-label-text">Table</span>
+                                <span className="gn-answer-section-label-meta">{message.queryResult.rows.length} row{message.queryResult.rows.length === 1 ? "" : "s"}</span>
+                            </div>
+                            <div className="gn-answer-table-scroll">
+                                <GenieTable columns={message.queryResult.columns} rows={message.queryResult.rows} />
+                            </div>
+                        </section>
+                    )}
+                </div>
+            )}
             {message.dmlWarning && (
                 <div className="gn-dml-warning" role="alert" aria-live="assertive">
                     {message.dmlVerb
