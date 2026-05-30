@@ -17,7 +17,7 @@
         "package:compressed": "node scripts/package-win.mjs --compress"
     },
     "dependencies": {
-        "express": "^4.21.2",
+        "express": "^5.2.1",
         "http-proxy-middleware": "^3.0.3"
     },
     "engines": {
