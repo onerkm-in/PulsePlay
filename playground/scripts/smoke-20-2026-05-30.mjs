@@ -42,7 +42,16 @@ async function chatDone(page, t = 150_000) {
     }
     return false;
 }
-async function goTab(page, label) { const t = page.locator("button", { hasText: new RegExp(`^${label}$`, "i") }).first(); if (await t.count()) { await t.click(); await page.waitForTimeout(1000); } }
+async function goTab(page, label) {
+    // Click the VISIBLE matching tab (the workbench top tabs; a hidden Pulse-
+    // internal gn-header-tab of the same name must be skipped).
+    const all = page.locator("button", { hasText: new RegExp(`^${label}$`, "i") });
+    const n = await all.count();
+    for (let i = 0; i < n; i++) {
+        const b = all.nth(i);
+        if (await b.isVisible().catch(() => false)) { await b.click().catch(() => {}); await page.waitForTimeout(1000); return; }
+    }
+}
 async function setTheme(page, themeName, darkMode) {
     await page.evaluate(({ themeName, darkMode }) => {
         const k = "pulseplay:visual-settings:genieSettings"; const ex = JSON.parse(localStorage.getItem(k) || "{}");
@@ -113,9 +122,10 @@ async function main() {
         const ansText = await page.evaluate(() => { const m = document.querySelectorAll(".gn-msg--assistant"); return (m[m.length - 1]?.textContent || ""); });
         rec(4, /725,?457|678,?781|West/i.test(ansText), `answer has live data: ${/725,?457/.test(ansText) ? "yes" : "partial"}`);
 
-        // S5 — single-view structure (Answer/SQL switch + chart + table sections)
-        const sv = await page.evaluate(() => { const m = document.querySelectorAll(".gn-msg--assistant"); const l = m[m.length - 1]; return { sw: !!l?.querySelector(".gn-answer-switch"), chart: !!l?.querySelector(".gn-answer-section--chart"), table: !!l?.querySelector(".gn-answer-section--table"), tabs: !!l?.querySelector(".gn-chart-toggles") }; });
-        rec(5, sv.sw && sv.chart && sv.table && !sv.tabs, `single-view: switch=${sv.sw} chart=${sv.chart} table=${sv.table} oldTabs=${sv.tabs}`);
+        // S5 — single-view: Narrative + Chart + Table stacked; NO Answer/SQL
+        // switch (removed) and NO old per-view tabs; SQL reachable via </> toggle.
+        const sv = await page.evaluate(() => { const m = document.querySelectorAll(".gn-msg--assistant"); const l = m[m.length - 1]; return { sw: !!l?.querySelector(".gn-answer-switch"), chart: !!l?.querySelector(".gn-answer-section--chart"), table: !!l?.querySelector(".gn-answer-section--table"), tabs: !!l?.querySelector(".gn-chart-toggles"), sqlBtn: !!l?.querySelector(".gn-msg-action[aria-label='View SQL'], .gn-msg-action[aria-label='Back to answer']") }; });
+        rec(5, sv.chart && sv.table && !sv.tabs && !sv.sw && sv.sqlBtn, `single-view: chart=${sv.chart} table=${sv.table} oldTabs=${sv.tabs} switch-removed=${!sv.sw} </>=${sv.sqlBtn}`);
         await shot(page, "05-singleview.png");
 
         // S6 — streaming shimmer active during a run

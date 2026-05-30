@@ -8656,10 +8656,12 @@ function MessageCard(props: {
                                 type="button"
                                 className={`gn-msg-action gn-msg-action--icon${activeView === "sql" ? " gn-msg-action--active" : ""}`}
                                 onClick={() => props.setMessages(previous => previous.map(message =>
-                                    message.id === props.message.id ? { ...message, viewMode: "sql" } : message
+                                    // Toggle: </> now switches Answer ⇄ SQL (the
+                                    // redundant Answer/SQL switch above was removed).
+                                    message.id === props.message.id ? { ...message, viewMode: activeView === "sql" ? "narrative" : "sql" } : message
                                 ))}
-                                title={activeView === "sql" ? "Already viewing SQL" : "View SQL"}
-                                aria-label={activeView === "sql" ? "Already viewing SQL" : "View SQL"}
+                                title={activeView === "sql" ? "Back to answer" : "View SQL"}
+                                aria-label={activeView === "sql" ? "Back to answer" : "View SQL"}
                                 aria-pressed={activeView === "sql"}
                             >
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -8898,38 +8900,15 @@ function renderMessageBody(
 
     const hasData = Boolean(message.queryResult?.rows?.length);
 
-    // 2026-05-30 — single-view answer. Narrative + preferred Chart + Table are
-    // now stacked together in one "Answer" view (no per-representation tabbing);
-    // SQL and Trace stay as dedicated views, reachable from this slim switch and
-    // the </> toolbar button. Rajesh's direction: "keep Narrative + Table +
-    // preferred chart in one screen … reduce the number of clicks — people
-    // don't have to click separate tabs." titleCase retained for the SQL/Trace
-    // labels.
-    const hasSqlView = availableViews.includes("sql");
-    const hasTraceView = availableViews.includes("trace");
+    // 2026-05-30 — single-view answer (Narrative + preferred Chart + Table
+    // stacked). The Answer/SQL/Trace switch was REMOVED as redundant: SQL is
+    // reachable via the </> toggle in the message toolbar below (Rajesh: "no
+    // need to show Answer / SQL tab — we have the show-sql option at the bottom
+    // <>"). isAnswerView still gates the stacked Chart/Table sections; a stale
+    // "chart"/"table" viewMode falls through to the Answer render.
     const isAnswerView = view !== "sql" && view !== "trace";
-    const switchButtons: Array<{ id: OutputMode; label: string; active: boolean }> = [
-        { id: "narrative", label: "Answer", active: isAnswerView },
-        ...(hasSqlView ? [{ id: "sql" as OutputMode, label: "SQL", active: view === "sql" }] : []),
-        ...(hasTraceView ? [{ id: "trace" as OutputMode, label: "Trace", active: view === "trace" }] : []),
-    ];
-    const toggles = switchButtons.length > 1 ? (
-        <div className="gn-answer-switch" role="tablist" aria-label="Answer views">
-            {switchButtons.map(b => (
-                <button
-                    key={b.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={b.active}
-                    className={`gn-answer-switch-btn${b.active ? " gn-answer-switch-btn--active" : ""}`}
-                    onClick={() => onViewChange(b.id)}
-                    title={b.label === "Answer" ? "Narrative, chart and table together" : `Show ${b.label}`}
-                >
-                    {b.label}
-                </button>
-            ))}
-        </div>
-    ) : null;
+    const toggles = null;
+    void onViewChange; // retained in the signature for the chart-rationale "switch view" path; no longer drives a visible switch here
 
     // 2026-05-30 — the former dedicated "chart" / "table" views are gone:
     // both render inline in the stacked Answer view below. Export lives on the
