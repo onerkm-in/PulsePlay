@@ -5,6 +5,18 @@
 
 ---
 
+## 2026-05-30 (late night) — Beast-mode CI/CD: hardened CI (4 jobs GREEN on GitHub) + security scanning + gated OIDC deploy skeletons
+
+**Context.** 3-agent parallel analysis (CI hardening best-practices / full repo test-surface map / CD readiness) → implemented, then iterated against REAL GitHub runs until green. Full design + setup checklists in [docs/CICD.md](CICD.md).
+
+**CI** ([.github/workflows/test.yml](../.github/workflows/test.yml)) — added `concurrency` (cancel superseded), least-priv `permissions: contents: read`, per-job `timeout-minutes`, and a NEW **desktop job** (`enablers/desktop`, 50 `node --test`, previously an uncovered gap). **Verified GREEN on GitHub:** proxy(jest) + playground(lint+vitest+build) + desktop + pulse-pbi all ✓.
+
+**Two platform bugs caught only by running real CI** (local Windows hid both): (1) `enablers/desktop` `joinAll` asserts OS-native path separators → fails on ubuntu → moved the job to `windows-latest` (it's a Windows launcher: `package-win.mjs` → `.exe`). (2) `windows-latest` defaults to PowerShell which doesn't glob-expand `tests/*.test.mjs`, and `npm test` re-shells via cmd.exe → glob never expands → switched to `shell: bash` + invoke `node --test tests/*.test.mjs` directly so bash expands the glob. Lesson: **`npm run` on Windows re-shells the script via cmd.exe regardless of the GH-Actions `shell:`** — bypass npm for glob-dependent scripts.
+
+**Security:** [codeql.yml](../.github/workflows/codeql.yml) (JS/TS whole-monorepo, push/PR/weekly), [dependency-review.yml](../.github/workflows/dependency-review.yml) (PR gate, fail-on high), [dependabot.yml](../.github/dependabot.yml) (actions + per-package npm). README CI/CodeQL badges.
+
+**CD (manual-only, INERT until set up):** [deploy-databricks.yml](../.github/workflows/deploy-databricks.yml) + [deploy-azure.yml](../.github/workflows/deploy-azure.yml) — `workflow_dispatch`, environment-gated (required reviewer), **OIDC** (no PAT/publish-profile), DEPLOY-ONLY with least-privilege identities that cannot create/scale resources (cost-safe). Setup checklists in docs/CICD.md. **Tripwire:** Databricks CD needs a one-time `databricks.yml` app-resource block + `bundle deployment bind` before it works (named honestly, not hidden). Pin `databricks/setup-cli`/`azure/login`/`azure/webapps-deploy` to SHAs before enabling.
+
 ## 2026-05-30 (night) — AIINSIGHTS-P1: deterministic Power BI AI Insights (no more "no measure" fallback); 1842 vitest green
 
 **Context.** After merging the advanced line to `main` and a UI smoke pass, Rajesh picked AIINSIGHTS-P1 as next. The `powerbi-semantic-model` connector is no-LLM: its DAX matcher (`proxy/lib/powerbiQuestionMatcher.js`) only answers questions that NAME a probed measure (→ total/aggregate-by/trend/top-n). The prose section prompts never name a measure, so every AI Insights section returned the same "no measure mentioned" fallback.
