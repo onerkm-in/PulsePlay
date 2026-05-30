@@ -40,6 +40,7 @@ import { useEmbedConfig } from "./settings/embedConfigStore";
 import { warmGenieWarehouse, startWarehouseKeepalive, stopWarehouseKeepalive } from "./lib/warehouseWarmup";
 import { FirstRunWizard, WizardErrorBoundary, shouldShowWizard, type PersonaKey } from "./components/FirstRunWizard";
 import { SurfaceSwitcher } from "./components/SurfaceSwitcher";
+import { BundleSwitcher } from "./components/BundleSwitcher";
 import { PaneEmptyState, DashboardIcon } from "./components/PaneEmptyState";
 import type { SurfaceId } from "./surfaceRegistry";
 import { isSurfaceId } from "./surfaceRegistry";
@@ -1473,6 +1474,12 @@ function PlaygroundApp(): React.ReactElement {
                       * surface, and this chip only renders when an author
                       * has enabled the Chat surface in Settings. End users
                       * with Chat disabled never see a surface switcher. */}
+                    {/* 2026-05-30 — AI & BI enabler chip (ADR-0011). One
+                      * chained control that swaps the bound (BI surface × AI
+                      * brain) pair, replacing the two-knob picker for the
+                      * default path. Self-hides when there's nothing to
+                      * switch between. */}
+                    <BundleSwitcher />
                     {allowChatSurface && <SurfaceModeChip currentMode={uiMode} />}
                     <SetupStatusPill readiness={setupReadiness} />
                 </div>
