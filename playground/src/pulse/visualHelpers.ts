@@ -1168,6 +1168,131 @@ export function buildStagedHybridInsightsPlan(
 }
 
 // ────────────────────────────────────────────────────────────────────────
+// AIINSIGHTS-P1 — Deterministic Power BI semantic-model insights plan
+// ────────────────────────────────────────────────────────────────────────
+//
+// The `powerbi-semantic-model` connector is NO-LLM: it answers a question
+// only when that question NAMES a real probed measure and routes to one of
+// four DAX templates (total / aggregate-by / trend / top-n) — see
+// proxy/lib/powerbiQuestionMatcher.js. The prose section prompts that
+// buildStagedHybridInsightsPlan emits ("One declarative sentence…", "Markdown
+// pipe table…") never name a measure, so the matcher returns the same
+// "no measure mentioned" fallback in EVERY section.
+//
+// This builder produces, for the connector, ONE clean matchable question per
+// section using the PROBE's real measures + dimensions (the frontend context
+// is empty for the unbound AI Insights surface, so the caller passes the
+// discovery-probe field names here). Each question maps deterministically to
+// a single DAX template, so the proxy returns a real data table per section.
+//
+// Integration note: each deterministic answer comes back as exactly ONE
+// `## <heading>` markdown block (powerbiDaxTemplates buildResult), so the
+// runInsights sanitizers pass it through untouched (enforceStageScope leaves
+// a single-heading response alone; normalizeStageHeading leaves a
+// non-matching leading heading alone). The `titles` here are used only for
+// the progress label — the rendered heading is the DAX template's own.
+
+const PBI_TIME_DIM_HINTS = [
+    "date", "datetime", "timestamp", "time", "day", "week", "month",
+    "quarter", "year", "period", "fiscal",
+];
+
+/** True when a dimension NAME looks like a time/date column (matches the
+ *  server matcher's TIME_DIMENSION_NAME_HINTS so trend questions route to
+ *  the `trend` template). */
+export function isPbiTimeDimensionName(name: string): boolean {
+    const n = (name || "").toLowerCase();
+    return PBI_TIME_DIM_HINTS.some(h => n.includes(h));
+}
+
+export interface DeterministicPbiInsightsInput {
+    /** Probed measure names (e.g. ["Total Sales", "Total Profit"]). */
+    measures: string[];
+    /** Probed dimension names (e.g. ["Region", "Category", "Month"]). */
+    dimensions: string[];
+    /** Which universal sections are enabled (guides which DAX angles to cover). */
+    universalStages?: { headline?: boolean; trends?: boolean; risks?: boolean; actions?: boolean };
+    /** Author custom-section names — each becomes a measure-by-dimension breakdown. */
+    customSectionNames?: string[];
+    /** Hard cap on the number of stages (default 6). */
+    maxStages?: number;
+}
+
+/**
+ * Build a deterministic insights plan for the Power BI semantic-model
+ * connector. Returns measure-named DAX-matchable questions (one per stage),
+ * or `{ stages: [], titles: [] }` when no measures are known (caller then
+ * falls back to the prose plan).
+ */
+export function buildDeterministicPbiInsightsPlan(input: DeterministicPbiInsightsInput): InsightsStagePrompts {
+    const measures = (input.measures || []).map(m => (m || "").trim()).filter(Boolean);
+    const dims = (input.dimensions || []).map(d => (d || "").trim()).filter(Boolean);
+    if (measures.length === 0) return { stages: [], titles: [] };
+
+    const timeDims = dims.filter(isPbiTimeDimensionName);
+    const entityDims = dims.filter(d => !isPbiTimeDimensionName(d));
+    const m1 = measures[0];
+    const m2 = measures[1];
+    const show = input.universalStages || {};
+    const showHeadline = show.headline !== false;
+    const showTrends = show.trends !== false;
+    const showRisks = show.risks !== false;
+    const showActions = show.actions !== false;
+    const maxStages = Math.max(1, input.maxStages ?? 6);
+
+    const slots: { q: string; title: string }[] = [];
+    const seen = new Set<string>();
+    const push = (q: string, title: string): void => {
+        const key = q.toLowerCase();
+        if (seen.has(key)) return;
+        seen.add(key);
+        slots.push({ q, title });
+    };
+
+    // HEADLINE → total of the primary measure (`total` template).
+    if (showHeadline) push(`What is the ${m1}?`, "HEADLINE");
+    // KPI SNAPSHOT → primary breakdown (`aggregate-by`) or a second total.
+    if (showHeadline) {
+        if (entityDims[0]) push(`${m1} by ${entityDims[0]}`, "KPI SNAPSHOT");
+        else if (m2) push(`What is the ${m2}?`, "KPI SNAPSHOT");
+    }
+    // TRENDS → time breakdown of the primary measure (`trend` template).
+    if (showTrends && timeDims[0]) push(`${m1} by ${timeDims[0]}`, "TRENDS");
+    // Custom sections → a breakdown of m1 by a dimension matched to the
+    // section name, else cycle through the remaining entity dimensions.
+    let entityCursor = 1; // entityDims[0] already used by KPI SNAPSHOT
+    for (const rawName of (input.customSectionNames || [])) {
+        const name = (rawName || "").trim();
+        if (!name) continue;
+        const firstWord = name.toLowerCase().split(/\s+/)[0] || "";
+        const matchDim = entityDims.find(d => {
+            const dl = d.toLowerCase();
+            return name.toLowerCase().includes(dl) || (firstWord.length > 2 && dl.includes(firstWord));
+        });
+        const dim = matchDim || (entityDims.length ? entityDims[entityCursor++ % entityDims.length] : "");
+        if (dim) push(`${m1} by ${dim}`, name.toUpperCase());
+        else push(`What is the ${m1}?`, name.toUpperCase());
+    }
+    // RISKS → top contributors (where the measure concentrates → where to
+    // look first), via the `top-n` template.
+    if (showRisks && entityDims[0]) push(`Top 5 ${entityDims[0]} by ${m1}`, "RISKS");
+    // RECOMMENDED ACTIONS → a second-measure or secondary-dimension breakdown
+    // (the data an owner would act on). Deterministic mode cannot write prose
+    // recommendations, so this stays a data table.
+    if (showActions) {
+        if (m2 && entityDims[0]) push(`${m2} by ${entityDims[0]}`, "RECOMMENDED ACTIONS");
+        else if (entityDims[1]) push(`${m1} by ${entityDims[1]}`, "RECOMMENDED ACTIONS");
+        else if (m2) push(`What is the ${m2}?`, "RECOMMENDED ACTIONS");
+    }
+
+    // Guarantee at least the headline total.
+    if (slots.length === 0) push(`What is the ${m1}?`, "HEADLINE");
+
+    const capped = slots.slice(0, maxStages);
+    return { stages: capped.map(s => s.q), titles: capped.map(s => s.title) };
+}
+
+// ────────────────────────────────────────────────────────────────────────
 // 49.17 / IDEA-037 — Hybrid prompt pipeline
 // ────────────────────────────────────────────────────────────────────────
 //
