@@ -1021,8 +1021,12 @@ function App(props: AppProps) {
     ]);
 
     const themeStyle = useMemo(() => {
+        // Dark-aware: in dark mode buildThemeStyle omits surface/text tokens so
+        // this inline style (which sits on the .gn-shell--dark element) doesn't
+        // override the dark cascade with light surfaces.
+        const dark = !!props.settings.darkMode;
         if (paneSettings.useReportTheme && props.hostPalette) {
-            return buildThemeStyle(buildThemeFromHost(props.hostPalette));
+            return buildThemeStyle(buildThemeFromHost(props.hostPalette), { dark });
         }
         const tokens = mergeTheme(paneSettings.themeName as ThemeName, {
             accent: paneSettings.brandAccentColor,
@@ -1030,7 +1034,7 @@ function App(props: AppProps) {
             bg: paneSettings.brandBgColor,
             fontFamily: paneSettings.brandFontFamily
         });
-        return buildThemeStyle(tokens);
+        return buildThemeStyle(tokens, { dark });
     }, [
         paneSettings.useReportTheme,
         props.hostPalette,
@@ -1038,7 +1042,8 @@ function App(props: AppProps) {
         paneSettings.brandAccentColor,
         paneSettings.brandTextColor,
         paneSettings.brandBgColor,
-        paneSettings.brandFontFamily
+        paneSettings.brandFontFamily,
+        props.settings.darkMode,
     ]);
 
     const guidedFilters = useMemo(

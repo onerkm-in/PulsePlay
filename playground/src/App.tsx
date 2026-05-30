@@ -2106,7 +2106,7 @@ function PaneChrome(props: {
                 display: "flex",
                 flexDirection: "column",
                 overflow: "hidden",
-                background: "#fff",
+                background: "var(--pp-surface, #fff)",
             }}
         >
             {!props.hideHeader && (
@@ -2119,8 +2119,10 @@ function PaneChrome(props: {
                         justifyContent: "space-between",
                         gap: 8,
                         padding: `5px ${focusedHeaderRightReserve} 5px 9px`,
-                        borderBottom: "1px solid rgba(0,0,0,0.06)",
-                        background: props.isFocused ? "#f8fafc" : "rgba(248,250,252,0.6)",
+                        borderBottom: "1px solid var(--pp-border, rgba(0,0,0,0.06))",
+                        background: props.isFocused
+                            ? "var(--pp-surface-raised, #f8fafc)"
+                            : "var(--pp-surface, rgba(248,250,252,0.6))",
                     }}
                 >
                     {/* When the caller supplies an inline switcher (the
@@ -2306,7 +2308,7 @@ function MinimizedPaneDock(props: {
                 style={{
                     border: "1px solid rgba(0,0,0,0.14)",
                     borderRadius: 4,
-                    background: "#fff",
+                    background: "var(--pp-surface, #fff)",
                     color: "#111827",
                     cursor: "pointer",
                     fontSize: 12,

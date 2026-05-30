@@ -787,6 +787,7 @@
     .gn-line-chart circle { fill: @gn-dark-accent; }
     .gn-suggestions {
         border-top-color: @gn-dark-border-subtle;
+        background: linear-gradient(180deg, @gn-dark-surface 0%, @gn-dark-surface-raised 100%);
     }
     .gn-suggestions-label { color: @gn-dark-text-muted; }
     .gn-pill {
@@ -2500,8 +2501,11 @@
  * conversation log so it doesn't touch insights. */
 .gn-chat-log .gn-msg--assistant .gn-bubble {
     padding: 12px 14px;
-    background: linear-gradient(180deg, #ffffff 0%, #fafcff 100%);
-    border-color: rgba(36, 92, 184, 0.14);
+    /* Token-based so dark mode re-skins the card (was hardcoded #ffffff →
+     * white "blaze" in dark; this rule out-specifies the .gn-shell--dark
+     * override, so the gradient itself must be theme-adaptive). */
+    background: linear-gradient(180deg, var(--gn-surface-raised, #ffffff) 0%, var(--gn-surface, #fafcff) 100%);
+    border-color: var(--gn-border, rgba(36, 92, 184, 0.14));
     border-radius: 6px 18px 18px 18px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
     transition: box-shadow 0.18s ease;

@@ -210,8 +210,26 @@ export function mergeTheme(
  *
  * Applied as style={{ ...buildThemeStyle(tokens) }} on .gn-shell.
  */
-export function buildThemeStyle(tokens: ThemeTokens): React.CSSProperties {
+export function buildThemeStyle(tokens: ThemeTokens, opts?: { dark?: boolean }): React.CSSProperties {
+    // Accent + typography + geometry always apply inline. In DARK mode we
+    // deliberately OMIT the surface/text/border tokens: this inline style sits
+    // on the SAME element as `.gn-shell--dark`, and inline beats the class — so
+    // emitting light surface/text values here was overriding the dark theme and
+    // turning every card white with invisible (light) text. Skipping them lets
+    // the `.gn-shell--dark` cascade provide the dark surfaces/text; the custom
+    // accent still wins (inline) so brand colour survives in dark.
+    const base: Record<string, string> = {
+        "--gn-accent":         tokens.accent,
+        "--gn-accent-subtle":  tokens.accentSubtle,
+        "--gn-accent-border":  tokens.accentBorder,
+        "--gn-user-bubble":    tokens.userBubble,
+        "--gn-font":           tokens.fontFamily,
+        "--gn-radius":         tokens.radius,
+        "--gn-radius-sm":      tokens.radiusSm,
+    };
+    if (opts?.dark) return base as React.CSSProperties;
     return {
+        ...base,
         "--gn-bg":             tokens.bg,
         "--gn-surface":        tokens.surface,
         "--gn-surface-raised": tokens.surfaceRaised,
@@ -219,16 +237,9 @@ export function buildThemeStyle(tokens: ThemeTokens): React.CSSProperties {
         "--gn-border-subtle":  tokens.borderSubtle,
         "--gn-text":           tokens.text,
         "--gn-text-muted":     tokens.textMuted,
-        "--gn-accent":         tokens.accent,
-        "--gn-accent-subtle":  tokens.accentSubtle,
-        "--gn-accent-border":  tokens.accentBorder,
-        "--gn-user-bubble":    tokens.userBubble,
         "--gn-success":        tokens.success,
         "--gn-warning":        tokens.warning,
         "--gn-error":          tokens.error,
-        "--gn-font":           tokens.fontFamily,
-        "--gn-radius":         tokens.radius,
-        "--gn-radius-sm":      tokens.radiusSm,
     } as React.CSSProperties;
 }
 
