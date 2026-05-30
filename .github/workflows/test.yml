@@ -77,9 +77,12 @@ jobs:
           cache: 'npm'
           cache-dependency-path: enablers/desktop/package-lock.json
       - run: npm ci
-      # node --test suites (50 tests). Hermetic: browserLaunch asserts the
-      # command string, never spawns a real browser. No lint script here.
-      - run: npm test
+      # node --test suites (50 tests). Run node directly (not `npm test`):
+      # npm re-shells the script via cmd.exe on Windows, which would NOT expand
+      # the `tests/*.test.mjs` glob. This step's bash shell expands it before
+      # node sees it. Hermetic: browserLaunch asserts the command string, never
+      # spawns a real browser. No lint script here.
+      - run: node --test tests/*.test.mjs
 
   pulse-pbi:
     name: Pulse PBI enabler (lint + unit)
