@@ -12,24 +12,36 @@
 // surface, independent of the React render tree. Listens for the in-tab
 // settings-change event + cross-tab storage so toggling re-themes live.
 
+import { applyThemeTokens, resolveThemeTokens, type AppearanceSettingsLike } from "../pulse/themeConfig";
+
 const GENIE_SETTINGS_KEY = "pulseplay:visual-settings:genieSettings";
 const VISUAL_SETTINGS_EVENT = "pulseplay:visual-settings-change";
 
-function readDarkMode(): boolean {
+function readAppearance(): AppearanceSettingsLike {
     try {
         const raw = window.localStorage.getItem(GENIE_SETTINGS_KEY);
-        if (!raw) return false;
-        const parsed = JSON.parse(raw);
-        return !!(parsed && typeof parsed === "object" && parsed.darkMode);
+        if (!raw) return {};
+        const p = JSON.parse(raw);
+        return (p && typeof p === "object") ? p : {};
     } catch {
-        return false;
+        return {};
     }
 }
 
-/** Set `data-pp-theme` on the document root from the current darkMode flag. */
+/** Reflect the active theme on the document root: the dark light/dark attribute
+ *  (drives the component-level dark CSS) PLUS the resolved theme tokens written
+ *  to both `--gn-*` and `--pp-*` so a preset/custom theme re-skins the WHOLE app
+ *  (workbench + native surfaces), not just the workbench. */
 export function applyPpTheme(): void {
     if (typeof document === "undefined") return;
-    document.documentElement.dataset.ppTheme = readDarkMode() ? "dark" : "light";
+    const s = readAppearance();
+    const dark = !!s.darkMode;
+    document.documentElement.dataset.ppTheme = dark ? "dark" : "light";
+    try {
+        applyThemeTokens(resolveThemeTokens(s), { dark });
+    } catch {
+        /* never let theming break boot */
+    }
 }
 
 /** Install the theme sync. Idempotent-ish — safe to call once at entry. */
