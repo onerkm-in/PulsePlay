@@ -2395,6 +2395,7 @@ function FloatingPanel(props: {
         <div
             role="complementary"
             aria-label={props.title}
+            className="pp-float-panel"
             style={{
                 position: "fixed",
                 left: props.pos.x,
@@ -2407,55 +2408,24 @@ function FloatingPanel(props: {
                 zIndex: 1200,
                 display: "flex",
                 flexDirection: "column",
-                borderRadius: 10,
-                boxShadow: "0 12px 40px rgba(0,0,0,0.22), 0 2px 10px rgba(0,0,0,0.12)",
-                border: "1px solid rgba(0,0,0,0.10)",
                 outline: "none",
                 overflow: "hidden",
-                background: "#ffffff",
                 resize: "both",
             }}
         >
             {/* Drag handle strip — the only chrome added by the float container.
               * Keep it minimal: title + dock button. The Pulse panel's own
               * AI Insights / Ask Pulse toolbar handles everything else. */}
-            <div
-                onMouseDown={onDragHandleMouseDown}
-                style={{
-                    flex: "0 0 auto",
-                    height: 34,
-                    background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
-                    borderBottom: "1px solid rgba(0,0,0,0.07)",
-                    display: "flex",
-                    alignItems: "center",
-                    padding: "0 10px 0 12px",
-                    cursor: "grab",
-                    userSelect: "none",
-                    gap: 8,
-                }}
-            >
+            <div className="pp-float-panel__handle" onMouseDown={onDragHandleMouseDown}>
                 {/* Drag affordance dots */}
-                <span aria-hidden="true" style={{ fontSize: 12, color: "rgba(0,0,0,0.28)", letterSpacing: 1 }}>⠿</span>
-                <span style={{ flex: "1 1 auto", fontSize: 11.5, fontWeight: 600, color: "#374151", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {props.title}
-                </span>
+                <span aria-hidden="true" className="pp-float-panel__dots">⠿</span>
+                <span className="pp-float-panel__title">{props.title}</span>
                 <button
                     type="button"
                     onClick={props.onDock}
                     title="Dock back to split layout"
                     aria-label="Dock panel back to split layout"
-                    style={{
-                        border: "1px solid rgba(0,0,0,0.12)",
-                        borderRadius: 5,
-                        background: "rgba(255,255,255,0.82)",
-                        color: "#374151",
-                        cursor: "pointer",
-                        padding: "2px 9px",
-                        fontSize: 11,
-                        fontWeight: 500,
-                        lineHeight: "18px",
-                        flexShrink: 0,
-                    }}
+                    className="pp-float-panel__dock"
                 >
                     Dock ↙
                 </button>

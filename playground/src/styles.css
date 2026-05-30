@@ -2285,3 +2285,55 @@ html, body, #root {
 }
 .pp-window-controls__btn:hover { background: var(--pp-accent-soft, rgba(37,99,235,0.08)); color: var(--pp-accent, #2563eb); }
 .pp-window-controls__btn--active { background: var(--pp-accent-soft, rgba(37,99,235,0.08)); color: var(--pp-accent, #2563eb); }
+
+/* 2026-05-30 — floating pop-out panel bezel: lean, thin, translucent (glassy)
+   and theme-aware, instead of a solid white box with a heavy frame. Only the
+   frame is translucent — the panel content (the Pulse pane) stays opaque. */
+.pp-float-panel {
+    border: 1px solid var(--pp-border-subtle, rgba(15,23,42,0.08));
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.66);
+    box-shadow: 0 8px 30px rgba(15, 23, 42, 0.16);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+[data-pp-theme="dark"] .pp-float-panel {
+    background: rgba(22, 27, 34, 0.70);
+    border-color: rgba(255, 255, 255, 0.09);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+}
+.pp-float-panel__handle {
+    flex: 0 0 auto;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 8px 0 10px;
+    cursor: grab;
+    user-select: none;
+    background: transparent;
+    border-bottom: 1px solid var(--pp-border-subtle, rgba(15,23,42,0.06));
+}
+.pp-float-panel__dots { font-size: 12px; color: var(--pp-text-subtle, rgba(15,23,42,0.3)); letter-spacing: 1px; }
+.pp-float-panel__title {
+    flex: 1 1 auto;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--pp-text-muted, #64748b);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.pp-float-panel__dock {
+    border: 1px solid var(--pp-border, rgba(15,23,42,0.10));
+    border-radius: 6px;
+    background: var(--pp-surface, #fff);
+    color: var(--pp-text-muted, #64748b);
+    cursor: pointer;
+    padding: 2px 9px;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 18px;
+    flex-shrink: 0;
+}
+.pp-float-panel__dock:hover { border-color: var(--pp-accent, #2563eb); color: var(--pp-accent, #2563eb); }
