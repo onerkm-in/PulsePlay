@@ -1,0 +1,72 @@
+# ============================================================================
+# SETUP REQUIRED — this workflow is INERT until you complete docs/CICD.md
+# "Azure CD setup". Manual-only (workflow_dispatch), gated on the `azure-dev`
+# GitHub Environment (required reviewer), uses OIDC federated credentials (no
+# publish profile / client secret), and is DEPLOY-ONLY. The CI identity is
+# scoped to the single existing web app (Website Contributor on that site
+# only) — it cannot create resources, change the plan/SKU, or scale. F1 stays
+# $0; SCM build stays OFF (build happens here on the free runner).
+# ============================================================================
+name: deploy-azure-appservice
+run-name: deploy-azure (${{ github.ref_name }}) by @${{ github.actor }}
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write   # required for azure/login OIDC
+  contents: read
+
+concurrency:
+  group: deploy-azure
+  cancel-in-progress: false
+
+env:
+  AZURE_WEBAPP_NAME: pulseplay-onedata-dev   # EXISTING app; never created here
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: azure-dev   # gate: required reviewer + federated-cred subject pin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build combined artifact (lint + test + build)
+        run: |
+          npm --prefix playground ci
+          npm --prefix playground run lint
+          npm --prefix playground test
+          npm --prefix playground run build
+          npm --prefix proxy ci --omit=dev
+          npm --prefix proxy test
+
+      # Curated package — exclude config.json/.env/docs evidence/exports.
+      - name: Stage package
+        run: |
+          mkdir -p out/proxy out/playground
+          cp -r proxy/server.js proxy/lib proxy/package.json proxy/package-lock.json proxy/node_modules proxy/config.example.json out/proxy/
+          cp -r playground/dist out/playground/dist
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          package: out
+
+      - name: Smoke
+        run: |
+          curl -fsS "https://${AZURE_WEBAPP_NAME}.azurewebsites.net/health"
+          curl -fsS "https://${AZURE_WEBAPP_NAME}.azurewebsites.net/__diag/static"
+
+      - name: Logout
+        if: always()
+        run: az logout

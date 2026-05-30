@@ -1,0 +1,29 @@
+version: 2
+updates:
+  # Keep the GitHub Actions we use auto-bumped (also moves us toward SHA pins).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  # One npm entry per package (separate lockfiles, no root package.json).
+  - package-ecosystem: npm
+    directory: /proxy
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  - package-ecosystem: npm
+    directory: /playground
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  - package-ecosystem: npm
+    directory: /enablers/pulse-pbi
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+  - package-ecosystem: npm
+    directory: /enablers/desktop
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3

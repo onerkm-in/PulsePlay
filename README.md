@@ -1,5 +1,8 @@
 # PulsePlay
 
+[![tests](https://github.com/onerkm-in/PulsePlay/actions/workflows/test.yml/badge.svg)](https://github.com/onerkm-in/PulsePlay/actions/workflows/test.yml)
+[![codeql](https://github.com/onerkm-in/PulsePlay/actions/workflows/codeql.yml/badge.svg)](https://github.com/onerkm-in/PulsePlay/actions/workflows/codeql.yml)
+
 **Multi-BI AI playground.** A React app where BI and AI components come to play together. Plug in a BI surface, plug in an AI connector, pick or infer a vertical pack, and explore the combination in one web-native host.
 
 ## What it is

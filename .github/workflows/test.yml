@@ -7,10 +7,22 @@ on:
       - main
       - 'publish/**'
 
+# Cancel superseded runs on the same ref so rapid pushes don't leave several
+# full matrices racing. Per-ref, so main and each PR get independent groups.
+# This is a TEST workflow only (no deploy) — safe to cancel in-progress.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least privilege: default GITHUB_TOKEN to read-only for every job.
+permissions:
+  contents: read
+
 jobs:
   proxy:
     name: proxy (jest)
     runs-on: ubuntu-latest
+    timeout-minutes: 12
     defaults:
       run:
         working-directory: proxy
@@ -27,6 +39,7 @@ jobs:
   playground:
     name: playground (lint + vitest + build)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: playground
@@ -42,9 +55,29 @@ jobs:
       - run: npm test
       - run: npm run build
 
+  desktop:
+    name: desktop launcher (node --test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: enablers/desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: enablers/desktop/package-lock.json
+      - run: npm ci
+      # node --test suites (50 tests). Hermetic: browserLaunch asserts the
+      # command string, never spawns a real browser. No lint script here.
+      - run: npm test
+
   pulse-pbi:
     name: Pulse PBI enabler (lint + unit)
     runs-on: ubuntu-latest
+    timeout-minutes: 12
     defaults:
       run:
         working-directory: enablers/pulse-pbi

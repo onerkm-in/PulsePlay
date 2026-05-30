@@ -1,0 +1,33 @@
+name: codeql
+
+# Static security analysis for the whole JS/TS monorepo (proxy, playground,
+# bi-adapters, enablers/*) in one pass. Results land in the repo Security tab.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '27 4 * * 1'   # weekly Monday — catches newly-disclosed CVEs
+
+permissions:
+  contents: read
+  security-events: write   # required to upload results to the Security tab
+
+jobs:
+  analyze:
+    name: analyze (javascript-typescript)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ['javascript-typescript']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          language: ${{ matrix.language }}
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: '/language:${{ matrix.language }}'
