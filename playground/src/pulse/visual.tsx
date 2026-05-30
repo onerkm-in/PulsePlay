@@ -2532,15 +2532,25 @@ function App(props: AppProps) {
     const latestForScroll = messages.length > 0 ? messages[messages.length - 1] : null;
     const latestContentLen = latestForScroll ? (latestForScroll.content || "").length : 0;
     const latestStatus = latestForScroll ? latestForScroll.status : null;
+    const prevMsgCountRef = useRef(0);
     useEffect(() => {
         const node = chatRef.current;
         if (!node) return;
-        // Only auto-scroll if user is already near the bottom — don't
-        // yank them away from scrolled-up history they're reading.
+        // 2026-05-30 — distinguish a newly ADDED message from mid-answer growth.
+        // Asking a new question (or a fresh assistant turn appearing) must always
+        // pull the view to the bottom so the user lands on what they just sent —
+        // even if they had scrolled up to read a previous answer. Streaming
+        // growth ticks still respect the "near bottom" guard so we never yank
+        // someone off the history they're actively reading.
+        const messageAdded = messages.length > prevMsgCountRef.current;
+        prevMsgCountRef.current = messages.length;
         const distanceFromBottom = node.scrollHeight - (node.scrollTop + node.clientHeight);
         const userIsAtBottom = distanceFromBottom < 120;
-        if (userIsAtBottom || messages.length <= 1) {
-            node.scrollTo({ top: node.scrollHeight, behavior: messages.length <= 1 ? "smooth" : "auto" });
+        if (messageAdded || userIsAtBottom || messages.length <= 1) {
+            node.scrollTo({
+                top: node.scrollHeight,
+                behavior: (messageAdded || messages.length <= 1) ? "smooth" : "auto",
+            });
         }
     }, [messages.length, latestContentLen, latestStatus]);
 
