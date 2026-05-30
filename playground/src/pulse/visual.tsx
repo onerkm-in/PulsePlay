@@ -179,7 +179,7 @@ import { irMarkToChartKind } from "../visualization/chartIR";
 // Wave 44 — Power BI theme inheritance + per-element typography. Pure
 // helpers; the Visual class flushes the resulting plan onto `this.target`.
 import { planThemeWrites, applyThemeWrites } from "./themeInheritance";
-import { cleanInsightsContent, stripTrailingProse, normalizeStageHeading, enforceStageScope, stripEmptyEmphasis } from "./rendering/contentSanitizer";
+import { cleanInsightsContent, stripTrailingProse, normalizeStageHeading, enforceStageScope, stripEmptyEmphasis, stripTableLeadIn } from "./rendering/contentSanitizer";
 // Phase E.1 — client-side progressive reveal of Genie single-shot answers.
 // Pure schedule lives in ./state/stagedReveal; this file owns the React glue
 // (arrival-time ref, tick scheduling, render filter + spinner).
@@ -9234,6 +9234,14 @@ function renderMessageBody(
                         prose = raw.replace(tableRe, "\n\n").replace(/\n{3,}/g, "\n\n").trim();
                         strippedTable = true;
                     }
+                }
+                // 2026-05-30 — after stripping the duplicate table, also drop a
+                // dangling LEAD-IN sentence that introduced it (ends in a colon),
+                // e.g. "…The sales figures for each year are:" — otherwise the
+                // narrative promises data that's no longer inline (it now lives
+                // in the Table/Chart below). Leakage spotted live by Rajesh.
+                if (strippedTable) {
+                    prose = stripTableLeadIn(prose);
                 }
                 const proseHasContent = prose.replace(/[\s•\-*]/g, "").length > 8;
                 // 2026-05-30 — when the answer IS the data (no real prose after

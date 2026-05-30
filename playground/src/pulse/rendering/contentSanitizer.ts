@@ -331,3 +331,17 @@ export function enforceStageScope(content: string, expectedTitle: string): strin
     const section = content.slice(from, to).trim();
     return (preHead ? preHead + "\n\n" : "") + section;
 }
+
+/**
+ * 2026-05-30 — When a duplicate markdown table is stripped from a narrative
+ * (it lives in the dedicated Table/Chart section instead), a dangling LEAD-IN
+ * sentence that introduced it can remain — e.g. "…The sales figures for each
+ * year are:" — which reads as a promise with nothing after it ("leakage").
+ * Drop a trailing clause that ends in a colon, keeping the prior sentence's
+ * terminator. Only strips a colon that's at the very END (a mid-text colon
+ * like "the 3 segments are: strong overall." is left alone).
+ */
+export function stripTableLeadIn(prose: string): string {
+    if (!prose) return prose;
+    return prose.replace(/(^|[.!?]\s+|\n+)[^.!?\n]*:\s*$/, "$1").trim();
+}

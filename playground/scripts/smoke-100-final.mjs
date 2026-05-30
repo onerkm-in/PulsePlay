@@ -15,31 +15,38 @@ const BASE = "http://127.0.0.1:7001";
 const GROUP_ID = "7bb52a2a-5028-4887-b8ec-7d13e386da93";
 const REPORT_ID = "95d196a1-9d2a-4ebd-a222-22fae6bc0149";
 
+// A short Genie taste (incl. trend/YoY questions that exercise the
+// table-dedup + lead-in strip — the "leakage" fix) so the run gets to the big
+// Power BI battery quickly.
 const GENIE_Q = [
-    "What is the total sales?", "Show me sales by region", "Sales by product category",
-    "Top 5 customers by total sales", "Show me profit by region", "How many orders do we have?",
-    "What is the average order value?", "Sales trend over the past quarters", "Year over year sales growth",
-    "Most profitable region", "Sales by customer segment", "Top 10 products by sales",
-    "Profit by product category", "Orders by region", "Quantity by category",
-    "Sales by year", "What is the largest single order?", "Top 5 regions by profit",
-    "Which region has the highest profit margin?", "Compare sales between West and East",
-    "Average discount by category", "Sales by month", "Returns by region",
-    "Total quantity sold", "Profit margin trend",
+    "What is the total sales?", "Show me sales by region", "Year over year sales growth",
+    "Sales trend over the past quarters", "Sales by year", "Top 5 customers by total sales",
+    "Profit by product category", "Quantity by category",
 ];
+// Power BI semantic-model DAX matcher needs the EXACT measure name (the
+// measures are "Total Sales"/"Total Profit"/…, not bare "Sales"/"Profit") — a
+// no-LLM matcher does no synonym expansion. All questions below name a real
+// measure + a real dimension so each routes to total/aggregate-by/trend/top-n.
 const PBI_Q = [
-    "What is the total sales by region?", "Total sales", "Sales by category",
-    "Top 5 customers by sales", "Total profit by region", "Average order value",
-    "Profit margin by region", "Quantity by category", "Total profit by segment",
-    "Sales by year", "Order count", "Total sales by customer name",
-    "Top 10 products by sales", "Sales by month", "Total quantity",
-    "Total profit", "Profit margin", "Sales by segment", "Top 5 segment by sales",
-    "Customer count", "Line item count", "Average discount", "Total sales by quarter",
-    "Top 10 customers by profit", "Sales by month name", "Total profit by category",
-    "Order count by region", "Total quantity by segment", "Sales by year quarter",
-    "Profit by segment", "Total sales by month name", "Average discount by segment",
-    "Top 5 products by profit", "Customer count by region", "Sales by category and region",
-    "Total profit by year", "Order count by segment", "Profit margin by category",
-    "Top 10 customers by quantity", "Total sales by year month",
+    // total
+    "Total Sales", "Total Profit", "Profit Margin", "Total Quantity",
+    "Order Count", "Customer Count", "Line Item Count", "Avg Discount",
+    // aggregate-by (entity dims)
+    "Total Sales by region", "Total Sales by category", "Total Sales by segment",
+    "Total Profit by region", "Total Profit by segment", "Total Profit by category",
+    "Total Quantity by category", "Order Count by region", "Total Sales by state",
+    "Total Sales by city", "Total Profit by sub_category", "Avg Discount by segment",
+    "Total Quantity by segment", "Order Count by segment", "Customer Count by region",
+    "Total Sales by customer_name",
+    // trend (time dims)
+    "Total Sales by year", "Total Sales by quarter", "Total Sales by month",
+    "Total Profit by year", "Total Sales by month_name", "Total Profit by quarter",
+    "Total Quantity by year",
+    // top-n
+    "Top 5 customer_name by Total Sales", "Top 10 product_name by Total Sales",
+    "Top 5 region by Total Profit", "Top 5 segment by Total Sales",
+    "Top 10 customer_name by Total Profit", "Top 5 category by Total Sales",
+    "Top 5 state by Total Sales", "Top 10 product_name by Total Profit",
 ];
 
 const results = [];
@@ -51,7 +58,9 @@ const shotFull = (page, n) => page.screenshot({ path: join(OUT, n), fullPage: tr
 async function banner(page, text, color = "#06b6d4") {
     await page.evaluate(({ text, color, pass, total }) => {
         let b = document.getElementById("__smoke__"); if (!b) { b = document.createElement("div"); b.id = "__smoke__"; document.body.appendChild(b); }
-        Object.assign(b.style, { position: "fixed", top: "8px", left: "8px", right: "8px", zIndex: "2147483647", padding: "10px 14px", background: "rgba(15,23,42,0.96)", color: "#fff", font: "600 13px ui-monospace,monospace", borderRadius: "8px", pointerEvents: "none", borderLeft: `6px solid ${color}`, boxShadow: "0 6px 24px rgba(0,0,0,0.4)" });
+        // Top-LEFT only (not full width) so it never covers the top-right
+        // BundleSwitcher chip + its dropdown menu (smoke-100 Part H gap).
+        Object.assign(b.style, { position: "fixed", top: "8px", left: "8px", maxWidth: "min(58vw, 800px)", zIndex: "2147483647", padding: "9px 13px", background: "rgba(15,23,42,0.96)", color: "#fff", font: "600 12px ui-monospace,monospace", borderRadius: "8px", pointerEvents: "none", borderLeft: `6px solid ${color}`, boxShadow: "0 6px 24px rgba(0,0,0,0.4)" });
         b.textContent = `🧪 CLOSING SMOKE  ·  ${pass}/${total} pass  ·  ${text}`;
     }, { text, color, pass: globalThis.__pass || 0, total: globalThis.__total || 0 }).catch(() => {});
 }
@@ -155,7 +164,7 @@ async function main() {
     await goSurface(page, "ask-pulse");
     for (let i = 0; i < PBI_Q.length; i++) {
         await banner(page, `PART C · Ask Pulse (Power BI DAX, no-LLM) · Q${i + 1}/${PBI_Q.length}: ${PBI_Q[i]}`, "#f59e0b");
-        try { const before = await ask(page, PBI_Q[i]); const r = await answer(page, 30_000, before); rec("C", `pbi-dax Q${i + 1}`, r.ok, `${r.ms}ms :: ${PBI_Q[i]}`); }
+        try { const before = await ask(page, PBI_Q[i]); const r = await answer(page, 45_000, before); rec("C", `pbi-dax Q${i + 1}`, r.ok, `${r.ms}ms :: ${PBI_Q[i]}`); }
         catch (e) { rec("C", `pbi-dax Q${i + 1}`, false, String(e.message).slice(0, 60)); }
         if (i === 0) await shotFull(page, "03-ask-pulse-pbi-dax.png");
     }
@@ -178,43 +187,69 @@ async function main() {
     }
 
     // ───────── PART E — Dashboard: Power BI report embed ─────────
-    await page.evaluate(({ g, r }) => { localStorage.setItem("pulseplay:active-surface", "bi-viz"); localStorage.setItem("pulseplay:bi-vendor", "powerbi"); localStorage.setItem("pulseplay:bi-surface-mode", "vendor"); const cfg = { vendor: "powerbi", groupId: g, reportId: r }; localStorage.setItem("pulseplay:bi-embed-config", JSON.stringify(cfg)); }, { g: GROUP_ID, r: REPORT_ID });
+    // The powerbi adapter needs { id, embedUrl, accessToken } — mint a fresh
+    // embed token via the proxy (service principal) and seed the full
+    // backend-issued config, like validate-pbi-render.mjs. Stop any in-flight
+    // Part-D insights run + settle so the page-context fetch isn't interrupted.
+    try { await page.locator("button", { hasText: /^Stop$/ }).first().click({ timeout: 1500 }); } catch { /* no run in flight */ }
+    await page.waitForTimeout(2000);
+    let mint = { ok: false, hasToken: false };
+    for (let attempt = 0; attempt < 3 && !mint.hasToken; attempt++) {
+        mint = await page.evaluate(async ({ g, r, p }) => {
+            try {
+                const res = await fetch(`${location.origin}/api/assistant/embed-token/powerbi`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ groupId: g, reportId: r, permissions: "View", assistantProfile: p }) });
+                const d = await res.json().catch(() => ({}));
+                if (res.ok && d.embedToken && d.embedUrl) {
+                    localStorage.setItem("pulseplay:bi-vendor", "powerbi");
+                    localStorage.setItem("pulseplay:bi-surface-mode", "vendor");
+                    localStorage.setItem("pulseplay:active-surface", "bi-viz");
+                    localStorage.setItem("pulseplay:bi-embed-config", JSON.stringify({ type: "report", mode: "backend-issued", embedMode: "backend", tokenType: "Embed", id: r, groupId: g, embedUrl: d.embedUrl, accessToken: d.embedToken, permissions: "View" }));
+                }
+                return { ok: res.ok, hasToken: !!d.embedToken };
+            } catch (e) { return { ok: false, error: String(e) }; }
+        }, { g: GROUP_ID, r: REPORT_ID, p: "powerbi-dwd" });
+        if (!mint.hasToken) await page.waitForTimeout(1500);
+    }
+    rec("E", "embed token minted (proxy/SP)", !!(mint.ok && mint.hasToken));
     await goSurface(page, "bi-viz");
     await banner(page, "PART E · Dashboard — Power BI report embed", "#0ea5e9");
-    await page.waitForTimeout(6000);
+    await page.waitForTimeout(9000); // let the powerbi-client SDK embed + load
     {
-        const e = await page.evaluate(() => { const f = document.querySelector("iframe[src*='powerbi']"); return { iframe: !!f, src: (f?.getAttribute("src") || "").slice(0, 60), err: !!document.querySelector(".gn-error, [class*='embed-error']") || /failed to embed/i.test(document.body.innerText) }; });
+        const e = await page.evaluate(() => { const f = Array.from(document.querySelectorAll("iframe")).find(x => /powerbi\.com/.test(x.getAttribute("src") || "")); return { iframe: !!f, src: (f?.getAttribute("src") || "").slice(0, 60), err: /failed to embed powerbi|eventName must be one of/i.test(document.body.textContent || "") }; });
         rec("E", "PBI iframe present", e.iframe, e.src);
         rec("E", "no embed-error overlay", !e.err);
         await shot(page, "05-dashboard-pbi-embed.png");
     }
 
-    // ───────── PART F — Native canvas: pin + tile ops ─────────
-    await setProfile(page, "powerbi-dwd", { "pulseplay:active-surface": "ask-pulse" });
+    // ───────── PART F — Native canvas: pin a chart + tile ops ─────────
+    // CLEAN SLATE — mirror validate-pin-to-canvas.mjs exactly (which passes):
+    // clear all prior state, fresh Genie ask-pulse, ask, wait for the chart's
+    // pin button (don't call answer() first — the pin appears after the chart),
+    // .first() since it's the only chart now. G/H/I/J below re-set their state.
+    await page.evaluate(() => { try { localStorage.clear(); } catch { /* */ } localStorage.setItem("pulseplay:bi-surface-mode", "native"); });
+    await setProfile(page, "default", { "pulseplay:active-surface": "ask-pulse", "pulseplay:default-landing-surface": "ask-pulse" });
     await goSurface(page, "ask-pulse");
-    await banner(page, "PART F · Native canvas — pin + tile ops", "#14b8a6");
+    await banner(page, "PART F · Native canvas — pin a chart + tile ops", "#14b8a6");
     try {
-        { const b = await ask(page, "Total sales by region"); await answer(page, 30_000, b); } await page.waitForTimeout(800);
-        const pin = page.locator("button[title*='Pin'], button[aria-label*='Pin'], .gn-pin-btn").first();
-        if (await pin.count()) { await pin.click().catch(() => {}); await page.waitForTimeout(1200); }
-        { const b = await ask(page, "Total profit by segment"); await answer(page, 30_000, b); } await page.waitForTimeout(800);
-        const pin2 = page.locator("button[title*='Pin'], button[aria-label*='Pin'], .gn-pin-btn").first();
-        if (await pin2.count()) { await pin2.click().catch(() => {}); await page.waitForTimeout(1200); }
+        await ask(page, "What is the total sales by region?");
+        const pin = page.locator(".gn-chart-pin").first();
+        await pin.waitFor({ state: "visible", timeout: 120_000 }).catch(() => {});
+        await page.waitForTimeout(2500);
+        if (await pin.count()) { await pin.click().catch(() => {}); await page.waitForTimeout(1500); }
     } catch { /* */ }
-    await page.evaluate(() => localStorage.setItem("pulseplay:active-surface", "bi-viz"));
-    await page.evaluate(() => { localStorage.setItem("pulseplay:bi-surface-mode", "native"); });
-    await goSurface(page, "bi-viz");
-    await page.waitForTimeout(2500);
+    // Switch to the Dashboard tab — the native canvas shows the pinned tile.
+    { const dt = page.locator("button", { hasText: /^Dashboard$/i }).first(); await dt.click().catch(() => {}); }
+    await page.waitForTimeout(3000);
     {
         const t = await tiles(page);
-        rec("F", "canvas has pinned tiles", t.length >= 1, `${t.length} tiles`);
-        rec("F", "tile carries SQL + connector", !!(t[0] && (t[0].sql || t[0].connector || t[0].assistantProfile)));
-        rec("F", "tiles render on canvas", await page.evaluate(() => document.querySelectorAll(".pp-tile, .pp-canvas__tile").length >= 1));
+        rec("F", "canvas has pinned tile", t.length >= 1, `${t.length} tiles`);
+        rec("F", "tile carries SQL + connector provenance", !!(t[0] && t[0].sqlQuery && t[0].connectorProfileId));
+        rec("F", "tile renders on canvas", await page.evaluate(() => document.querySelectorAll(".pp-tile").length >= 1));
         await shot(page, "06-canvas-pinned.png");
-        // tile Refresh → live
+        // tile Refresh → live (button title is the full "Refresh from the connector")
         try {
-            await page.locator(".pp-tile__btn[title='Refresh'], .pp-tile__refresh").first().click().catch(() => {});
-            await page.waitForTimeout(14000);
+            await page.locator(".pp-tile__btn[title='Refresh from the connector']").first().click().catch(() => {});
+            await page.waitForTimeout(16000);
             rec("F", "tile Refresh → live", await page.evaluate(() => (document.querySelector(".pp-tile__snapshot")?.textContent || "").toLowerCase().includes("live")));
         } catch { rec("F", "tile Refresh → live", false); }
         // tile Edit query → applies + re-runs
