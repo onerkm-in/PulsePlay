@@ -32,6 +32,9 @@ export interface CanvasTile {
     /** Wall-clock of the last live refresh / edited-query run (undefined = the
      *  tile is still showing its original pinned snapshot). */
     lastRefreshedAt?: number;
+    /** Grid placement on the canvas: x/w in 12 columns, y/h in row units.
+     *  Undefined = not yet placed (the grid auto-flows it). */
+    layout?: { x: number; y: number; w: number; h: number };
 }
 
 const STORAGE_KEY = "pulseplay:canvas-tiles";
@@ -97,4 +100,18 @@ export function updateCanvasTile(id: string, patch: Partial<Omit<CanvasTile, "id
 
 export function clearCanvasTiles(): void {
     write([]);
+}
+
+/** Fill a default grid layout for any tile that lacks one, in a single write.
+ *  Returns true if anything changed (so callers can avoid redundant work). */
+export function ensureTileLayouts(makeDefault: (tile: CanvasTile, index: number) => CanvasTile["layout"]): boolean {
+    const tiles = read();
+    let changed = false;
+    const next = tiles.map((t, i) => {
+        if (t.layout) return t;
+        changed = true;
+        return { ...t, layout: makeDefault(t, i) };
+    });
+    if (changed) write(next);
+    return changed;
 }

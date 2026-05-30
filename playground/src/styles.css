@@ -2080,14 +2080,35 @@ html, body, #root {
     grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
     gap: 14px;
 }
+.pp-canvas__board {
+    /* tiles are absolutely positioned on a 12-col grid; height set inline */
+    width: 100%;
+}
 .pp-tile {
     display: flex;
     flex-direction: column;
+    box-sizing: border-box;
     background: var(--pp-surface, #fff);
     border: 1px solid var(--pp-border, rgba(15,23,42,0.10));
     border-radius: 10px;
     overflow: hidden;
     box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.pp-tile--dragging {
+    z-index: 5;
+    box-shadow: 0 10px 30px rgba(15,23,42,0.22);
+    border-color: var(--pp-accent, #2563eb);
+    user-select: none;
+}
+.pp-tile__resize {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 18px;
+    height: 18px;
+    cursor: nwse-resize;
+    background:
+        linear-gradient(135deg, transparent 0 55%, var(--pp-border-strong, rgba(15,23,42,0.28)) 55% 62%, transparent 62% 74%, var(--pp-border-strong, rgba(15,23,42,0.28)) 74% 81%, transparent 81%);
 }
 .pp-tile__head {
     display: flex;
@@ -2197,7 +2218,7 @@ html, body, #root {
     border-bottom: 1px solid var(--pp-border-subtle, rgba(15,23,42,0.06));
 }
 .pp-tile__status--error { color: var(--pp-error, #dc2626); background: var(--pp-error-soft, rgba(220,38,38,0.07)); }
-.pp-tile__body { padding: 8px 10px; min-height: 244px; }
+.pp-tile__body { padding: 8px 10px; flex: 1 1 auto; min-height: 0; overflow: auto; }
 .pp-tile__foot {
     display: flex;
     justify-content: space-between;
