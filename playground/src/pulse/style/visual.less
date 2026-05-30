@@ -11349,6 +11349,91 @@
     100% { background-position: -200% 0; }
 }
 
+// ── Live streaming "feels alive" treatment ────────────────────────────────
+// Only while the run is ACTIVE (.gn-progress--active). The completed / failed
+// states stay calm. Everything here is guarded by prefers-reduced-motion so
+// motion-sensitive users get the static, legible version.
+@media (prefers-reduced-motion: no-preference) {
+    // The active verb shimmers left→right like text that is still arriving.
+    .gn-progress--active .gn-progress-active-label {
+        background: linear-gradient(
+            100deg,
+            @gn-text 0%, @gn-text 38%,
+            var(--gn-accent, #1a6fd4) 50%,
+            @gn-text 62%, @gn-text 100%
+        );
+        background-size: 220% 100%;
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: gn-progress-fade-in 220ms ease-out, gn-stream-text-sheen 2600ms linear infinite;
+    }
+    // Keep the parenthetical live sub-status readable (don't let the text
+    // shimmer's transparent fill swallow it).
+    .gn-progress--active .gn-progress-active-label .gn-progress-sublabel {
+        -webkit-text-fill-color: @gn-text-muted;
+        color: @gn-text-muted;
+    }
+    // Soft breathing glow behind the active header glyph.
+    .gn-progress--active .gn-progress-header > .gn-progress-glyph {
+        position: relative;
+        isolation: isolate;
+    }
+    .gn-progress--active .gn-progress-header > .gn-progress-glyph::after {
+        content: "";
+        position: absolute;
+        inset: -7px;
+        border-radius: 50%;
+        background: radial-gradient(circle, var(--gn-accent, #1a6fd4) 0%, transparent 66%);
+        z-index: -1;
+        animation: gn-stream-glow 1800ms ease-in-out infinite;
+    }
+    // A light sweep rides the full bar on top of the determinate fill, so the
+    // bar reads as "working" even when the fill % sits still between stages.
+    .gn-progress--active .gn-progress-bar { position: relative; }
+    .gn-progress--active .gn-progress-bar::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        width: 34%;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+        animation: gn-stream-sweep 1400ms ease-in-out infinite;
+    }
+    // Dark theme — the shimmer gradient must use the dark text token or the
+    // verb would render dark-on-dark and vanish.
+    .gn-shell--dark .gn-progress--active .gn-progress-active-label {
+        background: linear-gradient(
+            100deg,
+            @gn-dark-text 0%, @gn-dark-text 38%,
+            @gn-dark-accent 50%,
+            @gn-dark-text 62%, @gn-dark-text 100%
+        );
+        background-size: 220% 100%;
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    .gn-shell--dark .gn-progress--active .gn-progress-active-label .gn-progress-sublabel {
+        -webkit-text-fill-color: @gn-dark-text-muted;
+        color: @gn-dark-text-muted;
+    }
+}
+
+@keyframes gn-stream-text-sheen {
+    0%   { background-position: 120% 0; }
+    100% { background-position: -120% 0; }
+}
+@keyframes gn-stream-glow {
+    0%, 100% { opacity: 0.10; transform: scale(0.9); }
+    50%      { opacity: 0.28; transform: scale(1.1); }
+}
+@keyframes gn-stream-sweep {
+    0%   { transform: translateX(-120%); }
+    100% { transform: translateX(360%); }
+}
+
 // ── AI Insights Narrative Blocks ──────────────────────────────────────────────
 
 .gn-narrative-list--grid {
