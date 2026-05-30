@@ -31,13 +31,21 @@ const { echartsMock } = vi.hoisted(() => {
 
 vi.mock("echarts/core", () => echartsMock);
 vi.mock("echarts/charts", () => ({
+    // NativeCanvas's own set plus the wider set EChartsRenderer registers
+    // (pulled in transitively via the pin-to-canvas CanvasGrid).
     BarChart: {}, HeatmapChart: {}, LineChart: {}, PieChart: {}, ScatterChart: {},
+    TreemapChart: {}, FunnelChart: {}, GaugeChart: {}, RadarChart: {},
+    SunburstChart: {}, SankeyChart: {}, PictorialBarChart: {},
 }));
 vi.mock("echarts/components", () => ({
     GridComponent: {},
     LegendComponent: {},
     TitleComponent: {},
     TooltipComponent: {},
+    VisualMapComponent: {},
+    DataZoomComponent: {},
+    MarkLineComponent: {},
+    MarkPointComponent: {},
 }));
 vi.mock("echarts/renderers", () => ({ CanvasRenderer: {} }));
 // The runtime echarts package only re-exports types we use; vitest

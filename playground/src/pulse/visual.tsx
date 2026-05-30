@@ -245,6 +245,7 @@ import { parseAllowedUsers } from "./setupAccessControl";
 import { EChartsRenderer } from '../components/workbench/EChartsRenderer';
 import { buildEChartsOption } from '../lib/buildEChartsOption';
 import { CHART_PALETTES, CHART_PALETTE_EVENT, getActivePaletteId, applyChartPalette } from '../lib/chartPalettes';
+import { addCanvasTile } from '../lib/canvasTiles';
 import IViewport = powerbi.IViewport;
 import IVisual = powerbi.extensibility.visual.IVisual;
 import IVisualHost = powerbi.extensibility.visual.IVisualHost;
@@ -9105,7 +9106,7 @@ function renderMessageBody(
                         <div className="gn-answer-section-label">
                             <span className="gn-answer-section-label-text">Chart</span>
                         </div>
-                        <GenieChart columns={message.queryResult.columns} rows={message.queryResult.rows} preferredChart={message.forcedChartType} genieViz={message.genieViz} />
+                        <GenieChart columns={message.queryResult.columns} rows={message.queryResult.rows} preferredChart={message.forcedChartType} genieViz={message.genieViz} sqlQuery={message.sqlQuery} sourceQuestion={message.sourceQuestion} connectorProfileId={message.route?.assistantProfile} />
                     </section>
                     {!isBriefingReply && (
                         <section className="gn-answer-section gn-answer-section--table">
@@ -9173,7 +9174,7 @@ function GenieTable(props: { columns: string[]; rows: any[][]; isNarrative?: boo
     );
 }
 
-function GenieChart(props: { columns: string[]; rows: any[][]; preferredChart?: ChartKind; genieViz?: unknown }) {
+function GenieChart(props: { columns: string[]; rows: any[][]; preferredChart?: ChartKind; genieViz?: unknown; sqlQuery?: string; sourceQuestion?: string; connectorProfileId?: string }) {
     const dataShape = useMemo(() => analyzeDataShape(props.columns, props.rows), [props.columns, props.rows]);
     const recommended = dataShape.recommended;
     // UX-VIEWER-1.7b.2 — when Genie returns a HELIOS viz spec, defer to
@@ -9211,6 +9212,32 @@ function GenieChart(props: { columns: string[]; rows: any[][]; preferredChart?: 
         window.addEventListener(CHART_PALETTE_EVENT, onPalette);
         return () => window.removeEventListener(CHART_PALETTE_EVENT, onPalette);
     }, []);
+
+    // Pin-to-canvas — capture this chart (with its CURRENT type) as a snapshot
+    // tile on the native BI canvas. Carries the SQL + connector so a later phase
+    // can refresh it live.
+    const [pinned, setPinned] = useState(false);
+    const handlePin = useCallback(() => {
+        // Connector binding for a future live refresh. Prefer the profile that
+        // answered (route), fall back to the active profile so it is always
+        // captured even when the response route omits it.
+        let connectorProfileId = props.connectorProfileId;
+        if (!connectorProfileId) {
+            try { connectorProfileId = window.localStorage.getItem("pulseplay:active-ai-profile") || undefined; } catch { /* ignore */ }
+        }
+        addCanvasTile({
+            title: props.sourceQuestion?.trim() || "Pinned chart",
+            kind: "chart",
+            chartType,
+            columns: props.columns,
+            rows: props.rows,
+            sqlQuery: props.sqlQuery,
+            connectorProfileId,
+            sourceQuestion: props.sourceQuestion,
+        });
+        setPinned(true);
+        window.setTimeout(() => setPinned(false), 1800);
+    }, [chartType, props.columns, props.rows, props.sqlQuery, props.connectorProfileId, props.sourceQuestion]);
 
     // Group CHART_OPTIONS into optgroup sections for the picker.
     const grouped = useMemo(() => {
@@ -9300,6 +9327,25 @@ function GenieChart(props: { columns: string[]; rows: any[][]; preferredChart?: 
                         ))}
                     </select>
                 </span>
+                <button
+                    type="button"
+                    className={`gn-chart-pin${pinned ? " gn-chart-pin--done" : ""}`}
+                    onClick={handlePin}
+                    title="Pin this chart to the Dashboard canvas"
+                    aria-label="Pin this chart to the Dashboard canvas"
+                >
+                    {pinned ? (
+                        <>
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+                            <span>Pinned</span>
+                        </>
+                    ) : (
+                        <>
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="12" y1="17" x2="12" y2="22" /><path d="M5 17h14l-1.5-3V8a2 2 0 0 0-2-2H8.5a2 2 0 0 0-2 2v6L5 17z" /></svg>
+                            <span>Pin to canvas</span>
+                        </>
+                    )}
+                </button>
             </div>
             {renderEChartsBody(chartType, props.columns, props.rows, dataShape)}
         </div>

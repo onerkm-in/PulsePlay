@@ -2043,3 +2043,120 @@ html, body, #root {
 @media (max-width: 700px) {
     .pp-pbi-dev__grid, .pp-embed-config__grid { grid-template-columns: 1fr; }
 }
+
+/* 2026-05-30 — Pin-to-canvas grid (native BI canvas / Dashboard tab). A saved
+   collection of pinned tiles, each self-contained (snapshot data + bound
+   connector). Themed via --pp-* so it tracks the active theme. */
+.pp-canvas {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    height: 100%;
+    overflow: auto;
+    box-sizing: border-box;
+}
+.pp-canvas__bar {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+}
+.pp-canvas__title { font-size: 15px; font-weight: 700; color: var(--pp-text, #0f172a); }
+.pp-canvas__count { font-size: 12px; color: var(--pp-text-muted, #64748b); }
+.pp-canvas__clear {
+    margin-left: auto;
+    padding: 4px 10px;
+    border: 1px solid var(--pp-border, rgba(15,23,42,0.10));
+    border-radius: 6px;
+    background: var(--pp-surface, #fff);
+    color: var(--pp-text-muted, #64748b);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+.pp-canvas__clear:hover { border-color: var(--pp-error, #dc2626); color: var(--pp-error, #dc2626); }
+.pp-canvas__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 14px;
+}
+.pp-tile {
+    display: flex;
+    flex-direction: column;
+    background: var(--pp-surface, #fff);
+    border: 1px solid var(--pp-border, rgba(15,23,42,0.10));
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.pp-tile__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--pp-border-subtle, rgba(15,23,42,0.06));
+}
+.pp-tile__title {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--pp-text, #0f172a);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.pp-tile__actions { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.pp-tile__type {
+    min-height: 24px;
+    padding: 0 4px;
+    border: 1px solid var(--pp-border, rgba(15,23,42,0.10));
+    border-radius: 6px;
+    background: var(--pp-surface, #fff);
+    color: var(--pp-text, #0f172a);
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+}
+.pp-tile__remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--pp-text-muted, #64748b);
+    cursor: pointer;
+}
+.pp-tile__remove:hover { border-color: var(--pp-error, #dc2626); color: var(--pp-error, #dc2626); background: var(--pp-error-soft, rgba(220,38,38,0.07)); }
+.pp-tile__body { padding: 8px 10px; min-height: 244px; }
+.pp-tile__foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 12px;
+    border-top: 1px solid var(--pp-border-subtle, rgba(15,23,42,0.06));
+    font-size: 11px;
+    color: var(--pp-text-muted, #64748b);
+}
+.pp-tile__snapshot {
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: var(--pp-accent-soft, rgba(37,99,235,0.08));
+    color: var(--pp-accent, #2563eb);
+    font-weight: 600;
+}
+.pp-tile__tablewrap { max-height: 244px; overflow: auto; }
+.pp-tile__table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.pp-tile__table th, .pp-tile__table td {
+    text-align: left;
+    padding: 5px 8px;
+    border-bottom: 1px solid var(--pp-border-subtle, rgba(15,23,42,0.06));
+    white-space: nowrap;
+}
+.pp-tile__table th { color: var(--pp-text-muted, #64748b); font-weight: 600; position: sticky; top: 0; background: var(--pp-surface-raised, #fff); }
+.pp-tile__table td { color: var(--pp-text, #0f172a); }
+.pp-tile__tablefoot { padding: 6px 8px; font-size: 11px; color: var(--pp-text-muted, #64748b); }

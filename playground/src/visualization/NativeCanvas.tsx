@@ -36,8 +36,10 @@
 // not import this file from the sibling project.
 
 import * as React from "react";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { CanvasGrid } from "./CanvasGrid";
+import { canvasTileCount, CANVAS_TILES_EVENT } from "../lib/canvasTiles";
 import { flushSync } from "react-dom";
 import * as echarts from "echarts/core";
 import { BarChart, HeatmapChart, LineChart, PieChart, ScatterChart } from "echarts/charts";
@@ -172,6 +174,28 @@ export function mountNativeCanvas(
 export function NativeCanvas(props: NativeCanvasProps): React.ReactElement {
     const { mode, envelope, governanceState, theme } = props;
     const govAttr = governanceAttribute(governanceState);
+
+    // Pin-to-canvas — when the user has pinned tiles, the saved canvas IS the
+    // Dashboard content. Subscribe so the grid appears/clears live as tiles are
+    // pinned/removed (NativeCanvas otherwise only re-renders on prop updates).
+    const [tileCount, setTileCount] = useState<number>(() => canvasTileCount());
+    useEffect(() => {
+        const refresh = () => setTileCount(canvasTileCount());
+        window.addEventListener(CANVAS_TILES_EVENT, refresh);
+        window.addEventListener("storage", refresh);
+        return () => {
+            window.removeEventListener(CANVAS_TILES_EVENT, refresh);
+            window.removeEventListener("storage", refresh);
+        };
+    }, []);
+    if (tileCount > 0) {
+        return renderRootSection({
+            statusKey: "canvas",
+            governanceAttribute: govAttr,
+            theme,
+            children: <CanvasGrid />,
+        });
+    }
 
     // Mode dispatch. Each branch picks a body + the data-native-bi-status
     // attribute value. The adapter's renderStatus already matches these

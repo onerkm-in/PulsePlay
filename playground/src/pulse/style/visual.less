@@ -3970,6 +3970,35 @@
     cursor: pointer;
 }
 
+/* 2026-05-30 — Pin-to-canvas button on the chart toolbar. Captures the chart
+   (with its current type) as a snapshot tile on the native BI canvas. */
+.gn-chart-pin {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 26px;
+    padding: 0 10px;
+    border: 1px solid @gn-border;
+    border-radius: @gn-radius-sm;
+    background: @gn-surface;
+    color: @gn-text;
+    font-family: @gn-font;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background @gn-t-fast @gn-ease, border-color @gn-t-fast @gn-ease, color @gn-t-fast @gn-ease;
+}
+.gn-chart-pin:hover {
+    border-color: @gn-accent;
+    color: @gn-accent;
+    background: @gn-accent-subtle;
+}
+.gn-chart-pin--done {
+    border-color: #1a7f37;
+    color: #1a7f37;
+    background: rgba(26, 127, 55, 0.08);
+}
+
 /* ── KPI chart tile (single-value render inside Ask Pulse chart pane) ── */
 
 .gn-kpi-chart-tile {
