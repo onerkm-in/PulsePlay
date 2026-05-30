@@ -8856,6 +8856,21 @@
         grid-column: 1 / -1;
         order: 6;
     }
+
+    /* 2026-05-30 — reclaim the dead right column when a row's partner is
+     * absent. The 2-up grid reserves KPI SNAPSHOT│TRENDS and RISKS│ACTIONS,
+     * but many briefings ship only 3 sections (HEADLINE + KPI SNAPSHOT +
+     * RISKS), leaving the entire right column blank. CSS :has() (available
+     * because PulsePlay runs top-level in a real browser, not the PBI
+     * sandbox) lets a lone section claim the full width instead of wasting
+     * half the canvas. The intentional pairing still applies whenever the
+     * partner section IS present. */
+    .gn-insights-sections:not(:has(> .gn-insights-section[data-section="TRENDS"])) > .gn-insights-section[data-section="KPI SNAPSHOT"] {
+        grid-column: 1 / -1;
+    }
+    .gn-insights-sections:not(:has(> .gn-insights-section[data-section="RECOMMENDED ACTIONS"])):not(:has(> .gn-insights-section[data-section="ACTIONS"])):not(:has(> .gn-insights-section[data-section="NEXT STEPS"])):not(:has(> .gn-insights-section[data-section="NEXT BEST ACTIONS"])) > .gn-insights-section[data-section="RISKS"] {
+        grid-column: 1 / -1;
+    }
 }
 
 /* Next Best Actions prominence — the briefing's single accent moment.
