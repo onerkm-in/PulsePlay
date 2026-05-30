@@ -57,8 +57,11 @@ jobs:
 
   desktop:
     name: desktop launcher (node --test)
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Windows runner: the desktop enabler is a Windows-native launcher (its
+    # packaging is package-win.mjs → PulsePlay.exe) and some tests assert
+    # OS-native path separators, so they must run on the target platform.
+    runs-on: windows-latest
+    timeout-minutes: 12
     defaults:
       run:
         working-directory: enablers/desktop
