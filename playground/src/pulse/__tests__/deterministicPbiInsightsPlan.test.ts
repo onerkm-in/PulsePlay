@@ -106,6 +106,21 @@ describe("buildDeterministicPbiInsightsPlan — every question matches a DAX tem
     });
 });
 
+describe("buildDeterministicPbiInsightsPlan — grouper quality", () => {
+    it("prefers plain categoricals over *_name over *_id, and named time grains over date keys", () => {
+        const plan = buildDeterministicPbiInsightsPlan({
+            measures: ["Total Sales"],
+            dimensions: ["customer_id", "customer_name", "segment", "date_key", "year", "month"],
+            universalStages: { headline: true, trends: true, risks: true, actions: false },
+        });
+        expect(plan.stages.some(q => /by segment/i.test(q))).toBe(true);
+        expect(plan.stages.some(q => /Top 5 segment/i.test(q))).toBe(true);
+        expect(plan.stages.some(q => /customer_id/i.test(q))).toBe(false);
+        // trend picks a named grain, never the raw date_key
+        expect(plan.stages.some(q => /date_key/i.test(q))).toBe(false);
+    });
+});
+
 describe("isPbiTimeDimensionName", () => {
     it("flags time/date-ish names, not entity names", () => {
         expect(isPbiTimeDimensionName("Month")).toBe(true);

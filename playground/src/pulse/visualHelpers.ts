@@ -1229,8 +1229,34 @@ export function buildDeterministicPbiInsightsPlan(input: DeterministicPbiInsight
     const dims = (input.dimensions || []).map(d => (d || "").trim()).filter(Boolean);
     if (measures.length === 0) return { stages: [], titles: [] };
 
-    const timeDims = dims.filter(isPbiTimeDimensionName);
-    const entityDims = dims.filter(d => !isPbiTimeDimensionName(d));
+    // Entity dims: prefer plain low-cardinality categoricals (segment,
+    // category, region) over name columns over technical keys — the latter two
+    // are high-cardinality and make ugly snapshot tables ("793 groups"). No
+    // cardinality metadata is available, so rank by NAME shape:
+    //   tier 0 (best): plain categorical
+    //   tier 1: *_name / "name"  (entity labels — many distinct values)
+    //   tier 2 (worst): *_id / *_key / guid / uuid (technical keys)
+    // Stable sort keeps probe order within a tier.
+    const entityDimRank = (n: string): number => {
+        const t = n.trim();
+        if (/(_id|_key|^id$|^key$|guid|uuid)$/i.test(t)) return 2;
+        if (/(_name|^name$)$/i.test(t)) return 1;
+        return 0;
+    };
+    const entityDims = dims
+        .filter(d => !isPbiTimeDimensionName(d))
+        .map((d, i) => ({ d, i }))
+        .sort((a, b) => entityDimRank(a.d) - entityDimRank(b.d) || a.i - b.i)
+        .map(x => x.d);
+    // Time dims: prefer named grains (month / quarter / year_month) over raw
+    // date keys/timestamps so the trend renders a readable series, not a row
+    // per day.
+    const isRawDateKey = (n: string): boolean => /(date_key|timestamp|datetime|^date$|^day$)/i.test(n.trim());
+    const timeDims = dims
+        .filter(isPbiTimeDimensionName)
+        .map((d, i) => ({ d, i }))
+        .sort((a, b) => (isRawDateKey(a.d) ? 1 : 0) - (isRawDateKey(b.d) ? 1 : 0) || a.i - b.i)
+        .map(x => x.d);
     const m1 = measures[0];
     const m2 = measures[1];
     const show = input.universalStages || {};

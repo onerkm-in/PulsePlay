@@ -97,6 +97,7 @@ import {
     buildHomeContextPayload,
     buildFastHybridInsightsStagePrompts,
     buildStagedHybridInsightsPlan,
+    buildDeterministicPbiInsightsPlan,
     buildInsightsPrompt,
     FAST_INSIGHTS_STAGE_TITLE,
     parseCustomSections,
@@ -484,6 +485,65 @@ function executeSqlPreviewClient(args: {
         } catch (e) {
             resolve({ columns: [], rows: [], error: (e as Error).message });
         }
+    });
+}
+
+/**
+ * AIINSIGHTS-P1 — fetch the connector probe (POST /assistant/probe) for the
+ * active profile. Used to (a) detect a deterministic `powerbi-semantic-model`
+ * connector from a STABLE source (the probe's `connectorType`, not the
+ * 15-min discovery sessionStorage cache) and (b) source the real probed
+ * measure + dimension NAMES so AI Insights can emit matchable DAX questions
+ * per section. Never throws — resolves an empty shell on any failure so the
+ * caller falls back to the prose plan.
+ */
+interface PbiProbeFields { connectorType: string; measures: string[]; dimensions: string[]; }
+function fetchAssistantProbeClient(args: {
+    apiBaseUrl: string;
+    proxyKey?: string;
+    assistantProfile?: string;
+}): Promise<PbiProbeFields> {
+    const empty: PbiProbeFields = { connectorType: "", measures: [], dimensions: [] };
+    return new Promise((resolve) => {
+        try {
+            const base = (args.apiBaseUrl || "").replace(/\/$/, "");
+            if (!base) { resolve(empty); return; }
+            const xhr = new XMLHttpRequest();
+            xhr.open("POST", `${base}/assistant/probe`, true);
+            xhr.setRequestHeader("Content-Type", "application/json");
+            if (args.proxyKey) xhr.setRequestHeader("X-Genie-Key", args.proxyKey);
+            if (args.assistantProfile) xhr.setRequestHeader("X-Assistant-Profile", args.assistantProfile);
+            xhr.onreadystatechange = () => {
+                if (xhr.readyState !== 4) return;
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        const data = JSON.parse(xhr.responseText || "{}") as {
+                            connectorType?: string;
+                            declaredKpis?: Array<{ name?: string }>;
+                            schema?: { tables?: Array<{ columns?: Array<{ name?: string }> }> };
+                        };
+                        const measures = Array.isArray(data.declaredKpis)
+                            ? data.declaredKpis.map(k => (k?.name || "").trim()).filter(Boolean)
+                            : [];
+                        const dimensions: string[] = [];
+                        const tables = data.schema?.tables;
+                        if (Array.isArray(tables)) {
+                            for (const t of tables) {
+                                for (const c of (t?.columns || [])) {
+                                    const name = (c?.name || "").trim();
+                                    if (name) dimensions.push(name);
+                                }
+                            }
+                        }
+                        resolve({ connectorType: String(data.connectorType || ""), measures, dimensions });
+                    } catch { resolve(empty); }
+                } else {
+                    resolve(empty);
+                }
+            };
+            xhr.onerror = () => resolve(empty);
+            xhr.send(JSON.stringify({ assistantProfile: args.assistantProfile || "" }));
+        } catch { resolve(empty); }
     });
 }
 
@@ -3381,6 +3441,64 @@ function App(props: AppProps) {
     //
     // `overridePrompt` (chip or custom prompt) collapses to a single Stage 1
     // call — the chips don't follow the fixed section structure.
+    // AIINSIGHTS-P1 — probe the active connector once per profile so the
+    // (synchronous) insights planner can detect a deterministic
+    // powerbi-semantic-model connector from a STABLE source (the probe's
+    // `connectorType`) and source its real probed measure/dimension names.
+    // Resolved fields land in a ref the planner reads synchronously; in-flight
+    // fetches are de-duped. On a cold first run before the probe resolves, the
+    // planner simply falls back to the prose plan (no regression) and uses the
+    // deterministic plan on the next run.
+    const pbiProbeRef = useRef<Map<string, PbiProbeFields>>(new Map());
+    const pbiProbePendingRef = useRef<Set<string>>(new Set());
+    // runInsights ref so the probe effect (defined first) can trigger a re-run
+    // when the probe resolves, without a hook-ordering dependency cycle.
+    const runInsightsRef = useRef<((p?: string, t?: string, bg?: boolean) => void) | null>(null);
+    // Profiles whose deterministic re-run has already fired (fire-once guard).
+    const detRerunRef = useRef<Set<string>>(new Set());
+    const [, setPbiProbeVersion] = useState(0);
+    const insightsActiveProfile = activeSpace?.genieConfig.assistantProfile || props.settings.assistantProfile || "";
+    useEffect(() => {
+        const profile = insightsActiveProfile;
+        if (!profile) return;
+        if (pbiProbeRef.current.has(profile) || pbiProbePendingRef.current.has(profile)) return;
+        pbiProbePendingRef.current.add(profile);
+        fetchAssistantProbeClient({
+            apiBaseUrl: props.settings.apiBaseUrl,
+            proxyKey: props.settings.proxyKey,
+            assistantProfile: profile,
+        }).then(fields => {
+            pbiProbeRef.current.set(profile, fields);
+            pbiProbePendingRef.current.delete(profile);
+            setPbiProbeVersion(v => v + 1);
+            // AIINSIGHTS-P1 cold-run race: the AI Insights auto-run usually
+            // fires BEFORE this probe resolves, so it plans the prose pipeline
+            // (which the no-LLM matcher answers with garbage/fallback). Once we
+            // confirm a deterministic connector, trigger ONE background re-run
+            // so the clean measure-named DAX plan replaces that first paint.
+            if (fields.connectorType === "powerbi-semantic-model"
+                && fields.measures.length > 0
+                && !detRerunRef.current.has(profile)) {
+                detRerunRef.current.add(profile);
+                // Stop the in-flight cold (prose) run so its late stages can't
+                // overwrite our clean plan. Set the per-space stop flag AND
+                // abort any in-flight request (just flagging won't cancel an
+                // XHR already awaiting the proxy — that's how the prose RISKS
+                // section was bleeding through). The background re-run resets
+                // its own space's stop flag on entry, so it still proceeds.
+                Object.keys(insightsStopRef.current).forEach(k => { insightsStopRef.current[k] = true; });
+                try { activeClient?.cancel?.(); } catch { /* best-effort */ }
+                // Clear the cold run's cached/partial result so the re-run plans
+                // FRESH (otherwise runInsights serves the cached prose-accidental
+                // result instead of our clean deterministic plan).
+                try { clearInsightsCache(computeInsightsCacheKey(activeSpaceKey)); } catch { /* best-effort */ }
+                setTimeout(() => { runInsightsRef.current?.(undefined, undefined, true); }, 200);
+            }
+        }).catch(() => {
+            pbiProbePendingRef.current.delete(profile);
+        });
+    }, [insightsActiveProfile, props.settings.apiBaseUrl, props.settings.proxyKey]);
+
     const runInsights = useCallback((overridePrompt?: string, overrideTitle?: string, backgroundRefresh?: boolean) => {
         const client = activeClient;
         const spaceKey = activeSpaceKey;
@@ -3468,6 +3586,30 @@ function App(props: AppProps) {
             : customSectionsRaw;
         const hasHybridConfig = !!(settingsDomain || customSections.length > 0);
 
+        // AIINSIGHTS-P1 — deterministic Power BI semantic-model briefing. When
+        // the active connector is the no-LLM powerbi-semantic-model path, the
+        // prose section prompts never name a measure so the DAX matcher returns
+        // the same "no measure" fallback in every section. Replace them with one
+        // matchable measure-named DAX question per section, built from the
+        // probe's real measures + dimensions. Only applies to the universal
+        // briefing paths (not an explicit runtime/manual override).
+        const pbiProbe = pbiProbeRef.current.get(insightsActiveProfile);
+        let deterministicPbiPlan: { stages: string[]; titles: string[] } | null = null;
+        if (pbiProbe && pbiProbe.connectorType === "powerbi-semantic-model" && pbiProbe.measures.length > 0) {
+            const plan = buildDeterministicPbiInsightsPlan({
+                measures: pbiProbe.measures,
+                dimensions: pbiProbe.dimensions,
+                universalStages: {
+                    headline: props.settings.insightsShowHeadline,
+                    trends: props.settings.insightsShowTrends,
+                    risks: props.settings.insightsShowRisks,
+                    actions: props.settings.insightsShowActions,
+                },
+                customSectionNames: customSections.filter(s => s.kind !== "sql").map(s => s.name),
+            });
+            if (plan.stages.length > 0) deterministicPbiPlan = plan;
+        }
+
         let prompts: string[];
         let titles: string[];
 
@@ -3478,6 +3620,10 @@ function App(props: AppProps) {
             // Manual mode + prompt set → single call, prompt verbatim.
             prompts = [buildInsightsPrompt(props.context, settingsPrompt, roleMode)];
             titles = ["Custom Insights"];
+        } else if (deterministicPbiPlan) {
+            // Deterministic Power BI semantic-model briefing (AIINSIGHTS-P1).
+            prompts = deterministicPbiPlan.stages;
+            titles = deterministicPbiPlan.titles;
         } else if ((authoringMode === "preset" || authoringMode === "ai-assisted") && hasHybridConfig) {
             // Preset / AI-assisted with config present → fast hybrid briefing.
             // The older implementation launched one Genie message per section
@@ -4377,6 +4523,9 @@ function App(props: AppProps) {
             }
         })();
     }, [activeClient, activeSpaceKey, isConfigured, props.context, props.settings, selectedFilters, roleMode, canShowSql, canShowTrace, setSpaceInsightsResult, setSpaceStageStatuses, kbFlags, computeInsightsCacheKey, logSession]);
+
+    // Keep the ref current so the probe effect can re-run the latest closure.
+    runInsightsRef.current = runInsights;
 
     // User-initiated stop for the in-flight Insights run. Sets the stop
     // flag (next runStage check bails), aborts any in-flight XHRs via
