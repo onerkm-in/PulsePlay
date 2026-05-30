@@ -65,6 +65,10 @@ jobs:
     defaults:
       run:
         working-directory: enablers/desktop
+        # Git Bash (ships on the Windows runner) so the test script's
+        # `tests/*.test.mjs` glob expands — PowerShell (the Windows default)
+        # passes the literal pattern and `node --test` can't find the files.
+        shell: bash
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
