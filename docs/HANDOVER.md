@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-05-30 (late night, cont.) — Canonical [docs/DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) (configure → run → host → troubleshoot)
+
+**Context.** Rajesh: all three services (Azure / Databricks / Power BI) are FREE dev/test beds to prove the build connects + works; the app must be "easily configurable — anyone reads the doc and knows how to configure, run local, and host on App Service or Databricks Apps", with **what may go wrong + how to tackle it** documented. 2-agent research: (a) mined every lived hurdle from the DEPLOY_* docs + HANDOVER + app.yaml + CLAUDE.md tripwires; (b) researched free-tier gotchas not yet hit.
+
+**Shipped** [docs/DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) — one front-door over the deeper DEPLOY_* docs: §2 Configure (PROXY_PROFILE_* env / config.json, the load-bearing switches), §3 Run local (locked ports 7000/7001 + `--use-system-ca`), §4 Azure F1 host, §5 Databricks Apps host, §6 Connect services (Genie / PBI), §7 **Troubleshooting tables (symptom→cause→fix)** per area, §8 free→prod, §9 the 10 pitfalls index. Indexed in CLAUDE.md docs table ("START HERE for run/host").
+
+**Two research corrections worth flagging:** (1) Power BI **`executeQueries` (semantic-model DAX Q&A) needs NO capacity** — works on any Pro workspace (tenant setting + dataset Read+Build). Only the report VISUAL render needs Fabric/Premium. (2) **App Service SSE/streaming needs Basic tier** — F1 stalls streamed responses after the first chunk (plus 60 CPU-min/day cap, no Always-On). Databricks Free: 3-app/24h auto-stop + daily quota + outbound allow-list. All captured in the guide + memory [[project_azure_free_account]].
+
 ## 2026-05-30 (late night) — Beast-mode CI/CD: hardened CI (4 jobs GREEN on GitHub) + security scanning + gated OIDC deploy skeletons
 
 **Context.** 3-agent parallel analysis (CI hardening best-practices / full repo test-surface map / CD readiness) → implemented, then iterated against REAL GitHub runs until green. Full design + setup checklists in [docs/CICD.md](CICD.md).

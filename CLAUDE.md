@@ -100,6 +100,7 @@ ANY combination of (vendor, connector) is valid. Switching either is independent
 | `docs/PACKS.md` | Pack architecture overview |
 | `docs/SETTINGS_SPEC.md` | Settings page master spec (IA + microcopy + state + guardrails + loophole audit) |
 | `docs/KNOWLEDGE_BASE_ARCHITECTURE.md` | Knowledge plane + Knowledge Base IA |
+| `docs/DEPLOYMENT_GUIDE.md` | **START HERE for run/host** — configure → run local → host (Azure F1 / Databricks Apps) → connect services → troubleshooting (what goes wrong + fix) → free→prod. Front-door over the DEPLOY_* docs. |
 | `docs/DEPLOY_MVP_0.2.md` | MVP 0.2 deployer checklist (config.json + env vars + smoke) |
 | `docs/PUBLIC_OSS_AGENDA.md` | Public-OSS path items, deferred from v1.x |
 | `docs/MIGRATION_NOTES.md` | 2026-05-10 doc consolidation summary |
