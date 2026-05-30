@@ -77,43 +77,12 @@ export function TopRightToolbar(props: TopRightToolbarProps): React.ReactElement
                 ? "AI Insights"
                 : props.activeTabName;
 
-    // Container — fixed top-right BELOW the green Ready pill (~52px tall).
-    const containerStyle: React.CSSProperties = {
-        position: "fixed",
-        top: 60,
-        right: 12,
-        zIndex: 50, // above pane chrome but below modals (which use 1000+)
-        display: "flex",
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 4,
-        padding: "4px 6px",
-        background: "rgba(255,255,255,0.96)",
-        border: "1px solid rgba(0,0,0,0.12)",
-        borderRadius: 6,
-        boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
-    };
-    const btnStyle: React.CSSProperties = {
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        minWidth: 26,
-        minHeight: 26,
-        padding: "2px 6px",
-        border: "1px solid rgba(0,0,0,0.10)",
-        borderRadius: 4,
-        background: "rgba(255,255,255,0.85)",
-        color: "#374151",
-        cursor: "pointer",
-        fontSize: 11,
-    };
-    const activeBtnStyle: React.CSSProperties = {
-        ...btnStyle,
-        border: "1px solid #2563eb",
-        background: "#eff6ff",
-        color: "#1d4ed8",
-        fontWeight: 600,
-    };
+    // Styling moved to the themed `.pp-top-right-toolbar` class (styles.css) so
+    // the cluster blends with the active theme — a single subtle pill with
+    // borderless icon buttons, legible in light AND dark, instead of five
+    // hardcoded white boxes that looked odd on dark surfaces.
+    const btn = "pp-window-controls__btn";
+    const btnActive = "pp-window-controls__btn pp-window-controls__btn--active";
 
     return (
         <div
@@ -121,7 +90,6 @@ export function TopRightToolbar(props: TopRightToolbarProps): React.ReactElement
             role="toolbar"
             aria-label="PulsePlay window controls"
             data-testid="pp-top-right-toolbar"
-            style={containerStyle}
         >
             {/* Maximize / Restore */}
             {isFocused ? (
@@ -130,7 +98,7 @@ export function TopRightToolbar(props: TopRightToolbarProps): React.ReactElement
                     aria-label={`Restore ${activeTabName} tab`}
                     title={`Restore ${activeTabName} tab to split layout`}
                     onClick={() => dispatchAction("restore", activePane)}
-                    style={activeBtnStyle}
+                    className={btnActive}
                 >
                     <SvgIcon name="restore" />
                 </button>
@@ -140,7 +108,7 @@ export function TopRightToolbar(props: TopRightToolbarProps): React.ReactElement
                     aria-label={`Maximize ${activeTabName} tab`}
                     title={`Maximize ${activeTabName} tab`}
                     onClick={() => dispatchAction("focus", activePane)}
-                    style={btnStyle}
+                    className={btn}
                 >
                     <SvgIcon name="maximize" />
                 </button>
@@ -152,7 +120,7 @@ export function TopRightToolbar(props: TopRightToolbarProps): React.ReactElement
                 aria-label={`Minimize ${activeTabName} tab`}
                 title={`Minimize ${activeTabName} tab`}
                 onClick={() => dispatchAction("minimize", activePane)}
-                style={btnStyle}
+                className={btn}
             >
                 <SvgIcon name="minimize" />
             </button>
@@ -164,7 +132,7 @@ export function TopRightToolbar(props: TopRightToolbarProps): React.ReactElement
                 title={isPinned ? `Unpin ${activeTabName} tab` : `Pin ${activeTabName} tab as the focused startup layout`}
                 aria-pressed={isPinned}
                 onClick={() => dispatchAction("pin", activePane)}
-                style={isPinned ? activeBtnStyle : btnStyle}
+                className={isPinned ? btnActive : btn}
             >
                 <SvgIcon name="pin" />
             </button>
@@ -175,7 +143,7 @@ export function TopRightToolbar(props: TopRightToolbarProps): React.ReactElement
                 aria-label={`Open ${activeTabName} tab in separate page`}
                 title={`Open ${activeTabName} tab in a new browser tab`}
                 onClick={() => dispatchAction("open-page", activePane)}
-                style={btnStyle}
+                className={btn}
             >
                 <SvgIcon name="external-link" />
             </button>
@@ -186,7 +154,7 @@ export function TopRightToolbar(props: TopRightToolbarProps): React.ReactElement
                 aria-label={`Pop out ${activeTabName} tab as window`}
                 title={`Pop out ${activeTabName} tab as a detached browser window you can keep alongside the main app`}
                 onClick={() => dispatchAction("float", activePane)}
-                style={btnStyle}
+                className={btn}
             >
                 <SvgIcon name="float-window" />
             </button>
@@ -203,7 +171,7 @@ export function TopRightToolbar(props: TopRightToolbarProps): React.ReactElement
                         // "restore" as "drop focus", which returns split layout.
                         dispatchAction("restore", activePane);
                     }}
-                    style={btnStyle}
+                    className={btn}
                 >
                     <SvgIcon name="show-all" />
                 </button>

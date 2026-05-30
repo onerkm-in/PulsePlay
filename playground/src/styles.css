@@ -2249,3 +2249,39 @@ html, body, #root {
 .pp-tile__table th { color: var(--pp-text-muted, #64748b); font-weight: 600; position: sticky; top: 0; background: var(--pp-surface-raised, #fff); }
 .pp-tile__table td { color: var(--pp-text, #0f172a); }
 .pp-tile__tablefoot { padding: 6px 8px; font-size: 11px; color: var(--pp-text-muted, #64748b); }
+
+/* 2026-05-30 — window-controls cluster (Maximize / Minimize / Pin / Open / Pop-
+   out). Re-skinned from five hardcoded white boxes into ONE subtle themed pill
+   with borderless icon buttons, so it blends in light AND dark (was a white box
+   on dark surfaces). Stays fixed top-right because it must remain reachable when
+   a pane is maximized (the header — and its green pill — hide on focus). */
+.pp-top-right-toolbar {
+    position: fixed;
+    top: 56px;
+    right: 14px;
+    z-index: 50;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px;
+    background: var(--pp-surface, #fff);
+    border: 1px solid var(--pp-border-subtle, rgba(15,23,42,0.08));
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(15,23,42,0.12);
+}
+.pp-window-controls__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--pp-text-muted, #64748b);
+    cursor: pointer;
+    transition: background 120ms ease, color 120ms ease;
+}
+.pp-window-controls__btn:hover { background: var(--pp-accent-soft, rgba(37,99,235,0.08)); color: var(--pp-accent, #2563eb); }
+.pp-window-controls__btn--active { background: var(--pp-accent-soft, rgba(37,99,235,0.08)); color: var(--pp-accent, #2563eb); }
