@@ -6,10 +6,11 @@
 //   • mount()    — calls service.embed(containerEl, config) and stashes
 //                  the returned Report instance for later command/event
 //                  routing.
-//   • on()       — subscribes to PBI-native events (loaded, error,
-//                  pageChanged, filtersApplied, dataSelected,
-//                  dataRefreshed) and translates each payload into the
-//                  vendor-agnostic BIEvent shape the AI sidebar consumes.
+//   • on()       — subscribes to PBI-native events (loaded, rendered, error,
+//                  pageChanged, filtersApplied, dataSelected) and translates
+//                  each payload into the vendor-agnostic BIEvent shape the AI
+//                  sidebar consumes. NOTE: Power BI's embed SDK has no
+//                  data-refresh event, so "data-refreshed" maps to nothing.
 //   • send()     — translates BICommand → report.setFilters /
 //                  removeFilters / setPage / refresh / fullscreen.
 //                  `export` is intentionally UNSUPPORTED in v0; the
@@ -141,7 +142,14 @@ const PBI_EVENT_MAP: Record<BIEventType, string[]> = {
     "page-changed": ["pageChanged"],
     "filter-applied": ["filtersApplied"],
     "selection-made": ["dataSelected"],
-    "data-refreshed": ["dataRefreshed"],
+    // 2026-05-30 — Power BI's embed SDK has NO "dataRefreshed" report event
+    // (valid names: loaded/saved/rendered/error/dataSelected/filtersApplied/
+    // pageChanged/visualRendered/…). Subscribing to "dataRefreshed" made
+    // powerbi-client throw "eventName must be one of …" during embed and
+    // surfaced a "Failed to embed powerbi" overlay over an otherwise-rendering
+    // report. Map to no SDK event — the vendor-agnostic data-refreshed signal
+    // simply doesn't fire for Power BI (honest; the SDK can't provide it).
+    "data-refreshed": [],
     error: ["error"],
 };
 

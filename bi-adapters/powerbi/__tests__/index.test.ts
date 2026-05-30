@@ -32,10 +32,24 @@ interface FakeReport {
     _emit: (eventName: string, detail: unknown) => void;
 }
 
+// The real powerbi-client validates the event name and throws for anything
+// outside this set. The mock now mirrors that so an invalid mapping (e.g. the
+// old "dataRefreshed", which Power BI's embed SDK doesn't have) fails the test
+// instead of silently "working" — that lenient gap masked a real embed crash.
+const VALID_PBI_EVENTS = new Set([
+    "loaded", "saved", "rendered", "saveAsTriggered", "error", "dataSelected",
+    "buttonClicked", "info", "filtersApplied", "pageChanged", "commandTriggered",
+    "swipeStart", "swipeEnd", "bookmarkApplied", "dataHyperlinkClicked",
+    "visualRendered", "visualClicked", "selectionChanged", "renderingStarted", "blur",
+]);
+
 function makeFakeReport(): FakeReport {
     const handlers = new Map<string, Array<(e: { detail: unknown }) => void>>();
     const report: FakeReport = {
         on: vi.fn((name: string, handler: (e: { detail: unknown }) => void) => {
+            if (!VALID_PBI_EVENTS.has(name)) {
+                throw new Error(`eventName must be one of ${[...VALID_PBI_EVENTS].join(",")}. You passed: ${name}`);
+            }
             if (!handlers.has(name)) handlers.set(name, []);
             handlers.get(name)!.push(handler);
         }),
@@ -658,14 +672,17 @@ describe("PowerBIAdapter — events (loaded / data-refreshed / error)", () => {
         expect(events[1].type).toBe("loaded");
     });
 
-    test("'data-refreshed' bridges PBI dataRefreshed", async () => {
+    test("'data-refreshed' subscribes to NO Power BI SDK event (the SDK has none)", async () => {
         const a = new PowerBIAdapter();
         await a.mount(containerEl, VALID_CONFIG);
         const events: BIEvent[] = [];
-        a.on("data-refreshed", e => events.push(e));
+        // Must NOT throw — the adapter maps data-refreshed to no SDK event, so
+        // it never calls report.on() with an invalid name (the real SDK would
+        // reject "dataRefreshed" and crash the embed). And nothing bridges it.
+        expect(() => a.on("data-refreshed", e => events.push(e))).not.toThrow();
+        expect(svc._lastReport!.on).not.toHaveBeenCalledWith("dataRefreshed", expect.anything());
         svc._lastReport!._emit("dataRefreshed", { type: "schedule" });
-        expect(events).toHaveLength(1);
-        expect(events[0].type).toBe("data-refreshed");
+        expect(events).toHaveLength(0);
     });
 
     test("'error' bridges PBI error", async () => {
