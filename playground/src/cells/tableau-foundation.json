@@ -1,0 +1,20 @@
+{
+  "id": "tableau-foundation",
+  "label": "Tableau + Foundation Model",
+  "surface": {
+    "vendor": "tableau",
+    "adapterMinVersion": "1.0"
+  },
+  "assistant": {
+    "kind": "foundation-model",
+    "profileType": "foundation"
+  },
+  "packs": {
+    "supported": ["supply-chain", "hospital-operations", "*"]
+  },
+  "capabilities": {
+    "required": ["chat", "trust-badges"],
+    "optional": []
+  },
+  "status": "preview"
+}

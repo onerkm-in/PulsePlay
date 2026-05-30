@@ -514,7 +514,7 @@ function StepDone(props: StepDoneProps): React.ReactElement {
                 <h3 className="gn-wizard-title">You're set up.</h3>
                 <p className="gn-wizard-subtitle">
                     Pick where to land — <strong>AI Insights</strong> auto-runs a
-                    5-stage briefing on your bound data, or jump to <strong>Chat</strong>
+                    5-stage briefing on your bound data, or jump to <strong>Ask Pulse</strong>
                     to ask a question (e.g., <em>"What were total sales last quarter?"</em>).
                 </p>
             </div>
@@ -546,7 +546,7 @@ function StepDone(props: StepDoneProps): React.ReactElement {
                     onClick={() => props.onCommit("chat")}
                     data-action="finish-chat"
                 >
-                    Open Chat
+                    Open Ask Pulse
                 </button>
             </div>
         </div>

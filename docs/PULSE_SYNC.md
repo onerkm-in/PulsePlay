@@ -1,0 +1,162 @@
+# PulsePlay Ecosystem Sync Ledger
+
+> Lightweight cascade discipline for PulsePlay, Pulse PBI, and the future desktop EXE. This is not a shared package and not hard enforcement. It makes drift visible before it becomes architectural debt.
+
+## Rule
+
+Every meaningful PulsePlay change must answer two questions before merge:
+
+1. **Does this affect Pulse PBI?**
+2. **Does this affect the future desktop EXE?**
+
+The answer can be `N/A`, but it must be deliberate.
+
+## Cascade Classes
+
+| Class | Meaning | Required action |
+|---|---|---|
+| Shared proxy contract | Proxy route, result envelope, governance, audit, source-ref, auth, or client compatibility behavior changes | Update proxy docs/tests; assess Pulse PBI + desktop impact; prefer backward-compatible fields |
+| Portable module | Pure code safe to copy-port: no DOM, React, browser APIs, fetch, vendor SDK, or CSS imports | Add `sibling-sync` label, update this ledger, copy-port or queue Pulse PBI patch |
+| Host-specific UI | PulsePlay shell, Settings, layout, browser-only UX | Record Pulse PBI = N/A unless a shared contract/type changed; record desktop impact if the UI will appear in EXE |
+| Desktop packaging | Local app server/proxy, encrypted data folder, browser launch, recon disclaimer, portable cache | Update future EXE notes/tests; Pulse PBI usually N/A |
+| Documentation only | ADRs, guides, plans | Record if the doc changes ecosystem rules; otherwise N/A |
+
+## PR Checklist Contract
+
+Every PR description should include:
+
+```text
+Pulse PBI impact: N/A | queued | done | automatic via proxy | not affected because <reason>
+Desktop EXE impact: N/A | queued | done | future DX consideration | not affected because <reason>
+```
+
+Use `queued` or `done` instead of `N/A` when the change affects copy-portable modules or future desktop behavior.
+
+## Pulse PBI Copy-Port Rules
+
+Changes to portable modules require:
+
+1. A `sibling-sync` PR label.
+2. A PR description line: `Pulse PBI copy-port: queued | done | N/A`.
+3. This file updated with module version, last-synced commit, and sibling status.
+4. The sibling repo takes the patch on its own cadence.
+
+If Pulse PBI improves the same logic first, use the same flow in reverse and update this ledger when PulsePlay catches up.
+
+## Pulse PBI Constraint Boundary
+
+Pulse PBI is part of the ecosystem, but it is still a Power BI custom visual. It runs as a guest inside the Power BI report iframe/sandbox and keeps those limitations.
+
+Respect these boundaries:
+
+- Do copy-port pure modules and shape contracts when they are sandbox-safe.
+- Do let Pulse PBI benefit from shared proxy response fields, governance attestation, source refs, and audit vocabulary.
+- Do not assume Pulse PBI can use PulsePlay browser capabilities such as normal `fetch`, SSE/NDJSON streaming, Web Workers, Service Workers, large lazy-loaded chunks, unrestricted storage, popups, or top-level window APIs.
+- Do not move PulsePlay-native UI or desktop runtime assumptions into Pulse PBI.
+- Do not weaken PulsePlay because Pulse PBI cannot support a capability. Use capability-aware routes/adapters instead.
+
+The right shape is shared backend truth and portable pure contracts, with host-specific runtime adapters.
+
+## Portable Tiers
+
+### Tier 1 - Pure Modules
+
+Copy-port safe: no DOM, no React, no browser APIs, no fetch.
+
+| Module | PulsePlay source | Owner side | Version | Last synced commit | Sibling status |
+|---|---|---:|---:|---|---|
+| chartAutoPick | `playground/src/visualization/chartAutoPick.ts` | PulsePlay | 0.1 | `9ff892a` | shipped 2026-05-21; pure module, copy-port safe; Pulse PBI adoption queued |
+| aiResultEnvelope | `playground/src/visualization/aiResultEnvelope.ts` | PulsePlay | 0.1 | `9ff892a` | shipped 2026-05-21; pure module, copy-port safe; Pulse PBI adoption queued |
+| resultToVizIntent | `playground/src/visualization/resultToVizIntent.ts` | PulsePlay | 0.1 | `9ff892a` | shipped 2026-05-21; pure module, copy-port safe; Pulse PBI adoption queued |
+| chartSpecValidation | `playground/src/visualization/chartSpecValidation.ts` | PulsePlay | 0.1 | `9ff892a` | shipped 2026-05-21; pure module, copy-port safe; Pulse PBI adoption queued |
+
+### Tier 2 - Shape Contracts
+
+Zero-runtime or type-only contracts both projects should respect.
+
+| Contract | Source | Owner side | Version | Last synced commit | Sibling status |
+|---|---|---:|---:|---|---|
+| AIResultEnvelope | `playground/src/visualization/aiResultEnvelope.ts` | PulsePlay | 0.2 | G3a | shipped 2026-05-21; includes `sourceRef?: DatabricksSourceRef`; G3a narrowed `governance?: unknown` → `governance?: GovernanceAttestation` (optional in type; env-agnostic guard) |
+| ChartRenderSpec | `playground/src/visualization/chartSpecValidation.ts` | PulsePlay | 0.1 | `9ff892a` | shipped 2026-05-21; inline data only, external URLs rejected |
+| DatabricksSourceRef | `playground/src/visualization/sourceRef.ts` | PulsePlay | 0.1 | `4b818b2` | shipped 2026-05-21; pure module, copy-port safe; Pulse PBI adoption queued |
+| GovernanceAttestation | `playground/src/visualization/governance.ts` + `proxy/lib/governance.js` + `proxy/server.js` | PulsePlay (split) | 0.2 (G3) | `58b8bbf` / `17e1597` | G3 complete 2026-05-21: frontend guard validates shape only; proxy builder is the only sanctioned attestation producer; every renderable backend path emits `governance.enforced === true`; native adapter fails closed in production/required-governance mode and marks dev previews explicitly |
+
+### Tier 3 - Proxy Upgrades
+
+Pulse PBI and the future desktop EXE get these fields automatically when they call the shared proxy contract. Desktop may bundle the proxy physically, but it still uses the same proxy logic and response shapes.
+
+| Upgrade | Source | Owner side | Version | Last synced commit | Sibling status |
+|---|---|---:|---:|---|---|
+| Every renderable backend path emits `governance.enforced` | proxy routes and tests | PulsePlay proxy | 0.1 | `58b8bbf` | automatic payload benefit via the shared proxy; Pulse PBI/desktop receive the field when they call these routes, but each host still chooses when to fail closed |
+| Client identity headers (`X-Pulse-Client`, version, request id) | proxy request/audit contract | PulsePlay proxy | 0.1 | `22db943` | automatic via proxy; Pulse PBI/desktop clients should send headers when adopted |
+| Pulse PBI shared-proxy adoption | `enablers/pulse-pbi/src/genie.ts` + format-pane settings | Pulse PBI enabler | 0.1 | PB1a | shipped 2026-05-21; Pulse PBI proxy mode now calls `/assistant/*`, sends `X-Pulse-Client: pulse-pbi`, supports proxy profile/shared-key settings, and consumes proxy-enriched top-level result fields |
+
+### Tier 3.5 - Desktop EXE Cascade
+
+These changes are not copy-ported to Pulse PBI, but they must be assessed for the desktop artifact once DX1 starts. **DX1a (2026-05-21) published the launcher/runtime contract** at [`docs/DX1_LAUNCHER_CONTRACT.md`](DX1_LAUNCHER_CONTRACT.md); rows below reference it where the contract is now the source of truth.
+
+| Area | PulsePlay source | Desktop consequence | Version | Last synced commit | Status |
+|---|---|---|---:|---|---|
+| Proxy routes and connector clients | `proxy/` | Bundled proxy must keep same behavior; no lite proxy fork (contract §3, §15) | 0.2 (DX1b) | DX1b | `enablers/desktop/runtime/proxyEntry.cjs` imports `proxy/server.js`'s exported app and binds it on `127.0.0.1:<random>` without modifying the proxy. Byte-for-byte rule preserved. |
+| Static app build | `playground/` | Packaged launcher serves the built React app via the in-bundle app server with the `/api → proxy` rewrite mirrored from `vite.config.ts` (contract §3, §7) | 0.2 (DX1b) | DX1b | `runtime/appServer.mjs` serves `playground/dist/` with `express.static` and proxies `/api/*` via `http-proxy-middleware` with PX1 client identity headers. Smoke asserts `/api/health` round-trip. |
+| Settings and first-run setup | `playground/src/settings/`, `playground/src/components/FirstRunWizard.tsx` | EXE Save Bar routes through `/runtime/state` instead of `localStorage` in EXE mode (contract §8, §17); recon disclaimer surfaced in Settings → System; G5 `biSurfaceMode` must smoke `auto` with no embed config under bundled proxy/private browser | 0.2 (DX1b) | DX1b | `useSettingsDraft.save()` emits `pulseplay:settings-saved`; `desktopRuntimeClient.startDesktopRuntime` subscribes and PUTs the snapshot. `SystemGroup` mounts `<ReconDisclaimer variant="settings" />`. Wizard/global banner + G5 `auto` smoke are DX1d. |
+| Local persistence model | `enablers/desktop/runtime/dataStore.mjs` plus Settings stores | `PulsePlayData/` directory layout locked: `config.json` / `secrets.{enc,json}` / `profiles/<name>/{state.json,packs,cache}` / `logs/` / `runtime/lock.json` (contract §9). Atomic write-tmp-then-rename. DX1b ships plaintext `secrets.json` with in-app warning chip; DX2 encrypts | 0.2 (DX1b) | DX1b | dataStore.mjs atomic writes shipped + 9 node:test cases. `desktopRuntimeClient.bootstrapDesktopMode` restores `pulseplay:*` localStorage from state.json before React stores initialize. DX2 still owns encryption. |
+| Browser launch | `enablers/desktop/runtime/browserLaunch.mjs` | Preference matrix Chrome incognito → Edge InPrivate → Firefox private → Brave → default-with-warning per OS, with `launch.log` audit line per attempt (contract §6) | 0.2 (DX1b) | DX1b | `BROWSER_MATRIX` + `tryLaunchPrivateBrowser` + per-OS detect/command builders shipped + 7 node:test cases. End-to-end real-browser interaction remains DX1d. |
+| Launch token | `enablers/desktop/runtime/launcher.mjs` + `playground/src/lib/desktopRuntimeClient.ts` | 256-bit per-session token in URL fragment only (never query, never cookie, never disk); React app moves to `sessionStorage` and validates via `X-PulsePlay-Launch-Token` header on `/runtime/*` (contract §5) | 0.2 (DX1b) | DX1b | `crypto.randomBytes(32).toString('base64url')` in launcher; `appServer.mjs` token guard uses `crypto.timingSafeEqual`; `/launch` shim parks token in sessionStorage via inline JS; `desktopRuntimeClient.ingestLaunchFragmentIfPresent` covers the direct-bookmark case. |
+| Lifecycle / shutdown | `enablers/desktop/runtime/watchdog.mjs` + `runtime/lockFile.mjs` | 15s client heartbeat; 45s server timeout triggers SIGTERM + lock-file clear; explicit `/runtime/quit` from Settings → System; OS signal handlers for console-close (contract §10) | 0.2 (DX1b) | DX1b | createWatchdog with kick/stop semantics; lockFile with stale-vs-live inspection via `process.kill(pid, 0)`; launcher handles SIGINT/SIGTERM/SIGHUP/beforeExit; smoke asserts `/runtime/quit` 202 + clean SIGTERM + lock released. Windows `CTRL_CLOSE_EVENT` proper handling remains DX1d hardening. |
+| Packaging / signing | `enablers/desktop/scripts/package-win.mjs`, `PACKAGING.md` | Windows artifact is `PulsePlay.exe` plus sidecar `proxy/` and `playground/dist/`; unsigned local binary may trigger AV/SmartScreen until signed and reputation-built | 0.3 (DX1c) | DX1c | `npm run package` builds an uncompressed default EXE; binary smoke + binary persistence smoke pass. Signing, timestamping, Defender review, installer/ZIP choice, and real private-browser smoke are DX1d. |
+| App-server `/api` proxy parity | `enablers/desktop/runtime/appServer.mjs` + `playground/src/components/AISidebar.tsx` callers | Packaged desktop must preserve real Ask Pulse POST bodies through `/api/*`, not just health-check GETs; otherwise the bundled proxy works but the UI hangs | 0.4 (DX1c hardening) | current | Real headed packaged UI smoke found global `express.json()` was consuming `/api/*` JSON streams before the reverse proxy. Parser is now scoped to `/runtime/*`; regression test proves POST body, `/api` prefix stripping, PX1 desktop client header, and request id preservation. Visible packaged smoke now covers Settings Save -> Ask -> native canvas paint. |
+
+### Tier 4 - Host-Specific
+
+Do not copy-port as-is.
+
+| Module | Reason |
+|---|---|
+| `playground/src/visualization/NativeCanvas.tsx` | React + PulsePlay host + ECharts runtime |
+| `bi-adapters/native/nativeCapabilities.ts` | PulsePlay BI adapter capability surface; Pulse PBI has different constraints |
+| PulsePlay layout/preset state | Top-level browser app; Pulse PBI lives inside Power BI Desktop visual sandbox |
+| Desktop EXE launcher/runtime | Packaged local launcher/process/browser-launch concerns; Tauri only if native packaging/lifecycle is needed; not relevant to Pulse PBI |
+
+## Copy-Port Checklist
+
+- Confirm the module is pure: no DOM, React, fetch, localStorage, vendor SDK, or CSS imports.
+- Keep public types serializable.
+- Include tests with the port.
+- Record intentional differences in the sibling PR.
+- Update the changelog below.
+
+## Desktop Cascade Checklist
+
+Use this checklist for any change that future desktop EXE users would experience or depend on:
+
+- Does it require a deployed proxy instead of the inbuilt bundled proxy? If yes, redesign or mark explicitly unsupported for EXE.
+- Does it persist sensitive data in browser localStorage/sessionStorage? If yes, decide whether DX2 must migrate it to encrypted `PulsePlayData/`.
+- Does it assume multi-user hosting, public callback URLs, or admin-managed secrets? If yes, add an EXE-specific setup/readiness state.
+- Does it change proxy routes, result envelopes, auth, governance, or audit? If yes, mark Desktop EXE impact as `queued` until the bundled proxy path is updated/tested.
+- Does it add a browser feature that may behave differently in private/incognito mode? If yes, add a DX smoke note.
+
+## Changelog
+
+| Module | Version | Change | Sibling status |
+|---|---:|---|---|
+| sync-ledger | 0.1 | Created sync ledger for native adapter G0. | N/A |
+| sync-ledger | 0.2 | Expanded ledger from Pulse PBI-only copy-porting to ecosystem cascade tracking for Pulse PBI and future desktop EXE. | Pulse PBI + desktop checklist active |
+| sync-ledger | 0.3 | PB0 folder-convergence shipped: Pulse PBI source snapshot now lives at `enablers/pulse-pbi/`. Sync mechanism unchanged — copy-port discipline + ledger entries — but the sibling is now in the same checkout. Refresh procedure documented in `enablers/pulse-pbi/PROVENANCE.md`. | Pulse PBI source now in tree at upstream commit `9e3b7b6` |
+| proxy-client-contract | 0.1 | PX1 client identity headers, `/clients/compatibility`, response echo headers, and client-aware audit context. | Automatic via proxy; Pulse PBI/desktop adoption is header wiring only |
+| DatabricksSourceRef | 0.1 | G2.5 typed Databricks source-ref contract: discriminated union over genie-space, metric-view, uc-function, view, and table; per-kind type guards; `sourceRefDisplayLabel` formatter; table variant carries the `raw-table-bypasses-curated-views` warning at the type level. Pure module, no DOM/fetch/React. | Copy-port queued for Pulse PBI |
+| visualization-pipeline | 0.1 | G2 pure result-to-chart pipeline: `AIResultEnvelope`, `resultToVizIntent`, `chartAutoPick`, and `chartSpecValidation`; Pulse-ported chart helpers now import the shared policy instead of duplicating it; workbench chart tabs validate specs before rendering. | Copy-port queued for Pulse PBI; desktop inherits through PulsePlay app bundle |
+| governance-contract | 0.1 (G3a) | G3a contract slice: frontend `GovernanceAttestation` type + `isGovernanceAttestation` env-agnostic guard; proxy `buildGovernanceAttestation` builder that enforces `enforced: true`, validates authority allowlist, sanitizes subjectRef/requestId, forbids `authority: "mock"` in production; `AIResultEnvelope.governance` narrowed from `unknown` to optional `GovernanceAttestation`. | Proxy contract benefits Pulse PBI + desktop once routes wire |
+| governance-contract | 0.2 (G3) | G3b/G3c/G3d completion: every renderable proxy backend path now stamps proxy-built attestation; registry-driven route mapping covers all 10 backend ids; user subject refs are hashed, SP refs reuse existing SP hash, Genie emits real `sourceRef` when available; native adapter fails closed in production/required-governance mode and dev/mock missing-attestation results render only as `ungoverned-result-preview`. | Automatic via proxy for Pulse PBI/desktop payloads; host fail-closed adoption remains host-specific |
+| bi-surface-mode | 0.1 (G5) | PulsePlay host-specific BI author switch: persisted `biSurfaceMode` (`auto/native/vendor`) resolves requested vendor config into runtime BI surface without deleting vendor setup. | Pulse PBI N/A (host UI); desktop inherits through future app bundle and needs DX smoke for auto-native fallback |
+| native-fusion-lite | 0.1 (G6) | PulsePlay host-specific native T2 fusion-lite: NativeCanvas docks AI commentary beside chart/KPI/table bodies when an attested envelope has renderable rows plus an answer, with all wrappers bound by `data-result-id`. | Pulse PBI N/A (vendor T2 handled by custom visual); desktop inherits through future app bundle and needs DX smoke |
+| integrity-sweep | 0.1 | 2026-05-21 multi-agent sweep fixed admin auth-mode parity, SQL preview CTE validation, governance registry override protection, streaming error redaction, Quick Setup mountable embed configs, and Pulse PBI CI lint/unit coverage. | Pulse PBI gets CI coverage now; PB1a later closed shared-proxy adoption |
+| pulse-pbi-shared-proxy | 0.1 (PB1a) | Pulse PBI enabler proxy mode now targets the repo-root PulsePlay proxy contract (`/assistant/capabilities`, `/assistant/conversations/*`, `/feedback`) and sends `X-Pulse-Client: pulse-pbi` plus optional profile/shared-key headers. Production hosted proxy origins must be added to `capabilities.json` `WebAccess` before packaging. | Pulse PBI done; desktop will inherit the same PX1 route discipline through DX1 bundled proxy work |
+| launcher-contract | 0.1 (DX1a) | Published `docs/DX1_LAUNCHER_CONTRACT.md` — 18-section canonical contract for the packaged desktop EXE: five-step user flow, bundled-app-server + bundled-proxy process model, ephemeral `127.0.0.1` port discovery, 256-bit launch token in URL fragment, browser launch matrix, `/api → proxy` rewrite parity with `vite.config.ts`, `/runtime/*` Save Changes endpoint surface, `PulsePlayData/` directory layout, 15s/45s heartbeat shutdown, threat model and recon-disclaimer UX lock, logging/redaction model, implementation-choice criteria (Node `pkg`/`nexe` default, PowerShell second, Tauri only as fallback), DX1b acceptance signal. Enabler skeleton at `enablers/desktop/README.md`. Doc-only slice; runtime code arrives in DX1b. | Pulse PBI N/A; DX1b implementation queued |
+| desktop-launcher | 0.1 (DX1b) | DX1a contract is now executable under `enablers/desktop/`. `runtime/appServer.mjs` mounts all 11 `/runtime/*` endpoints + `/launch` shim + `/api → bundled-proxy` reverse proxy with PX1 header injection; `runtime/dataStore.mjs` atomic write-tmp-rename for `PulsePlayData/profiles/<name>/state.json`; `runtime/launcher.mjs` orchestrates port discovery + 256-bit token + child-process supervision + private-browser launch; `runtime/proxyEntry.cjs` wraps `proxy/server.js` so the proxy stays byte-for-byte unchanged while binding `127.0.0.1:<random>` (no Databricks-Apps 0.0.0.0 branch); `runtime/watchdog.mjs` + `runtime/lockFile.mjs` enforce 15s/45s heartbeat + crash-recovery. React side: `playground/src/lib/desktopRuntimeClient.ts` (EXE-mode detection via sessionStorage launch token, bootstrap restore of pulseplay:* localStorage from state.json BEFORE store imports, heartbeat + Save event subscription); `playground/src/components/ReconDisclaimer.tsx` mounted in Settings → System; `main.tsx` async-IIFE boot; `useSettingsDraft` emits `pulseplay:settings-saved`. `scripts/dx1b-smoke.mjs` exercises 11 contract endpoints + a relaunch-persistence assertion. Validation: desktop 45/45 node:test, playground 1399/1399 vitest (+17), smoke `failures: []`, persistence PASS. Binary production landed in desktop-packaging 0.3. | Pulse PBI N/A (custom-visual sandbox cannot host a process supervisor); proxy improvements are inherited through the packaged desktop proxy path |
+| desktop-packaging | 0.3 (DX1c) | `enablers/desktop` now builds a Windows `PulsePlay.exe` proof with `esbuild` + `@yao-pkg/pkg`; packaged `resolvePaths()` locates sidecar `proxy/`, `playground/dist/`, and `PulsePlayData/` beside `process.execPath`; packaged proxy children use the same EXE via `PULSEPLAY_DESKTOP_PROXY_CHILD=1` while keeping `proxy/server.js` unchanged. `scripts/dx1b-smoke.mjs` runs against `--launcher out/install/PulsePlay.exe`; binary smoke and binary persistence pass. Default package is uncompressed to reduce heuristic AV flags; `package:compressed` is opt-in. `PACKAGING.md` documents Authenticode signing, timestamping, Defender review, and hash/source metadata. Validation: desktop 49/49 node:test, `npm run package`, `npm run smoke:binary`, `npm run smoke:binary:persistence`. | Pulse PBI N/A; desktop DX1d owns signing/reputation, installer/ZIP choice, real private-browser smoke, and wizard/global recon disclaimer |
+| desktop-api-post-parity | 0.4 (DX1c hardening) | Packaged app-server `/api/*` proxy now preserves JSON POST bodies instead of pre-consuming them with the desktop runtime JSON parser. New node:test coverage exercises an echo upstream for `/api/assistant/conversations/start`. Headed packaged UI smoke proves Settings Save -> Ask Pulse -> native canvas paint through the bundled proxy. | Pulse PBI N/A; shared lesson for future desktop smoke: include real POST routes, not only `/api/health` |
+
+## Product Sync
+
+This ledger covers code, shape contracts, proxy behavior, and desktop impact classification. Feature-level drift, such as one project shipping a new insight section type before the other, is still a roadmap coordination problem. Do not solve that with packaging in v0.x.

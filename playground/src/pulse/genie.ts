@@ -18,7 +18,14 @@ export type AssistantIntent =
     | "summary";
 export type OutputMode = "narrative" | "chart" | "table" | "sql" | "trace";
 
-export type ConnectionMode = "auto" | "proxy" | "direct" | "gateway" | "azure-openai" | "bedrock" | "supervisor" | "foundation-model";
+export type ConnectionMode = "auto" | "proxy" | "direct" | "gateway" | "azure-openai" | "bedrock" | "supervisor" | "foundation-model" | "foundation-stream";
+
+export interface GenieSqlSection {
+    sectionId: string;
+    cteName?: string;
+    sqlFragment: string;
+    startOffset?: number;
+}
 
 export interface AssistantProfileMetadata {
     /** Internal proxy profile key — never displayed to end users. */
@@ -143,11 +150,139 @@ export interface GenieMessage {
      * view tabs across `sqlQueries` when length > 1.
      */
     sqlQueries?: string[];
+    /**
+     * Phase 11b read-side — proxy normalizeGenieResponse augments Genie query
+     * attachments with parsed `sqlSections` when the generated SQL contains
+     * `/* Section: X *\/` or `-- Section: X` markers. The playground lifts
+     * those fragments here so the SQL view can show labelled section tabs
+     * while retaining `sqlQuery/sqlQueries` as the raw fallback.
+     */
+    sqlSections?: GenieSqlSection[];
     queryResult?: { columns: string[]; rows: any[][] };
     error?: string;
     trace?: string[];
     route?: AssistantRouteMeta;
     suggestedActions?: AssistantAction[];
+    /**
+     * Genie Research Agent / Agent Mode reasoning trace.
+     *
+     * As of 2026-04-16, Databricks Genie surfaces `attachments[].reasoning_traces`
+     * on the Get-message endpoint when a message was started in Agent Mode
+     * (in the Databricks Genie UI — REST API still cannot trigger Agent Mode
+     * as of 2026-05; see docs/ARCHITECTURE.md "Genie Agent Mode is UI-only").
+     *
+     * Each trace entry is a step the Research Agent took (planning, sub-query,
+     * synthesis). Shape from Databricks API:
+     *   { type: "planning" | "query" | "synthesis", description: string, ... }
+     *
+     * We flatten attachments[].reasoning_traces[] into this top-level array
+     * when building the GenieMessage so consumers don't have to walk
+     * attachments. Undefined when the message was a normal (non-agent-mode)
+     * run, which is most messages today.
+     */
+    reasoningTraces?: GenieReasoningTraceEntry[];
+    /**
+     * Suggested follow-up questions for this message — typically rendered as
+     * chips below the assistant's response so the user can drill deeper with
+     * one click. Databricks Genie's 2026 conversation API GA started populating
+     * `attachments[].suggested_questions` (and/or `attachments[].follow_ups`)
+     * on the Get-message endpoint when Genie has confident next-step questions.
+     * We extract here so consumers don't have to walk attachments. Empty/
+     * undefined when Genie didn't suggest any.
+     */
+    suggestedFollowUps?: string[];
+    /**
+     * UX-VIEWER-1.7b.2 — Genie's HELIOS chart spec (the `viz` attachment).
+     *
+     * When a Genie message includes a chart, the response carries one or
+     * more `attachments[].viz` objects shaped like
+     *   { chart_library: "HELIOS", definition: "<json string>", type, status }
+     * where `definition` parses to `{ renderSpec: { widgetType, version,
+     * encodings, frame, ... } }`. We lift the FIRST viz attachment with
+     * `status: "GENERATED"` here so the chart renderer doesn't have to
+     * walk attachments. The HELIOS translator (in playground/src/
+     * visualization/translators/helios.ts) turns this into PulsePlay's
+     * ChartIR which the renderer consumes.
+     *
+     * Passed through unchanged from the wire — the translator handles
+     * shape variance and version drift.
+     */
+    genieViz?: unknown;
+}
+
+/** One step from a Genie Research Agent / Agent Mode reasoning trace.
+ *  Field shape mirrors Databricks' API; `kind` is a normalized version of
+ *  their `type` so consumers can switch on it safely.
+ */
+export interface GenieReasoningTraceEntry {
+    kind: "planning" | "query" | "synthesis" | "other";
+    description?: string;
+    detail?: unknown;
+}
+
+/**
+ * Phase 11b FM symmetry — lift `sqlSections` from a Foundation Model
+ * `/foundation/section` response (or any backend that surfaces sections
+ * at the top level rather than wrapped in Genie-style `attachments[]`).
+ *
+ * Returns the same `GenieSqlSection[]` shape `collectGenieSqlFromAttachments`
+ * yields, so callers can feed both Genie and FM responses through the
+ * same `SqlTabs` render path. Defensive: silently drops entries with a
+ * missing sectionId or empty sqlFragment, and tolerates the field being
+ * absent (clean fallback to raw markdown rendering).
+ *
+ * The proxy's `/foundation/section` route emits `sqlSections` at the
+ * top level only when `/* Section: X *\/` markers are present inside a
+ * ```sql code fence in the LLM output. When the field is missing, FM
+ * responses fall back to whatever `content`/`rawContent` rendering the
+ * caller does today.
+ */
+export function liftFmSqlSections(response: unknown): GenieSqlSection[] {
+    if (!response || typeof response !== "object") return [];
+    const raw = (response as { sqlSections?: unknown }).sqlSections;
+    if (!Array.isArray(raw)) return [];
+    const out: GenieSqlSection[] = [];
+    for (const entry of raw) {
+        const sectionId = typeof (entry as { sectionId?: unknown })?.sectionId === "string"
+            ? (entry as { sectionId: string }).sectionId.trim()
+            : "";
+        const sqlFragment = typeof (entry as { sqlFragment?: unknown })?.sqlFragment === "string"
+            ? (entry as { sqlFragment: string }).sqlFragment.trim()
+            : "";
+        if (!sectionId || !sqlFragment) continue;
+        const cteName = typeof (entry as { cteName?: unknown })?.cteName === "string"
+            && (entry as { cteName: string }).cteName.trim()
+            ? (entry as { cteName: string }).cteName.trim()
+            : undefined;
+        const offsetRaw = (entry as { startOffset?: unknown })?.startOffset;
+        const startOffset = Number.isFinite(Number(offsetRaw)) ? Number(offsetRaw) : undefined;
+        out.push({ sectionId, cteName, sqlFragment, startOffset });
+    }
+    return out;
+}
+
+export function collectGenieSqlFromAttachments(attachments: any[] | undefined | null): { queries: string[]; sections: GenieSqlSection[] } {
+    const queries: string[] = [];
+    const sections: GenieSqlSection[] = [];
+    const list = Array.isArray(attachments) ? attachments : [];
+    for (const att of list) {
+        const q = att?.query;
+        if (!q) continue;
+        const sql = (typeof q.query === "string" && q.query.trim())
+            ? q.query.trim()
+            : (typeof q.text === "string" && q.text.trim() ? q.text.trim() : "");
+        if (sql) queries.push(sql);
+        const rawSections = Array.isArray(q.sqlSections) ? q.sqlSections : [];
+        for (const raw of rawSections) {
+            const sectionId = typeof raw?.sectionId === "string" ? raw.sectionId.trim() : "";
+            const sqlFragment = typeof raw?.sqlFragment === "string" ? raw.sqlFragment.trim() : "";
+            if (!sectionId || !sqlFragment) continue;
+            const cteName = typeof raw?.cteName === "string" && raw.cteName.trim() ? raw.cteName.trim() : undefined;
+            const startOffset = Number.isFinite(Number(raw?.startOffset)) ? Number(raw.startOffset) : undefined;
+            sections.push({ sectionId, cteName, sqlFragment, startOffset });
+        }
+    }
+    return { queries, sections };
 }
 
 export interface GenieFeedbackPayload {
@@ -578,23 +713,26 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
     // the message object before we hand it back to the caller.
     private hydrateGenieFields(res: any): void {
         if (!res) return;
-        // Already fully populated (proxy did it for us, including the
-        // multi-query array). Nothing to do.
-        if (res.sqlQuery && Array.isArray(res.sqlQueries) && res.sqlQueries.length > 0) return;
         const attachments = Array.isArray(res?.attachments) ? res.attachments : [];
+        const collected = collectGenieSqlFromAttachments(attachments);
+        // Already fully populated (proxy did it for us, including the
+        // multi-query array). Keep going only when Phase 11b sqlSections
+        // are present in attachments but not lifted yet.
+        if (
+            res.sqlQuery
+            && Array.isArray(res.sqlQueries)
+            && res.sqlQueries.length > 0
+            && (Array.isArray(res.sqlSections) || collected.sections.length === 0)
+        ) return;
         // Cycle 47.8 — collect ALL non-empty SQL attachments so the SQL
         // view can tab across them. Pre-cycle behaviour kept only the
         // first; a Genie response with multiple queries silently dropped
         // the rest. `sqlQuery` still holds the first for legacy callers
         // (insightsCache, copy-icon fallback, etc.).
-        const collectedSql: string[] = [];
+        const collectedSql = collected.queries;
         for (const att of attachments) {
             const q = att?.query;
             if (!q) continue;
-            const sql = (typeof q.query === "string" && q.query.trim())
-                ? q.query.trim()
-                : (typeof q.text === "string" && q.text.trim() ? q.text.trim() : "");
-            if (sql) collectedSql.push(sql);
             // queryResult — keep the first complete table only (UI doesn't
             // tab data tables this cycle; that's a separate UX decision).
             const result = q.result;
@@ -613,6 +751,103 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
             if (!res.sqlQuery) res.sqlQuery = collectedSql[0];
             if (!Array.isArray(res.sqlQueries) || res.sqlQueries.length === 0) {
                 res.sqlQueries = collectedSql;
+            }
+        }
+        if (collected.sections.length > 0 && !Array.isArray(res.sqlSections)) {
+            res.sqlSections = collected.sections;
+        }
+
+        // 2026-05 — Databricks Genie Research Agent / Agent Mode reasoning trace.
+        // Released 2026-04-16. When a message was started in Agent Mode (only
+        // possible via the Databricks Genie UI today — REST API still cannot
+        // trigger it as of 2026-05; see docs/ARCHITECTURE.md), the response
+        // attachments carry a `reasoning_traces` array describing the agent's
+        // planning / sub-query / synthesis steps. Flatten across attachments
+        // into a top-level array on the GenieMessage so consumers don't have to
+        // walk attachments. Skipped silently when the field is absent (most
+        // messages today, since Agent Mode is an opt-in toggle in the Genie
+        // UI). Shape-tolerant — Databricks may evolve the field structure,
+        // so we accept either array-of-strings or array-of-step-objects.
+        const flatTraces: any[] = [];
+        for (const att of attachments) {
+            const raw = att?.reasoning_traces;
+            if (!Array.isArray(raw)) continue;
+            for (const entry of raw) {
+                if (typeof entry === "string") {
+                    flatTraces.push({ kind: "other", description: entry });
+                    continue;
+                }
+                if (entry && typeof entry === "object") {
+                    const t = String(entry.type ?? entry.kind ?? "").toLowerCase();
+                    const kind: "planning" | "query" | "synthesis" | "other" =
+                        t === "planning" || t === "query" || t === "synthesis" ? t : "other";
+                    flatTraces.push({
+                        kind,
+                        description: typeof entry.description === "string" ? entry.description
+                            : (typeof entry.text === "string" ? entry.text : undefined),
+                        detail: entry,
+                    });
+                }
+            }
+        }
+        if (flatTraces.length > 0 && !Array.isArray(res.reasoningTraces)) {
+            res.reasoningTraces = flatTraces;
+        }
+
+        // 2026 Genie GA — suggested follow-up questions. Genie now populates
+        // `attachments[].suggested_questions` (or the legacy `follow_ups` field
+        // in some workspace versions) with short next-step questions the user
+        // can click to drill deeper. Walk all attachments, dedupe by string
+        // identity, cap at 6 entries (more than that and chip row wraps badly).
+        const followUps: string[] = [];
+        const seenFollowUps = new Set<string>();
+        for (const att of attachments) {
+            const candidates = [
+                att?.suggested_questions,
+                att?.suggestedQuestions,
+                att?.follow_ups,
+                att?.followUps,
+            ].filter(v => Array.isArray(v));
+            for (const list of candidates) {
+                for (const q of list) {
+                    const text = typeof q === "string" ? q.trim()
+                        : (q && typeof q.text === "string" ? q.text.trim()
+                        : (q && typeof q.question === "string" ? q.question.trim() : ""));
+                    if (!text || seenFollowUps.has(text)) continue;
+                    seenFollowUps.add(text);
+                    followUps.push(text);
+                    if (followUps.length >= 6) break;
+                }
+                if (followUps.length >= 6) break;
+            }
+            if (followUps.length >= 6) break;
+        }
+        if (followUps.length > 0 && !Array.isArray(res.suggestedFollowUps)) {
+            res.suggestedFollowUps = followUps;
+        }
+
+        // UX-VIEWER-1.7b.2 — Genie HELIOS chart spec extraction.
+        //
+        // When Genie's message has a chart, one of the attachments carries
+        // a `viz` object: { chart_library, definition, type, status }.
+        // The HELIOS translator (visualization/translators/helios.ts)
+        // converts this to PulsePlay's ChartIR; here we just lift the
+        // first ready viz to a top-level field so the chart renderer
+        // doesn't have to walk attachments.
+        //
+        // We accept only viz objects with status === "GENERATED" (or no
+        // status field, since some older Genie responses omit it). A viz
+        // attachment that's still being generated would render an
+        // incomplete chart spec.
+        if (res.genieViz === undefined) {
+            for (const att of attachments) {
+                const viz = att?.viz;
+                if (!viz || typeof viz !== "object") continue;
+                const status = (viz as { status?: string }).status;
+                if (status && status !== "GENERATED") continue;
+                if (!(viz as { definition?: unknown }).definition) continue;
+                res.genieViz = viz;
+                break;
             }
         }
     }
@@ -788,7 +1023,7 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
                     } else {
                         // BUG-002: Handle "Request failed with status 0" (Network/Proxy Offline)
                         if (xhr.status === 0) {
-                            reject(new Error("Proxy Offline. Ensure the UniBridge AI Proxy is running and accessible at the configured URL."));
+                            reject(new Error("Proxy Offline. Ensure the PulsePlay Proxy is running and accessible at the configured URL."));
                             return;
                         }
                         try {
@@ -835,7 +1070,7 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
         }
     }
 
-    public async testQuestion(question = "Run this validation query and return the single result: SELECT 1 AS dwd_validation_check."): Promise<{ ok: boolean; detail: string }> {
+    public async testQuestion(question = "Run this validation query and return the single result: SELECT 1 AS pulseplay_validation_check."): Promise<{ ok: boolean; detail: string }> {
         try {
             if (this.isDirectMode() && (!this.config.host || !this.config.token || !this.config.spaceId)) {
                 return { ok: false, detail: "Direct mode requires host, token (PAT), and spaceId to be set before running a test question." };
@@ -1130,6 +1365,11 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
         // when its auto-probe completes or the user picks via the
         // PackPicker; absent key = no pack injection (proxy is permissive).
         const packSelection = readPackSelectionFromStorage();
+        // Probe-once reuse — attach the cached DiscoverySnapshot summary
+        // so the proxy injects discovery facts (connector type, available
+        // KPIs, reachable frames) above the user question. Cache-first
+        // read from sessionStorage; null = no injection.
+        const discoveryContext = readCachedDiscoverySummary(this.config.assistantProfile || "");
         const body = {
             ...base,
             intent: options?.intent,
@@ -1138,6 +1378,7 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
             spaceId: this.config.spaceId,
             ...(packSelection?.pack ? { pack: packSelection.pack } : {}),
             ...(packSelection?.subVertical ? { subVertical: packSelection.subVertical } : {}),
+            ...(discoveryContext ? { discoveryContext } : {}),
         };
         const raw = await this.request<any>("POST", "/conversations/start", body);
         const normalized = this.normalizeConversationResult(raw);
@@ -1167,12 +1408,16 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
             );
             return this.normalizeConversationResult(raw);
         }
+        // Probe-once reuse — follow-up messages also forward the cached
+        // discovery summary so the proxy can re-inject if it chooses.
+        const discoveryContext = readCachedDiscoverySummary(this.config.assistantProfile || "");
         const body = {
             ...base,
             intent: options?.intent,
             contextText: options?.contextText,
             assistantProfile: this.config.assistantProfile,
-            spaceId: this.config.spaceId
+            spaceId: this.config.spaceId,
+            ...(discoveryContext ? { discoveryContext } : {}),
         };
         const raw = await this.request<any>("POST", `/conversations/${conversationId}/messages`, body);
         const normalized = this.normalizeConversationResult(raw);
@@ -1250,7 +1495,13 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
             if (Date.now() - startedAt > POLL_DEADLINE_MS) {
                 throw new Error(timeoutMessage);
             }
-            const res = await this.request<GenieMessage>("GET", `/conversations/${conversationId}/messages/${messageId}?assistantProfile=${this.config.assistantProfile || ""}&spaceId=${this.config.spaceId || ""}`);
+            // Author-selectable retry budget — forwards the
+            // Settings → Advanced → Performance value on every poll so the
+            // proxy can decide whether to run server-side validation retries
+            // before returning the COMPLETED response.
+            const maxRetries = readMaxValidationRetriesFromStorage();
+            const retrySuffix = maxRetries != null ? `&maxValidationRetries=${maxRetries}` : "";
+            const res = await this.request<GenieMessage>("GET", `/conversations/${conversationId}/messages/${messageId}?assistantProfile=${this.config.assistantProfile || ""}&spaceId=${this.config.spaceId || ""}${retrySuffix}`);
             if (onProgress) onProgress(res.status);
 
             if (res.status === "COMPLETED" || res.status === "FAILED" || res.status === "CANCELLED") {
@@ -1357,7 +1608,7 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
                         try { resolve(JSON.parse(xhr.responseText)); }
                         catch { reject(new Error("Health response was not valid JSON.")); }
                     } else if (xhr.status === 0) {
-                        reject(new Error("Proxy is not reachable. Ensure the UniBridge AI Proxy is running."));
+                        reject(new Error("Proxy is not reachable. Ensure the PulsePlay Proxy is running."));
                     } else {
                         reject(new Error(`Proxy /health returned status ${xhr.status}.`));
                     }
@@ -1714,4 +1965,108 @@ function readPackSelectionFromStorage(): { pack?: string; subVertical?: string }
     } catch {
         return null;
     }
+}
+
+// Performance levers reader. Reads localStorage directly so we don't
+// pull the wider Settings module into the Pulse-PBI compat shim. Schema
+// + key match playground/src/settings/performanceLevers.ts; out-of-range
+// or malformed values return null so the caller can skip the override.
+const PERFORMANCE_LEVERS_KEY = "pulseplay:performance-levers";
+
+function readMaxValidationRetriesFromStorage(): number | null {
+    if (typeof window === "undefined") return null;
+    try {
+        const raw = window.localStorage.getItem(PERFORMANCE_LEVERS_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== "object") return null;
+        const v = (parsed as Record<string, unknown>).maxValidationRetries;
+        if (typeof v !== "number" || !Number.isFinite(v)) return null;
+        const i = Math.round(v);
+        if (i < 0) return 0;
+        if (i > 3) return 3;
+        return i;
+    } catch {
+        return null;
+    }
+}
+
+// Probe-once reuse — pulls the cached DiscoverySnapshot (written by
+// discoveryClient.ts's sessionStorage cache on screen-load prewarm) and
+// summarises it into a compact `discoveryContext` block that the proxy's
+// /assistant/conversations/start route consumes alongside pack context.
+// Synchronous; never throws.
+const DISCOVERY_STORAGE_PREFIX = "pulseplay:discovery:";
+
+interface CachedDiscoverySummary {
+    snapshotVersion?: number;
+    sources?: {
+        probe?: {
+            connectorType?: string;
+            displayName?: string;
+            tableCount?: number;
+            metadataAvailability?: string;
+        } | null;
+        biMetadata?: unknown;
+        packKpiCount?: number;
+    };
+    availableKpis?: string[];
+    reachableFrames?: string[];
+}
+
+function readCachedDiscoverySummary(profile: string): CachedDiscoverySummary | null {
+    if (typeof window === "undefined") return null;
+    if (!profile) return null;
+    try {
+        if (typeof sessionStorage === "undefined") return null;
+        // discoveryClient cache key shape: PREFIX + "<profile>|<pack>|<subV>|<biHash>"
+        // We only need a profile match; the first non-expired hit wins. The 15-min
+        // sessionStorage TTL bounds staleness.
+        const now = Date.now();
+        for (let i = 0; i < sessionStorage.length; i++) {
+            const k = sessionStorage.key(i);
+            if (!k || !k.startsWith(DISCOVERY_STORAGE_PREFIX)) continue;
+            const rest = k.slice(DISCOVERY_STORAGE_PREFIX.length);
+            const keyProfile = rest.split("|")[0];
+            if (keyProfile !== profile) continue;
+            const raw = sessionStorage.getItem(k);
+            if (!raw) continue;
+            const wrapper = JSON.parse(raw);
+            if (!wrapper || typeof wrapper !== "object") continue;
+            if (typeof wrapper.expiresAtMs !== "number") continue;
+            if (now > wrapper.expiresAtMs) continue;
+            const snap = wrapper.snapshot;
+            if (!snap || typeof snap !== "object") continue;
+            return summariseSnapshotForPrompt(snap);
+        }
+    } catch { /* ignore — discovery is enrichment */ }
+    return null;
+}
+
+function summariseSnapshotForPrompt(snap: Record<string, unknown>): CachedDiscoverySummary {
+    const sources = snap.sources as Record<string, unknown> | undefined;
+    const probe = sources?.probe as Record<string, unknown> | null | undefined;
+    const fused = snap.fused as Record<string, unknown> | undefined;
+    const availableKpis = Array.isArray(fused?.availableKpis)
+        ? (fused.availableKpis as Array<{ name?: string }>).map(k => k?.name).filter((s): s is string => !!s)
+        : [];
+    const reachableFrames = Array.isArray(fused?.reachableFrames)
+        ? (fused.reachableFrames as Array<{ label?: string }>).map(f => f?.label).filter((s): s is string => !!s)
+        : [];
+    return {
+        snapshotVersion: typeof snap.snapshotVersion === "number" ? snap.snapshotVersion : undefined,
+        sources: {
+            probe: probe
+                ? {
+                    connectorType: typeof probe.connectorType === "string" ? probe.connectorType : undefined,
+                    displayName: typeof probe.displayName === "string" ? probe.displayName : undefined,
+                    tableCount: typeof probe.tableCount === "number" ? probe.tableCount : undefined,
+                    metadataAvailability: typeof probe.metadataAvailability === "string" ? probe.metadataAvailability : undefined,
+                }
+                : null,
+            packKpiCount: Array.isArray(sources?.packKpis) ? (sources.packKpis as unknown[]).length : 0,
+        },
+        availableKpis,
+        reachableFrames,
+    };
 }

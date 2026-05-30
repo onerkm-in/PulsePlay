@@ -172,48 +172,104 @@ function SuccessView(props: SuccessViewProps) {
             )}
 
             {/* ── Section 2: Metadata snapshot ──────────────────────── */}
+            {/* UX-ARCH-0B.2 Phase F follow-up 2026-05-23 — rows that the
+                connector does not expose are now collapsed into a single
+                "Not exposed:" line at the bottom instead of taking one
+                full row each (Schema / Declared KPIs / Sample questions
+                were three separate "not exposed" rows = wasted vertical
+                space when the connector simply doesn't surface metadata,
+                which is the common case for Genie / Foundation Model). */}
             <h3 className="pp-test-connection__section-title">Metadata snapshot</h3>
             <dl className="pp-test-connection__snapshot">
-                <div className="pp-test-connection__row">
-                    <dt>Description</dt>
-                    <dd>{r.description?.trim() || NOT_EXPOSED}</dd>
-                </div>
-                {r.purpose && (
-                    <div className="pp-test-connection__row">
-                        <dt>Purpose</dt>
-                        <dd>{r.purpose}</dd>
-                    </div>
-                )}
-                {r.owner && (
-                    <div className="pp-test-connection__row">
-                        <dt>Owner</dt>
-                        <dd>{r.owner}</dd>
-                    </div>
-                )}
-                <div className="pp-test-connection__row">
-                    <dt>Schema</dt>
-                    <dd>{formatSchemaSummary(r)}</dd>
-                </div>
-                <div className="pp-test-connection__row">
-                    <dt>Declared KPIs</dt>
-                    <dd>{r.declaredKpis && r.declaredKpis.length > 0 ? String(r.declaredKpis.length) : NOT_EXPOSED}</dd>
-                </div>
-                <div className="pp-test-connection__row">
-                    <dt>Sample questions</dt>
-                    <dd>{r.sampleQuestions && r.sampleQuestions.length > 0 ? String(r.sampleQuestions.length) : NOT_EXPOSED}</dd>
-                </div>
-                {r.tools && r.tools.length > 0 && (
-                    <div className="pp-test-connection__row">
-                        <dt>Tools</dt>
-                        <dd>{r.tools.length}</dd>
-                    </div>
-                )}
-                {r.lastUpdated && (
-                    <div className="pp-test-connection__row">
-                        <dt>Last updated</dt>
-                        <dd>{r.lastUpdated}</dd>
-                    </div>
-                )}
+                {(() => {
+                    const rows: React.ReactNode[] = [];
+                    const notExposed: string[] = [];
+                    const desc = r.description?.trim();
+                    if (desc) {
+                        rows.push(
+                            <div key="description" className="pp-test-connection__row">
+                                <dt>Description</dt>
+                                <dd>{desc}</dd>
+                            </div>
+                        );
+                    } else {
+                        notExposed.push("Description");
+                    }
+                    if (r.purpose) {
+                        rows.push(
+                            <div key="purpose" className="pp-test-connection__row">
+                                <dt>Purpose</dt>
+                                <dd>{r.purpose}</dd>
+                            </div>
+                        );
+                    }
+                    if (r.owner) {
+                        rows.push(
+                            <div key="owner" className="pp-test-connection__row">
+                                <dt>Owner</dt>
+                                <dd>{r.owner}</dd>
+                            </div>
+                        );
+                    }
+                    const schemaSummary = formatSchemaSummary(r);
+                    if (schemaSummary && schemaSummary !== NOT_EXPOSED) {
+                        rows.push(
+                            <div key="schema" className="pp-test-connection__row">
+                                <dt>Schema</dt>
+                                <dd>{schemaSummary}</dd>
+                            </div>
+                        );
+                    } else {
+                        notExposed.push("Schema");
+                    }
+                    if (r.declaredKpis && r.declaredKpis.length > 0) {
+                        rows.push(
+                            <div key="kpis" className="pp-test-connection__row">
+                                <dt>Declared KPIs</dt>
+                                <dd>{String(r.declaredKpis.length)}</dd>
+                            </div>
+                        );
+                    } else {
+                        notExposed.push("Declared KPIs");
+                    }
+                    if (r.sampleQuestions && r.sampleQuestions.length > 0) {
+                        rows.push(
+                            <div key="samples" className="pp-test-connection__row">
+                                <dt>Sample questions</dt>
+                                <dd>{String(r.sampleQuestions.length)}</dd>
+                            </div>
+                        );
+                    } else {
+                        notExposed.push("Sample questions");
+                    }
+                    if (r.tools && r.tools.length > 0) {
+                        rows.push(
+                            <div key="tools" className="pp-test-connection__row">
+                                <dt>Tools</dt>
+                                <dd>{r.tools.length}</dd>
+                            </div>
+                        );
+                    }
+                    if (r.lastUpdated) {
+                        rows.push(
+                            <div key="updated" className="pp-test-connection__row">
+                                <dt>Last updated</dt>
+                                <dd>{r.lastUpdated}</dd>
+                            </div>
+                        );
+                    }
+                    if (notExposed.length > 0) {
+                        rows.push(
+                            <div key="not-exposed" className="pp-test-connection__row" style={{ opacity: 0.55, fontStyle: "italic" }}>
+                                <dt>Not exposed</dt>
+                                <dd title="This connector does not surface these fields. Common for Genie / Foundation Model profiles.">
+                                    {notExposed.join(" · ")}
+                                </dd>
+                            </div>
+                        );
+                    }
+                    return rows;
+                })()}
             </dl>
 
             {/* ── Section 3: Inference ──────────────────────────────── */}
@@ -237,9 +293,17 @@ function InferenceBlock(props: InferenceBlockProps) {
     const inference = props.result.inference;
 
     if (!inference || !inference.suggestedPack) {
+        // UX-ARCH-0B.2 Phase F follow-up 2026-05-23 — clarified that
+        // this is informational, not an error. Pack auto-detection
+        // requires the connector to expose schema/KPIs/sample questions;
+        // when it doesn't, the user just picks a pack manually in 03.
         return (
-            <div className="pp-test-connection__inference pp-test-connection__inference--empty">
-                Could not infer — please pick a pack manually.
+            <div className="pp-test-connection__inference pp-test-connection__inference--empty" style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "8px 12px" }}>
+                <span aria-hidden="true" style={{ fontSize: 14, lineHeight: 1.2, opacity: 0.7 }}>ℹ</span>
+                <div style={{ fontSize: 12, lineHeight: 1.5 }}>
+                    <strong>Pack auto-detect skipped.</strong>{" "}
+                    This connector doesn't expose schema or sample questions, so the matcher has nothing to score against. Pick a pack manually in <em>03 Shared context</em>.
+                </div>
             </div>
         );
     }

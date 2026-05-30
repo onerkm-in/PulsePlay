@@ -1,0 +1,20 @@
+{
+  "id": "generic-iframe-responses",
+  "label": "Generic Iframe + Responses Agent",
+  "surface": {
+    "vendor": "generic-iframe",
+    "adapterMinVersion": "1.0"
+  },
+  "assistant": {
+    "kind": "responses-agent",
+    "profileType": "responses"
+  },
+  "packs": {
+    "supported": ["*"]
+  },
+  "capabilities": {
+    "required": ["chat"],
+    "optional": []
+  },
+  "status": "production"
+}

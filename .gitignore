@@ -8,6 +8,9 @@ package-lock.json.bak
 # Vite
 playground/dist/
 playground/.vite/
+enablers/desktop/out/
+enablers/desktop/PulsePlayData/
+enablers/desktop/*.exe
 
 # Proxy runtime artifacts (never commit credentials or session-specific logs)
 proxy/config.json
@@ -18,7 +21,6 @@ proxy/.env
 proxy/.env.local
 
 # LLM session state (per-session, gitignored)
-.dwd-session.state.json
 .pulseplay-session.state.json
 
 # Claude Code session cache (per-user, never committed)
@@ -40,6 +42,8 @@ playground/tsconfig*.tsbuildinfo
 coverage/
 playground/coverage/
 proxy/coverage/
+playwright-report/
+test-results/
 
 # Python venvs (if you use scripts/ locally)
 .venv/
@@ -49,4 +53,39 @@ __pycache__/
 # Misc temp
 .cache/
 .tmp/
+.databricks-app-build/
 *.log
+
+# Local HAR captures (may contain secrets)
+*.har
+
+# 2026-05-27 — Generated probe/smoke evidence (per-run, dated folders).
+# Curated evidence intentionally promoted from these dated folders into
+# docs/evidence/<descriptive-name>/ can still be committed.
+docs/evidence/*-2026-*/
+docs/evidence/all-features-*/
+docs/evidence/preview-all-3-*/
+docs/evidence/one-surface-*/
+docs/evidence/dashboard-*/
+docs/evidence/genie-*/
+docs/evidence/powerbi-*/
+docs/evidence/settings-tour-*/
+docs/evidence/ai-insights-*/
+docs/evidence/ask-pulse-*/
+docs/evidence/beast-*/
+docs/evidence/deep-regression-*/
+docs/evidence/local-smoke-*/
+docs/evidence/responsive-*/
+docs/evidence/settings-control-panel-sweep-*/
+docs/evidence/simple-medium-*/
+docs/evidence/ui-snapshot-*/
+
+# Local probe output scratch dirs
+playground/scripts/.*-out/
+
+
+.databricks
+
+# Local Azure deploy metadata (non-secret env-specific local state) + script scratch logs
+scripts/.azure-appservice.json
+scripts/.*.log

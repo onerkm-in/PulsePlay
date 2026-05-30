@@ -47,6 +47,17 @@ export interface MetricRule {
     amberPct?: number;
     /** Threshold: at-or-worse = bad. */
     redPct?: number;
+    /**
+     * Tone applied when movement direction is unfavorable for this metric
+     * (higher-is-better with a down move, or lower-is-better with an up
+     * move) AND no explicit threshold band fires. Default omitted = "bad"
+     * (red) — preserves pre-2026-05-18 behavior. Set to "warn" (amber) for
+     * metrics where any unfavorable nudge should read as "watch" rather
+     * than "critical" — e.g. Return Rate, NPS, retention metrics that
+     * authors want to track conservatively. Threshold-band hits still
+     * win when a band is defined and the value crosses it.
+     */
+    unfavorableMovementTone?: "warn" | "bad";
 }
 
 export type ValidationSeverity = "error" | "warn";
@@ -246,6 +257,10 @@ export function rulesToJson(rules: MetricRule[]): string {
         if (typeof r.greenPct === "number" && Number.isFinite(r.greenPct)) out.greenPct = r.greenPct;
         if (typeof r.amberPct === "number" && Number.isFinite(r.amberPct)) out.amberPct = r.amberPct;
         if (typeof r.redPct === "number" && Number.isFinite(r.redPct)) out.redPct = r.redPct;
+        // Write the field only when the author picked "warn" — keeps JSON
+        // payloads clean for the default-"bad" case (no schema churn for
+        // rules untouched by the 2026-05-18 addition).
+        if (r.unfavorableMovementTone === "warn") out.unfavorableMovementTone = "warn";
         return out;
     });
     return JSON.stringify(payload, null, 2);
@@ -277,13 +292,17 @@ export function jsonToRules(raw: string): MetricRule[] {
             .filter(Boolean);
         const numOrUndef = (v: unknown): number | undefined =>
             typeof v === "number" && Number.isFinite(v) ? v : undefined;
+        const unfavorableTone = rec.unfavorableMovementTone === "warn" ? "warn"
+            : rec.unfavorableMovementTone === "bad" ? "bad"
+            : undefined;
         out.push({
             name,
             higherIsBetter,
             aliases,
             greenPct: numOrUndef(rec.greenPct),
             amberPct: numOrUndef(rec.amberPct),
-            redPct: numOrUndef(rec.redPct)
+            redPct: numOrUndef(rec.redPct),
+            ...(unfavorableTone ? { unfavorableMovementTone: unfavorableTone } : {})
         });
         if (out.length >= MAX_RULES) break;
     }

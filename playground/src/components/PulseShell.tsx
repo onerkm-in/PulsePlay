@@ -14,7 +14,7 @@
 //   3. Calls visual.update({ viewport, dataViews: [] }) to render
 //   4. Re-calls update() when container resizes or settings re-render is requested
 //
-// On unmount: calls visual.destroy() if defined; tears down the React root.
+// On unmount: schedules visual.destroy() if defined; tears down the React root.
 //
 // What this does NOT yet do (queued for later cycles):
 //   - Wire BIAdapter events into Pulse's prompt context (Cycle F: contextBuilder
@@ -59,11 +59,20 @@ export interface PulseShellProps {
     /** Vendor identifier used as the queryName prefix when synthesising
      *  filter targets (e.g. `powerbi`, `tableau`). Default `bi`. */
     biVendor?: string;
+    /** App-owned surface navigation can request the internal Pulse tab
+     *  after returning from BI Viz in unified mode.
+     *  2026-05-27 — widened to include "dashboard" to match the
+     *  PulseSurfaceTab union in App.tsx; visual.tsx already renders a
+     *  Dashboard tab (`gn-tab-dashboard`) so this is a real value the
+     *  shell can be asked to surface. Without this widening, lint + build
+     *  failed (Codex audit P0). */
+    activeTabRequest?: "insights" | "chat" | "dashboard";
 }
 
 export function PulseShell(props: PulseShellProps) {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const visualRef = useRef<Visual | null>(null);
+    const pendingDestroyRef = useRef<{ timer: number; visual: Visual } | null>(null);
 
     // Cycle L — derive a synthetic `categorical` block from the most recent
     // BI vendor events so Pulse's `contextBuilder.buildContext()` populates
@@ -85,14 +94,20 @@ export function PulseShell(props: PulseShellProps) {
         // settings already exist in localStorage.
         seedPulsePlayDefaults();
 
-        const host = new PulseHostStub({
-            onApplyFilter: props.onApplyFilter,
-            onPersist: () => props.onSettingsChange?.(),
-        });
-
-        // The Visual constructor calls createRoot(container) internally —
-        // we just hand it our container.
-        const visual = new Visual({ element: container, host });
+        const pendingDestroy = pendingDestroyRef.current;
+        const visual = pendingDestroy
+            ? pendingDestroy.visual
+            : new Visual({
+                element: container,
+                host: new PulseHostStub({
+                    onApplyFilter: props.onApplyFilter,
+                    onPersist: () => props.onSettingsChange?.(),
+                }),
+            });
+        if (pendingDestroy) {
+            window.clearTimeout(pendingDestroy.timer);
+            pendingDestroyRef.current = null;
+        }
         visualRef.current = visual;
 
         // Cycle E.4 + Cycle L — synthetic dataView carrying the persisted
@@ -120,12 +135,25 @@ export function PulseShell(props: PulseShellProps) {
 
         return () => {
             ro?.disconnect();
-            try {
-                visual.destroy?.();
-            } catch (err) {
-                console.warn("[PulseShell] visual.destroy() failed:", err);
-            }
+            const visualToDestroy = visualRef.current;
             visualRef.current = null;
+            if (!visualToDestroy) return;
+            // Pulse owns a nested React root. Defer its unmount until the
+            // parent React commit finishes so surface switching stays quiet
+            // in real-browser smoke runs. If React dev StrictMode immediately
+            // remounts the effect, the next mount flushes this first.
+            const timer = window.setTimeout(() => {
+                try {
+                    visualToDestroy.destroy?.();
+                } catch (err) {
+                    console.warn("[PulseShell] visual.destroy() failed:", err);
+                } finally {
+                    if (pendingDestroyRef.current?.visual === visualToDestroy) {
+                        pendingDestroyRef.current = null;
+                    }
+                }
+            }, 0);
+            pendingDestroyRef.current = { timer, visual: visualToDestroy };
         };
         // Intentional one-shot mount: callbacks are read via closure-of-props
         // (re-renders on prop change land via the renderToken effect below).
@@ -145,6 +173,46 @@ export function PulseShell(props: PulseShellProps) {
         });
     }, [props.renderToken, props.viewport, biCategorical]);
 
+    useEffect(() => {
+        if (!props.activeTabRequest) return;
+        // Pulse owns a nested React root (mounted via `new Visual({...})` in
+        // the mount effect above). Its visual.tsx attaches the
+        // "pulseplay:pulse-surface-tab" listener inside its own useEffect,
+        // which runs in a microtask AFTER PulseShell's effects on the very
+        // first mount. A pure dispatch would miss the listener — the
+        // symptom is "clicking Ask Pulse from BI lands on AI Insights".
+        //
+        // Two-pronged fix: (1) stash the desired tab on window so visual.tsx
+        // can read it on mount via useState initializer (no race), and
+        // (2) dispatch the event a few times across paint frames for
+        // already-mounted visuals that need to switch in-place. Both arms
+        // are needed: the stash handles cold-mount, the dispatch handles a
+        // genuine surface-navigation request.
+        //
+        // 2026-05-28 FIX — this effect MUST depend on activeTabRequest ALONE.
+        // Previously `renderToken` was a dependency, so every settings/Adjust/
+        // refresh action (which bumps renderToken to re-render the visual)
+        // re-dispatched the App's requestedPulseTab over the user's CURRENT
+        // tab. When requestedPulseTab was "chat" (sticky Ask Pulse), selecting
+        // Adjust or clicking Refresh on AI Insights yanked the user back to
+        // Ask Pulse. A re-render is NOT a tab-change — only assert the tab
+        // when the App actually requests a different one.
+        const tab = props.activeTabRequest;
+        (window as unknown as { __pulseplayInitialTab?: string }).__pulseplayInitialTab = tab;
+        const dispatch = () => window.dispatchEvent(new CustomEvent("pulseplay:pulse-surface-tab", {
+            detail: { tab },
+        }));
+        dispatch();
+        const t1 = window.setTimeout(dispatch, 0);
+        const t2 = window.setTimeout(dispatch, 80);
+        const t3 = window.setTimeout(dispatch, 240);
+        return () => {
+            window.clearTimeout(t1);
+            window.clearTimeout(t2);
+            window.clearTimeout(t3);
+        };
+    }, [props.activeTabRequest]);
+
     return (
         <div
             ref={containerRef}
@@ -154,9 +222,25 @@ export function PulseShell(props: PulseShellProps) {
                 maxWidth: "100%",
                 height: "100%",
                 minWidth: 0,
-                minHeight: 600,
-                overflowY: "auto",
-                overflowX: "hidden",
+                // 2026-05-26 — was hardcoded 600. At mobile-landscape
+                // (e.g. 667×375), this forced the shell taller than the
+                // viewport so the composer got pushed off-screen.
+                // Switched to 0; the chat-panel flex chain already keeps
+                // content visible, and CSS @media rules in visual.less
+                // tighten the welcome-state padding when height ≤ 480.
+                minHeight: 0,
+                // 2026-05-20 dual-scrollbar fix: Pulse's own panes (e.g.
+                // `.gn-insights-pane`, `.gn-chat-area`) already manage their
+                // internal scroll via `overflow-y: auto`. When we ALSO
+                // declared `overflowY: auto` here, the host wrapper showed a
+                // second scrollbar stacked on the right of the Pulse pane's
+                // own — a visible double-rail. PulsePlay hosts Pulse at
+                // top-level origin (not the constrained PBI Desktop sandbox)
+                // so we don't need an outer safety scroller; let Pulse's
+                // internal panes own scrolling. `overflowX: hidden` stays to
+                // contain any rogue horizontal layout from the iframe-shaped
+                // visual.tsx render.
+                overflow: "hidden",
                 position: "relative",
             }}
         />

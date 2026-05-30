@@ -1,4 +1,4 @@
-/* DwD AI Assistant for PBI — production design system (LESS) */
+/* sister Pulse project — production design system (LESS) */
 
 /*
  * ── Adaptive theme layer ──
@@ -265,6 +265,10 @@
     --gn-bg:                @gn-dark-bg;
     --gn-surface:           @gn-dark-surface;
     --gn-surface-raised:    @gn-dark-surface-raised;
+    /* AI Insights KPI/section cards read `var(--gn-bubble-bg, #ffffff)`,
+     * which is otherwise undefined → white blaze in dark. Bind it to the
+     * dark raised surface here; light keeps the #ffffff fallback. */
+    --gn-bubble-bg:         @gn-dark-surface-raised;
     --gn-text:              @gn-dark-text;
     --gn-text-muted:        @gn-dark-text-muted;
     --gn-border:            @gn-dark-border;
@@ -442,6 +446,26 @@
         color: #fff;
         &:hover { background: @gn-dark-accent; color: #fff; }
     }
+    /* 2026-05-30 — single-view answer switch + stacked sections (dark). */
+    .gn-answer-switch {
+        background: @gn-dark-bg;
+        border-color: @gn-dark-border;
+    }
+    .gn-answer-switch-btn { color: @gn-dark-text-muted; }
+    .gn-answer-switch-btn:hover { color: @gn-dark-text; }
+    .gn-answer-switch-btn--active {
+        background: @gn-dark-surface-raised;
+        color: @gn-dark-accent;
+    }
+    .gn-answer-section-label { border-bottom-color: @gn-dark-border-subtle; }
+    .gn-answer-section-label-text,
+    .gn-answer-section-label-meta { color: @gn-dark-text-muted; }
+    .gn-answer-section--chart .gn-chart-container {
+        background: @gn-dark-surface;
+        border-color: @gn-dark-border;
+    }
+    .gn-answer-table-scroll { border-color: @gn-dark-border; }
+    .gn-answer-table-scroll .gn-table thead th { background: @gn-dark-surface-raised; }
     .gn-chart-meta {
         border-top-color: @gn-dark-border-subtle;
         color: @gn-dark-text-muted;
@@ -637,6 +661,26 @@
         color: #fff;
         &:hover { background: @gn-dark-accent; color: #fff; }
     }
+    /* 2026-05-30 — single-view answer switch + stacked sections (dark). */
+    .gn-answer-switch {
+        background: @gn-dark-bg;
+        border-color: @gn-dark-border;
+    }
+    .gn-answer-switch-btn { color: @gn-dark-text-muted; }
+    .gn-answer-switch-btn:hover { color: @gn-dark-text; }
+    .gn-answer-switch-btn--active {
+        background: @gn-dark-surface-raised;
+        color: @gn-dark-accent;
+    }
+    .gn-answer-section-label { border-bottom-color: @gn-dark-border-subtle; }
+    .gn-answer-section-label-text,
+    .gn-answer-section-label-meta { color: @gn-dark-text-muted; }
+    .gn-answer-section--chart .gn-chart-container {
+        background: @gn-dark-surface;
+        border-color: @gn-dark-border;
+    }
+    .gn-answer-table-scroll { border-color: @gn-dark-border; }
+    .gn-answer-table-scroll .gn-table thead th { background: @gn-dark-surface-raised; }
     .gn-chart-meta {
         border-top-color: @gn-dark-border-subtle;
         color: @gn-dark-text-muted;
@@ -747,6 +791,7 @@
     .gn-line-chart circle { fill: @gn-dark-accent; }
     .gn-suggestions {
         border-top-color: @gn-dark-border-subtle;
+        background: linear-gradient(180deg, @gn-dark-surface 0%, @gn-dark-surface-raised 100%);
     }
     .gn-suggestions-label { color: @gn-dark-text-muted; }
     .gn-pill {
@@ -928,8 +973,8 @@
     z-index: 10;
     min-height: 44px;
 }
-// 49.10 — two-row variant. Row 1 carries branding + status capsules; row 2
-// carries the surface controls (tabs + Adjust). Total stacked height ~80px.
+// 49.10 — two-row variant. Row 1 carries branding; row 2 carries the
+// surface controls plus Console. Operational status chips live in Console.
 .gn-header--two-row {
     flex-direction: column;
     align-items: stretch;
@@ -1259,18 +1304,15 @@
     .gn-status-dot { animation: gn-status-pulse 1.2s ease-in-out infinite; }
 }
 
+.gn-status--scope {
+    color: #5b5bd6;
+    border-color: #5b5bd6;
+    background: rgba(91, 91, 214, 0.08);
+}
+
 @keyframes gn-status-pulse {
     0%, 100% { box-shadow: 0 0 0 0 currentColor; opacity: 1; }
     50%      { box-shadow: 0 0 0 4px transparent; opacity: 0.55; }
-}
-
-.gn-header-right {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 8px;
-    flex: 1 1 0%;
-    min-width: 0;
 }
 
 .gn-badge {
@@ -1317,45 +1359,103 @@
     letter-spacing: 0.01em;
 }
 
-/* ── Header tabs (Chat / Agent / AI Insights) ── */
+/* ── Header surface switcher (AI Insights / Ask Pulse / BI Viz) ── */
+
+.gn-surface-switcher {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    max-width: 100%;
+    min-width: 0;
+    padding: 3px;
+    border: 1px solid rgba(15, 23, 42, 0.10);
+    border-radius: @gn-radius-pill;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.92));
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.88),
+        0 8px 22px rgba(15, 23, 42, 0.08);
+    flex: 0 1 auto;
+}
 
 .gn-header-tabs {
     display: flex;
-    gap: 4px;
+    gap: 3px;
     flex: 0 1 auto;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     min-width: 0;
-    /* Center the tab group horizontally between the left and right zones. */
-    justify-content: center;
+    justify-content: flex-start;
 }
 
 .gn-header-tab {
-    min-height: 28px;
-    padding: 0 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 0 13px;
     border: 1px solid transparent;
-    border-radius: @gn-radius-pill;
+    border-radius: 999px;
     background: transparent;
     color: @gn-text-muted;
     font-family: @gn-font;
-    font-size: 12.5px;
-    font-weight: 600;
+    font-size: 12px;
+    font-weight: 650;
     cursor: pointer;
-    letter-spacing: 0.01em;
-    transition: all @gn-t-base @gn-ease;
+    letter-spacing: 0;
+    line-height: 1;
+    white-space: nowrap;
+    transition:
+        background @gn-t-base @gn-ease,
+        border-color @gn-t-base @gn-ease,
+        box-shadow @gn-t-base @gn-ease,
+        color @gn-t-base @gn-ease,
+        transform @gn-t-base @gn-ease;
+}
+
+.gn-header-tab-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.06);
+    color: currentColor;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    flex: 0 0 auto;
+}
+
+.gn-header-tab-icon--bi {
+    font-size: 9.5px;
+    letter-spacing: 0;
 }
 
 .gn-header-tab:hover:not(:disabled) {
-    color: @gn-accent;
-    background: @gn-accent-subtle;
+    color: @gn-text;
+    background: rgba(255, 255, 255, 0.82);
+    border-color: rgba(15, 23, 42, 0.10);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+    transform: translateY(-1px);
 }
 
-// Active tab — solid filled accent pill (matches reference design).
+// Active tab — solid filled accent pill inside a shared segmented rail.
 .gn-header-tab--active,
 .gn-header-tab--active:hover:not(:disabled) {
-    background: var(--gn-accent, #1a6fd4);
+    background:
+        linear-gradient(180deg, #2b82e8, var(--gn-accent, #1a6fd4));
     border-color: var(--gn-accent, #1a6fd4);
     color: #fff;
-    box-shadow: 0 1px 3px rgba(26, 111, 212, 0.35);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.26),
+        0 8px 16px rgba(26, 111, 212, 0.28);
+    transform: none;
+}
+
+.gn-header-tab--active .gn-header-tab-icon {
+    background: rgba(255, 255, 255, 0.22);
 }
 
 .gn-header-tab:disabled {
@@ -1372,7 +1472,7 @@
 .gn-space-tab:focus-visible {
     outline: 2px solid var(--gn-accent, #1a6fd4);
     outline-offset: 2px;
-    border-radius: 6px;
+    border-radius: 999px;
 }
 
 // 49.8 — Adjust pill peers with the tab group on the same row. Visually
@@ -1422,13 +1522,146 @@
     color: #fff;
     background: rgba(70, 145, 224, 0.25);
 }
+
+.gn-pane-action-cluster {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 8px;
+    flex-shrink: 0;
+}
+
+.gn-pane-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid @gn-border;
+    border-radius: 7px;
+    background: @gn-surface-raised;
+    color: @gn-text-muted;
+    cursor: pointer;
+    transition: border-color @gn-t-base @gn-ease, background @gn-t-base @gn-ease, color @gn-t-base @gn-ease, box-shadow @gn-t-base @gn-ease;
+    padding: 0;
+
+    svg {
+        width: 14px;
+        height: 14px;
+    }
+
+    &:hover {
+        border-color: @gn-accent;
+        color: @gn-accent;
+        background: @gn-accent-subtle;
+        box-shadow: @gn-shadow-xs;
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--gn-accent, #1a6fd4);
+        outline-offset: 2px;
+    }
+}
+
+.gn-shell--dark .gn-pane-action-btn {
+    border-color: rgba(255, 255, 255, 0.25);
+    color: rgba(255, 255, 255, 0.86);
+    background: rgba(255, 255, 255, 0.04);
+
+    &:hover {
+        border-color: var(--gn-accent, #4691e0);
+        color: #fff;
+        background: rgba(70, 145, 224, 0.18);
+    }
+}
+
+/* 2026-05-17 — visual league unification. The run-state cluster
+ * (Copy MD / Copy HTML / Print / Customize ⚙ / Refresh / Stop) was
+ * previously rendered as `gn-pill gn-pill--compact` buttons, which
+ * sat next to the square-outline `gn-pane-action-btn` cluster and
+ * read as a different design language. Migrating those buttons to
+ * `gn-pane-action-btn` gives the AI pane a single button vocabulary.
+ * These modifiers preserve the per-state visual feedback the pill
+ * variants used to carry. */
+.gn-pane-action-btn--copied,
+.gn-pane-action-btn--copied:hover {
+    background: @gn-success !important;
+    border-color: @gn-success !important;
+    color: #fff !important;
+    transform: scale(1.04);
+}
+.gn-pane-action-btn--active,
+.gn-pane-action-btn--active:hover {
+    background: @gn-accent-subtle;
+    border-color: @gn-accent;
+    color: @gn-accent;
+}
+.gn-pane-action-btn--stop {
+    /* Stop is a wider text+icon button — let it grow horizontally
+     *  while keeping the square minimum so it sits on the same
+     *  baseline as the icon-only buttons. The error/danger palette is
+     *  expressed via CSS custom properties so it picks up theme
+     *  overrides; we cannot use less's `fade()` on a `var()` reference,
+     *  so the soft-bg uses a literal rgba derived from the same hex
+     *  fallback (#c8202a) that backs --gn-error. */
+    width: auto;
+    min-width: 28px;
+    padding: 0 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: @gn-error;
+    border-color: @gn-error;
+
+    &:hover {
+        background: rgba(200, 32, 42, 0.12);
+        border-color: @gn-error;
+        color: @gn-error;
+        box-shadow: @gn-shadow-xs;
+    }
+}
+.gn-shell--dark .gn-pane-action-btn--stop {
+    color: #ff8b8b;
+    border-color: rgba(255, 139, 139, 0.55);
+
+    &:hover {
+        background: rgba(255, 139, 139, 0.16);
+        border-color: #ff8b8b;
+        color: #fff;
+    }
+}
+.gn-shell--dark .gn-surface-switcher {
+    border-color: rgba(255, 255, 255, 0.14);
+    background:
+        linear-gradient(180deg, rgba(17, 24, 39, 0.92), rgba(11, 18, 32, 0.92));
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 10px 24px rgba(0, 0, 0, 0.28);
+}
+
 .gn-shell--dark .gn-header-tab {
     color: rgba(255, 255, 255, 0.72);
 
     &:hover:not(:disabled) {
         color: #fff;
-        background: rgba(255, 255, 255, 0.06);
+        background: rgba(255, 255, 255, 0.08);
+        border-color: rgba(255, 255, 255, 0.14);
+        box-shadow: 0 5px 14px rgba(0, 0, 0, 0.28);
     }
+}
+
+.gn-shell--dark .gn-header-tab-icon {
+    background: rgba(255, 255, 255, 0.10);
+}
+
+.gn-shell--dark .gn-header-tab--active,
+.gn-shell--dark .gn-header-tab--active:hover:not(:disabled) {
+    background:
+        linear-gradient(180deg, var(--gn-accent, #4691e0), #246db7);
+    border-color: rgba(255, 255, 255, 0.18);
+    color: #fff;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.22),
+        0 8px 18px rgba(36, 109, 183, 0.34);
 }
 
 /* ── Space selector (multi-space mode) ── */
@@ -1532,38 +1765,151 @@
     margin-bottom: 4px;
 }
 
-/* ── Chat Area ── */
+/* ── Chat Panel + Chat Area ── */
 
+/* Wrapper for the full chat tab — must be a flex column that fills the
+ * remaining shell height so gn-chat-area can flex:1 and gn-compose stays
+ * pinned at the bottom. Without this the tabpanel div is display:block,
+ * gn-chat-area expands to its full content height, and the compose input
+ * is pushed off-screen below the chart.
+ *
+ * 2026-05-27 — added `max-height: 100vh` as a defensive ceiling. The
+ * parent flex chain was breaking when a chart bubble grew large in the
+ * chat thread, letting gn-chat-panel exceed viewport and push compose
+ * off-screen even though the local flex column rules looked correct.
+ * Capping at 100vh forces internal scroll regardless of parent height. */
+.gn-chat-panel {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: 100vh;
+    overflow: hidden;
+}
+
+/* 2026-05-26 — vertical density pass. Was padding:16px + gap:16px which
+   on a 900-effective viewport (with Windows taskbar + browser chrome
+   eating ~150-170px above) pushed the composer below the visible area.
+   Tightened to padding:12px + gap:10px to claw back ~30px vertically
+   so composer stays in view on standard 1080p laptops. */
 .gn-chat-area {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    padding: 16px;
+    padding: 12px 16px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 10px;
 }
 
+/* 2026-05-26 (third pass) — scrollbar STILL not visible enough.
+   Round 21 bumped colors but Chrome on Windows renders subtle
+   overlay scrollbars by default that fade against the surface.
+   This pass:
+     (1) `overflow-y: scroll` (not auto) so the lane is ALWAYS
+         reserved + the scrollbar is always rendered, even if there
+         happens to be no overflow at that moment
+     (2) 14px wide so the lane is obvious
+     (3) high-contrast track (18% slate) so the gutter is clearly
+         visible against the surface, not a near-invisible 10%
+     (4) very dark thumb (slate-700 at 85% opacity) so contrast
+         against the lane is strong
+     (5) inset border-radius via padding-clip for a polished pill
+         look while keeping the hit-target wide
+   Firefox `auto` width respects scrollbar-color tokens which we set
+   to strong colors. */
+/* 2026-05-26 (final) — smooth + translucent scrollbar per user direction.
+   Modern overlay aesthetic: thin pill-shaped thumb floating over a
+   barely-there track. Visible enough to communicate "scroll lives
+   here" but doesn't pull the eye. Gently fades darker on hover, with
+   smooth color transitions. No arrows, no chunky borders. */
+.gn-chat-area {
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(100, 116, 139, 0.35) transparent;
+    scrollbar-gutter: stable;
+}
 .gn-chat-area::-webkit-scrollbar {
-    width: 8px;
+    width: 10px;
+    height: 10px;
 }
-
+.gn-chat-area::-webkit-scrollbar-track {
+    background: transparent;
+}
 .gn-chat-area::-webkit-scrollbar-thumb {
-    background: @gn-border;
-    border-radius: @gn-radius-pill;
+    background: rgba(100, 116, 139, 0.35);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    min-height: 44px;
+    transition: background-color 200ms ease;
+}
+.gn-chat-area::-webkit-scrollbar-thumb:hover {
+    background: rgba(71, 85, 105, 0.55);
+    background-clip: padding-box;
+}
+.gn-chat-area::-webkit-scrollbar-thumb:active {
+    background: rgba(51, 65, 85, 0.75);
+    background-clip: padding-box;
+}
+.gn-chat-area::-webkit-scrollbar-button { display: none; }
+.gn-chat-area::-webkit-scrollbar-corner { background: transparent; }
+
+/* 2026-05-26 — mobile-landscape (≤420px height) hides composer because
+   content above pushes it off-screen. Compact the empty-state padding
+   + suggested prompts so the composer fits. */
+@media (max-height: 480px) {
+    .gn-welcome {
+        padding: 12px 16px 8px;
+        gap: 8px;
+    }
+    .gn-starter-question {
+        padding: 8px 16px;
+        font-size: 12px;
+    }
+    .gn-welcome-disclaimer {
+        margin-top: 4px;
+        font-size: 10px;
+    }
+    .gn-compose {
+        padding: 4px 12px;
+    }
 }
 
 /* ── Welcome / Empty State ── */
 
+/* 2026-05-26 — was `justify-content: center` which floated the dataset
+   identity + starter prompts in the vertical middle of the viewport with
+   huge whitespace above and below. Anchor content to the top so the
+   dataset title is the first thing the eye lands on after the tab strip,
+   with the starter prompts directly under it. */
 .gn-welcome {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     flex: 1;
     text-align: center;
-    gap: 20px;
-    padding: 24px;
+    gap: 16px;
+    padding: 28px 24px 16px;
+}
+
+/* 2026-05-26 (later) — COMPACT mode overrides. When messages exist,
+   WelcomeSection renders an effectively-empty wrapper (no identity,
+   no subtitle, no starters, no disclaimer per Round 11). The base
+   .gn-welcome rule's `flex: 1` was still claiming the empty space and
+   pushing the chat thread to the bottom of the viewport — exactly the
+   "lot of blank space" Rajesh flagged 2026-05-26. In compact mode the
+   wrapper should not grow and should contribute zero vertical padding
+   so the messages start at the top of the chat-area. */
+.gn-welcome.gn-welcome--compact {
+    flex: 0 0 auto;
+    padding: 0;
+    gap: 0;
+    min-height: 0;
+}
+.gn-welcome.gn-welcome--compact:empty {
+    display: none;
 }
 
 // .gn-welcome-icon, .gn-welcome h3, .gn-welcome p removed in IDEA-004 —
@@ -1629,6 +1975,120 @@
     letter-spacing: 0.05em;
 }
 
+/* UX-VIEWER-1.2B — Data identity block at the top of the Ask Pulse empty
+   state. Mirrors the Databricks Genie home shape: the connected dataset's
+   title + a one-line description sit above the starter-question list so
+   users know what data their question will be answered against before
+   they ask it. Driven by the /assistant/home-meta proxy endpoint via the
+   useAskPulseHomeMeta hook — works for every backend (real Genie space
+   metadata for Genie profiles, pack-derived fallback for the rest). */
+.gn-welcome-identity {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+    max-width: 720px;
+    margin: 0 0 8px;
+    padding: 0 4px;
+}
+
+.gn-welcome-identity__title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--gn-text, inherit);
+    line-height: 1.25;
+}
+
+.gn-welcome-identity__description {
+    margin: 0;
+    font-size: 13px;
+    color: var(--gn-text-muted);
+    line-height: 1.4;
+}
+
+/* UX-VIEWER-1.2A — Genie-shape vertical starter list. Replaces the prior
+   horizontal chip arrangement in the Ask Pulse empty state. Each question
+   sits on its own row with a hairline divider; rows are full-width clickable
+   so a viewer can tap anywhere on the question to ask it. The hover/focus
+   accent stays subtle — no card chrome, no shadow — so the list reads as
+   suggested questions, not selectable cards. */
+.gn-starter-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    width: 100%;
+    max-width: 720px;
+    margin-top: 8px;
+    border-top: 1px solid var(--gn-border-subtle, rgba(15, 23, 42, 0.06));
+}
+
+/* 2026-05-26 — beast-mode UX polish for starter prompts. Previous hover
+   was rgba(37,99,235,0.04) — essentially invisible (4% opacity), so users
+   didn't feel the row light up under their cursor. Switched to a real
+   accent-subtle background, added a leading "›" chevron that slides in
+   on hover for affordance discoverability, and a subtle inset shadow so
+   the row feels selectable. Goal: more engaging, more intuitive. */
+/* 2026-05-26 (revised) — resting padding stays 12/16 (same as before
+   polish) so the questions visually align with the centered dataset
+   title above. Hover uses a 3px inset accent border (zero layout shift),
+   accent-tinted background, and a subtle background-position slide
+   instead of padding-shift for the affordance feel. No content jumps
+   when hover starts/ends. */
+.gn-starter-question {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    width: 100%;
+    padding: 12px 16px;
+    border: none;
+    border-bottom: 1px solid var(--gn-border-subtle, rgba(15, 23, 42, 0.06));
+    background: transparent;
+    font: inherit;
+    font-size: 13px;
+    color: var(--gn-text, inherit);
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+    border-radius: 0;
+}
+
+.gn-starter-question:hover:not(:disabled),
+.gn-starter-question:focus-visible:not(:disabled) {
+    background: rgba(37, 99, 235, 0.07);
+    color: var(--gn-accent, #2563eb);
+    outline: none;
+    box-shadow: inset 3px 0 0 var(--gn-accent, #2563eb);
+}
+
+.gn-starter-question:active:not(:disabled) {
+    background: rgba(37, 99, 235, 0.12);
+}
+
+.gn-starter-question:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.gn-starter-question__label {
+    flex: 1 1 auto;
+    min-width: 0;
+    word-break: break-word;
+}
+
+/* "Always review the accuracy of responses." — small low-pressure honesty
+   line below the starter list. Matches the Genie reference exactly: small,
+   muted, centered. Renders for both the configured-and-connected state and
+   the empty/pending state so the trust signal is always present. */
+.gn-welcome-disclaimer {
+    margin: 12px 0 0;
+    font-size: 11px;
+    color: var(--gn-text-muted);
+    text-align: center;
+    width: 100%;
+    max-width: 720px;
+}
+
 /* ── Messages ── */
 
 .gn-msg {
@@ -1639,13 +2099,17 @@
     justify-content: flex-end;
 }
 
+/* 2026-05-26 — user bubble was spanning ~1200px on wide viewports
+   (max-width: 75% × 1600px chat area). Hard-cap at 680px so the bubble
+   reads as a "you said" chat bubble instead of a billboard. Smaller
+   viewports still get the 75% relative cap. */
 .gn-msg--user .gn-bubble {
     background: linear-gradient(135deg, var(--gn-user-bubble, #1a6fd4) 0%, #1260b8 100%);
     color: @gn-user-text;
     border: none;
     border-radius: 18px 18px 4px 18px;
     padding: 10px 16px;
-    max-width: 75%;
+    max-width: min(75%, 680px);
     font-size: 14px;
     box-shadow: @gn-shadow-sm;
     white-space: pre-wrap;
@@ -1781,6 +2245,282 @@
     }
 }
 
+/* ── Option-A welcome KPI snapshot card ───────────────────────────────
+ * The KPI snapshot reuses the assistant bubble shell (which has
+ * padding: 0 on purpose so structured tables/headlines can flush-mount).
+ * Here we add breathing room for the narrative variant and visually
+ * distinguish the bottom-line headline and the action call-out.
+ */
+.gn-welcome-kpi-snapshot {
+    margin: 0 auto 12px;
+    max-width: 560px;
+    .gn-msg--assistant .gn-bubble {
+        padding: 14px 16px 10px;
+        text-align: left;
+        background: linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
+        border-color: rgba(36, 92, 184, 0.18);
+    }
+    .gn-narrative-p {
+        margin: 0 0 8px;
+        font-size: 13px;
+        line-height: 1.55;
+        color: @gn-text;
+    }
+    /* First paragraph = Bottom Line headline */
+    .gn-narrative-p:first-of-type {
+        font-size: 14px;
+        font-weight: 600;
+        color: @gn-text;
+        margin-bottom: 10px;
+        padding-bottom: 10px;
+        border-bottom: 1px dashed rgba(36, 92, 184, 0.15);
+    }
+    /* Last paragraph = Action call-out (if present) */
+    .gn-narrative-p:last-of-type {
+        margin-top: 10px;
+        margin-bottom: 0;
+        padding: 8px 10px;
+        background: rgba(36, 92, 184, 0.06);
+        border-left: 3px solid @gn-accent;
+        border-radius: 4px;
+        font-size: 12.5px;
+        color: @gn-text;
+        strong { color: #1260b8; }
+    }
+    /* Bullet list — metric rows with subtle row dividers and trend chips */
+    .gn-narrative-list {
+        list-style: none;
+        padding-left: 0;
+        margin: 6px 0 4px;
+        li {
+            display: block;
+            padding: 5px 0;
+            font-size: 13px;
+            line-height: 1.5;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+            &:last-child { border-bottom: none; }
+        }
+    }
+}
+
+/* Inline trend-tone chips parsed out of "(up)", "(down)", "(stable)"
+ * markers in narrative bullets. The renderer wraps the marker in a
+ * <span class="gn-trend gn-trend--{up|down|stable}">; this gives it
+ * color + a subtle pill chrome so the eye picks up direction fast.
+ */
+.gn-trend {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: 4px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+.gn-trend--up    { color: #0a7c3a; background: rgba(10, 124, 58, 0.10); }
+.gn-trend--down  { color: #b53b2b; background: rgba(181, 59, 43, 0.10); }
+.gn-trend--stable{ color: #5a5f73; background: rgba(90, 95, 115, 0.10); }
+
+/* Structured KPI card emitted by renderKpiSnapshot. */
+.gn-kpi-card {
+    text-align: left;
+}
+.gn-kpi-headline {
+    margin: 0 0 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px dashed rgba(36, 92, 184, 0.15);
+    font-size: 14px;
+    line-height: 1.45;
+    font-weight: 600;
+    color: @gn-text;
+}
+.gn-kpi-rows {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 6px;
+}
+.gn-kpi-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px 10px;
+    padding: 6px 0;
+    font-size: 13px;
+    line-height: 1.4;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    &:last-child { border-bottom: none; }
+}
+.gn-kpi-row-name {
+    flex: 1 1 0;
+    min-width: 0;
+    color: @gn-text-muted;
+    font-weight: 500;
+}
+.gn-kpi-row-value {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: @gn-text;
+}
+.gn-kpi-row-prior {
+    font-size: 11px;
+    color: @gn-text-muted;
+    font-variant-numeric: tabular-nums;
+}
+.gn-kpi-action {
+    margin: 10px 0 0;
+    padding: 8px 10px;
+    background: rgba(36, 92, 184, 0.06);
+    border-left: 3px solid @gn-accent;
+    border-radius: 4px;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: @gn-text;
+    strong { color: #1260b8; margin-right: 2px; }
+}
+
+/* ── 2026-05-22 Executive briefing card ───────────────────────────────
+ * Emitted by renderKpiSnapshot's briefing path (parseExecutiveBriefing).
+ * Replaces the broken flex-rows layout for Ask Pulse exec summaries.
+ * Sources: docs/research/EXTERNAL_REFERENCES.md (Tableau Pulse,
+ * Carbon Status Indicator, shadcn Alert, Ant Design Alert palette).
+ * Layout primitive: CSS grid for KPI strip + stacked semantic sections.
+ * Section colour semantics: risk=amber, opportunity=green, change=sky,
+ * action=primary-blue. */
+.gn-briefing-card {
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.gn-briefing-headline {
+    margin: 0;
+    font-size: 14.5px;
+    line-height: 1.45;
+    font-weight: 600;
+    color: @gn-text;
+    padding-bottom: 10px;
+    border-bottom: 1px dashed rgba(36, 92, 184, 0.15);
+}
+.gn-briefing-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.gn-briefing-section {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 10px;
+    padding: 10px 12px;
+    border: 1px solid transparent;
+    border-radius: @gn-radius-sm;
+    background: @gn-surface-raised;
+    /* Coloured left accent strip (Carbon inline-notification pattern). */
+    border-left-width: 3px;
+    border-left-style: solid;
+}
+.gn-briefing-section-head {
+    grid-row: 1;
+    grid-column: 1 / span 2;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.gn-briefing-section-icon {
+    font-size: 14px;
+    line-height: 1;
+}
+.gn-briefing-section-label {
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+.gn-briefing-section-body {
+    grid-row: 2;
+    grid-column: 1 / span 2;
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: @gn-text;
+}
+/* Risk = amber (warning, not danger — these are advisories, not alarms). */
+.gn-briefing-section--risk {
+    background: #fffbe6;
+    border-color: #ffe58f;
+    border-left-color: #b45309;
+}
+.gn-briefing-section--risk .gn-briefing-section-icon,
+.gn-briefing-section--risk .gn-briefing-section-label {
+    color: #92400e;
+}
+/* Opportunity = green. */
+.gn-briefing-section--opportunity {
+    background: #f6ffed;
+    border-color: #b7eb8f;
+    border-left-color: #1a8c3f;
+}
+.gn-briefing-section--opportunity .gn-briefing-section-icon,
+.gn-briefing-section--opportunity .gn-briefing-section-label {
+    color: #166534;
+}
+/* Recent change = sky / info. */
+.gn-briefing-section--change {
+    background: #e6f4ff;
+    border-color: #91caff;
+    border-left-color: #1a6fd4;
+}
+.gn-briefing-section--change .gn-briefing-section-icon,
+.gn-briefing-section--change .gn-briefing-section-label {
+    color: #1d4ed8;
+}
+/* Universal Action callout — applies inside any narrative render path
+ * (chat bubbles, insight sections, KPI fallback) when a paragraph leads
+ * with "Action:", "Recommendation:", "Next step(s):". Mirrors the
+ * RECOMMENDED ACTIONS card treatment in AI Insights so the visual
+ * vocabulary stays consistent across the two surfaces. */
+.gn-narrative-action {
+    margin: 10px 0;
+    padding: 8px 12px;
+    background: rgba(36, 92, 184, 0.06);
+    border-left: 3px solid @gn-accent;
+    border-radius: 0 4px 4px 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: @gn-text;
+}
+.gn-narrative-action-label {
+    color: #1260b8;
+    margin-right: 4px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+}
+
+/* Polish for Ask Pulse chat-tab assistant bubbles. AI Insights bubbles
+ * already get the polished look by virtue of sitting inside a section
+ * card; chat bubbles need their own elevation. Scoped to the chat
+ * conversation log so it doesn't touch insights. */
+.gn-chat-log .gn-msg--assistant .gn-bubble {
+    padding: 12px 14px;
+    /* Token-based so dark mode re-skins the card (was hardcoded #ffffff →
+     * white "blaze" in dark; this rule out-specifies the .gn-shell--dark
+     * override, so the gradient itself must be theme-adaptive). */
+    background: linear-gradient(180deg, var(--gn-surface-raised, #ffffff) 0%, var(--gn-surface, #fafcff) 100%);
+    border-color: var(--gn-border, rgba(36, 92, 184, 0.14));
+    border-radius: 6px 18px 18px 18px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    transition: box-shadow 0.18s ease;
+    &:hover { box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06); }
+}
+/* Tighten KPI card chrome when it sits inside the chat-bubble polish
+ * — avoid the double-card look. */
+.gn-chat-log .gn-msg--assistant .gn-bubble .gn-kpi-card {
+    margin: 0;
+}
+
 // Wave 43 — defensive font-size normalization for AI-drift output.
 // Live testing surfaced cards where the AI emitted `### Label` markup
 // inside bullet items, so the rendered list mixed heading-size fonts
@@ -1813,6 +2553,51 @@
 .gn-chat-progress { margin: 0; }
 .gn-fusion-progress { margin: 0; }
 
+/* UX-VIEWER-1.5b — Stop button on running chat bubbles.
+   Positioned beneath the progress indicator so it does not crowd the
+   marquee label. Subtle outline so the indicator stays the focus until
+   the user actively reaches for the escape hatch. */
+.gn-msg-body--running { display: flex; flex-direction: column; gap: 8px; }
+
+.gn-chat-stop-row {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0 12px;
+}
+
+.gn-chat-stop-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.4;
+    color: #b91c1c;
+    background: rgba(254, 226, 226, 0.55);
+    border: 1px solid rgba(185, 28, 28, 0.35);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background-color 100ms ease, border-color 100ms ease;
+}
+.gn-chat-stop-btn:hover:not(:disabled) {
+    background: rgba(254, 202, 202, 0.85);
+    border-color: rgba(185, 28, 28, 0.55);
+}
+.gn-chat-stop-btn:disabled {
+    opacity: 0.6;
+    cursor: progress;
+}
+.gn-shell--dark .gn-chat-stop-btn {
+    color: #fca5a5;
+    background: rgba(127, 29, 29, 0.30);
+    border-color: rgba(252, 165, 165, 0.45);
+}
+.gn-shell--dark .gn-chat-stop-btn:hover:not(:disabled) {
+    background: rgba(127, 29, 29, 0.50);
+    border-color: rgba(252, 165, 165, 0.65);
+}
+
 /* ── Chart container ── */
 
 .gn-chart-wrap {
@@ -1834,10 +2619,16 @@
     font-weight: 700;
 }
 
+/* 2026-05-26 — was justify-content: center which put the
+   Narrative/Chart/Table/Sql toggle row in the middle of the answer
+   card, looking orphaned (nothing else centered around it). Left-align
+   so the toggles sit at the natural reading start, matching the answer
+   text below. */
 .gn-chart-toggles {
     display: flex;
     gap: 4px;
-    justify-content: center;
+    justify-content: flex-start;
+    padding: 0 14px;
 }
 
 .gn-toggle {
@@ -1867,6 +2658,102 @@
 .gn-toggle--active:hover {
     background: @gn-accent;
     color: #fff;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   2026-05-30 — Single-view answer (Narrative → Chart → Table stacked).
+   A slim segmented switch toggles Answer / SQL / Trace; under "Answer" the
+   three representations live together so the viewer never hunts tabs (SQL
+   stays one </> click away). Designed to read crisp and calm: hairline
+   section dividers, restrained uppercase labels, a chart on a faint card,
+   and a scroll-capped table that never dominates the reply.
+   ───────────────────────────────────────────────────────────────────── */
+.gn-answer-switch {
+    display: inline-flex;
+    gap: 2px;
+    margin-bottom: 12px;
+    padding: 3px;
+    background: @gn-bg;
+    border: 1px solid @gn-border-subtle;
+    border-radius: 10px;
+}
+.gn-answer-switch-btn {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: @gn-text-muted;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 15px;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background @gn-t-fast @gn-ease, color @gn-t-fast @gn-ease, box-shadow @gn-t-fast @gn-ease;
+}
+.gn-answer-switch-btn:hover { color: @gn-text; }
+.gn-answer-switch-btn--active {
+    background: @gn-surface;
+    color: @gn-accent;
+    box-shadow: @gn-shadow-xs;
+}
+
+.gn-answer-extra {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    margin-top: 16px;
+}
+.gn-answer-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    animation: gn-section-reveal 280ms @gn-ease both;
+}
+.gn-answer-section--table { animation-delay: 60ms; }
+.gn-answer-section-label {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid @gn-border-subtle;
+}
+.gn-answer-section-label-text {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: @gn-text-muted;
+}
+.gn-answer-section-label-meta {
+    font-size: 11px;
+    font-weight: 500;
+    color: @gn-text-muted;
+    opacity: 0.7;
+}
+/* Chart sits on a faint raised card so it reads as its own artifact. */
+.gn-answer-section--chart .gn-chart-container {
+    background: @gn-surface;
+    border: 1px solid @gn-border-subtle;
+    border-radius: @gn-radius-sm;
+    padding: 10px 12px;
+    box-shadow: @gn-shadow-xs;
+}
+/* Table is scroll-capped so a 25-row result never pushes the rest of the
+   conversation off-screen; sticky header keeps columns labelled mid-scroll. */
+.gn-answer-table-scroll {
+    max-height: 280px;
+    overflow: auto;
+    border: 1px solid @gn-border-subtle;
+    border-radius: @gn-radius-sm;
+    box-shadow: @gn-shadow-xs;
+}
+.gn-answer-table-scroll .gn-table-wrap,
+.gn-answer-table-scroll .gn-table-container { margin: 0; border: 0; }
+.gn-answer-table-scroll .gn-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: @gn-surface-raised;
 }
 
 .gn-chart-meta {
@@ -2109,13 +2996,18 @@
 
 /* ── Chat history ── */
 
+/* 2026-05-26 — was a full-width header row with the lone "Show history"
+   pill on the left and a thick border-bottom, taking ~38px of vertical
+   space above the chat hero for one orphaned pill. Now right-aligned,
+   slim padding, no divider — it sits in the corner instead of breaking
+   the chat-panel into two sections. */
 .gn-history-bar {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 8px 14px;
-    border-bottom: 1px solid @gn-border-subtle;
-    background: @gn-surface;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 4px 14px 0;
+    background: transparent;
     flex-shrink: 0;
 }
 
@@ -2697,6 +3589,44 @@
     text-decoration-color: rgba(102, 102, 102, 0.45);
 }
 
+/* Design lock (2026-05-18) — semantic cue consistency across the whole
+ * insights surface. Arrow direction stays physical (▲ for + / ▼ for -);
+ * tone class drives color so a Return Rate increase reads RED on an UP
+ * arrow when the rule says higher is unfavorable. Tone classes win on
+ * specificity over the direction classes that already exist. The SVG
+ * icon inherits via `currentColor` from .gn-trend-icon path/circle. */
+.gn-trend-pill.gn-trend-tone-good {
+    color: #36d97f;
+    .gn-trend-icon path { fill: currentColor; }
+    .gn-trend-icon circle { fill: currentColor; }
+}
+.gn-shell--light .gn-trend-pill.gn-trend-tone-good { color: #147230; font-weight: 600; }
+
+.gn-trend-pill.gn-trend-tone-bad {
+    color: #ff6b6b;
+    .gn-trend-icon path { fill: currentColor; }
+    .gn-trend-icon circle { fill: currentColor; }
+}
+.gn-shell--light .gn-trend-pill.gn-trend-tone-bad { color: #971a1a; font-weight: 600; }
+
+/* New amber tone — used when the model emits an explicit watch status
+ * (e.g. 🟡) and the inline pill renderer wants to mirror that signal
+ * inline rather than fall back to green/red. KPI tiles already render
+ * amber via their own status badge; this brings inline pills in line. */
+.gn-trend-pill.gn-trend-tone-watch {
+    color: #fbbf24;
+    .gn-trend-icon path { fill: currentColor; }
+    .gn-trend-icon circle { fill: currentColor; }
+}
+.gn-shell--light .gn-trend-pill.gn-trend-tone-watch { color: #92400e; font-weight: 600; }
+
+.gn-trend-pill.gn-trend-tone-neutral {
+    color: #aaa;
+    .gn-trend-icon path { fill: currentColor; }
+    .gn-trend-icon circle { fill: currentColor; }
+}
+.gn-shell--light .gn-trend-pill.gn-trend-tone-neutral { color: #666; }
+
 /* ── Bar chart ── */
 
 .gn-chart-bars {
@@ -2817,55 +3747,86 @@
 
 /* ── Suggestions bar ── */
 
+/* 2026-05-26 — pin "Try asking" to the bottom of the chat-area scroll
+   region so it doesn't float in the middle of an otherwise-empty
+   chat. Combined with `margin-top: auto` (push-down) the suggestions
+   sit just above the composer with no gap between it and the
+   chat-area's bottom edge. Padding tightened to keep the row slim. */
 .gn-suggestions {
-    padding: 8px 16px;
+    margin-top: auto;
+    padding: 8px 16px 10px;
     border-top: 1px solid @gn-border-subtle;
+    background: linear-gradient(180deg, @gn-surface 0%, rgba(248,250,252,0.6) 100%);
 }
 
 .gn-suggestions-label {
-    display: block;
-    margin-bottom: 8px;
-    font-size: 12px;
-    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 9px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
     color: @gn-text-muted;
 }
 
 .gn-suggestion-pills {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 7px;
 }
 
 .gn-pill {
-    min-height: 30px;
-    padding: 0 13px;
-    border: 1px solid @gn-border;
+    min-height: 32px;
+    padding: 0 14px;
+    border: 1.5px solid @gn-border;
     border-radius: @gn-radius-pill;
     background: @gn-surface-raised;
     color: @gn-text;
-    font-size: 13px;
+    font-size: 12.5px;
     font-weight: 500;
     cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.85);
     transition: border-color @gn-t-base @gn-ease, color @gn-t-base @gn-ease,
-                background @gn-t-base @gn-ease, transform @gn-t-fast @gn-ease;
+                background @gn-t-base @gn-ease, transform @gn-t-fast @gn-ease,
+                box-shadow @gn-t-base @gn-ease;
 
     &:hover:not(:disabled) {
-        border-color: @gn-accent;
+        border-color: @gn-accent-border;
         color: @gn-accent;
         background: @gn-accent-subtle;
+        box-shadow: 0 2px 8px rgba(26,111,212,0.14), inset 0 1px 0 rgba(255,255,255,0.9);
+        transform: translateY(-1px);
     }
-    &:active:not(:disabled) { transform: scale(0.96); }
+    &:active:not(:disabled) { transform: scale(0.96) translateY(0); }
+}
+
+/* Featured/sparkle pill — first suggestion or AI-generated */
+.gn-pill--featured {
+    background: linear-gradient(135deg, rgba(37,99,235,0.07) 0%, rgba(124,58,237,0.05) 100%);
+    border-color: rgba(37,99,235,0.28);
+    color: #1d4ed8;
+    font-weight: 600;
+
+    &:hover:not(:disabled) {
+        background: linear-gradient(135deg, rgba(37,99,235,0.12) 0%, rgba(124,58,237,0.09) 100%);
+        border-color: rgba(37,99,235,0.5);
+        box-shadow: 0 3px 10px rgba(37,99,235,0.18);
+    }
 }
 
 .gn-pill:disabled {
-    opacity: 0.5;
+    opacity: 0.48;
     cursor: not-allowed;
+    box-shadow: none;
 }
 
 .gn-pill--active {
     border-color: @gn-accent;
-    background: @gn-accent;
+    background: linear-gradient(135deg, @gn-accent 0%, #1d4ed8 100%);
     color: #fff;
+    box-shadow: 0 3px 10px rgba(26,111,212,0.32);
 }
 
 /* ── Filters bar ── */
@@ -2952,6 +3913,20 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+    /* Cap chart height inside chat messages so a tall bar chart can't expand
+     * the gn-chat-area beyond the viewport and push gn-compose off screen.
+     * The chart itself is scrollable within this cap. */
+    max-height: 420px;
+    /* 2026-05-22 G3 — pre-allocate vertical space so ECharts mounting
+     * doesn't cause a visible container growth. ECharts inner height
+     * is 320 (renderEChartsBody hardcoded); plus axis label overflow
+     * (~10px) + chart-type-bar row (~36px) + legend wrap (~14px) =
+     * ~380px typical, settling toward the 420 max. Setting min-height
+     * to 380 reserves the frame; final chart paints in-place rather
+     * than expanding the container. Source: web.dev content-visibility
+     * + UX Patterns skeleton-screen (95th-percentile sizing). */
+    min-height: 380px;
+    overflow: hidden;
 }
 
 .gn-chart-type-bar {
@@ -2969,6 +3944,101 @@
     font-family: @gn-font;
     font-size: 11px;
     cursor: pointer;
+}
+
+/* 2026-05-30 — on-chart palette picker (end users never see Settings, so the
+   colour control lives right on the chart). A live multi-swatch preview sits
+   next to a compact select; changing it re-skins every chart app-wide. */
+.gn-chart-palette {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.gn-chart-palette-swatches {
+    display: inline-flex;
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: 0 0 0 1px @gn-border-subtle;
+    flex: 0 0 auto;
+}
+.gn-chart-palette-swatches > span {
+    width: 9px;
+    height: 14px;
+    display: block;
+}
+.gn-chart-palette-select {
+    min-height: 26px;
+    padding: 0 6px;
+    border: 1px solid @gn-border;
+    border-radius: @gn-radius-sm;
+    background: @gn-surface;
+    color: @gn-text;
+    font-family: @gn-font;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+/* 2026-05-30 — Pin-to-canvas button on the chart toolbar. Captures the chart
+   (with its current type) as a snapshot tile on the native BI canvas. */
+.gn-chart-pin {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 26px;
+    padding: 0 10px;
+    border: 1px solid @gn-border;
+    border-radius: @gn-radius-sm;
+    background: @gn-surface;
+    color: @gn-text;
+    font-family: @gn-font;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background @gn-t-fast @gn-ease, border-color @gn-t-fast @gn-ease, color @gn-t-fast @gn-ease;
+}
+.gn-chart-pin:hover {
+    border-color: @gn-accent;
+    color: @gn-accent;
+    background: @gn-accent-subtle;
+}
+.gn-chart-pin--done {
+    border-color: #1a7f37;
+    color: #1a7f37;
+    background: rgba(26, 127, 55, 0.08);
+}
+
+/* ── KPI chart tile (single-value render inside Ask Pulse chart pane) ── */
+
+.gn-kpi-chart-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 24px;
+    gap: 8px;
+}
+
+.gn-kpi-chart-value {
+    font-size: 48px;
+    font-weight: 700;
+    line-height: 1;
+    color: @gn-text;
+    letter-spacing: -1px;
+}
+
+.gn-kpi-chart-label {
+    font-size: 13px;
+    color: @gn-text-muted;
+    text-align: center;
+}
+
+/* ── No-data message inside chart container ── */
+
+.gn-chart-no-data {
+    padding: 20px;
+    text-align: center;
+    color: @gn-text-muted;
+    font-size: 13px;
 }
 
 /* ── Clustered bar chart ── */
@@ -3081,11 +4151,27 @@
 
 /* ── Compose bar ── */
 
+/* 2026-05-26 — composer compacted vertically to keep it on-screen for
+   shorter viewports. Was padding: 8px 16px 8px (16+16 = 32 vert);
+   now 6px 16px (12 vert). Combined with the chat-area density pass
+   above, ~30px reclaimed so the composer stays visible on standard
+   laptops once browser chrome + taskbar are accounted for. */
 .gn-compose {
-    padding: 8px 16px 8px;
+    padding: 6px 16px;
     border-top: 1px solid @gn-border-subtle;
     background: @gn-surface;
     flex-shrink: 0;
+    /* 2026-05-27 — composer was disappearing below the fold when the
+       chat-area's parent flex chain broke (e.g. when a chart bubble
+       pushed total content past viewport). Pinning the composer with
+       position: sticky bottom:0 makes it ALWAYS visible at the bottom
+       of its nearest scrolling ancestor, regardless of whether the
+       parent flex height chain is sound. z-index 5 keeps it above
+       chart artifacts. Background must be opaque (@gn-surface) so the
+       chat content scrolling past underneath doesn't bleed through. */
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
     box-shadow: 0 -2px 8px rgba(0,0,0,0.04);
 }
 
@@ -3100,9 +4186,23 @@
     transition: border-color @gn-t-base @gn-ease, box-shadow @gn-t-base @gn-ease;
 }
 
+/* UX-VIEWER-1.3 — sustainability chip footer row. Sits above the input,
+   right-aligned so the chip docks near the corner without crowding the
+   placeholder. Small vertical gap before the input field. */
+.gn-compose-footer-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 6px;
+    min-height: 22px;
+}
+
+/* 2026-05-26 — beefier focus ring. The 3px @gn-accent-subtle was thin
+   and the subtle alpha barely showed against the white surface, so the
+   focused composer didn't visually "wake up." 4px ring with explicit
+   accent rgba is more deliberate, signals the composer is hot. */
 .gn-compose-input-wrap:focus-within {
     border-color: @gn-accent;
-    box-shadow: 0 0 0 3px @gn-accent-subtle;
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.18), 0 4px 14px rgba(37, 99, 235, 0.08);
 }
 
 .gn-input {
@@ -3151,6 +4251,350 @@
     opacity: 0.32;
     cursor: not-allowed;
     box-shadow: none;
+}
+
+/* 2026-05-26 — visible keyboard hint that fades in when the composer has
+   typed content. Sits inside the input wrap as a small affordance hint;
+   absolute-positioned bottom-right so it doesn't take any flow space
+   when hidden. <kbd> elements get a subtle chip look. */
+.gn-compose-kbd-hint {
+    position: absolute;
+    bottom: -2px;
+    right: 44px;
+    font-size: 10.5px;
+    color: var(--gn-text-muted, #64748b);
+    opacity: 0;
+    transition: opacity 180ms ease;
+    pointer-events: none;
+    line-height: 1;
+}
+.gn-compose-kbd-hint[data-visible="true"] {
+    opacity: 0.75;
+}
+.gn-compose-input-wrap { position: relative; }
+.gn-compose-kbd-hint kbd {
+    display: inline-block;
+    padding: 1px 5px;
+    border: 1px solid var(--gn-border, rgba(15,23,42,0.12));
+    border-radius: 3px;
+    background: var(--gn-surface-raised, #fff);
+    font-family: inherit;
+    font-size: 9.5px;
+    color: var(--gn-text, #0f172a);
+    margin: 0 1px;
+    box-shadow: 0 1px 0 rgba(15,23,42,0.05);
+}
+
+/* 2026-05-26 — slash-command autocomplete dropdown. Cherry-picked from
+   Gemini's Ask Pulse redesign spec (the one piece that blended cleanly
+   with our existing surface — no theme overhaul, no glass panes, no
+   sliding drawer). Floats above the composer when the user types `/`
+   at the start of the input. Arrow keys navigate, Enter/Tab inserts,
+   Esc closes. Power-user affordance for the analytical presets the
+   spec called out (swot, variance, pareto, rfm, bcg). */
+.gn-slash-dropdown {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    max-height: 280px;
+    overflow-y: auto;
+    background: var(--gn-surface-raised, #ffffff);
+    border: 1px solid var(--gn-border, rgba(15,23,42,0.12));
+    border-radius: 10px;
+    box-shadow: 0 12px 28px rgba(15,23,42,0.16), 0 2px 6px rgba(15,23,42,0.08);
+    padding: 6px;
+    z-index: 50;
+    animation: gn-slash-in 140ms ease-out;
+}
+@keyframes gn-slash-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.gn-slash-dropdown-head {
+    padding: 6px 10px 8px;
+    font-size: 10.5px;
+    color: var(--gn-text-muted, #64748b);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid var(--gn-border-subtle, rgba(15,23,42,0.06));
+    margin-bottom: 4px;
+}
+.gn-slash-item {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 10px;
+    border: none;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--gn-text, inherit);
+    transition: background-color 120ms ease;
+}
+.gn-slash-item:hover,
+.gn-slash-item--active {
+    background: rgba(37, 99, 235, 0.09);
+    color: var(--gn-accent, #2563eb);
+}
+.gn-slash-cmd {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--gn-accent, #2563eb);
+    min-width: 80px;
+    flex-shrink: 0;
+}
+.gn-slash-label {
+    flex: 1;
+    color: var(--gn-text, inherit);
+    font-weight: 500;
+}
+.gn-slash-item--active .gn-slash-label {
+    color: var(--gn-text, inherit);
+}
+
+/* 2026-05-26 — Databricks Genie streaming transparency. Monospace chip
+   shows the RAW Genie poll status (e.g. PENDING_WAREHOUSE) so power
+   users see exactly what's happening on the Databricks side; the
+   friendly mapped label sits above. The trace disclosure expands a
+   full event log with timestamps. Both render under the progress card
+   only while the Genie path is live. */
+.gn-dbx-status-chip-row {
+    margin: 4px 0 0 36px;  /* line up under the progress label, past the leading icon */
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.gn-dbx-status-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border: 1px solid rgba(37, 99, 235, 0.25);
+    border-radius: 999px;
+    background: rgba(37, 99, 235, 0.06);
+    color: var(--gn-accent, #2563eb);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    line-height: 1.3;
+    animation: gn-dbx-chip-pulse 1.8s ease-in-out infinite;
+}
+@keyframes gn-dbx-chip-pulse {
+    0%, 100% { opacity: 0.7; }
+    50%      { opacity: 1; }
+}
+.gn-dbx-trace {
+    margin: 8px 14px 0;
+    border: 1px solid var(--gn-border-subtle, rgba(15,23,42,0.08));
+    border-radius: 6px;
+    background: rgba(15, 23, 42, 0.02);
+    font-size: 11.5px;
+}
+.gn-dbx-trace > summary {
+    cursor: pointer;
+    padding: 6px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    color: var(--gn-text-muted, #64748b);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 600;
+    list-style: none;
+}
+.gn-dbx-trace > summary::-webkit-details-marker { display: none; }
+.gn-dbx-trace > summary::before {
+    content: "▸";
+    margin-right: 4px;
+    transition: transform 140ms ease;
+}
+.gn-dbx-trace[open] > summary::before { transform: rotate(90deg); }
+.gn-dbx-trace-summary-title { flex: 1; }
+.gn-dbx-trace-summary-count {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 10.5px;
+    background: rgba(15, 23, 42, 0.06);
+    padding: 1px 6px;
+    border-radius: 4px;
+    color: var(--gn-text, #0f172a);
+}
+.gn-dbx-trace-list {
+    margin: 0;
+    padding: 4px 10px 8px;
+    list-style: none;
+    border-top: 1px solid var(--gn-border-subtle, rgba(15,23,42,0.06));
+    max-height: 220px;
+    overflow-y: auto;
+}
+.gn-dbx-trace-row {
+    display: grid;
+    grid-template-columns: 56px minmax(180px, 1fr) 1fr;
+    gap: 8px;
+    padding: 4px 0;
+    border-bottom: 1px dashed rgba(15, 23, 42, 0.05);
+    font-size: 11px;
+}
+.gn-dbx-trace-row:last-child { border-bottom: none; }
+.gn-dbx-trace-time {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: var(--gn-text-muted, #64748b);
+    font-size: 10.5px;
+    text-align: right;
+}
+.gn-dbx-trace-raw {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 10.5px;
+    color: var(--gn-accent, #2563eb);
+    font-weight: 600;
+}
+.gn-dbx-trace-friendly {
+    color: var(--gn-text, #0f172a);
+    font-style: italic;
+}
+
+/* 2026-05-26 — clarifier chip strip. When Genie ignores the contract
+   ("no clarifying questions") and appends a trailing "Would you
+   prefer…?" / "Should I…?", we strip it from the body and surface it
+   here as a one-click chip that pre-populates the composer. Sits
+   directly below the rendered answer card. */
+.gn-clarifier-chip-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 10px 14px 0;
+    padding: 8px 12px;
+    border: 1px dashed rgba(37, 99, 235, 0.28);
+    border-radius: 8px;
+    background: rgba(37, 99, 235, 0.04);
+}
+.gn-clarifier-chip-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--gn-text-muted, #64748b);
+    font-weight: 600;
+    flex-shrink: 0;
+}
+.gn-clarifier-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border: 1px solid rgba(37, 99, 235, 0.32);
+    border-radius: 999px;
+    background: var(--gn-surface-raised, #fff);
+    color: var(--gn-text, #0f172a);
+    font-size: 12.5px;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 140ms ease, border-color 140ms ease, transform 80ms ease;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.gn-clarifier-chip:hover {
+    background: rgba(37, 99, 235, 0.08);
+    border-color: var(--gn-accent, #2563eb);
+}
+.gn-clarifier-chip:active { transform: scale(0.98); }
+.gn-clarifier-chip-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.gn-clarifier-chip-arrow {
+    color: var(--gn-accent, #2563eb);
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+/* 2026-05-26 — Genie Deep Research / Agent Mode reasoning disclosure.
+   When Genie returns its 200-word meta-trace before the answer
+   ("Initial analysis / Found relevant data / Calculated… / Start
+   inspecting / Make a decision / Conclusion / Inspection complete!"),
+   we strip the trace and offer it here as a collapsed disclosure.
+   Closed by default so the actual answer lands at the top of the
+   card; user opens to audit Genie's reasoning. */
+.gn-agent-reasoning {
+    margin: 10px 14px 0;
+    border: 1px solid var(--gn-border-subtle, rgba(15,23,42,0.08));
+    border-radius: 6px;
+    background: rgba(15, 23, 42, 0.02);
+    font-size: 12.5px;
+}
+.gn-agent-reasoning > summary {
+    cursor: pointer;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--gn-text-muted, #64748b);
+    font-size: 11.5px;
+    font-weight: 600;
+    list-style: none;
+    user-select: none;
+}
+.gn-agent-reasoning > summary::-webkit-details-marker { display: none; }
+.gn-agent-reasoning > summary::before {
+    content: "▸";
+    margin-right: 2px;
+    transition: transform 140ms ease;
+    color: var(--gn-accent, #2563eb);
+}
+.gn-agent-reasoning[open] > summary::before { transform: rotate(90deg); }
+.gn-agent-reasoning-icon {
+    font-size: 12px;
+    line-height: 1;
+}
+.gn-agent-reasoning-title {
+    flex: 1;
+    color: var(--gn-text, #0f172a);
+}
+.gn-agent-reasoning-meta {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 10.5px;
+    color: var(--gn-text-muted, #64748b);
+    background: rgba(15, 23, 42, 0.05);
+    padding: 1px 6px;
+    border-radius: 3px;
+}
+.gn-agent-reasoning-body {
+    padding: 10px 14px 12px;
+    border-top: 1px solid var(--gn-border-subtle, rgba(15,23,42,0.06));
+    color: var(--gn-text-muted, #475569);
+    font-size: 12px;
+    line-height: 1.55;
+    max-height: 400px;
+    overflow-y: auto;
+}
+.gn-agent-reasoning-body h1,
+.gn-agent-reasoning-body h2,
+.gn-agent-reasoning-body h3 {
+    font-size: 12.5px;
+    font-weight: 600;
+    margin: 12px 0 4px;
+    color: var(--gn-text, #0f172a);
+}
+.gn-agent-reasoning-body h1:first-child,
+.gn-agent-reasoning-body h2:first-child,
+.gn-agent-reasoning-body h3:first-child { margin-top: 0; }
+.gn-agent-reasoning-body p { margin: 4px 0; }
+.gn-agent-reasoning-body code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    background: rgba(15, 23, 42, 0.06);
+    padding: 1px 4px;
+    border-radius: 3px;
 }
 
 .gn-compose-footer {
@@ -3414,12 +4858,30 @@
     padding: 4px 7px;
 }
 
+/* Surface switcher stays grouped at compact widths, but can wrap inside
+ * its rail before pushing the content down. */
+.gn-compact .gn-surface-switcher {
+    flex-wrap: wrap;
+    border-radius: 18px;
+}
+
+.gn-compact .gn-header-tabs {
+    flex-wrap: wrap;
+}
+
 /* Tabs become icon-emphasised at compact widths (label still visible to
  * keep accessibility, just at smaller font). */
 .gn-compact .gn-header-tab {
-    font-size: 11.5px;
-    padding: 0 10px;
-    min-height: 26px;
+    font-size: 11px;
+    padding: 0 9px;
+    min-height: 30px;
+    gap: 5px;
+}
+
+.gn-compact .gn-header-tab-icon {
+    width: 16px;
+    height: 16px;
+    font-size: 10px;
 }
 
 .gn-compact .gn-header-row--bottom {
@@ -3825,8 +5287,49 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 12px;
     padding: 12px 16px;
     border-bottom: 1px solid @gn-border-subtle;
+}
+
+.gn-modal-title-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+}
+
+.gn-console-status-cluster {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    flex-wrap: wrap;
+
+    .gn-status {
+        min-height: 24px;
+        padding: 3px 9px;
+    }
+
+    .gn-status-label,
+    .gn-status-mode {
+        display: inline-block;
+    }
+}
+
+.gn-status--static {
+    cursor: default;
+
+    &:hover {
+        filter: none;
+        box-shadow: none;
+    }
+
+    &:active {
+        transform: none;
+    }
 }
 
 // BUG-017: confidence indicator demoted into the dev modal. Renders below
@@ -5389,6 +6892,34 @@
     gap: 6px;
     margin-bottom: 8px;
     flex-wrap: wrap;
+}
+
+.gn-setup-subgroup {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 12px 0 14px;
+    padding: 10px 12px;
+    border: 1px solid rgba(15, 23, 42, 0.1);
+    border-radius: @gn-radius-sm;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(248, 250, 252, 0.88));
+}
+
+.gn-setup-subgroup-head {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+
+    strong {
+        font-size: 12px;
+        color: @gn-text;
+    }
+
+    span {
+        font-size: 11px;
+        line-height: 1.4;
+        color: @gn-text-muted;
+    }
 }
 
 // 48.7 presets dropdown anchored under the Apply preset button
@@ -7201,6 +8732,101 @@
     font-size: 12px;
 }
 
+/* ── Shared surface context strip ── */
+
+.gn-surface-context {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 8px 16px;
+    border-bottom: 1px solid @gn-border-subtle;
+    background: linear-gradient(180deg, fade(#ffffff, 92%), fade(#f8fafc, 92%));
+    color: @gn-text-muted;
+    font-size: 11px;
+    line-height: 1.25;
+}
+
+.gn-surface-context__primary,
+.gn-surface-context__item {
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border: 1px solid @gn-border-subtle;
+    border-radius: 999px;
+    background: @gn-surface;
+}
+
+.gn-surface-context__primary {
+    border-color: @gn-accent-border;
+    background: @gn-accent-subtle;
+}
+
+.gn-surface-context__label {
+    flex: 0 0 auto;
+    color: @gn-text-muted;
+    font-weight: 600;
+}
+
+.gn-surface-context__value {
+    min-width: 0;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: @gn-text;
+    font-weight: 650;
+}
+
+.gn-surface-context__divider {
+    width: 1px;
+    height: 12px;
+    background: @gn-border;
+}
+
+.gn-shell--dark .gn-surface-context {
+    background: linear-gradient(180deg, rgba(10, 18, 32, 0.94), rgba(15, 23, 42, 0.92));
+}
+
+.gn-shell--dark .gn-surface-context__primary,
+.gn-shell--dark .gn-surface-context__item {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+@media (max-width: 520px) {
+    .gn-surface-context {
+        padding: 8px 12px;
+    }
+
+    .gn-surface-context__primary,
+    .gn-surface-context__item {
+        flex: 1 1 150px;
+    }
+
+    /* 2026-05-27 — Surface+mode pill packs two values + divider. At 150px
+       basis they collide and truncate to "AI I..." / "Executiv...". Give
+       the primary pill the FULL row (flex-basis: 100%) so both values can
+       breathe on small screens; secondary fact pills continue to share rows. */
+    .gn-surface-context__primary {
+        flex: 1 1 100%;
+    }
+
+    /* 2026-05-27 — Even with the primary pill on its own row, the value
+       spans inside kept ellipsising (the flex default lets values shrink
+       below their content size when min-width:0). Belt-and-suspenders:
+       remove max-width cap AND allow wrap AND prevent flex-shrink so
+       values render at full natural width. If a value still overflows
+       the pill, it wraps onto a new line instead of getting truncated. */
+    .gn-surface-context__value {
+        max-width: none;
+        white-space: normal;
+        flex-shrink: 0;
+    }
+}
+
 
 /* ── AI Insights pane ── */
 
@@ -7274,13 +8900,17 @@
     }
 }
 
+/* 2026-05-26 — anchor cold-start hero to top instead of vertically
+   centering. Centering left ~400px of dead zone below the CTAs in a
+   tall viewport. Top-anchored matches the Ask Pulse fix from earlier
+   so all three tabs feel cohesive. */
 .gn-insights-placeholder {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     text-align: center;
-    padding: 48px 16px;
+    padding: 56px 16px 16px;
     color: @gn-text-muted;
     h3 {
         margin: 12px 0 4px;
@@ -7296,6 +8926,37 @@
 
 .gn-insights-icon {
     font-size: 32px;
+}
+
+/* Audit 2026-05-19 P2-1: empty-state CTAs used to wire the AI assistant
+ * or browse knowledge packs. Keeps Ask Pulse and AI Insights at parity
+ * pre-config (Ask Pulse already had Quick-start chips). */
+.gn-cta-primary {
+    padding: 8px 14px;
+    border: none;
+    background: @gn-accent;
+    color: #fff;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.28);
+    transition: opacity 120ms ease, transform 120ms ease;
+    &:hover { opacity: 0.92; transform: translateY(-1px); }
+    &:focus-visible { outline: 2px solid @gn-accent; outline-offset: 2px; }
+}
+.gn-cta-secondary {
+    padding: 8px 14px;
+    border: 1px solid @gn-border;
+    background: @gn-surface;
+    color: @gn-text;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease;
+    &:hover { background: @gn-surface-raised; }
+    &:focus-visible { outline: 2px solid @gn-accent; outline-offset: 2px; }
 }
 
 .gn-insights-loading {
@@ -7320,31 +8981,135 @@
 .gn-insights-content {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    /* 2026-05 density pass — was 12. Diagnostic showed AI Insights content
+     * was 3.4× the visible pane height at typical preview viewports;
+     * tightening inter-block gap shaves vertical without losing
+     * readability. */
+    gap: 10px;
     min-width: 0;
     max-width: 100%;
 }
 
 /* ── Insights sections (paginated cards with staggered reveal) ── */
 .gn-insights-sections {
-    /* Session 53 — single-column horizontal stack. The earlier 2-column body
-     * grid (IDEA-039 step 1.4) caused uneven card heights when sections like
-     * RISKS and OPPORTUNITIES had different content lengths, plus trailing
-     * unheaded paragraphs would dump into one column making it overflow.
-     * Single-column keeps every section full-width and predictable. KPI tile
-     * grid above the sections still uses auto-fit columns so the lead row
-     * stays dense. */
+    /* Phase D 2026-05-18 — locked information hierarchy for the briefing:
+     *
+     *   Row 1: HEADLINE  (full-width — "Executive Brief")
+     *   Row 2: KPI SNAPSHOT  |  TRENDS  ("What Changed")
+     *   Row 3: RISKS  |  RECOMMENDED ACTIONS  ("Next Best Actions" — accent)
+     *   Tail:  OPPORTUNITIES + author-custom sections (full-width)
+     *
+     * The data-section attribute (set by the renderer in Phase B) is the
+     * hook each section uses for grid placement. Order matches the stream
+     * sequence so stagger-delay still fires in arrival order.
+     *
+     * Narrow viewports (< 720 px) fall back to a single column so the
+     * cards keep their full width and the briefing scrolls naturally.
+     * The 720 px breakpoint covers both the side-pane mix layout and
+     * the full-canvas focused mode without crunch. */
     display: grid;
-    grid-template-columns: 1fr;
-    gap: 10px;
+    /* Default (narrow): single-column flow. */
+    grid-template-columns: minmax(0, 1fr);
+    /* 2026-05 density pass — was 10. */
+    gap: 8px;
     min-width: 0;
+}
+
+@media (min-width: 720px) {
+    .gn-insights-sections {
+        /* Wide: two equal columns. CSS Grid keeps row heights
+         * independent so cards grow without forcing siblings to match. */
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+    /* Default section position — any section without a hierarchy hint
+     * (custom sections, INSIGHTS preamble, ad-hoc author cards) sits
+     * after the named ones so the briefing layout stays predictable. */
+    .gn-insights-sections > .gn-insights-section {
+        order: 10;
+    }
+    /* Row 1: HEADLINE — full width across both columns. */
+    .gn-insights-sections > .gn-insights-section[data-section="HEADLINE"] {
+        grid-column: 1 / -1;
+        order: 1;
+    }
+    /* Row 2 left: KPI SNAPSHOT. */
+    .gn-insights-sections > .gn-insights-section[data-section="KPI SNAPSHOT"] {
+        grid-column: 1 / 2;
+        order: 2;
+    }
+    /* Row 2 right: TRENDS / "What Changed". */
+    .gn-insights-sections > .gn-insights-section[data-section="TRENDS"] {
+        grid-column: 2 / 3;
+        order: 3;
+    }
+    /* Row 3 left: RISKS / "What Needs Attention". */
+    .gn-insights-sections > .gn-insights-section[data-section="RISKS"] {
+        grid-column: 1 / 2;
+        order: 4;
+    }
+    /* Row 3 right: RECOMMENDED ACTIONS / "Next Best Actions" — the
+     * briefing's one accent moment. Visual prominence applied below. */
+    .gn-insights-sections > .gn-insights-section[data-section="RECOMMENDED ACTIONS"],
+    .gn-insights-sections > .gn-insights-section[data-section="ACTIONS"],
+    .gn-insights-sections > .gn-insights-section[data-section="NEXT STEPS"],
+    .gn-insights-sections > .gn-insights-section[data-section="NEXT BEST ACTIONS"] {
+        grid-column: 2 / 3;
+        order: 5;
+    }
+    /* Tail: OPPORTUNITIES — full width below the action pair. */
+    .gn-insights-sections > .gn-insights-section[data-section="OPPORTUNITIES"] {
+        grid-column: 1 / -1;
+        order: 6;
+    }
+
+    /* 2026-05-30 — reclaim the dead right column when a row's partner is
+     * absent. The 2-up grid reserves KPI SNAPSHOT│TRENDS and RISKS│ACTIONS,
+     * but many briefings ship only 3 sections (HEADLINE + KPI SNAPSHOT +
+     * RISKS), leaving the entire right column blank. CSS :has() (available
+     * because PulsePlay runs top-level in a real browser, not the PBI
+     * sandbox) lets a lone section claim the full width instead of wasting
+     * half the canvas. The intentional pairing still applies whenever the
+     * partner section IS present. */
+    .gn-insights-sections:not(:has(> .gn-insights-section[data-section="TRENDS"])) > .gn-insights-section[data-section="KPI SNAPSHOT"] {
+        grid-column: 1 / -1;
+    }
+    .gn-insights-sections:not(:has(> .gn-insights-section[data-section="RECOMMENDED ACTIONS"])):not(:has(> .gn-insights-section[data-section="ACTIONS"])):not(:has(> .gn-insights-section[data-section="NEXT STEPS"])):not(:has(> .gn-insights-section[data-section="NEXT BEST ACTIONS"])) > .gn-insights-section[data-section="RISKS"] {
+        grid-column: 1 / -1;
+    }
+}
+
+/* Next Best Actions prominence — the briefing's single accent moment.
+ * Restrained: thin accent border + very low-alpha accent tint + a
+ * slightly warmer shadow. Stays subtle in both dark and light themes;
+ * never competes with the validator status (Verified badge) or with
+ * the surface switcher's active gradient — that's the "one accent
+ * moment per screen" rule from docs/AI_BRIEFING_DESIGN_DIRECTION.md. */
+.gn-insights-section[data-section="RECOMMENDED ACTIONS"],
+.gn-insights-section[data-section="ACTIONS"],
+.gn-insights-section[data-section="NEXT STEPS"],
+.gn-insights-section[data-section="NEXT BEST ACTIONS"] {
+    border-color: rgba(26, 111, 212, 0.32);
+    background: linear-gradient(180deg, rgba(26, 111, 212, 0.05), @gn-surface);
+    box-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.04),
+        0 8px 22px rgba(26, 111, 212, 0.08);
+}
+.gn-shell--light .gn-insights-section[data-section="RECOMMENDED ACTIONS"],
+.gn-shell--light .gn-insights-section[data-section="ACTIONS"],
+.gn-shell--light .gn-insights-section[data-section="NEXT STEPS"],
+.gn-shell--light .gn-insights-section[data-section="NEXT BEST ACTIONS"] {
+    border-color: rgba(26, 111, 212, 0.40);
+    background: linear-gradient(180deg, rgba(26, 111, 212, 0.04), #fff);
 }
 
 .gn-insights-section {
     background: @gn-surface;
     border: 1px solid @gn-border-subtle;
     border-radius: @gn-radius-sm;
-    padding: 12px 16px;
+    /* 2026-05 density pass — was 12px 16px. Cuts ~8 px of vertical per card
+     * (×5 sections ≈ 40 px) plus a small horizontal reduction so the card
+     * doesn't feel airy at narrow widths. */
+    padding: 8px 14px;
     opacity: 0;
     transform: translateY(6px);
     animation: gn-section-reveal 300ms @gn-ease forwards;
@@ -7374,7 +9139,8 @@
 }
 
 .gn-insights-section-title {
-    margin: 0 0 6px;
+    /* 2026-05 density pass — was 0 0 6px. */
+    margin: 0 0 4px;
     font-size: 13px;
     font-weight: 600;
     text-transform: uppercase;
@@ -7394,7 +9160,8 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 8px;
-    margin: 0 0 6px;
+    /* 2026-05 density pass — was 0 0 6px. */
+    margin: 0 0 4px;
     min-width: 0;
     .gn-insights-section-title {
         margin: 0;
@@ -7503,7 +9270,10 @@
     color: @gn-text;
     font-size: 15px;
     line-height: 1.48;
-    font-weight: 500;
+    /* 2026-05-22 — bumped from 500 to 600 so the executive headline
+     * keeps its visual rank even after we strip a whole-sentence `**`
+     * bold wrapper that the LLM emits in some compliance scenarios. */
+    font-weight: 600;
 }
 
 .gn-insight-card-grid {
@@ -7550,6 +9320,30 @@
 .gn-insights-section[data-section="OPPORTUNITIES"] .gn-insight-card::before {
     background: #1a8c3f;
     opacity: 0.9;
+}
+
+/* Phase E 2026-05-18 — tone-driven left bar for cards that carry a
+ * toned inline pill. The section-specific overrides above (RISKS red,
+ * RECOMMENDED ACTIONS blue, OPPORTUNITIES green) have higher specificity
+ * and win for those named sections. This :has() rule fires for all other
+ * sections — most importantly TRENDS ("What Changed") — so each card's
+ * bar reflects the actual metric direction rather than staying muted gray.
+ * :has() is baseline-supported in Chromium 105+, Firefox 121+, Safari 15.4+;
+ * PulsePlay runs in a real browser so no polyfill needed.
+ * Section-override specificity: (0,2,1). :has() specificity: (0,1,1) — safe. */
+@supports selector(:has(*)) {
+    .gn-insight-card:has(.gn-trend-tone-bad)::before {
+        background: #b22020;
+        opacity: 0.85;
+    }
+    .gn-insight-card:has(.gn-trend-tone-watch)::before {
+        background: #8a5c00;
+        opacity: 0.85;
+    }
+    .gn-insight-card:has(.gn-trend-tone-good)::before {
+        background: #1a7f37;
+        opacity: 0.8;
+    }
 }
 
 .gn-insight-card-label {
@@ -7671,6 +9465,9 @@
      * neutral translucent background + bold + brighter direction colour
      * so values stay legible against tinted card surfaces. */
     font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     padding: 2px 6px;
     border-radius: 999px;
     font-size: 11px;
@@ -7688,6 +9485,11 @@
         background: transparent;
         border-color: transparent;
     }
+}
+
+.gn-kpi-tile-delta-cue {
+    font-size: 10px;
+    line-height: 1;
 }
 
 /* Light-mode override for KPI tile delta pills. */
@@ -7825,6 +9627,15 @@
 .gn-insights-section--placeholder {
     /* Inherit border, padding, radius from .gn-insights-section. Just
        gently desaturate the title + raise the body bar opacity. */
+    /* 2026-05-22 G3 — pre-allocate vertical space so the card doesn't
+     * grow visibly when the placeholder is swapped for real content.
+     * 95th-percentile measured: title (~22px) + body (3 lines ~50px) +
+     * padding (~22px) = ~94px. Setting min-height = 95px reserves the
+     * frame; final content with more text grows DOWN past this without
+     * pushing siblings (matches Tableau Pulse + Power BI Smart Narrative
+     * "fixed-height frame" pattern). Sources in
+     * docs/research/EXTERNAL_REFERENCES.md (G3 entry). */
+    min-height: 95px;
     .gn-insights-section-title {
         opacity: 0.55;
     }
@@ -7943,6 +9754,111 @@
             background: var(--gn-accent, #1a6fd4);
             color: #ffffff;
         }
+    }
+}
+
+.gn-sql-section-label {
+    display: inline-flex;
+    align-items: center;
+    max-width: calc(100% - 12px);
+    margin: 4px 6px 6px 6px;
+    padding: 3px 8px;
+    border: 1px solid var(--gn-border, rgba(0, 0, 0, 0.12));
+    border-radius: 4px;
+    background: var(--gn-accent-soft, rgba(58, 119, 245, 0.10));
+    color: var(--gn-accent, #1a6fd4);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+/* 2026-05-22 — unified chat-message action toolbar (📋 ⬇ ↻ </>).
+ * Rajesh's direction: "I was talking to have like this" — wants the same
+ * 4-icon chrome at bottom-right of EVERY chat reply, matching the AI
+ * Insights section footer + the existing chart-view toolbar visual
+ * language. Justify-end so the cluster floats right. Sits below the
+ * Helpful?/feedback row and above supervisor breadcrumbs. Icons share
+ * the same SVG glyphs as InsightsSectionFooter for parity. */
+.gn-msg-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 4px;
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px solid var(--gn-border-subtle, rgba(0, 0, 0, 0.06));
+}
+.gn-msg-action {
+    appearance: none;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--gn-accent, #1a6fd4);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.85;
+    transition: opacity 120ms ease, background 120ms ease, border-color 120ms ease;
+    &:hover:not(:disabled) {
+        opacity: 1;
+        background: var(--gn-accent-soft, rgba(26, 111, 212, 0.10));
+        border-color: var(--gn-accent, #1a6fd4);
+    }
+    &:focus-visible {
+        outline: 2px solid var(--gn-accent, #1a6fd4);
+        outline-offset: 1px;
+    }
+    &.gn-msg-action--active {
+        background: var(--gn-accent-soft, rgba(26, 111, 212, 0.10));
+        border-color: var(--gn-accent, #1a6fd4);
+        opacity: 1;
+    }
+    &:disabled {
+        cursor: not-allowed;
+        opacity: 0.4;
+    }
+}
+
+/* 2026-05-22 — SQL copy icon. User direction: "let's keep the sql copy
+ * icon as well" — mirrors the AI Insights section toolbar pattern.
+ * Anchored top-right of the SQL <pre> via .gn-sql-pre-wrap (position:
+ * relative parent). 2-second "copied" feedback morphs the glyph to ✓. */
+.gn-sql-pre-wrap {
+    position: relative;
+}
+.gn-sql-copy-btn {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    z-index: 1;
+    appearance: none;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 1px solid var(--gn-border, rgba(0, 0, 0, 0.14));
+    border-radius: 4px;
+    background: var(--gn-surface, #ffffff);
+    color: var(--gn-accent, #1a6fd4);
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.85;
+    transition: opacity 120ms ease, background 120ms ease, border-color 120ms ease;
+    &:hover {
+        opacity: 1;
+        background: var(--gn-accent-soft, rgba(26, 111, 212, 0.10));
+        border-color: var(--gn-accent, #1a6fd4);
+    }
+    &:focus-visible {
+        outline: 2px solid var(--gn-accent, #1a6fd4);
+        outline-offset: 1px;
     }
 }
 
@@ -8441,6 +10357,41 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
+    /* 2026-05-28 — the Adjust menu grew a strategic-preset section
+     * (SWOT / BCG / RFM / Pareto + domain presets) on top of the base
+     * suggestions, so the list now overflows on shorter viewports with
+     * no way to reach the bottom items. Cap the height and scroll, with
+     * a transparent-track thin scrollbar that matches the rest of the
+     * PulsePlay popover chrome (mirrors SettingsCombobox). */
+    max-height: min(60vh, 360px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.28) transparent;
+    &::-webkit-scrollbar {
+        width: 10px;
+    }
+    &::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    &::-webkit-scrollbar-thumb {
+        background-color: rgba(0, 0, 0, 0.22);
+        border-radius: 8px;
+        border: 2px solid transparent;
+        background-clip: content-box;
+    }
+    &::-webkit-scrollbar-thumb:hover {
+        background-color: rgba(0, 0, 0, 0.38);
+    }
+}
+/* Keep the "Apply preset" separator from sticking awkwardly when the
+ * list scrolls — it pins to the top edge so the section label stays
+ * visible while the preset list below it scrolls. */
+.gn-adjust-menu-pop [role="separator"] {
+    position: sticky;
+    top: -4px;
+    background: var(--gn-bubble-bg, #ffffff);
+    z-index: 1;
 }
 .gn-adjust-menu-item {
     display: block;
@@ -8587,6 +10538,61 @@
     padding-top: 4px;
     border-top: 1px solid @gn-border;
 }
+
+/* Phase C 2026-05-18 — secondary actions overflow (Pulse toolbar noise
+ * reduction). Wraps the ⋮ trigger; popover mirrors the customize popover
+ * shape, with menuitem rows showing an icon + label. Keeps the design
+ * grammar aligned (8/6/10 spacing, 6px row radius, accent-subtle hover). */
+.gn-insights-overflow {
+    position: relative;
+    display: inline-flex;
+}
+.gn-insights-overflow-pop {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    min-width: 220px;
+    z-index: 30;
+    background: @gn-surface-raised;
+    border: 1px solid @gn-border;
+    border-radius: 10px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+.gn-insights-overflow-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 12px;
+    color: @gn-text;
+    background: transparent;
+    border: none;
+    text-align: left;
+    line-height: 1.3;
+    transition: background-color 120ms;
+    &:hover:not(:disabled) { background: @gn-accent-subtle; }
+    &:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+    }
+    &.gn-insights-overflow-item--copied {
+        color: #15803d;
+    }
+}
+.gn-insights-overflow-item-label {
+    flex: 1 1 auto;
+}
+
+/* Press feedback on the overflow trigger matches the existing toolbar
+ * grammar (60ms scale snap-back). Inherits the sugar-candy press rule
+ * for .gn-pane-action-btn applied at the end of visual.less. */
 .gn-insights-compose {
     display: flex;
     gap: 6px;
@@ -9412,6 +11418,91 @@
     100% { background-position: -200% 0; }
 }
 
+// ── Live streaming "feels alive" treatment ────────────────────────────────
+// Only while the run is ACTIVE (.gn-progress--active). The completed / failed
+// states stay calm. Everything here is guarded by prefers-reduced-motion so
+// motion-sensitive users get the static, legible version.
+@media (prefers-reduced-motion: no-preference) {
+    // The active verb shimmers left→right like text that is still arriving.
+    .gn-progress--active .gn-progress-active-label {
+        background: linear-gradient(
+            100deg,
+            @gn-text 0%, @gn-text 38%,
+            var(--gn-accent, #1a6fd4) 50%,
+            @gn-text 62%, @gn-text 100%
+        );
+        background-size: 220% 100%;
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: gn-progress-fade-in 220ms ease-out, gn-stream-text-sheen 2600ms linear infinite;
+    }
+    // Keep the parenthetical live sub-status readable (don't let the text
+    // shimmer's transparent fill swallow it).
+    .gn-progress--active .gn-progress-active-label .gn-progress-sublabel {
+        -webkit-text-fill-color: @gn-text-muted;
+        color: @gn-text-muted;
+    }
+    // Soft breathing glow behind the active header glyph.
+    .gn-progress--active .gn-progress-header > .gn-progress-glyph {
+        position: relative;
+        isolation: isolate;
+    }
+    .gn-progress--active .gn-progress-header > .gn-progress-glyph::after {
+        content: "";
+        position: absolute;
+        inset: -7px;
+        border-radius: 50%;
+        background: radial-gradient(circle, var(--gn-accent, #1a6fd4) 0%, transparent 66%);
+        z-index: -1;
+        animation: gn-stream-glow 1800ms ease-in-out infinite;
+    }
+    // A light sweep rides the full bar on top of the determinate fill, so the
+    // bar reads as "working" even when the fill % sits still between stages.
+    .gn-progress--active .gn-progress-bar { position: relative; }
+    .gn-progress--active .gn-progress-bar::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        width: 34%;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+        animation: gn-stream-sweep 1400ms ease-in-out infinite;
+    }
+    // Dark theme — the shimmer gradient must use the dark text token or the
+    // verb would render dark-on-dark and vanish.
+    .gn-shell--dark .gn-progress--active .gn-progress-active-label {
+        background: linear-gradient(
+            100deg,
+            @gn-dark-text 0%, @gn-dark-text 38%,
+            @gn-dark-accent 50%,
+            @gn-dark-text 62%, @gn-dark-text 100%
+        );
+        background-size: 220% 100%;
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    .gn-shell--dark .gn-progress--active .gn-progress-active-label .gn-progress-sublabel {
+        -webkit-text-fill-color: @gn-dark-text-muted;
+        color: @gn-dark-text-muted;
+    }
+}
+
+@keyframes gn-stream-text-sheen {
+    0%   { background-position: 120% 0; }
+    100% { background-position: -120% 0; }
+}
+@keyframes gn-stream-glow {
+    0%, 100% { opacity: 0.10; transform: scale(0.9); }
+    50%      { opacity: 0.28; transform: scale(1.1); }
+}
+@keyframes gn-stream-sweep {
+    0%   { transform: translateX(-120%); }
+    100% { transform: translateX(360%); }
+}
+
 // ── AI Insights Narrative Blocks ──────────────────────────────────────────────
 
 .gn-narrative-list--grid {
@@ -9702,6 +11793,7 @@
     .gn-btn,
     .gn-send,
     .gn-feedback-btn,
+    .gn-surface-switcher,
     .gn-header-tab,
     .gn-modal,
     .gn-setup-step-modal,
@@ -10262,5 +12354,84 @@ body[theme="dark"] .gn-save-reminder-toast,
         max-height: 220px;
         overflow-y: auto;
         color: @gn-text;
+    }
+}
+
+/* ─── Design direction 2026-05-18 — "sugar candy" delight layer ──────────
+ *
+ * Restrained micro-interactions per docs/AI_BRIEFING_DESIGN_DIRECTION.md.
+ * Additive only — no existing rule is overridden; everything here either
+ * enhances an existing transition or adds a new one. Everything respects
+ * `prefers-reduced-motion: reduce`.
+ *
+ * What this adds:
+ *   1. Section card arrival is choreographed (60ms stagger per card) so
+ *      a briefing reads as composed rather than dumped. Existing
+ *      gn-section-reveal animation is unchanged; we only delay each
+ *      card.
+ *   2. Surface switcher tabs + Adjust button get a 60ms scale(.97) press
+ *      feedback that snaps back. Hover behavior is untouched.
+ *   3. KPI tile status badge first-render scale-in. The 220ms pop is
+ *      small enough to read as "earned" rather than playful.
+ *   4. Follow-up chip hover lift parity with the rest of the system.
+ *   5. Reduced-motion guards collapse all of the above to instant so
+ *      vestibular users get a static briefing.
+ */
+
+/* 1. Section card stagger — only when reduced motion is OFF. */
+@media (prefers-reduced-motion: no-preference) {
+    .gn-insights-sections > .gn-insights-section:nth-child(1)  { animation-delay: 0ms; }
+    .gn-insights-sections > .gn-insights-section:nth-child(2)  { animation-delay: 60ms; }
+    .gn-insights-sections > .gn-insights-section:nth-child(3)  { animation-delay: 120ms; }
+    .gn-insights-sections > .gn-insights-section:nth-child(4)  { animation-delay: 180ms; }
+    .gn-insights-sections > .gn-insights-section:nth-child(5)  { animation-delay: 240ms; }
+    .gn-insights-sections > .gn-insights-section:nth-child(6)  { animation-delay: 300ms; }
+    .gn-insights-sections > .gn-insights-section:nth-child(7)  { animation-delay: 360ms; }
+    .gn-insights-sections > .gn-insights-section:nth-child(n+8) { animation-delay: 420ms; }
+}
+
+/* 2. Reduced motion — collapse existing reveal to instant. */
+@media (prefers-reduced-motion: reduce) {
+    .gn-insights-section {
+        animation: none !important;
+        opacity: 1 !important;
+        transform: none !important;
+    }
+}
+
+/* 3. Press feedback for surface switcher tabs + Adjust + pane action btns
+ *    (including the Phase C overflow trigger ⋮). Snap-back is the
+ *    satisfying half — short on press, gentle return. */
+@media (prefers-reduced-motion: no-preference) {
+    .gn-header-tab:not(:disabled):active,
+    .gn-header-adjust:not(:disabled):active,
+    .gn-pane-action-btn:not(:disabled):active,
+    .gn-insights-overflow-item:not(:disabled):active {
+        transform: scale(0.97);
+        transition: transform 60ms ease-out;
+    }
+}
+
+/* 4. KPI tile status badge first-render pop. Uses the existing
+ *    gn-kpi-tile-status selector so EVERY status reads as "this just
+ *    landed" without needing JS to trigger. The animation runs once on
+ *    mount; subsequent re-renders (e.g. status change) re-trigger it,
+ *    which is the desired "newly verified" effect. */
+@keyframes gn-status-badge-pop {
+    from { transform: scale(0.94); opacity: 0.5; }
+    to   { transform: scale(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: no-preference) {
+    .gn-kpi-tile-status {
+        animation: gn-status-badge-pop 220ms cubic-bezier(.2, .9, .2, 1) both;
+    }
+}
+
+/* 5. Follow-up chip hover lift parity (consistent with KPI tile hover). */
+@media (prefers-reduced-motion: no-preference) {
+    .gn-followup-chip:not(:disabled):hover {
+        transform: translateY(-1px);
+        transition: transform 180ms @gn-ease, box-shadow 180ms @gn-ease;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
     }
 }

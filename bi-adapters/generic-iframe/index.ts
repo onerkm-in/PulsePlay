@@ -17,6 +17,7 @@ import type {
     BIEmbedConfig,
     BIEvent,
     BIEventType,
+    BIMetadata,
 } from "../../playground/src/biPanel/BIAdapter";
 import { BI_ERR } from "../../playground/src/biPanel/BIAdapter";
 
@@ -28,6 +29,30 @@ interface GenericConfig extends BIEmbedConfig {
      *  allow-scripts + allow-same-origin (needed for most vendor SDKs that
      *  load inside the iframe to talk to their own backend). */
     sandbox?: string;
+    /** Optional iframe allow attribute, e.g. "clipboard-write" for embedded Genie. */
+    allow?: string;
+    /** Defense-in-depth allowlist of permitted iframe hostnames. When
+     *  non-empty, the adapter refuses to mount any URL whose hostname is
+     *  not in this list — closes the L2 cleanup loophole where a caller
+     *  could bypass BIPanel's pre-mount check. Empty/undefined = no check
+     *  (callers that already validated upstream still work). */
+    allowedOrigins?: string[];
+}
+
+/** Throws if `url`'s hostname is not in `allowedOrigins`. No-op when
+ *  `allowedOrigins` is undefined or empty (callers that already validated
+ *  upstream still work). Exported for reuse by vendor subclasses. */
+export function assertIframeOriginAllowed(url: string, allowedOrigins: string[] | undefined): void {
+    if (!allowedOrigins || allowedOrigins.length === 0) return;
+    let host = "";
+    try { host = new URL(url).hostname.toLowerCase(); }
+    catch { throw new Error(`${BI_ERR.EMBED_FAILED}: embed URL is not a valid URL`); }
+    const normalized = allowedOrigins.map(o => o.trim().toLowerCase()).filter(Boolean);
+    if (!normalized.includes(host)) {
+        throw new Error(
+            `${BI_ERR.EMBED_FAILED}: embed URL hostname "${host}" is not in your organization's allowed origins. Allowed: ${normalized.join(", ") || "(empty)"}.`,
+        );
+    }
 }
 
 export class GenericIframeAdapter implements BIAdapter {
@@ -63,11 +88,17 @@ export class GenericIframeAdapter implements BIAdapter {
         if (!containerEl) throw new Error(`${BI_ERR.NOT_MOUNTED}: GenericIframeAdapter requires a container element`);
         const cfg = embedConfig as GenericConfig;
         if (!cfg.url) throw new Error(`${BI_ERR.EMBED_FAILED}: generic-iframe requires { url }`);
+        // L2 defense in depth — refuse to mount any URL whose hostname is
+        // outside the per-vendor allowlist. BIPanel performs the same
+        // check before calling mount; this is the lower-layer gate so a
+        // caller that imports the adapter directly still hits it.
+        assertIframeOriginAllowed(cfg.url, cfg.allowedOrigins);
 
         const iframe = document.createElement("iframe");
         iframe.src = cfg.url;
         iframe.title = cfg.title || `Embedded view (${new URL(cfg.url).host})`;
         iframe.setAttribute("sandbox", cfg.sandbox || this.defaultSandbox);
+        if (cfg.allow) iframe.setAttribute("allow", cfg.allow);
         iframe.setAttribute("loading", "lazy");
         iframe.style.width = "100%";
         iframe.style.height = "100%";
@@ -125,6 +156,25 @@ export class GenericIframeAdapter implements BIAdapter {
             this.iframe.parentElement.removeChild(this.iframe);
         }
         this.iframe = null;
+    }
+
+    /**
+     * Iframe-only adapters (GenericIframeAdapter + Tableau/Qlik/Looker
+     * vendor stubs that extend it) cannot introspect what the user is
+     * looking at — there is no vendor SDK to query for visible measures,
+     * dimensions, or active filters. Returning `null` here is explicit:
+     * downstream Discovery Loop falls back to pack-only signals and the
+     * FramePicker honestly reports unreachable analysis frames that need
+     * live metadata.
+     *
+     * Vendor adapters that graduate from iframe stubs (e.g. when the
+     * Tableau Embedding API v3 wiring lands in v0.3+) override this with
+     * a real implementation reading from their SDK. The PowerBIAdapter
+     * already overrides this with a `getActivePage` + `getVisuals` +
+     * `getFilters` walk — see `bi-adapters/powerbi/index.ts`.
+     */
+    async getMetadata(): Promise<BIMetadata | null> {
+        return null;
     }
 
     private emit(event: BIEvent): void {

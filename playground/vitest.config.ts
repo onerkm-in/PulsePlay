@@ -19,6 +19,8 @@ export default defineConfig({
     // playground/node_modules/.
     resolve: {
         alias: {
+            "react": path.resolve(__dirname, "node_modules/react"),
+            "react-dom": path.resolve(__dirname, "node_modules/react-dom"),
             "powerbi-client": path.resolve(__dirname, "node_modules/powerbi-client"),
             // Cycle D — Pulse port stubs (mirror vite.config.ts aliases).
             "powerbi-visuals-api": path.resolve(__dirname, "src/pulse/_adapter/powerbi-visuals-api.ts"),
@@ -42,6 +44,9 @@ export default defineConfig({
         include: [
             "src/**/*.test.ts",
             "src/**/*.test.tsx",
+            // Phase 3 — build-tool plugin tests live at the playground
+            // root next to the plugin source (vite.cspFromAllowlist.ts).
+            "__tests__/**/*.test.ts",
             // Cycle A — adapter tests live alongside their adapter under
             // __tests__/ folders. Pick them up without forcing the
             // adapters to live inside playground/src/.

@@ -1,0 +1,19 @@
+# This is a Declarative Automation Bundle definition for PulsePlay.
+# The Databricks extension requires databricks.yml configuration file.
+# See https://docs.databricks.com/dev-tools/bundles/index.html for documentation.
+
+bundle:
+  name: PulsePlay
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: https://dbc-f88d29ce-4aa2.cloud.databricks.com
+
+  ## Optionally, there could be 'staging' or 'prod' targets here.
+  #
+  # prod:
+  #   workspace:
+  #     host: https://dbc-f88d29ce-4aa2.cloud.databricks.com

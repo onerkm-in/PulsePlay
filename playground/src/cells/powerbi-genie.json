@@ -1,0 +1,20 @@
+{
+  "id": "powerbi-genie",
+  "label": "Power BI + Genie",
+  "surface": {
+    "vendor": "powerbi",
+    "adapterMinVersion": "1.0"
+  },
+  "assistant": {
+    "kind": "genie",
+    "profileType": "genie"
+  },
+  "packs": {
+    "supported": ["cpg-fmcg", "retail-digital", "*"]
+  },
+  "capabilities": {
+    "required": ["chat", "sectioned-chat", "trust-badges"],
+    "optional": ["embed-token-server"]
+  },
+  "status": "production"
+}

@@ -57,42 +57,40 @@ import {
 import { GenieVisualSettings } from "./settings";
 import { getKBSystemPrompt, getKBChatHint, parseOrgRules } from "./knowledgeBase";
 import { describeGenieStatus } from "./progressVocab";
-import { redactAuthorPrompt } from "./promptRedaction";
+import { safeAuthorPrompt } from "./promptRedaction";
+import { parseGuidanceActivators } from "./guidanceActivators";
+import { parseMaskingRules, applyMaskingToContext, maskFilters } from "./masking";
+import {
+    analyzeDataShape as analyzeSharedDataShape,
+    CHART_OPTIONS,
+    detectViewIntent,
+    formatCellForTooltip as formatSharedCellForTooltip,
+    formatChartDate,
+    isRankOrIndexColumn,
+    type ChartKind,
+    type ChartSeriesPoint,
+    type ClusteredSeriesPoint,
+    type DataShape,
+    type ForcedViewMode,
+    type ViewIntent,
+} from "../visualization/chartAutoPick";
 
 import DataView = powerbi.DataView;
 import PrimitiveValue = powerbi.PrimitiveValue;
 import IFilter = powerbi.IFilter;
 
+export { CHART_OPTIONS, detectViewIntent, formatChartDate, isRankOrIndexColumn };
+export type { ChartKind, ChartSeriesPoint, ClusteredSeriesPoint, DataShape, ForcedViewMode, ViewIntent };
+
 /* ── Types & Interfaces ──────────────────────────────────────────── */
 
 export type GuidedArea = "performance" | "issue" | "risk" | "opportunity";
-
-export interface ChartSeriesPoint {
-    label: string;
-    value: number;
-    tooltipParts?: { col: string; val: string }[];
-}
-
-export interface ClusteredSeriesPoint {
-    label: string;
-    values: { name: string; value: number }[];
-}
 
 export interface ChartRange {
     minValue: number;
     maxValue: number;
     range: number;
     zeroRatio: number;
-}
-
-export type ChartKind = "bar" | "clustered-bar" | "line" | "donut" | "area";
-
-export interface DataShape {
-    series: ChartSeriesPoint[];
-    clustered: ClusteredSeriesPoint[];
-    numericColCount: number;
-    rowCount: number;
-    recommended: ChartKind;
 }
 
 export interface FormatRule {
@@ -105,14 +103,6 @@ export interface FormatRule {
 
 /* ── Constants ───────────────────────────────────────────────────── */
 
-export const CHART_OPTIONS: { value: ChartKind; label: string; supported: boolean }[] = [
-    { value: "bar", label: "Bar", supported: true },
-    { value: "clustered-bar", label: "Clustered Bar", supported: true },
-    { value: "line", label: "Line", supported: true },
-    { value: "donut", label: "Donut", supported: true },
-    { value: "area", label: "Area", supported: true },
-];
-
 export const ALL_FILTER_VALUE = "__all__";
 export const BASIC_FILTER_SCHEMA = "http" + "://powerbi.com/product/schema#basic";
 
@@ -123,21 +113,36 @@ export const AREA_PROMPTS: Record<GuidedArea, string> = {
     opportunity: "Highlight the top opportunities in the current scope, explain the strongest drivers, and suggest where to act first."
 };
 
+// 2026-05-19 Option A — KPI preload prompt. Fired silently in the background
+// when the user first opens the Ask Pulse tab. Short by design: fast response,
+// brief content, fits naturally as the opening "state snapshot" before the user
+// asks follow-up questions. The conversation started here becomes the base
+// thread for all subsequent chat in that session.
+export const CHAT_PRELOAD_PROMPT =
+    "Quick snapshot of the 3-4 most important visible metrics. " +
+    "Format strictly as:\n" +
+    "Line 1: One-sentence bottom line.\n" +
+    "Then 3-4 bullets, each exactly: `- <metric name>: <current value> · <up|down|stable> (was <prior value>)`.\n" +
+    "Final line: `Action: <one short actionable sentence>`.\n" +
+    "No tables, no SQL, no preamble, no clarifying questions. Under 90 words total.";
+
 export const STATIC_ACTIONS: AssistantAction[] = [
     { id: "drivers", label: "Rank key drivers", kind: "ask", prompt: "Rank the key drivers behind the current result and explain the largest contributors.", intent: "drivers" },
     { id: "leadership", label: "Summarize for leadership", kind: "ask", prompt: "Summarize this analysis for leadership with key points, risks, actions, and impact.", intent: "leadership" },
     { id: "scenario", label: "Run what-if", kind: "ask", prompt: "Run a simple what-if analysis and explain the likely trade-offs and impact.", intent: "scenario" }
 ];
 
+// 2026-05-19 PulsePlay rebrand: replaced Pulse-PBI heritage copy that
+// referenced "inside Power BI" and hardcoded Databricks Genie. PulsePlay
+// is a multi-BI / multi-AI platform — no single vendor is assumed.
 const ROLE_SUBTITLES: Record<string, string> = {
-    executive: "Board-ready snapshot, top risks, top opportunities, and leadership summaries with Databricks Genie behind the scenes.",
-    analyst: "Guided exploration with Databricks-native SQL, table, and trace views available on demand.",
-    frontline: "Action-oriented investigations with guided filters, fast drill-ins, and practical next steps.",
-    manager: "Guided-first business exploration with Databricks Genie Chat inside Power BI."
+    executive: "Board-ready briefings, top risks, and leadership summaries — powered by your connected AI across any BI surface.",
+    analyst: "Full SQL, data trace, and drill-down access across your BI surfaces and AI connectors — on demand.",
+    frontline: "Action-oriented investigation with guided filters, fast drill-ins, and practical next steps.",
+    manager: "Guided business exploration across your BI and AI surfaces — insights without writing SQL."
 };
 
 export const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}(?:T[\d:.]+Z?)?$/;
-const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 // Genie poll status → friendly text mapping moved to `progressVocab.ts`
 // (single source of truth shared by AI Insights, Chat, and Supervisor).
@@ -318,15 +323,15 @@ export function getConfigIssues(settings: GenieVisualSettings): string[] {
         }
     } else if (mode === "azure-openai") {
         if (!settings.apiBaseUrl.trim()) {
-            issues.push("Azure OpenAI mode requires an API Base URL pointing to the UniBridge AI Proxy (e.g. http://127.0.0.1:8787).");
+            issues.push("Azure OpenAI mode requires an API Base URL pointing to the PulsePlay Proxy (e.g. http://127.0.0.1:8787).");
         }
     } else if (mode === "bedrock") {
         if (!settings.apiBaseUrl.trim()) {
-            issues.push("AWS Bedrock mode requires an API Base URL pointing to the UniBridge AI Proxy (e.g. http://127.0.0.1:8787).");
+            issues.push("AWS Bedrock mode requires an API Base URL pointing to the PulsePlay Proxy (e.g. http://127.0.0.1:8787).");
         }
     } else if (mode === "supervisor") {
         if (!settings.apiBaseUrl.trim()) {
-            issues.push("Supervisor mode requires an API Base URL pointing to the UniBridge AI Proxy (e.g. http://127.0.0.1:8787).");
+            issues.push("Supervisor mode requires an API Base URL pointing to the PulsePlay Proxy (e.g. http://127.0.0.1:8787).");
         }
     } else {
         // Auto \u2014 infer from whether apiBaseUrl is set.
@@ -497,7 +502,7 @@ export function computeConnectionStatus(
             level: "caution",
             label: "Connected",
             modeLabel: "AI Gateway",
-            tooltip: "Experimental route: Genie is connected through Databricks AI Gateway / MCP rather than the normal UniBridge AI Proxy. Use Proxy mode for standard Genie deployments.",
+            tooltip: "Experimental route: Genie is connected through Databricks AI Gateway / MCP rather than the normal PulsePlay Proxy. Use Proxy mode for standard Genie deployments.",
             details: []
         };
     }
@@ -594,7 +599,7 @@ export function normalizeUserMode(userMode: string): UserMode {
 }
 
 export function getRoleSubtitle(userMode: UserMode): string {
-    return ROLE_SUBTITLES[userMode] ?? `Databricks Genie assistant — ${userMode} view.`;
+    return ROLE_SUBTITLES[userMode] ?? `PulsePlay AI assistant — ${userMode} view.`;
 }
 
 /* ── Home model ──────────────────────────────────────────────────── */
@@ -608,13 +613,17 @@ export function buildLocalHomeModel(context: ContextSummary, userMode: UserMode)
             detail: index === 0 ? `Current ${userMode} snapshot` : undefined,
             tone: (value < 0 ? "risk" : "neutral") as "risk" | "neutral"
         }));
-    if (snapshot.length === 0) {
-        snapshot.push(
-            { label: "Scope", value: context.hasSelection ? "Filtered" : "Full dataset", detail: "Pulled from the active Power BI context", tone: "neutral" },
-            { label: "Guided filters", value: String(context.availableFilters.length), detail: "Available for region, time, and segment control", tone: "neutral" },
-            { label: "Measures", value: String(Object.keys(context.measures).length || 0), detail: "Bound to this visual", tone: "neutral" }
-        );
-    }
+    // 2026-05-19 PulsePlay UX: when no real measures are bound the fallback
+    // "Scope / Guided filters / Measures" snapshot cards showed "Full dataset"
+    // / 0 / 0 — accurate but noise. WelcomeSection already renders a clean
+    // role subtitle when snapshot is empty; leave the array empty so that
+    // path runs instead. The Pulse-PBI sibling still sends its own home
+    // payload via the proxy when configured (mergeHomePayload gives remote
+    // data priority), so this only affects the local-fallback state.
+    // Original fallback preserved as comment for reference:
+    //   { label: "Scope", value: context.hasSelection ? "Filtered" : "Full dataset", ... }
+    //   { label: "Guided filters", value: String(context.availableFilters.length), ... }
+    //   { label: "Measures", value: String(Object.keys(context.measures).length || 0), ... }
 
     return {
         snapshot,
@@ -745,6 +754,16 @@ export interface InsightsStagePrompts {
 
 export const FAST_INSIGHTS_STAGE_TITLE = "AI Insights briefing";
 
+// 2026-05-28 — shared mask-parroting guard. Author Formatting Standards
+// tables use `#`-mask notation (e.g. `#,###.##`, `### ###.##`, `##.##%`).
+// That notation is a SPECIFICATION for formatting real numbers — never a
+// literal value to print. Live bug: with no data bound, the model copied
+// `### ### ###.##` straight into the HEADLINE as if it were the value.
+// Injected into every insights stage (hybrid + legacy) so it applies
+// throughout, exactly as the author intends number formatting to.
+export const FORMAT_MASK_GUARD =
+    "FORMAT-MASK RULE (load-bearing): any `#` placeholder notation in the formatting guidance (e.g. `#,###.##`, `### ###`, `##.##%`) describes HOW to format a real number — it is a pattern, never a value. NEVER print literal `#` characters as a number. If you do not have a concrete value to report (e.g. no data is bound), say so in words (\"no data bound for this metric\") — do NOT emit a mask like `### ### ###.##` in its place.";
+
 export function buildInsightsStagePrompts(
     context: ContextSummary,
     _roleMode: UserMode,
@@ -768,7 +787,8 @@ export function buildInsightsStagePrompts(
         "- Do NOT bold dimensional labels (segment names, region names, category names, product names, time periods). They are context, not the headline data.\n" +
         "- Do NOT use heading markdown (#, ##, ###, ####) inside bullet items, paragraphs, or ANYWHERE in this stage's output beyond the single section heading at the very top. Heading markup renders with larger font and breaks card layout. Use plain text or **bold** only for emphasis.\n" +
         "- Bullet items must use plain \"- \" prefix. The label-then-data pattern is: \"- **Label:** body text with **bold numbers**\" — NOT \"### Label\" followed by body.\n" +
-        "- Inline bold using **text** only. No heading-style emphasis inside narrative or bullets.";
+        "- Inline bold using **text** only. No heading-style emphasis inside narrative or bullets.\n" +
+        FORMAT_MASK_GUARD;
 
     // Stage 1: HEADLINE + KPI SNAPSHOT in one call.
     // One conversation = one SQL execution = no competing cold-starts.
@@ -854,13 +874,21 @@ export function buildFastHybridInsightsStagePrompts(
     universalStages?: { headline?: boolean; trends?: boolean; risks?: boolean; actions?: boolean },
     universalOverrides?: { headline?: string; trends?: string; risks?: string; actions?: string }
 ): InsightsStagePrompts {
-    metricRules = redactAuthorPrompt(metricRules);
-    authorGuidance = redactAuthorPrompt(authorGuidance);
+    // L12 — author-supplied free text passes through `safeAuthorPrompt`
+    // before reaching the AI prompt builder: existing secret-redaction
+    // (PAT / JWT / email / etc.) PLUS prompt-injection keyword stripping
+    // (ignore-previous-instructions, you-are-now, developer-mode, etc.).
+    // See playground/src/pulse/promptRedaction.ts.
+    metricRules = safeAuthorPrompt(metricRules);
+    // 2026-05-28 — strip recognized activator blocks (## Numeric Formatting /
+    // ## Masking) and replace with mask-free directives before the guidance
+    // reaches the LLM, so `#`-mask notation can never be parroted into prose.
+    authorGuidance = sanitizeGuidanceForPrompt(safeAuthorPrompt(authorGuidance));
     const aiSections = customSections
         .filter(s => s.kind !== "sql")
         .map(s => ({
-            name: redactAuthorPrompt(s.name).trim().toUpperCase(),
-            instruction: redactAuthorPrompt(s.instruction).trim(),
+            name: safeAuthorPrompt(s.name).trim().toUpperCase(),
+            instruction: safeAuthorPrompt(s.instruction).trim(),
         }))
         .filter(s => s.name && s.instruction);
 
@@ -944,6 +972,7 @@ export function buildFastHybridInsightsStagePrompts(
             "POLISH CONTRACT: write like a finished executive card. Use crisp bullets, no filler phrases, no raw audit/debug language, no duplicated explanations.",
             "Narrative bullets must not contain 🟢/🟡/🔴 status emojis or raw threshold parentheticals such as `(>3%, 🔴 >7%)`. Put status icons only in KPI table cells. If a threshold matters, write it in words, e.g. `above the 3% caution line`.",
             "Avoid awkward metric-rule fragments such as `caution threshold (>3 ▼ -7%)`, `red threshold`, or bare comparator formulas in prose.",
+            FORMAT_MASK_GUARD,
             "",
             "SECTION CONTRACTS:",
             sections.join("\n\n"),
@@ -951,6 +980,190 @@ export function buildFastHybridInsightsStagePrompts(
             "Now emit only the final markdown sections, starting with the first `##` heading.",
         ].filter(Boolean).join("\n")],
         titles: [FAST_INSIGHTS_STAGE_TITLE],
+    };
+}
+
+/**
+ * 2026-05-27 — Staged hybrid plan per
+ * AI_INSIGHTS_SECTION_LOADING_CLAUDE_HANDOFF_2026-05-27.md.
+ *
+ * Where `buildFastHybridInsightsStagePrompts()` bundles ALL sections into
+ * one upstream Genie message, this builder splits the same content into
+ * 2-4 batches:
+ *   - Batch 0 (LEAD): section[0] alone — paints first
+ *   - Batch 1..N: 2 sections each (or 3 for fast/stable profiles)
+ *
+ * The existing concurrency-2 worker pool + 3500ms head-start in
+ * runInsights handles the rest:
+ *   - one startConversation for batch 0
+ *   - sendMessage(conversationId) for each subsequent batch
+ *   - distinct immutable message_id per batch
+ *   - one PulsePlay renderId for the whole answer (UI grouping key)
+ *
+ * Each batch prompt re-uses the same context preamble (cheap to repeat;
+ * Genie discards context between messages anyway). The "use prior
+ * conversation context" hint is added so the model sees its earlier
+ * outputs in-thread.
+ *
+ * BatchSize policy: default 2 for Genie (gentle on throttle). Set
+ * `batchSize` to 3 for Foundation Model / fast profiles when caller knows
+ * the upstream can handle wider parallelism.
+ */
+export function buildStagedHybridInsightsPlan(
+    context: ContextSummary,
+    domain: string,
+    customSections: HybridCustomSection[],
+    _roleMode: UserMode,
+    kbFlags?: { enabled: boolean; charts: boolean; stats: boolean; reporting: boolean },
+    metricRules?: string,
+    authorGuidance?: string,
+    universalStages?: { headline?: boolean; trends?: boolean; risks?: boolean; actions?: boolean },
+    universalOverrides?: { headline?: string; trends?: string; risks?: string; actions?: string },
+    opts?: { batchSize?: 1 | 2 | 3 }
+): InsightsStagePrompts {
+    metricRules = safeAuthorPrompt(metricRules);
+    // 2026-05-28 — strip recognized activator blocks (## Numeric Formatting /
+    // ## Masking) and replace with mask-free directives before the guidance
+    // reaches the LLM, so `#`-mask notation can never be parroted into prose.
+    authorGuidance = sanitizeGuidanceForPrompt(safeAuthorPrompt(authorGuidance));
+    const aiSections = customSections
+        .filter(s => s.kind !== "sql")
+        .map(s => ({
+            name: safeAuthorPrompt(s.name).trim().toUpperCase(),
+            instruction: safeAuthorPrompt(s.instruction).trim(),
+        }))
+        .filter(s => s.name && s.instruction);
+
+    const dims = Object.keys(context.dimensions).length > 0 ? Object.keys(context.dimensions).join(", ") : "available dimensions";
+    const meas = Object.keys(context.measures).length > 0 ? Object.keys(context.measures).join(", ") : "available measures";
+    const domainLabel = domain.trim() || "this dataset";
+    const ownerLabel = domain.trim() ? `${domain.trim()} owner` : "data owner";
+    const showHeadline = universalStages?.headline !== false;
+    const showTrends = universalStages?.trends !== false;
+    const showRisks = universalStages?.risks !== false;
+    const showActions = universalStages?.actions !== false;
+    const ovHeadline = (universalOverrides?.headline || "").trim();
+    const ovTrends = (universalOverrides?.trends || "").trim();
+    const ovRisks = (universalOverrides?.risks || "").trim();
+    const ovActions = (universalOverrides?.actions || "").trim();
+    const compactKb = kbFlags?.enabled === false
+        ? ""
+        : "Use practical BI/statistical judgement: compare the latest complete period with the prior comparable period, avoid unsupported causality, and surface only decision-useful findings.";
+    const metricDirection = (metricRules ?? "").trim()
+        ? `Metric direction rules: ${metricRules!.trim()}`
+        : "Default metric direction: higher is better unless the metric name implies an inverted-good measure such as rate of returns, defects, churn, cost, or delay.";
+    const authorPrecedence = (authorGuidance ?? "").trim()
+        ? `Author guidance takes priority over the defaults when they conflict:\n${authorGuidance!.trim()}`
+        : "";
+
+    // Build section blocks. 2026-05-27 — HEADLINE and KPI SNAPSHOT used
+    // to be bundled into one block, so the "lead batch" was actually a
+    // medium-weight call (one sentence + KPI table). User feedback in
+    // live test: first section should be a SINGLE, LIGHT block that
+    // renders fast for perceived-latency win. Split into two blocks now:
+    // HEADLINE alone is the lead (one declarative sentence → ~5-15s on
+    // a warm proxy); KPI SNAPSHOT joins the second batch.
+    const sectionBlocks: string[] = [];
+    if (showHeadline) {
+        sectionBlocks.push([
+            "## HEADLINE",
+            ovHeadline || `One declarative sentence, max 25 words, naming the most important ${domainLabel} number, change vs prior period, and on-track / watch / at-risk signal. Bold the headline number.`,
+        ].join("\n"));
+        sectionBlocks.push([
+            "## KPI SNAPSHOT",
+            `Markdown pipe table: KPI | Current | Prior | Δ % / Δ pp | Status. Cover the bound measures (${meas}). Use ▲/▼ and 🟢/🟡/🔴 where useful.`,
+        ].join("\n"));
+    }
+    if (showTrends) {
+        sectionBlocks.push([
+            "## TRENDS",
+            ovTrends || `3 to 5 compact insight cards as markdown bullets. Use "**Metric or segment:** direction, magnitude, and likely driver" so the UI can render cards instead of a plain bullet list.`,
+        ].join("\n"));
+    }
+    for (const s of aiSections) {
+        sectionBlocks.push([
+            `## ${s.name}`,
+            s.instruction,
+        ].join("\n"));
+    }
+    if (showRisks) {
+        sectionBlocks.push([
+            "## RISKS",
+            ovRisks || `Top 3 risks or warning signs in the current ${domainLabel} data. One markdown bullet each, concise, with numeric evidence. Use "**Risk name:** evidence and implication" so the UI can render risk cards instead of a plain bullet list.`,
+        ].join("\n"));
+    }
+    if (showActions) {
+        sectionBlocks.push([
+            "## RECOMMENDED ACTIONS",
+            ovActions || `Exactly 3 numbered action cards a ${ownerLabel} can take this week. Start each item with an imperative bold label such as "**Audit returns:**", name a specific target, and include expected metric impact.`,
+        ].join("\n"));
+    }
+
+    // If 0 or 1 blocks, fall back to single-shot behavior — no batching
+    // value when there's nothing to split.
+    if (sectionBlocks.length <= 1) {
+        return buildFastHybridInsightsStagePrompts(
+            context, domain, customSections, _roleMode, kbFlags, metricRules, authorGuidance, universalStages, universalOverrides
+        );
+    }
+
+    // Split into batches: lead = block[0] alone; rest in groups of batchSize.
+    const batchSize = Math.max(1, Math.min(3, opts?.batchSize ?? 2));
+    const batches: string[][] = [[sectionBlocks[0]]];
+    for (let i = 1; i < sectionBlocks.length; i += batchSize) {
+        batches.push(sectionBlocks.slice(i, i + batchSize));
+    }
+
+    const titleFor = (blocks: string[]): string => blocks
+        .map(b => (b.match(/^## (.+)$/m)?.[1] || "").trim())
+        .filter(Boolean)
+        .join(" + ") || FAST_INSIGHTS_STAGE_TITLE;
+
+    const sharedPreamble = [
+        `You are an analytics assistant for a ${domainLabel} report.`,
+        `Current scope binds these measures: ${meas}.`,
+        `Current scope includes these dimensions: ${dims}.`,
+        compactKb,
+        metricDirection,
+        authorPrecedence,
+    ].filter(Boolean).join("\n");
+
+    const sharedContract = [
+        "Do not ask clarifying questions. Do not include preamble, alternatives, or a closing summary.",
+        "Use the same current/prior period basis across every section; prefer year-over-year when the data spans multiple years.",
+        "Use exact field/category names from the data. Bold numeric values, not category labels.",
+        "Keep the answer compact enough to render inside a BI side pane.",
+        "POLISH CONTRACT: write like a finished executive card. Use crisp bullets, no filler phrases, no raw audit/debug language, no duplicated explanations.",
+        "Narrative bullets must not contain 🟢/🟡/🔴 status emojis or raw threshold parentheticals such as `(>3%, 🔴 >7%)`. Put status icons only in KPI table cells. If a threshold matters, write it in words, e.g. `above the 3% caution line`.",
+        "Avoid awkward metric-rule fragments such as `caution threshold (>3 ▼ -7%)`, `red threshold`, or bare comparator formulas in prose.",
+        FORMAT_MASK_GUARD,
+    ].join("\n");
+
+    const stages: string[] = batches.map((batchBlocks, batchIdx) => {
+        const batchSectionList = batchBlocks
+            .map(b => (b.match(/^## (.+)$/m)?.[1] || "").trim())
+            .filter(Boolean)
+            .join(" -> ");
+        const role = batchIdx === 0
+            ? "STAGED BRIEFING MODE: this is the LEAD section batch. Paint the most important findings first."
+            : `STAGED BRIEFING MODE: this is FOLLOW-UP BATCH ${batchIdx}. Continue the prior briefing without restating it. Maintain the same period basis and exact field names used earlier in this conversation.`;
+        return [
+            sharedPreamble,
+            "",
+            role,
+            `Output exactly these sections, in this order: ${batchSectionList}.`,
+            sharedContract,
+            "",
+            "SECTION CONTRACTS:",
+            batchBlocks.join("\n\n"),
+            "",
+            "Now emit only the final markdown sections, starting with the first `##` heading.",
+        ].filter(Boolean).join("\n");
+    });
+
+    return {
+        stages,
+        titles: batches.map(titleFor),
     };
 }
 
@@ -1008,6 +1221,10 @@ export interface HybridCustomSection {
      *  Section H CTE preamble is auto-prepended at execution; this field
      *  holds JUST the section's SELECT body. */
     sql?: string;
+    /** 2026-05-28 — optional target connector profile for a SQL section. The
+     *  section's SQL executes against this profile's warehouse (a Genie space
+     *  OR a direct/underlying-data warehouse). Unset → active profile. */
+    profile?: string;
     /** Wave 35 — display variant for the executed SQL result. */
     resultRender?: "kpi" | "table" | "chart";
     /** Wave 35 — display formatting for the executed SQL result. */
@@ -1055,6 +1272,10 @@ export function parseCustomSections(raw: string | undefined | null): HybridCusto
                     out.sql = typeof src.sql === "string" ? src.sql : "";
                     const renderRaw = typeof src.resultRender === "string" ? String(src.resultRender) : "";
                     out.resultRender = (renderRaw === "table" || renderRaw === "chart") ? renderRaw : "kpi";
+                    // 2026-05-28 — optional per-section target profile. Runtime
+                    // routes this section's SQL to this profile's warehouse
+                    // (Genie space or direct warehouse); unset → active profile.
+                    if (typeof src.profile === "string" && src.profile.trim()) out.profile = src.profile.trim();
                     if (src.format && typeof src.format === "object") {
                         const f = src.format as Record<string, unknown>;
                         const ns = typeof f.numberStyle === "string" ? f.numberStyle : "";
@@ -1136,8 +1357,16 @@ export function buildHybridInsightsStagePrompts(
     // fields; we don't want raw PATs / bearer tokens / emails ending up in
     // Databricks request logs forever. Redaction runs at prompt assembly so
     // it covers every code path that hits this function.
-    metricRules = redactAuthorPrompt(metricRules);
-    authorGuidance = redactAuthorPrompt(authorGuidance);
+    //
+    // L12 (SETTINGS_SPEC § 15) — now also strips prompt-injection keywords
+    // ("ignore previous instructions", "you are now…", etc.) via
+    // `safeAuthorPrompt`. Best-effort heuristic; the AI vendor's prompt
+    // hierarchy + the validator framework are the real fence.
+    metricRules = safeAuthorPrompt(metricRules);
+    // 2026-05-28 — strip recognized activator blocks (## Numeric Formatting /
+    // ## Masking) and replace with mask-free directives before the guidance
+    // reaches the LLM, so `#`-mask notation can never be parroted into prose.
+    authorGuidance = sanitizeGuidanceForPrompt(safeAuthorPrompt(authorGuidance));
     customSections = customSections
         // Wave 35 Phase 2 — SQL sections aren't part of the prompt-engineering
         // pipeline. Strip them out before assembling stage prompts so the
@@ -1146,8 +1375,8 @@ export function buildHybridInsightsStagePrompts(
         // separately (see visual.tsx kind-aware render branch).
         .filter(s => s.kind !== "sql")
         .map(s => ({
-            name: redactAuthorPrompt(s.name),
-            instruction: redactAuthorPrompt(s.instruction),
+            name: safeAuthorPrompt(s.name),
+            instruction: safeAuthorPrompt(s.instruction),
             disableTrendPills: s.disableTrendPills,
         }));
 
@@ -1167,7 +1396,8 @@ export function buildHybridInsightsStagePrompts(
     // stage so currency / decimals / abbreviation behaviour is consistent
     // across stages (no more `£` showing up alongside `$`, no `2,300,000`
     // mixed with `2.30M`). Author can override via domainGuidance.
-    const formatContract = "Number format contract: prefer USD ($) unless the dataset is unambiguously in another currency; format large values as K/M/B (e.g. $2.30M); always 2 decimals for currency and percent; never mix currency symbols within a single response. Percentage-point deltas MUST use the `pp` suffix (e.g. `+0.13pp`, `-0.85pp`, `flat`) — NEVER emit a bare number like `0.13` for a pp delta. Zero / no-change deltas should be written as `flat` or `0pp`, not `0` or `0%`. CRITICAL — never combine a fully-formatted dollar number with a magnitude suffix: write `$733,215.26` OR `$733.22K`, never `$733,215.26M` (that reads as `733 million million`). If the value is six digits or more, either keep it fully formatted ($XXX,XXX.XX) or abbreviate it ($X.XXM / $XXX.XXK), but never both.";
+    const formatContract = "Number format contract: prefer USD ($) unless the dataset is unambiguously in another currency; format large values as K/M/B (e.g. $2.30M); always 2 decimals for currency and percent; never mix currency symbols within a single response. Percentage-point deltas MUST use the `pp` suffix (e.g. `+0.13pp`, `-0.85pp`, `flat`) — NEVER emit a bare number like `0.13` for a pp delta. Zero / no-change deltas should be written as `flat` or `0pp`, not `0` or `0%`. CRITICAL — never combine a fully-formatted dollar number with a magnitude suffix: write `$733,215.26` OR `$733.22K`, never `$733,215.26M` (that reads as `733 million million`). If the value is six digits or more, either keep it fully formatted ($XXX,XXX.XX) or abbreviate it ($X.XXM / $XXX.XXK), but never both. " +
+        FORMAT_MASK_GUARD;
 
     // L5 — naming-fidelity contract. Live-test surfaced a case where the model
     // emitted `Supplies` as a "negative-margin sub-category" while the
@@ -1832,6 +2062,56 @@ export function buildFullContext(
     return lines.join("\n");
 }
 
+// 2026-05-22 Ask Pulse parity — briefing-intent heuristic. When the
+// question matches, buildGenieRequest appends a briefing-format
+// instruction so the LLM emits `## SECTION` markdown that the chat
+// renderer routes through renderInsightsSections (same rich card grid
+// as AI Insights). Triggers on either:
+//   (a) intent enum value that signals briefing flavour (summary / performance), OR
+//   (b) free-text keyword match in the user question
+// Keep the keyword list tight — overly broad triggers shape narrow
+// questions into briefing chrome.
+const BRIEFING_QUESTION_RE = /\b(?:summari[sz]e|summary|overview|brief(?:ing)?|executive|exec\s+brief|snapshot|top\s+risks?|top\s+opportunit(?:y|ies)|what\s+changed|recent\s+change|key\s+takeaway|state\s+of\s+the\s+business|how\s+(?:are\s+we|is\s+the\s+business)\s+doing)\b/i;
+
+// 2026-05-22 refined per Rajesh: *"Ask Pulse should be dialogue with data
+// simple and insightful... let's not try mould it."* Briefing trigger
+// requires an EXPLICIT keyword match in the question. The previous
+// shortcut `intent === "summary"` fired on every typed chat message
+// (because "summary" is the DEFAULT intent for typed input, see
+// visual.tsx:2855), which moulded ad-hoc questions like "show me the
+// top 10 sales performances" into a briefing structure they didn't ask
+// for. Now only briefing-flavoured keywords trigger the format
+// instructions; everything else stays plain chat.
+export function isBriefingQuestion(question: string, _intent: AssistantIntent): boolean {
+    return BRIEFING_QUESTION_RE.test(question || "");
+}
+
+// The briefing-format block — first-message "probe" only. HEADLINE-only.
+// Per Rajesh's three same-day 2026-05-22 directions, progressively
+// tightening the probe:
+//   1. *"as a probe What Changed is the section only section we should
+//      start with and rest should just be what you ask is what you get."*
+//   2. *"no need to have narrative like this"* (dropped TRENDS cause
+//      clauses).
+//   3. *"let's keep only the insights only for the probe as well"* —
+//      drop TRENDS entirely. Probe is now a single-sentence context-
+//      setter. Everything else (KPI strip, trends, risks, opportunities,
+//      recommended actions) is reached via follow-up dialogue.
+// Rationale: Ask Pulse is dialogue with data. The opener should be one
+// crisp sentence, not a multi-section card. Subsequent turns are plain
+// chat. This is the purest expression of chat-fidelity
+// (memory/feedback_chat_fidelity.md). The renderer still handles any
+// additional sections gracefully if the LLM emits them anyway (legacy
+// compat); we just don't REQUEST them.
+const BRIEFING_FORMAT_INSTRUCTION = [
+    "Output format — produce EXACTLY ONE markdown section with a `## HEADLINE` heading. No other sections, no preamble, no closing remarks.",
+    "",
+    "## HEADLINE",
+    "One sentence (max 25 words). Lead with the single most important number for the current period, its change vs prior, and whether overall performance is on-track / at-risk / off-track.",
+    "",
+    "Rules: Never ask a clarifying question. Never offer alternatives. If data is ambiguous, pick the most material metric and state your assumption in HEADLINE. Start directly with `## HEADLINE` — no preamble, no trailing sections. Do NOT add `## KPI SNAPSHOT`, `## TRENDS`, `## WHAT CHANGED`, `## RISKS`, `## OPPORTUNITIES`, or `## RECOMMENDED ACTIONS` — the user will ask for those as follow-ups if they want them. Do NOT explain WHY metrics moved — the user will ask if they want causes.",
+].join("\n");
+
 export function buildGenieRequest(
     question: string,
     intent: AssistantIntent,
@@ -1841,16 +2121,37 @@ export function buildGenieRequest(
     sendContextToGenie: boolean,
     options?: {
         omitDomainGuidance?: boolean;
+        omitAnalyticsKB?: boolean;
+        omitBriefingFormat?: boolean;
         kbFlags?: { enabled: boolean; charts: boolean; stats: boolean; reporting: boolean };
     }
 ): string {
     const kb = options?.kbFlags ?? { enabled: true, charts: true, stats: true, reporting: true };
+    // 2026-05-28 — Slice 4a: `## Masking` enforcement on the chat path. The
+    // chat prompt serializes context.safeContextText + filter values, so
+    // redact author-declared masked field VALUES before they reach the model.
+    // Defence-in-depth only — UC column masks are the real control.
+    const maskingRules = parseMaskingRules(domainGuidance);
+    if (maskingRules.length > 0) {
+        context = applyMaskingToContext(context, maskingRules);
+        selectedFilters = maskFilters(selectedFilters, maskingRules);
+    }
+    // Backend-neutral framing: PulsePlay orchestrates many AI connectors
+    // (Genie / Foundation Model / Supervisor / ResponsesAgent / …) and hosts
+    // many BI surfaces — the prompt must not assume any specific pair.
+    const briefingFlavoured = !options?.omitBriefingFormat && isBriefingQuestion(question, intent);
     const sections = [
-        "You are Azure Databricks Genie operating inside a Power BI custom visual.",
+        "You are the analytics assistant for a business-intelligence pane of glass.",
         "Respect the report context, explain business meaning clearly, and keep the response decision-oriented.",
         `Intent: ${intent}`,
-        // Inject compact analytics KB hint on every chat call
-        kb.enabled ? getKBChatHint(kb.stats, kb.reporting) : ""
+        // Briefing format injected when the question/intent signals a
+        // summary/snapshot ask. The chat renderer detects the resulting
+        // `## SECTION` headers and routes them through renderInsightsSections
+        // (same rich card grid as AI Insights).
+        briefingFlavoured ? BRIEFING_FORMAT_INSTRUCTION : "",
+        // Inject compact analytics KB hint on every chat call (skippable for
+        // short snapshot prompts where the KB rules would dwarf the question).
+        !options?.omitAnalyticsKB && kb.enabled ? getKBChatHint(kb.stats, kb.reporting) : ""
     ];
 
     if (sendContextToGenie) {
@@ -1862,12 +2163,17 @@ export function buildGenieRequest(
 
     // Business guidance is large (~2KB) and static. Send it on the first turn
     // only; subsequent turns ride on the conversation's short-term memory.
+    // 2026-05-28 — sanitize first so `## Numeric Formatting` / `## Masking`
+    // activator blocks are translated to mask-free directives (no `#` for the
+    // model to parrot) on the chat path too. orgRules read from the ORIGINAL
+    // guidance so existing org-rule extraction is unaffected.
     if (!options?.omitDomainGuidance && domainGuidance.trim()) {
         const orgRules = parseOrgRules(domainGuidance);
         const orgHint = orgRules.length > 0
             ? `\n[Org-specific rules]\n${orgRules.slice(0, 8).map(r => `- ${r.rule}`).join("\n")}`
             : "";
-        sections.push(`Business guidance: ${truncateForPrompt(domainGuidance.trim(), MAX_GUIDANCE_CHARS)}${orgHint}`);
+        const safeGuidance = sanitizeGuidanceForPrompt(domainGuidance);
+        sections.push(`Business guidance: ${truncateForPrompt(safeGuidance.trim(), MAX_GUIDANCE_CHARS)}${orgHint}`);
     }
     // Wrap the user question in a fenced block so instructions embedded in
     // question text are less likely to override the surrounding system framing.
@@ -1964,18 +2270,8 @@ export function describeScope(selectedFilters: Record<string, string>, filters: 
 
 /* ── Chart label helpers ─────────────────────────────────────────── */
 
-export function formatChartDate(raw: string): string {
-    const d = new Date(raw);
-    if (isNaN(d.getTime())) return raw;
-    return `${SHORT_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
-}
-
 export function formatCellForTooltip(col: string, raw: any): string {
-    if (raw === null || raw === undefined) return "-";
-    if (typeof raw === "string" && ISO_DATE_RE.test(raw)) return formatChartDate(raw);
-    if (typeof raw === "number") return formatNumber(raw);
-    if (isNumericString(raw)) return formatNumber(Number(raw));
-    return String(raw);
+    return formatSharedCellForTooltip(col, raw, { formatNumber });
 }
 
 export function mapAreaToIntent(area: GuidedArea): AssistantIntent {
@@ -1994,189 +2290,8 @@ export function buildBasicFilter(target: FilterTarget, value: string): IFilter {
 
 /* ── Data analysis & chart ───────────────────────────────────────── */
 
-/**
- * Detects whether a column is a rank/index/row-number column that should be
- * excluded from chart auto-recommendation. Uses word boundaries to avoid
- * false positives on legitimate columns like "Return_Revenue" or "region".
- *
- * A column is treated as rank/index when EITHER:
- *   - Its name matches a whole-word rank-ish token (rank|index|row_id|rn|seq|id), OR
- *   - ALL its values form a strict 1..N or 0..N-1 sequence (requires rows.length >= 3).
- */
-export function isRankOrIndexColumn(colName: string, values: number[]): boolean {
-    // Rank/index/surrogate key names
-    if (/\b(rank|index|row[\s_]?num(ber)?|row[\s_]?id|rn|seq(uence)?)\b/i.test(colName || "")) {
-        return true;
-    }
-    // Bare "id" column (exact match, not a suffix like order_id/product_id)
-    if (/^id$/i.test((colName || "").trim())) {
-        return true;
-    }
-    // Sequential 1-based or 0-based index run
-    if (values.length >= 3) {
-        const allOneBased = values.every((v, i) => v === i + 1);
-        const allZeroBased = values.every((v, i) => v === i);
-        if (allOneBased || allZeroBased) return true;
-    }
-    return false;
-}
-
-/**
- * Lightweight intent detector for business-user phrasing.
- *
- * Scans a question for explicit chart-type / view cues so the chat path
- * can honour requests like "show me a bar chart of sales by region" or
- * "give me a pie of profit by category" instead of falling through to
- * the auto-detected recommendation. Returns an empty object when the
- * question carries no explicit cue — caller then uses the default
- * view + auto-recommended chart type.
- *
- * Recognised cues (case-insensitive):
- *   • table            → "show as table", "in tabular form", "a table"
- *   • sql              → "show me the sql", "underlying sql", "in sql"
- *   • bar              → "bar chart", "bar graph", just "bar"
- *   • clustered-bar    → "clustered bar", "grouped bar", "side-by-side"
- *   • line             → "line chart", "line graph", "trend line"
- *   • area             → "area chart", "area graph"
- *   • donut            → "donut", "doughnut", "pie chart"
- *   • generic chart    → "show as a chart", "visualise", "graph it"
- *
- * Order matters: more specific phrases (e.g. "clustered bar") match
- * before the generic ones (e.g. "bar") so a clustered-bar request
- * doesn't degrade to a plain bar chart.
- */
-export type ForcedViewMode = "chart" | "table" | "narrative" | "sql";
-
-export interface ViewIntent {
-    /** Explicit view-mode override (when caller's available views allow it). */
-    viewMode?: ForcedViewMode;
-    /** Forced chart type — only meaningful when viewMode === "chart". */
-    chartType?: ChartKind;
-}
-
-export function detectViewIntent(question: string | null | undefined): ViewIntent {
-    const q = String(question || "").toLowerCase();
-    if (!q) return {};
-
-    // Table — match before chart so "show me a table of bar sales" is a table.
-    if (/\b(?:as|in)\s+(?:a\s+)?table\b|\bshow\s+(?:me\s+)?(?:a\s+)?table\b|\btabular\b/.test(q)) {
-        return { viewMode: "table" };
-    }
-    // SQL
-    if (/\bshow\s+(?:me\s+)?(?:the\s+)?sql\b|\b(?:as|in)\s+sql\b|\b(?:underlying|generated)\s+sql\b/.test(q)) {
-        return { viewMode: "sql" };
-    }
-
-    // Specific chart types — order: specific → generic.
-    if (/\b(?:donut|doughnut|pie)(?:\s*(?:chart|graph))?\b/.test(q)) {
-        return { viewMode: "chart", chartType: "donut" };
-    }
-    if (/\b(?:clustered|grouped|side[-\s]?by[-\s]?side)\s+bar\b/.test(q)) {
-        return { viewMode: "chart", chartType: "clustered-bar" };
-    }
-    if (/\bbar(?:\s*(?:chart|graph))?\b/.test(q)) {
-        return { viewMode: "chart", chartType: "bar" };
-    }
-    if (/\bline(?:\s*(?:chart|graph))?\b|\btrend(?:line)?\b/.test(q)) {
-        return { viewMode: "chart", chartType: "line" };
-    }
-    if (/\barea(?:\s*(?:chart|graph))?\b/.test(q)) {
-        return { viewMode: "chart", chartType: "area" };
-    }
-
-    // Generic chart ask without specific type — leave chart auto-pick.
-    if (/\bvisuali[sz]e\b|\b(?:show\s+(?:me\s+)?)?(?:as\s+a\s+|in\s+a\s+)?chart\b|\bgraph\s+it\b|\bplot\s+it\b/.test(q)) {
-        return { viewMode: "chart" };
-    }
-
-    return {};
-}
-
 export function analyzeDataShape(columns: string[], rows: any[][]): DataShape {
-    if (!columns.length || !rows.length) {
-        return { series: [], clustered: [], numericColCount: 0, rowCount: 0, recommended: "bar" };
-    }
-
-    const numericIndices: number[] = [];
-    const labelIndices: number[] = [];
-    rows[0].forEach((cell, i) => {
-        if (typeof cell === "number" || isNumericString(cell)) {
-            numericIndices.push(i);
-        } else {
-            labelIndices.push(i);
-        }
-    });
-
-    // Filter out rank/index columns using a shared helper with word boundaries
-    // and full-row sequential detection (see isRankOrIndexColumn).
-    const meaningfulNumeric = numericIndices.filter(ni => {
-        const colName = columns[ni] ?? "";
-        const vals = rows.map(r => Number(r[ni] ?? 0));
-        return !isRankOrIndexColumn(colName, vals);
-    });
-
-    // Build short label for axes (format dates, truncate composites)
-    const buildLabel = (row: any[], index: number): string => {
-        if (labelIndices.length === 0) return `Row ${index + 1}`;
-        const parts = labelIndices.map(li => {
-            const raw = String(row[li] ?? "");
-            return ISO_DATE_RE.test(raw) ? formatChartDate(raw) : raw;
-        }).filter(Boolean);
-        return parts.join(", ") || `Row ${index + 1}`;
-    };
-
-    // Build rich tooltip parts for all columns
-    const buildTooltipParts = (row: any[]): { col: string; val: string }[] =>
-        columns.map((col, ci) => ({ col, val: formatCellForTooltip(col, row[ci]) }));
-
-    const rowCount = rows.length;
-    const numericColCount = meaningfulNumeric.length;
-
-    // Multiple meaningful numeric columns → clustered bar candidate
-    if (numericColCount >= 2) {
-        const clustered: ClusteredSeriesPoint[] = rows.slice(0, 12).map((row, ri) => ({
-            label: buildLabel(row, ri),
-            values: meaningfulNumeric.map(ni => ({
-                name: columns[ni] ?? `Series ${ni}`,
-                value: Number(row[ni] ?? 0)
-            }))
-        }));
-
-        // Also build a flat series using the primary (first meaningful) numeric column
-        const primaryIdx = meaningfulNumeric[0];
-        const flatSeries: ChartSeriesPoint[] = rows.slice(0, 12).map((row, ri) => ({
-            label: buildLabel(row, ri),
-            value: Number(row[primaryIdx] ?? 0),
-            tooltipParts: buildTooltipParts(row)
-        }));
-
-        // Recommend clustered bar only for genuine comparisons (not ranked lists)
-        const recommended: ChartKind = rowCount === 1 ? "clustered-bar" : "clustered-bar";
-
-        return { series: flatSeries, clustered, numericColCount, rowCount, recommended };
-    }
-
-    // Single meaningful numeric column — use it for standard series
-    const primaryNumIdx = meaningfulNumeric[0] ?? numericIndices[0];
-    if (primaryNumIdx === undefined) {
-        return { series: [], clustered: [], numericColCount: 0, rowCount, recommended: "bar" };
-    }
-
-    const series: ChartSeriesPoint[] = rows.slice(0, 12).map((row, ri) => ({
-        label: buildLabel(row, ri),
-        value: Number(row[primaryNumIdx] ?? 0),
-        tooltipParts: buildTooltipParts(row)
-    }));
-
-    let recommended: ChartKind = "bar";
-    if (rowCount >= 6) {
-        recommended = "line";
-    }
-    if (rowCount >= 3 && rowCount <= 6 && series.every(p => p.value >= 0)) {
-        recommended = "donut";
-    }
-
-    return { series, clustered: [], numericColCount, rowCount, recommended };
+    return analyzeSharedDataShape(columns, rows, { formatNumber });
 }
 
 export function extractChartSeries(columns: string[], rows: any[][]): ChartSeriesPoint[] {
@@ -2423,7 +2538,10 @@ export function deriveDivisor(suffix: string, example?: string): number {
 }
 
 export function parseFormatRules(guidance: string): FormatRule[] {
-    const sec = guidance.match(/##\s*Formatting\s+Standards([\s\S]*?)(?=\n##\s|$)/i);
+    // 2026-05-28 — `## Numeric Formatting` is the canonical activator keyword;
+    // `## Formatting Standards` / `## Number Formatting` are recognized aliases
+    // for backward-compatibility with existing author guidance.
+    const sec = guidance.match(/##\s*(?:Numeric\s+Formatting|Number\s+Formatting|Formatting\s+Standards)([\s\S]*?)(?=\n##\s|$)/i);
     if (!sec) return [];
     const lines = sec[1].split("\n").map(l => l.trim()).filter(l => l.startsWith("|"));
     if (lines.length < 3) return [];
@@ -2445,6 +2563,68 @@ export function parseFormatRules(guidance: string): FormatRule[] {
     }
     rules.sort((a, b) => a.min - b.min);
     return rules;
+}
+
+/* ── Activator-keyword guidance handling (2026-05-28) ─────────────── */
+
+/** Translate parsed number-format rules into a plain-English directive for
+ *  the LLM. Crucially this contains NO `#`-mask characters — it describes
+ *  the intended display so the model formats real numbers correctly
+ *  without ever being able to parrot a literal mask into prose. */
+export function describeFormatRules(rules: FormatRule[]): string {
+    if (!rules || rules.length === 0) return "";
+    const human = (n: number): string =>
+        !isFinite(n) ? (n > 0 ? "infinity" : "negative infinity") : new Intl.NumberFormat("en-US").format(n);
+    const parts = rules.map(r => {
+        const range =
+            r.min <= 0 && !isFinite(r.max) ? "all values"
+            : !isFinite(r.max) ? `values ${human(r.min)} and above`
+            : r.min <= 0 ? `values under ${human(r.max)}`
+            : `values from ${human(r.min)} up to ${human(r.max)}`;
+        const dec = r.decimals === 0
+            ? "show as whole numbers (no decimals)"
+            : `show with ${r.decimals} decimal place${r.decimals === 1 ? "" : "s"}`;
+        const grouped = r.divisor === 1 ? ", comma-grouped thousands" : "";
+        const abbr = r.suffix ? `, abbreviated with the "${r.suffix}" suffix` : "";
+        return `${range}: ${dec}${grouped}${abbr}`;
+    });
+    return "Number display rules (apply to EVERY numeric value; these describe formatting only — never print literal hash/pound placeholder symbols as values): "
+        + parts.join("; ") + ".";
+}
+
+/** Prepare author guidance for injection into an LLM prompt. Recognized
+ *  activator blocks (`## Numeric Formatting`, `## Masking`, …) are removed
+ *  from the raw prose and replaced with clean, mask-free directives, so the
+ *  model gets the INTENT without any literal `#`-mask text to parrot.
+ *  Unrecognized prose passes through untouched. When no activators are
+ *  present the original guidance is returned unchanged. */
+export function sanitizeGuidanceForPrompt(guidance: string): string {
+    if (!guidance || !guidance.trim()) return guidance ?? "";
+    const parsed = parseGuidanceActivators(guidance);
+    if (parsed.blocks.length === 0) return guidance;
+
+    const parts: string[] = [];
+    if (parsed.prose.trim()) parts.push(parsed.prose.trim());
+
+    for (const block of parsed.blocks) {
+        if (block.id === "numeric-formatting") {
+            const rules = parseFormatRules(guidance);
+            const described = describeFormatRules(rules);
+            // Prefer the structured translation; fall back to the author's
+            // free text with `#` mask characters stripped so nothing can be
+            // parroted even when the block isn't a parseable table.
+            parts.push(described
+                || ("Number display guidance (apply to all numeric values; describe formatting only, never print literal placeholder characters): "
+                    + block.body.replace(/#/g, "").replace(/\s{2,}/g, " ").trim()));
+        } else if (block.id === "masking") {
+            // Slice 1 — recognized + reserved. Keep the raw masking rules OUT
+            // of the prose and instruct the model to honour masking. Full
+            // enforcement (redacting masked field values from context +
+            // display) is the next slice.
+            parts.push("Data-masking is configured for this report: never reveal, reconstruct, or infer the full value of any field the deployment masks; refer to masked values generically.");
+        }
+    }
+    return parts.join("\n\n");
 }
 
 /* ── Number formatting ───────────────────────────────────────────── */

@@ -1,0 +1,20 @@
+{
+  "id": "looker-supervisor",
+  "label": "Looker + Supervisor Agent",
+  "surface": {
+    "vendor": "looker",
+    "adapterMinVersion": "1.0"
+  },
+  "assistant": {
+    "kind": "supervisor",
+    "profileType": "supervisor"
+  },
+  "packs": {
+    "supported": ["hr-workforce", "retail-digital", "*"]
+  },
+  "capabilities": {
+    "required": ["chat", "sectioned-chat", "multi-agent-coordination"],
+    "optional": []
+  },
+  "status": "preview"
+}

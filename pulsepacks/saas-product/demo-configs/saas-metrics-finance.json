@@ -1,0 +1,21 @@
+{
+  "name": "saas-metrics-finance",
+  "displayName": "SaaS Unit Economics & ARR Bridge",
+  "pack": "saas-product",
+  "subVertical": "finance-saas",
+  "vendor": "generic-iframe",
+  "connector": "ResponsesAgent",
+  "metadata": {
+    "scenario": "Analyzes Annual Recurring Revenue (ARR), Net Revenue Retention (NRR), and LTV:CAC cohort dynamics across digital and cloud product models.",
+    "illustrative": true,
+    "sourceIds": ["SAAS-F01", "SAAS-F02"]
+  },
+  "overlays": ["sustainability"],
+  "authorOverrides": {
+    "glossary": [],
+    "kpis": [],
+    "insightTemplates": [],
+    "starterQuestions": [],
+    "guidedFilters": []
+  }
+}

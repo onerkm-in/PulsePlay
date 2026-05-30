@@ -1,0 +1,39 @@
+{
+  "name": "pulse-visuals",
+  "description": "Pulse Visuals — Power BI custom visual for Databricks Genie. Part of the PulsePlay ecosystem.",
+  "version": "2.1.0.0",
+  "repository": {
+    "type": "default_template_value",
+    "url": "default_template_value"
+  },
+  "license": "MIT",
+  "scripts": {
+    "pbiviz": "pbiviz",
+    "start": "pbiviz start",
+    "start:proxy": "node proxy/server.js",
+    "package": "pbiviz package",
+    "lint": "npx eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@types/d3": "7.4.3",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "d3": "7.9.0",
+    "powerbi-visuals-api": "~5.3.0",
+    "powerbi-visuals-utils-formattingmodel": "6.0.4",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "@typescript-eslint/eslint-plugin": "^8.8.0",
+    "eslint": "^9.11.1",
+    "eslint-plugin-powerbi-visuals": "^1.0.0",
+    "powerbi-visuals-tools": "7.0.2",
+    "typescript": "5.5.4",
+    "vitest": "^4.1.2"
+  }
+}

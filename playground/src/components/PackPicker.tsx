@@ -35,7 +35,7 @@ export interface PackSelection {
 }
 
 export interface PackPickerProps {
-    /** All installed packs. v0 callers pass the hardcoded cpg-fmcg pack. */
+    /** All installed packs visible to the current user, normally loaded from the proxy pack registry. */
     availablePacks: PackInfo[];
     /** Suggested pack from probe inference (preselect, also drives the * marker). */
     suggested?: PackSelection;
@@ -45,9 +45,8 @@ export interface PackPickerProps {
 }
 
 /**
- * Default v0 hardcoded list — read directly from pulsepacks/cpg-fmcg/pack.json.
- * Exported so the parent (App.tsx) can pass this as `availablePacks` without
- * fetching anything until the /api/packs endpoint exists.
+ * Legacy fallback list for tests/story-like callers that render PackPicker in
+ * isolation. App.tsx uses /api/assistant/knowledge/packs instead.
  */
 export const DEFAULT_AVAILABLE_PACKS: PackInfo[] = [
     {
@@ -66,6 +65,27 @@ export const DEFAULT_AVAILABLE_PACKS: PackInfo[] = [
             { name: "vendor-management", displayName: "Vendor Management", description: "Supplier 360, contract intelligence, tier 2/3/4 dependency, ESG scorecards." },
             { name: "client-management", displayName: "Client Management", description: "Retail customer JBP, scorecards, deductions; warehousing-client SLAs and throughput." },
             { name: "sustainability", displayName: "Sustainability", description: "Cross-cutting overlay: Scope 1/2/3 emissions, water, waste, packaging, ESG reporting." },
+        ],
+    },
+    {
+        name: "retail-digital",
+        displayName: "E-Commerce & Digital Retail",
+        description:
+            "E-Commerce & Digital Retail preset pack, encompassing merchandising planners, digital marketing growth loops, and green logistics/sustainability overlays.",
+        subVerticals: [
+            { name: "merchandising", displayName: "Merchandising", description: "Gross margin return on investment (GMROI), sell-through velocity, inventory turn, markdowns." },
+            { name: "digital-marketing", displayName: "Digital Marketing", description: "Customer acquisition cost (CAC), LTV, ROAS, conversion funnel, retention cohorts." },
+            { name: "sustainability", displayName: "Sustainability", description: "Cross-cutting overlay: packaging circularity, transportation carbon intensity, Scope 3 EPR." },
+        ],
+    },
+    {
+        name: "saas-product",
+        displayName: "SaaS & Digital Products",
+        description:
+            "SaaS & Digital Products preset pack, encompassing SaaS financial trackers, ARR bridges, LTV/CAC cohort evaluations, and green computing/cloud software sustainability overlays.",
+        subVerticals: [
+            { name: "finance-saas", displayName: "Finance / SaaS", description: "Annual Recurring Revenue (ARR) bridge, Net Revenue Retention (NRR), LTV:CAC, and payback periods." },
+            { name: "sustainability", displayName: "Sustainability", description: "Cross-cutting overlay: cloud infrastructure power usage effectiveness (PUE), green computing, Scope 3 hosting emissions." },
         ],
     },
 ];

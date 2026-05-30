@@ -13,8 +13,8 @@ if hasattr(sys.stdout, "reconfigure"):
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
-DATABRICKS_HOST = "https://dbc-f88d29ce-4aa2.cloud.databricks.com"
-WAREHOUSE_ID    = "6510da50329f1e85"
+DATABRICKS_HOST = "https://dbc-ENTER-YOUR-WORKSPACE-HASH.cloud.databricks.com"
+WAREHOUSE_ID    = "ENTER_WAREHOUSE_ID"
 PROXY           = "http://127.0.0.1:8787"
 
 # ── load token from proxy config ─────────────────────────────────

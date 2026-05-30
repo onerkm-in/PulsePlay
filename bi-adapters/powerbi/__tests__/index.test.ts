@@ -32,10 +32,24 @@ interface FakeReport {
     _emit: (eventName: string, detail: unknown) => void;
 }
 
+// The real powerbi-client validates the event name and throws for anything
+// outside this set. The mock now mirrors that so an invalid mapping (e.g. the
+// old "dataRefreshed", which Power BI's embed SDK doesn't have) fails the test
+// instead of silently "working" — that lenient gap masked a real embed crash.
+const VALID_PBI_EVENTS = new Set([
+    "loaded", "saved", "rendered", "saveAsTriggered", "error", "dataSelected",
+    "buttonClicked", "info", "filtersApplied", "pageChanged", "commandTriggered",
+    "swipeStart", "swipeEnd", "bookmarkApplied", "dataHyperlinkClicked",
+    "visualRendered", "visualClicked", "selectionChanged", "renderingStarted", "blur",
+]);
+
 function makeFakeReport(): FakeReport {
     const handlers = new Map<string, Array<(e: { detail: unknown }) => void>>();
     const report: FakeReport = {
         on: vi.fn((name: string, handler: (e: { detail: unknown }) => void) => {
+            if (!VALID_PBI_EVENTS.has(name)) {
+                throw new Error(`eventName must be one of ${[...VALID_PBI_EVENTS].join(",")}. You passed: ${name}`);
+            }
             if (!handlers.has(name)) handlers.set(name, []);
             handlers.get(name)!.push(handler);
         }),
@@ -359,6 +373,20 @@ describe("PowerBIAdapter — send()", () => {
             .rejects.toThrow(/UNSUPPORTED_COMMAND/);
     });
 
+    test("legacy Quick Setup secureLink config mounts as secure iframe", async () => {
+        const a = new PowerBIAdapter();
+        await a.mount(containerEl, {
+            vendor: "powerbi",
+            mode: "secure",
+            secureLink: "https://app.powerbi.com/reportEmbed?reportId=legacy-report",
+        } as unknown as PowerBIEmbedConfig);
+
+        const iframe = containerEl.querySelector("iframe");
+        expect(iframe).not.toBeNull();
+        expect(iframe?.src).toContain("reportId=legacy-report");
+        expect(svc.embed).not.toHaveBeenCalled();
+    });
+
     test("send before mount throws NOT_MOUNTED", async () => {
         const a = new PowerBIAdapter();
         await expect(a.send({ kind: "refresh" })).rejects.toThrow(/NOT_MOUNTED/);
@@ -437,5 +465,341 @@ describe("PowerBIAdapter — destroy()", () => {
 
         a.destroy();
         expect(report.off).toHaveBeenCalledWith("pageChanged", expect.any(Function));
+    });
+});
+
+// ── getMetadata() — Discovery Loop honest reachability ───────────────────
+
+describe("PowerBIAdapter — getMetadata()", () => {
+    function reportWithVisuals(visuals: Array<{ type?: string; title?: string; name?: string }>): FakeReport {
+        const r = makeFakeReport();
+        // Extend the fake getActivePage to attach a getVisuals() method.
+        r.getActivePage = vi.fn(async () => ({
+            name: "ReportSection",
+            displayName: "Overview",
+            getVisuals: vi.fn(async () => visuals),
+        }));
+        return r;
+    }
+
+    test("returns null when adapter is not mounted", async () => {
+        const a = new PowerBIAdapter();
+        expect(await a.getMetadata()).toBeNull();
+    });
+
+    test("returns null in secure-iframe mode (no SDK introspection)", async () => {
+        const a = new PowerBIAdapter();
+        await a.mount(containerEl, SECURE_CONFIG);
+        expect(await a.getMetadata()).toBeNull();
+    });
+
+    test("returns activeViewId from the active page name", async () => {
+        const a = new PowerBIAdapter();
+        await a.mount(containerEl, VALID_CONFIG);
+        // Stub the active page so it has getVisuals.
+        svc._lastReport!.getActivePage = vi.fn(async () => ({
+            name: "Sales_Overview",
+            getVisuals: vi.fn(async () => []),
+        }));
+        const meta = await a.getMetadata();
+        expect(meta).not.toBeNull();
+        expect(meta!.activeViewId).toBe("Sales_Overview");
+    });
+
+    test("classifies card / kpi visuals as measures with currency / percent / count kind hints", async () => {
+        const a = new PowerBIAdapter();
+        await a.mount(containerEl, VALID_CONFIG);
+        const fakeReport = reportWithVisuals([
+            { type: "card", title: "Total Revenue" },
+            { type: "kpi", title: "Profit Margin %" },
+            { type: "card", title: "Order Count" },
+            { type: "multiRowCard", title: "Forecast Accuracy" },
+        ]);
+        // Inject the fake getActivePage that returns getVisuals.
+        (svc._lastReport! as unknown as { getActivePage: typeof fakeReport.getActivePage }).getActivePage = fakeReport.getActivePage;
+
+        const meta = await a.getMetadata();
+        expect(meta).not.toBeNull();
+        const measures = meta!.visibleMeasures || [];
+        expect(measures.find(m => m.name === "Total Revenue")?.kind).toBe("currency");
+        expect(measures.find(m => m.name === "Profit Margin %")?.kind).toBe("percent");
+        expect(measures.find(m => m.name === "Order Count")?.kind).toBe("count");
+        // Forecast Accuracy has no kind cue → present without kind
+        const fcst = measures.find(m => m.name === "Forecast Accuracy");
+        expect(fcst).toBeDefined();
+        expect(fcst!.kind).toBeUndefined();
+    });
+
+    test("classifies slicer / tableEx / matrix visuals as dimensions", async () => {
+        const a = new PowerBIAdapter();
+        await a.mount(containerEl, VALID_CONFIG);
+        const fakeReport = reportWithVisuals([
+            { type: "slicer", title: "Region" },
+            { type: "tableEx", title: "Customer" },
+            { type: "matrix", title: "Category" },
+        ]);
+        (svc._lastReport! as unknown as { getActivePage: typeof fakeReport.getActivePage }).getActivePage = fakeReport.getActivePage;
+
+        const meta = await a.getMetadata();
+        const dimensions = meta!.visibleDimensions || [];
+        expect(dimensions.map(d => d.name)).toEqual(expect.arrayContaining(["Region", "Customer", "Category"]));
+        // Measures should not contain any of the slicer titles.
+        const measureNames = (meta!.visibleMeasures || []).map(m => m.name);
+        expect(measureNames).not.toContain("Region");
+    });
+
+    test("includes active filters with field + value from report.getFilters()", async () => {
+        const a = new PowerBIAdapter();
+        await a.mount(containerEl, VALID_CONFIG);
+        svc._lastReport!.getFilters = vi.fn(async () => [
+            { target: { column: "Region" }, values: ["East"] },
+            { target: { column: "Year" }, values: [2024, 2025] },
+        ]);
+        svc._lastReport!.getActivePage = vi.fn(async () => ({
+            name: "Overview",
+            getVisuals: vi.fn(async () => []),
+        }));
+
+        const meta = await a.getMetadata();
+        const filters = meta!.activeFilters || [];
+        expect(filters).toHaveLength(2);
+        expect(filters.find(f => f.field === "Region")?.value).toBe("East");
+        // Multi-value array stays as an array.
+        expect(filters.find(f => f.field === "Year")?.value).toEqual([2024, 2025]);
+    });
+
+    test("partial inner-call failures degrade gracefully (returns shape with empty lists, not null)", async () => {
+        const a = new PowerBIAdapter();
+        await a.mount(containerEl, VALID_CONFIG);
+        // Inner getActivePage + getFilters reject — the adapter's per-call
+        // try/catch swallows each. The result is a well-formed BIMetadata
+        // with the unfilled fields left empty, so the proxy's Discovery
+        // engine knows what's known vs unknown rather than getting a flat
+        // null (which would mean "no signal at all").
+        svc._lastReport!.getActivePage = vi.fn(async () => { throw new Error("boom"); });
+        svc._lastReport!.getFilters = vi.fn(async () => { throw new Error("boom"); });
+
+        const meta = await a.getMetadata();
+        expect(meta).not.toBeNull();
+        expect(meta!.activeViewId).toBeNull();
+        expect(meta!.visibleMeasures).toEqual([]);
+        expect(meta!.visibleDimensions).toEqual([]);
+        expect(meta!.activeFilters).toEqual([]);
+    });
+
+    test("getMetadata is declared on the PowerBIAdapter prototype (BIAdapter optional contract)", () => {
+        const a = new PowerBIAdapter();
+        expect(typeof a.getMetadata).toBe("function");
+    });
+});
+
+// ── Additional intensive coverage — token type / permissions / events ────
+
+describe("PowerBIAdapter — mount config translation", () => {
+    test("tokenType defaults to numeric Embed (=1) when omitted", async () => {
+        const a = new PowerBIAdapter();
+        const cfg = { ...VALID_CONFIG };
+        delete (cfg as { tokenType?: unknown }).tokenType;
+        await a.mount(containerEl, cfg);
+        const calledConfig = svc.embed.mock.calls[0][1];
+        // models.TokenType.Embed = 1, Aad = 0
+        expect(calledConfig.tokenType).toBe(1);
+    });
+
+    test("tokenType=Aad maps to numeric Aad (=0)", async () => {
+        const a = new PowerBIAdapter();
+        await a.mount(containerEl, { ...VALID_CONFIG, tokenType: "Aad" });
+        const calledConfig = svc.embed.mock.calls[0][1];
+        expect(calledConfig.tokenType).toBe(0);
+    });
+
+    test("permissions=Edit maps to Permissions.All (=7), View maps to Read (=0)", async () => {
+        const editAdapter = new PowerBIAdapter();
+        await editAdapter.mount(containerEl, { ...VALID_CONFIG, permissions: "Edit" });
+        const editConfig = svc.embed.mock.calls[0][1];
+        expect(editConfig.permissions).toBe(7); // Permissions.All
+        editAdapter.destroy();
+
+        // Reset for a fresh embed call
+        svc = makeFakeService();
+        __setPowerBIServiceForTests(svc as unknown as Parameters<typeof __setPowerBIServiceForTests>[0]);
+
+        const viewAdapter = new PowerBIAdapter();
+        await viewAdapter.mount(containerEl, { ...VALID_CONFIG, permissions: "View" });
+        const viewConfig = svc.embed.mock.calls[0][1];
+        expect(viewConfig.permissions).toBe(0); // Permissions.Read
+    });
+
+    test("permissions defaults to View when omitted", async () => {
+        const a = new PowerBIAdapter();
+        const cfg = { ...VALID_CONFIG };
+        delete (cfg as { permissions?: unknown }).permissions;
+        await a.mount(containerEl, cfg);
+        const calledConfig = svc.embed.mock.calls[0][1];
+        expect(calledConfig.permissions).toBe(0); // Read
+    });
+
+    test("mount twice on the same instance resets prior state", async () => {
+        const a = new PowerBIAdapter();
+        await a.mount(containerEl, VALID_CONFIG);
+        const firstReport = svc._lastReport!;
+        // Second mount should call embed again (host normally calls
+        // destroy() first; we verify behaviour isn't catastrophic if it
+        // doesn't).
+        await a.mount(containerEl, VALID_CONFIG);
+        expect(svc.embed).toHaveBeenCalledTimes(2);
+        expect(svc._lastReport).not.toBe(firstReport);
+    });
+});
+
+describe("PowerBIAdapter — events (loaded / data-refreshed / error)", () => {
+    test("subscribing to 'loaded' registers BOTH PBI 'loaded' AND 'rendered'", async () => {
+        const a = new PowerBIAdapter();
+        await a.mount(containerEl, VALID_CONFIG);
+        const report = svc._lastReport!;
+        const events: BIEvent[] = [];
+        a.on("loaded", e => events.push(e));
+
+        const onCalls = report.on.mock.calls.map(c => c[0]);
+        expect(onCalls).toContain("loaded");
+        expect(onCalls).toContain("rendered");
+
+        // Each underlying PBI event delivers exactly one canonical event.
+        report._emit("loaded", { reason: "first" });
+        report._emit("rendered", { reason: "rerender" });
+        expect(events).toHaveLength(2);
+        expect(events[0].type).toBe("loaded");
+        expect(events[1].type).toBe("loaded");
+    });
+
+    test("'data-refreshed' subscribes to NO Power BI SDK event (the SDK has none)", async () => {
+        const a = new PowerBIAdapter();
+        await a.mount(containerEl, VALID_CONFIG);
+        const events: BIEvent[] = [];
+        // Must NOT throw — the adapter maps data-refreshed to no SDK event, so
+        // it never calls report.on() with an invalid name (the real SDK would
+        // reject "dataRefreshed" and crash the embed). And nothing bridges it.
+        expect(() => a.on("data-refreshed", e => events.push(e))).not.toThrow();
+        expect(svc._lastReport!.on).not.toHaveBeenCalledWith("dataRefreshed", expect.anything());
+        svc._lastReport!._emit("dataRefreshed", { type: "schedule" });
+        expect(events).toHaveLength(0);
+    });
+
+    test("'error' bridges PBI error", async () => {
+        const a = new PowerBIAdapter();
+        await a.mount(containerEl, VALID_CONFIG);
+        const events: BIEvent[] = [];
+        a.on("error", e => events.push(e));
+        svc._lastReport!._emit("error", { message: "boom", level: 3 });
+        expect(events).toHaveLength(1);
+        expect(events[0].type).toBe("error");
+        // Generic events (loaded / data-refreshed / error) forward the raw
+        // SDK detail untouched under `raw` so consumers can read whatever
+        // shape the vendor passes without us projecting it.
+        const payload = events[0].payload as { pbiEventName?: string; raw?: { message?: string } };
+        expect(payload.pbiEventName).toBe("error");
+        expect(payload.raw?.message).toBe("boom");
+    });
+
+    test("multiple subscribers on the same event all receive deliveries", async () => {
+        const a = new PowerBIAdapter();
+        await a.mount(containerEl, VALID_CONFIG);
+        const tally: string[] = [];
+        a.on("page-changed", () => tally.push("a"));
+        a.on("page-changed", () => tally.push("b"));
+        a.on("page-changed", () => tally.push("c"));
+        svc._lastReport!._emit("pageChanged", { newPage: { name: "p" } });
+        expect(tally).toEqual(["a", "b", "c"]);
+    });
+
+    test("re-subscribing after unsubscribe restores delivery", async () => {
+        const a = new PowerBIAdapter();
+        await a.mount(containerEl, VALID_CONFIG);
+        const events: BIEvent[] = [];
+        const off = a.on("page-changed", e => events.push(e));
+        off();
+        a.on("page-changed", e => events.push(e));
+        svc._lastReport!._emit("pageChanged", { newPage: { name: "p" } });
+        expect(events).toHaveLength(1);
+    });
+});
+
+describe("PowerBIAdapter — secure-iframe sandbox + URL gating", () => {
+    test("secure iframe applies the documented default sandbox", async () => {
+        const a = new PowerBIAdapter();
+        await a.mount(containerEl, SECURE_CONFIG);
+        const sandbox = containerEl.querySelector("iframe")?.getAttribute("sandbox") || "";
+        // Defaults from DEFAULT_SECURE_IFRAME_SANDBOX
+        expect(sandbox).toContain("allow-scripts");
+        expect(sandbox).toContain("allow-same-origin");
+        expect(sandbox).toContain("allow-forms");
+        expect(sandbox).toContain("allow-popups");
+        expect(sandbox).toContain("allow-popups-to-escape-sandbox");
+    });
+
+    test("secure iframe accepts cfg.sandbox override", async () => {
+        const a = new PowerBIAdapter();
+        await a.mount(containerEl, { ...SECURE_CONFIG, sandbox: "allow-scripts" } as PowerBIEmbedConfig);
+        expect(containerEl.querySelector("iframe")?.getAttribute("sandbox")).toBe("allow-scripts");
+    });
+
+    test("secure iframe rejects an embedUrl that doesn't end in /reportEmbed", async () => {
+        const a = new PowerBIAdapter();
+        await expect(a.mount(containerEl, {
+            ...SECURE_CONFIG,
+            embedUrl: "https://app.powerbi.com/reports/abc",
+        })).rejects.toThrow(/app\.powerbi\.com\/reportEmbed/);
+    });
+
+    test("secure iframe rejects a non-https Power BI URL", async () => {
+        const a = new PowerBIAdapter();
+        await expect(a.mount(containerEl, {
+            ...SECURE_CONFIG,
+            embedUrl: "http://app.powerbi.com/reportEmbed?reportId=x",
+        })).rejects.toThrow();
+    });
+});
+
+describe("PowerBIAdapter — getDeveloperSnapshot error branches", () => {
+    test("getPages throws → recorded in errors[] but snapshot still returns", async () => {
+        const a = new PowerBIAdapter();
+        await a.mount(containerEl, VALID_CONFIG);
+        svc._lastReport!.getPages = vi.fn(async () => { throw new Error("pages-boom"); });
+        const snap = await a.getDeveloperSnapshot();
+        expect(snap.errors.join("\n")).toMatch(/getPages failed: pages-boom/);
+        expect(snap.mountMode).toBe("sdk");
+    });
+
+    test("getActivePage throws → recorded in errors[]", async () => {
+        const a = new PowerBIAdapter();
+        await a.mount(containerEl, VALID_CONFIG);
+        svc._lastReport!.getActivePage = vi.fn(async () => { throw new Error("active-boom"); });
+        const snap = await a.getDeveloperSnapshot();
+        expect(snap.errors.join("\n")).toMatch(/getActivePage failed: active-boom/);
+    });
+
+    test("getFilters throws → recorded in errors[]", async () => {
+        const a = new PowerBIAdapter();
+        await a.mount(containerEl, VALID_CONFIG);
+        svc._lastReport!.getFilters = vi.fn(async () => { throw new Error("filters-boom"); });
+        const snap = await a.getDeveloperSnapshot();
+        expect(snap.errors.join("\n")).toMatch(/getFilters failed: filters-boom/);
+    });
+
+    test("multiple inner failures all accumulate", async () => {
+        const a = new PowerBIAdapter();
+        await a.mount(containerEl, VALID_CONFIG);
+        svc._lastReport!.getPages = vi.fn(async () => { throw new Error("p"); });
+        svc._lastReport!.getActivePage = vi.fn(async () => { throw new Error("a"); });
+        svc._lastReport!.getFilters = vi.fn(async () => { throw new Error("f"); });
+        const snap = await a.getDeveloperSnapshot();
+        expect(snap.errors).toHaveLength(3);
+    });
+
+    test("snapshot includes 'Snapshot comes from the live powerbi-client' note in SDK mode", async () => {
+        const a = new PowerBIAdapter();
+        await a.mount(containerEl, VALID_CONFIG);
+        const snap = await a.getDeveloperSnapshot();
+        expect(snap.notes.join(" ")).toMatch(/live powerbi-client/i);
     });
 });

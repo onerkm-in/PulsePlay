@@ -1,10 +1,10 @@
 # PulsePlay Packs
 
-> **Brief overview of the pack architecture.** Detailed pack specification lives in `pulsepacks/PACK_SPECIFICATION.md` (Agent 2's work). This doc explains what packs are, why we have them, and how they fit into PulsePlay.
+> **Brief overview of the pack architecture.** Detailed pack specification lives in [pulsepacks/PACK_SPECIFICATION.md](../pulsepacks/PACK_SPECIFICATION.md). This doc explains what packs are, what works today, and how packs fit into the Knowledge plane.
 
 ## What is a pack
 
-A **PulsePack** is a vertical / domain-specific bundle that pre-configures PulsePlay for a particular industry or function. Examples:
+A **PulsePack** is a vertical / domain-specific bundle that gives PulsePlay business vocabulary, KPI definitions, sample questions, prompt context, references, ontology, and demo configurations for a particular industry or function. Examples:
 
 - `pulsepacks/cpg-fmcg/` — Consumer Packaged Goods / Fast-Moving Consumer Goods. Pre-built domain agents for trade promotion, demand planning, retail execution, supply chain, finance close. Reference dashboards. Curated metric definitions.
 - `pulsepacks/manufacturing/` — Plant operations (OEE, downtime, quality), batch genealogy, supplier risk, ISA-95-aware OT/IT integration.
@@ -14,14 +14,16 @@ Each pack is a self-contained directory bundling:
 
 | Element | Purpose |
 |---|---|
-| Domain agents (LangGraph specs) | Pre-built reasoning for the vertical's standard questions |
-| Connector profile templates | Common backend wirings (e.g., "Genie space for sales, Foundation Model for narrative") |
-| Reference dashboards | Sample BI artifacts the user can load to demo |
-| Prompt templates | Versioned, vertical-tuned prompts |
-| Validator rule overrides | Section schemas that match the vertical's reporting conventions |
-| Vocabulary / glossary | Industry-standard term definitions for the AI to reference |
-| Demo / golden-question sets | Eval suite seeds |
-| README | What this pack is, who it's for, how to deploy |
+| `pack.json` | Machine-readable manifest, compatibility, sub-vertical list, maintainers, references |
+| `knowledge-base/glossary.md` | Domain terms and definitions |
+| `knowledge-base/ontology.md` | Domain entities and relationships |
+| `knowledge-base/references.md` | Source bibliography |
+| `sub-verticals/*/kpis.md` | KPI definitions, formulas, direction, cadence, sources |
+| `sub-verticals/*/sample-questions.md` | Real practitioner prompts grouped by intent |
+| `sub-verticals/*/prompt-context.md` | Short system/context snippet injected at runtime when selected |
+| `sub-verticals/*/bi-ai-fit.md` | Which BI/AI shapes fit this content and which do not |
+| `demo-configs/*.json` | Loadable demo scenarios |
+| `MIGRATION_NOTES.md` | Scaffold vs SME-reviewed status |
 
 ## Why pack architecture
 
@@ -31,28 +33,42 @@ Each pack is a self-contained directory bundling:
 
 **Pack architecture also makes inner-source work** — a different team in the org maintains a pack independently, syncs it to the central PulsePlay registry, and shares improvements with everyone using that pack.
 
-## How to use a pack
+## How packs work today
 
-```powershell
-# 1. Pick a pack from pulsepacks/
-ls D:\Working_Folder\Projects\PulsePlay\pulsepacks\
+Implemented:
 
-# 2. Activate it via env var or proxy config
-$env:PULSEPLAY_PACK = "cpg-fmcg"
-node proxy/server.js
+- `pulsepacks/cpg-fmcg/` exists as the first reference pack.
+- `proxy/lib/packMatcher.js` scans installed packs and scores probe metadata against glossary, KPI, and sample-question terms.
+- `proxy/lib/packPromptLoader.js` loads `prompt-context.md` for a selected pack/sub-vertical, with glossary fallback.
+- `proxy/lib/packPromptInjector.js` injects pack context into Genie-style user messages or orchestrator system prompts.
+- `GET /assistant/knowledge/packs` returns installed packs visible to the current user, filtered by the organization allowlist.
+- `TestConnectionPanel` shows probe metadata and the pack inference trace.
+- `PackPicker` uses the proxy pack registry and lets the author confirm or override the inferred pack/sub-vertical.
+- `AISidebar` forwards the author-confirmed `pack` and `subVertical` to the proxy.
 
-# 3. The proxy auto-loads:
-#    - Pack's connector profile templates (merged with proxy/config.json)
-#    - Pack's prompt templates
-#    - Pack's validator rules
-#    - Pack's domain agents (if Mosaic AI Supervisor is configured)
+Not implemented yet:
 
-# 4. The playground auto-discovers:
-#    - Pack's reference dashboards (via /assistant/pack/dashboards endpoint)
-#    - Pack's golden questions (via /assistant/pack/questions endpoint, if eval suite is wired)
-```
+- Knowledge Base browser for glossary, ontology, KPIs, sample questions, and references.
+- Governed retrieval/index provider layer.
+- Tool-callable KPI/reference lookup.
+- Golden-question eval runner.
+- Pack authoring UI.
 
-The pack contract is documented in `pulsepacks/PACK_SPECIFICATION.md`.
+The pack contract is documented in [pulsepacks/PACK_SPECIFICATION.md](../pulsepacks/PACK_SPECIFICATION.md). The broader Knowledge plane and retrieval architecture is documented in [KNOWLEDGE_BASE_ARCHITECTURE.md](KNOWLEDGE_BASE_ARCHITECTURE.md).
+
+## Pack vs Knowledge Base
+
+Do not use these terms interchangeably:
+
+| Term | Meaning |
+|---|---|
+| **PulsePack** | Curated domain content and presets stored under `pulsepacks/` |
+| **Knowledge Base** | Inspectable content library plus future retrieval/source/index management |
+| **Knowledge source** | A source system or content set such as PulsePack files, BI metadata, SharePoint, S3, Unity Catalog docs, or Git docs |
+| **Knowledge index** | A provider-backed search index such as Databricks Vector Search, Azure AI Search, Bedrock Knowledge Base, OpenAI vector store, or local dev index |
+| **GroundingBundle** | Normalized retrieval result sent to any AI connector |
+
+The first implementation should make packs discoverable and inspectable before attempting full RAG.
 
 ## Pack governance
 
@@ -61,7 +77,11 @@ For internal-org packs:
 - One pack per business vertical (CPG, manufacturing, finance, etc.)
 - Owned by the team that uses the pack the most
 - Sync upstream changes from PulsePlay core into the pack on every minor version
-- Lint pack against the spec on commit (validator rules valid, prompts well-formed, agents deployable)
+- Lint pack against the spec on commit
+- Mark scaffolded content and SME review gaps explicitly in `MIGRATION_NOTES.md`
+- Require citations for standards, formulas, statistics, and external claims
+- Maintain a source register with stable source IDs, credibility tiers, owner/review metadata, and limitations for paywalled or partially verified sources. See [KNOWLEDGE_BASE_SOURCE_GOVERNANCE.md](KNOWLEDGE_BASE_SOURCE_GOVERNANCE.md).
+- Treat prompt-context, Prompt IR, chart rules, and KPI formulas as runtime-adjacent content. They need source IDs or SME approval before being treated as system authority.
 
 For (future) public packs:
 
@@ -71,12 +91,17 @@ For (future) public packs:
 
 ## Status
 
-The first pack — `pulsepacks/cpg-fmcg/` — is being seeded by Agent 2 from the [inherited/CPG_FMCG_ENTERPRISE_BLUEPRINT.md](inherited/CPG_FMCG_ENTERPRISE_BLUEPRINT.md) reference doc. Until that lands, there are no functional packs in the repo. PulsePlay v0.1 ships without packs; v0.2 / v0.3 will ship with the first one.
+The first pack, [pulsepacks/cpg-fmcg/](../pulsepacks/cpg-fmcg/README.md), exists and is already used for Smart Connect pack inference and prompt-context injection. It is still a scaffold, not a production SME-certified pack.
+
+Brutal honesty: PulsePlay currently has pack content plus prompt-context injection. It does **not** yet have full governed retrieval, vector indexing, citations, ACL-trimmed source retrieval, or an authoring surface.
 
 ## Related docs
 
-- `pulsepacks/PACK_SPECIFICATION.md` — the contract every pack implements (Agent 2)
-- `pulsepacks/cpg-fmcg/README.md` — the first reference pack (Agent 2)
-- [inherited/CPG_FMCG_ENTERPRISE_BLUEPRINT.md](inherited/CPG_FMCG_ENTERPRISE_BLUEPRINT.md) — the blueprint Agent 2 is working from
+- [pulsepacks/PACK_SPECIFICATION.md](../pulsepacks/PACK_SPECIFICATION.md) — the contract every pack implements
+- [KNOWLEDGE_BASE_SOURCE_GOVERNANCE.md](KNOWLEDGE_BASE_SOURCE_GOVERNANCE.md) — provenance, source-card, source-tier, and pack-linter baseline
+- [pulsepacks/cpg-fmcg/README.md](../pulsepacks/cpg-fmcg/README.md) — the first reference pack
+- [inherited/CPG_FMCG_ENTERPRISE_BLUEPRINT.md](inherited/CPG_FMCG_ENTERPRISE_BLUEPRINT.md) — inherited CPG/FMCG blueprint reference
 - [ARCHITECTURE.md](ARCHITECTURE.md) — how packs plug into the proxy and the playground
-- [ROADMAP.md](ROADMAP.md) — first pack live is a v0.3 milestone
+- [CONNECTOR_PROBE_AND_SMART_CONNECT.md](CONNECTOR_PROBE_AND_SMART_CONNECT.md) — probe and pack inference design
+- [KNOWLEDGE_BASE_ARCHITECTURE.md](KNOWLEDGE_BASE_ARCHITECTURE.md) — Knowledge plane, retrieval contracts, Settings IA, and Knowledge Base IA
+- [ROADMAP.md](ROADMAP.md) — versioned delivery plan

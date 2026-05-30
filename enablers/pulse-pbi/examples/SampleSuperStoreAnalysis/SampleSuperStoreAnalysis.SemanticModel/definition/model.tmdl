@@ -1,0 +1,18 @@
+model Model
+	culture: en-IN
+	defaultPowerBIDataSourceVersion: powerBI_V3
+	sourceQueryCulture: en-IN
+	dataAccessOptions
+		legacyRedirects
+		returnErrorValuesAsNull
+
+annotation __PBI_TimeIntelligenceEnabled = 0
+
+annotation PBI_QueryOrder = ["vw_superstore_analysis_flat"]
+
+annotation PBI_ProTooling = ["DevMode","TMDL-Extension"]
+
+ref table vw_superstore_analysis_flat
+
+ref cultureInfo en-IN
+

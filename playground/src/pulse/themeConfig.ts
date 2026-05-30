@@ -1,7 +1,7 @@
 /**
  * themeConfig.ts
  *
- * Adaptive progressive theming for the DwD AI Assistant visual.
+ * Adaptive progressive theming for the Pulse assistant visual.
  *
  * Architecture:
  *  - ThemeTokens: the full set of CSS custom properties the LESS file consumes
@@ -210,8 +210,26 @@ export function mergeTheme(
  *
  * Applied as style={{ ...buildThemeStyle(tokens) }} on .gn-shell.
  */
-export function buildThemeStyle(tokens: ThemeTokens): React.CSSProperties {
+export function buildThemeStyle(tokens: ThemeTokens, opts?: { dark?: boolean }): React.CSSProperties {
+    // Accent + typography + geometry always apply inline. In DARK mode we
+    // deliberately OMIT the surface/text/border tokens: this inline style sits
+    // on the SAME element as `.gn-shell--dark`, and inline beats the class — so
+    // emitting light surface/text values here was overriding the dark theme and
+    // turning every card white with invisible (light) text. Skipping them lets
+    // the `.gn-shell--dark` cascade provide the dark surfaces/text; the custom
+    // accent still wins (inline) so brand colour survives in dark.
+    const base: Record<string, string> = {
+        "--gn-accent":         tokens.accent,
+        "--gn-accent-subtle":  tokens.accentSubtle,
+        "--gn-accent-border":  tokens.accentBorder,
+        "--gn-user-bubble":    tokens.userBubble,
+        "--gn-font":           tokens.fontFamily,
+        "--gn-radius":         tokens.radius,
+        "--gn-radius-sm":      tokens.radiusSm,
+    };
+    if (opts?.dark) return base as React.CSSProperties;
     return {
+        ...base,
         "--gn-bg":             tokens.bg,
         "--gn-surface":        tokens.surface,
         "--gn-surface-raised": tokens.surfaceRaised,
@@ -219,17 +237,166 @@ export function buildThemeStyle(tokens: ThemeTokens): React.CSSProperties {
         "--gn-border-subtle":  tokens.borderSubtle,
         "--gn-text":           tokens.text,
         "--gn-text-muted":     tokens.textMuted,
-        "--gn-accent":         tokens.accent,
-        "--gn-accent-subtle":  tokens.accentSubtle,
-        "--gn-accent-border":  tokens.accentBorder,
-        "--gn-user-bubble":    tokens.userBubble,
         "--gn-success":        tokens.success,
         "--gn-warning":        tokens.warning,
         "--gn-error":          tokens.error,
-        "--gn-font":           tokens.fontFamily,
-        "--gn-radius":         tokens.radius,
-        "--gn-radius-sm":      tokens.radiusSm,
     } as React.CSSProperties;
+}
+
+// ─── Whole-app theme application (Step 1: unify --gn-* and --pp-*) ────────────
+//
+// The workbench consumes `--gn-*`; the native surfaces (Settings, app shell,
+// the v0 Chat surface) consume a separate `--pp-*` set. Before this, a theme
+// preset only re-skinned the workbench. `applyThemeTokens` writes ONE resolved
+// theme to BOTH vocabularies on :root so a preset/custom theme re-skins the
+// entire app. Dark mode stays class/attribute-driven (.gn-shell--dark /
+// data-pp-theme) because those control component-level overrides beyond the
+// core tokens — so in dark we apply only the accent (safe in both modes) and
+// let the tuned dark CSS own surfaces/text/borders.
+
+export interface AppearanceSettingsLike {
+    themeName?: string;
+    darkMode?: boolean;
+    useReportTheme?: boolean;
+    brandAccentColor?: string;
+    brandTextColor?: string;
+    brandBgColor?: string;
+    brandFontFamily?: string;
+}
+
+/** Resolve the active ThemeTokens from appearance settings. Brand-color
+ *  overrides apply ONLY under the "custom" theme (mirrors the Settings UI,
+ *  which disables the brand inputs otherwise) so the presets stay distinct
+ *  instead of all collapsing onto the stored brand accent. */
+export function resolveThemeTokens(s: AppearanceSettingsLike): ThemeTokens {
+    const name = (s.themeName || "default") as ThemeName;
+    const base: ThemeName = BUILT_IN_THEMES[name] ? name : "default";
+    if (base === "custom") {
+        return mergeTheme("custom", {
+            accent: s.brandAccentColor,
+            text: s.brandTextColor,
+            bg: s.brandBgColor,
+            fontFamily: s.brandFontFamily,
+        });
+    }
+    return { ...BUILT_IN_THEMES[base] };
+}
+
+function hexToRgb(hex: string): [number, number, number] | null {
+    if (typeof hex !== "string") return null;
+    const b = hex.trim().replace("#", "");
+    const full = b.length === 3 ? b.split("").map(c => c + c).join("") : b;
+    if (full.length !== 6) return null;
+    const r = parseInt(full.slice(0, 2), 16);
+    const g = parseInt(full.slice(2, 4), 16);
+    const bl = parseInt(full.slice(4, 6), 16);
+    return [r, g, bl].some(Number.isNaN) ? null : [r, g, bl];
+}
+function rgbaOf(hex: string, alpha: number): string {
+    const rgb = hexToRgb(hex);
+    if (!rgb) return hex;
+    return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${Math.max(0, Math.min(1, alpha))})`;
+}
+function darkenHex(hex: string, amount: number): string {
+    const rgb = hexToRgb(hex);
+    if (!rgb) return hex;
+    const f = Math.max(0, Math.min(1, 1 - amount));
+    const ch = (n: number) => Math.round(n * f).toString(16).padStart(2, "0");
+    return `#${ch(rgb[0])}${ch(rgb[1])}${ch(rgb[2])}`;
+}
+
+/** Every CSS custom property `applyThemeTokens` may set — used to clear stale
+ *  values when switching themes/modes so nothing lingers. */
+export const APP_THEME_MANAGED_VARS: readonly string[] = [
+    // workbench (--gn-*)
+    "--gn-bg", "--gn-surface", "--gn-surface-raised", "--gn-border", "--gn-border-subtle",
+    "--gn-text", "--gn-text-muted", "--gn-accent", "--gn-accent-subtle", "--gn-accent-border",
+    "--gn-user-bubble", "--gn-success", "--gn-warning", "--gn-error", "--gn-font",
+    "--gn-radius", "--gn-radius-sm",
+    // native surfaces (--pp-*)
+    "--pp-bg", "--pp-surface", "--pp-surface-raised", "--pp-text", "--pp-fg", "--pp-text-muted",
+    "--pp-border", "--pp-border-subtle", "--pp-accent", "--pp-accent-hover", "--pp-accent-soft",
+    "--pp-accent-border", "--pp-success", "--pp-warning", "--pp-error",
+];
+
+/** Build the CSS-variable map for the whole app from a resolved theme.
+ *  In dark mode we emit the accent (from the active theme) PLUS dark-canonical
+ *  text/muted/semantic tokens — NOT surfaces/borders, which stay owned by the
+ *  tuned dark CSS. The text tokens matter because some chrome (e.g. the context
+ *  strip) lives OUTSIDE `.gn-shell--dark`, so without a :root dark muted token
+ *  it fell back to the LIGHT muted (#5d6673 → only 3.26:1 on the dark bg). Pure
+ *  — returns a plain object so it is trivial to test. */
+export function buildAppThemeVars(tokens: ThemeTokens, opts?: { dark?: boolean }): Record<string, string> {
+    const accentVars: Record<string, string> = {
+        "--gn-accent": tokens.accent,
+        "--gn-accent-subtle": tokens.accentSubtle,
+        "--gn-accent-border": tokens.accentBorder,
+        "--gn-user-bubble": tokens.userBubble,
+        "--pp-accent": tokens.accent,
+        "--pp-accent-hover": darkenHex(tokens.accent, 0.12),
+        "--pp-accent-soft": rgbaOf(tokens.accent, 0.08),
+        "--pp-accent-border": rgbaOf(tokens.accent, 0.30),
+    };
+    if (opts?.dark) {
+        // Dark-canonical text + semantic tokens (matches @gn-dark-* / the
+        // [data-pp-theme=dark] palette). All meet AA on the dark surfaces.
+        return {
+            ...accentVars,
+            "--gn-text": "#e2eaf4",
+            "--gn-text-muted": "#8b949e",
+            "--gn-success": "#3fb950",
+            "--gn-warning": "#d29922",
+            "--gn-error": "#f85149",
+            "--pp-text": "#e2eaf4",
+            "--pp-fg": "#e2eaf4",
+            "--pp-text-muted": "#8b949e",
+            "--pp-success": "#3fb950",
+            "--pp-warning": "#d29922",
+            "--pp-error": "#f85149",
+        };
+    }
+    return {
+        ...accentVars,
+        // workbench surfaces / text / geometry
+        "--gn-bg": tokens.bg,
+        "--gn-surface": tokens.surface,
+        "--gn-surface-raised": tokens.surfaceRaised,
+        "--gn-border": tokens.border,
+        "--gn-border-subtle": tokens.borderSubtle,
+        "--gn-text": tokens.text,
+        "--gn-text-muted": tokens.textMuted,
+        "--gn-success": tokens.success,
+        "--gn-warning": tokens.warning,
+        "--gn-error": tokens.error,
+        "--gn-font": tokens.fontFamily,
+        "--gn-radius": tokens.radius,
+        "--gn-radius-sm": tokens.radiusSm,
+        // native surfaces / text
+        "--pp-bg": tokens.bg,
+        "--pp-surface": tokens.surface,
+        "--pp-surface-raised": tokens.surfaceRaised,
+        "--pp-text": tokens.text,
+        "--pp-fg": tokens.text,
+        "--pp-text-muted": tokens.textMuted,
+        "--pp-border": tokens.border,
+        "--pp-border-subtle": tokens.borderSubtle,
+        "--pp-success": tokens.success,
+        "--pp-warning": tokens.warning,
+        "--pp-error": tokens.error,
+    };
+}
+
+/** Apply a resolved theme to the document root (both vocabularies). Clears any
+ *  previously-managed vars that this pass doesn't set, so switching theme/mode
+ *  never leaves residue. No-op outside the browser. */
+export function applyThemeTokens(tokens: ThemeTokens, opts?: { dark?: boolean }): void {
+    if (typeof document === "undefined") return;
+    const root = document.documentElement;
+    const vars = buildAppThemeVars(tokens, opts);
+    for (const name of APP_THEME_MANAGED_VARS) {
+        if (name in vars) root.style.setProperty(name, vars[name]);
+        else root.style.removeProperty(name);
+    }
 }
 
 // ─── Report theme bridge ──────────────────────────────────────────────────────
@@ -237,7 +404,7 @@ export function buildThemeStyle(tokens: ThemeTokens): React.CSSProperties {
 /**
  * Maps Power BI host.colorPalette values to our ThemeTokens.
  * Called only when the author enables "Use Report Theme" in the format pane.
- * Falls back to the "default" DwD theme for any palette entry that is missing.
+ * Falls back to the "default" Pulse theme for any palette entry that is missing.
  */
 export function buildThemeFromHost(palette: {
     background?: { value: string };

@@ -10,7 +10,8 @@
     },
     "dependencies": {
         "express": "^4.21.2",
-        "jose": "^6.2.3"
+        "jose": "^6.2.3",
+        "js-yaml": "^4.1.1"
     },
     "engines": {
         "node": ">=18"

@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>PulsePlay — Native Canvas smoke (G4/G5/G6)</title>
+    <meta name="robots" content="noindex" />
+    <style>
+        :root {
+            --pp-text: #0f172a;
+            --pp-text-muted: #475569;
+            --pp-border: rgba(15, 23, 42, 0.12);
+            --pp-border-subtle: rgba(15, 23, 42, 0.06);
+            --pp-surface-subtle: rgba(15, 23, 42, 0.04);
+        }
+        body {
+            margin: 0;
+            font-family: "Segoe UI", -apple-system, system-ui, sans-serif;
+            color: var(--pp-text);
+            background: #f8fafc;
+        }
+        header {
+            padding: 12px 18px;
+            border-bottom: 1px solid var(--pp-border);
+            display: flex;
+            gap: 12px;
+            align-items: baseline;
+            flex-wrap: wrap;
+            background: #fff;
+        }
+        header h1 { font-size: 14px; margin: 0; }
+        header p { font-size: 12px; margin: 0; color: var(--pp-text-muted); }
+        .scenarios {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+            gap: 18px;
+            padding: 18px;
+        }
+        .scenario {
+            background: #fff;
+            border: 1px solid var(--pp-border);
+            border-radius: 6px;
+            display: flex;
+            flex-direction: column;
+            min-height: 360px;
+        }
+        .scenario-label {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--pp-border-subtle);
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--pp-text-muted);
+        }
+        .scenario-host {
+            flex: 1 1 auto;
+            min-height: 320px;
+            position: relative;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>PulsePlay — Native Canvas smoke (G4 / G5 / G6)</h1>
+        <p>Canvas-standalone visual smoke. No proxy. No AI sidebar. Each tile mounts <code>NativeCanvas</code> via <code>mountNativeCanvas</code> with a fixed sample envelope.</p>
+    </header>
+    <main class="scenarios">
+        <section class="scenario">
+            <div class="scenario-label">1. Empty</div>
+            <div id="host-empty" class="scenario-host" data-host="empty"></div>
+        </section>
+        <section class="scenario">
+            <div class="scenario-label">2. KPI (no commentary)</div>
+            <div id="host-kpi" class="scenario-host" data-host="kpi"></div>
+        </section>
+        <section class="scenario">
+            <div class="scenario-label">3. Chart + fusion commentary (G6, enforced)</div>
+            <div id="host-fusion-enforced" class="scenario-host" data-host="fusion-enforced"></div>
+        </section>
+        <section class="scenario">
+            <div class="scenario-label">4. Chart + fusion commentary (preview / dev)</div>
+            <div id="host-fusion-preview" class="scenario-host" data-host="fusion-preview"></div>
+        </section>
+        <section class="scenario">
+            <div class="scenario-label">5. Blocked (governance missing in prod-mode)</div>
+            <div id="host-blocked" class="scenario-host" data-host="blocked"></div>
+        </section>
+        <section class="scenario">
+            <div class="scenario-label">6. Table + commentary</div>
+            <div id="host-table" class="scenario-host" data-host="table"></div>
+        </section>
+    </main>
+    <script type="module">
+        import { mountNativeCanvas } from "/src/visualization/NativeCanvas.tsx";
+
+        // ─── Sample envelopes ──────────────────────────────────────────
+        const enforcedAttestation = {
+            state: "enforced",
+            authority: "unity-catalog",
+            requestId: "smoke-req-1",
+        };
+        const previewAttestation = {
+            state: "preview",
+            reason: "no-governance-attestation",
+        };
+        const blockedAttestation = {
+            state: "blocked",
+            reason: "no-governance-attestation",
+        };
+
+        const fusionChartEnvelope = {
+            id: "smoke-fusion-chart",
+            question: "Monthly sales trend",
+            answer: "Sales grew 200% from January to July, driven by a step change in May when EMEA inventory came online.",
+            schema: [{ name: "month" }, { name: "sales" }],
+            rows: [
+                ["Jan", 100], ["Feb", 140], ["Mar", 160], ["Apr", 180],
+                ["May", 220], ["Jun", 260], ["Jul", 300],
+            ],
+            sourceRef: {
+                kind: "metric-view",
+                fullName: "main.sales.monthly_metrics",
+                warehouseId: "wh-prod-1",
+                displayName: "Monthly sales",
+                governance: { requiresAttestation: true },
+            },
+            governance: {
+                enforced: true,
+                authority: "unity-catalog",
+                subjectRef: "user:smoke",
+                requestId: "smoke-req-1",
+            },
+        };
+
+        const kpiEnvelope = {
+            id: "smoke-kpi",
+            schema: [{ name: "revenue" }],
+            rows: [[1234567.89]],
+            governance: fusionChartEnvelope.governance,
+        };
+
+        // All columns intentionally non-numeric (and not numeric-strings
+        // either) so resultToVizIntent returns "table" rather than
+        // routing to a chart via analyzeDataShape's numeric detection.
+        const tableEnvelope = {
+            id: "smoke-table",
+            answer: "Two functions, no overlap in ownership.",
+            schema: [{ name: "category" }, { name: "owner" }, { name: "phase" }],
+            rows: [
+                ["Sales", "Alice", "Pilot"],
+                ["Marketing", "Bob", "Scale"],
+                ["Engineering", "Carol", "Build"],
+            ],
+            governance: fusionChartEnvelope.governance,
+        };
+
+        // ─── Mount each scenario ───────────────────────────────────────
+        const scenarios = [
+            ["host-empty", {
+                mode: "empty",
+                envelope: null,
+                governanceState: { state: "not-applicable" },
+            }],
+            ["host-kpi", {
+                mode: "result-accepted",
+                envelope: kpiEnvelope,
+                governanceState: enforcedAttestation,
+            }],
+            ["host-fusion-enforced", {
+                mode: "result-accepted",
+                envelope: fusionChartEnvelope,
+                governanceState: enforcedAttestation,
+            }],
+            ["host-fusion-preview", {
+                mode: "ungoverned-result-preview",
+                envelope: { ...fusionChartEnvelope, governance: undefined },
+                governanceState: previewAttestation,
+            }],
+            ["host-blocked", {
+                mode: "result-blocked",
+                envelope: fusionChartEnvelope,
+                governanceState: blockedAttestation,
+            }],
+            ["host-table", {
+                mode: "result-accepted",
+                envelope: tableEnvelope,
+                governanceState: enforcedAttestation,
+            }],
+        ];
+
+        const handles = [];
+        for (const [hostId, props] of scenarios) {
+            const el = document.getElementById(hostId);
+            if (!el) continue;
+            const handle = mountNativeCanvas(el, props);
+            handles.push(handle);
+        }
+
+        // Expose a flag so the smoke runner can verify the page actually
+        // initialised (vs JS error mid-script).
+        window.__pulseplaySmokeReady = true;
+        document.documentElement.setAttribute("data-smoke-ready", "true");
+    </script>
+</body>
+</html>

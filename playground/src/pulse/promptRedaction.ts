@@ -76,3 +76,80 @@ export function detectAuthorPromptSecrets(input: string | null | undefined): str
 }
 
 export const _internals = { PATTERNS, PLACEHOLDER };
+
+// ── L12 — Prompt-injection keyword sanitizer ────────────────────────────
+//
+// Author-supplied free text from Pulse Setup (domain guidance, metric
+// rules, custom section instructions) lands inside the AI system prompt.
+// A malicious or naive author could include phrases that try to redirect
+// the model — "ignore previous instructions", "you are now…", "from now
+// on respond as…", etc. The AI vendor's own prompt-hierarchy is the real
+// fence; this is best-effort defense in depth.
+//
+// Strategy:
+//   1. Strip a small allowlist of high-confidence injection phrases by
+//      replacing them with `[stripped]` so the model sees the attempt
+//      was neutralized but the surrounding context survives.
+//   2. Truncate to a max length so a 100KB free-text dump doesn't
+//      smuggle a hidden instruction past human review.
+//   3. (Caller responsibility) Surround the sanitized text with a
+//      reference-data fence string in the system prompt so the AI can
+//      tell user-supplied text apart from system instructions.
+
+const INSTRUCTION_PLACEHOLDER = "[stripped]";
+
+/** Heuristic regex set. Conservative: only patterns where false positives
+ *  cost little (the surrounding sentence still reads) and false negatives
+ *  cost a real bypass. Each pattern matches case-insensitively. */
+const INJECTION_PATTERNS: { name: string; regex: RegExp }[] = [
+    { name: "ignore-prior", regex: /\bignore\s+(?:all|any|the|your|previous|prior|above)\s+(?:instructions?|prompts?|rules?|policies)\b/gi },
+    { name: "disregard-prior", regex: /\bdisregard\s+(?:all|any|the|your|previous|prior|above)\s+(?:instructions?|prompts?|rules?|policies)\b/gi },
+    { name: "override-system", regex: /\b(?:override|replace|forget)\s+(?:the|your|all)?\s*system\s+prompt\b/gi },
+    { name: "you-are-now", regex: /\byou\s+are\s+now\s+(?:a\s+)?(?:different|new|jailbroken|unrestricted)\b/gi },
+    { name: "act-as", regex: /\b(?:act|behave|respond|operate)\s+as\s+(?:if|though|a)\s+.*?(?:no\s+rules|no\s+restrictions|jailbroken|dan|developer\s+mode)\b/gi },
+    { name: "from-now-on", regex: /\bfrom\s+now\s+on,?\s+(?:you\s+(?:will|must|should)\s+)?(?:ignore|forget|disregard|bypass)\b/gi },
+    { name: "developer-mode", regex: /\b(?:developer|debug|dan|jailbreak)\s+mode\s+(?:enabled|activated|on)\b/gi },
+    { name: "reveal-system", regex: /\b(?:reveal|show|print|output|dump)\s+(?:the|your)?\s*(?:system\s+prompt|hidden\s+instructions|original\s+prompt)\b/gi },
+    { name: "end-of-prompt", regex: /\b(?:end|finish|stop)\s+of\s+(?:system|prior)\s+(?:prompt|instructions?)\b/gi },
+    // Special-character heuristic — repeated injection separators that
+    // some attackers use to confuse the prompt parser.
+    { name: "instruction-fence-attack", regex: /(?:^|\s)(?:---+|===+|\*\*\*+)\s*(?:system|instructions?|user|assistant)\s*(?:---+|===+|\*\*\*+|:)/gi },
+];
+
+const MAX_AUTHOR_PROMPT_CHARS = 16000;
+
+/** Strip recognized injection-attempt phrases from an author-supplied
+ *  string. Replaces matches with `[stripped]`. Truncates the result to
+ *  MAX_AUTHOR_PROMPT_CHARS so a long dump can't smuggle a hidden tail. */
+export function stripInstructionKeywords(input: string | null | undefined): string {
+    if (!input) return "";
+    let out = String(input);
+    for (const { regex } of INJECTION_PATTERNS) {
+        out = out.replace(regex, INSTRUCTION_PLACEHOLDER);
+    }
+    if (out.length > MAX_AUTHOR_PROMPT_CHARS) {
+        out = out.slice(0, MAX_AUTHOR_PROMPT_CHARS) + " […truncated]";
+    }
+    return out;
+}
+
+/** Returns recognized injection patterns that fire on the input. Used by
+ *  Setup tab to surface a yellow callout so authors see the heuristic
+ *  before submit. Mirrors the shape of `detectAuthorPromptSecrets`. */
+export function detectInstructionKeywords(input: string | null | undefined): string[] {
+    if (!input) return [];
+    const hits: string[] = [];
+    for (const { name, regex } of INJECTION_PATTERNS) {
+        const r = new RegExp(regex.source, regex.flags);
+        if (r.test(input)) hits.push(name);
+    }
+    return hits;
+}
+
+/** Combined helper — runs the existing `redactAuthorPrompt` (secrets) then
+ *  `stripInstructionKeywords` (injection attempts). This is what call
+ *  sites should use going forward; the two-step helpers stay exported for
+ *  callers that need finer control. */
+export function safeAuthorPrompt(input: string | null | undefined): string {
+    return stripInstructionKeywords(redactAuthorPrompt(input));
+}

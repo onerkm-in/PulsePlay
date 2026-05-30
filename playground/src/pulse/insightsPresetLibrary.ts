@@ -41,6 +41,18 @@ export type CustomSectionPreset = {
      */
     params?: Record<string, PresetParam>;
     sections: Array<{ name: string; instruction: string }>;
+    /**
+     * 2026-05-28 — bundled metric direction rules. When a picker applies
+     * this preset AND the caller passes an onApplyMetricRules handler,
+     * these rules are written to `metricDirectionRules` in the same
+     * action. Bundles the strategic-framework choice with the metric
+     * semantics so the user gets a coherent setup in one click instead
+     * of picking two presets separately.
+     *
+     * Optional — legacy presets without this field continue to apply
+     * sections only; the caller's metric rules state is untouched.
+     */
+    metricDirectionRules?: string;
 };
 
 export const METRIC_DIRECTION_PRESETS: MetricDirectionPreset[] = [
@@ -208,7 +220,8 @@ const _CORE_CUSTOM_SECTION_PRESETS: CustomSectionPreset[] = [
             { name: "DISCOUNT ABUSE", instruction: "Rank discount risk in a pipe table with Region, Segment, Category, Average Discount, Profit Margin %, and Risk Level. Bold combinations where discounting is high and profit is negative, especially in Furniture or Technology." },
             { name: "MARGIN EROSION", instruction: "Write concise bullets explaining where margin erosion is concentrated. Mention whether the issue is category mix, regional mix, segment behavior, or discounting. Include a clear signal for Central, East, South, or West when present." },
             { name: "CONTROL ACTIONS", instruction: "Provide four numbered risk-control actions. Each action should name a report owner or business owner, the targeted risk, the affected category or region, and the monitoring metric to track in the next reporting cycle." }
-        ]
+        ],
+        metricDirectionRules: "Sales: higher is better\nProfit: higher is better\nProfit Margin %: higher is better\nReturn Rate: lower is better\nDiscount %: lower is better\nRisk Level: lower is better"
     },
     {
         id: "swot-analysis",
@@ -228,7 +241,8 @@ const _CORE_CUSTOM_SECTION_PRESETS: CustomSectionPreset[] = [
             { name: "WEAKNESSES", instruction: "Sub-categories with profit margin < {{params.marginRedPct}}% in the current period, ordered worst-first. Include negative-margin items. Show sales, profit, margin %. Add a one-line root-cause hypothesis per item (high discount, low volume, etc.)." },
             { name: "OPPORTUNITIES", instruction: "Sub-categories with sales growth > {{params.growthThresholdPct}}% YoY but margin still under {{params.opportunityMarginCeilingPct}}%. These are growing but not yet profitable — quantify the gap and estimate margin uplift potential if margin reached the parent category average." },
             { name: "THREATS", instruction: "Sub-categories with BOTH declining sales AND declining margin in the current period versus prior (double-decline). Show YoY change in sales (%) and margin change (pp). Flag any with absolute YoY profit drop greater than {{params.materialityCurrency}}{{params.materialityThreshold}}." }
-        ]
+        ],
+        metricDirectionRules: "Sales: higher is better\nProfit: higher is better\nMargin %: higher is better\nGrowth %: higher is better\nReturns: lower is better\nDiscount %: lower is better"
     },
     {
         id: "bcg-matrix",
@@ -243,7 +257,8 @@ const _CORE_CUSTOM_SECTION_PRESETS: CustomSectionPreset[] = [
             { name: "CASH-COWS", instruction: "Sub-categories with below-median current-period YoY sales growth AND above-median share of total current-period revenue. Show sub-category, sales, share %, growth %, profit margin %. These should be milked for cash." },
             { name: "QUESTION-MARKS", instruction: "Sub-categories with above-median current-period YoY sales growth AND below-median share of total current-period revenue. Investment candidates — show sales, share %, growth %, and current profit margin to assess if worth funding." },
             { name: "DOGS", instruction: "Sub-categories with below-median current-period YoY sales growth AND below-median share of total current-period revenue. Show sales, share %, growth %, profit margin %. Candidates for divestment unless margin is exceptional (>{{params.divestMarginFloorPct}}%)." }
-        ]
+        ],
+        metricDirectionRules: "Sales: higher is better\nGrowth %: higher is better\nShare %: higher is better\nProfit Margin %: higher is better\nCost: lower is better"
     },
     {
         id: "rfm-segmentation",
@@ -255,7 +270,8 @@ const _CORE_CUSTOM_SECTION_PRESETS: CustomSectionPreset[] = [
             { name: "AT-RISK", instruction: "Customers with bottom-quintile Recency BUT top-2-quintile Frequency and Monetary in the prior period. These were valuable but have gone quiet. Show count, prior-period revenue, days since last order, recommended save motion (re-engagement campaign, executive call, etc.)." },
             { name: "HIBERNATING", instruction: "Customers in the bottom 2 quintiles for ALL three of Recency, Frequency, Monetary. Show count, total revenue, average tenure. Decide between win-back campaign vs prune-from-list based on tenure and revenue tier." },
             { name: "PROMISING", instruction: "Customers in the top quintile of Recency but bottom 2 quintiles of Frequency and Monetary — new or recently activated, low-volume so far. Show count, current-period revenue, and recommended onboarding/expansion play." }
-        ]
+        ],
+        metricDirectionRules: "Revenue: higher is better\nFrequency: higher is better\nMonetary: higher is better\nLTV: higher is better\nChurn: lower is better\nRecency Days: lower is better"
     },
     {
         id: "pareto-8020",

@@ -1,0 +1,59 @@
+{
+  "name": "saas-product",
+  "displayName": "SaaS & Digital Products",
+  "version": "0.1.0",
+  "description": "SaaS & Digital Products preset pack, encompassing SaaS financial trackers, ARR bridges, LTV/CAC cohort evaluations, and green computing/cloud software sustainability overlays.",
+  "industries": [
+    "saas-b2b",
+    "saas-b2c",
+    "cloud-infrastructure",
+    "digital-marketplace",
+    "developer-tooling"
+  ],
+  "subVerticals": [
+    {
+      "name": "finance-saas",
+      "path": "sub-verticals/finance-saas",
+      "description": "Annual Recurring Revenue (ARR) bridge, Net Revenue Retention (NRR), LTV:CAC, and payback periods."
+    },
+    {
+      "name": "sustainability",
+      "path": "sub-verticals/sustainability",
+      "description": "Cross-cutting overlay: cloud infrastructure power usage effectiveness (PUE), green computing, Scope 3 hosting emissions."
+    }
+  ],
+  "crossCutting": [
+    "sustainability"
+  ],
+  "aiCompatibility": [
+    "conversation",
+    "agent",
+    "mcp"
+  ],
+  "biCompatibility": [
+    "powerbi",
+    "tableau",
+    "qlik",
+    "looker",
+    "generic-iframe"
+  ],
+  "knowledgeBase": {
+    "glossary": "knowledge-base/glossary.md",
+    "references": "knowledge-base/references.md",
+    "ontology": "knowledge-base/ontology.md"
+  },
+  "references": [
+    {
+      "label": "SaaS Metrics Standards Board Guidelines",
+      "url": "https://www.saasmetricsboard.org/standards",
+      "scope": "finance-saas"
+    },
+    {
+      "label": "GHG Protocol Corporate Scope 3 Standard - Category 11",
+      "url": "https://ghgprotocol.org/standards/scope-3-standard",
+      "scope": "sustainability"
+    }
+  ],
+  "maintainers": [],
+  "lastUpdated": "2026-05-23"
+}

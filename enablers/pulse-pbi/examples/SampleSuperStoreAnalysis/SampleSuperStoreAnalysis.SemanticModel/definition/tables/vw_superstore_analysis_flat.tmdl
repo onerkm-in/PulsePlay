@@ -1,0 +1,210 @@
+table vw_superstore_analysis_flat
+	lineageTag: 8ac0532e-8168-4c51-90d2-e2ea18399f70
+
+	column 'Row ID'
+		dataType: int64
+		formatString: 0
+		lineageTag: 83cadd18-7728-4c40-a623-762bbf23310f
+		summarizeBy: count
+		sourceColumn: Row ID
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Order ID'
+		dataType: string
+		lineageTag: f77321ef-d3b9-4002-9153-d33b870c89da
+		summarizeBy: none
+		sourceColumn: Order ID
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Order Date'
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 23ff044c-42a4-4e85-8f22-eba706b4bdf8
+		summarizeBy: none
+		sourceColumn: Order Date
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Ship Date'
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 16f951ce-751c-40db-bb98-7716e2695a87
+		summarizeBy: none
+		sourceColumn: Ship Date
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Ship Mode'
+		dataType: string
+		lineageTag: 5f201e4d-22f0-4035-981b-6a94872bfb98
+		summarizeBy: none
+		sourceColumn: Ship Mode
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Customer ID'
+		dataType: string
+		lineageTag: 90442f7f-c58f-480c-9f12-17749079c795
+		summarizeBy: none
+		sourceColumn: Customer ID
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Customer Name'
+		dataType: string
+		lineageTag: f1b2c66a-60bd-4c69-b446-cbf56ae883b2
+		summarizeBy: none
+		sourceColumn: Customer Name
+
+		annotation SummarizationSetBy = Automatic
+
+	column Segment
+		dataType: string
+		lineageTag: 5414968b-89b0-4731-969f-469e6ba2154c
+		summarizeBy: none
+		sourceColumn: Segment
+
+		annotation SummarizationSetBy = Automatic
+
+	column Country
+		dataType: string
+		lineageTag: 7c1e36f0-ad23-48df-b4fa-25578b1380a0
+		summarizeBy: none
+		sourceColumn: Country
+
+		annotation SummarizationSetBy = Automatic
+
+	column City
+		dataType: string
+		lineageTag: 82c5e17b-f78d-424f-a58a-54298a38dfdb
+		summarizeBy: none
+		sourceColumn: City
+
+		annotation SummarizationSetBy = Automatic
+
+	column State
+		dataType: string
+		lineageTag: 8d15e6b0-288a-4f5c-8498-996d5bb7866d
+		summarizeBy: none
+		sourceColumn: State
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Postal Code'
+		dataType: string
+		lineageTag: 7fc3f64e-31bf-49a0-a8dd-8a08aa6230be
+		summarizeBy: none
+		sourceColumn: Postal Code
+
+		annotation SummarizationSetBy = Automatic
+
+	column Region
+		dataType: string
+		lineageTag: 3649f8f0-af50-447c-a159-2c401003e52a
+		summarizeBy: none
+		sourceColumn: Region
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Product ID'
+		dataType: string
+		lineageTag: 2baca7f9-9585-4388-b607-a8b0ced4ab2e
+		summarizeBy: none
+		sourceColumn: Product ID
+
+		annotation SummarizationSetBy = Automatic
+
+	column Category
+		dataType: string
+		lineageTag: 5b17da57-d96e-465a-929d-68d93084ba05
+		summarizeBy: none
+		sourceColumn: Category
+
+		annotation SummarizationSetBy = Automatic
+
+	column Sub-Category
+		dataType: string
+		lineageTag: 7e115087-a96b-46a8-8e9d-83aca35d06bc
+		summarizeBy: none
+		sourceColumn: Sub-Category
+
+		annotation SummarizationSetBy = Automatic
+
+	column 'Product Name'
+		dataType: string
+		lineageTag: 2c91dc7c-0c0a-408c-b831-14337c1584a9
+		summarizeBy: none
+		sourceColumn: Product Name
+
+		annotation SummarizationSetBy = Automatic
+
+	column Sales
+		dataType: double
+		lineageTag: 77d2409f-3b17-4a19-a1a0-e48bef9ce3d7
+		summarizeBy: sum
+		sourceColumn: Sales
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Quantity
+		dataType: int64
+		formatString: 0
+		lineageTag: 528e3841-1d67-4f16-b8aa-7a99a178f53f
+		summarizeBy: sum
+		sourceColumn: Quantity
+
+		annotation SummarizationSetBy = Automatic
+
+	column Discount
+		dataType: double
+		lineageTag: 983261ac-0794-4818-afe8-f22ebe4d9e59
+		summarizeBy: sum
+		sourceColumn: Discount
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Profit
+		dataType: double
+		lineageTag: 5908c48b-2ec4-4d44-83d0-1f1f3e0cd8a2
+		summarizeBy: sum
+		sourceColumn: Profit
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Person
+		dataType: string
+		lineageTag: aa136be4-36ab-49e2-a1ba-54e5912a4b85
+		summarizeBy: none
+		sourceColumn: Person
+
+		annotation SummarizationSetBy = Automatic
+
+	column Returned
+		dataType: string
+		lineageTag: 8bf72d26-7031-482c-8c43-f859e4c95170
+		summarizeBy: none
+		sourceColumn: Returned
+
+		annotation SummarizationSetBy = Automatic
+
+	partition vw_superstore_analysis_flat = m
+		mode: directQuery
+		source =
+				let
+				    Source = DatabricksMultiCloud.Catalogs("<your-workspace-host>", "/sql/1.0/warehouses/<your-warehouse-id>", [Catalog = "", Database = ""]),
+				    workspace_Database = Source{[Name="workspace",Kind="Database"]}[Data],
+				    databrickspractice_Schema = workspace_Database{[Name="databrickspractice",Kind="Schema"]}[Data],
+				    vw_superstore_analysis_flat_View = databrickspractice_Schema{[Name="vw_superstore_analysis_flat",Kind="View"]}[Data]
+				in
+				    vw_superstore_analysis_flat_View
+
+	annotation PBI_ResultType = Table
+

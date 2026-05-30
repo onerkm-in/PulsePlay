@@ -1,0 +1,164 @@
+// playground/src/powerbi/PowerBiQnARoute.tsx
+//
+// Cycle 15.5 — standalone full-page Q&A surface at /powerbi/qna.
+//
+// Renders the <PowerBiQnA /> component at full viewport with a small
+// header strip (title, back-to-app button). Kept separate from the
+// Pulse-mode tab strip so this cycle doesn't have to touch the
+// Pulse-PBI compat shim's activeTab state.
+
+import { useState, useEffect } from "react";
+import { PowerBiQnA } from "../components/PowerBiQnA";
+
+const ACTIVE_PROFILE_KEY = "pulseplay:active-ai-profile";
+
+export function isPowerBiQnaRoute(pathname: string): boolean {
+    return pathname === "/powerbi/qna" || pathname.startsWith("/powerbi/qna/");
+}
+
+export function usePowerBiQnaRoute(): { isPowerBiQnaRoute: boolean } {
+    const [path, setPath] = useState(() => (typeof window !== "undefined" ? window.location.pathname : "/"));
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const sync = () => setPath(window.location.pathname);
+        window.addEventListener("popstate", sync);
+        return () => window.removeEventListener("popstate", sync);
+    }, []);
+    return { isPowerBiQnaRoute: isPowerBiQnaRoute(path) };
+}
+
+export function navigateToPowerBiQna(): void {
+    if (typeof window === "undefined") return;
+    if (window.location.pathname !== "/powerbi/qna") {
+        window.history.pushState({}, "", "/powerbi/qna");
+        window.dispatchEvent(new PopStateEvent("popstate"));
+    }
+}
+
+export function PowerBiQnaShell(): React.ReactElement {
+    const [profile, setProfile] = useState<string>(() => {
+        try {
+            return (window.localStorage.getItem(ACTIVE_PROFILE_KEY) || "").trim();
+        } catch {
+            return "";
+        }
+    });
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const sync = () => {
+            try {
+                setProfile((window.localStorage.getItem(ACTIVE_PROFILE_KEY) || "").trim());
+            } catch { /* swallow */ }
+        };
+        window.addEventListener("storage", sync);
+        window.addEventListener("pulseplay:display-change", sync as EventListener);
+        return () => {
+            window.removeEventListener("storage", sync);
+            window.removeEventListener("pulseplay:display-change", sync as EventListener);
+        };
+    }, []);
+
+    const onBack = () => {
+        if (typeof window === "undefined") return;
+        window.history.pushState({}, "", "/");
+        window.dispatchEvent(new PopStateEvent("popstate"));
+    };
+
+    return (
+        <div style={shellStyle} data-route="powerbi-qna">
+            <header style={headerStyle}>
+                <div>
+                    <h1 style={{ margin: 0, fontSize: 20 }}>Power BI Q&amp;A</h1>
+                    <p style={{ margin: "2px 0 0", opacity: 0.7, fontSize: 12 }}>
+                        Microsoft's natural-language layer over your dataset. No PulsePlay LLM call.
+                    </p>
+                </div>
+                <button type="button" onClick={onBack} style={backBtnStyle} data-action="back">
+                    ← Back to app
+                </button>
+            </header>
+            <PowerBiQnAEolBanner />
+            <div style={{ flex: 1, padding: 20 }}>
+                <PowerBiQnA profile={profile || undefined} height="100%" />
+            </div>
+        </div>
+    );
+}
+
+/**
+ * 2026-05-22 — EOL banner.
+ *
+ * Microsoft officially deprecated Power BI Q&A on 2025-12-01 with hard
+ * end-of-life 2026-12-31 (Power BI Updates Blog + Microsoft 365 Message
+ * Center notice MC1218421). All four Q&A surfaces — reports, dashboards,
+ * mobile, embedded — stop working after that date. PulsePlay's existing
+ * Q&A scaffolding stays in place as a tactical bridge through the
+ * sunset; this banner makes the end-of-life visible to users and
+ * authors so nobody invests in linguistic-schema authoring or featured-
+ * questions tooling that becomes stranded.
+ *
+ * Full research + 24 URL signatures in
+ * docs/research/EXTERNAL_REFERENCES.md "Power BI Q&A readiness
+ * assessment + deprecation finding".
+ */
+function PowerBiQnAEolBanner(): React.ReactElement {
+    const eolDate = new Date("2026-12-31T23:59:59Z").getTime();
+    const daysRemaining = Math.max(0, Math.ceil((eolDate - Date.now()) / (1000 * 60 * 60 * 24)));
+    return (
+        <div
+            role="status"
+            aria-live="polite"
+            data-testid="powerbi-qna-eol-banner"
+            style={{
+                margin: "0 20px 0",
+                padding: "10px 14px",
+                fontSize: 12,
+                lineHeight: 1.5,
+                color: "#92400e",
+                background: "#fffbe6",
+                border: "1px solid #ffe58f",
+                borderLeft: "3px solid #b45309",
+                borderRadius: 4,
+            }}
+        >
+            <strong style={{ fontWeight: 700 }}>Microsoft retiring this feature on 31 Dec 2026.</strong>{" "}
+            {daysRemaining > 0 ? `~${daysRemaining} days remaining.` : "Past retirement date — surface may stop working at any time."}{" "}
+            PulsePlay continues to mint embed tokens until that date. For durable Power BI natural-language work, use the{" "}
+            <strong>powerbi-semantic-model</strong> connector (deterministic DAX, no Microsoft dependency).{" "}
+            <a
+                href="https://powerbi.microsoft.com/en-us/blog/deprecating-power-bi-qa/"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: "#92400e", textDecoration: "underline" }}
+            >
+                Microsoft's announcement →
+            </a>
+        </div>
+    );
+}
+
+const shellStyle: React.CSSProperties = {
+    display: "flex",
+    flexDirection: "column",
+    height: "100vh",
+    background: "var(--pp-bg, #fff)",
+};
+
+const headerStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "16px 20px",
+    borderBottom: "1px solid var(--pp-border, rgba(0,0,0,0.08))",
+};
+
+const backBtnStyle: React.CSSProperties = {
+    padding: "6px 14px",
+    fontSize: 12,
+    fontWeight: 600,
+    border: "1px solid var(--pp-border, rgba(0,0,0,0.18))",
+    background: "transparent",
+    borderRadius: 4,
+    cursor: "pointer",
+};

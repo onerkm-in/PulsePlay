@@ -8,8 +8,9 @@
 
 ### 1. Structural correctness (automated)
 
-- **418 jest tests in `proxy/`** covering: profile resolution, OAuth M2M flow, X-Request-Id correlation, rate limiting, PII redaction, DML keyword blocking, identifier sanitization, supervisor-local fan-out, validator framework, foundation model client, bedrock signing, connector probe, pack prompt injection, Power BI embed-token flow, metadata-read rate-limit exemptions, and analytics paths.
-- **161 vitest tests in `playground/` + `bi-adapters/`** covering: BIAdapter conformance, generic iframe behavior, Power BI adapter behavior including secure embed preview and developer snapshots, Tableau/Qlik/Looker iframe stubs, PulseShell host behavior, health-probe single-flight caching, fast Insights briefing prompts, AI Insights output polish, card-style Insights rendering, raw-data Excel export helpers, AISidebar, pack preset merge, and PII redaction.
+- **1137 jest tests in `proxy/`** in the latest recorded 2026-05-21 validation, covering profile resolution, OAuth M2M flow, X-Request-Id correlation, rate limiting, PII redaction, DML keyword blocking, identifier sanitization, supervisor-local fan-out, validator framework, foundation model client, bedrock signing, connector probe, discovery-context injection, pack prompt injection, Power BI embed-token flow, Power BI deterministic semantic-model templates, Power BI Q&A token minting, metadata-read rate-limit exemptions, analytics paths, the PX1 client identity contract, G3 governance attestation route wiring, admin auth-mode parity, SQL preview CTE validation, streaming error redaction, SS2 smoke-fixture profile, and FW1 query-result fixture shape.
+- **1382 vitest tests in `playground/` + `bi-adapters/`** in the latest recorded 2026-05-21 validation, covering BIAdapter conformance, generic iframe behavior, Power BI adapter behavior including secure embed preview and developer snapshots, Tableau/Qlik/Looker iframe stubs, native adapter skeleton guardrails, native governance fail-closed behavior, PulseShell host behavior, health-probe single-flight caching, performance levers, discovery probe status, Power BI Q&A client behavior, AI Insights output polish, card-style Insights rendering, raw-data Excel export helpers, AISidebar, pack preset merge, PII redaction, layout surface availability, Databricks source refs, governance attestation shape validation, native canvas/fusion, G5 BI surface mode, Quick Setup embed config integrity, FW1 AISidebar-to-native envelope mapping, and the pure visualization result-to-chart pipeline.
+- **93 vitest tests in `enablers/pulse-pbi/`** in the latest recorded 2026-05-21 validation, now covering PB1a shared-proxy headers/routes/result parsing in addition to the existing Pulse PBI unit surface. Lint and `pbiviz package` also pass locally, but the `pbiviz` toolchain is not yet pinned in the enabler lockfile.
 
 These tests assert the code emits the right SHAPE of output (correct prompt structure, correct cache key, correct sanitization, correct API call). They do NOT assert that the AI's natural-language answer is factually correct on a given dataset.
 
@@ -22,7 +23,9 @@ These tests assert the code emits the right SHAPE of output (correct prompt stru
 
 ### 3. Live qualitative review
 
-The playground has HTTP-level local smoke only today unless an org Power BI report and Databricks profile are connected. v0.2 work: promote the inherited Sales/Superstore PBIP and old live-test prompts into a credentialed PulsePlay reference fixture, then run the same canonical 5-10 representative AI questions after each significant change.
+The playground has local browser smoke coverage for shell mount (SS1) and a proxy-backed AISidebar round-trip (SS2/FW1). The latest recorded visible in-app Browser regression covered AI Insights, Ask Pulse, Dashboard/native canvas, Custom appearance, and Power BI preview, with evidence in `docs/evidence/deep-regression-2026-05-22`. A prompt-variation pass changed Ask Pulse guidance across unsupported PBI-trend, grounded executive, risk-reviewer, what-if, and accuracy-guardrail prompts; the app refused to bluff on the unsupported prompt and returned grounded Sample Superstore answers for the metric-specific prompts. A separate smoke-fixture batch generated 1000 complex/very-complex questions across AI Insights, Ask Pulse, Dashboard, Custom, Power BI, and scenario dimensions (trend, variance, ranking, outlier, risk, what-if, cohort, RFM, Pareto, forecast): **1000/1000 passed**, **0 failed**, with G3 governance on every response.
+
+The earlier user-provided browser regression sweep at `f11f387` also covered first-run wizard semantics, Ask Pulse -> governed native canvas + fusion card, G3d fail-closed governance, F5 surface deep links/layout modes, G5 surface mode resolution, sustainability tiers, responsive mobile/tablet/desktop fit, Settings Save/Discard/Reset, and PX1/governance proxy contracts. These runs still do not prove live Databricks answer correctness unless an org Power BI report and Databricks profile are connected. v0.2 work: promote the inherited Sales/Superstore PBIP and old live-test prompts into a credentialed PulsePlay reference fixture, then run the same canonical 5-10 representative AI questions after each significant change.
 
 ## What we DO NOT measure today
 
@@ -74,7 +77,7 @@ WCAG compliance is not formally tested. The playground UI is minimal today; a fo
 
 - **Eval suite v1** — 30-50 fixed questions across 3 reference datasets with ground-truth answers. Run nightly. Track regression. Estimated 2 weeks for v1.
 - **Hallucination detector** — post-process AI answers to extract cited numbers and reconcile against the underlying data. Flag when the answer asserts a number not present in the bound data. 1 week heuristic v1; 3+ weeks for a robust LLM-as-judge harness.
-- **Per-connector A/B harness** — same prompt across all 6 production backends, side-by-side answer comparison, qualitative score. 1 week.
+- **Per-connector A/B harness** — same prompt across all 10 backend paths where applicable, side-by-side answer comparison, qualitative score. 1 week.
 
 ### Long-term
 
@@ -86,8 +89,9 @@ WCAG compliance is not formally tested. The playground UI is minimal today; a fo
 
 **Do say:**
 
-- "The proxy has 418 jest tests, all green in the latest local run."
-- "The playground and BI adapters have 161 vitest tests, all green in the latest local run."
+- "The proxy has 1137 jest tests, all green in the latest recorded local run."
+- "The playground and BI adapters have 1382 vitest tests, all green in the latest recorded local run."
+- "The Pulse PBI enabler has 93 unit tests, all green in the latest recorded local run; its package lane passes locally but the pbiviz toolchain pin is still queued."
 - "The 2-axis abstraction is implemented as a contract; Power BI is real, Tableau/Qlik/Looker are still iframe fallbacks."
 - "The old Power BI visual has a larger visual test bank; we are porting the most valuable pure tests."
 - "Eval suite is on the roadmap as a v0.3 candidate. We're not promising answer-quality numbers without measuring them."
@@ -101,12 +105,12 @@ WCAG compliance is not formally tested. The playground UI is minimal today; a fo
 
 **If asked "how do you know it works?":**
 
-*"For structural correctness — automated tests on the proxy, playground, and BI adapters are green. For answer quality — qualitative review only; the formal eval rig is the next investment. The 2-axis abstraction is a contract enforced by TypeScript and conformance tests; Power BI is the first real SDK adapter, while other BI vendors remain iframe fallbacks until their SDK adapters graduate."*
+*"For structural correctness — automated tests on the proxy, playground, BI adapters, and Pulse PBI enabler are green. For answer quality — qualitative review only; the formal eval rig is the next investment. The 2-axis abstraction is a contract enforced by TypeScript and conformance tests; Power BI is the first real SDK adapter, while other BI vendors remain iframe fallbacks until their SDK adapters graduate."*
 
 ## Why this honesty matters
 
-A sharp evaluator will ask "show me the test results" within 5 minutes. Better to say "418 proxy tests green; 161 playground/adapter tests green; old visual parity tests still being ported; eval suite next investment" than to claim a measured answer-quality number that doesn't exist. The proxy infrastructure is measurably solid, Power BI is the first real BI adapter, and the playground architecture is becoming test-backed. Lead with what's true; let the eval claim grow alongside the actual eval rig.
+A sharp evaluator will ask "show me the test results" within 5 minutes. Better to say "1137 proxy tests green; 1442 playground/adapter tests green; 93 Pulse PBI enabler unit tests green; SS2/FW1 proxy-backed shell smoke green in the latest recorded validation; eval suite next investment" than to claim a measured answer-quality number that doesn't exist. The proxy infrastructure is measurably solid, Power BI is the first real BI adapter, and the playground architecture is becoming test-backed. Lead with what's true; let the eval claim grow alongside the actual eval rig.
 
 ---
 
-*Compiled 2026-05-10 during the docs consolidation cycle. Updated 2026-05-11 after the Power BI adapter, BIAdapter conformance, Pulse shell, and proxy test expansion. Re-run when test counts change or when the eval rig lands. The historical Pulse-numbered version is archived at [inherited/PEPPULSE_BEAST_MODE_MEMORY.md](inherited/PEPPULSE_BEAST_MODE_MEMORY.md) and the original `QUALITY_METHODOLOGY.md` content this file pruned from.*
+*Compiled 2026-05-10 during the docs consolidation cycle. Updated 2026-05-23 after FW1/PB1a/Codex Settings split-workspace audit raised latest recorded automated validation to proxy 1137/1137, playground 1442/1442, Pulse PBI enabler 93/93, a passing proxy-backed shell smoke, a passing Pulse PBI `.pbiviz` package, and a user-provided S1-S10 browser regression sweep at `f11f387`. Re-run when test counts change or when the eval rig lands. The historical Pulse-numbered version is archived at [inherited/PEPPULSE_BEAST_MODE_MEMORY.md](inherited/PEPPULSE_BEAST_MODE_MEMORY.md) and the original `QUALITY_METHODOLOGY.md` content this file pruned from.*

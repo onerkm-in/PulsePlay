@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { BIEmbedConfig } from "../biPanel/BIAdapter";
 import { signInAndPrepareEmbed, signOutPbi } from "../lib/pbiAuth";
+import type { PulsePlayAllowlist } from "../types/allowlist";
 
 // Vendor-aware embed-config form.
 //
@@ -14,11 +15,11 @@ import { signInAndPrepareEmbed, signOutPbi } from "../lib/pbiAuth";
 //      permissions. Seamless when the viewer already has an M365 session.
 //      Per https://learn.microsoft.com/en-us/power-bi/developer/embedded/embed-organization-app
 //   2. Backend-issued (Service Principal) — proxy mints an embed token
-//      via Azure AD client-credentials flow. Every viewer sees the SP's
-//      identity (no per-user RLS unless you pass `identities` for RLS
-//      impersonation). The browser never sees the SP secret.
-//   3. Manual paste — dev / lab only. Paste an embed token you minted
-//      via the Power BI portal or REST. Doesn't survive token expiry.
+//      via Azure AD client-credentials flow. The proxy may derive RLS
+//      effective identities from verified server-side user claims. The
+//      browser never sees the SP secret and never supplies RLS identities.
+//   3. Manual paste — dev / lab only, hidden unless explicitly enabled
+//      with VITE_PULSEPLAY_ENABLE_MANUAL_PBI_TOKEN=true outside production.
 //
 // Other vendors (generic / Tableau / Qlik / Looker) — single URL field
 // (the iframe fallback path; v1 wires real SDKs).
@@ -31,16 +32,25 @@ interface EmbedConfigFormProps {
     value: BIEmbedConfig;
     onChange: (next: BIEmbedConfig) => void;
     /** Optional override for the AI proxy base URL — same env-driven
-     *  pattern AISidebar uses so dev/prod deployments line up. */
+     *  pattern UnifiedAssistantSurface uses so dev/prod deployments line up. */
     apiBaseUrl?: string;
     /** Currently active connector / assistant profile. The proxy embed-
      *  token route resolves AAD credentials from this profile, so it has
      *  to be passed through. Empty string is allowed (then the proxy
      *  falls back to "default"). */
     assistantProfile?: string;
+    /** Organization allowlist fetched from the proxy. When present, the
+     *  form refuses values the proxy will reject anyway. */
+    allowlist?: PulsePlayAllowlist | null;
 }
 
 type PowerBITokenMode = "secure" | "sso" | "backend" | "manual";
+
+function isManualPowerBIModeEnabled(): boolean {
+    const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env || {};
+    return env.VITE_PULSEPLAY_ENABLE_MANUAL_PBI_TOKEN === "true"
+        && env.MODE !== "production";
+}
 
 interface PowerBIFormState {
     groupId: string;
@@ -106,6 +116,55 @@ function extractReportIdFromPowerBIUrl(input: string): string | undefined {
     }
 }
 
+/** L3 — Power BI portal "embed in website or portal" URLs carry the
+ *  workspace (group) ID as a `groupId` query param. Pull it so we can
+ *  validate the secure-embed path against `allowlist.powerbiWorkspaces`
+ *  the same way SSO + service-principal modes do. */
+function extractGroupIdFromPowerBIUrl(input: string): string | undefined {
+    try {
+        return new URL(input).searchParams.get("groupId") || undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+function allowlistActive(allowlist?: PulsePlayAllowlist | null): boolean {
+    return !!allowlist?.configured;
+}
+
+function hostnameFromUrl(input: string): string {
+    try { return new URL(input).hostname.toLowerCase(); }
+    catch { return ""; }
+}
+
+function isEmbedOriginAllowed(allowlist: PulsePlayAllowlist | null | undefined, vendor: string, url: string): boolean {
+    if (!allowlistActive(allowlist)) return true;
+    const allowed = allowlist?.embedOrigins?.[vendor] || [];
+    return allowed.includes(hostnameFromUrl(url));
+}
+
+function allowlistContains(values: string[] | undefined, value: string): boolean {
+    const needle = value.trim().toLowerCase();
+    return !!needle && (values || []).map(v => v.toLowerCase()).includes(needle);
+}
+
+function powerBIWorkspaceAllowed(allowlist: PulsePlayAllowlist | null | undefined, groupId: string): boolean {
+    if (!allowlistActive(allowlist)) return true;
+    return allowlistContains(allowlist?.powerbiWorkspaces, groupId);
+}
+
+function powerBIReportAllowed(allowlist: PulsePlayAllowlist | null | undefined, reportId: string): boolean {
+    if (!allowlistActive(allowlist)) return true;
+    const reports = allowlist?.powerbiReports || [];
+    if (reports.length === 0) return !!reportId.trim();
+    return allowlistContains(reports, reportId);
+}
+
+function aadTenantAllowed(allowlist: PulsePlayAllowlist | null | undefined, tenantId: string): boolean {
+    if (!allowlistActive(allowlist)) return true;
+    return allowlistContains(allowlist?.aadTenants, tenantId);
+}
+
 const EMPTY_PBI: PowerBIFormState = {
     groupId: "",
     reportId: "",
@@ -124,10 +183,38 @@ const EMPTY_PBI: PowerBIFormState = {
 };
 
 export function EmbedConfigForm(props: EmbedConfigFormProps) {
+    if (props.vendor === "native") {
+        return <NativeResultCanvasConfig />;
+    }
     if (props.vendor === "powerbi") {
         return <PowerBIEmbedForm {...props} />;
     }
+    if (props.vendor === "databricks-aibi") {
+        return <DatabricksAibiEmbedForm {...props} />;
+    }
+    if (props.vendor === "databricks-genie") {
+        return <DatabricksGenieEmbedForm {...props} />;
+    }
     return <GenericUrlForm {...props} />;
+}
+
+function NativeResultCanvasConfig() {
+    return (
+        <div
+            role="note"
+            style={{
+                fontSize: 12,
+                lineHeight: 1.5,
+                padding: "10px 12px",
+                border: "1px solid var(--pp-border, rgba(0,0,0,0.12))",
+                borderRadius: 6,
+                background: "rgba(14, 165, 233, 0.06)",
+                color: "var(--pp-text, #0f172a)",
+            }}
+        >
+            Native result canvas needs no embed URL. Ask Pulse can use this pane as the place to show generated result views.
+        </div>
+    );
 }
 
 // ── Power BI ───────────────────────────────────────────────────────────────
@@ -137,6 +224,7 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string>("");
     const [lastIssuedAt, setLastIssuedAt] = useState<number | null>(null);
+    const manualModeEnabled = isManualPowerBIModeEnabled();
 
     // Re-hydrate when the parent reset the embedConfig (e.g. user changed
     // vendor and came back). Avoids stale form values overwriting a fresh
@@ -149,10 +237,25 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
         }
     }, [props.value]);
 
+    useEffect(() => {
+        if (!manualModeEnabled && state.tokenMode === "manual") {
+            setState(s => ({ ...s, tokenMode: "secure", permissions: "View" }));
+        }
+    }, [manualModeEnabled, state.tokenMode]);
+
     const apiBase = props.apiBaseUrl || "/api";
 
     const set = <K extends keyof PowerBIFormState>(key: K, val: PowerBIFormState[K]) => {
         setState(s => ({ ...s, [key]: val }));
+    };
+
+    const setTokenMode = (mode: PowerBITokenMode) => {
+        const nextMode = mode === "manual" && !manualModeEnabled ? "secure" : mode;
+        setState(s => ({
+            ...s,
+            tokenMode: nextMode,
+            permissions: nextMode === "backend" ? "View" : s.permissions,
+        }));
     };
 
     const apply = async () => {
@@ -167,12 +270,36 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
                 setError("Secure embed mode needs a Power BI reportEmbed URL from app.powerbi.com.");
                 return;
             }
-            const reportId = state.reportId.trim() || extractReportIdFromPowerBIUrl(embedUrl) || "secure-powerbi-report";
+            if (!isEmbedOriginAllowed(props.allowlist, "powerbi", embedUrl)) {
+                const allowed = props.allowlist?.embedOrigins?.powerbi || [];
+                setError(`Power BI URL hostname is not allowed by your organization. Allowed: ${allowed.join(", ") || "none configured"}.`);
+                return;
+            }
+            const extractedGroupId = extractGroupIdFromPowerBIUrl(embedUrl);
+            const effectiveGroupId = state.groupId.trim() || extractedGroupId || "";
+            // L3 — workspace allowlist applies to secure-embed too. Without
+            // this gate, a user could paste a portal URL pointing at a
+            // workspace the org didn't authorize for embedding.
+            if (effectiveGroupId && !powerBIWorkspaceAllowed(props.allowlist, effectiveGroupId)) {
+                setError(
+                    `Workspace "${effectiveGroupId}" extracted from the secure embed URL is not in your organization's Power BI workspace allowlist.`,
+                );
+                return;
+            }
+            const extractedReportId = state.reportId.trim() || extractReportIdFromPowerBIUrl(embedUrl);
+            if (extractedReportId && !powerBIReportAllowed(props.allowlist, extractedReportId)) {
+                setError(
+                    `Report "${extractedReportId}" extracted from the secure embed URL is not in your organization's Power BI report allowlist.`,
+                );
+                return;
+            }
+            const reportId = extractedReportId || "secure-powerbi-report";
             props.onChange({
                 type: "report",
                 mode: "secure-embed",
                 embedMode: "secure",
                 id: reportId,
+                groupId: effectiveGroupId || undefined,
                 embedUrl,
                 url: embedUrl,
                 permissions: "View",
@@ -185,14 +312,29 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
             setError("Report ID is required.");
             return;
         }
+        if (!powerBIReportAllowed(props.allowlist, state.reportId)) {
+            setError("This report is not in your organization's Power BI report allowlist.");
+            return;
+        }
 
         if (state.tokenMode === "manual") {
+            if (!manualModeEnabled) {
+                setError("Manual Power BI token mode is disabled for this build.");
+                return;
+            }
             if (!state.manualEmbedUrl.trim() || !state.manualAccessToken.trim()) {
                 setError("Manual mode needs both an embed URL and an access token.");
                 return;
             }
+            if (!isEmbedOriginAllowed(props.allowlist, "powerbi", state.manualEmbedUrl)) {
+                const allowed = props.allowlist?.embedOrigins?.powerbi || [];
+                setError(`Embed URL hostname is not allowed by your organization. Allowed: ${allowed.join(", ") || "none configured"}.`);
+                return;
+            }
             props.onChange({
                 type: "report",
+                mode: "manual",
+                embedMode: "manual",
                 tokenType: "Embed",
                 id: state.reportId.trim(),
                 groupId: state.groupId.trim() || undefined,
@@ -219,17 +361,34 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
                 setError("Workspace (group) ID is required.");
                 return;
             }
+            if (!powerBIWorkspaceAllowed(props.allowlist, state.groupId)) {
+                setError("This workspace is not in your organization's Power BI workspace allowlist.");
+                return;
+            }
+            const effectiveTenantId = state.aadTenantId.trim()
+                || (allowlistActive(props.allowlist) && props.allowlist?.aadTenants?.length === 1
+                    ? props.allowlist.aadTenants[0]
+                    : "");
+            if (allowlistActive(props.allowlist) && !aadTenantAllowed(props.allowlist, effectiveTenantId)) {
+                setError("AAD SSO is restricted to your organization's tenant. Enter an allowlisted tenant ID.");
+                return;
+            }
             // Persist AAD app config so the author enters it once per browser.
             writePersistedSso({
                 aadClientId: state.aadClientId.trim(),
-                aadTenantId: state.aadTenantId.trim(),
+                aadTenantId: effectiveTenantId,
             });
             setBusy(true);
             try {
                 const handshake = await signInAndPrepareEmbed(
                     {
                         clientId: state.aadClientId.trim(),
-                        tenantId: state.aadTenantId.trim() || undefined,
+                        tenantId: effectiveTenantId || undefined,
+                        // Defense in depth — passing the live allowlist
+                        // lets pbiAuth.signInAndPrepareEmbed re-assert the
+                        // tenant gate even if some future caller bypasses
+                        // this form. Closes loophole L1 at the lower layer.
+                        allowedTenants: props.allowlist?.aadTenants,
                     },
                     state.groupId.trim(),
                     state.reportId.trim(),
@@ -255,11 +414,15 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
 
         // Backend-issued: POST to the proxy. The proxy resolves AAD service
         // principal credentials via the active profile and returns a short-
-        // lived embed token. The browser never sees the AAD secret. Every
-        // viewer sees the SP's identity (no per-user RLS unless the proxy
-        // route also passes `identities` for RLS impersonation).
+        // lived embed token. The browser never sees the AAD secret, never
+        // supplies RLS identities, and requests View unless the proxy profile
+        // has an explicit server-side Edit policy.
         if (!state.groupId.trim()) {
             setError("Workspace (group) ID is required for backend-issued tokens.");
+            return;
+        }
+        if (!powerBIWorkspaceAllowed(props.allowlist, state.groupId)) {
+            setError("This workspace is not in your organization's Power BI workspace allowlist.");
             return;
         }
         setBusy(true);
@@ -271,7 +434,7 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
                     groupId: state.groupId.trim(),
                     reportId: state.reportId.trim(),
                     datasetId: state.datasetId.trim() || undefined,
-                    permissions: state.permissions,
+                    permissions: "View",
                     assistantProfile: props.assistantProfile || undefined,
                 }),
             });
@@ -287,13 +450,15 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
             }
             props.onChange({
                 type: "report",
+                mode: "backend-issued",
+                embedMode: "backend",
                 tokenType: "Embed",
                 id: state.reportId.trim(),
                 groupId: state.groupId.trim(),
                 datasetId: state.datasetId.trim() || undefined,
                 embedUrl: String(data.embedUrl),
                 accessToken: String(data.embedToken),
-                permissions: state.permissions,
+                permissions: "View",
             });
             setLastIssuedAt(Date.now());
         } catch (err) {
@@ -324,12 +489,12 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
                 id="pp-pbi-mode"
                 className="pp-embed-config__input"
                 value={state.tokenMode}
-                onChange={e => set("tokenMode", e.target.value as PowerBITokenMode)}
+                onChange={e => setTokenMode(e.target.value as PowerBITokenMode)}
             >
                 <option value="secure">Secure embed link - quick preview</option>
                 <option value="sso">AAD SSO — Embed for your organization (seamless)</option>
                 <option value="backend">Service principal — Embed for your customers (proxy)</option>
-                <option value="manual">Manual paste (dev only)</option>
+                {manualModeEnabled && <option value="manual">Manual paste (dev only)</option>}
             </select>
 
             {state.tokenMode === "secure" && (
@@ -385,11 +550,18 @@ function PowerBIEmbedForm(props: EmbedConfigFormProps) {
                     <select
                         id="pp-pbi-perms"
                         className="pp-embed-config__input"
-                        value={state.permissions}
-                        onChange={e => set("permissions", e.target.value as "View" | "Edit")}
+                        value={state.tokenMode === "backend" ? "View" : state.permissions}
+                        onChange={e => {
+                            const next = e.target.value as "View" | "Edit";
+                            if (state.tokenMode === "backend" && next === "Edit") {
+                                set("permissions", "View");
+                                return;
+                            }
+                            set("permissions", next);
+                        }}
                     >
                         <option value="View">View</option>
-                        <option value="Edit">Edit</option>
+                        <option value="Edit" disabled={state.tokenMode === "backend"}>Edit</option>
                     </select>
                 </>
             )}
@@ -501,11 +673,14 @@ function hydratePbiState(value: BIEmbedConfig): PowerBIFormState {
     const persistedSso = readPersistedSso();
     const tokenType = (value.tokenType as string) || "";
     const isSecureEmbed = value.mode === "secure-embed" || value.embedMode === "secure";
+    const isBackendIssued = value.mode === "backend-issued" || value.embedMode === "backend";
+    const isManualEmbed = value.mode === "manual" || value.embedMode === "manual";
     const embedUrl = (value.embedUrl as string) || (value.url as string) || "";
     const inferredMode: PowerBITokenMode =
         isSecureEmbed ? "secure"
             : tokenType === "Aad" ? "sso"
-            : value.accessToken ? "manual"
+            : isBackendIssued ? "backend"
+            : isManualEmbed && value.accessToken && isManualPowerBIModeEnabled() ? "manual"
             : "secure";
     return {
         groupId: (value.groupId as string) || "",
@@ -521,6 +696,200 @@ function hydratePbiState(value: BIEmbedConfig): PowerBIFormState {
     };
 }
 
+// ── Databricks-native vendors ────────────────────────────────────────────
+
+function iframeSrc(input: string): string {
+    const raw = input.trim();
+    const srcMatch = raw.match(/\bsrc\s*=\s*["']([^"']+)["']/i);
+    return (srcMatch?.[1] || raw).trim().replace(/&amp;/g, "&");
+}
+
+function buildAibiUrl(workspaceUrl: string, dashboardId: string, orgId: string): string {
+    const base = workspaceUrl.trim().replace(/\/+$/, "");
+    const params = new URLSearchParams();
+    if (orgId.trim()) params.set("o", orgId.trim());
+    const query = params.toString();
+    return `${base}/embed/dashboardsv3/${encodeURIComponent(dashboardId.trim())}${query ? `?${query}` : ""}`;
+}
+
+function DatabricksAibiEmbedForm(props: EmbedConfigFormProps) {
+    const [mode, setMode] = useState<"basic" | "sdk">(
+        props.value.accessToken || props.value.token ? "sdk" : "basic",
+    );
+    const [url, setUrl] = useState<string>((props.value.url as string) || "");
+    const [workspaceUrl, setWorkspaceUrl] = useState<string>(
+        (props.value.workspaceUrl as string) || (props.value.instanceUrl as string) || "",
+    );
+    const [workspaceId, setWorkspaceId] = useState<string>((props.value.workspaceId as string) || "");
+    const [dashboardId, setDashboardId] = useState<string>((props.value.dashboardId as string) || "");
+    const [orgId, setOrgId] = useState<string>((props.value.orgId as string) || "");
+    const [externalViewerId, setExternalViewerId] = useState<string>((props.value.externalViewerId as string) || "");
+    const [externalValue, setExternalValue] = useState<string>((props.value.externalValue as string) || "");
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState("");
+
+    const resolvedUrl = url.trim() || (workspaceUrl.trim() && dashboardId.trim()
+        ? buildAibiUrl(workspaceUrl, dashboardId, orgId)
+        : "");
+
+    const apply = async () => {
+        setError("");
+        if (!resolvedUrl) {
+            setError("Paste a dashboard embed URL or enter workspace URL + dashboard ID.");
+            return;
+        }
+        if (!isEmbedOriginAllowed(props.allowlist, "databricks-aibi", resolvedUrl)) {
+            setError(`Databricks dashboard hostname is not allowed by your organization. Allowed: ${(props.allowlist?.embedOrigins?.["databricks-aibi"] || []).join(", ") || "none configured"}.`);
+            return;
+        }
+        if (mode === "basic") {
+            props.onChange({
+                url: resolvedUrl,
+                workspaceUrl: workspaceUrl.trim() || undefined,
+                dashboardId: dashboardId.trim() || undefined,
+                orgId: orgId.trim() || undefined,
+            });
+            return;
+        }
+        if (!workspaceUrl.trim() || !workspaceId.trim() || !dashboardId.trim()) {
+            setError("SDK mode requires workspace URL, workspace ID, and dashboard ID.");
+            return;
+        }
+        setBusy(true);
+        try {
+            const res = await fetch(`${props.apiBaseUrl || "/api"}/assistant/embed-token/databricks-aibi`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    assistantProfile: props.assistantProfile || undefined,
+                    dashboardId: dashboardId.trim(),
+                    workspaceId: workspaceId.trim(),
+                    externalViewerId: externalViewerId.trim() || undefined,
+                    externalValue: externalValue.trim() || undefined,
+                }),
+            });
+            const data = await res.json() as Record<string, unknown>;
+            if (!res.ok) throw new Error(String(data.detail || data.error || `HTTP ${res.status}`));
+            props.onChange({
+                url: resolvedUrl,
+                workspaceUrl: workspaceUrl.trim(),
+                instanceUrl: workspaceUrl.trim(),
+                workspaceId: workspaceId.trim(),
+                dashboardId: dashboardId.trim(),
+                orgId: orgId.trim() || undefined,
+                accessToken: data.embedToken || data.token,
+                token: data.token || data.embedToken,
+                externalViewerId: externalViewerId.trim() || undefined,
+                externalValue: externalValue.trim() || undefined,
+                mode: "sdk",
+            });
+        } catch (err) {
+            setError(err instanceof Error ? err.message : String(err));
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    return (
+        <section className="pp-embed-config">
+            <label className="pp-embed-config__label">Databricks AI/BI mode</label>
+            <select
+                className="pp-embed-config__input"
+                value={mode}
+                onChange={e => setMode(e.target.value === "sdk" ? "sdk" : "basic")}
+            >
+                <option value="basic">Basic iframe - workspace-authenticated users</option>
+                <option value="sdk">External embedding SDK - server-issued scoped token</option>
+            </select>
+            <label htmlFor="pp-aibi-url" className="pp-embed-config__label">Embed URL or iframe src</label>
+            <input
+                id="pp-aibi-url"
+                type="url"
+                className="pp-embed-config__input"
+                value={url}
+                onChange={e => setUrl(iframeSrc(e.target.value))}
+                placeholder="https://<workspace>/embed/dashboardsv3/<dashboard-id>"
+            />
+            <div className="pp-embed-config__grid">
+                <label>
+                    Workspace URL
+                    <input className="pp-embed-config__input" value={workspaceUrl} onChange={e => setWorkspaceUrl(e.target.value)} placeholder="https://adb-...azuredatabricks.net" />
+                </label>
+                <label>
+                    Dashboard ID
+                    <input className="pp-embed-config__input" value={dashboardId} onChange={e => setDashboardId(e.target.value)} placeholder="dashboard UUID" />
+                </label>
+                <label>
+                    Workspace ID
+                    <input className="pp-embed-config__input" value={workspaceId} onChange={e => setWorkspaceId(e.target.value)} placeholder="required for SDK mode" />
+                </label>
+                <label>
+                    Org ID
+                    <input className="pp-embed-config__input" value={orgId} onChange={e => setOrgId(e.target.value)} placeholder="optional ?o= value" />
+                </label>
+            </div>
+            {mode === "sdk" && (
+                <div className="pp-embed-config__grid">
+                    <label>
+                        External viewer ID
+                        <input className="pp-embed-config__input" value={externalViewerId} onChange={e => setExternalViewerId(e.target.value)} placeholder="non-PII audit identifier" />
+                    </label>
+                    <label>
+                        External value
+                        <input className="pp-embed-config__input" value={externalValue} onChange={e => setExternalValue(e.target.value)} placeholder="optional dashboard filter value" />
+                    </label>
+                </div>
+            )}
+            <button type="button" className="pp-embed-config__apply" onClick={() => void apply()} disabled={busy}>
+                {busy ? "Issuing token..." : "Load Databricks AI/BI"}
+            </button>
+            {error && <p className="pp-embed-config__error" role="alert">{error}</p>}
+            <p className="pp-embed-config__hint">
+                Use basic iframe for internal workspace users. Use SDK mode only when the proxy profile has Databricks service-principal credentials.
+            </p>
+        </section>
+    );
+}
+
+function DatabricksGenieEmbedForm(props: EmbedConfigFormProps) {
+    const [iframe, setIframe] = useState<string>((props.value.iframe as string) || (props.value.url as string) || "");
+    const [error, setError] = useState("");
+
+    const apply = () => {
+        setError("");
+        const resolved = iframeSrc(iframe);
+        if (!resolved) {
+            setError("Paste the Databricks-generated Genie iframe or iframe src.");
+            return;
+        }
+        if (!isEmbedOriginAllowed(props.allowlist, "databricks-genie", resolved)) {
+            setError(`Genie hostname is not allowed by your organization. Allowed: ${(props.allowlist?.embedOrigins?.["databricks-genie"] || []).join(", ") || "none configured"}.`);
+            return;
+        }
+        props.onChange({ iframe, url: resolved, allow: "clipboard-write" });
+    };
+
+    return (
+        <section className="pp-embed-config">
+            <label htmlFor="pp-genie-iframe" className="pp-embed-config__label">Genie iframe</label>
+            <textarea
+                id="pp-genie-iframe"
+                className="pp-embed-config__input pp-embed-config__input--textarea"
+                value={iframe}
+                onChange={e => setIframe(e.target.value)}
+                placeholder={'<iframe src="https://<workspace>/..." allow="clipboard-write"></iframe>'}
+            />
+            <button type="button" className="pp-embed-config__apply" onClick={apply}>
+                Load Genie Space
+            </button>
+            {error && <p className="pp-embed-config__error" role="alert">{error}</p>}
+            <p className="pp-embed-config__hint">
+                Databricks requires admins to enable Genie iframe embedding and approve this PulsePlay domain before the iframe will render.
+            </p>
+        </section>
+    );
+}
+
 // ── Generic / non-PBI vendors ─────────────────────────────────────────────
 
 function GenericUrlForm(props: EmbedConfigFormProps) {
@@ -528,6 +897,9 @@ function GenericUrlForm(props: EmbedConfigFormProps) {
 
     const apply = () => {
         if (!url.trim()) return;
+        if (!isEmbedOriginAllowed(props.allowlist, props.vendor, url.trim())) {
+            return;
+        }
         props.onChange({ url: url.trim() });
     };
 
@@ -556,6 +928,11 @@ function GenericUrlForm(props: EmbedConfigFormProps) {
             <button type="button" className="pp-embed-config__apply" onClick={apply}>
                 Load
             </button>
+            {allowlistActive(props.allowlist) && url.trim() && !isEmbedOriginAllowed(props.allowlist, props.vendor, url.trim()) && (
+                <p className="pp-embed-config__error" role="alert">
+                    URL hostname is not in your organization's allowed origins. Allowed: {(props.allowlist?.embedOrigins?.[props.vendor] || []).join(", ") || "none configured"}.
+                </p>
+            )}
             <p className="pp-embed-config__hint">
                 v0: paste any embed URL. v1 will add per-vendor credential helpers + token issuance via the proxy.
             </p>

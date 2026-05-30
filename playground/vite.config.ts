@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
+import cspFromAllowlist from "./vite.cspFromAllowlist";
 
 // PulsePlay playground — Vite config.
 // `/api/*` is proxied to the local PulsePlay AI proxy (same architecture as
@@ -9,7 +10,14 @@ import path from "node:path";
 // line in dev, and through a deployed proxy URL in production (configured
 // via VITE_API_BASE_URL env var).
 export default defineConfig({
-    plugins: [react()],
+    plugins: [
+        react(),
+        // L7 closure — strict CSP generated from proxy/config.json's
+        // allowlist at build time. Active only for `vite build`; dev
+        // keeps the permissive index.html CSP so HMR's 'unsafe-eval'
+        // keeps working. See vite.cspFromAllowlist.ts.
+        cspFromAllowlist(),
+    ],
     // The Power BI adapter at ../bi-adapters/powerbi/index.ts imports
     // "powerbi-client". Resolution from outside playground/ doesn't walk
     // up to playground/node_modules by default — this alias makes Rollup
@@ -35,7 +43,7 @@ export default defineConfig({
         },
     },
     server: {
-        port: 5173,
+        port: 7001,
         // Bind IPv4 explicitly. Vite 6's default literal "localhost" host
         // binds whichever address Node's DNS prefers, which on Windows 11 +
         // Node 24 is IPv6 (::1) only — so `http://127.0.0.1:5173` returns
@@ -46,7 +54,7 @@ export default defineConfig({
         host: "127.0.0.1",
         proxy: {
             "/api": {
-                target: "http://127.0.0.1:8787",
+                target: "http://127.0.0.1:7000",
                 changeOrigin: true,
                 rewrite: (path) => path.replace(/^\/api/, ""),
             },

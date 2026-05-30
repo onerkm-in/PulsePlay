@@ -8,7 +8,7 @@ Run this at the START of every LLM session. It:
      it prints what was in flight — git status, files modified since the
      prior session's HEAD, latest HANDOVER block — so the LLM can resume.
   2. Marks the new session as "active" with started_at + git HEAD.
-  3. Prints the canonical docs and the auto-memory so the LLM has full
+  3. Prints the canonical docs and repo-local project memory so the LLM has full
      project context before doing anything.
 
 Pair with scripts/llm_wrapup.py at session END to mark the session complete.
@@ -42,13 +42,15 @@ from typing import Iterable
 CANONICAL_DOCS: list[tuple[str, str]] = [
     ("CLAUDE.md",                                         "Project guide — directories, run sequence, tripwires, Path C posture"),
     ("README.md",                                         "Top-level README — front door"),
-    ("docs/ARCHITECTURE.md",                              "PulsePlay-native architecture — 2-axis design + 8 backend paths"),
+    ("docs/README.md",                                    "Documentation hub — canonical docs, what to skip, consolidation map"),
+    ("docs/ARCHITECTURE.md",                              "PulsePlay-native architecture — 2-axis design + 10 backend paths"),
     ("docs/AGENDA.md",                                    "Open work tracker — beast-mode list, near-term, medium-term, blockers"),
     ("docs/PUBLIC_OSS_AGENDA.md",                         "Parked items for the future public-OSS phase"),
     ("docs/PACKS.md",                                     "Pack architecture overview — vertical preset packs"),
+    ("docs/KNOWLEDGE_BASE_ARCHITECTURE.md",               "Knowledge plane — retrieval contracts, Settings IA, Knowledge Base IA"),
     ("docs/PROXY_REFERENCE.md",                           "Proxy API surface — routes, profile shapes, response contract"),
     ("docs/SECURITY.md",                                  "Internal-scoped security guardrails"),
-    ("docs/QUALITY.md",                                   "Honest statement of what we test today and what we don't"),
+    ("docs/QUALITY.md",                                   "Honest statement of latest recorded test counts and quality gaps"),
     ("docs/CONNECTOR_PROBE_AND_SMART_CONNECT.md",         "Smart Connect spec — agnostic probe + pack inference"),
     ("docs/MIGRATION_NOTES.md",                           "Doc consolidation record — what moved where"),
     ("docs/ROADMAP.md",                                   "Versioned roadmap (v0.1 → v1.2)"),
@@ -70,16 +72,9 @@ LOG_FILES: list[tuple[str, str]] = [
 
 LOG_TAIL_LINES = 40
 
-DEFAULT_MEMORY_DIR = Path(
-    r"C:\Users\rajes\.claude\projects\d--Working-Folder-Projects-PulsePlay\memory"
-)
-
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_MEMORY_DIR = PROJECT_ROOT / "docs" / "memory"
 STATE_FILE = PROJECT_ROOT / ".pulseplay-session.state.json"
-# Legacy state-file name from the Pulse-heritage tooling. Read as a
-# fallback so a session started under the old name is recognised on
-# resume; new state always writes to the canonical PulsePlay name.
-LEGACY_STATE_FILE = PROJECT_ROOT / ".dwd-session.state.json"
 STATE_VERSION = 1
 
 
@@ -180,17 +175,12 @@ def detect_agent_label() -> str:
 # ── Session state file ───────────────────────────────────────────────────────
 
 def read_state() -> dict | None:
-    # Prefer the canonical PulsePlay state file; fall back to the legacy
-    # Pulse-heritage name if the canonical one is missing. Lets a session
-    # started under the old name resume correctly after the rename.
-    for candidate in (STATE_FILE, LEGACY_STATE_FILE):
-        if not candidate.exists():
-            continue
-        try:
-            return json.loads(candidate.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-    return None
+    if not STATE_FILE.exists():
+        return None
+    try:
+        return json.loads(STATE_FILE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
 
 
 def write_state(state: dict) -> None:
@@ -320,10 +310,8 @@ def main() -> int:
     print(textwrap_strip("""
         Read the docs below before any non-trivial code change. Tripwires and
         active in-flight context live in CLAUDE.md, HANDOVER.md (top entry =
-        most recent), and docs/PROJECT_MEMORY_DISCOVERY.md. The auto-memory
-        section captures cross-session continuity Claude Code has already
-        learned about this project - treat it as authoritative for
-        collaboration style and resolved/pending feedback items.
+        most recent), AGENDA.md, and docs/memory/. Project memory is repo-local
+        by default so it travels with PulsePlay and stays reviewable in diffs.
 
         At session end, run: python scripts/llm_wrapup.py
     """))
@@ -339,7 +327,7 @@ def main() -> int:
             missing_required = True
 
     if not args.no_memory:
-        banner("Auto-memory (Claude Code per-project)")
+        banner("Project memory (repo-local)")
         memory_files = list(iter_memory_files(args.memory_dir))
         if not memory_files:
             print(f"  [no memory found at {args.memory_dir}]")

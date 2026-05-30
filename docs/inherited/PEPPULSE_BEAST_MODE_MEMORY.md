@@ -15,7 +15,7 @@ PepPulse is a Power BI custom visual that embeds an AI-assisted analytics experi
 ## 2 · Where everything lives (post-cycle-13 consolidation)
 
 ```
-PepPulse repo (DwD_for_BI)
+PepPulse repo (the parent project)
 ├── README.md                         ← Front door (104 lines, navigator)
 ├── CLAUDE.md                         ← AI agent guide + canonical-doc list
 ├── DISCLAIMER.md                     ← Legal (product-positive framing)
@@ -47,7 +47,7 @@ PepPulse repo (DwD_for_BI)
 │   └── adr/                          ← Architecture Decision Records (immutable history)
 ├── genieChatVisual/                  ← The Power BI visual (React + TypeScript)
 ├── proxy/                            ← Express proxy (CORS bypass, auth, rate limit)
-├── PBI/                              ← Demo PBIP sandbox (DwD_PBI_Demo.Report)
+├── PBI/                              ← Demo PBIP sandbox (PulsePlay-PBI-demo.Report)
 └── scripts/                          ← Onboard/wrapup + smoke tests
 ```
 
@@ -159,7 +159,7 @@ python scripts/llm_onboard.py --terse
 It prints crash recovery context, the 14 canonical docs, the full auto-memory directory, last 40 lines of proxy logs, and the last 20 git commits.
 
 **Auto-memory directory** (per-project, persists across sessions):
-`C:\Users\rajes\.claude\projects\d--Working-Folder-Projects-DwD-AI-Assistant-for-PBI\memory\`
+`C:\Users\rajes\.claude\projects\d--Working-Folder-Projects-Sister-Pulse-Project\memory\`
 
 Files of interest:
 - `MEMORY.md` — index

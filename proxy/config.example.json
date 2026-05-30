@@ -1,6 +1,36 @@
 {
     "port": 8787,
     "feedbackLog": "feedback.log",
+    "allowlistEnforcement": "strict",
+    "allowlist": {
+        "biProviders": ["powerbi"],
+        "embedOrigins": {
+            "powerbi": ["app.powerbi.com"]
+        },
+        "powerbiWorkspaces": ["YOUR_POWER_BI_WORKSPACE_ID"],
+        "powerbiReports": [],
+        "aadTenants": ["YOUR_AAD_TENANT_ID"],
+        "aiProfiles": {
+            "default": ["default", "supervisor"],
+            "byGroup": {}
+        },
+        "genieSpaces": ["YOUR_GENIE_SPACE_ID"],
+        "supervisorProfiles": ["supervisor"],
+        "packs": ["cpg-fmcg"],
+        "knowledgeSources": [],
+        "display": {
+            "_doc": "Viewer-facing canvas policy. biTileMode controls how many BI frames render in the playground (1, 2, or 4). Keep 1 for most enterprise users; use 2/4 only for governed comparison deployments.",
+            "biTileMode": "1"
+        },
+        "license": {
+            "powerbi": {
+                "minTier": "Premium",
+                "allowedTiers": ["Premium P1", "Premium P2", "Premium P3", "PPU"],
+                "embedSku": ["EM1", "EM2", "EM3"],
+                "fabricEnabled": false
+            }
+        }
+    },
     "profiles": {
         "default": {
             "host": "https://adb-WORKSPACE_ID.REGION.azuredatabricks.net",
@@ -84,6 +114,17 @@
             "displayName": "PulsePlay Supervisor Agent",
             "dataDomain": "all helper data"
         },
+        "_powerbi_semantic_model_example": {
+            "_doc": "Cycle 15 — Power BI semantic-model AI brain. Deterministic, no-LLM. PulsePlay probes the published dataset via INFO.* DAX functions, then matches each user question to one of four DAX templates (top-n, aggregate-by, trend, total) and executes it through POST .../datasets/{id}/executeQueries. Setup: (1) create an Azure AD app registration + client secret. (2) Add the service principal to the target Power BI workspace as a Member. (3) Enable 'Service principals can use Power BI APIs' in the Power BI admin portal. (4) Fill the fields below.",
+            "type": "powerbi-semantic-model",
+            "displayName": "Power BI: Sales Semantic Model",
+            "dataDomain": "Sales performance",
+            "aadTenantId": "YOUR_AAD_TENANT_GUID",
+            "aadClientId": "YOUR_SERVICE_PRINCIPAL_CLIENT_ID",
+            "aadClientSecret": "YOUR_SERVICE_PRINCIPAL_CLIENT_SECRET",
+            "powerbiGroupId": "YOUR_POWERBI_WORKSPACE_GUID",
+            "powerbiDatasetId": "YOUR_POWERBI_DATASET_GUID"
+        },
         "_doc_displayName": "Optional. Friendly label shown in the visual's progress text and source attributions (e.g. 'Sales helper'). If omitted, falls back to a title-cased profile key.",
         "_doc_dataDomain":  "Optional. Short noun phrase for what this helper covers (e.g. 'sales data', 'customer & returns data'). Used in step text like 'Sales helper is checking sales data'. If omitted, falls back to 'the data'.",
         "_doc_suggestedQuestions": "Optional. Per-profile starter questions surfaced as clickable chips on the visual's Welcome / Try-Asking strip (IDEA-006). Up to 8 strings. When present, replaces the generic static suggestions for this profile. Via env var: PROXY_PROFILE_<NAME>_SUGGESTED_QUESTIONS=comma,separated,list.",
@@ -91,7 +132,7 @@
         "_doc_syntheticIndicators": "Optional. Per-profile list of column names whose values are derived/estimated rather than measured (e.g. churn-risk scores, predicted ratings). When the AI returns a result containing any of these columns, the confidence chip surfaces a 'synthetic data' caveat using the supplied message. Fields: { columns (string[]), message (string, optional) }.",
         "_doc_supervisor_spaces": "Optional. List of profile names the supervisor fans out to. Leave empty/omit to default to every configured non-supervisor profile — supports any naming.",
         "_doc_supervisor_crossDomainNotes": "Optional. Free-form notes (string or array) appended to the synthesis prompt to help the LLM reconcile cross-source numbers. Replaces any baked-in defaults — leave unset to use the bundled demo's ops-vs-orders note (only fires when profiles named 'ops' and any other are both present).",
-        "_doc_envProfiles": "IDEA-016 phase 2 — profiles can ALSO be layered via environment variables using the convention PROXY_PROFILE_<NAME>_<FIELD> (e.g. PROXY_PROFILE_SALES_HOST, PROXY_PROFILE_SALES_TOKEN, PROXY_PROFILE_SALES_SPACE_ID, PROXY_PROFILE_SALES_DISPLAY_NAME). Env vars MERGE per-field with config.json profiles of the same name (env wins) and append new profiles that don't exist in config.json. Useful for containerised / Databricks Apps deployments where committing config.json isn't possible. Field map: HOST, TOKEN, SPACE_ID, WAREHOUSE_ID, PROXY_KEY, DISPLAY_NAME, DATA_DOMAIN, AGENT_NAME, SYNTHESIS_ENDPOINT, SPACES (comma-separated), TYPE, FOUNDATION_MODEL_ENDPOINT, POWER_BI_CLIENT_ID, POWER_BI_CLIENT_SECRET, POWER_BI_TENANT_ID.",
-        "_doc_powerBiEmbedToken": "Cycle A — POST /assistant/embed-token/powerbi mints short-lived Power BI embed tokens via Azure AD service principal (client_credentials grant). Add powerBiClientId / powerBiClientSecret / powerBiTenantId to a profile to enable. Tokens are cached per (profile, reportId, accessLevel) with TTL = expiry minus 60s buffer; concurrent requests share a single AAD round-trip via single-flight protection. The client secret is NEVER returned to the browser, written to the audit log, or used as part of the cache key. Each issuance produces an audit entry stamped with the service principal's identity hash."
+        "_doc_envProfiles": "IDEA-016 phase 2 — profiles can ALSO be layered via environment variables using the convention PROXY_PROFILE_<NAME>_<FIELD> (e.g. PROXY_PROFILE_SALES_HOST, PROXY_PROFILE_SALES_TOKEN, PROXY_PROFILE_SALES_SPACE_ID, PROXY_PROFILE_SALES_DISPLAY_NAME). Env vars MERGE per-field with config.json profiles of the same name (env wins) and append new profiles that don't exist in config.json. Useful for containerised / Databricks Apps deployments where committing config.json isn't possible. Field map: HOST, TOKEN, SPACE_ID, WAREHOUSE_ID, PROXY_KEY, DISPLAY_NAME, DATA_DOMAIN, AGENT_NAME, SYNTHESIS_ENDPOINT, SPACES (comma-separated), TYPE, FOUNDATION_MODEL_ENDPOINT, POWER_BI_CLIENT_ID, POWER_BI_CLIENT_SECRET, POWER_BI_TENANT_ID, POWER_BI_ALLOW_EDIT, POWER_BI_RLS_ENABLED, POWER_BI_RLS_REQUIRED, POWER_BI_RLS_USERNAME, POWER_BI_RLS_USERNAME_CLAIM, POWER_BI_RLS_ROLES (comma-separated).",
+        "_doc_powerBiEmbedToken": "Cycle A — POST /assistant/embed-token/powerbi mints short-lived Power BI embed tokens via Azure AD service principal (client_credentials grant). Add powerBiClientId / powerBiClientSecret / powerBiTenantId to a profile to enable. Tokens are cached per (profile, workspace, reportId, datasetId, accessLevel, RLS identity hash) with TTL = expiry minus 60s buffer; concurrent requests for the same non-secret key share a single AAD round-trip via single-flight protection. Browser-supplied identities/effectiveIdentity payloads are rejected. Optional RLS identities are derived server-side from verified IdP claims (default claim order: email, preferredUsername, upn) or from a server-configured powerBiRlsUsername. Edit tokens require powerBiAllowEdit=true on the profile. The client secret is NEVER returned to the browser, written to the audit log, or used as part of the cache key. Each issuance produces an audit entry stamped with the service principal's identity hash."
     }
 }

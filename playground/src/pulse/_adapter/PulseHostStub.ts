@@ -183,25 +183,21 @@ export function readGenieSettings(): Record<string, unknown> {
     return readStoredObject(STORAGE_KEY_PREFIX + "genieSettings");
 }
 
-/** First-run defaults seeder. Pulse ships some toggles defaulted to
- *  `false` because in PBI those are "viewer-protected" (hide author-
- *  only UI from report consumers). PulsePlay has no viewer/author
- *  distinction — every user IS the author — so we pre-seed those
- *  toggles to `true` the first time the app mounts. Only writes when
- *  nothing has been persisted yet; never overrides a user's choice. */
+/** First-run defaults seeder. Keep this intentionally small: Settings is
+ *  the canonical authoring surface, while Pulse's Console is operational
+ *  only. We still write explicit defaults for legacy keys so older sessions
+ *  hydrate predictably, but we do not turn the old in-Console Setup editor
+ *  on for new users. */
 export function seedPulsePlayDefaults(): void {
     if (typeof window === "undefined") return;
     const key = STORAGE_KEY_PREFIX + "genieSettings";
     try {
         const existing = readStoredObject(key);
         const defaults: Record<string, unknown> = {
-            // Surfaces the Setup tab inside Developer Tools so authors
-            // (= every PulsePlay user) can reach Pulse's full config UI
-            // without first toggling this manually. Pulse defaults this
-            // to false in settings.ts:982 (viewer-protected in PBI).
-            showSetupAccess: true,
-            // Other PulsePlay-friendly defaults can land here as we
-            // discover them. Keep the list short and well-justified.
+            // Legacy gate for the old in-Console Setup tab. Settings now
+            // owns configuration, so new sessions should not surface the
+            // duplicate editor.
+            showSetupAccess: false,
         };
         // Only set keys that are NOT already present, so we never stomp
         // a user's explicit choice. Granular merge lets existing-user

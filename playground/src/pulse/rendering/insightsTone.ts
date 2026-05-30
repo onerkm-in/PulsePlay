@@ -15,7 +15,15 @@ export function normaliseDirectionalGlyphs(text: string): string {
 }
 
 export function stripLeadingDirectionGlyphs(text: string): string {
-    return normaliseDirectionalGlyphs(text).replace(/^[▲▼↔]\s*/, "").trim();
+    // Despite the name, this strips direction glyphs from BOTH ends —
+    // the LLM occasionally emits "▲ +20.4% ▲" (arrow on each side),
+    // which would otherwise duplicate the leading cue we render
+    // separately in the KPI tile foot. Kept as one function so both
+    // existing call sites (KPI tile delta + chip display) clean uniformly.
+    return normaliseDirectionalGlyphs(text)
+        .replace(/^[▲▼↔]\s*/, "")
+        .replace(/\s*[▲▼↔]$/, "")
+        .trim();
 }
 
 export function getTrendDirectionFromDelta(raw: string): TrendDirection {

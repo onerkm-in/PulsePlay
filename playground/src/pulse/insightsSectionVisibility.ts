@@ -27,7 +27,7 @@
  *   • All section titles are normalized to UPPER CASE before storage and
  *     comparison so "Customer Pulse" and "CUSTOMER PULSE" round-trip the
  *     same way the renderer normalizes them in renderInsightsSections.
- *   • localStorage key shape is `dwd-ai-insights-visibility:${reportKey}` —
+ *   • localStorage key shape is `pulseplay-ai-insights-visibility:${reportKey}` —
  *     gitignored from any other key namespace and easy to clear by hand.
  *
  * NOTE: This module deliberately avoids importing from visualHelpers /
@@ -35,7 +35,7 @@
  * graph stays acyclic (the renderer imports the helpers, not vice versa).
  */
 
-const STORAGE_PREFIX = "dwd-ai-insights-visibility:";
+const STORAGE_PREFIX = "pulseplay-ai-insights-visibility:";
 
 /** In-memory fallback when localStorage throws (private mode, quota, SSR). */
 const memoryStore = new Map<string, string[]>();

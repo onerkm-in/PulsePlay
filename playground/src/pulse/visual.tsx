@@ -23,6 +23,7 @@ import {
     GenieConfig,
     GenieHistoryEntry,
     GenieMessage,
+    GenieSqlSection,
     InsightsConfigSuggestion,
     OutputMode,
     ProxyHealthInfo,
@@ -39,6 +40,7 @@ import {
 import { getKBSystemPrompt, getSupervisorSystemPrompt } from "./knowledgeBase";
 import { buildInsightsCacheKey, readInsightsCache, writeInsightsCache, clearInsightsCache, pruneInsightsCache, composeInsightsSettingsFingerprint, computeSchemaHash, computeSqlHash, SQL_SECTION_CACHE_TTL_MS } from "./insightsCache";
 import { SqlSectionRenderer, type SqlSectionResult } from "./sqlSectionRenderer";
+import { parseMaskingRules, maskSqlResult } from "./masking";
 import type { SqlSection } from "./sqlSection";
 // Wave 37 — viewer-side AI Insights section visibility (per-report localStorage).
 import {
@@ -77,6 +79,12 @@ import { SetupStep5, countCustomisedTotal, countDirtyVsBaseline } from "./setupS
 // Wave 41 cycle 12 — type-only import for the per-card metric-rule suggest prop.
 import type { MetricRule as MetricRuleType } from "./metricRulesEngine";
 import { SetupWizard, shouldShowWizard, WizardDraft } from "./setupWizard";
+// 2026-05-22 — shared chart-rationale "i" button. Used in BOTH NativeCanvas
+// and here so users get the same "Why this chart?" affordance whether they're
+// looking at the native canvas or the Ask Pulse chart tab.
+import { ChartRationalePill } from "../visualization/ChartRationalePill";
+import { renderMarkdown } from "../lib/renderMarkdown";
+import { computeSurfaceContext } from "../lib/computeSurfaceContext";
 import {
     ALL_FILTER_VALUE,
     AREA_PROMPTS,
@@ -88,6 +96,7 @@ import {
     buildGenieRequest,
     buildHomeContextPayload,
     buildFastHybridInsightsStagePrompts,
+    buildStagedHybridInsightsPlan,
     buildInsightsPrompt,
     FAST_INSIGHTS_STAGE_TITLE,
     parseCustomSections,
@@ -149,10 +158,43 @@ import {
     validateAssignedFields,
 } from "./visualHelpers";
 import { buildThemeFromHost, buildThemeStyle, mergeTheme, ThemeName } from "./themeConfig";
+// UX-VIEWER-1.2B — Ask Pulse home metadata hook. Replaces STATIC_ACTIONS
+// on the empty state with data-shaped starter questions (curated from
+// the active Genie space when the profile is Genie, or pack evergreen
+// for non-Genie backends). Strategy: PulsePlay is the enabler — features
+// are built into PulsePlay's own surface, not embedded from Databricks.
+import { useAskPulseHomeMeta } from "../features/config/useAskPulseHomeMeta";
+// UX-VIEWER-1.7b.2 — chart-spec passthrough. resolveChartSpec walks the
+// translator registry (registered in visualization/translators/index.ts);
+// when Genie returns a HELIOS viz attachment, the HELIOS translator
+// turns it into a ChartIR which we then map back to ChartKind. Defers
+// to Databricks' chart-type pick for Genie responses; falls back to
+// PulsePlay's heuristic for non-Genie backends.
+import "../visualization/translators";  // side-effect: registers translators
+import { resolveChartSpec } from "../visualization/translators";
+import { irMarkToChartKind } from "../visualization/chartIR";
+// SustainabilityIndicator is mounted once in App.tsx as a fixed bottom-right
+// orb; pulse/visual.tsx no longer renders its own chip.
 // Wave 44 — Power BI theme inheritance + per-element typography. Pure
 // helpers; the Visual class flushes the resulting plan onto `this.target`.
 import { planThemeWrites, applyThemeWrites } from "./themeInheritance";
 import { cleanInsightsContent, stripTrailingProse, normalizeStageHeading, enforceStageScope, stripEmptyEmphasis } from "./rendering/contentSanitizer";
+// Phase E.1 — client-side progressive reveal of Genie single-shot answers.
+// Pure schedule lives in ./state/stagedReveal; this file owns the React glue
+// (arrival-time ref, tick scheduling, render filter + spinner).
+import {
+    DEFAULT_REVEAL_SCHEDULE,
+    revealScheduleFromCadence,
+    computeRevealState,
+    nextRevealTickMs,
+    type RevealState,
+} from "./state/stagedReveal";
+import {
+    loadPerformanceLevers,
+    PERFORMANCE_LEVERS_EVENT,
+    getBackendStagingFromCadence,
+    type PerformanceLevers,
+} from "../settings/performanceLevers";
 // IDEA-044 Phase 1 MVP — CSV export of the first pipe-table found in the
 // active Insights output. Pure client-side, no proxy round-trip required.
 import { exportSectionAsCsv, extractFirstPipeTable } from "./exportHelpers";
@@ -183,20 +225,27 @@ import { subscribeSqlFormatter, formatSqlForCopy } from "./visualHelpers";
 // doesn't apply in the browser playground.
 import { Icon } from "./_adapter/Icon";
 import { renderInsightsAsEmailHtml } from "./_adapter/exportInsightsAsHtml";
+import { CHAT_PRELOAD_PROMPT } from "./visualHelpers";
+// 2026-05-19 Codex post-UAT-1840 follow-up: wire perfInstrumentation
+// (added in b71270f) into the AI Insights pipeline. We only wrap the
+// outer pipeline (total duration + final dumpRun) — per-stage timing
+// already lives in `stageTraces[i].durationMs`. The DevTools-visible
+// `pulseplay:<runId>:total` mark + console.table at completion give the
+// next cycle concrete numbers against Rajesh's 5-10 s budget without
+// invasive surgery inside the stage loop.
+import { dumpRun, resetRun, stageEnd, stageStart } from "../lib/perfInstrumentation";
 // PulsePlay — ColorRulesBanner (module-level component) needs the preset
 // list available at top level; the file's other consumers import inside
 // the class component so this import IS additive.
-import { METRIC_DIRECTION_PRESETS as PP_METRIC_DIRECTION_PRESETS } from "./insightsPresetLibrary";
+import { METRIC_DIRECTION_PRESETS as PP_METRIC_DIRECTION_PRESETS, CUSTOM_SECTION_PRESETS, interpolatePreset, defaultParamValues } from "./insightsPresetLibrary";
+import { writePulseAiVisualSettingsPatch } from "../settings/pulseVisualSettingsStore";
 import { createBackend } from "./backend/BackendFactory";
 import type { AnyBackend } from "./backend/BackendAdapter";
-// Wave 38 Phase 1 — Setup tab access allowlist (UX gate, not authorization).
-// Empty allowlist preserves the legacy `showSetupAccess` toggle behaviour.
-import {
-    parseAllowedUsers,
-    getViewerIdentity,
-    shouldShowSetupTab,
-} from "./setupAccessControl";
-
+import { parseAllowedUsers } from "./setupAccessControl";
+import { EChartsRenderer } from '../components/workbench/EChartsRenderer';
+import { buildEChartsOption } from '../lib/buildEChartsOption';
+import { CHART_PALETTES, CHART_PALETTE_EVENT, getActivePaletteId, applyChartPalette } from '../lib/chartPalettes';
+import { addCanvasTile } from '../lib/canvasTiles';
 import IViewport = powerbi.IViewport;
 import IVisual = powerbi.extensibility.visual.IVisual;
 import IVisualHost = powerbi.extensibility.visual.IVisualHost;
@@ -205,6 +254,83 @@ import VisualUpdateOptions = powerbi.extensibility.visual.VisualUpdateOptions;
 type MessageRole = "assistant" | "user" | "system";
 type StageStatus = "idle" | "pending" | "running" | "done" | "error";
 type SessionLogLevel = "INFO" | "WARN" | "ERROR";
+
+function openPulsePlaySettings(group: "setup" | "bi" | "ai" | "preferences" | "system" | "advanced" = "setup", leaf?: string): void {
+    if (typeof window === "undefined") return;
+    const suffix = leaf ? `/${encodeURIComponent(leaf)}` : "";
+    window.history.pushState({}, "", `/settings/${group}${suffix}`);
+    try {
+        window.dispatchEvent(new CustomEvent("pulseplay:settings-navigate"));
+    } catch {
+        /* swallow */
+    }
+}
+
+type PulsePlayViewportPane = "ai" | "bi";
+type PulsePlayViewportFocus = PulsePlayViewportPane | null;
+type PulsePlayViewportAction = "focus" | "restore" | "minimize" | "open-page" | "float" | "reload";
+
+function readPulsePlayViewportFocus(): PulsePlayViewportFocus {
+    if (typeof window === "undefined") return null;
+    try {
+        const focus = new URL(window.location.href).searchParams.get("focus");
+        return focus === "ai" || focus === "bi" ? focus : null;
+    } catch {
+        return null;
+    }
+}
+
+function dispatchPulsePlayViewportAction(action: PulsePlayViewportAction, pane: PulsePlayViewportPane = "ai"): void {
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(new CustomEvent("pulseplay:viewport-action", {
+        detail: { pane, action },
+    }));
+}
+
+// 2026-05-25 — per-tab-visibility model. Read by visual.tsx to decide which
+// of AI Insights / Ask Pulse / Dashboard tab buttons render in the strip,
+// and whether the strip itself collapses (when ≤1 tab is enabled, the
+// strip is hidden and the single enabled tab becomes the main page).
+// Source of truth is the settingsStore TabVisibility field; this reader
+// duplicates the shape locally to avoid a hard import dependency from
+// pulse/* into settings/*. Defaults to all-enabled when storage is
+// missing or unparseable; refuses zero-enabled (would brick the UI).
+interface PulsePlayTabVisibility {
+    aiInsights: boolean;
+    askPulse: boolean;
+    dashboard: boolean;
+}
+const PULSEPLAY_TAB_VISIBILITY_KEY = "pulseplay:tab-visibility";
+const DEFAULT_PULSEPLAY_TAB_VISIBILITY: Readonly<PulsePlayTabVisibility> = {
+    aiInsights: true,
+    askPulse: true,
+    dashboard: true,
+};
+
+function readPulsePlayTabVisibility(): PulsePlayTabVisibility {
+    if (typeof window === "undefined") return { ...DEFAULT_PULSEPLAY_TAB_VISIBILITY };
+    try {
+        const raw = window.localStorage.getItem(PULSEPLAY_TAB_VISIBILITY_KEY);
+        if (!raw) return { ...DEFAULT_PULSEPLAY_TAB_VISIBILITY };
+        const parsed = JSON.parse(raw) as Partial<PulsePlayTabVisibility>;
+        if (parsed && typeof parsed === "object") {
+            const next: PulsePlayTabVisibility = {
+                aiInsights: typeof parsed.aiInsights === "boolean" ? parsed.aiInsights : true,
+                askPulse:   typeof parsed.askPulse   === "boolean" ? parsed.askPulse   : true,
+                dashboard:  typeof parsed.dashboard  === "boolean" ? parsed.dashboard  : true,
+            };
+            const count = (next.aiInsights ? 1 : 0) + (next.askPulse ? 1 : 0) + (next.dashboard ? 1 : 0);
+            if (count === 0) return { ...DEFAULT_PULSEPLAY_TAB_VISIBILITY };
+            return next;
+        }
+    } catch { /* swallow */ }
+    return { ...DEFAULT_PULSEPLAY_TAB_VISIBILITY };
+}
+
+function pulsePlayEnabledTabCount(v: PulsePlayTabVisibility): number {
+    return (v.aiInsights ? 1 : 0) + (v.askPulse ? 1 : 0) + (v.dashboard ? 1 : 0);
+}
+
 interface InsightsRenderOptions {
     metricDirectionsJson?: string;
     legacyMetricDirectionRules?: string;
@@ -280,6 +406,12 @@ interface InsightsRenderOptions {
      *  filling in — perceived speed win. */
     pendingStageTitles?: string[];
     stageStatuses?: string[];
+    /** Phase E.1 — client-side progressive reveal. When provided, sections
+     *  whose UPPER-CASED title is NOT in this set are held back and rendered
+     *  as a skeleton placeholder until the schedule reveals them. `null` /
+     *  undefined disables the reveal gate (every section renders
+     *  immediately, matching pre-E.1 behaviour). */
+    revealedSectionTitles?: Set<string> | null;
 }
 
 interface ParsedSessionLogEntry {
@@ -503,6 +635,17 @@ interface ChatMessageViewModel extends GenieMessage {
     sourceQuestion?: string;
     statusSteps?: string[];
     currentStatus?: string;
+    /** 2026-05-26 — raw upstream status from the Databricks Genie poll
+     *  loop (e.g. "PENDING_WAREHOUSE", "EXECUTING_QUERY", "ASKING_AI",
+     *  "COMPLETED"). Kept alongside the friendly `currentStatus` so the
+     *  progress card can surface what Databricks is actually doing for
+     *  power users + debugging. */
+    currentStatusRaw?: string;
+    /** 2026-05-26 — append-only log of (rawStatus, timestamp) tuples as
+     *  the Genie poll loop streams. Surfaces inside the progress card's
+     *  "Databricks trace" disclosure so users can see exactly what
+     *  Databricks did and when. */
+    statusTrace?: Array<{ raw: string; friendly: string; t: number }>;
     /** Wall-clock when this message entered RUNNING state. Used by the
      * unified ProgressIndicator to show elapsed time. */
     startedAt?: number;
@@ -596,11 +739,10 @@ interface AppProps {
     configWarnings: string[];
     hostPalette: Record<string, any> | null;
     /**
-     * Wave 38 Phase 1 — true when PBI Desktop reports the viewer is editing
-     * the report (`options.viewMode === ViewMode.Edit | InFocusEdit`).
-     * Authors editing the report ALWAYS see the Setup tab regardless of the
-     * Setup Access Allowlist, so they can't lock themselves out by typo'ing
-     * their own email. Defaults to false in published-report / View mode.
+     * True when PBI Desktop reports the viewer is editing the report
+     * (`options.viewMode === ViewMode.Edit | InFocusEdit`). Retained for
+     * legacy Setup-gate compatibility; PulsePlay Settings is the active
+     * authoring surface.
      */
     isAuthorEditing: boolean;
 }
@@ -727,9 +869,9 @@ export class Visual implements IVisual {
             }
         }
 
-        // Wave 38 Phase 1 — detect Desktop edit/in-focus-edit mode so the
-        // Setup tab access gate can ALWAYS allow authors editing the report,
-        // even when their own email isn't on the Setup Access Allowlist.
+        // Detect Desktop edit/in-focus-edit mode. The signal is retained for
+        // legacy Setup-gate compatibility; PulsePlay Settings now owns active
+        // configuration.
         // ViewMode.View === 0, Edit === 1, InFocusEdit === 2 (see
         // node_modules/powerbi-visuals-api/src/visuals-api.d.ts).
         const isAuthorEditing = (options as any).viewMode === 1 || (options as any).viewMode === 2;
@@ -776,7 +918,31 @@ export class Visual implements IVisual {
     }
 
     public destroy(): void {
-        this.root.unmount();
+        // 2026-05-25 — D1 fix. The prior synchronous `this.root.unmount()`
+        // ran inside React 18's commit window when PulseShell's effect
+        // cleanup fired during a parent re-render, producing:
+        //   console.error: "Attempted to synchronously unmount a root
+        //     while React was already rendering."
+        //   pageerror:    "Failed to execute 'removeChild' on 'Node':
+        //     The node to be removed is not a child of this node."
+        // Defer the unmount past the current React commit via rAF (which
+        // schedules after the current tick's microtasks AND after React's
+        // commit). queueMicrotask is too early — still inside the commit.
+        // Errors are swallowed because the unmount may race with a parent
+        // remount; either way the orphaned root is GC'd on next render.
+        const root = this.root;
+        const schedule = typeof window !== "undefined" && typeof window.requestAnimationFrame === "function"
+            ? window.requestAnimationFrame
+            : (cb: FrameRequestCallback) => window.setTimeout(() => cb(performance.now()), 0);
+        schedule(() => {
+            try {
+                root.unmount();
+            } catch (err) {
+                // Swallow — root may already be unmounted by a parent
+                // remount race; either way nothing actionable here.
+                console.warn("[pulse/Visual.destroy] deferred unmount swallowed:", err);
+            }
+        });
     }
 }
 
@@ -803,7 +969,7 @@ class VisualErrorBoundary extends React.Component<
         if (this.state.error) {
             return (
                 <div style={{ padding: 24, fontFamily: "Segoe UI, sans-serif", color: "var(--gn-text, #444)", background: "var(--gn-bg, #ffffff)" }}>
-                    <h3 style={{ marginTop: 0, color: "var(--gn-error, #b22020)" }}>UniBridge AI hit an unexpected error</h3>
+                    <h3 style={{ marginTop: 0, color: "var(--gn-error, #b22020)" }}>PulsePlay hit an unexpected error</h3>
                     <p>The visual stopped rendering because of a runtime issue. Reload the report or refresh the page to try again.</p>
                     <details style={{ marginTop: 12 }}>
                         <summary style={{ cursor: "pointer" }}>Technical detail</summary>
@@ -833,7 +999,7 @@ function App(props: AppProps) {
     // matched a full-PBI-visual width; here Pulse runs inside a resizable
     // split pane (cycle J) that's commonly ~35% of viewport — well under
     // 600 px on a 1280 px screen. That triggered compact in normal use and
-    // turned the connection pill into a bare dot. Lowered to 380 px so
+    // turned the old status pill into a bare dot. Lowered to 380 px so
     // compact only kicks in when the pane is genuinely squeezed (mobile-
     // narrow or aggressively-resized). Authors can still force-on or
     // force-off via settings.compactMode.
@@ -855,8 +1021,12 @@ function App(props: AppProps) {
     ]);
 
     const themeStyle = useMemo(() => {
+        // Dark-aware: in dark mode buildThemeStyle omits surface/text tokens so
+        // this inline style (which sits on the .gn-shell--dark element) doesn't
+        // override the dark cascade with light surfaces.
+        const dark = !!props.settings.darkMode;
         if (paneSettings.useReportTheme && props.hostPalette) {
-            return buildThemeStyle(buildThemeFromHost(props.hostPalette));
+            return buildThemeStyle(buildThemeFromHost(props.hostPalette), { dark });
         }
         const tokens = mergeTheme(paneSettings.themeName as ThemeName, {
             accent: paneSettings.brandAccentColor,
@@ -864,7 +1034,7 @@ function App(props: AppProps) {
             bg: paneSettings.brandBgColor,
             fontFamily: paneSettings.brandFontFamily
         });
-        return buildThemeStyle(tokens);
+        return buildThemeStyle(tokens, { dark });
     }, [
         paneSettings.useReportTheme,
         props.hostPalette,
@@ -872,7 +1042,8 @@ function App(props: AppProps) {
         paneSettings.brandAccentColor,
         paneSettings.brandTextColor,
         paneSettings.brandBgColor,
-        paneSettings.brandFontFamily
+        paneSettings.brandFontFamily,
+        props.settings.darkMode,
     ]);
 
     const guidedFilters = useMemo(
@@ -904,6 +1075,16 @@ function App(props: AppProps) {
     const activeSpace = activeSpaces.find(space => space.key === activeSpaceKey) ?? activeSpaces[0];
     const activeClient = clientMap.get(activeSpace?.key ?? "space1") ?? null;
 
+    // ── Option A — KPI preload on first Ask Pulse tab entry ──────────────────
+    // When the user opens the chat tab for the first time (no messages, no
+    // existing conversation), fire a lightweight background Genie call to get
+    // a KPI snapshot. The result appears in the welcome area as KPI cards; the
+    // conversation_id pre-seeds the conversation so the user's first typed
+    // question continues the same thread rather than starting cold.
+    const kpiPreloadRef = React.useRef<Record<string, boolean>>({});
+    const [kpiSnapshotMap, setKpiSnapshotMap] = useState<Record<string, string | null>>({});
+    const [kpiLoadingMap,  setKpiLoadingMap]  = useState<Record<string, boolean>>({});
+
     // ── Per-space conversation + message state ────────────────────────────────
     const [conversationMap, setConversationMap] = useState<Record<string, string>>({});
     const [messageMap,      setMessageMap]      = useState<Record<string, ChatMessageViewModel[]>>({});
@@ -918,6 +1099,11 @@ function App(props: AppProps) {
     const connectionContextKey = `${props.settings.connectionMode}|${props.settings.host}|${props.settings.apiBaseUrl}`;
     useEffect(() => {
         setConversationMap({});
+        // Reset preload guard when the connection context changes so the new
+        // backend gets its own preload conversation.
+        kpiPreloadRef.current = {};
+        setKpiSnapshotMap({});
+        setKpiLoadingMap({});
     }, [connectionContextKey]);
 
     // ── Per-space insights state ──────────────────────────────────────────────
@@ -925,6 +1111,15 @@ function App(props: AppProps) {
     const [insightsBusyMap,      setInsightsBusyMap]      = useState<Record<string, boolean>>({});
     const [stageStatusesMap,     setStageStatusesMap]     = useState<Record<string, StageStatus[]>>({});
     const [insightsGeneratedAtMap, setInsightsGeneratedAtMap] = useState<Record<string, number | null>>({});
+    // Stale-while-revalidate: tracks which spaces are showing cached content
+    // while a background refresh runs. When set the UI overlays a
+    // "Last run · Refreshing" banner on the stale cached render. Cleared
+    // atomically when the fresh pipeline commits its final result.
+    const [staleRefreshingMap, setStaleRefreshingMap]   = useState<Record<string, boolean>>({});
+    // Holds the cached result to display while the background refresh is in
+    // flight. Use a ref (not state) so it doesn't trigger extra renders;
+    // the banner appearance is driven by staleRefreshingMap.
+    const staleDisplayRef = React.useRef<Record<string, ChatMessageViewModel>>({});
     // IDEA-008: clarifying follow-up questions extracted from Insights stage
     // content. Accumulated across stages, deduplicated, and rendered as a
     // chip strip at the bottom of the Insights view + injected into the
@@ -940,15 +1135,181 @@ function App(props: AppProps) {
     const insightsGeneratedAt = insightsGeneratedAtMap[activeSpaceKey] ?? null;
     const activeFollowUps   = insightsFollowUps[activeSpaceKey]    ?? [];
 
+    // ── Phase E.1 — client-side progressive reveal ────────────────────────
+    // Genie answers single-shot (one message id, one big markdown). To get
+    // the 1-then-2-then-2 cadence Rajesh asked for WITHOUT re-querying the
+    // LLM, we stamp an arrival time per space the first time the rendered
+    // content has body, then tick a counter on each scheduled reveal so the
+    // memo below recomputes `revealedSectionTitles`.
+    //
+    // The reveal kicks in only when the content has actually landed
+    // (status === "DONE"); during the in-flight RUNNING phase the existing
+    // stage skeleton grid already provides the perceived progression.
+    // Performance levers — author-selectable speed-vs-completeness knobs.
+    // Subscribed via the same event the Settings UI dispatches, so changes
+    // take effect mid-session without a reload.
+    const [perfLevers, setPerfLevers] = useState<PerformanceLevers>(loadPerformanceLevers);
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const sync = () => setPerfLevers(loadPerformanceLevers());
+        window.addEventListener(PERFORMANCE_LEVERS_EVENT, sync);
+        return () => window.removeEventListener(PERFORMANCE_LEVERS_EVENT, sync);
+    }, []);
+
+    // Staged reveal is disabled when either:
+    //  (a) the legacy boolean is explicitly false (back-compat), or
+    //  (b) the new revealCadence lever is "instant"
+    // The cadence picker is the canonical surface; the boolean remains for
+    // deployers / scripts that wrote it before this lever existed.
+    const stagedRevealEnabled = props.settings.insightsStagedRevealEnabled !== false
+        && perfLevers.revealCadence !== "instant";
+    const activeRevealSchedule = useMemo(
+        () => revealScheduleFromCadence(perfLevers.revealCadence),
+        [perfLevers.revealCadence],
+    );
+    const contentArrivedAtRef = React.useRef<Record<string, number>>({});
+    const [revealTick, setRevealTick] = useState(0);
+    const reducedMotionRef = React.useRef<boolean>(false);
+    useEffect(() => {
+        try {
+            reducedMotionRef.current = typeof window !== "undefined"
+                && typeof window.matchMedia === "function"
+                && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        } catch { reducedMotionRef.current = false; }
+    }, []);
+
+    // Record arrival time the first frame content lands for this space.
+    const insightsContentForReveal = (insightsResult?.content || "").trim();
+    const insightsDone = insightsResult?.status === "DONE";
+    useEffect(() => {
+        if (!insightsDone || !insightsContentForReveal) return;
+        if (contentArrivedAtRef.current[activeSpaceKey]) return;
+        contentArrivedAtRef.current[activeSpaceKey] = Date.now();
+        setRevealTick(t => t + 1);
+    }, [activeSpaceKey, insightsDone, insightsContentForReveal]);
+
+    // Reset arrival stamp when a fresh pipeline begins so the next answer
+    // gets its own reveal cadence.
+    useEffect(() => {
+        if (insightsBusy) {
+            delete contentArrivedAtRef.current[activeSpaceKey];
+        }
+    }, [activeSpaceKey, insightsBusy]);
+
+    // Parse section IDs out of the current content (lightweight — same
+    // delimiter rules as renderInsightsSections). We only need the titles
+    // here so the schedule can prune stages whose sections aren't present.
+    const parsedSectionTitlesForReveal = useMemo<string[]>(() => {
+        if (!insightsContentForReveal) return [];
+        const titles: string[] = [];
+        const parts = insightsContentForReveal.split(/^#{1,3}\s+/m);
+        const preamble = parts.shift();
+        if (preamble && preamble.trim()) {
+            const t = preamble.trim();
+            const looksLikeHeadline = /\b(situation|implication|on-track|at-risk|off-track|^total\b|^revenue\b)/i.test(t);
+            titles.push(looksLikeHeadline ? "HEADLINE" : "INSIGHTS");
+        }
+        for (const chunk of parts) {
+            const nl = chunk.indexOf("\n");
+            const title = (nl === -1 ? chunk : chunk.slice(0, nl)).trim().toUpperCase();
+            if (title) titles.push(title);
+        }
+        return titles;
+    }, [insightsContentForReveal]);
+
+    // Compute the live reveal state. Uses revealTick to invalidate.
+    const revealState: RevealState | null = useMemo(() => {
+        if (!stagedRevealEnabled) return null;
+        if (!insightsDone || !insightsContentForReveal) return null;
+        if (reducedMotionRef.current) return null; // instant-reveal
+        const arrivedAt = contentArrivedAtRef.current[activeSpaceKey];
+        if (!arrivedAt) return null;
+        const elapsed = Date.now() - arrivedAt;
+        return computeRevealState(activeRevealSchedule, elapsed, parsedSectionTitlesForReveal);
+        // revealTick is intentionally a dep so the memo recomputes on each
+        // scheduled tick even though Date.now() is read imperatively.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [stagedRevealEnabled, insightsDone, insightsContentForReveal, activeSpaceKey, parsedSectionTitlesForReveal, revealTick, activeRevealSchedule]);
+
+    // Schedule the next reveal tick.
+    useEffect(() => {
+        if (!revealState || !revealState.isRevealing) return;
+        const arrivedAt = contentArrivedAtRef.current[activeSpaceKey];
+        if (!arrivedAt) return;
+        const elapsed = Date.now() - arrivedAt;
+        const nextAt = nextRevealTickMs(activeRevealSchedule, elapsed, parsedSectionTitlesForReveal);
+        if (nextAt == null) return;
+        const wait = Math.max(50, nextAt - elapsed + 30); // tiny buffer past the boundary
+        const handle = window.setTimeout(() => setRevealTick(t => t + 1), wait);
+        return () => window.clearTimeout(handle);
+    }, [revealState, activeSpaceKey, parsedSectionTitlesForReveal, activeRevealSchedule]);
+
+    // Convenience derivations the render path reads.
+    const revealedSectionTitles: Set<string> | null = revealState ? revealState.visibleSections as Set<string> : null;
+    const revealProgress = revealState; // alias for spinner JSX clarity
+
     const appliedFiltersRef = useRef<Record<string, IFilter>>({});
     const chatRef = useRef<HTMLDivElement | null>(null);
     const [area, setArea] = useState<GuidedArea>("performance");
     const [selectedFilters, setSelectedFilters] = useState<Record<string, string>>({});
     const [showFilters, setShowFilters] = useState(true);
     const [home, setHome] = useState<AssistantHomePayload>(() => buildLocalHomeModel(props.context, roleMode));
+    // UX-VIEWER-1.2B — fetch the Ask Pulse home meta (data identity + curated
+    // starter questions) for the active assistant profile. The hook returns
+    // pack-derived evergreen questions for non-Genie backends and real
+    // Genie space metadata + curated_questions for Genie profiles. Errors
+    // fall through silently to the existing STATIC_ACTIONS merge below —
+    // the home must never break just because home-meta is unavailable.
+    const askPulseHomeMeta = useAskPulseHomeMeta({
+        assistantProfile: props.settings.assistantProfile || undefined,
+    });
     const [question, setQuestion] = useState("");
+    // 2026-05-26 — slash-command autocomplete (Gemini reference, vetted +
+    // pruned to one feature). When the user types `/` at the start of the
+    // composer, a floating dropdown of analytical presets appears: SWOT,
+    // VARIANCE, PARETO, RFM, BCG. Arrow keys navigate; Enter / Tab inserts;
+    // Esc closes. No external dependencies, no behaviour change when the
+    // composer doesn't start with `/`.
+    const SLASH_PRESETS: ReadonlyArray<{ cmd: string; label: string; question: string }> = useMemo(() => [
+        { cmd: "/swot", label: "SWOT analysis", question: "Run a SWOT analysis on this dataset. Cover strengths, weaknesses, opportunities, and threats with evidence per slice." },
+        { cmd: "/variance", label: "Variance breakdown", question: "Show variance vs prior period for the top metrics by region and category. Highlight the biggest movers with directional cues." },
+        { cmd: "/pareto", label: "Pareto contribution", question: "Build a Pareto view showing which slices drive 80% of the total. Identify the vital few vs the trivial many." },
+        { cmd: "/rfm", label: "RFM segmentation", question: "Segment by Recency, Frequency, and Monetary value. Identify which segments deserve investment vs deprioritization." },
+        { cmd: "/bcg", label: "BCG matrix", question: "Place each category on a BCG matrix (stars, cash cows, question marks, dogs) using growth and share signals." },
+        { cmd: "/risks", label: "Risk pockets", question: "Identify the top 5 risk pockets where Sales are material but Profit is weak. Group by State, City, and Sub-Category." },
+        { cmd: "/trends", label: "Trend reversal scan", question: "Scan for trend reversals where momentum changed direction. Show the time window, affected slice, and likely drivers." },
+        { cmd: "/discount", label: "Discount sensitivity", question: "For each Segment, estimate whether higher Discount correlates with lower Profit Margin. Flag exceptions where discounting still earned profit." },
+    ], []);
+    const [slashOpen, setSlashOpen] = useState(false);
+    const [slashSelectedIdx, setSlashSelectedIdx] = useState(0);
+    const slashFiltered = useMemo(() => {
+        const v = question.trim();
+        if (!v.startsWith("/")) return [];
+        const filter = v.slice(1).toLowerCase();
+        const matches = SLASH_PRESETS.filter(p => p.cmd.slice(1).startsWith(filter) || p.label.toLowerCase().includes(filter));
+        return matches.length > 0 ? matches : SLASH_PRESETS.slice(0); // show all if no match
+    }, [question, SLASH_PRESETS]);
+    useEffect(() => {
+        const shouldOpen = question.startsWith("/") && question.length <= 24 && !question.includes("\n");
+        setSlashOpen(shouldOpen);
+        if (shouldOpen) setSlashSelectedIdx(0);
+    }, [question]);
+    const insertSlashPreset = (preset: { question: string }) => {
+        setQuestion(preset.question);
+        setSlashOpen(false);
+    };
     const [busy, setBusy] = useState(false);
     const [devPanel, setDevPanel] = useState<"" | "diagnostics" | "session" | "setup" | "genieQueries" | "display">("");
+    const [outerViewportFocus, setOuterViewportFocus] = useState<PulsePlayViewportFocus>(() => readPulsePlayViewportFocus());
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const detail = (e as CustomEvent<{ focusedPane?: string | null }>).detail;
+            const next = detail?.focusedPane;
+            setOuterViewportFocus(next === "ai" || next === "bi" ? next : null);
+        };
+        window.addEventListener("pulseplay:viewport-state", handler as EventListener);
+        return () => window.removeEventListener("pulseplay:viewport-state", handler as EventListener);
+    }, []);
     // Cycle 40 — Genie Query Audit panel state. Fetched on-demand from
     // proxy /admin/query-history. Genie-mode only (connectionMode = proxy
     // or direct). Gives the author / dev a copy-pasteable list of recent
@@ -1010,9 +1371,42 @@ function App(props: AppProps) {
     // feature so the (now-hidden) tab strip can't leave us on a blank pane.
     // 'both' defaults to insights, matching previous behaviour.
     const enabledFeatures = props.settings.enabledFeatures ?? "both";
-    const [activeTab, setActiveTab] = useState<"insights" | "chat">(
-        enabledFeatures === "chatOnly" ? "chat" : "insights"
-    );
+
+    // 2026-05-25 — per-tab-visibility (PulsePlay settings, NOT Pulse settings).
+    // Subscribes to display-change events so toggling a tab in Settings →
+    // Preferences updates the strip without a reload.
+    const [tabVisibility, setTabVisibility] = useState<PulsePlayTabVisibility>(() => readPulsePlayTabVisibility());
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const handler = (e: Event) => {
+            const detail = (e as CustomEvent<{ key?: string }>).detail;
+            if (detail?.key === PULSEPLAY_TAB_VISIBILITY_KEY) {
+                setTabVisibility(readPulsePlayTabVisibility());
+            }
+        };
+        window.addEventListener("pulseplay:display-change", handler as EventListener);
+        return () => window.removeEventListener("pulseplay:display-change", handler as EventListener);
+    }, []);
+    const tabVisibilityCount = pulsePlayEnabledTabCount(tabVisibility);
+
+    const [activeTab, setActiveTab] = useState<"insights" | "chat">(() => {
+        // Honor a host-stashed initial tab so cold-mount through
+        // PulseShell (e.g. user clicked "Ask Pulse" while the BI pane was
+        // maximized) lands on the requested tab without relying on a
+        // post-mount event reaching us before our listener attaches. The
+        // stash is cleared after read to avoid leaking into future mounts.
+        if (enabledFeatures === "chatOnly") return "chat";
+        if (enabledFeatures === "insightsOnly") return "insights";
+        if (typeof window !== "undefined") {
+            const w = window as unknown as { __pulseplayInitialTab?: string };
+            const stash = w.__pulseplayInitialTab;
+            if (stash === "chat" || stash === "insights") {
+                delete w.__pulseplayInitialTab;
+                return stash;
+            }
+        }
+        return "insights";
+    });
     // Re-pin activeTab if the author flips the gate at runtime (e.g. via
     // Setup Apply). Otherwise switching to insightsOnly while activeTab is
     // "chat" would render a blank chat pane behind a hidden strip.
@@ -1020,6 +1414,27 @@ function App(props: AppProps) {
         if (enabledFeatures === "insightsOnly" && activeTab !== "insights") setActiveTab("insights");
         if (enabledFeatures === "chatOnly" && activeTab !== "chat") setActiveTab("chat");
     }, [enabledFeatures, activeTab]);
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const tab = (e as CustomEvent<{ tab?: string }>).detail?.tab;
+            if (tab === "insights" && enabledFeatures !== "chatOnly") setActiveTab("insights");
+            if (tab === "chat" && enabledFeatures !== "insightsOnly") setActiveTab("chat");
+        };
+        window.addEventListener("pulseplay:pulse-surface-tab", handler as EventListener);
+        return () => window.removeEventListener("pulseplay:pulse-surface-tab", handler as EventListener);
+    }, [enabledFeatures]);
+    // 2026-05-25 — outgoing tab-change event so the App-level TopRightToolbar
+    // can update its labels when the user flips between AI Insights and
+    // Ask Pulse inside the Pulse tab strip. Without this, the toolbar's
+    // activeTabName stays stale because effectiveSurfaceId (App.tsx) only
+    // updates on Dashboard ↔ AI transitions. Fires on every activeTab
+    // change regardless of trigger (click, keyboard, programmatic).
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        window.dispatchEvent(new CustomEvent("pulseplay:pulse-tab-changed", {
+            detail: { tab: activeTab },
+        }));
+    }, [activeTab]);
     const [insightsCustomPrompt, setInsightsCustomPrompt] = useState("");
     const [insightsActivePromptId, setInsightsActivePromptId] = useState<string | null>(null);
     // Wave 35 Phase 3 — Custom SQL section results, keyed by `${spaceKey}|${sectionTitle}`.
@@ -1051,7 +1466,7 @@ function App(props: AppProps) {
     // no dynamic chunk. Persisted in sessionStorage so the flag survives
     // tab/section switches inside the same Desktop session, then reset on
     // visual reload (giving Service / Web hosts a clean slate). */
-    const LAZY_BLOCK_KEY = "dwd-export-lazy-blocked";
+    const LAZY_BLOCK_KEY = "pulseplay-export-lazy-blocked";
     const [lazyExportBlocked, setLazyExportBlocked] = useState<boolean>(() => {
         try { return window.sessionStorage?.getItem(LAZY_BLOCK_KEY) === "1"; } catch { return false; }
     });
@@ -1114,7 +1529,10 @@ function App(props: AppProps) {
             xhr.open("GET", url, true);
             xhr.setRequestHeader("Content-Type", "application/json");
             if (props.settings.proxyKey) xhr.setRequestHeader("X-Genie-Key", props.settings.proxyKey);
-            xhr.timeout = 30000;
+            // 2026-05-27 — promoted from 30s → SIMPLE (3 min) per the
+            // central timeout policy. Query history fetch is read-only
+            // metadata; 3 min handles slow workspaces without failure.
+            xhr.timeout = 180_000;  // SIMPLE_REQUEST_TIMEOUT_MS
             const result = await new Promise<{ ok: boolean; queries?: any[]; error?: string }>((resolve) => {
                 xhr.onload = () => {
                     // Cycle 41 — distinguish error classes so we can give an
@@ -1388,6 +1806,14 @@ function App(props: AppProps) {
     const [visibilityVersion, setVisibilityVersion] = useState(0); // bump to force re-read on toggle/reset
     const customizeMenuRef = React.useRef<HTMLDivElement | null>(null);
     const customizeTriggerRef = React.useRef<HTMLButtonElement | null>(null);
+    // Phase C — secondary action overflow. Houses Copy MD / Copy HTML /
+    // Print PDF so the primary toolbar row keeps only the high-signal
+    // controls (Timestamp / Customize / Refresh / Stop). Mirror of the
+    // customize popover pattern: outside-click + Esc close, focus
+    // returns to the trigger on Esc.
+    const [overflowOpen, setOverflowOpen] = useState(false);
+    const overflowMenuRef = React.useRef<HTMLDivElement | null>(null);
+    const overflowTriggerRef = React.useRef<HTMLButtonElement | null>(null);
     useEffect(() => {
         if (!customizeOpen) return;
         const onDocClick = (e: MouseEvent) => {
@@ -1408,6 +1834,27 @@ function App(props: AppProps) {
             document.removeEventListener("keydown", onKey);
         };
     }, [customizeOpen]);
+
+    // Phase C — overflow popover lifecycle (mirror of the customize handlers).
+    useEffect(() => {
+        if (!overflowOpen) return;
+        const onDocClick = (e: MouseEvent) => {
+            const root = overflowMenuRef.current;
+            if (root && !root.contains(e.target as Node)) setOverflowOpen(false);
+        };
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "Escape") {
+                setOverflowOpen(false);
+                try { overflowTriggerRef.current?.focus(); } catch { /* best-effort */ }
+            }
+        };
+        document.addEventListener("mousedown", onDocClick);
+        document.addEventListener("keydown", onKey);
+        return () => {
+            document.removeEventListener("mousedown", onDocClick);
+            document.removeEventListener("keydown", onKey);
+        };
+    }, [overflowOpen]);
     // Wave 37 — derive the report key for viewer-side visibility persistence.
     // Matches the spaceId|assistantProfile pattern used by insightsCacheKey;
     // `activeSpaceKey` ("space1"/"space2"/...) is a stable fallback when the
@@ -1542,29 +1989,45 @@ function App(props: AppProps) {
     const [historyItems, setHistoryItems] = useState<GenieHistoryEntry[]>([]);
     const [historyBusy, setHistoryBusy] = useState(false);
     const [historyError, setHistoryError] = useState("");
+    // 2026-05-29 — the "Show history" button is hidden by default; a Settings
+    // toggle (Display group → genieSettings.showHistoryButton) opts it back in.
+    // Reactive to the shared visual-settings change event so flipping the
+    // toggle shows/hides it live without a reload.
+    const readShowHistoryButton = () => {
+        try { return JSON.parse(window.localStorage.getItem("pulseplay:visual-settings:genieSettings") || "{}").showHistoryButton === true; }
+        catch { return false; }
+    };
+    const [showHistoryButton, setShowHistoryButton] = useState<boolean>(readShowHistoryButton);
+    useEffect(() => {
+        const sync = () => setShowHistoryButton(readShowHistoryButton());
+        window.addEventListener("pulseplay:visual-settings-change", sync);
+        return () => window.removeEventListener("pulseplay:visual-settings-change", sync);
+    }, []);
     const [historyIncludeAll, setHistoryIncludeAll] = useState(false);
-    // Wave 38 Phase 1 — layered Setup tab access gate (UX, not authorization).
-    //   • Author editing in PBI Desktop → ALWAYS allowed.
-    //   • setupAccessAllowedUsers non-empty → strict allowlist match against
-    //     the bound User Identity / User Role measure; overrides the legacy
-    //     showSetupAccess toggle.
-    //   • Allowlist empty → preserve the legacy showSetupAccess toggle.
-    // Identical to today's behaviour when the new field is left blank.
-    const viewerIdentityForGate = getViewerIdentity(props);
-    const setupAccessGranted = shouldShowSetupTab({
-        showSetupAccess: opSettings.showSetupAccess,
-        allowlistRaw: opSettings.setupAccessAllowedUsers || "",
-        viewerIdentity: viewerIdentityForGate,
-        isAuthorEditing: props.isAuthorEditing,
-    });
-    // Detect "denied by allowlist" — non-empty allowlist + viewer NOT on it
-    // and NOT an editing author. Used to render a small inline note in
-    // place of the (now hidden) Setup tab and Developer-Tools entry points.
-    const setupAccessDeniedByAllowlist =
-        !setupAccessGranted &&
-        !props.isAuthorEditing &&
-        parseAllowedUsers(opSettings.setupAccessAllowedUsers || "").length > 0;
-    const setupPanelVisible = setupAccessGranted && devPanel === "setup";
+    // PulsePlay Settings is now the single setup/configuration surface.
+    // The Console stays operational only: status, diagnostics, session logs,
+    // and SQL trace. The old in-Console Setup/Display editors are retired to
+    // avoid duplicated controls and state drift.
+    const setupPanelVisible = false;
+    const connectionStatus = computeConnectionStatus(
+        props.settings,
+        props.configIssues,
+        props.configWarnings
+    );
+    const scopeGuardrailTags = (() => {
+        const cte = String(props.settings.sqlCtePreamble || "").trim();
+        const forbidden = String(props.settings.runtimeForbiddenColumns || "").trim();
+        const rowFilter = String(props.settings.runtimeMandatoryRowFilter || "").trim();
+        const tags: string[] = [];
+        if (cte) tags.push("SQL prefix");
+        if (forbidden) tags.push("column filter");
+        if (rowFilter) tags.push("row filter");
+        return tags;
+    })();
+    const scopeGuardrailLabel = scopeGuardrailTags.length === 1
+        ? scopeGuardrailTags[0]
+        : `${scopeGuardrailTags.length} active`;
+    const scopeGuardrailDetail = scopeGuardrailTags.join(" · ");
 
 
     // Setup panel state lifted to App so it survives tab switches inside the
@@ -1671,6 +2134,11 @@ function App(props: AppProps) {
     // on React batching. Keyed per spaceKey so a stop in one space doesn't
     // affect a parallel run in another.
     const insightsStopRef = useRef<Record<string, boolean>>({});
+    // UX-VIEWER-1.5b — per-space stop flag for chat/Ask Pulse runs. Mirrors
+    // the AI Insights pattern above. runAssistant's catch block checks this
+    // when an XHR abort lands and converts the resulting error into a clean
+    // "Stopped by user" COMPLETED state instead of a red failure card.
+    const chatStopRef = useRef<Record<string, boolean>>({});
     // Wave 22 cycle 5d: per-session flag so the supervisor+Insights perf
     // warning fires at most once per visual lifetime (not on every run).
     const sessionWarnedSupervisorInsightsRef = useRef<boolean>(false);
@@ -1751,7 +2219,7 @@ function App(props: AppProps) {
         const space = activeSpaces.find(s => s.key === spaceKey);
         // Runtime Adjust box takes precedence; fall back to the settings-level
         // insightsPrompt + 49.17 hybrid fields (insightsDomain + insightsCustomSections)
-        // so any Setup tab change busts the cache and triggers a fresh run.
+        // so any Settings change busts the cache and triggers a fresh run.
         //
         // IDEA-039 Phase 1 — close cache-key parity gap via shared fingerprint
         // helper. Embeds `domainGuidance`, `genieFields`, `sendContextToGenie`,
@@ -1931,6 +2399,14 @@ function App(props: AppProps) {
         [props.settings.domainGuidance]
     );
 
+    // 2026-05-28 — Slice 4b: display-side `## Masking` rules. Applied to SQL
+    // section results before render so masked cells (redact/last4) and hidden
+    // columns never paint. Same activator block 4a uses for the prompt path.
+    const maskingRules = useMemo(
+        () => parseMaskingRules(props.settings.domainGuidance || ""),
+        [props.settings.domainGuidance]
+    );
+
     const setActiveMessages = useCallback<React.Dispatch<React.SetStateAction<ChatMessageViewModel[]>>>((next) => {
         const spaceKey = activeSpaceKey;
         setMessageMap(previous => ({
@@ -2052,22 +2528,189 @@ function App(props: AppProps) {
         activeSpaceKey
     ]);
 
+    // 2026-05-26 — auto-scroll fires not only on new message added but
+    // also while the active assistant message GROWS (content updates
+    // during polling/streaming). Without the content-length signal,
+    // long answers rendered with their start visible and the user had
+    // to manually scroll down to see new tokens arrive. The dep array
+    // includes the latest message's content length + status so the
+    // effect fires on every growth tick. `auto` (not `smooth`) so the
+    // viewport keeps up with streaming without scroll-animation lag.
+    const latestForScroll = messages.length > 0 ? messages[messages.length - 1] : null;
+    const latestContentLen = latestForScroll ? (latestForScroll.content || "").length : 0;
+    const latestStatus = latestForScroll ? latestForScroll.status : null;
+    // Scroll the newest question to the TOP of the chat viewport so the answer
+    // streams in *below* it (ChatGPT-style). `correctOnly` re-asserts the pin
+    // for async layout shifts above (e.g. the previous answer's chart finishing
+    // its ECharts init pushes the question down) WITHOUT fighting a user who has
+    // scrolled away to read.
+    const pinQuestionToTop = useCallback((smooth: boolean, correctOnly = false): boolean => {
+        const node = chatRef.current;
+        if (!node) return false;
+        const users = node.querySelectorAll(".gn-msg--user");
+        const lastUser = users[users.length - 1] as HTMLElement | undefined;
+        if (!lastUser) return false;
+        const offset = lastUser.getBoundingClientRect().top - node.getBoundingClientRect().top;
+        // correctOnly: only fix a question that drifted DOWN from the top band
+        // (content grew above). Ignore big offsets / negative offsets — those
+        // mean the user deliberately scrolled.
+        if (correctOnly && !(offset > 20 && offset < 600)) return false;
+        const target = Math.max(0, node.scrollTop + offset - 12);
+        if (Math.abs(target - node.scrollTop) > 8) {
+            node.scrollTo({ top: target, behavior: smooth ? "smooth" : "auto" });
+        }
+        return true;
+    }, []);
+    const prevMsgCountRef = useRef(0);
+    const repinTimersRef = useRef<number[]>([]);
     useEffect(() => {
         const node = chatRef.current;
-        if (node) {
-            node.scrollTo({ top: node.scrollHeight, behavior: "smooth" });
+        if (!node) return;
+        const messageAdded = messages.length > prevMsgCountRef.current;
+        prevMsgCountRef.current = messages.length;
+        if (messageAdded) {
+            const pinned = pinQuestionToTop(true);
+            if (!pinned) {
+                node.scrollTo({ top: node.scrollHeight, behavior: "smooth" });
+            } else {
+                // Re-assert as async layout above settles (charts/tables of the
+                // previous answer finishing their first paint shift the question
+                // down). Absolute timers — independent of streaming content
+                // ticks — over a window that covers paint + post-completion
+                // settle. correctOnly so a manual scroll is never fought.
+                repinTimersRef.current.forEach(clearTimeout);
+                repinTimersRef.current = [350, 800, 1500, 2600, 4000].map(
+                    ms => window.setTimeout(() => pinQuestionToTop(false, true), ms),
+                );
+            }
+            return;
         }
-    }, [messages.length]);
+        // While the just-asked answer is still streaming, keep its question
+        // pinned near the top — correcting only DOWNWARD drift from async layout
+        // above (e.g. a prior answer's chart finishing its first paint), never
+        // fighting a manual scroll. This catches late shifts the fixed-timeout
+        // re-pins miss.
+        if (latestStatus === "RUNNING") {
+            pinQuestionToTop(false, true);
+            return;
+        }
+        // Settled: only follow to the bottom if the user is already near it.
+        const distanceFromBottom = node.scrollHeight - (node.scrollTop + node.clientHeight);
+        if (distanceFromBottom < 120 || messages.length <= 1) {
+            node.scrollTo({ top: node.scrollHeight, behavior: "auto" });
+        }
+    }, [messages.length, latestContentLen, latestStatus, pinQuestionToTop]);
+    useEffect(() => () => { repinTimersRef.current.forEach(clearTimeout); }, []);
 
     const activeGenieConfig = activeSpace?.genieConfig;
     const isSupervisorMode = props.settings.connectionMode === "supervisor";
+    // Proxy-mode hosts live in proxy/config.json server-side. The browser
+    // doesn't need to know the Databricks workspace host — it just needs
+    // a proxy URL + a profile name (or space ID). Requiring genieConfig.host
+    // in proxy mode was a leftover from when Pulse only had direct mode
+    // and forced "Connect to Databricks" empty-state on Settings-only flows.
+    // Direct mode still requires host + token + spaceId (no proxy fallback).
     const isConfigured = activeGenieConfig
         ? isSupervisorMode
             ? props.settings.apiBaseUrl.trim().length > 0
             : props.settings.apiBaseUrl.trim().length > 0
-                ? Boolean(activeGenieConfig.host.trim() && ((activeGenieConfig.assistantProfile ?? "").trim().length > 0 || (activeGenieConfig.spaceId ?? "").trim().length > 0))
+                ? Boolean((activeGenieConfig.assistantProfile ?? "").trim().length > 0 || (activeGenieConfig.spaceId ?? "").trim().length > 0)
                 : Boolean(activeGenieConfig.host.trim() && activeGenieConfig.token.trim() && (activeGenieConfig.spaceId ?? "").trim())
         : false;
+    const pulseSurfaceContext = useMemo(() => {
+        const selectedFilterCount = Object.values(selectedFilters).filter(value => value && value !== ALL_FILTER_VALUE).length;
+        const measureCount = Object.keys(props.context.measures || {}).length;
+        const dimensionCount = Object.keys(props.context.dimensions || {}).length;
+        // Trust ladder + chip values centralised in lib/computeSurfaceContext
+        // so PulseShell and UnifiedAssistantSurface can't drift on the
+        // evidence-aware trust label shipped in 63efe1e (Codex audit P1 #13).
+        return computeSurfaceContext({
+            isConfigured,
+            assistantProfile: activeGenieConfig?.assistantProfile || props.settings.assistantProfile || "",
+            mode: activeTab === "insights" ? "Executive briefing" : "Conversation",
+            selectedFilterCount,
+            currentScopeLabel: currentScope,
+            measureCount,
+            dimensionCount,
+            sendContextToAi: props.settings.sendContextToGenie,
+        });
+    }, [
+        activeGenieConfig?.assistantProfile,
+        activeTab,
+        currentScope,
+        isConfigured,
+        props.context.dimensions,
+        props.context.measures,
+        props.settings.assistantProfile,
+        props.settings.sendContextToGenie,
+        selectedFilters,
+    ]);
+
+    // Option A trigger — fires exactly once per space per connection context
+    // when the user first lands on the chat tab with no existing conversation.
+    useEffect(() => {
+        if (activeTab !== "chat") return;
+        if (!isConfigured || !activeClient) return;
+        if ((messageMap[activeSpaceKey] ?? []).length > 0) return;
+        if (conversationMap[activeSpaceKey]) return;
+        if (kpiPreloadRef.current[activeSpaceKey]) return;
+        kpiPreloadRef.current[activeSpaceKey] = true;
+
+        const spaceKey = activeSpaceKey;
+        const client = activeClient;
+
+        setKpiLoadingMap(prev => ({ ...prev, [spaceKey]: true }));
+        void (async () => {
+            try {
+                // Preload is a quick visual hint, not a deep analysis — drop
+                // both business guidance AND the analytics KB rules to keep
+                // the request lean and the upstream fast.
+                const req = buildGenieRequest(
+                    CHAT_PRELOAD_PROMPT,
+                    "summary",
+                    props.context,
+                    selectedFilters,
+                    "",
+                    props.settings.sendContextToGenie,
+                    // 2026-05-22 — preload is an internal warm-up call, NOT a
+                    // user-typed Ask Pulse question. Briefing-format trim is
+                    // Ask Pulse-only; opt out explicitly so this path keeps
+                    // its full response.
+                    { kbFlags, omitDomainGuidance: true, omitAnalyticsKB: true, omitBriefingFormat: true }
+                );
+                const start = await client.startConversation(req, { intent: "summary", contextText: "" });
+                const response = await client.waitForMessageWithProgress(
+                    start.conversationId,
+                    start.messageId,
+                    () => { /* silent — no progress UI for preload */ }
+                );
+                if (response?.content) {
+                    // Pre-seed the conversation so the user's first question
+                    // continues this thread rather than starting a new one.
+                    setConversationMap(prev =>
+                        prev[spaceKey] ? prev : { ...prev, [spaceKey]: start.conversationId }
+                    );
+                    // Route any leading clarifying question to the follow-up
+                    // chip strip; keep the snapshot itself clean.
+                    const { cleaned, clarifiers } = extractAndStripClarifiers(response.content);
+                    setKpiSnapshotMap(prev => ({ ...prev, [spaceKey]: cleaned || response.content || null }));
+                    if (clarifiers.length > 0) {
+                        setInsightsFollowUps(prev => {
+                            const existing = prev[spaceKey] ?? [];
+                            const merged = Array.from(new Set([...clarifiers, ...existing]));
+                            return { ...prev, [spaceKey]: merged };
+                        });
+                    }
+                }
+            } catch {
+                // Silently swallow — if the preload fails, the welcome
+                // screen shows the Quick Start chips as normal.
+            } finally {
+                setKpiLoadingMap(prev => ({ ...prev, [spaceKey]: false }));
+            }
+        })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeTab, activeSpaceKey, isConfigured]);
 
     const runAssistant = async (input: string, intent: AssistantIntent) => {
         const trimmed = input.trim();
@@ -2093,6 +2736,9 @@ function App(props: AppProps) {
         const pendingId = createLocalId("pending");
 
         setBusy(true);
+        // UX-VIEWER-1.5b — reset the chat-stop flag at the start of every run
+        // so a stop from a prior run can't immediately kill this one.
+        chatStopRef.current[spaceKey] = false;
         logSession("INFO", `Question: ${trimmed.slice(0, 120)}${trimmed.length > 120 ? "..." : ""}`);
         setSpaceMessages(spaceKey, previous => [...previous, userMessage, {
             id: pendingId,
@@ -2116,6 +2762,12 @@ function App(props: AppProps) {
                 props.settings.sendContextToGenie,
                 {
                     omitDomainGuidance: !!conversationId,
+                    // 2026-05-22 chat-fidelity rule (memory/feedback_chat_fidelity.md):
+                    // briefing-format only fires on the FIRST message of a
+                    // conversation. Follow-ups stay plain chat ("what you ask is
+                    // what you get") so the experience matches a native vendor
+                    // chatbot.
+                    omitBriefingFormat: !!conversationId,
                     kbFlags
                 }
             );
@@ -2209,10 +2861,20 @@ function App(props: AppProps) {
                         if (m.id !== pendingId) return m;
                         const steps = m.statusSteps ?? [];
                         const label = formatGenieStatus(progress);
+                        // 2026-05-26 — also capture the raw upstream status
+                        // + push to the streaming Databricks trace for the
+                        // progress card disclosure. Dedupe consecutive
+                        // identical raw values so the trace is a state
+                        // transition log, not a poll-tick log.
+                        const trace = m.statusTrace ?? [];
+                        const last = trace.length > 0 ? trace[trace.length - 1] : null;
+                        const nextTrace = (last && last.raw === progress)
+                            ? trace
+                            : [...trace, { raw: progress, friendly: label, t: Date.now() }];
                         if (!steps.includes(label)) {
-                            return { ...m, currentStatus: label, statusSteps: [...steps, label] };
+                            return { ...m, currentStatus: label, currentStatusRaw: progress, statusSteps: [...steps, label], statusTrace: nextTrace };
                         }
-                        return { ...m, currentStatus: label };
+                        return { ...m, currentStatus: label, currentStatusRaw: progress, statusTrace: nextTrace };
                     }));
                 }
             );
@@ -2296,7 +2958,7 @@ function App(props: AppProps) {
                     routeLabel: response.route?.routeLabel
                 }).then(() => {
                     if (showHistory) void loadHistory();
-                }).catch((err: any) => logSession("WARN", `Chat history save failed: ${err?.message || "unknown error"}. Common causes: dwd_ai_chat_history table missing in workspace, viewer lacks INSERT permission, or no warehouseId on the active profile (BUG-009 fix routes supervisor saves to the default profile's warehouse — confirm one exists).`));
+                }).catch((err: any) => logSession("WARN", `Chat history save failed: ${err?.message || "unknown error"}. Common causes: pulseplay_ai_chat_history table missing in workspace, viewer lacks INSERT permission, or no warehouseId on the active profile (BUG-009 fix routes supervisor saves to the default profile's warehouse — confirm one exists).`));
             }
 
             // Fire confidence evaluation async — answer already rendered, this never blocks
@@ -2328,23 +2990,72 @@ function App(props: AppProps) {
             setQuestion("");
         } catch (error: any) {
             const errMsg = error?.message ?? "The assistant request failed.";
-            logSession("ERROR", errMsg);
-            setSpaceMessages(spaceKey, previous => previous.map(message =>
-                message.id === pendingId
-                    ? {
-                        id: pendingId,
-                        role: "system",
-                        status: "FAILED",
-                        content: errMsg
-                    }
-                    : message
-            ));
-            // BUG-006: a stale "Checking…" pending flag from this failed run would
-            // otherwise outlive the request and display alongside the error.
-            setConfidencePending(false);
+            // UX-VIEWER-1.5b — if the user clicked Stop, the underlying XHR
+            // abort surfaces as a request failure here. Detect it (either via
+            // our stop flag or via the typical abort message shapes) and
+            // convert the failure into a clean "Stopped by user" COMPLETED
+            // state instead of a red error card. Matches the AI Insights
+            // stop-handling shape (see line ~3905).
+            const looksLikeAbort = /aborted|cancell?ed|network error/i.test(errMsg);
+            if (chatStopRef.current[spaceKey] || looksLikeAbort) {
+                logSession("INFO", `Run stopped by user (space=${spaceKey})`);
+                setSpaceMessages(spaceKey, previous => previous.map(message =>
+                    message.id === pendingId
+                        ? {
+                            ...message,
+                            id: pendingId,
+                            role: "assistant",
+                            status: "COMPLETED",
+                            currentStatus: "Stopped by user",
+                            content: "Stopped before a response arrived."
+                        }
+                        : message
+                ));
+                chatStopRef.current[spaceKey] = false;
+                setConfidencePending(false);
+            } else {
+                logSession("ERROR", errMsg);
+                setSpaceMessages(spaceKey, previous => previous.map(message =>
+                    message.id === pendingId
+                        ? {
+                            id: pendingId,
+                            role: "system",
+                            status: "FAILED",
+                            content: errMsg
+                        }
+                        : message
+                ));
+                // BUG-006: a stale "Checking…" pending flag from this failed run would
+                // otherwise outlive the request and display alongside the error.
+                setConfidencePending(false);
+            }
         } finally {
             setBusy(false);
         }
+    };
+
+    // UX-VIEWER-1.5b — chat stop callback. Sets the per-space stop flag and
+    // aborts the in-flight XHR(s) so the polling loop in waitForMessageWithProgress
+    // throws. runAssistant's catch block then sees the flag and converts the
+    // resulting abort into a clean "Stopped by user" message.
+    const stopChat = (spaceKey: SpaceKey) => {
+        chatStopRef.current[spaceKey] = true;
+        // Update the currently pending bubble immediately so the user gets
+        // feedback that the click registered, even though the actual XHR
+        // abort + state finalisation happens via the catch block above.
+        setSpaceMessages(spaceKey, previous => previous.map(message =>
+            message.role === "assistant" && message.status === "RUNNING"
+                ? { ...message, currentStatus: "Stopping…" }
+                : message
+        ));
+        // Single-space mode aborts the active client. Sync mode also aborts
+        // every other client to keep behaviour symmetric across the broadcast.
+        try {
+            activeClient?.cancel?.();
+            if (syncMode) {
+                clientMap.forEach(c => c.cancel?.());
+            }
+        } catch { /* best-effort */ }
     };
 
     // Broadcast one question to every active space in parallel.
@@ -2376,7 +3087,12 @@ function App(props: AppProps) {
                 const request = buildGenieRequest(
                     trimmed, intent, props.context, selectedFilters,
                     props.settings.domainGuidance, props.settings.sendContextToGenie,
-                    { omitDomainGuidance: !!convId, kbFlags }
+                    // 2026-05-22 — supervisor / multi-space chat path. The
+                    // briefing-format trim is reserved for the SINGLE-space
+                    // Ask Pulse compose path (line ~2456). Opting out here so
+                    // supervisor responses retain their full multi-section
+                    // shape across all fanned-out spaces.
+                    { omitDomainGuidance: !!convId, omitBriefingFormat: true, kbFlags }
                 );
                 const start = convId
                     ? await client.sendMessage(convId, request, { intent, contextText: "" })
@@ -2450,7 +3166,11 @@ function App(props: AppProps) {
         ].join("\n");
 
         try {
-            const req = buildGenieRequest(synthPrompt, "summary", props.context, selectedFilters, "", false, { kbFlags });
+            // 2026-05-22 — supervisor fusion synthesis prompt. Internal
+            // multi-space synthesizer call, NOT a user Ask Pulse turn.
+            // Briefing-format trim is Ask Pulse-only; opt out so synthesis
+            // keeps its full multi-section shape.
+            const req = buildGenieRequest(synthPrompt, "summary", props.context, selectedFilters, "", false, { kbFlags, omitBriefingFormat: true });
             const start = await primaryClient.startConversation(req, { intent: "summary", contextText: "" });
             const response = await primaryClient.waitForMessageWithProgress(
                 start.conversationId, start.messageId,
@@ -2621,9 +3341,26 @@ function App(props: AppProps) {
     const contextActions = latestAssistantMsg?.suggestedActions?.length
         ? latestAssistantMsg.suggestedActions
         : [];
+    // UX-VIEWER-1.2B — derive starter actions from the home-meta hook
+    // (real Genie curated_questions OR pack evergreen). These replace
+    // the generic STATIC_ACTIONS ("Rank key drivers" / "Summarize for
+    // leadership" / "Run what-if") on the empty state. STATIC_ACTIONS
+    // stays as a final fallback only when the hook + home.suggestedActions
+    // both return empty.
+    const homeMetaActions: AssistantAction[] = (askPulseHomeMeta.data?.curatedQuestions ?? []).map(q => ({
+        id: q.id,
+        label: q.text,
+        kind: "ask",
+        prompt: q.text,
+        // `intent` left undefined — proxy categories ("numerical-distribution",
+        // "evergreen", etc.) don't map to the strict AssistantIntent enum and
+        // it's optional on AssistantAction.
+    }));
     const latestActions = contextActions.length > 0
         ? dedupeActions(contextActions)
-        : dedupeActions([...STATIC_ACTIONS, ...(home.suggestedActions ?? [])]);
+        : homeMetaActions.length > 0
+            ? dedupeActions(homeMetaActions)
+            : dedupeActions([...STATIC_ACTIONS, ...(home.suggestedActions ?? [])]);
 
     const handleSpaceSwitch = useCallback((key: SpaceKey) => {
         if (key === activeSpaceKey) return;
@@ -2644,7 +3381,7 @@ function App(props: AppProps) {
     //
     // `overridePrompt` (chip or custom prompt) collapses to a single Stage 1
     // call — the chips don't follow the fixed section structure.
-    const runInsights = useCallback((overridePrompt?: string, overrideTitle?: string) => {
+    const runInsights = useCallback((overridePrompt?: string, overrideTitle?: string, backgroundRefresh?: boolean) => {
         const client = activeClient;
         const spaceKey = activeSpaceKey;
         if (!client || !isConfigured) return;
@@ -2668,15 +3405,33 @@ function App(props: AppProps) {
         // immediately cancel a fresh run.
         insightsStopRef.current[spaceKey] = false;
         setInsightsBusyMap(previous => ({ ...previous, [spaceKey]: true }));
-        setSpaceInsightsResult(spaceKey, {
-            id: createLocalId("insights"),
-            role: "assistant",
-            status: "RUNNING",
-            content: "",
-            viewMode: "narrative",
-            currentStatus: "Connecting to AI",
-            statusSteps: ["Connecting to AI"]
-        });
+
+        // Perf instrumentation — open a `total` stage for the whole
+        // pipeline so the DevTools Performance tab shows a horizontal
+        // band from kickoff to finalize. Closed in the IIFE's finally
+        // block (see below). Per-stage timing already lives in
+        // `stageTraces[i].durationMs` so we deliberately don't double-
+        // instrument the inner loop here.
+        const perfRunId = `insights:${spaceKey}:${Date.now()}`;
+        resetRun(perfRunId);
+        stageStart(perfRunId, "total", overrideTitle || "AI Insights pipeline");
+        if (!backgroundRefresh) {
+            // Normal (cold) run: clear the display immediately so the user
+            // sees the RUNNING skeleton while the pipeline executes.
+            setSpaceInsightsResult(spaceKey, {
+                id: createLocalId("insights"),
+                role: "assistant",
+                status: "RUNNING",
+                content: "",
+                viewMode: "narrative",
+                currentStatus: "Connecting to AI",
+                statusSteps: ["Connecting to AI"]
+            });
+        } else {
+            // Background refresh: keep cached content visible; mark this
+            // space as stale-while-refreshing so the UI overlays the banner.
+            setStaleRefreshingMap(prev => ({ ...prev, [spaceKey]: true }));
+        }
 
         // 49.19 / IDEA-037 phase 3 — mode-driven priority chain for AI Insights:
         //   0. Runtime override (chip click / Adjust box) → single call,
@@ -2697,7 +3452,20 @@ function App(props: AppProps) {
         const authoringMode = props.settings.insightsAuthoringMode || "preset";
         const settingsPrompt = props.settings.insightsPrompt.trim();
         const settingsDomain = (props.settings.insightsDomain || "").trim();
-        const customSections = parseCustomSections(props.settings.insightsCustomSections);
+        const customSectionsRaw = parseCustomSections(props.settings.insightsCustomSections);
+        // 2026-05-27 — respect viewer-runtime section visibility BEFORE the
+        // planner runs. Sections the viewer toggled OFF (via the Adjust
+        // popover) are excluded from the plan entirely, so we don't pay
+        // Genie tokens / wall time for sections that won't render. Universal
+        // stages (HEADLINE/TRENDS/RISKS/ACTIONS) stay author-controlled per
+        // the insightsSectionVisibility design contract and are filtered
+        // separately by the universalStages prop below. When the viewer has
+        // no stored prefs (currentVisibleTitles === null), all author
+        // custom sections pass through unchanged — backwards-compatible
+        // default behavior.
+        const customSections = currentVisibleTitles
+            ? customSectionsRaw.filter(s => currentVisibleTitles.has(s.name.trim().toUpperCase()))
+            : customSectionsRaw;
         const hasHybridConfig = !!(settingsDomain || customSections.length > 0);
 
         let prompts: string[];
@@ -2727,56 +3495,72 @@ function App(props: AppProps) {
             // appear twice in the assembled outgoing payload.
             const effectiveAuthorGuidance = (props.settings.insightsDomainGuidance ?? "").trim()
                 || (props.settings.domainGuidance ?? "").trim();
-            const hybrid = buildFastHybridInsightsStagePrompts(
-                props.context,
-                settingsDomain,
-                customSections,
-                roleMode,
-                kbFlags,
-                props.settings.metricDirectionRules,
-                effectiveAuthorGuidance,
-                // IDEA-043 — universal-stage visibility flags
-                {
-                    headline: props.settings.insightsShowHeadline,
-                    trends:   props.settings.insightsShowTrends,
-                    risks:    props.settings.insightsShowRisks,
-                    actions:  props.settings.insightsShowActions
-                },
-                // IDEA-043 — per-universal-stage instruction overrides
-                {
-                    headline: props.settings.insightsHeadlineOverride,
-                    trends:   props.settings.insightsTrendsOverride,
-                    risks:    props.settings.insightsRisksOverride,
-                    actions:  props.settings.insightsActionsOverride
-                }
-            );
+            // 2026-05-28 — staging strategy derived from the user's
+            // revealCadence preset (Settings → Advanced → Performance
+            // Levers). Single source of truth: changing the preset flips
+            // both frontend reveal animation AND backend batching.
+            //   - "instant"  → single-shot bundle (no staging)
+            //   - "fast"     → batches of 3 with 3s delay
+            //   - "balanced" → batches of 2 with 6s delay (today's default)
+            //   - "full"     → batches of 1 with 8s delay (true serial)
+            const stagingFromCadence = getBackendStagingFromCadence(perfLevers.revealCadence);
+            const universalShow = {
+                headline: props.settings.insightsShowHeadline,
+                trends:   props.settings.insightsShowTrends,
+                risks:    props.settings.insightsShowRisks,
+                actions:  props.settings.insightsShowActions
+            };
+            const universalOverrides = {
+                headline: props.settings.insightsHeadlineOverride,
+                trends:   props.settings.insightsTrendsOverride,
+                risks:    props.settings.insightsRisksOverride,
+                actions:  props.settings.insightsActionsOverride
+            };
+            const hybrid = stagingFromCadence.useSinglePlanner
+                ? buildFastHybridInsightsStagePrompts(
+                    props.context, settingsDomain, customSections, roleMode, kbFlags,
+                    props.settings.metricDirectionRules, effectiveAuthorGuidance,
+                    universalShow, universalOverrides
+                )
+                : buildStagedHybridInsightsPlan(
+                    props.context, settingsDomain, customSections, roleMode, kbFlags,
+                    props.settings.metricDirectionRules, effectiveAuthorGuidance,
+                    universalShow, universalOverrides,
+                    { batchSize: stagingFromCadence.batchSize }
+                );
             prompts = hybrid.stages;
             titles = hybrid.titles;
         } else {
-            // Fallback: default fast briefing. Fires when:
-            //   - mode=manual but insightsPrompt is empty, OR
-            //   - mode=preset/ai-assisted but Domain + Sections both empty.
-            const stagePrompts = buildFastHybridInsightsStagePrompts(
-                props.context,
-                "",
-                [],
-                roleMode,
-                kbFlags,
-                props.settings.metricDirectionRules,
-                (props.settings.insightsDomainGuidance ?? "").trim() || props.settings.domainGuidance,
-                {
-                    headline: props.settings.insightsShowHeadline,
-                    trends:   props.settings.insightsShowTrends,
-                    risks:    props.settings.insightsShowRisks,
-                    actions:  props.settings.insightsShowActions
-                },
-                {
-                    headline: props.settings.insightsHeadlineOverride,
-                    trends:   props.settings.insightsTrendsOverride,
-                    risks:    props.settings.insightsRisksOverride,
-                    actions:  props.settings.insightsActionsOverride
-                }
-            );
+            // Fallback for users with no author-configured hybrid setup.
+            // Same cadence-driven staging strategy as the hybrid path —
+            // see comment above.
+            const stagingFromCadence = getBackendStagingFromCadence(perfLevers.revealCadence);
+            const universalShow = {
+                headline: props.settings.insightsShowHeadline,
+                trends:   props.settings.insightsShowTrends,
+                risks:    props.settings.insightsShowRisks,
+                actions:  props.settings.insightsShowActions
+            };
+            const universalOverrides = {
+                headline: props.settings.insightsHeadlineOverride,
+                trends:   props.settings.insightsTrendsOverride,
+                risks:    props.settings.insightsRisksOverride,
+                actions:  props.settings.insightsActionsOverride
+            };
+            const stagePrompts = stagingFromCadence.useSinglePlanner
+                ? buildFastHybridInsightsStagePrompts(
+                    props.context, "", [], roleMode, kbFlags,
+                    props.settings.metricDirectionRules,
+                    (props.settings.insightsDomainGuidance ?? "").trim() || props.settings.domainGuidance,
+                    universalShow, universalOverrides
+                )
+                : buildStagedHybridInsightsPlan(
+                    props.context, "", [], roleMode, kbFlags,
+                    props.settings.metricDirectionRules,
+                    (props.settings.insightsDomainGuidance ?? "").trim() || props.settings.domainGuidance,
+                    universalShow, universalOverrides,
+                    { batchSize: stagingFromCadence.batchSize }
+                );
             prompts = stagePrompts.stages;
             titles = stagePrompts.titles;
         }
@@ -2902,7 +3686,7 @@ function App(props: AppProps) {
                     }
                 }
             }
-            throw new Error("Proxy Offline. Ensure the UniBridge AI Proxy is running and accessible at the configured URL.");
+            throw new Error("Proxy Offline. Ensure the PulsePlay Proxy is running and accessible at the configured URL.");
         };
 
         const obtainMessage = async (
@@ -2983,7 +3767,14 @@ function App(props: AppProps) {
                 selectedFilters,
                 includeGuidance ? insightsGuidance : "",
                 props.settings.sendContextToGenie,
-                { kbFlags, omitDomainGuidance: isHybridStage }
+                // 2026-05-22 — AI Insights staged pipeline. Stage prompts
+                // themselves contain "## HEADLINE" / "## KPI SNAPSHOT" /
+                // "snapshot" / "summary" keywords that would trigger the
+                // briefing-format trim (`isBriefingQuestion` keyword match).
+                // The trim is Ask Pulse-only — AI Insights MUST stay on its
+                // full multi-section composeInsightsPrompts contract. Opt
+                // out explicitly.
+                { kbFlags, omitDomainGuidance: isHybridStage, omitBriefingFormat: true }
             );
             // IDEA-039 Phase 1 — capture the assembled outgoing payload before
             // it leaves the boundary. Once Genie has it, we can't reconstruct
@@ -3017,16 +3808,6 @@ function App(props: AppProps) {
                     setSpaceInsightsResult(spaceKey, prev => {
                         if (!prev) return prev;
                         const elapsed = Math.floor((Date.now() - (insightsStartTimeRef.current[spaceKey] ?? Date.now())) / 1000);
-                        // Cycle 35 (rev'd cycle 36) — header line format.
-                        // Original cycle 35 added "{Ns} ({label})" but the user
-                        // pointed out the timer is already shown on the meta
-                        // row beneath as "Stage X of Y | Ns". Final format
-                        // is now just:
-                        //   <Section name> (<streaming info>)
-                        // — the indicator wraps liveStatus in parens itself,
-                        // so we contribute just the polished verb here.
-                        // (elapsed kept in case we need it later for telemetry
-                        // or alternative renderings — currently unused.)
                         void elapsed;
                         const stageLabel = prompts.length > 1 ? label : label;
                         const steps = prev.statusSteps ?? [];
@@ -3034,6 +3815,23 @@ function App(props: AppProps) {
                             return { ...prev, currentStatus: stageLabel, statusSteps: [...steps, stageLabel] };
                         }
                         return { ...prev, currentStatus: stageLabel };
+                    });
+                },
+                // Phase D — streaming content callback. Fires on every token for
+                // streaming backends (foundation-stream). Writes the partial
+                // content into this stage's slot and re-joins all parts so the
+                // section renders progressively as tokens arrive rather than
+                // waiting for the full response. No-op for poll-based backends.
+                (partialContent: string) => {
+                    contentParts[index] = partialContent;
+                    const assembled = joinParts();
+                    setSpaceInsightsResult(spaceKey, prev => {
+                        if (!prev) return prev;
+                        return {
+                            ...prev,
+                            status: "RUNNING",
+                            content: assembled,
+                        };
                     });
                 }
             );
@@ -3113,7 +3911,11 @@ function App(props: AppProps) {
                     const retryReq = buildGenieRequest(
                         retryPrompt, "summary", props.context, selectedFilters,
                         includeGuidance ? insightsGuidance : "", props.settings.sendContextToGenie,
-                        { kbFlags, omitDomainGuidance: isHybridStage }
+                        // 2026-05-22 — AI Insights stage-retry path. Same
+                        // reason as the primary stage call above: this is
+                        // NOT Ask Pulse, the briefing-format trim must not
+                        // fire here.
+                        { kbFlags, omitDomainGuidance: isHybridStage, omitBriefingFormat: true }
                     );
                     // Cycle 47.2 — issue the simplified retry prompt as a
                     // follow-up message on the shared conversation.
@@ -3313,19 +4115,27 @@ function App(props: AppProps) {
                 updateStatus(index, "error");
                 return;
             }
-            setSpaceInsightsResult(spaceKey, prev => ({
-                ...(prev ?? { id: createLocalId("insights"), role: "assistant" } as ChatMessageViewModel),
-                id: prev?.id || response.id,
-                role: "assistant",
-                // Mark COMPLETED only when the last stage slot is filled
-                status: contentParts.every(p => p !== "") ? (response.status || "COMPLETED") : "RUNNING",
-                content: assembled,
-                viewMode: getDefaultViewMode(response, canShowSql, canShowTrace),
-                sqlQuery: prev?.sqlQuery || response.sqlQuery,
-                queryResult: prev?.queryResult || response.queryResult,
-                trace: prev?.trace || response.trace,
-                stageTraces: stageTraces.map(s => ({ ...s }))
-            }));
+            if (!backgroundRefresh) {
+                // Normal run: paint each section as it lands (progressive reveal).
+                setSpaceInsightsResult(spaceKey, prev => ({
+                    ...(prev ?? { id: createLocalId("insights"), role: "assistant" } as ChatMessageViewModel),
+                    id: prev?.id || response.id,
+                    role: "assistant",
+                    // Mark COMPLETED only when the last stage slot is filled
+                    status: contentParts.every(p => p !== "") ? (response.status || "COMPLETED") : "RUNNING",
+                    content: assembled,
+                    viewMode: getDefaultViewMode(response, canShowSql, canShowTrace),
+                    sqlQuery: prev?.sqlQuery || response.sqlQuery,
+                    queryResult: prev?.queryResult || response.queryResult,
+                    trace: prev?.trace || response.trace,
+                    stageTraces: stageTraces.map(s => ({ ...s }))
+                }));
+            }
+            // Background refresh: skip per-stage paint. Content accumulates
+            // in contentParts[] and will be committed atomically once all
+            // stages finish (see finally block). This avoids the "collapsing"
+            // UX where a stale 5-section briefing shrinks to 1 section when
+            // the first fresh stage lands and overwrites the displayed content.
             updateStatus(index, "done");
             // Multi-stage runs: if this was the LAST stage and ALL parts are
             // still empty, treat the run as failed too. Single-stage already
@@ -3355,44 +4165,93 @@ function App(props: AppProps) {
                     // Single-stage path (override prompts, chips) — no batching needed.
                     await runStage(0);
                 } else {
-                    // Cycle 47.14 — Stage 0 first (alone, awaited), then a
-                    // concurrency-3 worker pool drains stages 1+. Cycle 47.1
-                    // started ALL stages including 0 in the pool, which meant
-                    // the HEADLINE section's paint order was non-deterministic
-                    // (whichever of stages 0/1/2 finished first painted first).
-                    // Live test surfaced that this was disorienting — the user
-                    // expects to see the headline render BEFORE detail
-                    // sections crowd in. Serializing stage 0 first costs ~10s
-                    // wall-clock (it no longer overlaps with stages 1-2) but
-                    // guarantees the headline paints first AND, with cycle
-                    // 47.2 conversation reuse, stage 0 becomes the conversation
-                    // OPENER — so by the time the pool fires, every joiner
-                    // skips startConversation and goes straight to sendMessage.
-                    // Workspace rate limit on /messages is materially higher
-                    // than on /start-conversation, so concurrency 3 for the
-                    // remaining stages stays comfortably inside budget.
-                    await runStage(0);
-                    if (prompts.length > 1) {
-                        const CONCURRENCY = 3;
-                        const queue = Array.from({ length: prompts.length - 1 }, (_, i) => i + 1);
-                        const drainWorker = async () => {
-                            while (true) {
-                                const idx = queue.shift();
-                                if (idx === undefined) return;
-                                await runStage(idx);
+                    // 2026-05-19 latency cycle — concurrency-2 pool with an
+                    // 8 s head-start for stage 0. Replaces the previous
+                    // cycle-47.14 pattern (serialize stage 0, then concurrency-3
+                    // for stages 1+) per Rajesh's request to:
+                    //   1. Process two sections at a time (concurrency 2,
+                    //      not 3) so backend load is gentler — Genie /messages
+                    //      throttling tends to compound long stages.
+                    //   2. Start stage 1 ~5-10 s after stage 0 on first load
+                    //      (not after stage 0 completes), so the second stage
+                    //      overlaps with the first while still giving stage 0
+                    //      a clear head start to claim the cycle-47.2 single-
+                    //      flight conversation opener and let the HEADLINE
+                    //      paint first in normal cases.
+                    //   3. All stages share the same conversation_id via the
+                    //      existing cycle-47.2 opener race in obtainMessage()
+                    //      — no API change here, just behavior.
+                    const CONCURRENCY = 2;
+                    // 2026-05-27 — tuned from 8000ms to 3500ms per Rajesh's
+                    // "3-5 second delay" cadence for staged AI Insights.
+                    // 3500 = midpoint; gives the lead batch ~3.5s head-start
+                    // before follow-up batches issue sendMessage on the same
+                    // conversation_id. See
+                    // AI_INSIGHTS_SECTION_LOADING_CLAUDE_HANDOFF_2026-05-27.md.
+                    // 2026-05-28 — delay now sourced from the user's
+                    // revealCadence preset (Settings → Advanced →
+                    // Performance Levers). "balanced" = 6s (default),
+                    // "fast" = 3s, "full" = 8s, "instant" = 0 (single-
+                    // shot bypass — but this worker loop only runs when
+                    // stagingFromCadence.useSinglePlanner === false, so
+                    // we never actually see 0 here).
+                    const FIRST_LOAD_STAGE_1_DELAY_MS = getBackendStagingFromCadence(perfLevers.revealCadence).interBatchDelayMs;
+                    const queue = Array.from({ length: prompts.length }, (_, i) => i);
+                    const drainWorker = async (workerIndex: number) => {
+                        let isFirstPick = true;
+                        while (true) {
+                            const idx = queue.shift();
+                            if (idx === undefined) return;
+                            // Second worker waits before its FIRST pick so
+                            // stage 0 (claimed by worker 0) has time to win
+                            // the obtainMessage race + return the
+                            // conversation_id before stage 1 issues its
+                            // sendMessage on the same conversation. Subsequent
+                            // picks by the same worker have no delay.
+                            if (isFirstPick && workerIndex > 0) {
+                                await new Promise(r => setTimeout(r, FIRST_LOAD_STAGE_1_DELAY_MS));
+                                if (insightsStopRef.current[spaceKey]) {
+                                    const stopErr: any = new Error("__STOP_REQUESTED__");
+                                    stopErr.isStopRequest = true;
+                                    throw stopErr;
+                                }
                             }
-                        };
-                        const workers: Promise<void>[] = [];
-                        for (let w = 0; w < Math.min(CONCURRENCY, prompts.length - 1); w++) {
-                            workers.push(drainWorker());
+                            isFirstPick = false;
+                            await runStage(idx);
                         }
-                        await Promise.all(workers);
+                    };
+                    const workers: Promise<void>[] = [];
+                    for (let w = 0; w < Math.min(CONCURRENCY, prompts.length); w++) {
+                        workers.push(drainWorker(w));
                     }
+                    await Promise.all(workers);
                 }
                 const generatedAt = Date.now();
                 setInsightsGeneratedAtMap(previous => ({ ...previous, [spaceKey]: generatedAt }));
                 logSession("INFO", `AI Insights generated (${prompts.length} stage${prompts.length > 1 ? "s" : ""}, ${describeInsightsBatchPlan(prompts.length)}).`);
                 if (lastResponse && contentParts.every(p => p !== "")) {
+                    // Background refresh: commit the fresh result atomically now
+                    // that all stages are done. The stale cached content was shown
+                    // throughout the run; this single swap replaces it cleanly.
+                    if (backgroundRefresh) {
+                        setSpaceInsightsResult(spaceKey, {
+                            id: createLocalId("insights"),
+                            role: "assistant",
+                            status: "COMPLETED",
+                            content: joinParts(),
+                            viewMode: getDefaultViewMode(lastResponse, canShowSql, canShowTrace),
+                            sqlQuery: (lastResponse as any).sqlQuery,
+                            queryResult: (lastResponse as any).queryResult,
+                            trace: (lastResponse as any).trace,
+                            stageTraces: stageTraces.map(s => ({ ...s })),
+                        });
+                        delete staleDisplayRef.current[spaceKey];
+                        setStaleRefreshingMap(prev => {
+                            const next = { ...prev };
+                            delete next[spaceKey];
+                            return next;
+                        });
+                    }
                     try {
                         const ttlMs = (props.settings.insightsCacheTtlMinutes ?? 30) * 60 * 1000;
                         writeInsightsCache(computeInsightsCacheKey(spaceKey), {
@@ -3415,6 +4274,16 @@ function App(props: AppProps) {
                         // page-switch will re-burn the pipeline.
                         try { logSession("WARN", `Insights cache write failed (${e?.name || "Error"}: ${String(e?.message || "").slice(0, 80)}). Rehydrate after page-switch will re-run the pipeline.`); } catch { /* swallow */ }
                     }
+                } else if (backgroundRefresh) {
+                    // All stages empty on background refresh — clear the stale
+                    // banner so the user isn't stuck with a misleading indicator,
+                    // then let the normal empty-state handling show.
+                    delete staleDisplayRef.current[spaceKey];
+                    setStaleRefreshingMap(prev => {
+                        const next = { ...prev };
+                        delete next[spaceKey];
+                        return next;
+                    });
                 }
             } catch (error: any) {
                 // User-initiated stop — distinguish from real failures so the
@@ -3422,16 +4291,28 @@ function App(props: AppProps) {
                 // Completed stages keep their rendered content (partial run).
                 if (error?.isStopRequest || error?.message === "__STOP_REQUESTED__") {
                     statusesRef.forEach((s, i) => { if (s === "running" || s === "pending") updateStatus(i, "error"); });
-                    setSpaceInsightsResult(spaceKey, prev => prev && prev.content
-                        ? { ...prev, status: "COMPLETED", currentStatus: "Stopped by user", failureMessage: undefined }
-                        : {
-                            id: prev?.id ?? createLocalId("insights"),
-                            role: "system",
-                            status: "FAILED",
-                            content: "_(Run stopped by user before any stage completed.)_",
-                            currentStatus: "Stopped by user",
-                            failureMessage: undefined,
+                    if (backgroundRefresh) {
+                        // On stop during background refresh: just clear the banner
+                        // and keep showing the stale cached content the user was
+                        // already reading. No destructive status update.
+                        delete staleDisplayRef.current[spaceKey];
+                        setStaleRefreshingMap(prev => {
+                            const next = { ...prev };
+                            delete next[spaceKey];
+                            return next;
                         });
+                    } else {
+                        setSpaceInsightsResult(spaceKey, prev => prev && prev.content
+                            ? { ...prev, status: "COMPLETED", currentStatus: "Stopped by user", failureMessage: undefined }
+                            : {
+                                id: prev?.id ?? createLocalId("insights"),
+                                role: "system",
+                                status: "FAILED",
+                                content: "_(Run stopped by user before any stage completed.)_",
+                                currentStatus: "Stopped by user",
+                                failureMessage: undefined,
+                            });
+                    }
                     logSession("INFO", "AI Insights stopped by user");
                     return;
                 }
@@ -3454,26 +4335,45 @@ function App(props: AppProps) {
                 // P1.5 red error-card renders ABOVE the partial output rather
                 // than replacing it. When no partial exists, full FAILED state.
                 const failedTrace = stageTraces.find(t => t.status === "error");
-                setSpaceInsightsResult(spaceKey, prev => prev && prev.content
-                    ? {
-                        ...prev,
-                        status: "COMPLETED",
-                        stageTraces: stageTraces.map(s => ({ ...s })),
-                        failureMessage: errMsg,
-                        failedStageTitle: failedTrace?.title ?? "Pipeline"
-                    }
-                    : {
-                        id: prev?.id ?? createLocalId("insights"),
-                        role: "system",
-                        status: "FAILED",
-                        content: errMsg,
-                        stageTraces: stageTraces.map(s => ({ ...s })),
-                        failureMessage: errMsg,
-                        failedStageTitle: failedTrace?.title ?? "Pipeline"
+                if (backgroundRefresh) {
+                    // Background refresh failed — keep the stale cached content
+                    // the user was reading; just clear the "Refreshing" banner
+                    // so they aren't stuck with a false progress indicator.
+                    // Do NOT overwrite the cached display with an error state.
+                    delete staleDisplayRef.current[spaceKey];
+                    setStaleRefreshingMap(prev => {
+                        const next = { ...prev };
+                        delete next[spaceKey];
+                        return next;
                     });
-                logSession("ERROR", `AI Insights failed: ${errMsg}`);
+                    logSession("WARN", `AI Insights background refresh failed (${errMsg}); cached result preserved.`);
+                } else {
+                    setSpaceInsightsResult(spaceKey, prev => prev && prev.content
+                        ? {
+                            ...prev,
+                            status: "COMPLETED",
+                            stageTraces: stageTraces.map(s => ({ ...s })),
+                            failureMessage: errMsg,
+                            failedStageTitle: failedTrace?.title ?? "Pipeline"
+                        }
+                        : {
+                            id: prev?.id ?? createLocalId("insights"),
+                            role: "system",
+                            status: "FAILED",
+                            content: errMsg,
+                            stageTraces: stageTraces.map(s => ({ ...s })),
+                            failureMessage: errMsg,
+                            failedStageTitle: failedTrace?.title ?? "Pipeline"
+                        });
+                    logSession("ERROR", `AI Insights failed: ${errMsg}`);
+                }
             } finally {
                 setInsightsBusyMap(previous => ({ ...previous, [spaceKey]: false }));
+                // Close the perf instrumentation `total` stage + dump
+                // the console.table for this run. Runs on every code
+                // path (success / failure / stop) thanks to the finally.
+                stageEnd(perfRunId, "total");
+                dumpRun(perfRunId, `AI Insights ${spaceKey}`);
             }
         })();
     }, [activeClient, activeSpaceKey, isConfigured, props.context, props.settings, selectedFilters, roleMode, canShowSql, canShowTrace, setSpaceInsightsResult, setSpaceStageStatuses, kbFlags, computeInsightsCacheKey, logSession]);
@@ -3511,24 +4411,21 @@ function App(props: AppProps) {
         // and we'd just spend Genie calls.
         if (enabledFeatures === "chatOnly") return;
 
-        // IDEA-039 anomaly #8 — DataView race. PBI fires the visual's update()
-        // multiple times during page-load: the first call typically arrives
-        // with an empty/sparse DataView before measures and dimensions have
-        // been populated. Auto-firing in that window made Stage 1 see zero
-        // values while Stage 2 (running ~2s later after the inter-batch pause)
-        // saw real data — producing a "$0 vs $2.30M" hard contradiction in
-        // the rendered narrative. Defer the run until contextBuilder reports
-        // at least one bound measure or dimension. The effect re-runs on every
-        // settings/context change so this resolves automatically once PBI's
-        // DataView pump completes.
-        const measCount = Object.keys(props.context?.measures ?? {}).length;
-        const dimCount = Object.keys(props.context?.dimensions ?? {}).length;
-        if (measCount === 0 && dimCount === 0) {
-            // Don't set insightsFiredRef yet — we want this effect to retry
-            // when context populates on a later render.
-            return;
-        }
-
+        // PulsePlay principle — AI and BI are independent verticals. AI Insights
+        // should fire whenever AI is configured, regardless of whether a BI
+        // surface has been wired up. Teams using PulsePlay for AI-only workflows
+        // (Genie / Foundation Model / Supervisor without any embedded BI tool)
+        // would otherwise sit on a stuck "Generating insights…" forever.
+        //
+        // Historical context (IDEA-039 anomaly #8 from the Pulse-in-PowerBI
+        // sandbox): PBI fires the visual's update() multiple times during
+        // page-load and the first call typically arrives with an empty/sparse
+        // DataView, producing $0-vs-$2.30M contradictions when stages ran 2s
+        // apart. That guard lives in the sister project's PBI-custom-visual
+        // build. In PulsePlay (browser playground, no PBI host), there is no
+        // multi-batch DataView pump — context is whatever the BI adapter has
+        // emitted, period. So we drop the empty-context return here and let
+        // the pipeline run with whatever grounding it has (which may be none).
         const cacheKey = computeInsightsCacheKey(activeSpaceKey);
         const ttlMs = (props.settings.insightsCacheTtlMinutes ?? 30) * 60 * 1000;
         const cached = readInsightsCache(cacheKey, undefined, ttlMs);
@@ -3547,7 +4444,7 @@ function App(props: AppProps) {
             }
         } catch { /* never block on logging */ }
         if (cached && cached.status === "COMPLETED") {
-            setSpaceInsightsResult(activeSpaceKey, {
+            const cachedResult: ChatMessageViewModel = {
                 id: createLocalId("insights"),
                 role: "assistant",
                 status: cached.status,
@@ -3556,13 +4453,22 @@ function App(props: AppProps) {
                 queryResult: cached.queryResult as ChatMessageViewModel["queryResult"],
                 trace: cached.trace,
                 viewMode: (cached.viewMode as OutputMode) || "narrative"
-            });
+            };
+            setSpaceInsightsResult(activeSpaceKey, cachedResult);
             setInsightsGeneratedAtMap(prev => ({ ...prev, [activeSpaceKey]: cached.generatedAt }));
             setSpaceStageStatuses(activeSpaceKey, cached.stageStatuses as StageStatus[]);
             setPendingStageTitles(cached.stageTitles);
             insightsFiredRef.current[activeSpaceKey] = true;
             const ageMin = Math.max(0, Math.round((Date.now() - cached.generatedAt) / 60000));
-            logSession("INFO", `AI Insights restored from cache (generated ${ageMin}m ago).`);
+            logSession("INFO", `AI Insights restored from cache (generated ${ageMin}m ago); starting background refresh.`);
+            // Stale-while-revalidate: show the cached result immediately (done
+            // above) then kick off a background refresh so the user always
+            // gets fresh data without waiting for the pipeline before seeing
+            // anything. The banner in the Insights header signals the refresh
+            // is in progress; when the pipeline completes, the fresh result
+            // replaces the stale one atomically (no progressive collapse).
+            staleDisplayRef.current[activeSpaceKey] = cachedResult;
+            runInsights(undefined, undefined, /* backgroundRefresh */ true);
             return;
         }
 
@@ -3606,7 +4512,10 @@ function App(props: AppProps) {
             executeSqlPreviewClient({
                 apiBaseUrl,
                 proxyKey,
-                assistantProfile: profile,
+                // 2026-05-28 — per-section target profile when defined (a Genie
+                // space OR a direct/underlying-data warehouse); else the active
+                // profile. Routes this section's SQL to that profile's warehouse.
+                assistantProfile: (sec.profile && sec.profile.trim()) || profile,
                 sectionH_cteHeader: cteHeader,
                 sql: sec.sql || "",
             }).then(result => {
@@ -3703,25 +4612,30 @@ function App(props: AppProps) {
         props.settings.insightsPrompt
     ]);
 
+    const showPulseHeaderTitle = props.settings.showHeader !== false
+        && !!(props.settings.headerTitle || "").trim();
+    const showPulseHeaderSpaces = !!(props.settings.multiSpaceEnabled && activeSpaces.length > 1);
+    const showPulseHeaderTopRow = showPulseHeaderTitle || showPulseHeaderSpaces;
+
     return (
         <div
             className={`gn-shell${props.settings.darkMode ? " gn-shell--dark" : " gn-shell--light"}${compact ? " gn-compact" : ""}`}
             style={themeStyle}
         >
             <div className="gn-header gn-header--two-row">
-                {/* Row 1 — branding + status capsules. Title block on the left,
-                    connection pill on the right. Multi-space switcher (when
-                    enabled) sits between title and right-side status. */}
+                {/* Row 1 — branding and optional multi-space switcher. Operational
+                    connection/scope state is kept out of the primary viewer
+                    chrome; Settings is the normal path for setup/system review.
+                    Collapse the row entirely when no branding or space switcher
+                    is present so the primary tabs do not sit under blank chrome. */}
+                {showPulseHeaderTopRow && (
                 <div className="gn-header-row gn-header-row--top">
                 {(() => {
                     // Logo + title only render when the author has set a header
                     // title AND the new Wave 30 `showHeader` toggle is ON
                     // (default). When OFF, the title block is suppressed but
-                    // the connection-status pill on the right stays visible
-                    // so viewers can always see connection state + reach
-                    // Developer Tools. Subtitle is opt-in (settings.headerSubtitle)
-                    // — never falls back to space label so a single bold line
-                    // is the norm.
+                    // Subtitle is opt-in (settings.headerSubtitle) — never
+                    // falls back to space label so a single bold line is the norm.
                     if (props.settings.showHeader === false) return null;
                     const title = (props.settings.headerTitle || "").trim();
                     const subtitle = (props.settings.headerSubtitle || "").trim();
@@ -3829,157 +4743,155 @@ function App(props: AppProps) {
                         )}
                     </div>
                 )}
-                <div
-                    className="gn-header-right"
-                    style={{
-                        // PulsePlay cycle K — pin the connection pill to the
-                        // viewport's top-right corner so it lands inside the
-                        // App.tsx top bar (which holds the PulsePlay brand
-                        // on the left). `fixed` rather than `absolute` makes
-                        // it independent of whichever pane Pulse mounts in:
-                        // in Both mode the pill stays at the viewport corner
-                        // instead of disappearing into the AI pane's corner.
-                        position: "fixed",
-                        top: 14,
-                        right: 16,
-                        zIndex: 60,
-                    }}
-                >
-                    {/* Scope-only / UC-enforced badge removed (49.10) — the
-                        security-posture detail is still reachable via the
-                        Connected pill, which opens the same Developer Tools
-                        modal where the full posture is documented. */}
-                    {/* IDEA-003: gn-info-btn removed; the diagnostics modal is reachable
-                        from the connection status pill below.
-                        The status pill's tooltip already says 'Click for diagnostics.' */}
-                    {(() => {
-                        const status = computeConnectionStatus(
-                            props.settings,
-                            props.configIssues,
-                            props.configWarnings
-                        );
-                        return (
-                            <button
-                                type="button"
-                                className={`gn-status gn-status--${status.level}`}
-                                title={status.tooltip}
-                                aria-label={`Connection status: ${status.label} — ${status.modeLabel}. Click for diagnostics.`}
-                                onClick={() => setShowDevModal(true)}
-                            >
-                                <span className="gn-status-dot" aria-hidden="true" />
-                                {/* PulsePlay: the pill lives in the global top
-                                  * bar via `position: fixed`, so its compact
-                                  * decision shouldn't depend on Pulse's pane
-                                  * width. Force the labels visible — inline
-                                  * style wins over the `.gn-compact .gn-status-label
-                                  * { display: none }` rule that fires when the
-                                  * AI pane is narrow. */}
-                                <span className="gn-status-label" style={{ display: "inline-block" }}>{status.label}</span>
-                                <span className="gn-status-mode" style={{ display: "inline-block" }}>{status.modeLabel}</span>
-                            </button>
-                        );
-                    })()}
-                    {/* BUG-017: Confidence indicator removed from the header strip.
-                        It was misleadingly prominent — viewers saw "40% confidence"
-                        without context for *why*. Now lives inside the Developer Tools
-                        modal (Connect-pill popup) above the tab buttons, where it's
-                        accessible to authors/testers without putting a misleading
-                        signal in front of every report viewer. */}
-                    {/* Wave 30 cycle 6 — viewer-facing Scope pill. Closes the
-                        PEPPULSE_NARRATIVE_AUDIT.md gap "governance not visible
-                        to viewers" without re-introducing the misleading
-                        full posture badge. Renders ONLY when at least one
-                        scope guardrail is active (Section H CTE prefix /
-                        Section C forbidden columns / runtime row filter).
-                        Click opens the same Developer Tools modal where the
-                        full scope posture is documented. */}
-                    {(() => {
-                        const cte = String(props.settings.sqlCtePreamble || "").trim();
-                        const forbidden = String(props.settings.runtimeForbiddenColumns || "").trim();
-                        const rowFilter = String(props.settings.runtimeMandatoryRowFilter || "").trim();
-                        const tags: string[] = [];
-                        if (cte) tags.push("SQL prefix");
-                        if (forbidden) tags.push("column filter");
-                        if (rowFilter) tags.push("row filter");
-                        if (tags.length === 0) return null;
-                        const label = tags.length === 1 ? tags[0] : `${tags.length} active`;
-                        const detail = tags.join(" · ");
-                        return (
-                            <button
-                                type="button"
-                                className="gn-status gn-status--scope"
-                                title={`Active scope guardrails: ${detail}. Data the AI sees is constrained by these rules. Click for details.`}
-                                aria-label={`Scope guardrails active: ${detail}. Click to open Developer Tools.`}
-                                onClick={() => setShowDevModal(true)}
-                            >
-                                <span className="gn-status-dot" aria-hidden="true" />
-                                <span className="gn-status-label">Scoped</span>
-                                <span className="gn-status-mode">{label}</span>
-                            </button>
-                        );
-                    })()}
+                {/* Connection and scope status moved out of the global top
+                    right chrome. The primary viewer surface stays focused on
+                    AI Insights / Chat; setup and system review live in Settings. */}
                 </div>
-                </div>
+                )}
                 {/* Row 2 — surface controls + run state. Tabs + Adjust on the
                     left; meta strip (clock / copy / refresh) and the always-on
                     ProgressIndicator on the right. All transient/run-state UI
                     stays in this row so the content area below is pure narrative. */}
                 <div className="gn-header-row gn-header-row--bottom">
-                    {enabledFeatures === "both" && (
-                        <div className="gn-header-tabs" role="tablist" aria-label="Visual surface">
-                            <button
-                                role="tab"
-                                id="gn-tab-insights"
-                                aria-selected={activeTab === "insights"}
-                                aria-controls="gn-tabpanel-insights"
-                                tabIndex={activeTab === "insights" ? 0 : -1}
-                                className={`gn-header-tab${activeTab === "insights" ? " gn-header-tab--active" : ""}`}
-                                onClick={() => setActiveTab("insights")}
-                                onKeyDown={(e) => {
-                                    if (e.key === "ArrowRight" || e.key === "ArrowDown") {
-                                        e.preventDefault();
-                                        setActiveTab("chat");
-                                        // Move focus to the now-active tab so screen readers announce it.
-                                        const next = document.getElementById("gn-tab-chat") as HTMLButtonElement | null;
-                                        next?.focus();
-                                    } else if (e.key === "Home") {
-                                        e.preventDefault();
-                                        setActiveTab("insights");
-                                    } else if (e.key === "End") {
-                                        e.preventDefault();
-                                        setActiveTab("chat");
-                                        document.getElementById("gn-tab-chat")?.focus();
-                                    }
-                                }}
-                            >
-                                <span aria-hidden="true">✨ </span>AI Insights
-                            </button>
-                            <button
-                                role="tab"
-                                id="gn-tab-chat"
-                                aria-selected={activeTab === "chat"}
-                                aria-controls="gn-tabpanel-chat"
-                                tabIndex={activeTab === "chat" ? 0 : -1}
-                                className={`gn-header-tab${activeTab === "chat" ? " gn-header-tab--active" : ""}`}
-                                onClick={() => setActiveTab("chat")}
-                                onKeyDown={(e) => {
-                                    if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
-                                        e.preventDefault();
-                                        setActiveTab("insights");
-                                        const prev = document.getElementById("gn-tab-insights") as HTMLButtonElement | null;
-                                        prev?.focus();
-                                    } else if (e.key === "Home") {
-                                        e.preventDefault();
-                                        setActiveTab("insights");
-                                        document.getElementById("gn-tab-insights")?.focus();
-                                    } else if (e.key === "End") {
-                                        e.preventDefault();
-                                        setActiveTab("chat");
-                                    }
-                                }}
-                            >
-                                <span aria-hidden="true">💬 </span>Chat
-                            </button>
+                    {/* 2026-05-25 — strip gate flipped from `enabledFeatures === "both"`
+                      * to PulsePlay's tabVisibility model. The strip is hidden when
+                      * ≤1 tab is enabled (auto-collapse: that single tab becomes the
+                      * main page). Each individual tab button below is also gated on
+                      * its own visibility flag, so when 2 of 3 are enabled, the strip
+                      * shows only those 2. */}
+                    {tabVisibilityCount >= 2 && (
+                        <div className="gn-surface-switcher" aria-label="Visual surfaces">
+                            <div className="gn-header-tabs" role="tablist" aria-label="PulsePlay surfaces">
+                                {tabVisibility.aiInsights && (
+                                <button
+                                    role="tab"
+                                    id="gn-tab-insights"
+                                    aria-selected={activeTab === "insights"}
+                                    aria-controls="gn-tabpanel-insights"
+                                    tabIndex={activeTab === "insights" ? 0 : -1}
+                                    className={`gn-header-tab${activeTab === "insights" ? " gn-header-tab--active" : ""}`}
+                                    onClick={() => setActiveTab("insights")}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+                                            e.preventDefault();
+                                            // Skip disabled neighbors when arrowing.
+                                            if (tabVisibility.askPulse) {
+                                                setActiveTab("chat");
+                                                document.getElementById("gn-tab-chat")?.focus();
+                                            } else if (tabVisibility.dashboard) {
+                                                document.getElementById("gn-tab-dashboard")?.focus();
+                                            }
+                                        } else if (e.key === "Home") {
+                                            e.preventDefault();
+                                            setActiveTab("insights");
+                                        } else if (e.key === "End") {
+                                            e.preventDefault();
+                                            // End jumps to the last enabled tab.
+                                            const last = tabVisibility.dashboard ? "gn-tab-dashboard"
+                                                : tabVisibility.askPulse ? "gn-tab-chat" : "gn-tab-insights";
+                                            document.getElementById(last)?.focus();
+                                        }
+                                    }}
+                                >
+                                    <span className="gn-header-tab-icon" aria-hidden="true">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M12 3 L14 10 L21 12 L14 14 L12 21 L10 14 L3 12 L10 10 Z" />
+                                        </svg>
+                                    </span>
+                                    <span>AI Insights</span>
+                                </button>
+                                )}
+                                {tabVisibility.askPulse && (
+                                <button
+                                    role="tab"
+                                    id="gn-tab-chat"
+                                    aria-selected={activeTab === "chat"}
+                                    aria-controls="gn-tabpanel-chat"
+                                    tabIndex={activeTab === "chat" ? 0 : -1}
+                                    className={`gn-header-tab${activeTab === "chat" ? " gn-header-tab--active" : ""}`}
+                                    onClick={() => setActiveTab("chat")}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+                                            e.preventDefault();
+                                            if (tabVisibility.aiInsights) {
+                                                setActiveTab("insights");
+                                                document.getElementById("gn-tab-insights")?.focus();
+                                            }
+                                        } else if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+                                            e.preventDefault();
+                                            if (tabVisibility.dashboard) {
+                                                document.getElementById("gn-tab-dashboard")?.focus();
+                                            }
+                                        } else if (e.key === "Home") {
+                                            e.preventDefault();
+                                            const first = tabVisibility.aiInsights ? "gn-tab-insights" : "gn-tab-chat";
+                                            if (first === "gn-tab-insights") setActiveTab("insights");
+                                            document.getElementById(first)?.focus();
+                                        } else if (e.key === "End") {
+                                            e.preventDefault();
+                                            const last = tabVisibility.dashboard ? "gn-tab-dashboard" : "gn-tab-chat";
+                                            document.getElementById(last)?.focus();
+                                        }
+                                    }}
+                                >
+                                    <span className="gn-header-tab-icon" aria-hidden="true">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                                        </svg>
+                                    </span>
+                                    <span>Ask Pulse</span>
+                                </button>
+                                )}
+                                {tabVisibility.dashboard && (
+                                <button
+                                    role="tab"
+                                    id="gn-tab-dashboard"
+                                    aria-selected={false}
+                                    aria-controls="pp-dashboard-empty"
+                                    tabIndex={-1}
+                                    className="gn-header-tab gn-header-tab--surface-action"
+                                    onClick={() => dispatchPulsePlayViewportAction("focus", "bi")}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+                                            e.preventDefault();
+                                            if (tabVisibility.askPulse) {
+                                                setActiveTab("chat");
+                                                document.getElementById("gn-tab-chat")?.focus();
+                                            } else if (tabVisibility.aiInsights) {
+                                                setActiveTab("insights");
+                                                document.getElementById("gn-tab-insights")?.focus();
+                                            }
+                                        } else if (e.key === "Home") {
+                                            e.preventDefault();
+                                            const first = tabVisibility.aiInsights ? "gn-tab-insights"
+                                                : tabVisibility.askPulse ? "gn-tab-chat" : "gn-tab-dashboard";
+                                            if (first === "gn-tab-insights") setActiveTab("insights");
+                                            document.getElementById(first)?.focus();
+                                        } else if (e.key === "End") {
+                                            // Already on the last tab.
+                                            e.preventDefault();
+                                        } else if (e.key === "Enter" || e.key === " ") {
+                                            // Native button activation already fires onClick; no-op.
+                                        }
+                                    }}
+                                    aria-label="Open dashboard surface"
+                                    title="Open dashboard surface"
+                                >
+                                    <span className="gn-header-tab-icon gn-header-tab-icon--bi" aria-hidden="true">
+                                        {/* Bar-chart glyph — replaces the literal "BI" text that was
+                                          * causing visible "BI BI Viz" duplication in test snapshots
+                                          * (Codex 2026-05-19 tough test, scenario P1-13 / EL-SWITCHER-COPY).
+                                          * Audit 2026-05-19: label renamed "BI Viz" → "Dashboard". */}
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <line x1="6" y1="20" x2="6" y2="11" />
+                                            <line x1="12" y1="20" x2="12" y2="5" />
+                                            <line x1="18" y1="20" x2="18" y2="14" />
+                                        </svg>
+                                    </span>
+                                    <span>Dashboard</span>
+                                </button>
+                                )}
+                            </div>
                         </div>
                     )}
                     {activeTab === "insights" && isConfigured && (
@@ -4023,10 +4935,75 @@ function App(props: AppProps) {
                                             {sug.label}
                                         </button>
                                     ))}
+                                    {/* 2026-05-28 — strategic-framework presets surfaced
+                                      * inline in the Adjust menu so users can re-run
+                                      * insights as a SWOT / BCG / RFM / Pareto briefing
+                                      * in one click without navigating to Settings → AI.
+                                      * Click handler writes the preset's sections (+
+                                      * bundled metric direction rules when present) to
+                                      * settings, then triggers a fresh insights run
+                                      * through the staged planner. */}
+                                    <div
+                                        role="separator"
+                                        aria-orientation="horizontal"
+                                        style={{
+                                            margin: "6px 0 4px",
+                                            padding: "4px 10px 0",
+                                            fontSize: 10.5,
+                                            fontWeight: 700,
+                                            letterSpacing: 0.6,
+                                            color: "var(--gn-text-muted)",
+                                            textTransform: "uppercase",
+                                            borderTop: "1px solid var(--gn-border-subtle)",
+                                        }}
+                                    >
+                                        Apply preset
+                                    </div>
+                                    {CUSTOM_SECTION_PRESETS.map(preset => (
+                                        <button
+                                            key={`preset-${preset.id}`}
+                                            type="button"
+                                            role="menuitem"
+                                            className="gn-adjust-menu-item"
+                                            disabled={insightsBusy}
+                                            title={preset.description}
+                                            onClick={() => {
+                                                try {
+                                                    const sections = preset.params
+                                                        ? interpolatePreset(preset, defaultParamValues(preset))
+                                                        : preset.sections;
+                                                    const patch: { insightsCustomSections: string; insightsDomain?: string; metricDirectionRules?: string } = {
+                                                        insightsCustomSections: JSON.stringify(sections, null, 2),
+                                                    };
+                                                    if (!(props.settings.insightsDomain || "").trim()) {
+                                                        patch.insightsDomain = preset.domain;
+                                                    }
+                                                    if (preset.metricDirectionRules) {
+                                                        patch.metricDirectionRules = preset.metricDirectionRules;
+                                                    }
+                                                    writePulseAiVisualSettingsPatch(patch);
+                                                    setInsightsActivePromptId(null);
+                                                    setInsightsCustomPrompt("");
+                                                    runInsights();
+                                                } catch { /* swallow — never crash the menu */ }
+                                                setShowAdjustChips(false);
+                                            }}
+                                        >
+                                            {preset.label}
+                                        </button>
+                                    ))}
                                 </div>
                             )}
                         </div>
                     )}
+                    {/* 2026-05-25 — gn-pane-action-cluster REMOVED. The
+                     *  Pulse-side AI pane toolbar (Maximize / Minimize /
+                     *  Open-in-page / Pop-out) was hidden via CSS in Commit
+                     *  5 when the App-level TopRightToolbar took over the
+                     *  cross-cutting affordances. Removing the dead JSX
+                     *  here completes the cleanup — TopRightToolbar
+                     *  dispatches the same pulseplay:viewport-action events
+                     *  via the App.tsx handler, so behavior is unchanged. */}
                     {/* Spacer to push the run-state cluster to the far right. */}
                     {activeTab === "insights" && <div className="gn-header-spacer" />}
                     {/* Insights run-state cluster: clock + copy + refresh, then
@@ -4035,6 +5012,16 @@ function App(props: AppProps) {
                         rendered in-bubble. */}
                     {activeTab === "insights" && isConfigured && (
                         <div className="gn-header-run-state">
+                            {/*
+                              Show the action toolbar (Copy MD / Copy HTML / Print /
+                              Customize / Refresh + Stop) only when there's something
+                              to act on, OR while busy so the user can Stop. Hides
+                              the all-disabled toolbar during the empty
+                              "Generating insights..." state to declutter the header.
+                              The ProgressIndicator below carries elapsed time and
+                              the in-flight stage label.
+                            */}
+                            {(insightsResult?.content || insightsBusy) && (
                             <div className="gn-insights-meta">
                                 {insightsGeneratedAt && (
                                     <span
@@ -4044,96 +5031,120 @@ function App(props: AppProps) {
                                         {new Date(insightsGeneratedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }).toLowerCase()}
                                     </span>
                                 )}
-                                <button
-                                    type="button"
-                                    className={`gn-pill gn-pill--compact${copiedFlash["insights"] ? " gn-pill--copied" : ""}`}
-                                    disabled={insightsBusy || !insightsResult?.content}
-                                    title="Copy as markdown"
-                                    aria-label="Copy the current AI Insights output as markdown"
-                                    onClick={() => {
-                                        if (insightsResult?.content) {
-                                            // IDEA-039 — clean trailing prose before copying so
-                                            // the clipboard matches what's rendered on screen.
-                                            // Without this, "Bottom Line Up Front..." and similar
-                                            // wrap-ups bleed through to the copied text even
-                                            // though the renderer drops them.
-                                            flashCopy("insights", cleanInsightsContent(insightsResult.content));
-                                            logSession("INFO", "AI Insights copied to clipboard as markdown.");
-                                        }
-                                    }}
+                                {/* Phase C 2026-05-18 — secondary actions overflow.
+                                  * Copy MD / Copy HTML / Print PDF used to sit as
+                                  * three peer pill buttons next to Refresh; Rajesh's
+                                  * toolbar-noise direction collapses them into a
+                                  * single ⋮ trigger that opens a popover. Primary
+                                  * controls (timestamp, customize, refresh, stop)
+                                  * stay visible. Popover mirrors the customize
+                                  * popover pattern: outside-click + Esc close,
+                                  * focus returns to the trigger on Esc. */}
+                                <div
+                                    className="gn-insights-overflow gn-export-skip"
+                                    ref={overflowMenuRef}
+                                    style={{ position: "relative", display: "inline-flex" }}
                                 >
-                                    <Icon name={copiedFlash["insights"] ? "check" : "copy"} />
-                                </button>
-                                {/* PulsePlay — Copy as rich HTML. Walks the
-                                  * rendered insights container's outerHTML and
-                                  * writes it to the clipboard via Clipboard API
-                                  * so a paste into Outlook / Slack / Notion
-                                  * keeps headings, tables, bold, lists.
-                                  * Falls back to plain markdown when the
-                                  * Clipboard API rejects (older browsers /
-                                  * permission denied). */}
-                                <button
-                                    type="button"
-                                    className={`gn-pill gn-pill--compact${copiedFlash["insights-html"] ? " gn-pill--copied" : ""}`}
-                                    disabled={insightsBusy || !insightsResult?.content}
-                                    title="Copy as rich HTML (paste into Outlook / Slack / Notion)"
-                                    aria-label="Copy as rich HTML"
-                                    onClick={async () => {
-                                        if (!insightsResult?.content) return;
-                                        try {
-                                            const containerEl = document.querySelector(".gn-insights-content")
-                                                || document.querySelector("[data-pp-insights-root]");
-                                            const html = renderInsightsAsEmailHtml(
-                                                cleanInsightsContent(insightsResult.content),
-                                                containerEl instanceof HTMLElement ? containerEl.innerHTML : undefined,
-                                            );
-                                            if (navigator.clipboard && typeof (window as unknown as { ClipboardItem?: unknown }).ClipboardItem === "function") {
-                                                const blob = new Blob([html], { type: "text/html" });
-                                                const text = new Blob([cleanInsightsContent(insightsResult.content)], { type: "text/plain" });
-                                                const ClipboardItemCtor = (window as unknown as { ClipboardItem: new (init: Record<string, Blob>) => unknown }).ClipboardItem;
-                                                await navigator.clipboard.write([new ClipboardItemCtor({ "text/html": blob, "text/plain": text }) as unknown as ClipboardItem]);
-                                                flashCopy("insights-html", "");
-                                                logSession("INFO", "AI Insights copied to clipboard as rich HTML.");
-                                            } else {
-                                                // Fallback — write plain text containing the HTML.
-                                                flashCopy("insights-html", html);
-                                                logSession("WARN", "Clipboard API unavailable — copied raw HTML as plain text.");
-                                            }
-                                        } catch (err) {
-                                            const msg = err instanceof Error ? err.message : String(err);
-                                            logSession("ERROR", `Copy as HTML failed: ${msg}`);
-                                            // Fallback to plain markdown so the click isn't wasted.
-                                            flashCopy("insights", cleanInsightsContent(insightsResult.content));
-                                        }
-                                    }}
-                                >
-                                    <Icon name={copiedFlash["insights-html"] ? "check" : "file-html"} />
-                                </button>
-                                {/* PulsePlay — Print to PDF. Triggers the browser's
-                                  * native print dialog with "Save as PDF" as a
-                                  * destination. Zero deps; cross-browser. Future
-                                  * cycle could add a print-specific stylesheet
-                                  * that strips the chrome and prints only the
-                                  * insights area; for now the user picks the
-                                  * "Selection" option in the print dialog. */}
-                                <button
-                                    type="button"
-                                    className="gn-pill gn-pill--compact"
-                                    disabled={insightsBusy || !insightsResult?.content}
-                                    title="Print or save as PDF"
-                                    aria-label="Open the print dialog to save as PDF"
-                                    onClick={() => {
-                                        try {
-                                            window.print();
-                                            logSession("INFO", "AI Insights print dialog opened (PDF target).");
-                                        } catch (err) {
-                                            const msg = err instanceof Error ? err.message : String(err);
-                                            logSession("ERROR", `Print dialog failed: ${msg}`);
-                                        }
-                                    }}
-                                >
-                                    <Icon name="printer" />
-                                </button>
+                                    <button
+                                        type="button"
+                                        ref={overflowTriggerRef}
+                                        className={`gn-pane-action-btn${overflowOpen ? " gn-pane-action-btn--active" : ""}`}
+                                        disabled={insightsBusy && !insightsResult?.content}
+                                        title="More actions (Copy, Print)"
+                                        aria-haspopup="menu"
+                                        aria-expanded={overflowOpen}
+                                        aria-label="More actions: Copy as markdown, Copy as rich HTML, Print or save as PDF"
+                                        data-testid="gn-insights-overflow-trigger"
+                                        onClick={() => setOverflowOpen(v => !v)}
+                                    >
+                                        <Icon name="more-vertical" />
+                                    </button>
+                                    {overflowOpen && (
+                                        <div
+                                            className="gn-insights-overflow-pop"
+                                            role="menu"
+                                            aria-label="Insights secondary actions"
+                                            data-testid="gn-insights-overflow-pop"
+                                        >
+                                            <button
+                                                type="button"
+                                                role="menuitem"
+                                                className={`gn-insights-overflow-item${copiedFlash["insights"] ? " gn-insights-overflow-item--copied" : ""}`}
+                                                disabled={insightsBusy || !insightsResult?.content}
+                                                data-testid="gn-insights-overflow-item-copy-md"
+                                                onClick={() => {
+                                                    if (insightsResult?.content) {
+                                                        // IDEA-039 — clean trailing prose before copying so
+                                                        // the clipboard matches what's rendered on screen.
+                                                        flashCopy("insights", cleanInsightsContent(insightsResult.content));
+                                                        logSession("INFO", "AI Insights copied to clipboard as markdown.");
+                                                    }
+                                                    setOverflowOpen(false);
+                                                }}
+                                            >
+                                                <Icon name={copiedFlash["insights"] ? "check" : "copy"} />
+                                                <span className="gn-insights-overflow-item-label">Copy as markdown</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                role="menuitem"
+                                                className={`gn-insights-overflow-item${copiedFlash["insights-html"] ? " gn-insights-overflow-item--copied" : ""}`}
+                                                disabled={insightsBusy || !insightsResult?.content}
+                                                data-testid="gn-insights-overflow-item-copy-html"
+                                                onClick={async () => {
+                                                    setOverflowOpen(false);
+                                                    if (!insightsResult?.content) return;
+                                                    try {
+                                                        const containerEl = document.querySelector(".gn-insights-content")
+                                                            || document.querySelector("[data-pp-insights-root]");
+                                                        const html = renderInsightsAsEmailHtml(
+                                                            cleanInsightsContent(insightsResult.content),
+                                                            containerEl instanceof HTMLElement ? containerEl.innerHTML : undefined,
+                                                        );
+                                                        if (navigator.clipboard && typeof (window as unknown as { ClipboardItem?: unknown }).ClipboardItem === "function") {
+                                                            const blob = new Blob([html], { type: "text/html" });
+                                                            const text = new Blob([cleanInsightsContent(insightsResult.content)], { type: "text/plain" });
+                                                            const ClipboardItemCtor = (window as unknown as { ClipboardItem: new (init: Record<string, Blob>) => unknown }).ClipboardItem;
+                                                            await navigator.clipboard.write([new ClipboardItemCtor({ "text/html": blob, "text/plain": text }) as unknown as ClipboardItem]);
+                                                            flashCopy("insights-html", "");
+                                                            logSession("INFO", "AI Insights copied to clipboard as rich HTML.");
+                                                        } else {
+                                                            flashCopy("insights-html", html);
+                                                            logSession("WARN", "Clipboard API unavailable — copied raw HTML as plain text.");
+                                                        }
+                                                    } catch (err) {
+                                                        const msg = err instanceof Error ? err.message : String(err);
+                                                        logSession("ERROR", `Copy as HTML failed: ${msg}`);
+                                                        flashCopy("insights", cleanInsightsContent(insightsResult.content));
+                                                    }
+                                                }}
+                                            >
+                                                <Icon name={copiedFlash["insights-html"] ? "check" : "file-html"} />
+                                                <span className="gn-insights-overflow-item-label">Copy as rich HTML</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                role="menuitem"
+                                                className="gn-insights-overflow-item"
+                                                disabled={insightsBusy || !insightsResult?.content}
+                                                data-testid="gn-insights-overflow-item-print"
+                                                onClick={() => {
+                                                    setOverflowOpen(false);
+                                                    try {
+                                                        window.print();
+                                                        logSession("INFO", "AI Insights print dialog opened (PDF target).");
+                                                    } catch (err) {
+                                                        const msg = err instanceof Error ? err.message : String(err);
+                                                        logSession("ERROR", `Print dialog failed: ${msg}`);
+                                                    }
+                                                }}
+                                            >
+                                                <Icon name="printer" />
+                                                <span className="gn-insights-overflow-item-label">Print or save as PDF</span>
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
                                 {/* Cycle 26 — global "Export ▾" dropdown removed
                                     along with the per-section kebab ⋮ menus.
                                     The toolbar Copy 📋 button (above) still
@@ -4178,7 +5189,7 @@ function App(props: AppProps) {
                                         <button
                                             type="button"
                                             ref={customizeTriggerRef}
-                                            className={`gn-pill gn-pill--compact gn-pill--icon-only${customizeOpen ? " gn-pill--active" : ""}`}
+                                            className={`gn-pane-action-btn${customizeOpen ? " gn-pane-action-btn--active" : ""}`}
                                             disabled={insightsBusy && !insightsResult?.content}
                                             title="Show or hide author-defined custom sections"
                                             aria-haspopup="dialog"
@@ -4264,7 +5275,7 @@ function App(props: AppProps) {
                                     Wave 35 author-defined SQL-section export. */}
                                 <button
                                     type="button"
-                                    className="gn-pill gn-pill--compact"
+                                    className="gn-pane-action-btn"
                                     disabled={insightsBusy}
                                     title="Refresh insights"
                                     aria-label="Refresh AI Insights for the current report context"
@@ -4284,7 +5295,7 @@ function App(props: AppProps) {
                                 {insightsBusy && (
                                     <button
                                         type="button"
-                                        className="gn-pill gn-pill--compact gn-pill--stop"
+                                        className="gn-pane-action-btn gn-pane-action-btn--stop"
                                         title="Stop the in-flight AI Insights run"
                                         aria-label="Stop the current AI Insights run"
                                         onClick={() => stopInsights()}
@@ -4293,11 +5304,10 @@ function App(props: AppProps) {
                                     </button>
                                 )}
                                 {/* IDEA-039 step 1.3 — the standalone Configure pill
-                                    here was redundant with the existing top-right
-                                    "Connected | Managed" status capsule, which also
-                                    opens the Developer Tools drawer. Removed to
-                                    avoid two entry points for the same surface. */}
+                                    here is redundant with the Console entry, which
+                                    owns diagnostics and links to Settings. */}
                             </div>
+                            )}
                             {(stageStatuses.length > 0 || insightsBusy) && (
                                 <div className="gn-insights-progress-wrap gn-insights-progress-wrap--header">
                                     {/* Wave 15 a11y — dedicated SR-only live region for stage
@@ -4348,6 +5358,17 @@ function App(props: AppProps) {
                 </div>
             </div>
 
+            <PulseSurfaceContextStrip
+                surface={activeTab === "insights" ? "AI Insights" : "Ask Pulse"}
+                mode={pulseSurfaceContext.mode}
+                items={[
+                    { label: "Assistant", value: pulseSurfaceContext.assistant },
+                    { label: "Source", value: pulseSurfaceContext.source },
+                    { label: "Scope", value: pulseSurfaceContext.scope },
+                    { label: "Trust", value: pulseSurfaceContext.trust },
+                ]}
+            />
+
             {activeTab === "insights" && (
                 <div
                     className="gn-insights-pane"
@@ -4370,6 +5391,34 @@ function App(props: AppProps) {
                         Bedrock, those sections no-op. The warning gives
                         authors the heads-up so they don't wonder why a
                         configured Custom SQL section returns nothing. */}
+                    {/* Stale-while-revalidate banner: shown while a background
+                        refresh is running on top of a cached result. Tells the
+                        user what they're seeing without hiding the content. */}
+                    {staleRefreshingMap[activeSpaceKey] && (
+                        <div
+                            className="gn-insights-stale-banner"
+                            role="status"
+                            aria-live="polite"
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                padding: "6px 12px",
+                                fontSize: 12,
+                                color: "var(--pp-text-muted, #6b7280)",
+                                borderBottom: "1px solid var(--pp-border, #e5e7eb)",
+                                background: "var(--pp-surface-subtle, #f9fafb)",
+                            }}
+                        >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ animation: "gn-progress-spin 1.2s linear infinite", flexShrink: 0 }}>
+                                <path d="M3 12a9 9 0 0 1 15.5-6.36L21 8" />
+                                <path d="M21 3v5h-5" />
+                                <path d="M21 12a9 9 0 0 1-15.5 6.36L3 16" />
+                                <path d="M3 21v-5h5" />
+                            </svg>
+                            <span>Showing last completed briefing while PulsePlay refreshes.</span>
+                        </div>
+                    )}
                     {props.settings.showConnectorCompatibilityWarnings && (() => {
                         const isDatabricks = props.settings.connectionMode === "proxy" || props.settings.connectionMode === "direct";
                         if (isDatabricks) return null;
@@ -4388,10 +5437,77 @@ function App(props: AppProps) {
                         );
                     })()}
                     {!insightsResult && !insightsBusy ? (
+                        // AI and BI are independent verticals (PulsePlay design
+                        // principle): the only thing that gates AI Insights is
+                        // whether AI is configured. BI is optional grounding.
+                        // - !isConfigured → ask the author to wire AI + show
+                        //                   what AI Insights will do once it
+                        //                   IS configured, so the surface
+                        //                   doesn't feel dead pre-config
+                        //                   (audit P2-1 — parity with Ask Pulse
+                        //                   empty state's Quick-start chips).
+                        // - isConfigured  → brief "Generating…" flash before
+                        //                   insightsBusy flips true and the
+                        //                   running state takes over rendering
                         <div className="gn-insights-placeholder">
-                            <span className="gn-insights-icon">✨</span>
+                            <span className="gn-insights-icon" aria-hidden="true">✨</span>
                             <h3>AI Insights</h3>
-                            <p>{isConfigured ? "Generating insights..." : "Connect to Databricks to generate AI Insights."}</p>
+                            {isConfigured ? (
+                                <p role="status" aria-live="polite">Generating insights…</p>
+                            ) : (
+                                <>
+                                    <p style={{ margin: "0 0 14px" }}>
+                                        Connect an AI assistant and PulsePlay will auto-generate a
+                                        briefing across whatever you're looking at.
+                                    </p>
+                                    <ul style={{
+                                        textAlign: "left",
+                                        listStyle: "none",
+                                        padding: 0,
+                                        margin: "0 0 18px",
+                                        display: "inline-block",
+                                        fontSize: 12,
+                                        lineHeight: 1.65,
+                                        color: "var(--gn-text-muted)",
+                                    }}>
+                                        <li>• Headline — what changed and by how much</li>
+                                        <li>• Trends — what's moving, with grounded SQL</li>
+                                        <li>• Risks &amp; opportunities — flagged with evidence</li>
+                                        <li>• Recommended actions — tied to your KPIs</li>
+                                    </ul>
+                                    <div style={{
+                                        display: "flex",
+                                        gap: 8,
+                                        justifyContent: "center",
+                                        flexWrap: "wrap",
+                                    }}>
+                                        <button
+                                            type="button"
+                                            className="gn-cta-primary"
+                                            onClick={() => {
+                                                try {
+                                                    window.history.pushState({}, "", "/settings/ai");
+                                                    window.dispatchEvent(new CustomEvent("pulseplay:settings-navigate"));
+                                                } catch { /* swallow */ }
+                                            }}
+                                        >
+                                            Connect AI assistant →
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="gn-cta-secondary"
+                                            onClick={() => {
+                                                try {
+                                                    window.history.pushState({}, "", "/knowledge");
+                                                    window.dispatchEvent(new PopStateEvent("popstate"));
+                                                } catch { /* swallow */ }
+                                            }}
+                                        >
+                                            Browse knowledge packs
+                                        </button>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     ) : (!insightsResult || (insightsResult.status === "RUNNING" && !(insightsResult.content || "").trim())) ? (
                         // No content yet — the always-on ProgressIndicator above
@@ -4444,25 +5560,13 @@ function App(props: AppProps) {
                                         >
                                             Refresh
                                         </button>
-                                        {/* Wave 38 Phase 1 — gated by the layered allowlist + showSetupAccess. */}
-                                        {setupAccessGranted && (
-                                            <button
-                                                type="button"
-                                                className="gn-btn gn-btn--compact gn-btn--outline"
-                                                onClick={() => {
-                                                    setDevPanel("setup");
-                                                    setShowDevModal(true);
-                                                }}
-                                            >
-                                                Adjust filters
-                                            </button>
-                                        )}
-                                        {/* Wave 38 Phase 1 — explicit deny note for restricted viewers. */}
-                                        {setupAccessDeniedByAllowlist && (
-                                            <span className="gn-setup-access-denied" title="The report author restricted Setup access to a named allowlist.">
-                                                Setup access restricted to authorized users
-                                            </span>
-                                        )}
+                                        <button
+                                            type="button"
+                                            className="gn-btn gn-btn--compact gn-btn--outline"
+                                            onClick={() => openPulsePlaySettings("setup")}
+                                        >
+                                            Open Settings
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -4671,7 +5775,10 @@ function App(props: AppProps) {
                                           * indicators. Picking a preset persists via
                                           * host.persistProperties → triggers a re-render;
                                           * the next Refresh applies the colors. */}
-                                        {!props.settings.metricDirectionRules?.trim() && (insightsResult?.content || "").trim() && (
+                                        {!props.settings.metricDirectionRules?.trim()
+                                            && (insightsResult?.content || "").trim()
+                                            && !briefingHasStatusColors(insightsResult?.content || "")
+                                            && (
                                             <ColorRulesBanner
                                                 host={props.host}
                                                 currentDomain={props.settings.insightsDomain || ""}
@@ -4694,6 +5801,91 @@ function App(props: AppProps) {
                                                     The always-on indicator now lives in the
                                                     header row 2 (right side) so the bubble
                                                     contains only narrative content. */}
+                                                {/* Research Agent / Genie Agent Mode reasoning trace.
+                                                 *
+                                                 * Renders only when:
+                                                 *  - the message carries reasoning_traces (Databricks Genie
+                                                 *    populates this field only when Agent Mode was activated;
+                                                 *    Agent Mode is currently UI-only — REST API can't trigger
+                                                 *    it as of 2026-05 — so this surfaces traces that originated
+                                                 *    from a Genie-UI session sharing the same space)
+                                                 *  - the author hasn't opted out via Settings → Preferences →
+                                                 *    Mix composition → Research Agent traces. Default ON.
+                                                 *
+                                                 * Collapsed by default with <details> so it doesn't dominate
+                                                 * the main narrative. */}
+                                                {Array.isArray(insightsResult.reasoningTraces) && insightsResult.reasoningTraces.length > 0 && props.settings.insightsShowResearchTraces !== false && (
+                                                    <details className="gn-insights-research-traces" style={{ marginBottom: 12, padding: "8px 12px", border: "1px solid rgba(124, 58, 237, 0.30)", borderRadius: 6, background: "rgba(245, 243, 255, 0.6)" }}>
+                                                        <summary style={{ cursor: "pointer", fontSize: 12, fontWeight: 600, color: "#5b21b6" }}>
+                                                            🔬 Research Agent reasoning ({insightsResult.reasoningTraces.length} {insightsResult.reasoningTraces.length === 1 ? "step" : "steps"})
+                                                        </summary>
+                                                        <ol style={{ marginTop: 8, paddingLeft: 20, fontSize: 12, lineHeight: 1.5 }}>
+                                                            {insightsResult.reasoningTraces.map((trace, i) => (
+                                                                <li key={i} style={{ marginBottom: 4 }}>
+                                                                    <strong style={{ textTransform: "uppercase", fontSize: 10, letterSpacing: 0.4, color: "#7c3aed", marginRight: 6 }}>{trace.kind}</strong>
+                                                                    <span>{trace.description || "(no description)"}</span>
+                                                                </li>
+                                                            ))}
+                                                        </ol>
+                                                    </details>
+                                                )}
+                                                {/* Phase E.1 — stage progression strip. Visible only while
+                                                    the briefing is still progressively revealing. Each pill
+                                                    represents a reveal stage (done / current / pending). */}
+                                                {revealProgress && revealProgress.totalStages > 1 && (
+                                                    <div
+                                                        className="gn-reveal-stage-strip"
+                                                        role="status"
+                                                        aria-live="polite"
+                                                        aria-label={`Briefing reveal: stage ${Math.max(1, revealProgress.currentStageIndex + 1)} of ${revealProgress.totalStages}`}
+                                                        style={{
+                                                            display: "flex",
+                                                            gap: 6,
+                                                            alignItems: "center",
+                                                            margin: "0 0 10px",
+                                                            fontSize: 11,
+                                                            lineHeight: 1.4,
+                                                            flexWrap: "wrap",
+                                                        }}
+                                                    >
+                                                        <span style={{ fontWeight: 600, color: "var(--gn-text-muted, #6b7280)", marginRight: 4 }}>
+                                                            Revealing briefing:
+                                                        </span>
+                                                        {revealProgress.stageProgress.map(stage => {
+                                                            const isDone    = stage.status === "done";
+                                                            const isCurrent = stage.status === "current";
+                                                            return (
+                                                                <span
+                                                                    key={`reveal-stage-${stage.index}`}
+                                                                    data-stage-index={stage.index}
+                                                                    data-stage-status={stage.status}
+                                                                    title={stage.sections.join(" + ")}
+                                                                    style={{
+                                                                        display: "inline-flex",
+                                                                        alignItems: "center",
+                                                                        gap: 4,
+                                                                        padding: "2px 8px",
+                                                                        borderRadius: 10,
+                                                                        background: isDone ? "rgba(16, 185, 129, 0.12)" : isCurrent ? "rgba(124, 58, 237, 0.14)" : "rgba(148, 163, 184, 0.12)",
+                                                                        color: isDone ? "#047857" : isCurrent ? "#5b21b6" : "#64748b",
+                                                                        border: `1px solid ${isDone ? "rgba(16, 185, 129, 0.35)" : isCurrent ? "rgba(124, 58, 237, 0.35)" : "rgba(148, 163, 184, 0.30)"}`,
+                                                                        fontWeight: isCurrent ? 600 : 500,
+                                                                    }}
+                                                                >
+                                                                    <span aria-hidden="true">
+                                                                        {isDone ? "✓" : isCurrent ? "●" : "○"}
+                                                                    </span>
+                                                                    {stage.label}
+                                                                </span>
+                                                            );
+                                                        })}
+                                                        {revealProgress.isRevealing && revealProgress.msUntilNextStage != null && (
+                                                            <span style={{ marginLeft: 4, color: "var(--gn-text-muted, #6b7280)" }}>
+                                                                · next in {Math.max(1, Math.ceil(revealProgress.msUntilNextStage / 1000))}s
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
                                                 {renderInsightsSections(insightsResult.content || "", {
                                                     metricDirectionsJson: props.settings.insightsMetricDirections,
                                                     legacyMetricDirectionRules: props.settings.metricDirectionRules,
@@ -4704,6 +5896,8 @@ function App(props: AppProps) {
                                                     disabledTrendPillSections: getDisabledTrendPillSectionTitles(props.settings.insightsCustomSections),
                                                     // Wave 37 — viewer-side visibility filter (per-report localStorage).
                                                     visibleSectionTitles: currentVisibleTitles,
+                                                    // Phase E.1 — client-side progressive reveal of the Genie answer.
+                                                    revealedSectionTitles,
                                                     // Cycle 20 — per-section export + Show SQL.
                                                     lazyExportBlocked,
                                                     canShowSql,
@@ -4770,7 +5964,7 @@ function App(props: AppProps) {
                                                                     <div key={key} className="gn-sql-section-wrap">
                                                                         <SqlSectionRenderer
                                                                             section={section}
-                                                                            result={cached?.result || null}
+                                                                            result={cached?.result ? maskSqlResult(cached.result, maskingRules) : null}
                                                                             loading={loading}
                                                                         />
                                                                     </div>
@@ -4788,6 +5982,55 @@ function App(props: AppProps) {
                                 so the Insights pane stays clean and ends on
                                 RECOMMENDED ACTIONS. Removed alongside the explicit
                                 "Ask a follow-up" CTA — chat is one tab-click away. */}
+
+                            {/* 2026 — Genie native suggested follow-ups (separate from
+                             *  IDEA-032 clarifiers). Genie's 2026 conversation API GA
+                             *  populates `attachments[].suggested_questions` on
+                             *  COMPLETED messages with confident next-step questions.
+                             *  Render as compact chip row; click fires runInsights
+                             *  with the chip as a custom prompt. Defensive: only
+                             *  renders when the field is present and non-empty —
+                             *  silent for older workspace versions or messages
+                             *  where Genie didn't suggest any. */}
+                            {Array.isArray(insightsResult?.suggestedFollowUps) && insightsResult.suggestedFollowUps.length > 0 && !insightsBusy && (
+                                <div
+                                    className="gn-insights-follow-ups"
+                                    role="group"
+                                    aria-label="Suggested follow-up questions"
+                                    style={{
+                                        display: "flex",
+                                        flexWrap: "wrap",
+                                        gap: 6,
+                                        margin: "12px 0 4px",
+                                        padding: "8px 12px",
+                                        background: "rgba(239, 246, 255, 0.55)",
+                                        border: "1px solid rgba(37, 99, 235, 0.18)",
+                                        borderRadius: 6,
+                                    }}
+                                >
+                                    <span style={{ fontSize: 11, fontWeight: 600, color: "#1d4ed8", marginRight: 4, alignSelf: "center" }}>✨ Try asking:</span>
+                                    {insightsResult.suggestedFollowUps.map((q, i) => (
+                                        <button
+                                            key={`${i}-${q.slice(0, 12)}`}
+                                            type="button"
+                                            className="gn-pill"
+                                            onClick={() => runInsights(q, "Follow-up")}
+                                            disabled={insightsBusy}
+                                            style={{
+                                                fontSize: 11,
+                                                padding: "4px 10px",
+                                                background: "white",
+                                                border: "1px solid rgba(37, 99, 235, 0.40)",
+                                                color: "#1d4ed8",
+                                                borderRadius: 999,
+                                                cursor: insightsBusy ? "not-allowed" : "pointer",
+                                            }}
+                                        >
+                                            {q.length > 90 ? q.slice(0, 87) + "…" : q}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                             {/* Copilot-style custom prompt compose box. Sends a free-form
                                 instruction as the new insights prompt, letting the user
                                 tune tone or focus without leaving the Insights tab. */}
@@ -4827,19 +6070,22 @@ function App(props: AppProps) {
 
             {activeTab === "chat" && (
                 <div
+                    className="gn-chat-panel"
                     role={enabledFeatures === "both" ? "tabpanel" : undefined}
                     id={enabledFeatures === "both" ? "gn-tabpanel-chat" : undefined}
                     aria-labelledby={enabledFeatures === "both" ? "gn-tab-chat" : undefined}
                 >
                     <div className="gn-history-bar">
-                        <button
-                            type="button"
-                            className="gn-pill gn-pill--compact"
-                            disabled={!isConfigured}
-                            onClick={() => setShowHistory(prev => !prev)}
-                        >
-                            {showHistory ? "Hide history" : "Show history"}
-                        </button>
+                        {showHistoryButton && (
+                            <button
+                                type="button"
+                                className="gn-pill gn-pill--compact"
+                                disabled={!isConfigured}
+                                onClick={() => setShowHistory(prev => !prev)}
+                            >
+                                {showHistory ? "Hide history" : "Show history"}
+                            </button>
+                        )}
                         {canViewAllHistory && (
                             <label className="gn-history-toggle">
                                 <input
@@ -4850,9 +6096,12 @@ function App(props: AppProps) {
                                 <span>Author view: all users</span>
                             </label>
                         )}
-                        {!viewerUserKey && (
-                            <span className="gn-history-hint">Bind User Identity to enable per-user retrieval.</span>
-                        )}
+                        {/* T7 anonymous-first: prior "Bind User Identity to enable per-user
+                           retrieval." hint was dev-tooling phrasing and rendered as
+                           noise on the Ask Pulse home. Anonymous chat is now first-
+                           class; identity is optional. A follow-up slice surfaces a
+                           sign-in nudge at risk-of-loss moments (save / share / export),
+                           not as a passive hint on the landing surface. */}
                     </div>
                     {showHistory && (
                         <div className="gn-history-panel">
@@ -4949,7 +6198,7 @@ function App(props: AppProps) {
                         arrive. Mirrors the AI Insights pattern. role="log" with
                         polite announcement avoids interrupting the user. */}
                     <div
-                        className="gn-chat-area"
+                        className="gn-chat-area gn-chat-log"
                         ref={activeTab === "chat" ? chatRef : undefined}
                         role="log"
                         aria-live="polite"
@@ -4989,6 +6238,7 @@ function App(props: AppProps) {
                                                             setMessages={(next) => setSpaceMessages(space.key, next)}
                                                             submit={(input, intent) => void runAssistant(input, intent)}
                                                             nowTick={nowTick}
+                                                            onStop={message.status === "RUNNING" ? () => stopChat(space.key) : undefined}
                                                         />
                                                     ))
                                                 }
@@ -4997,37 +6247,49 @@ function App(props: AppProps) {
                                     );
                                 })}
                             </div>
-                        ) : messages.length === 0 ? (
-                            <WelcomeSection
-                                home={home}
-                                roleMode={roleMode}
-                                isConfigured={isConfigured}
-                                busy={busy}
-                                area={area}
-                                setArea={setArea}
-                                latestActions={latestActions}
-                                onRunArea={() => void runAssistant(AREA_PROMPTS[area], mapAreaToIntent(area))}
-                                onAction={handleSuggestedAction}
-                            />
                         ) : (
-                            messages.map(message => (
-                                <MessageCard
-                                    key={message.id}
-                                    canShowSql={canShowSql}
-                                    canShowTrace={canShowTrace}
-                                    message={message}
-                                    settings={props.settings}
-                                    onFeedback={handleFeedback}
-                                    setMessages={setActiveMessages}
-                                    submit={(input, intent) => void runAssistant(input, intent)}
-                                    nowTick={nowTick}
+                            <>
+                                {/* 2026-05-22 — always render WelcomeSection above the
+                                    message list so users can scroll back to the probe
+                                    snapshot after asking follow-up questions. When
+                                    messages exist, render the compact variant: just
+                                    the KPI snapshot row, hide Quick start + Try asking
+                                    (they'd duplicate the strip rendered below). */}
+                                <WelcomeSection
+                                    home={home}
+                                    roleMode={roleMode}
+                                    isConfigured={isConfigured}
+                                    busy={busy}
+                                    area={area}
+                                    setArea={setArea}
+                                    latestActions={latestActions}
+                                    onRunArea={() => void runAssistant(AREA_PROMPTS[area], mapAreaToIntent(area))}
+                                    onAction={handleSuggestedAction}
+                                    kpiSnapshot={kpiSnapshotMap[activeSpaceKey] ?? null}
+                                    kpiLoading={kpiLoadingMap[activeSpaceKey] ?? false}
+                                    compact={messages.length > 0}
+                                    homeMeta={askPulseHomeMeta.data}
                                 />
-                            ))
+                                {messages.map(message => (
+                                    <MessageCard
+                                        key={message.id}
+                                        canShowSql={canShowSql}
+                                        canShowTrace={canShowTrace}
+                                        message={message}
+                                        settings={props.settings}
+                                        onFeedback={handleFeedback}
+                                        setMessages={setActiveMessages}
+                                        submit={(input, intent) => void runAssistant(input, intent)}
+                                        nowTick={nowTick}
+                                        onStop={message.status === "RUNNING" ? () => stopChat(activeSpaceKey) : undefined}
+                                    />
+                                ))}
+                            </>
                         )}
 
                         {(messages.length > 0 || activeFollowUps.length > 0) && (
                             <div className="gn-suggestions">
-                                <span className="gn-suggestions-label">Try asking</span>
+                                <span className="gn-suggestions-label">✦ Try asking</span>
                                 <div className="gn-suggestion-pills">
                                     {/* IDEA-032: Insights-derived clarifiers come first so the
                                         most-contextual suggestions are most prominent. They
@@ -5038,7 +6300,7 @@ function App(props: AppProps) {
                                     {activeFollowUps.slice(0, 6).map((q, i) => (
                                         <button
                                             key={`fu-${i}`}
-                                            className="gn-pill gn-pill--from-insights"
+                                            className="gn-pill gn-pill--from-insights gn-pill--featured"
                                             disabled={!isConfigured || busy}
                                             title={`${q}\n\n✨ Carried over from AI Insights — will continue the same AI conversation`}
                                             onClick={() => {
@@ -5127,7 +6389,13 @@ function App(props: AppProps) {
                                     onClick={() => fusionResult.content && flashCopy("fusion", fusionResult.content)}
                                     title="Copy fused answer"
                                 >
-                                    {copiedFlash["fusion"] ? "✓ Copied!" : "📋 Copy fusion"}
+                                    {/* 2026-05-19 post-UAT-1840: SVG copy/check
+                                      *  instead of 📋/✓ glyphs for consistent
+                                      *  rendering across OSes. */}
+                                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                        <Icon name={copiedFlash["fusion"] ? "check" : "copy"} />
+                                        {copiedFlash["fusion"] ? "Copied" : "Copy fusion"}
+                                    </span>
                                 </button>
                             )}
                             {syncMode && messages.length > 0 && !fusionPending && (
@@ -5191,12 +6459,44 @@ function App(props: AppProps) {
                     )}
 
                     <div className="gn-compose">
-                        <div className="gn-compose-input-wrap" title="Enter to send · Shift+Enter for new line">
+                        {/* UX-ARCH-0B.2 follow-up 2026-05-23 — sustainability
+                            chip removed from the composer. The single-source
+                            sustainability gauge now lives as a fixed orb in
+                            the bottom-right of the viewport (mounted once in
+                            App.tsx); duplicate mounts here cluttered the chat
+                            input area without adding signal. */}
+                        <div className="gn-compose-input-wrap" title="Enter to send · Shift+Enter for new line · Type / for presets">
+                            {slashOpen && slashFiltered.length > 0 && (
+                                <div className="gn-slash-dropdown" role="listbox" aria-label="Analytical preset commands">
+                                    <div className="gn-slash-dropdown-head">Analytical presets · ↑↓ to navigate · ↵ to insert · esc to cancel</div>
+                                    {slashFiltered.map((p, i) => (
+                                        <button
+                                            key={p.cmd}
+                                            type="button"
+                                            role="option"
+                                            aria-selected={i === slashSelectedIdx}
+                                            className={`gn-slash-item${i === slashSelectedIdx ? " gn-slash-item--active" : ""}`}
+                                            onMouseEnter={() => setSlashSelectedIdx(i)}
+                                            onClick={() => insertSlashPreset(p)}
+                                        >
+                                            <span className="gn-slash-cmd">{p.cmd}</span>
+                                            <span className="gn-slash-label">{p.label}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                             <textarea
                                 className="gn-input"
                                 value={question}
                                 onChange={event => setQuestion(event.target.value)}
                                 onKeyDown={event => {
+                                    if (slashOpen && slashFiltered.length > 0) {
+                                        if (event.key === "ArrowDown") { event.preventDefault(); setSlashSelectedIdx((slashSelectedIdx + 1) % slashFiltered.length); return; }
+                                        if (event.key === "ArrowUp") { event.preventDefault(); setSlashSelectedIdx((slashSelectedIdx - 1 + slashFiltered.length) % slashFiltered.length); return; }
+                                        if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); insertSlashPreset(slashFiltered[slashSelectedIdx]); return; }
+                                        if (event.key === "Tab") { event.preventDefault(); insertSlashPreset(slashFiltered[slashSelectedIdx]); return; }
+                                        if (event.key === "Escape") { event.preventDefault(); setSlashOpen(false); return; }
+                                    }
                                     if (event.key === "Enter" && !event.shiftKey) {
                                         event.preventDefault();
                                         if (question.trim() && isConfigured && !busy) {
@@ -5219,6 +6519,16 @@ function App(props: AppProps) {
                                 aria-describedby="gn-compose-input-hint"
                             />
                             <span id="gn-compose-input-hint" className="gn-sr-only">Press Enter to send. Press Shift plus Enter to insert a new line.</span>
+                            {/* 2026-05-26 — visible keyboard hint chip. The
+                                title= on the wrap and the SR-only span both
+                                communicated keyboard shortcuts, but sighted
+                                users never saw them. Showing only when the
+                                composer is focused + has content keeps idle
+                                state clean while still surfacing the hint
+                                exactly when it's useful. */}
+                            <span className="gn-compose-kbd-hint" aria-hidden="true" data-visible={question.trim() ? "true" : "false"}>
+                                <kbd>↵</kbd> send · <kbd>⇧↵</kbd> newline
+                            </span>
                             <button
                                 className="gn-send"
                                 disabled={busy || !question.trim() || !isConfigured}
@@ -5231,7 +6541,15 @@ function App(props: AppProps) {
                                 }}
                                 aria-label="Send"
                             >
-                                ↑
+                                {/* Audit 2026-05-19: was the raw "↑" glyph;
+                                  * replaced with SVG arrow to match the rest of
+                                  * the icon system and avoid screen readers
+                                  * announcing "up arrow" inside a button already
+                                  * labelled "Send". */}
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <line x1="12" y1="19" x2="12" y2="5" />
+                                    <polyline points="5 12 12 5 19 12" />
+                                </svg>
                             </button>
                         </div>
                     </div>
@@ -5269,9 +6587,9 @@ function App(props: AppProps) {
                         } : {
                             // PulsePlay default — large centered popup, not
                             // the inherited narrow drawer. Authors mostly
-                            // open this to tweak Setup / Display / read
-                            // diagnostics, and the narrow drawer cropped
-                            // multi-column Setup forms.
+                            // open this to read diagnostics/session/SQL trace.
+                            // Configuration edits live in the full Settings
+                            // page to avoid duplicated setup surfaces.
                             position: "relative",
                             width: "88vw",
                             height: "86vh",
@@ -5282,7 +6600,30 @@ function App(props: AppProps) {
                         }}
                     >
                         <div className="gn-modal-header">
-                            <span className="gn-modal-title" id="gn-modal-title">Developer Tools</span>
+                            <div className="gn-modal-title-group">
+                                <span className="gn-modal-title" id="gn-modal-title">Developer Tools</span>
+                                <div className="gn-console-status-cluster" aria-label="Console status">
+                                    <span
+                                        className={`gn-status gn-status--${connectionStatus.level} gn-status--static`}
+                                        title={connectionStatus.tooltip}
+                                        role="status"
+                                    >
+                                        <span className="gn-status-dot" aria-hidden="true" />
+                                        <span className="gn-status-label">{connectionStatus.label}</span>
+                                        <span className="gn-status-mode">{connectionStatus.modeLabel}</span>
+                                    </span>
+                                    {scopeGuardrailTags.length > 0 && (
+                                        <span
+                                            className="gn-status gn-status--scope gn-status--static"
+                                            title={`Active scope guardrails: ${scopeGuardrailDetail}. Data the AI sees is constrained by these rules.`}
+                                        >
+                                            <span className="gn-status-dot" aria-hidden="true" />
+                                            <span className="gn-status-label">Scoped</span>
+                                            <span className="gn-status-mode">{scopeGuardrailLabel}</span>
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
                             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                                 {/* PulsePlay — maximize / restore toggle. Sits
                                     immediately left of the close ✕ so it doesn't
@@ -5302,8 +6643,8 @@ function App(props: AppProps) {
                                     ref={devModalCloseRef}
                                     className="gn-modal-close"
                                     onClick={() => setShowDevModal(false)}
-                                    title={setupPanelVisible ? "Close setup drawer" : "Close Developer Tools"}
-                                    aria-label={setupPanelVisible ? "Close AI Insights setup drawer" : "Close Developer Tools"}
+                                    title="Close Developer Tools"
+                                    aria-label="Close Developer Tools"
                                 >
                                     <span aria-hidden="true">✕</span>
                                 </button>
@@ -5395,33 +6736,14 @@ function App(props: AppProps) {
                                     </button>
                                 );
                             })()}
-                            {/* Wave 38 Phase 1 — Setup tab gated by layered allowlist + showSetupAccess. */}
-                            {setupAccessGranted && (
-                                <button
-                                    className={`gn-dev-btn${devPanel === "setup" ? " gn-dev-btn--active" : ""}`}
-                                    onClick={() => setDevPanel(prev => prev === "setup" ? "" : "setup")}
-                                    title="Configure AI Insights"
-                                    aria-label="Open AI Insights setup drawer"
-                                >
-                                    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M7 1h2l.35 1.65c.36.12.7.26 1.02.43l1.42-.91 1.42 1.42-.91 1.42c.17.32.31.66.43 1.02L14.38 6v2l-1.65.35c-.12.36-.26.7-.43 1.02l.91 1.42-1.42 1.42-1.42-.91c-.32.17-.66.31-1.02.43L9 13.38H7l-.35-1.65a5.5 5.5 0 0 1-1.02-.43l-1.42.91-1.42-1.42.91-1.42a5.5 5.5 0 0 1-.43-1.02L1.62 8V6l1.65-.35c.12-.36.26-.7.43-1.02l-.91-1.42 1.42-1.42 1.42.91c.32-.17.66-.31 1.02-.43L7 1zm1 4a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg>
-                                    Setup
-                                </button>
-                            )}
-                            {/* PulsePlay cycle H — Display tab. Folds the App-
-                                level outer toggles (Pulse/v0, AI/BI/Both, layout
-                                position) into the same Developer Tools modal so
-                                the connection pill is the single global entry
-                                point. State persists via localStorage keys read
-                                by App.tsx; toggle clicks dispatch a custom event
-                                that App.tsx listens for to update React state. */}
                             <button
-                                className={`gn-dev-btn${devPanel === "display" ? " gn-dev-btn--active" : ""}`}
-                                onClick={() => setDevPanel(prev => prev === "display" ? "" : "display")}
-                                title="PulsePlay app-level display options (UI mode, panels, layout)"
-                                aria-label="Open PulsePlay display settings"
+                                className="gn-dev-btn"
+                                onClick={() => openPulsePlaySettings("setup")}
+                                title="Open the canonical PulsePlay Settings page"
+                                aria-label="Open PulsePlay Settings"
                             >
-                                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 3h12v8H2V3zm1 1v6h10V4H3zm-1 8h12v1H2v-1z"/></svg>
-                                Display
+                                <Icon name="settings" />
+                                Settings
                             </button>
                         </div>
                         <div className="gn-modal-body">
@@ -5501,7 +6823,14 @@ function App(props: AppProps) {
                                             onClick={() => void fetchGenieQueries(genieQueriesSinceMin)}
                                             disabled={genieQueriesLoading}
                                         >
-                                            {genieQueriesLoading ? "Loading…" : "↻ Refresh"}
+                                            {/* 2026-05-19 post-UAT-1840: SVG refresh
+                                              *  glyph instead of the text U+21BB. */}
+                                            {genieQueriesLoading ? "Loading…" : (
+                                                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                                    <Icon name="refresh" />
+                                                    Refresh
+                                                </span>
+                                            )}
                                         </button>
                                         {/* Cycle 47.10 — Copy all queries. Mirrors the
                                             session-log Copy button so the user can
@@ -5618,7 +6947,11 @@ function App(props: AppProps) {
                                                                 }}
                                                                 title="Copy formatted SQL"
                                                             >
-                                                                {copiedFlash[`gq-sql:${i}`] ? "✓ Copied!" : "📋 Copy SQL"}
+                                                                {/* 2026-05-19 post-UAT-1840: SVG icon. */}
+                                                                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                                                    <Icon name={copiedFlash[`gq-sql:${i}`] ? "check" : "copy"} />
+                                                                    {copiedFlash[`gq-sql:${i}`] ? "Copied" : "Copy SQL"}
+                                                                </span>
                                                             </button>
                                                             <button
                                                                 type="button"
@@ -5655,7 +6988,11 @@ function App(props: AppProps) {
                                                                 }}
                                                                 title="Copy as markdown (with metadata) — useful for bug reports"
                                                             >
-                                                                📋 Copy as MD
+                                                                {/* 2026-05-19 post-UAT-1840: SVG icon. */}
+                                                                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                                                    <Icon name={copiedFlash[`gq-md:${i}`] ? "check" : "copy"} />
+                                                                    {copiedFlash[`gq-md:${i}`] ? "Copied" : "Copy as MD"}
+                                                                </span>
                                                             </button>
                                                         </div>
                                                         <pre className="gn-code gn-genie-query-sql">
@@ -5921,11 +7258,9 @@ function App(props: AppProps) {
                             {devPanel === "display" && (
                                 <PulsePlayDisplayPanel />
                             )}
-                            {/* Wave 38 Phase 1 — hint mirrors the layered Setup gate so the
-                                "or Setup" affordance is hidden whenever Setup is hidden. */}
-                            {(!devPanel || (devPanel === "setup" && !setupAccessGranted)) && (
+                            {!devPanel && (
                                 <p className="gn-modal-hint">
-                                    Select Diagnostics, Session Log, Display{setupAccessGranted ? ", or Setup" : ""} above.
+                                    Select Diagnostics, Session Log, SQL Trace, or open Settings above.
                                 </p>
                             )}
                         </div>
@@ -5934,6 +7269,13 @@ function App(props: AppProps) {
             )}
         </div>
     );
+}
+
+// Returns true when the briefing content already contains LLM-emitted
+// status emoji (🟢 / 🟡 / 🔴) — in which case the "No status colors"
+// banner is incorrect and must stay hidden.
+function briefingHasStatusColors(content: string): boolean {
+    return content.includes("🟢") || content.includes("🟡") || content.includes("🔴");
 }
 
 // PulsePlay — one-click metric-direction preset banner shown above
@@ -6072,12 +7414,12 @@ function ColorRulesBanner(props: {
     );
 }
 
-// PulsePlay cycle H — Display panel.
+// Retired Display panel.
 //
-// The three App.tsx-owned toggles (UI mode, enabled-components, layout)
-// used to live in a floating gear popover at the top-right of the
-// viewport. Cycle H folds them into Pulse's Developer Tools modal so the
-// connection pill is the single global settings entry point.
+// The App.tsx-owned toggles (UI mode, enabled-components, layout, BI tiles)
+// now live in Settings › Preferences. The Console keeps this lightweight
+// deep-link component only as a defensive fallback if an old state path ever
+// opens `devPanel === "display"`.
 //
 // State contract:
 //   - localStorage keys are owned by App.tsx ("pulseplay:ui-mode",
@@ -6110,72 +7452,57 @@ function writeDisplayPref(key: string, value: string): void {
 }
 
 function PulsePlayDisplayPanel(): React.ReactElement {
-    const [uiMode, setUiMode] = React.useState<"pulse" | "v0">(
-        () => readDisplayPref(PP_UI_MODE_KEY, ["pulse", "v0"] as const, "pulse"),
-    );
-    const [enabled, setEnabled] = React.useState<"aiOnly" | "biOnly" | "both">(
-        () => readDisplayPref(PP_ENABLED_KEY, ["aiOnly", "biOnly", "both"] as const, "both"),
-    );
-    const [layout, setLayout] = React.useState<"ai-left" | "ai-right" | "ai-top" | "ai-bottom">(
-        () => readDisplayPref(PP_LAYOUT_KEY, ["ai-left", "ai-right", "ai-top", "ai-bottom"] as const, "ai-left"),
-    );
-    const [biTile, setBiTile] = React.useState<"1" | "2" | "4">(
-        () => readDisplayPref(PP_BI_TILE_KEY, ["1", "2", "4"] as const, "1"),
-    );
-
-    const applyUiMode = (next: "pulse" | "v0") => { setUiMode(next); writeDisplayPref(PP_UI_MODE_KEY, next); };
-    const applyEnabled = (next: "aiOnly" | "biOnly" | "both") => { setEnabled(next); writeDisplayPref(PP_ENABLED_KEY, next); };
-    const applyLayout = (next: "ai-left" | "ai-right" | "ai-top" | "ai-bottom") => { setLayout(next); writeDisplayPref(PP_LAYOUT_KEY, next); };
-    const applyBiTile = (next: "1" | "2" | "4") => { setBiTile(next); writeDisplayPref(PP_BI_TILE_KEY, next); };
-
-    const btn = (active: boolean): React.CSSProperties => ({
-        padding: "6px 12px",
-        border: "1px solid",
-        borderColor: active ? "#0078d4" : "rgba(0,0,0,0.18)",
-        background: active ? "#0078d4" : "transparent",
-        color: active ? "#fff" : "inherit",
-        borderRadius: 4,
-        cursor: "pointer",
-        fontSize: 13,
-        fontWeight: active ? 600 : 400,
-    });
-    const row: React.CSSProperties = { display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6, marginBottom: 14 };
-    const label: React.CSSProperties = { fontSize: 12, fontWeight: 600, opacity: 0.75, textTransform: "uppercase", letterSpacing: 0.4 };
-    const hint: React.CSSProperties = { fontSize: 11, opacity: 0.6, margin: "0 0 18px" };
-
+    // Phase 5 — the four toggles (UI mode / Enabled panels / Layout /
+    // BI tiles) have moved into Settings › Preferences. The Cycle H
+    // panel inside Pulse Developer Tools is reduced to a deep-link so
+    // there's exactly one place to edit these values and no chance of
+    // state drift between the inline panel and the Settings page.
+    //
+    // Keep the readDisplayPref/writeDisplayPref helpers in this file —
+    // they're still used by other parts of Pulse and the legacy event
+    // bus to mirror values into the settings store.
+    void readDisplayPref;
+    void writeDisplayPref;
+    void PP_UI_MODE_KEY;
+    void PP_ENABLED_KEY;
+    void PP_LAYOUT_KEY;
+    void PP_BI_TILE_KEY;
+    const handleOpenSettings = () => {
+        if (typeof window === "undefined") return;
+        if (window.location.pathname !== "/settings") {
+            window.history.pushState({}, "", "/settings/preferences");
+            try {
+                window.dispatchEvent(new CustomEvent("pulseplay:settings-navigate"));
+            } catch { /* swallow */ }
+        }
+    };
     return (
-        <div style={{ padding: "8px 4px 4px" }}>
-            <div style={label}>UI Mode</div>
-            <div style={row}>
-                <button style={btn(uiMode === "pulse")} onClick={() => applyUiMode("pulse")}>Pulse (default)</button>
-                <button style={btn(uiMode === "v0")} onClick={() => applyUiMode("v0")}>v0 sidebar</button>
-            </div>
-            <p style={hint}>Pulse is the ported PBI-heritage UI. v0 is the lightweight cycle-C sidebar kept as an alternate.</p>
-
-            <div style={label}>Enabled Panels</div>
-            <div style={row}>
-                <button style={btn(enabled === "aiOnly")} onClick={() => applyEnabled("aiOnly")}>AI only</button>
-                <button style={btn(enabled === "biOnly")} onClick={() => applyEnabled("biOnly")}>BI only</button>
-                <button style={btn(enabled === "both")} onClick={() => applyEnabled("both")}>Both</button>
-            </div>
-            <p style={hint}>Which surfaces this PulsePlay instance shows.</p>
-
-            <div style={label}>Layout</div>
-            <div style={row}>
-                <button style={btn(layout === "ai-left")} onClick={() => applyLayout("ai-left")}>AI · Left</button>
-                <button style={btn(layout === "ai-right")} onClick={() => applyLayout("ai-right")}>AI · Right</button>
-                <button style={btn(layout === "ai-top")} onClick={() => applyLayout("ai-top")}>AI · Top</button>
-                <button style={btn(layout === "ai-bottom")} onClick={() => applyLayout("ai-bottom")}>AI · Bottom</button>
-            </div>
-            <p style={hint}>Where the AI pane sits relative to the BI pane. Only applies when both panels are enabled.</p>
-
-            <div style={label}>BI Tiles</div>
-            <div style={row}>
-                <button style={btn(biTile === "1")} onClick={() => applyBiTile("1")}>Single frame</button>
-                <button style={btn(biTile === "2")} onClick={() => applyBiTile("2")}>2 side-by-side</button>
-                <button style={btn(biTile === "4")} onClick={() => applyBiTile("4")}>2 × 2 grid</button>
-            </div>
-            <p style={hint}>How many BI frames render in the BI pane. v1 shares one embed config across all tiles — useful for side-by-side comparison. Per-tile content is a future cycle.</p>
+        <div style={{ padding: "16px 4px 8px", display: "flex", flexDirection: "column", gap: 12 }}>
+            <p style={{ margin: 0, fontSize: 13, opacity: 0.75, lineHeight: 1.5 }}>
+                Display preferences (UI mode, visible panels, AI position, BI tiles) have moved to
+                the canonical Settings page. Edits made here used to live in this developer panel
+                and could drift from Settings; they now live in one place.
+            </p>
+            <button
+                type="button"
+                onClick={handleOpenSettings}
+                style={{
+                    padding: "8px 14px",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    border: "1px solid #0078d4",
+                    background: "#0078d4",
+                    color: "white",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    alignSelf: "flex-start",
+                }}
+            >
+                Open Settings › Preferences →
+            </button>
+            <p style={{ margin: 0, fontSize: 11, opacity: 0.55, lineHeight: 1.4 }}>
+                Keyboard: <code>Cmd/Ctrl + ,</code> opens Settings from anywhere.
+            </p>
         </div>
     );
 }
@@ -6491,7 +7818,7 @@ function ProxyProbingBanner() {
                 <span>
                     {isColdStart
                         ? `First request after idle — typical wake time 15-45s on free-tier hosting (${Math.round(elapsedMs / 1000)}s elapsed). The proxy will be reachable shortly.`
-                        : "Probing the UniBridge AI Proxy at the configured URL."}
+                        : "Probing the PulsePlay Proxy at the configured URL."}
                 </span>
             </div>
         </div>
@@ -6537,7 +7864,7 @@ function ProxyStatusBanner(props: {
                 <span className="gn-proxy-banner-dot gn-proxy-banner-dot--error" aria-hidden="true" />
                 <div className="gn-proxy-banner-text">
                     <strong>Proxy offline</strong>
-                    <span>{props.health.error || "The UniBridge AI Proxy is not reachable at the configured URL."}</span>
+                    <span>{props.health.error || "The PulsePlay Proxy is not reachable at the configured URL."}</span>
                     <span className="gn-proxy-banner-help">
                         To start it locally, open a terminal at the project root and run
                         <code> node proxy/server.js</code>, then click Retry.
@@ -6759,7 +8086,7 @@ function SetupEditFlow(props: {
                                 placeholder={"e.g. " + "http" + "://127.0.0.1:8787"}
                                 aria-required={req}
                             />
-                            <span className="gn-setup-field-hint">Where the UniBridge AI Proxy is listening. Local default is <code>127.0.0.1:8787</code>.</span>
+                            <span className="gn-setup-field-hint">Where the PulsePlay Proxy is listening. Local default is <code>127.0.0.1:8787</code>.</span>
                         </div>
                         );
                     })()}
@@ -6881,7 +8208,7 @@ function SetupEditFlow(props: {
                                 type="text"
                                 value={draft.warehouseId}
                                 onChange={e => setField("warehouseId", e.target.value)}
-                                placeholder="6510da50329f1e85"
+                                placeholder="ENTER_WAREHOUSE_ID"
                                 aria-required={req}
                             />
                             <span className="gn-setup-field-hint">Optional. Pre-warms your SQL warehouse so first questions don't pay cold-start latency.</span>
@@ -7000,6 +8327,34 @@ function SetupEditFlow(props: {
     );
 }
 
+interface PulseSurfaceContextItem {
+    label: string;
+    value: string;
+}
+
+function PulseSurfaceContextStrip(props: {
+    surface: string;
+    mode: string;
+    items: PulseSurfaceContextItem[];
+}): React.ReactElement {
+    return (
+        <div className="gn-surface-context" role="group" aria-label={`${props.surface} context`}>
+            <div className="gn-surface-context__primary">
+                <span className="gn-surface-context__label">Surface</span>
+                <span className="gn-surface-context__value">{props.surface}</span>
+                <span className="gn-surface-context__divider" aria-hidden="true" />
+                <span className="gn-surface-context__value">{props.mode}</span>
+            </div>
+            {props.items.map(item => (
+                <div className="gn-surface-context__item" key={item.label}>
+                    <span className="gn-surface-context__label">{item.label}</span>
+                    <span className="gn-surface-context__value">{item.value}</span>
+                </div>
+            ))}
+        </div>
+    );
+}
+
 function WelcomeSection(props: {
     home: AssistantHomePayload;
     roleMode: UserMode;
@@ -7010,15 +8365,53 @@ function WelcomeSection(props: {
     latestActions: AssistantAction[];
     onRunArea: () => void;
     onAction: (action: AssistantAction) => void;
+    /** Option A — preloaded KPI snapshot content (markdown). When set,
+     *  renders as the leading data panel in place of the role subtitle. */
+    kpiSnapshot?: string | null;
+    /** True while the background preload is in flight — shows a subtle
+     *  "Analysing your data…" hint under the snapshot area. */
+    kpiLoading?: boolean;
+    /** Compact mode (2026-05-22): when the chat thread already has messages,
+     *  render only the KPI snapshot at the top so users can scroll up and
+     *  refer back to the probe answer — without duplicating Quick start /
+     *  Try asking strips (which already render below the message list). */
+    compact?: boolean;
+    /** UX-VIEWER-1.2B — Ask Pulse home metadata from `/assistant/home-meta`.
+     *  Provides displayName + description (the data identity block at the
+     *  top of the empty state) and the source provenance tag. Curated
+     *  questions are already plumbed via `latestActions`. Optional — when
+     *  absent, the empty state degrades to the role subtitle. */
+    homeMeta?: {
+        displayName: string | null;
+        description: string | null;
+        source: string;
+    };
 }) {
+    const showDataIdentity = !props.compact
+        && !!props.homeMeta
+        && (!!props.homeMeta.displayName || !!props.homeMeta.description);
     return (
-        <div className="gn-welcome">
-            {/* IDEA-004: hero logo + product name + role subtitle removed —
-                they duplicated the header content. The data-first snapshot
-                is now the primary landing element. The role subtitle moves
-                to a small caption only when no snapshot data is available
-                (so the cold-start state still has at least one line of
-                context). */}
+        <div className={`gn-welcome${props.compact ? " gn-welcome--compact" : ""}`}>
+            {showDataIdentity && (
+                <div className="gn-welcome-identity" data-testid="askpulse-data-identity">
+                    {props.homeMeta?.displayName && (
+                        <h3 className="gn-welcome-identity__title">{props.homeMeta.displayName}</h3>
+                    )}
+                    {props.homeMeta?.description && (
+                        <p className="gn-welcome-identity__description">{props.homeMeta.description}</p>
+                    )}
+                </div>
+            )}
+            {/* 2026-05-26 — KPI snapshot briefing card REMOVED from Ask
+                Pulse per user direction: "the Asking insights section is
+                not needed in Ask Pulse". The auto-fired insights summary
+                was leaking AI Insights-style content into the chat
+                surface and adding visual noise above the user's first
+                question. AI Insights tab is where briefings belong; Ask
+                Pulse stays a clean chat composer. The kpiSnapshot is
+                still fetched (other paths consume it) but no longer
+                renders here. Fall through to the snapshot pills /
+                identity block below. */}
             {props.home.snapshot.length > 0 ? (
                 <div className="gn-welcome-snapshot">
                     {props.home.snapshot.slice(0, 4).map(card => (
@@ -7028,49 +8421,52 @@ function WelcomeSection(props: {
                         </div>
                     ))}
                 </div>
-            ) : (
+            ) : !props.compact ? (
+                // 2026-05-26 — role subtitle now hidden in COMPACT mode
+                // (when chat has messages). Previously the "Guided
+                // business exploration…" line still rendered above the
+                // chat thread, leaving a ~200px dead zone between the
+                // subtitle and the user's first question bubble. In
+                // active-chat mode the welcome area should collapse so
+                // the conversation owns the surface.
                 <p className="gn-welcome-caption">{getRoleSubtitle(props.roleMode)}</p>
-            )}
+            ) : null}
 
-            <div className="gn-welcome-section">
-                <span className="gn-welcome-section-label">Quick start</span>
-                <div className="gn-suggestion-pills" style={{ justifyContent: "center" }}>
-                    {(["performance", "issue", "risk", "opportunity"] as GuidedArea[]).map(item => (
-                        <button
-                            key={item}
-                            className={`gn-pill${props.area === item ? " gn-pill--active" : ""}`}
-                            onClick={() => props.setArea(item)}
-                        >
-                            {titleCase(item)}
-                        </button>
-                    ))}
-                </div>
-                <div className="gn-suggestion-pills" style={{ justifyContent: "center" }}>
-                    <button
-                        className="gn-pill gn-pill--active"
-                        disabled={!props.isConfigured || props.busy}
-                        onClick={props.onRunArea}
-                    >
-                        Run {titleCase(props.area)} View
-                    </button>
-                </div>
-            </div>
-
-            <div className="gn-welcome-section">
-                <span className="gn-welcome-section-label">Try asking</span>
-                <div className="gn-suggestion-pills" style={{ justifyContent: "center" }}>
-                    {props.latestActions.slice(0, 3).map(action => (
+            {/* UX-VIEWER-1.2A — Genie-shape empty state. Prior layout had two
+               competing affordances stacked: "Quick start" with 4 area tabs
+               + "Run X View" CTA, then "Try asking" with 3 horizontal chips.
+               Three ways to start a single conversation = choice paralysis
+               + a "Run Performance View" button that looked half-disabled.
+               Genie's home is a single vertical list of starter questions
+               with horizontal-rule separators. The Quick start section is
+               removed (the area-tabs concept folds into AI Insights, not
+               Ask Pulse). The Try asking section keeps the same data source
+               (props.latestActions, populated by the LLM probe in 1.2B and
+               STATIC_ACTIONS fallback today) but renders as a vertical list
+               so the questions are scannable and tappable on mobile.
+               */}
+            {!props.compact && props.latestActions.length > 0 && (
+                <div className="gn-welcome-section gn-starter-list" data-testid="askpulse-starter-list">
+                    {props.latestActions.slice(0, 5).map(action => (
                         <button
                             key={action.id}
-                            className="gn-pill"
+                            type="button"
+                            className="gn-starter-question"
                             disabled={!props.isConfigured || props.busy}
                             onClick={() => props.onAction(action)}
+                            data-testid="askpulse-starter-question"
                         >
-                            {action.label}
+                            <span className="gn-starter-question__label">{action.label}</span>
                         </button>
                     ))}
                 </div>
-            </div>
+            )}
+
+            {!props.compact && (
+                <p className="gn-welcome-disclaimer" data-testid="askpulse-disclaimer">
+                    Always review the accuracy of responses.
+                </p>
+            )}
         </div>
     );
 }
@@ -7086,6 +8482,9 @@ function MessageCard(props: {
     /** Wall-clock tick from App so the embedded ProgressIndicator timer
      * can update without each MessageCard owning its own interval. */
     nowTick: number;
+    /** UX-VIEWER-1.5b — invoked when the user clicks Stop on a running
+     *  pending bubble. Undefined for completed/failed/system messages. */
+    onStop?: () => void;
 }) {
     const availableViews = getAvailableMessageViews(props.message, props.canShowSql, props.canShowTrace);
     const activeView = props.message.viewMode && availableViews.includes(props.message.viewMode)
@@ -7112,19 +8511,18 @@ function MessageCard(props: {
     return (
         <div className="gn-msg gn-msg--assistant">
             <div className="gn-bubble">
-                <div className="gn-msg-header gn-msg-header--compact">
-                    <span className="gn-msg-sender">AI for BI</span>
-                    <span className="gn-msg-time">just now</span>
-                    {props.message.route?.routeLabel && (
+                {props.message.route?.routeLabel && (
+                    <div className="gn-msg-header gn-msg-header--compact">
                         <span className="gn-route-label">{props.message.route.routeLabel}</span>
-                    )}
-                </div>
+                    </div>
+                )}
 
                 {renderMessageBody(props.message, activeView, availableViews, props.settings, viewId =>
                     props.setMessages(previous => previous.map(message =>
                         message.id === props.message.id ? { ...message, viewMode: viewId } : message
                     )),
-                    props.nowTick
+                    props.nowTick,
+                    props.onStop
                 )}
 
                 {props.message.suggestedActions?.length ? (
@@ -7189,6 +8587,97 @@ function MessageCard(props: {
                     </div>
                 )}
 
+                {/* 2026-05-22 — unified message-level action toolbar.
+                 *   Rajesh's direction (with annotated screenshot of chart-view
+                 *   icons): "I was talking to have like this" — wants the same
+                 *   📋 ⬇ ↻ </> chrome at bottom-right of EVERY chat reply,
+                 *   matching the visual language of the AI Insights section
+                 *   footer + the existing chart-view toolbar. Single
+                 *   message-level toolbar rather than per-section, so the
+                 *   chrome is consistent across narrative/chart/table/SQL views.
+                 *   SVGs match InsightsSectionFooter for visual parity. */}
+                {props.message.status === "COMPLETED" && (
+                    <div className="gn-msg-actions" role="toolbar" aria-label="Message actions">
+                        <button
+                            type="button"
+                            className="gn-msg-action gn-msg-action--icon"
+                            onClick={() => {
+                                const v = activeView;
+                                if (v === "sql" && props.message.sqlQuery) copyText(props.message.sqlQuery);
+                                else if (v === "table" && props.message.queryResult) copyText(formatTableAsCsv(props.message.queryResult.columns, props.message.queryResult.rows));
+                                else copyText(props.message.content ?? "");
+                            }}
+                            title={`Copy ${activeView === "sql" ? "SQL" : activeView === "table" ? "table as CSV" : "answer"}`}
+                            aria-label={`Copy ${activeView === "sql" ? "SQL" : activeView === "table" ? "table as CSV" : "answer"}`}
+                        >
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <rect x="9" y="2" width="6" height="4" rx="1" />
+                                <path d="M9 4H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2" />
+                            </svg>
+                        </button>
+                        {props.message.queryResult && props.message.queryResult.columns.length > 0 && (
+                            <button
+                                type="button"
+                                className="gn-msg-action gn-msg-action--icon"
+                                onClick={() => {
+                                    const qr = props.message.queryResult!;
+                                    const csv = formatTableAsCsv(qr.columns, qr.rows);
+                                    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement("a");
+                                    a.href = url;
+                                    a.download = `ask-pulse-${props.message.id}.csv`;
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    document.body.removeChild(a);
+                                    URL.revokeObjectURL(url);
+                                }}
+                                title="Download data as CSV"
+                                aria-label="Download data as CSV"
+                            >
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                    <polyline points="7 10 12 15 17 10" />
+                                    <line x1="12" y1="15" x2="12" y2="3" />
+                                </svg>
+                            </button>
+                        )}
+                        {props.message.sourceQuestion && (
+                            <button
+                                type="button"
+                                className="gn-msg-action gn-msg-action--icon"
+                                onClick={() => props.submit(props.message.sourceQuestion!, "summary")}
+                                title="Re-run this question"
+                                aria-label="Re-run this question"
+                            >
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <polyline points="23 4 23 10 17 10" />
+                                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                                </svg>
+                            </button>
+                        )}
+                        {props.message.sqlQuery && availableViews.includes("sql") && (
+                            <button
+                                type="button"
+                                className={`gn-msg-action gn-msg-action--icon${activeView === "sql" ? " gn-msg-action--active" : ""}`}
+                                onClick={() => props.setMessages(previous => previous.map(message =>
+                                    // Toggle: </> now switches Answer ⇄ SQL (the
+                                    // redundant Answer/SQL switch above was removed).
+                                    message.id === props.message.id ? { ...message, viewMode: activeView === "sql" ? "narrative" : "sql" } : message
+                                ))}
+                                title={activeView === "sql" ? "Back to answer" : "View SQL"}
+                                aria-label={activeView === "sql" ? "Back to answer" : "View SQL"}
+                                aria-pressed={activeView === "sql"}
+                            >
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <polyline points="16 18 22 12 16 6" />
+                                    <polyline points="8 6 2 12 8 18" />
+                                </svg>
+                            </button>
+                        )}
+                    </div>
+                )}
+
                 {/* Supervisor breadcrumbs — show which spaces were consulted */}
                 {props.message.route?.spaceResults && props.message.route.spaceResults.length > 0 && (
                     <div className="gn-breadcrumbs">
@@ -7239,99 +8728,225 @@ function MessageCard(props: {
     );
 }
 
+/** Map raw profile slug (`default`, `supervisor`, `foundation-stream`) to a
+ *  human-friendly source label for the provenance footer. Codex 2026-05-19
+ *  naming audit: "Avoid raw profile names such as `default` in primary UI.
+ *  Map them to configured display names." Keep this list small + extend as
+ *  more profile types become common; falls back to title-cased slug. */
+function formatProvenanceSourceLabel(raw: string | undefined): string {
+    if (!raw) return "Default profile";
+    const known: Record<string, string> = {
+        "default":           "Default profile",
+        "supervisor":        "Supervisor agent",
+        "foundation-stream": "Foundation Model",
+    };
+    if (known[raw]) return known[raw];
+    return raw.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// 2026-05-22 — classify the SHAPE of a Genie response so the UI can render
+// clarifying questions as a distinct "needs choice" card instead of as plain
+// narrative. Borrowed structurally from PepPulse blueprint §14 (error-redaction
+// pattern): classify response → friendly user message + structured choice UI.
+//
+// Heuristic rules (intentionally conservative — false negatives are fine,
+// false positives are not):
+//   - "clarifier" if content ends with ? AND length < 400 AND is a single
+//     block (no double-newline). Catches "Would you prefer X or Y?" etc.
+//   - "narrative" otherwise.
+//
+// Future extension: classify "error" shape too (when proxy returns an error
+// envelope masquerading as content), or "partial-with-clarifier" when Genie
+// returns BOTH a clarifier AND data.
+type ResponseShape = "narrative" | "clarifier";
+function classifyResponseShape(content: string | undefined | null): ResponseShape {
+    const text = (content || "").trim();
+    if (!text) return "narrative";
+    const endsWithQuestion = /[?]\s*$/.test(text);
+    const singleBlock = !text.includes("\n\n");
+    if (endsWithQuestion && singleBlock && text.length < 400) return "clarifier";
+    return "narrative";
+}
+
+function formatSqlSectionLabel(section: GenieSqlSection): string {
+    const id = String(section.sectionId || "").trim();
+    const pretty = id
+        ? id.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim()
+        : "Section";
+    const title = pretty
+        ? pretty.toLowerCase().replace(/\b\w/g, ch => ch.toUpperCase())
+        : "Section";
+    return section.cteName ? `${title} · ${section.cteName}` : title;
+}
+
 function renderMessageBody(
     message: ChatMessageViewModel,
     view: OutputMode,
     availableViews: OutputMode[],
     settings: OperationalSettingsModel,
     onViewChange: (view: OutputMode) => void,
-    nowTick: number
+    nowTick: number,
+    onStop?: () => void
 ) {
-    if (message.status === "RUNNING") {
-        // Unified ProgressIndicator (IDEA-020 Phase 3 + 5). The chat poll
-        // path already runs every status through formatGenieStatus →
-        // friendly text, so we infer an icon for each entry from the label
-        // rather than carrying the raw enum through. The active step is
-        // the last one; everything before it is rendered as ✓ done.
-        // Helper chips (Phase 5) populate when the supervisor stream is
-        // active — empty for single-space chat.
-        const steps = message.statusSteps ?? [];
-        const current = message.currentStatus ?? "Starting";
-        const indicatorSteps: ProgressStep[] = steps.length > 0
-            ? steps.map((label, i) => ({
-                id: `chat-step-${i}`,
-                label,
-                icon: inferIconFromLabel(label),
-                state: i === steps.length - 1 ? "active" : "done"
-            }))
-            : [{ id: "chat-step-0", label: current, icon: inferIconFromLabel(current), state: "active" }];
-        const elapsedMs = message.startedAt ? Math.max(0, nowTick - message.startedAt) : 0;
+    // Build the progress indicator once. Live (running) state shows the active
+    // step + spinner; completed state stays mounted as a collapsed "View steps"
+    // pill so the user can expand back to see which stages ran and how long
+    // each took. This was a real gap: previously the indicator unmounted on
+    // status transition out of RUNNING, leaving the user no way to review the
+    // trace (per 2026-05-22 live-testing feedback: "the spinner disappears
+    // there should be some drop icon giving access to it").
+    const stepLabels = message.statusSteps ?? [];
+    const currentStatusLabel = message.currentStatus ?? (message.status === "RUNNING" ? "Starting" : "Completed");
+    const isRunning = message.status === "RUNNING";
+    const isFailed = message.status === "FAILED";
+    const progressSteps: ProgressStep[] = stepLabels.length > 0
+        ? stepLabels.map((label, i) => ({
+            id: `chat-step-${i}`,
+            label,
+            icon: inferIconFromLabel(label),
+            // While running, the LAST step is active; everything before is done.
+            // After completion, every step is done.
+            state: !isRunning
+                ? "done"
+                : (i === stepLabels.length - 1 ? "active" : "done"),
+        }))
+        : (isRunning
+            ? [{ id: "chat-step-0", label: currentStatusLabel, icon: inferIconFromLabel(currentStatusLabel), state: "active" as StepState }]
+            : []);
+    const progressElapsedMs = message.startedAt
+        ? Math.max(0, nowTick - message.startedAt)
+        : 0;
+    // 2026-05-26 — Databricks-side streaming transparency. The
+    // ProgressIndicator already shows friendly labels mapped via
+    // describeGenieStatus(). For users who want to see what Databricks
+    // is actually doing (which Genie call shape, warehouse state,
+    // streaming status enum), we ALSO surface:
+    //   • a small monospace chip next to the active label showing the
+    //     RAW Genie status (e.g. "PENDING_WAREHOUSE", "EXECUTING_QUERY")
+    //   • a collapsible "Databricks trace" disclosure listing every raw
+    //     status transition with timestamp + elapsed-from-start
+    // Both only render when message.currentStatusRaw / statusTrace is
+    // present (Genie path). Non-Genie connectors (Foundation Model,
+    // Supervisor, Bedrock direct) get the friendly label only.
+    const dbxStreamingChip = isRunning && message.currentStatusRaw ? (
+        <span
+            className="gn-dbx-status-chip"
+            title={`Raw Databricks Genie status: ${message.currentStatusRaw}`}
+            aria-label={`Databricks streaming status ${message.currentStatusRaw}`}
+        >
+            {message.currentStatusRaw}
+        </span>
+    ) : null;
+    const dbxTraceNode = (message.statusTrace && message.statusTrace.length > 0) ? (
+        <details className="gn-dbx-trace">
+            <summary>
+                <span className="gn-dbx-trace-summary-title">Databricks Genie trace</span>
+                <span className="gn-dbx-trace-summary-count">{message.statusTrace.length} event{message.statusTrace.length === 1 ? "" : "s"}</span>
+            </summary>
+            <ol className="gn-dbx-trace-list">
+                {message.statusTrace.map((evt, i) => {
+                    const tBase = message.startedAt ?? evt.t;
+                    const dt = Math.max(0, evt.t - tBase);
+                    const ms = dt < 1000 ? `${dt}ms` : `${(dt / 1000).toFixed(1)}s`;
+                    return (
+                        <li key={i} className="gn-dbx-trace-row">
+                            <span className="gn-dbx-trace-time">+{ms}</span>
+                            <span className="gn-dbx-trace-raw">{evt.raw}</span>
+                            <span className="gn-dbx-trace-friendly">{evt.friendly}</span>
+                        </li>
+                    );
+                })}
+            </ol>
+        </details>
+    ) : null;
+    const progressNode = progressSteps.length > 0 ? (
+        <>
+            <ProgressIndicator
+                className="gn-chat-progress"
+                steps={progressSteps}
+                elapsedMs={progressElapsedMs}
+                isComplete={!isRunning}
+                isFailed={isFailed}
+                activeOverride={isRunning && message.currentStatusRaw ? `${currentStatusLabel} · ${message.currentStatusRaw}` : (isRunning ? currentStatusLabel : undefined)}
+                helperChips={message.helperChips}
+            />
+            {dbxStreamingChip && <div className="gn-dbx-status-chip-row">{dbxStreamingChip}</div>}
+            {dbxTraceNode}
+        </>
+    ) : null;
+
+    if (isRunning) {
+        // UX-VIEWER-1.5b — running bubble surfaces a Stop button so users can
+        // exit a slow query (matches Genie + ChatGPT escape-hatch pattern).
+        // Hidden when no onStop is provided (e.g. AI Insights sync runs that
+        // already own a Stop button at the pane header).
+        const isStopping = (message.currentStatus || "").toLowerCase().startsWith("stopping");
         return (
-            <div className="gn-msg-body">
-                <ProgressIndicator
-                    className="gn-chat-progress"
-                    steps={indicatorSteps}
-                    elapsedMs={elapsedMs}
-                    isComplete={false}
-                    activeOverride={current}
-                    helperChips={message.helperChips}
-                />
+            <div className="gn-msg-body gn-msg-body--running">
+                {progressNode}
+                {onStop ? (
+                    <div className="gn-chat-stop-row">
+                        <button
+                            type="button"
+                            className="gn-chat-stop-btn"
+                            onClick={onStop}
+                            disabled={isStopping}
+                            aria-label="Stop generating this response"
+                            title={isStopping ? "Stopping…" : "Stop generating this response"}
+                        >
+                            <span aria-hidden="true">■</span>
+                            <span>{isStopping ? "Stopping…" : "Stop"}</span>
+                        </button>
+                    </div>
+                ) : null}
             </div>
         );
     }
 
     const hasData = Boolean(message.queryResult?.rows?.length);
 
-    const toggles = availableViews.length > 1 ? (
-        <div className="gn-chart-toggles" style={{ marginBottom: 8 }}>
-            {availableViews.map(v => (
-                <button
-                    key={v}
-                    className={`gn-toggle${view === v ? " gn-toggle--active" : ""}`}
-                    onClick={() => onViewChange(v)}
-                    title={v === "trace"
-                        ? (view === "trace" ? "Hide trace details" : "Show trace details")
-                        : `Switch to ${titleCase(v)} view`}
-                    aria-label={v === "trace"
-                        ? (view === "trace" ? "Hide prompts and SQL for each insight stage" : "Show prompts and SQL for each insight stage")
-                        : `Switch to ${titleCase(v)} view`}
-                >
-                    {titleCase(v)}
-                </button>
-            ))}
-        </div>
-    ) : null;
+    // 2026-05-30 — single-view answer (Narrative + preferred Chart + Table
+    // stacked). The Answer/SQL/Trace switch was REMOVED as redundant: SQL is
+    // reachable via the </> toggle in the message toolbar below (Rajesh: "no
+    // need to show Answer / SQL tab — we have the show-sql option at the bottom
+    // <>"). isAnswerView still gates the stacked Chart/Table sections; a stale
+    // "chart"/"table" viewMode falls through to the Answer render.
+    const isAnswerView = view !== "sql" && view !== "trace";
+    const toggles = null;
+    void onViewChange; // retained in the signature for the chart-rationale "switch view" path; no longer drives a visible switch here
 
-    if ((view === "chart" || view === "table") && message.queryResult) {
-        return (
-            <div className="gn-chart-wrap">
-                {toggles}
-                {view === "chart"
-                    ? <GenieChart columns={message.queryResult.columns} rows={message.queryResult.rows} preferredChart={message.forcedChartType} />
-                    : <GenieTable columns={message.queryResult.columns} rows={message.queryResult.rows} />
-                }
-                <div className="gn-chart-meta">
-                    <span>{message.queryResult.rows.length} row{message.queryResult.rows.length !== 1 ? "s" : ""} returned</span>
-                    <div className="gn-export-btns">
-                        <button className="gn-export-btn" onClick={() => copyText(formatTableAsCsv(message.queryResult!.columns, message.queryResult!.rows))}>Export data</button>
-                    </div>
-                </div>
-            </div>
-        );
-    }
+    // 2026-05-30 — the former dedicated "chart" / "table" views are gone:
+    // both render inline in the stacked Answer view below. Export lives on the
+    // message-level toolbar (Copy / Download CSV). If a stale viewMode of
+    // "chart" or "table" is restored from storage, isAnswerView is true so it
+    // falls through to the stacked Answer render.
 
     if (view === "sql" && message.sqlQuery) {
+        const sectionTabs = Array.isArray(message.sqlSections)
+            ? message.sqlSections
+                .filter(sec => sec && typeof sec.sqlFragment === "string" && sec.sqlFragment.trim())
+                .map(sec => ({
+                    label: formatSqlSectionLabel(sec),
+                    sql: sec.sqlFragment,
+                }))
+            : [];
         // Cycle 47.8 — when the response carried multiple SQL queries
         // (multiple attachments[i].query.query entries), tab across them
         // via SqlTabs. Single-query responses still render exactly one
-        // `<pre>` — same shape and no extra chrome as before.
-        const queries = (Array.isArray(message.sqlQueries) && message.sqlQueries.length > 0)
-            ? message.sqlQueries
-            : [message.sqlQuery];
+        // `<pre>` unless Phase 11b section labels are present. Section
+        // fragments win because they make the staged-render SQL trace
+        // readable; raw query blobs stay as the fallback below.
+        const queries = sectionTabs.length > 0
+            ? sectionTabs.map(tab => tab.sql)
+            : ((Array.isArray(message.sqlQueries) && message.sqlQueries.length > 0)
+                ? message.sqlQueries
+                : [message.sqlQuery]);
+        const labels = sectionTabs.length > 0 ? sectionTabs.map(tab => tab.label) : undefined;
         return (
             <>
+                {progressNode}
                 {toggles}
-                <SqlTabs queries={queries} />
+                <SqlTabs queries={queries} labels={labels} ariaLabel={labels ? "SQL sections" : "SQL queries"} />
             </>
         );
     }
@@ -7339,6 +8954,7 @@ function renderMessageBody(
     if (view === "trace" && (message.stageTraces?.length || message.trace?.length)) {
         return (
             <>
+                {progressNode}
                 {toggles}
                 {message.stageTraces?.length ? (
                     <div className="gn-stage-traces" data-testid="gn-stage-traces">
@@ -7379,10 +8995,116 @@ function renderMessageBody(
         );
     }
 
+    const responseShape = classifyResponseShape(message.content);
+    // 2026-05-30 — first-message briefing replies already render rich KPI /
+    // section cards (incl. a data table) via renderInsightsSections. In that
+    // case the dedicated Table section below would duplicate the table, so we
+    // suppress it (the preferred Chart is still additive — briefings don't
+    // render an ECharts viz). Plain prose replies get both Chart + Table.
+    const isBriefingReply = /^#{1,3}\s+(HEADLINE|KPI SNAPSHOT|TRENDS|RISKS|OPPORTUNITIES|RECOMMENDED ACTIONS|WHAT CHANGED|WHAT NEEDS ATTENTION|NEXT BEST ACTIONS|EXECUTIVE BRIEF)\b/im.test(message.content || "");
     return (
         <>
+            {progressNode}
             {toggles}
-            <div className="gn-msg-body">{renderNarrative(message.content || "No response returned.")}</div>
+            {responseShape === "clarifier" ? (
+                // §14 pattern — Genie returned a clarifying question, not an answer.
+                // Render as a distinct "needs choice" card so the user understands
+                // this isn't the final answer; the follow-up suggestion chips below
+                // the message offer the actionable choices.
+                <div
+                    className="gn-msg-body gn-msg-body--clarifier"
+                    role="status"
+                    aria-live="polite"
+                    data-testid="gn-clarifier-card"
+                    style={{
+                        padding: "12px 14px",
+                        borderLeft: "3px solid var(--pp-accent, #2563eb)",
+                        background: "var(--pp-surface-subtle, #f0f9ff)",
+                        borderRadius: 4,
+                        marginTop: 4,
+                    }}
+                >
+                    <div
+                        style={{
+                            fontSize: 11,
+                            fontWeight: 600,
+                            textTransform: "uppercase",
+                            letterSpacing: "0.04em",
+                            color: "var(--pp-accent, #2563eb)",
+                            marginBottom: 6,
+                        }}
+                    >
+                        Genie needs a choice
+                    </div>
+                    <div style={{ fontSize: 14, lineHeight: 1.5 }}>{message.content}</div>
+                    <div
+                        style={{
+                            marginTop: 8,
+                            fontSize: 11,
+                            color: "var(--pp-text-muted, #6b7280)",
+                        }}
+                    >
+                        Pick an option below to continue, or type a more specific question.
+                    </div>
+                </div>
+            ) : (() => {
+                // 2026-05-26 — Narrative view should narrate, not render
+                // raw tabular data. When Genie returns a markdown table in
+                // the narrative AND we already have queryResult (the same
+                // data, structured) for the Table tab, strip the table
+                // from the prose so users get the explanation, not a
+                // duplicate of what's already in Table. If the narrative
+                // is ONLY a table after stripping, show a clear hint
+                // pointing at the Table tab. Per Rajesh 2026-05-26:
+                // "narrative is showing as table-like data in some cases,
+                // it's not actually narrating anything specifically."
+                const raw = message.content || "No response returned.";
+                let prose = raw;
+                let strippedTable = false;
+                if (message.queryResult && message.queryResult.rows?.length) {
+                    // Match markdown table blocks: header row, separator,
+                    // and >= 1 body row, all pipe-delimited. Strip them.
+                    const tableRe = /(^|\n)\s*\|[^\n]+\|\s*\n\s*\|[\s\-:|]+\|\s*\n(?:\s*\|[^\n]+\|\s*\n?)+/g;
+                    if (tableRe.test(raw)) {
+                        prose = raw.replace(tableRe, "\n\n").replace(/\n{3,}/g, "\n\n").trim();
+                        strippedTable = true;
+                    }
+                }
+                const proseHasContent = prose.replace(/[\s•\-*]/g, "").length > 8;
+                // 2026-05-30 — when the answer IS the data (no real prose after
+                // stripping the duplicate markdown table), skip the narrative
+                // block entirely; the Chart + Table sections below carry it.
+                // No more "open the Table tab" redirect — there is no tab.
+                if (strippedTable && !proseHasContent) {
+                    return null;
+                }
+                return (
+                    <div className="gn-msg-body">
+                        {renderKpiSnapshot(prose)}
+                    </div>
+                );
+            })()}
+            {isAnswerView && responseShape !== "clarifier" && message.queryResult && message.queryResult.rows.length > 0 && (
+                <div className="gn-answer-extra">
+                    <section className="gn-answer-section gn-answer-section--chart">
+                        <div className="gn-answer-section-label">
+                            <span className="gn-answer-section-label-text">Chart</span>
+                        </div>
+                        <GenieChart columns={message.queryResult.columns} rows={message.queryResult.rows} preferredChart={message.forcedChartType} genieViz={message.genieViz} sqlQuery={message.sqlQuery} sourceQuestion={message.sourceQuestion} connectorProfileId={message.route?.assistantProfile} />
+                    </section>
+                    {!isBriefingReply && (
+                        <section className="gn-answer-section gn-answer-section--table">
+                            <div className="gn-answer-section-label">
+                                <span className="gn-answer-section-label-text">Table</span>
+                                <span className="gn-answer-section-label-meta">{message.queryResult.rows.length} row{message.queryResult.rows.length === 1 ? "" : "s"}</span>
+                            </div>
+                            <div className="gn-answer-table-scroll">
+                                <GenieTable columns={message.queryResult.columns} rows={message.queryResult.rows} />
+                            </div>
+                        </section>
+                    )}
+                </div>
+            )}
             {message.dmlWarning && (
                 <div className="gn-dml-warning" role="alert" aria-live="assertive">
                     {message.dmlVerb
@@ -7436,97 +9158,216 @@ function GenieTable(props: { columns: string[]; rows: any[][]; isNarrative?: boo
     );
 }
 
-function GenieChart(props: { columns: string[]; rows: any[][]; preferredChart?: ChartKind }) {
+function GenieChart(props: { columns: string[]; rows: any[][]; preferredChart?: ChartKind; genieViz?: unknown; sqlQuery?: string; sourceQuestion?: string; connectorProfileId?: string }) {
     const dataShape = useMemo(() => analyzeDataShape(props.columns, props.rows), [props.columns, props.rows]);
     const recommended = dataShape.recommended;
-    // If the question carried an explicit chart-type cue ("show me a bar
-    // chart of …") the parent passes preferredChart, which beats the
-    // auto-recommendation. Otherwise we use the recommendation.
-    const initial: ChartKind = props.preferredChart ?? recommended;
+    // UX-VIEWER-1.7b.2 — when Genie returns a HELIOS viz spec, defer to
+    // Databricks' chart-type pick (their type inference + chart picker
+    // is more reliable than name-pattern heuristics). resolveChartSpec
+    // walks the translator registry; HELIOS detects this shape and
+    // returns a ChartIR. We then map ChartIR.mark back to ChartKind for
+    // the existing buildEChartsOption call.
+    //
+    // Precedence: user override (preferredChart) > Genie HELIOS pick >
+    // PulsePlay heuristic recommendation. User choice always wins so
+    // the chart-type dropdown still works for manual override.
+    const genieIRChartKind = useMemo<ChartKind | null>(() => {
+        if (!props.genieViz) return null;
+        const ir = resolveChartSpec(props.genieViz, {
+            columns: props.columns.map(name => ({ name })),
+            rows: props.rows,
+        });
+        // Skip the heuristic fallback — only honor real translator hits.
+        if (!ir || ir.sourceTranslator === "heuristic") return null;
+        return irMarkToChartKind(ir.mark);
+    }, [props.genieViz, props.columns, props.rows]);
+    const initial: ChartKind = props.preferredChart ?? genieIRChartKind ?? recommended;
     const [chartType, setChartType] = useState<ChartKind>(initial);
 
-    // Reset chart type when recommendation OR the preferred override
-    // changes (new query, or a different question with a different
-    // explicit chart ask).
     useEffect(() => { setChartType(initial); }, [initial]);
 
-    if (!dataShape.series.length && !dataShape.clustered.length) {
-        return <div className="gn-msg-body">This result does not contain a chartable series. Switch to table or narrative view.</div>;
-    }
+    // End-user palette picker — lives on the chart (end users never see
+    // Settings). Selecting a palette re-skins EVERY chart app-wide via a CSS
+    // var + broadcast; this state just forces THIS chart to rebuild its option
+    // (which reads the var) when the broadcast fires.
+    const [paletteId, setPaletteId] = useState<string>(() => getActivePaletteId());
+    useEffect(() => {
+        const onPalette = (e: Event) => setPaletteId((e as CustomEvent).detail || getActivePaletteId());
+        window.addEventListener(CHART_PALETTE_EVENT, onPalette);
+        return () => window.removeEventListener(CHART_PALETTE_EVENT, onPalette);
+    }, []);
 
-    const series = dataShape.series;
-    const clustered = dataShape.clustered;
-    const chartRange = getChartRange(series.length ? series : clustered.flatMap(c => c.values.map(v => ({ label: v.name, value: v.value }))));
+    // Pin-to-canvas — capture this chart (with its CURRENT type) as a snapshot
+    // tile on the native BI canvas. Carries the SQL + connector so a later phase
+    // can refresh it live.
+    const [pinned, setPinned] = useState(false);
+    const handlePin = useCallback(() => {
+        // Connector binding for a future live refresh. Prefer the profile that
+        // answered (route), fall back to the active profile so it is always
+        // captured even when the response route omits it.
+        let connectorProfileId = props.connectorProfileId;
+        if (!connectorProfileId) {
+            try { connectorProfileId = window.localStorage.getItem("pulseplay:active-ai-profile") || undefined; } catch { /* ignore */ }
+        }
+        addCanvasTile({
+            title: props.sourceQuestion?.trim() || "Pinned chart",
+            kind: "chart",
+            chartType,
+            columns: props.columns,
+            rows: props.rows,
+            sqlQuery: props.sqlQuery,
+            connectorProfileId,
+            sourceQuestion: props.sourceQuestion,
+        });
+        setPinned(true);
+        window.setTimeout(() => setPinned(false), 1800);
+    }, [chartType, props.columns, props.rows, props.sqlQuery, props.connectorProfileId, props.sourceQuestion]);
+
+    // Group CHART_OPTIONS into optgroup sections for the picker.
+    const grouped = useMemo(() => {
+        const map = new Map<string, Array<(typeof CHART_OPTIONS)[number]>>();
+        for (const opt of CHART_OPTIONS) {
+            if (!map.has(opt.group)) map.set(opt.group, []);
+            map.get(opt.group)!.push(opt);
+        }
+        return map;
+    }, []);
 
     return (
         <div className="gn-chart-container">
-            <div className="gn-chart-type-bar">
+            <div className="gn-chart-type-bar" style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <select
                     className="gn-chart-type-select"
                     value={chartType}
                     onChange={e => setChartType(e.target.value as ChartKind)}
                 >
-                    {CHART_OPTIONS.map(opt => (
-                        <option key={opt.value} value={opt.value} disabled={!opt.supported}>
-                            {opt.label}{opt.value === recommended ? " ★" : ""}{!opt.supported ? " (coming soon)" : ""}
-                        </option>
+                    {Array.from(grouped.entries()).map(([group, opts]) => (
+                        <optgroup key={group} label={group}>
+                            {opts.map(opt => (
+                                <option key={opt.value} value={opt.value}>
+                                    {opt.label}{opt.value === recommended ? " ★" : ""}
+                                </option>
+                            ))}
+                        </optgroup>
                     ))}
                 </select>
+                {/* 2026-05-22 — shared "Why this chart?" pill. Same component used in
+                    NativeCanvas. Anchored next to the chart-type dropdown so the
+                    rationale is visible at the point of decision. */}
+                <ChartRationalePill
+                    columns={props.columns}
+                    rows={props.rows}
+                    pickedKind={chartType}
+                    popoverPlacement="below-right"
+                    onSuggestedViewClick={(suggestedView) => {
+                        // 2026-05-22 G4 — click-to-switch handler.
+                        // Maps the warning's `suggestedView` string (free-form
+                        // human label like "KPI tile" / "Matrix view") to a
+                        // ChartKind that GenieChart's <select> understands.
+                        // Industry consensus is suggest-then-apply, never auto-
+                        // route; the user must click to opt in (see
+                        // docs/research/EXTERNAL_REFERENCES.md G4 entry).
+                        const lower = String(suggestedView || "").toLowerCase();
+                        // "table" isn't a chart kind in the picker; the
+                        // closest fit when the warning says "Matrix view" /
+                        // "Table with sorting" is to keep the chart but
+                        // surface the data tab — out of scope here, so we
+                        // map both back to KPI. The user can still switch
+                        // to the Table tab via the message-level tabs.
+                        const next: ChartKind | null =
+                            /\bkpi\b|\btable\b|\bmatrix\b/.test(lower) ? "kpi" :
+                            /\bbar\b/.test(lower) ? "bar" :
+                            /\bcolumn\b/.test(lower) ? "column" :
+                            /\bline\b/.test(lower) ? "line" :
+                            /\barea\b/.test(lower) ? "area" :
+                            /\bpie|donut\b/.test(lower) ? "donut" :
+                            /\bscatter\b/.test(lower) ? "scatter" :
+                            /\bheatmap\b/.test(lower) ? "heatmap" :
+                            /\btreemap\b/.test(lower) ? "treemap" :
+                            /\bfunnel\b/.test(lower) ? "funnel" :
+                            /\bpareto\b/.test(lower) ? "pareto" :
+                            /\bwaterfall\b/.test(lower) ? "waterfall" :
+                            /\bsparkline\b/.test(lower) ? "sparkline" :
+                            /\bgauge\b/.test(lower) ? "gauge" :
+                            /\bradar\b/.test(lower) ? "radar" :
+                            null;
+                        if (next) setChartType(next);
+                    }}
+                />
+                <span className="gn-chart-palette" title="Chart colors" style={{ marginLeft: "auto" }}>
+                    <span className="gn-chart-palette-swatches" aria-hidden="true">
+                        {(CHART_PALETTES.find(p => p.id === paletteId) ?? CHART_PALETTES[0]).colors.slice(0, 5).map((c, i) => (
+                            <span key={i} style={{ background: c }} />
+                        ))}
+                    </span>
+                    <select
+                        className="gn-chart-palette-select"
+                        value={paletteId}
+                        onChange={e => applyChartPalette(e.target.value)}
+                        aria-label="Chart color palette"
+                    >
+                        {CHART_PALETTES.map(p => (
+                            <option key={p.id} value={p.id}>{p.label}</option>
+                        ))}
+                    </select>
+                </span>
+                <button
+                    type="button"
+                    className={`gn-chart-pin${pinned ? " gn-chart-pin--done" : ""}`}
+                    onClick={handlePin}
+                    title="Pin this chart to the Dashboard canvas"
+                    aria-label="Pin this chart to the Dashboard canvas"
+                >
+                    {pinned ? (
+                        <>
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+                            <span>Pinned</span>
+                        </>
+                    ) : (
+                        <>
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="12" y1="17" x2="12" y2="22" /><path d="M5 17h14l-1.5-3V8a2 2 0 0 0-2-2H8.5a2 2 0 0 0-2 2v6L5 17z" /></svg>
+                            <span>Pin to canvas</span>
+                        </>
+                    )}
+                </button>
             </div>
-            {renderChartBody(chartType, series, clustered, chartRange, dataShape)}
+            {renderEChartsBody(chartType, props.columns, props.rows, dataShape)}
         </div>
     );
 }
 
-function renderChartBody(
+function renderEChartsBody(
     chartType: ChartKind,
-    series: ChartSeriesPoint[],
-    clustered: ClusteredSeriesPoint[],
-    chartRange: ChartRange,
-    dataShape: DataShape
+    columns: string[],
+    rows: any[][],
+    dataShape: DataShape,
 ): React.ReactNode {
-    const CAP = 12;
-    const visibleSeries = series.slice(0, CAP);
-    const capWarning = series.length > CAP
-        ? <div className="gn-chart-cap-warning">Showing first {CAP} of {series.length} data points</div>
-        : null;
-
-    if (chartType === "clustered-bar" && clustered.length > 0) {
-        return <ClusteredBarChart clustered={clustered} />;
-    }
-
-    if (chartType === "donut" && visibleSeries.length > 0) {
-        return <>{capWarning}<DonutChart series={visibleSeries} /></>;
-    }
-
-    if (chartType === "area" && visibleSeries.length > 0) {
-        return <>{capWarning}<LineAreaChart series={visibleSeries} chartRange={chartRange} filled={true} /></>;
-    }
-
-    if (chartType === "line" && visibleSeries.length > 0) {
-        return <>{capWarning}<LineAreaChart series={visibleSeries} chartRange={chartRange} filled={false} /></>;
-    }
-
-    // Default: bar
-    return (
-        <>
-            {capWarning}
-            <div className="gn-chart-bars">
-                {visibleSeries.map(point => (
-                    <div key={point.label} className="gn-bar-row">
-                        <div className="gn-bar-label">{point.label}</div>
-                        <div className="gn-bar-track">
-                            <div className="gn-bar-axis" style={{ left: `${chartRange.zeroRatio * 100}%` }} />
-                            <div className="gn-bar-fill" style={buildBarStyle(point.value, chartRange)}>
-                                <span className="gn-bar-fill-label">{formatNumber(point.value)}</span>
-                            </div>
-                        </div>
-                        <div className="gn-bar-value">{formatNumber(point.value)}</div>
-                    </div>
-                ))}
+    // KPI tile — single prominent metric, no ECharts needed.
+    if (chartType === "kpi") {
+        const firstNumericIdx = columns.findIndex((_, i) => rows[0] && !isNaN(Number(rows[0][i])));
+        const labelIdx = firstNumericIdx > 0 ? 0 : -1;
+        const valueIdx = firstNumericIdx >= 0 ? firstNumericIdx : 0;
+        const value = rows[0]?.[valueIdx];
+        const label = labelIdx >= 0 ? String(rows[0]?.[labelIdx] ?? columns[labelIdx]) : columns[valueIdx];
+        return (
+            <div className="gn-kpi-chart-tile">
+                <div className="gn-kpi-chart-value">{formatNumber(Number(value))}</div>
+                <div className="gn-kpi-chart-label">{label}</div>
             </div>
-        </>
-    );
+        );
+    }
+
+    // All other types — ECharts.
+    const option = buildEChartsOption(chartType, columns, rows);
+    if (!option) {
+        return (
+            <div className="gn-msg-body gn-chart-no-data">
+                Not enough data to render a <strong>{chartType}</strong> chart.
+                Try switching to Bar or Table view.
+            </div>
+        );
+    }
+    return <EChartsRenderer option={option} height={320} />;
 }
 
 const CLUSTERED_COLORS = ["#4793f8", "#f97316", "#22c55e", "#ef4444", "#a855f7", "#eab308"];
@@ -7810,6 +9651,517 @@ function demoteBulletStyleHeadings(text: string): string {
     return out.join("\n");
 }
 
+/* ─── Option-A welcome KPI snapshot renderer ─────────────────────────
+ * Parses the LLM's KPI snapshot output into a structured layout:
+ *   - First non-bullet paragraph → bottom-line headline (bold lead)
+ *   - Bullet lines matching `- <name>: <value> · <up|down|stable> (was <prior>)`
+ *       → metric row with trend chip
+ *   - Final `Action: …` line → highlighted call-out
+ * If parsing fails to find at least one metric row, the function falls
+ * back to the generic renderNarrative so we never lose content.
+ */
+/** 2026-05-26 — detect Genie's Deep Research / Agent Mode reasoning
+ *  block and split it from the actual answer. Agent Mode emits a
+ *  verbose meta-trace ("Initial analysis", "Found relevant data",
+ *  "Calculated an answer based on these steps", "Start inspecting",
+ *  "Make a decision", "Conclusion", "Inspection complete!") BEFORE
+ *  the actual answer text. Users want the answer first; the reasoning
+ *  belongs in a collapsed disclosure ("Show reasoning").
+ *  Returns { reasoning, answer } where reasoning is null when the
+ *  Agent Mode markers aren't present. */
+const AGENT_MODE_MARKERS = [
+    /^Initial analysis\b/im,
+    /^Found relevant data\b/im,
+    /^Calculated an answer based on these steps\b/im,
+    /^Start inspecting\b/im,
+    /^Make a decision\b/im,
+    /^Inspection complete!?\s*$/im,
+];
+export function splitAgentModeReasoning(raw: string): { reasoning: string | null; answer: string } {
+    const text = String(raw || "").trim();
+    if (!text) return { reasoning: null, answer: text };
+    // Need at least 3 of the markers to confidently identify Agent Mode
+    // (avoid false positives on prose that happens to contain "Conclusion").
+    const hits = AGENT_MODE_MARKERS.filter(re => re.test(text)).length;
+    if (hits < 3) return { reasoning: null, answer: text };
+    // The reasoning ends at "Inspection complete!"; everything after is
+    // the answer. If the marker is missing fall back to splitting at the
+    // last Agent Mode marker found.
+    const completeIdx = text.search(/^Inspection complete!?\s*$/im);
+    if (completeIdx >= 0) {
+        const lineEnd = text.indexOf("\n", completeIdx);
+        const splitAt = lineEnd >= 0 ? lineEnd + 1 : text.length;
+        const reasoning = text.slice(0, splitAt).trim();
+        const answer = text.slice(splitAt).trim();
+        if (!answer) return { reasoning: null, answer: text }; // no answer remained, keep original
+        return { reasoning, answer };
+    }
+    return { reasoning: null, answer: text };
+}
+
+/** 2026-05-26 — strip a single trailing Genie clarifying question. The
+ *  briefing/snapshot prompt explicitly forbids clarifying questions
+ *  ("No tables, no SQL, no preamble, no clarifying questions") but
+ *  Genie intermittently appends one anyway ("Would you prefer…?",
+ *  "Should I…?", "Do you want me to…?"). When that happens we strip
+ *  it from the main answer and surface it as a clickable suggestion
+ *  chip below — turns a contract violation into a useful affordance.
+ *  Returns { body, clarifier } where clarifier is null when no
+ *  clarifying question was found. Question mark is optional because
+ *  Genie sometimes drops it. */
+export function splitTrailingClarifier(raw: string): { body: string; clarifier: string | null } {
+    const text = String(raw || "").trim();
+    if (!text) return { body: text, clarifier: null };
+    // Match a trailing single sentence that opens with a Genie-style
+    // clarifying lead-in. Anchored to end of string with optional
+    // trailing whitespace. The sentence body may or may not end with
+    // a question mark (Genie sometimes drops it).
+    const clarifierRe = /(?:^|\n)\s*((?:Would you (?:prefer|like|rather)|Should I|Do you want(?:\s+me\s+to)?|Shall I|Could you clarify|Did you mean|Would you also like)\b[^\n]*?)(?:\?|\s*)$/i;
+    const m = text.match(clarifierRe);
+    if (!m) return { body: text, clarifier: null };
+    const clarifier = m[1].trim().replace(/[.\?\s]+$/, "") + "?";
+    const body = text.slice(0, text.length - m[0].length).trimEnd();
+    // Defensive: if stripping leaves only a few characters the
+    // clarifier likely WAS the whole content (rare) — keep original.
+    if (body.replace(/[\s•\-*]/g, "").length < 8) return { body: text, clarifier: null };
+    return { body, clarifier };
+}
+
+/** 2026-05-26 — outer wrapper that handles the trailing-clarifier strip
+ *  + chip render. The actual rendering logic lives in
+ *  renderKpiSnapshotInner below; the wrapper splits the content, calls
+ *  the inner with cleaned body, and appends a "Genie also asked: …"
+ *  chip under the answer when a clarifier was stripped. The chip
+ *  pre-populates the composer with the clarifier text on click so the
+ *  user can refine in one tap. */
+function renderKpiSnapshot(raw: string): React.ReactNode {
+    // Strip Genie's Deep Research / Agent Mode reasoning first; that
+    // wrapper goes into a collapsed disclosure so the answer lands at
+    // the top of the card instead of after 200 words of meta-trace.
+    const { reasoning, answer: afterReasoning } = splitAgentModeReasoning(raw);
+    const { body, clarifier } = splitTrailingClarifier(afterReasoning);
+    const inner = renderKpiSnapshotInner(body);
+    const reasoningNode = reasoning ? (
+        <details className="gn-agent-reasoning">
+            <summary>
+                <span className="gn-agent-reasoning-icon" aria-hidden="true">🔍</span>
+                <span className="gn-agent-reasoning-title">Show Genie's reasoning</span>
+                <span className="gn-agent-reasoning-meta">{(() => {
+                    const lines = reasoning.split("\n").filter(l => l.trim().length > 0).length;
+                    return `${lines} line${lines === 1 ? "" : "s"}`;
+                })()}</span>
+            </summary>
+            <div className="gn-agent-reasoning-body pp-md">
+                {renderMarkdown(reasoning)}
+            </div>
+        </details>
+    ) : null;
+    if (!clarifier && !reasoningNode) return inner;
+    const clarifierText = clarifier ?? "";
+    const onClick = () => {
+        try {
+            if (!clarifierText) return;
+            const ta = document.querySelector("textarea.gn-input") as HTMLTextAreaElement | null;
+            if (ta) {
+                ta.value = clarifierText;
+                ta.dispatchEvent(new Event("input", { bubbles: true }));
+                ta.focus();
+                ta.setSelectionRange(clarifierText.length, clarifierText.length);
+            }
+        } catch { /* swallow */ }
+    };
+    return (
+        <>
+            {inner}
+            {clarifier && (
+                <div className="gn-clarifier-chip-row">
+                    <span className="gn-clarifier-chip-label">Genie also asked:</span>
+                    <button
+                        type="button"
+                        className="gn-clarifier-chip"
+                        onClick={onClick}
+                        title="Use this as your next question"
+                    >
+                        <span className="gn-clarifier-chip-text">{clarifier}</span>
+                        <span aria-hidden="true" className="gn-clarifier-chip-arrow">→</span>
+                    </button>
+                </div>
+            )}
+            {reasoningNode}
+        </>
+    );
+}
+
+function renderKpiSnapshotInner(raw: string): React.ReactNode {
+    const text = String(raw || "").trim();
+    if (!text) return null;
+
+    // 2026-05-22 Ask Pulse parity — when the reply carries `## SECTION`
+    // markdown (HEADLINE / KPI SNAPSHOT / TRENDS / RISKS / OPPORTUNITIES /
+    // RECOMMENDED ACTIONS) route through renderInsightsSections so chat
+    // replies get the SAME rich card grid as the AI Insights surface.
+    // Triggered by buildGenieRequest's briefing-format instruction in
+    // visualHelpers.ts when intent is summary/performance OR the question
+    // matches briefing heuristics (first-message-only per chat-fidelity rule).
+    //
+    // 2026-05-22 — also surface the same per-section action toolbar
+    // (📋 Copy + ✻ provenance footer) that AI Insights uses, by passing a
+    // minimal InsightsRenderOptions with an onCopySection handler and
+    // showProvenanceFooter=true. SQL/retry/raw-data callbacks are intentionally
+    // omitted — the chat path's SQL lives in the existing SQL tab (tabs above)
+    // rather than per-section inline panels, and retries don't apply to a
+    // one-shot chat response.
+    //
+    // 2026-05-22 refined per Rajesh: *"let's not try mould it. Ask Pulse
+    // should be dialogue with data simple and insightful."* AND then
+    // tightened further: *"let's keep only the insights only for the
+    // probe as well"* — probe is now HEADLINE-only. So the gate must
+    // route to renderInsightsSections when HEADLINE is present (single
+    // recognized section is enough), OR when there are ≥2 recognized
+    // briefing sections (for any future multi-section briefings or
+    // historical content). Plain `## INSIGHTS` or solo `## TRENDS` from
+    // Genie conversation-memory bleed-through still falls through to
+    // plain markdown — they're not in the recognized briefing list
+    // alone (TRENDS without HEADLINE doesn't trigger).
+    const BRIEFING_SECTION_RE = /^#{1,3}\s+(HEADLINE|KPI SNAPSHOT|TRENDS|RISKS|OPPORTUNITIES|RECOMMENDED ACTIONS|WHAT CHANGED|WHAT NEEDS ATTENTION|NEXT BEST ACTIONS|EXECUTIVE BRIEF)\s*$/gmi;
+    const recognizedSections = text.match(BRIEFING_SECTION_RE) ?? [];
+    const hasHeadline = recognizedSections.some(s => /HEADLINE|EXECUTIVE BRIEF/i.test(s));
+    const briefingTrigger = hasHeadline || recognizedSections.length >= 2;
+    if (briefingTrigger) {
+        return renderInsightsSections(text, {
+            showProvenanceFooter: true,
+            sourceLabel: "Ask Pulse",
+            generatedAt: Date.now(),
+            onCopySection: async (title, body) => {
+                // Best-effort clipboard write. Format: "# <Title>\n\n<body>".
+                const text = `# ${title}\n\n${body}`.trim();
+                try {
+                    await navigator.clipboard.writeText(text);
+                } catch {
+                    // Clipboard API can be blocked by permissions or sandbox;
+                    // silent failure is preferable to a runtime throw in a
+                    // render path. The user will notice the section didn't
+                    // copy and can use the SQL tab fallback.
+                }
+            },
+        });
+    }
+    // Fallback structured markdown (tables, code blocks, blockquotes,
+    // mid/low-level headings) — still better as narrative than as flex
+    // rows, but doesn't qualify as an insights briefing.
+    const hasStructuredMarkdown =
+        /^#{1,6}\s/m.test(text) ||
+        /^\s*\|.+\|\s*$/m.test(text) ||
+        /```/.test(text) ||
+        /^\s*>\s/m.test(text);
+    if (hasStructuredMarkdown) {
+        return renderNarrative(text);
+    }
+
+    // 2026-05-22 — Executive briefing path. When the LLM emits an exec brief
+    // (Current performance + Top risk/opportunity + Recent change + Action)
+    // render a semantic-coloured card grid instead of the flex-rows list
+    // that produced the "label far left, content far right" regression.
+    // Falls through to the legacy bullet path if briefing intent isn't
+    // detected, and to renderNarrative if neither produces a usable card.
+    const briefing = parseExecutiveBriefing(text);
+    if (briefing) {
+        return renderExecutiveBriefing(briefing);
+    }
+
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+
+    interface MetricRow { name: string; value: string; trend: "up" | "down" | "stable" | null; prior: string | null; }
+    const rows: MetricRow[] = [];
+    let headline = "";
+    let action = "";
+
+    const bulletRe = /^[-*•]\s+(.+)$/;
+    // <name>: <value> [· (up|down|stable)] [(was <prior>)]
+    const metricRe = /^([^:]+):\s*([^·(]+?)(?:\s*[·•]\s*(up|down|stable))?(?:\s*\(\s*(?:was\s+)?([^)]+)\))?\s*$/i;
+
+    for (const line of lines) {
+        if (!headline && !bulletRe.test(line) && !/^action\b/i.test(line)) {
+            headline = line;
+            continue;
+        }
+        if (/^action\s*:/i.test(line)) {
+            action = line.replace(/^action\s*:\s*/i, "").trim();
+            continue;
+        }
+        const bm = line.match(bulletRe);
+        if (bm) {
+            const body = bm[1];
+            // Strip stray trailing trend marker in parens like "(down)" when no "was"
+            const compact = body.replace(/\(\s*(up|down|stable)\s*\)\s*$/i, (_m, t) => `· ${t}`);
+            const mm = compact.match(metricRe);
+            if (mm) {
+                rows.push({
+                    name: mm[1].trim().replace(/\*+/g, ""),
+                    value: mm[2].trim().replace(/\*+/g, ""),
+                    trend: (mm[3]?.toLowerCase() as MetricRow["trend"]) ?? null,
+                    prior: mm[4]?.trim() ?? null,
+                });
+            } else {
+                rows.push({ name: "", value: body, trend: null, prior: null });
+            }
+        }
+    }
+
+    // If parsing didn't find at least 2 structured metric rows, the content
+    // is probably free-form narrative — fall back so we don't render a
+    // half-empty card. Threshold is 2 (not 1) because a single matched
+    // bullet inside a narrative paragraph is more likely coincidence.
+    if (rows.length < 2) {
+        return renderNarrative(text, "KPI Snapshot");
+    }
+
+    const trendArrow = (t: MetricRow["trend"]) => t === "up" ? "↑" : t === "down" ? "↓" : t === "stable" ? "→" : "";
+
+    return (
+        <div className="gn-kpi-card">
+            {headline && (
+                <p className="gn-kpi-headline">{headline}</p>
+            )}
+            <ul className="gn-kpi-rows">
+                {rows.map((r, i) => (
+                    <li key={i} className="gn-kpi-row">
+                        {r.name ? (
+                            <>
+                                <span className="gn-kpi-row-name">{r.name}</span>
+                                <span className="gn-kpi-row-value">{r.value}</span>
+                                {r.trend && (
+                                    <span className={`gn-trend gn-trend--${r.trend}`}>
+                                        {trendArrow(r.trend)} {r.trend}
+                                    </span>
+                                )}
+                                {r.prior && (
+                                    <span className="gn-kpi-row-prior">was {r.prior}</span>
+                                )}
+                            </>
+                        ) : (
+                            <span className="gn-kpi-row-value">{r.value}</span>
+                        )}
+                    </li>
+                ))}
+            </ul>
+            {action && (
+                <p className="gn-kpi-action"><strong>Action ·</strong> {action}</p>
+            )}
+        </div>
+    );
+}
+
+/**
+ * Executive briefing parser (2026-05-22).
+ *
+ * Recognises the LLM's exec-summary shape used by Ask Pulse:
+ *   Sales and profit have declined this month, but profit margin improved.
+ *   Current performance: Sales $83.8K (down from $118.4K), Profit $8.5K (...)
+ *   Top risk: Significant drop in sales and order volume...
+ *   Top opportunity: Improved profit margin (+2.4pp)...
+ *   Recent change: Sales and orders fell, but profitability per sale...
+ *   Action: Investigate causes of sales decline and reinforce margin-improving...
+ *
+ * Section labels are matched COLON-OPTIONAL (`Top risk:` and `Top risk` both
+ * parse) — the regex regression that caused the "label far left, content far
+ * right" layout was that the old bullet parser REQUIRED a colon.
+ *
+ * Sources informing this design: see docs/research/EXTERNAL_REFERENCES.md
+ * — Tableau Pulse, Power BI Smart Narrative, Carbon Status Indicator,
+ * shadcn Alert (CSS grid not flex), Ant Design Alert palette.
+ */
+interface BriefingKpi {
+    readonly label: string;
+    readonly value: string;
+    readonly prior: string | null;
+    readonly direction: "up" | "down" | "neutral";
+}
+
+type BriefingSectionKind = "risk" | "opportunity" | "change";
+
+interface BriefingSection {
+    readonly kind: BriefingSectionKind;
+    readonly label: string;
+    readonly body: string;
+}
+
+interface ExecutiveBriefing {
+    readonly headline: string | null;
+    readonly kpis: ReadonlyArray<BriefingKpi>;
+    readonly sections: ReadonlyArray<BriefingSection>;
+    readonly action: string | null;
+}
+
+const SECTION_PATTERNS: ReadonlyArray<{ kind: BriefingSectionKind; re: RegExp; canonical: string }> = Object.freeze([
+    { kind: "risk",        re: /^\s*(?:top\s+)?risk(?:s)?\s*:?\s*(.+)$/i,                                  canonical: "Top risk" },
+    { kind: "opportunity", re: /^\s*(?:top\s+)?opportunit(?:y|ies)\s*:?\s*(.+)$/i,                          canonical: "Top opportunity" },
+    { kind: "change",      re: /^\s*(?:recent|latest|notable)\s+(?:change|shift|movement)s?\s*:?\s*(.+)$/i, canonical: "Recent change" },
+]);
+
+const KPI_INLINE_RE = /\b([A-Z][A-Za-z][A-Za-z ]{0,30}?)\s+([$€£¥]?-?[\d.,]+\s*[%KMBkmb]?(?:pp)?)\s*\((up|down|increased|decreased)\s+from\s+([$€£¥]?-?[\d.,]+\s*[%KMBkmb]?(?:pp)?)\)/g;
+
+function parseExecutiveBriefing(text: string): ExecutiveBriefing | null {
+    const rawLines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    if (rawLines.length === 0) return null;
+
+    // 2026-05-22 G1 fix — clarifying-question guard. If the whole reply is
+    // shaped like a clarifying question ("Would you like…?" / "Do you want…?"
+    // / a single line ending in "?"), do NOT trigger the briefing path; let
+    // the caller fall through to the existing clarifying-question card
+    // (visual.tsx ~line 8316). Without this, a briefing-flavoured prompt
+    // that gets a clarifier back was rendering the question as a sparse
+    // briefing card with just a "headline" — which is what the user
+    // reported as "all that I see in briefing is a question."
+    if (rawLines.length <= 2) {
+        const joined = rawLines.join(" ").trim();
+        const looksLikeClarifier =
+            /\?\s*$/.test(joined) &&
+            /^(?:Would you (?:like|prefer)|Do you (?:want|prefer)|Should I|Are you interested|Shall I|Can I|Which|What|Could you (?:specify|clarify))\b/i.test(joined);
+        if (looksLikeClarifier) return null;
+    }
+
+    let headline: string | null = null;
+    let kpis: BriefingKpi[] = [];
+    const sections: BriefingSection[] = [];
+    let action: string | null = null;
+
+    for (const line of rawLines) {
+        const stripped = line.replace(/^[-*•]\s+/, "");
+
+        // Action line — accept "Action:", "Action ·", "Action -"
+        const actionMatch = stripped.match(/^(?:\*+\s*)?action\b\s*[:·\-—–]?\s*(.+)$/i);
+        if (actionMatch && !action) {
+            action = actionMatch[1].trim().replace(/^\*+|\*+$/g, "");
+            continue;
+        }
+
+        // "Current performance:" — extract the KPI strip
+        const perfMatch = stripped.match(/^(?:\*+\s*)?(?:current\s+performance|performance|snapshot)\s*[:·\-—–]?\s*(.+)$/i);
+        if (perfMatch && kpis.length === 0) {
+            kpis = extractKpisFromInline(perfMatch[1]);
+            continue;
+        }
+
+        // Section labels (risk / opportunity / change) — colon optional
+        let matched = false;
+        for (const pattern of SECTION_PATTERNS) {
+            const m = stripped.match(pattern.re);
+            if (m && m[1] && m[1].trim().length >= 4) {
+                sections.push({
+                    kind: pattern.kind,
+                    label: pattern.canonical,
+                    body: m[1].trim().replace(/^\*+|\*+$/g, ""),
+                });
+                matched = true;
+                break;
+            }
+        }
+        if (matched) continue;
+
+        if (!headline && stripped.length >= 8) {
+            headline = stripped.replace(/^\*+|\*+$/g, "");
+        }
+    }
+
+    // Briefing intent threshold — require at least the headline OR the KPI
+    // strip, AND at least one named section (risk/opportunity/change) OR an
+    // action. Below this we hand the text back to the legacy parser and then
+    // renderNarrative, so freeform replies don't get forced into card shape.
+    const hasShape = (headline !== null || kpis.length > 0) && (sections.length > 0 || action !== null);
+    if (!hasShape) return null;
+
+    return { headline, kpis, sections, action };
+}
+
+function extractKpisFromInline(text: string): BriefingKpi[] {
+    const out: BriefingKpi[] = [];
+    const re = new RegExp(KPI_INLINE_RE.source, "g");
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(text)) !== null) {
+        const dir = match[3].toLowerCase();
+        out.push({
+            label: match[1].trim(),
+            value: match[2].trim(),
+            prior: match[4].trim(),
+            direction: dir === "up" || dir === "increased" ? "up" : dir === "down" || dir === "decreased" ? "down" : "neutral",
+        });
+    }
+    return out;
+}
+
+function renderExecutiveBriefing(brief: ExecutiveBriefing): React.ReactNode {
+    const sectionIcon: Record<BriefingSectionKind, string> = {
+        risk: "⚠",
+        opportunity: "↗",
+        change: "▲",
+    };
+
+    return (
+        <div className="gn-briefing-card" data-testid="pp-exec-briefing">
+            {brief.headline && (
+                <p className="gn-briefing-headline">{brief.headline}</p>
+            )}
+
+            {brief.kpis.length > 0 && (
+                <div className="gn-kpi-tile-grid" data-testid="pp-briefing-kpis">
+                    {brief.kpis.map((k, i) => {
+                        const dirClass = k.direction === "up" ? "gn-kpi-tile--up"
+                                       : k.direction === "down" ? "gn-kpi-tile--down"
+                                       : "gn-kpi-tile--neutral";
+                        const deltaClass = k.direction === "up" ? "gn-kpi-tile-delta--up"
+                                          : k.direction === "down" ? "gn-kpi-tile-delta--down"
+                                          : "gn-kpi-tile-delta--neutral";
+                        const cue = k.direction === "up" ? "↑" : k.direction === "down" ? "↓" : "→";
+                        return (
+                            <div key={`${k.label}-${i}`} className={`gn-kpi-tile ${dirClass}`}>
+                                <div className="gn-kpi-tile-head">
+                                    <span className="gn-kpi-tile-label" title={k.label}>{k.label}</span>
+                                </div>
+                                <div className="gn-kpi-tile-value">{k.value}</div>
+                                {k.prior && (
+                                    <div className="gn-kpi-tile-foot">
+                                        <span className={`gn-kpi-tile-delta ${deltaClass}`}>
+                                            <span className="gn-kpi-tile-delta-cue" aria-hidden="true">{cue}</span>
+                                            {k.direction === "down" ? "down" : k.direction === "up" ? "up" : "flat"}
+                                        </span>
+                                        <span className="gn-kpi-tile-prior">from {k.prior}</span>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            {brief.sections.length > 0 && (
+                <div className="gn-briefing-sections">
+                    {brief.sections.map((s, i) => (
+                        <section
+                            key={`${s.kind}-${i}`}
+                            className={`gn-briefing-section gn-briefing-section--${s.kind}`}
+                            data-section-kind={s.kind}
+                        >
+                            <header className="gn-briefing-section-head">
+                                <span className="gn-briefing-section-icon" aria-hidden="true">{sectionIcon[s.kind]}</span>
+                                <span className="gn-briefing-section-label">{s.label}</span>
+                            </header>
+                            <p className="gn-briefing-section-body">{s.body}</p>
+                        </section>
+                    ))}
+                </div>
+            )}
+
+            {brief.action && (
+                <p className="gn-narrative-action" data-testid="pp-briefing-action">
+                    <span className="gn-narrative-action-label">Action ·</span>
+                    {brief.action}
+                </p>
+            )}
+        </div>
+    );
+}
+
 function renderNarrative(text: string, sectionTitle?: string, metricRules?: InlineMetricRules): React.ReactNode {
     const normalised = demoteBulletStyleHeadings(normaliseAmbiguousArrows(text));
     const lines = normalised.split("\n");
@@ -7830,7 +10182,11 @@ function renderNarrative(text: string, sectionTitle?: string, metricRules?: Inli
                                     className={`gn-insight-card${card.generatedLabel ? " gn-insight-card--plain" : ""}`}
                                 >
                                     <div className="gn-insight-card-label">{inlineFormat(card.label, sectionTitle, metricRules)}</div>
-                                    <div className="gn-insight-card-body">{inlineFormat(card.body, sectionTitle, metricRules)}</div>
+                                    {/* Card body inline pills resolve metric rules via card.label as the
+                                        context hint — without this, the body prose ("rose to 6.2%, up ▲ +0.3pp,
+                                        ...") doesn't contain the metric name and the rule path never fires.
+                                        Codex audit follow-up 2026-05-18. */}
+                                    <div className="gn-insight-card-body">{inlineFormat(card.body, sectionTitle, metricRules, card.label)}</div>
                                 </article>
                             );
                         })}
@@ -7959,7 +10315,23 @@ function renderNarrative(text: string, sectionTitle?: string, metricRules?: Inli
         }
 
         flushList();
-        elements.push(<p key={`p-${i}`} className="gn-narrative-p">{inlineFormat(trimmed, sectionTitle, metricRules)}</p>);
+        // Detect action-like leading labels to give them a tone-accent
+        // callout — mirrors the RECOMMENDED ACTIONS card treatment in
+        // AI Insights. Matches "Action:", "Recommendation:", "Next step:",
+        // "Next steps:", "Recommended action(s):". Case-insensitive.
+        const actionMatch = trimmed.match(/^(action|recommendation|recommended action[s]?|next step[s]?)\s*:\s*(.+)$/i);
+        if (actionMatch) {
+            const label = actionMatch[1].replace(/\b\w/g, c => c.toUpperCase());
+            const body = actionMatch[2];
+            elements.push(
+                <p key={`act-${i}`} className="gn-narrative-action">
+                    <strong className="gn-narrative-action-label">{label} ·</strong>{" "}
+                    {inlineFormat(body, sectionTitle, metricRules)}
+                </p>
+            );
+        } else {
+            elements.push(<p key={`p-${i}`} className="gn-narrative-p">{inlineFormat(trimmed, sectionTitle, metricRules)}</p>);
+        }
         i++;
     }
 
@@ -8097,10 +10469,20 @@ function shouldRenderInsightCards(sectionTitle: string | undefined, itemCount: n
 }
 
 function renderHeadlineCard(body: string, sectionTitle: string | undefined, metricRules?: InlineMetricRules): React.ReactNode {
-    const cleaned = body
+    let cleaned = body
         .replace(/^[-*•]\s+/, "")
         .replace(/^\d+[.)]\s+/, "")
         .trim();
+    // 2026-05-22 — strip whole-sentence bold wrapper. The HEADLINE prompt
+    // says "Use bold for numbers", but the LLM often over-complies and
+    // wraps the entire sentence in `**...**`. inlineFormat's trend-pill
+    // regex then consumes mid-sentence numbers, which orphans the
+    // opening + closing `**` and they render as literal asterisks
+    // (user-reported 2026-05-22 on EXECUTIVE BRIEF surface). The headline
+    // card has its own font-weight emphasis so we don't lose visual rank.
+    if (cleaned.startsWith("**") && cleaned.endsWith("**") && cleaned.length > 4) {
+        cleaned = cleaned.slice(2, -2).trim();
+    }
     return (
         <div className="gn-headline-card">
             <div className="gn-headline-card-text">
@@ -8136,6 +10518,24 @@ const POS_RE = /^(increased?|increases?|growth|rises?|risen|rose|up|higher|gaine
 const FLAT_GLYPH = "[▪■●]";
 const FLAT_WORD = "flat|unchanged|no\\s+change";
 const MEAS_NUM = "[+-]?[$€£₹¥]?\\d[\\d,.]*(?:%|pp|[KMBT])?";
+
+/** Strip a leading +/- sign from a trend pill's number when a direction
+ *  glyph (TrendPyramid) renders alongside. Codex 2026-05-19 final UAT:
+ *  Rajesh saw "two up arrows" in delta pills — the second indicator was
+ *  the literal "+" or "-" in the captured number reading as a direction
+ *  glyph next to the actual ▲/▼ icon. Stripping the redundant sign keeps
+ *  direction truth (the ▲ pyramid) and tone color, but avoids the visual
+ *  echo. Currency / no-sign numbers pass through unchanged.
+ *
+ *  Examples:
+ *    "+33.42%" → "33.42%"  (▲ pyramid already conveys direction)
+ *    "-0.22%"  → "0.22%"   (▼ pyramid already conveys direction)
+ *    "$1,234"  → "$1,234"  (no leading sign to strip)
+ *    "20.4%"   → "20.4%"   (already sign-less)
+ */
+function stripRedundantSignForPill(numberText: string): string {
+    return numberText.replace(/^([+-])(?=[$€£₹¥]?\d)/, "");
+}
 const INLINE_REGEX = new RegExp(
     // G1,G2: [**][arrow]number[**] trend-word
     `(?:[▲▼]\\s*)?\\*{0,2}(?:[▲▼]\\s*)?(${MEAS_NUM})\\*{0,2}\\s+(${TREND})\\b` +
@@ -8201,7 +10601,7 @@ function matchesFuzzyAlias(metricName: string): boolean {
 // punctuation, returns the last 1-3 words. Cheap and correct for the
 // common cases ("Return Rate ▼ 5%", "Days to Ship dropped 1.2 days",
 // "Sales increased by 12%").
-function metricNameBeforePill(text: string, pillIndex: number): string {
+function metricNameBeforePill(text: string, pillIndex: number, hint?: string): string {
     const window = text.slice(Math.max(0, pillIndex - 60), pillIndex);
     const cleaned = window
         .replace(/[*_`~()[\]{}]/g, " ")
@@ -8216,40 +10616,85 @@ function metricNameBeforePill(text: string, pillIndex: number): string {
         "increased", "decreased", "rose", "fell", "dropped", "climbed", "grew", "declined",
         "up", "down", "more", "less", "than", "vs", "versus"]);
     const filtered = words.filter(w => !STOP.has(w.toLowerCase()));
-    return filtered.slice(-3).join(" ");
+    const fromWindow = filtered.slice(-3).join(" ");
+
+    // Caller-supplied context hint (e.g. the insight-card label) takes
+    // precedence when supplied. The card label is an explicit metric-context
+    // signal that overrides body-window heuristics — body prose like "rose
+    // to 6.2%, up 0.3pp" leaves only weak leftovers ("to") that don't
+    // resolve to a rule. If a card's label and body discuss different
+    // metrics, that's a card-author concern; the renderer trusts the
+    // explicit label. Codex audit follow-up 2026-05-18.
+    if (hint && hint.trim()) return hint.trim();
+    return fromWindow;
 }
 
-// Resolve color class from the physical pill direction + the metric tone.
-// When tone is good → green (gn-trend-up); when tone is bad → red (gn-trend-down).
-// When no rule matches → fall back to glyph direction (existing behavior).
-function pillColorClass(physicalDir: "up" | "down" | "flat", text: string, pillIndex: number, deltaText: string, rules?: InlineMetricRules): string {
-    if (physicalDir === "flat" || !rules || (!rules.structured && !rules.legacy)) {
-        return `gn-trend-pill gn-trend-${physicalDir}`;
+/**
+ * Resolve the pill class string from the physical pill direction + matched
+ * metric tone. The contract Rajesh locked across the whole insights surface:
+ *
+ *   - Arrow direction = numeric movement (always physical).
+ *   - Color / tone    = business meaning (status/metric-direction rule).
+ *
+ * So a Return Rate increase keeps an UP arrow because the number went up,
+ * but the pill renders red because the rule says higher Return Rate is
+ * unfavorable. The direction class drives the SVG-arrow color slot (which
+ * is then overridden by the tone class via CSS specificity); the tone class
+ * drives the final pill color. Both classes are emitted so the markup keeps
+ * the direction signal AND the tone signal available to readers, tests,
+ * and downstream styling.
+ */
+function pillColorClass(physicalDir: "up" | "down" | "flat", text: string, pillIndex: number, deltaText: string, rules?: InlineMetricRules, metricNameHint?: string): string {
+    const dirClass = `gn-trend-pill gn-trend-${physicalDir}`;
+    // Flat direction never carries a semantic tone — the value didn't move.
+    if (physicalDir === "flat") {
+        return dirClass;
     }
-    const metricName = metricNameBeforePill(text, pillIndex);
-    if (!metricName) return `gn-trend-pill gn-trend-${physicalDir}`;
+    const metricName = metricNameBeforePill(text, pillIndex, metricNameHint);
+    if (!metricName) return dirClass;
+    // Pulse's INLINE_REGEX captures the trend word ("up", "down", "rose",
+    // "fell") and the number separately for the G6/G7 path, so deltaText
+    // arrives WITHOUT a sign. getMetricTone derives direction from the
+    // delta text's sign / glyph, which means an unsigned "0.4pp" reads as
+    // neutral and the rule's higherIsBetter never resolves a concrete
+    // semantic tone. pillColorClass is the only caller that already knows
+    // the physical direction independently of the delta sign, so we
+    // re-attach the sign here before the tone lookup. This keeps the
+    // contract "arrow = movement, color = meaning" honest for prose pills.
+    const signedDeltaText = /^[+-]/.test(deltaText)
+        ? deltaText
+        : physicalDir === "up" ? `+${deltaText}`
+        : physicalDir === "down" ? `-${deltaText}`
+        : deltaText;
     const tone = getMetricTone({
         metricName,
-        deltaText,
+        deltaText: signedDeltaText,
         valueText: deltaText,
-        structuredJson: rules.structured,
-        legacyText: rules.legacy,
+        // Pass author rules when available; resolveMetricDirection falls back
+        // to BUILTIN_LOWER_IS_BETTER_RULES when no author rule matches, so
+        // metrics like Return Rate get the correct amber tone even without
+        // explicit author configuration. Phase E 2026-05-18.
+        structuredJson: rules?.structured,
+        legacyText: rules?.legacy,
     });
     // Wave 33 — fuzzy alias fallback. When the metric name didn't bind to a
     // concrete rule but it reads like a well-known delta phrase ("YoY %",
     // "change vs plan", "variance %"), render with a low-confidence neutral
     // pill so the reader sees CONSISTENT pill chrome across the section even
-    // though the semantic tone is unknown. Existing rule-matched and no-rule
-    // physical-mapping paths are unchanged.
+    // though the semantic tone is unknown.
     if (!tone.matchedRule) {
         if (matchesFuzzyAlias(metricName) || matchesFuzzyAlias(text.slice(Math.max(0, pillIndex - 60), pillIndex))) {
-            return "gn-trend-pill gn-trend-flat";
+            return `${dirClass} gn-trend-tone-neutral`;
         }
-        return `gn-trend-pill gn-trend-${physicalDir}`;
+        return dirClass;
     }
-    if (tone.semanticTone === "good") return "gn-trend-pill gn-trend-up";
-    if (tone.semanticTone === "bad") return "gn-trend-pill gn-trend-down";
-    return `gn-trend-pill gn-trend-${physicalDir}`;
+    if (tone.semanticTone === "good") return `${dirClass} gn-trend-tone-good`;
+    if (tone.semanticTone === "bad") return `${dirClass} gn-trend-tone-bad`;
+    // Watch / at-risk semantic tone (e.g. explicit 🟡 status, amber threshold
+    // hit). Without this branch the warn case fell through to dirClass and
+    // the watch CSS class was dead code — see Codex audit 2026-05-18.
+    if (tone.semanticTone === "warn") return `${dirClass} gn-trend-tone-watch`;
+    return dirClass;
 }
 
 // Wave 33 — extract every metric name + alias from the rules sources, ready
@@ -8342,7 +10787,7 @@ function decorateNeutralRulePills(slice: string, ruleNames: string[]): React.Rea
     return <>{out}</>;
 }
 
-function inlineFormat(text: string, sectionTitle?: string, metricRules?: InlineMetricRules): React.ReactNode {
+function inlineFormat(text: string, sectionTitle?: string, metricRules?: InlineMetricRules, metricNameHint?: string): React.ReactNode {
     const upperTitle = sectionTitle ? sectionTitle.trim().toUpperCase() : "";
     const statusGlyphsBelongInThisSection = /^(KPI SNAPSHOT|KPI|METRICS?|SCORECARD|PERFORMANCE)$/i.test(upperTitle);
     const sourceText = statusGlyphsBelongInThisSection
@@ -8399,10 +10844,10 @@ function inlineFormat(text: string, sectionTitle?: string, metricRules?: InlineM
                     : <React.Fragment key={match.index}>{parseBold(match[0])}</React.Fragment>);
             } else {
                 const dir = POS_RE.test(match[2]) ? "up" : "down";
-                const cls = pillColorClass(dir, sourceText, match.index, match[1], metricRules);
+                const cls = pillColorClass(dir, sourceText, match.index, match[1], metricRules, metricNameHint);
                 parts.push(
                     <React.Fragment key={match.index}>
-                        <span className={cls} data-source="ai"><TrendPyramid direction={dir} />{match[1]}</span>
+                        <span className={cls} data-source="ai"><TrendPyramid direction={dir} />{stripRedundantSignForPill(match[1])}</span>
                         {" " + match[2]}
                     </React.Fragment>
                 );
@@ -8418,13 +10863,13 @@ function inlineFormat(text: string, sectionTitle?: string, metricRules?: InlineM
                     : <React.Fragment key={match.index}>{parseBold(match[0])}</React.Fragment>);
             } else {
                 const dir = POS_RE.test(match[3]) ? "up" : "down";
-                const cls = pillColorClass(dir, sourceText, match.index, match[4], metricRules);
+                const cls = pillColorClass(dir, sourceText, match.index, match[4], metricRules, metricNameHint);
                 // Recover the connective ("of" or "by") from the original match.
                 const connective = /\b(of|by)\b/i.exec(match[0])?.[1] ?? "by";
                 parts.push(
                     <React.Fragment key={match.index}>
                         {match[3]} {connective}{" "}
-                        <span className={cls} data-source="ai"><TrendPyramid direction={dir} />{match[4]}</span>
+                        <span className={cls} data-source="ai"><TrendPyramid direction={dir} />{stripRedundantSignForPill(match[4])}</span>
                     </React.Fragment>
                 );
             }
@@ -8438,8 +10883,8 @@ function inlineFormat(text: string, sectionTitle?: string, metricRules?: InlineM
                     : <React.Fragment key={match.index}>{parseBold(match[0])}</React.Fragment>);
             } else {
                 const dir = match[5].startsWith("+") ? "up" : "down";
-                const cls = pillColorClass(dir, sourceText, match.index, match[5], metricRules);
-                parts.push(<span key={match.index} className={cls} data-source="ai"><TrendPyramid direction={dir} />{match[5]}</span>);
+                const cls = pillColorClass(dir, sourceText, match.index, match[5], metricRules, metricNameHint);
+                parts.push(<span key={match.index} className={cls} data-source="ai"><TrendPyramid direction={dir} />{stripRedundantSignForPill(match[5])}</span>);
             }
         } else if (match[6] !== undefined && match[7] !== undefined) {
             // G6/G7 — trend-word + number (no "of/by" required).
@@ -8452,11 +10897,11 @@ function inlineFormat(text: string, sectionTitle?: string, metricRules?: InlineM
                     : <React.Fragment key={match.index}>{parseBold(match[0])}</React.Fragment>);
             } else {
                 const dir = POS_RE.test(match[6]) ? "up" : "down";
-                const cls = pillColorClass(dir, sourceText, match.index, match[7], metricRules);
+                const cls = pillColorClass(dir, sourceText, match.index, match[7], metricRules, metricNameHint);
                 parts.push(
                     <React.Fragment key={match.index}>
                         {match[6]}{" "}
-                        <span className={cls} data-source="ai"><TrendPyramid direction={dir} />{match[7]}</span>
+                        <span className={cls} data-source="ai"><TrendPyramid direction={dir} />{stripRedundantSignForPill(match[7])}</span>
                     </React.Fragment>
                 );
             }
@@ -8471,12 +10916,17 @@ function inlineFormat(text: string, sectionTitle?: string, metricRules?: InlineM
                 // indicator the model emits for at-risk values, NOT a directional
                 // delta. Previous fallback painted yellow as green-up which was
                 // factually wrong (e.g., a 13.43%→12.74% margin DECLINE rendered
-                // as TWO green ▲ pills). Now: 🟡 → flat (neutral grey pill,
-                // flat glyph). 🟢 → up, 🔴 → down (unchanged).
+                // as TWO green ▲ pills). 🟡 stays flat (no movement implied)
+                // but with watch amber tone — was grey before the 2026-05-18
+                // design direction lock (Codex audit caught the gap).
+                // 🟢 → up + good tone; 🔴 → down + bad tone; 🟡 → flat + watch tone.
                 const dir: "up" | "down" | "flat" = match[8] === "🟢" ? "up" : match[8] === "🔴" ? "down" : "flat";
+                const toneClass = match[8] === "🟢" ? "gn-trend-tone-good"
+                    : match[8] === "🔴" ? "gn-trend-tone-bad"
+                    : "gn-trend-tone-watch";
                 // Author-emitted emoji is an explicit semantic signal — keep
                 // its color literal, do not let metric-rules re-interpret it.
-                const cls = `gn-trend-pill gn-trend-${dir}`;
+                const cls = `gn-trend-pill gn-trend-${dir} ${toneClass}`;
                 parts.push(
                     <React.Fragment key={match.index}>
                         <span className={cls} data-source="ai"><TrendPyramid direction={dir} />{match[9]}</span>
@@ -8536,17 +10986,14 @@ function inlineFormat(text: string, sectionTitle?: string, metricRules?: InlineM
 }
 
 
-function renderInsightsProvenance(options?: InsightsRenderOptions): React.ReactNode {
-    if (!options?.showProvenanceFooter) return null;
-    return (
-        <>
-            <span>AI-generated</span>
-            <span>Source: {options.sourceLabel || "default"}</span>
-            <span>{options.generatedAt ? formatRelativeTime(options.generatedAt) : "just now"}</span>
-        </>
-    );
-}
-
+// 2026-05-19 — `renderInsightsProvenance()` was removed here. It rendered
+// the legacy "AI-generated · Source: default · <relative>" copy and had no
+// remaining call sites (grep confirmed). The current per-section footer
+// uses the humanized `Generated by PulsePlay · Source: <friendly label> ·
+// Updated <relative>` wording inline (see InsightsSectionFooter below).
+// Removed so future source audits stop flagging the stale string and so
+// no accidental reintroduction is possible.
+//
 /**
  * Cycle 32 — per-section footer with provenance text on the left and a
  * compact action cluster on the right (📋 Copy + </> View SQL when
@@ -8589,10 +11036,26 @@ function InsightsSectionFooter(props: {
         <footer className="gn-insights-provenance gn-insights-provenance--with-actions gn-export-skip">
             <div className="gn-insights-provenance-text">
                 {props.showProvenanceFooter && (
+                    // Codex 2026-05-19 naming audit fix: provenance footer
+                    // was reading "AI-generated · Source: default · 19 min ago"
+                    // which exposed the raw profile slug and didn't say WHO
+                    // generated it. New copy is human + trust-oriented and
+                    // maps `default` → "Default profile" so authors don't see
+                    // an internal id as primary copy. The wording stays
+                    // honest — "Generated by PulsePlay" not "Verified" until
+                    // we have an actual validator gate to back the claim.
+                    // No "100% hallucination-free" claims anywhere.
                     <>
-                        <span>AI-generated</span>
-                        <span>Source: {props.sourceLabel || "default"}</span>
-                        <span>{props.generatedAt ? formatRelativeTime(props.generatedAt) : "just now"}</span>
+                        <span>Generated by PulsePlay</span>
+                        <span>
+                            {"Source: "}
+                            <strong style={{ fontWeight: 600 }}>{formatProvenanceSourceLabel(props.sourceLabel)}</strong>
+                        </span>
+                        <span>
+                            {props.generatedAt
+                                ? `Updated ${formatRelativeTime(props.generatedAt)}`
+                                : "Updated just now"}
+                        </span>
                     </>
                 )}
             </div>
@@ -8607,7 +11070,15 @@ function InsightsSectionFooter(props: {
                     title={`Copy ${props.title || "section"} as markdown`}
                     aria-label={`Copy ${props.title || "section"} as markdown`}
                 >
-                    <span aria-hidden="true">📋</span>
+                    {/* 2026-05-19 Codex final UAT: replaced U+1F4CB
+                      * "📋" emoji with an SVG clipboard icon. The
+                      * emoji shows OS-level glyph variance and was
+                      * called out by Rajesh as feeling unpolished in
+                      * the AI Insights footer cluster. */}
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <rect x="9" y="2" width="6" height="4" rx="1" />
+                        <path d="M9 4H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2" />
+                    </svg>
                 </button>
                 {props.onExportRawData && !props.lazyExportBlocked && (
                     <button
@@ -8641,7 +11112,11 @@ function InsightsSectionFooter(props: {
                         title={`Re-run just the ${props.title || "section"} stage`}
                         aria-label={`Re-run just the ${props.title || "section"} stage`}
                     >
-                        <span aria-hidden="true">↻</span>
+                        {/* SVG refresh — replaces U+21BB "↻" text glyph. */}
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <polyline points="23 4 23 10 17 10" />
+                            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                        </svg>
                     </button>
                 )}
                 {sqlAvailable && (
@@ -8653,7 +11128,12 @@ function InsightsSectionFooter(props: {
                         aria-expanded={props.showingSql}
                         aria-label={props.showingSql ? `Hide SQL for ${props.title || "section"}` : `View SQL for ${props.title || "section"}`}
                     >
-                        <span aria-hidden="true">&lt;/&gt;</span>
+                        {/* SVG code-brackets — replaces literal "&lt;/&gt;" text
+                          * glyph. Same Feather-style mark across the codebase. */}
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <polyline points="16 18 22 12 16 6" />
+                            <polyline points="8 6 2 12 8 18" />
+                        </svg>
                     </button>
                 )}
             </div>
@@ -8739,7 +11219,12 @@ const SectionSqlPanel: React.FC<SectionSqlPanelProps> = (props) => {
                     ? `Copy active query for ${props.sectionTitle || "section"}`
                     : `Copy formatted SQL for ${props.sectionTitle || "section"}`}
             >
-                <span aria-hidden="true">📋</span>
+                {/* 2026-05-19 post-UAT-1840: replaced U+1F4CB emoji
+                  * with the shared SVG clipboard icon. Codex flagged
+                  * this as the last raw glyph inside SectionSqlPanel
+                  * after the section-footer cluster was already
+                  * cleaned up in b71270f. */}
+                <Icon name="copy" />
             </button>
             {props.reusedFromTitle && (
                 <div className="gn-sql-reused-note" role="note">
@@ -8756,28 +11241,64 @@ interface SqlTabsProps {
     onActiveSqlChange?: (sql: string) => void;
     /** Optional label override for the tabs (default: "Query 1", "Query 2", …). */
     labelPrefix?: string;
+    /** Explicit labels, used for Phase 11b sectioned SQL fragments. */
+    labels?: string[];
+    ariaLabel?: string;
 }
 const SqlTabs: React.FC<SqlTabsProps> = (props) => {
     const list = props.queries.filter(s => typeof s === "string" && s.trim().length > 0);
     const [activeIdx, setActiveIdx] = React.useState(0);
+    const [copiedAt, setCopiedAt] = React.useState<number | null>(null);
     const safeIdx = list.length === 0 ? 0 : Math.min(activeIdx, list.length - 1);
     const activeSql = list[safeIdx] || "";
+    const labels = props.labels?.filter(label => typeof label === "string" && label.trim().length > 0);
+    const labelFor = (i: number) => labels?.[i] || `${props.labelPrefix || "Query"} ${i + 1}`;
     React.useEffect(() => {
         if (props.onActiveSqlChange) props.onActiveSqlChange(activeSql);
     }, [activeSql, props.onActiveSqlChange]);
+    // 2026-05-22 user direction: SQL copy icon. Anchored top-right of the
+    // <pre> block so it sits in the same visual position as the AI Insights
+    // section toolbar icons. Two-second "copied" feedback via setCopiedAt.
+    const renderCopyIcon = (sqlToCopy: string): React.ReactElement => {
+        const copied = copiedAt !== null && Date.now() - copiedAt < 2000;
+        return (
+            <button
+                type="button"
+                className="gn-sql-copy-btn"
+                aria-label={copied ? "SQL copied" : "Copy SQL"}
+                title={copied ? "Copied" : "Copy SQL to clipboard"}
+                onClick={async () => {
+                    try {
+                        await navigator.clipboard.writeText(sqlToCopy);
+                        setCopiedAt(Date.now());
+                    } catch {
+                        // Clipboard API can be blocked by permissions or sandbox;
+                        // fail silently rather than throw inside a render path.
+                    }
+                }}
+            >
+                <span aria-hidden="true">{copied ? "✓" : "⎘"}</span>
+            </button>
+        );
+    };
     if (list.length === 0) return null;
     if (list.length === 1) {
         return (
-            <pre
-                className="gn-code"
-                dangerouslySetInnerHTML={{ __html: highlightSql(list[0]) }}
-            />
+            <>
+                {labels?.[0] && <div className="gn-sql-section-label">{labels[0]}</div>}
+                <div className="gn-sql-pre-wrap">
+                    {renderCopyIcon(list[0])}
+                    <pre
+                        className="gn-code"
+                        dangerouslySetInnerHTML={{ __html: highlightSql(list[0]) }}
+                    />
+                </div>
+            </>
         );
     }
-    const prefix = props.labelPrefix || "Query";
     return (
         <>
-            <div className="gn-sql-tabs" role="tablist" aria-label="SQL queries">
+            <div className="gn-sql-tabs" role="tablist" aria-label={props.ariaLabel || "SQL queries"}>
                 {list.map((_q, i) => (
                     <button
                         key={i}
@@ -8786,16 +11307,19 @@ const SqlTabs: React.FC<SqlTabsProps> = (props) => {
                         aria-selected={i === safeIdx}
                         className={`gn-sql-tab${i === safeIdx ? " gn-sql-tab--active" : ""}`}
                         onClick={() => setActiveIdx(i)}
-                        title={`Show ${prefix} ${i + 1} of ${list.length}`}
+                        title={`Show ${labelFor(i)} of ${list.length}`}
                     >
-                        {prefix} {i + 1}
+                        {labelFor(i)}
                     </button>
                 ))}
             </div>
-            <pre
-                className="gn-code"
-                dangerouslySetInnerHTML={{ __html: highlightSql(activeSql) }}
-            />
+            <div className="gn-sql-pre-wrap">
+                {renderCopyIcon(activeSql)}
+                <pre
+                    className="gn-code"
+                    dangerouslySetInnerHTML={{ __html: highlightSql(activeSql) }}
+                />
+            </div>
         </>
     );
 };
@@ -8821,13 +11345,40 @@ const SqlTabs: React.FC<SqlTabsProps> = (props) => {
  * map 1:1 to Genie's per-stage SQL; preamble "INSIGHTS" sections fall
  * back to no SQL.
  */
+/**
+ * Display label map for Pulse section titles (2026-05-18 design lock).
+ * Internal IDs (HEADLINE / TRENDS / RISKS / RECOMMENDED ACTIONS /
+ * OPPORTUNITIES / KPI SNAPSHOT) drive prompts, validators, visibility
+ * state, exports, and the `data-section` attribute used for testing
+ * and stage SQL lookup. Display labels are user-facing only and follow
+ * Rajesh's briefing direction. Unknown titles pass through unchanged
+ * so custom author sections stay readable.
+ */
+const SECTION_DISPLAY_LABELS: Readonly<Record<string, string>> = Object.freeze({
+    "HEADLINE": "Executive Brief",
+    "TRENDS": "What Changed",
+    "RISKS": "What Needs Attention",
+    "RECOMMENDED ACTIONS": "Next Best Actions",
+});
+
+/** Map an internal section title to its user-facing display label.
+ *  Returns the title unchanged when no mapping is registered. */
+export function displaySectionTitle(internal: string | undefined | null): string {
+    if (!internal) return "";
+    const upper = internal.trim().toUpperCase();
+    return SECTION_DISPLAY_LABELS[upper] ?? internal;
+}
+
 function InsightsSectionHeader(props: { title: string }): React.ReactElement {
     // Cycle 32 — header is title-only. The cycle-20 SQL toggle pill moved
     // to the footer (InsightsSectionFooter) where it sits alongside the new
     // 📋 Copy button. Single action surface per card, predictable position.
+    const display = displaySectionTitle(props.title);
     return (
         <div className="gn-insights-section-head gn-export-skip">
-            {props.title && <h3 className="gn-insights-section-title">{props.title}</h3>}
+            {props.title && (
+                <h3 className="gn-insights-section-title" data-section-title={props.title}>{display}</h3>
+            )}
         </div>
     );
 }
@@ -8838,20 +11389,30 @@ function InsightsSectionHeader(props: { title: string }): React.ReactElement {
 // stage completes, its placeholder is replaced by the rendered content.
 function InsightsSectionPlaceholder(props: { title: string; status?: string }): React.ReactElement {
     const upperTitle = (props.title || "").trim().toUpperCase();
+    const display = displaySectionTitle(upperTitle);
     return (
         <section
             className="gn-insights-section gn-insights-section--placeholder"
             data-section={upperTitle}
             aria-busy="true"
-            aria-label={`${upperTitle} stage in progress`}
+            aria-label={`${display} stage in progress`}
         >
             <div className="gn-insights-section-head gn-export-skip">
-                {upperTitle && <h3 className="gn-insights-section-title">{upperTitle}</h3>}
+                {upperTitle && (
+                    <h3 className="gn-insights-section-title" data-section-title={upperTitle}>{display}</h3>
+                )}
             </div>
             <div className="gn-insights-section-body">
-                <div className="gn-insights-skeleton-line" style={{ width: "92%" }} />
-                <div className="gn-insights-skeleton-line" style={{ width: "78%" }} />
-                <div className="gn-insights-skeleton-line" style={{ width: "85%" }} />
+                {/* 2026-05-22 G3 — unified skeleton-bar widths. Previous mix
+                    (92/78/85%) didn't match final content widths and produced
+                    a visible horizontal jump on swap. Sources logged in
+                    docs/research/EXTERNAL_REFERENCES.md (eBay Playbook
+                    skeleton, UX Patterns: match skeleton to 95th-percentile
+                    of final content). 90% width tracks the typical
+                    section body content width without jumping per-bar. */}
+                <div className="gn-insights-skeleton-line" style={{ width: "90%" }} />
+                <div className="gn-insights-skeleton-line" style={{ width: "90%" }} />
+                <div className="gn-insights-skeleton-line" style={{ width: "70%" }} />
             </div>
         </section>
     );
@@ -8932,10 +11493,28 @@ function renderInsightsSections(content: string, options?: InsightsRenderOptions
         ? sections.filter(s => visibilityFilter.has((s.title || "").trim().toUpperCase()))
         : sections;
 
+    // Phase E.1 \u2014 client-side progressive reveal. When the caller passes a
+    // `revealedSectionTitles` set, sections not in the set are replaced by a
+    // placeholder card (preserves briefing shape so the user sees what's
+    // coming). When the set is null/undefined, every section renders.
+    const revealFilter = options?.revealedSectionTitles;
+
     return (
         <div className="gn-insights-sections">
             {filteredSections.map((s, i) => {
                 const upperTitle = (s.title || "").toUpperCase();
+                // Phase E.1 \u2014 hold-back placeholder for not-yet-revealed
+                // sections. The same skeleton component the in-flight pipeline
+                // uses, so the visual language stays consistent.
+                if (revealFilter && !revealFilter.has(upperTitle)) {
+                    return (
+                        <InsightsSectionPlaceholder
+                            key={`reveal-pending-${i}-${upperTitle}`}
+                            title={s.title}
+                            status="pending"
+                        />
+                    );
+                }
                 // Cycle 47.8 — stageSqlByTitle now carries an array.
                 // Cycle 47.13 — value is { sqls, reusedFromTitle? }; an
                 // empty/missing entry still renders the empty-state card.
@@ -8972,36 +11551,66 @@ function renderInsightsSections(content: string, options?: InsightsRenderOptions
                             same pattern the Trace pane already uses. */}
                         {showingSql && (
                             <div className="gn-insights-section-sql gn-export-skip">
-                                {hasSectionSql && sectionSqls ? (
-                                    /* Cycle 47.8 — copy-SQL icon + (tab strip
-                                       when multiple) + highlighted <pre> live
-                                       in <SectionSqlPanel>. The copy icon
-                                       grabs the ACTIVE tab's SQL, not just #1.
-                                       Cycle 47.13 — reusedFromTitle surfaces
-                                       a "Reused from <title>" note when the
-                                       SQL was borrowed from a prior stage. */
-                                    <SectionSqlPanel
-                                        queries={sectionSqls}
-                                        sectionTitle={s.title || ""}
-                                        reusedFromTitle={sectionSqlReusedFrom}
-                                    />
-                                ) : (
-                                    <div className="gn-insights-section-sql-empty">
-                                        {/* Cycle 38 — clearer empty-state copy. The previous
-                                            message implied only RISKS / OPPORTUNITIES /
-                                            RECOMMENDED ACTIONS lacked SQL, but in practice
-                                            ANY stage that's a follow-up turn in the same Genie
-                                            conversation can reuse the prior stage's query
-                                            result instead of generating a new SQL — which
-                                            includes HEADLINE when it lands after KPI SNAPSHOT.
-                                            Genie-side optimisation, not a bug. */}
-                                        No SQL was attached to this stage&apos;s response.
-                                        The AI typically reused data from an earlier stage&apos;s
-                                        query (Genie conversation memory) instead of
-                                        generating a new warehouse query — saves a roundtrip
-                                        when the answer can be synthesised from context.
-                                    </div>
-                                )}
+                                {(() => {
+                                    // Codex 2026-05-19 final UAT P1: the SQL
+                                    // affordance must never open as a dead
+                                    // explanatory panel. Acceptance rule:
+                                    //   (a) show this section's own SQL, OR
+                                    //   (b) show reused source SQL in-place
+                                    //       labelled "Reused from <section>", OR
+                                    //   (c) jump to the reused source SQL, OR
+                                    //   (d) hide/disable when no traceable SQL.
+                                    //
+                                    // Branch (a): this stage has its own SQL.
+                                    if (hasSectionSql && sectionSqls) {
+                                        return (
+                                            <SectionSqlPanel
+                                                queries={sectionSqls}
+                                                sectionTitle={s.title || ""}
+                                                reusedFromTitle={sectionSqlReusedFrom}
+                                            />
+                                        );
+                                    }
+                                    // Branch (b): find a sibling stage that
+                                    // has SQL we can render inline. Prefer
+                                    // the explicitly-named reusedFrom source;
+                                    // fall back to whichever sibling section
+                                    // has SQL (typically KPI SNAPSHOT or the
+                                    // initial briefing).
+                                    const map = options?.stageSqlByTitle;
+                                    let sourceTitle: string | null = sectionSqlReusedFrom;
+                                    let sourceSqls: string[] | undefined;
+                                    if (sourceTitle) {
+                                        const entry = map?.get(sourceTitle.toUpperCase());
+                                        if (entry?.sqls?.length) sourceSqls = entry.sqls;
+                                    }
+                                    if (!sourceSqls && map) {
+                                        for (const [t, entry] of map) {
+                                            if (entry?.sqls?.length && t !== upperTitle) {
+                                                sourceTitle = t;
+                                                sourceSqls = entry.sqls;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if (sourceSqls && sourceTitle) {
+                                        return (
+                                            <SectionSqlPanel
+                                                queries={sourceSqls}
+                                                sectionTitle={s.title || ""}
+                                                reusedFromTitle={sourceTitle}
+                                            />
+                                        );
+                                    }
+                                    // Branch (d): nothing traceable. Render a
+                                    // short honest line (NOT a dead paragraph).
+                                    return (
+                                        <div className="gn-insights-section-sql-empty" role="status">
+                                            <strong>No SQL available for this section.</strong>{" "}
+                                            This stage produced a narrative-only output and the run did not retain a sibling query to reference.
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         )}
                         {/* Cycle 32 — section footer (provenance + per-section
@@ -9111,6 +11720,17 @@ function dedupePipeTableRows(rows: string[][]): string[][] {
     return order.map(key => seen.get(key)!.row);
 }
 
+function deltaToneForKpi(statusTone: Tone, semanticTone: Tone, movementTone: Tone): Tone {
+    if (statusTone !== "neutral") return statusTone;
+    return movementTone === "neutral" ? semanticTone : movementTone;
+}
+
+function deltaCueGlyph(direction: "up" | "down" | "neutral"): string {
+    if (direction === "up") return "▲";
+    if (direction === "down") return "▼";
+    return "";
+}
+
 /**
  * IDEA-039 step 1.1 — KPI tile grid. Detects the `## KPI SNAPSHOT` pipe
  * table and renders each row as a discrete tile (P1 design pattern from
@@ -9165,9 +11785,17 @@ function renderKpiTiles(body: string, sectionTitle?: string, options?: InsightsR
         const dir = tone.direction;
         const statusTone = tone.statusTone;
         const semanticTone = tone.semanticTone;
+        // Direction is physical movement; tone is business meaning. A
+        // lower-is-better metric that increased should still show an up
+        // arrow, with the pill color following the explicit status when the
+        // model provided one.
+        const deltaTone = deltaToneForKpi(statusTone, semanticTone, tone.deltaTone);
+        const deltaCue = dir;
         const hasSemanticStatus = Boolean(status.trim()) && statusTone !== "neutral";
-        const deltaA11y = getDeltaPillA11y(dir, semanticTone);
-        const deltaDisplay = stripLeadingDirectionGlyphs(delta);
+        const deltaA11y = getDeltaPillA11y(dir, deltaTone);
+        const deltaDisplay = stripLeadingDirectionGlyphs(deltaText || delta).trim();
+        const deltaHasGlyph = /^[▲▼↔]/.test(normaliseDirectionalGlyphs(delta).trim());
+        const deltaGlyph = deltaHasGlyph ? "" : deltaCueGlyph(deltaCue);
         const isUnknownPrior = /^N\/A|no prior data|—|^-$/i.test(prior.replace(/\*\*/g, "").trim());
         return (
             <div
@@ -9188,12 +11816,15 @@ function renderKpiTiles(body: string, sectionTitle?: string, options?: InsightsR
                     <div className="gn-kpi-tile-foot">
                         {deltaText ? (
                             <span
-                                className={`gn-kpi-tile-delta gn-kpi-tile-delta--${semanticTone}${hasSemanticStatus ? " gn-kpi-tile-delta--plain" : ""}`}
+                                className={`gn-kpi-tile-delta gn-kpi-tile-delta--${deltaTone}${hasSemanticStatus ? " gn-kpi-tile-delta--plain" : ""}`}
                                 title={deltaA11y.title}
                                 aria-label={deltaA11y.ariaLabel}
                                 data-source={tone.matchedRule ? "visual" : "ai"}
+                                data-delta-tone={deltaTone}
+                                data-delta-cue={deltaCue}
                             >
-                                {inlineFormat(deltaDisplay || delta, sectionTitle)}
+                                {deltaGlyph ? <span className="gn-kpi-tile-delta-cue" aria-hidden="true">{deltaGlyph}</span> : null}
+                                {deltaDisplay || deltaText || delta}
                             </span>
                         ) : null}
                         {!isUnknownPrior && prior ? <span className="gn-kpi-tile-prior">vs {inlineFormat(prior, sectionTitle)}</span> : null}
@@ -9336,7 +11967,10 @@ function renderSectionBody(body: string, sectionTitle?: string, options?: Insigh
                                 title="Retry just this section"
                                 aria-label="Retry just this section"
                             >
-                                <span aria-hidden="true">↻</span> Retry
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                    <Icon name="refresh" />
+                                    Retry
+                                </span>
                             </button>
                         ) : null}
                     </div>
@@ -9557,6 +12191,17 @@ function renderStatusChip(raw: string): React.ReactNode {
     // Strip the colour emoji from the display text — the chip colour carries
     // that signal already, and leaving it in makes the chip look noisy.
     const display = stripStatusGlyphs(clean) || clean;
+
+    // 2026-05-27 — Add a leading tone glyph so the chip unambiguously reads
+    // as a status badge, not an interactive toggle. Without this, the
+    // rounded-pill shape + solid colour fill at small sizes (especially on
+    // mobile) was being mistaken for a switch. The glyph + uppercase text
+    // makes the trust intent obvious.
+    const toneGlyph = tone === "good" ? "✓"
+                   : tone === "warn" ? "⚠"
+                   : tone === "bad"  ? "✗"
+                   : "•";
+
     return (
         <span
             className={`gn-status-chip gn-status-chip--${tone}`}
@@ -9564,6 +12209,7 @@ function renderStatusChip(raw: string): React.ReactNode {
             aria-label={a11y.ariaLabel}
             data-source="ai"
         >
+            <span className="gn-status-chip-glyph" aria-hidden="true">{toneGlyph}</span>
             {display}
         </span>
     );
@@ -9575,6 +12221,8 @@ export const __insightsRenderForTest = {
     renderKpiTiles,
     renderSectionBody,
     renderStatusChip,
+    SqlTabs,
+    formatSqlSectionLabel,
     // Wave 24 — metric-direction pill helpers exposed for unit testing only.
     metricNameBeforePill,
     pillColorClass,
@@ -9587,4 +12235,6 @@ export const __insightsRenderForTest = {
     // normalization (heading-inside-bullet → inline bold).
     renderNarrative,
     demoteBulletStyleHeadings,
+    // Phase E — banner guard helper exposed for unit testing.
+    briefingHasStatusColors,
 };

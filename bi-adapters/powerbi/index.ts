@@ -6,10 +6,11 @@
 //   • mount()    — calls service.embed(containerEl, config) and stashes
 //                  the returned Report instance for later command/event
 //                  routing.
-//   • on()       — subscribes to PBI-native events (loaded, error,
-//                  pageChanged, filtersApplied, dataSelected,
-//                  dataRefreshed) and translates each payload into the
-//                  vendor-agnostic BIEvent shape the AI sidebar consumes.
+//   • on()       — subscribes to PBI-native events (loaded, rendered, error,
+//                  pageChanged, filtersApplied, dataSelected) and translates
+//                  each payload into the vendor-agnostic BIEvent shape the AI
+//                  sidebar consumes. NOTE: Power BI's embed SDK has no
+//                  data-refresh event, so "data-refreshed" maps to nothing.
 //   • send()     — translates BICommand → report.setFilters /
 //                  removeFilters / setPage / refresh / fullscreen.
 //                  `export` is intentionally UNSUPPORTED in v0; the
@@ -41,6 +42,7 @@ import type {
     BIEmbedConfig,
     BIEvent,
     BIEventType,
+    BIMetadata,
 } from "../../playground/src/biPanel/BIAdapter";
 import { BI_ERR } from "../../playground/src/biPanel/BIAdapter";
 
@@ -73,10 +75,12 @@ export interface PowerBIEmbedConfig extends BIEmbedConfig {
     accessToken?: string;
     /** Optional duplicate URL for iframe-style hosts. */
     url?: string;
+    /** Legacy Quick Setup field retained for existing localStorage configs. */
+    secureLink?: string;
     /** Explicitly select the portal secure-embed iframe path. */
     embedMode?: "secure" | "sdk";
     /** Legacy/host-friendly marker for the quick-preview path. */
-    mode?: "secure-embed";
+    mode?: "secure-embed" | "secure";
     /** What type of artifact is being embedded. v0 only supports "report". */
     type?: "report";
     /** Token type — almost always "Embed" for embed-tokens, but "Aad" is
@@ -87,6 +91,27 @@ export interface PowerBIEmbedConfig extends BIEmbedConfig {
     /** Secure iframe title and sandbox override. */
     title?: string;
     sandbox?: string;
+    /** Defense-in-depth allowlist of permitted iframe hostnames. Enforced
+     *  by the secure-iframe mount path so a caller that bypasses BIPanel
+     *  still gets the L2 gate. SDK embed mode is not affected — the SDK
+     *  manages its own iframe whose URL is the validated embedUrl. */
+    allowedOrigins?: string[];
+}
+
+/** L2 defense-in-depth allowlist gate for the secure-iframe path. Mirrors
+ *  the generic-iframe adapter's helper so the powerbi adapter doesn't
+ *  reach across the bi-adapters/ tree at runtime. */
+function assertPowerBIOriginAllowed(url: string, allowedOrigins: string[] | undefined): void {
+    if (!allowedOrigins || allowedOrigins.length === 0) return;
+    let host = "";
+    try { host = new URL(url).hostname.toLowerCase(); }
+    catch { throw new Error(`${BI_ERR.EMBED_FAILED}: powerbi secure embed URL is not a valid URL`); }
+    const normalized = allowedOrigins.map(o => o.trim().toLowerCase()).filter(Boolean);
+    if (!normalized.includes(host)) {
+        throw new Error(
+            `${BI_ERR.EMBED_FAILED}: powerbi secure embed hostname "${host}" is not in your organization's allowed origins. Allowed: ${normalized.join(", ") || "(empty)"}.`,
+        );
+    }
 }
 
 /** Resolve the Power BI factory once. The SDK exposes a singleton
@@ -117,7 +142,14 @@ const PBI_EVENT_MAP: Record<BIEventType, string[]> = {
     "page-changed": ["pageChanged"],
     "filter-applied": ["filtersApplied"],
     "selection-made": ["dataSelected"],
-    "data-refreshed": ["dataRefreshed"],
+    // 2026-05-30 — Power BI's embed SDK has NO "dataRefreshed" report event
+    // (valid names: loaded/saved/rendered/error/dataSelected/filtersApplied/
+    // pageChanged/visualRendered/…). Subscribing to "dataRefreshed" made
+    // powerbi-client throw "eventName must be one of …" during embed and
+    // surfaced a "Failed to embed powerbi" overlay over an otherwise-rendering
+    // report. Map to no SDK event — the vendor-agnostic data-refreshed signal
+    // simply doesn't fire for Power BI (honest; the SDK can't provide it).
+    "data-refreshed": [],
     error: ["error"],
 };
 
@@ -402,6 +434,101 @@ export class PowerBIAdapter implements BIAdapter {
         return snapshot;
     }
 
+    /**
+     * Live-view metadata for the Discovery Loop. Returns null when the
+     * adapter is in secure-iframe mode (no SDK introspection available)
+     * or not mounted. In SDK mode reads the active page + report-level
+     * filters via the public powerbi-client API; visible measures are
+     * inferred from the active page's visuals when the SDK exposes
+     * `getVisuals()`.
+     *
+     * Defensive: every SDK call is wrapped in try/catch — a failure
+     * collapses to null rather than throwing so the AISidebar's discovery
+     * effect can keep firing.
+     */
+    async getMetadata(): Promise<BIMetadata | null> {
+        if (this.mountMode !== "sdk" || !this.report) return null;
+        const out: BIMetadata = {
+            activeViewId: null,
+            visibleMeasures: [],
+            visibleDimensions: [],
+            activeFilters: [],
+        };
+        const report = this.report as unknown as {
+            getActivePage?: () => Promise<{ name?: string; displayName?: string; getVisuals?: () => Promise<Array<{ type?: string; title?: string; name?: string }>> } | null>;
+            getFilters?: () => Promise<pbiModels.IFilter[]>;
+        };
+
+        try {
+            // Step 1: active page (and visuals from that page). Each is
+            // independently catch-wrapped so a failure here doesn't blank
+            // out filters in step 2 — partial degrade > total degrade.
+            let page: { name?: string; displayName?: string; getVisuals?: () => Promise<Array<{ type?: string; title?: string; name?: string }>> } | null = null;
+            if (typeof report.getActivePage === "function") {
+                try { page = await report.getActivePage(); } catch { page = null; }
+            }
+            if (page) {
+                out.activeViewId = page.name || page.displayName || null;
+                if (typeof page.getVisuals === "function") {
+                    try {
+                        const visuals = (await page.getVisuals()) || [];
+                        // Power BI exposes only the visual type + title at the
+                        // public API level; we can't read the actual field
+                        // bindings without an Export-to-DAX call. Use visual
+                        // titles as a best-effort measure/dimension hint —
+                        // the proxy treats this as a SOFT signal.
+                        for (const visual of visuals) {
+                            const title = String(visual.title || visual.name || "").trim();
+                            if (!title) continue;
+                            const lower = title.toLowerCase();
+                            const t = String(visual.type || "").toLowerCase();
+                            const isMeasureCard = t === "card" || t === "multirowcard" || t === "kpi" || t === "gauge";
+                            const isDimensionList = t === "slicer" || t === "tableex" || t === "matrix";
+                            // Order matters: percent first because words like
+                            // "margin %" / "growth rate" overlap the currency
+                            // keyword set. % / rate / share / cagr commit
+                            // "percent". Currency wins on direct signals
+                            // ($, revenue, sales, cost). Count on cardinality.
+                            const kindHint =
+                                /(%|\bpercent\b|\brate\b|\bshare\b|\bcagr\b)/i.test(lower) ? "percent"
+                                : /\b(\$|revenue|sales|profit|margin|cost|spend|currency)\b/i.test(lower) ? "currency"
+                                : /\b(count|orders|customers|tickets|incidents|growth)\b/i.test(lower) ? "count"
+                                : undefined;
+                            if (isMeasureCard) {
+                                out.visibleMeasures!.push(kindHint ? { name: title, kind: kindHint } : { name: title });
+                            } else if (isDimensionList) {
+                                out.visibleDimensions!.push({ name: title });
+                            } else if (kindHint) {
+                                out.visibleMeasures!.push({ name: title, kind: kindHint });
+                            } else {
+                                // Unknown visual type with no strong cue — skip rather than mislabel.
+                            }
+                        }
+                    } catch { /* visual enumeration failed; leave measure list empty */ }
+                }
+            }
+            // Step 2: report-level filters (independent of step 1).
+            if (typeof report.getFilters === "function") {
+                try {
+                    const filters = (await report.getFilters()) || [];
+                    for (const f of filters) {
+                        const target = f.target as pbiModels.IFilterColumnTarget | undefined;
+                        const field = target?.column;
+                        if (!field) continue;
+                        const basicVal = (f as pbiModels.IBasicFilter).values;
+                        const value = Array.isArray(basicVal) && basicVal.length === 1 ? basicVal[0] : basicVal;
+                        out.activeFilters!.push({ field, value: value ?? null });
+                    }
+                } catch { /* filter readout failed; leave empty */ }
+            }
+        } catch {
+            // Top-level catch — if anything truly unexpected blew up,
+            // return null so discovery degrades to pack-only signals.
+            return null;
+        }
+        return out;
+    }
+
     destroy(): void {
         // Remove every PBI-native listener we attached so subsequent
         // mounts don't double-fire.
@@ -428,7 +555,7 @@ export class PowerBIAdapter implements BIAdapter {
     }
 
     private mountSecureIframe(containerEl: HTMLElement, cfg: PowerBIEmbedConfig): void {
-        const src = String(cfg.embedUrl || cfg.url || "").trim();
+        const src = String(cfg.embedUrl || cfg.url || cfg.secureLink || "").trim();
         if (!src) {
             throw new Error(
                 `${BI_ERR.EMBED_FAILED}: powerbi secure embed requires a reportEmbed URL`
@@ -439,6 +566,7 @@ export class PowerBIAdapter implements BIAdapter {
                 `${BI_ERR.EMBED_FAILED}: powerbi secure embed URL must be an app.powerbi.com/reportEmbed URL`
             );
         }
+        assertPowerBIOriginAllowed(src, cfg.allowedOrigins);
 
         this.containerEl = containerEl;
         this.permissionsLevel = "View";
@@ -552,16 +680,31 @@ export class PowerBIAdapter implements BIAdapter {
 }
 
 function isSecureEmbedConfig(cfg: PowerBIEmbedConfig): boolean {
-    if (cfg.embedMode === "secure" || cfg.mode === "secure-embed") return true;
-    const url = String(cfg.embedUrl || cfg.url || "").trim();
+    if (cfg.embedMode === "secure" || cfg.mode === "secure-embed" || cfg.mode === "secure") return true;
+    const url = String(cfg.embedUrl || cfg.url || cfg.secureLink || "").trim();
     return !cfg.accessToken && isPowerBIReportEmbedUrl(url);
 }
+
+// 2026-05-27 — Codex audit P0 #4. The previous check used
+// `hostname.endsWith("powerbi.com")` which silently accepted spoof domains
+// like `evilpowerbi.com`. Tightened to an explicit hostname allowlist of the
+// official Power BI hosts (commercial app.powerbi.com + sovereign cloud
+// variants for Gov / DoD / China / Germany). Add new sovereign hosts here
+// rather than relaxing the check.
+const POWERBI_REPORT_EMBED_HOSTNAMES: ReadonlyArray<string> = Object.freeze([
+    "app.powerbi.com",
+    "app.powerbigov.us",        // US Gov Community Cloud
+    "app.high.powerbigov.us",   // US DoD
+    "app.mil.powerbigov.us",    // US DoD (alt)
+    "app.powerbi.cn",           // China (Mooncake)
+    "app.powerbi.de",           // Germany (retired but kept defensively)
+]);
 
 function isPowerBIReportEmbedUrl(input: string): boolean {
     try {
         const parsed = new URL(input);
         return parsed.protocol === "https:"
-            && parsed.hostname.toLowerCase().endsWith("powerbi.com")
+            && POWERBI_REPORT_EMBED_HOSTNAMES.includes(parsed.hostname.toLowerCase())
             && /\/reportEmbed$/i.test(parsed.pathname);
     } catch {
         return false;
