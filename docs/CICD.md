@@ -26,7 +26,9 @@
 
 ## CD (manual only — INERT until set up)
 
-Posture: **manual-dispatch, environment-gated, OIDC-first, deploy-only.** No `on: push`. The CI identity is least-privilege-scoped so it **cannot create or scale any resource** — pure cost-safety (Azure free/$200, F1 = $0; Databricks Free Edition daily cap). Build happens on the free GitHub runner, never on the billed box (`SCM_DO_BUILD_DURING_DEPLOYMENT=false`).
+> **All three targets are FREE accounts used as a dev/test bed to prove the build works on real services — not for production load.** Azure (free/$200-credit, F1 = $0), Databricks (Free Edition, daily app-runtime cap), Power BI (free: semantic-model Q&A + embed-token mint are free; report VISUAL render needs paid Premium/Embedded capacity → trial-only here). CI/CD itself is $0 (GitHub Actions + OIDC). See memory `project_azure_free_account`.
+
+Posture: **manual-dispatch, environment-gated, OIDC-first, deploy-only.** No `on: push`. The CI identity is least-privilege-scoped so it **cannot create or scale any resource** — pure cost-safety. Build happens on the free GitHub runner, never on the billed box (`SCM_DO_BUILD_DURING_DEPLOYMENT=false`). Free-tier functional limits (F1 cold starts / no Always-On; Databricks Free daily cap can block app restart) are platform limits to validate around, not CD bugs.
 
 Both workflows reuse the CI gate (lint + test + build) before deploying, and `concurrency: cancel-in-progress: false` so a deploy is never interrupted.
 
