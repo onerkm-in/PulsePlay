@@ -1955,7 +1955,10 @@ function DashboardSurfaceContextStrip(props: {
 function SetupStatusPill(props: { readiness: SetupReadiness }): React.ReactElement {
     const ready = props.readiness.ready;
     const dot = ready ? "#22c55e" : "#f59e0b";
-    const fg = ready ? "#166534" : "#7a5b00";
+    // Theme-aware text so the pill stays AA-legible in dark mode (was a
+    // hardcoded #166534 dark-green → only 2.65:1 on the dark bg). The semantic
+    // tokens resolve to a darker green/amber in light and a lighter one in dark.
+    const fg = ready ? "var(--pp-success, #166534)" : "var(--pp-warning, #7a5b00)";
     const bg = ready ? "rgba(34, 197, 94, 0.08)" : "rgba(250, 204, 21, 0.12)";
     const border = ready ? "rgba(34, 197, 94, 0.32)" : "rgba(245, 158, 11, 0.34)";
     return (

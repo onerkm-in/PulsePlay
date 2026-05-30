@@ -12,7 +12,7 @@
 // surface, independent of the React render tree. Listens for the in-tab
 // settings-change event + cross-tab storage so toggling re-themes live.
 
-import { applyThemeTokens, resolveThemeTokens, type AppearanceSettingsLike } from "../pulse/themeConfig";
+import { applyThemeTokens, resolveThemeTokens, isDarkTheme, type AppearanceSettingsLike } from "../pulse/themeConfig";
 
 const GENIE_SETTINGS_KEY = "pulseplay:visual-settings:genieSettings";
 const VISUAL_SETTINGS_EVENT = "pulseplay:visual-settings-change";
@@ -35,10 +35,14 @@ function readAppearance(): AppearanceSettingsLike {
 export function applyPpTheme(): void {
     if (typeof document === "undefined") return;
     const s = readAppearance();
-    const dark = !!s.darkMode;
+    const tokens = resolveThemeTokens(s);
+    // A dark-luminance PRESET (e.g. slate-dark) implies dark mode even with the
+    // toggle off — otherwise its dark surfaces would render with light-mode
+    // text tokens. Treat it as dark for the native surfaces + token set.
+    const dark = !!s.darkMode || isDarkTheme(tokens);
     document.documentElement.dataset.ppTheme = dark ? "dark" : "light";
     try {
-        applyThemeTokens(resolveThemeTokens(s), { dark });
+        applyThemeTokens(tokens, { dark });
     } catch {
         /* never let theming break boot */
     }

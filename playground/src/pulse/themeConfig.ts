@@ -309,8 +309,12 @@ export const APP_THEME_MANAGED_VARS: readonly string[] = [
 ];
 
 /** Build the CSS-variable map for the whole app from a resolved theme.
- *  In dark mode only accent-family vars are emitted (surfaces/text stay with
- *  the tuned dark CSS). Pure — returns a plain object so it is trivial to test. */
+ *  In dark mode we emit the accent (from the active theme) PLUS dark-canonical
+ *  text/muted/semantic tokens — NOT surfaces/borders, which stay owned by the
+ *  tuned dark CSS. The text tokens matter because some chrome (e.g. the context
+ *  strip) lives OUTSIDE `.gn-shell--dark`, so without a :root dark muted token
+ *  it fell back to the LIGHT muted (#5d6673 → only 3.26:1 on the dark bg). Pure
+ *  — returns a plain object so it is trivial to test. */
 export function buildAppThemeVars(tokens: ThemeTokens, opts?: { dark?: boolean }): Record<string, string> {
     const accentVars: Record<string, string> = {
         "--gn-accent": tokens.accent,
@@ -322,7 +326,24 @@ export function buildAppThemeVars(tokens: ThemeTokens, opts?: { dark?: boolean }
         "--pp-accent-soft": rgbaOf(tokens.accent, 0.08),
         "--pp-accent-border": rgbaOf(tokens.accent, 0.30),
     };
-    if (opts?.dark) return accentVars;
+    if (opts?.dark) {
+        // Dark-canonical text + semantic tokens (matches @gn-dark-* / the
+        // [data-pp-theme=dark] palette). All meet AA on the dark surfaces.
+        return {
+            ...accentVars,
+            "--gn-text": "#e2eaf4",
+            "--gn-text-muted": "#8b949e",
+            "--gn-success": "#3fb950",
+            "--gn-warning": "#d29922",
+            "--gn-error": "#f85149",
+            "--pp-text": "#e2eaf4",
+            "--pp-fg": "#e2eaf4",
+            "--pp-text-muted": "#8b949e",
+            "--pp-success": "#3fb950",
+            "--pp-warning": "#d29922",
+            "--pp-error": "#f85149",
+        };
+    }
     return {
         ...accentVars,
         // workbench surfaces / text / geometry

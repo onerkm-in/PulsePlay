@@ -48,12 +48,18 @@ describe("buildAppThemeVars", () => {
         expect(vars["--pp-accent-hover"]).toMatch(/^#/);
     });
 
-    it("dark mode writes ONLY accent-family vars (surfaces left to dark CSS)", () => {
+    it("dark mode writes accent + dark text/semantic, but NOT surfaces (dark CSS owns those)", () => {
         const vars = buildAppThemeVars(BUILT_IN_THEMES["corporate-blue"], { dark: true });
         expect(vars["--gn-accent"]).toBe(BUILT_IN_THEMES["corporate-blue"].accent);
         expect(vars["--pp-accent"]).toBe(BUILT_IN_THEMES["corporate-blue"].accent);
+        // dark-canonical text so chrome outside .gn-shell--dark stays AA-legible
+        expect(vars["--gn-text"]).toBe("#e2eaf4");
+        expect(vars["--gn-text-muted"]).toBe("#8b949e");
+        expect(vars["--pp-text-muted"]).toBe("#8b949e");
+        expect(vars["--gn-success"]).toBe("#3fb950");
+        // surfaces/borders are left to the tuned dark CSS
         expect(vars["--pp-bg"]).toBeUndefined();
         expect(vars["--gn-bg"]).toBeUndefined();
-        expect(vars["--gn-text"]).toBeUndefined();
+        expect(vars["--gn-border"]).toBeUndefined();
     });
 });
