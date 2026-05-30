@@ -24,11 +24,14 @@ export interface CanvasTile {
     /** Data snapshot captured at pin time (instant render, offline-safe). */
     columns: string[];
     rows: unknown[][];
-    /** Provenance + substrate for a future live refresh. */
+    /** Provenance + the binding used to refresh/re-run the tile live. */
     sqlQuery?: string;
     connectorProfileId?: string;
     sourceQuestion?: string;
     createdAt: number;
+    /** Wall-clock of the last live refresh / edited-query run (undefined = the
+     *  tile is still showing its original pinned snapshot). */
+    lastRefreshedAt?: number;
 }
 
 const STORAGE_KEY = "pulseplay:canvas-tiles";
