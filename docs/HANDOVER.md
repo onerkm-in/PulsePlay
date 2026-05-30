@@ -5,6 +5,30 @@
 
 ---
 
+## 2026-05-30 - UX polish blitz + pin-to-canvas (build-your-own-dashboard) + whole-app theming; all headed-validated, 1820 vitest green
+
+**Context.** A long live-feedback session: Rajesh drove rapid UX requests while watching headed Playwright runs against the live Genie `default` space. Local stack: proxy `--use-system-ca` on 7000 + Vite 7001. Every change validated headed + full suite. Branch `codex/f5-g0-native-layout-2026-05-21`, pushed (HEAD `306c4d2`).
+
+**First: the unverified items.** AI Insights briefing + Ask Pulse Genie chat are **CONFIRMED working e2e locally** (real SQL sections, correct live data West $725,457.82 etc.). The Azure "No access token configured" was **deploy-env-only** (config.json token present locally), never a local defect.
+
+**Shipped (each its own commit):**
+- `ee87a66` **AI Insights layout** — reclaim the dead right column when a briefing row has no partner section, via CSS `:has()` (KPI SNAPSHOT / RISKS span full width when TRENDS / ACTIONS absent). Magazine grid at [visual.less:8789+](../playground/src/pulse/style/visual.less).
+- `ad66b87` **Chat single-view** — Narrative + preferred Chart + scroll-capped (280px) Table stacked under a slim **Answer / SQL / Trace** switch (no per-view tabs). SQL via switch + the `</>` toolbar. Briefing-format replies suppress the dup Table. `renderMessageBody` in [visual.tsx](../playground/src/pulse/visual.tsx).
+- `694564d` + `556264e` **Chat auto-scroll** — pin the new QUESTION near the top so the answer streams below it (was burying it at the bottom of a tall answer). Re-asserts via absolute timers to catch async chart layout shifts above. **KNOWN FOLLOW-UP:** lands ~210px from top (not flush) because there isn't yet content below at submit — proper fix is a bottom spacer (ChatGPT-style).
+- `e6832bd` **Streaming "feels alive"** — shimmer the active verb (text-clip gradient), glow behind the glyph, light sweep on the progress bar; active-only, `prefers-reduced-motion`-guarded, dark variant.
+- `cedd1da` **Theme unify (Step 1)** — one resolved theme writes BOTH `--gn-*` and `--pp-*` to `:root` so a preset re-skins the WHOLE app (native Settings/shell/v0 too, not just the workbench). `resolveThemeTokens` + `applyThemeTokens` + `buildAppThemeVars` in [themeConfig.ts](../playground/src/pulse/themeConfig.ts), wired via [themeSync.ts](../playground/src/lib/themeSync.ts). Brand overrides apply ONLY under the custom theme (presets stay distinct). Dark stays class/attribute-driven (`.gn-shell--dark` / `data-pp-theme`); in dark only the accent is written (tuned dark CSS owns surfaces). **Step 2 (Figma file URL → tokens via the Figma MCP) DEFERRED.**
+- `556264e` **Colorful viz** — vibrant ("poppy") default palette in [buildEChartsOption.ts](../playground/src/lib/buildEChartsOption.ts) + **option-level `color`** so pie/donut (no per-item color) re-skin too. **On-chart palette picker** ([chartPalettes.ts](../playground/src/lib/chartPalettes.ts), 6 palettes) in the chart toolbar — end users never see Settings, so the colour control lives on the chart; sets `--pp-chart-palette` + broadcasts → all charts re-skin.
+- `2c7cc75` + `3041939` **Pin-to-canvas (build-your-own-dashboard)** — designed via parallel research (closest precedent: Looker lookless tile + Databricks dataset-per-widget). **"Pin to canvas"** on Ask Pulse charts → the Dashboard tab's native canvas renders a **grid of pinned tiles**. Each tile is self-contained: snapshot data + the generating **SQL** + the bound **connector profile**. Per-tile **Refresh** re-runs the SQL against the connector via the proxy **`/sql/preview` + `X-Assistant-Profile`** ([sqlPreviewClient.ts](../playground/src/lib/sqlPreviewClient.ts)) → "live · Ns ago"; **Edit query** lets the end user modify the SQL + Run. Store: [canvasTiles.ts](../playground/src/lib/canvasTiles.ts) (localStorage = end-user "bookmark" tier, +broadcast). Grid: [CanvasGrid.tsx](../playground/src/visualization/CanvasGrid.tsx) (themed `--pp-*`); [NativeCanvas.tsx](../playground/src/visualization/NativeCanvas.tsx) shows the grid when tiles exist. Validated headed: pin donut → Dashboard tile; Refresh → live; Edit DESC→ASC → first row West→South.
+- `306c4d2` **Theme full-test harness** — presets + dark across all surfaces; PASS.
+
+**Pin-to-canvas LATER PHASES (not built):** drag/resize/arrange; pin from AI Insights sections + tables; named **Reports** + set-as-default-load + **Templates** (proxy-side); query re-edit reopening in Ask Pulse; per-tile governance; live-refresh schedule; multi-canvas.
+
+**Validation:** tsc clean; **vitest 1820/1820** (129 files; added canvasTiles + themeApply tests; fixed NativeCanvas test's echarts mock for the wider chart set EChartsRenderer registers). Headed harnesses under `playground/scripts/walkthrough-*.mjs` + `validate-*.mjs`; evidence under `docs/evidence/`.
+
+**Tripwires.** (1) Chart palette is read from `--pp-chart-palette` at build time in `buildEChartsOption` — option-level `color` is now set on EVERY chart (was missing → pie/donut used ECharts' stock palette). (2) Theme presets that are inherently dark (slate-dark) / high-contrast are applied as light-mode token sets when the dark TOGGLE is off — **font visibility across all preset×mode combos is being audited next** (potential contrast bug). (3) Auto-scroll bottom-spacer follow-up. (4) Pinned-tile connector binding falls back to `pulseplay:active-ai-profile` when the response route omits `assistantProfile`.
+
+---
+
 ## 2026-05-29 - Azure App Service hosting LIVE ($0) + Easy Auth + proxy env-mapping; CONNECTIVITY closed, FEATURES not yet verified
 
 **Context.** Goal reframed mid-session to **plug-and-play / understand-everything**: configure the full stack by hand so the org can later just swap credentials. Host-agnostic target (Databricks App / Azure App / AWS App). Org: Databricks ON, Azure ON, **Power BI Premium ON**. All work dev-only; **$0** (free F1, no paid resources). See memory `project_plug_and_play_config`, `project_azure_free_account`, `project_dev_connect_first`, `feedback_keep_all_connection_options`.
