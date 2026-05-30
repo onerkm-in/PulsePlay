@@ -3450,7 +3450,7 @@ function App(props: AppProps) {
     // planner simply falls back to the prose plan (no regression) and uses the
     // deterministic plan on the next run.
     const pbiProbeRef = useRef<Map<string, PbiProbeFields>>(new Map());
-    const pbiProbePendingRef = useRef<Set<string>>(new Set());
+    const pbiProbePromiseRef = useRef<Map<string, Promise<PbiProbeFields>>>(new Map());
     // runInsights ref so the probe effect (defined first) can trigger a re-run
     // when the probe resolves, without a hook-ordering dependency cycle.
     const runInsightsRef = useRef<((p?: string, t?: string, bg?: boolean) => void) | null>(null);
@@ -3458,46 +3458,42 @@ function App(props: AppProps) {
     const detRerunRef = useRef<Set<string>>(new Set());
     const [, setPbiProbeVersion] = useState(0);
     const insightsActiveProfile = activeSpace?.genieConfig.assistantProfile || props.settings.assistantProfile || "";
-    useEffect(() => {
-        const profile = insightsActiveProfile;
-        if (!profile) return;
-        if (pbiProbeRef.current.has(profile) || pbiProbePendingRef.current.has(profile)) return;
-        pbiProbePendingRef.current.add(profile);
-        fetchAssistantProbeClient({
+    // Fetch the connector probe ONCE per profile and cache the promise so the
+    // AI Insights auto-fire can await it (capped) — that lets a deterministic
+    // powerbi-semantic-model connector plan the clean DAX briefing on the FIRST
+    // run, with no cold prose run flashing "no measure" before a re-run.
+    const ensurePbiProbe = useCallback((profile: string): Promise<PbiProbeFields> => {
+        const key = profile || "";
+        const cache = pbiProbePromiseRef.current;
+        if (cache.has(key)) return cache.get(key)!;
+        const p = fetchAssistantProbeClient({
             apiBaseUrl: props.settings.apiBaseUrl,
             proxyKey: props.settings.proxyKey,
-            assistantProfile: profile,
+            assistantProfile: key,
         }).then(fields => {
-            pbiProbeRef.current.set(profile, fields);
-            pbiProbePendingRef.current.delete(profile);
+            pbiProbeRef.current.set(key, fields);
             setPbiProbeVersion(v => v + 1);
-            // AIINSIGHTS-P1 cold-run race: the AI Insights auto-run usually
-            // fires BEFORE this probe resolves, so it plans the prose pipeline
-            // (which the no-LLM matcher answers with garbage/fallback). Once we
-            // confirm a deterministic connector, trigger ONE background re-run
-            // so the clean measure-named DAX plan replaces that first paint.
+            // Safety net: if the auto-fire still raced ahead with the prose plan,
+            // trigger ONE clean re-run once we confirm a deterministic connector.
             if (fields.connectorType === "powerbi-semantic-model"
                 && fields.measures.length > 0
-                && !detRerunRef.current.has(profile)) {
-                detRerunRef.current.add(profile);
-                // Stop the in-flight cold (prose) run so its late stages can't
-                // overwrite our clean plan. Set the per-space stop flag AND
-                // abort any in-flight request (just flagging won't cancel an
-                // XHR already awaiting the proxy — that's how the prose RISKS
-                // section was bleeding through). The background re-run resets
-                // its own space's stop flag on entry, so it still proceeds.
+                && !detRerunRef.current.has(key)) {
+                detRerunRef.current.add(key);
                 Object.keys(insightsStopRef.current).forEach(k => { insightsStopRef.current[k] = true; });
                 try { activeClient?.cancel?.(); } catch { /* best-effort */ }
-                // Clear the cold run's cached/partial result so the re-run plans
-                // FRESH (otherwise runInsights serves the cached prose-accidental
-                // result instead of our clean deterministic plan).
                 try { clearInsightsCache(computeInsightsCacheKey(activeSpaceKey)); } catch { /* best-effort */ }
                 setTimeout(() => { runInsightsRef.current?.(undefined, undefined, true); }, 200);
             }
+            return fields;
         }).catch(() => {
-            pbiProbePendingRef.current.delete(profile);
+            cache.delete(key); // allow a later retry
+            return { connectorType: "", measures: [], dimensions: [] } as PbiProbeFields;
         });
-    }, [insightsActiveProfile, props.settings.apiBaseUrl, props.settings.proxyKey]);
+        cache.set(key, p);
+        return p;
+    }, [props.settings.apiBaseUrl, props.settings.proxyKey, activeClient, computeInsightsCacheKey, activeSpaceKey]);
+    // Prefetch the probe whenever the active profile changes.
+    useEffect(() => { if (insightsActiveProfile) ensurePbiProbe(insightsActiveProfile); }, [insightsActiveProfile, ensurePbiProbe]);
 
     const runInsights = useCallback((overridePrompt?: string, overrideTitle?: string, backgroundRefresh?: boolean) => {
         const client = activeClient;
@@ -4199,7 +4195,15 @@ function App(props: AppProps) {
             // (default 1, max 3). Each retry adds ~10-25s on the failed
             // stage. 0 disables auto-retry — the inline cycle 30/43
             // banner + manual ↻ retry button still appear.
-            if (stageTraces[index].status === "ok") {
+            // AIINSIGHTS-P1: skip the prose-shape validation/retry for the
+            // deterministic powerbi-semantic-model plan. Its stages are real DAX
+            // tables (e.g. "## Top 3 segment by Total Sales"), which never match
+            // the prose expectations (RISKS=list-of-3, HEADLINE=paragraph,
+            // KPI=pipe-table) — the validator would flag a false "STRUCTURAL
+            // FAILURE" and retry with a PROSE prompt that the no-LLM matcher
+            // answers with garbage (the "Top 3 customer_name" bleed). The DAX
+            // answer is authoritative; accept it as-is.
+            if (stageTraces[index].status === "ok" && !deterministicPbiPlan) {
                 const validation = validateStageOutput(titles[index] || "", contentParts[index]);
                 if (!validation.ok) {
                     const maxRetries = Math.max(0, Math.min(3, props.settings.insightsValidationRetryCount ?? 1));
@@ -4622,8 +4626,21 @@ function App(props: AppProps) {
         }
 
         insightsFiredRef.current[activeSpaceKey] = true;
-        runInsights();
-    }, [activeClient, activeSpaceKey, isConfigured, insightsBusy, runInsights, computeInsightsCacheKey, setSpaceInsightsResult, setSpaceStageStatuses, logSession, enabledFeatures, props.context]);
+        // AIINSIGHTS-P1 cold-run fix: wait (capped ~1.8s) for the connector
+        // probe so a deterministic powerbi-semantic-model connector plans the
+        // clean DAX briefing on the FIRST run — no cold prose run flashing
+        // "no measure" before the re-run. Genie's probe resolves fast; the cap
+        // guarantees the run fires even if the probe is slow or never resolves.
+        const profileForRun = insightsActiveProfile;
+        if (pbiProbeRef.current.has(profileForRun)) {
+            runInsights();
+        } else {
+            Promise.race([
+                ensurePbiProbe(profileForRun),
+                new Promise(res => setTimeout(res, 1800)),
+            ]).then(() => runInsights()).catch(() => runInsights());
+        }
+    }, [activeClient, activeSpaceKey, isConfigured, insightsBusy, runInsights, computeInsightsCacheKey, setSpaceInsightsResult, setSpaceStageStatuses, logSession, enabledFeatures, props.context, insightsActiveProfile, ensurePbiProbe]);
 
     // ──────────────────────────────────────────────────────────────────────────
     // Wave 35 Phase 3 — Custom SQL section dispatcher.
@@ -5556,7 +5573,10 @@ function App(props: AppProps) {
                                 fontSize: 12,
                                 color: "var(--pp-text-muted, #6b7280)",
                                 borderBottom: "1px solid var(--pp-border, #e5e7eb)",
-                                background: "var(--pp-surface-subtle, #f9fafb)",
+                                // --pp-surface-subtle is undefined → fall back to the
+                                // dark-aware raised surface, not white (#f9fafb was a
+                                // white bar in dark mode — closing-smoke screenshot 08).
+                                background: "var(--pp-surface-subtle, var(--pp-surface-raised, #f9fafb))",
                             }}
                         >
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ animation: "gn-progress-spin 1.2s linear infinite", flexShrink: 0 }}>
@@ -8707,14 +8727,10 @@ function MessageCard(props: {
                         >
                             <span aria-hidden="true">👎</span>
                         </button>
-                        <button className="gn-copy-btn" onClick={() => {
-                            const v = activeView;
-                            if (v === "sql" && props.message.sqlQuery) copyText(props.message.sqlQuery);
-                            else if (v === "table" && props.message.queryResult) copyText(formatTableAsCsv(props.message.queryResult.columns, props.message.queryResult.rows));
-                            else copyText(props.message.content ?? "");
-                        }}>
-                            ⎘ Copy answer
-                        </button>
+                        {/* 2026-05-30 — removed the redundant "⎘ Copy answer" text
+                          * button: the message-level icon toolbar below (📋) does
+                          * the identical copy (active view: SQL / table-CSV /
+                          * narrative). One copy control, not two. */}
                         {props.message.feedback && (
                             <div className="gn-feedback-comment">
                                 <input
