@@ -5,6 +5,16 @@
 
 ---
 
+## 2026-05-30 (session close) — 105-round headed closing smoke → 3 real fixes (AIINSIGHTS-P1 CLOSED, dark banner, Copy dup); CI/CD; deployment guide
+
+**Context.** Closing-the-session validation: a 105-round HEADED watchable smoke ([smoke-100-final.mjs](../playground/scripts/smoke-100-final.mjs), on-screen banner + per-surface screenshots in `docs/evidence/smoke-100-final/`). 93/105 — the 12 fails split into **9 harness gaps in the new script** (embed-token not minted; Part-F canvas nav landed back on AI Insights; bundle-menu hidden behind my own z-index banner — all features independently green via the dedicated validators) and **3 REAL issues** caught from the screenshots, all now fixed (commit `82e2f17`):
+
+1. **AIINSIGHTS-P1 cold-run bleed — FULLY CLOSED** (`validate-pbi-insights.mjs` 4/5 → **5/5**). Diagnosed via a new network-capture probe ([capture-insights-questions.mjs](../playground/scripts/capture-insights-questions.mjs)): the builder was ALREADY sending clean "Top 5 **segment**" — the "customer_name" garbage came from **prose RETRY prompts**. Two causes: (a) cold-run race (auto-fire ran before the probe resolved → prose plan → fallback) → fix: auto-fire **awaits the probe (capped ~1.8s)**; (b) the per-stage **prose validator** (`insightsStageValidator.ts`: RISKS=list-of-3, HEADLINE=paragraph, KPI=pipe-table) flagged the DAX tables as "STRUCTURAL FAILURE" → retried with prose → matcher garbage → fix: **skip stage validation/retry for the deterministic plan** ([visual.tsx:4198](../playground/src/pulse/visual.tsx#L4198)). **Lesson:** the bleed was never a cold run — it was the structural-retry feeding prose to a no-LLM matcher.
+2. **Dark stale-refresh banner white** — "Showing last completed briefing while PulsePlay refreshes" used undefined `--pp-surface-subtle` (→ `#f9fafb`); fixed to fall back to `--pp-surface-raised`.
+3. **Copy-answer dup** — removed the redundant "⎘ Copy answer" text button (the 📋 icon toolbar copies identically). Audit (subagent) confirmed this was the **only** leftover dup; prior cycles already removed Export▾/header-kebab/floating-SQL-pill/Answer-SQL-switch.
+
+Validated: lint + **1842 vitest**; deterministic insights 5/5; Genie insights still fires + 0 dark white surfaces. **Tripwire:** when adding deterministic/no-LLM connectors, gate BOTH the auto-fire timing AND the stage validator — prose-shape validation + retry will feed garbage to a template matcher.
+
 ## 2026-05-30 (late night, cont.) — Canonical [docs/DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) (configure → run → host → troubleshoot)
 
 **Context.** Rajesh: all three services (Azure / Databricks / Power BI) are FREE dev/test beds to prove the build connects + works; the app must be "easily configurable — anyone reads the doc and knows how to configure, run local, and host on App Service or Databricks Apps", with **what may go wrong + how to tackle it** documented. 2-agent research: (a) mined every lived hurdle from the DEPLOY_* docs + HANDOVER + app.yaml + CLAUDE.md tripwires; (b) researched free-tier gotchas not yet hit.
