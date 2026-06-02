@@ -8883,6 +8883,83 @@
     .gn-surface-context__badge--neutral { color: @gn-dark-text; background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.14); }
 }
 
+/* 2026-06-02 — Gemini-spec Context Setup dropdown (replaces the full inline
+ * strip). A thin control-bar row holding a single "⚙ Context · <Trust> ▾"
+ * trigger; the full facts live in a popover. Collapses metadata + reclaims the
+ * row while keeping Trust glanceable on the trigger. */
+.gn-context-bar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    padding: 4px 16px;
+    border-bottom: 1px solid @gn-border-subtle;
+    background: @gn-surface-raised;
+}
+.gn-context-setup {
+    position: relative;
+    display: inline-flex;
+}
+.gn-context-setup__trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 3px 9px;
+    border: 1px solid @gn-border-subtle;
+    border-radius: 999px;
+    background: @gn-surface;
+    color: @gn-text-muted;
+    font-size: 11px;
+    line-height: 1.4;
+    cursor: pointer;
+
+    &:hover { border-color: @gn-border; background: @gn-surface-raised; }
+    &:focus-visible { outline: 2px solid @gn-accent; outline-offset: 1px; }
+}
+.gn-context-setup__trigger--open { border-color: @gn-accent-border; background: @gn-accent-subtle; }
+.gn-context-setup__gear { font-size: 12px; opacity: 0.8; }
+.gn-context-setup__label { font-weight: 600; color: @gn-text; }
+.gn-context-setup__chevron { font-size: 9px; opacity: 0.7; }
+
+.gn-context-setup__popover {
+    position: absolute;
+    top: calc(100% + 5px);
+    left: 0;
+    z-index: 30;
+    min-width: 280px;
+    max-width: 360px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px;
+    border: 1px solid @gn-border;
+    border-radius: @gn-radius-sm;
+    background: @gn-surface;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+}
+.gn-context-setup__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 5px 8px;
+    border-radius: 5px;
+    font-size: 12px;
+
+    & + & { border-top: 1px solid @gn-border-subtle; }
+}
+.gn-context-setup__row-label { color: @gn-text-muted; font-weight: 600; flex: 0 0 auto; }
+.gn-context-setup__row-value { color: @gn-text; text-align: right; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+.gn-shell--dark {
+    .gn-context-bar { background: rgba(15, 23, 42, 0.7); }
+    .gn-context-setup__trigger { background: rgba(255, 255, 255, 0.04); border-color: rgba(255, 255, 255, 0.14); }
+    .gn-context-setup__trigger--open { background: rgba(70, 145, 224, 0.15); border-color: rgba(70, 145, 224, 0.4); }
+    .gn-context-setup__label { color: @gn-dark-text; }
+    .gn-context-setup__popover { background: @gn-dark-surface; border-color: rgba(255, 255, 255, 0.14); box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6); }
+    .gn-context-setup__row + .gn-context-setup__row { border-top-color: rgba(255, 255, 255, 0.10); }
+    .gn-context-setup__row-value { color: @gn-dark-text; }
+}
+
 .gn-shell--dark .gn-surface-context {
     background: rgba(15, 23, 42, 0.7);
 }

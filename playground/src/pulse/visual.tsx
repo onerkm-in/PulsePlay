@@ -5545,16 +5545,18 @@ function App(props: AppProps) {
                 </div>
             </div>
 
-            <PulseSurfaceContextStrip
-                surface={activeTab === "insights" ? "AI Insights" : "Ask Pulse"}
-                mode={pulseSurfaceContext.mode}
-                items={[
-                    { label: "Assistant", value: pulseSurfaceContext.assistant },
-                    { label: "Source", value: pulseSurfaceContext.source },
-                    { label: "Scope", value: pulseSurfaceContext.scope },
-                    { label: "Trust", value: pulseSurfaceContext.trust },
-                ]}
-            />
+            <div className="gn-context-bar">
+                <PulseContextSetup
+                    surface={activeTab === "insights" ? "AI Insights" : "Ask Pulse"}
+                    mode={pulseSurfaceContext.mode}
+                    items={[
+                        { label: "Assistant", value: pulseSurfaceContext.assistant },
+                        { label: "Source", value: pulseSurfaceContext.source },
+                        { label: "Scope", value: pulseSurfaceContext.scope },
+                        { label: "Trust", value: pulseSurfaceContext.trust },
+                    ]}
+                />
+            </div>
 
             {activeTab === "insights" && (
                 <div
@@ -8554,30 +8556,67 @@ function trustBadgeTone(value: string): "ok" | "warn" | "bad" | "info" | "neutra
     return "neutral";
 }
 
-function PulseSurfaceContextStrip(props: {
+// PulseSurfaceContextStrip (the full inline metadata strip) was superseded
+// 2026-06-02 by PulseContextSetup (the collapsed "⚙ Context ▾" dropdown). Its
+// .gn-surface-context CSS is retained (the badge classes are reused by the
+// dropdown's Trust badge).
+
+// 2026-06-02 — Gemini-spec control-bar consolidation. Collapses the metadata
+// facts (Surface/Mode/Assistant/Source/Scope) into a single "⚙ Context ▾"
+// dropdown to reclaim the row, while keeping the Trust signal glanceable ON the
+// trigger (the hybrid call: spec's collapse + research's keep-Trust-visible).
+function PulseContextSetup(props: {
     surface: string;
     mode: string;
     items: PulseSurfaceContextItem[];
 }): React.ReactElement {
+    const [open, setOpen] = React.useState(false);
+    const ref = React.useRef<HTMLDivElement>(null);
+    React.useEffect(() => {
+        if (!open) return;
+        const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+        const onEsc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+        document.addEventListener("mousedown", onDoc);
+        document.addEventListener("keydown", onEsc);
+        return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onEsc); };
+    }, [open]);
+    const trust = props.items.find(i => i.label.trim().toLowerCase() === "trust");
+    const rest = props.items.filter(i => i.label.trim().toLowerCase() !== "trust");
+    const tone = trust ? trustBadgeTone(trust.value) : "neutral";
     return (
-        <div className="gn-surface-context" role="group" aria-label={`${props.surface} context`}>
-            <div className="gn-surface-context__primary">
-                <span className="gn-surface-context__label">Surface</span>
-                <span className="gn-surface-context__value">{props.surface}</span>
-                <span className="gn-surface-context__divider" aria-hidden="true" />
-                <span className="gn-surface-context__value">{props.mode}</span>
-            </div>
-            {props.items.map(item => {
-                const isTrust = item.label.trim().toLowerCase() === "trust";
-                return (
-                    <div className="gn-surface-context__item" key={item.label}>
-                        <span className="gn-surface-context__label">{item.label}</span>
-                        {isTrust
-                            ? <span className={`gn-surface-context__badge gn-surface-context__badge--${trustBadgeTone(item.value)}`}>{item.value}</span>
-                            : <span className="gn-surface-context__value">{item.value}</span>}
+        <div className="gn-context-setup" ref={ref}>
+            <button
+                type="button"
+                className={`gn-context-setup__trigger${open ? " gn-context-setup__trigger--open" : ""}`}
+                aria-expanded={open}
+                aria-haspopup="dialog"
+                onClick={() => setOpen(o => !o)}
+            >
+                <span className="gn-context-setup__gear" aria-hidden="true">⚙</span>
+                <span className="gn-context-setup__label">Context</span>
+                {trust && <span className={`gn-surface-context__badge gn-surface-context__badge--${tone}`}>{trust.value}</span>}
+                <span className="gn-context-setup__chevron" aria-hidden="true">▾</span>
+            </button>
+            {open && (
+                <div className="gn-context-setup__popover" role="dialog" aria-label="Workspace context">
+                    <div className="gn-context-setup__row">
+                        <span className="gn-context-setup__row-label">Surface</span>
+                        <span className="gn-context-setup__row-value">{props.surface} · {props.mode}</span>
                     </div>
-                );
-            })}
+                    {rest.map(item => (
+                        <div className="gn-context-setup__row" key={item.label}>
+                            <span className="gn-context-setup__row-label">{item.label}</span>
+                            <span className="gn-context-setup__row-value">{item.value}</span>
+                        </div>
+                    ))}
+                    {trust && (
+                        <div className="gn-context-setup__row">
+                            <span className="gn-context-setup__row-label">Trust</span>
+                            <span className={`gn-surface-context__badge gn-surface-context__badge--${tone}`}>{trust.value}</span>
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 }
