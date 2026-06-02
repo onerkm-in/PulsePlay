@@ -9,6 +9,8 @@
 
 import { Harness, CONNECTORS } from "./lib/harness.mjs";
 import { runConnectors } from "./areas/connectors.mjs";
+import { runThemes } from "./areas/themes.mjs";
+import { runFeatures } from "./areas/features.mjs";
 
 const arg = (k, d) => { const m = process.argv.find((a) => a.startsWith(`--${k}=`)); return m ? m.split("=").slice(1).join("=") : d; };
 const flag = (k) => process.argv.includes(`--${k}`);
@@ -16,7 +18,7 @@ const list = (v) => (v ? v.split(",").map((s) => s.trim()).filter(Boolean) : nul
 
 async function main() {
   const runId = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-  const areas = list(arg("areas")) || ["connectors"];
+  const areas = list(arg("areas")) || ["connectors", "themes", "features"];
   const connectors = list(arg("connectors")) || Object.keys(CONNECTORS);
   const dark = flag("dark");
   const headed = flag("headed") || !flag("headless");
@@ -40,7 +42,14 @@ async function main() {
         await runConnectors(h, { connectors, dark: true });
       }
     }
-    // future areas: themes, palettes, presets, features (wired incrementally)
+    if (areas.includes("themes")) {
+      console.log(`\n──── AREA: themes ────`);
+      await runThemes(h, {});
+    }
+    if (areas.includes("features")) {
+      console.log(`\n──── AREA: features ────`);
+      await runFeatures(h);
+    }
   } catch (e) {
     console.error("[harness error]", e);
     h.finding("harness", "CRITICAL", "Harness exception", String(e?.message || e));
