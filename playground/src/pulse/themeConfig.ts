@@ -57,19 +57,22 @@ export type ThemeName =
 
 export const BUILT_IN_THEMES: Record<ThemeName, ThemeTokens> = {
 
-    /** Default — clean GitHub-inspired light theme */
+    /** Default — clean corporate light theme (2026-06-02: aligned to the Gemini
+     *  spec's exact tokens — canvas #F8F9FA, cards #FFFFFF, text #1F2937, border
+     *  #E5E7EB, royal-blue #2563EB. textMuted kept darker than the spec's
+     *  #9CA3AF so small metadata text still passes WCAG AA.) */
     "default": {
-        bg:            "#f3f5f8",
+        bg:            "#f8f9fa",
         surface:       "#ffffff",
         surfaceRaised: "#ffffff",
-        border:        "#d0d7de",
-        borderSubtle:  "#e4e9ef",
-        text:          "#1a1f24",
+        border:        "#e5e7eb",
+        borderSubtle:  "#ededed",
+        text:          "#1f2937",
         textMuted:     "#5d6673",
-        accent:        "#1a6fd4",
-        accentSubtle:  "rgba(26,111,212,0.09)",
-        accentBorder:  "rgba(26,111,212,0.38)",
-        userBubble:    "#1a6fd4",
+        accent:        "#2563eb",
+        accentSubtle:  "rgba(37,99,235,0.09)",
+        accentBorder:  "rgba(37,99,235,0.38)",
+        userBubble:    "#2563eb",
         success:       "#1a7f37",
         warning:       "#8a5c00",
         error:         "#c8202a",

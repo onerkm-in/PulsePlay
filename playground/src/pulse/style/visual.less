@@ -228,15 +228,17 @@
     dialog { background-color: var(--gn-surface); color: var(--gn-text); border-color: var(--gn-border); }
 }
 
-/* ── Dark theme tokens ── */
-@gn-dark-bg:             #0d1117;
-@gn-dark-surface:        #161b22;
-@gn-dark-surface-raised: #1c2128;
-@gn-dark-border:         #2d333b;
-@gn-dark-border-subtle:  #21262d;
-@gn-dark-text:           #e2eaf4;
-@gn-dark-text-muted:     #8b949e;
-@gn-dark-accent:         #4b9cf5;
+/* ── Dark theme tokens (2026-06-02: aligned to the Gemini spec's modern slate —
+ *  canvas #0F172A, cards #1E293B, slate border #334155, text #F9FAFB, bright
+ *  blue accent #60A5FA — replacing the prior GitHub-navy palette). ── */
+@gn-dark-bg:             #0f172a;
+@gn-dark-surface:        #1e293b;
+@gn-dark-surface-raised: #243244;
+@gn-dark-border:         #334155;
+@gn-dark-border-subtle:  #2a3648;
+@gn-dark-text:           #f9fafb;
+@gn-dark-text-muted:     #9ca3af;
+@gn-dark-accent:         #60a5fa;
 @gn-dark-accent-subtle:  rgba(75, 156, 245, 0.13);
 @gn-dark-accent-hover:   rgba(75, 156, 245, 0.22);
 @gn-dark-accent-border:  rgba(75, 156, 245, 0.42);
@@ -9179,18 +9181,22 @@
         grid-column: 1 / -1;
         order: 1;
     }
-    /* Row 2 left: KPI SNAPSHOT. */
+    /* 2026-06-02 — Gemini-spec column grouping: the LEFT column is the
+     * performance pair (KPI SNAPSHOT + TRENDS stacked), the RIGHT column is the
+     * attention/action pair (RISKS + RECOMMENDED ACTIONS stacked). Orders pair
+     * the rows: KPI(2)|RISKS(3) on row 2, TRENDS(4)|ACTIONS(5) on row 3. */
+    /* Left column, top: KPI SNAPSHOT. */
     .gn-insights-sections > .gn-insights-section[data-section="KPI SNAPSHOT"] {
         grid-column: 1 / 2;
         order: 2;
     }
-    /* Row 2 right: TRENDS / "What Changed". */
-    .gn-insights-sections > .gn-insights-section[data-section="TRENDS"] {
+    /* Right column, top: RISKS / "What Needs Attention". */
+    .gn-insights-sections > .gn-insights-section[data-section="RISKS"] {
         grid-column: 2 / 3;
         order: 3;
     }
-    /* Row 3 left: RISKS / "What Needs Attention". */
-    .gn-insights-sections > .gn-insights-section[data-section="RISKS"] {
+    /* Left column, below KPI: TRENDS / "What Changed". */
+    .gn-insights-sections > .gn-insights-section[data-section="TRENDS"] {
         grid-column: 1 / 2;
         order: 4;
     }
