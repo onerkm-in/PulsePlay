@@ -8754,35 +8754,53 @@
 
 /* ── Shared surface context strip ── */
 
+/* 2026-06-02 — slimmed to a single INLINE muted metadata line (was bordered
+ * pills that wrapped to multiple rows / different alignments). One row, one
+ * baseline, thin dividers between facts, no pill chrome — metadata reads as
+ * lean chrome, not buttons. Overflows horizontally (mobile) instead of wrapping. */
 .gn-surface-context {
     flex: 0 0 auto;
     display: flex;
     align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    padding: 8px 16px;
+    gap: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: 5px 16px;
     border-bottom: 1px solid @gn-border-subtle;
-    background: linear-gradient(180deg, fade(#ffffff, 92%), fade(#f8fafc, 92%));
+    background: @gn-surface-raised;
     color: @gn-text-muted;
     font-size: 11px;
-    line-height: 1.25;
+    line-height: 1.3;
+
+    &::-webkit-scrollbar { display: none; }
 }
 
 .gn-surface-context__primary,
 .gn-surface-context__item {
     min-width: 0;
+    flex: 0 0 auto;
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px 8px;
-    border: 1px solid @gn-border-subtle;
-    border-radius: 999px;
-    background: @gn-surface;
+    gap: 5px;
+    padding: 0 12px;
+    border: none;
+    background: transparent;
+}
+
+/* thin vertical divider between facts — replaces the per-pill borders */
+.gn-surface-context > * + * {
+    border-left: 1px solid @gn-border-subtle;
 }
 
 .gn-surface-context__primary {
-    border-color: @gn-accent-border;
-    background: @gn-accent-subtle;
+    padding-left: 0; /* first fact sits flush to the strip's 16px inset */
+
+    /* active surface — accent the value instead of a filled pill */
+    .gn-surface-context__value:last-of-type {
+        color: @gn-accent;
+        font-weight: 650;
+    }
 }
 
 .gn-surface-context__label {
@@ -8808,42 +8826,16 @@
 }
 
 .gn-shell--dark .gn-surface-context {
-    background: linear-gradient(180deg, rgba(10, 18, 32, 0.94), rgba(15, 23, 42, 0.92));
+    background: rgba(15, 23, 42, 0.7);
 }
-
-.gn-shell--dark .gn-surface-context__primary,
-.gn-shell--dark .gn-surface-context__item {
-    background: rgba(255, 255, 255, 0.04);
-}
+/* items are plain inline text now (no pills) — no per-item fill in dark. */
 
 @media (max-width: 520px) {
+    /* Stay INLINE on mobile too — the strip scrolls horizontally (overflow-x:
+     * auto) instead of wrapping to multiple rows with different alignments.
+     * Just trim the side padding. */
     .gn-surface-context {
-        padding: 8px 12px;
-    }
-
-    .gn-surface-context__primary,
-    .gn-surface-context__item {
-        flex: 1 1 150px;
-    }
-
-    /* 2026-05-27 — Surface+mode pill packs two values + divider. At 150px
-       basis they collide and truncate to "AI I..." / "Executiv...". Give
-       the primary pill the FULL row (flex-basis: 100%) so both values can
-       breathe on small screens; secondary fact pills continue to share rows. */
-    .gn-surface-context__primary {
-        flex: 1 1 100%;
-    }
-
-    /* 2026-05-27 — Even with the primary pill on its own row, the value
-       spans inside kept ellipsising (the flex default lets values shrink
-       below their content size when min-width:0). Belt-and-suspenders:
-       remove max-width cap AND allow wrap AND prevent flex-shrink so
-       values render at full natural width. If a value still overflows
-       the pill, it wraps onto a new line instead of getting truncated. */
-    .gn-surface-context__value {
-        max-width: none;
-        white-space: normal;
-        flex-shrink: 0;
+        padding: 5px 12px;
     }
 }
 
