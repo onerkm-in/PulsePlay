@@ -1928,6 +1928,23 @@ function PlaygroundApp(): React.ReactElement {
     );
 }
 
+/** Map a Dashboard trust label to a Context-badge tone (mirrors the Workbench's
+ *  trustBadgeTone so both panes colour the badge identically). */
+function dashboardTrustTone(t: string): string {
+    const s = (t || "").toLowerCase();
+    if (s.includes("governed")) return "ok";
+    if (s.includes("locked")) return "bad";
+    if (s.includes("warning")) return "warn";
+    return "info"; // "Permissive dev" / dev-local default
+}
+
+/** 2026-06-03 — collapsed Context pill for the Dashboard/BI pane. Was a verbose
+ *  inline `pp-surface-context` strip (Surface · Source · Assistant · Pack · Trust)
+ *  that, at the narrow split-pane width, wrapped and crammed — and was visually
+ *  inconsistent with the left pane, which had already collapsed its metadata into
+ *  the `⚙ Context ▾` dropdown. This reuses the global `gn-context-setup` chrome so
+ *  BOTH panes share identical context affordances (three-tabs-uniform rule), while
+ *  the popover keeps the Dashboard-specific items. */
 function DashboardSurfaceContextStrip(props: {
     mode: string;
     vendor: string;
@@ -1935,26 +1952,56 @@ function DashboardSurfaceContextStrip(props: {
     pack: string;
     trust: string;
 }): React.ReactElement {
-    const items = [
+    const [open, setOpen] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        if (!open) return;
+        const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+        const onEsc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+        document.addEventListener("mousedown", onDoc);
+        document.addEventListener("keydown", onEsc);
+        return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onEsc); };
+    }, [open]);
+    const tone = dashboardTrustTone(props.trust);
+    const rows = [
         { label: "Source", value: props.vendor },
         { label: "Assistant", value: props.assistant },
         { label: "Pack", value: props.pack },
-        { label: "Trust", value: props.trust },
     ];
     return (
-        <div className="pp-surface-context" role="group" aria-label="Dashboard context">
-            <div className="pp-surface-context__primary">
-                <span className="pp-surface-context__label">Surface</span>
-                <span className="pp-surface-context__value">Dashboard</span>
-                <span className="pp-surface-context__divider" aria-hidden="true" />
-                <span className="pp-surface-context__value">{props.mode}</span>
+        <div className="gn-context-bar">
+            <div className="gn-context-setup" ref={ref}>
+                <button
+                    type="button"
+                    className={`gn-context-setup__trigger${open ? " gn-context-setup__trigger--open" : ""}`}
+                    aria-expanded={open}
+                    aria-haspopup="dialog"
+                    onClick={() => setOpen(o => !o)}
+                >
+                    <span className="gn-context-setup__gear" aria-hidden="true">⚙</span>
+                    <span className="gn-context-setup__label">Context</span>
+                    <span className={`gn-surface-context__badge gn-surface-context__badge--${tone}`}>{props.trust}</span>
+                    <span className="gn-context-setup__chevron" aria-hidden="true">▾</span>
+                </button>
+                {open && (
+                    <div className="gn-context-setup__popover" role="dialog" aria-label="Dashboard context">
+                        <div className="gn-context-setup__row">
+                            <span className="gn-context-setup__row-label">Surface</span>
+                            <span className="gn-context-setup__row-value">Dashboard · {props.mode}</span>
+                        </div>
+                        {rows.map(r => (
+                            <div className="gn-context-setup__row" key={r.label}>
+                                <span className="gn-context-setup__row-label">{r.label}</span>
+                                <span className="gn-context-setup__row-value">{r.value}</span>
+                            </div>
+                        ))}
+                        <div className="gn-context-setup__row">
+                            <span className="gn-context-setup__row-label">Trust</span>
+                            <span className={`gn-surface-context__badge gn-surface-context__badge--${tone}`}>{props.trust}</span>
+                        </div>
+                    </div>
+                )}
             </div>
-            {items.map(item => (
-                <div className="pp-surface-context__item" key={item.label}>
-                    <span className="pp-surface-context__label">{item.label}</span>
-                    <span className="pp-surface-context__value">{item.value}</span>
-                </div>
-            ))}
         </div>
     );
 }
