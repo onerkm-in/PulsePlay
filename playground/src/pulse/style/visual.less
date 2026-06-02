@@ -11982,6 +11982,156 @@
     }
 }
 
+/* ════════════════════════════════════════════════════════════════════════
+ * Responsive — Gemini master-spec breakpoints (pulseplay-orchestrator-master,
+ * 2026-06-02). Desktop ≥1024 keeps the 2-row header + 2-col briefing grid
+ * untouched. Tablet (768–1023) goes icon-only + single column. Mobile (<768)
+ * drops Row 2 entirely in favour of a fixed bottom nav + a sticky agent
+ * micro-banner. These are pure-CSS breakpoints (no JS observer) so they hold
+ * on first paint and in embedded/narrow panes alike.
+ * ════════════════════════════════════════════════════════════════════════ */
+
+/* New mobile-only chrome is hidden everywhere by default; the @media blocks
+ * below opt it back in. Rendered unconditionally in visual.tsx. */
+.gn-mobile-nav,
+.gn-mobile-agent-banner {
+    display: none;
+}
+
+/* ── Tablet + mobile: briefing grid collapses to a single column. ──────────
+ * Overrides the `min-width: 720px` 2-up grid by re-declaring at equal
+ * specificity, later in source order. All hierarchy sections span full width
+ * and fall back to DOM (stream) order. */
+@media (max-width: 1023px) {
+    .gn-insights-sections {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .gn-insights-sections > .gn-insights-section[data-section="HEADLINE"],
+    .gn-insights-sections > .gn-insights-section[data-section="KPI SNAPSHOT"],
+    .gn-insights-sections > .gn-insights-section[data-section="RISKS"],
+    .gn-insights-sections > .gn-insights-section[data-section="TRENDS"],
+    .gn-insights-sections > .gn-insights-section[data-section="RECOMMENDED ACTIONS"],
+    .gn-insights-sections > .gn-insights-section[data-section="ACTIONS"],
+    .gn-insights-sections > .gn-insights-section[data-section="NEXT STEPS"],
+    .gn-insights-sections > .gn-insights-section[data-section="NEXT BEST ACTIONS"],
+    .gn-insights-sections > .gn-insights-section[data-section="OPPORTUNITIES"] {
+        grid-column: 1 / -1;
+        order: 0;
+    }
+}
+
+/* ── Tablet (768–1023): nav pills go icon-only, agent hub wraps full-width. ─ */
+@media (min-width: 768px) and (max-width: 1023px) {
+    /* Hide the text label span (the non-icon span) — aria-label/title on the
+     * button keep the accessible name. */
+    .gn-header-tab > span:not(.gn-header-tab-icon) {
+        display: none;
+    }
+    .gn-header-tab {
+        padding: 0 12px;
+        gap: 0;
+    }
+    .gn-header-run-state {
+        flex-basis: 100%;
+        justify-content: flex-start;
+    }
+    .gn-insights-progress-wrap--header {
+        flex-basis: 100%;
+        width: 100%;
+    }
+}
+
+/* ── Mobile (<768): Row 2 leaves the top flow; bottom nav + sticky banner. ── */
+@media (max-width: 767px) {
+    /* Row 2 (tabs + adjust + inline agent hub) is replaced by the bottom nav
+     * and the sticky micro-banner. The brand header (Row 1) and the context
+     * pill (a sibling outside this row) stay. */
+    .gn-header-row--bottom {
+        display: none;
+    }
+
+    /* Sticky agent micro-banner — pins under the brand header while running. */
+    .gn-mobile-agent-banner {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        position: sticky;
+        top: 0;
+        z-index: 40;
+        margin: 0 0 6px;
+        padding: 7px 12px;
+        background: var(--gn-accent, #2563eb);
+        color: #ffffff;
+        font-size: 12px;
+        font-weight: 600;
+        border-radius: 8px;
+    }
+    .gn-mobile-agent-banner__bolt {
+        font-size: 13px;
+        line-height: 1;
+    }
+    .gn-mobile-agent-banner__text {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .gn-mobile-agent-banner__stop {
+        margin-left: auto;
+        flex: 0 0 auto;
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        color: #ffffff;
+        cursor: pointer;
+        border-radius: 6px;
+        padding: 3px 9px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    /* Fixed bottom navigation bar — icon + label, thumb-reachable. */
+    .gn-mobile-nav {
+        display: flex;
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 50;
+        background: var(--gn-surface, #ffffff);
+        border-top: 1px solid var(--gn-border, #e5e7eb);
+        padding: 4px 0 calc(4px + env(safe-area-inset-bottom, 0px));
+        box-shadow: 0 -1px 8px rgba(0, 0, 0, 0.08);
+    }
+    .gn-mobile-nav-item {
+        flex: 1 1 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+        min-height: 48px;
+        padding: 6px 0;
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: var(--gn-text-muted, #6b7280);
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+    }
+    .gn-mobile-nav-item--active {
+        color: var(--gn-accent, #2563eb);
+    }
+    .gn-mobile-nav-item:focus-visible {
+        outline: 2px solid var(--gn-accent, #2563eb);
+        outline-offset: -2px;
+        border-radius: 6px;
+    }
+    /* Keep the last cards clear of the fixed bar. */
+    .gn-shell {
+        padding-bottom: 60px;
+    }
+}
+
 /* Wave 30 cycle 5 — Windows High Contrast / forced-colors support.
    Without this block, every coloured capsule, status dot, and pill
    collapses to the user's single forced colour and becomes

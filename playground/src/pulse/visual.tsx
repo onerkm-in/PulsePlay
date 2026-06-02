@@ -4957,6 +4957,8 @@ function App(props: AppProps) {
                                     aria-controls="gn-tabpanel-insights"
                                     tabIndex={activeTab === "insights" ? 0 : -1}
                                     className={`gn-header-tab${activeTab === "insights" ? " gn-header-tab--active" : ""}`}
+                                    aria-label="AI Insights"
+                                    title="AI Insights"
                                     onClick={() => setActiveTab("insights")}
                                     onKeyDown={(e) => {
                                         if (e.key === "ArrowRight" || e.key === "ArrowDown") {
@@ -4996,6 +4998,8 @@ function App(props: AppProps) {
                                     aria-controls="gn-tabpanel-chat"
                                     tabIndex={activeTab === "chat" ? 0 : -1}
                                     className={`gn-header-tab${activeTab === "chat" ? " gn-header-tab--active" : ""}`}
+                                    aria-label="Ask Pulse"
+                                    title="Ask Pulse"
                                     onClick={() => setActiveTab("chat")}
                                     onKeyDown={(e) => {
                                         if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
@@ -5557,6 +5561,88 @@ function App(props: AppProps) {
                     ]}
                 />
             </div>
+
+            {/* ── Mobile (<768px) chrome — CSS-hidden on tablet/desktop. ──────────
+              * Gemini master-spec §3 Mobile: Row 2 (the control bar) drops out of
+              * the top flow; the running agent collapses to a sticky micro-banner
+              * pinned under the brand header, and primary navigation moves to a
+              * fixed bottom bar. Both render unconditionally here and are gated to
+              * mobile widths purely by the @media block in visual.less, so desktop
+              * never pays for them and the SR-live region never double-announces
+              * (the header copy is display:none on mobile, this one on desktop). */}
+            {insightsBusy && (() => {
+                const total = insightsProgressSteps.length || 3;
+                const activeIdx = insightsProgressSteps.findIndex((s) => s.state === "active");
+                const doneCount = insightsProgressSteps.filter((s) => s.state === "done").length;
+                const stageNum = activeIdx >= 0 ? activeIdx + 1 : Math.min(total, doneCount + 1);
+                const label = insightsResult?.currentStatus
+                    ? (() => {
+                        const fw = insightsResult.currentStatus.split(/\s/)[0] || "";
+                        return /^[A-Z][A-Z0-9_]*$/.test(fw)
+                            ? describeGenieStatus(insightsResult.currentStatus).label
+                            : insightsResult.currentStatus;
+                    })()
+                    : "Running…";
+                return (
+                    <div className="gn-mobile-agent-banner" role="status" aria-live="polite" aria-atomic="true">
+                        <span className="gn-mobile-agent-banner__bolt" aria-hidden="true">⚡</span>
+                        <span className="gn-mobile-agent-banner__text">Stage {stageNum}/{total} · {label}</span>
+                        <button
+                            type="button"
+                            className="gn-mobile-agent-banner__stop"
+                            onClick={() => stopInsights()}
+                            aria-label="Stop the current AI Insights run"
+                        >
+                            ■ Stop
+                        </button>
+                    </div>
+                );
+            })()}
+            {tabVisibilityCount >= 2 && (
+                <nav className="gn-mobile-nav" aria-label="Primary surfaces">
+                    {tabVisibility.aiInsights && (
+                        <button
+                            type="button"
+                            className={`gn-mobile-nav-item${activeTab === "insights" ? " gn-mobile-nav-item--active" : ""}`}
+                            onClick={() => setActiveTab("insights")}
+                            aria-current={activeTab === "insights" ? "page" : undefined}
+                        >
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <path d="M12 3 L14 10 L21 12 L14 14 L12 21 L10 14 L3 12 L10 10 Z" />
+                            </svg>
+                            <span>Insights</span>
+                        </button>
+                    )}
+                    {tabVisibility.askPulse && (
+                        <button
+                            type="button"
+                            className={`gn-mobile-nav-item${activeTab === "chat" ? " gn-mobile-nav-item--active" : ""}`}
+                            onClick={() => setActiveTab("chat")}
+                            aria-current={activeTab === "chat" ? "page" : undefined}
+                        >
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                            </svg>
+                            <span>Ask</span>
+                        </button>
+                    )}
+                    {tabVisibility.dashboard && (
+                        <button
+                            type="button"
+                            className="gn-mobile-nav-item"
+                            onClick={() => dispatchPulsePlayViewportAction("focus", "bi")}
+                            aria-label="Open dashboard surface"
+                        >
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <line x1="6" y1="20" x2="6" y2="11" />
+                                <line x1="12" y1="20" x2="12" y2="5" />
+                                <line x1="18" y1="20" x2="18" y2="14" />
+                            </svg>
+                            <span>Dash</span>
+                        </button>
+                    )}
+                </nav>
+            )}
 
             {activeTab === "insights" && (
                 <div
