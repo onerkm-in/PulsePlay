@@ -1102,6 +1102,9 @@
         min-width: 0;
         max-width: 320px;
         box-sizing: border-box;
+        // Positioning context for the expanded-steps dropdown so it anchors to
+        // the capsule (under the "Stage X of Y" text), not the wide flex wrapper.
+        position: relative;
         // 2026-06-02 — dock into the control bar. Drop the box chrome (border /
         // fill / shadow) so the agent status reads as an inline toolbar element
         // next to Stop/Refresh, NOT a detached floating capsule (the Gemini
@@ -1127,7 +1130,11 @@
     .gn-progress--active .gn-progress-steps {
         position: absolute;
         top: calc(100% + 4px);
-        right: 0;
+        // Anchor under the stage text (capsule-left), dropping straight down as
+        // a clean extension of the "Stage X of Y ▾" indicator rather than hugging
+        // the far-right edge near the window-control cluster.
+        left: 0;
+        right: auto;
         background: @gn-surface;
         border: 1px solid @gn-border;
         border-radius: @gn-radius-sm;
