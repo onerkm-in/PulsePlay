@@ -105,9 +105,7 @@ const topN = {
         if (rows.length === 0) {
             return { content: `_No rows returned for ${slots.measure} by ${slots.dimensionTable}[${slots.dimensionColumn}]._` };
         }
-        const header = '| ' + columns.join(' | ') + ' |';
-        const sep = '| ' + columns.map(() => '---').join(' | ') + ' |';
-        const body = rows.map(r => '| ' + r.map(formatCell).join(' | ') + ' |').join('\n');
+        const { header, sep, body } = mdTable(columns, rows);
         return {
             content: `## Top ${rows.length} ${slots.dimensionColumn} by ${slots.measure}\n\n${header}\n${sep}\n${body}`,
         };
@@ -140,9 +138,7 @@ const aggregateBy = {
         if (rows.length === 0) {
             return { content: `_No rows returned for ${slots.measure} by ${slots.dimensionTable}[${slots.dimensionColumn}]._` };
         }
-        const header = '| ' + columns.join(' | ') + ' |';
-        const sep = '| ' + columns.map(() => '---').join(' | ') + ' |';
-        const body = rows.map(r => '| ' + r.map(formatCell).join(' | ') + ' |').join('\n');
+        const { header, sep, body } = mdTable(columns, rows);
         return {
             content: `## ${slots.measure} by ${slots.dimensionColumn} (${rows.length} groups)\n\n${header}\n${sep}\n${body}`,
         };
@@ -188,9 +184,7 @@ const trend = {
         const headline = (min != null && max != null)
             ? `\n\n_${rows.length} points. Min ${formatCell(min)} · Max ${formatCell(max)}${direction ? ' · ' + direction : ''}._`
             : '';
-        const header = '| ' + columns.join(' | ') + ' |';
-        const sep = '| ' + columns.map(() => '---').join(' | ') + ' |';
-        const body = rows.map(r => '| ' + r.map(formatCell).join(' | ') + ' |').join('\n');
+        const { header, sep, body } = mdTable(columns, rows);
         return {
             content: `## ${slots.measure} over ${slots.dateColumn}${headline}\n\n${header}\n${sep}\n${body}`,
         };
@@ -234,19 +228,58 @@ function formatCell(value) {
     if (value == null) return '';
     if (typeof value === 'number') {
         if (!Number.isFinite(value)) return String(value);
-        // Format with up to 4 decimals but trim trailing zeros, thousands separators.
         const abs = Math.abs(value);
-        if (abs >= 1000 && Number.isInteger(value)) return value.toLocaleString('en-US');
-        const fixed = value.toFixed(4).replace(/\.?0+$/, '');
-        if (abs >= 1000) {
-            const [whole, frac] = fixed.split('.');
-            return frac ? Number(whole).toLocaleString('en-US') + '.' + frac : Number(whole).toLocaleString('en-US');
-        }
-        return fixed;
+        // Large magnitudes (currency/counts) read as whole grouped numbers —
+        // the raw DAX precision (e.g. 1161401.345) is noise at this scale.
+        if (abs >= 1000) return value.toLocaleString('en-US', { maximumFractionDigits: 0 });
+        // Sub-1000: keep up to 4 decimals, trim trailing zeros (margins, rates).
+        return value.toFixed(4).replace(/\.?0+$/, '');
     }
     if (typeof value === 'boolean') return value ? 'true' : 'false';
     // Escape Markdown table pipes in string cells.
     return String(value).replace(/\|/g, '\\|');
+}
+
+/* ───── DAX column-name humanization ──────────────────────────────────
+ * executeQueries returns columns in raw DAX form: `DIMCUSTOMER[SEGMENT]`,
+ * `'Dim Date'[Year]`, `[Total Sales]`. Strip the table qualifier + brackets
+ * and Title-Case the result so the briefing shows "Segment" / "Year" /
+ * "Total Sales" instead of the model-internal names. KB-grounded display:
+ * the deterministic path gets the same human labels the Genie path emits. */
+function humanizeDaxColumn(raw) {
+    let s = String(raw == null ? '' : raw).trim();
+    const bracket = s.match(/\[([^\]]+)\]\s*$/);
+    if (bracket) s = bracket[1];          // last bracketed segment wins
+    s = s.replace(/^'+|'+$/g, '').trim();  // strip 'Table' quotes
+    if (!s) return String(raw || '');
+    const words = s.includes(' ')
+        ? s.split(/\s+/)
+        : s.replace(/([a-z0-9])([A-Z])/g, '$1 $2').split(/[_-]+/);
+    return words.filter(Boolean)
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(' ') || String(raw || '');
+}
+
+/** Column-aware cell formatter: years stay un-grouped (2014, not 2,014);
+ *  everything else defers to formatCell. */
+function formatCellCol(value, columnLabel) {
+    if (typeof value === 'number' && Number.isFinite(value)
+        && /\byear\b/i.test(columnLabel || '')
+        && Number.isInteger(value) && value >= 1000 && value <= 9999) {
+        return String(value);
+    }
+    return formatCell(value);
+}
+
+/** Build a Markdown table with humanized headers + column-aware cells. */
+function mdTable(columns, rows) {
+    const labels = (columns || []).map(humanizeDaxColumn);
+    const header = '| ' + labels.join(' | ') + ' |';
+    const sep = '| ' + labels.map(() => '---').join(' | ') + ' |';
+    const body = (rows || [])
+        .map(r => '| ' + r.map((cell, ci) => formatCellCol(cell, labels[ci])).join(' | ') + ' |')
+        .join('\n');
+    return { header, sep, body };
 }
 
 /* ───── Registry ───────────────────────────────────────────────────── */
