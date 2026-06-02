@@ -5944,9 +5944,19 @@ function App(props: AppProps) {
                                           * indicators. Picking a preset persists via
                                           * host.persistProperties → triggers a re-render;
                                           * the next Refresh applies the colors. */}
+                                        {/* The metric-direction preset banner only makes sense for
+                                          * LLM briefings that carry colorable MOVEMENTS (▲/▼ vs prior).
+                                          * The deterministic no-LLM powerbi-semantic-model path renders
+                                          * absolute totals/breakdowns with nothing to color, and there's
+                                          * no LLM to re-run with status emoji — so the "pick a Retail /
+                                          * Operations / Healthcare preset" nag is noise there. Direction
+                                          * is already rationalized by the KB default heuristic for that
+                                          * connector; suppress the banner. (See live-test finding,
+                                          * 2026-06-02.) */}
                                         {!props.settings.metricDirectionRules?.trim()
                                             && (insightsResult?.content || "").trim()
                                             && !briefingHasStatusColors(insightsResult?.content || "")
+                                            && pbiProbeRef.current.get(insightsActiveProfile)?.connectorType !== "powerbi-semantic-model"
                                             && (
                                             <ColorRulesBanner
                                                 host={props.host}
