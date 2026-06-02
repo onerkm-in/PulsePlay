@@ -8541,6 +8541,19 @@ interface PulseSurfaceContextItem {
     value: string;
 }
 
+// 2026-06-02 — Trust is the credibility signal for everything on screen, so it
+// stays a PERSISTENT, glanceable badge on the strip (per the UX research: keep
+// provenance/trust visible, don't bury it). Tone is derived conservatively from
+// the value text (over-claiming "verified" would be dishonest).
+function trustBadgeTone(value: string): "ok" | "warn" | "bad" | "info" | "neutral" {
+    const v = (value || "").toLowerCase();
+    if (/blocked|not configured|unavailable|error|failed/.test(v)) return "bad";
+    if (/verified|trusted/.test(v)) return "ok";
+    if (/draft|grounded|suggestion|partial|no bi fields/.test(v)) return "warn";
+    if (/configured|ready/.test(v)) return "info";
+    return "neutral";
+}
+
 function PulseSurfaceContextStrip(props: {
     surface: string;
     mode: string;
@@ -8554,12 +8567,17 @@ function PulseSurfaceContextStrip(props: {
                 <span className="gn-surface-context__divider" aria-hidden="true" />
                 <span className="gn-surface-context__value">{props.mode}</span>
             </div>
-            {props.items.map(item => (
-                <div className="gn-surface-context__item" key={item.label}>
-                    <span className="gn-surface-context__label">{item.label}</span>
-                    <span className="gn-surface-context__value">{item.value}</span>
-                </div>
-            ))}
+            {props.items.map(item => {
+                const isTrust = item.label.trim().toLowerCase() === "trust";
+                return (
+                    <div className="gn-surface-context__item" key={item.label}>
+                        <span className="gn-surface-context__label">{item.label}</span>
+                        {isTrust
+                            ? <span className={`gn-surface-context__badge gn-surface-context__badge--${trustBadgeTone(item.value)}`}>{item.value}</span>
+                            : <span className="gn-surface-context__value">{item.value}</span>}
+                    </div>
+                );
+            })}
         </div>
     );
 }

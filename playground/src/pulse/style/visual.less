@@ -1031,6 +1031,24 @@
         min-width: 0;
         max-width: 320px;
         box-sizing: border-box;
+        // 2026-06-02 — dock into the control bar. Drop the box chrome (border /
+        // fill / shadow) so the agent status reads as an inline toolbar element
+        // next to Stop/Refresh, NOT a detached floating capsule (the Gemini
+        // "control sprawl" / de-float ask). State stays legible via the glyph +
+        // the thin progress bar; "Stage X of Y" stays visible (NN/g determinacy).
+        border: none;
+        background: transparent;
+        box-shadow: none;
+        padding: 0 4px;
+        gap: 4px;
+    }
+    // Neutralise the filled state-boxes in the header context (state is carried
+    // by the glyph colour + the progress bar, not a coloured container).
+    .gn-progress--complete,
+    .gn-progress--active,
+    .gn-progress--failed {
+        background: transparent;
+        border-color: transparent;
     }
     // When the user expands the step list, lift it out of the row flow as a
     // dropdown anchored to the chevron so the row 2 height doesn't jump.
@@ -1050,6 +1068,16 @@
     }
 }
 .gn-shell--dark .gn-insights-progress-wrap--header {
+    // Dock: keep the capsule chrome-less in dark too (overrides the 49.15
+    // dark capsule bg/border below). The expanded steps dropdown keeps its
+    // dark surface (more specific rule, unaffected).
+    .gn-progress,
+    .gn-progress--complete,
+    .gn-progress--active,
+    .gn-progress--failed {
+        background: transparent;
+        border-color: transparent;
+    }
     .gn-progress--complete .gn-progress-steps,
     .gn-progress--active .gn-progress-steps {
         background: @gn-dark-surface;
@@ -8825,6 +8853,34 @@
     width: 1px;
     height: 12px;
     background: @gn-border;
+}
+
+/* 2026-06-02 — Trust badge: the one persistent credibility signal on the lean
+ * strip (per UX research — keep trust/provenance glanceable). The only pill in
+ * the strip, so it draws the eye without re-pilling every fact. AA-safe tones. */
+.gn-surface-context__badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 650;
+    line-height: 1.5;
+    border: 1px solid transparent;
+    white-space: nowrap;
+}
+.gn-surface-context__badge--ok      { color: #166534; background: rgba(22, 101, 52, 0.10);  border-color: rgba(22, 101, 52, 0.22); }
+.gn-surface-context__badge--info    { color: #1e40af; background: rgba(30, 64, 175, 0.10);  border-color: rgba(30, 64, 175, 0.22); }
+.gn-surface-context__badge--warn    { color: #92400e; background: rgba(180, 83, 9, 0.10);   border-color: rgba(180, 83, 9, 0.24); }
+.gn-surface-context__badge--bad     { color: #991b1b; background: rgba(153, 27, 27, 0.10);  border-color: rgba(153, 27, 27, 0.26); }
+.gn-surface-context__badge--neutral { color: @gn-text; background: rgba(0, 0, 0, 0.04);      border-color: @gn-border-subtle; }
+
+.gn-shell--dark {
+    .gn-surface-context__badge--ok      { color: #4ade80; background: rgba(74, 222, 128, 0.12); border-color: rgba(74, 222, 128, 0.30); }
+    .gn-surface-context__badge--info    { color: #93c5fd; background: rgba(147, 197, 253, 0.12); border-color: rgba(147, 197, 253, 0.30); }
+    .gn-surface-context__badge--warn    { color: #fbbf24; background: rgba(251, 191, 36, 0.12); border-color: rgba(251, 191, 36, 0.30); }
+    .gn-surface-context__badge--bad     { color: #fca5a5; background: rgba(252, 165, 165, 0.12); border-color: rgba(252, 165, 165, 0.30); }
+    .gn-surface-context__badge--neutral { color: @gn-dark-text; background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.14); }
 }
 
 .gn-shell--dark .gn-surface-context {
