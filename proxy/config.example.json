@@ -68,9 +68,11 @@
             "type": "foundation-model",
             "host": "https://adb-WORKSPACE_ID.REGION.azuredatabricks.net",
             "token": "dapi_PAT_OR_USE_AUTHMODE_OAUTH_M2M",
-            "foundationModelEndpoint": "databricks-meta-llama-3-1-405b-instruct",
-            "displayName": "Foundation Model — Llama 3.1 405B"
+            "foundationModelEndpoint": "databricks-meta-llama-3-3-70b-instruct",
+            "_doc_endpoint": "MUST be a name from your workspace's serving-endpoints list (GET /api/2.0/serving-endpoints). Names differ per tier — Databricks Free Edition has e.g. databricks-meta-llama-3-3-70b-instruct / databricks-meta-llama-3-1-8b-instruct / databricks-llama-4-maverick / databricks-claude-opus-4-8, and does NOT have *-405b. A wrong name returns 404 ENDPOINT_NOT_FOUND. See docs/CONNECTOR_REQUIREMENTS.md.",
+            "displayName": "Foundation Model — Llama 3.3 70B"
         },
+        "_doc_multi_genie_spaces": "MULTI-GENIE CONNECTOR PATTERN — to expose several Databricks Genie spaces as separate selectable connectors, add ONE profile per space (each with its own spaceId; reuse the same host+token when they live in the same workspace). The connector picker lists every profile from /assistant/profiles automatically, and a supervisor-local profile with empty spaces:[] auto-fans-out across all of them. Example set (mirrors the sister Pulse project): { customer, sales, operations, hse } each { type:'genie', host, token, spaceId, displayName, dataDomain }. See docs/CONNECTOR_REQUIREMENTS.md §1.",
         "sales": {
             "host": "https://adb-ANOTHER_WORKSPACE.REGION.azuredatabricks.net",
             "token": "dapi_ANOTHER_TOKEN",
