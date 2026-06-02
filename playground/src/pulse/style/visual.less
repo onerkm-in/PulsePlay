@@ -8796,10 +8796,12 @@
 .gn-surface-context__primary {
     padding-left: 0; /* first fact sits flush to the strip's 16px inset */
 
-    /* active surface — accent the value instead of a filled pill */
+    /* active surface — emphasise the mode value with weight, not the accent
+     * colour (@gn-accent #1a6fd4 is only ~3.6:1 on this strip at 11px → fails
+     * AA). It's already the first/primary fact, so weight alone reads as active. */
     .gn-surface-context__value:last-of-type {
-        color: @gn-accent;
-        font-weight: 650;
+        color: @gn-text;
+        font-weight: 700;
     }
 }
 

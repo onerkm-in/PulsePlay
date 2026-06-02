@@ -954,7 +954,9 @@
 
 .pp-setup-gate--checked .pp-setup-gate__number {
     background: rgba(5, 150, 105, 0.1);
-    color: #059669;
+    /* 2026-06-02 — #059669 was ~3.3:1 on the tint (the "OK" badge, fails AA).
+     * Darkened to #047857 (~5.3:1) for WCAG AA. */
+    color: #047857;
     border-color: rgba(5, 150, 105, 0.2);
 }
 
