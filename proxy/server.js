@@ -114,8 +114,15 @@ function supportsStreamingFor(type) {
 // `finance,risk,treasury` get a working supervisor without setting
 // SUPERVISOR_SPACES.
 function defaultSupervisorSpaces(profiles) {
+    // Only fan out to genie-eligible helpers (a real Databricks Genie space:
+    // has spaceId, not Foundation-Model / Supervisor / powerbi-semantic-model).
+    // Previously this returned every non-supervisor profile, so a deployment
+    // with a foundation-model or powerbi-dwd profile fanned the supervisor out
+    // to a profile that has no Genie space → askGenieProfile 403/throws → the
+    // whole supervisor synthesis 500'd. isGenieProfile (hoisted) is the same
+    // predicate the sectioned runner uses.
     return Object.entries(profiles || {})
-        .filter(([name, p]) => p && !SUPERVISOR_TYPES.includes(p.type) && !name.startsWith('_'))
+        .filter(([name, p]) => p && !name.startsWith('_') && isGenieProfile(p))
         .map(([name]) => name);
 }
 
@@ -3248,6 +3255,16 @@ app.post('/assistant/conversations/start', async (req, res) => {
         return startPowerBiConversation(req, res);
     }
 
+    // 2026-06-02 — connector-aware routing for Foundation Model chat. A
+    // foundation-model profile has no Genie spaceId, so the Genie path below
+    // 403'd ("Invalid access token" against an empty space). Free-form Ask
+    // Pulse questions on a foundation-model connector go to the serving
+    // endpoint instead. (The sectioned AI Insights path already used FM via
+    // /foundation/section; this gives chat the same backend.)
+    if (isFoundationModelProfile(resolved.profile)) {
+        return startFoundationConversation(req, res);
+    }
+
     // SS2 — proxy-backed shell smoke short-circuit.
     //
     // When the resolved profile is configured with `type: "smoke-fixture"`,
@@ -3407,6 +3424,13 @@ app.post('/assistant/conversations/:conversationId/messages', async (req, res) =
     // instead of falling through to Databricks Genie.
     if (resolved.profile?.type === 'powerbi-semantic-model') {
         return startPowerBiConversation(req, res);
+    }
+
+    // Foundation Model chat is stateless (each turn is an independent serving-
+    // endpoint completion), so follow-up sends route to the same handler as the
+    // first turn — mirrors the powerbi-semantic-model branch above.
+    if (isFoundationModelProfile(resolved.profile)) {
+        return startFoundationConversation(req, res);
     }
 
     const stored = conversationMap.get(conversationId);
@@ -6480,6 +6504,74 @@ async function startPowerBiConversation(req, res) {
 
 app.post('/powerbi/conversations/start', async (req, res) => startPowerBiConversation(req, res));
 
+// Foundation Model chat handler. Free-form Ask Pulse questions on a
+// foundation-model connector are answered by a single serving-endpoint
+// completion (OpenAI-compatible chat). Stateless: each turn is independent.
+// Returns the Genie-shape COMPLETED envelope the client expects, with the
+// answer smuggled inside the message_id JSON blob (the client decodes it via
+// waitForMessageWithProgress, the same path powerbi-deterministic uses).
+async function startFoundationConversation(req, res) {
+    const resolved = resolveProfile(req.body, {}, req.headers, req);
+    if (!resolved) return sendNoMatchingProfile(req, res);
+    if (!isFoundationModelProfile(resolved.profile)) {
+        return res.status(400).json({ error: 'Profile is not a foundation-model connector' });
+    }
+    const question = String(req.body?.content || '').trim();
+    if (!question) return res.status(400).json({ error: 'Question content is required' });
+    const contextText = String(req.body?.contextText || '').trim();
+    const userPrompt = contextText ? `${contextText}\n\n${question}` : question;
+
+    const convId = `fm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const messages = [
+        {
+            role: 'system',
+            content: 'You are PulsePlay, a concise enterprise BI analytics assistant. Answer the user\'s question about their data directly and clearly in short markdown — a sentence or two, plus a compact table only when the question asks for figures. Never invent specific numbers you were not given; if you lack the data, say what you would need.',
+        },
+        { role: 'user', content: userPrompt },
+    ];
+
+    try {
+        const result = await callFoundationModel(databricksRequest, resolved.profile, {
+            messages,
+            temperature: 0.2,
+            maxTokens: 1024,
+            requestId: req.requestId,
+        });
+        const content = (result && typeof result.content === 'string') ? result.content : '';
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'foundation-chat-answer',
+            status: 'OK',
+            detail: JSON.stringify({
+                backend: 'foundation-model',
+                llmCallCount: 1,
+                endpoint: resolved.profile.foundationModelEndpoint,
+                contentLength: content.length,
+            }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+        const msgId = JSON.stringify({ id: convId, status: 'COMPLETED', content });
+        return res.json(withGovernance(req, resolved.profile, 'foundation-model', {
+            conversation_id: convId,
+            message_id: msgId,
+            status: 'COMPLETED',
+            content,
+            mode: 'foundation-model',
+            llmCallCount: 1,
+        }));
+    } catch (err) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'foundation-chat-answer',
+            status: 'ERROR',
+            detail: JSON.stringify({ backend: 'foundation-model', errorCode: err?.statusCode || null }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+        const mapped = errorStatusFromDatabricks(err, 502);
+        return res.status(mapped.status).json({ error: mapped.error });
+    }
+}
+
 // Cycle-15.5 — Power BI Q&A embed token. Mints a dataset-scoped embed
 // token that the playground's powerbi-client SDK uses to render the
 // Microsoft Q&A surface inline. The Q&A engine's NLP runs in Microsoft's
@@ -7428,9 +7520,15 @@ async function synthesizeSupervisorAnswer(supervisorProfile, question, spaceResu
     const schemaContext = buildSchemaContext(spaceResults, supervisorProfile);
 
     try {
+        // A supervisor-local profile has no host/token of its own — it borrows
+        // a helper profile's workspace credentials for the synthesis serving-
+        // endpoint call (same workspace as the helpers). Previously only `host`
+        // fell back to the helper; `token` did not, so synthesis failed with
+        // "No access token configured" and degraded to raw source results.
+        const synthCredProfile = profileByName(successful[0].profileName)?.profile;
         const profileForLlm = {
-            host: supervisorProfile.host || profileByName(successful[0].profileName)?.profile?.host || '',
-            token: supervisorProfile.token || '',
+            host: supervisorProfile.host || synthCredProfile?.host || '',
+            token: supervisorProfile.token || synthCredProfile?.token || '',
         };
         const data = await databricksRequest(
             profileForLlm,
@@ -8142,7 +8240,11 @@ app.post('/supervisor/conversations/start', async (req, res) => {
             spIdentityHash: spHashForProfile(resolved.profile),
         });
     }
-    const host  = resolved.profile.host.replace(/\/$/, '');
+    // host/token/ep are only used by the remote 'supervisor' path below. A
+    // 'supervisor-local' profile fans out to helper profiles + synthesizes via
+    // a serving endpoint, so it has no top-level host — guard against the
+    // undefined deref that previously crashed the whole proxy process.
+    const host  = (resolved.profile.host || '').replace(/\/$/, '');
     const token = resolved.profile.token;
     const ep    = resolved.profile.endpoint;
 
