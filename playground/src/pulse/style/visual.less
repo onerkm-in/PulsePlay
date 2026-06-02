@@ -9292,6 +9292,47 @@
     font-weight: 600;
 }
 
+/* 2026-06-02 — deterministic Power BI EXECUTIVE BRIEF band. Full-width summary
+ * rendered above the section grid (the no-LLM path has no prose headline of its
+ * own, so the area under the context strip was sparse — user-flagged). Mirrors
+ * .gn-headline-card so it reads as the briefing's lede. */
+.gn-insights-exec-band {
+    position: relative;
+    margin: 0 0 14px;
+    padding: 12px 16px 12px 18px;
+    border: 1px solid @gn-border-subtle;
+    border-radius: @gn-radius-sm;
+    background: @gn-surface-raised;
+    box-shadow: @gn-shadow-xs;
+
+    &::before {
+        content: "";
+        position: absolute;
+        top: 10px;
+        bottom: 10px;
+        left: 0;
+        width: 3px;
+        border-radius: 3px;
+        background: var(--gn-accent, #1a6fd4);
+    }
+}
+.gn-insights-exec-band-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--gn-text-muted, #6b7280);
+    margin-bottom: 5px;
+}
+.gn-insights-exec-band-text {
+    margin: 0;
+    color: @gn-text;
+    font-size: 15px;
+    line-height: 1.48;
+    font-weight: 600;
+}
+
 .gn-insight-card-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));

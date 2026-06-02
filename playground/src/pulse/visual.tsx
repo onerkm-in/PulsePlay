@@ -407,6 +407,13 @@ interface InsightsRenderOptions {
      *  filling in — perceived speed win. */
     pendingStageTitles?: string[];
     stageStatuses?: string[];
+    /** 2026-06-02 — deterministic Power BI briefing only. When true, the
+     *  renderer composes a full-width EXECUTIVE BRIEF summary band at the top
+     *  from the parsed section data (total + leading category + trend), since
+     *  the no-LLM path can't emit a prose headline of its own. Gated to the
+     *  deterministic connector so the Genie briefing (which has its own
+     *  EXECUTIVE BRIEF section) is unaffected. */
+    deterministicExecBrief?: boolean;
     /** Phase E.1 — client-side progressive reveal. When provided, sections
      *  whose UPPER-CASED title is NOT in this set are held back and rendered
      *  as a skeleton placeholder until the schedule reveals them. `null` /
@@ -6120,6 +6127,9 @@ function App(props: AppProps) {
                                                     ),
                                                     onRetrySection: retrySection,
                                                     onCopySection: copySection,
+                                                    // 2026-06-02 — full-width EXECUTIVE BRIEF band for the
+                                                    // deterministic (no-LLM) Power BI briefing only.
+                                                    deterministicExecBrief: pbiProbeRef.current.get(insightsActiveProfile)?.connectorType === "powerbi-semantic-model",
                                                 })}
                                                 {/* Wave 35 Phase 3 — Custom SQL section cards.
                                                     Rendered alongside the AI Insights output.
@@ -11615,6 +11625,48 @@ function InsightsSectionPlaceholder(props: { title: string; status?: string }): 
     );
 }
 
+// 2026-06-02 — deterministic Power BI briefing: compose a one-line EXECUTIVE
+// BRIEF from the already-parsed section tables (no LLM). Pulls the primary
+// total (HEADLINE / Metric-Value table), the leading category (first
+// breakdown's top row), and the trend direction+range (TRENDS body's
+// "Min X · Max Y · ▲ rising" tagline). Best-effort: returns null when it
+// can't parse enough, so the band only shows when it has something real.
+function composePbiExecBrief(sections: { title: string; body: string }[]): string | null {
+    if (!sections || sections.length === 0) return null;
+    const upper = (s: { title: string }) => (s.title || "").toUpperCase();
+    const parseRows = (body: string): string[][] =>
+        (body || "").split("\n").map(l => l.trim())
+            .filter(l => l.startsWith("|") && !/^\|[\s:|-]+\|$/.test(l))
+            .map(l => l.replace(/^\||\|$/g, "").split("|").map(c => c.trim()));
+    const parts: string[] = [];
+
+    // Primary total — HEADLINE section is a Metric | Value table.
+    const headline = sections.find(s => /HEADLINE/.test(upper(s))) || sections[0];
+    if (headline) {
+        const rows = parseRows(headline.body);
+        const data = rows[1]; // rows[0] = header
+        if (data && data.length >= 2 && data[1]) parts.push(`${data[0]} reached ${data[1]}`);
+    }
+    // Leading category — first breakdown table with a category + value (>1 data row).
+    const breakdown = sections.find(s =>
+        /KPI SNAPSHOT|BY |RISKS|TOP /.test(upper(s)) && parseRows(s.body).length > 2);
+    if (breakdown) {
+        const rows = parseRows(breakdown.body);
+        const top = rows[1];
+        if (top && top.length >= 2 && top[0] && top[1]) parts.push(`${top[0]} leads at ${top[1]}`);
+    }
+    // Trend — TRENDS body carries "_N points. Min X · Max Y · ▲ rising._"
+    const trend = sections.find(s => /TRENDS|OVER (YEAR|QUARTER|MONTH|WEEK)/.test(upper(s)));
+    if (trend) {
+        const m = (trend.body || "").match(/Min\s+([\d.,kKmM]+)\s*·\s*Max\s+([\d.,kKmM]+)\s*·\s*[▲▼→↑↓]\s*([A-Za-z]+)/);
+        if (m) parts.push(`${m[3].toLowerCase()} over the period (${m[1]} → ${m[2]})`);
+    }
+    if (parts.length === 0) return null;
+    // Capitalize first letter; join with sentence flow.
+    const joined = parts.join("; ");
+    return joined.charAt(0).toUpperCase() + joined.slice(1) + ".";
+}
+
 function renderInsightsSections(content: string, options?: InsightsRenderOptions): React.ReactNode {
     const text = content.trim();
     // Cycle 39 — when content is empty BUT a pipeline is in flight with
@@ -11696,7 +11748,19 @@ function renderInsightsSections(content: string, options?: InsightsRenderOptions
     // coming). When the set is null/undefined, every section renders.
     const revealFilter = options?.revealedSectionTitles;
 
+    // 2026-06-02 — deterministic Power BI briefing: full-width EXECUTIVE BRIEF
+    // summary band above the section grid. Composed from the parsed section
+    // data (no LLM). Only when the caller opted in (deterministic connector).
+    const execBrief = options?.deterministicExecBrief ? composePbiExecBrief(filteredSections) : null;
+
     return (
+        <>
+        {execBrief && (
+            <div className="gn-insights-exec-band" data-section="EXECUTIVE BRIEF">
+                <span className="gn-insights-exec-band-label">EXECUTIVE BRIEF</span>
+                <p className="gn-insights-exec-band-text">{execBrief}</p>
+            </div>
+        )}
         <div className="gn-insights-sections">
             {filteredSections.map((s, i) => {
                 const upperTitle = (s.title || "").toUpperCase();
@@ -11882,6 +11946,7 @@ function renderInsightsSections(content: string, options?: InsightsRenderOptions
                 ));
             })()}
         </div>
+        </>
     );
 }
 
