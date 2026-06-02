@@ -9298,18 +9298,23 @@
  * .gn-headline-card so it reads as the briefing's lede. */
 .gn-insights-exec-band {
     position: relative;
-    margin: 0 0 14px;
-    padding: 12px 16px 12px 18px;
-    border: 1px solid @gn-border-subtle;
+    /* Tight above (sits snug under the header/banner chrome), larger gap below
+     * so the Brief↔KPI-grid boundary reads as a zone change (research: whitespace
+     * as the primary separator; bigger gap at zone edges). */
+    margin: 0 0 18px;
+    padding: 11px 16px 11px 18px;
     border-radius: @gn-radius-sm;
-    background: @gn-surface-raised;
-    box-shadow: @gn-shadow-xs;
+    /* ONE emphasis signal: a subtle accent-tinted fill + the left accent bar
+     * below — no full border / shadow (research: avoid box + accent + fill).
+     * Reads as a headline CALLOUT, distinct register from the bordered data
+     * cards in the grid below. Accent-tint works over both light + dark pane. */
+    background: var(--gn-accent-subtle, rgba(26, 111, 212, 0.06));
 
     &::before {
         content: "";
         position: absolute;
-        top: 10px;
-        bottom: 10px;
+        top: 9px;
+        bottom: 9px;
         left: 0;
         width: 3px;
         border-radius: 3px;
@@ -9323,13 +9328,15 @@
     letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--gn-text-muted, #6b7280);
-    margin-bottom: 5px;
+    margin-bottom: 4px;
 }
 .gn-insights-exec-band-text {
     margin: 0;
     color: @gn-text;
-    font-size: 15px;
-    line-height: 1.48;
+    /* Out-sizes the 13px grid body so it's the clear lede above the KPIs
+     * (research: the summary is the single largest text block above the grid). */
+    font-size: 16px;
+    line-height: 1.45;
     font-weight: 600;
 }
 

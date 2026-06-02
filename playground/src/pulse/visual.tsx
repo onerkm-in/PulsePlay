@@ -5590,10 +5590,16 @@ function App(props: AppProps) {
                                 display: "flex",
                                 alignItems: "center",
                                 gap: 8,
-                                padding: "6px 12px",
+                                padding: "5px 12px",
+                                marginBottom: 8,
+                                borderRadius: 6,
                                 fontSize: 12,
                                 color: "var(--pp-text-muted, #6b7280)",
-                                borderBottom: "1px solid var(--pp-border, #e5e7eb)",
+                                // 2026-06-02 — softened from a hard full-width border-bottom
+                                // "wall" to a self-contained muted chip so transient refresh
+                                // status reads as chrome above the EXECUTIVE BRIEF, not a
+                                // content row that competes with it (research: keep ephemeral
+                                // status as muted chrome; whitespace over hard lines).
                                 // --pp-surface-subtle is undefined → fall back to the
                                 // dark-aware raised surface, not white (#f9fafb was a
                                 // white bar in dark mode — closing-smoke screenshot 08).
