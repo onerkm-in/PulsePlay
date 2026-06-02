@@ -13,7 +13,8 @@ const THEMES = [
     { id: "corporate-blue",   label: "Corporate Blue",    swatch: "#f0f5ff", accent: "#1e40af" },
     { id: "forest",           label: "Forest (ESG)",      swatch: "#f0fdf4", accent: "#059669" },
     { id: "slate-dark",       label: "Slate Dark",        swatch: "#1e293b", accent: "#60a5fa" },
-    { id: "high-contrast",    label: "High Contrast",     swatch: "#000000", accent: "#fbbf24" },
+    { id: "high-contrast",    label: "High Contrast (light)", swatch: "#ffffff", accent: "#0000cc" },
+    { id: "accessibility-aaa", label: "Accessibility AAA",  swatch: "#000000", accent: "#ffff00" },
     { id: "custom",           label: "Custom (use brand colors below)", swatch: "#a78bfa", accent: "#7c3aed" },
 ] as const;
 

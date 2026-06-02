@@ -809,14 +809,15 @@ class AppearanceGroup extends FormattingSettingsGroup {
     themeName = new formattingSettings.ItemDropdown({
         name: "themeName",
         displayName: "PulsePlay Theme",
-        description: "Built-in themes tuned for different use cases. Default: clean light. Corporate Blue: Microsoft/enterprise palette. Forest: sustainability/ESG green. Slate Dark: dark mode for ops centres. High Contrast: WCAG AAA accessible. Custom: start from Default and apply your brand overrides below.",
+        description: "Built-in themes tuned for different use cases. Default: clean light. Corporate Blue: Microsoft/enterprise palette. Forest: sustainability/ESG green. Slate Dark: dark mode for ops centres. High Contrast: WCAG AAA light (white/black). Accessibility AAA: strict black-canvas high-contrast (pure black, 2px white borders, yellow highlights) — independent of the Dark Mode toggle. Custom: start from Default and apply your brand overrides below.",
         items: [
-            { value: "default",        displayName: "Default  —  clean light" },
-            { value: "corporate-blue", displayName: "Corporate Blue  —  enterprise" },
-            { value: "forest",         displayName: "Forest  —  sustainability / ESG" },
-            { value: "slate-dark",     displayName: "Slate Dark  —  ops / NOC" },
-            { value: "high-contrast",  displayName: "High Contrast  —  WCAG AAA" },
-            { value: "custom",         displayName: "Custom  —  use brand overrides below" }
+            { value: "default",           displayName: "Default  —  clean light" },
+            { value: "corporate-blue",    displayName: "Corporate Blue  —  enterprise" },
+            { value: "forest",            displayName: "Forest  —  sustainability / ESG" },
+            { value: "slate-dark",        displayName: "Slate Dark  —  ops / NOC" },
+            { value: "high-contrast",     displayName: "High Contrast  —  WCAG AAA (light)" },
+            { value: "accessibility-aaa", displayName: "Accessibility AAA  —  black / high-vis" },
+            { value: "custom",            displayName: "Custom  —  use brand overrides below" }
         ],
         value: { value: "default", displayName: "Default  —  clean light" }
     });
@@ -1613,7 +1614,15 @@ export function toGenieVisualSettings(model: VisualFormattingSettingsModel): Gen
         sqlRlsHintEnabled: g.sqlConfig.sqlRlsHintEnabled.value,
         // Theme
         useReportTheme:        g.appearance.useReportTheme.value,
-        themeName:             String(g.appearance.themeName.value?.value ?? "default"),
+        // Tolerant read: real PBI persists a dropdown as `{ value, displayName }`
+        // (so `.value.value` is the slug), but the playground's localStorage
+        // bridge stores a BARE string ("accessibility-aaa"). Accept either shape
+        // so named themes (not just the dark toggle) reach the Workbench shell.
+        themeName:             String(
+            (typeof g.appearance.themeName.value === "object" && g.appearance.themeName.value
+                ? (g.appearance.themeName.value as { value?: unknown }).value
+                : (g.appearance.themeName.value as unknown)) ?? "default"
+        ),
         brandAccentColor:      g.appearance.brandAccentColor.value,
         brandTextColor:        g.appearance.brandTextColor.value,
         brandBgColor:          g.appearance.brandBgColor.value,

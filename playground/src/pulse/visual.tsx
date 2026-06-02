@@ -1091,7 +1091,11 @@ function App(props: AppProps) {
         // Dark-aware: in dark mode buildThemeStyle omits surface/text tokens so
         // this inline style (which sits on the .gn-shell--dark element) doesn't
         // override the dark cascade with light surfaces.
-        const dark = !!props.settings.darkMode;
+        // Accessibility-AAA is a self-contained theme driven by the .gn-shell--aaa
+        // LESS scope; it must NOT borrow the dark cascade (which would inject slate
+        // surfaces), so we keep all tokens inline (dark=false) when it's active.
+        const isAaa = (paneSettings.themeName as ThemeName) === "accessibility-aaa";
+        const dark = !!props.settings.darkMode && !isAaa;
         if (paneSettings.useReportTheme && props.hostPalette) {
             return buildThemeStyle(buildThemeFromHost(props.hostPalette), { dark });
         }
@@ -4806,7 +4810,7 @@ function App(props: AppProps) {
 
     return (
         <div
-            className={`gn-shell${props.settings.darkMode ? " gn-shell--dark" : " gn-shell--light"}${compact ? " gn-compact" : ""}`}
+            className={`gn-shell${(paneSettings.themeName as ThemeName) === "accessibility-aaa" ? " gn-shell--aaa" : props.settings.darkMode ? " gn-shell--dark" : " gn-shell--light"}${compact ? " gn-compact" : ""}`}
             style={themeStyle}
         >
             <div className="gn-header gn-header--two-row">

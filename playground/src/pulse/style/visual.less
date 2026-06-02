@@ -253,6 +253,75 @@
 @gn-dark-error-subtle:   rgba(248, 81, 73, 0.11);
 @gn-dark-error-border:   rgba(248, 81, 73, 0.26);
 
+/* ════════════════════════════════════════════════════════════════════════
+ * Accessibility (AAA) scope — Gemini master-spec §4C strict high-contrast.
+ * Self-contained (independent of the dark toggle): pure-black canvas, pure-
+ * white text, 2px solid white structural borders on every container/control
+ * (shapes defined without colour or shadow), and INVERTED state colours
+ * instead of tints — active pill → solid yellow/black (≈19.6:1), Stop → solid
+ * red/white. Agent state is already conveyed as TEXT ("Stage X of N") + glyphs
+ * (✓/◌, ▲/▼), not colour alone, so it survives colour-blindness. Applied via
+ * `.gn-shell--aaa` (set in visual.tsx when themeName === "accessibility-aaa").
+ * ════════════════════════════════════════════════════════════════════════ */
+.gn-shell--aaa {
+    --gn-bg:             #000000;
+    --gn-surface:        #000000;
+    --gn-surface-raised: #000000;
+    --gn-bubble-bg:      #000000;
+    --gn-text:           #ffffff;
+    --gn-text-muted:     #ffffff;
+    --gn-border:         #ffffff;
+    --gn-border-subtle:  #ffffff;
+    --gn-accent:         #ffff00;
+    --gn-accent-soft:    rgba(255, 255, 0, 0.12);
+    --gn-success-subtle: rgba(0, 224, 0, 0.16);
+    --gn-error-subtle:   rgba(255, 92, 92, 0.18);
+    background: #000000;
+    color: #ffffff;
+
+    /* Strict structural boundaries — 2px solid white, no shadows. */
+    .gn-header,
+    .gn-insights-section,
+    .gn-kpi-card,
+    .gn-bubble,
+    .gn-context-bar,
+    .gn-card,
+    .gn-header-tab,
+    .gn-pane-action-btn,
+    .gn-mobile-nav,
+    input,
+    textarea,
+    select {
+        border: 2px solid #ffffff !important;
+        box-shadow: none !important;
+    }
+
+    /* Active nav pill — invert to a solid yellow chip with black text, rather
+     * than relying on an accent tint that a low-vision user may not perceive. */
+    .gn-header-tab--active,
+    .gn-mobile-nav-item--active {
+        background: #ffff00 !important;
+        color: #000000 !important;
+    }
+
+    /* Stop / destructive controls — hazard invert: solid red, white text. */
+    .gn-pane-action-btn--stop,
+    .gn-mobile-agent-banner__stop {
+        background: #ff0000 !important;
+        color: #ffffff !important;
+        border-color: #ffffff !important;
+    }
+
+    /* Agent micro-banner uses black/white framing, not the yellow accent fill. */
+    .gn-mobile-agent-banner {
+        background: #000000;
+        color: #ffffff;
+        border: 2px solid #ffffff;
+    }
+
+    a { color: #ffff00; }
+}
+
 .gn-shell--dark {
     /* IDEA-039 dark-mode parity hotfix — override the canonical theme
      * CSS variables here so every LESS reference like `@gn-surface`,

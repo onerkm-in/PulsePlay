@@ -51,6 +51,7 @@ export type ThemeName =
     | "forest"
     | "slate-dark"
     | "high-contrast"
+    | "accessibility-aaa"
     | "custom";
 
 // ─── Built-in themes ──────────────────────────────────────────────────────────
@@ -160,6 +161,32 @@ export const BUILT_IN_THEMES: Record<ThemeName, ThemeTokens> = {
         success:       "#006600",
         warning:       "#cc6600",
         error:         "#cc0000",
+        fontFamily:    '"Segoe UI", -apple-system, system-ui, sans-serif',
+        radius:        "4px",
+        radiusSm:      "2px"
+    },
+
+    /** Accessibility (AAA) — Gemini master-spec strict high-contrast: pure-black
+     *  canvas, pure-white text, 2px white borders, yellow (#FFFF00) for critical
+     *  highlights. Independent of the dark toggle — driven by the self-contained
+     *  `.gn-shell--aaa` LESS scope (structural 2px borders + explicit state text).
+     *  Every value clears WCAG AAA (≥7:1) on the black canvas:
+     *  white 21:1, yellow 19.6:1, #00e000 ~12:1, #ff5c5c ~7.4:1. */
+    "accessibility-aaa": {
+        bg:            "#000000",
+        surface:       "#000000",
+        surfaceRaised: "#000000",
+        border:        "#ffffff",
+        borderSubtle:  "#ffffff",
+        text:          "#ffffff",
+        textMuted:     "#ffffff",
+        accent:        "#ffff00",
+        accentSubtle:  "rgba(255,255,0,0.12)",
+        accentBorder:  "#ffff00",
+        userBubble:    "#ffff00",
+        success:       "#00e000",
+        warning:       "#ffff00",
+        error:         "#ff5c5c",
         fontFamily:    '"Segoe UI", -apple-system, system-ui, sans-serif',
         radius:        "4px",
         radiusSm:      "2px"
