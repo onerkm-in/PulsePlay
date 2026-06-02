@@ -3265,6 +3265,12 @@ app.post('/assistant/conversations/start', async (req, res) => {
         return startFoundationConversation(req, res);
     }
 
+    // Supervisor-local arriving on the assistant route (client didn't switch to
+    // /supervisor/*) — bridge it instead of falling through to Genie.
+    if (resolved.profile.type === 'supervisor-local') {
+        return startSupervisorConversation(req, res);
+    }
+
     // SS2 — proxy-backed shell smoke short-circuit.
     //
     // When the resolved profile is configured with `type: "smoke-fixture"`,
@@ -3431,6 +3437,12 @@ app.post('/assistant/conversations/:conversationId/messages', async (req, res) =
     // first turn — mirrors the powerbi-semantic-model branch above.
     if (isFoundationModelProfile(resolved.profile)) {
         return startFoundationConversation(req, res);
+    }
+
+    // Supervisor-local follow-up turns are stateless fan-outs (same as the
+    // first turn) — bridge to the same handler instead of the Genie path.
+    if (resolved.profile.type === 'supervisor-local') {
+        return startSupervisorConversation(req, res);
     }
 
     const stored = conversationMap.get(conversationId);
@@ -6503,6 +6515,66 @@ async function startPowerBiConversation(req, res) {
 }
 
 app.post('/powerbi/conversations/start', async (req, res) => startPowerBiConversation(req, res));
+
+// Supervisor handler reachable from the /assistant chat routes. The client
+// does not always switch to /supervisor/conversations/start (it depends on a
+// /supervisor/health probe that may not have resolved), so a supervisor-local
+// profile arriving on /assistant/conversations/start previously fell through to
+// the Genie path (no spaceId) and errored. Mirror the powerbi/foundation
+// delegation: run the local fan-out + synthesis and return the answer inside
+// the message_id JSON blob the client decodes via waitForMessageWithProgress.
+async function startSupervisorConversation(req, res) {
+    const resolved = resolveProfile(req.body, {}, req.headers, req);
+    if (!resolved) return sendNoMatchingProfile(req, res);
+    if (resolved.profile.type !== 'supervisor-local') {
+        // Remote 'supervisor' profiles keep their dedicated /supervisor route
+        // (they need host/token/endpoint); only the local fan-out is bridged.
+        return res.status(400).json({ error: 'Only supervisor-local is bridged onto the assistant route' });
+    }
+    const { content, contextText } = req.body;
+    if (!content || !String(content).trim()) {
+        return res.status(400).json({ error: 'Question content is required' });
+    }
+    const frame = validateFrame(req.body && req.body.frame);
+    const frameContent = prependFrameContext([contextText, content].filter(Boolean).join('\n\n'), frame);
+    const supervisorDiscoveryBlock = _formatDiscoveryContext(req.body && req.body.discoveryContext);
+    const fullContent = _composeUserMessageWithContext({
+        discoveryBlock: supervisorDiscoveryBlock,
+        packBlock: null,
+        packTag: null,
+        userQuestion: frameContent,
+    });
+    try {
+        const supervisor = await runLocalSupervisor(resolved.profile, fullContent, undefined, req);
+        const convId = `sv-${Date.now()}`;
+        storeConversation(convId, 'supervisor-local', resolved.name);
+        const msgId = JSON.stringify({ id: convId, status: 'COMPLETED', content: supervisor.answer });
+        console.log(`[supervisor/local→assistant] profile=${resolved.name} conv=${convId} spaces=${supervisor.results.map(r => r.profileName).join(',')}`);
+        return res.json(withGovernance(req, resolved.profile, 'supervisor-local', {
+            conversation_id: convId,
+            message_id: msgId,
+            status: 'COMPLETED',
+            content: supervisor.answer,
+            mode: 'supervisor-local',
+            route: {
+                assistantProfile: resolved.name,
+                routeLabel: resolved.profile.agentName || 'Supervisor',
+                spaceResults: supervisor.results.map(r => ({ profileName: r.profileName, ok: r.ok, status: r.status || (r.ok ? 'COMPLETED' : 'ERROR') })),
+            },
+            ...(supervisor.usage ? { usage: supervisor.usage } : {}),
+        }));
+    } catch (err) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'supervisor-answer',
+            status: 'ERROR',
+            detail: JSON.stringify({ backend: 'supervisor-local', error: String(err?.message || err).slice(0, 160) }),
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+        const mapped = errorStatusFromDatabricks(err, 502);
+        return res.status(mapped.status).json({ error: mapped.error });
+    }
+}
 
 // Foundation Model chat handler. Free-form Ask Pulse questions on a
 // foundation-model connector are answered by a single serving-endpoint
