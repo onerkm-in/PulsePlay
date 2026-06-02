@@ -1276,7 +1276,11 @@
 
 // Green — proxy mode, fully healthy.
 .gn-status--ok {
-    color: @gn-success;
+    // 2026-06-02 — darkened text from @gn-success (#1a7f37 → ~3.8:1 on the light
+    // tint, fails AA) to #166534 (~6:1) for WCAG AA. Border keeps the brand green;
+    // only the text needed the contrast bump. Dark-mode pills use @gn-dark-success
+    // (separate, already legible), so this is light-mode only.
+    color: #166534;
     border-color: @gn-success;
     background: @gn-success-subtle;
 }

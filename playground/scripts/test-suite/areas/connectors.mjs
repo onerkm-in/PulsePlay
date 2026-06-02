@@ -17,10 +17,13 @@ async function settleInsights(page, capMs = 90_000) {
     const st = await page.evaluate(() => {
       const ph = document.querySelectorAll('.gn-insights-section--placeholder,[aria-busy="true"]').length;
       const secs = document.querySelectorAll('[data-section]:not(.gn-insights-section--placeholder)').length;
-      const stillStaging = /Stage \d+ of \d+/i.test(document.body.innerText || "");
-      return { ph, secs, stillStaging };
+      // "running" = an ACTIVE progress indicator. NOT the "Stage X of Y" text —
+      // that persists in the supervisor Done capsule (tripwire), so the old
+      // check never cleared and supervisor always read as unsettled.
+      const running = !!document.querySelector('.gn-progress--active, .gn-insights-progress');
+      return { ph, secs, running };
     });
-    if (st.ph === 0 && st.secs >= 2 && !st.stillStaging) return true;
+    if (st.ph === 0 && st.secs >= 2 && !st.running) return true;
     await sleep(2000);
   }
   return false;
@@ -35,7 +38,10 @@ export async function runConnectors(h, { connectors, dark = false } = {}) {
     // ---- AI Insights ----
     await h.banner(`${meta.label} · AI Insights${dark ? " · dark" : ""}`, "#7c3aed");
     await h.configure({ connector: conn, vendor: meta.vendor, surface: "ai-insights", dark });
-    const settled = await settleInsights(h.page);
+    // Supervisor briefing is a per-section helper fan-out + synthesis — it
+    // legitimately takes ~2min, so it needs a longer settle cap than the
+    // Genie/deterministic paths.
+    const settled = await settleInsights(h.page, meta.kind === "supervisor" ? 200_000 : 90_000);
     await sleep(1200);
     const insShot = await h.shot(`${conn}-ai-insights${dark ? "-dark" : ""}`);
     const ins = await h.page.evaluate(() => {
