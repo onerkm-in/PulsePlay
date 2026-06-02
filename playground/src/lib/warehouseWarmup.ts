@@ -63,15 +63,24 @@ export async function warmGenieWarehouse(profileName: string): Promise<
             signal: ctrl.signal,
         });
         if (res.status === 400) {
-            // The proxy returns 400 when the profile has no warehouseId
-            // (Foundation Model / Bedrock paths). Not an error — just a
-            // signal that this profile doesn't have a Databricks warehouse
-            // attached and warm-up isn't applicable.
+            // Legacy proxies returned 400 when the profile had no warehouseId.
+            // Newer proxies return a 200 no-op (handled below) — keep this
+            // branch for backward compatibility.
             return "no-warehouse";
         }
         if (!res.ok) {
             return "error";
         }
+        // 200 — distinguish a real warm-up from a no-warehouse no-op. The proxy
+        // returns { warehouse: false, state: "none" } for connectors with no SQL
+        // warehouse (Foundation Model / Bedrock / powerbi-semantic-model /
+        // supervisor) so the mount-time warmup is silent there.
+        try {
+            const body = await res.json();
+            if (body && (body.warehouse === false || body.state === "none")) {
+                return "no-warehouse";
+            }
+        } catch { /* body not JSON — treat as a successful warm */ }
         return "warmed";
     } catch (err) {
         if ((err as { name?: string })?.name === "AbortError") {

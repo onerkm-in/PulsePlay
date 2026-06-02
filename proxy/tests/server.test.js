@@ -1020,12 +1020,17 @@ describe('POST /warehouse/start', () => {
         expect(res.status).toBe(400);
     });
 
-    it('returns 400 when profile has no warehouseId', async () => {
+    it('returns 200 no-op when profile has no warehouseId', async () => {
+        // A warmup for a profile without a SQL warehouse (Foundation Model /
+        // Bedrock / powerbi-semantic-model / supervisor) is a valid request with
+        // nothing to warm — 200 no-op, not a client 400. Keeps the fire-on-mount
+        // warmup from logging a console error on every non-SQL connector.
         const res = await request(app)
             .post('/warehouse/start')
             .send({ assistantProfile: 'default' });
-        expect(res.status).toBe(400);
-        expect(res.body.error).toMatch(/No warehouseId/i);
+        expect(res.status).toBe(200);
+        expect(res.body.warehouse).toBe(false);
+        expect(res.body.state).toBe('none');
     });
 });
 

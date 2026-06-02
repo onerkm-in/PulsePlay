@@ -3143,7 +3143,11 @@ app.post('/warehouse/start', async (req, res) => {
         return res.json({ ok: true, state: 'RUNNING', smokeFixture: true });
     }
     const warehouseId = resolved.profile.warehouseId;
-    if (!warehouseId) return res.status(400).json({ error: 'No warehouseId configured in profile' });
+    // No warehouse on this profile (powerbi-semantic-model / foundation-model /
+    // supervisor-local / Bedrock) is not a client ERROR — the warmup request is
+    // valid, there's just nothing to warm. Return a 200 no-op so the
+    // fire-on-mount warmup doesn't log a console 400 on every non-SQL connector.
+    if (!warehouseId) return res.json({ ok: true, state: 'none', warehouse: false, reason: 'no-warehouse-configured' });
 
     try {
         await ensureWarehouseRunning(resolved.profile);

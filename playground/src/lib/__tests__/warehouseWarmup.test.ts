@@ -67,6 +67,18 @@ describe("warmGenieWarehouse", () => {
         expect(result).toBe("no-warehouse");
     });
 
+    it("returns 'no-warehouse' on a 200 no-op (newer proxy: { warehouse: false, state: 'none' })", async () => {
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true,
+            status: 200,
+            json: async () => ({ ok: true, state: "none", warehouse: false, reason: "no-warehouse-configured" }),
+        });
+        globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+        const result = await warmGenieWarehouse("powerbi-dwd");
+        expect(result).toBe("no-warehouse");
+    });
+
     it("returns 'error' on non-OK non-400 status without throwing", async () => {
         const fetchMock = vi.fn().mockResolvedValue({
             ok: false,
