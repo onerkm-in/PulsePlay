@@ -10207,6 +10207,14 @@
         justify-content: center;
         font-size: 13px;
     }
+
+    /* UX-P0 Composer Bridge — the sparkle "Ask Pulse about this card" action.
+     * Accent-tinted on hover so it reads as the primary cross-surface affordance
+     * rather than just another utility icon. */
+    &.gn-insights-provenance-action--ask:hover {
+        background: var(--gn-accent-soft, rgba(37, 99, 235, 0.10));
+        color: var(--gn-accent, #2563eb);
+    }
 }
 
 /* ── Progressive load: skeleton cards for stages still in flight ── */

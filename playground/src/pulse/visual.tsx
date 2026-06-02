@@ -393,6 +393,11 @@ interface InsightsRenderOptions {
      *  title and raw body markdown; the App component's handler decorates
      *  with provenance and writes to navigator.clipboard. */
     onCopySection?: (title: string, body: string) => void;
+    /** UX-P0 Universal Composer Bridge (Gemini §6C) — fired by the section
+     *  footer's sparkle button. The App handler switches to the Ask Pulse tab
+     *  and seeds the composer with a lead-in referencing this section so the
+     *  user can drill in without retyping. */
+    onAskAboutSection?: (title: string, body: string) => void;
     /** Cycle 34 — set of UPPER-CASED section titles that the per-section
      *  ↻ retry icon CAN re-run. Computed by the call site from the latest
      *  runStage registration's titles array. Universal stages
@@ -6036,6 +6041,7 @@ function App(props: AppProps) {
                                                                 ),
                                                                 onRetrySection: retrySection,
                                                                 onCopySection: copySection,
+                                                                onAskAboutSection: (title) => seedAskPulseComposer(`Reviewing the "${displaySectionTitle(title)}" section: `, () => setActiveTab("chat")),
                                                                 retriableTitles: new Set((runStageRef.current?.titles ?? []).map(t => (t || "").trim().toUpperCase())),
                                                                 pendingStageTitles,
                                                                 stageStatuses,
@@ -6213,6 +6219,7 @@ function App(props: AppProps) {
                                                     ),
                                                     onRetrySection: retrySection,
                                                     onCopySection: copySection,
+                                                    onAskAboutSection: (title) => seedAskPulseComposer(`Reviewing the "${displaySectionTitle(title)}" section: `, () => setActiveTab("chat")),
                                                     // 2026-06-02 — full-width EXECUTIVE BRIEF band for the
                                                     // deterministic (no-LLM) Power BI briefing only.
                                                     deterministicExecBrief: pbiProbeRef.current.get(insightsActiveProfile)?.connectorType === "powerbi-semantic-model",
@@ -11357,6 +11364,7 @@ function InsightsSectionFooter(props: {
     showingSql: boolean;
     onToggleSql: () => void;
     onCopy: () => void;
+    onAskAbout?: () => void;
     onExportRawData?: () => void;
     onRetry?: () => void;
     canRetry: boolean;
@@ -11411,6 +11419,24 @@ function InsightsSectionFooter(props: {
                 {/* Cycle 33 — icon-only buttons. Title text moved entirely
                     to the tooltip + aria-label; visible glyph is the icon
                     alone so the footer cluster stays compact. */}
+                {/* UX-P0 Universal Composer Bridge (Gemini master-spec §6C) —
+                    jumps to Ask Pulse with this card's context pre-seeded so the
+                    user can drill in without retyping. Sparkle glyph matches the
+                    AI Insights tab icon. Only shown when the host wires the
+                    callback (i.e. when an Ask Pulse surface exists to receive it). */}
+                {props.onAskAbout && (
+                    <button
+                        type="button"
+                        className="gn-insights-provenance-action gn-insights-provenance-action--icon gn-insights-provenance-action--ask"
+                        onClick={props.onAskAbout}
+                        title={`Ask Pulse about the ${props.title || "section"} card`}
+                        aria-label={`Ask Pulse about the ${props.title || "section"} card`}
+                    >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M12 3 L14 10 L21 12 L14 14 L12 21 L10 14 L3 12 L10 10 Z" />
+                        </svg>
+                    </button>
+                )}
                 <button
                     type="button"
                     className="gn-insights-provenance-action gn-insights-provenance-action--icon"
@@ -11708,6 +11734,51 @@ const SECTION_DISPLAY_LABELS: Readonly<Record<string, string>> = Object.freeze({
     "RISKS": "What Needs Attention",
     "RECOMMENDED ACTIONS": "Next Best Actions",
 });
+
+/** UX-P0 Universal Composer Bridge (Gemini master-spec §6C) — seed the Ask Pulse
+ *  composer with `text` after switching to it. `switchToChat` runs first; we then
+ *  wait one tick for the chat surface to mount before driving the textarea.
+ *
+ *  Seeds via plain `.value =` + a dispatched `input` event — the same proven
+ *  pattern the Genie clarifier-chip uses. The `input` event is what makes React's
+ *  controlled `<textarea>` pick up the new value (a bare `.value =` with no event
+ *  would be wiped on the next render — the bug in the original spec snippet).
+ *  Targets either composer class so it works whether the Workbench chat tab
+ *  (`gn-input`) or the native Unified surface (`pp-ai-sidebar__input`) is mounted. */
+function seedAskPulseComposer(text: string, switchToChat: () => void): void {
+    try { switchToChat(); } catch { /* swallow */ }
+    if (typeof window === "undefined") return;
+    // The chat tab may take a few frames to mount after the switch, so poll for
+    // the composer to appear before seeding (capped). Then drive it via the
+    // native prototype value setter (not a plain `.value =`) so React's internal
+    // input value-tracker is updated and the dispatched `input` event isn't
+    // dedup'd away — without this, a controlled <textarea> silently discards the
+    // seed on its next render.
+    const setNativeValue = (el: HTMLTextAreaElement, value: string) => {
+        const proto = window.HTMLTextAreaElement?.prototype;
+        const desc = proto && Object.getOwnPropertyDescriptor(proto, "value");
+        if (desc?.set) desc.set.call(el, value);
+        else el.value = value;
+    };
+    let tries = 0;
+    const attempt = () => {
+        tries += 1;
+        const ta = document.querySelector(
+            "textarea.gn-input, textarea.pp-ai-sidebar__input",
+        ) as HTMLTextAreaElement | null;
+        if (!ta) {
+            if (tries < 25) window.setTimeout(attempt, 60);
+            return;
+        }
+        try {
+            setNativeValue(ta, text);
+            ta.dispatchEvent(new Event("input", { bubbles: true }));
+            ta.focus();
+            ta.setSelectionRange(text.length, text.length);
+        } catch { /* swallow — seeding is best-effort */ }
+    };
+    window.setTimeout(attempt, 80);
+}
 
 /** Map an internal section title to its user-facing display label.
  *  Returns the title unchanged when no mapping is registered. */
@@ -12030,6 +12101,7 @@ function renderInsightsSections(content: string, options?: InsightsRenderOptions
                             showingSql={showingSql}
                             onToggleSql={() => options?.onToggleSectionSql?.(s.title)}
                             onCopy={() => options?.onCopySection?.(s.title, s.body)}
+                            onAskAbout={options?.onAskAboutSection ? () => options.onAskAboutSection?.(s.title, s.body) : undefined}
                             onExportRawData={rawDataEntry
                                 ? () => options?.onExportSectionRawData?.(s.title, rawDataEntry.queryResult, rawDataReusedFromTitle)
                                 : undefined}
