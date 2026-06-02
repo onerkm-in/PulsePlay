@@ -5,6 +5,17 @@
 
 ---
 
+## 2026-06-02 (cont.) — Polish + deploy-config + test-module chrome area + supervisor-insights speed
+
+Four follow-up items, all committed + pushed (HEAD `3d89f07`):
+
+- **Dark contrast fix** ([visual.less](../playground/src/pulse/style/visual.less)) — the "Insight run stopped" error title/icon (`#b22020`) was ~2.1:1 on the dark surface; added a `.gn-shell--dark` override (`#fca5a5`). Caught by the test-suite contrast scanner.
+- **Deploy-ready env template** ([proxy/.env.example](../proxy/.env.example)) — `PROXY_PROFILE_*` wiring for the 4 Genie spaces (Customer/Sales/Operations/HSE) + Foundation + Supervisor with real space IDs / endpoint baked in, secrets as placeholders — so a host gets the full connector set without editing the gitignored `config.json`. Field names verified vs server.js map; 40 env tests pass.
+- **Test module 'chrome' area** ([scripts/test-suite/areas/chrome.mjs](../playground/scripts/test-suite/areas/chrome.mjs)) — mobile 390px (overflow/tap-target/nav), bundle switcher, BI-vendor cycling (powerbi/tableau/qlik/looker/generic-iframe), detach/dock. 0-crit/0-warn; mobile is overflow-free. Default run is now connectors+themes+features+chrome.
+- **Supervisor AI Insights speed** ([visual.tsx](../playground/src/pulse/visual.tsx)) — forced the single-shot insights planner for `connectionMode === 'supervisor'` (`getBackendStagingFromCadence("instant")`). Previously the cadence staging batched the briefing into N calls, and each batch is a full supervisor fan-out. Now ONE fan-out emits all sections. Live-verified: full rich briefing (6 KPI tiles + 3 cross-source attention cards) in a single ~115s fan-out. **Tripwire:** "Stage X of Y" in the supervisor Done capsule is the *internal* fan-out stage count, NOT insights batching — don't use it as an insights-settle signal in tests.
+
+Gates: tsc clean · settings/insights vitest green · vite build clean · proxy 1166/1166.
+
 ## 2026-06-02 — Live UI pass: deterministic-DAX Genie-parity + ALL 4 connectors green + multi-Genie + observable test module
 
 **Context.** A long live-feedback session driven off a watchable browser pass. Built an observable UI test module, then fixed everything it surfaced. Branch `codex/f5-g0-native-layout-2026-05-21`, 9 commits, pushed (HEAD `ec95cc0`). Proxy 1166/1166 throughout.
