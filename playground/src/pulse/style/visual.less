@@ -1088,6 +1088,10 @@
     justify-content: flex-end;
     min-width: 0;
     position: relative;
+    // 2026-06-03 — reserve room at the far right for the docked window-controls
+    // cluster (.pp-top-right-toolbar, host chrome, fixed at right:14) so the
+    // ⋮/Refresh/Stop meta sits just left of it instead of underlapping it.
+    padding-right: 168px;
 }
 .gn-insights-progress-wrap--header {
     flex: 1 1 180px;
@@ -5001,6 +5005,9 @@
 .gn-compact .gn-header-run-state {
     flex-basis: 100%;
     justify-content: flex-start;
+    // The docked window-controls cluster is hidden ≤640px (styles.css), so drop
+    // the reserved right-padding too.
+    padding-right: 0;
 }
 
 .gn-compact .gn-insights-meta {
@@ -8969,9 +8976,74 @@
     flex: 0 0 auto;
     display: flex;
     align-items: center;
+    justify-content: space-between;
+    gap: 12px;
     padding: 4px 16px;
     border-bottom: 1px solid @gn-border-subtle;
     background: @gn-surface-raised;
+}
+
+/* 2026-06-03 — live agent status docked on the Context line (right of the
+ * context pill). Chrome-less inline capsule; the expanded checklist drops down
+ * anchored to the capsule. Only rendered while a run is in flight (visual.tsx
+ * gates on insightsBusy), so it auto-vanishes the moment the briefing finishes. */
+.gn-context-progress {
+    flex: 0 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+
+    .gn-progress {
+        width: auto;
+        max-width: 420px;
+        min-width: 0;
+        box-sizing: border-box;
+        position: relative;       // positioning context for the steps dropdown
+        border: none;
+        background: transparent;
+        box-shadow: none;
+        padding: 0;
+        gap: 4px;
+    }
+    .gn-progress--complete,
+    .gn-progress--active,
+    .gn-progress--failed {
+        background: transparent;
+        border-color: transparent;
+    }
+    // Expanded checklist: drop straight down, anchored to the capsule's right so
+    // it can't overflow the viewport (the capsule is right-aligned on this line).
+    .gn-progress--complete .gn-progress-steps,
+    .gn-progress--active .gn-progress-steps {
+        position: absolute;
+        top: calc(100% + 4px);
+        right: 0;
+        left: auto;
+        background: @gn-surface;
+        border: 1px solid @gn-border;
+        border-radius: @gn-radius-sm;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+        padding: 8px 10px;
+        min-width: min(280px, 90vw);
+        max-width: 360px;
+        z-index: 20;
+    }
+}
+.gn-shell--dark .gn-context-progress {
+    .gn-progress,
+    .gn-progress--complete,
+    .gn-progress--active,
+    .gn-progress--failed {
+        background: transparent;
+        border-color: transparent;
+    }
+    .gn-progress--complete .gn-progress-steps,
+    .gn-progress--active .gn-progress-steps {
+        background: @gn-dark-surface;
+        color: @gn-dark-text;
+        border-color: rgba(255, 255, 255, 0.12);
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.55);
+    }
 }
 .gn-context-setup {
     position: relative;

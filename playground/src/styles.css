@@ -2256,18 +2256,24 @@ html, body, #root {
    on dark surfaces). Stays fixed top-right because it must remain reachable when
    a pane is maximized (the header — and its green pill — hide on focus). */
 .pp-top-right-toolbar {
+    /* 2026-06-03 — docked into the visual's Row 2 control-bar baseline (was a
+       floating white pill at top:56 that collided with the agent hub). The live
+       agent status moved to the Context line, freeing this corner; we de-box the
+       cluster (transparent, borderless) so it reads as inline control-bar icons
+       to the right of the meta, not an elevated card. The run-state reserves
+       matching right-padding (visual.less) so they never overlap. */
     position: fixed;
-    top: 56px;
+    top: 76px;
     right: 14px;
     z-index: 50;
     display: inline-flex;
     align-items: center;
     gap: 2px;
-    padding: 3px;
-    background: var(--pp-surface, #fff);
-    border: 1px solid var(--pp-border-subtle, rgba(15,23,42,0.08));
+    padding: 2px;
+    background: transparent;
+    border: 0;
     border-radius: 10px;
-    box-shadow: 0 2px 10px rgba(15,23,42,0.12);
+    box-shadow: none;
 }
 .pp-window-controls__btn {
     display: inline-flex;

@@ -5508,51 +5508,11 @@ function App(props: AppProps) {
                                     owns diagnostics and links to Settings. */}
                             </div>
                             )}
-                            {(stageStatuses.length > 0 || insightsBusy) && (
-                                <div className="gn-insights-progress-wrap gn-insights-progress-wrap--header">
-                                    {/* Wave 15 a11y — dedicated SR-only live region for stage
-                                       transitions. The ProgressIndicator wrapper carries
-                                       role=status but its text is layered (steps + label) so
-                                       SRs may not re-announce on label-only changes. This
-                                       sibling announces the latest stage label whenever it
-                                       shifts. aria-atomic so the FULL phrase is read each time. */}
-                                    <span
-                                        className="gn-sr-only"
-                                        role="status"
-                                        aria-live="polite"
-                                        aria-atomic="true"
-                                    >
-                                        {insightsResult?.currentStatus
-                                            ? `AI Insights: ${insightsResult.currentStatus}`
-                                            : ""}
-                                    </span>
-                                    <ProgressIndicator
-                                        className="gn-insights-progress"
-                                        steps={stageStatuses.length > 0
-                                            ? insightsProgressSteps
-                                            : [{ id: "warming", label: describeGenieStatus(insightsResult?.currentStatus || "PENDING").label, icon: describeGenieStatus(insightsResult?.currentStatus || "PENDING").icon, state: "active" }]}
-                                        elapsedMs={insightsElapsed * 1000}
-                                        isComplete={insightsAllDone}
-                                        isFailed={insightsAnyError}
-                                        collapseEarly={!!(insightsResult?.content && insightsResult.content.trim())}
-                                        activeOverride={(() => {
-                                            // currentStatus may be either:
-                                            //  (a) a raw Genie status token (PENDING_WAREHOUSE, EXECUTING_QUERY, etc.)
-                                            //      — these get translated via describeGenieStatus() into friendly verbs.
-                                            //  (b) a polished sentence we wrote ourselves (e.g. supervisor's
-                                            //      "Asking supervisor for HEADLINE") — pass through verbatim.
-                                            // Detect (a) by "first word is ALL_CAPS_WITH_UNDERSCORES"; everything
-                                            // else is treated as (b). This stops the supervisor's per-stage label
-                                            // being swallowed by the catch-all "Working on it" fallback.
-                                            if (insightsAllDone || !insightsResult?.currentStatus) return undefined;
-                                            const s = insightsResult.currentStatus;
-                                            const firstWord = s.split(/\s/)[0] || "";
-                                            const looksLikeRawToken = /^[A-Z][A-Z0-9_]*$/.test(firstWord);
-                                            return looksLikeRawToken ? describeGenieStatus(s).label : s;
-                                        })()}
-                                    />
-                                </div>
-                            )}
+                            {/* 2026-06-03 — the live progress indicator moved OUT of Row 2
+                                onto the Context line below (gated on insightsBusy → auto-hides
+                                when the run completes) so the agent status no longer collides
+                                with the window-controls cluster. The persistent Refresh / ⋮
+                                overflow / Stop controls stay here in .gn-insights-meta. */}
                         </div>
                     )}
                 </div>
@@ -5569,6 +5529,35 @@ function App(props: AppProps) {
                         { label: "Trust", value: pulseSurfaceContext.trust },
                     ]}
                 />
+                {/* 2026-06-03 — live agent status docked on the Context line, right of the
+                    context pill, ONLY while a run is in flight (insightsBusy). It auto-hides
+                    the instant the briefing completes — the provenance footer carries
+                    freshness from there, and Refresh re-triggers it. Moved off Row 2 to stop
+                    the collision with the window-controls cluster. */}
+                {insightsBusy && (
+                    <div className="gn-context-progress">
+                        <span className="gn-sr-only" role="status" aria-live="polite" aria-atomic="true">
+                            {insightsResult?.currentStatus ? `AI Insights: ${insightsResult.currentStatus}` : ""}
+                        </span>
+                        <ProgressIndicator
+                            className="gn-insights-progress"
+                            steps={stageStatuses.length > 0
+                                ? insightsProgressSteps
+                                : [{ id: "warming", label: describeGenieStatus(insightsResult?.currentStatus || "PENDING").label, icon: describeGenieStatus(insightsResult?.currentStatus || "PENDING").icon, state: "active" }]}
+                            elapsedMs={insightsElapsed * 1000}
+                            isComplete={insightsAllDone}
+                            isFailed={insightsAnyError}
+                            collapseEarly={!!(insightsResult?.content && insightsResult.content.trim())}
+                            activeOverride={(() => {
+                                if (insightsAllDone || !insightsResult?.currentStatus) return undefined;
+                                const s = insightsResult.currentStatus;
+                                const firstWord = s.split(/\s/)[0] || "";
+                                const looksLikeRawToken = /^[A-Z][A-Z0-9_]*$/.test(firstWord);
+                                return looksLikeRawToken ? describeGenieStatus(s).label : s;
+                            })()}
+                        />
+                    </div>
+                )}
             </div>
 
             {/* ── Mobile (<768px) chrome — CSS-hidden on tablet/desktop. ──────────
