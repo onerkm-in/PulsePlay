@@ -34,6 +34,7 @@ import { ACTIVATOR_DESCRIPTORS, buildGuidancePlaceholder } from "../../pulse/gui
 import { SectionMarkdownEditor } from "../components/SectionMarkdownEditor";
 import { SqlSectionsEditor } from "../components/SqlSectionsEditor";
 import { ConnectorBrandGrid } from "../../setup/ConnectorBrandGrid";
+import { GenieSpacesManager } from "../components/GenieSpacesManager";
 import {
     usePulseAiVisualSettings,
     type PulseAiVisualSettings,
@@ -314,6 +315,30 @@ export function AiGroup(): React.ReactElement {
                     }}
                     showOnlyConfiguredByDefault
                 />
+            </ProgressiveSection>
+
+            {/* ─── Multi-Genie spaces — add/manage several Genie spaces as
+              * selectable connectors without editing config.json. Stored
+              * client-side, used via inline credentials (the same mechanism
+              * GenieClient.attachInlineCredentialsHeaders already sends). The
+              * config.json profile pattern remains the path for shared/server
+              * deployments. */}
+            <ProgressiveSection
+                anchorId="genie-spaces"
+                number="01b"
+                title="Genie spaces (multi-space)"
+                subtitle="Add several Databricks Genie spaces as switchable connectors"
+                active={isAiSectionActive("genie-spaces")}
+                checked={false}
+                onToggle={() => toggleAiSection("genie-spaces")}
+                metadata={{
+                    source: "Browser-stored inline connections",
+                    freshness: "This browser only",
+                    owner: "AI platform owner",
+                    nextAction: "Add a space, then click Use to switch",
+                }}
+            >
+                <GenieSpacesManager />
             </ProgressiveSection>
 
             {/* ─── Tier 1: Assistant — who is answering ─────────────────
