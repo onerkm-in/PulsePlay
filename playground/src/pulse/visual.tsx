@@ -3645,7 +3645,14 @@ function App(props: AppProps) {
             //   - "fast"     → batches of 3 with 3s delay
             //   - "balanced" → batches of 2 with 6s delay (today's default)
             //   - "full"     → batches of 1 with 8s delay (true serial)
-            const stagingFromCadence = getBackendStagingFromCadence(perfLevers.revealCadence);
+            // Supervisor: every staged batch is a full helper fan-out (slow +
+            // Genie-rate-limited), so the cadence-driven batching turns a
+            // briefing into N expensive supervisor calls. Force the single-shot
+            // planner — ONE fan-out emits all sections — regardless of the
+            // reveal-cadence preset. (2026-06-02 supervisor-insights perf fix.)
+            const stagingFromCadence = props.settings.connectionMode === "supervisor"
+                ? getBackendStagingFromCadence("instant")
+                : getBackendStagingFromCadence(perfLevers.revealCadence);
             const universalShow = {
                 headline: props.settings.insightsShowHeadline,
                 trends:   props.settings.insightsShowTrends,
@@ -3676,7 +3683,14 @@ function App(props: AppProps) {
             // Fallback for users with no author-configured hybrid setup.
             // Same cadence-driven staging strategy as the hybrid path —
             // see comment above.
-            const stagingFromCadence = getBackendStagingFromCadence(perfLevers.revealCadence);
+            // Supervisor: every staged batch is a full helper fan-out (slow +
+            // Genie-rate-limited), so the cadence-driven batching turns a
+            // briefing into N expensive supervisor calls. Force the single-shot
+            // planner — ONE fan-out emits all sections — regardless of the
+            // reveal-cadence preset. (2026-06-02 supervisor-insights perf fix.)
+            const stagingFromCadence = props.settings.connectionMode === "supervisor"
+                ? getBackendStagingFromCadence("instant")
+                : getBackendStagingFromCadence(perfLevers.revealCadence);
             const universalShow = {
                 headline: props.settings.insightsShowHeadline,
                 trends:   props.settings.insightsShowTrends,
