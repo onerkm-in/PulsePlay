@@ -11,6 +11,7 @@ import { Harness, CONNECTORS } from "./lib/harness.mjs";
 import { runConnectors } from "./areas/connectors.mjs";
 import { runThemes } from "./areas/themes.mjs";
 import { runFeatures } from "./areas/features.mjs";
+import { runChrome } from "./areas/chrome.mjs";
 
 const arg = (k, d) => { const m = process.argv.find((a) => a.startsWith(`--${k}=`)); return m ? m.split("=").slice(1).join("=") : d; };
 const flag = (k) => process.argv.includes(`--${k}`);
@@ -18,7 +19,7 @@ const list = (v) => (v ? v.split(",").map((s) => s.trim()).filter(Boolean) : nul
 
 async function main() {
   const runId = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-  const areas = list(arg("areas")) || ["connectors", "themes", "features"];
+  const areas = list(arg("areas")) || ["connectors", "themes", "features", "chrome"];
   const connectors = list(arg("connectors")) || Object.keys(CONNECTORS);
   const dark = flag("dark");
   const headed = flag("headed") || !flag("headless");
@@ -49,6 +50,10 @@ async function main() {
     if (areas.includes("features")) {
       console.log(`\n──── AREA: features ────`);
       await runFeatures(h);
+    }
+    if (areas.includes("chrome")) {
+      console.log(`\n──── AREA: chrome ────`);
+      await runChrome(h);
     }
   } catch (e) {
     console.error("[harness error]", e);
