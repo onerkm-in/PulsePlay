@@ -5197,6 +5197,22 @@
     }
 }
 
+/* Dark mode — the danger red (#b22020) drops to ~2.1:1 on the dark surface,
+ * so the "Insight run stopped" title + icon are unreadable. Lighten them to a
+ * dark-legible red (#fca5a5 ≈ 5.5:1) and warm the card so the danger framing
+ * still reads. Body text already uses @gn-text, which the dark shell remaps.
+ * (Caught by the test-suite contrast scanner, 2026-06-02.) */
+.gn-shell--dark .gn-insights-error {
+    .gn-insights-error-title,
+    .gn-insights-error-icon {
+        color: #fca5a5;
+    }
+    .gn-insights-error-card {
+        background: rgba(220, 50, 50, 0.14);
+        border-color: rgba(248, 113, 113, 0.45);
+    }
+}
+
 /* IDEA-039 Step 2.x — `.gn-btn--danger-outline` modifier: red-bordered
  * outline button used by the P1.5 error-card Retry action. The existing
  * `.gn-btn--danger` is FILLED red (used elsewhere); we need an OUTLINE red
