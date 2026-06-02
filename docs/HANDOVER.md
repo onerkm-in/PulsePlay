@@ -5,6 +5,17 @@
 
 ---
 
+## 2026-06-02 (cont.) — Gemini reference set: screenshots + two MD briefs
+
+Produced the dev/Gemini design-reference package (outside the repo, in `D:\Working_Folder\Artifacts\PulsePly_ref\`):
+- **`scripts/capture-screens.mjs`** (NEW, in-repo) — Playwright capture of all 3 surfaces × {loading, loaded} × {light, dark} (12 shots, Genie connector for real multi-stage loading) + Settings every section × {light, dark} full-page (10 shots). `--only=surfaces|settings|all`; expands `[aria-expanded='false']` before settings capture. Output → `Screenshots-Dev-Genmini-reference/`.
+- **`PulsePlay_System_Brief_for_Gemini.md`** — end-to-end system brief FOR Gemini (what PulsePlay is, 2-axis, 3 surfaces, agent/progress model, theme tokens, real `.gn-*`/`--gn-*` class names, trust model, screenshot legend). Explicitly instructs Gemini to **reply as a Markdown file** (ASCII wireframes + token tables + per-breakpoint rules), NOT a PDF.
+- **`Gemini-Layout-Suggestions.md`** — distillation of `Gemini.pdf` into a trackable spec + ✅/🟡/⬜ status. Confirms §1 header / §2 cards / §4a-b light+dark themes / §5 agent dropdown / §6 wireframe = **shipped**; open tracks = responsive rework (tablet/mobile, "Step 4"), laptop compaction, strict-AAA high-contrast.
+
+Tripwire: the AI Insights "loaded" capture on Genie can hit the 150s cap (supervisor briefings legitimately ~2 min); the captured frame is still a good late-stage state.
+
+---
+
 ## 2026-06-02 (cont.) — Polish + deploy-config + test-module chrome area + supervisor-insights speed
 
 Four follow-up items, all committed + pushed (HEAD `3d89f07`):
