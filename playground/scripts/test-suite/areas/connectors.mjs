@@ -72,23 +72,32 @@ export async function runConnectors(h, { connectors, dark = false } = {}) {
       const t0 = Date.now();
       await send.click().catch(() => {});
       let ans = null;
+      let doneStreak = 0;
       const adl = t0 + 75_000;
       while (Date.now() < adl) {
         const p = await h.page.evaluate(() => {
+          const body = document.body.innerText || "";
+          // The streaming progress capsule renders OUTSIDE the message bubble and
+          // uses gn-progress--active / a progress bar / progress-vocabulary step
+          // labels — none caught by `last.querySelector(.gn-chart-progress)`.
+          const running = !!document.querySelector(".gn-progress--active, .gn-progress-bar-fill, .gn-insights-progress, [aria-busy='true']")
+            || /Working out the right query|Getting started|Reading your data|Pulling the data|Connecting to AI|Applying your filters|Capturing the KPI|Flagging risks|Spotting trends|Recommending next|Warming up the warehouse|EXECUTING_QUERY|ASKING_AI/i.test(body);
           const msgs = document.querySelectorAll(".gn-msg--assistant, [data-testid^='pp-ai-entry-']");
           const last = msgs[msgs.length - 1];
-          if (!last) return null;
-          const text = (last.textContent || "").trim();
-          const rows = last.querySelectorAll("table tr").length;
-          const progress = !!last.querySelector(".gn-chart-progress, .gn-progress-active");
+          const text = last ? (last.textContent || "").trim() : "";
+          const rows = last ? last.querySelectorAll("table tr").length : 0;
           const err = /could not complete this request|authentication failed|share the support code|something went wrong|Proxy Offline/i.test(text);
           // a REAL chart = an echarts canvas/svg inside a chart container (exclude the 👍👎 svgs)
-          const chart = last.querySelectorAll(".gn-chart canvas, .gn-chart svg, canvas").length;
-          return { len: text.length, rows, progress, err, chart, text: text.slice(0, 140) };
+          const chart = last ? last.querySelectorAll(".gn-chart canvas, .gn-chart svg, canvas").length : 0;
+          return { len: text.length, rows, running, err, chart, text: text.slice(0, 140) };
         });
         if (p && p.err) { ans = { ...p, ms: Date.now() - t0, error: true }; break; }
-        if (p && !p.progress && (p.len > 40 || p.rows > 0)) { ans = { ...p, ms: Date.now() - t0 }; break; }
-        await sleep(400);
+        // Done = NOT running AND a real answer artifact (table / chart / real prose).
+        // Two consecutive not-running reads guard the brief gap between steps.
+        const hasAnswer = p && (p.rows > 0 || p.chart > 0 || p.len > 60);
+        if (p && !p.running && hasAnswer) { doneStreak = (doneStreak || 0) + 1; if (doneStreak >= 2) { ans = { ...p, ms: Date.now() - t0 }; break; } }
+        else doneStreak = 0;
+        await sleep(500);
       }
       await sleep(1000);
       askShot = await h.shot(`${conn}-ask-pulse${dark ? "-dark" : ""}`);
