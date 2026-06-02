@@ -108,6 +108,10 @@ const topN = {
         const { header, sep, body } = mdTable(columns, rows);
         return {
             content: `## Top ${rows.length} ${slots.dimensionColumn} by ${slots.measure}\n\n${header}\n${sep}\n${body}`,
+            // Structured result so the client renders a chart + table (Genie
+            // parity) instead of a markdown-only table. Humanized headers,
+            // raw numeric rows so the chart can plot + format them.
+            queryResult: { columns: columns.map(humanizeDaxColumn), rows },
         };
     },
 };
@@ -141,6 +145,7 @@ const aggregateBy = {
         const { header, sep, body } = mdTable(columns, rows);
         return {
             content: `## ${slots.measure} by ${slots.dimensionColumn} (${rows.length} groups)\n\n${header}\n${sep}\n${body}`,
+            queryResult: { columns: columns.map(humanizeDaxColumn), rows },
         };
     },
 };
@@ -187,6 +192,7 @@ const trend = {
         const { header, sep, body } = mdTable(columns, rows);
         return {
             content: `## ${slots.measure} over ${slots.dateColumn}${headline}\n\n${header}\n${sep}\n${body}`,
+            queryResult: { columns: columns.map(humanizeDaxColumn), rows },
         };
     },
 };

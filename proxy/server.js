@@ -6446,6 +6446,11 @@ async function startPowerBiConversation(req, res) {
         id: convId,
         status: 'COMPLETED',
         content: rendered.content,
+        // Carry the structured table inside the message_id envelope too — the
+        // client decodes the blob to render the answer (it discards the
+        // start-response body via normalizeConversationResult), so queryResult
+        // must travel here for the chart + table to render (Genie parity).
+        queryResult: rendered.queryResult || null,
         templateId: match.templateId,
         slots: match.slots,
         dax,
@@ -6456,6 +6461,10 @@ async function startPowerBiConversation(req, res) {
         message_id: msgId,
         status: 'COMPLETED',
         content: rendered.content,
+        // Structured table (humanized headers + raw rows) when the template
+        // emits one, so the client renders a chart + table like the Genie path
+        // instead of a markdown-only table. Single-value templates omit it.
+        queryResult: rendered.queryResult || null,
         templateId: match.templateId,
         slots: match.slots,
         dax,
