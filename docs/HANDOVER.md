@@ -5,6 +5,20 @@
 
 ---
 
+## 2026-06-02 (cont.) — Gemini master-spec implementation (responsive + AAA theme + Composer Bridge)
+
+Implemented the actionable tracks from `pulseplay-orchestrator-master.md` (Gemini's redesign spec, returned as MD per the brief). Most of the spec (§1 header / §2 cards / §4A-B light+dark / §5 agent dropdown) was already shipped; these were the open items. Beast-mode, 3 commits, 1850/1850 tests green, lint clean, all validated headed.
+
+- **Responsive (§3)** `6f18bd6` — desktop ≥1024 unchanged; **tablet 768–1023**: nav pills icon-only (added `aria-label` to Insights/Ask tabs so the accessible name survives label-hide), briefing grid → single column, agent hub wraps; **mobile <768**: `.gn-header-row--bottom` leaves the top flow, replaced by a fixed bottom nav (`.gn-mobile-nav`, Insights/Ask/Dash) + a sticky agent micro-banner (`.gn-mobile-agent-banner`, `⚡ Stage X/N · …  ■ Stop`) pinned under the brand header. New chrome renders unconditionally in visual.tsx, width-gated purely by `@media` in visual.less. Validated at 800px + 390px (light+dark).
+- **Strict-AAA theme (§4C)** `a98cd26` — new `accessibility-aaa` theme (alongside the white-bg `high-contrast`): pure-black canvas, 2px solid white borders on every container/control, inverted state colours (active pill yellow/black, Stop red/white) instead of tints, via a self-contained `.gn-shell--aaa` LESS scope (independent of the dark toggle — `themeStyle` keeps tokens inline for it, className applies `--aaa` not `--dark`). Wired into both theme surfaces (`settings.ts` dropdown + `PreferencesAppearance.tsx` card grid) + the `themeConfig` registry. **Tripwire fixed:** `settings.ts` read `themeName` via `.value.value` (real-PBI dropdown shape) but the playground localStorage bridge stores a BARE string, so named themes never reached the Workbench shell (only the dark toggle did) — the read is now tolerant of both shapes, so corporate-blue/forest/high-contrast/aaa all apply to the Workbench now.
+- **Composer Bridge UX-P0 (§6C)** `…` — each AI Insights section footer gains a sparkle "Ask Pulse about this card" action → switches to the Ask Pulse tab and seeds the composer with a lead-in referencing the section, focused. Threaded App → `InsightsRenderOptions.onAskAboutSection` → `renderInsightsSections` → `InsightsSectionFooter.onAskAbout` (both render sites). **Fixed the controlled-component bug in Gemini's snippet:** a plain `.value =` is dedup'd by React's input value-tracker; the seed uses the native prototype value setter + dispatched `input` event, and polls for the composer to mount after the tab switch. Validated headed (tab switches, value seeds, focus lands).
+
+**Settings mobile (§6A MobileNavDrawer):** NOT built — existing responsive CSS already hides the rail ≤640px and gives a clean single-column scroll + search-based navigation (verified at 390px). The drawer would be a redundant enhancement, not a fix, so deferred rather than half-shipped.
+
+Reference screenshots added under `Screenshots-Dev-Genmini-reference/`: `responsive-{tablet,mobile}-{light,dark}-running`, `aaa-{desktop,mobile}`, `bridge-seeded`, `settings-mobile-bi`. Throwaway probe scripts under `playground/scripts/probe-*.mjs` (untracked, consistent with repo pattern).
+
+---
+
 ## 2026-06-02 (cont.) — Gemini reference set: screenshots + two MD briefs
 
 Produced the dev/Gemini design-reference package (outside the repo, in `D:\Working_Folder\Artifacts\PulsePly_ref\`):
