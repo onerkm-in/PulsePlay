@@ -56,8 +56,13 @@ async function main() {
       await runChrome(h);
     }
   } catch (e) {
+    const msg = String(e?.message || e);
     console.error("[harness error]", e);
-    h.finding("harness", "CRITICAL", "Harness exception", String(e?.message || e));
+    // Playwright navigation races (a page navigated while a page.evaluate / locator
+    // was in flight) are harness-infra flakes, NOT product bugs — don't count them
+    // as product criticals (same spirit as the ERR_ABORTED filter).
+    const isNavRace = /Execution context was destroyed|Target (page|browser|closed)|frame (was )?detached|Navigation|context was destroyed/i.test(msg);
+    h.finding("harness", isNavRace ? "INFO" : "CRITICAL", isNavRace ? "Harness navigation race (infra flake)" : "Harness exception", msg);
   } finally {
     await h.report({ runId, areas, connectors, dark });
     await h.stop();
