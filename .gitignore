@@ -59,6 +59,11 @@ __pycache__/
 # Local HAR captures (may contain secrets)
 *.har
 
+# 2026-06-03 — All generated probe/smoke evidence (screenshots/reports) is now
+# local-only; the tree grew to ~162 MB of untracked PNGs. To commit a specific
+# curated evidence set, force it with `git add -f docs/evidence/<name>/`.
+docs/evidence/
+
 # 2026-05-27 — Generated probe/smoke evidence (per-run, dated folders).
 # Curated evidence intentionally promoted from these dated folders into
 # docs/evidence/<descriptive-name>/ can still be committed.
