@@ -269,7 +269,7 @@ function openPulsePlaySettings(group: "setup" | "bi" | "ai" | "preferences" | "s
 
 type PulsePlayViewportPane = "ai" | "bi";
 type PulsePlayViewportFocus = PulsePlayViewportPane | null;
-type PulsePlayViewportAction = "focus" | "restore" | "minimize" | "open-page" | "float" | "reload";
+type PulsePlayViewportAction = "focus" | "restore" | "minimize" | "open-page" | "float" | "reload" | "pin";
 
 function readPulsePlayViewportFocus(): PulsePlayViewportFocus {
     if (typeof window === "undefined") return null;
@@ -5094,6 +5094,22 @@ function App(props: AppProps) {
                             </div>
                         </div>
                     )}
+                    {/* 2026-06-03 — Context pill docked INLINE in Row 2 (unified
+                        control-bar spec). Replaces the former standalone Context line.
+                        Collapses Surface/Source/Assistant/Scope/Trust into a popover;
+                        the trust badge stays glanceable on the pill. */}
+                    <div className="gn-header-context">
+                        <PulseContextSetup
+                            surface={activeTab === "insights" ? "AI Insights" : "Ask Pulse"}
+                            mode={pulseSurfaceContext.mode}
+                            items={[
+                                { label: "Assistant", value: pulseSurfaceContext.assistant },
+                                { label: "Source", value: pulseSurfaceContext.source },
+                                { label: "Scope", value: pulseSurfaceContext.scope },
+                                { label: "Trust", value: pulseSurfaceContext.trust },
+                            ]}
+                        />
+                    </div>
                     {activeTab === "insights" && isConfigured && (
                         <div
                             className="gn-adjust-menu gn-export-skip"
@@ -5250,10 +5266,10 @@ function App(props: AppProps) {
                                         ref={overflowTriggerRef}
                                         className={`gn-pane-action-btn${overflowOpen ? " gn-pane-action-btn--active" : ""}`}
                                         disabled={insightsBusy && !insightsResult?.content}
-                                        title="More actions (Copy, Print)"
+                                        title="More — copy, print, view options"
                                         aria-haspopup="menu"
                                         aria-expanded={overflowOpen}
-                                        aria-label="More actions: Copy as markdown, Copy as rich HTML, Print or save as PDF"
+                                        aria-label="More actions: copy, print, and view options (maximize, pop-out, pin)"
                                         data-testid="gn-insights-overflow-trigger"
                                         onClick={() => setOverflowOpen(v => !v)}
                                     >
@@ -5341,6 +5357,38 @@ function App(props: AppProps) {
                                             >
                                                 <Icon name="printer" />
                                                 <span className="gn-insights-overflow-item-label">Print or save as PDF</span>
+                                            </button>
+                                            {/* 2026-06-03 — view/window options folded in here from the
+                                                former standalone floating window-controls box ("no standalone
+                                                desktop window boxes" spec rule). Each dispatches the same
+                                                pulseplay:viewport-action the box did, handled in App.tsx, so
+                                                Maximize / Minimize / Pin / Pop-out / Open-in-page behave
+                                                identically — just no detached corner cluster. */}
+                                            <div className="gn-insights-overflow-sep" role="separator" aria-hidden="true" />
+                                            <button type="button" role="menuitem" className="gn-insights-overflow-item"
+                                                onClick={() => { dispatchPulsePlayViewportAction("focus", "ai"); setOverflowOpen(false); }}>
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2" /></svg>
+                                                <span className="gn-insights-overflow-item-label">Maximize this pane</span>
+                                            </button>
+                                            <button type="button" role="menuitem" className="gn-insights-overflow-item"
+                                                onClick={() => { dispatchPulsePlayViewportAction("minimize", "ai"); setOverflowOpen(false); }}>
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="5" y1="19" x2="19" y2="19" /></svg>
+                                                <span className="gn-insights-overflow-item-label">Minimize this pane</span>
+                                            </button>
+                                            <button type="button" role="menuitem" className="gn-insights-overflow-item"
+                                                onClick={() => { dispatchPulsePlayViewportAction("pin", "ai"); setOverflowOpen(false); }}>
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 17v5" /><path d="M9 17h6" /><path d="M12 2 L8 8 h8 L12 2 Z" /><rect x="9" y="8" width="6" height="9" rx="1" /></svg>
+                                                <span className="gn-insights-overflow-item-label">Pin as default layout</span>
+                                            </button>
+                                            <button type="button" role="menuitem" className="gn-insights-overflow-item"
+                                                onClick={() => { dispatchPulsePlayViewportAction("float", "ai"); setOverflowOpen(false); }}>
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="4" y="6" width="12" height="12" rx="2" /><rect x="10" y="2" width="12" height="12" rx="2" /></svg>
+                                                <span className="gn-insights-overflow-item-label">Pop out as window</span>
+                                            </button>
+                                            <button type="button" role="menuitem" className="gn-insights-overflow-item"
+                                                onClick={() => { dispatchPulsePlayViewportAction("open-page", "ai"); setOverflowOpen(false); }}>
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 4 h6 v6" /><path d="M20 4 L11 13" /><path d="M20 14 v6 a2 2 0 0 1 -2 2 H6 a2 2 0 0 1 -2 -2 V8 a2 2 0 0 1 2 -2 h6" /></svg>
+                                                <span className="gn-insights-overflow-item-label">Open in new browser tab</span>
                                             </button>
                                         </div>
                                     )}
@@ -5508,56 +5556,37 @@ function App(props: AppProps) {
                                     owns diagnostics and links to Settings. */}
                             </div>
                             )}
-                            {/* 2026-06-03 — the live progress indicator moved OUT of Row 2
-                                onto the Context line below (gated on insightsBusy → auto-hides
-                                when the run completes) so the agent status no longer collides
-                                with the window-controls cluster. The persistent Refresh / ⋮
-                                overflow / Stop controls stay here in .gn-insights-meta. */}
+                            {/* 2026-06-03 — agent status lives in Row 2's run-state (far
+                                right), gated on insightsBusy so it HIDES when idle and
+                                reappears only during a run. Checklist drops straight down
+                                from the "Stage X of Y ▾" trigger (anchored to the capsule). */}
+                            {insightsBusy && (
+                                <div className="gn-insights-progress-wrap gn-insights-progress-wrap--header">
+                                    <span className="gn-sr-only" role="status" aria-live="polite" aria-atomic="true">
+                                        {insightsResult?.currentStatus ? `AI Insights: ${insightsResult.currentStatus}` : ""}
+                                    </span>
+                                    <ProgressIndicator
+                                        className="gn-insights-progress"
+                                        steps={stageStatuses.length > 0
+                                            ? insightsProgressSteps
+                                            : [{ id: "warming", label: describeGenieStatus(insightsResult?.currentStatus || "PENDING").label, icon: describeGenieStatus(insightsResult?.currentStatus || "PENDING").icon, state: "active" }]}
+                                        elapsedMs={insightsElapsed * 1000}
+                                        isComplete={insightsAllDone}
+                                        isFailed={insightsAnyError}
+                                        collapseEarly={!!(insightsResult?.content && insightsResult.content.trim())}
+                                        activeOverride={(() => {
+                                            if (insightsAllDone || !insightsResult?.currentStatus) return undefined;
+                                            const s = insightsResult.currentStatus;
+                                            const firstWord = s.split(/\s/)[0] || "";
+                                            const looksLikeRawToken = /^[A-Z][A-Z0-9_]*$/.test(firstWord);
+                                            return looksLikeRawToken ? describeGenieStatus(s).label : s;
+                                        })()}
+                                    />
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
-            </div>
-
-            <div className="gn-context-bar">
-                <PulseContextSetup
-                    surface={activeTab === "insights" ? "AI Insights" : "Ask Pulse"}
-                    mode={pulseSurfaceContext.mode}
-                    items={[
-                        { label: "Assistant", value: pulseSurfaceContext.assistant },
-                        { label: "Source", value: pulseSurfaceContext.source },
-                        { label: "Scope", value: pulseSurfaceContext.scope },
-                        { label: "Trust", value: pulseSurfaceContext.trust },
-                    ]}
-                />
-                {/* 2026-06-03 — live agent status docked on the Context line, right of the
-                    context pill, ONLY while a run is in flight (insightsBusy). It auto-hides
-                    the instant the briefing completes — the provenance footer carries
-                    freshness from there, and Refresh re-triggers it. Moved off Row 2 to stop
-                    the collision with the window-controls cluster. */}
-                {insightsBusy && (
-                    <div className="gn-context-progress">
-                        <span className="gn-sr-only" role="status" aria-live="polite" aria-atomic="true">
-                            {insightsResult?.currentStatus ? `AI Insights: ${insightsResult.currentStatus}` : ""}
-                        </span>
-                        <ProgressIndicator
-                            className="gn-insights-progress"
-                            steps={stageStatuses.length > 0
-                                ? insightsProgressSteps
-                                : [{ id: "warming", label: describeGenieStatus(insightsResult?.currentStatus || "PENDING").label, icon: describeGenieStatus(insightsResult?.currentStatus || "PENDING").icon, state: "active" }]}
-                            elapsedMs={insightsElapsed * 1000}
-                            isComplete={insightsAllDone}
-                            isFailed={insightsAnyError}
-                            collapseEarly={!!(insightsResult?.content && insightsResult.content.trim())}
-                            activeOverride={(() => {
-                                if (insightsAllDone || !insightsResult?.currentStatus) return undefined;
-                                const s = insightsResult.currentStatus;
-                                const firstWord = s.split(/\s/)[0] || "";
-                                const looksLikeRawToken = /^[A-Z][A-Z0-9_]*$/.test(firstWord);
-                                return looksLikeRawToken ? describeGenieStatus(s).label : s;
-                            })()}
-                        />
-                    </div>
-                )}
             </div>
 
             {/* ── Mobile (<768px) chrome — CSS-hidden on tablet/desktop. ──────────

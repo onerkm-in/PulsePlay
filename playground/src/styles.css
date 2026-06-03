@@ -299,6 +299,33 @@ html, body, #root {
     background: var(--pp-border, #d0d7de);
 }
 
+/* 2026-06-03 — the Dashboard/BI pane reuses the Workbench's gn-context-bar +
+   gn-context-setup chrome for a consistent collapsed Context pill. Those dark
+   styles are scoped to .gn-shell--dark (the Pulse shell), which the NATIVE pane
+   is NOT inside — so in native dark mode (data-pp-theme="dark") they fell back to
+   light gn-* var defaults (white bar — flagged 15× by the smoke contrast scanner).
+   Re-skin them here through the native --pp-* tokens. */
+[data-pp-theme="dark"] .gn-context-bar {
+    background: var(--pp-surface-raised, #161b22);
+    border-bottom-color: var(--pp-border-subtle, #21262d);
+}
+[data-pp-theme="dark"] .gn-context-setup__trigger {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.14);
+    color: var(--pp-text, #e2eaf4);
+}
+[data-pp-theme="dark"] .gn-context-setup__trigger--open {
+    background: rgba(75, 156, 245, 0.15);
+    border-color: rgba(75, 156, 245, 0.40);
+}
+[data-pp-theme="dark"] .gn-context-setup__label { color: var(--pp-text, #e2eaf4); }
+[data-pp-theme="dark"] .gn-context-setup__popover {
+    background: var(--pp-surface, #161b22);
+    border-color: rgba(255, 255, 255, 0.14);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6);
+}
+[data-pp-theme="dark"] .gn-context-setup__row-value { color: var(--pp-text, #e2eaf4); }
+
 @media (max-width: 640px) {
     .pp-top-right-toolbar {
         display: none !important;

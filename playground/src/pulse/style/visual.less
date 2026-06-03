@@ -1088,10 +1088,23 @@
     justify-content: flex-end;
     min-width: 0;
     position: relative;
-    // 2026-06-03 — reserve room at the far right for the docked window-controls
-    // cluster (.pp-top-right-toolbar, host chrome, fixed at right:14) so the
-    // ⋮/Refresh/Stop meta sits just left of it instead of underlapping it.
-    padding-right: 168px;
+}
+
+/* 2026-06-03 — Context pill docked inline in Row 2 (unified control-bar spec).
+ * Sits between the nav switcher and the run-state cluster. */
+.gn-header-context {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    margin-left: 2px;
+}
+
+/* Separator inside the ⋮ "More" menu, between content actions (copy/print) and
+ * the folded-in view/window options. */
+.gn-insights-overflow-sep {
+    height: 1px;
+    margin: 4px 6px;
+    background: @gn-border-subtle;
 }
 .gn-insights-progress-wrap--header {
     flex: 1 1 180px;
@@ -5005,9 +5018,6 @@
 .gn-compact .gn-header-run-state {
     flex-basis: 100%;
     justify-content: flex-start;
-    // The docked window-controls cluster is hidden ≤640px (styles.css), so drop
-    // the reserved right-padding too.
-    padding-right: 0;
 }
 
 .gn-compact .gn-insights-meta {

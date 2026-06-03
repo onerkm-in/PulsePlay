@@ -1492,7 +1492,13 @@ function PlaygroundApp(): React.ReactElement {
               * toolbars in PaneChrome + Pulse's gn-pane-action-cluster as
               * the canonical entry point. Per-pane button clusters are
               * hidden via the global stylesheet rule below. */}
-            {!wizardShown && (
+            {/* 2026-06-03 — standalone window-controls box REMOVED ("no standalone
+              * desktop window boxes" spec rule). Its actions (Maximize / Minimize /
+              * Pin / Pop-out / Open-in-page) now live in the Row 2 ⋮ "More" menu in
+              * visual.tsx, which dispatches the SAME pulseplay:viewport-action events
+              * this toolbar did — so behaviour is unchanged, just no detached box.
+              * Kept here (gated off) for easy revert / reference. */}
+            {false && !wizardShown && (
                 <TopRightToolbar
                     activePane={effectiveSurfaceId === "bi-viz" ? "bi" : "ai"}
                     activeTabName={
