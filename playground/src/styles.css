@@ -325,6 +325,15 @@ html, body, #root {
     box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6);
 }
 [data-pp-theme="dark"] .gn-context-setup__row-value { color: var(--pp-text, #e2eaf4); }
+/* Trust badge tones — same problem as the context bar: the .gn-shell--dark badge
+   overrides don't reach the native pane, so in native dark mode the light-theme
+   info tone (#1e40af on a dark backdrop) measured 1.9:1 ("Permissive dev", flagged
+   18× by the smoke). Mirror the dark badge palette here for data-pp-theme=dark. */
+[data-pp-theme="dark"] .gn-surface-context__badge--ok      { color: #4ade80; background: rgba(74, 222, 128, 0.12);  border-color: rgba(74, 222, 128, 0.30); }
+[data-pp-theme="dark"] .gn-surface-context__badge--info    { color: #93c5fd; background: rgba(147, 197, 253, 0.12); border-color: rgba(147, 197, 253, 0.30); }
+[data-pp-theme="dark"] .gn-surface-context__badge--warn    { color: #fbbf24; background: rgba(251, 191, 36, 0.12);  border-color: rgba(251, 191, 36, 0.30); }
+[data-pp-theme="dark"] .gn-surface-context__badge--bad     { color: #fca5a5; background: rgba(252, 165, 165, 0.12); border-color: rgba(252, 165, 165, 0.30); }
+[data-pp-theme="dark"] .gn-surface-context__badge--neutral { color: var(--pp-text, #e2eaf4); background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.14); }
 
 @media (max-width: 640px) {
     .pp-top-right-toolbar {
