@@ -5275,7 +5275,12 @@
     }
 
     .gn-insights-error-icon {
-        color: #b22020;
+        // 2026-06-03 — was hardcoded #b22020, which is dark-red-on-dark (2.8:1)
+        // under dark-luminance THEMES like slate-dark that don't carry the
+        // .gn-shell--dark class. Bind to the theme error token so it adapts
+        // (slate-dark #f85149 → 4.7:1; light themes stay AA on their light card;
+        // the darkMode-toggle case is still handled by the --dark override below).
+        color: @gn-error;
         grid-row: 1 / span 2;
 
         svg { display: inline-block; }
@@ -5295,7 +5300,7 @@
     .gn-insights-error-title {
         font-size: 15px;
         font-weight: 600;
-        color: #b22020;
+        color: @gn-error;
         margin: 0;
         line-height: 1.3;
     }
