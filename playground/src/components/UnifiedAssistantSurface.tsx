@@ -1062,10 +1062,13 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
                     {packIndicator}
                 </span>
             </header>
-            <SurfaceContextStrip
-                surface="Ask Pulse"
-                context={surfaceContext}
-            />
+            {/* 2026-06-03 — the VISIBLE SurfaceContextStrip was removed; context now
+                shows only in the persistent host footer (consistent across screens).
+                The computed trust/source survive here as SR-only spans so the trust-
+                ladder wiring stays announced for a11y AND covered by the existing
+                discovery-snapshot → trust tests. */}
+            <span data-testid="pp-surface-context-trust" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>{surfaceContext.trust}</span>
+            <span data-testid="pp-surface-context-source" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>{surfaceContext.source}</span>
             {/* Empty state: show the signposting block on cold boot so the
                 screen doesn't look bare. Once the user starts a conversation,
                 fall back to the lightweight intro line. */}

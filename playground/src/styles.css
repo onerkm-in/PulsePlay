@@ -166,10 +166,12 @@ html, body, #root {
 /* ── App Shell ───────────────────────────────────────────────────── */
 .pp-app {
     display: flex;
-    height: 100vh;
+    /* Reserve the 36px persistent provenance footer (.gn-app-footer, fixed). */
+    height: calc(100vh - 36px);
     overflow: hidden;
     background: var(--pp-bg);
 }
+@media (max-width: 767px) { .pp-app { height: 100vh; } } /* footer hidden on mobile */
 
 .pp-app__sidebar {
     width: 100%;
@@ -334,6 +336,44 @@ html, body, #root {
 [data-pp-theme="dark"] .gn-surface-context__badge--warn    { color: #fbbf24; background: rgba(251, 191, 36, 0.12);  border-color: rgba(251, 191, 36, 0.30); }
 [data-pp-theme="dark"] .gn-surface-context__badge--bad     { color: #fca5a5; background: rgba(252, 165, 165, 0.12); border-color: rgba(252, 165, 165, 0.30); }
 [data-pp-theme="dark"] .gn-surface-context__badge--neutral { color: var(--pp-text, #e2eaf4); background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.14); }
+
+/* 2026-06-03 — single persistent provenance footer (host chrome, ALL screens).
+   Fixed to the viewport bottom (36px); .pp-app reserves the 36px above so content
+   never hides behind it. Themed via data-pp-theme. Hidden on mobile, where the
+   pulse bottom-nav owns the bottom edge. Colours per spec. */
+.gn-app-footer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 35;
+    box-sizing: border-box;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 0 16px;
+    font-size: 11.5px;
+    line-height: 1;
+    background: #f8f9fa;
+    border-top: 1px solid #e5e7eb;
+    color: #64748b;
+}
+.gn-app-footer__context,
+.gn-app-footer__meta {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+.gn-app-footer__meta { flex: 0 0 auto; opacity: 0.92; }
+[data-pp-theme="dark"] .gn-app-footer {
+    background: #0f172a;
+    border-top-color: #334155;
+    color: #94a3b8;
+}
+@media (max-width: 767px) { .gn-app-footer { display: none; } }
 
 @media (max-width: 640px) {
     .pp-top-right-toolbar {
