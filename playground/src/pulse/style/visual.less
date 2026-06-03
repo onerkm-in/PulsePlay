@@ -1092,11 +1092,54 @@
 
 /* 2026-06-03 — Context pill docked inline in Row 2 (unified control-bar spec).
  * Sits between the nav switcher and the run-state cluster. */
-.gn-header-context {
-    display: inline-flex;
+/* 2026-06-03 — persistent provenance baseline footer. Fixed to the viewport
+ * bottom edge (36px), holding the relocated context (left, plain text) + app
+ * metadata (right). Theme colours per spec. Hidden on mobile, where the fixed
+ * bottom-nav owns the bottom edge. */
+.gn-app-footer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 35;
+    box-sizing: border-box;
+    height: 36px;
+    display: flex;
     align-items: center;
-    flex: 0 0 auto;
-    margin-left: 2px;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 0 16px;
+    font-size: 11.5px;
+    line-height: 1;
+    background: #f8f9fa;
+    border-top: 1px solid #e5e7eb;
+    color: #64748b;
+}
+.gn-app-footer__context,
+.gn-app-footer__meta {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+.gn-app-footer__meta { flex: 0 0 auto; opacity: 0.92; }
+
+.gn-shell--dark .gn-app-footer {
+    background: #0f172a;
+    border-top-color: #334155;
+    color: #94a3b8;
+}
+.gn-shell--aaa .gn-app-footer {
+    background: #000000;
+    border-top: 2px solid #ffffff;
+    color: #ffffff;
+}
+
+/* Reserve room so the fixed footer never covers the last content. */
+.gn-shell { padding-bottom: 36px; }
+@media (max-width: 767px) {
+    .gn-app-footer { display: none; }     /* bottom-nav owns the bottom on mobile */
+    .gn-shell { padding-bottom: 60px; }   /* (matches the bottom-nav reserve) */
 }
 
 /* Separator inside the ⋮ "More" menu, between content actions (copy/print) and

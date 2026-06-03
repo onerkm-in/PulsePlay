@@ -5094,22 +5094,9 @@ function App(props: AppProps) {
                             </div>
                         </div>
                     )}
-                    {/* 2026-06-03 — Context pill docked INLINE in Row 2 (unified
-                        control-bar spec). Replaces the former standalone Context line.
-                        Collapses Surface/Source/Assistant/Scope/Trust into a popover;
-                        the trust badge stays glanceable on the pill. */}
-                    <div className="gn-header-context">
-                        <PulseContextSetup
-                            surface={activeTab === "insights" ? "AI Insights" : "Ask Pulse"}
-                            mode={pulseSurfaceContext.mode}
-                            items={[
-                                { label: "Assistant", value: pulseSurfaceContext.assistant },
-                                { label: "Source", value: pulseSurfaceContext.source },
-                                { label: "Scope", value: pulseSurfaceContext.scope },
-                                { label: "Trust", value: pulseSurfaceContext.trust },
-                            ]}
-                        />
-                    </div>
+                    {/* 2026-06-03 — Context pill REMOVED from Row 2; its provenance now
+                        lives in the persistent sticky footer (.gn-app-footer) as plain
+                        text, leaving Row 2 a pure control strip (nav left, utilities right). */}
                     {activeTab === "insights" && isConfigured && (
                         <div
                             className="gn-adjust-menu gn-export-skip"
@@ -5247,6 +5234,32 @@ function App(props: AppProps) {
                                         {new Date(insightsGeneratedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }).toLowerCase()}
                                     </span>
                                 )}
+                                {/* 2026-06-03 — Row 2 utility strip [time][🔄][⚙][⋮]. Standalone
+                                    Refresh + Settings restored alongside the ⋮ More menu. */}
+                                <button
+                                    type="button"
+                                    className="gn-pane-action-btn"
+                                    disabled={insightsBusy}
+                                    title="Refresh insights"
+                                    aria-label="Refresh AI Insights for the current report context"
+                                    onClick={() => {
+                                        clearInsightsCache(computeInsightsCacheKey(activeSpaceKey));
+                                        setInsightsActivePromptId(null);
+                                        setInsightsCustomPrompt("");
+                                        runInsights();
+                                    }}
+                                >
+                                    <Icon name="refresh" />
+                                </button>
+                                <button
+                                    type="button"
+                                    className="gn-pane-action-btn"
+                                    title="Open Settings"
+                                    aria-label="Open PulsePlay Settings"
+                                    onClick={() => openPulsePlaySettings("setup")}
+                                >
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+                                </button>
                                 {/* Phase C 2026-05-18 — secondary actions overflow.
                                   * Copy MD / Copy HTML / Print PDF used to sit as
                                   * three peer pill buttons next to Refresh; Rajesh's
@@ -5266,10 +5279,10 @@ function App(props: AppProps) {
                                         ref={overflowTriggerRef}
                                         className={`gn-pane-action-btn${overflowOpen ? " gn-pane-action-btn--active" : ""}`}
                                         disabled={insightsBusy && !insightsResult?.content}
-                                        title="More — copy, print, view options"
+                                        title="More — copy & print"
                                         aria-haspopup="menu"
                                         aria-expanded={overflowOpen}
-                                        aria-label="More actions: copy, print, and view options (maximize, pop-out, pin)"
+                                        aria-label="More actions: copy as markdown, copy as rich HTML, print or save as PDF"
                                         data-testid="gn-insights-overflow-trigger"
                                         onClick={() => setOverflowOpen(v => !v)}
                                     >
@@ -5282,8 +5295,8 @@ function App(props: AppProps) {
                                             aria-label="Insights secondary actions"
                                             data-testid="gn-insights-overflow-pop"
                                         >
-                                            {/* Section 1: Data Portability (copy / print exports). */}
-                                            <div className="gn-insights-overflow-label" aria-hidden="true">Data Portability</div>
+                                            {/* Data Portability — copy / print exports (the only section now;
+                                                Refresh + config moved to standalone Row 2 buttons). */}
                                             <button
                                                 type="button"
                                                 role="menuitem"
@@ -5360,29 +5373,10 @@ function App(props: AppProps) {
                                                 <Icon name="printer" />
                                                 <span className="gn-insights-overflow-item-label">Print or save as PDF</span>
                                             </button>
-                                            {/* 2026-06-03 — Section 2: Canvas Utilities. Window-management
-                                                items (Maximize / Minimize / Pop-out / Pin) were stripped per
-                                                the menu-hierarchy refactor; the menu is now two clean groups —
-                                                Data Portability (copy/print, above) + Canvas Utilities. */}
-                                            <div className="gn-insights-overflow-sep" role="separator" aria-hidden="true" />
-                                            <div className="gn-insights-overflow-label" aria-hidden="true">Canvas Utilities</div>
-                                            <button type="button" role="menuitem" className="gn-insights-overflow-item"
-                                                disabled={insightsBusy}
-                                                onClick={() => {
-                                                    clearInsightsCache(computeInsightsCacheKey(activeSpaceKey));
-                                                    setInsightsActivePromptId(null);
-                                                    setInsightsCustomPrompt("");
-                                                    runInsights();
-                                                    setOverflowOpen(false);
-                                                }}>
-                                                <Icon name="refresh" />
-                                                <span className="gn-insights-overflow-item-label">Refresh insights</span>
-                                            </button>
-                                            <button type="button" role="menuitem" className="gn-insights-overflow-item"
-                                                onClick={() => { openPulsePlaySettings("setup"); setOverflowOpen(false); }}>
-                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
-                                                <span className="gn-insights-overflow-item-label">System config — open Settings</span>
-                                            </button>
+                                            {/* 2026-06-03 — Canvas Utilities (Refresh / System config) removed
+                                                from the menu: Refresh is now a standalone 🔄 button and config a
+                                                standalone ⚙ button in Row 2's utility strip. The ⋮ menu is
+                                                Data Portability only (copy / print). */}
                                         </div>
                                     )}
                                 </div>
@@ -5514,11 +5508,6 @@ function App(props: AppProps) {
                                     used by the Chat tab table export (where every
                                     answer has a result table) and slated for the
                                     Wave 35 author-defined SQL-section export. */}
-                                {/* 2026-06-03 — standalone Refresh button removed; the action
-                                    now lives in the ⋮ menu's "Canvas Utilities" section so the ⋮
-                                    sits at the far right next to the timestamp and Row 2 carries
-                                    less chrome. Stop (below) stays standalone — it's a critical
-                                    mid-run control that must never be a menu-click away. */}
                                 {/* Stop button — only visible mid-run. Cancels the
                                     in-flight pipeline and any partial XHRs. Completed
                                     stages keep their rendered content; remaining
@@ -5653,6 +5642,21 @@ function App(props: AppProps) {
                     )}
                 </nav>
             )}
+
+            {/* 2026-06-03 — persistent provenance baseline footer (sticky, 36px). The
+                context relocated from the former Row 2 pill lives here as plain-text
+                metadata on the left; boilerplate app metadata on the right. Desktop-only
+                — on mobile the fixed bottom-nav owns the bottom edge (footer hidden via
+                @media). Themed via .gn-shell--dark. */}
+            <footer className="gn-app-footer" role="contentinfo">
+                <span className="gn-app-footer__context">
+                    <span aria-hidden="true">⚙</span>{" "}
+                    Context: {pulseSurfaceContext.trust || pulseSurfaceContext.assistant || "—"}
+                </span>
+                <span className="gn-app-footer__meta">
+                    Generated by PulsePlay · v1.0.4 Enterprise
+                </span>
+            </footer>
 
             {activeTab === "insights" && (
                 <div
