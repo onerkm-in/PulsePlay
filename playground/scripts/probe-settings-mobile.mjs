@@ -1,0 +1,12 @@
+import { chromium } from "@playwright/test";
+const BASE = "http://127.0.0.1:7001";
+const OUT = "D:/Working_Folder/Artifacts/PulsePly_ref/Screenshots-Dev-Genmini-reference";
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const browser = await chromium.launch({ headless: true });
+const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+const page = await ctx.newPage();
+await page.goto(BASE + "/settings/bi", { waitUntil: "domcontentloaded", timeout: 25000 });
+await sleep(2500);
+await page.screenshot({ path: `${OUT}/settings-mobile-bi.png`, fullPage: true });
+console.log("shot settings-mobile-bi.png");
+await browser.close();
