@@ -59,7 +59,15 @@ export class Harness {
     const p = this.page;
     p.on("console", (m) => { if (m.type() === "error") this._consoleErrs.push(m.text().slice(0, 240)); });
     p.on("pageerror", (e) => this._pageErrs.push(String(e?.message || e).slice(0, 240)));
-    p.on("requestfailed", (r) => { const u = r.url(); if (u.includes("/api/")) this._netFails.push(`${r.failure()?.errorText || "?"} ${u.replace(BASE, "").slice(0, 90)}`); });
+    p.on("requestfailed", (r) => {
+      const u = r.url();
+      const err = r.failure()?.errorText || "?";
+      // net::ERR_ABORTED = an INTENTIONALLY cancelled request — the harness
+      // navigating to the next test, React StrictMode's dev double-mount cleanup
+      // aborting the first mount's fetch, or a superseded request. It is NOT an
+      // API failure (those surface as HTTP ≥400 below), so don't report it.
+      if (u.includes("/api/") && !/ERR_ABORTED/i.test(err)) this._netFails.push(`${err} ${u.replace(BASE, "").slice(0, 90)}`);
+    });
     p.on("response", (r) => { const u = r.url(); if (u.includes("/api/") && r.status() >= 400) this._netFails.push(`HTTP ${r.status()} ${u.replace(BASE, "").slice(0, 90)}`); });
   }
 
