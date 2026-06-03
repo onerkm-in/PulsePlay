@@ -10919,7 +10919,9 @@
     top: calc(100% + 4px);
     right: 0;
     min-width: 220px;
-    z-index: 30;
+    // 2026-06-03 — raised 30 → 50 so the expanded menu never masks active canvas
+    // chart containers / data tables (menu-hierarchy refactor placement rule).
+    z-index: 50;
     background: @gn-surface-raised;
     border: 1px solid @gn-border;
     border-radius: 10px;
@@ -10955,6 +10957,16 @@
 }
 .gn-insights-overflow-item-label {
     flex: 1 1 auto;
+}
+/* 2026-06-03 — section header inside the ⋮ menu (Data Portability / Canvas
+ * Utilities). Small, muted, uppercase — groups items without adding chrome. */
+.gn-insights-overflow-label {
+    padding: 6px 10px 2px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: @gn-text-muted;
 }
 
 /* Press feedback on the overflow trigger matches the existing toolbar

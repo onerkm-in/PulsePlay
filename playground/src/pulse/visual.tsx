@@ -5282,6 +5282,8 @@ function App(props: AppProps) {
                                             aria-label="Insights secondary actions"
                                             data-testid="gn-insights-overflow-pop"
                                         >
+                                            {/* Section 1: Data Portability (copy / print exports). */}
+                                            <div className="gn-insights-overflow-label" aria-hidden="true">Data Portability</div>
                                             <button
                                                 type="button"
                                                 role="menuitem"
@@ -5358,37 +5360,28 @@ function App(props: AppProps) {
                                                 <Icon name="printer" />
                                                 <span className="gn-insights-overflow-item-label">Print or save as PDF</span>
                                             </button>
-                                            {/* 2026-06-03 — view/window options folded in here from the
-                                                former standalone floating window-controls box ("no standalone
-                                                desktop window boxes" spec rule). Each dispatches the same
-                                                pulseplay:viewport-action the box did, handled in App.tsx, so
-                                                Maximize / Minimize / Pin / Pop-out / Open-in-page behave
-                                                identically — just no detached corner cluster. */}
+                                            {/* 2026-06-03 — Section 2: Canvas Utilities. Window-management
+                                                items (Maximize / Minimize / Pop-out / Pin) were stripped per
+                                                the menu-hierarchy refactor; the menu is now two clean groups —
+                                                Data Portability (copy/print, above) + Canvas Utilities. */}
                                             <div className="gn-insights-overflow-sep" role="separator" aria-hidden="true" />
+                                            <div className="gn-insights-overflow-label" aria-hidden="true">Canvas Utilities</div>
                                             <button type="button" role="menuitem" className="gn-insights-overflow-item"
-                                                onClick={() => { dispatchPulsePlayViewportAction("focus", "ai"); setOverflowOpen(false); }}>
-                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2" /></svg>
-                                                <span className="gn-insights-overflow-item-label">Maximize this pane</span>
+                                                disabled={insightsBusy}
+                                                onClick={() => {
+                                                    clearInsightsCache(computeInsightsCacheKey(activeSpaceKey));
+                                                    setInsightsActivePromptId(null);
+                                                    setInsightsCustomPrompt("");
+                                                    runInsights();
+                                                    setOverflowOpen(false);
+                                                }}>
+                                                <Icon name="refresh" />
+                                                <span className="gn-insights-overflow-item-label">Refresh insights</span>
                                             </button>
                                             <button type="button" role="menuitem" className="gn-insights-overflow-item"
-                                                onClick={() => { dispatchPulsePlayViewportAction("minimize", "ai"); setOverflowOpen(false); }}>
-                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="5" y1="19" x2="19" y2="19" /></svg>
-                                                <span className="gn-insights-overflow-item-label">Minimize this pane</span>
-                                            </button>
-                                            <button type="button" role="menuitem" className="gn-insights-overflow-item"
-                                                onClick={() => { dispatchPulsePlayViewportAction("pin", "ai"); setOverflowOpen(false); }}>
-                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 17v5" /><path d="M9 17h6" /><path d="M12 2 L8 8 h8 L12 2 Z" /><rect x="9" y="8" width="6" height="9" rx="1" /></svg>
-                                                <span className="gn-insights-overflow-item-label">Pin as default layout</span>
-                                            </button>
-                                            <button type="button" role="menuitem" className="gn-insights-overflow-item"
-                                                onClick={() => { dispatchPulsePlayViewportAction("float", "ai"); setOverflowOpen(false); }}>
-                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="4" y="6" width="12" height="12" rx="2" /><rect x="10" y="2" width="12" height="12" rx="2" /></svg>
-                                                <span className="gn-insights-overflow-item-label">Pop out as window</span>
-                                            </button>
-                                            <button type="button" role="menuitem" className="gn-insights-overflow-item"
-                                                onClick={() => { dispatchPulsePlayViewportAction("open-page", "ai"); setOverflowOpen(false); }}>
-                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 4 h6 v6" /><path d="M20 4 L11 13" /><path d="M20 14 v6 a2 2 0 0 1 -2 2 H6 a2 2 0 0 1 -2 -2 V8 a2 2 0 0 1 2 -2 h6" /></svg>
-                                                <span className="gn-insights-overflow-item-label">Open in new browser tab</span>
+                                                onClick={() => { openPulsePlaySettings("setup"); setOverflowOpen(false); }}>
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+                                                <span className="gn-insights-overflow-item-label">System config — open Settings</span>
                                             </button>
                                         </div>
                                     )}
@@ -5521,21 +5514,11 @@ function App(props: AppProps) {
                                     used by the Chat tab table export (where every
                                     answer has a result table) and slated for the
                                     Wave 35 author-defined SQL-section export. */}
-                                <button
-                                    type="button"
-                                    className="gn-pane-action-btn"
-                                    disabled={insightsBusy}
-                                    title="Refresh insights"
-                                    aria-label="Refresh AI Insights for the current report context"
-                                    onClick={() => {
-                                        clearInsightsCache(computeInsightsCacheKey(activeSpaceKey));
-                                        setInsightsActivePromptId(null);
-                                        setInsightsCustomPrompt("");
-                                        runInsights();
-                                    }}
-                                >
-                                    <Icon name="refresh" />
-                                </button>
+                                {/* 2026-06-03 — standalone Refresh button removed; the action
+                                    now lives in the ⋮ menu's "Canvas Utilities" section so the ⋮
+                                    sits at the far right next to the timestamp and Row 2 carries
+                                    less chrome. Stop (below) stays standalone — it's a critical
+                                    mid-run control that must never be a menu-click away. */}
                                 {/* Stop button — only visible mid-run. Cancels the
                                     in-flight pipeline and any partial XHRs. Completed
                                     stages keep their rendered content; remaining
