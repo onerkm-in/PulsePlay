@@ -1,7 +1,41 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
+import fs from "node:fs";
 import cspFromAllowlist from "./vite.cspFromAllowlist";
+
+// Strip dev-only verification harnesses from the production build output.
+// Files like public/verify-report-visual.html are served by the dev server
+// (so /api proxies CORS-free to the proxy for local verification), but they
+// mint embed tokens and must NEVER ship in a production bundle. Vite copies
+// everything under publicDir into dist verbatim, so we delete them in
+// closeBundle (build-only). Dev is untouched — the files stay in public/.
+function stripDevVerificationHarnesses(): Plugin {
+    return {
+        name: "pulseplay-strip-dev-verification-harnesses",
+        apply: "build",
+        closeBundle() {
+            const outDir = path.resolve(__dirname, "dist");
+            let removed: string[] = [];
+            try {
+                removed = fs
+                    .readdirSync(outDir)
+                    .filter((f) => /^verify-.*\.html$/.test(f));
+            } catch {
+                return; // no dist yet — nothing to strip
+            }
+            for (const f of removed) {
+                try {
+                    fs.rmSync(path.join(outDir, f));
+                    // eslint-disable-next-line no-console
+                    console.log(`[strip-dev-harness] removed ${f} from production build output`);
+                } catch {
+                    /* best-effort */
+                }
+            }
+        },
+    };
+}
 
 // PulsePlay playground — Vite config.
 // `/api/*` is proxied to the local PulsePlay AI proxy (same architecture as
@@ -17,6 +51,9 @@ export default defineConfig({
         // keeps the permissive index.html CSP so HMR's 'unsafe-eval'
         // keeps working. See vite.cspFromAllowlist.ts.
         cspFromAllowlist(),
+        // Belt-and-braces: ensure dev-only verification harnesses (token-
+        // minting pages under public/) never land in the production bundle.
+        stripDevVerificationHarnesses(),
     ],
     // The Power BI adapter at ../bi-adapters/powerbi/index.ts imports
     // "powerbi-client". Resolution from outside playground/ doesn't walk
