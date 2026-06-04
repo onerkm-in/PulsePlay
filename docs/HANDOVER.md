@@ -5,6 +5,20 @@
 
 ---
 
+## 2026-06-04 (cont.) — Visual loop iteration 3: closed iter-2's two verification gaps (both were real bugs)
+
+Verification-closure pass, no new scope. The two items iter-2 *flagged but didn't prove* both turned out to be real white-on-white bugs — my iter-2 hedges ("likely correct elevation + dimming", "unverified/latent") were exactly the dismissal `feedback_dont_dismiss_visual_findings` warns against. Pinned the actual elements this time. All evidence in `docs/evidence/visual-pass-2026-06-04/`.
+
+- **Task 1 — light-mode proof (`d-21`).** Switched to light mode via the app's *real* path (the Dark-mode toggle in Settings → Display → Appearance, which fires `onChange` → genieSettingsBridge → `themeSync`), not a raw localStorage poke — themeSync did NOT fight it (theme flipped + persisted `darkMode:false`). The one light-touching edit from iter-2 (`settingsInputStyle`) renders white bg + dark text (`#1f2937`) = legible and visually unchanged (flat white vs the old imperceptible near-white gradient; text was dark in both). Restored dark after (persisted back to `true`, net-zero). **The real way to force light mode: `pulseplay:visual-settings:genieSettings` `darkMode` + `pulseplay:visual-settings-change` event — but driving the toggle UI is the faithful path.**
+- **Task 2a — connector brand cards (`d-18`, `d-19`).** Pinned `article[data-connector-id]`: `background: rgb(255,255,255)` hardcoded, **opacity 1** (NOT dimmed), `status: configured` (NOT inactive), light `--pp-text` title on top = invisible. Iter-2's "pale = elevation + dimming" guess was wrong on every count. Fixed `background:"white"`→`var(--pp-surface-raised)` + border→`var(--pp-border)`. The dark bg then exposed a second hardcoded color — the profile-warning `#92400e` (dark-amber-on-dark) — so fixed that too → `var(--pp-warning-text)` (`#92400e` light / `#f0b429` dark). Both pixel-verified.
+- **Task 2b — `.pp-card__head` (`d-20`).** NOT dead/latent: `FieldCard` (settings/primitives) renders `.pp-card__head`, used by all 5 settings sub-pages (Appearance, Governance, Developer-tools, Knowledge-base, Supervisor-fusion) at `/settings/<group>/<leaf>`. Live on the Appearance page: 3 heads with the theme-blind white gradient under a light `--pp-text` title = white-on-white. `.pp-card` body is already `var(--pp-surface)` (dark) — only the head hardcoded white. Added a `:root[data-pp-theme=dark] .pp-card__head` override (raised→surface dark sheen; light mode untouched).
+
+All fixes PulsePlay-native (`ConnectorBrandCard.tsx`, `primitives.css`), `tsc` clean, playground 1855/1855.
+
+**Tripwire (sharpened):** iter-2 cleared these two by *reasoning* ("probably fine") and they were both real bugs. The rule holds with no exceptions now — a dark-mode legibility concern is **only** closed by pinning the actual element's computed bg/text AND a screenshot. `getComputedStyle` on the wrong ancestor (iter-2 climbed to `.pp-settings`) gives a false all-clear; query the leaf element (`article[data-connector-id]`, `.pp-card__head`).
+
+---
+
 ## 2026-06-04 (cont.) — Visual loop iteration 2: V3 resolved + V4 systemic tail closed by pixels
 
 Three tasks, in order, all screenshot-driven (evidence `docs/evidence/visual-pass-2026-06-04/`, gitignored). Resolve-don't-guess: every claim below is backed by a computed-style read **and** a screenshot, per the "prove by pixels, not pattern inference" mandate.

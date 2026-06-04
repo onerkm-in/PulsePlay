@@ -356,6 +356,17 @@
     background: linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(248,250,252,0.96) 100%);
 }
 
+/* Dark-mode card header (V4 tail closure, 2026-06-04 iter-3). The base rule
+   hardcodes a near-white "paper header" gradient; the card body is already
+   var(--pp-surface) (dark), so in dark mode the head rendered as a white strip
+   under the light --pp-text title = white-on-white (live on every settings
+   sub-page that uses FieldCard: Appearance, Governance, Developer, etc.).
+   Mirror the light sheen with a raised->surface dark gradient; light mode is
+   untouched (override only matches data-pp-theme=dark). */
+:root[data-pp-theme="dark"] .pp-card__head {
+    background: linear-gradient(180deg, var(--pp-surface-raised) 0%, var(--pp-surface) 100%);
+}
+
 .pp-card__title-row {
     display: flex;
     align-items: center;

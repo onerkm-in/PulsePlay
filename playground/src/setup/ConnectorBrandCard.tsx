@@ -82,10 +82,16 @@ export function ConnectorBrandCard({
             data-connector-id={manifest.id}
             data-status={status}
             style={{
-                border: "1px solid rgba(0, 0, 0, 0.12)",
+                // Theme-aware surface — was hardcoded `background:"white"` +
+                // a black-tint border, so in dark mode the card rendered pure
+                // white (rgb(255,255,255), opacity 1) with the inherited light
+                // --pp-text title on top = invisible. Pinned live 2026-06-04
+                // (iter-3): NOT inactive-dimming as iter-2 guessed — a real
+                // white-on-white. --pp-surface-raised is the correct elevation.
+                border: "1px solid var(--pp-border, rgba(0, 0, 0, 0.12))",
                 borderRadius: 6,
                 padding: 10,
-                background: "white",
+                background: "var(--pp-surface-raised, #fff)",
                 display: "flex",
                 flexDirection: "column",
                 gap: 6,
@@ -176,7 +182,7 @@ export function ConnectorBrandCard({
                                 <span style={{ fontSize: 9, opacity: 0.6 }}>{p.source}</span>
                             </div>
                             {p.warnings.length > 0 && (
-                                <div style={{ fontSize: 11, marginTop: 2, color: "#92400e" }}>
+                                <div style={{ fontSize: 11, marginTop: 2, color: "var(--pp-warning-text, #92400e)" }}>
                                     {p.warnings.join(" · ")}
                                 </div>
                             )}
