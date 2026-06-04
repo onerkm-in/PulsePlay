@@ -2091,7 +2091,7 @@ function SetupStatusPill(props: { readiness: SetupReadiness }): React.ReactEleme
                     flex: "0 0 auto",
                 }}
             />
-            <span>{props.readiness.pillLabel}</span>
+            <span className="pp-setup-pill__label">{props.readiness.pillLabel}</span>
             <span
                 className="pp-setup-pill__detail"
                 style={{

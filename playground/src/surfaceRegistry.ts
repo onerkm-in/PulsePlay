@@ -21,6 +21,10 @@ export interface SurfaceDescriptor {
     readonly id: SurfaceId;
     /** Human-readable label shown in the switcher. */
     readonly label: string;
+    /** Compact label for the mobile bottom-nav bar (Insights / Ask / Dash) so
+     *  the Dashboard bottom nav reads identically to the AI-surface pulse nav.
+     *  Desktop + the segmented control keep the full `label`. */
+    readonly shortLabel: string;
     /** Short-form symbol for the switcher icon well. NOT a repeat of label. */
     readonly icon: SurfaceIcon;
     /** One-line description for tooltips + screen reader fallback. */
@@ -40,6 +44,7 @@ export const SURFACES: ReadonlyArray<SurfaceDescriptor> = Object.freeze([
     {
         id: "ai-insights",
         label: "AI Insights",
+        shortLabel: "Insights",
         icon: "spark",
         description: "Auto-generated narrative summary of the current data scope.",
         pane: "ai",
@@ -47,6 +52,7 @@ export const SURFACES: ReadonlyArray<SurfaceDescriptor> = Object.freeze([
     {
         id: "ask-pulse",
         label: "Ask Pulse",
+        shortLabel: "Ask",
         icon: "chat",
         description: "Ask follow-up questions in natural language; SQL + chart back.",
         pane: "ai",
@@ -59,6 +65,7 @@ export const SURFACES: ReadonlyArray<SurfaceDescriptor> = Object.freeze([
         // and CSS class names stay stable.
         id: "bi-viz",
         label: "Dashboard",
+        shortLabel: "Dash",
         icon: "bars",
         description: "The embedded BI surface — same shell, peer to AI Insights.",
         pane: "bi",

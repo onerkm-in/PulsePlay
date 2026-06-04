@@ -47,6 +47,10 @@ export function SurfaceSwitcher({ active, onPick, availability, trailing }: Surf
                         type="button"
                         role="tab"
                         aria-selected={isActive}
+                        // Explicit accessible name = the full label, so it stays
+                        // stable whether the full or the compact visual label is
+                        // shown (both visual spans are aria-hidden below).
+                        aria-label={surface.label}
                         aria-controls={`pp-surface-pane-${surface.id}`}
                         aria-disabled={isAvailable ? undefined : true}
                         disabled={!isAvailable}
@@ -59,7 +63,8 @@ export function SurfaceSwitcher({ active, onPick, availability, trailing }: Surf
                         }
                     >
                         <SurfaceGlyph icon={surface.icon} />
-                        <span className="pp-surface-switcher__label">{surface.label}</span>
+                        <span className="pp-surface-switcher__label" aria-hidden="true">{surface.label}</span>
+                        <span className="pp-surface-switcher__label-short" aria-hidden="true">{surface.shortLabel}</span>
                     </button>
                 );
             })}

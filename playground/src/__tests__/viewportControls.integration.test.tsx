@@ -498,8 +498,13 @@ describe("App viewport controls — default unified Mix surface", () => {
             const text = (btn.textContent || "").trim();
             // No "AI AI", "Ask Ask", "BI BI" doubled prefix.
             expect(text).not.toMatch(/^(AI|Ask|BI)\s+\1\b/i);
-            // Accessible name (no aria-label set; falls back to text content).
-            expect(btn.hasAttribute("aria-label")).toBe(false);
+            // Accessible name now comes from an explicit aria-label so it stays
+            // stable when the visual full/short label swaps responsively on the
+            // mobile bottom bar (2026-06-04 V3 unification). It must be the clean
+            // full label, never a doubled prefix.
+            const accName = btn.getAttribute("aria-label") || "";
+            expect(accName.length).toBeGreaterThan(0);
+            expect(accName).not.toMatch(/^(AI|Ask|BI)\s+\1\b/i);
         }
         unmount(state);
     });
