@@ -342,6 +342,47 @@ describe('POST /assistant/embed-token/powerbi — cache + single-flight', () => 
         expect(calls).toHaveLength(2);
     });
 
+    test('a near-expiry cached token is NOT served — it re-mints (60s buffer guard)', async () => {
+        // First mint returns a token that expires in 30s — INSIDE the 60s
+        // EMBED_TOKEN_BUFFER_MS window. The hot path requires
+        // expiry > now + 60s, so the second call must re-mint rather than
+        // serve the about-to-expire token. This pins the stale-token guard:
+        // expiry is read from the mint response (PBI `expiration`), and a
+        // token within the buffer is treated as already-stale.
+        const pbiExpiringSoon = (token) => ({
+            ok: true,
+            status: 200,
+            text: async () => '',
+            json: async () => ({
+                token,
+                tokenId: 'tok-id-soon',
+                expiration: new Date(Date.now() + 30 * 1000).toISOString(), // 30s < 60s buffer
+            }),
+        });
+        const { impl, calls } = makeFetchRecorder([
+            aadOkResponse(), pbiExpiringSoon('near-expiry-token'),
+            aadOkResponse(), pbiOkResponse('fresh-token'),
+        ]);
+        _setPowerBiFetchImplForTests(impl);
+
+        const first = await request(app)
+            .post('/assistant/embed-token/powerbi')
+            .send({ assistantProfile: 'pbitest', groupId: 'wsp-uuid', reportId: 'rep-uuid' });
+        expect(first.status).toBe(200);
+        expect(first.body.cached).toBe(false);
+        expect(first.body.embedToken).toBe('near-expiry-token');
+        expect(calls).toHaveLength(2);
+
+        const second = await request(app)
+            .post('/assistant/embed-token/powerbi')
+            .send({ assistantProfile: 'pbitest', groupId: 'wsp-uuid', reportId: 'rep-uuid' });
+        expect(second.status).toBe(200);
+        // The near-expiry token was NOT served; a fresh AAD + PBI round-trip ran.
+        expect(second.body.cached).toBe(false);
+        expect(second.body.embedToken).toBe('fresh-token');
+        expect(calls).toHaveLength(4);
+    });
+
     test('different accessLevel uses a different cache slot', async () => {
         process.env.PROXY_PROFILE_PBITEST_POWER_BI_ALLOW_EDIT = 'true';
         const { impl, calls } = makeFetchRecorder([
