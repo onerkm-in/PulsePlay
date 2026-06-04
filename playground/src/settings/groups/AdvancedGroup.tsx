@@ -33,8 +33,11 @@ const PULSEPLAY_KEY_PREFIX = "pulseplay:";
 const PULSE_VISUAL_PREFIX = "pulseplay:visual-settings:";
 
 const SECTION_KEYS: Record<string, string[]> = {
-    bi: ["pulseplay:bi-vendor", "pulseplay:bi-surface-mode", "pulseplay:pbi-sso-config", "pulseplay:bi-tile-mode"],
-    ai: ["pulseplay:active-ai-profile", "pulseplay:pack-selection"],
+    // bi-embed-config (the Power BI embed URL/token) + active-connector were
+    // owned by these sections but missing from the reset lists (B4) — a section
+    // reset left stale embed config / connector selection behind.
+    bi: ["pulseplay:bi-vendor", "pulseplay:bi-surface-mode", "pulseplay:pbi-sso-config", "pulseplay:bi-tile-mode", "pulseplay:bi-embed-config"],
+    ai: ["pulseplay:active-ai-profile", "pulseplay:pack-selection", "pulseplay:active-connector"],
     preferences: ["pulseplay:ui-mode", "pulseplay:enabled-components", "pulseplay:layout-mode", "pulseplay:split:horizontal", "pulseplay:split:vertical"],
     system: [],
     advanced: [],
@@ -411,16 +414,26 @@ function DangerZoneActions(): React.ReactElement {
 
 // ─── Shared helpers ──────────────────────────────────────────────────────
 
+// Session auth, NOT a PulsePlay "setting" — preserved across resets so a
+// "reset all" doesn't drop the running desktop EXE session. No-op in a normal
+// browser (key absent). Must match desktopRuntimeClient's LAUNCH_TOKEN_KEY.
+const PRESERVE_ON_RESET = new Set<string>(["pulseplay:desktop-launch-token"]);
+
 function clearByPrefix(prefix: string): void {
     if (typeof window === "undefined") return;
-    const toRemove: string[] = [];
-    try {
-        for (let i = 0; i < window.localStorage.length; i += 1) {
-            const key = window.localStorage.key(i);
-            if (key && key.startsWith(prefix)) toRemove.push(key);
-        }
-        for (const key of toRemove) window.localStorage.removeItem(key);
-    } catch { /* swallow */ }
+    // Clear BOTH localStorage AND sessionStorage (B4): the discovery cache lives
+    // in sessionStorage under pulseplay:discovery:*, so a localStorage-only
+    // sweep left stale discovery snapshots behind after a reset.
+    for (const store of [window.localStorage, window.sessionStorage]) {
+        const toRemove: string[] = [];
+        try {
+            for (let i = 0; i < store.length; i += 1) {
+                const key = store.key(i);
+                if (key && key.startsWith(prefix) && !PRESERVE_ON_RESET.has(key)) toRemove.push(key);
+            }
+            for (const key of toRemove) store.removeItem(key);
+        } catch { /* best-effort reset — storage may be unavailable (private mode) */ }
+    }
 }
 
 function broadcastReset(scope: string): void {

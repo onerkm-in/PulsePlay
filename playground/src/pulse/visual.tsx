@@ -9517,7 +9517,13 @@ function renderMessageBody(
                         <section className="gn-answer-section gn-answer-section--table">
                             <div className="gn-answer-section-label">
                                 <span className="gn-answer-section-label-text">Table</span>
-                                <span className="gn-answer-section-label-meta">{message.queryResult.rows.length} row{message.queryResult.rows.length === 1 ? "" : "s"}</span>
+                                <span className="gn-answer-section-label-meta">{
+                                    // A1 — when capQueryResultRows truncated the set (oversized
+                                    // response cap), say so: "N of M rows (capped)". Otherwise plain count.
+                                    message.queryResult.truncated && typeof message.queryResult.totalRows === "number"
+                                        ? `${message.queryResult.rows.length.toLocaleString()} of ${message.queryResult.totalRows.toLocaleString()} rows (capped)`
+                                        : `${message.queryResult.rows.length} row${message.queryResult.rows.length === 1 ? "" : "s"}`
+                                }</span>
                             </div>
                             <div className="gn-answer-table-scroll">
                                 <GenieTable columns={message.queryResult.columns} rows={message.queryResult.rows} />

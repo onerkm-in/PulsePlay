@@ -89,6 +89,11 @@ export interface InsightsExportContext {
 export interface RawQueryResult {
     columns: string[];
     rows: unknown[][];
+    /** Set by the oversized-response cap (capQueryResultRows) when the result was
+     *  truncated to the row cap; `totalRows` is the pre-cap count. Surfaced in the
+     *  export provenance (A1) so a capped export is never mistaken for the full set. */
+    truncated?: boolean;
+    totalRows?: number;
 }
 
 export interface DisabledStateInputs {
@@ -459,6 +464,14 @@ export async function exportSectionRawDataAsExcel(
         ["Space label", ctx.spaceLabel || "(none)"],
         ["Source / profile", ctx.sourceLabel || "default"],
         ["Rows exported", String(queryResult.rows?.length ?? 0)],
+        // A1 — when the result was capped, say so in the provenance so the export
+        // is never mistaken for the complete set.
+        ...(queryResult.truncated
+            ? [
+                ["Truncated", "yes — oversized result capped at the row limit"],
+                ["Total rows (pre-cap)", String(queryResult.totalRows ?? "unknown")],
+            ]
+            : []),
     ];
     const provWs = xlsx.utils.aoa_to_sheet(provRows);
     xlsx.utils.book_append_sheet(wb, provWs, sanitizeSheetName("Provenance", taken));

@@ -54,10 +54,12 @@ function typeInto(input: HTMLInputElement, text: string): void {
 
 beforeEach(() => {
     window.localStorage.clear();
+    window.sessionStorage.clear();
 });
 
 afterEach(() => {
     window.localStorage.clear();
+    window.sessionStorage.clear();
 });
 
 describe("AdvancedGroup — type-to-confirm gates", () => {
@@ -121,11 +123,14 @@ describe("AdvancedGroup — type-to-confirm gates", () => {
         const state = mount();
         await act(async () => { await Promise.resolve(); });
 
-        // Default section is "bi" → Reset bi clears pulseplay:bi-vendor.
+        // B4: bi-embed-config is now owned by the bi section's reset list.
+        window.localStorage.setItem("pulseplay:bi-embed-config", "{...}");
+
+        // Default section is "bi" → Reset bi clears the bi keys (5 now).
         const resetSectionInput = Array.from(state.container.querySelectorAll<HTMLInputElement>('input[type="text"]'))
             .find(i => i.getAttribute("aria-label") === "Type Reset bi to confirm")!;
         const resetSectionBtn = Array.from(state.container.querySelectorAll<HTMLButtonElement>("button"))
-            .find(b => (b.textContent || "").trim() === "Clear 4 keys")!;
+            .find(b => (b.textContent || "").trim() === "Clear 5 keys")!;
 
         await act(async () => { typeInto(resetSectionInput, "Reset bi"); });
         await act(async () => {
@@ -134,7 +139,36 @@ describe("AdvancedGroup — type-to-confirm gates", () => {
 
         expect(window.localStorage.getItem("pulseplay:bi-vendor")).toBeNull();
         expect(window.localStorage.getItem("pulseplay:bi-surface-mode")).toBeNull();
+        expect(window.localStorage.getItem("pulseplay:bi-embed-config")).toBeNull(); // B4 — was previously left behind
         expect(window.localStorage.getItem("pulseplay:ui-mode")).toBe("pulse"); // preferences section untouched
+        unmount(state);
+    });
+
+    it("Reset all also clears sessionStorage pulseplay:* (B4 — e.g. the discovery cache) but preserves the desktop launch token", async () => {
+        window.localStorage.setItem("pulseplay:active-connector", "foundation");
+        window.sessionStorage.setItem("pulseplay:discovery:cpg-fmcg", "{stale}");
+        window.sessionStorage.setItem("pulseplay:desktop-launch-token", "session-auth-token");
+        window.sessionStorage.setItem("non-pulseplay-session", "kept");
+
+        const state = mount();
+        await act(async () => { await Promise.resolve(); });
+
+        const resetAllInput = Array.from(state.container.querySelectorAll<HTMLInputElement>('input[type="text"]'))
+            .find(i => i.getAttribute("aria-label") === "Type Reset all to confirm")!;
+        const resetAllBtn = Array.from(state.container.querySelectorAll<HTMLButtonElement>("button"))
+            .find(b => (b.textContent || "").trim() === "Clear all PulsePlay settings")!;
+
+        await act(async () => { typeInto(resetAllInput, "Reset all"); });
+        await act(async () => { resetAllBtn.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+
+        // localStorage state cleared (incl. the previously-missed active-connector).
+        expect(window.localStorage.getItem("pulseplay:active-connector")).toBeNull();
+        // sessionStorage discovery cache cleared (the B4 gap).
+        expect(window.sessionStorage.getItem("pulseplay:discovery:cpg-fmcg")).toBeNull();
+        // …but the active desktop session token is preserved (session auth, not a setting).
+        expect(window.sessionStorage.getItem("pulseplay:desktop-launch-token")).toBe("session-auth-token");
+        // Non-PulsePlay session keys untouched.
+        expect(window.sessionStorage.getItem("non-pulseplay-session")).toBe("kept");
         unmount(state);
     });
 });
