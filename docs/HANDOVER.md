@@ -5,6 +5,24 @@
 
 ---
 
+## 2026-06-04 (cont.) — Autonomous visual QA pass (screenshot-driven, 375/768/1280)
+
+Captured every main screen at mobile/tablet/desktop with Chrome DevTools and diagnosed from the images (evidence in `docs/evidence/visual-pass-2026-06-04/`, gitignored). 5 fixes, all on `main`; playground 1855/1855.
+
+- **M1 (must-fix, `bd5e155`)** — at 375px the host header `.pp-top-bar` overflowed ~61px and **clipped the "Ready BI + AI" pill** off the right edge. Mobile rule (≤640px): tighten padding, shrink the brand, hide the pill's secondary detail (keep the dot + Ready/Setup-needed label; footer is hidden on mobile so the pill is the only setup indicator). Verified m-01→m-01b.
+- **V2 (must-fix, `bd5e155`)** — Dashboard "Pulse Canvas" empty state was top-anchored (`alignSelf:start`+`marginTop:56`), floating over ~70% empty canvas → read as broken. Centered `emptyMessageStyle` (also backs the blocked/spec states). Verified at 375+1280.
+- **F1 (`d82ec99`)** — Settings showed phantom **"Unsaved changes" on load**. Root cause (diagnosed live): `pulseplay:databricks-capabilities:<profile>` probe-CACHE keys were classified as user settings by the dirty tracker; a re-probe after the baseline tripped the Save bar. Added `CACHE_KEY_PREFIXES` exclusion in `useSettingsDraft`. (Residual of the earlier #8 fix.) Verified isDirty=false.
+- **V4 (must-fix, `bd4c685`)** — Knowledge Base pack cards + README/section MarkdownPane rendered **white-on-white** (`background:"white"` + inherited light text in dark mode = invisible content). Switched to `var(--pp-surface-raised)`. Verified d-05→d-05b + pack detail d-05c.
+- **V4b (`b6bbc04`)** — same class: the BI sandbox-attributes `<code>` block (deprecated `/settings/setup`). Fixed by the identical token pattern (verified by pattern, not a fresh shot — it's a collapsed section).
+
+**Clean (no issues):** AI Insights (d/m/t), Ask Pulse, BI Setup, Advanced (no overflow — verified via scrollWidth), Launchpad (live workspace discovery working), Knowledge pack detail.
+
+**Still open (documented, not fixed):** V1 Ask Pulse empty is top-weighted but it's a chat layout (composer anchors the bottom) — acceptable. **V3 — mobile nav inconsistency**: AI surfaces use a bottom nav (Insights/Ask/Dash), Dashboard uses top pills; should-fix but the fix is ambiguous (which pattern wins) + touches the responsive nav, so flagged for scope input. Minor deferred: pulse metric-preset `<select>` (visual.tsx:7750, native-control + sibling-shared) and ConnectorBrandGrid error-state buttons (white-bg). Not yet captured: Display, Workbench, Power BI Q&A.
+
+**Tripwire:** the white-on-white class (`background:"white"`/`"#fff"` inline + inherited text) recurs across the app — when adding a surface, use `var(--pp-surface-raised)` / `var(--pp-text)`, never a bare white literal, or it's invisible in dark mode.
+
+---
+
 ## 2026-06-04 (cont.) — Warnings cleared + error-handling system hardened
 
 "Clear all warnings/bugs/issues + good error handling" directive. Warnings: **zero** now — tsc clean, **build warning-free**, test run emits no React/act warnings, live console clean. Spawned a full error-handling audit (proxy + playground) → [docs/research/ERROR_HANDLING_AUDIT_2026-06-04.md](research/ERROR_HANDLING_AUDIT_2026-06-04.md) (contract sound, wiring partial). Fixed the high-value ones; backlog tracked in that doc. All commits on `main`; proxy 1166/1166, playground 1850/1850.
