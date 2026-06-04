@@ -56,8 +56,23 @@ export const LIVE_VIEW_KEYS: ReadonlySet<string> = new Set<string>([
     'pulseplay:active-surface',     // current tab (pure view state)
 ]);
 
+/**
+ * Ephemeral cache keys written as a side-effect of probing / mounting — NOT
+ * user edits. They carry a dynamic per-profile suffix (e.g.
+ * `pulseplay:databricks-capabilities:foundation`), so they can't live in the
+ * exact-match META set. Excluding them stops the Save bar from flipping to
+ * "Unsaved changes" the moment a settings page re-probes a connector and
+ * refreshes its cached capability blob. (Issue F1 — residual of the #8 fix.)
+ */
+export const CACHE_KEY_PREFIXES: readonly string[] = [
+    "pulseplay:databricks-capabilities",
+];
+
 function isUserSettingsKey(k: string): boolean {
-    return k.startsWith(PREFIX) && !META_KEYS.has(k) && !LIVE_VIEW_KEYS.has(k);
+    return k.startsWith(PREFIX)
+        && !META_KEYS.has(k)
+        && !LIVE_VIEW_KEYS.has(k)
+        && !CACHE_KEY_PREFIXES.some(p => k.startsWith(p));
 }
 
 function snapshotStorage(): Record<string, string> {
