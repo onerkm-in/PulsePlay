@@ -118,6 +118,10 @@ export class ProxyChatBackend implements SingleSpaceBackend {
                 id: packed.id || messageId,
                 status: packed.status || "COMPLETED",
                 attachments: [{ text: { content: packed.content || "" } }],
+                // Forward the failure cause so a FAILED synchronous (OpenAI /
+                // Bedrock) answer surfaces the real reason instead of a blank
+                // "failed" with no detail. Client error-extractors read `error`.
+                ...(packed.error ? { error: packed.error } : {}),
             } as unknown as GenieMessage;
         } catch {
             // Older response shape — message_id is just the id string and

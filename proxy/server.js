@@ -1366,6 +1366,23 @@ async function ensureWarehouseRunning(profile) {
     }
 }
 
+// ── Process-level safety net ────────────────────────────────────────────────
+// Express' error middleware only catches sync throws / explicit next(err); a
+// fire-and-forget rejected promise inside a route (background validation,
+// fan-out side-effects) escapes it. Without these handlers such errors are
+// silent (or, on newer Node, crash the process with no context). Log them
+// loudly with a clear prefix so they're never invisible. (audit finding #12)
+process.on('unhandledRejection', (reason) => {
+    console.error('[proxy] Unhandled promise rejection (logged, non-fatal):', reason);
+});
+process.on('uncaughtException', (err) => {
+    // An uncaught exception leaves the process in an undefined state — log the
+    // full error and exit so the host (Databricks Apps / Azure / a dev restart)
+    // brings up a clean instance rather than serving from a corrupt one.
+    console.error('[proxy] Uncaught exception — exiting for a clean restart:', err);
+    process.exit(1);
+});
+
 // ── App ───────────────────────────────────────────────────────────────────────
 const app = express();
 
