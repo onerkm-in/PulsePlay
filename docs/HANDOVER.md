@@ -5,6 +5,20 @@
 
 ---
 
+## 2026-06-04 (cont.) — Deep-verification pass (Power BI + Databricks) + A2 phantom-scope fix
+
+Verification-first pass — exercise each PBI/Databricks path on the live rig, prove or flag honestly, fix only what proved still-real. **Gates run in the FOREGROUND, real count read** (the discipline the A3 red commit violated). One real bug found + fixed.
+
+- **FOUND + FIXED — A2 disclosure scanned the wrong string (confidently-wrong output).** Live UI (Ask Pulse on `powerbi-dwd`, "What is the total sales?") returned the correct **2,297,201** but appended a PHANTOM *"Unscoped answer — the filters 'a business-intelligence pane of glass', 'symmetric distributions', 'absolute difference' in your question were not applied"* — **none of those were in the question.** Root cause: [server.js](../proxy/server.js) ran `detectDroppedScope(content, …)` over the **context-wrapped** content (the UI prepends a vendor/recent-events/frame/KB block laden with "for/in" prose), while `matchQuestion` correctly uses the extracted `questionOnly` (2026-05-26 fix). One-line fix: scan `questionOnly`. Live before/after PIXEL: clean question → no disclosure; "…for the Antarctica division" → correct disclosure naming **only** the real qualifier. New route-level regression [`powerbiDroppedScopeContext.test.js`](../proxy/tests/powerbiDroppedScopeContext.test.js) (2 tests, **proven fails-on-old / passes-on-new** via temp-revert). Needed a test seam: the deterministic DAX route didn't thread `_powerBiFetchImpl` into the lib `executeDaxNormalized` (it reached for real `globalThis.fetch` → real Azure AD) — added `if (_powerBiFetchImpl) daxOpts.fetchImpl = _powerBiFetchImpl;` (null/no-op in prod). **Owning gate foreground: proxy jest 60 suites / 1176 tests pass.**
+- **PBI verified-RUNNING:** deterministic spread (total / by-dim / trend / top-N) against live DAX, `llmCallCount:0`, regional breakdown sums to 2,297,201; nonexistent-measure → honest decline; Q&A embed-token mint + no-profile decline; PBI-RLS fail-closed (Q&A + DAX, jest). **Connector activated via the catalogue UI** (Settings → AI → Power BI Dataset — Deterministic DAX → `powerbi-dwd`); live probe found **8–17 real metrics** (so AI Insights' `buildDeterministicPbiInsightsPlan` has measures → matchable questions, no "no measure" fallback — that path is RUNNING-backend + READING-integration; full briefing PIXEL not run).
+- **Databricks verified-RUNNING/READING:** FM live + **ungrounded** (responds, no sqlQuery/rows → advisory fires); FM endpoint `databricks-meta-llama-3-3-70b-instruct` resolves; **wrong-name fails honestly** (injected 404 → re-throw names the bad `…405b…` endpoint, no silent 70b substitution — the documented 405b/dot-form tripwire); grounding advisory fail-closed (10 unit), oversized cap (5 unit). Genie client lifecycle + Supervisor-local routing = READING (upstream-blocked, not live).
+
+**Tripwires:**
+- **A2 `detectDroppedScope` MUST take `questionOnly`, never `content`.** The UI context block trips the "for/in/within" regex → phantom disclosures attributed to the user's question. Same class as the 2026-05-26 matchQuestion fix.
+- **The deterministic DAX route now honors `_powerBiFetchImpl`** (test seam) — route-level success tests can stub AAD + executeQueries through `_setPowerBiFetchImplForTests`; pass a static `probeCache` in the body to skip the inline INFO.* probe.
+
+---
+
 ## 2026-06-04 (cont.) — Hardening pass: FM advisory fail-closed + workbench fixture honesty + Genie row cap
 
 Three confirmed items before any Phase-5 build (no parallel-pane code written). Each proven by unit tests AND/OR a fresh screenshot.

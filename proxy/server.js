@@ -6383,6 +6383,12 @@ async function startPowerBiConversation(req, res) {
         return res.status(daxIdentity.status).json({ error: daxIdentity.error });
     }
     const daxOpts = {};
+    // Test seam — when a test fetch impl is injected via
+    // _setPowerBiFetchImplForTests, thread it into the lib DAX client (which
+    // otherwise reaches for globalThis.fetch and hits real Azure AD). Null in
+    // prod, so this is a no-op outside tests. Mirrors the _powerBiFetchImpl ||
+    // fetch pattern used by the embed-token path.
+    if (_powerBiFetchImpl) daxOpts.fetchImpl = _powerBiFetchImpl;
     if (daxIdentity.identities) {
         // RLS configured + identity resolved → require OBO (the user's delegated
         // token) to enforce RLS on executeQueries; fail closed if absent rather
@@ -6527,7 +6533,13 @@ async function startPowerBiConversation(req, res) {
     // A2 — disclose any value-filter qualifier the deterministic templates could
     // NOT apply (e.g. "...for the Antarctica division"). The answer is computed
     // over the full dataset; say so rather than implying the filter was honored.
-    const droppedScope = _powerbiQuestionMatcher.detectDroppedScope(content, match.slots);
+    // MUST scan `questionOnly` (the extracted user question), NOT `content` — the
+    // UI client prepends a contextBlock (vendor/recent-events/frame/KB) whose prose
+    // ("...as a business-intelligence pane of glass", "...in symmetric distributions")
+    // trips the "for/in/within" qualifier regex and produces phantom dropped-filter
+    // disclosures attributed to "your question". Same reasoning as the 2026-05-26
+    // matchQuestion fix above: inspect the question, never the injected context.
+    const droppedScope = _powerbiQuestionMatcher.detectDroppedScope(questionOnly, match.slots);
     if (droppedScope.length > 0) {
         const list = droppedScope.map(s => `"${s}"`).join(', ');
         const plural = droppedScope.length > 1;
