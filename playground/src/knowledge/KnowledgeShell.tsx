@@ -440,7 +440,7 @@ function KnowledgeIndex(props: { packs: PackSummary[] }): React.ReactElement {
                                 textAlign: "left",
                                 padding: "12px 14px",
                                 border: "1px solid var(--pp-border, rgba(0,0,0,0.12))",
-                                background: "white",
+                                background: "var(--pp-surface-raised, white)",
                                 borderRadius: 6,
                                 cursor: "pointer",
                             }}
@@ -722,7 +722,7 @@ function MarkdownPane(props: { title: string; body: string | null | undefined })
                 border: "1px solid var(--pp-border, rgba(0,0,0,0.08))",
                 borderRadius: 6,
                 padding: "14px 16px",
-                background: "white",
+                background: "var(--pp-surface-raised, white)",
             }}
         >
             <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>{props.title}</h3>
