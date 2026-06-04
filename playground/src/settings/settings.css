@@ -1098,13 +1098,9 @@
 }
 
 /* Mock & Sandbox Canvas */
-.pp-setup-preview-iframe {
-    width: 100%;
-    height: 100%;
-    border: none;
-    background: #fff;
-    flex: 1 1 auto;
-}
+/* `.pp-setup-preview-iframe` removed 2026-06-04 (A4): dead rule — no component
+   rendered it (only an audit-probe script queried for it). It was a theme-blind
+   hardcoded-white iframe canvas; deleted rather than dark-themed. */
 
 .pp-setup-preview-mock {
     padding: 24px;

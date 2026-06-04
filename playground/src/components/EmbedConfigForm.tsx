@@ -97,11 +97,17 @@ function normalizePowerBISecureEmbedInput(input: string): string {
     return (srcMatch?.[1] || raw).trim().replace(/&amp;/g, "&");
 }
 
-function isPowerBISecureEmbedUrl(input: string): boolean {
+/** Strict Power BI host check. Exported for tests. `endsWith("powerbi.com")`
+ *  used to accept sibling/look-alike domains (evil-powerbi.com,
+ *  powerbi.com.evil.com); require an EXACT host or a dot-boundary subdomain so
+ *  only `*.powerbi.com` (and `powerbi.com` itself) pass. */
+export function isPowerBISecureEmbedUrl(input: string): boolean {
     try {
         const parsed = new URL(input);
+        const host = parsed.hostname.toLowerCase();
+        const isPowerBiHost = host === "powerbi.com" || host.endsWith(".powerbi.com");
         return parsed.protocol === "https:"
-            && parsed.hostname.toLowerCase().endsWith("powerbi.com")
+            && isPowerBiHost
             && /\/reportEmbed$/i.test(parsed.pathname);
     } catch {
         return false;

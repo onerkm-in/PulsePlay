@@ -8,8 +8,30 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type React from "react";
-import { EmbedConfigForm } from "../EmbedConfigForm";
+import { EmbedConfigForm, isPowerBISecureEmbedUrl } from "../EmbedConfigForm";
 import type { BIEmbedConfig } from "../../biPanel/BIAdapter";
+
+// B5 — strict host validation. endsWith("powerbi.com") accepted sibling /
+// look-alike domains; the check must require an exact host or a dot-boundary
+// subdomain so only *.powerbi.com (and powerbi.com itself) pass.
+describe("isPowerBISecureEmbedUrl — strict host (B5)", () => {
+    it("accepts legitimate Power BI hosts over https with /reportEmbed", () => {
+        expect(isPowerBISecureEmbedUrl("https://app.powerbi.com/reportEmbed?reportId=abc")).toBe(true);
+        expect(isPowerBISecureEmbedUrl("https://app.high.powerbi.com/reportEmbed")).toBe(true);
+        expect(isPowerBISecureEmbedUrl("https://powerbi.com/reportEmbed")).toBe(true);
+    });
+    it("REJECTS sibling / look-alike domains (the bypass)", () => {
+        expect(isPowerBISecureEmbedUrl("https://evil-powerbi.com/reportEmbed")).toBe(false);
+        expect(isPowerBISecureEmbedUrl("https://powerbi.com.evil.com/reportEmbed")).toBe(false);
+        expect(isPowerBISecureEmbedUrl("https://notpowerbi.com/reportEmbed")).toBe(false);
+        expect(isPowerBISecureEmbedUrl("https://fakepowerbi.com/reportEmbed")).toBe(false);
+    });
+    it("REJECTS non-https and wrong-path even on a real host", () => {
+        expect(isPowerBISecureEmbedUrl("http://app.powerbi.com/reportEmbed")).toBe(false);
+        expect(isPowerBISecureEmbedUrl("https://app.powerbi.com/maliciousPath")).toBe(false);
+        expect(isPowerBISecureEmbedUrl("not a url")).toBe(false);
+    });
+});
 
 interface MountState {
     container: HTMLElement;
