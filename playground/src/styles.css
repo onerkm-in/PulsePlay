@@ -1170,6 +1170,40 @@ html, body, #root {
         repeating-linear-gradient(180deg, transparent 0, transparent 27px, rgba(15,23,42,0.03) 28px);
 }
 
+/* Dark-mode form-control surfaces (V4 systemic tail, 2026-06-04).
+   The base rules above hardcode near-white "paper" gradients for the light
+   theme. Under data-pp-theme=dark those paired with the light --pp-text to
+   render selects / inputs / textareas white-on-white (the SetupGroup embed
+   textarea was the worst case: pure-white text on a white gradient = invisible
+   typed text). Re-point every form surface at the dark token here so light
+   mode stays pixel-identical and dark mode is legible. The ruled-paper texture
+   is preserved with a theme-neutral light line colour. */
+:root[data-pp-theme="dark"] .pp-vendor-picker__select,
+:root[data-pp-theme="dark"] .pp-connector-picker__select,
+:root[data-pp-theme="dark"] .pp-pack-picker__select,
+:root[data-pp-theme="dark"] .pp-frame-picker__select,
+:root[data-pp-theme="dark"] .pp-embed-config__input,
+:root[data-pp-theme="dark"] .pp-settings input:not([type="checkbox"]):not([type="radio"]),
+:root[data-pp-theme="dark"] .pp-settings select {
+    background: var(--pp-surface-raised);
+    color: var(--pp-text);
+}
+:root[data-pp-theme="dark"] .pp-vendor-picker__select:hover,
+:root[data-pp-theme="dark"] .pp-connector-picker__select:hover,
+:root[data-pp-theme="dark"] .pp-pack-picker__select:hover,
+:root[data-pp-theme="dark"] .pp-frame-picker__select:hover,
+:root[data-pp-theme="dark"] .pp-embed-config__input:hover {
+    background: var(--pp-surface-overlay);
+}
+:root[data-pp-theme="dark"] .pp-embed-config__input--textarea,
+:root[data-pp-theme="dark"] .pp-ai-sidebar__input,
+:root[data-pp-theme="dark"] .pp-settings textarea {
+    background:
+        repeating-linear-gradient(180deg, transparent 0, transparent 27px, rgba(226,234,244,0.06) 28px),
+        var(--pp-surface-raised);
+    color: var(--pp-text);
+}
+
 .pp-settings input:not([type="checkbox"]):not([type="radio"]),
 .pp-settings select,
 .pp-settings textarea {

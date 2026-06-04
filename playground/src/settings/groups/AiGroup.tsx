@@ -1334,9 +1334,14 @@ const settingsInputStyle: React.CSSProperties = {
     padding: "8px 10px",
     border: "1px solid var(--pp-border, rgba(0,0,0,0.18))",
     borderRadius: 5,
-    background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.98))",
+    // Theme-aware surface — was a hardcoded near-white gradient, which in
+    // dark mode paired with the inherited light --pp-text (#e2eaf4) to make
+    // every settings select/input/textarea white-on-white (V4 systemic tail,
+    // 2026-06-04). --pp-surface-raised is #fff in light, #1c2128 in dark, so
+    // the field tracks the theme and the text stays legible in both.
+    background: "var(--pp-surface-raised, #fff)",
     boxShadow: "inset 0 1px 2px rgba(15, 23, 42, 0.07), 0 1px 2px rgba(15, 23, 42, 0.04)",
-    color: "inherit",
+    color: "var(--pp-text, #0f172a)",
     fontSize: 12,
 };
 

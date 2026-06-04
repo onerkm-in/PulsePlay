@@ -5,6 +5,29 @@
 
 ---
 
+## 2026-06-04 (cont.) — Visual loop iteration 2: V3 resolved + V4 systemic tail closed by pixels
+
+Three tasks, in order, all screenshot-driven (evidence `docs/evidence/visual-pass-2026-06-04/`, gitignored). Resolve-don't-guess: every claim below is backed by a computed-style read **and** a screenshot, per the "prove by pixels, not pattern inference" mandate.
+
+- **V3 (resolved, `59dc81d`)** — first confirmed *what the Dashboard top pills DO*: a click changed `?surface=`, so they are **app-level navigation**, not in-page tab switching. Therefore unified them onto the bottom nav (adopted the AI-surface bottom bar for Dashboard) rather than leaving an inconsistency. `SurfaceSwitcher` gained `shortLabel`s (Insights/Ask/Dash) + an explicit `aria-label`; a `≤767px` rule makes `.pp-surface-switcher` a fixed bottom bar. Verified 1280/768/375/320, no regression on AI surfaces. (First fix attempt targeted a non-existent `.pp-surface-switcher-wrap` and was a no-op — corrected to target the switcher directly. Tripwire below.)
+- **M1 at 320px (`59dc81d`)** — self-review caught the header could still crowd 320px (only 375 was checked in iter 1). Added a `≤360px` rule: h1→16px, hide the setup-pill label (dot only). Re-verified at 320px: `.pp-top-bar` fits exactly (scrollW 320 = clientW 320), no horizontal overflow (x320-03).
+- **V4 systemic tail (NEW commit)** — the screenshot caught the *real* offender the iter-1 eval missed: the pulse `visual.tsx:7750` select was correctly clear (pulse dark scope), but **every PulsePlay-native settings field was white-on-white** in dark mode. Two root causes, both fixed at the source:
+  - `settingsInputStyle` (AiGroup) hardcoded a near-white gradient + `color:inherit` → feeds every settings select/input/textarea. → `var(--pp-surface-raised)` + `var(--pp-text)`. Fixes the whole Response-behavior field family at once (d-12 before → d-13 after).
+  - `styles.css` `.pp-settings textarea` / `.pp-*-picker__select` / `.pp-embed-config__input` hardcoded white "paper" gradients (theme-blind). The **SetupGroup embed-URL textarea was the worst case: pure-white text on a white gradient = invisible typed text** (d-15). Added a `:root[data-pp-theme="dark"]` override block (light mode stays pixel-identical). 
+  - **ConnectorBrandGrid error state** — `#7f1d1d` on a faint-red tint (dark-red-on-dark) + a glaring `background:"white"` Retry chip → theme-aware `--pp-error` / `--pp-error-soft` / `--pp-surface-raised`. Forced the live error state (patched `fetch` to reject `connector-types`, remounted via SPA nav) and proved it (d-16), then restored fetch + confirmed catalogue recovery (d-17).
+  - **SetupGroup `<code>` block** (`b6bbc04`, prior) re-proven legible by a fresh screenshot (d-14), not pattern.
+
+**Discovery completed (Task 2):** Settings Display, Workbench (flag-gated), Power BI Q&A captured + exercised at desktop + mobile (iter-2 earlier sub-pass) — no broken surfaces found there.
+
+**Tripwires (new):**
+- **`position:fixed` mobile nav must target `.pp-surface-switcher` directly** — there is no `.pp-surface-switcher-wrap` in the Dashboard DOM; styling the wrapper is a silent no-op.
+- **The white-on-white class has TWO inline vectors *and* a CSS vector.** Inline styles win over CSS, so an inline `background:"white"`/gradient needs an inline token fix (the AiGroup `settingsInputStyle` case); bare `.pp-settings` fields are caught by the new dark-override block. When you see a light field in dark mode, check which vector owns it before assuming the CSS override covers it.
+- **To force the ConnectorBrandGrid error state without stopping the proxy:** patch `window.fetch` to reject `/api/assistant/connector-types`, then remount AiGroup via SPA nav (BI Setup → AI Setup) — a full reload drops the patch.
+
+**Low-confidence candidate (not fixed):** the *inactive* connector brand cards read pale in dark mode (d-17). Likely correct `--pp-surface-raised` elevation + inactive-dimming, not white-on-white (couldn't pin the exact card element to confirm) — flagged for a focused follow-up, not chased here.
+
+---
+
 ## 2026-06-04 (cont.) — Autonomous visual QA pass (screenshot-driven, 375/768/1280)
 
 Captured every main screen at mobile/tablet/desktop with Chrome DevTools and diagnosed from the images (evidence in `docs/evidence/visual-pass-2026-06-04/`, gitignored). 5 fixes, all on `main`; playground 1855/1855.

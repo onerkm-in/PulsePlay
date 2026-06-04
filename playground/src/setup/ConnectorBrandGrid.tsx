@@ -60,10 +60,13 @@ export function ConnectorBrandGrid(props: ConnectorBrandGridProps): React.ReactE
                 style={{
                     fontSize: 13,
                     padding: 12,
-                    border: "1px solid rgba(220, 38, 38, 0.3)",
+                    // Theme-aware error tokens — #7f1d1d on a faint red tint was
+                    // dark-red-on-dark (illegible) under data-pp-theme=dark.
+                    // --pp-error is #dc2626 in light, #f85149 (light red) in dark.
+                    border: "1px solid var(--pp-error-border)",
                     borderRadius: 6,
-                    background: "rgba(220, 38, 38, 0.06)",
-                    color: "#7f1d1d",
+                    background: "var(--pp-error-soft)",
+                    color: "var(--pp-error)",
                 }}
             >
                 <div style={{ fontWeight: 600, marginBottom: 4 }}>
@@ -79,8 +82,11 @@ export function ConnectorBrandGrid(props: ConnectorBrandGridProps): React.ReactE
                         marginTop: 8,
                         padding: "4px 10px",
                         fontSize: 12,
-                        border: "1px solid rgba(220, 38, 38, 0.4)",
-                        background: "white",
+                        border: "1px solid var(--pp-error-border)",
+                        // was background:"white" — a glaring white chip in the
+                        // dark error card; track the theme surface instead.
+                        background: "var(--pp-surface-raised)",
+                        color: "var(--pp-error)",
                         borderRadius: 4,
                         cursor: "pointer",
                     }}
