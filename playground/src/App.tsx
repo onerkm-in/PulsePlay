@@ -952,27 +952,6 @@ function PlaygroundApp(): React.ReactElement {
         return () => window.removeEventListener("pulseplay:display-change", handler as EventListener);
     }, [handleEnabledComponentsChange, persistActiveSurface]);
 
-    // Keep the URL's ?surface= param in step with the Pulse tab strip. Pulse
-    // fires `pulseplay:pulse-tab-changed` on every tab switch, but App-level
-    // pane state only flips on AI↔Dashboard — so insights↔ask-pulse switches
-    // never reached the URL writer and Ask Pulse was not deep-linkable. Sync
-    // the AI-pane tabs here (Dashboard is already handled by the mix flow).
-    // The default home tab keeps a clean "/" (no redundant param on load).
-    useEffect(() => {
-        const handler = (e: Event) => {
-            const tab = (e as CustomEvent<{ tab?: string }>).detail?.tab;
-            const surface: SurfaceId | null =
-                tab === "chat" ? "ask-pulse" : tab === "insights" ? "ai-insights" : null;
-            if (!surface) return;
-            const current = readSurfaceFromUrl();
-            if (current === surface) return;
-            if (!current && surface === "ai-insights") return; // keep "/" clean on the home tab
-            persistActiveSurface(surface);
-        };
-        window.addEventListener("pulseplay:pulse-tab-changed", handler as EventListener);
-        return () => window.removeEventListener("pulseplay:pulse-tab-changed", handler as EventListener);
-    }, [persistActiveSurface]);
-
     useEffect(() => {
         const handler = () => {
             const nextFocus = readViewportFocusFromUrl();
