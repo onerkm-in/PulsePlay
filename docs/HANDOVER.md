@@ -5,6 +5,19 @@
 
 ---
 
+## 2026-06-04 (cont.) — Warnings cleared + error-handling system hardened
+
+"Clear all warnings/bugs/issues + good error handling" directive. Warnings: **zero** now — tsc clean, **build warning-free**, test run emits no React/act warnings, live console clean. Spawned a full error-handling audit (proxy + playground) → [docs/research/ERROR_HANDLING_AUDIT_2026-06-04.md](research/ERROR_HANDLING_AUDIT_2026-06-04.md) (contract sound, wiring partial). Fixed the high-value ones; backlog tracked in that doc. All commits on `main`; proxy 1166/1166, playground 1850/1850.
+
+- **Build warnings (`59f04c2`)** — cleared both Vite "static+dynamic import" chunk warnings. `generic-iframe` (the universal base every stub `extends`) is now statically imported in registry too; `buildGenieEmbedUrl` extracted to a light `bi-adapters/databricks-genie/embedUrl.ts` so `workbenchDescriptors` no longer hoists the whole adapter into main (index re-exports it for compat).
+- **Top-level error boundary (`bf89938`)** — `AppErrorBoundary` wraps the whole `<App/>`: a render throw in ANY surface (BIPanel, v0, Settings, route shells — everything outside the pre-existing wizard/pulse boundaries) no longer white-screens the app; it shows a dependency-free recovery screen that SURFACES the real message + component stack. + global `window` `unhandledrejection`/`error` listeners. + a11y: the insights "Custom summary prompt" input got a `name`. 4 unit tests.
+- **v0 `[object Object]` bug (`6c17555`)** — the DEFAULT UI (`UnifiedAssistantSurface`) had the same swallowed-FAILED-error bug fixed earlier in pulse: `data.error` is an OBJECT at runtime, rendered as "[object Object]". Added `errorFieldToString` at all 4 finalize sites + object-error regression test.
+- **Proxy hardening (`8d723a6`)** — `process.on('unhandledRejection')` (log) + `uncaughtException` (log + clean-exit); `proxyChatBackend` forwards `packed.error` so a FAILED synchronous OpenAI/Bedrock answer carries its cause.
+
+**Error-handling system now:** app can't white-screen (top-level boundary), async errors are caught (global window + process handlers), both main AI surfaces (pulse + v0) surface the real FAILED cause, proxy has a process safety net. Remaining refinements (wire `problemDetails.ts` into the real surfaces #1, network/TLS classification #6, BIPanel structured errors #7, auth problem-envelope #9, TestConnectionPanel honest probe-failed #8) are itemized in the audit doc — the contract exists; it's wiring, not redesign.
+
+---
+
 ## 2026-06-04 (cont.) — Closed all 16 UI-test issues
 
 Follow-up sweep to close every issue from the test pass above. **11 code-fixed, 2 upstream/tooling, 2 by-design/verified, 1 reverted** (a regression I caught and backed out). Commits on `main`: `fc7e791`, `5d1642a`, `7eb2623` (revert) — plus `26d2f13` from the prior entry. tsc clean; proxy 1166/1166; playground suite re-run.
