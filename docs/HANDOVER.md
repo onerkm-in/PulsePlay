@@ -5,6 +5,24 @@
 
 ---
 
+## 2026-06-04 (cont.) — Autonomous 5-phase audit (inventory → rig → functional → visual → multi-pane proposal)
+
+Beast-mode pass against the spec's Phase 1–5 structure. Evidence `docs/evidence/visual-pass-2026-06-04/` (p4-*), inventory via 3 parallel Explore agents + live route sweep.
+
+- **Phase 1 (inventory/route map):** ~50 reachable routes mapped + top-level ones live-verified (render, no error boundary): main surfaces, ~42 settings leaves across 6 groups (4 rail + 2 hidden-legacy `setup`/`system`), 5 FieldCard sub-pages, `/knowledge`, `/launchpad`, `/powerbi/qna` (EOL banner), `/workbench` (flag-gated). 10 backend paths + Q&A embed; BI axis = 2 real adapters (powerbi, native) + 6 iframe stubs.
+- **Phase 2 (rig):** confirmed against the live proxy — **2 live backends: Foundation Model (`foundation`) + Power BI (`powerbi-dwd`, health 200)**. Genie (4 spaces) + supervisor-local configured but **upstream-blocked** (serverless off). Azure OpenAI + Bedrock = **stub** (health 503, no creds).
+- **Phase 3 (functional):** **Power BI deterministic path VERIFIED-CORRECT against ground truth** — "total sales" → `EVALUATE { ([Total Sales]) }` → **2,297,201** (= round of the known 2,297,200.86), `llmCallCount:0`. Unmatchable question → **honest decline** (lists available measures, no fabrication). FM ungrounded-KPI is labeled by the iter-1 "Illustrative" advisory (confirmed). **TOP SILENT-WRONG FINDING (not fixed — flagged):** the **Workbench** answer card renders a demo fixture (Technology $836,154 / Furniture $742,000 / Office Supplies $719,047) with a green **"Verified"** badge + footer **"Source: default (genie) · Rows: 3 · Time: 39000 ms"** — canned data dressed as a real verified Genie result, with a fabricated 39s latency stamp, while Genie is upstream-blocked. Mitigated only by the outer "source: demo fixture" header. Flag-gated (off by default), so Should-fix; recommend the card suppress the Verified badge + genie provenance for fixture data. Minor: PBI silently drops unrecognized filter qualifiers (e.g. a bogus "Antarctica division") and answers the unfiltered measure without noting the narrowed scope.
+- **Phase 4 (visual):** Launchpad clean at desktop + 320 (proper dark tokens). Systematic white-on-white sweep found + **fixed 4 more theme-blind whites (`b2a4286`… see code commit):** ConnectorBrandGrid "+ Show all" + "only show configured" buttons, ConnectorBrandCard "Copy snippet" button (white bg + inherited light text = invisible label), and `.pp-app__empty` pane empty-state. Buttons pixel-verified (p4-03); empty-state is a safe token swap but its live render is config-gated (not screenshotted — honestly flagged).
+- **Phase 5 (multi-pane):** assessment delivered to the user, **AWAITING APPROVAL** — no code written. Key finding: GenieClient + BIPanel are already per-instance (no singleton); the hard blocker is App-level single-active-per-axis state (`activeConnector`/`activeVendor`/`embedConfig` globals); `Page[]` type scaffolded but unwired. ~3–4 weeks for production parallel panes; recommend lazy activation + capped concurrency.
+
+**Tripwires:**
+- **Workbench renders a demo fixture labeled "Verified · genie".** Don't trust workbench answer cards as live; the fixture is hardcoded. The mode system (Verified/Native/Hybrid) is untouched/unaudited-deep.
+- **`--pp-accent` resolves to the LIGHT value (#2563eb) inside the settings subtree even in dark mode** — a pre-existing token-scope quirk. Accent text stays legible (blue-on-dark) but isn't the brighter dark accent (#4b9cf5). Worth a root-cause pass if accent contrast matters.
+- **`.pp-setup-preview-iframe` (settings.css) is hardcoded white** — left as-is (a BI-preview canvas; BI content is light, so defensible) but it IS theme-blind if ever shown prominently in dark.
+- **Correctness reference still outstanding** for non-PBI paths — FM insights remain plausibility-only (and FM fabricates KPIs by design, mitigated by the advisory).
+
+---
+
 ## 2026-06-04 (cont.) — Visual loop iteration 3: closed iter-2's two verification gaps (both were real bugs)
 
 Verification-closure pass, no new scope. The two items iter-2 *flagged but didn't prove* both turned out to be real white-on-white bugs — my iter-2 hedges ("likely correct elevation + dimming", "unverified/latent") were exactly the dismissal `feedback_dont_dismiss_visual_findings` warns against. Pinned the actual elements this time. All evidence in `docs/evidence/visual-pass-2026-06-04/`.
