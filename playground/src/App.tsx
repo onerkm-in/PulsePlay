@@ -2055,6 +2055,7 @@ function SetupStatusPill(props: { readiness: SetupReadiness }): React.ReactEleme
     return (
         <button
             type="button"
+            className="pp-setup-pill"
             aria-label={ready ? "Open setup readiness in Settings" : `Open setup in Settings. Missing ${props.readiness.pillDetail}`}
             title="Open Settings → Setup"
             // Route to the page that actually owns the gap (the bare /settings/setup
@@ -2092,6 +2093,7 @@ function SetupStatusPill(props: { readiness: SetupReadiness }): React.ReactEleme
             />
             <span>{props.readiness.pillLabel}</span>
             <span
+                className="pp-setup-pill__detail"
                 style={{
                     opacity: 0.78,
                     overflow: "hidden",

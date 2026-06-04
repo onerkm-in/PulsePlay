@@ -939,13 +939,18 @@ function clusteredBarOption(shape: DataShape): EChartsOption {
 // parent, with ~500px of dead space above and below. Anchor to the top
 // of the grid so the empty-state message reads immediately under the
 // tab strip, matching the Ask Pulse + AI Insights top-anchor fixes.
+// 2026-06-04 — vertically centered (was top-anchored with marginTop:56). On a
+// tall / mobile viewport the top-anchor left the 2-line placeholder floating
+// over ~70% empty canvas, reading as a broken/unfinished screen. Centering
+// fills the space and looks intentional; the same style backs the blocked /
+// unsupported-spec states, which also read better centered. Verified from the
+// re-captured Dashboard screenshots.
 const emptyMessageStyle: React.CSSProperties = {
     maxWidth: 460,
     textAlign: "center",
     color: "var(--pp-text-muted, #475569)",
-    alignSelf: "start",
+    alignSelf: "center",
     justifySelf: "center",
-    marginTop: 56,
 };
 
 const titleStyle: React.CSSProperties = {

@@ -402,6 +402,23 @@ html, body, #root {
         white-space: normal;
         flex-shrink: 0;
     }
+
+    /* Mobile header fit — at 375px the brand + enabler chip + setup pill
+       overflowed and the "Ready BI + AI" pill clipped off the right edge.
+       Tighten padding, shrink the brand, and drop the pill's secondary
+       detail (keep the status dot + the Ready/Setup-needed label). The footer
+       is hidden on mobile, so the pill is the only setup indicator — it must
+       stay visible, just compact. */
+    .pp-top-bar {
+        padding-left: 10px !important;
+        padding-right: 10px !important;
+    }
+    .pp-top-bar h1 {
+        font-size: 18px !important;
+    }
+    .pp-setup-pill__detail {
+        display: none;
+    }
 }
 
 /* 2026-05-27 — PulsePlay-native equivalent of PulseShell's
