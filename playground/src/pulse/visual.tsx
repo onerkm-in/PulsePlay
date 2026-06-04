@@ -5955,6 +5955,32 @@ function App(props: AppProps) {
                         </div>
                     ) : (
                         <div className="gn-insights-content">
+                            {/* Grounding advisory (#14). A completed briefing with NO SQL and
+                                NO query-result rows across any stage was produced by a model
+                                with no data access (e.g. a Foundation Model connector). Its
+                                figures are illustrative, not measured — say so, so the cards
+                                aren't mistaken for grounded data. Conservative: only fires
+                                when stage-trace info exists and shows zero grounding, so a
+                                real Genie/PBI briefing (which always has SQL or rows on at
+                                least one stage) never trips it. */}
+                            {(() => {
+                                const r = insightsResult;
+                                if (!r || r.status === "FAILED") return null;
+                                const traces = r.stageTraces;
+                                if (!Array.isArray(traces) || traces.length === 0) return null;
+                                const rowsPresent = (qr: { rows?: unknown[] } | null | undefined) =>
+                                    !!qr && Array.isArray(qr.rows) && qr.rows.length > 0;
+                                const grounded = !!r.sqlQuery || rowsPresent(r.queryResult)
+                                    || traces.some(t => !!t.sql || rowsPresent(t.queryResult));
+                                if (grounded) return null;
+                                return (
+                                    <div className="gn-insights-incomplete" role="note" style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
+                                        <span style={{ flex: 1 }}>
+                                            ⚠ <strong>Illustrative — not grounded in your data.</strong> This briefing was written by a language model with no query access, so the figures are model-produced, not measured. Connect a data-backed connector (a Genie space or Power BI dataset) for verified numbers.
+                                        </span>
+                                    </div>
+                                );
+                            })()}
                             {/* Wave 27 cycle 3 — supervisor + AI Insights perf advisory. */}
                             {showSupervisorInsightsWarning && (
                                 <div className="gn-insights-incomplete" role="status" aria-live="polite" style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>

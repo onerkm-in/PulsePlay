@@ -916,10 +916,26 @@ export interface SettingsProviderProps {
     fetchAllowlist?: () => Promise<PulsePlayAllowlist>;
 }
 
+// In-flight dedup. The SettingsProvider fetches the allowlist on mount, and
+// React StrictMode double-invokes effects in dev — which fired the allowlist
+// GET two+ times in a burst on load. Concurrent callers now share one
+// in-flight request. We deliberately do NOT cache the resolved value, so a
+// later reloadAllowlist() still forces a fresh fetch (the fail-closed
+// governance refresh must never be served stale).
+let _allowlistInflight: Promise<PulsePlayAllowlist> | null = null;
+
 async function defaultFetchAllowlist(): Promise<PulsePlayAllowlist> {
-    const res = await fetch("/api/assistant/allowlist");
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return (await res.json()) as PulsePlayAllowlist;
+    if (_allowlistInflight) return _allowlistInflight;
+    _allowlistInflight = (async () => {
+        const res = await fetch("/api/assistant/allowlist");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return (await res.json()) as PulsePlayAllowlist;
+    })();
+    try {
+        return await _allowlistInflight;
+    } finally {
+        _allowlistInflight = null;
+    }
 }
 
 export function SettingsProvider(props: SettingsProviderProps): React.ReactElement {

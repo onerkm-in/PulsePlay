@@ -87,13 +87,25 @@ export interface SettingsDraft {
 }
 
 export function useSettingsDraft(): SettingsDraft {
-    const snapRef = useRef<Record<string, string>>(snapshotStorage());
+    const snapRef = useRef<Record<string, string> | null>(null);
     const [isDirty, setIsDirty] = useState(false);
     const [justSaved, setJustSaved] = useState(false);
     const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const recheck = useCallback(() => {
+        if (!snapRef.current) return; // not baselined yet → never dirty
         setIsDirty(computeIsDirty(snapRef.current));
+    }, []);
+
+    // Establish the baseline AFTER mount (not during render) so settings that
+    // stores/children write during their own mount — defaults, migration
+    // shims, normalizations — are absorbed into the baseline instead of being
+    // counted as "unsaved" the instant the page opens. Child effects run
+    // before this parent effect, so their synchronous mount-writes are
+    // captured here. (Issue #8 — phantom "Unsaved changes" bar on first open.)
+    useEffect(() => {
+        snapRef.current = snapshotStorage();
+        setIsDirty(false);
     }, []);
 
     useEffect(() => {
@@ -125,6 +137,7 @@ export function useSettingsDraft(): SettingsDraft {
     }, []);
 
     const discard = useCallback(() => {
+        if (!snapRef.current) return;
         const snap = snapRef.current;
         const current = snapshotStorage();
         // Remove keys added after snapshot.
