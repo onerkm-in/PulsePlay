@@ -4225,6 +4225,18 @@ function _resolvePowerBIIdentities({ req, profile, datasetId }) {
     };
 }
 
+/**
+ * Extract the caller's raw user assertion (the inbound Bearer JWT) for the
+ * On-Behalf-Of flow. Power BI RLS on an executeQueries call can only be
+ * enforced by running under the user's delegated token (OBO) — the SP-mode
+ * `impersonatedUserName` hint does NOT reliably enforce RLS. Returns '' when
+ * no Bearer token is present.
+ */
+function _extractUserAssertion(req) {
+    const m = /^Bearer\s+(.+)$/i.exec(req?.headers?.authorization || '');
+    return m ? m[1].trim() : '';
+}
+
 function _powerBiEvictOldestIfFull() {
     if (_powerBiTokenCache.size < _powerBiTokenCacheMaxEntries) return;
     const oldest = _powerBiTokenCache.keys().next().value;
@@ -6352,6 +6364,43 @@ async function startPowerBiConversation(req, res) {
         return res.status(400).json({ error: 'Question content is required.' });
     }
 
+    // Enforce RLS identity (fail-closed) at the route entry — BEFORE any schema
+    // probe, question match, or DAX execution. An RLS-configured dataset must run
+    // under the viewer's effective identity, never the service principal
+    // (SP-scoped execution bypasses row security). RLS-configured profiles that
+    // cannot resolve a server-side user claim are rejected here; datasets with no
+    // RLS configured fall straight through (identities: undefined).
+    const rlsDatasetId = resolved.profile.powerbiDatasetId || resolved.profile.powerBiDatasetId;
+    const daxIdentity = _resolvePowerBIIdentities({ req, profile: resolved.profile, datasetId: rlsDatasetId });
+    if (daxIdentity.status) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'powerbi-dax-rls-blocked',
+            status: daxIdentity.status,
+            detail: daxIdentity.error,
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+        return res.status(daxIdentity.status).json({ error: daxIdentity.error });
+    }
+    const daxOpts = {};
+    if (daxIdentity.identities) {
+        // RLS configured + identity resolved → require OBO (the user's delegated
+        // token) to enforce RLS on executeQueries; fail closed if absent rather
+        // than fall back to SP-scoped (which would bypass RLS).
+        const userAssertion = _extractUserAssertion(req);
+        if (!userAssertion) {
+            auditLog(req, {
+                profileName: resolved.name,
+                action: 'powerbi-dax-rls-blocked',
+                status: 401,
+                detail: 'RLS-enforced dataset requires a user access token (OBO) to execute under the effective identity.',
+                spIdentityHash: spHashForProfile(resolved.profile),
+            });
+            return res.status(401).json({ error: 'Power BI RLS is enforced for this dataset; a user access token is required to execute under the effective identity.' });
+        }
+        daxOpts.userAssertion = userAssertion;
+    }
+
     // The matcher needs the probed schema — accept it on the request body
     // when the client has a USEFUL cache (with measures + schema),
     // otherwise probe inline (slower) so the static-probe merge in
@@ -6453,7 +6502,7 @@ async function startPowerBiConversation(req, res) {
 
     let normalized;
     try {
-        normalized = await _powerbiDatasetClient.executeDaxNormalized(resolved.profile, dax);
+        normalized = await _powerbiDatasetClient.executeDaxNormalized(resolved.profile, dax, daxOpts);
     } catch (err) {
         console.error('[powerbi/start] executeDax failed:', err?.message || err);
         auditLog(req, {
@@ -6475,14 +6524,12 @@ async function startPowerBiConversation(req, res) {
     }
 
     const rendered = tmpl.buildResult({ columns: normalized.columns, rows: normalized.rows, slots: match.slots });
-    // 2026-05-27 — userContext: 'global' is the honest claim per Codex
-    // audit P0 #5. The route currently executes DAX with the profile's
-    // service-principal / refresh-token credentials, NOT the viewer's
-    // effective identity. RLS/OLS/filter context is NOT propagated yet.
-    // For RLS-tight datasets, callers MUST treat this as a global-scope
-    // answer. Real per-user filter propagation requires PBI Premium /
-    // Embed SKU + executeQueries `impersonatedUserName` threading; tracked
-    // in AGENDA + the Codex audit.
+    // userContext below: 'global' = service-principal path (no RLS configured on
+    // the profile); 'user-obo' = executed under the viewer's delegated token.
+    // 2026-06-04: RLS-configured profiles that can't resolve a user identity are
+    // now REJECTED upstream (fail-closed via _resolvePowerBIIdentities), so a
+    // 'global' answer here is never an RLS bypass — it only occurs when the
+    // dataset has no RLS. (Was: SP-only, RLS not propagated, per Codex P0 #5.)
     auditLog(req, {
         profileName: resolved.name,
         action: 'powerbi-deterministic-answer',
@@ -6494,7 +6541,7 @@ async function startPowerBiConversation(req, res) {
             rowCount: normalized.rows.length,
             questionSource,
             probeSource,
-            userContext: 'global', // honest scope label until OBO + filter propagation ships
+            userContext: daxOpts.userAssertion ? 'user-obo' : 'global', // OBO-delegated effective identity vs service-principal global scope
         }),
         spIdentityHash: spHashForProfile(resolved.profile),
     });
@@ -6671,8 +6718,26 @@ app.post('/powerbi/qna/embed-token', async (req, res) => {
     if (!resolved) {
         return sendNoMatchingProfile(req, res, 400, 'No Power BI semantic-model profile configured.');
     }
+    // Enforce RLS identity (fail-closed) before minting a Q&A embed token, the
+    // same way /assistant/embed-token/powerbi does. A profile with RLS
+    // configured but no resolvable server-side user claim is REJECTED, not
+    // minted under the service principal (which would bypass row security).
+    const datasetId = resolved.profile.powerbiDatasetId || resolved.profile.powerBiDatasetId;
+    const identityResolution = _resolvePowerBIIdentities({ req, profile: resolved.profile, datasetId });
+    if (identityResolution.status) {
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'powerbi-qna-rls-blocked',
+            status: identityResolution.status,
+            detail: identityResolution.error,
+            spIdentityHash: spHashForProfile(resolved.profile),
+        });
+        return res.status(identityResolution.status).json({ error: identityResolution.error });
+    }
     try {
-        const tokenInfo = await _powerbiDatasetClient.generateQnAEmbedToken(resolved.profile);
+        const tokenInfo = await _powerbiDatasetClient.generateQnAEmbedToken(resolved.profile, {
+            identities: identityResolution.identities,
+        });
         auditLog(req, {
             profileName: resolved.name,
             action: 'powerbi-qna-token-minted',
