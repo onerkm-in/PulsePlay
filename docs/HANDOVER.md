@@ -5,6 +5,21 @@
 
 ---
 
+## 2026-06-04 — Intense UI test sweep (live, Chrome DevTools) + 2 P1 insights fixes
+
+Drove a full UI/UX/navigation pass against the running app (proxy `:7000` + vite `:5175`) with Chrome DevTools MCP, capturing evidence to `docs/evidence/ui-test-2026-06-04/` (gitignored). All 3 surfaces (AI Insights / Ask Pulse / Dashboard) exercised cold + configured, against live connectors (Genie sales/ops/hse, Foundation Model, Power BI semantic-model).
+
+- **Root-caused the Genie failure as UPSTREAM, not our code:** every Genie query returns SQL then `status: FAILED` — `message.error` = *"Cannot start warehouse 'Serverless Starter Warehouse' … Serverless Compute is disabled in global warehouse config."* The free Databricks workspace has serverless disabled. The metadata **probe still says "Connection successful"** because it never executes SQL (#12 — false-positive connection test).
+- **Fix `26d2f13` (two P1 defects in the staged-insights runner, `playground/src/pulse/visual.tsx`):** (1) the actionable upstream error was swallowed — `waitForMessageWithProgress` returns a FAILED Genie message with `res.error` populated but the client ignored it and showed a generic "AI returned no content". Now captured per-stage and rendered in the failure card. (2) Concurrency-2 stage race: after a stage marked the run FAILED, a later-finishing empty stage downgraded `status` back to `RUNNING`/empty → settled on a misleading **"No rows found"** that clobbered the error card. Now a FAILED run is never repainted. Verified live (error shows + stays stable); tsc clean; **vitest 1850/1850**.
+- **Foundation Model is the working backend today** (no warehouse): Ask Pulse answers ✓, AI Insights 3-card staged briefing renders ✓.
+- **Trust finding (#14, open/design):** FM-backed AI Insights renders fabricated KPIs (£3.2B revenue, CSAT 85.2%, churn 15.6%) with the **same chrome as grounded data** and **no Verified/Suggestion/ungrounded badge** — and self-contradicts (CSAT 85.2% in KPI card vs 3.4/5 in risks card). Needs an owner decision: block KPI cards for non-data connectors, or label "Illustrative".
+- **Multi-connector answer:** single-active per axis. The "Enabler bundles" dropdown is single-select (BI×AI pairs); you switch instantly but can't run 2–3 at once on one screen (by design). Hand-picked pairs show a CUSTOM badge.
+- **Other findings (see `docs/evidence/ui-test-2026-06-04/ISSUES.md`):** #1 a11y "Power BI with ." dangling clause when no connector; #2 `/assistant/allowlist` fetched 3× on load; #7 "Setup needed" CTA lands on the deprecated `/settings/setup`; #9 supervisor-local connector disabled by a false "missing host/token" validation; #15 enabler dropdown overlays toolbar controls. Dark theme verified app-wide (body `rgb(13,17,23)`).
+
+**Tripwires:** (1) The Genie/serverless block is an account setting — enable serverless or attach a classic warehouse in Databricks, OR use Foundation Model. (2) Power BI report-visual render is paid/trial-only on the free tier, so the Dashboard PBI embed won't render visuals without a license (config UI is complete). (3) `preview_screenshot` (Claude Preview) hangs on this app; Chrome DevTools `take_screenshot` works — used that for all evidence.
+
+---
+
 ## 2026-06-03 — Header/footer architecture arc (Row 2 strip + persistent provenance footer + a11y)
 
 Many tight iterations on the workbench chrome (driven by live design specs). End state, all on `main`:
