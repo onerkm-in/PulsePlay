@@ -3775,6 +3775,24 @@ function App(props: AppProps) {
         // of which stage finishes first.
         const contentParts: string[] = new Array(prompts.length).fill("");
         const joinParts = () => contentParts.filter(Boolean).join("\n\n");
+        // Per-stage upstream error capture. A FAILED Genie message returns
+        // normally from waitForMessageWithProgress with `res.error` populated
+        // (e.g. "Cannot start warehouse … Serverless Compute is disabled").
+        // Without capturing it, an empty/FAILED run shows a generic "no
+        // content" message and the real, actionable cause is swallowed.
+        const stageErrors: string[] = new Array(prompts.length).fill("");
+        const extractUpstreamError = (resp: unknown): string => {
+            const e = (resp as { error?: unknown } | null)?.error;
+            if (!e) return "";
+            if (typeof e === "string") return e.trim();
+            if (typeof e === "object") {
+                const o = e as { error?: unknown; message?: unknown };
+                if (typeof o.error === "string") return o.error.trim();
+                if (typeof o.message === "string") return o.message.trim();
+            }
+            return "";
+        };
+        const firstStageError = (): string => stageErrors.find(Boolean) ?? "";
         let lastResponse: GenieMessage | null = null;
 
         // Cycle 47.13 — rolling cache of "most recent SQL seen in this
@@ -4217,6 +4235,9 @@ function App(props: AppProps) {
             stageTraces[index].rawMarkdown = response.content ?? "";
             stageTraces[index].durationMs = Date.now() - stageStartMs;
             stageTraces[index].status = (contentParts[index].trim() ? "ok" : "empty");
+            // Capture the upstream failure reason (warehouse/permission/etc.)
+            // so the FAILED branches below can surface it instead of generic copy.
+            stageErrors[index] = extractUpstreamError(response);
             // Cycle 23 (rev'd cycle 44) — per-stage format-compliance
             // auto-retry. The validator runs on EVERY attempt now (was:
             // first attempt only) so we know whether the retry succeeded
@@ -4285,7 +4306,11 @@ function App(props: AppProps) {
                     id: prev?.id || response.id || createLocalId("insights"),
                     role: "system",
                     status: "FAILED",
-                    content: "AI returned an empty response. Click Retry to try again, or check Setup → Section A → Custom AI Insights prompt if this happens repeatedly.",
+                    content: stageErrors[index]
+                        ? `The data source couldn't complete this query: ${stageErrors[index]}`
+                        : "AI returned an empty response. Click Retry to try again, or check Setup → Section A → Custom AI Insights prompt if this happens repeatedly.",
+                    failureMessage: stageErrors[index] || undefined,
+                    failedStageTitle: stageErrors[index] ? (titles[index] || `Stage ${index + 1}`) : undefined,
                     viewMode: "narrative",
                     sqlQuery: prev?.sqlQuery,
                     queryResult: prev?.queryResult,
@@ -4297,7 +4322,14 @@ function App(props: AppProps) {
             }
             if (!backgroundRefresh) {
                 // Normal run: paint each section as it lands (progressive reveal).
-                setSpaceInsightsResult(spaceKey, prev => ({
+                setSpaceInsightsResult(spaceKey, prev => {
+                    // Concurrency-2 means stages finish out of order. Once any
+                    // stage has marked the run FAILED (e.g. an upstream warehouse
+                    // error), a later-finishing empty stage must NOT downgrade it
+                    // back to RUNNING/empty — that would drop the error card and
+                    // settle on a misleading "No rows found" empty state.
+                    if (prev?.status === "FAILED") return prev;
+                    return ({
                     ...(prev ?? { id: createLocalId("insights"), role: "assistant" } as ChatMessageViewModel),
                     id: prev?.id || response.id,
                     role: "assistant",
@@ -4309,7 +4341,8 @@ function App(props: AppProps) {
                     queryResult: prev?.queryResult || response.queryResult,
                     trace: prev?.trace || response.trace,
                     stageTraces: stageTraces.map(s => ({ ...s }))
-                }));
+                    });
+                });
             }
             // Background refresh: skip per-stage paint. Content accumulates
             // in contentParts[] and will be committed atomically once all
@@ -4326,7 +4359,11 @@ function App(props: AppProps) {
                     id: prev?.id || response.id || createLocalId("insights"),
                     role: "system",
                     status: "FAILED",
-                    content: "AI returned no content across all stages. Click Retry, or check the Insights prompt and the proxy connection.",
+                    content: firstStageError()
+                        ? `The data source couldn't complete the briefing: ${firstStageError()}`
+                        : "AI returned no content across all stages. Click Retry, or check the Insights prompt and the proxy connection.",
+                    failureMessage: firstStageError() || undefined,
+                    failedStageTitle: firstStageError() ? "Data source" : undefined,
                     viewMode: "narrative"
                 }));
             }
