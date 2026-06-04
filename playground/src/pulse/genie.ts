@@ -646,6 +646,17 @@ export const __wave22_internals = {
 export class GenieClient implements SingleSpaceBackend, SupervisorBackend, BackendExtras {
     private config: GenieConfig;
     private activeXhrs: XMLHttpRequest[] = [];
+    // Cancellation guard for the poll loop. cancel() bumps this epoch; each
+    // waitForMessageWithProgress() snapshots it at entry and every poll() /
+    // pollDirect() iteration bails if it moved — so a cancel() that lands during
+    // the inter-poll sleep window (when there is NO in-flight XHR to abort) stops
+    // the loop BEFORE it issues another request. An epoch (not a plain boolean)
+    // because the GenieClient is REUSED per space (clientMap in visual.tsx,
+    // cancel() called on the shared ref): a boolean would either permanently
+    // cancel the reused client, or — if reset per run — re-enable a
+    // just-cancelled loop when the next send starts mid-sleep. The epoch is
+    // reuse- and overlap-safe.
+    private _cancelEpoch = 0;
 
     // Wave 22 cycle 3e: memoize the assembled scope prefix so we don't
     // re-sanitize + re-substitute on every send. Cache key is a compact
@@ -676,6 +687,7 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
     }
 
     public cancel(): void {
+        this._cancelEpoch += 1;
         this.activeXhrs.forEach(xhr => xhr.abort());
         this.activeXhrs = [];
     }
@@ -1487,6 +1499,10 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
         // 5-minute hard ceiling (matches the proxy's supervisor-stream deadline,
         // with the proxy set ~10s shorter so its friendly error event lands
         // first instead of the visual racing it to throw).
+        // Snapshot the cancel epoch for THIS poll cycle. If cancel() bumps the
+        // client's epoch (including during a sleep, when no XHR is in flight),
+        // our poll loop bails before issuing its next request.
+        const pollEpoch = this._cancelEpoch;
         const POLL_DEADLINE_MS = 300_000;
         const startedAt = Date.now();
         const timeoutMessage = "We're still waiting on a response after 5 minutes — the data source may be slow or busy. Please try again, or simplify the question.";
@@ -1507,6 +1523,7 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
         if (this.isDirectMode()) {
             const spaceId = this.config.spaceId || "";
             const pollDirect = async (): Promise<GenieMessage> => {
+                if (this._cancelEpoch !== pollEpoch) throw new Error("Genie polling cancelled");
                 if (Date.now() - startedAt > POLL_DEADLINE_MS) {
                     throw new Error(timeoutMessage);
                 }
@@ -1532,6 +1549,7 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
         }
 
         const poll = async (): Promise<GenieMessage> => {
+            if (this._cancelEpoch !== pollEpoch) throw new Error("Genie polling cancelled");
             if (Date.now() - startedAt > POLL_DEADLINE_MS) {
                 throw new Error(timeoutMessage);
             }

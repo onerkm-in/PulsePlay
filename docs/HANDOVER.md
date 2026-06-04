@@ -5,6 +5,18 @@
 
 ---
 
+## 2026-06-05 — Caveat-closeout: Genie poll-timer FIXED (reuse-safe); report-visual + Genie still input/flip-gated
+
+Three-item closeout. Rig re-verified current+green first (HEAD `8b62373`, PBI total=2,297,201/llm 0, FM COMPLETED, Genie still serverless-blocked).
+
+- **Item 3 — Genie poll-loop dangling timer: FIXED + proven (unit).** The recursive `poll()`/`pollDirect()` ([genie.ts](../playground/src/pulse/genie.ts)) had no cancellation check — `cancel()` aborts in-flight XHRs, but during the `sleepThenAdvance()` window there's no XHR to abort, so a Stop landing mid-sleep let the loop wake and fire ONE more request. **Honest pushback on the prescribed shape:** a plain `_cancelled` boolean is unsafe here because the GenieClient is **reused per space** (`clientMap`, visual.tsx:1153) and `cancel()` is called on that shared ref — a boolean would either permanently cancel the reused client (Ask Pulse breaks after any Stop) or, if reset per run, re-enable a just-cancelled loop when the next send starts mid-sleep. Implemented a reuse-/overlap-safe **cancel-epoch**: `cancel()` bumps `_cancelEpoch`; each `waitForMessageWithProgress` snapshots it; `poll()`/`pollDirect()` bail if it moved. 2 fake-timer + mock-transport unit tests ([genieCancel.test.ts](../playground/src/pulse/__tests__/genieCancel.test.ts)): cancel-during-sleep → no trailing request (**proven fails-on-old** via temp-revert), and new-wait-after-cancel → still polls (guards the permanent-cancel regression). No live Genie needed. Owning gate foreground: **tsc clean · vitest 1884/1884 · build clean**.
+- **Item 1 — report-visual render: BLOCKED-pending-inputs.** The launch message supplied **placeholders** (`groupId = <Premium workspace ID>`, etc.), not real GUIDs — so per the rule, parked. Need the three real IDs + SP Build+Read. Machinery is READING-verified ready (mint route reads IDs from body, `accessLevel:"View"`, adapter `loaded`/`rendered` wired, B5 host check strict; embed-token audit logs hashes only). No token minted against an unknown target.
+- **Item 2 — Genie/Supervisor: still BLOCKED.** No serverless-enabled signal in the launch message → not retried into the known 400; lifecycle stays READING; PBI-RLS OBO-success stays READING (no IdP/OBO flow). Power BI capacity does not unblock this.
+
+**Tripwire:** **Genie cancellation is an EPOCH, not a boolean** (`_cancelEpoch`, genie.ts) — required because the client is reused per space. Don't "simplify" it to a boolean; that re-introduces either the trailing-XHR leak or a permanent-cancel. This is now the live prereq satisfied for any future multi-pane Phase 2.
+
+---
+
 ## 2026-06-04 (cont.) — Databricks/PBI top-down: configure → prove → leakage hunt → multi-connector probe
 
 Focused pass on the Databricks + Power BI surface. Foreground gates, real counts. Three background audit agents (context-leak / secret-PII-resource-injection / multi-pane evidence). One leak fixed; one flagged.
