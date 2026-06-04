@@ -108,6 +108,33 @@ describe("redactDeep", () => {
         expect(cfg.workspaceId).toBe("abc-123");
     });
 
+    it("redacts camelCase *Key + password/authorization fields with OPAQUE (non-JWT) values", () => {
+        // Regression: the old key list (/\bkey\b/i) had no word boundary
+        // before "Key" in camelCase, and these opaque values are not
+        // JWT/dapi/Bearer-shaped, so neither redaction layer caught them — a
+        // configured proxy shared-key (proxyKey) would have leaked into a
+        // downloadable support bundle. All of these must now be [REDACTED].
+        const out = redactDeep({
+            proxyKey: "opaque-shared-secret-not-a-jwt",
+            apiKey: "ak_live_plain_value",
+            sharedKey: "sk-plain-123",
+            password: "hunter2",
+            authorization: "Basic dXNlcjpwYXNz",
+            // non-secret siblings must stay intact (no over-redaction of these)
+            workspaceId: "ws-1",
+            biVendor: "powerbi",
+            tenantId: "org-tenant",
+        }) as Record<string, unknown>;
+        expect(out.proxyKey).toBe("[REDACTED]");
+        expect(out.apiKey).toBe("[REDACTED]");
+        expect(out.sharedKey).toBe("[REDACTED]");
+        expect(out.password).toBe("[REDACTED]");
+        expect(out.authorization).toBe("[REDACTED]");
+        expect(out.workspaceId).toBe("ws-1");
+        expect(out.biVendor).toBe("powerbi");
+        expect(out.tenantId).toBe("org-tenant");
+    });
+
     it("redacts JWT / Bearer / dapi shapes inside nested string values", () => {
         const out = redactDeep({
             note: "session ok",

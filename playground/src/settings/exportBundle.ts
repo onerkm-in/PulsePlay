@@ -8,8 +8,15 @@
 // Redaction layers (applied in order to every fielded value that could
 // carry sensitive data):
 //   1. SENSITIVE_KEY_PATTERNS — any localStorage key OR nested object key
-//      matching /token|secret|accesstoken|clientsecret|\bkey\b/i has its
-//      value replaced with "[REDACTED]".
+//      matching /token|secret|password|passwd|credential|authorization|key/i
+//      has its value replaced with "[REDACTED]". The bare /key/i is
+//      DELIBERATELY broad: camelCase secret fields (proxyKey, sharedKey,
+//      apiKey) have no word boundary before "Key" so the old /\bkey\b/i
+//      missed them, and their opaque values aren't JWT/dapi/Bearer-shaped
+//      so layer 2 didn't catch them either — a real proxy shared-key would
+//      have slipped into a downloadable bundle. Over-redacting an innocuous
+//      *Key field in a SUPPORT bundle is harmless; under-redacting a secret
+//      is not, so this errs fail-closed.
 //   2. SENSITIVE_VALUE_PATTERNS — any string value containing a JWT,
 //      Databricks PAT, or Bearer-token shape gets the matching substring
 //      replaced with "[REDACTED]".
@@ -30,7 +37,7 @@ import type { SettingsState } from "./settingsStore";
 import { snapshotDiagnostics, type DiagnosticBiEvent } from "./diagnosticsBuffer";
 
 const REDACTED = "[REDACTED]";
-const SENSITIVE_KEY_PATTERNS = [/token/i, /secret/i, /accesstoken/i, /clientsecret/i, /\bkey\b/i];
+const SENSITIVE_KEY_PATTERNS = [/token/i, /secret/i, /password/i, /passwd/i, /credential/i, /authorization/i, /key/i];
 const SENSITIVE_VALUE_PATTERNS = [
     /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/, // JWT
     /dapi[a-f0-9]{16,}/i,                                 // Databricks PAT
