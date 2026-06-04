@@ -350,6 +350,22 @@ export function computeArtifactStatusForEntry(entry: AnswerEntry): { status: Art
     };
 }
 
+/** Coerce a proxy/Genie `error` field into a human string. It is typed `string`
+ *  but at runtime a FAILED Genie message carries an OBJECT — `{ error, type }`
+ *  or `{ message }` — so rendering it directly yields "[object Object]" and
+ *  buries the real cause (e.g. "warehouse is disabled"). Mirrors the pulse
+ *  visual.tsx extractUpstreamError so both surfaces surface the same truth. */
+function errorFieldToString(e: unknown): string {
+    if (!e) return "";
+    if (typeof e === "string") return e.trim();
+    if (typeof e === "object") {
+        const o = e as { error?: unknown; message?: unknown };
+        if (typeof o.error === "string") return o.error.trim();
+        if (typeof o.message === "string") return o.message.trim();
+    }
+    return "";
+}
+
 /** Map a proxy response into the partial AnswerEntry fields it carries. */
 function projectEntryFromResponse(data: ProxyMessageResponse): Partial<AnswerEntry> {
     return {
@@ -728,7 +744,7 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
             );
             const data = (await res.json()) as ProxyMessageResponse;
             if (!res.ok) {
-                finalize(entryId, { error: data?.error || `HTTP ${res.status}` }, "failed");
+                finalize(entryId, { error: errorFieldToString(data?.error) || `HTTP ${res.status}` }, "failed");
                 return;
             }
             const status = String(data.status || "").toUpperCase();
@@ -736,7 +752,7 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
             if (status === "COMPLETED") {
                 finalize(entryId, projection, "completed");
             } else if (status === "FAILED") {
-                finalize(entryId, { ...projection, error: data.error || "Backend reported FAILED" }, "failed");
+                finalize(entryId, { ...projection, error: errorFieldToString(data.error) || "Backend reported FAILED" }, "failed");
             } else {
                 // Still in progress — keep the tick going. Patch any partial
                 // fields the backend has already populated (some orchestrators
@@ -962,7 +978,7 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
             // pending status. finalize() also closes it as a safety net.
             stageEnd(runId, "submit");
             if (!res.ok) {
-                finalize(entryId, { error: data?.error || `HTTP ${res.status}` }, "failed");
+                finalize(entryId, { error: errorFieldToString(data?.error) || `HTTP ${res.status}` }, "failed");
                 return;
             }
             const startStatus = String(data.status || "").toUpperCase();
@@ -975,7 +991,7 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
                 return;
             }
             if (startStatus === "FAILED") {
-                finalize(entryId, { ...projection, error: data.error || "Backend reported FAILED" }, "failed");
+                finalize(entryId, { ...projection, error: errorFieldToString(data.error) || "Backend reported FAILED" }, "failed");
                 return;
             }
             // Need polling. Without conversation_id + message_id we can't

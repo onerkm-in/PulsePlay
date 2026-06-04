@@ -430,6 +430,41 @@ describe("UnifiedAssistantSurface", () => {
         unmount(state);
     });
 
+    it("surfaces the real cause when a FAILED message's error is an OBJECT (not [object Object])", async () => {
+        // Regression for the swallowed-error bug: a FAILED Genie message carries
+        // `error` as an object ({ error, type }), not a string. The surface must
+        // extract the human message, never render "[object Object]".
+        vi.useFakeTimers();
+        const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+            if (url === "/api/assistant/conversations/start") {
+                return jsonResponse({ status: "IN_PROGRESS", conversation_id: "c1", message_id: "m1" });
+            }
+            return jsonResponse({
+                status: "FAILED",
+                conversation_id: "c1",
+                message_id: "m1",
+                error: {
+                    error: "Cannot start warehouse 'Serverless Starter Warehouse' — Serverless Compute is disabled.",
+                    type: "GENERIC_SQL_EXEC_API_CALL_EXCEPTION",
+                },
+            });
+        });
+        globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+        const state = mount(
+            <UnifiedAssistantSurface activeVendor="generic-iframe" activeConnector="genie" recentEvents={[]} />,
+        );
+        await ask(state, "broken q");
+        await act(async () => { await Promise.resolve(); });
+        await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+
+        const entry = state.container.querySelector(".pp-ai-sidebar__entry") as HTMLElement;
+        expect(entry.dataset.status).toBe("failed");
+        expect(entry.textContent).toContain("Serverless Compute is disabled");
+        expect(entry.textContent).not.toContain("[object Object]");
+        unmount(state);
+    });
+
     it("times out after MAX_POLL_DURATION_MS", async () => {
         vi.useFakeTimers();
         const fetchMock = vi.fn().mockImplementation(async (url: string) => {
