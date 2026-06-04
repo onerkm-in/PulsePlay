@@ -6419,6 +6419,7 @@ function App(props: AppProps) {
                                     <input
                                         type="text"
                                         className="gn-insights-compose-input"
+                                        name="insights-custom-summary-prompt"
                                         placeholder="Adjust the summary with your own instructions…"
                                         value={insightsCustomPrompt}
                                         onChange={(e) => setInsightsCustomPrompt(e.target.value)}

@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import {
     bootstrapDesktopMode,
     ingestLaunchFragmentIfPresent,
@@ -12,6 +13,25 @@ import "./styles.css";
 
 const rootEl = document.getElementById("root");
 if (!rootEl) throw new Error("PulsePlay: missing #root element in index.html");
+
+// Global safety net — surface uncaught errors and unhandled promise rejections
+// with a clear prefix so they aren't silently lost. The AppErrorBoundary
+// catches render-phase throws; these catch the async / event-handler paths a
+// React boundary can't see. (error-handling hardening 2026-06-04)
+if (typeof window !== "undefined") {
+    window.addEventListener("unhandledrejection", (e) => {
+        // eslint-disable-next-line no-console
+        console.error("[PulsePlay] Unhandled promise rejection:", e.reason);
+    });
+    window.addEventListener("error", (e) => {
+        // Skip resource-load failures (failed <img>/<script> with no error
+        // object) — those aren't actionable app errors.
+        if (e.error) {
+            // eslint-disable-next-line no-console
+            console.error("[PulsePlay] Uncaught error:", e.error);
+        }
+    });
+}
 
 // DX1b — desktop launcher bootstrap. In browser mode every call is a
 // no-op: there's no launch token in sessionStorage so the client
@@ -41,7 +61,9 @@ if (!rootEl) throw new Error("PulsePlay: missing #root element in index.html");
     initChartPalette();
     createRoot(rootEl).render(
         <StrictMode>
-            <App />
+            <AppErrorBoundary>
+                <App />
+            </AppErrorBoundary>
         </StrictMode>,
     );
     startDesktopRuntime();
