@@ -356,16 +356,26 @@ export const APP_THEME_MANAGED_VARS: readonly string[] = [
  *  strip) lives OUTSIDE `.gn-shell--dark`, so without a :root dark muted token
  *  it fell back to the LIGHT muted (#5d6673 → only 3.26:1 on the dark bg). Pure
  *  — returns a plain object so it is trivial to test. */
-export function buildAppThemeVars(tokens: ThemeTokens, opts?: { dark?: boolean }): Record<string, string> {
+export function buildAppThemeVars(tokens: ThemeTokens, opts?: { dark?: boolean; customAccent?: boolean }): Record<string, string> {
+    // A3 — in dark mode the built-in presets carry LIGHT-tuned accents (e.g.
+    // default #2563eb) that are low-contrast on dark surfaces, and writing them
+    // inline here overrode the [data-pp-theme=dark] stylesheet's #4b9cf5. For a
+    // built-in preset in dark, emit the dark-canonical accent instead; a CUSTOM
+    // brand accent still wins (the user chose it explicitly).
+    const useDarkAccent = !!opts?.dark && !opts?.customAccent;
+    const accent       = useDarkAccent ? "#4b9cf5"               : tokens.accent;
+    const accentSubtle = useDarkAccent ? "rgba(75,156,245,0.13)" : tokens.accentSubtle;
+    const accentBorder = useDarkAccent ? "rgba(75,156,245,0.42)" : tokens.accentBorder;
+    const userBubble   = useDarkAccent ? "#4b9cf5"               : tokens.userBubble;
     const accentVars: Record<string, string> = {
-        "--gn-accent": tokens.accent,
-        "--gn-accent-subtle": tokens.accentSubtle,
-        "--gn-accent-border": tokens.accentBorder,
-        "--gn-user-bubble": tokens.userBubble,
-        "--pp-accent": tokens.accent,
-        "--pp-accent-hover": darkenHex(tokens.accent, 0.12),
-        "--pp-accent-soft": rgbaOf(tokens.accent, 0.08),
-        "--pp-accent-border": rgbaOf(tokens.accent, 0.30),
+        "--gn-accent": accent,
+        "--gn-accent-subtle": accentSubtle,
+        "--gn-accent-border": accentBorder,
+        "--gn-user-bubble": userBubble,
+        "--pp-accent": accent,
+        "--pp-accent-hover": darkenHex(accent, 0.12),
+        "--pp-accent-soft": rgbaOf(accent, 0.08),
+        "--pp-accent-border": rgbaOf(accent, 0.30),
     };
     if (opts?.dark) {
         // Dark-canonical text + semantic tokens (matches @gn-dark-* / the
@@ -419,7 +429,7 @@ export function buildAppThemeVars(tokens: ThemeTokens, opts?: { dark?: boolean }
 /** Apply a resolved theme to the document root (both vocabularies). Clears any
  *  previously-managed vars that this pass doesn't set, so switching theme/mode
  *  never leaves residue. No-op outside the browser. */
-export function applyThemeTokens(tokens: ThemeTokens, opts?: { dark?: boolean }): void {
+export function applyThemeTokens(tokens: ThemeTokens, opts?: { dark?: boolean; customAccent?: boolean }): void {
     if (typeof document === "undefined") return;
     const root = document.documentElement;
     const vars = buildAppThemeVars(tokens, opts);

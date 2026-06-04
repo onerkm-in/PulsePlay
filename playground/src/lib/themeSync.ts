@@ -42,7 +42,9 @@ export function applyPpTheme(): void {
     const dark = !!s.darkMode || isDarkTheme(tokens);
     document.documentElement.dataset.ppTheme = dark ? "dark" : "light";
     try {
-        applyThemeTokens(tokens, { dark });
+        // A3 — a CUSTOM brand accent is preserved inline even in dark; built-in
+        // presets fall through to the dark-canonical accent (#4b9cf5).
+        applyThemeTokens(tokens, { dark, customAccent: s.themeName === "custom" });
     } catch {
         /* never let theming break boot */
     }
