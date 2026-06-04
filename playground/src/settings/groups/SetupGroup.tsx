@@ -832,7 +832,7 @@ export function SetupGroup(): React.ReactElement {
                                             {showAdvancedBi && (
                                                 <div style={{ marginTop: 8, padding: "10px 12px", border: "1px solid rgba(0,0,0,0.06)", borderRadius: 6, background: "rgba(0,0,0,0.02)", fontSize: 11 }}>
                                                     <strong>Corporate iframe sandbox attributes:</strong>
-                                                    <code style={{ display: "block", marginTop: 4, background: "#fff", padding: "4px 6px", borderRadius: 4, border: "1px solid rgba(0,0,0,0.05)" }}>
+                                                    <code style={{ display: "block", marginTop: 4, background: "var(--pp-surface-raised, #fff)", color: "var(--pp-text, #1f2937)", padding: "4px 6px", borderRadius: 4, border: "1px solid var(--pp-border, rgba(0,0,0,0.05))" }}>
                                                         allow-scripts allow-same-origin allow-forms allow-popups
                                                     </code>
                                                     <p style={{ margin: "6px 0 0", color: "var(--pp-text-muted)", fontSize: 10 }}>InfoSec Note: Sandbox rules are enforced server-side. Custom additions require Admin permissions.</p>
