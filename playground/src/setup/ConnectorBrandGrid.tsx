@@ -91,7 +91,7 @@ export function ConnectorBrandGrid(props: ConnectorBrandGridProps): React.ReactE
         );
     }
 
-    if (!data || data.manifests.length === 0) {
+    if (!data || !Array.isArray(data.manifests) || data.manifests.length === 0) {
         return (
             <div style={{ fontSize: 13, opacity: 0.6, padding: 12 }}>
                 No connectors in the catalogue. This should never happen — please report a bug.

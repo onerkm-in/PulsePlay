@@ -504,7 +504,7 @@ describe("App viewport controls — default unified Mix surface", () => {
         unmount(state);
     });
 
-    it("shows a single top-right setup readiness pill that opens Settings > Setup", async () => {
+    it("setup readiness pill deep-links to the owning Setup page (AI Setup), not the deprecated /settings/setup", async () => {
         const state = mountApp();
         const pill = state.container.querySelector('button[title="Open Settings → Setup"]') as HTMLButtonElement | null;
         expect(pill).toBeTruthy();
@@ -515,8 +515,12 @@ describe("App viewport controls — default unified Mix surface", () => {
             await Promise.resolve();
         });
 
-        expect(window.location.pathname).toBe("/settings/setup");
-        expect(state.container.querySelector("#settings-setup-title")?.textContent).toBe("Setup");
+        // #7 — the bare /settings/setup shell is deprecated (it self-describes
+        // as "being folded into AI Setup or BI Setup"), so the pill now routes
+        // to the page that owns the unmet gap. The default mock has no AI
+        // profile, so the gap is AI Setup.
+        expect(window.location.pathname).toBe("/settings/ai");
+        expect(state.container.textContent).toContain("AI Setup");
         unmount(state);
     });
 
