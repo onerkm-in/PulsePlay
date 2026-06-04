@@ -116,7 +116,7 @@ export const UnifiedWorkbench: React.FC<UnifiedWorkbenchProps> = ({ descriptor }
                             livePromoted={livePromoted}
                             sanitization={conversation.lastSanitization}
                         />
-                        <ArtifactCard artifact={visibleArtifact} />
+                        <ArtifactCard artifact={visibleArtifact} isDemo={!livePromoted} />
                         <FollowUpQuestions
                             questions={conversation.suggestedQuestions}
                             onAsk={(q) => conversation.ask(q)}
@@ -143,7 +143,7 @@ export const UnifiedWorkbench: React.FC<UnifiedWorkbenchProps> = ({ descriptor }
                                 livePromoted={livePromoted}
                                 sanitization={conversation.lastSanitization}
                             />
-                            <ArtifactCard artifact={visibleArtifact} />
+                            <ArtifactCard artifact={visibleArtifact} isDemo={!livePromoted} />
                             <FollowUpQuestions
                                 questions={conversation.suggestedQuestions}
                                 onAsk={(q) => conversation.ask(q)}

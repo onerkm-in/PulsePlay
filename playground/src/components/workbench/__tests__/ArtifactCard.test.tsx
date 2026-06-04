@@ -41,6 +41,55 @@ function artifact(overrides: Partial<WorkbenchArtifact> = {}): WorkbenchArtifact
     };
 }
 
+// ─── Demo-fixture honesty ──────────────────────────────────────────────
+// The /workbench demo fixture hardcodes status 'verified' + source
+// 'default (genie)' + 39000 ms. With isDemo, the card must NOT present those
+// as a real verified query — it shows a neutral "Demo data" chip and drops the
+// provenance footer, while leaving the underlying status data attribute intact.
+
+describe('ArtifactCard — demo fixture (isDemo)', () => {
+    const demoLike = () => artifact({
+        status: 'verified',
+        sourceProfile: 'default',
+        sourceConnectorType: 'genie',
+        rowCount: 3,
+        executionTimeMs: 39000,
+    });
+
+    it('shows a neutral "Demo data" chip, NOT the green Verified badge', () => {
+        mounted = mount(<ArtifactCard artifact={demoLike()} isDemo />);
+        const badge = mounted.container.querySelector('[data-testid="artifact-status-badge"]');
+        expect(badge?.textContent).toBe('Demo data');
+        expect(badge?.className).toContain('workbench-artifact-status-badge-demo');
+        expect(badge?.className).not.toContain('workbench-artifact-status-badge-verified');
+    });
+
+    it('suppresses the fake Source / Rows / Time provenance', () => {
+        mounted = mount(<ArtifactCard artifact={demoLike()} isDemo />);
+        expect(mounted.container.querySelector('[data-testid="artifact-source-profile"]')).toBeNull();
+        expect(mounted.container.querySelector('[data-testid="artifact-row-count"]')).toBeNull();
+        expect(mounted.container.querySelector('[data-testid="artifact-exec-time"]')).toBeNull();
+        expect(mounted.container.textContent).not.toContain('39000');
+        expect(mounted.container.textContent).not.toContain('Source: default');
+        // …and says so plainly instead.
+        expect(mounted.container.querySelector('[data-testid="artifact-demo-note"]')?.textContent)
+            .toContain('Demo fixture');
+    });
+
+    it('leaves the underlying status data attribute intact for inspection', () => {
+        mounted = mount(<ArtifactCard artifact={demoLike()} isDemo />);
+        const card = mounted.container.querySelector('[data-testid="artifact-card"]');
+        expect(card?.getAttribute('data-artifact-status')).toBe('verified');
+    });
+
+    it('without isDemo, a verified artifact still shows Verified + provenance (no regression)', () => {
+        mounted = mount(<ArtifactCard artifact={demoLike()} />);
+        expect(mounted.container.querySelector('[data-testid="artifact-status-badge"]')?.textContent).toBe('Verified');
+        expect(mounted.container.querySelector('[data-testid="artifact-source-profile"]')?.textContent)
+            .toContain('Source: default (genie)');
+    });
+});
+
 // ─── Status badge ──────────────────────────────────────────────────────
 
 describe('ArtifactCard — status badge', () => {

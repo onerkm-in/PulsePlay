@@ -5,6 +5,22 @@
 
 ---
 
+## 2026-06-04 (cont.) — Hardening pass: FM advisory fail-closed + workbench fixture honesty + Genie row cap
+
+Three confirmed items before any Phase-5 build (no parallel-pane code written). Each proven by unit tests AND/OR a fresh screenshot.
+
+- **Item 1 — FM grounding advisory: fail-OPEN → fail-CLOSED (centerpiece).** The "Illustrative — not grounded" advisory used a negative heuristic — `grounded = !!sqlQuery || rows || traces.some(t => !!t.sql || rows)` — and suppressed when "grounded". That FAILS OPEN: a Foundation Model (the default live backend) can emit a SQL-looking string in its markdown → `!!t.sql` true → advisory hidden → fabricated KPIs render as if measured. Also fail-open: no-traces → returned null. Extracted the logic to a pure, tested helper [`pulse/groundingAdvisory.ts`](../playground/src/pulse/groundingAdvisory.ts) and inverted it: **show by default; suppress ONLY when real `queryResult.rows` positively confirm a query executed** (rows are populated by the proxy from a real execution — a language model can't forge them the way it can a SQL string, which is now ignored). 10 unit tests pin the 4 fail-open payloads (sql-string-only, top-level sqlQuery, empty-rows array, no-traces) now showing the advisory. Wired into visual.tsx; pixel-proven live on the FM briefing (`h1-fm-advisory-failclosed.png`). Trade-off (intentional, fail-closed): an all-scalar grounded briefing with zero rows on every stage would over-warn — the safe direction.
+- **Item 2 — Workbench fixture honesty (`ArtifactCard`).** The /workbench demo fixture hardcodes `llmClaimedStatus:'verified'` + `sourceProfile:'default'` + `sourceConnectorType:'genie'` + `executionTimeMs:39000` ([demoArtifact.ts](../playground/src/workbench/demoArtifact.ts)), so the card claimed a real **"Verified · Source: default (genie) · Rows: 3 · Time: 39000 ms"** while Genie is upstream-blocked. Added an opt-in `isDemo` prop to ArtifactCard: renders a neutral **"Demo data"** chip instead of the green Verified badge and replaces the provenance footer with **"Demo fixture — illustrative sample, not a live query"** (invents no source/latency). `UnifiedWorkbench` passes `isDemo={!livePromoted}`. Mode system untouched. 4 new tests + pixel before/after (`p4-04` → `h2-workbench-demo-honest.png`). The `data-artifact-status` attr is left intact (existing tests still pass).
+- **Item 3a — oversized Genie response cap.** `hydrateGenieFields` assigned `rows = result.data_table` unbounded. Added `MAX_QUERY_RESULT_ROWS=5000` + `capQueryResultRows()` (exported, 5 tests): **truncate-with-notice** — keep first N, set `truncated`/`totalRows`, `console.warn` with context; never silently pass an unbounded array. Capped at BOTH the proxy-populated path (top of hydrate) and the attachment-populated assignment.
+- **Item 3b — invalid settings leaf: finding does NOT reproduce (honest correction).** Empirically (`/settings/ai/bogus-leaf`, `/settings/bogus-group`): an invalid leaf renders the full group (leaf = scroll target only); an invalid group is **coerced to AI Setup** (graceful). There is **no blank/silent-empty** — my Phase-1 code-inference was wrong (missed the route resolver's runtime coercion). No fix made; a 404 would be worse UX than typo-coercion and a redirect risks the `#6` oscillation tripwire. Only cosmetic gap: bogus URL stays in the address bar while showing AI Setup.
+
+**Tripwires:**
+- **The grounding advisory now lives in `pulse/groundingAdvisory.ts` (fail-closed).** Do NOT re-introduce a SQL-string grounding signal — it's the fail-open. Only real `queryResult.rows` suppress the advisory.
+- **Genie query results are capped at 5000 rows** (`capQueryResultRows`). A `truncated`/`totalRows` flag rides on `queryResult`; the table/export UIs could surface "showing N of M" (follow-up — currently logged + flagged, not yet shown in a badge).
+- **Not done (deferred):** the raw `responseText` JSON.parse memory guard (would need to wrap many parse sites — the row cap covers the realistic render/memory vector); surfacing the row-truncation notice in the table UI.
+
+---
+
 ## 2026-06-04 (cont.) — Autonomous 5-phase audit (inventory → rig → functional → visual → multi-pane proposal)
 
 Beast-mode pass against the spec's Phase 1–5 structure. Evidence `docs/evidence/visual-pass-2026-06-04/` (p4-*), inventory via 3 parallel Explore agents + live route sweep.

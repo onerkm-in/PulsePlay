@@ -34,6 +34,15 @@ export interface ArtifactCardProps {
     readonly initialTab?: WorkbenchTab;
     /** Optional className override on the outer card wrapper. */
     readonly className?: string;
+    /**
+     * When true, this card is showing the stand-in DEMO FIXTURE (no real query
+     * ran). Render a neutral "Demo data" chip instead of the status badge, and
+     * suppress the Source/Rows/Time provenance footer — the fixture's values
+     * (verified status, `default (genie)`, 39000 ms) are canned, and presenting
+     * them as a real verified query is dishonest. The artifact's `status` data
+     * attribute is left intact so the underlying shape is still inspectable.
+     */
+    readonly isDemo?: boolean;
 }
 
 /** Stable order for the tab strip — matches WORKBENCH_TABS. */
@@ -42,7 +51,7 @@ function orderedTabs(declared: ReadonlyArray<WorkbenchTab>): WorkbenchTab[] {
     return WORKBENCH_TABS.filter((t) => set.has(t));
 }
 
-export const ArtifactCard: React.FC<ArtifactCardProps> = ({ artifact, initialTab, className }) => {
+export const ArtifactCard: React.FC<ArtifactCardProps> = ({ artifact, initialTab, className, isDemo }) => {
     const tabs = useMemo(() => orderedTabs(artifact.tabs), [artifact.tabs]);
     const firstTab = tabs[0] ?? WORKBENCH_TABS[0];
     const [activeTab, setActiveTab] = useState<WorkbenchTab>(initialTab && tabs.includes(initialTab) ? initialTab : firstTab);
@@ -60,14 +69,25 @@ export const ArtifactCard: React.FC<ArtifactCardProps> = ({ artifact, initialTab
             data-artifact-id={artifact.id}
         >
             <header className="workbench-artifact-header">
-                <div
-                    className={`workbench-artifact-status-badge workbench-artifact-status-badge-${artifact.status}`}
-                    role="status"
-                    aria-label={`Artifact status: ${statusLabel}`}
-                    data-testid="artifact-status-badge"
-                >
-                    {statusLabel}
-                </div>
+                {isDemo ? (
+                    <div
+                        className="workbench-artifact-status-badge workbench-artifact-status-badge-demo"
+                        role="status"
+                        aria-label="Demo data — not a live query"
+                        data-testid="artifact-status-badge"
+                    >
+                        Demo data
+                    </div>
+                ) : (
+                    <div
+                        className={`workbench-artifact-status-badge workbench-artifact-status-badge-${artifact.status}`}
+                        role="status"
+                        aria-label={`Artifact status: ${statusLabel}`}
+                        data-testid="artifact-status-badge"
+                    >
+                        {statusLabel}
+                    </div>
+                )}
                 {artifact.statusReason ? (
                     <div className="workbench-artifact-status-reason" data-testid="artifact-status-reason">
                         {artifact.statusReason}
@@ -105,22 +125,31 @@ export const ArtifactCard: React.FC<ArtifactCardProps> = ({ artifact, initialTab
             </section>
 
             <footer className="workbench-artifact-footer" data-testid="artifact-footer">
-                {artifact.sourceProfile ? (
-                    <span className="workbench-artifact-stat" data-testid="artifact-source-profile">
-                        Source: {artifact.sourceProfile}
-                        {artifact.sourceConnectorType ? ` (${artifact.sourceConnectorType})` : ''}
+                {isDemo ? (
+                    // Demo fixture: do NOT print a Source/Rows/Time it never had.
+                    <span className="workbench-artifact-stat" data-testid="artifact-demo-note">
+                        Demo fixture — illustrative sample, not a live query.
                     </span>
-                ) : null}
-                {typeof artifact.rowCount === 'number' ? (
-                    <span className="workbench-artifact-stat" data-testid="artifact-row-count">
-                        Rows: {artifact.rowCount}
-                    </span>
-                ) : null}
-                {typeof artifact.executionTimeMs === 'number' ? (
-                    <span className="workbench-artifact-stat" data-testid="artifact-exec-time">
-                        Time: {artifact.executionTimeMs} ms
-                    </span>
-                ) : null}
+                ) : (
+                    <>
+                        {artifact.sourceProfile ? (
+                            <span className="workbench-artifact-stat" data-testid="artifact-source-profile">
+                                Source: {artifact.sourceProfile}
+                                {artifact.sourceConnectorType ? ` (${artifact.sourceConnectorType})` : ''}
+                            </span>
+                        ) : null}
+                        {typeof artifact.rowCount === 'number' ? (
+                            <span className="workbench-artifact-stat" data-testid="artifact-row-count">
+                                Rows: {artifact.rowCount}
+                            </span>
+                        ) : null}
+                        {typeof artifact.executionTimeMs === 'number' ? (
+                            <span className="workbench-artifact-stat" data-testid="artifact-exec-time">
+                                Time: {artifact.executionTimeMs} ms
+                            </span>
+                        ) : null}
+                    </>
+                )}
             </footer>
         </article>
     );

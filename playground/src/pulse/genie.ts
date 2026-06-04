@@ -158,7 +158,15 @@ export interface GenieMessage {
      * while retaining `sqlQuery/sqlQueries` as the raw fallback.
      */
     sqlSections?: GenieSqlSection[];
-    queryResult?: { columns: string[]; rows: any[][] };
+    queryResult?: {
+        columns: string[];
+        rows: any[][];
+        /** Set by the oversized-response cap when `rows` was truncated to
+         *  MAX_QUERY_RESULT_ROWS. `totalRows` carries the pre-truncation count
+         *  so the UI/export can say "showing N of M". */
+        truncated?: boolean;
+        totalRows?: number;
+    };
     error?: string;
     trace?: string[];
     route?: AssistantRouteMeta;
@@ -452,6 +460,33 @@ const MAX_ROW_FILTER_LEN = 1000;
 const MAX_LIST_LEN = 2000;          // forbidden columns / tables (comma-sep)
 const MAX_ROLE_LEN = 64;            // template-var substitution upper bound
 
+// Cap query-result ROWS handed back to the UI. Genie (or a buggy/compromised
+// upstream) can return an unbounded result set; without a cap it lands in the
+// React render tree + insights cache + Excel export and can exhaust memory or
+// hang the page. Defined behavior: truncate-with-notice — keep the first
+// MAX_QUERY_RESULT_ROWS, flag it, and log; never silently pass an unbounded array.
+export const MAX_QUERY_RESULT_ROWS = 5000;
+
+/** Truncate-with-notice for an oversized query result. Mutates in place: keeps
+ *  the first MAX_QUERY_RESULT_ROWS rows and records `truncated` + `totalRows`.
+ *  No-op when the result is absent or within the cap. Returns the same object. */
+export function capQueryResultRows(
+    qr: { columns?: string[]; rows?: any[][]; truncated?: boolean; totalRows?: number } | null | undefined,
+): typeof qr {
+    if (!qr || !Array.isArray(qr.rows) || qr.rows.length <= MAX_QUERY_RESULT_ROWS) return qr;
+    const total = qr.rows.length;
+    qr.rows = qr.rows.slice(0, MAX_QUERY_RESULT_ROWS);
+    qr.truncated = true;
+    qr.totalRows = total;
+    try {
+        console.warn(
+            `[genie] oversized query result: ${total} rows capped to ${MAX_QUERY_RESULT_ROWS}. ` +
+            `Showing the first ${MAX_QUERY_RESULT_ROWS}; refine the question or add a LIMIT for the full set.`,
+        );
+    } catch { /* console may be unavailable */ }
+    return qr;
+}
+
 // Strip newlines + control chars + chars that could break out of the
 // instruction context. Permissive enough to pass column names, CTE bodies,
 // and SQL identifiers; strict enough to block injected directives.
@@ -713,6 +748,10 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
     // the message object before we hand it back to the caller.
     private hydrateGenieFields(res: any): void {
         if (!res) return;
+        // Cap a proxy-populated result before anything downstream touches it.
+        // (The attachment-hydration path below caps its own assignment; the
+        // early returns mean we must guard here too.)
+        capQueryResultRows(res.queryResult);
         const attachments = Array.isArray(res?.attachments) ? res.attachments : [];
         const collected = collectGenieSqlFromAttachments(attachments);
         // Already fully populated (proxy did it for us, including the
@@ -744,6 +783,7 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
                         columns: cols.map((c: any) => typeof c === "string" ? c : (c?.name ?? "")),
                         rows
                     };
+                    capQueryResultRows(res.queryResult);
                 }
             }
         }

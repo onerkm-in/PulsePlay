@@ -39,6 +39,7 @@ import {
 // not by visual.tsx directly. Verified by grep across src/ + tests/.
 import { getKBSystemPrompt, getSupervisorSystemPrompt } from "./knowledgeBase";
 import { buildInsightsCacheKey, readInsightsCache, writeInsightsCache, clearInsightsCache, pruneInsightsCache, composeInsightsSettingsFingerprint, computeSchemaHash, computeSqlHash, SQL_SECTION_CACHE_TTL_MS } from "./insightsCache";
+import { shouldShowGroundingAdvisory } from "./groundingAdvisory";
 import { SqlSectionRenderer, type SqlSectionResult } from "./sqlSectionRenderer";
 import { parseMaskingRules, maskSqlResult } from "./masking";
 import type { SqlSection } from "./sqlSection";
@@ -5955,32 +5956,21 @@ function App(props: AppProps) {
                         </div>
                     ) : (
                         <div className="gn-insights-content">
-                            {/* Grounding advisory (#14). A completed briefing with NO SQL and
-                                NO query-result rows across any stage was produced by a model
-                                with no data access (e.g. a Foundation Model connector). Its
-                                figures are illustrative, not measured — say so, so the cards
-                                aren't mistaken for grounded data. Conservative: only fires
-                                when stage-trace info exists and shows zero grounding, so a
-                                real Genie/PBI briefing (which always has SQL or rows on at
-                                least one stage) never trips it. */}
-                            {(() => {
-                                const r = insightsResult;
-                                if (!r || r.status === "FAILED") return null;
-                                const traces = r.stageTraces;
-                                if (!Array.isArray(traces) || traces.length === 0) return null;
-                                const rowsPresent = (qr: { rows?: unknown[] } | null | undefined) =>
-                                    !!qr && Array.isArray(qr.rows) && qr.rows.length > 0;
-                                const grounded = !!r.sqlQuery || rowsPresent(r.queryResult)
-                                    || traces.some(t => !!t.sql || rowsPresent(t.queryResult));
-                                if (grounded) return null;
-                                return (
-                                    <div className="gn-insights-incomplete" role="note" style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
-                                        <span style={{ flex: 1 }}>
-                                            ⚠ <strong>Illustrative — not grounded in your data.</strong> This briefing was written by a language model with no query access, so the figures are model-produced, not measured. Connect a data-backed connector (a Genie space or Power BI dataset) for verified numbers.
-                                        </span>
-                                    </div>
-                                );
-                            })()}
+                            {/* Grounding advisory (#14), FAIL-CLOSED (2026-06-04). The figures
+                                in a model-only briefing (e.g. a Foundation Model connector with
+                                no data access) are illustrative, not measured — say so, so the
+                                cards aren't mistaken for grounded data. The check defaults to
+                                SHOWING the advisory and suppresses it ONLY when real query-result
+                                rows positively confirm a grounded source. A SQL-looking STRING is
+                                deliberately NOT trusted — a language model can emit one, which was
+                                the prior fail-open. See pulse/groundingAdvisory.ts + its tests. */}
+                            {shouldShowGroundingAdvisory(insightsResult) && (
+                                <div className="gn-insights-incomplete" role="note" style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
+                                    <span style={{ flex: 1 }}>
+                                        ⚠ <strong>Illustrative — not grounded in your data.</strong> This briefing was written by a language model with no query access, so the figures are model-produced, not measured. Connect a data-backed connector (a Genie space or Power BI dataset) for verified numbers.
+                                    </span>
+                                </div>
+                            )}
                             {/* Wave 27 cycle 3 — supervisor + AI Insights perf advisory. */}
                             {showSupervisorInsightsWarning && (
                                 <div className="gn-insights-incomplete" role="status" aria-live="polite" style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>

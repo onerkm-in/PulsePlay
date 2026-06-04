@@ -135,6 +135,7 @@
 .workbench-artifact-status-badge-grounded-draft { background: #b45309; }       /* amber */
 .workbench-artifact-status-badge-suggestion     { background: var(--pp-accent); } /* accent blue */
 .workbench-artifact-status-badge-blocked        { background: var(--pp-error); } /* red */
+.workbench-artifact-status-badge-demo           { background: var(--pp-text-muted, #64748b); } /* neutral grey — demo fixture, NOT a verified result */
 
 .workbench-artifact-status-reason {
     font-size: 12px;
