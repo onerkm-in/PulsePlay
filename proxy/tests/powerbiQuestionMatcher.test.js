@@ -1,7 +1,7 @@
 // @ts-check
 'use strict';
 
-const { matchQuestion, __internals } = require('../lib/powerbiQuestionMatcher');
+const { matchQuestion, detectDroppedScope, __internals } = require('../lib/powerbiQuestionMatcher');
 
 const probe = {
     declaredKpis: [
@@ -238,5 +238,38 @@ describe('matcher — findTopN helper', () => {
 
     test('handles "top" without a number → default 10', () => {
         expect(__internals.findTopN('top customer')).toBe(10);
+    });
+});
+
+// A2 — deterministic templates apply NO value filter, so a "for/in/where X"
+// qualifier is always dropped. detectDroppedScope surfaces it for disclosure.
+describe('detectDroppedScope — unscoped-filter disclosure (A2)', () => {
+    test('flags an unrecognized value filter ("for the Antarctica division")', () => {
+        const dropped = detectDroppedScope('profit margin by quarter for the Antarctica division', { dimensionColumn: 'quarter' });
+        expect(dropped).toContain('Antarctica division');
+    });
+
+    test('flags a value filter even when its dimension noun matches a real column', () => {
+        // dimension matched = "region"; the *value* "west" still makes this unscoped.
+        const dropped = detectDroppedScope('sales for the west region', { dimensionColumn: 'region' });
+        expect(dropped).toContain('west region');
+    });
+
+    test('flags a date VALUE filter ("in 2024") — the total template ignores it', () => {
+        expect(detectDroppedScope('total sales in 2024', {})).toContain('2024');
+    });
+
+    test('does NOT flag the matched dimension itself ("by region")', () => {
+        // "by" is the grouping trigger, not a value filter — no for/in/where.
+        expect(detectDroppedScope('sales by region', { dimensionColumn: 'region' })).toEqual([]);
+    });
+
+    test('does NOT flag a plain measure question ("what is total sales")', () => {
+        expect(detectDroppedScope('what is the total sales', {})).toEqual([]);
+    });
+
+    test('excludes the exact matched dimension phrase but keeps a real filter', () => {
+        // "in region" alone == the dimension (excluded); but a value filter stays.
+        expect(detectDroppedScope('sales in region', { dimensionColumn: 'region' })).toEqual([]);
     });
 });

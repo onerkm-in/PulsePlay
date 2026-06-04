@@ -349,8 +349,39 @@ function matchQuestion(question, probe) {
     };
 }
 
+/**
+ * A2 — Deterministic DAX templates compute a measure, optionally grouped by a
+ * dimension or top-N. They NEVER apply a value/row filter (no WHERE on values).
+ * So a "for the X" / "in X" / "where X" qualifier in the question is always
+ * DROPPED — the answer is computed over the full dataset. This detector surfaces
+ * such filter intent (minus the matched dimension itself) so the caller can
+ * DISCLOSE the unscoped answer rather than silently answering as if the filter
+ * applied. Conservative: only fires on explicit for/in/within/where triggers,
+ * and excludes the exact matched dimension column/table.
+ *
+ * @param {string} question
+ * @param {{ dimensionColumn?: string, dateColumn?: string, dimensionTable?: string, dateTable?: string }} [slots]
+ * @returns {string[]} dropped qualifier phrases (deduped, max 3); empty when none
+ */
+function detectDroppedScope(question, slots) {
+    const dimCol = String(slots?.dimensionColumn || slots?.dateColumn || '').toLowerCase().trim();
+    const dimTable = String(slots?.dimensionTable || slots?.dateTable || '').toLowerCase().trim();
+    const re = /\b(?:for|in|within|where|filtered to|restricted to|only for|just for)\s+(?:the\s+)?([a-z0-9][a-z0-9 '&_-]{1,40}?)(?=[.,?!]|$|\s+(?:and|or|by|per|grouped|broken|over)\b)/gi;
+    const dropped = [];
+    let m;
+    while ((m = re.exec(String(question || ''))) !== null) {
+        const phrase = m[1].trim().replace(/\s+/g, ' ');
+        const low = phrase.toLowerCase();
+        if (low.length < 2) continue;
+        if (low === dimCol || low === dimTable) continue; // it's the matched dimension, not a value filter
+        dropped.push(phrase);
+    }
+    return [...new Set(dropped)].slice(0, 3);
+}
+
 module.exports = {
     matchQuestion,
+    detectDroppedScope,
     __internals: {
         tokenise,
         nameVariants,

@@ -6524,6 +6524,15 @@ async function startPowerBiConversation(req, res) {
     }
 
     const rendered = tmpl.buildResult({ columns: normalized.columns, rows: normalized.rows, slots: match.slots });
+    // A2 — disclose any value-filter qualifier the deterministic templates could
+    // NOT apply (e.g. "...for the Antarctica division"). The answer is computed
+    // over the full dataset; say so rather than implying the filter was honored.
+    const droppedScope = _powerbiQuestionMatcher.detectDroppedScope(content, match.slots);
+    if (droppedScope.length > 0) {
+        const list = droppedScope.map(s => `"${s}"`).join(', ');
+        const plural = droppedScope.length > 1;
+        rendered.content += `\n\n> ⚠ **Unscoped answer.** Computed over the full dataset — the filter${plural ? 's' : ''} ${list} in your question ${plural ? 'were' : 'was'} not applied (the deterministic DAX path doesn't support value filters). For a filtered query, use Ask Pulse with a data-grounded connector.`;
+    }
     // userContext below: 'global' = service-principal path (no RLS configured on
     // the profile); 'user-obo' = executed under the viewer's delegated token.
     // 2026-06-04: RLS-configured profiles that can't resolve a user identity are
