@@ -48,10 +48,14 @@ describe("buildAppThemeVars", () => {
         expect(vars["--pp-accent-hover"]).toMatch(/^#/);
     });
 
-    it("dark mode writes accent + dark text/semantic, but NOT surfaces (dark CSS owns those)", () => {
+    it("dark mode writes the DARK-CANONICAL accent (A3) + dark text/semantic, but NOT surfaces", () => {
         const vars = buildAppThemeVars(BUILT_IN_THEMES["corporate-blue"], { dark: true });
-        expect(vars["--gn-accent"]).toBe(BUILT_IN_THEMES["corporate-blue"].accent);
-        expect(vars["--pp-accent"]).toBe(BUILT_IN_THEMES["corporate-blue"].accent);
+        // A3 — a built-in preset's light-tuned accent (corporate-blue #0f5ea8) is
+        // low-contrast on dark surfaces and overrode the dark stylesheet; in dark
+        // mode the dark-canonical accent (#4b9cf5) is emitted instead. (A custom
+        // brand accent still wins — covered in themeConfigAccent.test.ts.)
+        expect(vars["--gn-accent"]).toBe("#4b9cf5");
+        expect(vars["--pp-accent"]).toBe("#4b9cf5");
         // dark-canonical text so chrome outside .gn-shell--dark stays AA-legible
         expect(vars["--gn-text"]).toBe("#e2eaf4");
         expect(vars["--gn-text-muted"]).toBe("#8b949e");
