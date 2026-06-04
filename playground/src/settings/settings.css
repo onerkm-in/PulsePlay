@@ -632,7 +632,33 @@
 }
 
 @media (max-width: 640px) {
-    .pp-settings-rail { display: none; }
+    /* B1 — keep the settings GROUPS reachable on mobile. Previously the rail was
+       hidden below 640px with no replacement, so AI/BI/Advanced/Display were
+       unreachable (you were stuck on whatever group the URL had). Restyle the
+       existing rail into a horizontal, scrollable, sticky group-bar above the
+       content instead — reuses the rail's nav rendering, no new component. */
+    .pp-settings-body { flex-direction: column; }
+    .pp-settings-rail {
+        flex: 0 0 auto;
+        flex-direction: row;
+        gap: 6px;
+        padding: 8px 12px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        border-right: none;
+        border-bottom: 1px solid var(--pp-border-subtle, rgba(15,23,42,0.06));
+        -webkit-overflow-scrolling: touch;
+    }
+    .pp-settings-rail__group { flex: 0 0 auto; }
+    .pp-settings-rail__item { white-space: nowrap; }
+    /* The per-group description + leaf sub-items are desktop affordances; on the
+       compact bar show only the group pill (dot + glyph + label). The active
+       group's leaves remain reachable as sections in the scrolled content. */
+    .pp-settings-rail__desc,
+    .pp-settings-rail__sub { display: none; }
 }
 
 /* ── Split Workspace (Concept 3) ─────────────────────────────────── */
