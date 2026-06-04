@@ -5,6 +5,19 @@
 
 ---
 
+## 2026-06-04 (cont.) — Closed all 16 UI-test issues
+
+Follow-up sweep to close every issue from the test pass above. **11 code-fixed, 2 upstream/tooling, 2 by-design/verified, 1 reverted** (a regression I caught and backed out). Commits on `main`: `fc7e791`, `5d1642a`, `7eb2623` (revert) — plus `26d2f13` from the prior entry. tsc clean; proxy 1166/1166; playground suite re-run.
+
+- **fc7e791** — #1 enabler a11y label drops the dangling "with ." when no AI brain is set · #7 the "Setup needed" pill routes to AI/BI Setup (not the deprecated `/settings/setup`) · #9 `supervisor-local` manifest host/token made optional (proxy borrows them from helper Genie profiles), clearing the false "Missing required field" that disabled a working connector · #12 connection test now says **"Connector reachable"** (metadata-only — never executes a query, so it can't promise queries run; matches the Genie-warehouse-disabled false-green) · #15 enabler dropdown gets a backdrop so outside clicks don't leak to toolbar controls.
+- **5d1642a** — #2 `defaultFetchAllowlist` shares one in-flight request (no result cache → fail-closed `reloadAllowlist` still forces fresh) · #8 `useSettingsDraft` takes its dirty baseline in a mount effect (after child effects), killing the phantom "Unsaved changes" bar on first open · #14 **grounding advisory** — AI Insights shows "Illustrative — not grounded in your data" when a completed briefing has no SQL and no query rows on any stage (a model-only connector like Foundation Model). Conservative detector: a real Genie/PBI briefing always has SQL or rows on ≥1 stage, so it never trips. Verified live in dark mode.
+- **7eb2623 (revert)** — #6 (sync `?surface=` from the Pulse tab strip) caused a runaway loop: two Pulse panes report different active tabs and fire `pulseplay:pulse-tab-changed` ~40×/2s, so the handler flip-flopped the URL between ai-insights/ask-pulse. The event is ambiguous under dual-pane rendering. Reverted — instability is worse than the P3. A proper fix needs pane-disambiguation; deferred.
+- **Dispositioned without code:** #3 `home-meta` 3.3s is the Databricks space-metadata round-trip (upstream, free-tier) and non-blocking · #4 the first-run wizard correctly stays hidden because surface-mode `auto` always yields a renderable native canvas (by design; inline CTAs onboard) · #5 `preview_screenshot` hang is a Claude Preview MCP quirk (used Chrome DevTools instead) · #10 Genie serverless-disabled is an account setting (user action) · #16 dark theme verified app-wide; the transient loading-skeleton surface is negligible.
+
+**Tripwire (new):** don't re-attempt #6 by reacting to `pulseplay:pulse-tab-changed` — it fires continuously from BOTH pulse panes with different `tab` values, so any handler that writes shared state from it will oscillate. The canonical-surface signal must come from the active pane, not the raw event.
+
+---
+
 ## 2026-06-04 — Intense UI test sweep (live, Chrome DevTools) + 2 P1 insights fixes
 
 Drove a full UI/UX/navigation pass against the running app (proxy `:7000` + vite `:5175`) with Chrome DevTools MCP, capturing evidence to `docs/evidence/ui-test-2026-06-04/` (gitignored). All 3 surfaces (AI Insights / Ask Pulse / Dashboard) exercised cold + configured, against live connectors (Genie sales/ops/hse, Foundation Model, Power BI semantic-model).
