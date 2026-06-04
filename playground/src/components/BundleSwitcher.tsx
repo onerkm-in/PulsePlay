@@ -91,7 +91,7 @@ export function BundleSwitcher(): React.ReactElement | null {
                 className="pp-bundle-switcher__chip"
                 aria-haspopup="listbox"
                 aria-expanded={open}
-                aria-label={`AI & BI enabler: ${curVendorLabel} with ${curProfileLabel}. Switch enabler.`}
+                aria-label={`AI & BI enabler: ${curVendorLabel}${curProfileLabel ? ` with ${curProfileLabel}` : " — no AI brain selected"}. Switch enabler.`}
                 title="Switch the AI & BI enabler (BI surface + AI brain)"
                 onClick={() => setOpen(o => !o)}
                 style={{
@@ -135,6 +135,15 @@ export function BundleSwitcher(): React.ReactElement | null {
             </button>
 
             {open && (
+                <>
+                {/* Backdrop — catches outside clicks so they close the menu
+                    instead of leaking through to toolbar controls beneath the
+                    overlay (the menu drops down over the Row-2 control strip). */}
+                <div
+                    aria-hidden="true"
+                    onClick={() => setOpen(false)}
+                    style={{ position: "fixed", inset: 0, zIndex: 49 }}
+                />
                 <div
                     role="listbox"
                     aria-label="Enabler bundles"
@@ -226,6 +235,7 @@ export function BundleSwitcher(): React.ReactElement | null {
                         </div>
                     )}
                 </div>
+                </>
             )}
         </div>
     );

@@ -452,8 +452,13 @@ const MANIFESTS = [
             displayName:           { kind: 'string', required: false, label: 'Display name' },
             spaces:                { kind: 'json',   required: true,  label: 'Helper profile names', help: 'JSON array of Genie profile names to fan out to. Empty = every non-supervisor profile.' },
             synthesisEndpoint:     { kind: 'string', required: true,  label: 'Synthesis Foundation Model endpoint' },
-            host:                  { kind: 'url',    required: true,  label: 'Databricks workspace URL' },
-            token:                 { kind: 'secret', required: true,  label: 'Databricks PAT', secret: true },
+            // host/token are OPTIONAL on a supervisor-local profile: the proxy
+            // fans out to the helper Genie profiles (each carrying its own
+            // host+token) and borrows credentials for the FM synthesis call.
+            // Marking them required produced a false "Missing required field"
+            // that disabled an otherwise-working connector in the catalogue.
+            host:                  { kind: 'url',    required: false, label: 'Databricks workspace URL', help: 'Optional — inherited from the helper profiles when omitted.' },
+            token:                 { kind: 'secret', required: false, label: 'Databricks PAT', secret: true, help: 'Optional — inherited from the helper profiles when omitted.' },
             staggerMs:             { kind: 'integer',required: false, label: 'Inter-launch stagger (ms)', help: 'Defaults to 2000 (ADR-0003)' },
         },
         setupSteps: [

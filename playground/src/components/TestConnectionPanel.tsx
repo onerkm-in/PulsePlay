@@ -391,14 +391,18 @@ function statusIcon(kind: "ok" | "warn" | "error"): string {
 }
 
 function statusHeadline(a: ProbeMetadataAvailability, durationMs: number): string {
+    // "Reachable", not "successful": the probe verifies the connector responds
+    // and returns metadata — it does NOT execute a query, so it can't promise
+    // that questions will run (e.g. a Genie space whose warehouse is disabled
+    // still probes fine). Keeping the claim honest avoids a false green light.
     const took = `probe took ${formatSeconds(durationMs)}`;
     switch (a) {
         case "rich":
-            return `Connection successful — ${took}`;
+            return `Connector reachable — ${took}`;
         case "minimal":
-            return `Connection successful (limited metadata) — ${took}`;
+            return `Connector reachable (limited metadata) — ${took}`;
         case "none":
-            return `Connection successful (no metadata) — ${took}`;
+            return `Connector reachable (no metadata) — ${took}`;
     }
 }
 
