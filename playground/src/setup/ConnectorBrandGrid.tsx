@@ -158,9 +158,11 @@ export function ConnectorBrandGrid(props: ConnectorBrandGridProps): React.ReactE
                             padding: "4px 10px",
                             fontSize: 12,
                             fontWeight: 600,
-                            border: "1px solid rgba(59, 130, 246, 0.4)",
-                            background: "white",
-                            color: "#1e40af",
+                            // Theme-aware accent chip — was white bg + #1e40af
+                            // (dark blue), a glaring white button in dark mode.
+                            border: "1px solid var(--pp-accent-border, rgba(59, 130, 246, 0.4))",
+                            background: "var(--pp-accent-soft, rgba(37,99,235,0.08))",
+                            color: "var(--pp-accent, #1e40af)",
                             borderRadius: 4,
                             cursor: "pointer",
                             whiteSpace: "nowrap",
@@ -185,9 +187,9 @@ export function ConnectorBrandGrid(props: ConnectorBrandGridProps): React.ReactE
                         style={{
                             padding: "3px 8px",
                             fontSize: 11,
-                            border: "1px solid rgba(0, 0, 0, 0.15)",
-                            background: "white",
-                            color: "rgba(0, 0, 0, 0.7)",
+                            border: "1px solid var(--pp-border, rgba(0, 0, 0, 0.15))",
+                            background: "var(--pp-surface-raised, #fff)",
+                            color: "var(--pp-text-muted, rgba(0, 0, 0, 0.7))",
                             borderRadius: 3,
                             cursor: "pointer",
                         }}

@@ -285,8 +285,11 @@ function ConfigSnippet({ manifest }: { manifest: ConnectorManifest }): React.Rea
                     alignSelf: "flex-start",
                     padding: "4px 10px",
                     fontSize: 11,
-                    border: "1px solid rgba(0, 0, 0, 0.18)",
-                    background: "white",
+                    // Theme-aware — was white bg with NO color (inherited the
+                    // light --pp-text), so the label was invisible in dark mode.
+                    border: "1px solid var(--pp-border, rgba(0, 0, 0, 0.18))",
+                    background: "var(--pp-surface-raised, #fff)",
+                    color: "var(--pp-text, #1f2937)",
                     borderRadius: 4,
                     cursor: "pointer",
                 }}

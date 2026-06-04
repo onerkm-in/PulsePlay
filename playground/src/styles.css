@@ -1090,8 +1090,12 @@ html, body, #root {
     display: flex;
     flex-direction: column;
     color: var(--pp-text-muted);
-    background: #ffffff;
-    border: 1px solid #e4e9ef;
+    /* Theme-aware — was hardcoded #ffffff + #e4e9ef, which in dark mode became
+       the "foreign white card" this rule's own comment set out to avoid (and
+       any child using --pp-text rendered invisible). Track the theme so the
+       empty state stays a peer to the AI Insights section bubbles. */
+    background: var(--pp-surface-raised, #ffffff);
+    border: 1px solid var(--pp-border, #e4e9ef);
     border-radius: 6px;
     box-shadow: rgba(0, 0, 0, 0.04) 0px 1px 2px 0px;
 }
