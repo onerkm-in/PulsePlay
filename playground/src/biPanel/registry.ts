@@ -9,6 +9,12 @@
 //   3. The host UI will pick it up via `listVendors()`
 
 import type { BIAdapter } from "./BIAdapter";
+// generic-iframe is the universal base every stub adapter (tableau/qlik/looker/
+// databricks-*) statically imports to `extends` it, so it can never be its own
+// lazy chunk. Import it statically here too — keeping the import consistent
+// silences Vite's "both statically and dynamically imported" warning while the
+// other vendors stay lazy. (build-warning cleanup 2026-06-04)
+import { GenericIframeAdapter } from "../../../bi-adapters/generic-iframe/index";
 
 export interface VendorInfo {
     vendor: string;
@@ -111,8 +117,7 @@ export async function loadAdapter(vendor: string): Promise<BIAdapter> {
             return new mod.LookerAdapter();
         }
         case "generic-iframe": {
-            const mod = await import("../../../bi-adapters/generic-iframe/index");
-            return new mod.GenericIframeAdapter();
+            return new GenericIframeAdapter();
         }
         default:
             throw new Error(`Unknown BI vendor: ${vendor}. Known: ${REGISTERED.map(v => v.vendor).join(", ")}.`);

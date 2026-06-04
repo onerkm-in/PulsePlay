@@ -11,7 +11,11 @@
 // surface (BIPanel) and the assistant surface (GenieNativeEmbed). Single
 // source of URL truth.
 
-import { buildGenieEmbedUrl } from '../../../bi-adapters/databricks-genie/index';
+// Import the pure URL builder from the light ./embedUrl module, NOT the adapter
+// entry point, so this (main-bundle) module doesn't statically pull in
+// DatabricksGenieAdapter — that lets registry.loadAdapter code-split the adapter
+// as a lazy chunk. (build-warning cleanup 2026-06-04)
+import { buildGenieEmbedUrl } from '../../../bi-adapters/databricks-genie/embedUrl';
 import { capabilitiesForConnector } from './connectorCapabilities';
 import type { AssistantConnectorDescriptor, ConnectorType } from '../types/assistant';
 
