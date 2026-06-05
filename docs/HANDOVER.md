@@ -5,6 +5,24 @@
 
 ---
 
+## 2026-06-05 (later³) — 5-agent brutal-honest analysis → fix-all (safe items shipped, risky items deferred-with-plan)
+
+Ran a 5-agent parallel analysis (architecture / tests / security / feature-reality / deploy) at HEAD, **verified the scary claims** (two agent claims were wrong — see below), then a Beast-Mode fix-all. Shipped the safe, high-value, fully-verified fixes; deferred the risky/unverifiable ones with concrete plans rather than fake them. Gates: lint clean, **playground 1922/1922**, proxy syntax + BUG-015 green. 4 commits pushed `9607da3`.
+
+- **Deploy P0 + footgun (`1f56f81`).** `proxy/app.yaml` ships unfilled placeholders (`GENIE_SPACE_ID_SALES`, `WAREHOUSE_ID`) → deploying as-is starts the app but fails SILENTLY. New `proxy/scripts/validate-deploy-config.mjs` (`npm run validate-deploy`) scans app.yaml + config.json (NOT the .example) for placeholder tokens, exits non-zero; wired as a pre-deploy gate in `deploy-databricks.yml` (before `bundle deploy`), NOT the unit-test CI. Also: loud startup warning when the proxy runs on a port ≠ 7000 (the Vite `/api/*`→7000 footgun).
+- **Docs honesty (`ba81950`).** ARCHITECTURE.md now carries a **live-verification block** under the 10-paths table: **2 verified live** (Foundation Model, Power BI semantic-model), **2 blocked upstream** (Genie + Supervisor, serverless disabled), **6 code-present-but-unproven**. "10 paths" = 10 code paths, not 10 working backends. Also corrected the stale DEPLOYMENT_GUIDE claim that `powerbiGroupId`/`powerbiDatasetId` have no env mapping — they DO (`server.js:336-341`).
+- **Honesty finding #1 — connector UI (`9607da3`).** The `maturity` badge (STABLE/BETA) is an INTENT label and overstates reality (Genie shows STABLE but is blocked). Added a deployer-agnostic `getConnectorLiveStatus()` + a **"Verified live / Unverified / Demo" chip** on every connector card. Genie now shows STABLE **and** a grey "Unverified" chip with a tooltip explaining it needs Serverless Compute on YOUR workspace. NOT a universal "blocked" claim (that's environment-specific). Screenshot-proven; +6 tests.
+
+**Deferred — with plan + honest reason** (full detail in [docs/research/ANALYSIS_FOLLOWUPS_2026-06-05.md](research/ANALYSIS_FOLLOWUPS_2026-06-05.md)):
+- **Smoke → CI:** full smoke needs PBI/Azure creds fork-CI lacks; structural-subset needs two-server CI plumbing I can't verify runs green without triggering Actions. Flaky-gate risk > value if shipped blind. Plan: `PP_CI=1` no-cred smoke + a `smoke.yml` workflow, validated on first run.
+- **Per-user rate limit:** `rateLimitMiddleware` runs BEFORE `idpMiddleware`, so `req.user` is unset at limit time → needs a post-idp middleware across 7 prefixes + BUG-015 invariant update. Security-chain surgery; wants human eyes, not an autonomous edit. Not urgent (no multi-user pilot).
+- **Okta IdP claim map:** additive `PROXY_IDP_CLAIM_MAP`; touches auth claim extraction; low urgency.
+- **`visual.tsx` split:** 12,830 LOC, ZERO unit tests. Multi-day refactor with real regression risk to the primary PBI surface — needs a test-first cycle (characterization tests THEN extract), not a sweep.
+
+**Honesty about the analysis itself:** the security agent's "CRITICAL inbound BI-injection" cited `AISidebar.tsx` which **does not exist** + contradicts the 2026-06-04 clean-context audit → downgraded. The test agent said `visual.tsx` ~1,500 LOC; it's **12,830** (verified). Always verify agent file:line before acting.
+
+---
+
 ## 2026-06-05 (later²) — Per-surface Dashboard connector + auto-seed (empty-Dashboard gap closed), all live-verified
 
 Live UI session driven by the user ("configure PBI→AI Insights, Genie→Ask Pulse, Genie→Dashboard, then close the empty-Dashboard gap"). Two features shipped to `main`, each live-verified in a real browser. Gates: lint clean, **playground 1917/1917**, multipane **27/27**, proxy untouched.
