@@ -100,7 +100,10 @@ export function SubPageHeader({ title, blurb }: { title: string; blurb: string }
                     // light-mode slate) so the title stays legible in dark mode —
                     // #0f172a is ~invisible on the dark canvas. Mirrors the
                     // canonical .pp-app__brand h1 gradient. (dark-mode legibility)
-                    background: "linear-gradient(135deg, var(--pp-text) 0%, #4f46e5 100%)",
+                    // Use the `backgroundImage` longhand (not the `background`
+                    // shorthand) so React 19 doesn't warn about mixing it with
+                    // backgroundClip on theme-change rerenders.
+                    backgroundImage: "linear-gradient(135deg, var(--pp-text) 0%, #4f46e5 100%)",
                     WebkitBackgroundClip: "text",
                     WebkitTextFillColor: "transparent",
                     backgroundClip: "text",
