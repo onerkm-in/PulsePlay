@@ -124,6 +124,53 @@ describe('llmOrchestrator.buildNarrativePrompt', () => {
     });
 });
 
+describe('llmOrchestrator — prompt-injection-from-BI-data hardening', () => {
+    test('escapes a pipe in a column name so it cannot forge a table column', () => {
+        const md = renderRowsAsMarkdown(['Region | DROP'], [['North']]);
+        // The injected pipe is escaped (\|) — it does NOT create a second column.
+        expect(md).toContain('Region \\| DROP');
+        expect(md).not.toContain('| Region | DROP |'); // fails-on-old: old left it raw
+    });
+
+    test('escapes pipes in a cell value so it cannot inject extra columns', () => {
+        const md = renderRowsAsMarkdown(['A'], [['x | INJECTED | y']]);
+        expect(md).toContain('x \\| INJECTED \\| y');
+        // Exactly one body row (header, separator, one data row) — no forged rows.
+        expect(md.split('\n')).toHaveLength(3);
+    });
+
+    test('collapses newlines in a cell so it cannot start a fake row', () => {
+        const md = renderRowsAsMarkdown(['A'], [['North\n| FAKE | ROW']]);
+        // Newline → space; pipes escaped. Still exactly 3 lines (no injected row).
+        expect(md.split('\n')).toHaveLength(3);
+        expect(md).not.toMatch(/\n\| FAKE \| ROW \|/);
+    });
+
+    test('neutralizes backticks in a cell (no markdown code span)', () => {
+        const md = renderRowsAsMarkdown(['A'], [['`rm -rf`']]);
+        expect(md).not.toContain('`');
+    });
+
+    test('length-caps an oversized injected cell', () => {
+        const huge = 'A'.repeat(5000);
+        const md = renderRowsAsMarkdown(['A'], [[huge]]);
+        expect(md).toContain('...');
+        expect(md.length).toBeLessThan(400);
+    });
+
+    test('buildNarrativePrompt fences the result data as untrusted', () => {
+        const p = buildNarrativePrompt('Q?', 'SELECT 1', ['A'], [[1]], false, 1);
+        expect(p).toContain('<<<RESULT DATA>>>');
+        expect(p).toContain('<<<END RESULT DATA>>>');
+    });
+
+    test('normal data still renders unchanged (no over-escaping)', () => {
+        const md = renderRowsAsMarkdown(['Region', 'Sales'], [['North', 100]]);
+        expect(md).toContain('| Region | Sales |');
+        expect(md).toContain('| North | 100 |');
+    });
+});
+
 describe('llmOrchestrator.orchestrateGroundedAnswer — happy path', () => {
     const profile = { host: 'https://x', token: 't', warehouseId: 'w1' };
     const schema = 'TABLE sales (region STRING, amount DOUBLE)';
