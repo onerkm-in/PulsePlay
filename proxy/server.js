@@ -650,6 +650,35 @@ function sanitizeInlineHeader(value) {
 }
 
 /**
+ * SSRF guard for INLINE (header-sourced) hosts. The inline-credentials feature
+ * lets a caller supply X-Databricks-Host; in "override" mode (the anonymous
+ * local-dev default) that host is otherwise attacker-controllable. Block the
+ * universally-dangerous SSRF targets — loopback and link-local / cloud-metadata
+ * — so a crafted header can't turn the proxy into a metadata-exfil gadget
+ * (e.g. http://169.254.169.254/…). Config.json hosts are operator-trusted and
+ * NOT subject to this. RFC1918 private ranges are intentionally NOT blocked
+ * (an on-prem workspace can legitimately live there); only the always-bad
+ * loopback + link-local targets are refused. Exported for unit coverage.
+ */
+function isBlockedInlineHost(host) {
+    if (!host) return false;
+    let hostname = String(host).trim();
+    try {
+        const u = new URL(/^[a-z][a-z0-9+.\-]*:\/\//i.test(hostname) ? hostname : `https://${hostname}`);
+        hostname = u.hostname;
+    } catch {
+        /* not a parseable URL — fall through with the raw string */
+    }
+    hostname = hostname.toLowerCase().replace(/^\[/, '').replace(/\]$/, '');
+    if (hostname === 'localhost' || hostname === '0.0.0.0' || hostname === '::1') return true;
+    if (/^127\./.test(hostname)) return true;                 // IPv4 loopback /8
+    if (/^169\.254\./.test(hostname)) return true;            // link-local + 169.254.169.254 metadata
+    if (/^fe80:/i.test(hostname)) return true;                // IPv6 link-local
+    if (hostname === 'metadata.google.internal' || hostname === 'metadata') return true; // GCP metadata
+    return false;
+}
+
+/**
  * Pull X-Databricks-Host / X-Databricks-Token / X-Genie-Space-Id /
  * X-Profile-Name from the request headers and return a transient
  * { profile, name } shaped exactly like a config.json entry, OR null
@@ -665,6 +694,14 @@ function extractInlineCredentials(headers) {
     const token = sanitizeInlineHeader(headers['x-databricks-token']);
     const spaceId = sanitizeInlineHeader(headers['x-genie-space-id']);
     if (!host || !token || !spaceId) return null;
+    // SSRF guard: refuse a header-supplied host that points at loopback or
+    // link-local / cloud-metadata. Falls through to the named-profile path
+    // (which no-matches for an attacker without valid creds) rather than
+    // dialing the dangerous target.
+    if (isBlockedInlineHost(host)) {
+        console.warn('[security] inline X-Databricks-Host rejected (loopback/link-local/metadata SSRF target)');
+        return null;
+    }
     const rawName = sanitizeInlineHeader(headers['x-profile-name']);
     const name = rawName || 'inline';
     /** @type {ProfileConfig} */
@@ -8944,6 +8981,7 @@ module.exports = {
     // the sanitizer directly without spinning up a full request.
     sanitizeInlineHeader,
     extractInlineCredentials,
+    isBlockedInlineHost,
     INLINE_HEADER_MAX_LEN,
     // Wave 36 — exported so precedence tests can exercise mode resolution
     // and applyInlineMode without standing up a full request stack.
