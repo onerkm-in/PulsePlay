@@ -88,9 +88,60 @@ const { SIMPLE_REQUEST_TIMEOUT_MS, COMPLEX_REQUEST_TIMEOUT_MS } = require('./tim
 const SOCKET_TIMEOUT_MS = SIMPLE_REQUEST_TIMEOUT_MS;   // was 10s
 const EXECUTE_QUERIES_TIMEOUT_MS = COMPLEX_REQUEST_TIMEOUT_MS;  // was 30s
 const TOKEN_EARLY_REFRESH_MS = 5 * 60 * 1000;
+const TRANSIENT_FETCH_RETRY_DELAY_MS = 350;
 
 // Cache key: `${authMode}|${tenantId}|${clientId}` → { accessToken, expiresAt, refreshToken?, inFlight? }
 const _tokenCache = new Map();
+
+function _sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function _isTransientFetchError(err) {
+    if (!err) return false;
+    const code = String(err.code || err.cause?.code || '').toUpperCase();
+    if ([
+        'ECONNRESET',
+        'ECONNREFUSED',
+        'EPIPE',
+        'ETIMEDOUT',
+        'EAI_AGAIN',
+        'UND_ERR_CONNECT_TIMEOUT',
+        'UND_ERR_HEADERS_TIMEOUT',
+        'UND_ERR_SOCKET',
+    ].includes(code)) {
+        return true;
+    }
+    const msg = `${err.message || ''} ${err.cause?.message || ''}`.toLowerCase();
+    return /fetch failed|socket hang up|network error|connection reset|timed out/.test(msg);
+}
+
+function _describeFetchError(err) {
+    const code = err?.cause?.code || err?.code || '';
+    const msg = err?.cause?.message || err?.message || String(err || '');
+    return code ? `${code}: ${msg}` : msg;
+}
+
+function _transportError(label, err) {
+    const out = new Error(`${label} transport failed: ${_describeFetchError(err)}`);
+    out.cause = err;
+    return out;
+}
+
+async function _fetchWithTransientRetry(fetchImpl, url, buildOptions, label) {
+    try {
+        return await fetchImpl(url, buildOptions());
+    } catch (err) {
+        if (!_isTransientFetchError(err)) throw err;
+        await _sleep(TRANSIENT_FETCH_RETRY_DELAY_MS);
+        try {
+            return await fetchImpl(url, buildOptions());
+        } catch (retryErr) {
+            if (_isTransientFetchError(retryErr)) throw _transportError(label, retryErr);
+            throw retryErr;
+        }
+    }
+}
 
 /* ───── Profile field accessors (with back-compat aliases) ────────── */
 
@@ -183,12 +234,12 @@ async function acquirePbiAccessToken(profile, fetchImpl) {
     const body = new URLSearchParams(bodyParams).toString();
 
     const inFlight = (async () => {
-        const resp = await f(tokenUrl, {
+        const resp = await _fetchWithTransientRetry(f, tokenUrl, () => ({
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body,
             signal: AbortSignal.timeout(SOCKET_TIMEOUT_MS),
-        });
+        }), 'Azure AD token request');
         if (!resp.ok) {
             const detail = (await resp.text()).slice(0, 300);
             throw new Error(`Azure AD token request failed (${resp.status}, mode=${mode}): ${detail}`);
@@ -317,12 +368,12 @@ async function acquirePbiAccessTokenOnBehalfOf(profile, userAssertion, fetchImpl
     }).toString();
 
     const inFlight = (async () => {
-        const resp = await f(tokenUrl, {
+        const resp = await _fetchWithTransientRetry(f, tokenUrl, () => ({
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body,
             signal: AbortSignal.timeout(SOCKET_TIMEOUT_MS),
-        });
+        }), 'Azure AD OBO token request');
         if (!resp.ok) {
             const detail = (await resp.text()).slice(0, 300);
             // 400 typically means consent missing or assertion expired;
@@ -373,11 +424,11 @@ async function getDatasetMetadata(profile, opts = {}) {
     const token = await acquirePbiAccessToken(profile, opts.fetchImpl);
     const url = `${PBI_API_BASE}/v1.0/myorg/groups/${encodeURIComponent(groupId)}/datasets/${encodeURIComponent(datasetId)}`;
     const f = opts.fetchImpl || globalThis.fetch;
-    const resp = await f(url, {
+    const resp = await _fetchWithTransientRetry(f, url, () => ({
         method: 'GET',
         headers: { Authorization: `Bearer ${token}` },
         signal: AbortSignal.timeout(SOCKET_TIMEOUT_MS),
-    });
+    }), 'Power BI dataset metadata fetch');
     if (!resp.ok) {
         const detail = (await resp.text()).slice(0, 300);
         const err = new Error(`Power BI dataset metadata fetch failed (${resp.status}): ${detail}`);
@@ -432,7 +483,7 @@ async function executeDax(profile, daxQuery, opts = {}) {
         ...((!useObo && opts.impersonatedUserName) ? { impersonatedUserName: opts.impersonatedUserName } : {}),
     };
     const f = opts.fetchImpl || globalThis.fetch;
-    const resp = await f(url, {
+    const resp = await _fetchWithTransientRetry(f, url, () => ({
         method: 'POST',
         headers: {
             Authorization: `Bearer ${token}`,
@@ -440,7 +491,7 @@ async function executeDax(profile, daxQuery, opts = {}) {
         },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(EXECUTE_QUERIES_TIMEOUT_MS),
-    });
+    }), 'Power BI executeQueries');
     if (!resp.ok) {
         const detail = (await resp.text()).slice(0, 500);
         const err = new Error(`Power BI executeQueries failed (${resp.status}): ${detail}`);
@@ -510,7 +561,7 @@ async function generateQnAEmbedToken(profile, opts = {}) {
             : {}),
     };
     const f = opts.fetchImpl || globalThis.fetch;
-    const resp = await f(url, {
+    const resp = await _fetchWithTransientRetry(f, url, () => ({
         method: 'POST',
         headers: {
             Authorization: `Bearer ${token}`,
@@ -518,7 +569,7 @@ async function generateQnAEmbedToken(profile, opts = {}) {
         },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(SOCKET_TIMEOUT_MS),
-    });
+    }), 'Power BI dataset GenerateToken');
     if (!resp.ok) {
         const detail = (await resp.text()).slice(0, 300);
         const err = new Error(`Power BI dataset GenerateToken failed (${resp.status}): ${detail}`);

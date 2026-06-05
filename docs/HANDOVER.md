@@ -5,6 +5,23 @@
 
 ---
 
+## 2026-06-06 — Live browser audit fix loop: Power BI transient retry + headed recovery green
+
+Responded to Rajesh's `/loop : Beast Mode : Analysis ; Beast Mode : Fix ; Best Mode : Test` after the live browser org-readiness audit showed Ask/Insights and deterministic chart blockers.
+
+- **Analysis:** Reproduced the failures against live `127.0.0.1:7001`/`7000`. The first root cause was launch posture: the proxy had been started without the required local CA posture, which made `default` fail with a generic 500. Restarting the local dev stack with `PORT=7000` + `NODE_OPTIONS=--use-system-ca` restored `default` conversation start to `SUBMITTED`.
+- **Fix:** `powerbi-dwd` still had a cold `fetch failed` on the Power BI executeDAX path even though immediate retries succeeded. Added a one-shot transient transport retry in [proxy/lib/powerbiDatasetClient.js](../proxy/lib/powerbiDatasetClient.js) for AAD token, OBO token, dataset metadata, executeQueries, and Q&A token calls. Retry is transport-only (`fetch failed` / socket / timeout class), uses a fresh timeout signal, and does not retry HTTP 4xx/5xx.
+- **Tests:** Added targeted coverage in [proxy/tests/powerbiDatasetClient.test.js](../proxy/tests/powerbiDatasetClient.test.js). `npm.cmd test -- powerbiDatasetClient` passed **25/25**. Full proxy `npm.cmd test` passed **62/62 suites, 1226/1226 tests**.
+- **Live browser proof:** Headed run `node playground/scripts/test-suite/run.mjs --areas=features,connectors --connectors=default,powerbi-dwd --headed` produced **0 critical, 0 warning, 4 info** at [docs/evidence/test-suite/2026-06-05T21-17-45/REPORT.md](evidence/test-suite/2026-06-05T21-17-45/REPORT.md). This clears the previously observed `Ask Pulse no answer`, `AI Insights error card`, and deterministic chart-affordance criticals for the tested slice.
+- **Audit updated:** [docs/live-browser-org-readiness-audit-2026-06-06.md](live-browser-org-readiness-audit-2026-06-06.md) now preserves the original hard findings and adds the post-fix recovery verdict. Current readiness is **conditional**: the feature/connector slice is clean at critical/warning level, but the full intense adversarial/reload/mobile suite still needs a fresh pass before claiming org-standard certification.
+
+**Tripwires:**
+- Keep local live-browser runs on `PORT=7000` because Vite proxies `/api/*` there.
+- Keep `NODE_OPTIONS=--use-system-ca` on this Windows/Node 24 machine for credentialed Microsoft/Databricks live paths.
+- Do not broaden the Power BI retry to semantic HTTP failures; 401/403/404/500 must remain visible as real upstream/config failures.
+
+---
+
 ## 2026-06-06 — Clear all blockers: smoke→CI shipped + verified green, external blockers documented with operator actions
 
 "Let's clear all blockers." Separated code-clearable from externally-gated, cleared the former, and made the latter one-operator-action-away.

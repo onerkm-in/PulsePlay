@@ -36,6 +36,12 @@ function jsonResponse(payload, status = 200) {
     };
 }
 
+function transientFetchError() {
+    const err = new Error('fetch failed');
+    err.cause = { code: 'UND_ERR_SOCKET', message: 'other side closed' };
+    return err;
+}
+
 beforeEach(() => {
     __resetCacheForTests();
 });
@@ -117,6 +123,21 @@ describe('acquirePbiAccessToken', () => {
         expect(captured.body).toContain('client_id=client-bbb');
         expect(captured.body).toContain('client_secret=secret-ccc');
         expect(captured.body).toMatch(/analysis\.windows\.net%2Fpowerbi%2Fapi%2F\.default/);
+    });
+
+    test('retries one transient AAD transport failure before caching token', async () => {
+        let calls = 0;
+        const fetchImpl = makeFetchStub([{
+            match: url => url.includes('login.microsoftonline.com'),
+            respond: () => {
+                calls++;
+                if (calls === 1) throw transientFetchError();
+                return jsonResponse({ access_token: 'tok-after-transport-retry', expires_in: 3600 });
+            },
+        }]);
+        const token = await acquirePbiAccessToken(baseProfile, fetchImpl);
+        expect(token).toBe('tok-after-transport-retry');
+        expect(calls).toBe(2);
     });
 
     test('reuses cached token on second call within early-refresh window', async () => {
@@ -233,6 +254,21 @@ describe('executeDax', () => {
         expect(captured.body.queries[0].query).toBe('EVALUATE { [Revenue] }');
         expect(captured.body.serializerSettings.includeNulls).toBe(true);
         expect(result.results[0].tables[0].rows[0]['[Revenue]']).toBe(100);
+    });
+
+    test('retries one transient executeQueries transport failure', async () => {
+        let executeCalls = 0;
+        const fetchImpl = makeFetchStub([
+            { match: u => u.includes('login.microsoftonline.com'), respond: () => jsonResponse({ access_token: 'tok-dax-retry', expires_in: 3600 }) },
+            { match: u => u.includes('/executeQueries'), respond: () => {
+                executeCalls++;
+                if (executeCalls === 1) throw transientFetchError();
+                return jsonResponse({ results: [{ tables: [{ rows: [{ '[Revenue]': 123 }] }] }] });
+            }},
+        ]);
+        const result = await executeDax(baseProfile, 'EVALUATE { [Revenue] }', { fetchImpl });
+        expect(result.results[0].tables[0].rows[0]['[Revenue]']).toBe(123);
+        expect(executeCalls).toBe(2);
     });
 
     test('forwards impersonatedUserName when supplied (RLS)', async () => {
