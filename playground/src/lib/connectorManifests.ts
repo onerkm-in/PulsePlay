@@ -110,6 +110,50 @@ export function useConnectorManifests(): {
     return { loading, error, data, refetch: () => setTick(n => n + 1) };
 }
 
+// ── Live-verification honesty layer (2026-06-05) ───────────────────────────
+// `maturity` (stable/beta/preview) is an INTENT label and overstates reality —
+// a "stable" connector can still be unproven against a real backend, or blocked
+// on a given workspace. This map records the deployer-AGNOSTIC truth: which
+// paths PulsePlay has actually exercised end-to-end vs which are code-present-
+// but-unproven. Environment-specific blockers (e.g. Genie needs Serverless
+// Compute on YOUR workspace) live in `note`, NOT as a universal "blocked" claim.
+export type ConnectorLiveStatus = "verified" | "unverified" | "demo";
+
+export interface ConnectorLiveStatusMeta {
+    status: ConnectorLiveStatus;
+    /** Short label for the chip. */
+    label: string;
+    /** Tooltip — what "verified"/"unverified" means for THIS connector. */
+    note: string;
+}
+
+const VERIFIED = "Verified live";
+const UNVERIFIED = "Unverified";
+const DEMO = "Demo";
+
+// Keyed by manifest id (from GET /assistant/connector-types).
+const CONNECTOR_LIVE_STATUS: Record<string, ConnectorLiveStatusMeta> = {
+    "powerbi-dataset-dax": { status: "verified", label: VERIFIED, note: "Proven end-to-end: deterministic DAX, exact totals, no LLM." },
+    "foundation-model": { status: "verified", label: VERIFIED, note: "Proven end-to-end against a Mosaic AI serving endpoint." },
+    "genie": { status: "unverified", label: UNVERIFIED, note: "Code path is complete, but needs Serverless Compute (or a classic SQL warehouse) enabled on YOUR Databricks workspace to run. Not yet proven live in PulsePlay's reference workspace (serverless disabled there)." },
+    "supervisor": { status: "unverified", label: UNVERIFIED, note: "Fan-out across Genie spaces; depends on Genie being reachable on your workspace." },
+    "supervisor-local": { status: "unverified", label: UNVERIFIED, note: "Proxy-side fan-out across Genie spaces; not yet exercised end-to-end (Genie blocked in reference testing)." },
+    "azure-openai-chat": { status: "unverified", label: UNVERIFIED, note: "Code path exists; not yet proven live in PulsePlay reference testing. Should work once you configure an Azure OpenAI deployment." },
+    "azure-openai-analytics": { status: "unverified", label: UNVERIFIED, note: "Grounded-analytics orchestrator; code-present, not yet proven live." },
+    "bedrock-direct": { status: "unverified", label: UNVERIFIED, note: "Bedrock InvokeModel; code-present, not yet proven live." },
+    "bedrock-rag": { status: "unverified", label: UNVERIFIED, note: "Bedrock RetrieveAndGenerate (knowledge base); code-present, not yet proven live." },
+    "responses-agent": { status: "unverified", label: UNVERIFIED, note: "Managed Agent Framework endpoint; code-present, not yet proven live." },
+    "powerbi-dataset-qna": { status: "unverified", label: UNVERIFIED, note: "Microsoft's NLP Q&A visual (runs in your tenant); PulsePlay mints the embed token only. Report-visual render needs Power BI capacity." },
+    "demo-mock": { status: "demo", label: DEMO, note: "Synthetic data for trying the UI without any backend." },
+};
+
+/** Honest live-verification status for a connector, deployer-agnostic. Unknown
+ *  ids default to "unverified" (safe — never overstates). */
+export function getConnectorLiveStatus(id: string): ConnectorLiveStatusMeta {
+    return CONNECTOR_LIVE_STATUS[id]
+        || { status: "unverified", label: UNVERIFIED, note: "Not yet proven live in PulsePlay reference testing." };
+}
+
 /**
  * Group manifests by category for the brand-grid layout. Returns the
  * categories in a deterministic order so the UI doesn't reshuffle on

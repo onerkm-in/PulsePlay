@@ -14,8 +14,10 @@ import {
     type ConfiguredProfileSummary,
     type ConnectorManifest,
     type ConnectorRuntimeState,
+    type ConnectorLiveStatus,
     buildProfileEnvSnippet,
     buildProfileJsonSnippet,
+    getConnectorLiveStatus,
 } from "../lib/connectorManifests";
 
 type Status = "active" | "configured" | "configured-degraded" | "available";
@@ -57,6 +59,13 @@ const MATURITY_META: Record<string, { label: string; bg: string; fg: string }> =
     preview: { label: "PREVIEW", bg: "rgba(168, 85, 247, 0.15)", fg: "#6b21a8" },
 };
 
+// Honest live-verification chip — separate from the (aspirational) maturity badge.
+const LIVE_STATUS_META: Record<ConnectorLiveStatus, { dot: string; tone: string; bg: string }> = {
+    verified:   { dot: "#10b981", tone: "#065f46", bg: "rgba(16, 185, 129, 0.12)" },
+    unverified: { dot: "#9ca3af", tone: "#4b5563", bg: "rgba(107, 114, 128, 0.12)" },
+    demo:       { dot: "#a855f7", tone: "#6b21a8", bg: "rgba(168, 85, 247, 0.12)" },
+};
+
 export interface ConnectorBrandCardProps {
     manifest: ConnectorManifest;
     runtime: ConnectorRuntimeState | undefined;
@@ -74,6 +83,8 @@ export function ConnectorBrandCard({
     const { status, activeMatch, configuredCount } = deriveStatus(runtime, activeProfileName);
     const statusMeta = STATUS_META[status];
     const maturityMeta = MATURITY_META[manifest.maturity] || MATURITY_META.preview;
+    const liveStatus = getConnectorLiveStatus(manifest.id);
+    const liveMeta = LIVE_STATUS_META[liveStatus.status];
 
     const configuredProfiles = runtime?.configuredProfiles || [];
 
@@ -144,6 +155,24 @@ export function ConnectorBrandCard({
                     }}
                 >
                     {statusMeta.label}
+                </span>
+                <span
+                    data-live-status={liveStatus.status}
+                    title={liveStatus.note}
+                    style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                        padding: "1px 6px",
+                        borderRadius: 3,
+                        background: liveMeta.bg,
+                        color: liveMeta.tone,
+                        fontWeight: 600,
+                        cursor: "help",
+                    }}
+                >
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: liveMeta.dot, flexShrink: 0 }} />
+                    {liveStatus.label}
                 </span>
                 {configuredCount > 0 && (
                     <span style={{ opacity: 0.7 }}>
