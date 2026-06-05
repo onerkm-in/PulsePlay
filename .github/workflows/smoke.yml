@@ -1,0 +1,84 @@
+name: smoke
+
+# Credential-free, content-aware anti-blank smoke. Boots the proxy + Vite dev
+# server and drives the real UI in headless Chromium, asserting SPECIFIC content
+# (app boots, the per-surface connector bar shows 3 dropdowns, echarts-6 paints a
+# chart from fixture data, Settings renders, ZERO console/page errors). This is
+# the regression guard for the express-5 / react-19 / echarts-6 / Vite render
+# path that the unit suites can't catch. The live-data checks (briefing numbers,
+# Ask Pulse chart answer, Dashboard auto-seed) need real Power BI / Azure creds,
+# so they're skipped here via PP_CI=1.
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: ui smoke (anti-blank, no creds)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Install proxy deps
+        working-directory: proxy
+        run: npm ci
+      - name: Install playground deps
+        working-directory: playground
+        run: npm ci
+      - name: Install Playwright Chromium
+        working-directory: playground
+        run: npx playwright install --with-deps chromium
+
+      - name: Boot servers + run smoke
+        run: |
+          set -e
+          # Proxy on 7000 (env fallback — no config.json/secrets needed; the
+          # structural smoke never makes a live backend call).
+          ( cd proxy && PORT=7000 node server.js > "$RUNNER_TEMP/proxy.log" 2>&1 & echo $! > "$RUNNER_TEMP/proxy.pid" )
+          # Vite dev on 7001 (proxies /api/* -> 127.0.0.1:7000).
+          ( cd playground && npm run dev > "$RUNNER_TEMP/vite.log" 2>&1 & echo $! > "$RUNNER_TEMP/vite.pid" )
+          # Wait for both to be ready (up to ~120s).
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:7000/health > /dev/null 2>&1 && curl -sf http://127.0.0.1:7001/ > /dev/null 2>&1; then
+              echo "servers ready after $((i*2))s"; break
+            fi
+            sleep 2
+          done
+          curl -sf http://127.0.0.1:7000/health > /dev/null || { echo "::error::proxy never came up"; cat "$RUNNER_TEMP/proxy.log"; exit 1; }
+          curl -sf http://127.0.0.1:7001/ > /dev/null || { echo "::error::vite never came up"; cat "$RUNNER_TEMP/vite.log"; exit 1; }
+          # Run the credential-free smoke.
+          cd playground
+          PP_CI=1 PP_OUT="$RUNNER_TEMP/smoke" node scripts/smoke-all-screens.mjs
+          STATUS=$?
+          kill "$(cat "$RUNNER_TEMP/proxy.pid")" "$(cat "$RUNNER_TEMP/vite.pid")" 2>/dev/null || true
+          exit $STATUS
+
+      - name: Upload smoke screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-screenshots
+          path: ${{ runner.temp }}/smoke
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Dump server logs on failure
+        if: failure()
+        run: |
+          echo "=== proxy.log ==="; cat "$RUNNER_TEMP/proxy.log" 2>/dev/null || true
+          echo "=== vite.log ===";  cat "$RUNNER_TEMP/vite.log" 2>/dev/null || true

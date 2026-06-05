@@ -18,9 +18,15 @@
 import { chromium } from "@playwright/test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 const BASE = process.env.PP_BASE || "http://127.0.0.1:7001";
-const OUT = process.env.PP_OUT || `d:/Working_Folder/Projects/PulsePlay/docs/evidence/smoke/${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}`;
+const OUT = process.env.PP_OUT || join(tmpdir(), "pulseplay-smoke", new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19));
+// CI mode: run only the CREDENTIAL-FREE checks (boot, no console errors, Settings,
+// connector bar, echarts-6 fixture paint) — the dep-bump regression class. The
+// live-data checks (AI Insights briefing / Ask Pulse chart / Dashboard auto-seed)
+// need real Power BI / Azure creds CI doesn't have, so they're skipped under PP_CI.
+const CI = process.env.PP_CI === "1";
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const results = [];
 const check = (name, pass, detail = "") => { results.push({ name, pass }); console.log(`${pass ? "PASS" : "FAIL"}  ${name}${detail ? "  — " + detail : ""}`); };
@@ -29,7 +35,7 @@ await mkdir(OUT, { recursive: true });
 const browser = await chromium.launch({ headless: true });
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 980 } });
 const consoleErrs = [];
-await ctx.addInitScript(() => {
+await ctx.addInitScript((ci) => {
   try {
     if (!sessionStorage.getItem("__sk_clean")) {
       localStorage.removeItem("pulseplay:canvas-tiles");
@@ -38,15 +44,21 @@ await ctx.addInitScript(() => {
       sessionStorage.setItem("__sk_clean", "1");
     }
     localStorage.setItem("pulseplay:bi-vendor", "powerbi");
-    localStorage.setItem("pulseplay:active-ai-profile", "powerbi-dwd");
     localStorage.setItem("pulseplay:default-landing-surface", "ai-insights");
+    // Flag ON so the per-surface connector bar renders (a structural check).
     localStorage.setItem("pulseplay:feature-flags", JSON.stringify({ multiConnectorPanes: true, dashboardAutoSeed: true }));
-    const k = "pulseplay:visual-settings:genieSettings";
-    const ex = JSON.parse(localStorage.getItem(k) || "{}");
-    ex.assistantProfile = "powerbi-dwd"; ex.connectionMode = "proxy"; ex.apiBaseUrl = location.origin + "/api";
-    localStorage.setItem(k, JSON.stringify(ex));
+    // In CI there is no configured backend profile — DON'T set an active
+    // connector (that would make surfaces probe a non-existent profile and emit
+    // console errors, failing the zero-errors check). Locally, wire powerbi-dwd.
+    if (!ci) {
+      localStorage.setItem("pulseplay:active-ai-profile", "powerbi-dwd");
+      const k = "pulseplay:visual-settings:genieSettings";
+      const ex = JSON.parse(localStorage.getItem(k) || "{}");
+      ex.assistantProfile = "powerbi-dwd"; ex.connectionMode = "proxy"; ex.apiBaseUrl = location.origin + "/api";
+      localStorage.setItem(k, JSON.stringify(ex));
+    }
   } catch { /* */ }
-});
+}, CI);
 const page = await ctx.newPage();
 page.on("console", m => { if (m.type() === "error") consoleErrs.push(m.text().slice(0, 160)); });
 page.on("pageerror", e => consoleErrs.push("PAGEERROR: " + String(e?.message || e).slice(0, 160)));
@@ -69,13 +81,18 @@ const dd = await page.evaluate(() => ({
   dash: !!document.querySelector('[data-testid="surface-connector-bi-viz"]'),
 }));
 check("Per-surface bar shows all 3 dropdowns (incl. Dashboard)", dd.ins && dd.ask && dd.dash, JSON.stringify(dd));
-await page.selectOption('[data-testid="surface-connector-ai-insights"]', "powerbi-dwd").catch(() => { /* */ });
-await page.selectOption('[data-testid="surface-connector-ask-pulse"]', "foundation").catch(() => { /* */ });
-await page.selectOption('[data-testid="surface-connector-bi-viz"]', "powerbi-dwd").catch(() => { /* */ });
-await sleep(500);
-const bound = await page.evaluate(() => { try { return JSON.parse(localStorage.getItem("pulseplay:surface-connectors") || "{}"); } catch { return {}; } });
-check("Per-surface bindings persist (3 surfaces)", bound["ai-insights"] === "powerbi-dwd" && bound["ask-pulse"] === "foundation" && bound["bi-viz"] === "powerbi-dwd", JSON.stringify(bound));
+if (!CI) {
+  // Binding-persist needs selectable profile options (real config) → local only.
+  await page.selectOption('[data-testid="surface-connector-ai-insights"]', "powerbi-dwd").catch(() => { /* */ });
+  await page.selectOption('[data-testid="surface-connector-ask-pulse"]', "foundation").catch(() => { /* */ });
+  await page.selectOption('[data-testid="surface-connector-bi-viz"]', "powerbi-dwd").catch(() => { /* */ });
+  await sleep(500);
+  const bound = await page.evaluate(() => { try { return JSON.parse(localStorage.getItem("pulseplay:surface-connectors") || "{}"); } catch { return {}; } });
+  check("Per-surface bindings persist (3 surfaces)", bound["ai-insights"] === "powerbi-dwd" && bound["ask-pulse"] === "foundation" && bound["bi-viz"] === "powerbi-dwd", JSON.stringify(bound));
+}
 
+// Steps 3-5 need real credentials (live Power BI / Azure) → local only, skipped in CI.
+if (!CI) {
 // 3. AI Insights — real briefing (not blank / not error / not only-fallback)
 await page.locator("button", { hasText: /^AI Insights$/i }).first().click({ timeout: 5000 }).catch(() => { /* */ });
 await sleep(1000);
@@ -141,6 +158,25 @@ dash = await page.evaluate(() => ({
 }));
 await page.screenshot({ path: join(OUT, "3-dashboard.png") });
 check("Dashboard AUTO-SEEDED with real charts (not the blank Pulse Canvas)", dash.tiles >= 1 && dash.canvases >= 1 && !dash.blankPlaceholderOnly, `tiles=${dash.tiles} canvases=${dash.canvases}`);
+} // end !CI live-data checks
+
+// 5b. echarts-6 fixture paint (NO backend) — the credential-free chart-render
+// regression guard. native-canvas-smoke.html mounts NativeCanvas with a fixed
+// sample envelope; assert a real <canvas> with non-blank pixels.
+await page.goto(BASE + "/native-canvas-smoke.html", { waitUntil: "networkidle", timeout: 20000 }).catch(() => { /* */ });
+await sleep(1500);
+const echarts = await page.evaluate(() => {
+  const c = document.querySelector("canvas");
+  if (!c) return { found: false, nonBlank: 0 };
+  try {
+    const data = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+    let nonBlank = 0;
+    for (let i = 3; i < data.length; i += 4) if (data[i] !== 0) nonBlank++;
+    return { found: true, nonBlank, w: c.width, h: c.height };
+  } catch { return { found: true, nonBlank: -1 }; }
+});
+await page.screenshot({ path: join(OUT, "5b-echarts-fixture.png") });
+check("echarts-6 paints a chart from fixture data (no backend)", echarts.found && echarts.nonBlank > 100, JSON.stringify(echarts));
 
 // 6. Settings — renders real config content, not blank
 await page.goto(BASE + "/settings", { waitUntil: "domcontentloaded" });
