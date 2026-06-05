@@ -1309,7 +1309,49 @@ const warehouseStartLog = new Map(); // warehouseId → last-start timestamp (ms
 const WAREHOUSE_RUNNING_TTL_MS = 5 * 60 * 1000;
 const warehouseRunningLog = new Map(); // warehouseId → lastSeenRunning timestamp
 
-async function ensureWarehouseRunning(profile) {
+// A PERMANENT start failure (HTTP 4xx — serverless disabled in the workspace
+// config, bad warehouse id, auth) must NOT be re-attempted by every subsequent
+// request: a forever-STOPPED warehouse would otherwise make every Genie call
+// hang in a 5-minute poll. Remember the failure briefly and fail fast.
+const WAREHOUSE_FAILED_TTL_MS = 60 * 1000;
+const warehouseFailedLog = new Map(); // warehouseId → { ts, message }
+
+// Dedup: concurrent callers for the SAME warehouse share ONE ensure promise
+// instead of each spawning an independent 60×5s poll loop (the observed
+// "overlapping Poll N/60" pathology). Cleared when the ensure settles.
+const warehouseInFlight = new Map(); // warehouseId → Promise<void>
+
+// Keep the bookkeeping maps bounded in a workspace with many warehouses (the
+// prior behavior never evicted). Cheap opportunistic prune of the oldest half.
+const WAREHOUSE_LOG_MAX = 256;
+function pruneWarehouseLog(map) {
+    if (map.size <= WAREHOUSE_LOG_MAX) return;
+    const drop = map.size - Math.floor(WAREHOUSE_LOG_MAX / 2);
+    let n = 0;
+    for (const k of map.keys()) { map.delete(k); if (++n >= drop) break; }
+}
+
+// Databricks REST errors propagate as `Databricks <status>: <body>` (see
+// databricksRequest). A 4xx is PERMANENT (bad request / not found / auth /
+// serverless-disabled) — polling is pointless. A 5xx or socket error is
+// transient and worth retrying. Exported for unit coverage.
+function isPermanentDatabricksError(err) {
+    const m = /^Databricks (\d{3}):/.exec((err && err.message) || '');
+    if (!m) return false;
+    const status = Number(m[1]);
+    return status >= 400 && status < 500;
+}
+
+// Test seam — clears the module-level bookkeeping so each warehouse test runs
+// from a clean slate (these Maps persist for the process lifetime by design).
+function _resetWarehouseLogsForTests() {
+    warehouseStartLog.clear();
+    warehouseRunningLog.clear();
+    warehouseFailedLog.clear();
+    warehouseInFlight.clear();
+}
+
+async function ensureWarehouseRunning(profile, signal) {
     const warehouseId = profile.warehouseId;
     if (!warehouseId) return; // No warehouse ID configured — skip
 
@@ -1319,6 +1361,27 @@ async function ensureWarehouseRunning(profile) {
         return;
     }
 
+    // Fail-fast: a recent PERMANENT failure (serverless disabled, etc.) — don't
+    // re-poll a warehouse that cannot start. Surface the real reason at once.
+    const failed = warehouseFailedLog.get(warehouseId);
+    if (failed && (Date.now() - failed.ts) < WAREHOUSE_FAILED_TTL_MS) {
+        throw new Error(failed.message);
+    }
+
+    // Dedup concurrent ensures for the same warehouse: one poll loop, not N.
+    const inflight = warehouseInFlight.get(warehouseId);
+    if (inflight) return inflight;
+
+    const work = ensureWarehouseRunningInner(profile, warehouseId, signal);
+    warehouseInFlight.set(warehouseId, work);
+    try {
+        await work;
+    } finally {
+        warehouseInFlight.delete(warehouseId);
+    }
+}
+
+async function ensureWarehouseRunningInner(profile, warehouseId, signal) {
     try {
         const info = await databricksRequest(profile, 'GET', `/api/2.0/sql/warehouses/${warehouseId}`);
         const state = (info.state || '').toUpperCase();
@@ -1326,6 +1389,7 @@ async function ensureWarehouseRunning(profile) {
 
         if (state === 'RUNNING') {
             warehouseRunningLog.set(warehouseId, Date.now());
+            pruneWarehouseLog(warehouseRunningLog);
             return;
         }
 
@@ -1333,19 +1397,28 @@ async function ensureWarehouseRunning(profile) {
             const lastStart = warehouseStartLog.get(warehouseId) || 0;
             const elapsed = Date.now() - lastStart;
             if (elapsed < WAREHOUSE_START_COOLDOWN_MS) {
+                // We are inside the cooldown from a PRIOR start that did not
+                // bring the warehouse up (with dedup, a concurrent in-progress
+                // start is awaited above, so reaching here means the prior
+                // attempt already settled without success). Polling a still-
+                // STOPPED warehouse for 5 minutes is pure waste — fail fast.
                 const waitSec = Math.ceil((WAREHOUSE_START_COOLDOWN_MS - elapsed) / 1000);
-                console.log(`[warehouse] ${warehouseId} start skipped (cooldown, ${waitSec}s remaining)`);
-            } else {
-                console.log(`[warehouse] Starting ${warehouseId}...`);
-                warehouseStartLog.set(warehouseId, Date.now());
-                await databricksRequest(profile, 'POST', `/api/2.0/sql/warehouses/${warehouseId}/start`, {});
+                console.log(`[warehouse] ${warehouseId} still ${state} within cooldown (${waitSec}s) — not re-polling`);
+                throw new Error(`Warehouse ${warehouseId} is ${state} and a recent start did not take effect. Retry in ~${waitSec}s, or confirm the SQL warehouse / serverless compute is enabled for this workspace.`);
             }
+            console.log(`[warehouse] Starting ${warehouseId}...`);
+            warehouseStartLog.set(warehouseId, Date.now());
+            pruneWarehouseLog(warehouseStartLog);
+            await databricksRequest(profile, 'POST', `/api/2.0/sql/warehouses/${warehouseId}/start`, {});
         }
 
-        // Poll until RUNNING (up to 5 minutes)
+        // Poll until RUNNING (up to 5 minutes), honoring client abort.
         const maxAttempts = 60;
         const interval = 5000;
         for (let i = 0; i < maxAttempts; i++) {
+            if (signal?.aborted) {
+                throw new Error(`Warehouse ${warehouseId} start aborted (client disconnected)`);
+            }
             await new Promise(r => setTimeout(r, interval));
             const poll = await databricksRequest(profile, 'GET', `/api/2.0/sql/warehouses/${warehouseId}`);
             const currentState = (poll.state || '').toUpperCase();
@@ -1353,6 +1426,7 @@ async function ensureWarehouseRunning(profile) {
             if (currentState === 'RUNNING') {
                 console.log(`[warehouse] ${warehouseId} is now RUNNING`);
                 warehouseRunningLog.set(warehouseId, Date.now());
+                pruneWarehouseLog(warehouseRunningLog);
                 return;
             }
             if (currentState === 'DELETED' || currentState === 'FAILED') {
@@ -1361,6 +1435,13 @@ async function ensureWarehouseRunning(profile) {
         }
         throw new Error(`Warehouse ${warehouseId} did not start within 5 minutes`);
     } catch (err) {
+        // Memoize PERMANENT failures (4xx) so the next request fails fast rather
+        // than re-entering the poll. Transient (5xx/socket) errors are NOT
+        // memoized — they should be retried on the next call.
+        if (isPermanentDatabricksError(err)) {
+            warehouseFailedLog.set(warehouseId, { ts: Date.now(), message: err.message });
+            pruneWarehouseLog(warehouseFailedLog);
+        }
         console.warn(`[warehouse] Auto-start issue: ${err.message}`);
         throw err;
     }
@@ -3173,8 +3254,12 @@ app.post('/warehouse/start', async (req, res) => {
     // fire-on-mount warmup doesn't log a console 400 on every non-SQL connector.
     if (!warehouseId) return res.json({ ok: true, state: 'none', warehouse: false, reason: 'no-warehouse-configured' });
 
+    // D — if the client disconnects (tab close, Stop), abort the server-side
+    // poll instead of letting it run to the 5-minute ceiling.
+    const ac = new AbortController();
+    req.on('close', () => ac.abort());
     try {
-        await ensureWarehouseRunning(resolved.profile);
+        await ensureWarehouseRunning(resolved.profile, ac.signal);
         res.json({ ok: true, state: 'RUNNING' });
     } catch (err) {
         const mapped = errorStatusFromDatabricks(err, 500);
@@ -8850,6 +8935,11 @@ module.exports = {
     normalizeGenieResponse,
     loadEnvProfiles,
     isTransientNetError,
+    // Warehouse auto-start hardening — exported so the dedup / fail-fast /
+    // abort behavior can be unit-tested without standing up the route stack.
+    ensureWarehouseRunning,
+    isPermanentDatabricksError,
+    _resetWarehouseLogsForTests,
     // Wave 31 — exported so the inline-credentials unit tests can exercise
     // the sanitizer directly without spinning up a full request.
     sanitizeInlineHeader,
