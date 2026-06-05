@@ -382,6 +382,11 @@ async function probeFMultiMessageChat(page) {
         record(`[F] FAIL: composer or ask button missing — Ask Pulse activated=${activated}`);
         return;
     }
+    const idle = await waitForAskPulseIdle(page, 90_000);
+    if (!idle) {
+        record(`[F] FAIL: Ask Pulse did not become idle after prior probe`);
+        return;
+    }
     const prompts = [
         "What is the total sales by category?",
         "Top 5 sub-categories by profit?",
@@ -408,10 +413,12 @@ async function probeFMultiMessageChat(page) {
     }
     const entryCount = await page.locator('[data-testid^="pp-ai-entry-"]').count();
     const pulseEntryCount = await page.locator(".gn-msg").count();
-    const badgeCount = await page.locator('[data-testid="trust-badge"]').count();
+    const nativeBadgeCount = await page.locator('[data-testid="trust-badge"]').count();
+    const pulseSurfaceTrustCount = await page.locator('[data-testid="pp-surface-context-trust"]').count();
     record(`[F] total native entries in DOM: ${entryCount}`);
     record(`[F] total Pulse entries in DOM: ${pulseEntryCount} (expect ≥ 6 after E5 + 3 prompts: user+assistant pairs)`);
-    record(`[F] total TrustBadges in DOM: ${badgeCount} (expect ~= entryCount of completed replies)`);
+    record(`[F] total native answer TrustBadges in DOM: ${nativeBadgeCount} (expect ~= native completed replies)`);
+    record(`[F] total Pulse surface trust chips in DOM: ${pulseSurfaceTrustCount} (expect ≥ 1 in Pulse mode)`);
     await page.screenshot({ path: join(OUT_DIR, "F-multi-message.png"), fullPage: true });
 }
 
@@ -419,16 +426,18 @@ async function probeFMultiMessageChat(page) {
 async function probeGGenieConversationReuse(page) {
     record(`\n[G] Genie conversation_id reuse (CLAUDE.md tripwire — N message_ids share 1 conversation_id)`);
     const starts = apiCalls.filter(c => c.url.includes("/conversations/start"));
+    const messagePosts = apiCalls.filter(c => c.method === "POST" && /\/conversations\/[^/]+\/messages(?:$|\?)/.test(new URL(c.url).pathname));
+    const messagePolls = apiCalls.filter(c => c.method === "GET" && /\/conversations\/[^/]+\/messages\/[^/]+/.test(new URL(c.url).pathname));
     record(`[G] observed POST /conversations/start count: ${starts.length}`);
-    record(`[G]   note: each "start" = a NEW conversation; expected reuse path is the /poll endpoint`);
-    const polls = apiCalls.filter(c => c.url.includes("/conversations/poll"));
-    record(`[G] observed GET /conversations/poll count: ${polls.length}`);
+    record(`[G] observed POST /conversations/{id}/messages count: ${messagePosts.length}`);
+    record(`[G] observed GET  /conversations/{id}/messages/{message_id} count: ${messagePolls.length}`);
+    record(`[G]   note: each "start" = a NEW conversation; typed follow-ups should use POST /conversations/{id}/messages, then poll the returned message_id`);
     // Tripwire: if the UI sometimes calls /start TWICE for what should be the same logical session,
     // that's the bug. We can't enforce the exact ratio without auth-aware deep inspection,
-    // but high /start count vs /poll count is a smoke signal.
-    if (polls.length > 0 && starts.length > 0) {
-        const ratio = (polls.length / starts.length).toFixed(2);
-        record(`[G] /poll : /start ratio = ${ratio} (>= 2 is healthy; ≤ 1 suggests over-creation of conversations)`);
+    // but high /start count with no follow-up message posts is a smoke signal.
+    if (messagePosts.length > 0 && starts.length > 0) {
+        const ratio = (messagePosts.length / starts.length).toFixed(2);
+        record(`[G] follow-up : start ratio = ${ratio} (higher is healthier; 0 suggests over-creation of conversations)`);
     }
 }
 
@@ -522,20 +531,46 @@ function askButtonLocator(page) {
     return page.locator("button.gn-send, button.pp-ai-sidebar__ask").first();
 }
 
+async function waitForAskPulseIdle(page, timeoutMs) {
+    const deadline = Date.now() + timeoutMs;
+    const composer = composerLocator(page);
+    const askBtn = askButtonLocator(page);
+    while (Date.now() < deadline) {
+        const idle = (await composer.count()) > 0
+            && (await askBtn.count()) > 0
+            && await composer.isVisible().catch(() => false)
+            && await askBtn.isVisible().catch(() => false)
+            && await page.evaluate(() => document.querySelectorAll(".gn-chat-progress").length === 0).catch(() => false);
+        if (idle) return true;
+        await page.waitForTimeout(1000);
+    }
+    return false;
+}
+
 // ─── Probe J: Reload state persistence ─────────────────────────────
 async function probeJStatePersistence(page) {
     record(`\n[J] State persistence across reload`);
     const beforeEntries = await chatEntryCount(page);
+    const beforeLastUser = await page.evaluate(() => {
+        const users = Array.from(document.querySelectorAll(".gn-chat-area .gn-msg--user"));
+        return (users[users.length - 1]?.textContent || "").trim();
+    });
+    const beforeTranscriptStored = await page.evaluate(() => Boolean(window.sessionStorage.getItem("pulseplay:ask-pulse-transcript:v1")));
     const beforeUiMode = await page.evaluate(() => window.localStorage.getItem("pulseplay:ui-mode"));
     const beforeProfile = await page.evaluate(() => window.localStorage.getItem("pulseplay:active-ai-profile"));
-    record(`[J] before reload: entries=${beforeEntries} uiMode=${JSON.stringify(beforeUiMode)} profile=${JSON.stringify(beforeProfile)}`);
+    record(`[J] before reload: entries=${beforeEntries} transcriptStored=${beforeTranscriptStored} uiMode=${JSON.stringify(beforeUiMode)} profile=${JSON.stringify(beforeProfile)}`);
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.waitForTimeout(900);
+    await activateAskPulseSurface(page);
     const afterEntries = await chatEntryCount(page);
+    const afterTranscriptStored = await page.evaluate(() => Boolean(window.sessionStorage.getItem("pulseplay:ask-pulse-transcript:v1")));
+    const afterChatText = await page.evaluate(() => document.querySelector(".gn-chat-area")?.textContent || "");
+    const promptRestored = Boolean(beforeLastUser && afterChatText.includes(beforeLastUser.slice(0, 120)));
     const afterUiMode = await page.evaluate(() => window.localStorage.getItem("pulseplay:ui-mode"));
     const afterProfile = await page.evaluate(() => window.localStorage.getItem("pulseplay:active-ai-profile"));
-    record(`[J] after  reload: entries=${afterEntries} uiMode=${JSON.stringify(afterUiMode)} profile=${JSON.stringify(afterProfile)}`);
+    record(`[J] after  reload: entries=${afterEntries} transcriptStored=${afterTranscriptStored} promptRestored=${promptRestored} uiMode=${JSON.stringify(afterUiMode)} profile=${JSON.stringify(afterProfile)}`);
     record(`[J] chat history persisted? ${afterEntries === beforeEntries && beforeEntries > 0 ? "✅" : afterEntries === 0 ? "❌ (cleared on reload — design choice or bug?)" : "PARTIAL"}`);
+    record(`[J] last user prompt restored? ${promptRestored ? "✅" : "❌"}`);
     record(`[J] uiMode persisted?       ${afterUiMode === beforeUiMode ? "✅" : "❌"}`);
     record(`[J] profile persisted?      ${afterProfile === beforeProfile ? "✅" : "❌"}`);
     await page.screenshot({ path: join(OUT_DIR, "J-after-reload.png"), fullPage: false });
@@ -565,7 +600,7 @@ async function waitForLastEntryFinal(page, timeoutMs) {
 async function chatEntryCount(page) {
     return page.evaluate(() => {
         const nativeEntries = document.querySelectorAll('[data-testid^="pp-ai-entry-"]').length;
-        const pulseEntries = document.querySelectorAll(".gn-msg").length;
+        const pulseEntries = document.querySelectorAll(".gn-chat-area .gn-msg").length;
         return Math.max(nativeEntries, pulseEntries);
     });
 }

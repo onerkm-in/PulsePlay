@@ -5,6 +5,19 @@
 
 ---
 
+## 2026-06-06 — Pulse-mode caveats closed: conversation reuse, reload transcript, surface trust evidence
+
+Follow-up to the live browser org-readiness loop and Rajesh's "merge everything to main" request. Remote branch audit found `main` already aligned with `origin/main`; old remote branches had **0** unique commits, so there was nothing safe/meaningful to merge from stale branch refs. The real work was the three remaining Pulse-mode caveats from the intense audit.
+
+- **Conversation reuse:** Fixed the misleading harness probe to count the actual Pulse route shape (`POST /conversations/{id}/messages` and `GET /conversations/{id}/messages/{message_id}`, not a nonexistent `/conversations/poll`). Added a conversation-id ref/helper in [playground/src/pulse/visual.tsx](../playground/src/pulse/visual.tsx) so Ask Pulse can reuse conversation ids immediately, including KPI preload and Insights follow-up races.
+- **Reload persistence:** Added session-scoped Ask Pulse transcript persistence (`sessionStorage`, not `localStorage`) for completed user/assistant turns plus conversation ids. Snapshots are scoped to connection/profile/space, cap message/result size, discard running placeholders, and hydrate before KPI preload can start a new cold thread. Added [playground/src/pulse/__tests__/chatStatePersistence.test.ts](../playground/src/pulse/__tests__/chatStatePersistence.test.ts).
+- **Trust evidence parity:** Kept the distinction honest: Pulse does not render native per-answer `trust-badge`; it renders surface-level trust. Added `pp-surface-context-trust` to the rendered app footer in [playground/src/App.tsx](../playground/src/App.tsx) and updated [playground/scripts/verify-unified-screen-intense.mjs](../playground/scripts/verify-unified-screen-intense.mjs) to count native answer badges separately from Pulse surface trust chips.
+- **Validation:** `npm.cmd run lint` passed. Focused `npm.cmd test -- chatStatePersistence computeSurfaceContext viewportControls SurfaceContextStrip UnifiedAssistantSurface` passed **7 files / 81 tests**. Full playground `npm.cmd test` passed **143 files / 1926 tests**. `npm.cmd run build` passed. Final headed `node playground/scripts/verify-unified-screen-intense.mjs` passed with **0 console errors, 0 page errors, 0 network 4xx/5xx/failures**, **178 `/api/*` calls**, **8 Pulse chat entries**, **promptRestored=true**, **1 Pulse surface trust chip**, and **follow-up:start ratio 2.00**.
+
+**Remaining honesty boundary:** This closes the named Pulse-mode audit caveats for the tested live slice. It is still not a formal all-vendor/all-connector enterprise certification; Tableau/Qlik/Looker remain iframe fallback adapters until their SDK integrations graduate.
+
+---
+
 ## 2026-06-06 — Dedock/pop-out now mirrors active pane; validated and ready to publish
 
 Closed Rajesh's live observation that a dedocked Ask Pulse/chat screen must reflect the same active screen instead of showing a fresh or stale duplicate.

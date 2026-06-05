@@ -752,6 +752,187 @@ interface ChatMessageViewModel extends GenieMessage {
     dmlVerb?: string;
 }
 
+const PULSE_CHAT_STATE_STORAGE_KEY = "pulseplay:ask-pulse-transcript:v1";
+const PULSE_CHAT_STATE_VERSION = 1;
+const PULSE_CHAT_STATE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const PULSE_CHAT_STATE_MAX_MESSAGES_PER_SPACE = 24;
+const PULSE_CHAT_STATE_MAX_CONTENT_CHARS = 16_000;
+const PULSE_CHAT_STATE_MAX_RESULT_ROWS = 50;
+const PULSE_CHAT_STATE_SPACE_KEYS: SpaceKey[] = [
+    "space1",
+    "space2",
+    "space3",
+    "space4",
+    "space5",
+    "space6",
+    "space7",
+    "space8",
+    "space9",
+    "space10",
+];
+
+interface PersistedPulseChatState {
+    version: typeof PULSE_CHAT_STATE_VERSION;
+    connectionContextKey: string;
+    savedAt: number;
+    conversationMap: Record<string, string>;
+    messageMap: Record<string, ChatMessageViewModel[]>;
+}
+
+function clipPulseChatText(value: unknown, max = PULSE_CHAT_STATE_MAX_CONTENT_CHARS): string | undefined {
+    if (typeof value !== "string") return undefined;
+    return value.length > max ? value.slice(0, max) : value;
+}
+
+function clonePulseChatQueryResult(queryResult: ChatMessageViewModel["queryResult"]): ChatMessageViewModel["queryResult"] {
+    if (!queryResult || !Array.isArray(queryResult.columns) || !Array.isArray(queryResult.rows)) return queryResult;
+    const rows = queryResult.rows.slice(0, PULSE_CHAT_STATE_MAX_RESULT_ROWS);
+    return {
+        ...queryResult,
+        columns: queryResult.columns.slice(0, 80),
+        rows,
+        truncated: queryResult.truncated || queryResult.rows.length > rows.length,
+        totalRows: typeof queryResult.totalRows === "number" ? queryResult.totalRows : queryResult.rows.length,
+    };
+}
+
+function clonePulseChatMessageForStorage(message: ChatMessageViewModel): ChatMessageViewModel | null {
+    if (message.role !== "user" && message.role !== "assistant") return null;
+    if (message.status === "RUNNING") return null;
+    const content = clipPulseChatText(message.content) ?? "";
+    const clone: ChatMessageViewModel = {
+        id: String(message.id || createLocalId("restored")),
+        role: message.role,
+        status: message.status || "COMPLETED",
+        content,
+    };
+    if (message.viewMode) clone.viewMode = message.viewMode;
+    if (message.sourceQuestion) clone.sourceQuestion = clipPulseChatText(message.sourceQuestion);
+    if (message.feedback) clone.feedback = message.feedback;
+    if (message.feedbackComment) clone.feedbackComment = clipPulseChatText(message.feedbackComment, 2_000);
+    if (message.feedbackReason) clone.feedbackReason = clipPulseChatText(message.feedbackReason, 2_000);
+    if (message.route) clone.route = message.route;
+    if (message.sqlQuery) clone.sqlQuery = clipPulseChatText(message.sqlQuery);
+    if (Array.isArray(message.trace)) clone.trace = message.trace.slice(0, 20).map(item => clipPulseChatText(item, 2_000) ?? "");
+    if (message.queryResult) clone.queryResult = clonePulseChatQueryResult(message.queryResult);
+    if (message.forcedChartType) clone.forcedChartType = message.forcedChartType;
+    if (message.genieViz) clone.genieViz = message.genieViz;
+    if (message.suggestedActions?.length) clone.suggestedActions = message.suggestedActions.slice(0, 6);
+    if (message.dmlWarning) clone.dmlWarning = true;
+    if (message.dmlVerb) clone.dmlVerb = message.dmlVerb;
+    return clone;
+}
+
+function clonePulseChatMessageMapForStorage(messageMap: Record<string, ChatMessageViewModel[]>): Record<string, ChatMessageViewModel[]> {
+    const next: Record<string, ChatMessageViewModel[]> = {};
+    for (const spaceKey of PULSE_CHAT_STATE_SPACE_KEYS) {
+        const messages = messageMap[spaceKey] ?? [];
+        const terminal = messages
+            .map(clonePulseChatMessageForStorage)
+            .filter((message): message is ChatMessageViewModel => Boolean(message))
+            .slice(-PULSE_CHAT_STATE_MAX_MESSAGES_PER_SPACE);
+        if (terminal.length > 0) next[spaceKey] = terminal;
+    }
+    return next;
+}
+
+function clonePulseConversationMapForStorage(conversationMap: Record<string, string>): Record<string, string> {
+    const next: Record<string, string> = {};
+    for (const spaceKey of PULSE_CHAT_STATE_SPACE_KEYS) {
+        const conversationId = conversationMap[spaceKey];
+        if (typeof conversationId === "string" && conversationId.trim()) {
+            next[spaceKey] = conversationId.trim();
+        }
+    }
+    return next;
+}
+
+function buildPulseChatStateSnapshot(
+    connectionContextKey: string,
+    conversationMap: Record<string, string>,
+    messageMap: Record<string, ChatMessageViewModel[]>,
+): PersistedPulseChatState | null {
+    const persistedConversations = clonePulseConversationMapForStorage(conversationMap);
+    const persistedMessages = clonePulseChatMessageMapForStorage(messageMap);
+    if (Object.keys(persistedConversations).length === 0 && Object.keys(persistedMessages).length === 0) {
+        return null;
+    }
+    return {
+        version: PULSE_CHAT_STATE_VERSION,
+        connectionContextKey,
+        savedAt: Date.now(),
+        conversationMap: persistedConversations,
+        messageMap: persistedMessages,
+    };
+}
+
+function parsePulseChatStateSnapshot(raw: string | null, connectionContextKey: string): PersistedPulseChatState | null {
+    if (!raw) return null;
+    let parsed: Partial<PersistedPulseChatState> | null = null;
+    try {
+        parsed = JSON.parse(raw) as Partial<PersistedPulseChatState>;
+    } catch {
+        return null;
+    }
+    if (!parsed || parsed.version !== PULSE_CHAT_STATE_VERSION) return null;
+    if (parsed.connectionContextKey !== connectionContextKey) return null;
+    if (typeof parsed.savedAt !== "number" || Date.now() - parsed.savedAt > PULSE_CHAT_STATE_TTL_MS) return null;
+    return {
+        version: PULSE_CHAT_STATE_VERSION,
+        connectionContextKey,
+        savedAt: parsed.savedAt,
+        conversationMap: clonePulseConversationMapForStorage(parsed.conversationMap ?? {}),
+        messageMap: clonePulseChatMessageMapForStorage(parsed.messageMap ?? {}),
+    };
+}
+
+function readPulseChatStateFromStorage(connectionContextKey: string): PersistedPulseChatState | null {
+    if (typeof window === "undefined") return null;
+    try {
+        return parsePulseChatStateSnapshot(window.sessionStorage.getItem(PULSE_CHAT_STATE_STORAGE_KEY), connectionContextKey);
+    } catch {
+        return null;
+    }
+}
+
+function writePulseChatStateToStorage(
+    connectionContextKey: string,
+    conversationMap: Record<string, string>,
+    messageMap: Record<string, ChatMessageViewModel[]>,
+): void {
+    if (typeof window === "undefined") return;
+    try {
+        const snapshot = buildPulseChatStateSnapshot(connectionContextKey, conversationMap, messageMap);
+        if (!snapshot) {
+            window.sessionStorage.removeItem(PULSE_CHAT_STATE_STORAGE_KEY);
+            return;
+        }
+        window.sessionStorage.setItem(PULSE_CHAT_STATE_STORAGE_KEY, JSON.stringify(snapshot));
+    } catch {
+        // Local persistence is a convenience layer. Quota/private-mode failures
+        // must never break Ask Pulse itself.
+    }
+}
+
+export function __buildPulseChatStateSnapshotForTest(
+    connectionContextKey: string,
+    conversationMap: Record<string, string>,
+    messageMap: Record<string, Array<Partial<ChatMessageViewModel>>>,
+): PersistedPulseChatState | null {
+    return buildPulseChatStateSnapshot(
+        connectionContextKey,
+        conversationMap,
+        messageMap as Record<string, ChatMessageViewModel[]>,
+    );
+}
+
+export function __parsePulseChatStateSnapshotForTest(
+    raw: string | null,
+    connectionContextKey: string,
+): PersistedPulseChatState | null {
+    return parsePulseChatStateSnapshot(raw, connectionContextKey);
+}
+
 /**
  * IDEA-039 Phase 1 — per-stage observability artifact for AI Insights runs.
  * Captured in `runInsights()` and attached to the `ChatMessageViewModel` so
@@ -1204,6 +1385,24 @@ function App(props: AppProps) {
     const [conversationMap, setConversationMap] = useState<Record<string, string>>({});
     const [messageMap,      setMessageMap]      = useState<Record<string, ChatMessageViewModel[]>>({});
     const messages             = messageMap[activeSpaceKey] ?? [];
+    const [chatStateHydratedKey, setChatStateHydratedKey] = useState<string | null>(null);
+    const conversationMapRef = React.useRef<Record<string, string>>({});
+    const rememberConversationId = useCallback((
+        spaceKey: SpaceKey,
+        conversationId: string | null | undefined,
+        mode: "overwrite" | "ifMissing" = "overwrite",
+    ) => {
+        const trimmed = typeof conversationId === "string" ? conversationId.trim() : "";
+        if (!trimmed) return;
+        const current = conversationMapRef.current;
+        if (mode === "ifMissing" && current[spaceKey]) return;
+        const next = { ...current, [spaceKey]: trimmed };
+        conversationMapRef.current = next;
+        setConversationMap(previous => {
+            if (mode === "ifMissing" && previous[spaceKey]) return previous;
+            return { ...previous, [spaceKey]: trimmed };
+        });
+    }, []);
 
     // Reset the conversation map when the user switches connection mode or
     // changes the upstream host. Conversation IDs are scoped to a specific
@@ -1211,15 +1410,32 @@ function App(props: AppProps) {
     // different direct-mode host produces a 404. The message history stays
     // (the user can still scroll back); only the routing key resets so the
     // next message starts a fresh conversation in the new context.
-    const connectionContextKey = `${props.settings.connectionMode}|${props.settings.host}|${props.settings.apiBaseUrl}`;
+    const connectionContextKey = [
+        props.settings.connectionMode,
+        props.settings.host,
+        props.settings.apiBaseUrl,
+        activeSpace?.genieConfig.assistantProfile || props.settings.assistantProfile || "",
+        activeSpace?.genieConfig.spaceId || "",
+        askPulseProfileOverride || "",
+    ].join("|");
     useEffect(() => {
-        setConversationMap({});
+        const restored = readPulseChatStateFromStorage(connectionContextKey);
+        const restoredConversationMap = restored?.conversationMap ?? {};
+        conversationMapRef.current = restoredConversationMap;
+        setConversationMap(restoredConversationMap);
+        setMessageMap(restored?.messageMap ?? {});
+        setChatStateHydratedKey(connectionContextKey);
         // Reset preload guard when the connection context changes so the new
         // backend gets its own preload conversation.
         kpiPreloadRef.current = {};
         setKpiSnapshotMap({});
         setKpiLoadingMap({});
     }, [connectionContextKey]);
+
+    useEffect(() => {
+        if (chatStateHydratedKey !== connectionContextKey) return;
+        writePulseChatStateToStorage(connectionContextKey, conversationMap, messageMap);
+    }, [chatStateHydratedKey, connectionContextKey, conversationMap, messageMap]);
 
     // ── Per-space insights state ──────────────────────────────────────────────
     const [insightsResultMap,    setInsightsResultMap]    = useState<Record<string, ChatMessageViewModel | null>>({});
@@ -2766,6 +2982,7 @@ function App(props: AppProps) {
     useEffect(() => {
         if (activeTab !== "chat") return;
         if (!isConfigured || !activeClient) return;
+        if (chatStateHydratedKey !== connectionContextKey) return;
         if ((messageMap[activeSpaceKey] ?? []).length > 0) return;
         if (conversationMap[activeSpaceKey]) return;
         if (kpiPreloadRef.current[activeSpaceKey]) return;
@@ -2794,6 +3011,10 @@ function App(props: AppProps) {
                     { kbFlags, omitDomainGuidance: true, omitAnalyticsKB: true, omitBriefingFormat: true }
                 );
                 const start = await client.startConversation(req, { intent: "summary", contextText: "" });
+                // Seed as soon as the backend gives us the id. Waiting for the
+                // preload body creates a race where the first typed question
+                // can start a second cold conversation.
+                rememberConversationId(spaceKey, start.conversationId, "ifMissing");
                 const response = await client.waitForMessageWithProgress(
                     start.conversationId,
                     start.messageId,
@@ -2802,9 +3023,7 @@ function App(props: AppProps) {
                 if (response?.content) {
                     // Pre-seed the conversation so the user's first question
                     // continues this thread rather than starting a new one.
-                    setConversationMap(prev =>
-                        prev[spaceKey] ? prev : { ...prev, [spaceKey]: start.conversationId }
-                    );
+                    rememberConversationId(spaceKey, start.conversationId, "ifMissing");
                     // Route any leading clarifying question to the follow-up
                     // chip strip; keep the snapshot itself clean.
                     const { cleaned, clarifiers } = extractAndStripClarifiers(response.content);
@@ -2825,9 +3044,9 @@ function App(props: AppProps) {
             }
         })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeTab, activeSpaceKey, isConfigured]);
+    }, [activeTab, activeSpaceKey, isConfigured, chatStateHydratedKey, connectionContextKey]);
 
-    const runAssistant = async (input: string, intent: AssistantIntent) => {
+    const runAssistant = async (input: string, intent: AssistantIntent, forcedConversationId?: string) => {
         const trimmed = input.trim();
         // Part C P2 — Ask Pulse sends through its surface-specific client when a
         // per-surface connector is bound (else the shared activeClient). The
@@ -2835,7 +3054,7 @@ function App(props: AppProps) {
         // a different connector for this surface needs this different client.
         const client = askPulseClient;
         const spaceKey = activeSpaceKey;
-        const conversationId = conversationMap[spaceKey] ?? "";
+        const conversationId = forcedConversationId || conversationMapRef.current[spaceKey] || "";
 
         // Client-side short-circuit for empty questions to prevent unnecessary proxy calls.
         if (!trimmed) {
@@ -2951,7 +3170,7 @@ function App(props: AppProps) {
                         }
                         : m));
                     if (streamResult.conversation_id || streamResult.conversationId) {
-                        setConversationMap(prev => ({ ...prev, [spaceKey]: (streamResult.conversation_id || streamResult.conversationId) as string }));
+                        rememberConversationId(spaceKey, (streamResult.conversation_id || streamResult.conversationId) as string);
                     }
                     setBusy(false);
                     return;
@@ -2969,7 +3188,7 @@ function App(props: AppProps) {
                 : await client.startConversation(request, { intent, contextText: "" });
             const resolvedConversationId = start.conversationId || conversationId;
             if (resolvedConversationId) {
-                setConversationMap(previous => ({ ...previous, [spaceKey]: resolvedConversationId }));
+                rememberConversationId(spaceKey, resolvedConversationId);
             }
 
             const response = await client.waitForMessageWithProgress(
@@ -3217,7 +3436,7 @@ function App(props: AppProps) {
                     ? await client.sendMessage(convId, request, { intent, contextText: "" })
                     : await client.startConversation(request, { intent, contextText: "" });
                 const resolvedConvId = start.conversationId || convId;
-                if (resolvedConvId) setConversationMap(prev => ({ ...prev, [spaceKey]: resolvedConvId }));
+                if (resolvedConvId) rememberConversationId(spaceKey, resolvedConvId);
 
                 const response = await client.waitForMessageWithProgress(
                     resolvedConvId, start.messageId,
@@ -6716,7 +6935,7 @@ function App(props: AppProps) {
                                                 // conversationId is set.
                                                 const insightsConv = insightsStage1ConvId[activeSpaceKey];
                                                 if (insightsConv && !conversationMap[activeSpaceKey]) {
-                                                    setConversationMap(prev => ({ ...prev, [activeSpaceKey]: insightsConv }));
+                                                    rememberConversationId(activeSpaceKey, insightsConv);
                                                 }
                                                 // Single-use: drop this clarifier so it doesn't
                                                 // persist after the user has acted on it.
@@ -6724,7 +6943,7 @@ function App(props: AppProps) {
                                                     ...prev,
                                                     [activeSpaceKey]: (prev[activeSpaceKey] ?? []).filter(x => x !== q),
                                                 }));
-                                                void runAssistant(q, "summary");
+                                                void runAssistant(q, "summary", insightsConv || undefined);
                                             }}
                                         >
                                             <span aria-hidden="true">✨</span> {q.length > 60 ? q.slice(0, 57) + "…" : q}
@@ -8788,7 +9007,16 @@ function PulseContextSetup(props: {
             >
                 <span className="gn-context-setup__gear" aria-hidden="true">⚙</span>
                 <span className="gn-context-setup__label">Context</span>
-                {trust && <span className={`gn-surface-context__badge gn-surface-context__badge--${tone}`}>{trust.value}</span>}
+                {trust && (
+                    <span
+                        className={`gn-surface-context__badge gn-surface-context__badge--${tone}`}
+                        data-testid="pp-surface-context-trust"
+                        data-trust-tone={tone}
+                        aria-label={`Trust: ${trust.value}`}
+                    >
+                        {trust.value}
+                    </span>
+                )}
                 <span className="gn-context-setup__chevron" aria-hidden="true">▾</span>
             </button>
             {open && (

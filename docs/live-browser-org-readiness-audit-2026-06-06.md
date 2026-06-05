@@ -40,9 +40,7 @@
   - Mobile viewport: composer remained reachable at `768x900`; no horizontal overflow.
   - Detach/minimize: floating and dock slots activated.
 - Remaining product caveats from the final pass:
-  - Conversation reuse tripwire is still not clean: 4 submits produced 4 `POST /conversations/start` calls and 0 `/conversations/poll` calls. The UI also uses `/conversations/{id}/messages`; the follow-up should decide whether this is acceptable Pulse-mode behavior or whether one logical chat session must reuse a single upstream conversation.
-  - Reload persistence is partial: chat entries went **8 before reload -> 1 after reload**. Profile and `uiMode` persisted, but the transcript did not fully restore.
-  - Pulse-mode answer cards do not emit native `trust-badge` test ids; the final pass had `0` TrustBadges even though answers completed. Treat this as a test-surface parity gap or a UX evidence gap to resolve before formal certification.
+  - Conversation reuse tripwire, reload transcript persistence, and Pulse surface trust evidence were observed as caveats after this pass and are resolved in the follow-up addendum below.
   - Dedock/pop-out mirroring gap was observed after the final intense pass and is resolved in the follow-up addendum below.
 
 ## Dedock mirror addendum (user-observed continuity gap closed)
@@ -52,10 +50,18 @@
 - Validation: `npm.cmd run lint` passed; `npm.cmd test -- viewportControls` passed **2 files / 36 tests**; full playground `npm.cmd test` passed **142 files / 1924 tests**; `npm.cmd run build` passed; headed `node playground/scripts/verify-detach-mirroring.mjs` passed with `aiChrome 1 -> 1`, `float slot 0 -> 1`, `liveMirror=1`, `sentinelInMirror=true`.
 - Scope note: the fixed behavior is a read-only live mirror, not a fully interactive second pane. That is intentional to avoid two independent chat/BI sessions. Fully interactive companion windows should remain a separate product slice if needed.
 
+## Pulse-mode caveat addendum (conversation reuse, reload transcript, trust evidence closed)
+- Branch audit: `main` was aligned with `origin/main`, and the remaining old remote branches had **0** unique commits versus `main`. There was no stale branch work left to merge.
+- Conversation reuse finding: the earlier harness counted a nonexistent `/conversations/poll` endpoint. Pulse-mode uses `POST /conversations/{id}/messages` for follow-up turns and `GET /conversations/{id}/messages/{message_id}` for polling. The harness now reports those real routes, and `visual.tsx` uses a ref-backed conversation-id helper so KPI preload and Insights follow-up races do not start avoidable cold conversations.
+- Reload persistence fix: completed Ask Pulse turns and conversation ids now persist in sessionStorage under `pulseplay:ask-pulse-transcript:v1`, scoped to connection/profile/space. Running placeholders are discarded, message/result size is capped, and hydration runs before KPI preload.
+- Trust evidence fix: Pulse surface trust is now exposed as `pp-surface-context-trust` and remains distinct from native per-answer `trust-badge`. This is deliberately honest: Pulse has surface-level trust evidence in this path, not native artifact-level answer validation.
+- Regression coverage: new `chatStatePersistence.test.ts` covers snapshot build/restore, scope mismatch, expiry, pruning, and running-message cleanup; existing `computeSurfaceContext`, viewport, SurfaceContextStrip, and UnifiedAssistantSurface tests continue to lock the trust ladder and selectors.
+- Final validation: `npm.cmd run lint` passed; focused tests passed **7 files / 81 tests**; full playground `npm.cmd test` passed **143 files / 1926 tests**; `npm.cmd run build` passed; final headed `node playground/scripts/verify-unified-screen-intense.mjs` completed with **0 console errors, 0 page errors, 0 network 4xx/5xx/failures**, **178 `/api/*` calls**, **8 Pulse chat entries**, **promptRestored=true**, **1 Pulse surface trust chip**, and **follow-up:start ratio 2.00**.
+
 ## Consolidated outcome
 - Initial audit status: **Not org-standard yet**.
 - Recovery status: **tested critical Ask/Insights/Power BI chart blockers cleared, and the full headed intense suite is now green on runtime/browser error budget**.
-- Net quality signal: **improved to conditional release-candidate / internal pilot** — browser stability is now clean under the observed intense run, and dedock mirroring is now fixed. Formal org-standard certification should still wait on the conversation-reuse, transcript-persistence, and trust-evidence parity caveats above.
+- Net quality signal: **improved to conditional release-candidate / internal pilot for the tested Pulse-mode slice** — browser stability is clean under the final observed intense run, dedock mirroring is fixed, and the named Pulse-mode conversation/reload/trust caveats are closed. Formal all-vendor/all-connector org-standard certification still requires broader live validation beyond this tested slice.
 
 ## Sub-agent assessment (hard review)
 
