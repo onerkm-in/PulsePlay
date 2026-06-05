@@ -1843,35 +1843,45 @@ describe('BUG-015 — cost-bearing route gating invariants', () => {
     const ALLOWLISTED_PREFIXES = ['/assistant', '/warehouse', '/history', '/openai', '/bedrock', '/responses-agent', '/foundation', '/supervisor', '/confidence', '/sql', '/insights'];
 
     // Walk the Express app's router stack and collect every (prefix, layer-name)
-    // pair from `app.use(prefix, middleware)` mounts. Express stores prefix
-    // mounts as layers whose `regexp` matches the prefix and whose `handle.name`
-    // is the middleware function name. This covers Express 4.x layouts.
-    function collectPrefixMounts(app) {
+    // pair from `app.use(prefix, middleware)` mounts. `handle.name` is the
+    // middleware function name. Express 4.x exposed the mount path on
+    // `layer.regexp.source`; Express 5.x (path-to-regexp v8) stores opaque
+    // `matchers` instead, with no readable prefix — so for v5 we resolve the
+    // prefix by probing `layer.match(candidate)` against the known prefix set.
+    // `candidatePrefixes` is the union of all prefixes the assertions check.
+    function collectPrefixMounts(app, candidatePrefixes) {
         const out = [];
         const stack = (app._router && app._router.stack) || (app.router && app.router.stack) || [];
         for (const layer of stack) {
-            // Only look at app.use() mounts — these have a `regexp` and no `route`.
+            // Only look at app.use() mounts — these have no `route`.
             if (layer.route) continue;
-            // Express stores the mount path on `layer.regexp` — convert via the
-            // `path` getter when available, else regex source. Prefer the
-            // explicit `path` set by some Express versions; otherwise scrape.
-            let prefix = null;
-            if (typeof layer.path === 'string') {
-                prefix = layer.path;
-            } else if (layer.regexp && typeof layer.regexp.source === 'string') {
-                // Source looks like '^\/assistant\/?(?=\/|$)' — extract the
-                // first segment, unescape, prefix with '/'.
-                const m = layer.regexp.source.match(/^\^\\\/([\w\-]+)\\\//);
-                if (m) prefix = '/' + m[1];
-            }
             const handleName = (layer.handle && layer.handle.name) || '';
-            if (prefix) out.push({ prefix, handleName });
+            // Express 4 fast path: explicit path or scrapeable regexp source.
+            if (typeof layer.path === 'string') {
+                out.push({ prefix: layer.path, handleName });
+                continue;
+            }
+            if (layer.regexp && typeof layer.regexp.source === 'string') {
+                const m = layer.regexp.source.match(/^\^\\\/([\w\-]+)\\\//);
+                if (m) { out.push({ prefix: '/' + m[1], handleName }); continue; }
+            }
+            // Express 5 path: probe the layer's matcher against each candidate
+            // prefix. A prefix mount matches its own prefix; record the first hit
+            // (each guard layer is mounted at exactly one prefix).
+            if (typeof layer.match === 'function' && Array.isArray(candidatePrefixes)) {
+                for (const p of candidatePrefixes) {
+                    let hit = false;
+                    try { hit = layer.match(p); } catch { hit = false; }
+                    if (hit) { out.push({ prefix: p, handleName }); break; }
+                }
+            }
         }
         return out;
     }
 
     describe('structural — middleware is mounted at the right prefix', () => {
-        const mounts = collectPrefixMounts(app);
+        const ALL_PREFIXES = [...new Set([...RATE_LIMITED_PREFIXES, ...SHARED_KEY_PREFIXES, ...ALLOWLISTED_PREFIXES])];
+        const mounts = collectPrefixMounts(app, ALL_PREFIXES);
 
         it.each(RATE_LIMITED_PREFIXES)('rateLimitMiddleware mounted at %s', (prefix) => {
             const found = mounts.some(m => m.prefix === prefix && m.handleName === 'rateLimitMiddleware');
