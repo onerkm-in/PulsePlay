@@ -20,9 +20,11 @@ import { isFeatureEnabled } from "../featureFlags";
 export const SURFACE_CONNECTORS_KEY = "pulseplay:surface-connectors";
 export const SURFACE_CONNECTORS_EVENT = "pulseplay:surface-connectors-change";
 
-/** The surfaces that can carry their own AI connector. "bi-viz" (Dashboard) is
- *  BI-only — it has no AI profile — so it is intentionally excluded. */
-export type ConnectorSurfaceId = "ai-insights" | "ask-pulse";
+/** The surfaces that can carry their own AI connector. "bi-viz" (Dashboard) now
+ *  participates too: its binding drives the Dashboard surface's assistant
+ *  identity (the BI embed itself is vendor-driven, but its AI assistant follows
+ *  the per-surface connector when the flag is on). */
+export type ConnectorSurfaceId = "ai-insights" | "ask-pulse" | "bi-viz";
 
 /** SurfaceId → AI profile name (a proxy profile key). A missing / empty entry
  *  means "inherit the single shared connector" for that surface. */
@@ -36,7 +38,7 @@ function readRaw(): SurfaceConnectorMap {
         const parsed = JSON.parse(raw);
         if (!parsed || typeof parsed !== "object") return {};
         const out: SurfaceConnectorMap = {};
-        for (const k of ["ai-insights", "ask-pulse"] as ConnectorSurfaceId[]) {
+        for (const k of ["ai-insights", "ask-pulse", "bi-viz"] as ConnectorSurfaceId[]) {
             const v = (parsed as Record<string, unknown>)[k];
             if (typeof v === "string" && v.trim()) out[k] = v.trim();
         }

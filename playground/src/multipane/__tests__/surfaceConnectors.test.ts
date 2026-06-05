@@ -47,6 +47,24 @@ describe("surfaceConnectors — gated on the flag (OFF = inherit shared)", () =>
         expect(getSurfaceProfile("ai-insights")).toBe("powerbi-dwd");
         expect(getSurfaceProfile("ask-pulse")).toBeNull();
     });
+
+    it("Dashboard (bi-viz) carries its own connector too — all three independent", () => {
+        setFeatureFlag("multiConnectorPanes", true);
+        setSurfaceProfile("ai-insights", "powerbi-dwd");
+        setSurfaceProfile("ask-pulse", "default");
+        setSurfaceProfile("bi-viz", "default");
+        // AI Insights → Power BI, Ask Pulse → Genie, Dashboard → Genie, at once.
+        expect(getSurfaceProfile("ai-insights")).toBe("powerbi-dwd");
+        expect(getSurfaceProfile("ask-pulse")).toBe("default");
+        expect(getSurfaceProfile("bi-viz")).toBe("default");
+    });
+
+    it("Dashboard (bi-viz) binding returns null when the flag is OFF", () => {
+        setFeatureFlag("multiConnectorPanes", true);
+        setSurfaceProfile("bi-viz", "default");
+        setFeatureFlag("multiConnectorPanes", false);
+        expect(getSurfaceProfile("bi-viz")).toBeNull();
+    });
 });
 
 describe("surfaceConnectors — set / clear / reset", () => {

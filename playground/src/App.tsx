@@ -83,6 +83,8 @@ import { LaunchpadShell } from "./launchpad/LaunchpadShell";
 import { MultiPaneDemoShell } from "./multipane/MultiPaneDemoShell";
 import { useMultiPaneRoute } from "./multipane/multiPaneRoute";
 import { SurfaceConnectorBar } from "./multipane/SurfaceConnectorBar";
+import { getSurfaceProfile, SURFACE_CONNECTORS_EVENT } from "./multipane/surfaceConnectors";
+import { FEATURE_FLAGS_EVENT } from "./featureFlags";
 import { useLaunchpadRoute } from "./launchpad/launchpadRoute";
 import { WorkbenchShell } from "./workbench/WorkbenchShell";
 import { useWorkbenchRoute } from "./workbench/workbenchRoute";
@@ -1291,7 +1293,28 @@ function PlaygroundApp(): React.ReactElement {
         if (biSurfaceResolution.usesNative || runtimeBiVendor === "native") return "Pulse Canvas";
         return visibleVendors.find(v => v.vendor === runtimeBiVendor)?.displayName || runtimeBiVendor;
     }, [biSurfaceResolution.usesNative, runtimeBiVendor, visibleVendors]);
-    const dashboardAssistantLabel = pulseAssistantProfile || activeConnector || "No assistant";
+    // Part C P2 — Dashboard per-surface connector. When the multiConnectorPanes
+    // flag is ON and the Dashboard surface is bound to its own profile, that
+    // profile drives the Dashboard's AI assistant identity; otherwise it falls
+    // back to the shared connector (flag-off ⇒ getSurfaceProfile returns null,
+    // so this is byte-for-byte unchanged). surfaceConnVersion forces a live
+    // re-read when the binding or flag changes in-tab.
+    const [surfaceConnVersion, setSurfaceConnVersion] = useState(0);
+    useEffect(() => {
+        const bump = () => setSurfaceConnVersion(v => v + 1);
+        window.addEventListener(SURFACE_CONNECTORS_EVENT, bump as EventListener);
+        window.addEventListener(FEATURE_FLAGS_EVENT, bump as EventListener);
+        return () => {
+            window.removeEventListener(SURFACE_CONNECTORS_EVENT, bump as EventListener);
+            window.removeEventListener(FEATURE_FLAGS_EVENT, bump as EventListener);
+        };
+    }, []);
+    const dashboardSurfaceProfile = useMemo(
+        () => getSurfaceProfile("bi-viz"),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [surfaceConnVersion],
+    );
+    const dashboardAssistantLabel = dashboardSurfaceProfile || pulseAssistantProfile || activeConnector || "No assistant";
     const dashboardPackLabel = packSelection?.pack
         ? packSelection.subVertical
             ? `${packSelection.pack} / ${packSelection.subVertical}`

@@ -27,6 +27,7 @@ interface SurfaceConnectorBarProps {
 const SURFACES: { id: ConnectorSurfaceId; label: string }[] = [
     { id: "ai-insights", label: "AI Insights" },
     { id: "ask-pulse", label: "Ask Pulse" },
+    { id: "bi-viz", label: "Dashboard" },
 ];
 
 /** Live profile list. The governance allowlist often doesn't enumerate
