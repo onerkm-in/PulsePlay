@@ -5,6 +5,20 @@
 
 ---
 
+## 2026-06-05 (later²) — Per-surface Dashboard connector + auto-seed (empty-Dashboard gap closed), all live-verified
+
+Live UI session driven by the user ("configure PBI→AI Insights, Genie→Ask Pulse, Genie→Dashboard, then close the empty-Dashboard gap"). Two features shipped to `main`, each live-verified in a real browser. Gates: lint clean, **playground 1917/1917**, multipane **27/27**, proxy untouched.
+
+- **Per-surface connector for Dashboard (`81bf5bf`).** Part C P2 per-surface connectors covered only {AI Insights, Ask Pulse}; extended to **Dashboard (bi-viz)**. `ConnectorSurfaceId` + the store read-allowlist gain `bi-viz`; `SurfaceConnectorBar` shows a third dropdown; `App.tsx` projects `getSurfaceProfile("bi-viz")` into the Dashboard's assistant identity with a live `SURFACE_CONNECTORS_EVENT`/`FEATURE_FLAGS_EVENT` refresh. Flag-gated on `multiConnectorPanes` (default OFF) ⇒ byte-for-byte unchanged when off. **Proven live:** global=powerbi-dwd + Dashboard bound to default(genie) → Dashboard footer reads "Default profile" (the per-surface binding overrides global). Ask Pulse→Genie correctly routes to Genie and shows the honest serverless-blocked card (upstream, not our code).
+- **Auto-seed starter charts — empty-Dashboard gap CLOSED (`dc5d864`).** The "gap" the user spotted: the Dashboard's native Pulse Canvas is blank until you pin charts. **Verdict: real but empty-by-default, not broken** — the pin→canvas flow works (verified: PBI by-dimension question → echarts chart → "Pin to canvas" → Dashboard tile). New flag `dashboardAutoSeed` (**DEFAULT ON**): when the canvas is empty AND a chart-capable connector is bound, auto-pin a few starter charts from the connected source. `buildStarterQuestions()` derives "<measure> by <dim>" from the probe's `declaredKpis` + `Dim*` table columns (drops id/key/name); the orchestrator runs them through the deterministic proxy path and pins only ≥2-row results (real charts), capped at 3 — self-correcting. **Proven live:** empty Dashboard + powerbi-dwd → auto-fills with "Total Sales by year" (bar), "by segment" (donut), "by region" (bar), real data, zero manual pinning.
+
+**Tripwires:**
+- **`dashboardAutoSeed` defaults ON** (only an explicit `false` disables it — `normalizeFeatureFlags` uses `!== false`). Tightly guarded: deterministic Power BI connector only (`connectorType === "powerbi-semantic-model"`), only when canvas empty, ONCE per profile (persisted `pulseplay:dashboard-autoseeded:<profile>` marker ⇒ a user's "Clear all" stays cleared — we never re-seed). FM is prose / Genie is blocked, so they don't auto-seed.
+- **`useDashboardAutoSeed` deliberately does NOT cancel the in-flight seed on effect cleanup.** The seed only writes localStorage + fires `CANVAS_TILES_EVENT` (no React state). The first version cancelled on cleanup; when the effect re-ran (a dep flipped) the cleanup aborted the only seed attempt while the `attempted` ref blocked the retry → canvas stayed empty (0 tiles). Removing the cancel fixed it. Don't re-add `cancelled` here.
+- **Per-surface connectors only affect AI assistant identity, not the BI vendor surface.** Binding Dashboard→Genie sets its assistant; the embedded report itself is still vendor-driven (and a real PBI report embed needs paid Premium/Fabric capacity — the free account shows the native Pulse Canvas instead, which is what auto-seed fills).
+
+---
+
 ## 2026-06-05 (later) — Dependency sweep: all 19 Dependabot bumps merged to main, tested one-by-one
 
 Brought every outstanding Dependabot bump onto `main`, each applied to current `main` (NOT cherry-picked — the branches were ~103 commits behind, so I re-derived each bump on HEAD, regenerated the lockfile, and ran the owning package's suite). **19/19 landed green; zero skipped.** Baseline first (proxy 1212/1212, playground 1906/1906, both enablers green), then per-unit commits, then final certification at main HEAD: **proxy 1212/1212 · playground 1906/1906 · lint clean · vite build clean · desktop 50/50 · pulse-pbi 93/93 + lint**. Main fast-forwarded `c2eb1b2 → da8550e` and pushed.
