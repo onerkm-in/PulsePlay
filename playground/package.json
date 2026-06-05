@@ -22,10 +22,10 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
-    "@tanstack/react-query-devtools": "^5.100.10",
+    "@tanstack/react-query-devtools": "^5.100.14",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
-    "@types/react": "^19.0.0",
+    "@types/react": "^19.2.15",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^5.0.0",
     "@vitest/coverage-v8": "^2.1.9",
