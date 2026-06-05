@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>PulsePlay — Report-Visual Render Verification (Item 1, STEP 2)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<!--
+  Item 1 (report-visual render) — STEP 2: the PIXEL render + browser leakage check.
+  DEV VERIFICATION HARNESS ONLY — not part of the app. Delete after verifying.
+
+  Serve it via the playground dev server (cd playground ; npm run dev) and open
+  http://127.0.0.1:7001/verify-report-visual.html so that /api/* proxies to the
+  proxy on :7000 (no CORS, and the token never leaves this origin). Run STEP 1
+  (scripts/verify-report-visual.mjs) first to confirm the SP can mint.
+-->
+<script src="https://unpkg.com/powerbi-client@2.23.1/dist/powerbi.min.js"></script>
+<style>
+  body { font: 14px/1.5 system-ui, sans-serif; margin: 24px; color: #1a1a2e; }
+  h1 { font-size: 18px; } p { max-width: 760px; }
+  label { display:block; margin:10px 0 2px; font-weight:600; }
+  input { width: 440px; max-width: 92vw; padding:6px 8px; font-family: monospace; }
+  button { margin-top:14px; padding:8px 18px; font-weight:600; cursor:pointer; }
+  #report { width: 100%; height: 540px; margin-top:16px; border:1px solid #ccc; }
+  #log { margin-top:12px; padding:12px; background:#0b1021; color:#cfe3ff; font-family:monospace;
+         white-space:pre-wrap; border-radius:6px; max-height:260px; overflow:auto; }
+  .ok { color:#3fb950; } .bad { color:#ff7b72; } .info { color:#7aa2f7; }
+</style>
+</head>
+<body>
+<h1>Report-Visual Render Verification — Item 1, STEP 2 (PIXEL + leakage)</h1>
+<p>Fill in your three real GUIDs, then <b>Mint + Render</b>. The harness mints a <b>View-scoped</b> token
+   via the proxy, embeds your report with <code>powerbi-client</code>, confirms the BIAdapter
+   <code>loaded</code>+<code>rendered</code> events fire, checks the embed URL host (B5), and verifies the
+   token is <b>not</b> persisted to <code>localStorage</code>/<code>sessionStorage</code>.</p>
+
+<label>Workspace / group ID (groupId)</label><input id="groupId" placeholder="00000000-0000-0000-0000-000000000000" />
+<label>Report ID (reportId)</label><input id="reportId" placeholder="00000000-0000-0000-0000-000000000000" />
+<label>Dataset ID (datasetId)</label><input id="datasetId" placeholder="00000000-0000-0000-0000-000000000000" />
+<br/>
+<button id="go">Mint + Render</button>
+
+<div id="report"></div>
+<div id="log"></div>
+
+<script>
+const PROFILE = 'powerbi-dwd';
+const logEl = document.getElementById('log');
+const log = (msg, cls) => { const s = document.createElement('div'); if (cls) s.className = cls; s.textContent = msg; logEl.appendChild(s); };
+const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isPowerBiEmbedHost(urlStr) {
+  try { const u = new URL(urlStr); const h = u.hostname.toLowerCase();
+    return u.protocol === 'https:' && (h === 'powerbi.com' || h.endsWith('.powerbi.com')); } catch { return false; }
+}
+function storageHasToken(token) {
+  const needle = String(token).slice(0, 24);
+  for (const [name, store] of [['localStorage', localStorage], ['sessionStorage', sessionStorage]]) {
+    for (let i = 0; i < store.length; i++) { const v = store.getItem(store.key(i)) || ''; if (v.includes(needle)) return name; }
+  }
+  return null;
+}
+
+document.getElementById('go').onclick = async () => {
+  logEl.innerHTML = '';
+  document.getElementById('report').innerHTML = '';
+  const groupId = document.getElementById('groupId').value.trim();
+  const reportId = document.getElementById('reportId').value.trim();
+  const datasetId = document.getElementById('datasetId').value.trim();
+  for (const [n, v] of [['groupId', groupId], ['reportId', reportId], ['datasetId', datasetId]]) {
+    if (!GUID.test(v)) { log(`✗ ${n} is not a GUID (placeholder?) — fill in the real value.`, 'bad'); return; }
+  }
+
+  log('→ minting a View-scoped token via /api/assistant/embed-token/powerbi …', 'info');
+  let json;
+  try {
+    const res = await fetch('/api/assistant/embed-token/powerbi', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-assistant-profile': PROFILE },
+      body: JSON.stringify({ assistantProfile: PROFILE, groupId, reportId, datasetId, permissions: 'View' }),
+    });
+    json = await res.json().catch(() => ({}));
+    if (res.status === 401 || res.status === 403) {
+      log(`✗ ${res.status} — mint REJECTED. Most likely the ${PROFILE} SP lacks Build+Read on the dataset. Grant it and retry.`, 'bad'); return;
+    }
+    if (!res.ok) { log(`✗ ${res.status} from mint: ${JSON.stringify(json).slice(0, 300)}`, 'bad'); return; }
+  } catch (e) {
+    log(`✗ could not reach the proxy via /api — is the proxy on :7000 up and vite proxying? ${e.message}`, 'bad'); return;
+  }
+  if (!json.embedToken || !json.embedUrl) { log('✗ response missing embedToken/embedUrl', 'bad'); return; }
+
+  log('✓ token minted (View, single report)', 'ok');
+  log(isPowerBiEmbedHost(json.embedUrl) ? '✓ embedUrl host is powerbi.com (B5 host check passes)'
+                                        : `✗ embedUrl host is NOT powerbi.com: ${json.embedUrl}`,
+      isPowerBiEmbedHost(json.embedUrl) ? 'ok' : 'bad');
+
+  // ---- render via powerbi-client ----
+  const pbi = window['powerbi-client'];
+  const models = pbi.models;
+  const config = {
+    type: 'report',
+    tokenType: models.TokenType.Embed,
+    accessToken: json.embedToken,
+    embedUrl: json.embedUrl,
+    id: reportId,
+    permissions: models.Permissions.Read,
+    settings: { panes: { filters: { visible: false }, pageNavigation: { visible: true } } },
+  };
+  log('→ embedding report, waiting for loaded/rendered …', 'info');
+  const report = window.powerbi.embed(document.getElementById('report'), config);
+
+  report.on('loaded', () => log('✓ BIAdapter event: loaded fired', 'ok'));
+  report.on('rendered', () => {
+    log('✓ BIAdapter event: rendered fired — visuals painted (PIXEL)', 'ok');
+    const where = storageHasToken(json.embedToken);
+    log(where ? `✗ LEAK: the embed token is present in ${where}`
+              : '✓ leakage: embed token is NOT in localStorage or sessionStorage', where ? 'bad' : 'ok');
+    log('Done — visual render + leakage verification complete. (If the report is on the SalesPerformance dataset, eyeball the total vs 2,297,201.)', 'info');
+  });
+  report.on('error', (e) => log(`✗ powerbi error event: ${JSON.stringify((e && e.detail) || e).slice(0, 300)}`, 'bad'));
+};
+</script>
+</body>
+</html>
