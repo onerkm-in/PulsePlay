@@ -41,7 +41,7 @@ All configuration is **connector profiles** + a few proxy switches. Two equivale
 | `PROXY_CORS_ORIGIN` | `*` ok | pin to your exact origin | prod refuses `*` |
 | `NODE_OPTIONS` | `--use-system-ca` (if behind a TLS-intercepting proxy) | not needed on cloud (public CAs) | else Databricks/PBI calls fail cert validation |
 
-> **Power BI env-mapping gap:** most fields map via `PROXY_PROFILE_*`, but `powerbiGroupId` / `powerbiDatasetId` currently have **no env mapping** — put those (non-secret) in the shipped `config.json`. (Tracked in PLUG_AND_PLAY_CHECKLIST §1.)
+> **Power BI fields DO map via env** (corrected 2026-06-05): `powerbiGroupId` and `powerbiDatasetId` map from `PROXY_PROFILE_<NAME>_POWERBI_GROUP_ID` / `..._POWERBI_DATASET_ID` (aliases `POWERBIGROUPID` / `POWER_BI_GROUP_ID` also accepted — see `ENV_PROFILE_FIELDS` in [proxy/server.js:336-341](../proxy/server.js#L336)). You can deploy a full `powerbi-semantic-model` profile with **pure env vars**; `config.json` is optional. (Earlier docs claimed "no env mapping" — that was stale.)
 
 ### Minimal "go-live" config
 
@@ -219,4 +219,4 @@ What must change when leaving the free dev tiers:
 7. **Databricks Free** — 3-app/24h auto-stop + daily quota + outbound allow-list.
 8. **Easy Auth** — 401-not-302 for `/api`; secret expires ~6 months; scripts non-idempotent.
 9. **Genie Agent Mode UI-only** — use Foundation Model endpoint.
-10. **`powerbiGroupId`/`powerbiDatasetId`** have no env mapping — put them in `config.json`.
+10. **`powerbiGroupId`/`powerbiDatasetId`** DO map via env (`PROXY_PROFILE_<NAME>_POWERBI_GROUP_ID` / `..._POWERBI_DATASET_ID`) — config.json is optional. (Pre-deploy: `npm run validate-deploy` in /proxy fails if app.yaml/config.json still has placeholders.)

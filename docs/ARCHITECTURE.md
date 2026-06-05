@@ -140,6 +140,21 @@ The `MULTI_BI_ARCHITECTURE.md` predecessor of this doc and the README claimed si
 
 Ten, not nine. Older audit/migration notes may still say eight or nine because they are historical snapshots; this doc is the corrected reference.
 
+**Live-verification status (honest — "code-present" ≠ "proven live"; updated 2026-06-05).** Ten paths *exist in code*; far fewer are *proven against a live backend*. Don't read "10 paths" as "10 working backends":
+
+| # | Path | Status | Evidence |
+|---|---|---|---|
+| 6 | Foundation Model | 🟢 **VERIFIED LIVE** | responds `COMPLETED` via `databricks-meta-llama-3-3-70b-instruct` (HANDOVER 2026-06-04/05) |
+| 10 | Power BI semantic-model | 🟢 **VERIFIED LIVE** | deterministic DAX, total = 2,297,201 exact, `llmCallCount: 0` |
+| 1 | Genie | ⛔ **BLOCKED (upstream)** | serverless compute disabled on the free workspace → live 400; code is fine, operator-gated |
+| 7 | Supervisor (real agent) | ⛔ **BLOCKED** | fan-out depends on Genie |
+| 8 | Supervisor-local | 🟡 **UNPROVEN** | code-present; never exercised live because Genie is blocked |
+| 2,3 | Azure OpenAI (chat / analytics) | 🟡 **UNPROVEN** | code-present; no live-proof entry in HANDOVER |
+| 4,5 | Bedrock (RAG / direct) | 🟡 **UNPROVEN** | code-present; no live-proof entry |
+| 9 | ResponsesAgent | 🟡 **UNPROVEN** | code-present; no live-proof entry |
+
+So: **2 verified live, 2 blocked upstream, 6 code-present-but-unproven.** The Settings connector catalogue and README front-door should surface the same truth (a status chip per connector) so a stakeholder sees what this table says — tracked as a follow-up.
+
 The PBI semantic-model brain (#10) **does not invoke any LLM** at any step. Every response emits `mode: "powerbi-deterministic", llmCallCount: 0` in both the JSON payload and the audit log so deployers can prove that contract. A separate Q&A surface at `/powerbi/qna` (embedded `powerbi-client` Q&A visual) lets users access Microsoft's NLP if they want; that NLP runs in Microsoft's tenant — PulsePlay only mints the dataset-scoped embed token.
 
 ### Connector plugin architecture (direction locked 2026-05-20)
