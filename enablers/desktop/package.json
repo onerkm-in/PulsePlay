@@ -17,8 +17,8 @@
         "package:compressed": "node scripts/package-win.mjs --compress"
     },
     "dependencies": {
-        "express": "^4.21.2",
-        "http-proxy-middleware": "^3.0.3"
+        "express": "^5.2.1",
+        "http-proxy-middleware": "^4.0.0"
     },
     "devDependencies": {
         "@yao-pkg/pkg": "^6.20.0",
