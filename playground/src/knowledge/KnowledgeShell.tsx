@@ -214,7 +214,7 @@ export function KnowledgeShell(): React.ReactElement {
             }}
         >
             <KnowledgeHeader activePack={route.pack} />
-            <div style={{ flex: "1 1 auto", display: "flex", minHeight: 0 }}>
+            <div className="pp-knowledge__split" style={{ flex: "1 1 auto", display: "flex", minHeight: 0 }}>
                 <KnowledgeLeftRail
                     packs={packList}
                     loading={packListLoading}
@@ -356,6 +356,7 @@ function KnowledgeLeftRail(props: {
     return (
         <nav
             aria-label="Knowledge packs"
+            className="pp-knowledge__rail"
             style={{
                 flex: "0 0 240px",
                 padding: "12px 8px",

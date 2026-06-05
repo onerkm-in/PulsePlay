@@ -96,7 +96,11 @@ export function SubPageHeader({ title, blurb }: { title: string; blurb: string }
                     fontSize: 22,
                     fontWeight: 800,
                     letterSpacing: "-0.025em",
-                    background: "linear-gradient(135deg, #0f172a 0%, #4f46e5 100%)",
+                    // Start the gradient at the theme text token (not a hardcoded
+                    // light-mode slate) so the title stays legible in dark mode —
+                    // #0f172a is ~invisible on the dark canvas. Mirrors the
+                    // canonical .pp-app__brand h1 gradient. (dark-mode legibility)
+                    background: "linear-gradient(135deg, var(--pp-text) 0%, #4f46e5 100%)",
                     WebkitBackgroundClip: "text",
                     WebkitTextFillColor: "transparent",
                     backgroundClip: "text",

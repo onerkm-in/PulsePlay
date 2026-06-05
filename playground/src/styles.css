@@ -2551,3 +2551,19 @@ html, body, #root {
     flex-shrink: 0;
 }
 .pp-float-panel__dock:hover { border-color: var(--pp-accent, #2563eb); color: var(--pp-accent, #2563eb); }
+
+/* 2026-06-05 — Knowledge Base responsive collapse (A2). The pack browser is a
+   flex row: a 240px fixed left rail + a fluid detail pane. Below 640px the rail
+   starved the detail pane to ~80px, wrapping the pack title and body one word
+   per line. Stack them vertically at narrow widths so the detail pane gets the
+   full width; the rail becomes a short scrollable strip on top. Inline styles
+   set flex on the elements, so the overrides need to win specificity. */
+@media (max-width: 640px) {
+    .pp-knowledge__split { flex-direction: column !important; }
+    .pp-knowledge__rail {
+        flex: 0 0 auto !important;
+        max-height: 168px;
+        border-right: none !important;
+        border-bottom: 1px solid var(--pp-border, rgba(0,0,0,0.08));
+    }
+}
