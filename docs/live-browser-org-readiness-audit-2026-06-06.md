@@ -43,11 +43,19 @@
   - Conversation reuse tripwire is still not clean: 4 submits produced 4 `POST /conversations/start` calls and 0 `/conversations/poll` calls. The UI also uses `/conversations/{id}/messages`; the follow-up should decide whether this is acceptable Pulse-mode behavior or whether one logical chat session must reuse a single upstream conversation.
   - Reload persistence is partial: chat entries went **8 before reload -> 1 after reload**. Profile and `uiMode` persisted, but the transcript did not fully restore.
   - Pulse-mode answer cards do not emit native `trust-badge` test ids; the final pass had `0` TrustBadges even though answers completed. Treat this as a test-surface parity gap or a UX evidence gap to resolve before formal certification.
+  - Dedock/pop-out mirroring gap was observed after the final intense pass and is resolved in the follow-up addendum below.
+
+## Dedock mirror addendum (user-observed continuity gap closed)
+- User observation: when the screen is dedocked on Ask Pulse/chat or another active surface, the dedocked pane must show the same active tab, transcript, generated visuals, and composer state visible in the main pane. A fresh/empty/stale dedocked surface is not acceptable for org-standard UX.
+- Fix applied: `App.tsx` now renders a read-only `LivePaneMirror` in the floating slot for AI and Dashboard panes instead of mounting a second assistant/BI instance. The mirror clones the active source pane, copies form values, strips duplicate ids, disables interaction inside the clone, and keeps the main pane as the single live source of truth.
+- Regression coverage: `viewportControls.integration.test.tsx` asserts that AI pop-out contains the active Ask Pulse transcript marker in `pp-live-pane-mirror` and only one live assistant instance remains outside the mirror. `verify-detach-mirroring.mjs` now fails unless the floating slot contains the cloned sentinel while the source AI chrome count stays stable.
+- Validation: `npm.cmd run lint` passed; `npm.cmd test -- viewportControls` passed **2 files / 36 tests**; full playground `npm.cmd test` passed **142 files / 1924 tests**; `npm.cmd run build` passed; headed `node playground/scripts/verify-detach-mirroring.mjs` passed with `aiChrome 1 -> 1`, `float slot 0 -> 1`, `liveMirror=1`, `sentinelInMirror=true`.
+- Scope note: the fixed behavior is a read-only live mirror, not a fully interactive second pane. That is intentional to avoid two independent chat/BI sessions. Fully interactive companion windows should remain a separate product slice if needed.
 
 ## Consolidated outcome
 - Initial audit status: **Not org-standard yet**.
 - Recovery status: **tested critical Ask/Insights/Power BI chart blockers cleared, and the full headed intense suite is now green on runtime/browser error budget**.
-- Net quality signal: **improved to conditional release-candidate / internal pilot** — browser stability is now clean under the observed intense run, but org-standard certification should still wait on the conversation-reuse, transcript-persistence, and trust-evidence parity caveats above.
+- Net quality signal: **improved to conditional release-candidate / internal pilot** — browser stability is now clean under the observed intense run, and dedock mirroring is now fixed. Formal org-standard certification should still wait on the conversation-reuse, transcript-persistence, and trust-evidence parity caveats above.
 
 ## Sub-agent assessment (hard review)
 

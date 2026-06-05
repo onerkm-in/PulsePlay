@@ -45,13 +45,15 @@ vi.mock("../components/PulseShell", () => ({
             }));
         };
         return (
-            <div>
+            <div data-testid="mock-pulse-shell">
+                <p data-testid="mock-pulse-transcript">Mock Ask Pulse transcript: current chat and visual context</p>
                 <button
                     type="button"
                     aria-label={aiFocused ? "Restore AI panel" : "Maximize AI panel"}
                     onClick={() => fire(aiFocused ? "restore" : "focus")}
                 />
                 <button type="button" aria-label="Minimize AI panel" onClick={() => fire("minimize")} />
+                <button type="button" aria-label="Pop out AI panel as window" onClick={() => fire("float")} />
                 <button type="button" aria-label="Open AI panel in separate page" onClick={() => fire("open-page")} />
                 <button
                     type="button"
@@ -868,6 +870,24 @@ describe("App viewport controls — chrome buttons", () => {
         expect(String(openMock.mock.calls[0][0])).toContain("focus=bi");
         expect(openMock.mock.calls[0][1]).toBe("_blank");
         expect(openMock.mock.calls[0][2]).toBe("noopener,noreferrer");
+
+        unmount(state);
+    });
+
+    it("Pop out mirrors the active AI pane instead of mounting a second assistant instance", async () => {
+        seedPulseUiMode();
+        const state = mountApp();
+
+        clickByLabel(state, "Pop out AI panel as window");
+        await act(async () => { await new Promise(resolve => setTimeout(resolve, 80)); });
+
+        const mirror = state.container.querySelector('[data-testid="pp-live-pane-mirror"]') as HTMLElement | null;
+        expect(mirror, "dedocked pane renders a live mirror container").toBeTruthy();
+        expect(mirror?.textContent).toContain("Mock Ask Pulse transcript: current chat and visual context");
+        const liveAssistantInstances = Array.from(
+            state.container.querySelectorAll<HTMLElement>('[data-testid="mock-pulse-shell"]'),
+        ).filter(node => !node.closest('[data-testid="pp-live-pane-mirror"]'));
+        expect(liveAssistantInstances.length).toBe(1);
 
         unmount(state);
     });

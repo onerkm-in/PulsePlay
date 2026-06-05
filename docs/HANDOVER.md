@@ -5,6 +5,19 @@
 
 ---
 
+## 2026-06-06 — Dedock/pop-out now mirrors active pane; validated and ready to publish
+
+Closed Rajesh's live observation that a dedocked Ask Pulse/chat screen must reflect the same active screen instead of showing a fresh or stale duplicate.
+
+- **Analysis:** The floating pane path was duplicative, not mirrored: `App.tsx` mounted a second AI surface inside the floating slot. That could create an empty/fresh assistant instance and break spatial continuity when the user dedocked from Ask Pulse or Dashboard.
+- **Fix:** Updated [playground/src/App.tsx](../playground/src/App.tsx) so pop-out renders a `LivePaneMirror` clone of the active AI or Dashboard source pane. The mirror copies current DOM plus input/textarea/select values, strips duplicate ids, disables interaction inside the clone, and keeps the main pane as the single live source of truth.
+- **Regression coverage:** Updated [playground/src/__tests__/viewportControls.integration.test.tsx](../playground/src/__tests__/viewportControls.integration.test.tsx) so the pop-out action must show the active Ask Pulse transcript marker in `pp-live-pane-mirror` while only one live assistant instance remains outside the mirror. Hardened [playground/scripts/verify-detach-mirroring.mjs](../playground/scripts/verify-detach-mirroring.mjs) so it now fails unless the floating slot contains the cloned sentinel and the source AI chrome count stays stable.
+- **Validation:** `npm.cmd run lint` passed. `npm.cmd test -- viewportControls` passed **2 files / 36 tests**. Full playground `npm.cmd test` passed **142 files / 1924 tests**. `npm.cmd run build` passed. Headed browser `node playground/scripts/verify-detach-mirroring.mjs` passed with `aiChrome 1 -> 1`, `float slot 0 -> 1`, `liveMirror=1`, `sentinelInMirror=true`.
+
+**Tripwire:** This is intentionally a **read-only live mirror**, not a second interactive shared-state pane. That is the safer org-standard behavior for pop-out continuity because it avoids two active chat/BI instances. If the product later wants a fully interactive companion window, treat that as a separate shared-state design slice.
+
+---
+
 ## 2026-06-06 — Full intense browser suite green: warmup 500s fixed, Ask Pulse exercised live
 
 Continued Rajesh's `/loop : Beast Mode : Analysis ; Beast Mode : Fix ; Best Mode : Test` beyond the first recovery slice and reran the full headed adversarial/reload/mobile browser pass.

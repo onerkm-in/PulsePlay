@@ -668,6 +668,11 @@ function PlaygroundApp(): React.ReactElement {
     // fixed-position draggable overlay instead of the split layout slot.
     const [floatedPane, setFloatedPane] = useState<ViewportPane | null>(null);
     const [floatPos, setFloatPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+    // Live mirror source refs for in-app dedock. The floating overlay must
+    // reflect the already-mounted pane state (chat transcript, generated
+    // visuals, composer text) instead of mounting a second empty assistant.
+    const mainAiMirrorSourceRef = useRef<HTMLElement | null>(null);
+    const mainBiMirrorSourceRef = useRef<HTMLElement | null>(null);
     // 2026-05-25 — explicit signal for Mix-mode minimize. Mix mode's normal
     // surface flip (Dashboard nav) and an intentional Minimize click look
     // identical at the state level (mixSurface="bi") but only the latter
@@ -1634,73 +1639,23 @@ function PlaygroundApp(): React.ReactElement {
                  * SplitLayout / MinimizedPaneDock are defined in this
                  * file and aren't exported). Steps 3/7/8 absorb the
                  * slot contents into PulsePlayScreen one at a time. */
-                floatingPaneSlot={floatedPane === "ai" ? (
+                floatingPaneSlot={floatedPane ? (
                 <FloatingPanel
                     pos={floatPos}
                     onPosChange={setFloatPos}
                     onDock={handleViewportDock}
-                    title="AI Insights — floating"
+                    title={
+                        floatedPane === "bi"
+                            ? "Dashboard — live mirror"
+                            : effectiveSurfaceId === "ask-pulse"
+                                ? "Ask Pulse — live mirror"
+                                : "AI Insights — live mirror"
+                    }
                 >
-                    <PaneChrome
-                        pane="ai"
-                        title="PulsePlay AI"
-                        subtitle="AI playground"
-                        isFocused={false}
-                        isBackgrounded={false}
-                        isPinned={false}
-                        canShowBoth={false}
-                        onFocus={() => {}}
-                        onRestore={handleViewportDock}
-                        onMinimize={handleViewportDock}
-                        onPinToggle={() => {}}
-                        onOpenPage={() => handleViewportOpenPage("ai")}
-                        onFloat={handleViewportDock}
-                        onShowBoth={handleViewportDock}
-                        quiet={uiMode === "pulse"}
-                        hideHeader={uiMode === "pulse"}
-                    >
-                        <aside className="pp-app__sidebar" style={panelInnerStyle()}>
-                            {allowlistState.error && (
-                                <div
-                                    role={allowlistFailClosed ? "alert" : "status"}
-                                    className="pp-allowlist-chip"
-                                    data-fail-closed={allowlistFailClosed ? "true" : "false"}
-                                >
-                                    <span className="pp-allowlist-chip__icon" aria-hidden="true">⚠</span>
-                                    <span className="pp-allowlist-chip__label">
-                                        {allowlistFailClosed
-                                            ? "Proxy unreachable — config locked"
-                                            : "Governance config unavailable"
-                                        }
-                                    </span>
-                                    <a className="pp-allowlist-chip__more" href="/settings/setup" title="Open Setup to verify proxy configuration">Open Setup</a>
-                                </div>
-                            )}
-                            {uiMode === "pulse" ? (
-                                <>
-                                    <Suspense fallback={<PulseLoadingState />}>
-                                        <PulseShell
-                                            renderToken={pulseRenderToken}
-                                            activeTabRequest={requestedPulseTab}
-                                            onSettingsChange={() => setPulseRenderToken(t => t + 1)}
-                                            onApplyFilter={handlePulseApplyFilter}
-                                            biEvents={recentEvents}
-                                            biVendor={runtimeBiVendor}
-                                        />
-                                    </Suspense>
-                                </>
-                            ) : (
-                                <UnifiedAssistantSurface
-                                    activeVendor={runtimeBiVendor}
-                                    activeConnector={activeConnector}
-                                    recentEvents={recentEvents}
-                                    packSelection={packSelection}
-                                    autoSubmitQuestion={wizardAutoSubmit}
-                                    onEntryCompleted={handleEntryCompleted}
-                                />
-                            )}
-                        </aside>
-                    </PaneChrome>
+                    <LivePaneMirror
+                        sourceRef={floatedPane === "bi" ? mainBiMirrorSourceRef : mainAiMirrorSourceRef}
+                        label={floatedPane === "bi" ? "Dashboard live mirror" : "AI surface live mirror"}
+                    />
                 </FloatingPanel>
                 ) : null}
                 mainLayoutSlot={(
@@ -1746,7 +1701,7 @@ function PlaygroundApp(): React.ReactElement {
                         quiet={uiMode === "pulse"}
                         hideHeader={uiMode === "pulse"}
                     >
-                        <aside className="pp-app__sidebar" style={panelInnerStyle()}>
+                        <aside ref={mainAiMirrorSourceRef} className="pp-app__sidebar" style={panelInnerStyle()}>
                             {allowlistState.error && (
                                 <div
                                     role={allowlistFailClosed ? "alert" : "status"}
@@ -1856,7 +1811,7 @@ function PlaygroundApp(): React.ReactElement {
                             ) : undefined
                         }
                     >
-                        <main className="pp-app__canvas" style={{ ...panelInnerStyle(), display: "flex", flexDirection: "column" }}>
+                        <main ref={mainBiMirrorSourceRef} className="pp-app__canvas" style={{ ...panelInnerStyle(), display: "flex", flexDirection: "column" }}>
                             {/* 2026-06-03 — Dashboard context pill REMOVED. Context lives in
                                 the single persistent footer only (consistent across all
                                 screens). The host-level <footer className="gn-app-footer">
@@ -2582,6 +2537,147 @@ function FloatingPanel(props: {
             <div style={{ flex: "1 1 auto", minHeight: 0, overflow: "hidden" }}>
                 {props.children}
             </div>
+        </div>
+    );
+}
+
+function LivePaneMirror(props: {
+    sourceRef: React.RefObject<HTMLElement | null>;
+    label: string;
+}): React.ReactElement {
+    const mirrorRef = useRef<HTMLDivElement | null>(null);
+    const [hasSource, setHasSource] = useState(false);
+
+    useEffect(() => {
+        let observer: MutationObserver | null = null;
+        let raf = 0;
+        let retryTimer = 0;
+        let sourceWithListeners: HTMLElement | null = null;
+
+        const copyFormState = (source: HTMLElement, clone: HTMLElement) => {
+            const sourceControls = Array.from(source.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>("input, textarea, select"));
+            const cloneControls = Array.from(clone.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>("input, textarea, select"));
+            sourceControls.forEach((sourceControl, index) => {
+                const cloneControl = cloneControls[index];
+                if (!cloneControl) return;
+                if (sourceControl instanceof HTMLInputElement && cloneControl instanceof HTMLInputElement) {
+                    cloneControl.checked = sourceControl.checked;
+                    cloneControl.value = sourceControl.value;
+                } else if (sourceControl instanceof HTMLTextAreaElement && cloneControl instanceof HTMLTextAreaElement) {
+                    cloneControl.value = sourceControl.value;
+                    cloneControl.textContent = sourceControl.value;
+                } else if (sourceControl instanceof HTMLSelectElement && cloneControl instanceof HTMLSelectElement) {
+                    cloneControl.selectedIndex = sourceControl.selectedIndex;
+                }
+            });
+        };
+
+        const stripDuplicateIdsAndFocus = (clone: HTMLElement) => {
+            clone.querySelectorAll<HTMLElement>("[id]").forEach(el => el.removeAttribute("id"));
+            clone.querySelectorAll<HTMLElement>("a, button, input, textarea, select, [tabindex]").forEach(el => {
+                el.setAttribute("tabindex", "-1");
+                el.setAttribute("aria-hidden", "true");
+            });
+            clone.style.width = "100%";
+            clone.style.height = "100%";
+            clone.style.minHeight = "100%";
+            clone.style.pointerEvents = "none";
+        };
+
+        const sync = () => {
+            const source = props.sourceRef.current;
+            const mirror = mirrorRef.current;
+            if (!mirror) return;
+            if (!source) {
+                setHasSource(false);
+                mirror.textContent = "";
+                return;
+            }
+            const clone = source.cloneNode(true) as HTMLElement;
+            copyFormState(source, clone);
+            stripDuplicateIdsAndFocus(clone);
+            mirror.textContent = "";
+            mirror.appendChild(clone);
+            setHasSource(true);
+        };
+
+        const scheduleSync = () => {
+            if (raf) cancelAnimationFrame(raf);
+            raf = requestAnimationFrame(sync);
+        };
+
+        const connect = () => {
+            const source = props.sourceRef.current;
+            if (!source) {
+                sync();
+                retryTimer = window.setTimeout(connect, 50);
+                return;
+            }
+            sourceWithListeners = source;
+            sync();
+            if (typeof MutationObserver !== "undefined") {
+                observer = new MutationObserver(scheduleSync);
+                observer.observe(source, {
+                    attributes: true,
+                    characterData: true,
+                    childList: true,
+                    subtree: true,
+                });
+            }
+            source.addEventListener("input", scheduleSync, true);
+            source.addEventListener("change", scheduleSync, true);
+        };
+
+        connect();
+
+        return () => {
+            observer?.disconnect();
+            if (raf) cancelAnimationFrame(raf);
+            if (retryTimer) window.clearTimeout(retryTimer);
+            sourceWithListeners?.removeEventListener("input", scheduleSync, true);
+            sourceWithListeners?.removeEventListener("change", scheduleSync, true);
+        };
+    }, [props.sourceRef]);
+
+    return (
+        <div
+            data-testid="pp-live-pane-mirror"
+            role="img"
+            aria-label={props.label}
+            style={{
+                width: "100%",
+                height: "100%",
+                minHeight: 0,
+                overflow: "auto",
+                background: "var(--pp-surface, #fff)",
+                position: "relative",
+            }}
+        >
+            {!hasSource && (
+                <div
+                    style={{
+                        position: "absolute",
+                        inset: 0,
+                        display: "grid",
+                        placeItems: "center",
+                        padding: 16,
+                        color: "var(--pp-text-muted, #64748b)",
+                        fontSize: 12,
+                        textAlign: "center",
+                    }}
+                >
+                    Preparing live mirror...
+                </div>
+            )}
+            <div
+                ref={mirrorRef}
+                aria-hidden="true"
+                style={{
+                    width: "100%",
+                    minHeight: "100%",
+                    pointerEvents: "none",
+                }}
+            />
         </div>
     );
 }
