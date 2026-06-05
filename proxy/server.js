@@ -2082,6 +2082,49 @@ function rateLimitMiddleware(req, res, next) {
     next();
 }
 
+// ── Per-USER rate limit ─────────────────────────────────────────────────────
+// The IP limit above doesn't stop ONE authenticated user from consuming all 120
+// IP-slots and starving everyone else behind the same egress IP (a load
+// balancer, a shared office NAT). This adds a tighter per-user cap, keyed by the
+// verified IdP subject (`req.user.sub`), applied AFTER idpMiddleware sets it. A
+// no-op when there's no authenticated user (dev / shared-key only) — the IP
+// limit already covers that case. Same window + prune discipline as the IP map.
+const PER_USER_RATE_LIMIT_MAX = 60; // requests per user per window
+const perUserRateLimitBuckets = new Map(); // sub → number[] (timestamps)
+
+// Pure decision helper (exported for tests — the middleware bypasses on
+// NODE_ENV=test, so behaviour is verified through this function directly).
+function perUserRateDecision(userId, now) {
+    const cutoff = now - RATE_LIMIT_WINDOW_MS;
+    const bucket = (perUserRateLimitBuckets.get(userId) || []).filter(ts => ts > cutoff);
+    if (bucket.length >= PER_USER_RATE_LIMIT_MAX) {
+        return { limited: true, count: bucket.length };
+    }
+    bucket.push(now);
+    perUserRateLimitBuckets.set(userId, bucket);
+    if (perUserRateLimitBuckets.size > RATE_LIMIT_MAX_IPS) {
+        for (const [k, v] of perUserRateLimitBuckets) {
+            if (!v.some(ts => ts > cutoff)) perUserRateLimitBuckets.delete(k);
+        }
+    }
+    return { limited: false, count: bucket.length };
+}
+
+function perUserRateLimitMiddleware(req, res, next) {
+    if (process.env.NODE_ENV === 'test') return next();
+    if (isRateLimitExemptRead(req)) return next();
+    const userId = req.user && req.user.sub;
+    if (!userId) return next(); // unauthenticated → IP limit already applied
+    const { limited } = perUserRateDecision(String(userId), Date.now());
+    if (limited) {
+        res.setHeader('Retry-After', String(Math.ceil(RATE_LIMIT_WINDOW_MS / 1000)));
+        return res.status(429).json({
+            error: `Too many requests for this user (limit ${PER_USER_RATE_LIMIT_MAX} per ${RATE_LIMIT_WINDOW_MS / 1000}s). Slow down.`
+        });
+    }
+    next();
+}
+
 // Wave 28 + PX1 — X-Request-Id correlation. Visual sets `X-Request-Id` on every
 // outbound request; we echo it back in the response so the visual + proxy
 // + downstream Databricks logs can all be joined on one ID. If the visual
@@ -2109,25 +2152,28 @@ app.use((req, res, next) => {
 // rate-limit first (cheap, cap pre-auth damage), then IdP (network call
 // to JWKS if not cached), then shared-key (final fallback). The visitor
 // satisfies EITHER IdP OR shared-key — both are valid auth methods.
-app.use('/assistant', rateLimitMiddleware, idpMiddleware);
-app.use('/warehouse', rateLimitMiddleware, idpMiddleware);
-app.use('/supervisor', rateLimitMiddleware, idpMiddleware);
-app.use('/confidence', rateLimitMiddleware, idpMiddleware);
-app.use('/openai', rateLimitMiddleware, idpMiddleware);
-app.use('/bedrock', rateLimitMiddleware, idpMiddleware);
+// Order: IP rate-limit (cheap) → IdP (sets req.user) → per-user rate-limit
+// (uses req.user.sub). The per-user guard runs last so the verified subject is
+// available; it's a no-op for unauthenticated/shared-key requests.
+app.use('/assistant', rateLimitMiddleware, idpMiddleware, perUserRateLimitMiddleware);
+app.use('/warehouse', rateLimitMiddleware, idpMiddleware, perUserRateLimitMiddleware);
+app.use('/supervisor', rateLimitMiddleware, idpMiddleware, perUserRateLimitMiddleware);
+app.use('/confidence', rateLimitMiddleware, idpMiddleware, perUserRateLimitMiddleware);
+app.use('/openai', rateLimitMiddleware, idpMiddleware, perUserRateLimitMiddleware);
+app.use('/bedrock', rateLimitMiddleware, idpMiddleware, perUserRateLimitMiddleware);
 // Managed Databricks ResponsesAgent endpoints are cost-bearing serving
 // endpoints, so they inherit the same auth/rate-limit posture as the other
 // AI connector families.
-app.use('/responses-agent', rateLimitMiddleware, idpMiddleware);
+app.use('/responses-agent', rateLimitMiddleware, idpMiddleware, perUserRateLimitMiddleware);
 // 2026-05-27 — Direct /powerbi/* routes (conversations/start, qna/embed-token,
 // health) were bypassing the common middleware stack. Per Codex audit P0,
 // they now share the same rate-limit + IdP posture as /assistant. Without
 // this, a misconfigured deploy could allow unauthenticated callers to mint
 // Power BI embed tokens or trigger executeQueries.
-app.use('/powerbi', rateLimitMiddleware, idpMiddleware);
+app.use('/powerbi', rateLimitMiddleware, idpMiddleware, perUserRateLimitMiddleware);
 // Cycle 47.6 — Foundation Model serving endpoint (Mosaic AI Model Serving).
 // Same cost + auth posture as the other LLM paths.
-app.use('/foundation', rateLimitMiddleware, idpMiddleware);
+app.use('/foundation', rateLimitMiddleware, idpMiddleware, perUserRateLimitMiddleware);
 // Wave 28 — /feedback and /history are write-heavy paths (append to log
 // file + Databricks SQL row insert). Without rate-limit, a runaway
 // client could spam them and bloat disk / poison the history table.
@@ -8991,6 +9037,10 @@ module.exports = {
     normalizeGenieResponse,
     loadEnvProfiles,
     isTransientNetError,
+    // Per-user rate-limit decision — exported so the bucketing behaviour can be
+    // unit-tested directly (the middleware bypasses on NODE_ENV=test).
+    perUserRateDecision,
+    PER_USER_RATE_LIMIT_MAX,
     // Warehouse auto-start hardening — exported so the dedup / fail-fast /
     // abort behavior can be unit-tested without standing up the route stack.
     ensureWarehouseRunning,

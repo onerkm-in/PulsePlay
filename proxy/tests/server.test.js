@@ -90,6 +90,8 @@ const {
     governanceForBackend,
     withGovernance,
     safeStreamErrorText,
+    perUserRateDecision,
+    PER_USER_RATE_LIMIT_MAX,
 } = require('../server');
 const { UNEXPECTED_INTERNAL_SENTINEL } = require('../lib/problemDetails');
 const fs = require('fs');
@@ -1833,6 +1835,36 @@ describe('env-var profile layering — overrides config.json fields per-profile'
 // behavioural (every gated path returns 401 when sharedKey is set and the
 // header is missing).
 
+describe('per-user rate limit — bucketing behaviour', () => {
+    it('allows up to PER_USER_RATE_LIMIT_MAX then limits the next request', () => {
+        const user = 'user-' + Math.random().toString(36).slice(2);
+        const now = 1_000_000;
+        for (let i = 0; i < PER_USER_RATE_LIMIT_MAX; i++) {
+            expect(perUserRateDecision(user, now).limited).toBe(false);
+        }
+        // The (MAX+1)-th request within the window is limited.
+        expect(perUserRateDecision(user, now).limited).toBe(true);
+    });
+
+    it('limits one user WITHOUT affecting a different user', () => {
+        const a = 'a-' + Math.random().toString(36).slice(2);
+        const b = 'b-' + Math.random().toString(36).slice(2);
+        const now = 2_000_000;
+        for (let i = 0; i < PER_USER_RATE_LIMIT_MAX; i++) perUserRateDecision(a, now);
+        expect(perUserRateDecision(a, now).limited).toBe(true);   // a is throttled
+        expect(perUserRateDecision(b, now).limited).toBe(false);  // b is unaffected
+    });
+
+    it('forgets requests once the window has passed', () => {
+        const user = 'w-' + Math.random().toString(36).slice(2);
+        const now = 3_000_000;
+        for (let i = 0; i < PER_USER_RATE_LIMIT_MAX; i++) perUserRateDecision(user, now);
+        expect(perUserRateDecision(user, now).limited).toBe(true);
+        // 61s later (window is 60s) → the old timestamps expire, allowed again.
+        expect(perUserRateDecision(user, now + 61_000).limited).toBe(false);
+    });
+});
+
 describe('BUG-015 — cost-bearing route gating invariants', () => {
     // The full set of prefixes that must carry rateLimitMiddleware. Update
     // this list when adding a new cost-bearing backend (e.g. /vertex).
@@ -1841,6 +1873,9 @@ describe('BUG-015 — cost-bearing route gating invariants', () => {
     // and /history are not rate-limited but are still gated.
     const SHARED_KEY_PREFIXES = ['/assistant', '/warehouse', '/supervisor', '/confidence', '/openai', '/bedrock', '/responses-agent', '/feedback', '/history'];
     const ALLOWLISTED_PREFIXES = ['/assistant', '/warehouse', '/history', '/openai', '/bedrock', '/responses-agent', '/foundation', '/supervisor', '/confidence', '/sql', '/insights'];
+    // Cost-bearing AI prefixes that must ALSO carry perUserRateLimitMiddleware
+    // (one authenticated user can't starve others behind a shared egress IP).
+    const PER_USER_RATE_LIMITED_PREFIXES = ['/assistant', '/warehouse', '/supervisor', '/confidence', '/openai', '/bedrock', '/responses-agent', '/powerbi', '/foundation'];
 
     // Walk the Express app's router stack and collect every (prefix, layer-name)
     // pair from `app.use(prefix, middleware)` mounts. `handle.name` is the
@@ -1880,7 +1915,7 @@ describe('BUG-015 — cost-bearing route gating invariants', () => {
     }
 
     describe('structural — middleware is mounted at the right prefix', () => {
-        const ALL_PREFIXES = [...new Set([...RATE_LIMITED_PREFIXES, ...SHARED_KEY_PREFIXES, ...ALLOWLISTED_PREFIXES])];
+        const ALL_PREFIXES = [...new Set([...RATE_LIMITED_PREFIXES, ...SHARED_KEY_PREFIXES, ...ALLOWLISTED_PREFIXES, ...PER_USER_RATE_LIMITED_PREFIXES])];
         const mounts = collectPrefixMounts(app, ALL_PREFIXES);
 
         it.each(RATE_LIMITED_PREFIXES)('rateLimitMiddleware mounted at %s', (prefix) => {
@@ -1888,6 +1923,11 @@ describe('BUG-015 — cost-bearing route gating invariants', () => {
             // Failure message is the test name (it.each interpolates %s) — the
             // assertion below will read "expected false to be true" but the
             // describe + test row identifies the missing prefix.
+            expect(found).toBe(true);
+        });
+
+        it.each(PER_USER_RATE_LIMITED_PREFIXES)('perUserRateLimitMiddleware mounted at %s', (prefix) => {
+            const found = mounts.some(m => m.prefix === prefix && m.handleName === 'perUserRateLimitMiddleware');
             expect(found).toBe(true);
         });
 
