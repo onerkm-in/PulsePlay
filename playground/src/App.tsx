@@ -80,6 +80,9 @@ import { KnowledgeShell } from "./knowledge/KnowledgeShell";
 import { useKnowledgeRoute } from "./knowledge/knowledgeRoute";
 import { PowerBiQnaShell, usePowerBiQnaRoute } from "./powerbi/PowerBiQnARoute";
 import { LaunchpadShell } from "./launchpad/LaunchpadShell";
+import { MultiPaneDemoShell } from "./multipane/MultiPaneDemoShell";
+import { useMultiPaneRoute } from "./multipane/multiPaneRoute";
+import { SurfaceConnectorBar } from "./multipane/SurfaceConnectorBar";
 import { useLaunchpadRoute } from "./launchpad/launchpadRoute";
 import { WorkbenchShell } from "./workbench/WorkbenchShell";
 import { useWorkbenchRoute } from "./workbench/workbenchRoute";
@@ -474,6 +477,7 @@ function AppRouted(): React.ReactElement {
     const launchpadRoute = useLaunchpadRoute();
     const workbenchRoute = useWorkbenchRoute();
     const powerBiQnaRoute = usePowerBiQnaRoute();
+    const multiPaneRoute = useMultiPaneRoute();
 
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -495,6 +499,12 @@ function AppRouted(): React.ReactElement {
     }
     if (powerBiQnaRoute.isPowerBiQnaRoute) {
         return <PowerBiQnaShell />;
+    }
+    if (multiPaneRoute.isMultiPaneRoute) {
+        // Part C P1-PROOF — the surface gates its own content on the
+        // multiConnectorPanes flag (default OFF), so this route is inert for
+        // the single-pane app unless an author explicitly enables the flag.
+        return <MultiPaneDemoShell />;
     }
     if (launchpadRoute.isLaunchpadRoute) {
         return (
@@ -1500,6 +1510,14 @@ function PlaygroundApp(): React.ReactElement {
                     <SetupStatusPill readiness={setupReadiness} />
                 </div>
             </header>
+
+            {/* Part C P2 — per-surface connector bar. Renders ONLY when the
+              * multiConnectorPanes flag is on (else returns null), so the
+              * single-connector header is unchanged by default. */}
+            <SurfaceConnectorBar
+                aiProfiles={allowlistState.allowlist?.aiProfiles ?? []}
+                sharedProfile={activeConnector}
+            />
 
             {/* 2026-05-25 — Top-right toolbar (Commit 5 of per-tab-visibility
               * ship). Single global cluster of cross-cutting affordances
