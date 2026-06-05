@@ -256,6 +256,22 @@ export interface PaneInstance {
     /** Creation timestamp (ms epoch). Used for paneId disambiguation
      *  when the same page is mounted multiple times. */
     createdAt: number;
+    // ── Part C foundation (2026-06-05) — per-pane connector binding ──────────
+    // OPTIONAL by design: today every pane is unbound and inherits the single
+    // active-per-axis globals (activeVendor / activeConnector / embedConfig).
+    // When `multiConnectorPanes` is ON, a pane MAY carry its own binding so
+    // pane 1 can be Foundation Model while pane 2 is Power BI, live, at once.
+    // Absent ⇒ the pane projects the legacy globals (full backward-compat;
+    // the projection in paneConnectors.ts enforces this). These are stored on
+    // PaneInstance so a pane's binding survives the same persistence the rest
+    // of the registry already uses.
+    /** Y-axis: which BI vendor this pane hosts (e.g. "powerbi", "native"). */
+    vendor?: string;
+    /** X-axis: which AI profile/connector this pane's assistant talks to. */
+    aiProfile?: string;
+    /** This pane's BI embed target. Untyped here (Record) to avoid a
+     *  settingsStore→biPanel type import; paneConnectors.ts narrows it. */
+    embedConfig?: Record<string, unknown>;
 }
 
 /** Default pane registry — for each default Page, one inline pane
