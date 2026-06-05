@@ -5,6 +5,21 @@
 
 ---
 
+## 2026-06-06 — Clear all blockers: smoke→CI shipped + verified green, external blockers documented with operator actions
+
+"Let's clear all blockers." Separated code-clearable from externally-gated, cleared the former, and made the latter one-operator-action-away.
+
+- **Smoke → CI: CLEARED + verified green on real GitHub Actions** (`347193e`→`d08ec20`). The blocker was twofold: (a) the full smoke needs PBI/Azure creds fork-CI lacks, (b) "can't verify a 2-server CI job runs green without triggering Actions." Solved (a) with a **credential-free `PP_CI` mode** — runs only no-backend checks: app boots, per-surface connector bar shows 3 dropdowns, **echarts-6 paints from fixture data** (native-canvas-smoke.html), Settings renders, **zero JS/render errors**. Solved (b) by **pushing then watching `gh run` and iterating**: first run was 4/5 (a load-time `/assistant/uc/metric-views` 502'd with no Databricks creds → browser logged "Failed to load resource"); fixed by tolerating network-resource errors under `PP_CI` while still failing on `pageerror`/JS errors. **Final CI run: 5/5 green** (run 27033518594). `smoke.yml` boots proxy (PORT=7000, env fallback) + Vite dev (7001) in one step, waits-for-ready, runs `PP_CI=1`, uploads screenshots, dumps server logs on failure.
+- **Per-user rate limit: CLEARED** (`b1434a2`, prior to this entry) — 60/min/user keyed by `req.user.sub` on all 9 cost-bearing AI paths; +12 tests; proxy 1224/1224.
+- **External blockers documented** ([docs/BLOCKERS.md](BLOCKERS.md), `9420fc4`) — Genie serverless / Power BI capacity / RLS-OBO are operator/paid-gated and NOT code-clearable. Each row gives the **exact unblock action + who does it + code-readiness** (all ✅ code-ready — when the operator acts, it just works). FM ungroundedness is a property, not a blocker (surfaced by the honest advisory).
+
+**Tripwires:**
+- **The CI smoke is credential-free by design** (`PP_CI=1`). Don't add a check that needs a live backend to the CI path — those stay local-only. The CI smoke tolerates network "Failed to load resource" errors (no backend config) but still fails on JS/React errors.
+- **`smoke.yml` boots both servers in ONE `run:` step** — GH Actions doesn't persist background processes across steps. Don't split server-start from smoke-run.
+- **The smoke + test workflows use `concurrency: cancel-in-progress`** — a rapid second push to the same ref cancels the first ref's in-flight runs (seen this session). Batch doc pushes; wait for green before the next push if you're watching a specific run.
+
+---
+
 ## 2026-06-05 (later³) — 5-agent brutal-honest analysis → fix-all (safe items shipped, risky items deferred-with-plan)
 
 Ran a 5-agent parallel analysis (architecture / tests / security / feature-reality / deploy) at HEAD, **verified the scary claims** (two agent claims were wrong — see below), then a Beast-Mode fix-all. Shipped the safe, high-value, fully-verified fixes; deferred the risky/unverifiable ones with concrete plans rather than fake them. Gates: lint clean, **playground 1922/1922**, proxy syntax + BUG-015 green. 4 commits pushed `9607da3`.
