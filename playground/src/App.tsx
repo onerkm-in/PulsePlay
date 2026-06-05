@@ -85,6 +85,7 @@ import { useMultiPaneRoute } from "./multipane/multiPaneRoute";
 import { SurfaceConnectorBar } from "./multipane/SurfaceConnectorBar";
 import { getSurfaceProfile, SURFACE_CONNECTORS_EVENT } from "./multipane/surfaceConnectors";
 import { FEATURE_FLAGS_EVENT } from "./featureFlags";
+import { useDashboardAutoSeed } from "./multipane/dashboardAutoSeed";
 import { useLaunchpadRoute } from "./launchpad/launchpadRoute";
 import { WorkbenchShell } from "./workbench/WorkbenchShell";
 import { useWorkbenchRoute } from "./workbench/workbenchRoute";
@@ -1315,6 +1316,14 @@ function PlaygroundApp(): React.ReactElement {
         [surfaceConnVersion],
     );
     const dashboardAssistantLabel = dashboardSurfaceProfile || pulseAssistantProfile || activeConnector || "No assistant";
+    // Auto-seed the Dashboard's native canvas with a few starter charts when it's
+    // empty and a chart-capable connector is bound — so a connected Dashboard
+    // isn't a blank canvas. Flag-gated (dashboardAutoSeed, default ON), PBI-only,
+    // once per profile. Fires when the Dashboard surface is the active one.
+    useDashboardAutoSeed({
+        profile: dashboardSurfaceProfile || pulseAssistantProfile || activeConnector || "",
+        active: activeSurface === "bi-viz",
+    });
     const dashboardPackLabel = packSelection?.pack
         ? packSelection.subVertical
             ? `${packSelection.pack} / ${packSelection.subVertical}`

@@ -20,20 +20,29 @@ export interface FeatureFlags {
     /** Part C — unlocks the per-pane connector state model + the multi-pane
      *  demo surface (/multi-pane-demo). DEFAULT FALSE. */
     multiConnectorPanes: boolean;
+    /** When the Dashboard's native canvas is empty and a chart-capable connector
+     *  is bound, auto-pin a few starter charts from the connected source so the
+     *  Dashboard is useful out-of-the-box (closes the "empty Dashboard" gap).
+     *  DEFAULT TRUE — disable to keep a blank canvas. Tightly guarded: only the
+     *  deterministic Power BI path, only when empty, once per profile. */
+    dashboardAutoSeed: boolean;
 }
 
-/** The canonical defaults. Everything false — PulsePlay behaves exactly as it
- *  does today when no flags have been set. */
+/** The canonical defaults. `multiConnectorPanes` stays false (single-pane app
+ *  unchanged); `dashboardAutoSeed` is ON so a connected Dashboard isn't blank. */
 export const DEFAULT_FEATURE_FLAGS: Readonly<FeatureFlags> = Object.freeze({
     multiConnectorPanes: false,
+    dashboardAutoSeed: true,
 });
 
-/** Coerce an unknown parsed value into a valid FeatureFlags, defaulting every
- *  unrecognised / malformed field to its safe (false) default. */
+/** Coerce an unknown parsed value into a valid FeatureFlags. `multiConnectorPanes`
+ *  defaults false (=== true); `dashboardAutoSeed` defaults true (only an explicit
+ *  `false` disables it). */
 export function normalizeFeatureFlags(raw: unknown): FeatureFlags {
     const obj = (raw && typeof raw === "object") ? raw as Record<string, unknown> : {};
     return {
         multiConnectorPanes: obj.multiConnectorPanes === true,
+        dashboardAutoSeed: obj.dashboardAutoSeed !== false,
     };
 }
 
