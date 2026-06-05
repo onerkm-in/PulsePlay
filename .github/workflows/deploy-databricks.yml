@@ -56,6 +56,12 @@ jobs:
         run: |
           npm ci
           npm test
+      # Pre-deploy gate — refuse to ship app.yaml / config.json with unfilled
+      # placeholders (e.g. GENIE_SPACE_ID still "ENTER_YOUR_..._HERE"), which
+      # would start the app fine but fail SILENTLY at runtime.
+      - name: Validate deploy config (no placeholders)
+        working-directory: proxy
+        run: npm run validate-deploy
 
       - uses: databricks/setup-cli@main   # TODO: pin to a release SHA
 

@@ -6,7 +6,8 @@
     "scripts": {
         "start": "node server.js",
         "dev": "node --watch server.js",
-        "test": "jest"
+        "test": "jest",
+        "validate-deploy": "node scripts/validate-deploy-config.mjs"
     },
     "dependencies": {
         "express": "^5.2.1",

@@ -8940,6 +8940,15 @@ if (require.main === module) {
             console.log(`Auth         →  ${azureIdentity ? 'PAT + Azure Identity fallback' : 'PAT only (install @azure/identity for managed identity)'}`);
             console.log(`Health check →  http://127.0.0.1:${port}/health`);
             console.log(`Visual URL   →  set apiBaseUrl = http://127.0.0.1:${port} (NOT localhost)\n`);
+            // Footgun guard — the Vite dev server proxies /api/* → 127.0.0.1:7000
+            // (playground/vite.config.ts). If the proxy is started locally on any
+            // other port, EVERY /api/* call returns HTTP 500 from Vite with no
+            // obvious cause. Warn loudly so a deployer doesn't burn 30 min on it.
+            if (port !== 7000) {
+                console.log(`⚠  Port ${port} ≠ 7000 — the Vite dev server proxies /api/* to 127.0.0.1:7000.`);
+                console.log(`   For local dev, start the proxy with PORT=7000 or every /api/* call will be HTTP 500.`);
+                console.log(`   (Ignore this if you intentionally run on a different port + adjusted vite.config.ts.)\n`);
+            }
             // G7 — security posture warning. Detect user-PAT pattern (dapi*)
             // in any profile token and warn that a service-principal token in
             // a Databricks secret scope is preferred for production. Won't
