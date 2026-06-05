@@ -37,6 +37,13 @@ export function markDashboardSeeded(profile: string): void {
     if (typeof window === "undefined" || !profile) return;
     try { window.localStorage.setItem(SEEDED_PREFIX + profile, "1"); } catch { /* ignore */ }
 }
+/** Release the seeded marker — used when a seed attempt produced 0 tiles (a
+ *  transient backend failure or an empty schema) so it can retry next time
+ *  instead of leaving the Dashboard permanently empty. */
+export function unmarkDashboardSeeded(profile: string): void {
+    if (typeof window === "undefined" || !profile) return;
+    try { window.localStorage.removeItem(SEEDED_PREFIX + profile); } catch { /* ignore */ }
+}
 
 interface StarterQuestion { question: string; chartType: string; }
 
@@ -142,8 +149,15 @@ export async function maybeAutoSeedDashboard(opts: {
     if (connectorType && connectorType !== "powerbi-semantic-model") return 0;
     if (canvasTileCount() > 0) return 0;
     if (wasDashboardSeeded(profile)) return 0;
-    markDashboardSeeded(profile);   // mark BEFORE awaiting so concurrent triggers don't double-seed
+    // Mark BEFORE awaiting so a concurrent trigger (another tab sharing this
+    // localStorage) sees the claim and skips — prevents cross-tab double-seed.
+    markDashboardSeeded(profile);
     const added = await autoSeedDashboard(opts);
+    // ...but if the seed produced NOTHING (a transient backend failure, or a
+    // schema with no chartable dimensions), release the marker so a later visit
+    // retries. Without this, one bad moment (proxy down / warehouse waking)
+    // would leave the Dashboard permanently empty for this profile.
+    if (added === 0) unmarkDashboardSeeded(profile);
     return added;
 }
 

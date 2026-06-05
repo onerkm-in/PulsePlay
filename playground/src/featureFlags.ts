@@ -94,11 +94,16 @@ export function useFeatureFlag(flag: keyof FeatureFlags): boolean {
     useEffect(() => {
         if (typeof window === "undefined") return;
         const sync = () => setValue(isFeatureEnabled(flag));
+        // Named handler so BOTH listeners get removed on cleanup. (The previous
+        // version registered an anonymous "storage" listener that was never
+        // removed → one orphaned listener leaked per mount/unmount cycle.)
+        const onStorage = (e: StorageEvent) => { if (!e.key || e.key === FEATURE_FLAGS_KEY) sync(); };
         window.addEventListener(FEATURE_FLAGS_EVENT, sync as EventListener);
-        window.addEventListener("storage", (e: StorageEvent) => {
-            if (!e.key || e.key === FEATURE_FLAGS_KEY) sync();
-        });
-        return () => window.removeEventListener(FEATURE_FLAGS_EVENT, sync as EventListener);
+        window.addEventListener("storage", onStorage);
+        return () => {
+            window.removeEventListener(FEATURE_FLAGS_EVENT, sync as EventListener);
+            window.removeEventListener("storage", onStorage);
+        };
     }, [flag]);
     return value;
 }

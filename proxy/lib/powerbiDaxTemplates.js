@@ -99,7 +99,7 @@ const topN = {
         const column = bracketColumn(slots.dimensionColumn);
         const measure = bracketMeasure(slots.measure);
         const n = clampTopN(slots.n ?? 10);
-        return `EVALUATE TOPN(${n}, SUMMARIZECOLUMNS(${table}${column}, "${slots.measure}", ${measure}), [${slots.measure}], DESC) ORDER BY [${slots.measure}] DESC`;
+        return `EVALUATE TOPN(${n}, SUMMARIZECOLUMNS(${table}${column}, "${slots.measure}", ${measure}), ${measure}, DESC) ORDER BY ${measure} DESC`;
     },
     buildResult({ columns, rows, slots }) {
         if (rows.length === 0) {
@@ -136,7 +136,7 @@ const aggregateBy = {
         const table = quoteTable(slots.dimensionTable);
         const column = bracketColumn(slots.dimensionColumn);
         const measure = bracketMeasure(slots.measure);
-        return `EVALUATE SUMMARIZECOLUMNS(${table}${column}, "${slots.measure}", ${measure}) ORDER BY [${slots.measure}] DESC`;
+        return `EVALUATE SUMMARIZECOLUMNS(${table}${column}, "${slots.measure}", ${measure}) ORDER BY ${measure} DESC`;
     },
     buildResult({ columns, rows, slots }) {
         if (rows.length === 0) {

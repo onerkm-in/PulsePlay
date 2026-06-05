@@ -2034,6 +2034,7 @@ async function idpMiddleware(req, res, next) {
 // sliding window limit on all /assistant/* routes.
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const RATE_LIMIT_MAX = 120; // requests per IP per window
+const RATE_LIMIT_MAX_IPS = 5000; // prune threshold — bound the bucket map
 const rateLimitBuckets = new Map(); // ip → number[] (timestamps)
 
 function isRateLimitExemptRead(req) {
@@ -2069,6 +2070,15 @@ function rateLimitMiddleware(req, res, next) {
     }
     bucket.push(now);
     rateLimitBuckets.set(ip, bucket);
+    // Bound the map: a one-shot IP that never returns would otherwise keep its
+    // (expired) entry forever — slow unbounded growth. When the map grows past
+    // the threshold, drop every IP whose whole window has expired. O(n) but
+    // amortized cheap (only fires above the cap).
+    if (rateLimitBuckets.size > RATE_LIMIT_MAX_IPS) {
+        for (const [k, v] of rateLimitBuckets) {
+            if (!v.some(ts => ts > cutoff)) rateLimitBuckets.delete(k);
+        }
+    }
     next();
 }
 

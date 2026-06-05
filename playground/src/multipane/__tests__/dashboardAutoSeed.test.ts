@@ -124,4 +124,16 @@ describe("maybeAutoSeedDashboard — guards", () => {
         expect(added2).toBe(0);                 // not re-seeded
         expect(listCanvasTiles()).toHaveLength(0);
     });
+
+    it("a FAILED seed (0 tiles) does NOT permanently block — it retries next time", async () => {
+        setFeatureFlag("dashboardAutoSeed", true);
+        // First attempt: backend is down → every query single-row → 0 tiles pinned.
+        const added1 = await maybeAutoSeedDashboard({ profile: "powerbi-dwd", connectorType: "powerbi-semantic-model", probe: PROBE, fetchImpl: makeFetch(false), max: 3 });
+        expect(added1).toBe(0);
+        expect(wasDashboardSeeded("powerbi-dwd")).toBe(false);   // marker RELEASED, not stuck
+        // Backend recovers → the retry succeeds (would have been blocked by the old mark-before-await bug).
+        const added2 = await maybeAutoSeedDashboard({ profile: "powerbi-dwd", connectorType: "powerbi-semantic-model", probe: PROBE, fetchImpl: makeFetch(true), max: 3 });
+        expect(added2).toBeGreaterThan(0);
+        expect(wasDashboardSeeded("powerbi-dwd")).toBe(true);
+    });
 });
