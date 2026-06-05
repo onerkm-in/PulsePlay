@@ -24,10 +24,30 @@
 - Current status for the retested feature/connector slice: **critical blockers cleared**.
 - Remaining readiness caveat: this recovery run did not repeat the full intense adversarial/reload/mobile suite, so org-standard readiness is now **conditional** rather than fully certified.
 
+## Final intense addendum (full headed adversarial/reload/mobile pass)
+- Additional fix applied: `/warehouse/start` no longer aborts the server-side warmup when the browser drops the fire-and-forget request during rapid navigation; the route keeps the warmup alive and only writes a response if the connection still exists.
+- Additional harness hardening applied: the intense browser script now targets both Pulse-mode (`.gn-input` / `.gn-send`) and native Ask Pulse controls, seeds the same proxy-mode fields that Settings writes (`assistantProfile`, `connectionMode=proxy`, `apiBaseUrl=/api`), treats reload-driven `net::ERR_ABORTED` as informational, and avoids self-inflicted auto-insight rate pressure during the legacy `uiMode` reload probe.
+- Startup polish applied: the playground now declares an inline favicon so browser startup no longer emits a missing-resource console error.
+- Focused proxy validation: `npm.cmd test -- server warehouseAutostart` passed **2 suites / 180 tests**.
+- Playground validation: `npm.cmd run lint` passed after the browser harness and markup changes.
+- Final live headed browser proof: `node playground/scripts/verify-unified-screen-intense.mjs` completed with **0 console errors, 0 page errors, 0 network 4xx/5xx/failures**, across **186 observed `/api/*` calls**.
+- Working in the final intense pass:
+  - Cell Catalog manifests: 5/5 reachable.
+  - Legacy/garbage `uiMode` values: no crash; screen stayed mounted.
+  - Adversarial composer: empty and whitespace submits blocked; script-injection fill did not execute; 5000-char input accepted; in-flight Ask button disabled.
+  - Ask Pulse multi-message: 3 back-to-back prompts completed; Pulse-mode DOM showed 8 chat entries after E5 + F prompts.
+  - Toolbar accessibility: 13/13 visible header buttons had text, `aria-label`, or title.
+  - Mobile viewport: composer remained reachable at `768x900`; no horizontal overflow.
+  - Detach/minimize: floating and dock slots activated.
+- Remaining product caveats from the final pass:
+  - Conversation reuse tripwire is still not clean: 4 submits produced 4 `POST /conversations/start` calls and 0 `/conversations/poll` calls. The UI also uses `/conversations/{id}/messages`; the follow-up should decide whether this is acceptable Pulse-mode behavior or whether one logical chat session must reuse a single upstream conversation.
+  - Reload persistence is partial: chat entries went **8 before reload -> 1 after reload**. Profile and `uiMode` persisted, but the transcript did not fully restore.
+  - Pulse-mode answer cards do not emit native `trust-badge` test ids; the final pass had `0` TrustBadges even though answers completed. Treat this as a test-surface parity gap or a UX evidence gap to resolve before formal certification.
+
 ## Consolidated outcome
 - Initial audit status: **Not org-standard yet**.
-- Recovery status: **tested critical Ask/Insights/Power BI chart blockers cleared in the latest headed slice**.
-- Net quality signal: **improved to conditional** — the main feature/connector slice is now green at critical/warning level, but the full intense suite still needs a fresh pass before calling this org-standard certified.
+- Recovery status: **tested critical Ask/Insights/Power BI chart blockers cleared, and the full headed intense suite is now green on runtime/browser error budget**.
+- Net quality signal: **improved to conditional release-candidate / internal pilot** — browser stability is now clean under the observed intense run, but org-standard certification should still wait on the conversation-reuse, transcript-persistence, and trust-evidence parity caveats above.
 
 ## Sub-agent assessment (hard review)
 

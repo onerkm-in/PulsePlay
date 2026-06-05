@@ -3347,16 +3347,20 @@ app.post('/warehouse/start', async (req, res) => {
     // fire-on-mount warmup doesn't log a console 400 on every non-SQL connector.
     if (!warehouseId) return res.json({ ok: true, state: 'none', warehouse: false, reason: 'no-warehouse-configured' });
 
-    // D — if the client disconnects (tab close, Stop), abort the server-side
-    // poll instead of letting it run to the 5-minute ceiling.
-    const ac = new AbortController();
-    req.on('close', () => ac.abort());
     try {
-        await ensureWarehouseRunning(resolved.profile, ac.signal);
-        res.json({ ok: true, state: 'RUNNING' });
+        // This endpoint is used by the playground as fire-and-forget warmup.
+        // Keep the actual warehouse start alive even if fast navigation drops
+        // the browser request; otherwise harmless UI churn becomes noisy 500s
+        // and can leave the next screen cold.
+        await ensureWarehouseRunning(resolved.profile);
+        if (!res.destroyed && !res.headersSent) {
+            res.json({ ok: true, state: 'RUNNING' });
+        }
     } catch (err) {
         const mapped = errorStatusFromDatabricks(err, 500);
-        res.status(mapped.status).json({ error: mapped.error });
+        if (!res.destroyed && !res.headersSent) {
+            res.status(mapped.status).json({ error: mapped.error });
+        }
     }
 });
 

@@ -80,7 +80,13 @@ async function main() {
         }
     });
     page.on("requestfailed", (req) => {
-        const line = `[net FAIL] ${req.method()} ${req.url()} — ${req.failure()?.errorText || "?"}`;
+        const errorText = req.failure()?.errorText || "?";
+        const url = req.url();
+        if (errorText === "net::ERR_ABORTED") {
+            record(`[net ABORTED-info] ${req.method()} ${url} — ${errorText} (request cancelled by intentional reload/navigation probe)`);
+            return;
+        }
+        const line = `[net FAIL] ${req.method()} ${url} — ${errorText}`;
         errors.net.push(line);
         record(line);
     });
@@ -124,6 +130,11 @@ async function seedProfile(page) {
         const k = "pulseplay:visual-settings:genieSettings";
         const existing = JSON.parse(window.localStorage.getItem(k) || "{}");
         existing.assistantProfile = profile;
+        existing.connectionMode = "proxy";
+        existing.apiBaseUrl = `${window.location.origin}/api`;
+        existing.host = "";
+        existing.token = "";
+        existing.spaceId = "";
         window.localStorage.setItem(k, JSON.stringify(existing));
         window.dispatchEvent(new CustomEvent("pulseplay:visual-settings-change", { detail: { objectName: "genieSettings" } }));
     }, PROFILE);
@@ -170,6 +181,20 @@ async function probeBCellCatalog(page) {
 // ─── Probe C: Legacy + garbage uiMode values ───────────────────────
 async function probeCLegacyUiModeValues(page) {
     record(`\n[C] Legacy / garbage uiMode storage values — graceful fallback`);
+    const savedGenieSettings = await page.evaluate(() => {
+        const k = "pulseplay:visual-settings:genieSettings";
+        const previous = window.localStorage.getItem(k);
+        const existing = JSON.parse(previous || "{}");
+        // This probe reloads the app repeatedly to validate UI fallback only.
+        // Keep it from firing expensive auto-insight requests on every reload;
+        // the composer probes below restore the real proxy profile before submit.
+        existing.assistantProfile = "";
+        existing.apiBaseUrl = "";
+        existing.spaceId = "";
+        window.localStorage.setItem(k, JSON.stringify(existing));
+        window.dispatchEvent(new CustomEvent("pulseplay:visual-settings-change", { detail: { objectName: "genieSettings" } }));
+        return previous;
+    });
     const cases = [
         { val: "pulse",  expect: "pulse-mounted (Ask Pulse tab visible)" },
         { val: "v0",     expect: "v0 mounted (.pp-ai-sidebar__ask visible)" },
@@ -190,7 +215,15 @@ async function probeCLegacyUiModeValues(page) {
         record(`[C] storage=${JSON.stringify(c.val).padEnd(8)} → pp-screen=${ppScreen} pp-ai-sidebar__ask=${ask} "Ask Pulse"-tab=${pulseTab}   (${c.expect})`);
     }
     // Reset to default for downstream probes.
-    await page.evaluate(() => window.localStorage.removeItem("pulseplay:ui-mode"));
+    await page.evaluate((previous) => {
+        window.localStorage.removeItem("pulseplay:ui-mode");
+        window.localStorage.setItem("pulseplay:active-surface", "ask-pulse");
+        const k = "pulseplay:visual-settings:genieSettings";
+        if (previous === null) window.localStorage.removeItem(k);
+        else window.localStorage.setItem(k, previous);
+        window.dispatchEvent(new CustomEvent("pulseplay:visual-settings-change", { detail: { objectName: "genieSettings" } }));
+    }, savedGenieSettings);
+    await seedProfile(page);
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.waitForTimeout(600);
 }
@@ -264,10 +297,11 @@ async function probeDSlotTriggers(page) {
 // ─── Probe E: Adversarial composer inputs ──────────────────────────
 async function probeEAdversarialInputs(page) {
     record(`\n[E] Adversarial composer inputs`);
-    const composer = page.locator("textarea").first();
-    const askBtn = page.locator("button.pp-ai-sidebar__ask").first();
+    const activated = await activateAskPulseSurface(page);
+    const composer = composerLocator(page);
+    const askBtn = askButtonLocator(page);
     if ((await composer.count()) === 0 || (await askBtn.count()) === 0) {
-        record(`[E] FAIL: composer or ask button missing — surface didn't mount`);
+        record(`[E] FAIL: composer or ask button missing — Ask Pulse activated=${activated}`);
         return;
     }
 
@@ -313,11 +347,25 @@ async function probeEAdversarialInputs(page) {
 
     // E5: single submit → button immediately disabled (proxy for double-submit guard)
     await composer.fill("E5 single-submit probe");
+    const disabledBeforeSubmit = await askBtn.isDisabled().catch(() => null);
+    record(`[E5] pre-submit Ask button disabled=${disabledBeforeSubmit} (expect false when proxy profile is fully configured)`);
+    if (disabledBeforeSubmit) {
+        record(`[E5] FAIL: cannot submit configured Ask Pulse prompt because send control is disabled`);
+        await page.screenshot({ path: join(OUT_DIR, "E-after-adversarial.png"), fullPage: false });
+        return;
+    }
+    const beforeEntries = await chatEntryCount(page);
     await askBtn.click().catch(() => {});
     // Sample within 250ms — too fast for Genie to respond, so disabled=true here proves the guard.
     await page.waitForTimeout(250);
     const disabledMid = await askBtn.isDisabled().catch(() => null);
     record(`[E5] mid-flight Ask button disabled=${disabledMid} (expect true — blocks double-submit while request in flight)`);
+    const afterEntries = await chatEntryCount(page);
+    if (afterEntries <= beforeEntries) {
+        record(`[E5] FAIL: submit click did not create a chat entry (before=${beforeEntries} after=${afterEntries})`);
+        await page.screenshot({ path: join(OUT_DIR, "E-after-adversarial.png"), fullPage: false });
+        return;
+    }
     // Wait briefly for completion so subsequent probes start clean, but cap at 30s.
     const e5final = await waitForLastEntryFinal(page, 30_000);
     record(`[E5] post-wait last-entry status: ${e5final}`);
@@ -327,8 +375,13 @@ async function probeEAdversarialInputs(page) {
 // ─── Probe F: Multi-message chat (3 back-to-back) ──────────────────
 async function probeFMultiMessageChat(page) {
     record(`\n[F] Multi-message chat — 3 back-to-back Asks`);
-    const composer = page.locator("textarea").first();
-    const askBtn = page.locator("button.pp-ai-sidebar__ask").first();
+    const activated = await activateAskPulseSurface(page);
+    const composer = composerLocator(page);
+    const askBtn = askButtonLocator(page);
+    if ((await composer.count()) === 0 || (await askBtn.count()) === 0) {
+        record(`[F] FAIL: composer or ask button missing — Ask Pulse activated=${activated}`);
+        return;
+    }
     const prompts = [
         "What is the total sales by category?",
         "Top 5 sub-categories by profit?",
@@ -336,14 +389,28 @@ async function probeFMultiMessageChat(page) {
     ];
     for (let i = 0; i < prompts.length; i++) {
         await composer.fill(prompts[i]);
+        const disabledBeforeSubmit = await askBtn.isDisabled().catch(() => null);
+        if (disabledBeforeSubmit) {
+            record(`[F${i+1}] FAIL: Ask button disabled before submit`);
+            break;
+        }
+        const beforeEntries = await chatEntryCount(page);
         await askBtn.click().catch(() => {});
         record(`[F${i+1}] submitted "${prompts[i].slice(0, 60)}" — waiting for completion…`);
+        await page.waitForTimeout(600);
+        const afterEntries = await chatEntryCount(page);
+        if (afterEntries <= beforeEntries) {
+            record(`[F${i+1}] FAIL: submit click did not create a chat entry (before=${beforeEntries} after=${afterEntries})`);
+            break;
+        }
         const final = await waitForLastEntryFinal(page, 90_000);
         record(`[F${i+1}] final status: ${final}`);
     }
     const entryCount = await page.locator('[data-testid^="pp-ai-entry-"]').count();
+    const pulseEntryCount = await page.locator(".gn-msg").count();
     const badgeCount = await page.locator('[data-testid="trust-badge"]').count();
-    record(`[F] total entries in DOM: ${entryCount} (expect ≥ 3 from this probe, may include prior E5 leak)`);
+    record(`[F] total native entries in DOM: ${entryCount}`);
+    record(`[F] total Pulse entries in DOM: ${pulseEntryCount} (expect ≥ 6 after E5 + 3 prompts: user+assistant pairs)`);
     record(`[F] total TrustBadges in DOM: ${badgeCount} (expect ~= entryCount of completed replies)`);
     await page.screenshot({ path: join(OUT_DIR, "F-multi-message.png"), fullPage: true });
 }
@@ -400,6 +467,11 @@ async function probeHToolbarEnumeration(page) {
 // ─── Probe I: Mobile viewport (768x900) ────────────────────────────
 async function probeIMobileViewport(page) {
     record(`\n[I] Mobile viewport — 768 × 900 (per design doc §10.5 collapse threshold)`);
+    const activated = await activateAskPulseSurface(page);
+    if (!activated) {
+        record(`[I] FAIL: Ask Pulse surface could not be activated before mobile composer probe`);
+        return;
+    }
     await page.setViewportSize({ width: 768, height: 900 });
     await page.waitForTimeout(700);
     await page.screenshot({ path: join(OUT_DIR, "I-mobile-768.png"), fullPage: false });
@@ -419,16 +491,47 @@ async function probeIMobileViewport(page) {
     await page.waitForTimeout(500);
 }
 
+async function activateAskPulseSurface(page) {
+    const composer = composerLocator(page);
+    const askBtn = askButtonLocator(page);
+    const isReady = async () => (
+        (await composer.count()) > 0 &&
+        (await askBtn.count()) > 0 &&
+        await composer.isVisible().catch(() => false) &&
+        await askBtn.isVisible().catch(() => false)
+    );
+    if (await isReady()) return true;
+
+    const askTabs = page.locator('button:has-text("Ask Pulse")');
+    const count = await askTabs.count();
+    for (let i = count - 1; i >= 0; i--) {
+        const candidate = askTabs.nth(i);
+        if (!(await candidate.isVisible().catch(() => false))) continue;
+        await candidate.click().catch(() => {});
+        await page.waitForTimeout(700);
+        if (await isReady()) return true;
+    }
+    return false;
+}
+
+function composerLocator(page) {
+    return page.locator("textarea.gn-input, textarea").first();
+}
+
+function askButtonLocator(page) {
+    return page.locator("button.gn-send, button.pp-ai-sidebar__ask").first();
+}
+
 // ─── Probe J: Reload state persistence ─────────────────────────────
 async function probeJStatePersistence(page) {
     record(`\n[J] State persistence across reload`);
-    const beforeEntries = await page.locator('[data-testid^="pp-ai-entry-"]').count();
+    const beforeEntries = await chatEntryCount(page);
     const beforeUiMode = await page.evaluate(() => window.localStorage.getItem("pulseplay:ui-mode"));
     const beforeProfile = await page.evaluate(() => window.localStorage.getItem("pulseplay:active-ai-profile"));
     record(`[J] before reload: entries=${beforeEntries} uiMode=${JSON.stringify(beforeUiMode)} profile=${JSON.stringify(beforeProfile)}`);
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.waitForTimeout(900);
-    const afterEntries = await page.locator('[data-testid^="pp-ai-entry-"]').count();
+    const afterEntries = await chatEntryCount(page);
     const afterUiMode = await page.evaluate(() => window.localStorage.getItem("pulseplay:ui-mode"));
     const afterProfile = await page.evaluate(() => window.localStorage.getItem("pulseplay:active-ai-profile"));
     record(`[J] after  reload: entries=${afterEntries} uiMode=${JSON.stringify(afterUiMode)} profile=${JSON.stringify(afterProfile)}`);
@@ -447,11 +550,24 @@ async function waitForLastEntryFinal(page, timeoutMs) {
         final = await page.evaluate(() => {
             const entries = Array.from(document.querySelectorAll('[data-testid^="pp-ai-entry-"]'));
             const last = entries[entries.length - 1];
-            return last ? last.getAttribute("data-status") : null;
+            if (last) return last.getAttribute("data-status");
+            const assistantMessages = document.querySelectorAll(".gn-msg--assistant, .gn-msg--system").length;
+            const progress = document.querySelectorAll(".gn-chat-progress").length;
+            if (assistantMessages > 0 && progress === 0) return "completed";
+            if (assistantMessages > 0 && progress > 0) return "running";
+            return null;
         });
         if (final === "completed" || final === "failed") return final;
     }
     return final || "timeout";
+}
+
+async function chatEntryCount(page) {
+    return page.evaluate(() => {
+        const nativeEntries = document.querySelectorAll('[data-testid^="pp-ai-entry-"]').length;
+        const pulseEntries = document.querySelectorAll(".gn-msg").length;
+        return Math.max(nativeEntries, pulseEntries);
+    });
 }
 
 main().catch(async (err) => {

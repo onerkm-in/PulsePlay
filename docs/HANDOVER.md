@@ -5,6 +5,24 @@
 
 ---
 
+## 2026-06-06 — Full intense browser suite green: warmup 500s fixed, Ask Pulse exercised live
+
+Continued Rajesh's `/loop : Beast Mode : Analysis ; Beast Mode : Fix ; Best Mode : Test` beyond the first recovery slice and reran the full headed adversarial/reload/mobile browser pass.
+
+- **Analysis:** The first fresh intense pass after the Power BI retry fix showed `/api/warehouse/start` 500s under rapid reload/navigation. Root cause: the warmup endpoint tied server-side warehouse startup to the browser request lifetime; when the client intentionally aborted a fire-and-forget warmup, the proxy aborted the poll and surfaced noisy 500s.
+- **Fix:** Updated [proxy/server.js](../proxy/server.js) so `/warehouse/start` keeps the actual warmup alive even if the client disconnects, and only writes a JSON response if the connection is still open. This preserves low-level abort support in `ensureWarehouseRunning` while making the warmup route robust for UI churn.
+- **Browser harness hardening:** Updated [playground/scripts/verify-unified-screen-intense.mjs](../playground/scripts/verify-unified-screen-intense.mjs) so it targets Pulse-mode Ask Pulse (`.gn-input` / `.gn-send`) as well as native Ask Pulse, seeds the same proxy-mode fields Settings writes, treats reload-driven `net::ERR_ABORTED` as informational, avoids backend auto-insight pressure during the legacy `uiMode` reload probe, and counts Pulse-mode chat entries for persistence. Added an inline favicon in [playground/index.html](../playground/index.html) to remove startup 404 console noise.
+- **Tests:** `npm.cmd test -- server warehouseAutostart` passed **2 suites / 180 tests**. `npm.cmd run lint` passed after each playground harness/markup change. Final headed `node playground/scripts/verify-unified-screen-intense.mjs` completed with **0 console errors, 0 page errors, 0 network 4xx/5xx/failures** across **186 `/api/*` calls**.
+- **Live browser proof:** Final intense pass exercised Cell Catalog manifests, legacy/garbage `uiMode` fallback, adversarial composer input, 3 back-to-back Ask Pulse prompts, toolbar labels, mobile composer/no-overflow, and detach/minimize slots. Ask Pulse produced **8 Pulse-mode chat entries** after E5 + 3 prompts.
+- **Audit updated:** [docs/live-browser-org-readiness-audit-2026-06-06.md](live-browser-org-readiness-audit-2026-06-06.md) now records the final intense addendum and upgrades the stability verdict to conditional release-candidate/internal-pilot.
+
+**Remaining caveats:**
+- Conversation reuse remains suspect: final intense pass saw **4** `POST /conversations/start` calls for 4 submits and **0** `/conversations/poll` calls. Decide whether Pulse-mode `/conversations/{id}/messages` behavior is acceptable or whether one logical chat session must reuse a single upstream conversation.
+- Reload persistence is partial: chat entries went **8 before reload -> 1 after reload**. Profile and `uiMode` persisted, transcript did not fully restore.
+- Pulse-mode answers do not expose native `trust-badge` test ids, so trust evidence parity still needs a follow-up.
+
+---
+
 ## 2026-06-06 — Live browser audit fix loop: Power BI transient retry + headed recovery green
 
 Responded to Rajesh's `/loop : Beast Mode : Analysis ; Beast Mode : Fix ; Best Mode : Test` after the live browser org-readiness audit showed Ask/Insights and deterministic chart blockers.
