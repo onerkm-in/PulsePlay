@@ -12,6 +12,12 @@ enablers/desktop/out/
 enablers/desktop/PulsePlayData/
 enablers/desktop/*.exe
 
+# Config-guide generated artifacts (regenerate via
+# playground/scripts/_capture-config-guide*.mjs then docs/config-guide-assets/build-guide.mjs)
+docs/PulsePlay-Configuration-Guide.pdf
+docs/config-guide-assets/guide.html
+docs/config-guide-assets/shots/
+
 # Proxy runtime artifacts (never commit credentials or session-specific logs)
 proxy/config.json
 proxy/feedback.log
