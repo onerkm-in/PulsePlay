@@ -5,6 +5,22 @@
 
 ---
 
+## 2026-06-06 — Grounded Foundation Model: slice 1 (retrieve-then-narrate)
+
+Acted on the "what's the project's stand" plan. Rajesh chose: ground the FM path first (free-tier, no paid provisioning), Power BI-only for v1. Research (3 parallel agents) found the grounding plumbing mostly exists but is unwired on the FM path: FM is pure prompt→completion, the shared system-prompt composer injects only metadata *names* (never values), the sectioned orchestrator has a dead `runProbe`/`probeRows` seam, and the frontend grounding advisory is already fail-closed on *rows present*. Free-tier reality: the ONLY data executor is the Power BI DAX path (warehouse/SQL blocked, Genie blocked).
+
+Shipped the smallest provable slice (`a7dd8d4`) — Phases 1+3 on `/foundation/section`, caller-supplied rows:
+- `discoveryPromptInjector.formatGroundedData()` + optional `groundedBlock` on `composeSystemPromptWithContext` (additive; byte-identical when absent) — folds real rows into the system prompt with a "cite ONLY these, never invent" instruction.
+- New `proxy/lib/groundingVerifier.js` — cross-checks every figure in the FM prose vs the source rows (cell values, column sums, row count) with magnitude-suffix/currency/percentage/comma awareness, 1%+0.5 tolerance, skips calendar years. Status contract: `verified / partial / unverified / no-numeric-claims / ungrounded`.
+- `/foundation/section` accepts `body.groundedData {columns, rows}`, injects + verifies, stamps a `grounding` verdict and echoes `queryResult` so the frontend advisory flips to grounded. Omits both when ungrounded.
+- **Validation:** +15 tests (verifier units + route), proxy **1243/1243**.
+
+**Tripwire found + fixed during build:** the number regex's `[kmbt]` suffix grabbed the "t" in "2026 total" (→ 2026 *trillion*) and "Q4" leaked a stray `4`. Both fixed with letter-boundary lookbehind/lookahead in `NUM_RE`. If you extend the verifier, keep those boundaries.
+
+**Next phases (not built):** P2 wire the orchestrator `runProbe` to auto-execute the grounding query via `executeDaxNormalized` (PBI); P4 a credential-free grounding eval seeded on the `smoke-fixture` rows (Q1=100…Q4=250) — bootstraps the answer-quality harness; P5 frontend Ask Pulse/AI-Insights wiring to run retrieve-then-narrate from the active PBI binding. See [[feature_fm_grounding]].
+
+---
+
 ## 2026-06-06 — Reverse-engineering audit + honesty sweep + 4 loose-end fixes
 
 Rajesh asked to reverse-engineer each part (what's linked / loose / working / broken) then "correct whatever needed." Ran a 5-agent parallel audit (X-connector axis, Y-vendor axis, frontend↔proxy wiring, Pulse-port loose ends, docs-vs-reality), **verified every agent claim against code** before acting (two were wrong — see below), then shipped corrections.
