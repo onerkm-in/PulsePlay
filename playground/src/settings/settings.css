@@ -236,6 +236,33 @@
 }
 .pp-settings-chip--loading .pp-settings-chip__dot { background: #94a3b8; }
 
+/* Dark-mode chip variants — the light-mode text colors (#065f46 etc.) are
+   dark-on-dark here (measured 2.0–2.4:1, below AA 4.5). Brighten the text to
+   the 300-tint of each hue + lift the tint/border for a legible chip. */
+[data-pp-theme="dark"] .pp-settings-chip--ok {
+    background: rgba(16, 185, 129, 0.16);
+    color: #6ee7b7;
+    border-color: rgba(16, 185, 129, 0.38);
+}
+[data-pp-theme="dark"] .pp-settings-chip--warn {
+    background: rgba(245, 158, 11, 0.16);
+    color: #fcd34d;
+    border-color: rgba(245, 158, 11, 0.38);
+}
+[data-pp-theme="dark"] .pp-settings-chip--missing {
+    background: rgba(239, 68, 68, 0.16);
+    color: #fca5a5;
+    border-color: rgba(239, 68, 68, 0.40);
+}
+[data-pp-theme="dark"] .pp-settings-chip--loading {
+    background: rgba(148, 163, 184, 0.14);
+    color: #cbd5e1;
+    border-color: rgba(148, 163, 184, 0.30);
+}
+/* Detail text rides at 0.75 opacity for hierarchy; lift it slightly in dark so
+   the dimmer half still clears AA against the chip tint. */
+[data-pp-theme="dark"] .pp-settings-chip__detail { opacity: 0.88; }
+
 /* ── Body (rail + content) ───────────────────────────────────────── */
 .pp-settings-body {
     flex: 1 1 auto;

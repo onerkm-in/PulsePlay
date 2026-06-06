@@ -10,6 +10,7 @@
 // proxy table and a new card appears here without UI code changes.
 
 import { useState } from "react";
+import "./connectorBrandCard.css";
 import {
     type ConfiguredProfileSummary,
     type ConnectorManifest,
@@ -128,14 +129,13 @@ export function ConnectorBrandCard({
                 </div>
                 <span
                     data-maturity={manifest.maturity}
+                    className="pp-cbc-badge pp-cbc-maturity"
                     style={{
                         fontSize: 9,
                         fontWeight: 700,
                         letterSpacing: 0.5,
                         padding: "1px 5px",
                         borderRadius: 3,
-                        background: maturityMeta.bg,
-                        color: maturityMeta.fg,
                         whiteSpace: "nowrap",
                         flexShrink: 0,
                     }}
@@ -146,11 +146,11 @@ export function ConnectorBrandCard({
 
             <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--pp-text-muted, #6b7280)" }}>
                 <span
+                    data-status={status}
+                    className="pp-cbc-badge pp-cbc-status"
                     style={{
                         padding: "1px 6px",
                         borderRadius: 3,
-                        background: statusMeta.bg,
-                        color: statusMeta.tone,
                         fontWeight: 600,
                     }}
                 >
@@ -159,14 +159,13 @@ export function ConnectorBrandCard({
                 <span
                     data-live-status={liveStatus.status}
                     title={liveStatus.note}
+                    className="pp-cbc-badge pp-cbc-live"
                     style={{
                         display: "inline-flex",
                         alignItems: "center",
                         gap: 4,
                         padding: "1px 6px",
                         borderRadius: 3,
-                        background: liveMeta.bg,
-                        color: liveMeta.tone,
                         fontWeight: 600,
                         cursor: "help",
                     }}

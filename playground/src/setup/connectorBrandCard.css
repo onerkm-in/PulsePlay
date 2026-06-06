@@ -1,0 +1,36 @@
+/* ConnectorBrandCard badge colors.
+ *
+ * Moved off inline styles so they can flip per theme: the historical inline
+ * tones (#065f46, #1e3a8a, #92400e, rgba(0,0,0,0.65)…) are dark-on-dark in
+ * dark mode (measured 1.5–2.1:1, well below AA 4.5). Light defaults mirror the
+ * old values; the [data-pp-theme="dark"] block lifts text to the bright 200/300
+ * tint of each hue so every badge clears AA. Driven by the data-* attributes
+ * already on each badge, so a live theme toggle recolors instantly. */
+
+.pp-cbc-badge { /* layout stays inline; this class only carries color + bg */ }
+
+/* ── Maturity (BETA / STABLE / PREVIEW) ───────────────────────────── */
+.pp-cbc-maturity[data-maturity="stable"]  { background: rgba(16, 185, 129, 0.15); color: #065f46; }
+.pp-cbc-maturity[data-maturity="beta"]    { background: rgba(59, 130, 246, 0.15); color: #1e40af; }
+.pp-cbc-maturity[data-maturity="preview"] { background: rgba(168, 85, 247, 0.15); color: #6b21a8; }
+[data-pp-theme="dark"] .pp-cbc-maturity[data-maturity="stable"]  { background: rgba(16, 185, 129, 0.22); color: #6ee7b7; }
+[data-pp-theme="dark"] .pp-cbc-maturity[data-maturity="beta"]    { background: rgba(59, 130, 246, 0.22); color: #93c5fd; }
+[data-pp-theme="dark"] .pp-cbc-maturity[data-maturity="preview"] { background: rgba(168, 85, 247, 0.22); color: #d8b4fe; }
+
+/* ── Configured-status badge ──────────────────────────────────────── */
+.pp-cbc-status[data-status="active"]              { background: rgba(16, 185, 129, 0.12); color: #065f46; }
+.pp-cbc-status[data-status="configured"]          { background: rgba(59, 130, 246, 0.12); color: #1e3a8a; }
+.pp-cbc-status[data-status="configured-degraded"] { background: rgba(245, 158, 11, 0.12); color: #92400e; }
+.pp-cbc-status[data-status="available"]           { background: rgba(0, 0, 0, 0.04); color: rgba(0, 0, 0, 0.65); }
+[data-pp-theme="dark"] .pp-cbc-status[data-status="active"]              { background: rgba(16, 185, 129, 0.20); color: #6ee7b7; }
+[data-pp-theme="dark"] .pp-cbc-status[data-status="configured"]          { background: rgba(59, 130, 246, 0.20); color: #93c5fd; }
+[data-pp-theme="dark"] .pp-cbc-status[data-status="configured-degraded"] { background: rgba(245, 158, 11, 0.20); color: #fcd34d; }
+[data-pp-theme="dark"] .pp-cbc-status[data-status="available"]           { background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.70); }
+
+/* ── Live-verification chip ───────────────────────────────────────── */
+.pp-cbc-live[data-live-status="verified"]   { background: rgba(16, 185, 129, 0.12); color: #065f46; }
+.pp-cbc-live[data-live-status="unverified"] { background: rgba(107, 114, 128, 0.12); color: #4b5563; }
+.pp-cbc-live[data-live-status="demo"]       { background: rgba(168, 85, 247, 0.12); color: #6b21a8; }
+[data-pp-theme="dark"] .pp-cbc-live[data-live-status="verified"]   { background: rgba(16, 185, 129, 0.20); color: #6ee7b7; }
+[data-pp-theme="dark"] .pp-cbc-live[data-live-status="unverified"] { background: rgba(148, 163, 184, 0.18); color: #cbd5e1; }
+[data-pp-theme="dark"] .pp-cbc-live[data-live-status="demo"]       { background: rgba(168, 85, 247, 0.20); color: #d8b4fe; }
