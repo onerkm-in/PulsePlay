@@ -8769,11 +8769,13 @@ app.post('/supervisor/conversations/:conversationId/messages', async (req, res) 
 });
 
 // GET /supervisor/conversations/:conversationId/messages/:messageId — poll
-// Supervisor responses are synchronous (COMPLETED on the start call) so this
-// endpoint returns the cached response immediately for polling compatibility.
+// Supervisor responses are synchronous: the actual answer is returned in the
+// body of POST .../start, NOT here. There is no server-side message store to
+// re-read, so this endpoint exists ONLY so a Genie-shaped client that blindly
+// polls after start doesn't 404. It echoes COMPLETED with the `synchronous`
+// marker set so a well-behaved client knows to use the start response's
+// `content` and treat the `content` below as a notice, not the answer.
 app.get('/supervisor/conversations/:conversationId/messages/:messageId', (req, res) => {
-    // The visual polls after startConversation — return COMPLETED immediately
-    // since the supervisor response was already resolved synchronously.
     const msgId = req.params.messageId;
     const resolved = resolveSupervisorProfile(req.query || {}, req.headers, req);
     const profile = resolved?.profile || {};
@@ -8782,7 +8784,8 @@ app.get('/supervisor/conversations/:conversationId/messages/:messageId', (req, r
         id:              msgId,
         message_id:      msgId,
         status:          'COMPLETED',
-        content:         '(Supervisor answer was returned synchronously on conversation start.)',
+        synchronous:     true,
+        content:         '(Notice: the supervisor answer was delivered in the POST /start response; this poll endpoint does not re-serve it.)',
         attachments:     [],
     }));
 });
