@@ -8,7 +8,7 @@
 //
 // Pure functions, shape-only, no DOM, no React. Mirrors the TS module
 // rule-by-rule. Update both modules together if you tune the validators.
-// Tests should cover the parity (TODO: add proxy/tests/insightsValidator.test.js).
+// Parity is covered by proxy/tests/insightsValidator.test.js.
 
 const IMPERATIVE_VERBS = new Set([
     'increase', 'reduce', 'reallocate', 'pilot', 'prioritize', 'audit',

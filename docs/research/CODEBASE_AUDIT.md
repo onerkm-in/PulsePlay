@@ -1,5 +1,7 @@
 # PulsePlay Codebase Audit — Brutal-Honest Technical Review
 
+> ⚠️ **STALE (2026-06-06).** This audit is a point-in-time snapshot at HEAD `5e1036d` (2026-05-10) and several of its headline facts have since changed. Known drift: it claims "no playground tests exist" (now 1926, verified 2026-06-06), `server.js` "4,298 lines" (now 9,125), and "powerbi 4 stubs + 1 real" (Power BI is now a real `powerbi-client` SDK adapter). Use it for its **proxy-coupling analysis** (still Genie/Databricks-shaped), NOT for status/counts. For current status see CLAUDE.md "Status", [docs/HANDOVER.md](../HANDOVER.md), [docs/BLOCKERS.md](../BLOCKERS.md), and [docs/ARCHITECTURE.md](../ARCHITECTURE.md).
+
 **Audited:** 2026-05-10
 **Scope:** every file under `D:\Working_Folder\Projects\PulsePlay` at HEAD (`5e1036d`).
 **Method:** read-only inspection. Every claim cited with `file:line`. Unverified items marked `[UNVERIFIED]`.

@@ -310,9 +310,8 @@ export function clearAllInsightsCache(): number {
     return removed;
 }
 
-// Test-only helper. Prunes stale entries from localStorage based on TTL.
-// Not wired into the runtime — call from a maintenance routine if cache
-// growth becomes a concern.
+// Prunes stale entries from localStorage based on TTL. Called once per
+// render pass from the Visual runtime (visual.tsx) to bound cache growth.
 export function pruneInsightsCache(now: number = Date.now(), ttlMs: number = DEFAULT_CACHE_TTL_MS): number {
     const store = ls();
     if (!store) return 0;

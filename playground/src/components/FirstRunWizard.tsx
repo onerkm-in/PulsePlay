@@ -291,7 +291,7 @@ interface WizardProbeResult {
  * Probe a connector via the PulsePlay proxy.
  *
  * Always POSTs to `/api/assistant/probe` — the Vite dev server proxies
- * `/api/*` → `127.0.0.1:8787`, so this works in dev, staging, and
+ * `/api/*` → `127.0.0.1:7000`, so this works in dev, staging, and
  * production without change. The former `/foundation/health` direct fetch
  * was NOT proxied by Vite (only `/api/*` is), so it silently hit the
  * SPA origin instead of the proxy in dev environments (RISK-P1 4.4 fix).

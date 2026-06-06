@@ -78,11 +78,11 @@ ANY combination of (vendor, connector) is valid. Switching either is independent
 
 | Path | Purpose |
 |------|---------|
-| `playground/src/App.tsx` | Sidebar + canvas shell. VendorPicker (Y) + ConnectorPicker (X) + EmbedConfigForm + AISidebar + BIPanel |
+| `playground/src/App.tsx` | Sidebar + canvas shell. Hosts UnifiedAssistantSurface (Chat) or PulseShell (Workbench, the default) + BIPanel. Vendor (Y) + connector (X) selection now lives in Settings/FirstRunWizard, not inline pickers (`ConnectorPicker.tsx` is currently unused) |
 | `playground/src/biPanel/BIAdapter.ts` | Vendor-agnostic contract every adapter implements |
 | `playground/src/biPanel/BIPanel.tsx` | Generic host component — calls `mount/on/send/destroy` on any adapter |
 | `playground/src/biPanel/registry.ts` | Lazy adapter loader (Vite code-splits per vendor) |
-| `playground/src/components/AISidebar.tsx` | The whole-point AI assistant. Talks to the proxy, accumulates BI event context |
+| `playground/src/components/UnifiedAssistantSurface.tsx` | The whole-point AI assistant (the "v0"/Chat surface; CLAUDE history called this `AISidebar` — that file no longer exists). Talks to the proxy, accumulates BI event context |
 | `bi-adapters/generic-iframe/` | Always-works iframe-with-URL escape hatch |
 | `bi-adapters/{powerbi,tableau,qlik,looker}/` | Vendor stubs (extend GenericIframeAdapter today; v1 wires real SDK) |
 | `proxy/server.js` | Express proxy — connector-agnostic backbone (copied from the sister project) |
@@ -190,11 +190,13 @@ These constraints travel with the code under `playground/src/pulse/*` because Pu
 
 ## Status
 
-PulsePlay is past the original scaffold. Latest local validation (post-2026-05-20 session): **proxy 1013/1013**, **playground 1103/1103**, lint clean, `vite build` clean.
+PulsePlay is past the original scaffold. Latest local validation (verified 2026-06-06, HEAD `9162dab`): **proxy 1226/1226**, **playground 1926/1926**, lint clean (`tsc --noEmit`), `vite build` clean. Caveat: tests assert output SHAPE, not answer correctness — there is no eval/hallucination harness (see [docs/QUALITY.md](docs/QUALITY.md)). "All green" ≠ "answers are right."
 
-Connector axis (X) now hosts **ten backend paths**: Genie / Azure OpenAI chat / Azure OpenAI analytics / Bedrock RAG / Bedrock direct / Foundation Model / Supervisor / Supervisor-local / ResponsesAgent / **Power BI semantic-model (no-LLM)** — plus the **Power BI Q&A embed surface** at `/powerbi/qna` (Microsoft's NLP, runs in MS tenant; PulsePlay mints embed token only).
+Connector axis (X) declares **ten backend code paths**: Genie / Azure OpenAI chat / Azure OpenAI analytics / Bedrock RAG / Bedrock direct / Foundation Model / Supervisor / Supervisor-local / ResponsesAgent / **Power BI semantic-model (no-LLM)** — plus the **Power BI Q&A embed surface** at `/powerbi/qna` (Microsoft's NLP, runs in MS tenant; PulsePlay mints embed token only).
 
-BI axis (Y): Power BI has a real `powerbi-client` adapter plus secure embed quick-preview fallback and a developer tools strip. Pulse mode is hosted in the playground. Tableau/Qlik/Looker still use iframe fallbacks until their SDK adapters graduate.
+**Ten code paths ≠ ten working backends.** On the current free-tier reference setup (per [docs/BLOCKERS.md](docs/BLOCKERS.md) + [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) live-verification table): **2 proven live** — Foundation Model (ungrounded; numbers are model-produced, not measured) and Power BI semantic-model (deterministic DAX, 0 LLM calls). **2 blocked upstream** — Genie and Supervisor (free Databricks workspace has serverless compute disabled; code reaches Databricks correctly but the workspace returns 400). **6 code-present-but-unproven-live** — Azure OpenAI chat/analytics, Bedrock RAG/direct, Supervisor-local, ResponsesAgent. Two known gaps in the connector probe/dispatch surface: `responses-agent` has no probe adapter (degrades to `probeGeneric`), and `GET /supervisor/.../messages/:id` is a hardcoded COMPLETED placeholder (answer is returned synchronously on `start`).
+
+BI axis (Y): only **Power BI (SDK mode)** is a real vendor-SDK integration (`powerbi-client`, event + command bridge, `getMetadata()`); `native` is a real ECharts renderer. Power BI also has a secure-embed quick-preview fallback (iframe-only, no bridge) and a developer tools strip. Pulse/Workbench mode is hosted in the playground. **Tableau / Qlik / Looker / databricks-genie are iframe stubs** (no vendor SDK, no event/command bridge — they render a URL and emit one `loaded` event); `databricks-aibi` attempts an SDK import but the dep isn't declared, so it falls back to iframe. Don't credit "Tableau/Qlik/Looker integration."
 
 Architecture-direction call locked 2026-05-20: **connector plugin system** (drop-in/drop-out per-connector modules under `proxy/connectors/`). Phase A scaffolding queued — see [docs/AGENT_SYNC.md](docs/AGENT_SYNC.md) `[DECISION]` block for the contract + host API + phased rollout.
 

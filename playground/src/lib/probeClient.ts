@@ -2,7 +2,7 @@
 //
 // Connector-agnostic client for the Smart Connect probe endpoint. Issues
 // a single POST to /api/assistant/probe (the Vite dev server proxies
-// /api/* to the proxy at 127.0.0.1:8787 — see playground/vite.config.ts).
+// /api/* to the proxy at 127.0.0.1:7000 — see playground/vite.config.ts).
 //
 // The probe contract is defined in docs/CONNECTOR_PROBE_AND_SMART_CONNECT.md.
 // This client deliberately knows NOTHING about Genie / OpenAI / Bedrock
