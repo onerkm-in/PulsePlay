@@ -144,6 +144,29 @@ describe('connectorProbe — adapter dispatch by profile shape', () => {
         expect(classifyConnectorType({ type: 'foundation-model' })).toBe('foundation-model');
     });
 
+    test('responses-agent routes to probeResponsesAgent (not probeGeneric)', () => {
+        const adapter = pickAdapter({ type: 'responses-agent', responsesAgentEndpoint: 'ka-prod' });
+        expect(adapter).toBe(__internals.probeResponsesAgent);
+        expect(adapter).not.toBe(__internals.probeGeneric);
+        expect(classifyConnectorType({ type: 'responses-agent' })).toBe('responses-agent');
+    });
+
+    test('probeResponsesAgent reports endpoint metadata; missing endpoint degrades to none', async () => {
+        const ok = await __internals.probeResponsesAgent(
+            { type: 'responses-agent', responsesAgentEndpoint: 'ka-prod', agentName: 'Knowledge Assistant' },
+            'ka',
+            {},
+        );
+        expect(ok.connectorType).toBe('responses-agent');
+        expect(ok.displayName).toBe('Knowledge Assistant');
+        expect(ok.metadataAvailability).toBe('minimal');
+        expect(ok.description).toContain('ka-prod');
+
+        const bad = await __internals.probeResponsesAgent({ type: 'responses-agent' }, 'ka', {});
+        expect(bad.metadataAvailability).toBe('none');
+        expect(bad.warnings.join(' ')).toContain('responsesAgentEndpoint');
+    });
+
     test('Azure OpenAI with schemaContext routes to probeOpenAiAnalytics', () => {
         const adapter = pickAdapter({
             azureOpenAiEndpoint: 'https://x', schemaContext: 'TABLE t(c STRING)',

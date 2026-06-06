@@ -119,6 +119,7 @@ function pickAdapter(profile) {
     if (profile?.type === 'supervisor-local') return probeSupervisorLocal;
     if (profile?.type === 'supervisor') return probeSupervisorReal;
     if (profile?.type === 'foundation-model' || profile?.type === 'foundation') return probeFoundationModel;
+    if (profile?.type === 'responses-agent') return probeResponsesAgent;
     if (profile?.type === 'powerbi-semantic-model') return probePowerBiSemanticModel;
     if (profile?.azureOpenAiEndpoint) {
         return profile.schemaContext ? probeOpenAiAnalytics : probeOpenAiChatOnly;
@@ -135,6 +136,7 @@ function classifyConnectorType(profile) {
     if (profile.type === 'supervisor-local') return 'supervisor-local';
     if (profile.type === 'supervisor') return 'supervisor';
     if (profile.type === 'foundation-model' || profile.type === 'foundation') return 'foundation-model';
+    if (profile.type === 'responses-agent') return 'responses-agent';
     if (profile.type === 'powerbi-semantic-model') return 'powerbi-semantic-model';
     if (profile.azureOpenAiEndpoint) return profile.schemaContext ? 'openai-analytics' : 'openai-chat';
     if (profile.bedrockKnowledgeBaseId) return 'bedrock-rag';
@@ -294,6 +296,38 @@ async function probeSupervisorReal(profile, profileName, _helpers) {
         result.description = `Mosaic AI Supervisor agent: ${profile.agentName}`;
     } else {
         warnings.push('No agentName configured on supervisor profile');
+        result.metadataAvailability = 'none';
+    }
+    return result;
+}
+
+/**
+ * ResponsesAgent (Mosaic AI ResponsesAgent serving endpoint) probe. Like the
+ * real-supervisor probe, the serving endpoint has no standard introspection
+ * surface (the invocation contract varies per deployment), so we report the
+ * configured display name + endpoint without a network call. A profile with
+ * a `responsesAgentEndpoint` reports 'minimal'; a misconfigured one 'none'.
+ */
+async function probeResponsesAgent(profile, profileName, _helpers) {
+    const warnings = [];
+    /** @type {ConnectorProbeResult} */
+    const result = {
+        profile: profileName,
+        connectorType: 'responses-agent',
+        metadataAvailability: 'minimal',
+        probeDurationMs: 0,
+        warnings,
+    };
+    const endpoint = profile?.responsesAgentEndpoint;
+    if (profile?.agentName) {
+        result.displayName = String(profile.agentName);
+    } else if (endpoint) {
+        result.displayName = `ResponsesAgent (${endpoint})`;
+    }
+    if (endpoint) {
+        result.description = `Mosaic AI ResponsesAgent serving endpoint: ${endpoint}`;
+    } else {
+        warnings.push('No responsesAgentEndpoint configured on responses-agent profile');
         result.metadataAvailability = 'none';
     }
     return result;
@@ -702,6 +736,7 @@ module.exports = {
         probeBedrockRag,
         probeBedrockDirect,
         probeFoundationModel,
+        probeResponsesAgent,
         probePowerBiSemanticModel,
         probeGeneric,
         parseSchemaContextString,
