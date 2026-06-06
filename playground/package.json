@@ -40,6 +40,7 @@
   },
   "comments": {
     "_intentional_inclusion_powerbi": "Cycle A — powerbi-client is now a root dep because the Power BI adapter (bi-adapters/powerbi/index.ts) imports it. Vite still code-splits per-vendor so deployers who don't pick Power BI in the vendor picker never download the SDK chunk.",
-    "_intentional_omission": "tableau-api-js / qlik-embed / @looker/embed-sdk are NOT root dependencies yet. Each will be added when its adapter graduates from the iframe stub to a real SDK. Keeps the playground core vendor-neutral and the bundle small for BI tools the deployer doesn't use."
+    "_intentional_omission": "tableau-api-js / qlik-embed / @looker/embed-sdk are NOT root dependencies yet. Each will be added when its adapter graduates from the iframe stub to a real SDK. Keeps the playground core vendor-neutral and the bundle small for BI tools the deployer doesn't use.",
+    "_intentional_omission_databricks_aibi": "@databricks/aibi-client is also NOT a declared dependency. The databricks-aibi adapter (bi-adapters/databricks-aibi/index.ts) lazy-imports it at runtime ONLY when a full SDK config (token + instanceUrl + workspaceId + dashboardId) is supplied, behind a /* @vite-ignore */ so the build never requires it; absent the package it gracefully falls back to the iframe embed. Promote it to a real dependency when the SDK path graduates from best-effort to supported."
   }
 }
