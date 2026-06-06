@@ -4030,10 +4030,12 @@ const {
 // discoveryContext (compact summary of the cached DiscoverySnapshot).
 const {
     formatDiscoveryContext: _formatDiscoveryContext,
+    formatGroundedData: _formatGroundedData,
     buildAuditDetail: buildDiscoveryAuditDetail,
     composeUserMessageWithContext: _composeUserMessageWithContext,
     composeSystemPromptWithContext: _composeSystemPromptWithContext,
 } = require('./lib/discoveryPromptInjector');
+const { verifyGrounding } = require('./lib/groundingVerifier');
 // Phase 11b prep — proxy-side handling of the structured `body.frame`
 // field shipped by AISidebar (commit 738e4e1). Defense-in-depth
 // validation, idempotent content bridging for direct API callers, and
@@ -7014,6 +7016,7 @@ app.post('/foundation/section', async (req, res) => {
         temperature,
         maxTokens,
         extra,
+        groundedData,
     } = req.body || {};
 
     if (!userPrompt || typeof userPrompt !== 'string' || !userPrompt.trim()) {
@@ -7037,11 +7040,17 @@ app.post('/foundation/section', async (req, res) => {
     // any pack context. The augmented system prompt keeps the existing
     // section-specific instructions and prepends grounding facts above.
     const fmDiscoveryBlock = _formatDiscoveryContext(req.body && req.body.discoveryContext);
+    // Grounding: when the caller supplies the EXACT rows a deterministic
+    // query returned (e.g. the Power BI DAX path on free tier), fold the
+    // values into the system prompt so the FM narrates them instead of
+    // inventing numbers. The verifier below then confirms it obeyed.
+    const fmGroundedBlock = _formatGroundedData(groundedData);
     const effectiveSystemPrompt = _composeSystemPromptWithContext({
         systemPrompt: baseSystemPrompt,
         discoveryBlock: fmDiscoveryBlock,
         packBlock: null,
         packTag: null,
+        groundedBlock: fmGroundedBlock,
     });
     if (fmDiscoveryBlock) {
         auditLog(req, {
@@ -7098,7 +7107,17 @@ app.post('/foundation/section', async (req, res) => {
         // SQL.
         const sqlSections = extractSqlSectionsFromMarkdown(result.content || '');
 
-        console.log(`[foundation/section] profile=${resolved.name} endpoint=${resolved.profile.foundationModelEndpoint} title=${upperTitle || '-'} structured=${!!effectiveResponseFormat} sqlSections=${sqlSections.length}`);
+        // Grounding verdict — only when the caller grounded the call on real
+        // rows. Cross-checks every figure in the FM prose against those rows
+        // and stamps a trust status; echoes the rows back so the client's
+        // (fail-closed) grounding advisory sees them and renders grounded
+        // rather than "Illustrative".
+        const grounding = fmGroundedBlock ? verifyGrounding(result.content || '', groundedData) : null;
+        if (grounding && grounding.status !== 'verified' && grounding.status !== 'no-numeric-claims') {
+            console.warn(`[foundation/section] grounding=${grounding.status} unmatched=${grounding.unmatched.length} profile=${resolved.name}`);
+        }
+
+        console.log(`[foundation/section] profile=${resolved.name} endpoint=${resolved.profile.foundationModelEndpoint} title=${upperTitle || '-'} structured=${!!effectiveResponseFormat} sqlSections=${sqlSections.length}${grounding ? ` grounding=${grounding.status}` : ''}`);
         res.json(withGovernance(req, resolved.profile, 'foundation-model', {
             content: renderedContent,
             rawContent: result.content,
@@ -7107,6 +7126,7 @@ app.post('/foundation/section', async (req, res) => {
             profile: resolved.name,
             structured: !!effectiveResponseFormat,
             ...(sqlSections.length > 0 ? { sqlSections } : {}),
+            ...(grounding ? { grounding, queryResult: { columns: groundedData.columns || [], rows: groundedData.rows || [] } } : {}),
             ...(result.usage ? { usage: result.usage } : {}),
         }));
     } catch (err) {

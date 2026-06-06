@@ -31,6 +31,8 @@
 
 const MAX_KPIS = 20;
 const MAX_FRAMES = 12;
+const MAX_GROUNDED_ROWS = 50;
+const MAX_CELL_CHARS = 80;
 
 /**
  * Format a compact DiscoveryContextSummary as a fenced prompt header.
@@ -71,6 +73,53 @@ function formatDiscoveryContext(ctx) {
     }
 
     if (lines.length === 0) return null;
+    return lines.join('\n');
+}
+
+/**
+ * @typedef {Object} GroundedData
+ * @property {Array<string>} columns
+ * @property {Array<Array<*>>} rows
+ */
+
+/**
+ * Format caller-supplied grounded result rows (the EXACT numbers a
+ * deterministic query returned) as a compact, fenced data block. This is
+ * the values-carrying counterpart to formatDiscoveryContext, which only
+ * carries metadata/names. When a backend folds this into the system prompt,
+ * the model is told the figures it is allowed to cite.
+ *
+ * Defensive: a missing/malformed shape or zero rows yields `null` (the
+ * caller then proceeds ungrounded). Rows are capped at MAX_GROUNDED_ROWS and
+ * each cell truncated to MAX_CELL_CHARS so a fat result set can't blow the
+ * prompt budget.
+ *
+ * @param {GroundedData|null|undefined} data
+ * @returns {string|null}
+ */
+function formatGroundedData(data) {
+    if (!data || typeof data !== 'object') return null;
+    const columns = Array.isArray(data.columns) ? data.columns : [];
+    const rows = Array.isArray(data.rows) ? data.rows : [];
+    if (rows.length === 0) return null;
+
+    const cell = (v) => {
+        if (v === null || v === undefined) return '';
+        const s = String(v);
+        return s.length > MAX_CELL_CHARS ? s.slice(0, MAX_CELL_CHARS) + '…' : s;
+    };
+    const header = columns.length > 0
+        ? columns.map(cell).join(' | ')
+        : null;
+    const shown = rows.slice(0, MAX_GROUNDED_ROWS);
+    const bodyLines = shown.map(r => (Array.isArray(r) ? r : [r]).map(cell).join(' | '));
+
+    const lines = [];
+    if (header) lines.push(header);
+    lines.push(...bodyLines);
+    if (rows.length > shown.length) {
+        lines.push(`… (${shown.length} of ${rows.length} rows shown)`);
+    }
     return lines.join('\n');
 }
 
@@ -126,12 +175,15 @@ function composeUserMessageWithContext({ discoveryBlock, packBlock, packTag, use
  * @param {string|null} input.discoveryBlock  Output of formatDiscoveryContext, or null.
  * @param {string|null} [input.packBlock]     Resolved pack context string, or null.
  * @param {string|null} [input.packTag]       Pack tag for the header label.
+ * @param {string|null} [input.groundedBlock] Output of formatGroundedData, or null.
+ *   When present, the model is instructed to cite figures ONLY from these rows.
  * @returns {string}
  */
-function composeSystemPromptWithContext({ systemPrompt, discoveryBlock, packBlock, packTag }) {
+function composeSystemPromptWithContext({ systemPrompt, discoveryBlock, packBlock, packTag, groundedBlock }) {
     const hasDiscovery = !!discoveryBlock;
     const hasPack = !!packBlock;
-    if (!hasDiscovery && !hasPack) return systemPrompt || '';
+    const hasGrounded = !!groundedBlock;
+    if (!hasDiscovery && !hasPack && !hasGrounded) return systemPrompt || '';
     const parts = [];
     if (systemPrompt && typeof systemPrompt === 'string' && systemPrompt.trim()) {
         parts.push(systemPrompt.trim());
@@ -141,14 +193,29 @@ function composeSystemPromptWithContext({ systemPrompt, discoveryBlock, packBloc
         const tag = packTag || 'pack';
         parts.push(`[Pack Context: ${tag}]\n${packBlock}`);
     }
+    if (hasGrounded) {
+        // Grounded data goes LAST (closest to the question) and carries an
+        // explicit no-fabrication instruction. These rows are the only
+        // figures the model may cite verbatim; anything else must be framed
+        // qualitatively, not as a specific number.
+        parts.push(
+            '[Grounded Data]\n'
+            + 'The rows below are the ONLY source of truth for figures. When you cite a '
+            + 'number, it MUST appear in (or be directly computed from) these rows. Do '
+            + 'NOT invent or estimate any figure that is not derivable from this data.\n\n'
+            + groundedBlock,
+        );
+    }
     return parts.join('\n\n');
 }
 
 module.exports = {
     formatDiscoveryContext,
+    formatGroundedData,
     buildAuditDetail,
     composeUserMessageWithContext,
     composeSystemPromptWithContext,
     MAX_KPIS,
     MAX_FRAMES,
+    MAX_GROUNDED_ROWS,
 };
