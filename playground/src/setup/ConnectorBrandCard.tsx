@@ -263,7 +263,8 @@ function ConfigSnippet({ manifest }: { manifest: ConnectorManifest }): React.Rea
                     data-mode="json"
                     aria-pressed={mode === "json"}
                     onClick={() => setMode("json")}
-                    style={tabStyle(mode === "json")}
+                    className="pp-cbc-tab"
+                    style={tabStyle()}
                 >
                     JSON
                 </button>
@@ -272,7 +273,8 @@ function ConfigSnippet({ manifest }: { manifest: ConnectorManifest }): React.Rea
                     data-mode="env"
                     aria-pressed={mode === "env"}
                     onClick={() => setMode("env")}
-                    style={tabStyle(mode === "env")}
+                    className="pp-cbc-tab"
+                    style={tabStyle()}
                 >
                     Env vars
                 </button>
@@ -335,14 +337,15 @@ function ConfigSnippet({ manifest }: { manifest: ConnectorManifest }): React.Rea
     );
 }
 
-function tabStyle(active: boolean): React.CSSProperties {
+// Layout only — colors (incl. active + dark variants) live in
+// connectorBrandCard.css keyed on .pp-cbc-tab[aria-pressed]. Previously the
+// active tab was dark-blue-on-tint (~1.9:1 in dark) and the inactive tab was a
+// hardcoded white button (jarring white-in-dark).
+function tabStyle(): React.CSSProperties {
     return {
         padding: "3px 9px",
         fontSize: 11,
         fontWeight: 600,
-        border: "1px solid " + (active ? "rgba(59, 130, 246, 0.6)" : "rgba(0, 0, 0, 0.15)"),
-        background: active ? "rgba(59, 130, 246, 0.12)" : "white",
-        color: active ? "#1e40af" : "rgba(0, 0, 0, 0.7)",
         borderRadius: 3,
         cursor: "pointer",
     };

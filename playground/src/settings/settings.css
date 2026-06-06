@@ -1013,6 +1013,20 @@
     border-color: rgba(5, 150, 105, 0.2);
 }
 
+/* Dark — the inactive number rode --pp-text-muted on --pp-bg (~2.85:1) and the
+   checked green (#047857) was dark-on-dark. Lift both to AA. (Active uses the
+   accent bg + white text — already fine.) */
+[data-pp-theme="dark"] .pp-setup-gate__number {
+    background: rgba(255, 255, 255, 0.06);
+    color: #cbd5e1;
+    border-color: rgba(255, 255, 255, 0.14);
+}
+[data-pp-theme="dark"] .pp-setup-gate--checked .pp-setup-gate__number {
+    background: rgba(16, 185, 129, 0.18);
+    color: #6ee7b7;
+    border-color: rgba(16, 185, 129, 0.35);
+}
+
 .pp-setup-gate__title {
     font-size: 14px;
     font-weight: 600;
