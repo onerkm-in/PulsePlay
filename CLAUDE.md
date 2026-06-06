@@ -78,7 +78,7 @@ ANY combination of (vendor, connector) is valid. Switching either is independent
 
 | Path | Purpose |
 |------|---------|
-| `playground/src/App.tsx` | Sidebar + canvas shell. Hosts UnifiedAssistantSurface (Chat) or PulseShell (Workbench, the default) + BIPanel. Vendor (Y) + connector (X) selection now lives in Settings/FirstRunWizard, not inline pickers (`ConnectorPicker.tsx` is currently unused) |
+| `playground/src/App.tsx` | Sidebar + canvas shell. Hosts UnifiedAssistantSurface (Chat) or PulseShell (Workbench, the default) + BIPanel. Vendor (Y) + connector (X) selection now lives in Settings/FirstRunWizard + the BundleSwitcher chip, not inline pickers (the old inline `ConnectorPicker` was removed) |
 | `playground/src/biPanel/BIAdapter.ts` | Vendor-agnostic contract every adapter implements |
 | `playground/src/biPanel/BIPanel.tsx` | Generic host component — calls `mount/on/send/destroy` on any adapter |
 | `playground/src/biPanel/registry.ts` | Lazy adapter loader (Vite code-splits per vendor) |
