@@ -5,6 +5,22 @@
 
 ---
 
+## 2026-06-06 — Reverse-engineering audit + honesty sweep + 4 loose-end fixes
+
+Rajesh asked to reverse-engineer each part (what's linked / loose / working / broken) then "correct whatever needed." Ran a 5-agent parallel audit (X-connector axis, Y-vendor axis, frontend↔proxy wiring, Pulse-port loose ends, docs-vs-reality), **verified every agent claim against code** before acting (two were wrong — see below), then shipped corrections.
+
+- **Honesty sweep (`788c685`):** CLAUDE.md Status synced to my own verified runs — **proxy 1226/1226, playground 1926/1926** (was stale-low 1013/1103); added the "ten code paths ≠ ten working backends" caveat (2 live: Foundation Model + PBI-semantic-model; 2 blocked upstream: Genie + Supervisor; 6 unproven-live); corrected Y-axis to "only Power BI SDK + native are real, rest are iframe stubs"; fixed dead `AISidebar.tsx` reference → `UnifiedAssistantSurface.tsx`. QUALITY.md counts synced; CODEBASE_AUDIT.md got a STALE banner (it claims "no playground tests"/server.js 4298 lines — now 9125). Stale comments fixed: insightsValidator TODO, insightsCache "not wired" (it IS, visual.tsx:2440), 8787→7000 Vite-proxy comments. MEMORY.md index line for uimode-default corrected (the memory *file* was already right; only the index hook said "v0 default" — code is `DEFAULT_UI_MODE="pulse"`).
+- **responses-agent probe gap (`0423c59`):** real bug — a `responses-agent` profile fell through `pickAdapter`/`classifyConnectorType` to `probeGeneric`, invisible on the liveness/discovery surface. Added `probeResponsesAgent` + wiring + 2 tests.
+- **Supervisor poll honesty (`7cf16ef`):** `GET /supervisor/.../messages/:id` returned a hardcoded COMPLETED with a misleading "cached response" comment (no cache exists). Added `synchronous:true` marker + explicit notice so the echo can't be mistaken for the answer.
+- **Dead `ConnectorPicker.tsx` deleted (`cb40ff5`):** referenced only in historical comments (App.tsx/BundleSwitcher); tsc clean after removal.
+- **databricks-aibi dep documented (`68dc9a1`):** the adapter lazy-imports `@databricks/aibi-client` at runtime (not a declared dep, falls back to iframe) — recorded in package.json next to the tableau/qlik/looker omission note.
+- **Config + guide hygiene (`82309dc`):** **reverted** the in-flight change that tracked `proxy/config.json` (conflicted with feedback_committed_files_placeholders — and `proxy/config.example.json` is *already* the tracked placeholder template). Committed the beginner guide SOURCE (SETUP_FOR_BEGINNERS.md + build-guide.mjs + _capture scripts) and gitignored the 8.4MB generated binaries (PDF/guide.html/shots).
+- **Validation:** full proxy `jest` **1228/1228** (+2), playground `tsc --noEmit` clean, playground `vitest` 1926/1926 (pre-deletion run; deleted file had no test). All pushed to main; working tree clean.
+
+**Agent-claim corrections (verify discipline paid off):** (1) the wiring agent said `ConnectorPicker` is "imported nowhere" — it's actually referenced in App.tsx/BundleSwitcher, but only in comments, so the *conclusion* (dead) held. (2) the Pulse-port agent said the uimode memory is "wrong" — the memory *file* was correct; only the MEMORY.md *index line* was stale.
+
+---
+
 ## 2026-06-06 — Pulse-mode caveats closed: conversation reuse, reload transcript, surface trust evidence
 
 Follow-up to the live browser org-readiness loop and Rajesh's "merge everything to main" request. Remote branch audit found `main` already aligned with `origin/main`; old remote branches had **0** unique commits, so there was nothing safe/meaningful to merge from stale branch refs. The real work was the three remaining Pulse-mode caveats from the intense audit.
