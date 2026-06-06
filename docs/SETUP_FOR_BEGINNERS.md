@@ -168,15 +168,12 @@ Shape:
 { "profiles": { "myFirstBrain": { ... }, "mySecondBrain": { ... } } }
 ```
 
-> 🔒 **Golden rule (2026-06-06 change):** `config.json` is now a **tracked placeholder
-> template** — keep it placeholder-only and **never paste real secrets into it**. Supply real
-> credentials via **env vars** (`PROXY_PROFILE_<NAME>_<FIELD>`), Azure Key Vault, or Databricks
-> secret scopes — never by committing real values.
->
-> 💡 To run locally with real creds *without* risking a commit, either (a) supply them as env
-> vars, or (b) fill `config.json` locally and run
-> `git update-index --skip-worktree proxy/config.json` so Git ignores your local edits to the
-> tracked file. Env wins over file if both are set.
+> 🔒 **Golden rule:** the repo tracks **`config.example.json`** (placeholder-only template);
+> your real **`config.json` is gitignored**, so you can safely paste local credentials into it —
+> Git will not see it. For hosted/shared environments prefer **env vars**
+> (`PROXY_PROFILE_<NAME>_<FIELD>`), Azure Key Vault, or Databricks secret scopes instead of a
+> file. Env wins over file if both are set. **Never commit real secrets** (and never un-ignore
+> `config.json`).
 
 ---
 

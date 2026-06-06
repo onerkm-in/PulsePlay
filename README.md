@@ -26,21 +26,31 @@ What becomes possible: streaming AI responses, voice in/out, AI-driven auto-tour
 
 ## Quick start
 
-```powershell
-# 1. Install proxy dependencies + start it (terminal 1)
-cd proxy
-npm install
-node server.js
-# Listens on http://127.0.0.1:8787
+**New here?** The fastest path is [docs/SETUP_FOR_BEGINNERS.md](docs/SETUP_FOR_BEGINNERS.md) (clone → wire one config file → run). The condensed version:
 
-# 2. Install playground dependencies + start it (terminal 2)
-cd playground
+```powershell
+# 0. Wire the one config file (placeholder template → your gitignored config)
+cd proxy
+copy config.example.json config.json     # then fill the <YOUR_*> values (or use env vars)
+
+# 1. Install proxy deps + start it on the CANONICAL port (terminal 1)
+npm install                               # add: $env:NODE_OPTIONS="--use-system-ca" if npm hits a corporate TLS error
+$env:PORT=7000; node server.js            # MUST be PORT=7000 — see trap below
+# Listens on http://127.0.0.1:7000
+
+# 2. Install playground deps + start it (terminal 2)
+cd ../playground
 npm install
 npm run dev
-# Open http://127.0.0.1:5173
+# Open http://127.0.0.1:7001
 ```
 
-Configure the proxy by copying `proxy/config.example.json` → `proxy/config.json` and filling in your Databricks workspace + token (or Azure OpenAI key, or Bedrock creds — see [docs/PROXY_REFERENCE.md](docs/PROXY_REFERENCE.md) for every supported backend and the OAuth M2M setup).
+> ⚠️ **#1 setup trap:** the web app is hardwired to reach the proxy at `127.0.0.1:7000` (the Vite
+> dev server proxies `/api/*` there). Start the proxy **without** `PORT=7000` and every `/api/*`
+> call returns HTTP 500. The proxy's own default constant is still `8787` for backward compat, so
+> you must set `PORT=7000` explicitly. (Locked 2026-05-25.)
+
+**Configure the proxy** by copying `proxy/config.example.json` → `proxy/config.json` (gitignored — safe to put real creds locally) and filling your Databricks workspace + token (or Azure OpenAI key, or Bedrock creds, or Power BI service principal). For hosted environments, supply the same as env vars / Key Vault / Databricks secret scopes instead. Every supported backend + the OAuth M2M setup is in [docs/PROXY_REFERENCE.md](docs/PROXY_REFERENCE.md); the full configure→run→host→troubleshoot path is in [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md).
 
 Once both are running, the playground will:
 - Start in Pulse mode with a BI source setup panel and the ported Pulse AI experience
@@ -52,7 +62,7 @@ Once both are running, the playground will:
 
 **First production target in flight — Genie + Power BI.** Proxy + databricks-agents + cross-cutting docs inherited from sister Pulse project cycles 1-47. The ported Pulse AI experience runs inside the playground, Power BI has a real `powerbi-client` adapter, and Tableau/Qlik/Looker remain modular iframe stubs until the first cell passes the production gate.
 
-Current local validation: proxy **1137/1137**; playground **1382/1382**, lint clean, and `vite build` clean; Pulse PBI enabler **93/93**, lint clean, and local `pbiviz package` clean after PB1a. The proxy-backed shell smoke also passes via `node playground/scripts/shell-smoke-proxy.mjs` with native canvas paint.
+Current local validation (2026-06-06, HEAD `cd2d032`): proxy **1243/1243**; playground **1926/1926**, lint clean (`tsc --noEmit`), and `vite build` clean; Pulse PBI enabler **93/93** (last verified 2026-05-23). The credential-free smoke also passes via `node playground/scripts/smoke-all-screens.mjs` (echarts-6 fixture paint, zero JS errors).
 
 **The connector axis grew in May 2026.** PulsePlay now hosts **10 backend paths** on the AI side: Genie / Azure OpenAI (chat + analytics) / Bedrock (RAG + direct) / Foundation Model / Supervisor (managed + local) / ResponsesAgent / **Power BI semantic-model** (the latest — deterministic DAX templates, no LLM in the loop). The Power BI brain also exposes a **Q&A embed surface** at `/powerbi/qna` so deployers who want Microsoft's NLP can get it without PulsePlay invoking any LLM (Microsoft handles it in their tenant). See [docs/PROXY_REFERENCE.md](docs/PROXY_REFERENCE.md) for the full backend table.
 
