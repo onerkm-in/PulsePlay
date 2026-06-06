@@ -5,6 +5,20 @@
 
 ---
 
+## 2026-06-06 — Browser review loop: dark-mode AA contrast fixes
+
+Beast-mode capture→review→fix loop against the live app (credential-free: placeholder config, so this was a UI/layout/legibility/empty-state/console-error pass — NOT live data). Captured surfaces × themes × responsive via `playground/scripts/_review-capture.mjs` (scratch), reviewed screenshots as ground truth.
+
+Findings: the app is genuinely polished — surfaces render, responsive works (mobile bottom-nav), empty states are clean, zero JS/render console errors (only expected backend 502s from placeholder config). The one real gap class was **dark-mode AA contrast** (matches the `feedback_session_2026_05_30_ux` rule). A scripted contrast sweep (`_dark-sweep.mjs`, scratch) measured every dark fail; fixed all:
+- Settings status chips (`.pp-settings-chip--ok/warn/missing/loading`): 2.0–2.4:1 → 9–12:1 (`settings.css` dark overrides). (`546263f`)
+- ConnectorBrandCard maturity / configured-status / live-verify badges: moved inline colors → `connectorBrandCard.css` keyed on existing `data-*` attrs, with dark variants. 1.5–2.1:1 → 9–10.6:1. (`546263f`)
+- `.pp-setup-gate__number` (the "01" step circle + checked "OK") and the JSON/Env config-snippet toggle (active dark-blue-on-tint + a hardcoded white-in-dark inactive button): added dark overrides / class-driven colors. (`9625135`)
+- Final sweep: **0 AA fails** across AI Insights / Ask Pulse / Dashboard / Settings in dark. tsc clean; ConnectorBrandCard+SettingsShell 22/22.
+
+**Honest limits of this pass:** credential-free, so the live-data surfaces (real briefing, Ask Pulse charts, grounded FM narration, Dashboard tiles) were NOT reviewed — needs a credentialed config.json. Also noted but NOT fixed: cold dev load ~8s (the 777KB `visual.tsx` chunk — the standing P1 perf item).
+
+---
+
 ## 2026-06-06 — Grounded Foundation Model: slice 1 (retrieve-then-narrate)
 
 Acted on the "what's the project's stand" plan. Rajesh chose: ground the FM path first (free-tier, no paid provisioning), Power BI-only for v1. Research (3 parallel agents) found the grounding plumbing mostly exists but is unwired on the FM path: FM is pure prompt→completion, the shared system-prompt composer injects only metadata *names* (never values), the sectioned orchestrator has a dead `runProbe`/`probeRows` seam, and the frontend grounding advisory is already fail-closed on *rows present*. Free-tier reality: the ONLY data executor is the Power BI DAX path (warehouse/SQL blocked, Genie blocked).
