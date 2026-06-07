@@ -447,12 +447,33 @@ async function probePowerBiSemanticModel(profile, profileName, _helpers) {
     if (dataset?.configuredBy) result.owner = String(dataset.configuredBy);
     if (dataset?.createdDate) result.lastUpdated = String(dataset.createdDate);
 
-    // Step 2 — INFO.MEASURES() via DAX → declaredKpis. Power BI exposes
-    // measure name + table + description + display folder via this view.
+    // Delegated USER tokens (device-code / OBO) get HTTP 400 from the bare
+    // INFO.* schema functions — they expose DAX [Expression], which needs
+    // elevated rights. The INFO.VIEW.* variants null the expression and run
+    // under a user token. Try bare first (service-principal auth + older
+    // models), fall back to INFO.VIEW.*. Verified live 2026-06-07.
+    const probeDaxWithFallback = async (candidates) => {
+        let lastErr = null;
+        let lastResp = { columns: [], rows: [] };
+        for (const dax of candidates) {
+            try {
+                const resp = await client.executeDaxNormalized(profile, dax);
+                lastResp = resp;
+                if (resp.rows.length > 0) return resp;
+            } catch (err) {
+                lastErr = err;
+            }
+        }
+        if (lastResp.rows.length === 0 && lastErr) throw lastErr;
+        return lastResp;
+    };
+
+    // Step 2 — measures → declaredKpis (name + table + description).
     try {
-        const measuresQuery = 'EVALUATE SELECTCOLUMNS(INFO.MEASURES(), '
-            + '"Name", [Name], "TableName", [Table], "Description", [Description])';
-        const measures = await client.executeDaxNormalized(profile, measuresQuery);
+        const measures = await probeDaxWithFallback([
+            'EVALUATE SELECTCOLUMNS(INFO.MEASURES(), "Name", [Name], "TableName", [Table], "Description", [Description])',
+            'EVALUATE SELECTCOLUMNS(INFO.VIEW.MEASURES(), "Name", [Name], "TableName", [Table], "Description", [Description])',
+        ]);
         if (measures.rows.length > 0) {
             const colIndex = (name) => measures.columns.findIndex(c => c.toLowerCase().includes(name.toLowerCase()));
             const nameIdx = colIndex('Name');
@@ -470,8 +491,10 @@ async function probePowerBiSemanticModel(profile, profileName, _helpers) {
     // Step 3 — INFO.TABLES() + INFO.COLUMNS() via DAX → schema. Two DAX
     // calls instead of one because Power BI's INFO functions don't join.
     try {
-        const tablesQuery = 'EVALUATE SELECTCOLUMNS(INFO.TABLES(), "Name", [Name], "Description", [Description])';
-        const tablesResp = await client.executeDaxNormalized(profile, tablesQuery);
+        const tablesResp = await probeDaxWithFallback([
+            'EVALUATE SELECTCOLUMNS(INFO.TABLES(), "Name", [Name], "Description", [Description])',
+            'EVALUATE SELECTCOLUMNS(INFO.VIEW.TABLES(), "Name", [Name], "Description", [Description])',
+        ]);
         const tableMap = new Map();
         if (tablesResp.rows.length > 0) {
             const nameIdx = tablesResp.columns.findIndex(c => c.toLowerCase().includes('name'));
@@ -482,9 +505,12 @@ async function probePowerBiSemanticModel(profile, profileName, _helpers) {
                 tableMap.set(name, { name, description: descIdx >= 0 && row[descIdx] ? String(row[descIdx]) : undefined, columns: [] });
             }
         }
-        const columnsQuery = 'EVALUATE SELECTCOLUMNS(INFO.COLUMNS(), '
-            + '"Table", [Table], "Name", [ExplicitName], "DataType", [DataType])';
-        const columnsResp = await client.executeDaxNormalized(profile, columnsQuery);
+        const columnsResp = await probeDaxWithFallback([
+            'EVALUATE SELECTCOLUMNS(INFO.COLUMNS(), "Table", [Table], "Name", [ExplicitName], "DataType", [DataType])',
+            // INFO.VIEW.COLUMNS uses [Name] (not [ExplicitName]); its [Table]
+            // is the table NAME string (bare INFO.COLUMNS [Table] is a numeric id).
+            'EVALUATE SELECTCOLUMNS(INFO.VIEW.COLUMNS(), "Table", [Table], "Name", [Name], "DataType", [DataType])',
+        ]);
         if (columnsResp.rows.length > 0) {
             const tableIdx = columnsResp.columns.findIndex(c => c.toLowerCase() === 'table' || c.toLowerCase().includes('table'));
             const nameIdx = columnsResp.columns.findIndex(c => c.toLowerCase().includes('name'));

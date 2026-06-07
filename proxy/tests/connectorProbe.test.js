@@ -201,6 +201,45 @@ describe('connectorProbe — adapter dispatch by profile shape', () => {
     });
 });
 
+// ── probePowerBiSemanticModel INFO.VIEW.* fallback ─────────────────────────
+// Delegated USER tokens (device-code / OBO) get HTTP 400 from the bare
+// INFO.* schema functions (they expose DAX [Expression]); the prober must
+// fall back to INFO.VIEW.*. Regression guard for the 2026-06-07 live fix.
+describe('connectorProbe — probePowerBiSemanticModel INFO.VIEW.* fallback', () => {
+    test('recovers measures + schema when bare INFO.* fails but INFO.VIEW.* works', async () => {
+        // jest.config has resetModules:true — require BOTH inside the test so
+        // the spied client is the same instance connectorProbe lazily requires.
+        const pbiClient = require('../lib/powerbiDatasetClient');
+        const { __internals } = require('../lib/connectorProbe');
+        jest.spyOn(pbiClient, 'getDatasetMetadata').mockResolvedValue({ name: 'DwD_PBI_Demo' });
+        jest.spyOn(pbiClient, 'executeDaxNormalized').mockImplementation(async (_profile, query) => {
+            const isView = query.includes('INFO.VIEW.');
+            if (!isView) {
+                // Bare INFO.* — simulate the delegated-token 400.
+                throw new Error('DatasetExecuteQueriesError: Failed to execute the DAX query.');
+            }
+            if (query.includes('MEASURES')) {
+                return { columns: ['[Name]', '[TableName]', '[Description]'], rows: [['Total Sales', '_Measures', null]], truncated: false };
+            }
+            if (query.includes('TABLES')) {
+                return { columns: ['[Name]', '[Description]'], rows: [['FactOrders', null]], truncated: false };
+            }
+            // INFO.VIEW.COLUMNS — [Table] is the string name, [Name] (not [ExplicitName]).
+            return { columns: ['[Table]', '[Name]', '[DataType]'], rows: [['FactOrders', 'sales', 'Double']], truncated: false };
+        });
+
+        const out = await __internals.probePowerBiSemanticModel(
+            { type: 'powerbi-semantic-model', authMode: 'user-refresh', powerbiGroupId: 'g', powerbiDatasetId: 'd' },
+            'powerbi-dwd',
+            {},
+        );
+
+        expect(out.declaredKpis).toEqual([{ name: 'Total Sales', description: undefined }]);
+        expect(out.schema.tables.find(t => t.name === 'FactOrders').columns.map(c => c.name)).toContain('sales');
+        expect(out.metadataAvailability).toBe('rich');
+    });
+});
+
 // ── probeGenie (substantive) ───────────────────────────────────────────────
 describe('connectorProbe — probeGenie with mocked REST helper', () => {
     const { probeConnector } = require('../lib/connectorProbe');
