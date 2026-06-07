@@ -1,0 +1,8 @@
+<!-- PulsePlay logo PLACEHOLDER (work-in-progress). Replace this file with the
+     final brand logo; the web app and the desktop EXE pick it up automatically.
+     Keep it roughly square for the header lockup. See README.md in this folder. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="PulsePlay logo (placeholder)">
+  <rect width="64" height="64" rx="16" fill="#0f172a"/>
+  <path d="M17 42V16h15c7 0 12 5 12 11s-5 11-12 11h-7v4h-8Zm8-12h7c3 0 5-1 5-3s-2-3-5-3h-7v6Z" fill="#f8fafc"/>
+  <circle cx="45" cy="43" r="6" fill="#38bdf8"/>
+</svg>

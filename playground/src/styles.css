@@ -416,6 +416,10 @@ html, body, #root {
     .pp-top-bar h1 {
         font-size: 18px !important;
     }
+    .pp-brand-logo {
+        width: 24px !important;
+        height: 24px !important;
+    }
     .pp-setup-pill__detail {
         display: none;
     }
@@ -427,6 +431,7 @@ html, body, #root {
    ready vs needs-setup) and shrink the brand a touch more so nothing clips. */
 @media (max-width: 360px) {
     .pp-top-bar h1 { font-size: 16px !important; }
+    .pp-brand-logo { width: 22px !important; height: 22px !important; }
     .pp-setup-pill__label { display: none; }
     .pp-setup-pill { padding-left: 7px !important; padding-right: 7px !important; }
 }

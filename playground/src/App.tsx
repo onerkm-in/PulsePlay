@@ -1528,7 +1528,12 @@ function PlaygroundApp(): React.ReactElement {
                     background: "transparent",
                 }}
             >
-                <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    {/* Brand lockup — the logo image is wired to the swappable
+                      * drop-path public/brand/logo.svg (placeholder until the real
+                      * logo lands; the desktop EXE inherits it via dist). alt=""
+                      * because the "PulsePlay" wordmark carries the accessible name. */}
+                    <img src="/brand/logo.svg" alt="" className="pp-brand-logo" width={30} height={30} style={{ display: "block" }} />
                     <h1 style={{ margin: 0, fontSize: 22, lineHeight: 1.1 }}>PulsePlay</h1>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
