@@ -27,7 +27,7 @@ The DX1c EXE is still unsigned. Antivirus / SmartScreen warnings are expected on
 cd enablers/desktop
 npm install
 npm run dev          # launches with --dev; opens a private browser
-npm test             # 49/49 node:test (dataStore, appServer, watchdog,
+npm test             # 50/50 node:test (dataStore, appServer, watchdog,
                      #  lockFile, portDiscovery, browserLaunch)
 npm run smoke        # boots launcher + asserts every /runtime/* endpoint
 npm run smoke:persistence   # second run: prior session's state survived
