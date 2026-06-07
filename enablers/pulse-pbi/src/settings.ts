@@ -37,8 +37,8 @@ class GenieSettingsCard extends FormattingSettingsSimpleCard {
     apiBaseUrl = new formattingSettings.TextInput({
         name: "apiBaseUrl",
         displayName: "Step 1 - PulsePlay Proxy URL",
-        description: "Recommended for production. Use the shared PulsePlay proxy instead of direct browser-to-Databricks calls, for example http://localhost:8787 or https://proxy.company.com. Leave blank only for direct developer testing.",
-        placeholder: "http://localhost:8787",
+        description: "Recommended for production. Use the shared PulsePlay proxy instead of direct browser-to-Databricks calls, for example http://localhost:7000 or https://proxy.company.com. Leave blank only for direct developer testing.",
+        placeholder: "http://localhost:7000",
         value: ""
     });
 
