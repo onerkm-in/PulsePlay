@@ -5,6 +5,20 @@
 
 ---
 
+## 2026-06-07 — Enabler live-test + Power BI prober fix (INFO.VIEW.* for user-token)
+
+First-ever review of the `enablers/` tree (we'd only reviewed the web app/proxy before). Both sub-projects checked at HEAD; both green: **desktop 50/50** node:test + **11/11 e2e smoke**, **pulse-pbi 93/93** vitest. Then live-tested with real creds (Rajesh provided a Databricks PAT + pointed at `DwD_PBI_Demo.pbip`).
+
+**Desktop enabler — proven live for the first time.** Booted the launcher (`--use-system-ca` so the spawned proxy child can reach Databricks), drove a real prompt through the bundled-proxy `/api/foundation/section` hop → live FM endpoint `databricks-meta-llama-3-3-70b-instruct` → real answer + real token usage, clean `/runtime/quit`. The whole reason the enabler exists (bundle proxy + reverse-proxy + serve the React app) confirmed end-to-end. Caveat: FM answer is ungrounded (model-produced).
+
+**Power BI semantic-model — configured against the live `DwD_PBI_Demo` dataset + a real bug found and fixed.** Wired the `powerbi-dwd` profile via **device-code user-refresh** auth (Azure CLI well-known client, no app registration), tenant `2b983dc1-…`. Auto-discovered the workspace (`dwd_pbi_demo` = `7bb52a2a-…`) — and caught that **the PBIP's embedded `remoteArtifacts` datasetId (`7d47abd3-…`) is STALE**; the live published DwD_PBI_Demo is `076821ed-…` (workspace also holds a `SalesPerformance` = `965cca80-…`). Trusting the PBIP GUID would have 404'd.
+
+The bug (commit `b5441a9`): the semantic-model prober used bare `INFO.MEASURES()/INFO.TABLES()/INFO.COLUMNS()`, which return **HTTP 400 under a delegated user token** (they expose DAX `[Expression]`, needing elevated rights) — so it probed **zero measures** and the deterministic question→DAX matcher fired blank for every question on user-refresh auth. Fix: bare-first → **`INFO.VIEW.*` fallback** (VIEW nulls the expression, runs under a user token; column refs differ — `INFO.VIEW.COLUMNS` uses `[Name]` not `[ExplicitName]`, and `[Table]` is the name string). SP auth keeps bare-first, no regression. Verified live: probe recovered **17 measures + 8 tables + 53 columns**; `"What were total sales?"` → `total` template → **2,297,201**; `"Top 5 products by Total Profit"` → `top-n` → Canon imageCLASS 2200 $25,200, etc. — deterministic DAX, grounded, 0 LLM. +1 regression test (resetModules gotcha: require client+probe inside the test). **proxy 1244/1244.** Doc fix: desktop README node:test count 49→50 (`ae9188d`).
+
+Tripwire: `proxy/config.json` now holds a live Databricks PAT + a PBI user-refresh token (gitignored, NOT committed — verified `git check-ignore`). Rotate the PAT (it was pasted in chat). Throwaway live-probe at `enablers/desktop/scripts/_fm-live-smoke.mjs` (untracked).
+
+---
+
 ## 2026-06-06 — Browser review loop: dark-mode AA contrast fixes
 
 Beast-mode capture→review→fix loop against the live app (credential-free: placeholder config, so this was a UI/layout/legibility/empty-state/console-error pass — NOT live data). Captured surfaces × themes × responsive via `playground/scripts/_review-capture.mjs` (scratch), reviewed screenshots as ground truth.
