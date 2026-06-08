@@ -5,6 +5,16 @@
 
 ---
 
+## 2026-06-08 — Connector plugin architecture: Phase A (scaffolding)
+
+Built the `[HANDOFF]` #1 item from `AGENT_SYNC.md` `[DECISION]` 2026-05-20 — the drop-in/drop-out connector model's foundation. **Pure additive, zero behavior change.**
+
+New `proxy/connectors/`: **`connectorRegistry.js`** (discovers `.js` modules — skips `_`-prefixed examples + the infra files, validates the `{id, matchProfile, register, [probe], [unregister]}` contract, dedupes by id, and is fully defensive — a missing dir / unreadable module / malformed export is warned + skipped, never thrown), **`connectorHost.js`** (`buildConnectorHost(deps)` → frozen host; exposes only the minimal common surface — app + audit/problem/profile/databricks helpers — honoring the contract's "expose only what ≥2 connectors need" rule, so `host` doesn't become the monolith one layer down; `sanitiseSlotName` + the discovery/packs injectors from the sketch are deferred to the phase that actually consumes them), and **`_template.js`** (the drop-in reference; underscore = skipped by the registry).
+
+A defensive boot scan sits just before `module.exports` in `server.js` (try/catch — never blocks boot). **Because no connectors are migrated, the live scan finds zero and registers nothing** — a Phase-A-invariant test asserts `discoverConnectors(realDir) === []` with no warnings. +25 tests (`connectorRegistry.test.js` + fixtures covering validation, filename filtering, dedup, require-throw tolerance, register fault-isolation, frozen host, missing-dep errors). **proxy 1249 → 1274**, full suite green; playground untouched. Committed `76682d8`. **Next: Phase B** — migrate the `bedrock` pilot (both -direct and -RAG) into `proxy/connectors/bedrock.js` to validate the host surface is sufficient (will likely add the first Phase-B host members). Tripwire: route-registration order — the boot scan runs AFTER server.js's own routes, so when Phase B migrates a connector OUT of server.js, delete the in-file route in the same PR (no silent shadowing).
+
+---
+
 ## 2026-06-08 — GitHub default-branch fix + chat-path grounding test
 
 Two small things after the FM-grounding ship (`ae4b5f9`).

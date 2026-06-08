@@ -284,7 +284,7 @@ Phased rollout (each PR independently shippable):
 
 `[HANDOFF]` Next agent picking this up should pick from (impact × cost ordered):
 
-1. **Phase A** of connector plugin architecture (scaffolding only). Pure additive; existing routes unaffected. Sets foundation for everything else.
+1. ~~**Phase A** of connector plugin architecture (scaffolding only).~~ **DONE 2026-06-08 (`76682d8`)** — `proxy/connectors/` (`connectorRegistry.js` + `connectorHost.js` + `_template.js`) + defensive boot scan in `server.js`; zero connectors migrated so it's a pure no-op (+25 tests, proxy 1274). **Next is Phase B** — migrate the `bedrock` pilot into `proxy/connectors/bedrock.js` to prove the host surface; add the first Phase-B `host` members there (only what bedrock + one other connector both need).
 2. **Setup → AI UX bugs B1/B2/B3** (caught during live regression):
    - B1: `allowlist.aiProfiles` returns `[]` despite proxy having 3 profiles. Shape mismatch — proxy returns `{default: [...], byGroup: {}}` but client filters as flat array. Fix in `settings/settingsRoute.ts` or wherever the allowlist hydrates.
    - B2: "Configured" pill shows green while AI profile dropdown is empty + helper says "No profiles available". Source: B1 cascade.
