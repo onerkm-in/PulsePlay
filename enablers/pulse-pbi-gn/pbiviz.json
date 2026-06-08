@@ -1,0 +1,21 @@
+{
+  "visual": {
+    "name": "dwdForBI",
+    "displayName": "PulsePlay AI for Power BI",
+    "guid": "genieChatVisual87799D3556EA4890BCBE3FF9F9A095F5",
+    "visualClassName": "Visual",
+    "version": "2.1.0.0",
+    "description": "PulsePlay's AI assistant for Power BI, built from the live PulsePlay `pulse` brain. Ask Pulse chat + AI Insights briefings over Databricks Genie / Foundation Model / Azure OpenAI / Bedrock / Power BI semantic-model, through the PulsePlay proxy. Same GUID as the prior UniBridge build so a rebuild updates in place.",
+    "supportUrl": "https://github.com/onerkm-in/PulsePlay",
+    "gitHubUrl": "https://github.com/onerkm-in/PulsePlay"
+  },
+  "apiVersion": "5.3.0",
+  "author": { "name": "PulsePlay", "email": "onerkm@gmail.com" },
+  "assets": { "icon": "assets/icon.png" },
+  "externalJS": null,
+  "style": "style/visual.less",
+  "capabilities": "capabilities.json",
+  "dependencies": null,
+  "stringResources": [],
+  "version": "2.1.0.0"
+}

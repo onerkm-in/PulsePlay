@@ -1,0 +1,556 @@
+{
+    "dataRoles": [
+        {
+            "displayName": "Dimension (for context)",
+            "name": "category",
+            "kind": "Grouping",
+            "description": "Optional. Bind one or more business dimensions so the assistant can explain answers in the context of selected categories or filtered report slices."
+        },
+        {
+            "displayName": "Measure (for context)",
+            "name": "measure",
+            "kind": "Measure",
+            "description": "Optional. Bind one or more measures so the assistant can summarize totals, compare selected values, and ground answers in visible metrics."
+        },
+        {
+            "displayName": "User Role (dynamic)",
+            "name": "userRole",
+            "kind": "Measure",
+            "displayNameKey": "userRole",
+            "description": "Optional. Bind a DAX measure that returns the viewer's role (e.g. LOOKUPVALUE on USERPRINCIPALNAME). Overrides the format-pane User Mode when bound."
+        },
+        {
+            "displayName": "User Identity (for history)",
+            "name": "userIdentity",
+            "kind": "Measure",
+            "description": "Optional but recommended for chat history. Bind a DAX measure such as USERPRINCIPALNAME() so the proxy can store and retrieve only the current viewer's history unless the role is author/admin."
+        }
+    ],
+    "objects": {
+        "genieSettings": {
+            "displayName": "Genie Settings",
+            "properties": {
+                "host": {
+                    "displayName": "Databricks Workspace URL *",
+                    "description": "Required. The full Databricks workspace URL. Used for direct, proxy, and gateway connections.",
+                    "type": { "text": true }
+                },
+                "apiBaseUrl": {
+                    "displayName": "API Base URL (Optional)",
+                    "description": "Set this when using a proxy, e.g. http://127.0.0.1:8787. Leave blank for direct or gateway mode.",
+                    "type": { "text": true }
+                },
+                "assistantProfile": {
+                    "displayName": "Assistant Profile (Optional)",
+                    "description": "Proxy mode only. Selects a named connection profile from the proxy's config.json. Leave blank to use the default profile. Only needed when the proxy serves multiple workspaces or Genie spaces.",
+                    "type": { "text": true }
+                },
+                "token": {
+                    "displayName": "Access Token (Optional)",
+                    "description": "Databricks Genie Direct and Databricks AI Gateway modes only. A Databricks Personal Access Token for browser-to-Databricks calls. Leave blank when the proxy handles authentication.",
+                    "type": { "text": true }
+                },
+                "spaceId": {
+                    "displayName": "Genie Space ID (Optional)",
+                    "description": "Databricks Genie Direct and Databricks AI Gateway modes only. The Genie Space identifier for this report. In proxy mode the profile provides this automatically.",
+                    "type": { "text": true }
+                },
+                "warehouseId": {
+                    "displayName": "SQL Warehouse ID (Optional)",
+                    "description": "Direct mode only. When provided, the visual auto-starts a stopped SQL warehouse before asking Genie, avoiding long 'waiting for compute' pauses.",
+                    "type": { "text": true }
+                },
+                "proxyKey": {
+                    "displayName": "Proxy Shared Key (Optional)",
+                    "description": "Proxy mode only. Shared secret sent as the X-Genie-Key header to a proxy that requires authentication. Leave blank for local/dev proxies.",
+                    "type": { "text": true }
+                },
+                "genieFields": {
+                    "displayName": "Genie View Fields (Optional)",
+                    "description": "Comma or line-separated field names from your Genie metric view. Used to validate that Power BI fields match the Genie space schema.",
+                    "type": { "text": true }
+                },
+                "domainGuidance": {
+                    "displayName": "Domain-Specific Genie Instructions",
+                    "description": "Short report-specific instructions sent to Genie on the first turn of each session (business rules, KPIs, formatting). Cap ~8,000 characters (~3 pages). For longer guidance use the Genie Space's General Instructions in Databricks — it persists, is filtered per question, and does not cost tokens per turn.",
+                    "type": { "text": true }
+                },
+                "sendContextToGenie": {
+                    "displayName": "Send Report Context",
+                    "description": "When turned off, only the typed question and Genie instructions are sent to Genie. Power BI dimensions, measures, and filter values stay inside the report.",
+                    "type": { "bool": true }
+                },
+                "darkMode": {
+                    "displayName": "Dark Mode",
+                    "description": "Switch between dark and light presentation for report readability.",
+                    "type": { "bool": true }
+                },
+                "showSql": {
+                    "displayName": "Show Generated SQL",
+                    "description": "Display the SQL query that Genie generated for each answer. Useful for analyst or developer review.",
+                    "type": { "bool": true }
+                },
+                "showTrace": {
+                    "displayName": "Show Trace Controls",
+                    "description": "Surface routing and orchestration trace details when available.",
+                    "type": { "bool": true }
+                },
+                "showGuidedFilters": {
+                    "displayName": "Show Guided Filters",
+                    "description": "Display guided filter selectors below the chat area. Intended for report authors who need to scope queries by region, time, or segment.",
+                    "type": { "bool": true }
+                },
+                "allowReportActions": {
+                    "displayName": "Apply Report Filters",
+                    "description": "Allow guided selectors inside the visual to apply Power BI filters to the surrounding report.",
+                    "type": { "bool": true }
+                },
+                "devMode": {
+                    "displayName": "Developer Mode",
+                    "description": "Shows the diagnostics panel with setup guidance, context preview, and orchestration details for testing and troubleshooting.",
+                    "type": { "bool": true }
+                },
+                "insightsPrompt": {
+                    "displayName": "AI Insights Prompt (Advanced override)",
+                    "description": "Power-user escape hatch — sent verbatim to AI as a single call. For most use cases, prefer Domain + Custom Sections (auto-adapts to bound dataset).",
+                    "type": { "text": true }
+                },
+                "insightsDomain": {
+                    "displayName": "Analytics Domain (Optional)",
+                    "description": "Short label naming the analytics domain so the AI uses the right vocabulary. Examples: Sales Performance, Supply Chain Operations, Hospital Operations.",
+                    "type": { "text": true }
+                },
+                "insightsCustomSections": {
+                    "displayName": "Custom Insights Sections (JSON)",
+                    "description": "JSON array of {name, instruction} entries. Each becomes a domain-specific section between TRENDS and RISKS in the auto-built pipeline.",
+                    "type": { "text": true }
+                },
+                "insightsAuthoringMode": {
+                    "displayName": "AI Insights authoring mode",
+                    "description": "Drives which authoring path the AI Insights pipeline takes — manual (verbatim prompt) / preset (domain + sections) / ai-assisted (auto-detect).",
+                    "type": { "enumeration": [
+                        { "value": "preset",      "displayName": "Preset" },
+                        { "value": "ai-assisted", "displayName": "AI-assisted" },
+                        { "value": "manual",      "displayName": "Manual" }
+                    ] }
+                },
+                "insightsDomainGuidance": {
+                    "displayName": "AI Insights domain guidance (override)",
+                    "description": "Insights-only override of the shared 'Business guidance'. When non-empty, used in place of `domainGuidance` for AI Insights stage prompts. Empty falls back to `domainGuidance`. Lets supervisor pages keep Chat-flow guidance shared while pinning Insights-flow guidance separately.",
+                    "type": { "text": true }
+                },
+                "metricDirectionRules": {
+                    "displayName": "Metric direction rules",
+                    "description": "Free-text rules describing inverted-good metrics and color thresholds for AI Insights. Used by the model to emit 🟢 / 🟡 / 🔴 status emoji in pipe-table cells. Example: 'Return Rate: lower is better — 🟢 ≤2% 🟡 2-5% 🔴 >5%. Margin %: 🟢 ≥15% 🟡 8-15% 🔴 <8%.'",
+                    "type": { "text": true }
+                },
+                "insightsMetricDirections": {
+                    "displayName": "Metric direction map (JSON)",
+                    "description": "JSON array of {name, higherIsBetter, aliases?, redPct?, amberPct?}. Used by the renderer to color Insights KPI tiles and table cells deterministically.",
+                    "type": { "text": true }
+                },
+                "insightsShowProvenanceFooter": {
+                    "displayName": "Show AI provenance footer",
+                    "description": "Show a compact AI-generated source/timestamp footer on each Insights section.",
+                    "type": { "bool": true }
+                },
+                "insightsShowHeadline": {
+                    "displayName": "Include HEADLINE + KPI SNAPSHOT stage",
+                    "description": "When OFF, the AI Insights pipeline skips the HEADLINE + KPI SNAPSHOT stage. Edit from the Setup tab.",
+                    "type": { "bool": true }
+                },
+                "insightsShowTrends": {
+                    "displayName": "Include TRENDS stage",
+                    "description": "When OFF, the AI Insights pipeline skips the TRENDS stage. Edit from the Setup tab.",
+                    "type": { "bool": true }
+                },
+                "insightsShowRisks": {
+                    "displayName": "Include RISKS stage",
+                    "description": "When OFF, the AI Insights pipeline skips the RISKS stage. Edit from the Setup tab.",
+                    "type": { "bool": true }
+                },
+                "insightsShowActions": {
+                    "displayName": "Include RECOMMENDED ACTIONS stage",
+                    "description": "When OFF, the AI Insights pipeline skips the RECOMMENDED ACTIONS stage. Edit from the Setup tab.",
+                    "type": { "bool": true }
+                },
+                "insightsHeadlineOverride": {
+                    "displayName": "HEADLINE custom instruction (override)",
+                    "description": "Optional override for the HEADLINE+KPI stage instruction. Empty = use built-in default.",
+                    "type": { "text": true }
+                },
+                "insightsTrendsOverride": {
+                    "displayName": "TRENDS custom instruction (override)",
+                    "description": "Optional override for the TRENDS stage instruction. Empty = use built-in default.",
+                    "type": { "text": true }
+                },
+                "insightsRisksOverride": {
+                    "displayName": "RISKS custom instruction (override)",
+                    "description": "Optional override for the RISKS stage instruction. Empty = use built-in default.",
+                    "type": { "text": true }
+                },
+                "insightsActionsOverride": {
+                    "displayName": "RECOMMENDED ACTIONS custom instruction (override)",
+                    "description": "Optional override for the RECOMMENDED ACTIONS stage instruction. Empty = use built-in default.",
+                    "type": { "text": true }
+                },
+                "refreshInsights": {
+                    "displayName": "Apply / Refresh AI Insights",
+                    "description": "Manual refresh trigger for AI Insights. Flip the value after changing settings to re-run the Insights pipeline.",
+                    "type": { "bool": true }
+                },
+                "insightsCacheTtlMinutes": {
+                    "displayName": "AI Insights cache TTL",
+                    "description": "Minutes the AI Insights run is cached so PBI page-switches don't re-trigger Genie. 0 disables caching.",
+                    "type": { "enumeration": [
+                        { "value": "0",   "displayName": "Disabled" },
+                        { "value": "5",   "displayName": "5 minutes" },
+                        { "value": "15",  "displayName": "15 minutes" },
+                        { "value": "30",  "displayName": "30 minutes (default)" },
+                        { "value": "60",  "displayName": "1 hour" },
+                        { "value": "120", "displayName": "2 hours" }
+                    ] }
+                },
+                "insightsValidationRetryCount": {
+                    "displayName": "AI Insights validation retries",
+                    "description": "Number of times to auto-retry an AI Insights stage when its output doesn't match the format contract. Default 1 = single retry. Raise for higher reliability at the cost of latency on failed stages. 0 disables auto-retry; the inline banner + manual retry still work.",
+                    "type": { "enumeration": [
+                        { "value": "0", "displayName": "0 — disable auto-retry (manual only)" },
+                        { "value": "1", "displayName": "1 — single retry (default)" },
+                        { "value": "2", "displayName": "2 — two retries" },
+                        { "value": "3", "displayName": "3 — three retries (max)" }
+                    ] }
+                },
+                "showConnectorCompatibilityWarnings": {
+                    "displayName": "Show connector compatibility warnings",
+                    "description": "When ON, surfaces warnings when settings are configured for one connector but the active backend doesn't support them (e.g., Custom SQL sections require Databricks Genie). Default OFF.",
+                    "type": { "bool": true }
+                },
+                "enabledFeatures": {
+                    "displayName": "Enabled features",
+                    "description": "Which user-facing tabs the visual exposes. Both: AI Insights + Chat (default). AI Insights only: auto analytics, no Chat tab. Chat only: conversational Q&A, no auto-insights. Edited from the Setup tab Section 0.",
+                    "type": { "enumeration": [
+                        { "value": "both",         "displayName": "Both — AI Insights + Chat (default)" },
+                        { "value": "insightsOnly", "displayName": "AI Insights only — no Chat tab" },
+                        { "value": "chatOnly",     "displayName": "Chat only — no auto Insights" }
+                    ] }
+                },
+                "genieTextInstructionsJson": {
+                    "displayName": "Genie text instructions (JSON)",
+                    "description": "JSON-stringified array of {id, content[]} entries pushed to the upstream Genie space. Edited via Setup tab Section G.1.",
+                    "type": { "text": true }
+                },
+                "genieSampleQuestionsJson": {
+                    "displayName": "Genie sample questions (JSON)",
+                    "description": "JSON-stringified array of {id, question[]} entries. Edited via Setup tab Section G.2.",
+                    "type": { "text": true }
+                },
+                "genieExampleSqlsJson": {
+                    "displayName": "Genie example SQLs (JSON)",
+                    "description": "JSON-stringified array of trusted SQL example entries. Edited via Setup tab Section G.3.",
+                    "type": { "text": true }
+                },
+                "lastSpaceSyncAt": {
+                    "displayName": "Last space sync (epoch ms)",
+                    "description": "Timestamp of the last write-through to the upstream Genie space. 0 = never written.",
+                    "type": { "numeric": true }
+                },
+                "wizardDismissed": {
+                    "displayName": "First-time wizard dismissed",
+                    "description": "True once the author skipped the first-time setup wizard. Wave 32 — additive flag; defaults to false.",
+                    "type": { "bool": true }
+                },
+                "ucRowFiltersEnforced": {
+                    "displayName": "UC Row Filters Enforced",
+                    "description": "Declare that Unity Catalog row filter functions are applied to the tables Genie reads (typically keyed on current_user()). Updates the header security badge and adds a governance hint to every Genie prompt. Does not enforce anything on its own.",
+                    "type": { "bool": true }
+                },
+                "ucColumnMasksEnforced": {
+                    "displayName": "UC Column Masks Enforced",
+                    "description": "Declare that Unity Catalog column masks redact or hide restricted columns for non-privileged users. Updates the header security badge and adds a governance hint to every Genie prompt. Does not enforce anything on its own.",
+                    "type": { "bool": true }
+                },
+                "runtimeForbiddenColumns": {
+                    "displayName": "Forbidden Columns (runtime)",
+                    "description": "Comma-separated column names the AI must never query or expose. Injected as a mandatory instruction into every Genie prompt.",
+                    "type": { "text": true }
+                },
+                "runtimeMandatoryRowFilter": {
+                    "displayName": "Mandatory Row Filter (runtime)",
+                    "description": "SQL WHERE clause fragment the AI must always apply. Injected as a mandatory instruction into every Genie prompt.",
+                    "type": { "text": true }
+                },
+                "runtimeReadOnlyEnforced": {
+                    "displayName": "Enforce Read-Only SQL (runtime)",
+                    "description": "When ON, the AI is instructed to use SELECT only. Responses containing DML (INSERT/UPDATE/DELETE/DROP/CREATE/ALTER/TRUNCATE) show a warning banner.",
+                    "type": { "bool": true }
+                },
+                "setupAccessAllowedUsers": {
+                    "displayName": "Setup Access Allowlist (optional)",
+                    "description": "Wave 38 Phase 1. Comma-separated emails / UPNs / role labels. When non-empty, the Setup tab is visible ONLY to viewers whose bound User Role measure matches one of these entries. Leave blank to fall back to the setupAccessEnabled toggle. UX gate only — not an authorization gate.",
+                    "type": { "text": true }
+                },
+                "sqlCtePreamble": {
+                    "displayName": "Base CTE / WITH clause",
+                    "description": "Full SQL WITH clause the AI must use as its base dataset. Supports {{role}}, {{currentDate}}, {{year}} template variables.",
+                    "type": { "text": true }
+                },
+                "sqlForbiddenTables": {
+                    "displayName": "Forbidden Tables",
+                    "description": "Comma-separated table/view names the AI must never reference in SQL.",
+                    "type": { "text": true }
+                },
+                "sqlRlsHintEnabled": {
+                    "displayName": "Inject Viewer Role into Prompt",
+                    "description": "When ON, the active viewer role is sent to the AI as a context hint for role-based row scoping.",
+                    "type": { "bool": true }
+                },
+                "authMode": {
+                    "displayName": "Authentication Model",
+                    "description": "Shared PAT: one Databricks identity for all report viewers (default). OAuth on-behalf-of: per-viewer identity via token exchange; requires proxy v2. Drives the header security badge.",
+                    "type": { "enumeration": [
+                        { "value": "sharedPat", "displayName": "Shared PAT  —  single service identity  (default)" },
+                        { "value": "oauthObo",  "displayName": "OAuth on-behalf-of  —  per-viewer identity  (proxy v2)" }
+                    ] }
+                },
+                "connectionMode": {
+                    "displayName": "Connection Mode",
+                    "description": "Auto: proxy when Proxy URL is set, else Direct. Proxy: route through the UniBridge AI Proxy (recommended). Direct: browser calls Databricks Genie REST (dev/demo). Genie Supervisor Agent: proxy-hosted multi-space supervisor. Databricks AI Gateway: experimental MCP/Gateway route. Azure OpenAI / AWS Bedrock: route through the UniBridge AI Proxy.",
+                    "type": { "enumeration": [
+                        { "value": "auto",         "displayName": "Auto — use Proxy if configured, otherwise Direct" },
+                        { "value": "proxy",        "displayName": "Databricks Genie via UniBridge AI Proxy (recommended)" },
+                        { "value": "direct",       "displayName": "Databricks Genie Direct (dev/demo)" },
+                        { "value": "supervisor",   "displayName": "Genie Supervisor Agent (multi-space) via UniBridge AI Proxy" },
+                        { "value": "gateway",      "displayName": "Databricks AI Gateway (experimental)" },
+                        { "value": "azure-openai", "displayName": "Azure OpenAI via UniBridge AI Proxy" },
+                        { "value": "bedrock",      "displayName": "AWS Bedrock via UniBridge AI Proxy" }
+                    ] }
+                },
+                "supervisorEndpoint": {
+                    "displayName": "Genie Supervisor Agent Endpoint",
+                    "description": "Supervisor mode only. Databricks Mosaic AI serving endpoint URL.",
+                    "type": { "text": true }
+                },
+                "supervisorAgentName": {
+                    "displayName": "Genie Supervisor Agent Name",
+                    "description": "Optional display label for the supervisor shown in the visual header.",
+                    "type": { "text": true }
+                },
+                "supervisorSynthesisProfile": {
+                    "displayName": "Supervisor Synthesis Profile",
+                    "description": "Profile or space ID used for proxy-side synthesis when fusing multi-space answers.",
+                    "type": { "text": true }
+                },
+                "supervisorAutoFusion": {
+                    "displayName": "Auto-Fuse Synchronized Answers",
+                    "description": "When enabled, automatically fuses synchronized multi-space answers after all selected spaces respond.",
+                    "type": { "bool": true }
+                },
+                "supervisorSynthesisPrompt": {
+                    "displayName": "Supervisor Synthesis Prompt",
+                    "description": "Instructions that guide synthesis/fusion when combining multiple space answers.",
+                    "type": { "text": true }
+                },
+                "useReportTheme": {
+                    "displayName": "Use Report Theme",
+                    "description": "When ON, the visual inherits the Power BI report theme colours. When OFF, the DwD built-in theme is used.",
+                    "type": { "bool": true }
+                },
+                "themeName": {
+                    "displayName": "DwD Theme",
+                    "description": "Built-in visual theme. Select Custom to apply brand colour overrides.",
+                    "type": { "enumeration": [
+                        { "value": "default",        "displayName": "Default" },
+                        { "value": "corporate-blue", "displayName": "Corporate Blue" },
+                        { "value": "forest",         "displayName": "Forest" },
+                        { "value": "slate-dark",     "displayName": "Slate Dark" },
+                        { "value": "high-contrast",  "displayName": "High Contrast" },
+                        { "value": "custom",         "displayName": "Custom" }
+                    ] }
+                },
+                "brandAccentColor":  { "displayName": "Brand Accent Colour",     "type": { "text": true } },
+                "brandTextColor":    { "displayName": "Brand Text Colour",        "type": { "text": true } },
+                "brandBgColor":      { "displayName": "Brand Background Colour",  "type": { "text": true } },
+                "brandFontFamily":   { "displayName": "Brand Font Family",        "type": { "text": true } },
+                "headerFontFamily": { "displayName": "Header font",      "type": { "formatting": { "fontFamily": true } } },
+                "headerFontSize":   { "displayName": "Header size (pt)", "type": { "formatting": { "fontSize":   true } } },
+                "headerBold":       { "displayName": "Header bold",      "type": { "bool": true } },
+                "headerItalic":     { "displayName": "Header italic",    "type": { "bool": true } },
+                "bodyFontFamily":   { "displayName": "Body font",        "type": { "formatting": { "fontFamily": true } } },
+                "bodyFontSize":     { "displayName": "Body size (pt)",   "type": { "formatting": { "fontSize":   true } } },
+                "bodyBold":         { "displayName": "Body bold",        "type": { "bool": true } },
+                "bodyItalic":       { "displayName": "Body italic",      "type": { "bool": true } },
+                "accentFontFamily": { "displayName": "Accent font",      "type": { "formatting": { "fontFamily": true } } },
+                "accentFontSize":   { "displayName": "Accent size (pt)", "type": { "formatting": { "fontSize":   true } } },
+                "accentBold":       { "displayName": "Accent bold",      "type": { "bool": true } },
+                "accentItalic":     { "displayName": "Accent italic",    "type": { "bool": true } },
+                "kbEnabled":         { "displayName": "Enable Analytics Intelligence", "type": { "bool": true } },
+                "kbChartRules":      { "displayName": "Chart Selection Rules",    "type": { "bool": true } },
+                "kbStatRules":       { "displayName": "Statistical Standards",    "type": { "bool": true } },
+                "kbReportingRules":  { "displayName": "Reporting Standards",      "type": { "bool": true } },
+                "multiSpaceEnabled": { "displayName": "Enable Multiple Spaces",   "type": { "bool": true } },
+                "multiSpaceCount":   {
+                    "displayName": "Additional Spaces (count)",
+                    "description": "Number of additional Genie Spaces (1-9, primary excluded).",
+                    "type": { "enumeration": [
+                        { "value": "1", "displayName": "1 additional" },
+                        { "value": "2", "displayName": "2 additional" },
+                        { "value": "3", "displayName": "3 additional" },
+                        { "value": "4", "displayName": "4 additional" },
+                        { "value": "5", "displayName": "5 additional" },
+                        { "value": "6", "displayName": "6 additional" },
+                        { "value": "7", "displayName": "7 additional" },
+                        { "value": "8", "displayName": "8 additional" },
+                        { "value": "9", "displayName": "9 additional" }
+                    ] }
+                },
+                "space2Label":            { "displayName": "Space 2: Label",            "type": { "text": true } },
+                "space2AssistantProfile": { "displayName": "Space 2: Proxy Profile",    "type": { "text": true } },
+                "space2SpaceId":          { "displayName": "Space 2: Space ID",         "type": { "text": true } },
+                "space2Host":             { "displayName": "Space 2: Workspace URL",     "type": { "text": true } },
+                "space2Token":            { "displayName": "Space 2: Access Token",      "type": { "text": true } },
+                "space3Label":            { "displayName": "Space 3: Label",            "type": { "text": true } },
+                "space3AssistantProfile": { "displayName": "Space 3: Proxy Profile",    "type": { "text": true } },
+                "space3SpaceId":          { "displayName": "Space 3: Space ID",         "type": { "text": true } },
+                "space3Host":             { "displayName": "Space 3: Workspace URL",     "type": { "text": true } },
+                "space3Token":            { "displayName": "Space 3: Access Token",      "type": { "text": true } },
+                "space4Label":            { "displayName": "Space 4: Label",            "type": { "text": true } },
+                "space4AssistantProfile": { "displayName": "Space 4: Proxy Profile",    "type": { "text": true } },
+                "space4SpaceId":          { "displayName": "Space 4: Space ID",         "type": { "text": true } },
+                "space4Host":             { "displayName": "Space 4: Workspace URL",     "type": { "text": true } },
+                "space4Token":            { "displayName": "Space 4: Access Token",      "type": { "text": true } },
+                "space5Label":            { "displayName": "Space 5: Label",            "type": { "text": true } },
+                "space5AssistantProfile": { "displayName": "Space 5: Proxy Profile",    "type": { "text": true } },
+                "space5SpaceId":          { "displayName": "Space 5: Space ID",         "type": { "text": true } },
+                "space5Host":             { "displayName": "Space 5: Workspace URL",     "type": { "text": true } },
+                "space5Token":            { "displayName": "Space 5: Access Token",      "type": { "text": true } },
+                "space6Label":            { "displayName": "Space 6: Label",            "type": { "text": true } },
+                "space6AssistantProfile": { "displayName": "Space 6: Proxy Profile",    "type": { "text": true } },
+                "space6SpaceId":          { "displayName": "Space 6: Space ID",         "type": { "text": true } },
+                "space6Host":             { "displayName": "Space 6: Workspace URL",     "type": { "text": true } },
+                "space6Token":            { "displayName": "Space 6: Access Token",      "type": { "text": true } },
+                "space7Label":            { "displayName": "Space 7: Label",            "type": { "text": true } },
+                "space7AssistantProfile": { "displayName": "Space 7: Proxy Profile",    "type": { "text": true } },
+                "space7SpaceId":          { "displayName": "Space 7: Space ID",         "type": { "text": true } },
+                "space7Host":             { "displayName": "Space 7: Workspace URL",     "type": { "text": true } },
+                "space7Token":            { "displayName": "Space 7: Access Token",      "type": { "text": true } },
+                "space8Label":            { "displayName": "Space 8: Label",            "type": { "text": true } },
+                "space8AssistantProfile": { "displayName": "Space 8: Proxy Profile",    "type": { "text": true } },
+                "space8SpaceId":          { "displayName": "Space 8: Space ID",         "type": { "text": true } },
+                "space8Host":             { "displayName": "Space 8: Workspace URL",     "type": { "text": true } },
+                "space8Token":            { "displayName": "Space 8: Access Token",      "type": { "text": true } },
+                "space9Label":            { "displayName": "Space 9: Label",            "type": { "text": true } },
+                "space9AssistantProfile": { "displayName": "Space 9: Proxy Profile",    "type": { "text": true } },
+                "space9SpaceId":          { "displayName": "Space 9: Space ID",         "type": { "text": true } },
+                "space9Host":             { "displayName": "Space 9: Workspace URL",     "type": { "text": true } },
+                "space9Token":            { "displayName": "Space 9: Access Token",      "type": { "text": true } },
+                "space10Label":            { "displayName": "Space 10: Label",            "type": { "text": true } },
+                "space10AssistantProfile": { "displayName": "Space 10: Proxy Profile",    "type": { "text": true } },
+                "space10SpaceId":          { "displayName": "Space 10: Space ID",         "type": { "text": true } },
+                "space10Host":             { "displayName": "Space 10: Workspace URL",     "type": { "text": true } },
+                "space10Token":            { "displayName": "Space 10: Access Token",      "type": { "text": true } },
+                "headerTitle": {
+                    "displayName": "Internal Header Title (Optional)",
+                    "description": "Optional override for the visual's internal header. Leave blank to let Power BI's standard Visual Title above the visual stand alone. Set this when the standard title is hidden and you still want a label inside the visual frame.",
+                    "type": { "text": true }
+                },
+                "headerSubtitle": {
+                    "displayName": "Internal Header Subtitle (Optional)",
+                    "description": "Optional secondary line shown below the Internal Header Title. Leave blank to hide.",
+                    "type": { "text": true }
+                },
+                "uiScale": {
+                    "displayName": "UI Scale",
+                    "description": "Adjust font and spacing density. Small condenses the layout for narrow visual panes; Large is friendlier for accessibility and presentation.",
+                    "type": { "enumeration": [
+                        { "value": "small",  "displayName": "Small  —  compact density" },
+                        { "value": "normal", "displayName": "Normal  —  default" },
+                        { "value": "large",  "displayName": "Large  —  presentation / accessibility" }
+                    ] }
+                },
+                "compactMode": {
+                    "displayName": "Compact Mode",
+                    "description": "Auto: collapse the header automatically when the visual is narrow. On: always show the compact header (icon-only chips, dropdown space selector). Off: never compact, even on narrow panes.",
+                    "type": { "enumeration": [
+                        { "value": "auto", "displayName": "Auto  —  responsive  (default)" },
+                        { "value": "on",   "displayName": "On  —  always compact" },
+                        { "value": "off",  "displayName": "Off  —  never compact" }
+                    ] }
+                },
+                "showSetupAccess": {
+                    "displayName": "Show Setup in Status Panel",
+                    "description": "When enabled, the Connected / status capsule opens a Setup tab inside Developer Tools for author/admin configuration. Keep disabled for clutter-free consumer reports.",
+                    "type": { "bool": true }
+                },
+                "showHeader": {
+                    "displayName": "Show Visual Header",
+                    "description": "When ON (default), the visual shows its own title row (icon + Header Title + Header Subtitle). When OFF, that block is hidden — useful when the surrounding report already provides a title. The connection status pill, toolbar, and tab strip stay visible.",
+                    "type": { "bool": true }
+                },
+                "headerIconStyle": {
+                    "displayName": "Header Icon",
+                    "description": "Choose the icon shown to the left of the Header Title. 'Default' is the original chat-bubble + sparkle. Pick a different shape for brand variety, or 'None' to hide the icon while keeping the title text.",
+                    "type": {
+                        "enumeration": [
+                            { "value": "default", "displayName": "Chat bubble + sparkle  (default)" },
+                            { "value": "chat",    "displayName": "Chat bubble (plain)" },
+                            { "value": "sparkle", "displayName": "Sparkle / star" },
+                            { "value": "brain",   "displayName": "Brain / mind" },
+                            { "value": "bolt",    "displayName": "Bolt / lightning" },
+                            { "value": "none",    "displayName": "None  —  hide the icon" }
+                        ]
+                    }
+                }
+            }
+        },
+        "general": {
+            "displayName": "General",
+            "properties": {
+                "filter": {
+                    "type": { "filter": true }
+                }
+            }
+        }
+    },
+    "dataViewMappings": [
+        {
+            "categorical": {
+                "categories": {
+                    "for": { "in": "category" },
+                    "dataReductionAlgorithm": { "top": { "count": 5000 } }
+                },
+                "values": {
+                    "select": [
+                        { "bind": { "to": "measure" } },
+                        { "bind": { "to": "userRole" } },
+                        { "bind": { "to": "userIdentity" } }
+                    ]
+                }
+            }
+        }
+    ],
+    "supportsHighlight": true,
+    "privileges": [
+        {
+            "name": "WebAccess",
+            "essential": true,
+            "parameters": [
+                "https://*.cloud.databricks.com",
+                "https://*.databricks.com",
+                "https://*.azuredatabricks.net",
+                "https://*.openai.azure.com",
+                "https://*.cognitiveservices.azure.com",
+                "https://*.databricksapps.com",
+                "https://bedrock-runtime.*.amazonaws.com",
+                "https://bedrock-agent-runtime.*.amazonaws.com",
+                "https://localhost",
+                "http://localhost",
+                "http://localhost:8787",
+                "https://localhost:8787",
+                "https://127.0.0.1",
+                "http://127.0.0.1",
+                "http://127.0.0.1:8787"
+            ]
+        }
+    ]
+}
