@@ -15,7 +15,8 @@
     "start": "pbiviz start",
     "package": "pbiviz package",
     "lint": "npx eslint .",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "smoke": "npm run sync && node scripts/smoke.mjs"
   },
   "dependencies": {
     "html2canvas": "^1.4.1",
@@ -30,8 +31,10 @@
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
     "@typescript-eslint/eslint-plugin": "^8.8.0",
+    "esbuild": "^0.28.0",
     "eslint": "^9.11.1",
     "eslint-plugin-powerbi-visuals": "^1.0.0",
+    "jsdom": "^29.1.1",
     "powerbi-visuals-tools": "^7.0.2",
     "typescript": "5.5.4"
   }
