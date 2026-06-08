@@ -3010,7 +3010,7 @@ function App(props: AppProps) {
                     // its full response.
                     { kbFlags, omitDomainGuidance: true, omitAnalyticsKB: true, omitBriefingFormat: true }
                 );
-                const start = await client.startConversation(req, { intent: "summary", contextText: "" });
+                const start = await client.startConversation(req, { intent: "summary", contextText: "", boundMeasures: props.context?.measures });
                 // Seed as soon as the backend gives us the id. Waiting for the
                 // preload body creates a race where the first typed question
                 // can start a second cold conversation.
@@ -3433,8 +3433,8 @@ function App(props: AppProps) {
                     { omitDomainGuidance: !!convId, omitBriefingFormat: true, kbFlags }
                 );
                 const start = convId
-                    ? await client.sendMessage(convId, request, { intent, contextText: "" })
-                    : await client.startConversation(request, { intent, contextText: "" });
+                    ? await client.sendMessage(convId, request, { intent, contextText: "", boundMeasures: props.context?.measures })
+                    : await client.startConversation(request, { intent, contextText: "", boundMeasures: props.context?.measures });
                 const resolvedConvId = start.conversationId || convId;
                 if (resolvedConvId) rememberConversationId(spaceKey, resolvedConvId);
 
@@ -3509,7 +3509,7 @@ function App(props: AppProps) {
             // Briefing-format trim is Ask Pulse-only; opt out so synthesis
             // keeps its full multi-section shape.
             const req = buildGenieRequest(synthPrompt, "summary", props.context, selectedFilters, "", false, { kbFlags, omitBriefingFormat: true });
-            const start = await primaryClient.startConversation(req, { intent: "summary", contextText: "" });
+            const start = await primaryClient.startConversation(req, { intent: "summary", contextText: "", boundMeasures: props.context?.measures });
             const response = await primaryClient.waitForMessageWithProgress(
                 start.conversationId, start.messageId,
                 (progress) => {
@@ -4155,7 +4155,7 @@ function App(props: AppProps) {
                 amOpener = true;
                 openConversationPromise = (async () => {
                     const s = await withProxyOfflineRetry(
-                        () => client.startConversation(req, { intent: "summary", contextText: "" }),
+                        () => client.startConversation(req, { intent: "summary", contextText: "", boundMeasures: props.context?.measures }),
                         stageIndex
                     );
                     openerStartResponse = { conversationId: s.conversationId, messageId: s.messageId };
@@ -4170,7 +4170,7 @@ function App(props: AppProps) {
             }
             // Joiner: post our prompt as a follow-up on the shared conversation.
             const sent = await withProxyOfflineRetry(
-                () => client.sendMessage(convId, req, { intent: "summary", contextText: "" }),
+                () => client.sendMessage(convId, req, { intent: "summary", contextText: "", boundMeasures: props.context?.measures }),
                 stageIndex
             );
             return { conversationId: convId, messageId: sent.messageId };
