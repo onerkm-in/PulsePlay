@@ -6860,13 +6860,32 @@ async function startFoundationConversation(req, res) {
     const question = String(req.body?.content || '').trim();
     if (!question) return res.status(400).json({ error: 'Question content is required' });
     const contextText = String(req.body?.contextText || '').trim();
-    const userPrompt = contextText ? `${contextText}\n\n${question}` : question;
+
+    // Grounding — the visual sends the bound measures' server-aggregated VALUES
+    // (Power BI's DAX results for the current filter scope) as `boundMeasures`.
+    // The FM has no server-side aggregation of its own, so without these it
+    // punts ("I'd need data on Total Sales..."). Fold them into the prompt and
+    // verify the answer against them. Only THIS foundation-model handler reads
+    // the field — the Genie path never sees it, so the Session-56 rule (client
+    // numbers can mislead an agent that aggregates itself) stays intact.
+    let groundedData = null;
+    const bm = req.body?.boundMeasures;
+    if (bm && typeof bm === 'object' && !Array.isArray(bm)) {
+        const rows = Object.entries(bm)
+            .filter(([k, v]) => k && (typeof v === 'number' || typeof v === 'string'))
+            .map(([k, v]) => [k, v]);
+        if (rows.length) groundedData = { columns: ['Measure', 'Value'], rows };
+    } else if (req.body?.groundedData && typeof req.body.groundedData === 'object') {
+        groundedData = req.body.groundedData;
+    }
+    const groundedBlock = groundedData ? _formatGroundedData(groundedData) : '';
+    const userPrompt = [groundedBlock, contextText, question].filter(Boolean).join('\n\n');
 
     const convId = `fm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const messages = [
         {
             role: 'system',
-            content: 'You are PulsePlay, a concise enterprise BI analytics assistant. Answer the user\'s question about their data directly and clearly in short markdown — a sentence or two, plus a compact table only when the question asks for figures. Never invent specific numbers you were not given; if you lack the data, say what you would need.',
+            content: 'You are PulsePlay, a concise enterprise BI analytics assistant. Answer the user\'s question about their data directly and clearly in short markdown — a sentence or two, plus a compact table only when the question asks for figures. When measured values are provided in the context, USE them directly and cite them — do not ask for data you were already given. Never invent specific numbers you were not given.',
         },
         { role: 'user', content: userPrompt },
     ];
@@ -6879,6 +6898,7 @@ async function startFoundationConversation(req, res) {
             requestId: req.requestId,
         });
         const content = (result && typeof result.content === 'string') ? result.content : '';
+        const grounding = groundedData ? verifyGrounding(content, groundedData) : null;
         auditLog(req, {
             profileName: resolved.name,
             action: 'foundation-chat-answer',
@@ -6899,6 +6919,7 @@ async function startFoundationConversation(req, res) {
             content,
             mode: 'foundation-model',
             llmCallCount: 1,
+            ...(grounding ? { grounding, queryResult: { columns: groundedData.columns, rows: groundedData.rows } } : {}),
         }));
     } catch (err) {
         auditLog(req, {
