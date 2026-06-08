@@ -190,7 +190,7 @@ These constraints travel with the code under `playground/src/pulse/*` because Pu
 
 ## Status
 
-PulsePlay is past the original scaffold. Latest local validation (verified 2026-06-06, HEAD `d4b534c`): **proxy 1243/1243**, **playground 1926/1926**, lint clean (`tsc --noEmit`), `vite build` clean. Caveat: tests assert output SHAPE, not answer correctness — there is no eval/hallucination harness (see [docs/QUALITY.md](docs/QUALITY.md)). "All green" ≠ "answers are right."
+PulsePlay is past the original scaffold. Latest local validation (verified 2026-06-08, HEAD `c879eb6`): **proxy 1249/1249** (65 suites), **playground 1926/1926** (143 files), lint clean (`tsc --noEmit`), `vite build` clean (1128 modules). Caveat: tests assert output SHAPE, not answer correctness — there is no eval/hallucination harness (see [docs/QUALITY.md](docs/QUALITY.md)). "All green" ≠ "answers are right."
 
 Connector axis (X) declares **ten backend code paths**: Genie / Azure OpenAI chat / Azure OpenAI analytics / Bedrock RAG / Bedrock direct / Foundation Model / Supervisor / Supervisor-local / ResponsesAgent / **Power BI semantic-model (no-LLM)** — plus the **Power BI Q&A embed surface** at `/powerbi/qna` (Microsoft's NLP, runs in MS tenant; PulsePlay mints embed token only).
 
