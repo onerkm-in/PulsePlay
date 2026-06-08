@@ -5,6 +5,18 @@
 
 ---
 
+## 2026-06-08 — PulsePlay-sourced Power BI custom visual (ends the .pbiviz drift)
+
+Beast-mode build. The PBI custom visual the user runs (`genieChatVisual`, "UniBridge AI for Power BI") lived in an external repo and froze 2026-05-10 — a month behind PulsePlay's web Ask Pulse / AI Insights (the user's symptom: rough scroll + "missing things" + an out-of-date "Adjust" dropdown). Root cause = **stale build**, not broken code: its scroll CSS is correct and the web app (same `.gn-*` lineage) scrolls fine.
+
+3 parallel research agents established the key fact: **`playground/src/pulse/visual.tsx` already `implements IVisual`** (constructor/update/getFormattingModel/destroy) — it's a full PBI visual made browser-runnable via thin `_adapter/` SDK stubs. So genieChatVisual and `playground/src/pulse` are the **same brain** (~95%); the only thing not in PulsePlay was the thin PBI packaging shell.
+
+Built that shell: **`enablers/pulse-pbi-gn/`** packages the LIVE `playground/src/pulse` brain into a `.pbiviz`. `scripts/sync-from-pulseplay.mjs` regenerates `src/` each build — copies the brain, lets the bare `powerbi-visuals-api` specifier resolve to the REAL SDK (no alias), and redirects **17 heavy/web-only cross-tree imports** (EChartsRenderer→lightweight SVG, buildEChartsOption, chartPalettes, canvasTiles/pin, perfInstrumentation, surfaceConnectors, useAskPulseHomeMeta, translators, chartAutoPick, performanceLevers, …) to sandbox stubs under `src/_ext`. `src/`+`style/` are generated/gitignored — **no copy, no drift.**
+
+**Verified:** `tsc --noEmit` 0 errors (the full 38K-LOC brain typechecks vs the real SDK); `pbiviz package` **builds successfully at ~350 KB**; same GUID (`genieChatVisual87799…`) so a rebuild is a **drop-in update** in PBI Desktop, branded "PulsePlay AI for Power BI" v2.1.0.0. Committed `2b5e34c` (scaffold + sync script; generated dirs ignored). **NOT yet verified:** runtime in PBI Desktop (user imports `enablers/pulse-pbi-gn/dist/*.pbiviz` + tests AI Insights/Adjust/scroll); 8 non-blocking pbiviz lint findings; capabilities.json (currently genieChatVisual's baseline) may need reconciling vs current `settings.ts`. **Tripwire:** the sandbox build degrades web-only richness (charts use a simple SVG fallback, no pin-to-canvas/palette picker) — that's the cap/sandbox reality, same as the old build; AI Insights + Ask Pulse chat are the core that's preserved + made current. Next: user runtime test → reconcile capabilities + lint → retire the unused `.rx-*` `enablers/pulse-pbi`.
+
+---
+
 ## 2026-06-07 — Enabler live-test + Power BI prober fix (INFO.VIEW.* for user-token)
 
 First-ever review of the `enablers/` tree (we'd only reviewed the web app/proxy before). Both sub-projects checked at HEAD; both green: **desktop 50/50** node:test + **11/11 e2e smoke**, **pulse-pbi 93/93** vitest. Then live-tested with real creds (Rajesh provided a Databricks PAT + pointed at `DwD_PBI_Demo.pbip`).
