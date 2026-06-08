@@ -9079,6 +9079,34 @@ if (require.main === module) {
     }
 }
 
+// ── Connector plugin scaffolding (Phase A) ──────────────────────────────────
+// Drop-in/drop-out per-connector modules: add a connector by dropping a file
+// into proxy/connectors/, remove one by deleting it. Phase A is SCAFFOLDING
+// ONLY — no connectors are migrated yet, so this scan finds zero connectors and
+// registers nothing (pure additive; existing routes are unaffected). The
+// registry skips `_`-prefixed examples (`_template.js`) + the infra files.
+// Contract + phased rollout: docs/AGENT_SYNC.md `[DECISION]` 2026-05-20.
+try {
+    const { discoverConnectors, registerConnectors } = require('./connectors/connectorRegistry');
+    const { buildConnectorHost } = require('./connectors/connectorHost');
+    const _connectorWarn = (msg) => console.warn(`[connectors] ${msg}`);
+    const _connectors = discoverConnectors(path.join(__dirname, 'connectors'), { onWarn: _connectorWarn });
+    if (_connectors.length) {
+        const _connectorHost = buildConnectorHost({
+            app, auditLog, createProblem, sendProblem, sendNoMatchingProfile,
+            profileRegistry, profileByName, profileAllowedForRequest,
+            databricksRequest, spHashForProfile, validateFrame, prependFrameContext,
+        });
+        const _registered = registerConnectors(_connectors, _connectorHost, { onWarn: _connectorWarn });
+        if (_registered.length) {
+            console.log(`[connectors] registered ${_registered.length}: ${_registered.join(', ')}`);
+        }
+    }
+} catch (err) {
+    // Never block server boot on connector scaffolding.
+    console.warn(`[connectors] scan skipped: ${(err && err.message) || err}`);
+}
+
 module.exports = {
     app,
     conversationMap,
