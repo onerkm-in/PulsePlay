@@ -5,6 +5,16 @@
 
 ---
 
+## 2026-06-08 — GitHub default-branch fix + chat-path grounding test
+
+Two small things after the FM-grounding ship (`ae4b5f9`).
+
+**GitHub "won't download from main" — root cause was the remote default branch.** The user couldn't get the latest via GitHub's Download ZIP / branch selector. `git ls-remote --symref origin HEAD` showed the repo's **default branch was a stale `codex/f5-g0-native-layout-2026-05-21`**, not `main` — so the repo landing page + ZIP served month-old content ("prepost fixes"). `main` itself was current the whole time (`origin/main == ae4b5f9 ==` local HEAD). Fixed with `gh repo edit onerkm-in/PulsePlay --default-branch main`; verified `ref: refs/heads/main HEAD`. **Still pending (needs user OK):** 3 stale remote branches clutter the selector — `codex/f5-g0-native-layout-2026-05-21` (the old default), `import/local-main-2026-05-19`, `publish/local-main-2026-05-20` — all superseded by `main`. Offered to delete; not touched without confirmation.
+
+**Closed a test gap on the grounding ship.** `foundationGrounding.test.js` covered `/foundation/section` (caller-supplied `groundedData` rows), but the NEW **`boundMeasures` object→rows fold in the chat path** (`startFoundationConversation` via `POST /assistant/conversations/start`, shipped in `ae4b5f9`) had no direct coverage. Added `proxy/tests/foundationChatGrounding.test.js` (5 tests): object folds to a 2-row Measure/Value table → verified verdict + echoed `queryResult`; folded values reach the FM **user** prompt; invented figure → `partial`; no `boundMeasures` → clean/ungrounded; non-numeric/non-string leaves → no rows → ungrounded. **proxy 1244 → 1249.** Tripwire baked into the test as a comment: the `/assistant/*` routes read the profile name from **`body.assistantProfile`**, NOT `body.profile` (the `/foundation/*` routes read `body.profile`) — sending `profile:` there silently falls back to the `default` profile → Genie path → 500. Cost an hour of "why is this 500."
+
+---
+
 ## 2026-06-08 — PulsePlay-sourced Power BI custom visual (ends the .pbiviz drift)
 
 Beast-mode build. The PBI custom visual the user runs (`genieChatVisual`, "UniBridge AI for Power BI") lived in an external repo and froze 2026-05-10 — a month behind PulsePlay's web Ask Pulse / AI Insights (the user's symptom: rough scroll + "missing things" + an out-of-date "Adjust" dropdown). Root cause = **stale build**, not broken code: its scroll CSS is correct and the web app (same `.gn-*` lineage) scrolls fine.
