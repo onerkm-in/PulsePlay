@@ -79,6 +79,10 @@ export interface ConversationOptions {
     intent?: AssistantIntent;
     /** PBI DataView-derived context (dimensions, measures, filter values, governance posture). */
     contextText?: string;
+    /** Server-aggregated bound-measure values for grounding. The proxy folds
+     *  these into the prompt for foundation-model profiles (so the FM cites
+     *  real numbers instead of punting) and ignores them for Genie. */
+    boundMeasures?: Record<string, number>;
 }
 
 /**

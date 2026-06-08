@@ -422,6 +422,9 @@ export interface GenieSpaceMetadata {
 interface SendOptions {
     intent?: AssistantIntent;
     contextText?: string;
+    // Server-aggregated bound-measure values for grounding (used by the proxy
+    // only for foundation-model profiles; Genie ignores it). See genie body.
+    boundMeasures?: Record<string, number>;
 }
 
 // IDEA-023 phase 2 — GenieClient is the canonical implementation of the
@@ -1426,6 +1429,11 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
             ...base,
             intent: options?.intent,
             contextText: options?.contextText,
+            // Grounding — server-aggregated bound-measure VALUES. The proxy
+            // folds them into the prompt for foundation-model profiles (so the
+            // FM cites real numbers instead of punting) and ignores them for
+            // Genie (which aggregates server-side). Harmless extra field.
+            ...(options?.boundMeasures ? { boundMeasures: options.boundMeasures } : {}),
             assistantProfile: this.config.assistantProfile,
             spaceId: this.config.spaceId,
             ...(packSelection?.pack ? { pack: packSelection.pack } : {}),
@@ -1467,6 +1475,7 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
             ...base,
             intent: options?.intent,
             contextText: options?.contextText,
+            ...(options?.boundMeasures ? { boundMeasures: options.boundMeasures } : {}),
             assistantProfile: this.config.assistantProfile,
             spaceId: this.config.spaceId,
             ...(discoveryContext ? { discoveryContext } : {}),

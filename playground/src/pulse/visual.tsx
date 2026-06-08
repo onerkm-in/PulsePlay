@@ -3184,8 +3184,8 @@ function App(props: AppProps) {
             // context + guidance into `content`. Sending it again via the proxy's
             // contextText field would double the prompt (and the token bill).
             const start = conversationId
-                ? await client.sendMessage(conversationId, request, { intent, contextText: "" })
-                : await client.startConversation(request, { intent, contextText: "" });
+                ? await client.sendMessage(conversationId, request, { intent, contextText: "", boundMeasures: props.context?.measures })
+                : await client.startConversation(request, { intent, contextText: "", boundMeasures: props.context?.measures });
             const resolvedConversationId = start.conversationId || conversationId;
             if (resolvedConversationId) {
                 rememberConversationId(spaceKey, resolvedConversationId);
