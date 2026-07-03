@@ -140,7 +140,7 @@ const ACTIVE_SURFACE_URL_PARAM = "surface";
 const PINNED_VIEWPORT_PANE_STORAGE_KEY = "pulseplay:pinned-viewport-pane";
 const PULSEPLAY_VIEWPORT_ACTION_EVENT = "pulseplay:viewport-action";
 const PULSEPLAY_VIEWPORT_STATE_EVENT = "pulseplay:viewport-state";
-type PulsePlayViewportAction = "focus" | "restore" | "minimize" | "pin" | "open-page" | "float" | "dock" | "reload";
+type PulsePlayViewportAction = "focus" | "restore" | "minimize" | "pin" | "open-page" | "float" | "dock" | "reload" | "pick-surface";
 
 interface PowerBIDeveloperSnapshot {
     vendor: "powerbi";
@@ -915,10 +915,17 @@ function PlaygroundApp(): React.ReactElement {
     useEffect(() => {
         if (typeof window === "undefined") return;
         const handler = (e: Event) => {
-            const detail = (e as CustomEvent<{ pane?: string; action?: string }>).detail;
+            const detail = (e as CustomEvent<{ pane?: string; action?: string; surface?: string }>).detail;
             const pane = detail?.pane;
             const action = detail?.action as PulsePlayViewportAction | undefined;
             if (pane !== "ai" && pane !== "bi") return;
+            // Surface pick over the event bridge — lets Pulse-port chrome (the
+            // mobile bottom nav) reach app-level surfaces that are NOT Pulse
+            // tabs (action-insights). Same routing as a SurfaceSwitcher click.
+            if (action === "pick-surface") {
+                if (isSurfaceId(detail?.surface)) handleSurfacePick(detail.surface);
+                return;
+            }
             if (action === "focus") {
                 if (enabledComponents === "mix" && pane === "bi" && !focusedPane) {
                     handleMixSurfaceSelect("bi");
@@ -939,7 +946,7 @@ function PlaygroundApp(): React.ReactElement {
         };
         window.addEventListener(PULSEPLAY_VIEWPORT_ACTION_EVENT, handler as EventListener);
         return () => window.removeEventListener(PULSEPLAY_VIEWPORT_ACTION_EVENT, handler as EventListener);
-    }, [applyViewportFocus, enabledComponents, focusedPane, handleMixSurfaceSelect, handleViewportRestore, handleViewportMinimize, handleViewportPinToggle, handleViewportOpenPage, handleViewportFloat, handleViewportDock]);
+    }, [applyViewportFocus, enabledComponents, focusedPane, handleMixSurfaceSelect, handleSurfacePick, handleViewportRestore, handleViewportMinimize, handleViewportPinToggle, handleViewportOpenPage, handleViewportFloat, handleViewportDock]);
 
     useEffect(() => {
         if (typeof window === "undefined") return;

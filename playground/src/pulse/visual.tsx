@@ -274,7 +274,7 @@ function openPulsePlaySettings(group: "setup" | "bi" | "ai" | "preferences" | "s
 
 type PulsePlayViewportPane = "ai" | "bi";
 type PulsePlayViewportFocus = PulsePlayViewportPane | null;
-type PulsePlayViewportAction = "focus" | "restore" | "minimize" | "open-page" | "float" | "reload" | "pin";
+type PulsePlayViewportAction = "focus" | "restore" | "minimize" | "open-page" | "float" | "reload" | "pin" | "pick-surface";
 
 function readPulsePlayViewportFocus(): PulsePlayViewportFocus {
     if (typeof window === "undefined") return null;
@@ -291,6 +291,24 @@ function dispatchPulsePlayViewportAction(action: PulsePlayViewportAction, pane: 
     window.dispatchEvent(new CustomEvent("pulseplay:viewport-action", {
         detail: { pane, action },
     }));
+}
+
+/** Ask the PulsePlay host shell to switch to an app-level surface that is
+ *  NOT a Pulse tab (e.g. "action-insights"). No-op outside the shell. */
+function dispatchPulsePlaySurfacePick(surface: string): void {
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(new CustomEvent("pulseplay:viewport-action", {
+        detail: { pane: "ai", action: "pick-surface", surface },
+    }));
+}
+
+/** True when this Pulse tree is mounted inside the PulsePlay web shell
+ *  (App.tsx renders `[data-active-surface]` around it). False in the PBI
+ *  custom-visual sandbox — host-shell-only chrome (the mobile "Decide"
+ *  nav item) must not render a dead button there. */
+function isHostedInPulsePlayShell(): boolean {
+    if (typeof document === "undefined") return false;
+    try { return !!document.querySelector("[data-active-surface]"); } catch { return false; }
 }
 
 // 2026-05-25 — per-tab-visibility model. Read by visual.tsx to decide which
@@ -5917,6 +5935,26 @@ function App(props: AppProps) {
             })()}
             {tabVisibilityCount >= 2 && (
                 <nav className="gn-mobile-nav" aria-label="Primary surfaces">
+                    {/* Action Insights is an app-level surface, not a Pulse tab —
+                        the desktop SurfaceSwitcher lists it but this nav is the
+                        only navigation on mobile, so mirror it here (first, to
+                        match the registry order). Host-shell-gated: never a dead
+                        button in the PBI custom-visual sandbox. */}
+                    {isHostedInPulsePlayShell() && (
+                        <button
+                            type="button"
+                            className="gn-mobile-nav-item"
+                            onClick={() => dispatchPulsePlaySurfacePick("action-insights")}
+                            aria-label="Open Action Insights surface"
+                        >
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <path d="M12 3 L22 20 H2 Z" />
+                                <line x1="12" y1="10" x2="12" y2="14" />
+                                <line x1="12" y1="17" x2="12" y2="17" />
+                            </svg>
+                            <span>Decide</span>
+                        </button>
+                    )}
                     {tabVisibility.aiInsights && (
                         <button
                             type="button"

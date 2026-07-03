@@ -68,6 +68,7 @@ vi.mock("../components/PulseShell", () => ({
 }));
 
 import { App } from "../App";
+import { SURFACES } from "../surfaceRegistry";
 import { __resetEmbedConfigStore } from "../settings/embedConfigStore";
 import {
     viewportControlControlSelector,
@@ -495,11 +496,13 @@ describe("App viewport controls — default unified Mix surface", () => {
         const switcherButtons = Array.from(
             state.container.querySelectorAll<HTMLButtonElement>('.pp-surface-switcher__item'),
         );
-        expect(switcherButtons.length).toBe(3);
+        // One pill per registry surface (4 since 058cf7e added action-insights).
+        // Derived from SURFACES so a future surface doesn't re-break this test.
+        expect(switcherButtons.length).toBe(SURFACES.length);
         for (const btn of switcherButtons) {
             const text = (btn.textContent || "").trim();
             // No "AI AI", "Ask Ask", "BI BI" doubled prefix.
-            expect(text).not.toMatch(/^(AI|Ask|BI)\s+\1\b/i);
+            expect(text).not.toMatch(/^(AI|Ask|BI|Action)\s+\1\b/i);
             // Accessible name now comes from an explicit aria-label so it stays
             // stable when the visual full/short label swaps responsively on the
             // mobile bottom bar (2026-06-04 V3 unification). It must be the clean
@@ -684,6 +687,39 @@ describe("App viewport controls — ?focus= URL", () => {
         expect(shell?.getAttribute("data-viewport-focus")).toBe("ai");
         expect(shell?.getAttribute("data-active-surface")).toBe("ai-insights");
 
+        unmount(state);
+    });
+
+    it("pick-surface viewport action routes to Action Insights (Pulse mobile nav bridge)", async () => {
+        // The Pulse-port mobile bottom nav can't render app-level surfaces as
+        // tabs; it dispatches pick-surface over the viewport-action bridge
+        // (2026-07-03 — Action Insights mobile reachability). Same routing as
+        // a SurfaceSwitcher click, including the action-insights special case.
+        seedPulseUiMode();
+        const state = mountApp();
+        await act(async () => { await Promise.resolve(); });
+        act(() => {
+            window.dispatchEvent(new CustomEvent("pulseplay:viewport-action", {
+                detail: { pane: "ai", action: "pick-surface", surface: "action-insights" },
+            }));
+        });
+        const shell = state.container.querySelector(viewportControlShellSelector);
+        expect(shell?.getAttribute("data-active-surface")).toBe("action-insights");
+        expect(window.localStorage.getItem("pulseplay:active-surface")).toBe("action-insights");
+        unmount(state);
+    });
+
+    it("pick-surface viewport action ignores unknown surface ids", async () => {
+        seedPulseUiMode();
+        const state = mountApp();
+        await act(async () => { await Promise.resolve(); });
+        act(() => {
+            window.dispatchEvent(new CustomEvent("pulseplay:viewport-action", {
+                detail: { pane: "ai", action: "pick-surface", surface: "bogus-surface" },
+            }));
+        });
+        const shell = state.container.querySelector(viewportControlShellSelector);
+        expect(shell?.getAttribute("data-active-surface")).toBe("ai-insights");
         unmount(state);
     });
 
