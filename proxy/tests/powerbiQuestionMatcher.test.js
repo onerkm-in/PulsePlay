@@ -109,6 +109,35 @@ describe('matcher — aggregate-by template', () => {
         expect(out.slots.dimensionColumn).toBe('Category');
     });
 
+    test('never picks the internal RowNumber-<guid> column as a dimension (stale inline probe)', () => {
+        // The prober filters RowNumber-<guid> at the source, but clients can
+        // send a stale cached probe inline that still carries it. Before the
+        // matcher-side strip, the table-entity fallback ("customers" names
+        // the table, not a column) picked the table's FIRST non-time column —
+        // the internal RowNumber — and the generated DAX 400'd
+        // (DatasetExecuteQueriesError; live repro 2026-07-03).
+        const stale = {
+            declaredKpis: [{ name: 'Total Sales' }],
+            schema: {
+                tables: [
+                    {
+                        name: 'DimCustomer',
+                        columns: [
+                            { name: 'RowNumber-2662979B-1795-4F74-8F37-6A1BA8059B61', type: 'Int64' },
+                            { name: 'customer_name', type: 'String' },
+                        ],
+                    },
+                ],
+            },
+        };
+        const agg = matchQuestion('total sales by customer', stale);
+        expect(agg.templateId).toBe('aggregate-by');
+        expect(agg.slots.dimensionColumn).toBe('customer_name');
+        const top = matchQuestion('top 5 customers by total sales', stale);
+        expect(top.templateId).toBe('top-n');
+        expect(top.slots.dimensionColumn).toBe('customer_name');
+    });
+
     test('matches Power BI model naming styles: Dim prefix, snake_case, and name suffix', () => {
         const out = matchQuestion('total profit by manager', {
             declaredKpis: [{ name: 'Total Profit' }],

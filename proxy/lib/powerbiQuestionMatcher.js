@@ -287,9 +287,23 @@ function findTopN(question) {
  * @param {{ declaredKpis?: Array<{ name: string }>, schema?: { tables: Array<{ name: string, columns: Array<{ name: string, type?: string }> }> } }} probe
  * @returns {{ matched: true, templateId: string, slots: object } | { matched: false, suggestions: Array<{ id: string, label: string, examples: string[] }>, reason: string, kpis: string[] }}
  */
+/** Power BI internal per-table `RowNumber-<guid>` column. The prober
+ *  filters these at the source (connectorProbe), but clients can send a
+ *  STALE cached probe inline (`probeSource: "inline"`) that still carries
+ *  them — and a RowNumber grouper makes every aggregate-by/top-n DAX
+ *  query 400. Defense in depth: never treat one as a dimension here. */
+const PBI_INTERNAL_COLUMN_REGEX = /^RowNumber-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function stripInternalColumns(tables) {
+    return tables.map(t => ({
+        ...t,
+        columns: (t.columns || []).filter(c => !PBI_INTERNAL_COLUMN_REGEX.test(String(c?.name || ''))),
+    }));
+}
+
 function matchQuestion(question, probe) {
     const measures = Array.isArray(probe?.declaredKpis) ? probe.declaredKpis : [];
-    const tables = Array.isArray(probe?.schema?.tables) ? probe.schema.tables : [];
+    const tables = stripInternalColumns(Array.isArray(probe?.schema?.tables) ? probe.schema.tables : []);
 
     const measure = findMeasure(question, measures);
     if (!measure) {

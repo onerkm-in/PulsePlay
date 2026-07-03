@@ -406,6 +406,11 @@ async function probeBedrockDirect(profile, profileName, _helpers) {
     };
 }
 
+/** Power BI internal per-table row-number column, e.g.
+ *  `RowNumber-2662979B-1795-4F74-8F37-6A1BA8059B61`. Not usable in DAX
+ *  expressions — must never surface as a schema column. */
+const PBI_INTERNAL_COLUMN_REGEX = /^RowNumber-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * Power BI semantic-model probe — reads dataset metadata via the Power BI
  * REST API and pulls measure + table inventory via INFO.* DAX functions.
@@ -519,6 +524,13 @@ async function probePowerBiSemanticModel(profile, profileName, _helpers) {
                 const tname = tableIdx >= 0 ? String(row[tableIdx] || '').trim() : '';
                 const cname = nameIdx >= 0 ? String(row[nameIdx] || '').trim() : '';
                 if (!tname || !cname) continue;
+                // Every Power BI table carries an internal `RowNumber-<guid>`
+                // column. Bare INFO.COLUMNS() hides it ([ExplicitName] is null,
+                // caught by the empty-name guard above) but INFO.VIEW.COLUMNS()
+                // names it — and a leaked RowNumber "dimension" makes every
+                // downstream aggregate-by / top-n DAX query 400
+                // (DatasetExecuteQueriesError; live repro 2026-07-03).
+                if (PBI_INTERNAL_COLUMN_REGEX.test(cname)) continue;
                 if (!tableMap.has(tname)) tableMap.set(tname, { name: tname, columns: [] });
                 const t = tableMap.get(tname);
                 t.columns.push({

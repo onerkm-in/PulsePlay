@@ -225,7 +225,21 @@ describe('connectorProbe — probePowerBiSemanticModel INFO.VIEW.* fallback', ()
                 return { columns: ['[Name]', '[Description]'], rows: [['FactOrders', null]], truncated: false };
             }
             // INFO.VIEW.COLUMNS — [Table] is the string name, [Name] (not [ExplicitName]).
-            return { columns: ['[Table]', '[Name]', '[DataType]'], rows: [['FactOrders', 'sales', 'Double']], truncated: false };
+            // Includes the internal RowNumber-<guid> column every PBI table
+            // carries: INFO.VIEW.COLUMNS names it (bare INFO.COLUMNS leaves
+            // [ExplicitName] null), and if it leaks into the schema every
+            // downstream aggregate-by/top-n DAX groups on it and 400s
+            // (live repro 2026-07-03).
+            return {
+                columns: ['[Table]', '[Name]', '[DataType]'],
+                rows: [
+                    ['FactOrders', 'sales', 'Double'],
+                    ['FactOrders', 'RowNumber-2662979B-1795-4F74-8F37-6A1BA8059B61', 'Int64'],
+                    ['DimCustomer', 'RowNumber-2662979B-1795-4F74-8F37-6A1BA8059B61', 'Int64'],
+                    ['DimCustomer', 'customer_name', 'String'],
+                ],
+                truncated: false,
+            };
         });
 
         const out = await __internals.probePowerBiSemanticModel(
@@ -237,6 +251,11 @@ describe('connectorProbe — probePowerBiSemanticModel INFO.VIEW.* fallback', ()
         expect(out.declaredKpis).toEqual([{ name: 'Total Sales', description: undefined }]);
         expect(out.schema.tables.find(t => t.name === 'FactOrders').columns.map(c => c.name)).toContain('sales');
         expect(out.metadataAvailability).toBe('rich');
+
+        // RowNumber-<guid> internal columns are filtered from EVERY table.
+        const allColumnNames = out.schema.tables.flatMap(t => t.columns.map(c => c.name));
+        expect(allColumnNames).toContain('customer_name');
+        expect(allColumnNames.some(n => /^RowNumber-/i.test(n))).toBe(false);
     });
 });
 
