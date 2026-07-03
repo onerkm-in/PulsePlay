@@ -44,6 +44,7 @@ import {
 import { AiAssistedSuggestionPanel } from "../../pulse/setupStep5";
 import { CustomSectionPresetCombobox, MetricDirectionPresetCombobox } from "../components/PresetCombobox";
 import { suggestInsightsConfigViaProxy } from "../../lib/insightsSuggestClient";
+import { buildPromptDrafts, type PromptDrafts } from "../../lib/promptDraftGenerator";
 import { MetricDirectionAutoDetectChip } from "../../components/MetricDirectionAutoDetectChip";
 import { getDiscoverySnapshot, type DiscoverySnapshot } from "../../lib/discoveryClient";
 
@@ -727,6 +728,26 @@ function PulseAiInsightsSettingsPanel(props: {
         });
     }, [resolvedProfile, props.packSelection?.pack, props.packSelection?.subVertical, value.insightsDomain]);
 
+    // FEATURE-P1 auto-prompt-from-context — deterministic drafts for the
+    // two prompt textareas, templated from the cached DiscoverySnapshot
+    // (no LLM call, works on every backend path incl. the no-LLM Power BI
+    // connector). Returns null when there is no usable signal so the panel
+    // can render an honest empty state.
+    const onGeneratePromptDrafts = useCallback(async (): Promise<PromptDrafts | null> => {
+        if (!resolvedProfile) return null;
+        let snap: DiscoverySnapshot | null = null;
+        try {
+            snap = await getDiscoverySnapshot({
+                assistantProfile: resolvedProfile,
+                pack: props.packSelection?.pack,
+                subVertical: props.packSelection?.subVertical,
+            });
+        } catch {
+            snap = null; // hint-only generation still possible below
+        }
+        return buildPromptDrafts(snap, value.insightsDomain || undefined);
+    }, [resolvedProfile, props.packSelection?.pack, props.packSelection?.subVertical, value.insightsDomain]);
+
     // 2026-05-28 — read the cached discovery snapshot so the metric
     // direction auto-detect chip can render. Cache-first; if it's been
     // fetched recently by App or UnifiedAssistantSurface, this is
@@ -893,6 +914,14 @@ function PulseAiInsightsSettingsPanel(props: {
                 value={value.insightsDomain}
                 placeholder="Example: cpg-fmcg, finance, supply-chain"
                 onChange={insightsDomain => onChange({ insightsDomain })}
+            />
+
+            <PromptDraftPanel
+                onGenerate={resolvedProfile ? onGeneratePromptDrafts : undefined}
+                currentInsightsPrompt={value.insightsPrompt}
+                currentGuidance={value.insightsDomainGuidance}
+                onApplyInsightsPrompt={insightsPrompt => onChange({ insightsPrompt })}
+                onApplyGuidance={insightsDomainGuidance => onChange({ insightsDomainGuidance })}
             />
 
             <SettingsTextarea
@@ -1119,6 +1148,141 @@ function PulseAiInsightsSettingsPanel(props: {
                     <SettingsTextarea label="ACTIONS override" value={value.insightsActionsOverride} rows={3} onChange={insightsActionsOverride => onChange({ insightsActionsOverride })} />
                 </div>
             </details>
+        </div>
+    );
+}
+
+// ─── FEATURE-P1 — Generate prompts from data context ────────────────────
+//
+// One-click deterministic draft generation for the "Custom insights
+// prompt" and "Domain guidance" textareas. Drafts are templated from the
+// cached DiscoverySnapshot (real measure/dimension/KPI names only — see
+// promptDraftGenerator.ts honesty contract). Applying never happens
+// silently over existing text: non-empty targets get explicit
+// Replace / Append choices, empty targets a plain Apply.
+
+function PromptDraftPanel(props: {
+    /** Undefined when no profile is resolved — button disabled with hint. */
+    onGenerate?: () => Promise<PromptDrafts | null>;
+    currentInsightsPrompt: string;
+    currentGuidance: string;
+    onApplyInsightsPrompt: (next: string) => void;
+    onApplyGuidance: (next: string) => void;
+}): React.ReactElement {
+    const [state, setState] = useState<"idle" | "loading" | "ready" | "empty" | "error">("idle");
+    const [drafts, setDrafts] = useState<PromptDrafts | null>(null);
+    const [applied, setApplied] = useState<{ prompt: boolean; guidance: boolean }>({ prompt: false, guidance: false });
+
+    const run = useCallback(async () => {
+        if (!props.onGenerate) return;
+        setState("loading");
+        setApplied({ prompt: false, guidance: false });
+        try {
+            const result = await props.onGenerate();
+            if (!result) {
+                setDrafts(null);
+                setState("empty");
+                return;
+            }
+            setDrafts(result);
+            setState("ready");
+        } catch {
+            setDrafts(null);
+            setState("error");
+        }
+    }, [props.onGenerate]);
+
+    const smallButton: React.CSSProperties = {
+        padding: "4px 10px",
+        fontSize: 11,
+        border: "1px solid var(--pp-border, rgba(0,0,0,0.18))",
+        background: "transparent",
+        borderRadius: 4,
+        cursor: "pointer",
+    };
+
+    const applyRow = (
+        label: string,
+        draft: string,
+        current: string,
+        apply: (next: string) => void,
+        key: "prompt" | "guidance",
+    ) => (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 11, fontWeight: 600, minWidth: 150 }}>{label}</span>
+            {applied[key] ? (
+                <span style={{ fontSize: 11, opacity: 0.7 }}>Applied — edit it below.</span>
+            ) : current.trim() ? (
+                <>
+                    <button type="button" style={smallButton} onClick={() => { apply(draft); setApplied(a => ({ ...a, [key]: true })); }}>
+                        Replace existing
+                    </button>
+                    <button type="button" style={smallButton} onClick={() => { apply(`${current.trimEnd()}\n\n${draft}`); setApplied(a => ({ ...a, [key]: true })); }}>
+                        Append below existing
+                    </button>
+                </>
+            ) : (
+                <button type="button" style={smallButton} onClick={() => { apply(draft); setApplied(a => ({ ...a, [key]: true })); }}>
+                    Apply
+                </button>
+            )}
+        </div>
+    );
+
+    return (
+        <div
+            style={{
+                display: "grid",
+                gap: 8,
+                padding: "10px 12px",
+                border: "1px dashed var(--pp-border, rgba(0,0,0,0.18))",
+                borderRadius: 6,
+            }}
+        >
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 12, fontWeight: 600 }}>Generate prompts from data context</span>
+                <button
+                    type="button"
+                    style={{ ...smallButton, opacity: props.onGenerate ? 1 : 0.5 }}
+                    disabled={!props.onGenerate || state === "loading"}
+                    title={props.onGenerate
+                        ? "Draft the insights prompt + domain guidance from the connected data's measures, dimensions, and KPIs"
+                        : "Select an AI provider first"}
+                    onClick={run}
+                >
+                    {state === "loading" ? "Reading data context…" : drafts ? "Regenerate" : "Generate from data context"}
+                </button>
+            </div>
+            {state === "idle" && (
+                <span style={{ fontSize: 11, opacity: 0.7 }}>
+                    Drafts the two prompt fields below from the connected data (measures, dimensions, KPI definitions).
+                    Deterministic — no AI call, nothing invented. You review and edit before saving.
+                </span>
+            )}
+            {state === "empty" && (
+                <span style={{ fontSize: 11, color: "var(--pp-error, #c92a2a)" }}>
+                    No data context available yet. Connect a backend (Test Connection) or type an Analytics
+                    domain above, then try again.
+                </span>
+            )}
+            {state === "error" && (
+                <span style={{ fontSize: 11, color: "var(--pp-error, #c92a2a)" }}>
+                    Draft generation failed unexpectedly. Check that the proxy is running, then retry.
+                </span>
+            )}
+            {state === "ready" && drafts && (
+                <div style={{ display: "grid", gap: 8 }}>
+                    <span style={{ fontSize: 11, opacity: 0.7 }}>Drafted from: {drafts.summary}</span>
+                    {applyRow("Custom insights prompt", drafts.insightsPrompt, props.currentInsightsPrompt, props.onApplyInsightsPrompt, "prompt")}
+                    {applyRow("Domain guidance", drafts.guidance, props.currentGuidance, props.onApplyGuidance, "guidance")}
+                    <details>
+                        <summary style={{ cursor: "pointer", fontSize: 11, opacity: 0.8 }}>Preview drafts</summary>
+                        <pre style={{ fontSize: 11, whiteSpace: "pre-wrap", margin: "6px 0 0", opacity: 0.85 }}>
+                            {`── Custom insights prompt ──\n${drafts.insightsPrompt}\n\n── Domain guidance ──\n${drafts.guidance}`}
+                        </pre>
+                    </details>
+                </div>
+            )}
         </div>
     );
 }
