@@ -5,6 +5,20 @@
 
 ---
 
+## 2026-07-03 — FEATURE-P1: Generate prompts from data context (Settings)
+
+Shipped the 2026-05-29 auto-prompt request (`feature_auto_prompt_generation` memory) for the PulsePlay-native Settings surface. Commit `30b5d43`.
+
+**What:** a "Generate prompts from data context" panel in Settings → AI → Response behavior, above the two prompt textareas. One click drafts BOTH the **Custom insights prompt** and **Domain guidance** from the cached `DiscoverySnapshot` (probe + BI metadata + pack KPIs). **Deterministic, template-based — no LLM call** — so it works on all 10 backend paths including the no-LLM `powerbi-semantic-model` connector and while Genie is blocked upstream. The existing LLM "Suggest from data" panel (domain + sections) is untouched and complementary. New pure module `playground/src/lib/promptDraftGenerator.ts` carries the honesty contract: only real field names/definitions/units/directions from the snapshot; the guidance draft can NEVER emit a recognized `##` activator block (field names are whitespace-flattened to block header injection — unit-tested with adversarial names). Non-empty targets get explicit **Replace / Append** choices — no silent overwrite; no-signal generation shows an honest empty state instead of a generic fake.
+
+**Validation:** 15 unit + 4 component tests (new); playground lint PASS; `vite build` PASS; **live headed browser pass** against the running proxy with `powerbi-dwd` — drafted from **17 real measures of DwD_PBI_Demo**, applied to both fields, persisted to `genieSettings`, 0 console errors (screenshot: `playground/screenshots/prompt-draft-panel-2026-07-03.png`, local evidence, untracked).
+
+**Tripwire / pre-existing breakage found:** full playground suite is **1943/1945** — 2 failures in `viewportControls.integration.test.tsx` ("surface switcher labels are non-duplicative", "syncs activeSurface to ai-insights on popstate ?focus=ai"). **Pre-existing from `058cf7e` (Action Insights)** — verified by stashing this feature and re-running at clean HEAD (same 2 failures). Logged in AGENDA as a P0 gate fix for the Action Insights owner scope; NOT fixed here to avoid guessing that feature's surface semantics.
+
+**Deferred (honest scope):** the Pulse-port setup pane (`setupStep5.tsx` PBI format pane) did not get the panel — the canonical PulsePlay-native prompt surface is Settings → AI; port there only if the sibling visual needs it.
+
+---
+
 ## 2026-06-08 — Connector plugin architecture: Phase A (scaffolding)
 
 Built the `[HANDOFF]` #1 item from `AGENT_SYNC.md` `[DECISION]` 2026-05-20 — the drop-in/drop-out connector model's foundation. **Pure additive, zero behavior change.**
