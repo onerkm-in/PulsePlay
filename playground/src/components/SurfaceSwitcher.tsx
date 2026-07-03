@@ -85,6 +85,17 @@ function SurfaceGlyph({ icon }: { icon: SurfaceIcon }): React.ReactElement {
             </svg>
         );
     }
+    if (icon === "alert") {
+        // Action Insights: alert/decision marker — a triangle with a stem +
+        // dot, distinct from the sparkle (insights) and bars (dashboard).
+        return (
+            <svg {...common}>
+                <path d="M12 3 L22 20 H2 Z" />
+                <line x1="12" y1="10" x2="12" y2="14" />
+                <line x1="12" y1="17" x2="12" y2="17" />
+            </svg>
+        );
+    }
     if (icon === "chat") {
         // Ask Pulse: rounded chat bubble.
         return (

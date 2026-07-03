@@ -40,6 +40,7 @@ import { useEmbedConfig } from "./settings/embedConfigStore";
 import { warmGenieWarehouse, startWarehouseKeepalive, stopWarehouseKeepalive } from "./lib/warehouseWarmup";
 import { FirstRunWizard, WizardErrorBoundary, shouldShowWizard, type PersonaKey } from "./components/FirstRunWizard";
 import { SurfaceSwitcher } from "./components/SurfaceSwitcher";
+import { ActionInsightsPanel } from "./components/ActionInsightsPanel";
 import { BundleSwitcher } from "./components/BundleSwitcher";
 import { PaneEmptyState, DashboardIcon } from "./components/PaneEmptyState";
 import type { SurfaceId } from "./surfaceRegistry";
@@ -819,9 +820,21 @@ function PlaygroundApp(): React.ReactElement {
     }, [persistActiveSurface]);
 
     const handleSurfacePick = useCallback((id: SurfaceId) => {
+        // Action Insights is an AI-pane surface but NOT a PulseShell tab, so it
+        // can't round-trip through the mix/pulse-tab model (surfaceFromMixState
+        // would collapse it back to ai-insights). Persist it directly, and make
+        // the AI pane visible in mix mode.
+        if (id === "action-insights") {
+            setFocusedPane(null);
+            writeViewportFocusToUrl(null);
+            setMixSurface("ai");
+            setMixMinimizedPane(null);
+            persistActiveSurface(id);
+            return;
+        }
         const pulseTab = surfaceToPulseTab(id);
         handleMixSurfaceSelect(surfaceToMixSurface(id), pulseTab ?? undefined);
-    }, [handleMixSurfaceSelect]);
+    }, [handleMixSurfaceSelect, persistActiveSurface]);
 
     const handleViewportPinToggle = useCallback((pane: ViewportPane) => {
         setPinnedViewportPane(prev => {
@@ -1727,7 +1740,23 @@ function PlaygroundApp(): React.ReactElement {
                                     <a className="pp-allowlist-chip__more" href="/settings/setup" title="Open Setup to verify proxy configuration">Open Setup</a>
                                 </div>
                             )}
-                            {uiMode === "pulse" ? (
+                            {effectiveSurfaceId === "action-insights" ? (
+                                // Proactive Decision Intelligence surface. Renders its own
+                                // SurfaceSwitcher so the user can always navigate back (it
+                                // replaces PulseShell, which carries the switcher otherwise).
+                                <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
+                                    <div style={{ padding: "6px 4px 4px" }}>
+                                        <SurfaceSwitcher
+                                            active={effectiveSurfaceId}
+                                            availability={surfaceResolution.availability}
+                                            onPick={handleSurfacePick}
+                                        />
+                                    </div>
+                                    <div style={{ flex: "1 1 auto", minHeight: 0 }}>
+                                        <ActionInsightsPanel proxyBase={readConfiguredProxyBase()} />
+                                    </div>
+                                </div>
+                            ) : uiMode === "pulse" ? (
                                 <>
                                     <Suspense fallback={<PulseLoadingState />}>
                                         <PulseShell

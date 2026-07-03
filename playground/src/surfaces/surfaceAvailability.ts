@@ -50,6 +50,7 @@ export type EnabledFeaturesInput = "both" | "insightsOnly" | "chatOnly";
  *  This is NOT "is the surface implemented" — every surface is always
  *  implemented. This is purely about runtime visibility. */
 export interface SurfaceAvailability {
+    readonly "action-insights": boolean;
     readonly "ai-insights": boolean;
     readonly "ask-pulse": boolean;
     readonly "bi-viz": boolean;
@@ -102,6 +103,9 @@ export function computeSurfaceAvailability(
     const aiPaneOn = enabledComponents !== "biOnly";
     const biPaneOn = enabledComponents !== "aiOnly";
     return {
+        // Action Insights lives in the AI pane but is independent of the
+        // insights/chat feature axis — it's available whenever the AI pane is on.
+        "action-insights": aiPaneOn,
         "ai-insights": aiPaneOn && enabledFeatures !== "chatOnly",
         "ask-pulse":   aiPaneOn && enabledFeatures !== "insightsOnly",
         "bi-viz":      biPaneOn,

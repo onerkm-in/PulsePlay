@@ -1,0 +1,156 @@
+// playground/src/components/ActionInsightsPanel.tsx
+//
+// The Action Insights surface: a PROACTIVE decision-prompt stack. It renders
+// ranked "NEEDS YOUR DECISION" cards the moment it opens — the user types
+// nothing. Data comes from the governed prompt store via the proxy
+// (GET /insights/action-insights); actions post back through the HITL-gated
+// POST endpoint. Persona + permissions are resolved server-side; the demo
+// switcher only sends a hint header (ignored server-side when a real IdP role
+// is present).
+//
+// Fail-safe: any fetch error renders a slim, non-blocking notice — it never
+// throws into the shell, so existing PulsePlay surfaces are unaffected.
+
+import { useCallback, useEffect, useState } from "react";
+import { DecisionPromptCard, type DecisionPrompt } from "./DecisionPromptCard";
+
+const DEMO_PERSONA_KEY = "pulseplay:ai-demo-persona";
+const PLANNER = "Supply Chain Planner";
+const MANAGER = "Supply Chain Manager";
+
+interface ApiResponse {
+    ok: boolean;
+    persona: string;
+    personaSource: string;
+    capabilities: string[];
+    prompts: DecisionPrompt[];
+}
+
+function readDemoPersona(): string {
+    if (typeof window === "undefined") return "";
+    try { return window.localStorage.getItem(DEMO_PERSONA_KEY) || ""; } catch { return ""; }
+}
+
+export function ActionInsightsPanel({ proxyBase }: { proxyBase: string }) {
+    const [data, setData] = useState<ApiResponse | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [busyId, setBusyId] = useState<string | null>(null);
+    const [demoPersona, setDemoPersona] = useState<string>(() => readDemoPersona());
+
+    const base = proxyBase || "";
+
+    const load = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const res = await fetch(`${base}/insights/action-insights`, {
+                headers: demoPersona ? { "x-pp-persona": demoPersona } : {},
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const body = (await res.json()) as ApiResponse;
+            setData(body);
+        } catch (e) {
+            setError(String((e as Error).message || e));
+            setData(null);
+        } finally {
+            setLoading(false);
+        }
+    }, [base, demoPersona]);
+
+    useEffect(() => { void load(); }, [load]);
+
+    const onAction = useCallback(async (promptId: string, action: string) => {
+        setBusyId(promptId);
+        try {
+            const res = await fetch(`${base}/insights/action-insights/${promptId}/action`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(demoPersona ? { "x-pp-persona": demoPersona } : {}),
+                },
+                body: JSON.stringify({ action }),
+            });
+            if (res.status === 403) {
+                setError("That action isn't permitted for the current persona.");
+            } else if (!res.ok) {
+                setError(`Action failed (HTTP ${res.status}).`);
+            }
+            await load(); // refetch so status + allowed actions reflect the server
+        } catch (e) {
+            setError(String((e as Error).message || e));
+        } finally {
+            setBusyId(null);
+        }
+    }, [base, demoPersona, load]);
+
+    const setPersona = (p: string) => {
+        try { window.localStorage.setItem(DEMO_PERSONA_KEY, p); } catch { /* swallow */ }
+        setDemoPersona(p);
+    };
+
+    const prompts = data?.prompts || [];
+    const maxImpact = prompts.reduce((m, p) => Math.max(m, p.business_impact_value || 0), 0);
+    const openCount = prompts.filter((p) =>
+        ["new", "refreshed", "pending-approval"].includes(p.status)).length;
+
+    return (
+        <div style={{ padding: "14px 16px", height: "100%", overflowY: "auto" }} data-testid="action-insights-panel">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
+                <div>
+                    <div style={{ fontSize: 12, letterSpacing: 0.6, fontWeight: 700, color: "var(--pp-muted,#667085)" }}>
+                        NEEDS YOUR DECISION{openCount ? ` · ${openCount}` : ""}
+                    </div>
+                    <div style={{ fontSize: 11.5, color: "var(--pp-muted,#98a2b3)", marginTop: 2 }}>
+                        Viewing as <strong>{data?.persona || "…"}</strong>
+                        {data?.personaSource === "demo" ? " (demo)" : ""}
+                    </div>
+                </div>
+                {/* Demo persona switcher — hint only; server ignores it when an IdP role exists. */}
+                <div style={{ display: "flex", gap: 6 }}>
+                    {[PLANNER, MANAGER].map((p) => (
+                        <button
+                            key={p}
+                            onClick={() => setPersona(p)}
+                            style={{
+                                padding: "5px 10px", borderRadius: 7, fontSize: 11.5, cursor: "pointer",
+                                border: "1px solid rgba(128,128,128,0.35)",
+                                background: demoPersona === p ? "rgba(127,127,127,0.18)" : "transparent",
+                                color: "inherit", fontWeight: demoPersona === p ? 650 : 400,
+                            }}
+                        >{p.replace("Supply Chain ", "")}</button>
+                    ))}
+                </div>
+            </div>
+
+            {error && (
+                <div role="status" style={{
+                    padding: "8px 12px", borderRadius: 8, fontSize: 12, marginBottom: 10,
+                    background: "rgba(181,71,8,0.08)", color: "#b54708",
+                }}>{error}</div>
+            )}
+
+            {loading && !data && (
+                <div style={{ fontSize: 13, color: "var(--pp-muted,#98a2b3)", padding: "24px 0" }}>
+                    Scanning KPIs for decisions…
+                </div>
+            )}
+
+            {!loading && prompts.length === 0 && !error && (
+                <div style={{ fontSize: 13.5, color: "var(--pp-muted,#667085)", padding: "28px 0", textAlign: "center" }}>
+                    No decisions need attention right now.
+                </div>
+            )}
+
+            {prompts.map((p) => (
+                <DecisionPromptCard
+                    key={p.prompt_id}
+                    prompt={p}
+                    onAction={onAction}
+                    busy={busyId === p.prompt_id}
+                    maxImpact={maxImpact}
+                />
+            ))}
+        </div>
+    );
+}

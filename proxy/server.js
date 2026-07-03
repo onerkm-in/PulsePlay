@@ -5586,6 +5586,16 @@ app.post('/insights/suggest-metric-rules', async (req, res) => {
     }
 });
 
+// ── Action Insights (embedded proactive Decision Intelligence) ────────────────
+// Serving layer (topology T2). Reads governed Decision Prompts from the Delta
+// prompt store produced by the Python detection engine and mediates HITL actions
+// with server-side permission enforcement + audit. Additive: reuses resolveProfile,
+// databricksRequest, executeSqlStatement, and inherits the /insights middleware
+// stack (rate-limit, idp, shared-key, allowlist) already mounted above.
+require('./lib/actionInsights').register(app, {
+    resolveProfile, databricksRequest, auditLog, sendNoMatchingProfile,
+});
+
 // ── Azure OpenAI routes ───────────────────────────────────────────────────────
 // The visual sends questions to /openai/conversations/* when connectionMode is
 // "azure-openai". The proxy holds the Azure OpenAI endpoint + API key in its

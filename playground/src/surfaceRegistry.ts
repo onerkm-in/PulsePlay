@@ -14,7 +14,7 @@
 // FloatingPanel, route handlers) must consume this registry rather
 // than hard-code its own enum.
 
-export type SurfaceId = "ai-insights" | "ask-pulse" | "bi-viz";
+export type SurfaceId = "action-insights" | "ai-insights" | "ask-pulse" | "bi-viz";
 
 export interface SurfaceDescriptor {
     /** Stable id used in URL params, aria attributes, telemetry. */
@@ -38,9 +38,22 @@ export interface SurfaceDescriptor {
 /** A surface icon is a small visual marker — a glyph chosen so it does
  *  NOT repeat the label text. The switcher renders it inside an icon
  *  well; screen readers ignore it (aria-hidden) and rely on the label. */
-export type SurfaceIcon = "spark" | "chat" | "bars";
+export type SurfaceIcon = "spark" | "chat" | "bars" | "alert";
 
 export const SURFACES: ReadonlyArray<SurfaceDescriptor> = Object.freeze([
+    {
+        // Action Insights — proactive, persona-based Decision Intelligence.
+        // Added as a peer AI-pane surface (embedded, not a separate app). The
+        // user never starts from a blank box: opening this surface renders a
+        // ranked stack of "NEEDS YOUR DECISION" cards from the governed prompt
+        // store. Placed first to reflect the proactive-first product direction.
+        id: "action-insights",
+        label: "Action Insights",
+        shortLabel: "Decide",
+        icon: "alert",
+        description: "Proactive decision prompts: what's off, why, the impact, and the next action to approve.",
+        pane: "ai",
+    },
     {
         id: "ai-insights",
         label: "AI Insights",

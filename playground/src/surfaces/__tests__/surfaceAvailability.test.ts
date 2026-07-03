@@ -18,24 +18,26 @@ describe("computeSurfaceAvailability", () => {
     const matrix: ReadonlyArray<{
         components: EnabledComponentsInput;
         features: EnabledFeaturesInput;
-        expected: { "ai-insights": boolean; "ask-pulse": boolean; "bi-viz": boolean };
+        expected: { "action-insights": boolean; "ai-insights": boolean; "ask-pulse": boolean; "bi-viz": boolean };
     }> = [
+        // action-insights follows the AI-pane axis only (available unless biOnly),
+        // independent of the insights/chat feature toggle.
         // mix mode (T1 Balanced) — all available
-        { components: "mix",  features: "both",          expected: { "ai-insights": true,  "ask-pulse": true,  "bi-viz": true  } },
-        { components: "mix",  features: "insightsOnly",  expected: { "ai-insights": true,  "ask-pulse": false, "bi-viz": true  } },
-        { components: "mix",  features: "chatOnly",      expected: { "ai-insights": false, "ask-pulse": true,  "bi-viz": true  } },
+        { components: "mix",  features: "both",          expected: { "action-insights": true,  "ai-insights": true,  "ask-pulse": true,  "bi-viz": true  } },
+        { components: "mix",  features: "insightsOnly",  expected: { "action-insights": true,  "ai-insights": true,  "ask-pulse": false, "bi-viz": true  } },
+        { components: "mix",  features: "chatOnly",      expected: { "action-insights": true,  "ai-insights": false, "ask-pulse": true,  "bi-viz": true  } },
         // both mode (T6 Split + Mix) — same availability as mix
-        { components: "both", features: "both",          expected: { "ai-insights": true,  "ask-pulse": true,  "bi-viz": true  } },
-        { components: "both", features: "insightsOnly",  expected: { "ai-insights": true,  "ask-pulse": false, "bi-viz": true  } },
-        { components: "both", features: "chatOnly",      expected: { "ai-insights": false, "ask-pulse": true,  "bi-viz": true  } },
+        { components: "both", features: "both",          expected: { "action-insights": true,  "ai-insights": true,  "ask-pulse": true,  "bi-viz": true  } },
+        { components: "both", features: "insightsOnly",  expected: { "action-insights": true,  "ai-insights": true,  "ask-pulse": false, "bi-viz": true  } },
+        { components: "both", features: "chatOnly",      expected: { "action-insights": true,  "ai-insights": false, "ask-pulse": true,  "bi-viz": true  } },
         // aiOnly (T4/T5) — bi-viz disabled
-        { components: "aiOnly", features: "both",         expected: { "ai-insights": true,  "ask-pulse": true,  "bi-viz": false } },
-        { components: "aiOnly", features: "insightsOnly", expected: { "ai-insights": true,  "ask-pulse": false, "bi-viz": false } },
-        { components: "aiOnly", features: "chatOnly",     expected: { "ai-insights": false, "ask-pulse": true,  "bi-viz": false } },
-        // biOnly (T3) — both AI surfaces disabled regardless of features
-        { components: "biOnly", features: "both",         expected: { "ai-insights": false, "ask-pulse": false, "bi-viz": true  } },
-        { components: "biOnly", features: "insightsOnly", expected: { "ai-insights": false, "ask-pulse": false, "bi-viz": true  } },
-        { components: "biOnly", features: "chatOnly",     expected: { "ai-insights": false, "ask-pulse": false, "bi-viz": true  } },
+        { components: "aiOnly", features: "both",         expected: { "action-insights": true,  "ai-insights": true,  "ask-pulse": true,  "bi-viz": false } },
+        { components: "aiOnly", features: "insightsOnly", expected: { "action-insights": true,  "ai-insights": true,  "ask-pulse": false, "bi-viz": false } },
+        { components: "aiOnly", features: "chatOnly",     expected: { "action-insights": true,  "ai-insights": false, "ask-pulse": true,  "bi-viz": false } },
+        // biOnly (T3) — every AI-pane surface disabled regardless of features
+        { components: "biOnly", features: "both",         expected: { "action-insights": false, "ai-insights": false, "ask-pulse": false, "bi-viz": true  } },
+        { components: "biOnly", features: "insightsOnly", expected: { "action-insights": false, "ai-insights": false, "ask-pulse": false, "bi-viz": true  } },
+        { components: "biOnly", features: "chatOnly",     expected: { "action-insights": false, "ai-insights": false, "ask-pulse": false, "bi-viz": true  } },
     ];
 
     for (const row of matrix) {
