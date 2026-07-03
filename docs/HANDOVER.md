@@ -5,6 +5,20 @@
 
 ---
 
+## 2026-07-03 (later) — RowNumber DAX fix + Action Insights mobile reachability + gate green
+
+Follow-up session after Rajesh hit "Insight run stopped — HEADLINE could not finish" on mobile and asked where Action Insights lives. Commits `61e9ecb` (proxy) + `7d3308a` (playground), both pushed.
+
+**RowNumber probe leak (real live bug, `61e9ecb`).** On the INFO.VIEW.* fallback path (delegated user tokens, from fix `b5441a9`), every table's internal `RowNumber-<guid>` column leaked into the probed schema — bare `INFO.COLUMNS()` hides it (`[ExplicitName]` null) but `INFO.VIEW.COLUMNS()` names it. The matcher's table-entity fallback ("customers" names a table, not a column) picks the table's FIRST non-time column → the RowNumber → every **aggregate-by / top-n** DAX 400'd (`DatasetExecuteQueriesError`) while total/trend worked. Fixed at the source (connectorProbe) + defense-in-depth in powerbiQuestionMatcher (clients send cached probes inline that can still carry it). Live-verified: fresh probe 45 cols / 0 leaks; "total sales by customer" → 793 groups.
+
+**Action Insights mobile reachability (`7d3308a`).** `058cf7e` added the surface to the registry (desktop SurfaceSwitcher pill "Action Insights"/"Decide") but the Workbench mobile bottom nav is Pulse's `gn-mobile-nav` — the surface was UNREACHABLE on mobile. New `pick-surface` action on the existing `pulseplay:viewport-action` bridge; Pulse mobile nav renders a "Decide" item (first, registry order) gated on `[data-active-surface]` presence so the synced PBI visual never gets a dead button. Browser-verified at mobile width: Decide renders, click → action-insights surface.
+
+**AUDIT-P0 closed — playground gate GREEN (1947/1947).** The "non-duplicative labels" failure was a stale `toBe(3)` pill count (registry legitimately grew to 4; now derived from `SURFACES.length`). The popstate failure was pure fallout — the aborted test leaked its mounted App (unmount never ran) and polluted the next test; it passed in isolation. Full validation: proxy **1287/1287**, playground **1947/1947**, lint + `vite build` clean.
+
+**Still true / open:** Action Insights' own backend is blocked on this rig — `GET /insights/action-insights` 500s ("No access token configured"); it needs a Databricks SQL warehouse + the Delta prompt store its separate Python rules engine populates. The surface renders honestly (HTTP 500 card). Also the user's other symptom cause: the `default` Genie profile still carries placeholder `YOUR_GENIE_SPACE_ID`/no token — switching connector to `powerbi-dwd`/`foundation` is the workaround.
+
+---
+
 ## 2026-07-03 — FEATURE-P1: Generate prompts from data context (Settings)
 
 Shipped the 2026-05-29 auto-prompt request (`feature_auto_prompt_generation` memory) for the PulsePlay-native Settings surface. Commit `30b5d43`.
