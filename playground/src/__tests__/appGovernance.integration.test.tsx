@@ -63,4 +63,50 @@ describe("App Governance and React Query Integration", () => {
         expect(alert.textContent).toContain("config locked");
         expect(alert.getAttribute("data-fail-closed")).toBe("true");
     });
+
+    it("auto-picks the first non-smoke_test allowlisted AI profile when none is chosen yet", async () => {
+        globalThis.fetch = vi.fn().mockImplementation(async (url: string) => {
+            if (url.includes("/allowlist")) {
+                return new Response(JSON.stringify({
+                    configured: true,
+                    biProviders: ["powerbi"],
+                    aiProfiles: ["smoke_test", "default"],
+                }), { status: 200, headers: { "content-type": "application/json" } });
+            }
+            if (url.includes("/packs")) {
+                return new Response(JSON.stringify({ packs: [] }), { status: 200, headers: { "content-type": "application/json" } });
+            }
+            return new Response("Not found", { status: 404 });
+        });
+
+        render(<App />);
+
+        await waitFor(() => {
+            expect(window.localStorage.getItem("pulseplay:active-ai-profile")).toBe("default");
+        }, { timeout: 2000 });
+    });
+
+    it("does not override an already-chosen active AI profile once the allowlist loads", async () => {
+        window.localStorage.setItem("pulseplay:active-ai-profile", "powerbi-dwd");
+        globalThis.fetch = vi.fn().mockImplementation(async (url: string) => {
+            if (url.includes("/allowlist")) {
+                return new Response(JSON.stringify({
+                    configured: true,
+                    biProviders: ["powerbi"],
+                    aiProfiles: ["smoke_test", "default"],
+                }), { status: 200, headers: { "content-type": "application/json" } });
+            }
+            if (url.includes("/packs")) {
+                return new Response(JSON.stringify({ packs: [] }), { status: 200, headers: { "content-type": "application/json" } });
+            }
+            return new Response("Not found", { status: 404 });
+        });
+
+        render(<App />);
+
+        await waitFor(() => {
+            expect(globalThis.fetch).toHaveBeenCalledWith("/api/assistant/allowlist", expect.anything());
+        }, { timeout: 2000 });
+        expect(window.localStorage.getItem("pulseplay:active-ai-profile")).toBe("powerbi-dwd");
+    });
 });

@@ -533,6 +533,18 @@ function PlaygroundApp(): React.ReactElement {
             window.removeEventListener("pulseplay:display-change", sync as EventListener);
         };
     }, []);
+    // Auto-pick a connector the first time the allowlist loads and nothing
+    // has been chosen yet (fresh install, no wizard run, no genieSettings).
+    // Prefer a non-smoke_test profile so a fresh session doesn't silently
+    // land on the demo/synthetic fixture connector.
+    useEffect(() => {
+        if (activeConnector) return;
+        const profiles = allowlistState.allowlist?.aiProfiles;
+        if (!profiles || profiles.length === 0) return;
+        const pick = profiles.find(p => p !== "smoke_test") ?? profiles[0];
+        try { window.localStorage.setItem("pulseplay:active-ai-profile", pick); } catch { /* swallow */ }
+        setActiveConnector(pick);
+    }, [activeConnector, allowlistState.allowlist]);
     // Power BI embed config lives in a cross-tab store; editing it in
     // Settings (BI, Embed) live-updates this hook without a refresh.
     const { embedConfig, setEmbedConfig: persistEmbedConfig, clearEmbedConfig } = useEmbedConfig();
