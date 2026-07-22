@@ -371,7 +371,7 @@ function SettingsStatusStrip(): React.ReactElement {
             <Chip label="AI"       status={aiStatus}       detail={activeAiProfile ? formatProfileName(activeAiProfile) : "Not configured"} group="ai" />
             <Chip label="Pack"     status={packStatus}     detail={packSelection?.pack ? formatPackName(packSelection.pack) : "No knowledge source"} group="ai" leaf="knowledge-pack" />
             <Chip label="Proxy"    status={proxyStatus}    detail={allowlistError ? "Unreachable" : (allowlistLoading ? "Checking…" : "Connected")} group="system" leaf="proxy-status" />
-            <Chip label="Security" status={securityStatus} detail={allowlist?.enforcement === "strict" ? "Enforced" : allowlist?.enforcement === "permissive" ? "Permissive" : "Unknown"} group="system" leaf="security-posture" />
+            <Chip label="Allowlist" status={securityStatus} detail={allowlist?.enforcement === "strict" ? "Strict" : allowlist?.enforcement === "permissive" ? "Permissive" : "Unknown"} group="system" leaf="security-posture" />
         </div>
     );
 }

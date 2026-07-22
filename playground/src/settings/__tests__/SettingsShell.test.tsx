@@ -94,7 +94,7 @@ describe("SettingsShell — render", () => {
         unmount(state);
     });
 
-    it("status strip shows BI · AI · Pack · Proxy · Security chips", async () => {
+    it("status strip shows BI · AI · Pack · Proxy · Allowlist chips", async () => {
         const state = mount("/settings");
         await act(async () => { await Promise.resolve(); });
         const text = state.container.textContent || "";
@@ -102,7 +102,16 @@ describe("SettingsShell — render", () => {
         expect(text).toContain("AI");
         expect(text).toContain("Pack");
         expect(text).toContain("Proxy");
-        expect(text).toContain("Security");
+        expect(text).toContain("Allowlist");
+        unmount(state);
+    });
+
+    it("Allowlist chip reads Strict for strict enforcement, never the word 'Enforced'", async () => {
+        const state = mount("/settings");
+        await act(async () => { await Promise.resolve(); });
+        const text = state.container.textContent || "";
+        expect(text).toContain("Strict");
+        expect(text).not.toContain("Enforced");
         unmount(state);
     });
 });
