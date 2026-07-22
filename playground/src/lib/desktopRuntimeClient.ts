@@ -181,19 +181,6 @@ export async function sendHeartbeat(): Promise<boolean> {
     }
 }
 
-export async function requestQuit(): Promise<boolean> {
-    const token = getLaunchToken();
-    if (!token) return false;
-    try {
-        const res = await fetch("/runtime/quit", {
-            method: "POST",
-            headers: authHeaders(token),
-        });
-        return res.ok;
-    } catch {
-        return false;
-    }
-}
 
 /** Recon-disclaimer dismissal lives in BOTH localStorage (so the UI
  *  doesn't flash) AND in /runtime/state under desktop scope (so it

@@ -25,10 +25,3 @@ export function useMultiPaneRoute(): { isMultiPaneRoute: boolean } {
     return { isMultiPaneRoute: isMultiPaneRoute(path) };
 }
 
-export function navigateToMultiPaneDemo(): void {
-    if (typeof window === "undefined") return;
-    if (window.location.pathname !== MULTI_PANE_PATH) {
-        window.history.pushState({}, "", MULTI_PANE_PATH);
-        window.dispatchEvent(new PopStateEvent("popstate"));
-    }
-}

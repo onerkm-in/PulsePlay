@@ -44,51 +44,6 @@ export interface PackPickerProps {
     onChange: (selection: PackSelection) => void;
 }
 
-/**
- * Legacy fallback list for tests/story-like callers that render PackPicker in
- * isolation. App.tsx uses /api/assistant/knowledge/packs instead.
- */
-export const DEFAULT_AVAILABLE_PACKS: PackInfo[] = [
-    {
-        name: "cpg-fmcg",
-        displayName: "CPG / FMCG",
-        description:
-            "Consumer Packaged Goods / Fast-Moving Consumer Goods preset pack. Ten sub-verticals plus a sustainability cross-cutting overlay.",
-        subVerticals: [
-            { name: "supply-chain", displayName: "Supply Chain", description: "Demand sensing, inventory health, OTIF, S&OP, control tower, logistics." },
-            { name: "procurement", displayName: "Procurement", description: "Sourcing, supplier risk, contracts, commodity exposure, RFx orchestration." },
-            { name: "manufacturing", displayName: "Manufacturing", description: "OEE, yield, downtime, predictive maintenance, quality, batch genealogy." },
-            { name: "commercial-retail", displayName: "Commercial / Retail", description: "Revenue growth management, trade promotion, retail execution, digital shelf, JBP." },
-            { name: "finance-fpa", displayName: "Finance / FP&A", description: "Margin bridge, working capital, FP&A, scenario modelling, close anomaly detection." },
-            { name: "hr", displayName: "HR", description: "Workforce planning, skills, frontline staffing, safety, learning, attrition." },
-            { name: "it-admin", displayName: "IT / Admin", description: "Service desk, infrastructure, application portfolio, AI governance ops, license utilisation." },
-            { name: "vendor-management", displayName: "Vendor Management", description: "Supplier 360, contract intelligence, tier 2/3/4 dependency, ESG scorecards." },
-            { name: "client-management", displayName: "Client Management", description: "Retail customer JBP, scorecards, deductions; warehousing-client SLAs and throughput." },
-            { name: "sustainability", displayName: "Sustainability", description: "Cross-cutting overlay: Scope 1/2/3 emissions, water, waste, packaging, ESG reporting." },
-        ],
-    },
-    {
-        name: "retail-digital",
-        displayName: "E-Commerce & Digital Retail",
-        description:
-            "E-Commerce & Digital Retail preset pack, encompassing merchandising planners, digital marketing growth loops, and green logistics/sustainability overlays.",
-        subVerticals: [
-            { name: "merchandising", displayName: "Merchandising", description: "Gross margin return on investment (GMROI), sell-through velocity, inventory turn, markdowns." },
-            { name: "digital-marketing", displayName: "Digital Marketing", description: "Customer acquisition cost (CAC), LTV, ROAS, conversion funnel, retention cohorts." },
-            { name: "sustainability", displayName: "Sustainability", description: "Cross-cutting overlay: packaging circularity, transportation carbon intensity, Scope 3 EPR." },
-        ],
-    },
-    {
-        name: "saas-product",
-        displayName: "SaaS & Digital Products",
-        description:
-            "SaaS & Digital Products preset pack, encompassing SaaS financial trackers, ARR bridges, LTV/CAC cohort evaluations, and green computing/cloud software sustainability overlays.",
-        subVerticals: [
-            { name: "finance-saas", displayName: "Finance / SaaS", description: "Annual Recurring Revenue (ARR) bridge, Net Revenue Retention (NRR), LTV:CAC, and payback periods." },
-            { name: "sustainability", displayName: "Sustainability", description: "Cross-cutting overlay: cloud infrastructure power usage effectiveness (PUE), green computing, Scope 3 hosting emissions." },
-        ],
-    },
-];
 
 export function PackPicker(props: PackPickerProps) {
     const packs = props.availablePacks;

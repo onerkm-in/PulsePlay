@@ -761,28 +761,3 @@ function buildEChartsOptionInner(
     }
 }
 
-/** Human-readable label for each chart type, for the picker UI. */
-export const CHART_LABELS: Record<string, string> = {
-    'kpi':          'KPI Tile',
-    'table':        'Table',
-    'bar':          'Bar (Horizontal)',
-    'column':       'Column (Vertical)',
-    'clustered-bar':'Clustered Bar',
-    'line':         'Line',
-    'area':         'Area',
-    'scatter':      'Scatter',
-    'bubble':       'Bubble',
-    'pie':          'Pie',
-    'donut':        'Donut',
-    'heatmap':      'Heat Map',
-    'treemap':      'Tree Map',
-    'funnel':       'Funnel',
-    'waterfall':    'Waterfall',
-    'gauge':        'Gauge',
-    'radar':        'Radar',
-    'sunburst':     'Sunburst',
-    'lollipop':     'Lollipop',
-    'pareto':       'Pareto',
-    'sankey':       'Sankey',
-    'sparkline':    'Sparkline',
-};

@@ -29,10 +29,3 @@ export const SIMPLE_REQUEST_TIMEOUT_MS = 3 * 60 * 1000;  // 180_000 = 3 min
  */
 export const COMPLEX_REQUEST_TIMEOUT_MS = 5 * 60 * 1000;  // 300_000 = 5 min
 
-/**
- * Convenience predicate — when the classification is unclear, default
- * to COMPLEX per the "hard to determine = 5 min" rule.
- */
-export function classifyTimeoutMs(kind: "simple" | "complex" | "unknown"): number {
-    return kind === "simple" ? SIMPLE_REQUEST_TIMEOUT_MS : COMPLEX_REQUEST_TIMEOUT_MS;
-}

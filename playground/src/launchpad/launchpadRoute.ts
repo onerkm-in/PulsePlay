@@ -34,9 +34,6 @@ function pushUrl(pathname: string): void {
     window.dispatchEvent(new CustomEvent("pulseplay:launchpad-navigate"));
 }
 
-export function navigateToLaunchpad(): void {
-    pushUrl(PREFIX);
-}
 
 export function navigateToApp(): void {
     pushUrl("/");
