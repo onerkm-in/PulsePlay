@@ -23,9 +23,11 @@ const { executeSqlStatement } = require('./sqlExecutor');
 
 const PROMPT_TABLE = process.env.AI_PROMPT_STORE || 'main.action_insights.decision_prompts';
 const AUDIT_TABLE = process.env.AI_AUDIT_TABLE || 'main.action_insights.decision_audit';
-// Demo persona switching (header/query) is allowed unless explicitly disabled.
-// In production set AI_ALLOW_DEMO_PERSONA=false so persona comes only from IdP roles.
-const ALLOW_DEMO_PERSONA = process.env.AI_ALLOW_DEMO_PERSONA !== 'false';
+// Demo persona switching (header/query) is off unless explicitly enabled. A
+// client without a verified IdP role must not be able to self-declare
+// "Supply Chain Manager" and gain HITL-approver capability by default; set
+// AI_ALLOW_DEMO_PERSONA=true only in a controlled demo environment.
+const ALLOW_DEMO_PERSONA = process.env.AI_ALLOW_DEMO_PERSONA === 'true';
 
 const PLANNER = 'Supply Chain Planner';
 const MANAGER = 'Supply Chain Manager';

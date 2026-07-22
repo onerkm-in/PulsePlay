@@ -29,10 +29,25 @@ describe('resolvePersona (server-side, IdP-first)', () => {
         expect(r.persona).toBe(PLANNER);
         expect(r.source).toBe('idp-role');
     });
-    test('accepts demo persona only when no role present', () => {
+    test('ignores demo header by default even when no role present (fail-closed)', () => {
         const r = resolvePersona(mockReq({ header: MANAGER }));
-        expect(r.persona).toBe(MANAGER);
-        expect(r.source).toBe('demo');
+        expect(r.persona).toBe(PLANNER);
+        expect(r.source).not.toBe('demo');
+    });
+    test('accepts demo persona only when no role present AND AI_ALLOW_DEMO_PERSONA=true', () => {
+        const prior = process.env.AI_ALLOW_DEMO_PERSONA;
+        process.env.AI_ALLOW_DEMO_PERSONA = 'true';
+        jest.resetModules();
+        const { __test: reloaded } = require('../lib/actionInsights');
+        try {
+            const r = reloaded.resolvePersona(mockReq({ header: MANAGER }));
+            expect(r.persona).toBe(MANAGER);
+            expect(r.source).toBe('demo');
+        } finally {
+            if (prior === undefined) delete process.env.AI_ALLOW_DEMO_PERSONA;
+            else process.env.AI_ALLOW_DEMO_PERSONA = prior;
+            jest.resetModules();
+        }
     });
     test('defaults to least-privilege Planner', () => {
         expect(resolvePersona(mockReq()).persona).toBe(PLANNER);
