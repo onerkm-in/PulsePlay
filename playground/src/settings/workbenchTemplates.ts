@@ -1,19 +1,13 @@
 // playground/src/settings/workbenchTemplates.ts
 //
-// Workbench templates — author-only named configurations of the Workbench
-// surface. Picked in Settings → Display; never exposed to end users as a
-// surface control. Each template bundles FOUR things (per 2026-05-28 user
-// direction "Tabs + landing + scope + section preset"):
-//
-//   1. tabVisibility       — which of the 3 Workbench tabs render
-//                            (AI Insights / Ask Pulse / Dashboard)
-//   2. defaultLanding      — which enabled tab a fresh visitor lands on
-//   3. enabledFeatures     — Pulse insights/chat feature scope
-//   4. sectionPresetId?    — optional AI Insights section preset to pre-load
-//                            (resolved against CUSTOM_SECTION_PRESETS)
-//
-// The canonical layout is the per-tab-visibility model — templates write
-// `tabVisibility` + `defaultLandingSurface`, never enabledComponents.
+// Workbench templates: author-only named configurations of the Workbench
+// surface, picked in Settings > Display and never exposed to end users.
+// Each template bundles four things: tabVisibility (which of the three
+// Workbench tabs render), defaultLanding (which enabled tab a fresh visitor
+// lands on), enabledFeatures (Pulse insights/chat feature scope), and an
+// optional sectionPresetId resolved against CUSTOM_SECTION_PRESETS.
+// The canonical layout is the per-tab-visibility model, so templates write
+// tabVisibility and defaultLandingSurface, never enabledComponents.
 
 import type { TabVisibility, DefaultLandingSurface } from "./settingsStore";
 import {
@@ -64,7 +58,7 @@ export const WORKBENCH_TEMPLATES: ReadonlyArray<WorkbenchTemplate> = [
         tabVisibility: { aiInsights: true, askPulse: true, dashboard: true },
         defaultLanding: "ai-insights",
         enabledFeatures: "both",
-        // No sectionPresetId — Balanced keeps whatever sections the author set.
+        // No sectionPresetId; Balanced keeps whatever sections the author set.
     },
     {
         id: "exec-briefing",
@@ -113,17 +107,17 @@ function sameTabs(a: TabVisibility, b: TabVisibility): boolean {
 }
 
 /** Derive which template (if any) matches the current settings. Matches on
- *  tabs + landing + feature scope — NOT the section preset, since an author
- *  can re-author sections after applying a template without that meaning
- *  they've left the template. Returns "custom" when nothing matches. */
+ *  tabs, landing, and feature scope, but not the section preset, since an
+ *  author can re-author sections after applying a template without that
+ *  meaning they've left the template. Returns "custom" when nothing matches. */
 export function detectActiveWorkbenchTemplate(input: {
     tabVisibility: TabVisibility;
     defaultLanding: DefaultLandingSurface | null;
     enabledFeatures: PulseEnabledFeatures;
 }): WorkbenchTemplateOrCustom {
-    // A null landing surface (author hasn't set one) behaves as the app's
-    // implicit fallback, "ai-insights" — so coalesce it for matching, which
-    // lets a fresh install correctly read as "Balanced" instead of "Custom".
+    // A null landing surface (the author hasn't set one) behaves as the app's
+    // implicit fallback "ai-insights", so coalesce it for matching. That lets
+    // a fresh install correctly read as "Balanced" instead of "Custom".
     const landing: DefaultLandingSurface = input.defaultLanding ?? "ai-insights";
     for (const t of WORKBENCH_TEMPLATES) {
         if (sameTabs(t.tabVisibility, input.tabVisibility)

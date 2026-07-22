@@ -1,5 +1,6 @@
-// PulsePlay shell — AI assistant surface + BI canvas host. The AI surface
-// stays mounted across vendor switches, accumulating BI event context.
+// The PulsePlay shell: hosts the AI assistant surface and the BI canvas.
+// The AI surface stays mounted across vendor switches, accumulating BI
+// event context.
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
@@ -32,8 +33,8 @@ import {
 } from "./surfaces/surfaceAvailability";
 import { readPulseAiVisualSettings } from "./settings/pulseVisualSettingsStore";
 import { computeSurfaceContext } from "./lib/computeSurfaceContext";
-// TestConnectionPanel + PackPicker components live in Settings → AI;
-// type-only imports remain for state plumbing.
+// The TestConnectionPanel and PackPicker components live in Settings under
+// AI; type-only imports remain here for state plumbing.
 import type { PackInfo, PackSelection } from "./components/PackPicker";
 import type { ConnectorProbeResult } from "./types/probe";
 import type { PulsePlayAllowlist } from "./types/allowlist";
@@ -71,13 +72,13 @@ import { useDashboardAutoSeed } from "./multipane/dashboardAutoSeed";
 import { useLaunchpadRoute } from "./launchpad/launchpadRoute";
 import { WorkbenchShell } from "./workbench/WorkbenchShell";
 import { useWorkbenchRoute } from "./workbench/workbenchRoute";
-// PERF — lazy-load PulseShell so the large pulse chunk isn't on the
-// first-paint critical path.
+// Lazy-load PulseShell so the large pulse chunk stays off the first-paint
+// critical path.
 const PulseShell = lazy(() =>
     import("./components/PulseShell").then(m => ({ default: m.PulseShell }))
 );
 
-/** UI mode toggle — "pulse" mounts the ported Pulse experience; "v0" mounts
+/** UI mode toggle: "pulse" mounts the ported Pulse experience, "v0" mounts
  *  the assistant-only surface. Both keep the BI canvas usable. */
 type UiMode = "pulse" | "v0";
 const UI_MODE_STORAGE_KEY = "pulseplay:ui-mode";
@@ -176,8 +177,9 @@ function readConfiguredProxyBase(): string {
  * Read the active AI connector from the canonical settingsStore key
  * (`pulseplay:active-ai-profile`), falling back to the Pulse legacy
  * genieSettings.assistantProfile slot so Pulse-Console-only configs still
- * yield a non-empty profile. App.tsx MUST read this key or a Settings-only
- * change is invisible and requests go out with an empty assistantProfile.
+ * yield a non-empty profile. App.tsx must read this key; otherwise a
+ * Settings-only change is invisible and requests go out with an empty
+ * assistantProfile.
  */
 function readInitialActiveConnector(): string {
     if (typeof window === "undefined") return "";
@@ -190,7 +192,7 @@ function readInitialActiveConnector(): string {
 
 function readInitialUiMode(): UiMode {
     // Delegates to the feature-registry resolver. Mirrors
-    // settingsStore.readUiMode() — both readers MUST stay in lockstep
+    // settingsStore.readUiMode(); both readers must stay in lockstep
     // or the cold-boot surface flickers between renderers.
     if (typeof window === "undefined") return DEFAULT_UI_MODE;
     let explicit: "pulse" | "v0" | null = null;
@@ -203,10 +205,10 @@ function readInitialUiMode(): UiMode {
         requiredFeatures: [],
         tabVisibility: readTabVisibility(),
     });
-    // Resolver can return "dashboard" (a registered surface), but App's
-    // uiMode field only holds "pulse" | "v0" — dashboard surface is
+    // The resolver can return "dashboard" (a registered surface), but App's
+    // uiMode field only holds "pulse" | "v0"; the dashboard surface is
     // selected via tabVisibility + per-tab routing, not via this field.
-    // Map dashboard → DEFAULT_UI_MODE so the legacy field stays valid.
+    // Map dashboard to DEFAULT_UI_MODE so the legacy field stays valid.
     return resolved === "dashboard" ? DEFAULT_UI_MODE : resolved;
 }
 
@@ -273,8 +275,8 @@ function readSurfaceFromUrl(): SurfaceId | null {
     if (typeof window === "undefined") return null;
     try {
         const raw = new URL(window.location.href).searchParams.get(ACTIVE_SURFACE_URL_PARAM);
-        // URL alias: internal SurfaceId is `bi-viz`, user-facing URLs use
-        // `dashboard`. Accept either — without this, `?surface=dashboard`
+        // URL alias: the internal SurfaceId is `bi-viz`, user-facing URLs use
+        // `dashboard`. Accept either; without this, `?surface=dashboard`
         // silently falls through to the AI Insights default.
         const value = raw === "dashboard" ? "bi-viz" : raw;
         return isSurfaceId(value) ? value : null;
@@ -309,7 +311,7 @@ function surfaceFromMixState(surface: MixSurface, pulseTab?: PulseSurfaceTab): S
 
 /**
  * Read the author-configured default landing surface from localStorage
- * directly — this runs in useState's lazy initializer before the
+ * directly, because this runs in useState's lazy initializer before the
  * SettingsProvider mounts. Key must match settingsStore.KEY.defaultLandingSurface.
  */
 function readAuthorDefaultLandingSurface(): SurfaceId | null {
@@ -336,8 +338,8 @@ function readInitialActiveSurface(): SurfaceId {
     const authorDefault = readAuthorDefaultLandingSurface();
     if (authorDefault) return authorDefault;
 
-    // Intentionally do NOT restore the last-used surface as the landing
-    // default — the app must always open on AI Insights unless a deep-link or
+    // Intentionally do not restore the last-used surface as the landing
+    // default: the app must always open on AI Insights unless a deep-link or
     // author default says otherwise. The stored surface is still tracked for
     // cross-tab sync + focus-restore, just not used here.
     return "ai-insights";
@@ -373,7 +375,7 @@ function buildFocusedPaneUrl(pane: ViewportPane): string {
     return "";
 }
 
-/** App entry — wraps PulsePlay with the SettingsProvider, then renders
+/** App entry: wraps PulsePlay with the SettingsProvider, then renders
  *  either the Settings page or the playground based on the route. */
 export function App(): React.ReactElement {
     return (
@@ -387,8 +389,8 @@ export function App(): React.ReactElement {
 }
 
 function ReactQueryDevtoolsHost(): React.ReactElement | null {
-    // Opt-in via `pulseplay:rq-devtools=1` localStorage flag — the default-on
-    // dev launcher button overlapped the Ask Pulse composer CTAs.
+    // Opt-in via the `pulseplay:rq-devtools=1` localStorage flag, because the
+    // default-on dev launcher button overlapped the Ask Pulse composer CTAs.
     const [Devtools, setDevtools] = useState<ComponentType<{ initialIsOpen?: boolean; buttonPosition?: "top-left" | "top-right" | "bottom-left" | "bottom-right" | "relative" }> | null>(null);
 
     useEffect(() => {
@@ -475,7 +477,7 @@ function AppRouted(): React.ReactElement {
 /** The playground shell. Renders at "/" and any non-routed pathname. Keeps
  *  its own copies of legacy storage keys for Pulse backward compatibility. */
 function PlaygroundApp(): React.ReactElement {
-    // settingsStore actions — handleWizardComplete MUST persist the picked AI
+    // settingsStore actions. handleWizardComplete must persist the picked AI
     // profile via settingsStore (mirrors to genieSettings.assistantProfile);
     // local state alone leaves genieSettings empty and AI Insights stuck on
     // "Connect to Databricks".
@@ -494,11 +496,11 @@ function PlaygroundApp(): React.ReactElement {
         const allowed = allowlistState.allowlist.biProviders || [];
         return vendors.filter(v => allowed.includes(v.vendor));
     }, [allowlistState.allowlist, vendors]);
-    // Allowlist fail-closed — when the governance endpoint is unreachable
-    // (allowlist is null AND error is set), surface the state to BIPanel so
-    // it refuses to mount instead of silently embedding without governance.
-    // The "configured: false" + null cases (dev-unconfigured, intentional
-    // permissive mode) DO NOT trip this; only governance-reachability failures.
+    // When the governance endpoint is unreachable (allowlist is null and an
+    // error is set), surface that state to BIPanel so it refuses to mount
+    // instead of silently embedding without governance. The "configured:
+    // false" and null cases (dev-unconfigured, intentional permissive mode)
+    // do not trip this; only governance-reachability failures do.
     const allowlistFailClosed = useMemo(
         () => allowlistState.allowlist === null && allowlistState.error !== "",
         [allowlistState],
@@ -507,13 +509,13 @@ function PlaygroundApp(): React.ReactElement {
     //   activeVendor    = Y-axis author intent: which vendor is configured
     //   biSurfaceMode   = runtime policy: auto / native / vendor
     //   activeConnector = X-axis: which AI brain the sidebar talks to
-    // Both pickers are independent — any cell of the matrix is valid.
+    // Both pickers are independent; any cell of the matrix is valid.
     const [activeVendor, setActiveVendor] = useState<string>(() => readInitialBiVendor());
     const [biSurfaceMode, setBiSurfaceMode] = useState<BiSurfaceMode>(() => readInitialBiSurfaceMode());
-    // Hydrate from the canonical `pulseplay:active-ai-profile` key on mount +
-    // subscribe to storage events — otherwise a Settings-only provider change
-    // is invisible here and <UnifiedAssistantSurface> submits with an empty
-    // assistantProfile.
+    // Hydrate from the canonical `pulseplay:active-ai-profile` key on mount
+    // and subscribe to storage events; otherwise a Settings-only provider
+    // change is invisible here and <UnifiedAssistantSurface> submits with an
+    // empty assistantProfile.
     const [activeConnector, setActiveConnector] = useState<string>(() => readInitialActiveConnector());
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -531,8 +533,8 @@ function PlaygroundApp(): React.ReactElement {
             window.removeEventListener("pulseplay:display-change", sync as EventListener);
         };
     }, []);
-    // Power BI embed config lives in a cross-tab store; editing in
-    // Settings → BI → Embed live-updates this hook without a refresh.
+    // Power BI embed config lives in a cross-tab store; editing it in
+    // Settings (BI, Embed) live-updates this hook without a refresh.
     const { embedConfig, setEmbedConfig: persistEmbedConfig, clearEmbedConfig } = useEmbedConfig();
     // Stable wrapper preserving the existing setEmbedConfig({}) clear
     // semantics so the rest of App.tsx doesn't need to know about the
@@ -556,11 +558,11 @@ function PlaygroundApp(): React.ReactElement {
     );
     const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => readInitialLayoutMode());
     const [focusedPane, setFocusedPane] = useState<ViewportFocus>(() => readInitialViewportFocus());
-    // `activeSurface` is the REQUESTED surface (user/URL intent),
+    // `activeSurface` is the requested surface (user/URL intent),
     // not necessarily what's actually rendered. The deployment can disable
     // surfaces via `enabledComponents` (pane axis) and `enabledFeatures`
     // (Pulse feature axis). The resolver below maps requested + config
-    // to an EFFECTIVE surface and a fallback reason. Intent persists so
+    // to an effective surface and a fallback reason. Intent persists so
     // that re-enabling a disabled surface restores the user's original
     // surface automatically.
     const [activeSurface, setActiveSurface] = useState<SurfaceId>(() => readInitialActiveSurface());
@@ -569,7 +571,7 @@ function PlaygroundApp(): React.ReactElement {
     const [enabledFeatures, setEnabledFeatures] = useState<EnabledFeaturesInput>(
         () => readPulseAiVisualSettings().enabledFeatures,
     );
-    // Author gate for the Chat (v0) surface chip — it only renders when an
+    // Author gate for the Chat (v0) surface chip: it only renders when an
     // author has enabled Chat in Settings. Updated live via the
     // PULSE_VISUAL_SETTINGS_EVENT listener that tracks enabledFeatures.
     const [allowChatSurface, setAllowChatSurface] = useState<boolean>(
@@ -582,7 +584,7 @@ function PlaygroundApp(): React.ReactElement {
     // used after settings save events from PulseHostStub.persistProperties.
     const [pulseRenderToken, setPulseRenderToken] = useState(0);
     const [pulseAssistantProfile, setPulseAssistantProfile] = useState<string>(() => readPulseAssistantProfile());
-    // In-app float state — when floatedPane is set the AI pane renders in a
+    // In-app float state: when floatedPane is set the AI pane renders in a
     // fixed-position draggable overlay instead of the split layout slot.
     const [floatedPane, setFloatedPane] = useState<ViewportPane | null>(null);
     const [floatPos, setFloatPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -601,7 +603,7 @@ function PlaygroundApp(): React.ReactElement {
 
 
     // Pre-warm the Databricks SQL warehouse for the active Genie profile so
-    // the user's first Pulse / AI ask doesn't pay 30–60s of cold-start.
+    // the user's first Pulse / AI ask doesn't pay 30-60s of cold-start.
     // Fire-and-forget; the proxy returns 400 cleanly for profiles without
     // a warehouseId (Foundation Model / Bedrock). Debounced 600ms to avoid
     // thrashing during rapid connector swaps.
@@ -624,7 +626,7 @@ function PlaygroundApp(): React.ReactElement {
         };
     }, [activeConnector]);
 
-    // The only writer of `pulseplay:ui-mode` is dev-tools manual
+    // The only writer of `pulseplay:ui-mode` is a manual dev-tools
     // localStorage.setItem (explicit escape hatch). The local `setUiMode`
     // setter is kept so the display-change listener below can sync
     // mid-session if a dev-tools change fires.
@@ -645,12 +647,12 @@ function PlaygroundApp(): React.ReactElement {
         if (options?.writeUrl !== false) writeActiveSurfaceToUrl(next);
     }, []);
 
-    // Resolve REQUESTED surface against the current deployment
+    // Resolve the requested surface against the current deployment
     // config. `surfaceResolution.effectiveSurfaceId` is what the shell
     // renders; `activeSurface` is the user's persisted intent. When config
     // re-opens a previously-disabled surface, the resolver returns the
-    // requested surface as effective again — no manual restore code path
-    // needed. Pure function in / out, cheap to recompute on each render.
+    // requested surface as effective again, so no manual restore code path
+    // is needed. Pure function in / out, cheap to recompute on each render.
     const surfaceResolution = useMemo(
         () => resolveSurfaceAvailability({
             requestedSurfaceId: activeSurface,
@@ -669,7 +671,7 @@ function PlaygroundApp(): React.ReactElement {
                 window.localStorage.setItem(ENABLED_COMPONENTS_LEGACY_BOTH_MIGRATION_KEY, "true");
             }
         } catch { /* swallow */ }
-        // Do NOT mutate activeSurface on enabledComponents changes.
+        // Do not mutate activeSurface on enabledComponents changes.
         // The resolver above maps the persisted requested surface through
         // the new pane configuration; intent stays intact so re-enabling
         // a previously-disabled pane restores the user's original surface
@@ -685,10 +687,10 @@ function PlaygroundApp(): React.ReactElement {
         writeViewportFocusToUrl(next);
         // Keep activeSurface in sync with the focused pane so `data-active-surface`,
         // telemetry, and surface restore semantics never drift from what's visible.
-        // Focus = "bi" → the maximized pane IS the dashboard surface.
-        // Focus = "ai" + current surface is bi-viz → land on AI Insights (the
-        // only AI-pane surface that's always valid). If the user was already
-        // on an AI-pane surface (ai-insights / ask-pulse), leave it alone.
+        // When focus is "bi", the maximized pane is the dashboard surface.
+        // When focus is "ai" and the current surface is bi-viz, land on AI
+        // Insights (the only AI-pane surface that's always valid). If the user
+        // was already on an AI-pane surface (ai-insights / ask-pulse), leave it alone.
         if (next === "bi") {
             persistActiveSurface("bi-viz", { writeUrl: false });
         } else if (next === "ai" && activeSurface === "bi-viz") {
@@ -704,7 +706,7 @@ function PlaygroundApp(): React.ReactElement {
         setFocusedPane(null);
         writeViewportFocusToUrl(null);
         if (enabledComponents === "mix") {
-            // Flip surfaces AND record the explicit minimize signal so the
+            // Flip surfaces and record the explicit minimize signal so the
             // dock renders (flipping mixSurface alone looks identical to
             // user-driven Dashboard navigation).
             setMixSurface(pane === "ai" ? "bi" : "ai");
@@ -730,7 +732,7 @@ function PlaygroundApp(): React.ReactElement {
     }, [persistActiveSurface]);
 
     const handleSurfacePick = useCallback((id: SurfaceId) => {
-        // Action Insights is an AI-pane surface but NOT a PulseShell tab, so it
+        // Action Insights is an AI-pane surface but not a PulseShell tab, so it
         // can't round-trip through the mix/pulse-tab model (surfaceFromMixState
         // would collapse it back to ai-insights). Persist it directly, and make
         // the AI pane visible in mix mode.
@@ -763,10 +765,10 @@ function PlaygroundApp(): React.ReactElement {
         window.open(url, "_blank", "noopener,noreferrer");
     }, []);
 
-    /** Float the pane as an in-app draggable overlay panel — same tab, same
+    /** Float the pane as an in-app draggable overlay panel: same tab, same
      *  auth session, no cross-window message bridge needed.
-     *  Mobile (< 640 px): clamp panel width to the viewport minus margins —
-     *  a fixed 520 px panel put the Dock control offscreen at 390 px. */
+     *  On mobile (< 640 px), clamp panel width to the viewport minus margins,
+     *  because a fixed 520 px panel put the Dock control offscreen at 390 px. */
     const handleViewportFloat = useCallback((pane: ViewportPane) => {
         const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
         const vh = typeof window !== "undefined" ? window.innerHeight : 800;
@@ -796,9 +798,9 @@ function PlaygroundApp(): React.ReactElement {
         handleEnabledComponentsChange("both");
     }, [handleEnabledComponentsChange]);
 
-    // Mix-mode pane state follows the EFFECTIVE surface, not the
+    // Mix-mode pane state follows the effective surface, not the
     // raw request. When chatOnly forces an ai-insights request to fall
-    // back to ask-pulse, the pane must show chat — otherwise the user's
+    // back to ask-pulse, the pane must show chat; otherwise the user's
     // click would visibly do nothing while the resolver silently swapped
     // the surface underneath.
     useEffect(() => {
@@ -815,8 +817,8 @@ function PlaygroundApp(): React.ReactElement {
             const pane = detail?.pane;
             const action = detail?.action as PulsePlayViewportAction | undefined;
             if (pane !== "ai" && pane !== "bi") return;
-            // Surface pick over the event bridge — lets Pulse-port chrome (the
-            // mobile bottom nav) reach app-level surfaces that are NOT Pulse
+            // Surface pick over the event bridge lets Pulse-port chrome (the
+            // mobile bottom nav) reach app-level surfaces that are not Pulse
             // tabs (action-insights). Same routing as a SurfaceSwitcher click.
             if (action === "pick-surface") {
                 if (isSurfaceId(detail?.surface)) handleSurfacePick(detail.surface);
@@ -899,7 +901,7 @@ function PlaygroundApp(): React.ReactElement {
                 // Symmetric with focus=bi: when the user pops back to a URL
                 // that focuses AI without a surface= param, ensure activeSurface
                 // reflects an AI-pane surface. Read from storage (not closure)
-                // to dodge stale-closure issues — persistActiveSurface is stable
+                // to dodge stale-closure issues; persistActiveSurface is stable
                 // so this effect doesn't tear down per activeSurface change.
                 if (readStoredActiveSurface() === "bi-viz") {
                     persistActiveSurface("ai-insights", { writeUrl: false });
@@ -932,8 +934,8 @@ function PlaygroundApp(): React.ReactElement {
     //
     // Also sync `enabledFeatures` so the surface resolver sees the
     // new value the next time it runs. Without this, switching between
-    // T4 (insightsOnly) and T5 (chatOnly) wouldn't update which AI surface
-    // is effectively rendered, and `data-active-surface` would lie.
+    // insightsOnly and chatOnly wouldn't update which AI surface is
+    // effectively rendered, and `data-active-surface` would lie.
     useEffect(() => {
         const handler = () => {
             setPulseAssistantProfile(readPulseAssistantProfile());
@@ -946,10 +948,10 @@ function PlaygroundApp(): React.ReactElement {
         return () => window.removeEventListener(PULSE_VISUAL_SETTINGS_EVENT, handler as EventListener);
     }, []);
 
-    // When the author has NOT enabled the Chat surface, end
+    // When the author has not enabled the Chat surface, end
     // users must always land in Workbench. Coerce uiMode back to "pulse"
     // if a stale localStorage override (or the dev escape hatch) left it on
-    // "v0" while Chat is disabled — otherwise the user would be stuck in
+    // "v0" while Chat is disabled; otherwise the user would be stuck in
     // Chat with no chip to switch back. The author setting wins over the
     // stored mode; the chip + v0 only come back when allowChatSurface is on.
     useEffect(() => {
@@ -965,8 +967,8 @@ function PlaygroundApp(): React.ReactElement {
     const mountedAiVisible = focusedPane ? focusedPane === "ai" || aiVisible : aiVisible;
     const mountedBiVisible = focusedPane ? focusedPane === "bi" || biVisible : biVisible;
     // minimizedPane drives the bottom dock that restores a hidden pane.
-    // Cover the Mix-mode case ONLY when the user explicitly minimized
-    // (tracked via `mixMinimizedPane`) — otherwise normal Dashboard
+    // Cover the Mix-mode case only when the user explicitly minimized
+    // (tracked via `mixMinimizedPane`); otherwise normal Dashboard
     // navigation in Mix mode (which also sets mixSurface="bi") would
     // falsely show a dock.
     const minimizedPane: ViewportFocus = focusedPane
@@ -979,7 +981,7 @@ function PlaygroundApp(): React.ReactElement {
                     ? mixMinimizedPane
                     : null;
     const effectiveBiTileMode = biTileModeFromPolicy(allowlistState.allowlist);
-    // Smart Connect state — populated by TestConnectionPanel's probe and the
+    // Smart Connect state, populated by TestConnectionPanel's probe and the
     // user's pack confirmation (which may override the inferred suggestion).
     // See docs/CONNECTOR_PROBE_AND_SMART_CONNECT.md for the design.
     const [probeResult, setProbeResult] = useState<ConnectorProbeResult | null>(null);
@@ -1011,16 +1013,16 @@ function PlaygroundApp(): React.ReactElement {
     // Route a completed UnifiedAssistantSurface entry into the active BI
     // adapter as a `renderResult` command when the runtime BI vendor is
     // native. Guarded by:
-    //   * runtimeBiVendor === "native" — only the native adapter has
+    //   * runtimeBiVendor === "native": only the native adapter has
     //     `renderResult`; vendor adapters reject it as UNSUPPORTED_COMMAND.
     //   * primaryBIAdapter present.
-    //   * envelope has answer OR rows — empty envelopes would just paint an
+    //   * envelope has answer or rows; empty envelopes would just paint an
     //     empty state over the canvas.
     // `runtimeBiVendor` is computed further down, so the handler reads it
     // through a ref (also keeps the callback stable across vendor switches).
     // The `BICommand` cast is a known type widening: `renderResult` is on
-    // `NativeBICommand`, NOT the generic `BIAdapter.send` signature — vendor
-    // adapters would throw at runtime, hence the runtimeBiVendor guard first.
+    // `NativeBICommand`, not the generic `BIAdapter.send` signature, and
+    // vendor adapters would throw at runtime, hence the runtimeBiVendor guard.
     const runtimeBiVendorRef = useRef<string>("");
     const handleEntryCompleted = useCallback((entry: AnswerEntry) => {
         if (runtimeBiVendorRef.current !== "native") return;
@@ -1038,7 +1040,7 @@ function PlaygroundApp(): React.ReactElement {
         void primaryBIAdapter
             .send({ kind: "renderResult", result: envelope } as unknown as BICommand)
             .catch((err) => {
-                // Adapter rejects are observable but not fatal — the
+                // Adapter rejects are observable but not fatal; the
                 // sidebar still shows the answer text. Log so a flaky
                 // adapter surfaces in DevTools.
                 console.warn("[App] native renderResult dispatch failed:", err);
@@ -1063,7 +1065,7 @@ function PlaygroundApp(): React.ReactElement {
         });
     }, []);
 
-    // Probe completion: persist the result and preselect the pack ONLY if
+    // Probe completion: persist the result and preselect the pack only if
     // the user hasn't already chosen one (author-final-say rule from
     // CONNECTOR_PROBE_AND_SMART_CONNECT.md).
     const handleProbeComplete = useCallback((result: ConnectorProbeResult) => {
@@ -1077,7 +1079,7 @@ function PlaygroundApp(): React.ReactElement {
         }
     }, []);
 
-    // Smart Connect for Pulse mode — auto-fire the probe whenever the
+    // Smart Connect for Pulse mode: auto-fire the probe whenever the
     // persisted genieSettings.assistantProfile changes; also re-read on
     // first mount.
     useEffect(() => {
@@ -1102,7 +1104,7 @@ function PlaygroundApp(): React.ReactElement {
                 updateProbeStatus({ phase: "ready", profile, error: null });
             }).catch(err => {
                 if (cancelled) return;
-                // Probe failure is non-fatal — Smart Connect is best-effort.
+                // Probe failure is non-fatal; Smart Connect is best-effort.
                 // Emit the failure so UI surfaces can flag degraded grounding.
                 const msg = err instanceof Error ? err.message : String(err);
                 updateProbeStatus({ phase: "failed", profile, error: msg });
@@ -1111,8 +1113,8 @@ function PlaygroundApp(): React.ReactElement {
         return () => { cancelled = true; };
     }, [uiMode, pulseRenderToken, probeResult, handleProbeComplete]);
 
-    // Bridge — write the active pack selection to localStorage so Pulse's
-    // genie.ts can pick it up and forward to /assistant/conversations/start.
+    // Write the active pack selection to localStorage so Pulse's genie.ts
+    // can pick it up and forward to /assistant/conversations/start.
     // Cleared on explicit null.
     useEffect(() => {
         try {
@@ -1124,7 +1126,7 @@ function PlaygroundApp(): React.ReactElement {
         } catch { /* swallow */ }
     }, [packSelection]);
 
-    // Performance levers — subscribed so the prewarm toggle takes effect
+    // Subscribe to performance levers so the prewarm toggle takes effect
     // mid-session without a reload.
     const [perfLevers, setPerfLevers] = useState<PerformanceLevers>(loadPerformanceLevers);
     useEffect(() => {
@@ -1134,11 +1136,11 @@ function PlaygroundApp(): React.ReactElement {
         return () => window.removeEventListener(PERFORMANCE_LEVERS_EVENT, sync);
     }, []);
 
-    // PROBE-ONCE prewarm — pre-fetch the DiscoverySnapshot into the
+    // Probe-once prewarm: pre-fetch the DiscoverySnapshot into the
     // discoveryClient's sessionStorage cache so later fetches hit warm cache.
     // The client handles in-flight dedupe + TTL, so repeated fires are no-ops.
-    // Best-effort; discovery failure is non-fatal. Author can opt out via
-    // Settings → Advanced → Performance.
+    // Best-effort; discovery failure is non-fatal. Authors can opt out in
+    // Settings under Advanced, Performance.
     useEffect(() => {
         if (!perfLevers.discoveryPrewarmEnabled) return;
         const profile = pulseAssistantProfile || activeConnector;
@@ -1148,7 +1150,7 @@ function PlaygroundApp(): React.ReactElement {
             pack: packSelection?.pack,
             subVertical: packSelection?.subVertical,
         }).catch(err => {
-            // Enrichment only — but emit a status so the UI can flag
+            // Enrichment only, but emit a status so the UI can flag
             // degraded grounding for users who'd otherwise see silent
             // misses. Doesn't transition probe phase out of "ready".
             const msg = err instanceof Error ? err.message : String(err);
@@ -1190,11 +1192,12 @@ function PlaygroundApp(): React.ReactElement {
         if (biSurfaceResolution.usesNative || runtimeBiVendor === "native") return "Pulse Canvas";
         return visibleVendors.find(v => v.vendor === runtimeBiVendor)?.displayName || runtimeBiVendor;
     }, [biSurfaceResolution.usesNative, runtimeBiVendor, visibleVendors]);
-    // Dashboard per-surface connector. When the multiConnectorPanes flag is ON
+    // Dashboard per-surface connector. When the multiConnectorPanes flag is on
     // and the Dashboard surface is bound to its own profile, that profile
-    // drives the Dashboard's assistant; otherwise falls back to the shared
-    // connector (flag-off ⇒ getSurfaceProfile returns null). surfaceConnVersion
-    // forces a live re-read when the binding or flag changes in-tab.
+    // drives the Dashboard's assistant; otherwise it falls back to the shared
+    // connector (with the flag off, getSurfaceProfile returns null).
+    // surfaceConnVersion forces a live re-read when the binding or flag
+    // changes in-tab.
     const [surfaceConnVersion, setSurfaceConnVersion] = useState(0);
     useEffect(() => {
         const bump = () => setSurfaceConnVersion(v => v + 1);
@@ -1211,10 +1214,11 @@ function PlaygroundApp(): React.ReactElement {
         [surfaceConnVersion],
     );
     const dashboardAssistantLabel = dashboardSurfaceProfile || pulseAssistantProfile || activeConnector || "No assistant";
-    // Auto-seed the Dashboard's native canvas with a few starter charts when it's
-    // empty and a chart-capable connector is bound — so a connected Dashboard
-    // isn't a blank canvas. Flag-gated (dashboardAutoSeed, default ON), PBI-only,
-    // once per profile. Fires when the Dashboard surface is the active one.
+    // Auto-seed the Dashboard's native canvas with a few starter charts when
+    // it's empty and a chart-capable connector is bound, so a connected
+    // Dashboard isn't a blank canvas. Flag-gated (dashboardAutoSeed, default
+    // on), PBI-only, once per profile. Fires when the Dashboard surface is
+    // the active one.
     useDashboardAutoSeed({
         profile: dashboardSurfaceProfile || pulseAssistantProfile || activeConnector || "",
         active: activeSurface === "bi-viz",
@@ -1224,11 +1228,11 @@ function PlaygroundApp(): React.ReactElement {
             ? `${packSelection.pack} / ${packSelection.subVertical}`
             : packSelection.pack
         : "No pack selected";
-    // Evidence-aware trust ladder — never claim "Governed" without evidence:
-    //   - Locked            = allowlist null AND error set (fail-closed)
-    //   - Governance warning = error present (governance unreachable)
-    //   - Governed          = allowlist configured AND reachable
-    //   - Permissive dev    = allowlist null AND not configured (dev local)
+    // Evidence-aware trust ladder; never claim "Governed" without evidence:
+    //   - Locked: allowlist null and error set (governance unreachable, so we refuse)
+    //   - Governance warning: error present (governance unreachable)
+    //   - Governed: allowlist configured and reachable
+    //   - Permissive dev: allowlist null and not configured (dev local)
     const dashboardTrustLabel = (() => {
         if (allowlistFailClosed) return "Locked";
         if (allowlistState.error) return "Governance warning";
@@ -1240,7 +1244,7 @@ function PlaygroundApp(): React.ReactElement {
         embedConfig,
         activeAiProfile: pulseAssistantProfile || activeConnector,
     });
-    // Provenance-footer context — same trust ladder the surfaces use
+    // Provenance-footer context uses the same trust ladder as the surfaces
     // (computeSurfaceContext). measure/dimension counts aren't tracked at
     // the app level, so they default to 0.
     const footerSurfaceContext = computeSurfaceContext({
@@ -1263,11 +1267,11 @@ function PlaygroundApp(): React.ReactElement {
             : undefined;
 
     // First-run wizard gating. Renders only when the user has no embed config
-    // AND no AI connector picked, governance is healthy (vendors available +
-    // not fail-closed), and the dismissal flag hasn't been set. The fail-
-    // closed banner takes precedence so the wizard does not paint over a
-    // governance-error state. Dismissal lives in localStorage under
-    // `pulseplay:wizard-dismissed`; Settings → System exposes a re-run button.
+    // and no AI connector picked, governance is healthy (vendors available
+    // and the allowlist reachable), and the dismissal flag hasn't been set.
+    // The governance-error banner takes precedence so the wizard does not
+    // paint over that state. Dismissal lives in localStorage under
+    // `pulseplay:wizard-dismissed`; Settings under System exposes a re-run button.
     const [wizardForceTick, setWizardForceTick] = useState(0); // bump to re-eval after dismissal
     const wizardShown = useMemo(() => {
         if (allowlistFailClosed) return false;
@@ -1282,13 +1286,13 @@ function PlaygroundApp(): React.ReactElement {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [allowlistFailClosed, hasRenderableBiSurface, activeConnector, visibleVendors.length, wizardForceTick]);
 
-    /** Wizard "Done & ask" → UnifiedAssistantSurface auto-submit. Captured here and
-     *  passed to UnifiedAssistantSurface via the `autoSubmitQuestion` prop. The event id
+    /** Wizard "Done & ask" auto-submit. Captured here and passed to
+     *  UnifiedAssistantSurface via the `autoSubmitQuestion` prop. The event id
      *  makes each wizard completion distinct, so intentionally asking the
      *  same suggested question on a later re-run still fires. */
     const wizardAutoSubmitSeqRef = useRef(0);
     const [wizardAutoSubmit, setWizardAutoSubmit] = useState<AutoSubmitQuestionEvent | null>(null);
-    /** Persona persistence — a wizard re-run pre-selects the user's previous role. */
+    /** Persona persistence: a wizard re-run pre-selects the user's previous role. */
     const [lastPersona, setLastPersona] = useState<PersonaKey | null>(() => {
         try {
             const raw = window.localStorage.getItem("pulseplay:last-persona");
@@ -1315,7 +1319,7 @@ function PlaygroundApp(): React.ReactElement {
             setActiveConnector(picks.connector);
             setEmbedConfig(picks.embedConfig);
             setPackSelection(picks.packSelection);
-            // Intentionally no uiMode write — all wizard personas return
+            // Intentionally no uiMode write: all wizard personas return
             // DEFAULT_UI_MODE; picks.uiMode stays in the type contract for a
             // future feature-feasibility resolver.
             handleLayoutModeChange(picks.layoutMode as LayoutMode);
@@ -1327,7 +1331,7 @@ function PlaygroundApp(): React.ReactElement {
                 const result = settings.setActiveAiProfile(picks.connector);
                 if (!result.ok) {
                     // Allowlist refused (e.g. picked-in-wizard but governance
-                    // changed since). Log but don't block the wizard close —
+                    // changed since). Log but don't block the wizard close;
                     // the user can re-pick from Settings.
                     // eslint-disable-next-line no-console
                     console.warn("[handleWizardComplete] setActiveAiProfile refused:", result.reason);
@@ -1368,9 +1372,9 @@ function PlaygroundApp(): React.ReactElement {
             className="pp-app"
             data-testid="pp-viewport-shell"
             data-viewport-focus={focusedPane ?? "split"}
-            // data-active-surface is the EFFECTIVE surface (what
+            // data-active-surface is the effective surface (what
             // the shell actually renders). data-requested-surface is the
-            // user's persisted intent — useful for telemetry that wants to
+            // user's persisted intent, useful for telemetry that wants to
             // distinguish "user wanted X but config forced Y." Fallback
             // reason emitted only when the two differ.
             data-active-surface={effectiveSurfaceId}
@@ -1383,8 +1387,8 @@ function PlaygroundApp(): React.ReactElement {
             data-layout-pinned={pinnedViewportPane ? "true" : "false"}
             style={{ position: "relative", width: "100%", height: "100vh", overflow: "hidden", display: "flex", flexDirection: "column" }}
         >
-            {/* Top bar. The right pill is the single configuration entry —
-              * opens Settings, where BI + AI readiness show together. */}
+            {/* Top bar. The right pill is the single configuration entry;
+              * it opens Settings, where BI + AI readiness show together. */}
             <header
                 className="pp-top-bar"
                 style={{
@@ -1404,9 +1408,9 @@ function PlaygroundApp(): React.ReactElement {
                     <h1 style={{ margin: 0, fontSize: 22, lineHeight: 1.1 }}>PulsePlay</h1>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    {/* Surface-mode chip (Workbench ⇄ Chat) — author-gated:
-                      * only renders when Chat is enabled in Settings. */}
-                    {/* BundleSwitcher (ADR-0011) — swaps the bound (BI surface ×
+                    {/* Surface-mode chip (Workbench/Chat) is author-gated:
+                      * it only renders when Chat is enabled in Settings. */}
+                    {/* BundleSwitcher (ADR-0011) swaps the bound (BI surface,
                       * AI brain) pair; self-hides when nothing to switch. */}
                     <BundleSwitcher />
                     {allowChatSurface && <SurfaceModeChip currentMode={uiMode} />}
@@ -1414,7 +1418,7 @@ function PlaygroundApp(): React.ReactElement {
                 </div>
             </header>
 
-            {/* Per-surface connector bar. Renders ONLY when the
+            {/* Per-surface connector bar. Renders only when the
               * multiConnectorPanes flag is on (else returns null), so the
               * single-connector header is unchanged by default. */}
             <SurfaceConnectorBar
@@ -1422,8 +1426,8 @@ function PlaygroundApp(): React.ReactElement {
                 sharedProfile={activeConnector}
             />
 
-            {/* Top-right toolbar — single global cluster of cross-cutting
-              * affordances; canonical entry point for pane controls. Per-pane
+            {/* Top-right toolbar: the single global cluster of cross-cutting
+              * affordances and canonical entry point for pane controls. Per-pane
               * button clusters are hidden via the global stylesheet rule below.
               * Dispatches pulseplay:viewport-action. */}
             {!wizardShown && (
@@ -1440,8 +1444,8 @@ function PlaygroundApp(): React.ReactElement {
                     canShowAll={focusedPane !== null || enabledComponents === "aiOnly" || enabledComponents === "biOnly"}
                 />
             )}
-            {/* Single persistent provenance footer for ALL screens — context
-              * lives HERE only so it's identical on every surface. Hidden on
+            {/* Single persistent provenance footer for all screens. Context
+              * lives here only, so it's identical on every surface. Hidden on
               * mobile where the bottom-nav owns the bottom edge. */}
             {!wizardShown && (
                 <footer className="gn-app-footer" role="contentinfo">
@@ -1454,7 +1458,7 @@ function PlaygroundApp(): React.ReactElement {
                     </span>
                 </footer>
             )}
-            {/* Hide the per-pane button clusters — TopRightToolbar owns these
+            {/* Hide the per-pane button clusters; TopRightToolbar owns these
               * controls now. PaneChrome's controls stay in the DOM (still
               * referenced by the viewportControls integration tests). */}
             <style>{`
@@ -1481,7 +1485,7 @@ function PlaygroundApp(): React.ReactElement {
                     />
                 </WizardErrorBoundary>
             ) : (<PulsePlayScreen
-                /* PulsePlayScreen owns the COMPOSITION of the unified-screen
+                /* PulsePlayScreen owns the composition of the unified-screen
                  * slots via named render-props; App.tsx provides slot content
                  * (FloatingPanel / SplitLayout / MinimizedPaneDock live here). */
                 floatingPaneSlot={floatedPane ? (
@@ -1505,18 +1509,18 @@ function PlaygroundApp(): React.ReactElement {
                 ) : null}
                 mainLayoutSlot={(
             <SplitLayout
-                // DUPLICATIVE DETACH (mirroring): when a pane is popped out,
-                // keep it visible in its main slot too — the floating pane is
-                // a mirror of the original by design. They share state (typing
-                // in one echoes to the other) until per-pane state isolation
-                // lands.
+                // Detach mirrors rather than moves: when a pane is popped out,
+                // keep it visible in its main slot too, because the floating
+                // pane is a mirror of the original by design. They share state
+                // (typing in one echoes to the other) until per-pane state
+                // isolation lands.
                 aiVisible={mountedAiVisible}
                 biVisible={mountedBiVisible}
                 // Mix mode shows one pane at a time, but both panes are
-                // ENABLED. Keep the hidden pane mounted (toggle visibility,
-                // don't unmount) so switching AI ↔ Dashboard never reloads a
-                // loaded surface. aiOnly/biOnly leave this false (the other
-                // pane is genuinely disabled and must not mount).
+                // enabled. Keep the hidden pane mounted (toggle visibility,
+                // don't unmount) so switching between AI and Dashboard never
+                // reloads a loaded surface. aiOnly/biOnly leave this false (the
+                // other pane is genuinely disabled and must not mount).
                 keepHiddenPaneMounted={enabledComponents === "mix"}
                 layoutMode={layoutMode}
                 focusedPane={focusedPane}
@@ -1590,7 +1594,7 @@ function PlaygroundApp(): React.ReactElement {
                                     </Suspense>
                                 </>
                             ) : (
-                                // v0 mode renders ONLY the assistant surface — pickers/
+                                // v0 mode renders only the assistant surface; pickers and
                                 // config panels live in Settings, never inline here.
                                 <UnifiedAssistantSurface
                                     activeVendor={runtimeBiVendor}
@@ -1609,7 +1613,7 @@ function PlaygroundApp(): React.ReactElement {
                     <PaneChrome
                         pane="bi"
                         title="BI"
-                        // Subtitle intentionally empty — the embedded dashboard
+                        // Subtitle intentionally empty; the embedded dashboard
                         // already makes the vendor obvious, and the empty state
                         // covers the unconfigured case.
                         subtitle=""
@@ -1618,7 +1622,7 @@ function PlaygroundApp(): React.ReactElement {
                         isPinned={pinnedViewportPane === "bi"}
                         canShowBoth={!focusedPane && enabledComponents !== "both"}
                         // Viewport controls are pane-level affordances, not
-                        // content affordances — keep them available on BOTH
+                        // content affordances, so keep them available on both
                         // panes even when the content is empty.
                         quiet={false}
                         onFocus={() => applyViewportFocus("bi")}
@@ -1628,10 +1632,10 @@ function PlaygroundApp(): React.ReactElement {
                         onOpenPage={() => handleViewportOpenPage("bi")}
                         onFloat={() => handleViewportFloat("bi")}
                         onShowBoth={handleShowBothPanes}
-                        // Render the SurfaceSwitcher INLINE with PaneChrome's
+                        // Render the SurfaceSwitcher inline with PaneChrome's
                         // toolbar row (visual parity with the AI pane).
-                        // Suppressed when AI is floating — the background BI
-                        // canvas should stay clean (nav lives in the float).
+                        // Suppressed when AI is floating, because the background
+                        // BI canvas should stay clean (nav lives in the float).
                         inlineSwitcher={
                             enabledComponents === "mix" && !floatedPane ? (
                                 <SurfaceSwitcher
@@ -1791,8 +1795,8 @@ function dashboardTrustTone(t: string): string {
 }
 
 /** Collapsed Context pill for the Dashboard/BI pane. Reuses the global
- *  `gn-context-setup` chrome so BOTH panes share identical context affordances
- *  (three-tabs-uniform rule). */
+ *  `gn-context-setup` chrome so both panes share identical context affordances
+ *  (the three-tabs-uniform rule). */
 function DashboardSurfaceContextStrip(props: {
     mode: string;
     vendor: string;
@@ -1869,7 +1873,8 @@ function SetupStatusPill(props: { readiness: SetupReadiness }): React.ReactEleme
             aria-label={ready ? "Open setup readiness in Settings" : `Open setup in Settings. Missing ${props.readiness.pillDetail}`}
             title="Open Settings → Setup"
             // Route to the page that owns the gap (the bare /settings/setup page
-            // is deprecated). AI gap (or all-ready) → AI Setup; BI-only gap → BI Setup.
+            // is deprecated). An AI gap (or all-ready) routes to AI Setup; a
+            // BI-only gap routes to BI Setup.
             onClick={() => navigateToSettings(props.readiness.aiReady && !props.readiness.biReady ? "bi" : "ai")}
             style={{
                 display: "inline-flex",
@@ -1946,7 +1951,7 @@ function PaneChrome(props: {
     const label = props.pane === "ai" ? "AI" : "BI";
     const state = props.isFocused ? "maximized" : props.isBackgrounded ? "minimized" : "normal";
 
-    // All aria-labels are preserved — see viewportControls.integration.test.tsx
+    // All aria-labels are preserved; see viewportControls.integration.test.tsx
     // for the contract.
     const buttonStyle: React.CSSProperties = {
         border: "1px solid rgba(0,0,0,0.10)",
@@ -1967,8 +1972,8 @@ function PaneChrome(props: {
         color: "#1d4ed8",
         fontWeight: 600,
     };
-    // Icon-only buttons — tight padding so 6 icons + the title block fit in a
-    // narrow split pane without truncating the subtitle.
+    // Icon-only buttons use tight padding so 6 icons + the title block fit in
+    // a narrow split pane without truncating the subtitle.
     const iconButtonStyle: React.CSSProperties = {
         ...buttonStyle,
         minWidth: 22,
@@ -2019,7 +2024,7 @@ function PaneChrome(props: {
                             : "var(--pp-surface, rgba(248,250,252,0.6))",
                     }}
                 >
-                    {/* An inline switcher takes the title's slot — the active
+                    {/* An inline switcher takes the title's slot; the active
                       * tab name already conveys what surface this is. */}
                     {props.inlineSwitcher ? (
                         <div style={{ minWidth: 0, flex: "1 1 auto", display: "flex", alignItems: "center", overflow: "hidden" }}>
@@ -2051,7 +2056,7 @@ function PaneChrome(props: {
                                 position: "relative",
                             }}
                         >
-                        {/* aria-labels MUST stay stable — integration tests +
+                        {/* aria-labels must stay stable; integration tests and
                          *  a11y selectors depend on them. */}
                         {props.isFocused ? (
                             <button
@@ -2195,10 +2200,10 @@ function MinimizedPaneDock(props: {
     );
 }
 
-// In-app floating panel — fixed-position draggable overlay. Drag tracks
+// In-app floating panel: a fixed-position draggable overlay. Drag tracks
 // clientX/Y delta from the mousedown anchor to avoid jitter from event
-// batching; CSS `resize: both` gives corner-resize without JS. Not modal —
-// the BI canvas behind it remains interactive.
+// batching; CSS `resize: both` gives corner-resize without JS. Not modal,
+// so the BI canvas behind it remains interactive.
 function FloatingPanel(props: {
     pos: { x: number; y: number };
     onPosChange: (pos: { x: number; y: number }) => void;
@@ -2225,9 +2230,9 @@ function FloatingPanel(props: {
         const onMove = (ev: MouseEvent) => {
             const a = dragAnchor.current;
             if (!a) return;
-            // Clamp drag bounds to viewport — header buttons (Dock, Close)
-            // must always remain reachable. Use the panel's live bounding rect
-            // for width to handle the resize:both case.
+            // Clamp drag bounds to the viewport so the header buttons (Dock,
+            // Close) always remain reachable. Use the panel's live bounding
+            // rect for width to handle the resize:both case.
             const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
             const vh = typeof window !== "undefined" ? window.innerHeight : 800;
             const rect = (ev.target as Element)?.closest?.('[role="complementary"]')?.getBoundingClientRect();
@@ -2250,7 +2255,7 @@ function FloatingPanel(props: {
         document.addEventListener("mouseup", onUp);
     }, [props]);
 
-    // Derive width from the viewport so the panel never exceeds the screen —
+    // Derive width from the viewport so the panel never exceeds the screen;
     // a hardcoded 520 px width put the Dock button offscreen at 390 px.
     const viewportW = typeof window !== "undefined" ? window.innerWidth : 1200;
     const computedWidth = Math.min(520, Math.max(300, viewportW - 32));
@@ -2277,7 +2282,7 @@ function FloatingPanel(props: {
                 resize: "both",
             }}
         >
-            {/* Drag handle strip — keep minimal: title + dock button. */}
+            {/* Drag handle strip, kept minimal: title + dock button. */}
             <div className="pp-float-panel__handle" onMouseDown={onDragHandleMouseDown}>
                 <span aria-hidden="true" className="pp-float-panel__dots">⠿</span>
                 <span className="pp-float-panel__title">{props.title}</span>
@@ -2439,9 +2444,9 @@ function LivePaneMirror(props: {
     );
 }
 
-// Resizable split layout. Both panels visible → `Group` with a draggable
-// divider; one panel → full-canvas without the group. `useDefaultLayout`
-// persists the split ratio per orientation in localStorage.
+// Resizable split layout. With both panels visible, renders a `Group` with a
+// draggable divider; with one panel, renders it full-canvas without the group.
+// `useDefaultLayout` persists the split ratio per orientation in localStorage.
 function SplitLayout(props: {
     aiVisible: boolean;
     biVisible: boolean;
@@ -2450,7 +2455,7 @@ function SplitLayout(props: {
     aiContent: React.ReactNode;
     biContent: React.ReactNode;
     emptyContent: React.ReactNode;
-    /** Mix mode. When true and exactly one pane is visible, render BOTH panes
+    /** Mix mode. When true and exactly one pane is visible, render both panes
      *  (toggle visibility instead of unmounting) so switching surfaces never
      *  reloads loaded content. Left false for aiOnly/biOnly where the off
      *  pane is truly disabled. */
@@ -2460,14 +2465,14 @@ function SplitLayout(props: {
 
     const orientation: "horizontal" | "vertical" =
         layoutMode === "ai-top" || layoutMode === "ai-bottom" ? "vertical" : "horizontal";
-    // Persist split ratio per orientation. Switching between row/column
-    // layouts gets independent saved sizes so each feels natural.
+    // Persist the split ratio per orientation. Row and column layouts get
+    // independent saved sizes so each feels natural.
     const { defaultLayout, onLayoutChanged } = useDefaultLayout({
         id: `pulseplay:split:${orientation}`,
         storage: typeof window !== "undefined" ? window.localStorage : undefined,
     });
 
-    // Stacked-frame renderer — both panes mounted, only the active one
+    // Stacked-frame renderer: both panes mounted, only the active one
     // visible. Shared by the focusedPane (maximize) and mix-mode (single-
     // surface-at-a-time) branches so neither unmounts the inactive pane.
     const stackedFrames = (activePane: ViewportPane) => {
@@ -2507,10 +2512,10 @@ function SplitLayout(props: {
         return stackedFrames(focusedPane);
     }
 
-    // Mix mode: exactly one pane visible, but BOTH are enabled. Keep both
-    // mounted and toggle visibility so AI ↔ Dashboard switches preserve
-    // loaded state. (aiVisible !== biVisible guards against the both-on /
-    // both-off cases, which fall through to the split/empty layouts.)
+    // Mix mode: exactly one pane visible, but both are enabled. Keep both
+    // mounted and toggle visibility so switches between AI and Dashboard
+    // preserve loaded state. (aiVisible !== biVisible guards against the
+    // both-on / both-off cases, which fall through to the split/empty layouts.)
     if (keepHiddenPaneMounted && aiVisible !== biVisible) {
         return stackedFrames(aiVisible ? "ai" : "bi");
     }
@@ -2556,7 +2561,7 @@ function SplitLayout(props: {
     );
 }
 
-/** Inner styling for a panel's content — fill the panel and scroll on
+/** Inner styling for a panel's content: fill the panel and scroll on
  *  overflow (the surrounding Panel governs size). */
 function panelInnerStyle(): React.CSSProperties {
     return {
@@ -2863,7 +2868,7 @@ function extractPulseFilterField(filter: powerbi.IFilter): string | null {
 }
 
 /** Multi-tile BI grid. "1" renders a single BIPanel; "2" two side-by-side;
- *  "4" a 2×2 grid. All tiles share the same `embedConfig` — the value is
+ *  "4" a 2x2 grid. All tiles share the same `embedConfig`; the value is
  *  side-by-side comparison under different interactions. */
 function BITileGrid(props: {
     tileMode: BiTileMode;
@@ -2871,7 +2876,7 @@ function BITileGrid(props: {
     embedConfig: BIEmbedConfig;
     allowlist?: PulsePlayAllowlist | null;
     /** Forwarded to each BIPanel so panels refuse to mount while the
-     *  governance endpoint is unreachable (fail-closed). */
+     *  governance endpoint is unreachable. */
     allowlistFailClosed?: boolean;
     onEvent: (e: BIEvent) => void;
     onAdapterReady: (index: number, adapter: BIAdapter | null) => void;
@@ -2916,7 +2921,7 @@ function BITileGrid(props: {
             {Array.from({ length: tileCount }, (_, i) => (
                 <div key={i} className="pp-bi-tile" style={tileStyle}>
                     {/* Re-mounting each tile with its own key keeps adapters
-                     *  independent — a filter applied in one tile doesn't
+                     *  independent: a filter applied in one tile doesn't
                      *  trigger a refetch in another, even though both speak
                      *  to the same source. */}
                     <BIPanel

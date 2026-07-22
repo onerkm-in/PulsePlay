@@ -1,5 +1,5 @@
-// The unified PulsePlay assistant surface — the single user-visible chat +
-// briefing surface. Stays mounted as the user switches between BI vendors,
+// The unified PulsePlay assistant surface, the single user-visible chat and
+// briefing surface. It stays mounted as the user switches between BI vendors,
 // accumulating event context (page / filters / selection) so its prompts can
 // reason about what the user is currently looking at.
 //
@@ -14,8 +14,8 @@
 // Connector-agnostic on the wire: the polling URL pattern works for
 // orchestrator-wrapped backends (Genie, OpenAI-analytics, Foundation
 // Model). Supervisor returns COMPLETED synchronously so polling is
-// effectively a no-op for it. Bedrock-direct has no polling endpoint —
-// start response is treated as terminal.
+// effectively a no-op for it. Bedrock-direct has no polling endpoint,
+// so the start response is treated as terminal.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { BIEvent } from "../biPanel/BIAdapter";
@@ -46,9 +46,9 @@ const SECTIONED_DEFAULT_SECTIONS: readonly string[] = Object.freeze([
     "RECOMMENDED_ACTIONS",
 ]);
 
-/** Feature flag, default off — opt into sectioned chat by setting
- *  `pulseplay:chat-sectioned-enabled` = "1" in localStorage. Keeps the
- *  classic single-message chat behaviour as the default. */
+/** Feature flag, default off. Opt into sectioned chat by setting
+ *  `pulseplay:chat-sectioned-enabled` = "1" in localStorage; the classic
+ *  single-message chat behaviour stays the default. */
 export function isSectionedChatEnabled(): boolean {
     if (typeof window === "undefined") return false;
     try {
@@ -74,15 +74,15 @@ export interface UnifiedAssistantSurfaceProps {
     /** PulsePlay 2-axis: connector profile name from /assistant/profiles. */
     activeConnector: string;
     recentEvents: BIEvent[];
-    /** From Smart Connect — author-confirmed pack + sub-vertical. Sent to
-     *  the proxy on every question so the prompt context is enriched
+    /** From Smart Connect: the author-confirmed pack + sub-vertical. Sent
+     *  to the proxy on every question so the prompt context is enriched
      *  with the right vertical vocabulary. */
     packSelection?: PackSelection | null;
     /** Live BI adapter for the mounted panel. When present, the discovery
      *  effect calls `adapter.getMetadata()` and forwards the result to
      *  `/assistant/discover` so the Discovery Loop computes honest
      *  reachable-frame signals from what the user is actually looking at,
-     *  not just from the pack KPIs. Optional — when null, discovery
+     *  not just from the pack KPIs. Optional; when null, discovery
      *  degrades to pack-only signals (today's behaviour). */
     biAdapter?: { getMetadata?(): Promise<unknown | null> } | null;
     /** When set (non-null, non-empty), auto-submits this question exactly
@@ -90,13 +90,13 @@ export interface UnifiedAssistantSurfaceProps {
      *  values fire once per unique question; event values use `id` so two
      *  separate wizard completions can submit the same question intentionally. */
     autoSubmitQuestion?: AutoSubmitQuestionEvent | string | null;
-    /** Fires only when an entry transitions to terminal `completed` —
+    /** Fires only when an entry transitions to terminal `completed`;
      *  failed/aborted entries have no attested result to render.
-     *  The handler MUST be cheap; it runs inside `finalize(...)` before
-     *  React commits the next render. Heavy lifting (adapter send,
+     *  The handler must be cheap because it runs inside `finalize(...)`
+     *  before React commits the next render. Heavy lifting (adapter send,
      *  telemetry) should be fire-and-forget or post-effect. */
     onEntryCompleted?: (entry: AnswerEntry) => void;
-    /** Which surface intent the user landed on — "briefing" (AI Insights
+    /** Which surface intent the user landed on: "briefing" (AI Insights
      *  tab) or "chat" (Ask Pulse tab). Drives composer placeholder +
      *  empty-state copy only (cosmetic). Defaults to "chat" so existing
      *  callers don't break. */
@@ -126,7 +126,7 @@ export interface AnswerEntry {
     /** Conversation + message IDs (for polling). */
     conversationId?: string;
     messageId?: string;
-    /** When polling started — for elapsed time display. */
+    /** When polling started; used for the elapsed time display. */
     startedAt: number;
     /** Wall-clock at which the entry transitioned to a terminal state.
      *  Used to freeze the elapsed-time display once polling stops. */
@@ -145,8 +145,8 @@ export interface AnswerEntry {
     usage?: ProxyMessageResponse["usage"];
     /** Latest upstream poll status reported by the proxy (e.g.
      *  `ASKING_AI`, `EXECUTING_QUERY`, `PENDING_WAREHOUSE`). Used to render
-     *  a contextual loading message instead of a blanket "Thinking…" so
-     *  the user sees that a 40-second wait is a cold-start warehouse,
+     *  a contextual loading message instead of a blanket "Thinking…", so
+     *  the user sees that a 40-second wait is a cold-start warehouse and
      *  not the proxy hanging. Cleared on terminal status. */
     pollStatus?: string;
     /** Proxy-built governance attestation forwarded as-is. Validated
@@ -155,8 +155,8 @@ export interface AnswerEntry {
     governance?: unknown;
     /** Authoritative artifact status emitted by validateArtifact() once the
      *  entry transitions to `completed`. Drives the <TrustBadge> render.
-     *  NEVER set by the LLM; never trusted from upstream metadata. Absent on
-     *  non-completed entries (no artifact to validate). */
+     *  Never set by the LLM and never trusted from upstream metadata. Absent
+     *  on non-completed entries (no artifact to validate). */
     artifactStatus?: ArtifactStatus;
     /** Problem-Details detail string when artifactStatus is `blocked`;
      *  surfaced in the badge tooltip. */
@@ -174,7 +174,7 @@ export interface AnswerEntry {
 
 let nextEntryId = 1;
 
-/** Shape of the proxy's Genie-style response. Read defensively — every
+/** Shape of the proxy's Genie-style response. Read defensively: every
  *  field is optional because different backends populate different
  *  subsets. */
 interface ProxyMessageResponse {
@@ -205,7 +205,7 @@ interface ProxyMessageResponse {
         total_tokens?: number;
     };
     /** Opaque governance attestation. Carried through without validating
-     *  shape here — the entryToEnvelope mapper + native adapter render gate
+     *  shape here; the entryToEnvelope mapper + native adapter render gate
      *  own shape validation + policy. */
     governance?: unknown;
 }
@@ -239,15 +239,15 @@ function extractQueryResult(data: ProxyMessageResponse): QueryResult | undefined
 }
 
 /** Compute the authoritative artifact status for a completed AnswerEntry.
- *  Synthesises a CandidateArtifact and runs validateArtifact — the SAME gate
- *  the Workbench surface uses. Status is NEVER trusted from the LLM or
- *  upstream metadata — only from this validator pass.
+ *  Synthesises a CandidateArtifact and runs validateArtifact, the same gate
+ *  the Workbench surface uses. Status is never trusted from the LLM or
+ *  upstream metadata, only from this validator pass.
  *
- *  Citation synthesis rules:
- *    • `sqlQuery` present → `{ kind: 'sql', statement }` citation
- *    • `queryResult` with rows → `{ kind: 'result-rows', rowCount }` citation
- *  Without either, an answer-only entry collapses to `suggestion`.
- *  Returns null if the entry has no renderable content at all (skip badge). */
+ *  Citation synthesis rules: a present `sqlQuery` yields a
+ *  `{ kind: 'sql', statement }` citation, and a `queryResult` with rows
+ *  yields a `{ kind: 'result-rows', rowCount }` citation. Without either,
+ *  an answer-only entry collapses to `suggestion`. Returns null if the
+ *  entry has no renderable content at all (skip the badge). */
 export function computeArtifactStatusForEntry(entry: AnswerEntry): { status: ArtifactStatus; reason?: string } | null {
     const answerText = typeof entry.answer === "string" ? entry.answer.trim() : "";
     const sqlText = typeof entry.sqlQuery === "string" ? entry.sqlQuery.trim() : "";
@@ -302,8 +302,8 @@ export function computeArtifactStatusForEntry(entry: AnswerEntry): { status: Art
 }
 
 /** Coerce a proxy/Genie `error` field into a human string. It is typed `string`
- *  but at runtime a FAILED Genie message carries an OBJECT — `{ error, type }`
- *  or `{ message }` — so rendering it directly yields "[object Object]" and
+ *  but at runtime a FAILED Genie message carries an object (`{ error, type }`
+ *  or `{ message }`), so rendering it directly yields "[object Object]" and
  *  buries the real cause (e.g. "warehouse is disabled"). Mirrors the pulse
  *  visual.tsx extractUpstreamError so both surfaces surface the same truth. */
 function errorFieldToString(e: unknown): string {
@@ -331,8 +331,8 @@ function projectEntryFromResponse(data: ProxyMessageResponse): Partial<AnswerEnt
         validationDiagnostics: data.validationDiagnostics,
         usage: data.usage,
         pollStatus: typeof data.status === "string" ? data.status : undefined,
-        // Opaque pass-through — envelope mapper validates shape, native
-        // adapter's render gate applies policy.
+        // Opaque pass-through; the envelope mapper validates shape and the
+        // native adapter's render gate applies policy.
         governance: data.governance,
     };
 }
@@ -406,7 +406,7 @@ function summariseSnapshotForRequest(snap: DiscoverySnapshot): Record<string, un
  * ask. When a reachable analysis frame is selected in the FramePicker,
  * append a "[Selected analysis frame]" block so the AI brain knows the user
  * committed to a specific analysis intent. The proxy doesn't need to know
- * about this field — it lives in the `content` string forwarded verbatim.
+ * about this field; it lives in the `content` string forwarded verbatim.
  */
 function buildContextBlock(
     activeVendor: string,
@@ -532,8 +532,8 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
 
         // Optional live BI metadata. The adapter is allowed to omit the
         // method entirely (iframe adapters) or return null (SDK mode not
-        // available yet). We swallow failures — discovery already degrades
-        // to pack-only signals when biMetadata is null.
+        // available yet). We swallow failures because discovery already
+        // degrades to pack-only signals when biMetadata is null.
         const collectBiMetadata = async (): Promise<unknown | null> => {
             const adapter = props.biAdapter;
             if (!adapter || typeof adapter.getMetadata !== "function") return null;
@@ -562,7 +562,7 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
                 setDiscoveryLoading(false);
             }
         }).catch(() => {
-            // Discovery is non-blocking — UI just falls back to free text.
+            // Discovery is non-blocking; the UI just falls back to free text.
             if (!cancelled) {
                 setSnapshot(null);
                 setDiscoveryLoading(false);
@@ -611,7 +611,7 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
         // Close any still-open perf stages and dump the table for this run.
         // Harmless when the stage was already closed (stageEnd no-ops on
         // already-closed entries). Lets the DevTools console show the
-        // breakdown for every terminal Ask Pulse — success OR failure.
+        // breakdown for every terminal Ask Pulse, success or failure.
         const runId = `ask:${entryId}`;
         stageEnd(runId, "polling");
         stageEnd(runId, "submit");
@@ -641,7 +641,7 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
         if (status === "completed" && props.onEntryCompleted) {
             // If completedEntry wasn't populated (React batched the
             // updater past this point), reconstruct the completed shape
-            // from the function arguments — the caller already has the
+            // from the function arguments; the caller already has the
             // patch + entryId, so this is a guaranteed-correct fallback.
             const entry: AnswerEntry = completedEntry ?? {
                 id: entryId,
@@ -691,7 +691,7 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
             } else if (status === "FAILED") {
                 finalize(entryId, { ...projection, error: errorFieldToString(data.error) || "Backend reported FAILED" }, "failed");
             } else {
-                // Still in progress — keep the tick going. Patch any partial
+                // Still in progress; keep the tick going. Patch any partial
                 // fields the backend has already populated (some orchestrators
                 // stream back an answer text before the SQL run resolves).
                 setHistory(prev => prev.map(h => h.id === entryId ? { ...h, ...projection } : h));
@@ -713,7 +713,7 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
         pollTimers.current.set(entryId, timer);
     };
 
-    /** Auto-submit on prop change — wizard's "Done & ask" path. Fires
+    /** Auto-submit on prop change (the wizard's "Done & ask" path). Fires
      *  once per legacy string value, or once per event id when the caller
      *  supplies an event object. */
     useEffect(() => {
@@ -732,8 +732,8 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
     /** Sectioned chat path. Opens an SSE stream to the proxy, registers
      *  section descriptors + initial pending states, and updates section
      *  states as events arrive. All in-flight sections share one
-     *  renderId-keyed AnswerEntry. Requires a valid activeConnector —
-     *  sectioned mode is profile-driven. */
+     *  renderId-keyed AnswerEntry. Requires a valid activeConnector
+     *  because sectioned mode is profile-driven. */
     const askSectioned = async (entryId: number, q: string, runId: string) => {
         if (!props.activeConnector) {
             finalize(entryId, { error: "Sectioned chat requires an active AI profile." }, "failed");
@@ -825,8 +825,8 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
 
     /** Question state that the input is bound to.
      *  ask(overrideQ) lets the caller supply a question directly without
-     *  going through the input — used by the auto-submit effect below
-     *  for the wizard's "Done & ask" path. */
+     *  going through the input; the auto-submit effect uses it for the
+     *  wizard's "Done & ask" path. */
     const ask = async (overrideQ?: string) => {
         const q = (typeof overrideQ === "string" ? overrideQ : question).trim();
         if (!q) return;
@@ -854,7 +854,7 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
         }
 
         // Resolve the selected analysis frame (if any) so we can send both a
-        // structured `frame` JSON field AND a "[Selected analysis frame]"
+        // structured `frame` JSON field and a "[Selected analysis frame]"
         // section in the content preamble.
         const selectedFrameObj: ReachableFrame | null = (selectedFrame && snapshot)
             ? (snapshot.fused.reachableFrames.find(f => f.frameId === selectedFrame) || null)
@@ -877,7 +877,7 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
                     // Pack/sub-vertical drives prompt enrichment on the proxy.
                     pack: props.packSelection?.pack,
                     subVertical: props.packSelection?.subVertical,
-                    // Additive field — the proxy ignores unknown JSON keys, so
+                    // Additive field: the proxy ignores unknown JSON keys, so
                     // a stale proxy silently drops this without failing the call.
                     ...(selectedFrameObj ? {
                         frame: {
@@ -887,7 +887,7 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
                             params: selectedFrameObj.params,
                         },
                     } : {}),
-                    // Probe-once reuse — distil the snapshot into the same
+                    // Probe-once reuse: distil the snapshot into the same
                     // discoveryContext envelope the Pulse genie pipeline uses.
                     // Additive; a stale proxy drops it silently.
                     ...(snapshot ? { discoveryContext: summariseSnapshotForRequest(snapshot) } : {}),
@@ -895,8 +895,8 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
                 signal: ctrl.signal,
             });
             const data = (await res.json()) as ProxyMessageResponse;
-            // Backend RTT done — close `submit` regardless of terminal vs
-            // pending status. finalize() also closes it as a safety net.
+            // The backend round trip is done, so close `submit` regardless of
+            // terminal vs pending status. finalize() also closes it as a safety net.
             stageEnd(runId, "submit");
             if (!res.ok) {
                 finalize(entryId, { error: errorFieldToString(data?.error) || `HTTP ${res.status}` }, "failed");
@@ -916,7 +916,7 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
                 return;
             }
             // Need polling. Without conversation_id + message_id we can't
-            // poll — surface that as a failure rather than spin forever.
+            // poll, so surface that as a failure rather than spin forever.
             const cid = data.conversation_id;
             const mid = data.message_id;
             if (!cid || !mid) {
@@ -956,12 +956,12 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
         ? `Pack context: ${props.packSelection.pack}${props.packSelection.subVertical ? ` / ${props.packSelection.subVertical}` : ""}`
         : "Pack context: none — generic prompts";
 
-    // Trust chip promotes from "AI configured · No BI fields" →
+    // The trust chip promotes from "AI configured · No BI fields" to
     // "Grounded to BI context" once the adapter reports schema (snapshot
-    // `sources.biMetadata.visibleMeasures` / `visibleDimensions`). snapshot
-    // loads asynchronously, so Trust may flip mid-discovery — that's honest,
-    // not a bug. This surface has no `sendContextToAi` toggle — it always
-    // captures BI events for context — so we pass true.
+    // `sources.biMetadata.visibleMeasures` / `visibleDimensions`). The
+    // snapshot loads asynchronously, so Trust may flip mid-discovery;
+    // that's honest, not a bug. This surface has no `sendContextToAi`
+    // toggle (it always captures BI events for context), so we pass true.
     const isAiConfigured = Boolean((props.activeConnector || "").trim());
     const measureCount = snapshot?.sources?.biMetadata?.visibleMeasures?.length ?? 0;
     const dimensionCount = snapshot?.sources?.biMetadata?.visibleDimensions?.length ?? 0;
@@ -980,8 +980,8 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
         <section className="pp-ai-sidebar">
             <header className="pp-ai-sidebar__header">
                 <h2 className="pp-ai-sidebar__title">PulsePlay AI</h2>
-                {/* Pack value lives in Settings → AI; kept here only as a
-                    hidden SR-only span so a11y consumers + existing tests
+                {/* The pack value lives in Settings under AI; kept here only
+                    as a hidden SR-only span so a11y consumers + existing tests
                     still find the current pack on demand. */}
                 <span
                     className="pp-ai-sidebar__pack-indicator"
@@ -993,7 +993,7 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
             </header>
             {/* Visible context lives in the persistent host footer; trust/source
                 survive here as SR-only spans so the trust-ladder wiring stays
-                announced for a11y AND covered by the discovery-snapshot → trust
+                announced for a11y and covered by the discovery-snapshot trust
                 tests. */}
             <span data-testid="pp-surface-context-trust" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>{surfaceContext.trust}</span>
             <span data-testid="pp-surface-context-source" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>{surfaceContext.source}</span>
@@ -1055,9 +1055,9 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
                         >
                             Ask
                         </button>
-                        {/* Hide (don't just disable) the composer Stop when idle —
-                            a greyed-out button read as an inert affordance. The
-                            per-entry Stop is the contextual one; this composer
+                        {/* Hide (don't just disable) the composer Stop when idle,
+                            since a greyed-out button read as an inert affordance.
+                            The per-entry Stop is the contextual one; this composer
                             Stop is a backup for entries scrolled out of view. */}
                         {hasInFlight && (
                             <button
@@ -1085,7 +1085,7 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
                     </div>
                 </div>
                 {/* The single-source sustainability gauge lives once in App.tsx
-                    (fixed bottom-right orb) — don't add a duplicate mount here. */}
+                    (fixed bottom-right orb); don't add a duplicate mount here. */}
             </div>
         </section>
     );
@@ -1153,8 +1153,8 @@ function AnswerEntryView(props: {
                         data-testid={`pp-ai-poll-${entry.id}`}
                         data-poll-status={(entry.pollStatus || "").toUpperCase()}
                         // aria-live so the rotating status copy gets announced
-                        // as it changes. polite (not assertive) — these are
-                        // status updates, not alerts.
+                        // as it changes. Polite rather than assertive, since
+                        // these are status updates, not alerts.
                         role="status"
                         aria-live="polite"
                     >

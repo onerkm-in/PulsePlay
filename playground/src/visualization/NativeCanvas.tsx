@@ -3,20 +3,20 @@
 // ungoverned-preview badge, the blocked state, and the `mountNativeCanvas`
 // helper the `.ts` adapter calls without importing React itself.
 //
-// NOT owned here: adapter lifecycle (`NativeBIAdapter.ts`), chart-pick
+// Not owned here: adapter lifecycle (`NativeBIAdapter.ts`), chart-pick
 // policy (`chartAutoPick.ts`), result-shape decisions
-// (`resultToVizIntent.ts`), governance enforcement (adapter) — the canvas
-// just renders the mode + state passed via props. No data fetching, SQL,
-// or vendor SDKs.
+// (`resultToVizIntent.ts`), and governance enforcement (the adapter). The
+// canvas just renders the mode + state passed via props. No data fetching,
+// SQL, or vendor SDKs.
 //
-// Layering: this is the ONLY Native renderer module that imports React +
-// ECharts. The `bi-adapters/native/*.ts` adapter files MUST stay free of
+// Layering: this is the only Native renderer module that imports React and
+// ECharts. The `bi-adapters/native/*.ts` adapter files must stay free of
 // direct React/ECharts imports; they delegate to the typed mount helper.
 //
-// Pulse PBI copy-port note: this file is NOT copy-port safe (React 19,
+// Pulse PBI copy-port note: this file is not copy-port safe (React 19,
 // react-dom/client, ECharts; the PBI custom-visual sandbox has no native
-// React 19 root, no fetch). Use the PURE contracts in
-// `playground/src/visualization/` from Pulse PBI; do NOT import this file
+// React 19 root and no fetch). Use the pure contracts in
+// `playground/src/visualization/` from Pulse PBI; do not import this file
 // from the sibling project.
 
 import * as React from "react";
@@ -53,9 +53,9 @@ import { validateChartRenderSpec, type ChartRenderSpec } from "./chartSpecValida
 import { compileVegaLiteToECharts } from "../lib/vegaLiteToECharts";
 import { sourceRefDisplayLabel } from "./sourceRef";
 
-// Register only the chart types + components actually surfaced — keeps the
-// bundle small. Adding a new chart kind means registering its module here
-// AND extending `buildEChartsOption` below.
+// Register only the chart types + components actually surfaced, which keeps
+// the bundle small. Adding a new chart kind means registering its module
+// here and extending `buildEChartsOption` below.
 echarts.use([
     BarChart,
     HeatmapChart,
@@ -69,7 +69,7 @@ echarts.use([
     CanvasRenderer,
 ]);
 
-// ─── Props contract ───────────────────────────────────────────────────────
+// Props contract
 
 /** High-level display mode the adapter wants the canvas to show.
  *  Maps 1:1 to `NativeBIAdapter` renderStatus so adapter telemetry and
@@ -89,8 +89,8 @@ export type NativeCanvasGovernanceState =
 
 export interface NativeCanvasProps {
     /** Explicit display mode. Set by the adapter based on the last
-     *  command + governance check. Canvas trusts this — it does not
-     *  re-derive mode from envelope shape. */
+     *  command + governance check. The canvas trusts this and does not
+     *  re-derive the mode from envelope shape. */
     readonly mode: NativeCanvasMode;
     /** Last AI result the adapter accepted. Only consulted for
      *  `result-accepted` and `ungoverned-result-preview` modes. For
@@ -101,14 +101,14 @@ export interface NativeCanvasProps {
     readonly spec?: unknown;
     /** Governance state the adapter resolved. Drives the
      *  `data-native-governance` attribute and the preview badge.
-     *  The canvas trusts the adapter — it does not re-validate. */
+     *  The canvas trusts the adapter and does not re-validate. */
     readonly governanceState: NativeCanvasGovernanceState;
     /** Optional theme token forwarded to `data-native-theme` so CSS
      *  can react. The canvas does not interpret theme values. */
     readonly theme?: string | null;
 }
 
-// ─── Public mount helper (the only API the adapter needs) ──────────────────
+// Public mount helper (the only API the adapter needs)
 
 export interface NativeCanvasHandle {
     /** Replace the current props and re-render. Idempotent. */
@@ -126,9 +126,9 @@ export function mountNativeCanvas(
     // Wrap render in flushSync so React 19's concurrent commit phase
     // completes before the call returns. Without this, the BI adapter's
     // synchronous tests + telemetry observers would see an empty
-    // container right after mount/update — render would complete on a
-    // later microtask. flushSync is the supported way to force a sync
-    // commit in test + DOM-introspection scenarios.
+    // container right after mount/update, because the render would
+    // complete on a later microtask. flushSync is the supported way to
+    // force a sync commit in test + DOM-introspection scenarios.
     const render = (): void => {
         flushSync(() => { root.render(<NativeCanvas {...current} />); });
     };
@@ -151,13 +151,13 @@ export function mountNativeCanvas(
     };
 }
 
-// ─── Top-level component ──────────────────────────────────────────────────
+// Top-level component
 
 export function NativeCanvas(props: NativeCanvasProps): React.ReactElement {
     const { mode, envelope, governanceState, theme } = props;
     const govAttr = governanceAttribute(governanceState);
 
-    // Pin-to-canvas — when the user has pinned tiles, the saved canvas IS the
+    // Pin-to-canvas: when the user has pinned tiles, the saved canvas is the
     // Dashboard content. Subscribe so the grid appears/clears live as tiles are
     // pinned/removed (NativeCanvas otherwise only re-renders on prop updates).
     const [tileCount, setTileCount] = useState<number>(() => canvasTileCount());
@@ -213,10 +213,10 @@ export function NativeCanvas(props: NativeCanvasProps): React.ReactElement {
     const isPreview = mode === "ungoverned-result-preview";
     const renderedBody = renderEnvelopeBody(envelope);
 
-    // Fusion-lite: when the envelope carries BOTH chart-renderable rows AND
+    // Fusion-lite: when the envelope carries both chart-renderable rows and
     // a narrative answer, dock the body alongside a commentary card bound by
     // `envelope.id`. The chart half is the same component used in non-fusion
-    // mode — fusion is purely a layout wrapper.
+    // mode; fusion is purely a layout wrapper.
     const fusionCommentary = isAIResultEnvelope(envelope)
         ? buildFusionCommentary(envelope, renderedBody.intent, governanceState)
         : null;
@@ -248,10 +248,11 @@ interface RenderedEnvelopeBody {
 }
 
 function renderEnvelopeBody(envelope: unknown): RenderedEnvelopeBody {
-    // Adapter may pass a partially-shaped result through (existing tests use
-    // `{ rows: [] }` — not a valid AIResultEnvelope but a legitimate
-    // "accepted" message). Fall back to AcceptedFallback so the user gets the
-    // "AI result accepted" signal even when there is nothing renderable.
+    // The adapter may pass a partially-shaped result through (existing tests
+    // use `{ rows: [] }`, which is not a valid AIResultEnvelope but is a
+    // legitimate "accepted" message). Fall back to AcceptedFallback so the
+    // user gets the "AI result accepted" signal even when there is nothing
+    // renderable.
     if (!isAIResultEnvelope(envelope)) {
         return { element: <AcceptedFallback />, intent: "fallback" };
     }
@@ -265,15 +266,15 @@ function renderEnvelopeBody(envelope: unknown): RenderedEnvelopeBody {
     }
 }
 
-// ─── Fusion-lite ──────────────────────────────────────────────────────────
+// Fusion-lite
 
 /** Decision: should this envelope render in fusion-lite layout?
- *  Yes when ALL three hold:
+ *  Yes when all three hold:
  *    - The envelope rendered as a chart, KPI, or table (it has data
  *      worth pairing commentary with). Pure text/empty intents already
  *      surface the answer in their own body, so docking would duplicate.
  *    - The envelope carries a non-empty `answer` narrative.
- *    - Governance state is enforced or preview (NOT blocked) — blocked
+ *    - Governance state is enforced or preview, not blocked; blocked
  *      renders BlockedState only, never fusion.
  *  Returns the commentary payload + the result id binding, or null. */
 interface FusionCommentaryPayload {
@@ -448,7 +449,7 @@ function FusionCommentaryCard({
     );
 }
 
-// ─── Root section wrapper — owns the stable selectors existing tests use ──
+// Root section wrapper. Owns the stable selectors existing tests use.
 
 interface RootSectionProps {
     readonly statusKey: string;
@@ -487,7 +488,7 @@ function governanceAttribute(state: NativeCanvasGovernanceState): string | null 
     return state.state;
 }
 
-// ─── Empty / Text / Blocked / Preview / Spec states ───────────────────────
+// Empty / Text / Blocked / Preview / Spec states
 
 function EmptyState(): React.ReactElement {
     return (
@@ -569,8 +570,8 @@ function AcceptedFallback(): React.ReactElement {
 
 function PreviewBadge(): React.ReactElement {
     // Visible signal that this render is ungoverned. Tests assert the
-    // literal text. Intentionally obtrusive — authors must not get
-    // used to ignoring it.
+    // literal text. Intentionally obtrusive so authors don't get used
+    // to ignoring it.
     return (
         <div
             className="pp-native-bi__preview-badge"
@@ -593,7 +594,7 @@ function TextState({ answer }: { answer: string }): React.ReactElement {
     );
 }
 
-// ─── Table state ──────────────────────────────────────────────────────────
+// Table state
 
 function TableState({ envelope }: { envelope: AIResultEnvelope }): React.ReactElement {
     const schema = envelope.schema ?? [];
@@ -660,7 +661,7 @@ function formatCell(value: unknown): string {
     return String(value);
 }
 
-// ─── KPI state ────────────────────────────────────────────────────────────
+// KPI state
 
 function KpiState({ envelope }: { envelope: AIResultEnvelope }): React.ReactElement {
     const schema = envelope.schema ?? [];
@@ -722,7 +723,7 @@ function KpiState({ envelope }: { envelope: AIResultEnvelope }): React.ReactElem
     );
 }
 
-// ─── Chart state ──────────────────────────────────────────────────────────
+// Chart state
 
 function ChartState({
     envelope,
@@ -807,11 +808,11 @@ function EChartsOptionView({
     );
 }
 
-// ─── ECharts option builders ─────────────────────────────────────────────
+// ECharts option builders
 
 /** Build a minimal ECharts option for the chosen chart kind. MVP scope:
  *  bar / column / clustered-bar / line / area / pie / donut. Unsupported
- *  kinds fall back to bar so the canvas always renders SOMETHING for an
+ *  kinds fall back to bar so the canvas always renders something for an
  *  attested result rather than going blank. */
 function buildEChartsOption(kind: ChartKind, shape: DataShape): EChartsOption {
     switch (kind) {
@@ -903,9 +904,9 @@ function clusteredBarOption(shape: DataShape): EChartsOption {
     };
 }
 
-// ─── Local styles (inline so the canvas works without a CSS bundle) ──────
+// Local styles (inline so the canvas works without a CSS bundle)
 
-// Deliberately vertically centered — top-anchoring left the 2-line
+// Deliberately vertically centered: top-anchoring left the 2-line
 // placeholder floating over ~70% empty canvas on tall/mobile viewports,
 // reading as a broken screen. The same style backs the blocked /
 // unsupported-spec states.

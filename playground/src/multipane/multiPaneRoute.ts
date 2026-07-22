@@ -1,10 +1,8 @@
-// playground/src/multipane/multiPaneRoute.ts
-//
-// Part C P1-PROOF — route hook for the /multi-pane-demo surface. Mirrors the
-// existing per-route hooks (PowerBiQnARoute / knowledgeRoute). The route itself
-// is always reachable by URL; the MultiPaneDemoShell gates its CONTENT on the
-// multiConnectorPanes flag (default OFF), so visiting the URL with the flag off
-// shows only the "enable the flag" gate — the single-pane app is untouched.
+// Route hook for the /multi-pane-demo surface, mirroring the existing
+// per-route hooks (PowerBiQnARoute, knowledgeRoute). The route is always
+// reachable by URL, but MultiPaneDemoShell gates its content on the
+// multiConnectorPanes flag (default off), so visiting with the flag off
+// shows only the enable-the-flag gate and the single-pane app is untouched.
 
 import { useEffect, useState } from "react";
 

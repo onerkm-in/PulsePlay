@@ -1,31 +1,24 @@
-// playground/src/lib/timeoutPolicy.ts
-//
 // Single source of truth for user-facing request timeouts across the
-// client. Per direction 2026-05-27 (Rajesh): "simple query → 3 min,
-// complex query → 5 min, if hard to determine → 5 min."
-//
-// Apply this to anything where the user types a question / clicks a
-// button and waits for a server reply. Do NOT apply to:
-//   - health probes (must be near-instant or signal a real outage)
-//   - UI feedback delays (toasts, button-flash, debounce)
-//   - animation/transition timings
-//
-// Server-side mirror at proxy/lib/timeoutPolicy.js — keep in lockstep
-// or the client gives up before the server is done.
+// client: simple queries get 3 minutes, complex ones 5, and anything hard
+// to classify defaults to 5. Applies wherever the user asks a question or
+// clicks a button and waits for a server reply. It does not apply to health
+// probes (those must be near-instant or signal a real outage), UI feedback
+// delays, or animation timings. Keep in lockstep with the server-side
+// mirror at proxy/lib/timeoutPolicy.js, or the client gives up before the
+// server is done.
 
 /**
- * SIMPLE — single-fetch operations where the user expects an answer
- * within seconds: connector probes, metadata sync, query history fetch,
- * static-asset retrieval. 3 minutes is generous on purpose; network or
- * cold-cache stalls shouldn't user-fail at 5-10s.
+ * Single-fetch operations where the user expects an answer within seconds:
+ * connector probes, metadata sync, query history, static assets. Three
+ * minutes is generous on purpose so network or cold-cache stalls don't
+ * fail the user at 5-10s.
  */
-export const SIMPLE_REQUEST_TIMEOUT_MS = 3 * 60 * 1000;  // 180_000 = 3 min
+export const SIMPLE_REQUEST_TIMEOUT_MS = 3 * 60 * 1000;  // 3 min
 
 /**
- * COMPLEX — multi-step / multi-LLM operations: Ask Pulse polling, AI
- * Insights staged briefing, Foundation Model streaming, SQL execution,
- * Power BI DAX execution. Anything where a query may run a warehouse
- * warmup + multiple LLM round-trips + result rendering.
+ * Multi-step or multi-LLM operations: Ask Pulse polling, AI Insights staged
+ * briefing, Foundation Model streaming, SQL and Power BI DAX execution.
+ * Anything that may run a warehouse warmup plus several LLM round-trips.
  */
-export const COMPLEX_REQUEST_TIMEOUT_MS = 5 * 60 * 1000;  // 300_000 = 5 min
+export const COMPLEX_REQUEST_TIMEOUT_MS = 5 * 60 * 1000;  // 5 min
 

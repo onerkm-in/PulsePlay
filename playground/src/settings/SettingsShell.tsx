@@ -61,8 +61,8 @@ const GROUP_ICONS: Record<SettingsGroupId, string> = {
 };
 
 // Rail order shown to users. `setup` and `system` are not in this list
-// (still routable for back-compat, just not in the rail). AI Setup first —
-// most users touch it most.
+// (still routable for back-compat, just not in the rail). AI Setup comes
+// first because most users touch it most.
 const VISIBLE_RAIL_GROUPS: ReadonlyArray<SettingsGroupId> = [
     "ai",
     "bi",
@@ -74,7 +74,7 @@ const VISIBLE_RAIL_GROUPS: ReadonlyArray<SettingsGroupId> = [
 // absorbing destination instead. `setup` absorbs to AI Setup (where the
 // connector+pack quick-start lives); `system` is diagnostic/dev (Advanced).
 const GROUP_ABSORPTION: Record<SettingsGroupId, SettingsGroupId> = {
-    setup:       "ai",          // Phase D will split AI vs BI content explicitly
+    setup:       "ai",          // a later phase will split AI vs BI content explicitly
     bi:          "bi",
     ai:          "ai",
     preferences: "preferences",
@@ -97,11 +97,11 @@ const READINESS_LABEL: Record<"ready" | "needed" | "info", string> = {
 
 export const GROUP_LEAF_LABELS: Record<SettingsGroupId, string[]> = {
     // Setup uses inline FieldCards (BI tool / AI brain / Knowledge pack) rather
-    // than the per-leaf navigation pattern — search still finds it via the
+    // than the per-leaf navigation pattern; search still finds it via the
     // group label + description.
     setup: [],
     bi: ["Provider", "Embed", "Authentication", "Canvas", "Status", "Governance"],
-    // Order MUST mirror the visual sequence in groups/AiGroup.tsx so
+    // Order must mirror the visual sequence in groups/AiGroup.tsx so
     // clicking a rail item scrolls to the matching anchor in the main panel.
     ai: [
         "Connector catalogue",
@@ -120,8 +120,8 @@ export const GROUP_LEAF_LABELS: Record<SettingsGroupId, string[]> = {
         "Supervisor Fusion",
         "Knowledge Base",
     ],
-    // PreferencesGroup.tsx renders: Tabs (Visible tabs + Default landing
-    // tab) → Display policy (Canvas tiles).
+    // PreferencesGroup.tsx renders Tabs (Visible tabs + Default landing
+    // tab), then Display policy (Canvas tiles).
     preferences: [
         "Workbench template",
         "Visible tabs",
@@ -190,8 +190,8 @@ export function SettingsShell(): React.ReactElement {
                 return;
             }
             // Fallback for conditional leaves (e.g. "Power BI Q&A" only
-            // renders for specific active profiles). When the Leaf isn't in
-            // the DOM, scroll-to-anchor would silently no-op — fall back to
+            // renders for specific active profiles). When the leaf isn't in
+            // the DOM, scroll-to-anchor would silently no-op, so fall back to
             // the Connector catalogue so the user lands somewhere useful.
             const catalogue = document.getElementById(`settings-${route.group}-connector-catalogue`);
             if (catalogue) {
@@ -205,9 +205,9 @@ export function SettingsShell(): React.ReactElement {
 
     const filteredGroups = useMemo(() => {
         const needle = search.trim().toLowerCase();
-        // Search DOES scan all 6 internal groups (including legacy `setup`
-        // and `system`) so no settings disappear from discoverability — but
-        // only RETURNS matches that resolve through the visible 4; legacy
+        // Search scans all 6 internal groups (including legacy `setup` and
+        // `system`) so no settings disappear from discoverability, but it
+        // only returns matches that resolve through the visible 4; legacy
         // matches surface under their GROUP_ABSORPTION destination.
         if (!needle) return VISIBLE_RAIL_GROUPS;
         const visibleSet = new Set<SettingsGroupId>(VISIBLE_RAIL_GROUPS);
@@ -221,7 +221,7 @@ export function SettingsShell(): React.ReactElement {
             const dest = visibleSet.has(id) ? id : GROUP_ABSORPTION[id];
             matched.add(dest);
         }
-        // Preserve the configured rail order (ai → bi → advanced → preferences).
+        // Preserve the configured rail order (ai, bi, advanced, preferences).
         return VISIBLE_RAIL_GROUPS.filter(id => matched.has(id));
     }, [search]);
 
@@ -254,15 +254,15 @@ export function SettingsShell(): React.ReactElement {
     );
 }
 
-// ─── Header ──────────────────────────────────────────────────────
+// Header
 
 function SettingsHeader(): React.ReactElement {
     return (
         <header className="pp-settings-header">
             <div className="pp-settings-header__brand">
                 <h1 className="pp-settings-header__title">
-                    {/* Decorative glyph — never pollute the accessible name.
-                      * SVG cog instead of the "⚙" character so text-content
+                    {/* Decorative glyph; never pollute the accessible name.
+                      * An SVG cog instead of the "⚙" character so text-content
                       * snapshots don't pick it up. */}
                     <span className="pp-settings-header__title-icon" aria-hidden="true">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -295,7 +295,7 @@ function SettingsHeader(): React.ReactElement {
     );
 }
 
-// ─── Search ──────────────────────────────────────────────────────
+// Search
 
 interface SettingsSearchBarProps {
     value: string;
@@ -348,7 +348,7 @@ function SettingsSearchBar(props: SettingsSearchBarProps): React.ReactElement {
     );
 }
 
-// ─── Status strip ────────────────────────────────────────────────
+// Status strip
 
 function SettingsStatusStrip(): React.ReactElement {
     const { allowlist, allowlistLoading, allowlistError, biVendor, packSelection, activeAiProfile, orphans } = useSettings();
@@ -395,7 +395,7 @@ function Chip(props: { label: string; status: ChipStatus; detail: string; group:
     );
 }
 
-// ─── Left rail ───────────────────────────────────────────────────
+// Left rail
 
 interface SettingsLeftRailProps {
     activeGroup: SettingsGroupId;
@@ -406,10 +406,10 @@ interface SettingsLeftRailProps {
 }
 
 function SettingsLeftRail(props: SettingsLeftRailProps & { activeLeaf?: string | null }): React.ReactElement {
-    // Rail leaves are collapsible per group; default is COLLAPSED so the
-    // rail stays compact (auto-expand on active surfaced 11 leaves under
-    // AI Setup). The currently-active leaf forces its group expanded so a
-    // deep-link still shows context.
+    // Rail leaves are collapsible per group; the default is collapsed so the
+    // rail stays compact (auto-expanding the active group surfaced 11 leaves
+    // under AI Setup). The currently active leaf forces its group expanded
+    // so a deep link still shows context.
     const [expandedGroups, setExpandedGroups] = useState<Set<SettingsGroupId>>(() => new Set());
     return (
         <nav className="pp-settings-rail" aria-label="Settings sections">
@@ -551,10 +551,10 @@ function formatPackName(pack: string): string {
     return pack.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-// ─── Active group resolver ───────────────────────────────────────
+// Active group resolver
 
 function ActiveGroup(props: { group: SettingsGroupId; leaf?: string | null }): React.ReactElement {
-    // Sub-route dispatch — when leaf matches a dedicated sub-page, render
+    // Sub-route dispatch: when the leaf matches a dedicated sub-page, render
     // that instead of the parent group. Leaves without a dedicated handler
     // fall through and rely on the group's own scroll-into-view behavior.
     if (props.group === "ai"          && props.leaf === "knowledge-base")    return <AiKnowledgeBase />;

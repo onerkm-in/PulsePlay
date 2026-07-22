@@ -1,7 +1,7 @@
-// 4-step first-run onboarding wizard — full-bleed modal
-// (Welcome/Persona → Choose tools → Connect → Explore).
+// Four-step first-run onboarding wizard, shown as a full-bleed modal.
+// Steps: Welcome/Persona, Choose tools, Connect, Explore.
 //
-// Persistence: draft (step, persona, vendor, connector) saved to
+// Persistence: the draft (step, persona, vendor, connector) is saved to
 // `pulseplay:wizard-draft` on every step advance; re-opening resumes from the
 // furthest reached step; cleared on Done or Skip.
 // Keyboard: focus-trap inside modal; Esc dismisses.
@@ -15,16 +15,16 @@ import { EmbedConfigForm } from "./EmbedConfigForm";
 import { PackPicker } from "./PackPicker";
 import { DEFAULT_UI_MODE } from "../settings/settingsStore";
 
-/* ─── Public constants ───────────────────────────────────────────────── */
+/* Public constants */
 
 export const WIZARD_DISMISSED_KEY = "pulseplay:wizard-dismissed";
 export const WIZARD_DRAFT_KEY     = "pulseplay:wizard-draft";
-/** Set by `forceWizard()` — makes `shouldShowWizard` return true even when
- *  the user already has an embed config / connector configured (i.e. "Re-run
- *  setup wizard" from Settings). Cleared on wizard Done or Skip. */
+/** Set by `forceWizard()`. Makes `shouldShowWizard` return true even when
+ *  the user already has an embed config or connector configured (the "Re-run
+ *  setup wizard" case from Settings). Cleared on wizard Done or Skip. */
 export const WIZARD_FORCE_KEY     = "pulseplay:wizard-force";
 
-/* ─── Persona types ──────────────────────────────────────────────────── */
+/* Persona types */
 
 export type PersonaKey = "analyst" | "executive" | "developer" | "designer";
 
@@ -99,7 +99,7 @@ export function applyPersonaDefaults(
     };
 }
 
-/* ─── Public types ───────────────────────────────────────────────────── */
+/* Public types */
 
 export interface VendorOption {
     vendor:       string;
@@ -123,10 +123,10 @@ export interface FirstRunWizardProps {
     allowlist?:        PulsePlayAllowlist | null;
     /** Knowledge packs for Step 4. */
     availablePacks?:   PackInfo[];
-    /** Injected connector loader — defaults to /api/assistant/profiles. */
+    /** Injected connector loader; defaults to /api/assistant/profiles. */
     fetchConnectors?:  () => Promise<ConnectorOption[]>;
     /** Persona to pre-select on Step 1 when no draft exists. Used by the
-     *  Settings → "Re-run setup wizard" path so the user's previously
+     *  "Re-run setup wizard" path in Settings so the user's previously
      *  chosen role survives across runs. Falls back to "analyst" when
      *  unset. Draft state (mid-flow refresh) always wins over this. */
     initialPersona?:   PersonaKey;
@@ -142,18 +142,18 @@ export interface FirstRunWizardProps {
         suggestedQuestion?: string;
         autoAsk?:           boolean;
     }) => void;
-    /** Called when the user skips — no picks applied. */
+    /** Called when the user skips; no picks are applied. */
     onDismiss?: () => void;
 }
 
-/* ─── Entry-point guard (App uses this, NOT the component) ───────────── */
+/* Entry-point guard. App calls this, not the component. */
 
 /**
- * Returns true when the wizard should be shown. Pure — safe to call
- * before mounting. Reads localStorage directly.
+ * Returns true when the wizard should be shown. Pure and safe to call
+ * before mounting; reads localStorage directly.
  *
- * The force flag (`forceWizard()`) is single-use: consumed here, and MUST be
- * cleared by the wizard's Done / Skip paths via clearDraft().
+ * The force flag (`forceWizard()`) is single-use: it is consumed here and
+ * must be cleared by the wizard's Done / Skip paths via clearDraft().
  */
 export function shouldShowWizard(args: {
     hasEmbedConfig:   boolean;
@@ -163,9 +163,9 @@ export function shouldShowWizard(args: {
     if (typeof window === "undefined") return false;
     if (!args.vendorsAvailable) return false;
     try {
-        // Force flag overrides configured-state gates — "Re-run setup
-        // wizard" path. Vendor availability remains a hard prerequisite so
-        // the wizard cannot open into a dead-end Step 2.
+        // The force flag ("Re-run setup wizard") overrides the
+        // configured-state gates. Vendor availability remains a hard
+        // prerequisite so the wizard cannot open into a dead-end Step 2.
         if (window.localStorage.getItem(WIZARD_FORCE_KEY) === "true") return true;
     } catch { /* swallow */ }
     try {
@@ -174,8 +174,8 @@ export function shouldShowWizard(args: {
     return !args.hasEmbedConfig && !args.hasConnector;
 }
 
-/** Clear the dismissal flag. Settings → System exposes a button for this.
- *  Prefer `forceWizard()` for the "Re-run" use case — it also sets the
+/** Clear the dismissal flag. Settings (System) exposes a button for this.
+ *  Prefer `forceWizard()` for the "Re-run" use case: it also sets the
  *  force flag so the wizard shows even when embed config already exists. */
 export function resetWizardDismissal(): void {
     if (typeof window === "undefined") return;
@@ -183,9 +183,9 @@ export function resetWizardDismissal(): void {
 }
 
 /**
- * Arm the wizard for a forced re-run from Settings → System. Sets
- * `WIZARD_FORCE_KEY`, clears the dismissal flag + draft; the force flag is
- * cleared again on wizard Done / Skip via `clearDraft()`.
+ * Arm the wizard for a forced re-run from Settings (System). Sets
+ * `WIZARD_FORCE_KEY` and clears the dismissal flag and draft; the force flag
+ * is cleared again on wizard Done / Skip via `clearDraft()`.
  */
 export function forceWizard(): void {
     if (typeof window === "undefined") return;
@@ -196,7 +196,7 @@ export function forceWizard(): void {
     } catch { /* swallow */ }
 }
 
-/* ─── Draft persistence ──────────────────────────────────────────────── */
+/* Draft persistence */
 
 interface WizardDraft {
     step:       number;
@@ -209,9 +209,10 @@ const VALID_PERSONA_KEYS = new Set<string>(["analyst", "executive", "developer",
 
 /**
  * Load and validate the wizard draft. Returns null if the draft is missing,
- * unparseable, or contains values that do not match the expected schema —
- * prevents an attacker who can write to localStorage (XSS, extension) from
- * injecting arbitrary vendor / connector / persona strings into wizard state.
+ * unparseable, or contains values that do not match the expected schema.
+ * This prevents anyone who can write to localStorage (XSS, an extension)
+ * from injecting arbitrary vendor / connector / persona strings into wizard
+ * state.
  */
 function loadDraft(): WizardDraft | null {
     try {
@@ -224,8 +225,9 @@ function loadDraft(): WizardDraft | null {
             ? (d.step as 0 | 1 | 2 | 3) : 0;
         const persona = typeof d.persona === "string" && VALID_PERSONA_KEYS.has(d.persona)
             ? (d.persona as PersonaKey) : undefined;
-        // vendor + connector are opaque strings — allow any non-empty string;
-        // the actual allowlist check happens when Step 2 renders the card grid.
+        // vendor and connector are opaque strings, so any non-empty string is
+        // accepted here; the actual allowlist check happens when Step 2
+        // renders the card grid.
         const vendor    = typeof d.vendor    === "string" && d.vendor.trim()    ? d.vendor.trim()    : undefined;
         const connector = typeof d.connector === "string" && d.connector.trim() ? d.connector.trim() : undefined;
         return { step, persona, vendor, connector };
@@ -244,7 +246,7 @@ function clearDraft(): void {
     } catch { /* swallow */ }
 }
 
-/* ─── Probe helper ───────────────────────────────────────────────────── */
+/* Probe helper */
 
 interface WizardProbeResult {
     ok:          boolean;
@@ -255,10 +257,11 @@ interface WizardProbeResult {
 /**
  * Probe a connector via the PulsePlay proxy.
  *
- * MUST POST to `/api/assistant/probe` — only `/api/*` is proxied by Vite;
- * a non-/api path silently hits the SPA origin instead of the proxy in dev.
- * The proxy dispatches on profile type, so no client-side type-sniffing.
- * `connectorType` is retained for call-site compatibility but unused.
+ * This has to POST to `/api/assistant/probe`: only `/api/*` is proxied by
+ * Vite, so a non-/api path silently hits the SPA origin instead of the proxy
+ * in dev. The proxy dispatches on profile type, so no client-side
+ * type-sniffing. `connectorType` is retained for call-site compatibility but
+ * unused.
  */
 async function runProbe(connectorName: string, _connectorType?: string): Promise<WizardProbeResult> {
     const t0 = Date.now();
@@ -277,14 +280,14 @@ async function runProbe(connectorName: string, _connectorType?: string): Promise
             message = (typeof j.error === "string" ? j.error : null)
                    ?? (typeof j.message === "string" ? j.message : null)
                    ?? message;
-        } catch { /* swallow — non-JSON body */ }
+        } catch { /* swallow; non-JSON body */ }
         return { ok: false, latencyMs, message };
     } catch (err) {
         return { ok: false, latencyMs: Date.now() - t0, message: err instanceof Error ? err.message : "Network error" };
     }
 }
 
-/* ─── Suggested question by pack ────────────────────────────────────── */
+/* Suggested question by pack */
 
 const PACK_SUGGESTIONS: Record<string, string> = {
     retail:  "What are the top-selling products this quarter, and where are we seeing margin pressure?",
@@ -303,7 +306,7 @@ function suggestQuestion(packName: string): string {
     return FALLBACK_SUGGESTION;
 }
 
-/* ─── Step metadata ──────────────────────────────────────────────────── */
+/* Step metadata */
 
 type WizardStep = 0 | 1 | 2 | 3;
 
@@ -334,7 +337,7 @@ const STEP_META = [
     },
 ] as const;
 
-/* ─── Main component ─────────────────────────────────────────────────── */
+/* Main component */
 
 export function FirstRunWizard(props: FirstRunWizardProps): ReactElement {
     const draft = useMemo(() => loadDraft(), []);
@@ -363,7 +366,7 @@ export function FirstRunWizard(props: FirstRunWizardProps): ReactElement {
     const [liveMsg, setLiveMsg] = useState("");
     const dialogRef = useRef<HTMLDivElement>(null);
 
-    /* ── Load connectors ── */
+    /* Load connectors */
     useEffect(() => {
         let cancelled = false;
         const fetcher = props.fetchConnectors ?? defaultFetchConnectors;
@@ -373,7 +376,7 @@ export function FirstRunWizard(props: FirstRunWizardProps): ReactElement {
         return () => { cancelled = true; };
     }, [props.fetchConnectors]);
 
-    /* ── Focus trap + initial focus ── */
+    /* Focus trap and initial focus */
     useEffect(() => {
         const dialog = dialogRef.current;
         if (!dialog) return;
@@ -393,10 +396,11 @@ export function FirstRunWizard(props: FirstRunWizardProps): ReactElement {
             }
         };
         dialog.addEventListener("keydown", handler as EventListener);
-        // Don't focus the "× Skip setup and close" dismiss button on open —
-        // one stray Enter would close the onboarding. Prefer a checked/first
-        // radio, then any non-dismissal tab-stop; fall back to the dialog
-        // container so focus stays trapped if nothing else is found.
+        // Don't focus the "× Skip setup and close" dismiss button on open,
+        // because one stray Enter would close the onboarding. Prefer a
+        // checked/first radio, then any non-dismissal tab-stop; fall back to
+        // the dialog container so focus stays trapped if nothing else is
+        // found.
         const checkedRadio = dialog.querySelector<HTMLElement>('[role="radio"][aria-checked="true"]');
         const firstRadio   = dialog.querySelector<HTMLElement>('[role="radio"]');
         const els = focusables();
@@ -406,10 +410,10 @@ export function FirstRunWizard(props: FirstRunWizardProps): ReactElement {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [step]);
 
-    /* ── Body scroll lock while wizard is open ──
-     * Without this the page behind the wizard scrolls under mouse wheel.
-     * Restore the previous `body.style.overflow` on unmount so we don't
-     * stomp on a host-app value if one was set. */
+    /* Body scroll lock while the wizard is open. Without this the page
+     * behind the wizard scrolls under mouse wheel. Restore the previous
+     * `body.style.overflow` on unmount so we don't stomp on a host-app value
+     * if one was set. */
     useEffect(() => {
         if (typeof document === "undefined") return;
         const prev = document.body.style.overflow;
@@ -417,13 +421,13 @@ export function FirstRunWizard(props: FirstRunWizardProps): ReactElement {
         return () => { document.body.style.overflow = prev; };
     }, []);
 
-    /* ── Update suggested question when pack changes ── */
+    /* Update the suggested question when the pack changes */
     useEffect(() => {
         if (packSelection?.pack) setSuggestedQ(suggestQuestion(packSelection.pack));
         else setSuggestedQ(FALLBACK_SUGGESTION);
     }, [packSelection]);
 
-    /* ── Navigation ── */
+    /* Navigation */
     const goTo = useCallback((to: WizardStep) => {
         setDirection(to > step ? "forward" : "back");
         setStep(to);
@@ -439,7 +443,7 @@ export function FirstRunWizard(props: FirstRunWizardProps): ReactElement {
         return false;
     }, [step, vendor, connector]);
 
-    /* ── Probe ── */
+    /* Probe */
     const handleProbe = async () => {
         if (!connector) return;
         setProbeStatus("running");
@@ -449,7 +453,7 @@ export function FirstRunWizard(props: FirstRunWizardProps): ReactElement {
         setProbeStatus(result.ok ? "ok" : "fail");
     };
 
-    /* ── Persona recommended connector (soft hint for Step 2) ── */
+    /* Persona-recommended connector (soft hint for Step 2) */
     const recommendedConnectorType = PERSONA_PRESETS.find(p => p.key === persona)?.preferredConnectorType;
     const recommendedConnector = useMemo(() => {
         if (!recommendedConnectorType) return connectors[0]?.name ?? "";
@@ -457,7 +461,7 @@ export function FirstRunWizard(props: FirstRunWizardProps): ReactElement {
             ?? connectors[0]?.name ?? "";
     }, [connectors, recommendedConnectorType]);
 
-    /* ── Finish actions ── */
+    /* Finish actions */
     const skip = useCallback(() => {
         clearDraft();
         try { window.localStorage.setItem(WIZARD_DISMISSED_KEY, "true"); } catch { /* swallow */ }
@@ -501,7 +505,7 @@ export function FirstRunWizard(props: FirstRunWizardProps): ReactElement {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [persona, vendor, connector, embedConfig, packSelection, suggestedQ, props.onComplete]);
 
-    /* ── Render ── */
+    /* Render */
     return (
         <div
             role="dialog"
@@ -546,7 +550,7 @@ export function FirstRunWizard(props: FirstRunWizardProps): ReactElement {
                     position:            "relative",
                 }}
             >
-                {/* ── Main content area ── */}
+                {/* Main content area */}
                 <div style={{ padding: "36px 36px 28px", display: "flex", flexDirection: "column", minHeight: 0 }}>
 
                     {/* Header */}
@@ -683,7 +687,7 @@ export function FirstRunWizard(props: FirstRunWizardProps): ReactElement {
                     </div>
                 </div>
 
-                {/* ── Step rail ── */}
+                {/* Step rail */}
                 <aside
                     aria-label="Wizard progress"
                     style={{
@@ -722,7 +726,7 @@ export function FirstRunWizard(props: FirstRunWizardProps): ReactElement {
     );
 }
 
-/* ─── Step 1 — Welcome + Persona ─────────────────────────────────────── */
+/* Step 1: welcome and persona */
 
 function Step1Welcome(props: {
     persona:               PersonaKey;
@@ -763,7 +767,7 @@ function Step1Welcome(props: {
     );
 }
 
-/* ─── Step 2 — Choose tools ──────────────────────────────────────────── */
+/* Step 2: choose tools */
 
 function Step2Axes(props: {
     vendors:              VendorOption[];
@@ -778,7 +782,7 @@ function Step2Axes(props: {
 }): ReactElement {
     return (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-            {/* Y axis — BI vendor */}
+            {/* Y axis: BI vendor */}
             <AxisGroup
                 title="BI tool"
                 helper="What you're looking at (the Y-axis). Each vendor gets its own embed config in the next step."
@@ -801,7 +805,7 @@ function Step2Axes(props: {
                 )}
             </AxisGroup>
 
-            {/* X axis — AI connector */}
+            {/* X axis: AI connector */}
             <AxisGroup
                 title="AI connector"
                 helper="What does the reasoning (the X-axis). Completely independent of the BI tool."
@@ -838,7 +842,7 @@ function Step2Axes(props: {
     );
 }
 
-/* ─── Step 3 — Connect ───────────────────────────────────────────────── */
+/* Step 3: connect */
 
 function Step3Connect(props: {
     vendor:             string;
@@ -926,7 +930,7 @@ function probeStatusBorder(s: string): string {
     return "rgba(0,0,0,0.09)";
 }
 
-/* ─── Step 4 — Explore ───────────────────────────────────────────────── */
+/* Step 4: explore */
 
 function Step4Explore(props: {
     availablePacks:          PackInfo[];
@@ -994,15 +998,15 @@ function Step4Explore(props: {
     );
 }
 
-/* ─── Error boundary ────────────────────────────────────────────────── */
+/* Error boundary */
 
 interface WizardErrorBoundaryProps {
     children: ReactNode;
-    /** Called when the user clicks "Retry" — typically App.tsx bumps a
+    /** Called when the user clicks "Retry". Typically App.tsx bumps a
      *  remount key so the wizard's state is freshly initialised. */
     onRetry?: () => void;
-    /** Called when the user clicks "Skip wizard" from the error fallback —
-     *  treat the same as a normal Skip (sets dismissal flag, dismisses). */
+    /** Called when the user clicks "Skip wizard" from the error fallback.
+     *  Treat the same as a normal Skip (sets dismissal flag, dismisses). */
     onSkip?:  () => void;
 }
 
@@ -1133,7 +1137,7 @@ export class WizardErrorBoundary extends Component<WizardErrorBoundaryProps, Wiz
     }
 }
 
-/* ─── UI primitives ──────────────────────────────────────────────────── */
+/* UI primitives */
 
 /** Animated step transition wrapper. */
 function StepPane(props: {
@@ -1145,9 +1149,9 @@ function StepPane(props: {
     // `inert` removes hidden panes from the tab/focus order entirely.
     // Without it, Tab can reach buttons inside inactive StepPanes because
     // `aria-hidden` on the wrapper div does not propagate to descendant
-    // elements matched by querySelectorAll.
-    // Spread as a plain object so TypeScript doesn't reject the attribute —
-    // `inert` is valid HTML5 but not yet in every JSX type set.
+    // elements matched by querySelectorAll. Spread as a plain object so
+    // TypeScript doesn't reject the attribute; `inert` is valid HTML5 but
+    // not yet in every JSX type set.
     const inertAttr = props.visible ? {} : { inert: true } as Record<string, boolean>;
     return (
         <div
@@ -1354,7 +1358,7 @@ function AxisEmptyState(props: { children: ReactNode }): ReactElement {
     );
 }
 
-/* ─── Helpers ────────────────────────────────────────────────────────── */
+/* Helpers */
 
 async function defaultFetchConnectors(): Promise<ConnectorOption[]> {
     const res = await fetch("/api/assistant/profiles");
@@ -1362,7 +1366,7 @@ async function defaultFetchConnectors(): Promise<ConnectorOption[]> {
     return (await res.json()) as ConnectorOption[];
 }
 
-/* ─── Styles ─────────────────────────────────────────────────────────── */
+/* Styles */
 
 const closeButtonStyle: React.CSSProperties = {
     flexShrink:   0,

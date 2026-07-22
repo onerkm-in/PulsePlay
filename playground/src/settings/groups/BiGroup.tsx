@@ -1,5 +1,5 @@
-// Settings is the canonical AUTHORING surface for the BI embed config.
-// App.tsx consumes `useEmbedConfig` (settings/embedConfigStore.ts) — edits
+// Settings is the canonical authoring surface for the BI embed config.
+// App.tsx consumes `useEmbedConfig` (settings/embedConfigStore.ts), so edits
 // here live-update the playground via the `pulseplay:embed-config-change`
 // event without a page refresh; cross-tab edits propagate via the `storage`
 // event.
@@ -25,7 +25,7 @@ export function BiGroup(): React.ReactElement {
         requestedVendor: biVendor,
         hasVendorEmbedConfig: hasEmbedConfig,
     });
-    // Progressive setup gates for the BI Setup header — mirrors AI Setup's
+    // Progressive setup gates for the BI Setup header, mirroring AI Setup's
     // gate ribbon.
     const biSetupGates = [
         { n: 1, label: "Vendor",       done: !!biVendor,                                     hint: "Power BI / Tableau / Qlik / Looker / Native canvas" },
@@ -36,8 +36,9 @@ export function BiGroup(): React.ReactElement {
 
     return (
         <section aria-labelledby="settings-bi-title">
-            {/* h2 kept for a11y but visually hidden — the rail + status strip
-                already identify the page. Intro lives on the (i) HelpTip. */}
+            {/* h2 kept for a11y but visually hidden: the rail and status
+                strip already identify the page. Intro lives on the (i)
+                HelpTip. */}
             <h2 id="settings-bi-title" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>BI Setup</h2>
             <header style={{ marginBottom: 16 }}>
                 <div
@@ -95,7 +96,7 @@ export function BiGroup(): React.ReactElement {
                 </div>
             </header>
 
-            {/* ─── Tier 1: Current state ──────────────────────────────── */}
+            {/* Tier 1: current state */}
             <SubSection
                 label="Current state"
                 helper="Active provider and allowlist. The sections below either configure them or surface the policy that governs them."
@@ -114,8 +115,8 @@ export function BiGroup(): React.ReactElement {
                     ],
                 }}
             >
-                {/* Picks the author's `biVendor` INTENT; the separate
-                  * Surface-mode control below decides what actually mounts. */}
+                {/* Picks the author's `biVendor` intent; the separate
+                  * surface-mode control below decides what actually mounts. */}
                 <VendorModeCards
                     allowed={allowedProviders}
                     value={biVendor}
@@ -134,7 +135,7 @@ export function BiGroup(): React.ReactElement {
 
             </SubSection>
 
-            {/* ─── Tier 2: Connect and embed ──────────────────────────── */}
+            {/* Tier 2: connect and embed */}
             <SubSection
                 label="Connect and embed"
                 helper="Wire the vendor connection, token mode, and workspace/report IDs. Edits live-update without a refresh."
@@ -215,7 +216,7 @@ export function BiGroup(): React.ReactElement {
 
             </SubSection>
 
-            {/* ─── Tier 3: Governance and policy ──────────────────────── */}
+            {/* Tier 3: governance and policy */}
             <SubSection
                 label="Governance and policy"
                 helper="Read-only governance and license posture surrounding the active provider. Admin-configured, surfaced here so you know what to ask for."
@@ -347,17 +348,18 @@ function BiSurfaceModeControl(props: {
     );
 }
 
-// ─── Shared leaf renderer + small helpers (used by every group) ──────────
+// Shared leaf renderer and small helpers, used by every group.
 
 function normalizeBiTileMode(value: unknown): "1" | "2" | "4" {
     const asString = String(value ?? "").trim();
     return asString === "2" || asString === "4" ? asString : "1";
 }
 
-/** Convert a leaf label into a stable URL slug for deep linking.
- *  e.g. "AI Insights setup ↗" → "ai-insights-setup"
- *  Pure ASCII output; non-ASCII characters are stripped so a copy-paste
- *  from the URL bar always works regardless of locale. */
+/** Convert a leaf label into a stable URL slug for deep linking, e.g.
+ *  "AI Insights setup" becomes "ai-insights-setup". Output is pure ASCII;
+ *  non-ASCII characters (including any decorative arrow glyphs in labels)
+ *  are stripped so a copy-paste from the URL bar always works regardless
+ *  of locale. */
 export function leafSlug(label: string): string {
     return label
         .toLowerCase()
@@ -367,7 +369,7 @@ export function leafSlug(label: string): string {
 
 /**
  * Visual sub-section divider for progressive grouping inside a Settings
- * group. NOT a Leaf — it does NOT participate in the GROUP_LEAF_LABELS
+ * group. Not a Leaf, and it does not participate in the GROUP_LEAF_LABELS
  * drift dictionary: the drift-prevention test extracts labels from
  * `data-leaf-label="true"`, while SubSection uses
  * `data-subsection-label="true"` so it's identifiable but not counted.
@@ -399,9 +401,9 @@ export function SubSection(props: {
                 <h3
                     data-subsection-label="true"
                     style={{
-                        // Deliberately NO text-transform:uppercase — product
+                        // Deliberately no text-transform:uppercase. Product
                         // style is typographic case; callers already pass
-                        // Title/sentence-case labels.
+                        // title/sentence-case labels.
                         margin:        0,
                         fontSize:      12.5,
                         fontWeight:    700,
@@ -424,14 +426,14 @@ export function SubSection(props: {
 
 /**
  * Compact, parent-child friendly settings leaf.
- *   - `help` = structured tip — small `i` button beside the label opening a
- *     `HelpTip` portal-bubble. Use for explanatory prose.
- *   - `summary` = short single-line current-state hint. Use ONLY when the
- *     line is operationally useful at-a-glance.
- *   - `helper` = legacy plain-text paragraph. Still renders if no `help`
- *     is provided, so existing call sites keep working until migrated.
+ *   - `help` is a structured tip: a small `i` button beside the label that
+ *     opens a `HelpTip` portal-bubble. Use it for explanatory prose.
+ *   - `summary` is a short single-line current-state hint. Use it only when
+ *     the line is operationally useful at a glance.
+ *   - `helper` is a legacy plain-text paragraph. It still renders if no
+ *     `help` is provided, so existing call sites keep working until migrated.
  *
- * Do NOT hide visible warnings, validation errors, missing-prerequisites,
+ * Never hide visible warnings, validation errors, missing prerequisites,
  * destructive-action confirmations, or RLS gaps behind a tip.
  */
 export interface LeafHelp {
@@ -443,7 +445,7 @@ export function Leaf(props: {
     label: string;
     /** Compact one-line current-state hint. Use sparingly. */
     summary?: string;
-    /** Structured help bubble — opens a HelpTip beside the label. */
+    /** Structured help bubble; opens a HelpTip beside the label. */
     help?: LeafHelp;
     /** Legacy plain-text paragraph. Migration path: replace with `help`. */
     helper?: string;
@@ -454,7 +456,7 @@ export function Leaf(props: {
     const id = props.group ? `settings-${props.group}-${slug}` : undefined;
     // Only render the legacy paragraph if no structured help is provided.
     // This is the lever that compacts the page: as call sites migrate from
-    // `helper` → `help`, the leaf collapses to label + tip + children.
+    // `helper` to `help`, the leaf collapses to label + tip + children.
     const showLegacyHelper = !props.help && !!props.helper;
     return (
         <article
@@ -502,7 +504,7 @@ function LeafDeepLinkButton(props: { group: string; slug: string; label: string 
                 setCopied(true);
                 window.setTimeout(() => setCopied(false), 1500);
             }
-        } catch { /* swallow — clipboard blocked or unavailable */ }
+        } catch { /* swallow; clipboard blocked or unavailable */ }
     };
     return (
         <button
@@ -538,12 +540,12 @@ export function CurrentValue(props: { label: string; children: React.ReactNode }
     );
 }
 
-/* ─── Card-based BI vendor picker ───────────────────────────────────────
- * `biVendor` is the author's vendor INTENT (a distinct axis from the
- * surface MODE auto/native/vendor). Known vendor ids get a friendly label
- * + one-line description; unknown ids fall back to the raw id. "native" is
- * a real biVendor value (PulsePlay's own governed canvas), not just a
- * surface mode — so it appears as a card too. */
+/* Card-based BI vendor picker.
+ * `biVendor` is the author's vendor intent, a distinct axis from the
+ * surface mode (auto/native/vendor). Known vendor ids get a friendly label
+ * and one-line description; unknown ids fall back to the raw id. "native"
+ * is a real biVendor value (PulsePlay's own governed canvas), not just a
+ * surface mode, so it appears as a card too. */
 const VENDOR_META: Record<string, { label: string; desc: string }> = {
     powerbi:          { label: "Power BI",       desc: "Power BI client embed with a proxy-minted secure token." },
     tableau:          { label: "Tableau",        desc: "Tableau Embedding API surface (SDK adapter)." },

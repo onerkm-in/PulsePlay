@@ -1,11 +1,9 @@
-// ─── BundleSwitcher — the "AI & BI enabler" chained chip (ADR-0011) ───────
-//
-// Collapses the old two-knob vendor/connector pickers into ONE control:
-// a chained chip showing the bound pair `[Power BI ⇄ Genie]`.
-// Picking another bundle swaps BOTH axes atomically via the existing
-// governance-aware setters. Single live pane (Option A); simultaneous display
-// is deferred (Option B). The active bundle is a PURE PROJECTION of the
-// current (biVendor, aiProfile) — no new state.
+// BundleSwitcher, the "AI & BI enabler" chained chip (ADR-0011). Collapses
+// the old two-knob vendor/connector pickers into one control: a chip showing
+// the bound pair, e.g. Power BI with Genie. Picking another bundle swaps both
+// axes atomically through the existing governance-aware setters. The active
+// bundle is a pure projection of the current (biVendor, aiProfile); it keeps
+// no state of its own. Showing two panes at once is deferred.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSettings } from "../settings/settingsStore";
@@ -62,7 +60,7 @@ export function BundleSwitcher(): React.ReactElement | null {
         };
     }, [open]);
 
-    // Nothing to switch between → don't render the control at all.
+    // With nothing to switch between, don't render the control at all.
     if (bundles.length <= 1 && active) return null;
 
     const applyBundle = (b: ContextBundle) => {
@@ -136,7 +134,7 @@ export function BundleSwitcher(): React.ReactElement | null {
 
             {open && (
                 <>
-                {/* Backdrop — catches outside clicks so they close the menu
+                {/* Backdrop catches outside clicks so they close the menu
                     instead of leaking through to toolbar controls beneath the
                     overlay (the menu drops down over the Row-2 control strip). */}
                 <div

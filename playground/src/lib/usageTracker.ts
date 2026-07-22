@@ -2,9 +2,9 @@
 // from backends that report them (chat-completions shape), else char/4
 // estimation (Genie returns no token counts). Never persists across reloads.
 
-/** Tier thresholds (in TOTAL tokens for the session). Tuned so a typical
- *  3-4 question conversation lands in "lean" — the message is "PulsePlay is
- *  efficient by default; you have to work to make it heavy." */
+/** Tier thresholds in total tokens for the session. Tuned so a typical
+ *  3-4 question conversation lands in "lean": PulsePlay is efficient by
+ *  default, and you have to work to make it heavy. */
 export const TIER_THRESHOLDS = {
     LEAN: 2_000,
     GREEN: 8_000,
@@ -28,7 +28,7 @@ export interface SessionUsage {
     hasRealData: boolean;
     /** True when at least one entry was estimated (UI shows "~"). */
     hasEstimates: boolean;
-    /** Computed tier — drives the indicator's color/emoji. */
+    /** Tier computed from total tokens. */
     tier: GreennessTier;
 }
 
@@ -55,7 +55,7 @@ export interface RecordResponseInput {
 
 type UsageListener = (usage: SessionUsage) => void;
 
-/* ─── State ──────────────────────────────────────────────────────────── */
+/* State */
 
 let _state: SessionUsage = _empty();
 const _listeners = new Set<UsageListener>();
@@ -72,15 +72,15 @@ function _empty(): SessionUsage {
     };
 }
 
-/* ─── Public API ────────────────────────────────────────────────────── */
+/* Public API */
 
 /**
  * Record usage for a single LLM response. Accepts either a real `usage`
  * block from the backend OR `texts` for char-length estimation. Real data
  * wins when both are provided.
  *
- * Idempotent on identical input only by the caller's discipline — this
- * tracker assumes each call corresponds to one distinct LLM turn.
+ * The tracker assumes each call corresponds to one distinct LLM turn;
+ * callers are responsible for not recording the same turn twice.
  */
 export function recordResponse(input: RecordResponseInput): SessionUsage {
     const u = input.usage;
@@ -93,7 +93,7 @@ export function recordResponse(input: RecordResponseInput): SessionUsage {
         input_tokens = _coerceNumber(u.prompt_tokens) ?? _coerceNumber(u.input_tokens) ?? 0;
         output_tokens = _coerceNumber(u.completion_tokens) ?? _coerceNumber(u.output_tokens) ?? 0;
         if (input_tokens === 0 && output_tokens === 0 && _coerceNumber(u.total_tokens)) {
-            // Backend gave total only — split 70/30 input/output as a rough heuristic.
+            // The backend gave a total only, so split 70/30 input/output as a rough heuristic.
             const total = _coerceNumber(u.total_tokens) || 0;
             input_tokens = Math.round(total * 0.7);
             output_tokens = total - input_tokens;
@@ -149,7 +149,7 @@ export function resetSessionUsage(): void {
 }
 
 
-/* ─── Internals ─────────────────────────────────────────────────────── */
+/* Internals */
 
 function _computeTier(total: number): GreennessTier {
     if (total === 0) return "ready";

@@ -1,8 +1,8 @@
 // React wrapper that mounts Pulse's ported `Visual` class into a PulsePlay
 // panel: PulseHostStub as the IVisualHost, plus a synthetic
-// VisualUpdateOptions (no PBI DataView — PulsePlay reads BI state from the
-// active adapter). Re-calls update() on resize / renderToken / BI context
-// change; schedules visual.destroy() on unmount.
+// VisualUpdateOptions. There is no PBI DataView; PulsePlay reads BI state
+// from the active adapter. Re-calls update() on resize, renderToken, or BI
+// context change, and schedules visual.destroy() on unmount.
 
 import { useEffect, useMemo, useRef } from "react";
 import { Visual } from "../pulse/visual";
@@ -33,7 +33,7 @@ export interface PulseShellProps {
     /** Recent canonical BI events from the active vendor adapter. PulseShell
      *  synthesises a `dataView.categorical` summary from these so Pulse's
      *  `contextBuilder.buildContext()` populates dimensions / availableFilters /
-     *  hasSelection. Undefined or empty → Pulse's empty-context behaviour. */
+     *  hasSelection. Undefined or empty gives Pulse's empty-context behaviour. */
     biEvents?: BIEvent[];
     /** Vendor identifier used as the queryName prefix when synthesising
      *  filter targets (e.g. `powerbi`, `tableau`). Default `bi`. */
@@ -82,8 +82,8 @@ export function PulseShell(props: PulseShellProps) {
         }
         visualRef.current = visual;
 
-        // Synthetic dataView carries the persisted settings bag
-        // (metadata.objects) AND the BI-derived categorical block when
+        // The synthetic dataView carries the persisted settings bag
+        // (metadata.objects) and the BI-derived categorical block when
         // present. Pulse's update() pipeline reads both.
         visual.update({
             viewport: viewportFromContainer(container, props.viewport),
@@ -148,24 +148,24 @@ export function PulseShell(props: PulseShellProps) {
         // Pulse owns a nested React root (mounted via `new Visual({...})` in
         // the mount effect above). Its visual.tsx attaches the
         // "pulseplay:pulse-surface-tab" listener inside its own useEffect,
-        // which runs in a microtask AFTER PulseShell's effects on the very
-        // first mount. A pure dispatch would miss the listener — the
+        // which runs in a microtask after PulseShell's effects on the very
+        // first mount. A pure dispatch would therefore miss the listener; the
         // symptom is "clicking Ask Pulse from BI lands on AI Insights".
         //
         // Two-pronged fix: (1) stash the desired tab on window so visual.tsx
-        // can read it on mount via useState initializer (no race), and
+        // can read it on mount via a useState initializer (no race), and
         // (2) dispatch the event a few times across paint frames for
         // already-mounted visuals that need to switch in-place. Both arms
-        // are needed: the stash handles cold-mount, the dispatch handles a
-        // genuine surface-navigation request.
+        // are needed: the stash handles the cold mount, the dispatch handles
+        // a genuine surface-navigation request.
         //
-        // 2026-05-28 FIX — this effect MUST depend on activeTabRequest ALONE.
-        // Previously `renderToken` was a dependency, so every settings/Adjust/
+        // This effect must depend on activeTabRequest alone. Previously
+        // `renderToken` was also a dependency, so every settings/Adjust/
         // refresh action (which bumps renderToken to re-render the visual)
-        // re-dispatched the App's requestedPulseTab over the user's CURRENT
+        // re-dispatched the App's requestedPulseTab over the user's current
         // tab. When requestedPulseTab was "chat" (sticky Ask Pulse), selecting
         // Adjust or clicking Refresh on AI Insights yanked the user back to
-        // Ask Pulse. A re-render is NOT a tab-change — only assert the tab
+        // Ask Pulse. A re-render is not a tab change, so only assert the tab
         // when the App actually requests a different one.
         const tab = props.activeTabRequest;
         (window as unknown as { __pulseplayInitialTab?: string }).__pulseplayInitialTab = tab;
@@ -192,12 +192,12 @@ export function PulseShell(props: PulseShellProps) {
                 maxWidth: "100%",
                 height: "100%",
                 minWidth: 0,
-                // MUST stay 0 — a fixed minHeight forces the shell taller
+                // Keep this at 0: a fixed minHeight forces the shell taller
                 // than mobile-landscape viewports (e.g. 667×375), pushing the
                 // composer off-screen. The chat-panel flex chain keeps content
                 // visible; visual.less @media rules handle height ≤ 480.
                 minHeight: 0,
-                // Do NOT declare `overflowY: auto` here — Pulse's own panes
+                // Don't declare `overflowY: auto` here. Pulse's own panes
                 // (`.gn-insights-pane`, `.gn-chat-area`) manage internal
                 // scroll, and an outer scroller caused a visible double
                 // scrollbar. Hidden overflow-x contains rogue horizontal
@@ -219,7 +219,7 @@ function buildSyntheticDataView(categorical: SyntheticCategorical | null): power
         metadata: { objects: buildPersistedObjectsBag().objects },
     };
     if (categorical) {
-        // Cast at the boundary — our synthetic shape is a strict subset of
+        // Cast at the boundary: our synthetic shape is a strict subset of
         // the full PBI DataViewCategorical (no values/measures, no
         // highlights). Pulse's buildContext() only reads the keys we
         // populate, so the narrower shape is safe.
@@ -247,7 +247,7 @@ interface SyntheticCategorical {
  * is unambiguous. Pages and selections are added as informational
  * dimensions so the AI sees navigation context too.
  *
- * Returns `null` when there's nothing useful to emit — keeps the
+ * Returns `null` when there's nothing useful to emit, which keeps the
  * settings-only update path fast for the no-BI-mounted case.
  */
 export function buildCategoricalFromBIEvents(
@@ -255,16 +255,16 @@ export function buildCategoricalFromBIEvents(
     vendor: string,
 ): SyntheticCategorical | null {
     if (!events.length) return null;
-    // Field name → set of values (insertion-order via Map).
+    // Map of field name to its set of values (insertion-order via Map).
     const fieldValues = new Map<string, Set<string | number>>();
     let activePage: string | null = null;
     const selectedDataPoints: Array<string | number> = [];
 
-    // PII redaction helper — applied to any string value before it
-    // enters the synthetic dataView. Numbers pass through (a fee amount
-    // is not PII; a card-number-shaped digit run becomes a string at the
-    // String() boundary below and gets the full pass). Defence-in-depth
-    // for `sendContextToGenie` — see docs/SECURITY_ARCHITECTURE.md § 6.1.
+    // PII redaction helper, applied to any string value before it enters
+    // the synthetic dataView. Numbers pass through (a fee amount is not
+    // PII; a card-number-shaped digit run becomes a string at the String()
+    // boundary below and gets the full pass). This is defence-in-depth for
+    // `sendContextToGenie`; see docs/SECURITY_ARCHITECTURE.md section 6.1.
     const scrub = (v: string | number): string | number => {
         if (typeof v === "number") return v;
         const r = redactPiiFromString(v);

@@ -114,7 +114,7 @@ export function AiGroup(): React.ReactElement {
     const allowedProfileNames = useMemo(() => {
         const fromAllowlist = allowlist?.aiProfiles || [];
         if (!profilesLoading && profiles.length > 0) {
-            // Intersect for the UI — proxy already filters but the
+            // Intersect for the UI. The proxy already filters, but the
             // intersection keeps order from the live /profiles fetch.
             return profiles
                 .map(p => p.name)
@@ -146,8 +146,8 @@ export function AiGroup(): React.ReactElement {
 
     // Progressive sections default to "all expanded" so a returning author
     // sees every configured control without re-expanding. Bookmark jump only
-    // scrolls — it does NOT toggle — so users don't lose context they had
-    // open elsewhere.
+    // scrolls, never toggles, so users don't lose context they had open
+    // elsewhere.
     const ALL_AI_SECTION_IDS = ["connector", "assistant", "context", "response", "surface"] as const;
     const [expandedAiSections, setExpandedAiSections] = useState<Set<string>>(() => new Set(ALL_AI_SECTION_IDS));
     const aiBookmarks: ReadonlyArray<BookmarkSection> = useMemo(() => [
@@ -178,7 +178,7 @@ export function AiGroup(): React.ReactElement {
 
     return (
         <section aria-labelledby="settings-ai-title">
-            {/* h2 kept for a11y but visually hidden — the rail already marks
+            {/* h2 kept for a11y but visually hidden: the rail already marks
                 the active group, so a visible heading would be duplicate
                 chrome. Intro text lives on the (i) HelpTip. */}
             <h2 id="settings-ai-title" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>AI Setup</h2>
@@ -245,10 +245,10 @@ export function AiGroup(): React.ReactElement {
                 </div>
             </header>
 
-            {/* Connector catalogue — surfaces ALL connector types from
+            {/* Connector catalogue. Surfaces every connector type from
               * /api/assistant/connector-types whether configured or not. Drop
               * a new manifest into proxy/lib/connectorManifests.js and a new
-              * card appears here without any UI code change. Sits ABOVE the
+              * card appears here without any UI code change. Sits above the
               * Assistant tier so users see the full menu before picking.
               */}
             <ProgressiveSection
@@ -276,7 +276,7 @@ export function AiGroup(): React.ReactElement {
                 />
             </ProgressiveSection>
 
-            {/* ─── Multi-Genie spaces — add/manage several Genie spaces as
+            {/* Multi-Genie spaces: add and manage several Genie spaces as
               * selectable connectors without editing config.json. Stored
               * client-side, used via inline credentials (the same mechanism
               * GenieClient.attachInlineCredentialsHeaders already sends). The
@@ -300,9 +300,9 @@ export function AiGroup(): React.ReactElement {
                 <GenieSpacesManager />
             </ProgressiveSection>
 
-            {/* Assistant — who is answering. Sits ahead of context / response
-              * tuning because nothing else matters until a working assistant
-              * is wired.
+            {/* Assistant: who is answering. Sits ahead of context and
+              * response tuning because nothing else matters until a working
+              * assistant is wired.
               */}
             <ProgressiveSection
                 anchorId="assistant"
@@ -350,8 +350,8 @@ export function AiGroup(): React.ReactElement {
                 )}
             </Leaf>
 
-            {/* Connection test lives inside the Assistant tier — the
-              * connection IS part of "who is answering". */}
+            {/* Connection test lives inside the Assistant tier because the
+              * connection is part of "who is answering". */}
             <Leaf
                 group="ai"
                 label="Connection test"
@@ -374,18 +374,18 @@ export function AiGroup(): React.ReactElement {
                 )}
             </Leaf>
 
-            {/* Power BI Q&A launch — renders ONLY for the
+            {/* Power BI Q&A launch. Renders only for the
               * `powerbi-semantic-model` profile. Opens /powerbi/qna; the proxy
-              * mints the dataset-scoped embed token, zero LLM calls on this
-              * path. */}
+              * mints the dataset-scoped embed token, and this path makes zero
+              * LLM calls. */}
             {isPowerBiSemanticModel && (
                 <Leaf
                     group="ai"
                     label="Power BI Q&A"
                     helper="Open Microsoft's natural-language Q&A surface bound to this dataset. The token mint stays server-side; PulsePlay makes no LLM call on this path. Microsoft is retiring Q&A on 31 Dec 2026 — for durable PBI natural-language work, use the powerbi-semantic-model deterministic DAX path."
                 >
-                    {/* Q&A EOL countdown chip — deprecation research in
-                     *  docs/research/EXTERNAL_REFERENCES.md. */}
+                    {/* Q&A end-of-life countdown chip. Deprecation research
+                     *  lives in docs/research/EXTERNAL_REFERENCES.md. */}
                     <div
                         role="status"
                         data-testid="powerbi-qna-eol-chip"
@@ -625,14 +625,14 @@ export function AiGroup(): React.ReactElement {
     );
 }
 
-// ─── AI Insights settings editor ────────────────────────────────────────
+// AI Insights settings editor
 
 function PulseAiInsightsSettingsPanel(props: {
     value: PulseAiVisualSettings;
     onChange: (patch: Partial<PulseAiVisualSettings>) => void;
     activeAiProfile: string;
     packSelection: PackSelection | null;
-    /** Allowed connector profile names — selectable as per-SQL-section targets. */
+    /** Allowed connector profile names, selectable as per-SQL-section targets. */
     profileNames: ReadonlyArray<string>;
 }): React.ReactElement {
     const { value, onChange } = props;
@@ -676,7 +676,7 @@ function PulseAiInsightsSettingsPanel(props: {
     }, [resolvedProfile, props.packSelection?.pack, props.packSelection?.subVertical, value.insightsDomain]);
 
     // Cache-first read of the discovery snapshot for the metric-direction
-    // auto-detect chip. No prefetch from Settings — only show the chip when
+    // auto-detect chip. Settings never prefetches; the chip only shows when
     // discovery already ran elsewhere (App / UnifiedAssistantSurface).
     const [snapshot, setSnapshot] = useState<DiscoverySnapshot | null>(null);
     const [autoDetectDismissed, setAutoDetectDismissed] = useState(false);
@@ -692,16 +692,17 @@ function PulseAiInsightsSettingsPanel(props: {
             subVertical: props.packSelection?.subVertical,
         })
             .then(snap => { if (!cancelled) setSnapshot(snap); })
-            .catch(() => { /* swallow — chip just stays hidden */ });
+            .catch(() => { /* swallow; the chip just stays hidden */ });
         return () => { cancelled = true; };
     }, [resolvedProfile, props.packSelection?.pack, props.packSelection?.subVertical]);
 
-    // 3rd fallback signal: UC Metric View MEASURE NAMES — not view titles,
+    // Third fallback signal: UC Metric View measure names, not view titles,
     // which are often technical (`vw_metric_*_flat`) and carry no semantic
-    // content the heuristic can match. Cost: 1 list call + N detail calls,
-    // limited to the first 5 views to avoid runaway fetching on large
+    // content the heuristic can match. Cost is 1 list call plus N detail
+    // calls, limited to the first 5 views to avoid runaway fetching on large
     // catalogs. If the catalog/schema defaults don't fit the user's profile,
-    // the fetch fails silently and the chip stays hidden — no error noise.
+    // the fetch fails silently and the chip stays hidden, with no error
+    // noise.
     const [ucMetricMeasureNames, setUcMetricMeasureNames] = useState<string[]>([]);
     useEffect(() => {
         if (!resolvedProfile) {
@@ -874,8 +875,8 @@ function PulseAiInsightsSettingsPanel(props: {
             />
 
             {/* Same preset library as the Pulse setupStep5 pane
-              * (insightsPresetLibrary.ts — SWOT/BCG/RFM/Pareto + pack
-              * presets) and same parameter editor. */}
+              * (insightsPresetLibrary.ts: SWOT/BCG/RFM/Pareto plus pack
+              * presets) and the same parameter editor. */}
             <Leaf
                 group="ai"
                 label="Custom sections preset library"
@@ -1057,16 +1058,16 @@ function PulseAiInsightsSettingsPanel(props: {
     );
 }
 
-// ─── Generate prompts from data context ─────────────────────────────────
+// Generate prompts from data context.
 //
 // Deterministic draft generation for the two prompt textareas, templated
-// from the cached DiscoverySnapshot (real measure/dimension/KPI names only —
-// see promptDraftGenerator.ts honesty contract). Applying NEVER happens
-// silently over existing text: non-empty targets get explicit
+// from the cached DiscoverySnapshot (real measure/dimension/KPI names only;
+// see the honesty contract in promptDraftGenerator.ts). Applying never
+// happens silently over existing text: non-empty targets get explicit
 // Replace / Append choices, empty targets a plain Apply.
 
 function PromptDraftPanel(props: {
-    /** Undefined when no profile is resolved — button disabled with hint. */
+    /** Undefined when no profile is resolved; the button is disabled with a hint. */
     onGenerate?: () => Promise<PromptDrafts | null>;
     currentInsightsPrompt: string;
     currentGuidance: string;
@@ -1402,17 +1403,17 @@ const settingsInputStyle: React.CSSProperties = {
     padding: "8px 10px",
     border: "1px solid var(--pp-border, rgba(0,0,0,0.18))",
     borderRadius: 5,
-    // MUST stay theme-aware — a hardcoded near-white background here made
-    // every settings select/input/textarea white-on-white in dark mode
-    // (inherited light --pp-text). --pp-surface-raised is #fff in light,
-    // #1c2128 in dark, so text stays legible in both.
+    // This background has to stay theme-aware. A hardcoded near-white value
+    // here made every settings select/input/textarea white-on-white in dark
+    // mode (inherited light --pp-text). --pp-surface-raised is #fff in
+    // light, #1c2128 in dark, so text stays legible in both.
     background: "var(--pp-surface-raised, #fff)",
     boxShadow: "inset 0 1px 2px rgba(15, 23, 42, 0.07), 0 1px 2px rgba(15, 23, 42, 0.04)",
     color: "var(--pp-text, #0f172a)",
     fontSize: 12,
 };
 
-// ─── Supervisor fan-out table (read-only) ───────────────────────────────
+// Supervisor fan-out table (read-only)
 
 interface SupervisorFanOutTableProps {
     profile: ProfileMetadata;
@@ -1458,7 +1459,7 @@ function SupervisorFanOutTable(props: SupervisorFanOutTableProps): React.ReactEl
     );
 }
 
-// ─── Supervisor probe matrix ────────────────────────────────────────────
+// Supervisor probe matrix
 
 interface ProbeState {
     space: string;
@@ -1468,7 +1469,7 @@ interface ProbeState {
     inferredPack?: string | null;
 }
 
-const SUPERVISOR_STAGGER_MS = 2000; // ADR-0003
+const SUPERVISOR_STAGGER_MS = 2000; // see docs/adr/0003-supervisor-stagger.md
 
 function SupervisorProbeMatrix(props: { spaces: string[] }): React.ReactElement {
     const [states, setStates] = useState<ProbeState[]>(() =>
@@ -1507,8 +1508,8 @@ function SupervisorProbeMatrix(props: { spaces: string[] }): React.ReactElement 
             }
         };
 
-        // Staggered parallel launch — each probe starts SUPERVISOR_STAGGER_MS
-        // after the previous so a thundering-herd doesn't spike the proxy.
+        // Staggered parallel launch: each probe starts SUPERVISOR_STAGGER_MS
+        // after the previous so a thundering herd doesn't spike the proxy.
         const promises: Promise<void>[] = [];
         for (let i = 0; i < props.spaces.length; i += 1) {
             const name = props.spaces[i];
@@ -1589,7 +1590,7 @@ function SupervisorProbeMatrix(props: { spaces: string[] }): React.ReactElement 
     );
 }
 
-// ─── Small deep-link button ─────────────────────────────────────────────
+// Small deep-link button
 
 function DeepLinkButton(props: { label: string; onClick: () => void }): React.ReactElement {
     return (
