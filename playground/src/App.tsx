@@ -28,14 +28,7 @@ import type { BIAdapter, BICapabilities, BICommand, BIEvent, BIEmbedConfig } fro
 import type powerbi from "./pulse/_adapter/powerbi-visuals-api";
 import { Icon } from "./pulse/_adapter/Icon";
 import { UnifiedAssistantSurface, type AnswerEntry, type AutoSubmitQuestionEvent } from "./components/UnifiedAssistantSurface";
-// SustainabilityIndicator dropped 2026-05-23 per user feedback — the gauge
-// wasn't earning the visual real estate it was using. Component file +
-// usageTracker remain in the codebase as dead-but-tested code in case a
-// future cycle wants to re-introduce session-cost telemetry differently.
 import { entryToAIResultEnvelope } from "./visualization/entryToEnvelope";
-// Phase A 2026-05-23 — VendorPicker / ConnectorPicker / EmbedConfigForm
-// were the main-viewport pickers leaking the Settings UI. They now live
-// only inside playground/src/settings/groups/{BiGroup,AiGroup}.tsx.
 import { useEmbedConfig } from "./settings/embedConfigStore";
 import { warmGenieWarehouse, startWarehouseKeepalive, stopWarehouseKeepalive } from "./lib/warehouseWarmup";
 import { FirstRunWizard, WizardErrorBoundary, shouldShowWizard, type PersonaKey } from "./components/FirstRunWizard";
@@ -1777,15 +1770,8 @@ function PlaygroundApp(): React.ReactElement {
                                     </Suspense>
                                 </>
                             ) : (
-                                // UX-ARCH-0B.2 Phase A — v0 mode no longer renders
-                                // BiSurfaceModeMiniControl / VendorPicker / EmbedConfigForm
-                                // / ConnectorPicker / TestConnectionPanel / PackPicker in
-                                // the main viewport. Each of these has a canonical home
-                                // in Settings (BiGroup / AiGroup); the duplicate inline
-                                // mounts here were the "scattered settings leaking into
-                                // the main screen" the 2026-05-23 audit traced. The
-                                // UnifiedAssistantSurface is the single thing the
-                                // default uiMode should show.
+                                // v0 mode renders ONLY the assistant surface — pickers/
+                                // config panels live in Settings, never inline here.
                                 <UnifiedAssistantSurface
                                     activeVendor={runtimeBiVendor}
                                     activeConnector={activeConnector}

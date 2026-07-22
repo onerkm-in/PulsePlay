@@ -12,10 +12,8 @@
 //   4. sectionPresetId?    — optional AI Insights section preset to pre-load
 //                            (resolved against CUSTOM_SECTION_PRESETS)
 //
-// This supersedes the older `layoutPresets.ts` facade (which mapped to the
-// pre-2026-05-25 enabledComponents model and was never given a picker). The
-// canonical layout is now the per-tab-visibility model, so templates write
-// `tabVisibility` + `defaultLandingSurface` instead of enabledComponents.
+// The canonical layout is the per-tab-visibility model — templates write
+// `tabVisibility` + `defaultLandingSurface`, never enabledComponents.
 
 import type { TabVisibility, DefaultLandingSurface } from "./settingsStore";
 import {

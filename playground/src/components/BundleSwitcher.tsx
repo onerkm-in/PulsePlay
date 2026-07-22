@@ -1,7 +1,7 @@
 // ─── BundleSwitcher — the "AI & BI enabler" chained chip (ADR-0011) ───────
 //
-// Collapses the two-knob (VendorPicker + ConnectorPicker) anti-pattern into
-// ONE control: a chained chip showing the bound pair `[Power BI ⇄ Genie]`.
+// Collapses the old two-knob vendor/connector pickers into ONE control:
+// a chained chip showing the bound pair `[Power BI ⇄ Genie]`.
 // Picking another bundle swaps BOTH axes atomically via the existing
 // governance-aware setters. Single live pane (Option A); simultaneous display
 // is deferred (Option B). The active bundle is a PURE PROJECTION of the

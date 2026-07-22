@@ -38,8 +38,6 @@ import type { BIEvent } from "../biPanel/BIAdapter";
 import type { PackSelection } from "./PackPicker";
 import { FramePicker } from "./FramePicker";
 import { getDiscoverySnapshot, type DiscoverySnapshot, type ReachableFrame } from "../lib/discoveryClient";
-// SustainabilityIndicator is mounted once in App.tsx as a fixed bottom-right
-// orb; UnifiedAssistantSurface no longer renders its own chip.
 import { recordResponse as recordUsageResponse } from "../lib/usageTracker";
 import { EvidenceDrawer, type EvidenceItem } from "./EvidenceDrawer";
 import { dumpRun, resetRun, stageEnd, stageStart } from "../lib/perfInstrumentation";

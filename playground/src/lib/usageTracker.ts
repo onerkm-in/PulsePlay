@@ -1,22 +1,6 @@
-// playground/src/lib/usageTracker.ts
-//
-// Session-wide token usage tracker. Powers the SustainabilityIndicator in
-// the UnifiedAssistantSurface footer — PulsePlay's "fewer tokens, better accuracy" motto
-// visible to the end-user.
-//
-// Two data sources:
-//   1. Real `usage` blocks from backends that report them (OpenAI /
-//      Foundation Model / Bedrock-Llama all return `usage: { prompt_tokens,
-//      completion_tokens, total_tokens }` in chat-completions shape).
-//   2. Heuristic char/4 estimation for backends that don't (Genie returns
-//      narrative + SQL but no token counts).
-//
-// The tracker keeps a single `SessionUsage` aggregate keyed by tab/window
-// session — it never persists across reloads, and resetting is exposed for
-// "new conversation" UX.
-//
-// Subscribers (the indicator) re-render via subscribe()/unsubscribe(). The
-// pattern matches discoveryClient.ts's event bus.
+// Session-wide token usage tracker. Two data sources: real `usage` blocks
+// from backends that report them (chat-completions shape), else char/4
+// estimation (Genie returns no token counts). Never persists across reloads.
 
 /** Tier thresholds (in TOTAL tokens for the session). Tuned so a typical
  *  3-4 question conversation lands in "lean" — the message is "PulsePlay is
@@ -164,75 +148,6 @@ export function resetSessionUsage(): void {
     _notify();
 }
 
-/** Map a tier to its display label. */
-export function tierLabel(tier: GreennessTier): string {
-    switch (tier) {
-        case "ready": return "Ready";
-        case "lean": return "Lean";
-        case "green": return "Green";
-        case "moderate": return "Moderate";
-        case "heavy": return "Heavy";
-        case "very-heavy": return "Very heavy";
-    }
-}
-
-/** Map a tier to its CSS color hint (consumed by SustainabilityIndicator).
- *  Names match the project's existing palette; hardcoded fallback for
- *  environments where the variables aren't defined. */
-export function tierColor(tier: GreennessTier): string {
-    switch (tier) {
-        case "ready": return "var(--pp-leaf-ready, #9ca3af)";       // neutral grey
-        case "lean": return "var(--pp-leaf-lean, #15803d)";          // bright green
-        case "green": return "var(--pp-leaf-green, #16a34a)";        // green
-        case "moderate": return "var(--pp-leaf-moderate, #ca8a04)";  // amber
-        case "heavy": return "var(--pp-leaf-heavy, #ea580c)";        // orange
-        case "very-heavy": return "var(--pp-leaf-very-heavy, #dc2626)"; // red
-    }
-}
-
-/** Map a tier to the visible leaf/face emoji. The user explicitly asked
- *  for "green leaf happy icon" + "smile". Other tiers degrade gracefully. */
-export function tierEmoji(tier: GreennessTier): string {
-    switch (tier) {
-        case "ready": return "🌱";
-        case "lean": return "🍃";
-        case "green": return "🍃";
-        case "moderate": return "🍂";
-        case "heavy": return "🍂";
-        case "very-heavy": return "🍁";
-    }
-}
-
-/** Map a tier to a smile/expression emoji shown alongside the leaf. */
-export function tierFace(tier: GreennessTier): string {
-    switch (tier) {
-        case "ready": return "🙂";
-        case "lean": return "😄";
-        case "green": return "🙂";
-        case "moderate": return "😐";
-        case "heavy": return "😕";
-        case "very-heavy": return "☹️";
-    }
-}
-
-/** Brand-message line shown in the tooltip. Picks one of three taglines
- *  by tier so the same user doesn't see identical copy across questions. */
-export function tierTagline(tier: GreennessTier): string {
-    switch (tier) {
-        case "ready":
-            return "Ready when you are. PulsePlay aims for fewer tokens, better accuracy — the lean-and-mean solution.";
-        case "lean":
-            return "Lean and mean. Best accuracy at the lowest cost — the best of both worlds.";
-        case "green":
-            return "Still green. Efficient queries; accurate answers. The lean-and-mean approach is working.";
-        case "moderate":
-            return "Moderate use. Quality answers, fair cost. Consider tightening the next question's scope.";
-        case "heavy":
-            return "Heavy session. Lots of context in play; consider starting a fresh conversation to reset.";
-        case "very-heavy":
-            return "Very heavy session. Aggregate context is large; a fresh conversation will be cheaper and likely more accurate.";
-    }
-}
 
 /* ─── Internals ─────────────────────────────────────────────────────── */
 

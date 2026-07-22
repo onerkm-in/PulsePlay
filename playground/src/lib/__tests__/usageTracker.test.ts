@@ -1,18 +1,9 @@
-// playground/src/lib/__tests__/usageTracker.test.ts
-//
-// usageTracker — session-wide token accounting for the SustainabilityIndicator.
-
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
     recordResponse,
     getSessionUsage,
     subscribeUsage,
     resetSessionUsage,
-    tierLabel,
-    tierColor,
-    tierEmoji,
-    tierFace,
-    tierTagline,
     __resetUsageTrackerForTests,
     TIER_THRESHOLDS,
 } from "../usageTracker";
@@ -195,37 +186,5 @@ describe("subscribeUsage / resetSessionUsage", () => {
         } finally {
             unsubscribe();
         }
-    });
-});
-
-/* ─── Tier display helpers ──────────────────────────────────────────── */
-
-describe("tier display helpers", () => {
-    it("tierLabel returns human-readable labels", () => {
-        expect(tierLabel("ready")).toBe("Ready");
-        expect(tierLabel("lean")).toBe("Lean");
-        expect(tierLabel("very-heavy")).toBe("Very heavy");
-    });
-
-    it("tierColor returns CSS color hints", () => {
-        expect(tierColor("lean")).toMatch(/var\(--pp-leaf-lean/);
-        expect(tierColor("very-heavy")).toMatch(/var\(--pp-leaf-very-heavy/);
-    });
-
-    it("tierEmoji returns leaf emoji per tier", () => {
-        expect(tierEmoji("ready")).toBe("🌱");
-        expect(tierEmoji("lean")).toBe("🍃");
-        expect(tierEmoji("very-heavy")).toBe("🍁");
-    });
-
-    it("tierFace returns expressive face per tier", () => {
-        expect(tierFace("lean")).toBe("😄");
-        expect(tierFace("very-heavy")).toBe("☹️");
-    });
-
-    it("tierTagline returns the brand-message line", () => {
-        expect(tierTagline("ready")).toMatch(/Ready/);
-        expect(tierTagline("lean")).toMatch(/best of both worlds|Lean and mean/);
-        expect(tierTagline("very-heavy")).toMatch(/fresh conversation/);
     });
 });

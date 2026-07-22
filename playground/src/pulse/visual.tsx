@@ -175,8 +175,6 @@ import { useAskPulseHomeMeta } from "../features/config/useAskPulseHomeMeta";
 import "../visualization/translators";  // side-effect: registers translators
 import { resolveChartSpec } from "../visualization/translators";
 import { irMarkToChartKind } from "../visualization/chartIR";
-// SustainabilityIndicator is mounted once in App.tsx as a fixed bottom-right
-// orb; pulse/visual.tsx no longer renders its own chip.
 // Wave 44 — Power BI theme inheritance + per-element typography. Pure
 // helpers; the Visual class flushes the resulting plan onto `this.target`.
 import { planThemeWrites, applyThemeWrites } from "./themeInheritance";
