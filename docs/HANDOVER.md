@@ -5,6 +5,27 @@
 
 ---
 
+## 2026-07-23 (later) — Rebuild-spec gap audit + 8 fixes shipped + Phase 3 foundation
+
+A rebuild-spec document (partial — message-length-truncated after §5.4 backend path #10) was diffed against the repo via 12 parallel research agents (6 evidence-gathering against an earlier business-foundation spec, 6 line-by-line spec-diffs against the rebuild spec). Full Phase 1 audit (Sections A-D) posted in-conversation; not re-duplicated here. User authorized "beast mode — do it all" after one explicit security decision (flip `AI_ALLOW_DEMO_PERSONA` default). Eight small, independently-gated fixes shipped, each its own commit:
+
+1. **`b4e9ab1`** `AI_ALLOW_DEMO_PERSONA` now defaults `false` (`proxy/lib/actionInsights.js`) — was default-`true`, letting any client without a verified IdP role self-declare `x-pp-persona: Supply Chain Manager` and get HITL-approver capability; `app.yaml` never overrode it.
+2. **`ec4e665`** `BundleSwitcher` truth-chip fix — was reading `settings.biVendor` (requested vendor), not the runtime-resolved one; in auto-mode-with-no-embed-config it would claim e.g. Power BI is running when the surface silently fell back to native. Now wired to `App.tsx`'s already-computed `resolveBiSurfaceVendor()` output (`dashboardVendorLabel` was dead code, now used). Also fixed `applyBundle()` silently dropping the bundle's `pack` half of the documented atomic 3-axis swap.
+3. **`8b52c07`** OAuth token cache: FIFO-by-insertion → true LRU (cache hits now re-order the Map entry); early-refresh: fixed 5-min absolute window → 90%-of-token's-own-lifetime.
+4. **`10e140d`** `activeConnector` now auto-picks the first allowlisted AI profile (preferring non-`smoke_test`) when nothing is chosen yet, instead of staying empty until a manual pick.
+5. **`98aedc4`** Insights validators tightened to match their own documented contracts: RECOMMENDED ACTIONS now requires exactly 3 items (was 2-4) each with a numeric target/impact (was a floor of ≥1); RISKS now enforces the "bold-headed bullet" rule its own retry-prompt already claimed. Also fixed `countNumberedItems` silently capping recognition at 3 items regardless of true count.
+6. **`55e8b63`** Settings "Security" chip → "Allowlist", "Enforced" → "Strict" (copy drift from spec wording; behavior was already accurate).
+7. **`6be7aca`** ADR-0012: Action Insights (`/insights/action-insights/*`) is the real governance-plane HITL implementation — decided not to build a parallel ~40-route `/governance/*` family. Killswitch and several other named endpoints remain genuinely unbuilt.
+8. **`4bbf02b`** Phase 3 foundation (pure additive, zero live-routing change): expanded `connectorHost.js`'s required surface (`cfg`, `ensureWarehouseRunning`, `withGovernance`, `timeoutPolicy`, plus the three registries), and built `proxy/connectors/registries.js` (`conversationDispatch`, `callLlmProviders`, `sectionedRunners`) per the spec. Boot wiring constructs one instance of each and passes them into `buildConnectorHost()`, still gated behind `if (_connectors.length)` — confirmed still 0 (no real connector modules exist) via a clean dev boot with zero `[connectors]` log lines.
+
+**Validation across all 8:** proxy Jest 1290→1303 (+13), playground vitest 1903→1917 (+14, minus the earlier session's own net changes), lint/tsc clean throughout, full suite re-run after every single commit.
+
+**Attempted and deliberately stopped: connector porting itself.** Tried `embed.js` (`POST /assistant/embed-token/:vendor`) as the smallest-looking candidate — it's actually ~380 lines (`server.js:4634-5015`) needing `mintDatabricksAibiToken`, `hashServicePrincipalId`, `_databricksAibiCreds`, `_redactForEmbedTokenLog`, plus a large Power BI `GenerateToken` block, none of which belong on the shared host surface (single-connector-specific, the host contract explicitly forbids exposing those). **Finding for whoever continues Phase 3:** every connector needs its private helpers extracted into standalone `proxy/lib/*.js` modules first (independently testable), *then* a thin connector wrapper requires those libs + `host` and registers routes — not a mechanical cut-paste. `server.js` is still 9,207 lines (unchanged from the audit's Section A baseline); none of the 11 named connector modules exist yet. This is real, careful, per-connector work — extracting on the file that serves 100% of live Genie/FM/PBI/Supervisor traffic without a dedicated verify cycle per connector would be reckless.
+
+**Still open from the audit, not attempted this session:** `governance/*` route family beyond Action Insights (per ADR-0012, scope narrowed but killswitch etc. genuinely missing), `pbi-device-login/*` (0 code), `decision-assist/*` (0 code), durable audit sink for the general `auditLog()` (console-only today), the Genie-response-envelope-shape spec ambiguity (Section C risk note), `DecisionPromptStack` vs `ActionInsightsPanel` naming, `activeAiProfile` auto-heal semantics, `last-persona` wizard key. All carried forward as backlog, not silently dropped.
+
+Full audit detail (12-lane evidence + Section A-D matrix) lives in-conversation only as of this entry — worth re-deriving into a docs/ file if this thread's context is lost before Phase 3 continues.
+
 ## 2026-07-23 — Junk sweep: 142 stale scripts, dead code, comment strip (native surfaces)
 
 Rajesh asked for the "dirty remains" to go and comments cut to minimum. Four commits: `ede7254`, `c740964`, `a5d26d7`, `25f64ab`, all pushed.
