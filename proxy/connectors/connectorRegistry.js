@@ -32,7 +32,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const INFRA_FILES = Object.freeze(new Set(['connectorRegistry.js', 'connectorHost.js']));
+const INFRA_FILES = Object.freeze(new Set(['connectorRegistry.js', 'connectorHost.js', 'registries.js']));
 
 /**
  * Validate a module against the drop-in contract.

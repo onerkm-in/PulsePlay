@@ -27,6 +27,7 @@
 // small (see the contract rule above). server.js supplies each from closure.
 const REQUIRED_DEP_KEYS = Object.freeze([
     'app',                       // Express app — connectors wire their own routes
+    'cfg',                       // live proxy config (profiles, allowlist, ...)
     'auditLog',                  // structured audit row emitter
     'createProblem',             // RFC-9457 problem builder
     'sendProblem',               // problem responder
@@ -36,6 +37,12 @@ const REQUIRED_DEP_KEYS = Object.freeze([
     'profileAllowedForRequest',  // allowlist gate
     'databricksRequest',         // authenticated Databricks REST helper
     'spHashForProfile',          // service-principal identity hash for audit
+    'ensureWarehouseRunning',    // start-and-poll a stopped SQL warehouse
+    'withGovernance',            // stamp a response payload with a g3-v1 attestation
+    'timeoutPolicy',             // SIMPLE/COMPLEX request timeout constants
+    'conversationDispatch',      // registry: powers /assistant/conversations/start + /messages
+    'callLlmProviders',          // registry: Map<engine, build> for /insights/suggest-metric-rules
+    'sectionedRunners',          // registry: powers SSE /assistant/conversations/start-sectioned
 ]);
 
 // Optional shared helpers — wired only when the host supplies them, so the

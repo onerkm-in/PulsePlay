@@ -9112,13 +9112,18 @@ if (require.main === module) {
 try {
     const { discoverConnectors, registerConnectors } = require('./connectors/connectorRegistry');
     const { buildConnectorHost } = require('./connectors/connectorHost');
+    const { createConversationDispatch, createCallLlmProviders, createSectionedRunners } = require('./connectors/registries');
     const _connectorWarn = (msg) => console.warn(`[connectors] ${msg}`);
     const _connectors = discoverConnectors(path.join(__dirname, 'connectors'), { onWarn: _connectorWarn });
     if (_connectors.length) {
         const _connectorHost = buildConnectorHost({
-            app, auditLog, createProblem, sendProblem, sendNoMatchingProfile,
+            app, cfg, auditLog, createProblem, sendProblem, sendNoMatchingProfile,
             profileRegistry, profileByName, profileAllowedForRequest,
             databricksRequest, spHashForProfile, validateFrame, prependFrameContext,
+            ensureWarehouseRunning, withGovernance, timeoutPolicy: TIMEOUT_POLICY,
+            conversationDispatch: createConversationDispatch(),
+            callLlmProviders: createCallLlmProviders(),
+            sectionedRunners: createSectionedRunners(),
         });
         const _registered = registerConnectors(_connectors, _connectorHost, { onWarn: _connectorWarn });
         if (_registered.length) {
