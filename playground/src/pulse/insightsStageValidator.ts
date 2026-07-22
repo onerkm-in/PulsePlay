@@ -87,13 +87,24 @@ function isNumberedListBody(body: string): boolean {
 }
 
 function countNumberedItems(body: string): number {
-    const matches = body.match(/^\s*[123]\.\s+/gm);
+    // Any digit sequence, not capped at 1-3 — a genuinely 4+ item response
+    // must be counted accurately so callers with an exact-count contract
+    // (RECOMMENDED ACTIONS) can actually detect and reject it.
+    const matches = body.match(/^\s*\d+\.\s+/gm);
     return matches ? matches.length : 0;
 }
 
 function countBulletItems(body: string): number {
     const matches = body.match(/^\s*[-*•]\s+/gm);
     return matches ? matches.length : 0;
+}
+
+/** True when every list item (numbered or bulleted) starts with a bold
+ *  header, e.g. "1. **Customer concentration**: ..." or "- **Margin
+ *  compression**: ...". Used to enforce a "bold-headed bullets" contract. */
+function everyItemIsBoldHeaded(items: string[]): boolean {
+    if (items.length === 0) return false;
+    return items.every(item => /^\*\*[^*]+\*\*/.test(item.trim()));
 }
 
 function hasPipeTable(body: string): boolean {
@@ -166,10 +177,10 @@ function validateRecommendedActions(body: string): ValidationResult {
         };
     }
     const numItems = countNumberedItems(body);
-    if (numItems < 2 || numItems > 4) {
+    if (numItems !== 3) {
         return {
             ok: false,
-            reason: `expected 3 numbered items, got ${numItems}`,
+            reason: `expected exactly 3 numbered items, got ${numItems}`,
             retryDirective:
                 `STRUCTURAL FAILURE: your previous output had ${numItems} numbered items. ` +
                 "The contract requires EXACTLY 3 numbered items in RECOMMENDED ACTIONS. Rewrite with 3 actions.",
@@ -197,24 +208,22 @@ function validateRecommendedActions(body: string): ValidationResult {
                 "Each of the 3 items MUST begin with an imperative verb followed by a target and expected impact.",
         };
     }
-    // Cycle 47.5 — semantic check: each action should name an EXPECTED
-    // IMPACT, which the contract says is a metric ("lift margin by 1pp",
-    // "recover $50K", "defend 600-order base"). Live-test failure mode:
-    // the model emits imperative verbs but no metrics ("1. Reallocate
-    // budget to improve performance"). Floor: at least one item must
-    // contain a numeric token. Ceiling not enforced (the impact phrase
-    // sometimes shifts to "by Q4" / "this week" without numbers).
+    // Each action must name an EXPECTED IMPACT, which the contract says is a
+    // metric ("lift margin by 1pp", "recover $50K", "defend 600-order
+    // base"). Per-item, not a floor: "1. Reallocate budget to improve
+    // performance" (imperative verb, no metric) must fail even if the other
+    // two actions cite numbers.
     const items = listItemBodies(body);
-    const itemsWithMetric = items.filter(line => countNumericTokens(line) > 0).length;
-    if (items.length >= 2 && itemsWithMetric === 0) {
+    const itemsMissingMetric = items.filter(line => countNumericTokens(line) === 0).length;
+    if (items.length >= 2 && itemsMissingMetric > 0) {
         return {
             ok: false,
-            reason: "no actions cite a numeric target or impact",
+            reason: `${itemsMissingMetric} of ${items.length} actions cite no numeric target or impact`,
             retryDirective:
-                "SEMANTIC FAILURE: none of your numbered actions cite a NUMERIC target or expected impact " +
-                "(e.g. `lift margin by 1pp`, `recover $50K`, `defend 600-order base`). The contract requires " +
-                "each action to name a target metric and an expected impact in concrete numbers from the bound data. " +
-                "Rewrite each action with at least one specific metric value.",
+                "SEMANTIC FAILURE: one or more of your numbered actions does not cite a NUMERIC target or " +
+                "expected impact (e.g. `lift margin by 1pp`, `recover $50K`, `defend 600-order base`). The " +
+                "contract requires EVERY action to name a target metric and an expected impact in concrete " +
+                "numbers from the bound data. Rewrite each action with a specific metric value.",
         };
     }
     return { ok: true };
@@ -226,10 +235,21 @@ function validateRisks(body: string): ValidationResult {
     if (numItems < 2) {
         return {
             ok: false,
-            reason: `expected ~3 bullet/numbered items, got ${numItems}`,
+            reason: `expected at least 2 bullet/numbered items, got ${numItems}`,
             retryDirective:
-                "STRUCTURAL FAILURE: RISKS body must be a list of EXACTLY 3 risks (numbered or bulleted), " +
-                "each ≤20 words, leading with the risk in bold (`**risk name**: …`). Rewrite as a 3-item list.",
+                "STRUCTURAL FAILURE: RISKS body must be a list of at least 2 risks (numbered or bulleted), " +
+                "each ≤20 words, leading with the risk in bold (`**risk name**: …`). Rewrite as a bulleted list.",
+        };
+    }
+    const items = listItemBodies(body);
+    if (!everyItemIsBoldHeaded(items)) {
+        return {
+            ok: false,
+            reason: "one or more risk bullets does not lead with a bold header",
+            retryDirective:
+                "STRUCTURAL FAILURE: every risk bullet must lead with the risk name in bold, e.g. " +
+                "`**Customer concentration**: top 5 customers = 18% of sales`. Rewrite so every bullet starts " +
+                "with `**...**:`.",
         };
     }
     // Cycle 47.5 — semantic check: at least one risk should cite a
@@ -237,7 +257,6 @@ function validateRisks(body: string): ValidationResult {
     // bullets ("**Customer concentration**: a few customers drive most
     // sales") without the actual concentration percentage. Conservative
     // floor — only fails if NONE of the risks have a number.
-    const items = listItemBodies(body);
     const itemsWithMetric = items.filter(line => countNumericTokens(line) > 0).length;
     if (items.length >= 2 && itemsWithMetric === 0) {
         return {
