@@ -17,6 +17,8 @@ Rajesh asked for the "dirty remains" to go and comments cut to minimum. Four com
 
 **Validation:** proxy **1287/1287**, playground **1903/1903** (−44 vs 1947: deleted orphan tests + pruned tier-helper tests), lint + `vite build` clean.
 
+**Follow-up (`f2ffa88`):** Rajesh asked for the surviving comments to be rewritten "humanly, no LLM notation". Rewrote ~240 comments across the 14 touched files: box-drawing banners flattened, unicode arrows and em-dash fragment chains replaced with plain sentences, caps MUST/NEVER lowercased, remaining ticket tags dropped; every constraint kept. Same esbuild byte-identical proof; suites re-green. Standing rule saved as the `feedback_comment_style` memory — apply it to all future comment writing in this repo.
+
 ---
 
 ## 2026-07-03 (later) — RowNumber DAX fix + Action Insights mobile reachability + gate green
