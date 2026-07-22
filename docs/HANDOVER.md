@@ -5,6 +5,20 @@
 
 ---
 
+## 2026-07-23 — Junk sweep: 142 stale scripts, dead code, comment strip (native surfaces)
+
+Rajesh asked for the "dirty remains" to go and comments cut to minimum. Four commits: `ede7254`, `c740964`, `a5d26d7`, `25f64ab`, all pushed.
+
+**Stale scripts (`ede7254`).** `playground/scripts/` had 147 one-off probe/capture/validate `.mjs` from the 2026-05-21..06-06 debug sessions; deleted 142 (recoverable from git history). Kept the live harnesses: `smoke-all-screens.mjs` (CI smoke.yml), `verify-unified-screen-intense.mjs`, `verify-detach-mirroring.mjs`, `verify-nav-intense.mjs`, `docgen-render.mjs`, `test-suite/`. Also removed gitignored PNG leftovers + the untracked `playground/screenshots/` session evidence.
+
+**Dead code (`c740964`, `a5d26d7`).** Deleted (verified zero prod imports, comment-only refs): `pulse/backend/GenieBackend.ts`, `VendorPicker.tsx`, `SustainabilityIndicator.tsx`+test, `settings/layoutPresets.ts`+test. Dead exports removed: `CHART_LABELS`, `queryVectorSearch`+`VectorSearchResponse`, `classifyTimeoutMs`, `requestQuit`, `DEFAULT_AVAILABLE_PACKS`, `navigateToLaunchpad`, `navigateToMultiPaneDemo`, and usageTracker's five `tier*` display helpers (dead since the indicator was dropped 2026-05-23; `recordResponse` path untouched). **Kept deliberately (unwired-by-design scaffolds, NOT junk):** proxy prompt-IR subsystem (Phase 11a), `cellCatalog.ts`, `generatedDefaults.ts`, `useSectionedStream.ts`, `connectors/_template.js`. **Agent-claim tripwire again:** the scan agent called NativeCanvas.tsx dead — it's live via `bi-adapters/native/NativeBIAdapter.ts` (agent only searched `src/`). Verify before deleting.
+
+**Comment strip (`25f64ab`).** Comments-only pass over the 9 comment-densest PulsePlay-native files (App, settingsStore, UnifiedAssistantSurface, SettingsShell, NativeCanvas, FirstRunWizard, PulseShell, AiGroup, BiGroup): deleted dated cycle/phase/audit narration + past-refactor history (net −867 lines); kept every constraint/tripwire comment and one-line JSDoc. **Proof of safety: esbuild output of every trimmed file is byte-identical to HEAD** (comments cannot change compiled output). `pulse/*` port tree deliberately untouched (sibling parity + its own tripwire comments); proxy comments untouched (they're endpoint-contract docs).
+
+**Validation:** proxy **1287/1287**, playground **1903/1903** (−44 vs 1947: deleted orphan tests + pruned tier-helper tests), lint + `vite build` clean.
+
+---
+
 ## 2026-07-03 (later) — RowNumber DAX fix + Action Insights mobile reachability + gate green
 
 Follow-up session after Rajesh hit "Insight run stopped — HEADLINE could not finish" on mobile and asked where Action Insights lives. Commits `61e9ecb` (proxy) + `7d3308a` (playground), both pushed.
