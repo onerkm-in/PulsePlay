@@ -9,7 +9,10 @@
  * The OAuth M2M flow is tricky to test because:
  *   - It caches tokens at module scope (oauthTokenCache Map)
  *   - It uses single-flight via shared Promise to dedupe concurrent /oidc/v1/token
- *   - It refreshes 5min before expiry (TOKEN_EARLY_REFRESH_MS)
+ *   - It refreshes once a token has used 90% of its own lifetime
+ *     (TOKEN_EARLY_REFRESH_FRACTION), not a fixed absolute window
+ *   - A cache hit moves the entry to the end of the Map so eviction is
+ *     truly least-recently-used, not merely least-recently-inserted
  *
  * We mock global.fetch so no live Databricks workspace is required, and we
  * jest.isolateModules() per test so the module-scope cache starts fresh.
@@ -146,13 +149,12 @@ describe('Tier B Day 2 — token cache hit + early-refresh', () => {
         expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
-    test('cache refreshes when remaining lifetime is inside the early-refresh window (5 min)', async () => {
-        // Issue a token whose expires_in falls inside the 5-min refresh window.
-        // The helper's "hot path" is `expiresAt > Date.now() + TOKEN_EARLY_REFRESH_MS`,
-        // so a token with expires_in: 60s (well below 300s) forces a refresh.
+    test('cache refreshes once elapsed time crosses 90% of the token\'s own lifetime', async () => {
+        // A 100s-lifetime token has its early-refresh threshold at 90s
+        // elapsed. Verify both sides: still-cached before 90s, refreshed after.
         let issued = 0;
         const fetchMock = jest.fn().mockImplementation(() => Promise.resolve(fakeResponse({
-            json: { access_token: `tok-${++issued}`, expires_in: 60 }, // 60s → inside refresh window
+            json: { access_token: `tok-${++issued}`, expires_in: 100 },
         })));
         const mod = freshServer(fetchMock);
         const profile = {
@@ -162,12 +164,68 @@ describe('Tier B Day 2 — token cache hit + early-refresh', () => {
             clientSecret: 'sec',
         };
 
-        const a = await mod.resolveDatabricksOAuthToken(profile);
-        const b = await mod.resolveDatabricksOAuthToken(profile);
-        expect(a).toBe('tok-1');
-        // 60s < 5min refresh window → second call refreshes.
-        expect(b).toBe('tok-2');
-        expect(fetchMock).toHaveBeenCalledTimes(2);
+        const nowSpy = jest.spyOn(Date, 'now');
+        try {
+            const base = Date.now();
+            nowSpy.mockReturnValue(base);
+            const a = await mod.resolveDatabricksOAuthToken(profile);
+            expect(a).toBe('tok-1');
+
+            // 50s elapsed, well inside the 90s threshold → cache hit.
+            nowSpy.mockReturnValue(base + 50_000);
+            const b = await mod.resolveDatabricksOAuthToken(profile);
+            expect(b).toBe('tok-1');
+            expect(fetchMock).toHaveBeenCalledTimes(1);
+
+            // 95s elapsed, past the 90s threshold → refresh.
+            nowSpy.mockReturnValue(base + 95_000);
+            const c = await mod.resolveDatabricksOAuthToken(profile);
+            expect(c).toBe('tok-2');
+            expect(fetchMock).toHaveBeenCalledTimes(2);
+        } finally {
+            nowSpy.mockRestore();
+        }
+    });
+
+    test('a short-lived token (15min) refreshes at 90% of its own lifetime, not a fixed 5min-before-expiry window', async () => {
+        // Regression pin for the fixed-absolute-window bug: under the old
+        // TOKEN_EARLY_REFRESH_MS=5min logic, a 15min token would refresh at
+        // 10min elapsed (66% of lifetime), not ~90%. Verify the threshold
+        // actually scales with the token's own expires_in.
+        let issued = 0;
+        const fetchMock = jest.fn().mockImplementation(() => Promise.resolve(fakeResponse({
+            json: { access_token: `tok-${++issued}`, expires_in: 900 }, // 15min
+        })));
+        const mod = freshServer(fetchMock);
+        const profile = {
+            authMode: 'oauth-m2m',
+            host: 'https://w.example.com',
+            clientId: 'cid-short',
+            clientSecret: 'sec',
+        };
+
+        const nowSpy = jest.spyOn(Date, 'now');
+        try {
+            const base = Date.now();
+            nowSpy.mockReturnValue(base);
+            await mod.resolveDatabricksOAuthToken(profile);
+
+            // 11min elapsed (660s) — past the old fixed 5min-before-expiry
+            // window (would have refreshed under the bug), but still under
+            // 90% of a 900s lifetime (810s) → must still be a cache hit.
+            nowSpy.mockReturnValue(base + 660_000);
+            const b = await mod.resolveDatabricksOAuthToken(profile);
+            expect(b).toBe('tok-1');
+            expect(fetchMock).toHaveBeenCalledTimes(1);
+
+            // Past 810s (90% of 900s) → refresh.
+            nowSpy.mockReturnValue(base + 815_000);
+            const c = await mod.resolveDatabricksOAuthToken(profile);
+            expect(c).toBe('tok-2');
+            expect(fetchMock).toHaveBeenCalledTimes(2);
+        } finally {
+            nowSpy.mockRestore();
+        }
     });
 });
 
@@ -353,6 +411,44 @@ describe('Tier B Day 2 — LRU cache eviction', () => {
         // of OAUTH_CACHE_MAX.
         expect(mod.oauthTokenCache.size).toBeLessThanOrEqual(mod.OAUTH_CACHE_MAX);
         expect(mod.oauthTokenCache.size).toBeGreaterThanOrEqual(mod.OAUTH_CACHE_MAX - 5);
+    }, 30000);
+
+    test('a repeatedly-reused entry survives eviction ahead of an older entry that was only ever touched once', async () => {
+        // Regression pin for the FIFO-vs-LRU bug: a plain Map only orders by
+        // insertion, so an entry that keeps getting cache-hit (but was
+        // inserted first) would previously be evicted before a rarely-used
+        // entry inserted more recently. A cache hit must re-order the entry
+        // to the end of the Map so eviction tracks recency-of-use.
+        let issued = 0;
+        const fetchMock = jest.fn().mockImplementation(() => Promise.resolve(fakeResponse({
+            json: { access_token: `tok-${++issued}`, expires_in: 3600 },
+        })));
+        const mod = freshServer(fetchMock);
+        const profileFor = (i) => ({
+            authMode: 'oauth-m2m',
+            host: `https://w${i}.example.com`,
+            clientId: `cid-${i}`,
+            clientSecret: 'sec',
+        });
+
+        // Insert entry 0 first — the one we'll keep re-touching.
+        await mod.resolveDatabricksOAuthToken(profileFor(0));
+
+        // Fill up to the cap with entries 1..MAX-1, re-touching entry 0 after
+        // every insert so it stays at the "most recently used" end.
+        for (let i = 1; i < mod.OAUTH_CACHE_MAX; i++) {
+            await mod.resolveDatabricksOAuthToken(profileFor(i));
+            await mod.resolveDatabricksOAuthToken(profileFor(0));
+        }
+        expect(mod.oauthTokenCache.has('https://w0.example.com|cid-0')).toBe(true);
+
+        // One more distinct insert forces an eviction. It must take entry 1
+        // (inserted early, never touched again after its own insert) — not
+        // entry 0, which has been touched on every iteration since.
+        await mod.resolveDatabricksOAuthToken(profileFor(mod.OAUTH_CACHE_MAX));
+
+        expect(mod.oauthTokenCache.has('https://w0.example.com|cid-0')).toBe(true);
+        expect(mod.oauthTokenCache.has('https://w1.example.com|cid-1')).toBe(false);
     }, 30000);
 });
 

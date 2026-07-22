@@ -878,11 +878,18 @@ let azureCredential = null;
 const tokenCache = new Map(); // host → { token, expiresAt }
 const oauthTokenCache = new Map(); // host+client → { token, expiresAt, refreshPromise }
 
-// Tier B Day 1 — refresh window. Refresh tokens 5min before they actually
-// expire so a request that arrives at the boundary doesn't get a 401.
-const TOKEN_EARLY_REFRESH_MS = 5 * 60 * 1000;
+// Refresh a token once it has used this fraction of its lifetime, so a
+// request arriving near expiry doesn't get a 401. Computed per-token from
+// its own expires_in rather than a fixed window, since a short-lived token
+// (e.g. 15min) needs a much smaller absolute buffer than a 1hr one.
+const TOKEN_EARLY_REFRESH_FRACTION = 0.9;
 // Wave 28 — cap the OAuth cache so a multi-tenant deployment with many
-// rotating SPs can't grow it unbounded. LRU-evict oldest entry when full.
+// rotating SPs can't grow it unbounded. Evict the least-recently-used entry
+// when full; entries are moved to the end of the Map on every cache hit
+// (see resolveDatabricksOAuthToken) so Map iteration order tracks recency
+// of use, not just insertion — a plain insertion-order eviction would evict
+// a frequently-reused-but-long-ago-inserted entry ahead of a rarely-used
+// one inserted more recently.
 const OAUTH_CACHE_MAX = 1000;
 function evictOldestOauthEntryIfFull() {
     if (oauthTokenCache.size < OAUTH_CACHE_MAX) return;
@@ -916,8 +923,12 @@ async function resolveDatabricksOAuthToken(profile) {
     const cacheKey = `${host}|${clientId}`;
     const cached = oauthTokenCache.get(cacheKey);
 
-    // Hot path: cached token is still valid past the early-refresh window.
-    if (cached && cached.token && cached.expiresAt > Date.now() + TOKEN_EARLY_REFRESH_MS) {
+    // Hot path: cached token is still valid past the early-refresh threshold.
+    if (cached && cached.token && Date.now() < cached.earlyRefreshAt) {
+        // Move to the end of the Map (delete+re-set) so this entry counts
+        // as recently used for LRU eviction, not just recently inserted.
+        oauthTokenCache.delete(cacheKey);
+        oauthTokenCache.set(cacheKey, cached);
         return cached.token;
     }
 
@@ -949,11 +960,13 @@ async function resolveDatabricksOAuthToken(profile) {
         }
         const data = await response.json();
         const expiresInMs = Math.max(1, Number(data.expires_in || 3600)) * 1000;
+        const issuedAt = Date.now();
         // Wave 28 — LRU evict when cache is at cap before inserting.
         evictOldestOauthEntryIfFull();
         oauthTokenCache.set(cacheKey, {
             token: data.access_token,
-            expiresAt: Date.now() + expiresInMs,
+            expiresAt: issuedAt + expiresInMs,
+            earlyRefreshAt: issuedAt + expiresInMs * TOKEN_EARLY_REFRESH_FRACTION,
             refreshPromise: null,
         });
         return data.access_token;
