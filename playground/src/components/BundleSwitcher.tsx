@@ -25,9 +25,22 @@ function readAuthoredRaw(): string | null {
     }
 }
 
-export function BundleSwitcher(): React.ReactElement | null {
+export interface BundleSwitcherProps {
+    /** The BI surface actually rendering right now (from resolveBiSurfaceVendor),
+     *  which may differ from the author's requested `biVendor` (e.g. a "native"
+     *  fallback when no embed config exists). The chip must show this, not the
+     *  request, so it never claims a vendor is running when it isn't. */
+    runtimeVendor?: string;
+    /** Pre-formatted display label for runtimeVendor (e.g. "Pulse Canvas" for
+     *  a native fallback). Falls back to vendorLabel(biVendor) when omitted,
+     *  which reproduces the pre-fix (requested-vendor) behavior for callers
+     *  that don't yet track runtime resolution, such as isolated tests. */
+    runtimeVendorLabel?: string;
+}
+
+export function BundleSwitcher(props: BundleSwitcherProps = {}): React.ReactElement | null {
     const settings = useSettings();
-    const { biVendor, activeAiProfile, allowlist, setBiVendor, setActiveAiProfile } = settings;
+    const { biVendor, activeAiProfile, allowlist, setBiVendor, setActiveAiProfile, setPackSelection } = settings;
 
     const [open, setOpen] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -75,11 +88,18 @@ export function BundleSwitcher(): React.ReactElement | null {
             setError(r2.reason || "Could not switch AI brain.");
             return;
         }
+        if (b.pack) {
+            const r3 = setPackSelection({ pack: b.pack });
+            if (!r3.ok) {
+                setError(r3.reason || "Could not switch knowledge pack.");
+                return;
+            }
+        }
         setError(null);
         setOpen(false);
     };
 
-    const curVendorLabel = vendorLabel(biVendor);
+    const curVendorLabel = props.runtimeVendorLabel ?? vendorLabel(props.runtimeVendor ?? biVendor);
     const curProfileLabel = profileLabel(activeAiProfile);
 
     return (

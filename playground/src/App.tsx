@@ -1412,7 +1412,7 @@ function PlaygroundApp(): React.ReactElement {
                       * it only renders when Chat is enabled in Settings. */}
                     {/* BundleSwitcher (ADR-0011) swaps the bound (BI surface,
                       * AI brain) pair; self-hides when nothing to switch. */}
-                    <BundleSwitcher />
+                    <BundleSwitcher runtimeVendor={runtimeBiVendor} runtimeVendorLabel={dashboardVendorLabel} />
                     {allowChatSurface && <SurfaceModeChip currentMode={uiMode} />}
                     <SetupStatusPill readiness={setupReadiness} />
                 </div>
