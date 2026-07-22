@@ -1,12 +1,7 @@
-// playground/src/settings/groups/BiGroup.tsx
-//
-// Phase 3 (BI Live Controls, fix #6 from the Settings IA review).
-// Settings is the canonical AUTHORING surface for the Power BI embed
-// config. As of Phase B (2026-05-14) the Pulse sidebar's inline form
-// retired and App.tsx adopted `useEmbedConfig` from
-// `playground/src/settings/embedConfigStore.ts` — edits here live-update
-// the playground via the `pulseplay:embed-config-change` event without
-// a page refresh. Cross-tab edits also propagate via the `storage`
+// Settings is the canonical AUTHORING surface for the BI embed config.
+// App.tsx consumes `useEmbedConfig` (settings/embedConfigStore.ts) — edits
+// here live-update the playground via the `pulseplay:embed-config-change`
+// event without a page refresh; cross-tab edits propagate via the `storage`
 // event.
 
 import { useState } from "react";
@@ -30,10 +25,8 @@ export function BiGroup(): React.ReactElement {
         requestedVendor: biVendor,
         hasVendorEmbedConfig: hasEmbedConfig,
     });
-    // UX-ARCH-0B.2 Phase E 2026-05-23 — progressive setup state for the
-    // BI Setup page header. Mirrors AI Setup's gate ribbon so users see at-a-
-    // glance which steps are done. Three gates: vendor picked, embed wired
-    // (or native canvas chosen), governance review passed (allowlist healthy).
+    // Progressive setup gates for the BI Setup header — mirrors AI Setup's
+    // gate ribbon.
     const biSetupGates = [
         { n: 1, label: "Vendor",       done: !!biVendor,                                     hint: "Power BI / Tableau / Qlik / Looker / Native canvas" },
         { n: 2, label: "Embed",        done: hasEmbedConfig || biSurfaceMode === "native",   hint: "URL / IDs / iframe HTML, or native-canvas mode" },
@@ -41,15 +34,10 @@ export function BiGroup(): React.ReactElement {
     ];
     const completedBiGates = biSetupGates.filter(g => g.done).length;
 
-    // 2026-05-27 — biIntroText removed; intro now lives inside the HelpTip
-    // body next to the BI Setup header (see below). No more raw `title=`
-    // tooltip per Codex audit.
-
     return (
         <section aria-labelledby="settings-bi-title">
-            {/* UX-ARCH-0B.2 follow-up 2026-05-23 — h2 + intro hidden; intro
-                lives on the (i) tooltip. Page id is already obvious from rail
-                + status strip. */}
+            {/* h2 kept for a11y but visually hidden — the rail + status strip
+                already identify the page. Intro lives on the (i) HelpTip. */}
             <h2 id="settings-bi-title" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>BI Setup</h2>
             <header style={{ marginBottom: 16 }}>
                 <div
@@ -94,9 +82,6 @@ export function BiGroup(): React.ReactElement {
                             <span>{g.label}</span>
                         </span>
                     ))}
-                    {/* 2026-05-27 — replaced raw title-based `i` with shared HelpTip
-                        (Codex audit P0). HelpTip portal-renders, viewport-aware,
-                        keyboard + pointer accessible. */}
                     <div style={{ marginLeft: "auto" }}>
                         <HelpTip
                             label="About BI Setup"
@@ -129,12 +114,8 @@ export function BiGroup(): React.ReactElement {
                     ],
                 }}
             >
-                {/* 2026-05-28 — card-based vendor picker (replaces the
-                  * read-only "Vendor intent" line). Picks the author's
-                  * `biVendor` intent; the separate Surface-mode control below
-                  * decides what actually mounts. Cards are the allowlist-
-                  * allowed providers (falls back to the canonical set when
-                  * the allowlist is unavailable). */}
+                {/* Picks the author's `biVendor` INTENT; the separate
+                  * Surface-mode control below decides what actually mounts. */}
                 <VendorModeCards
                     allowed={allowedProviders}
                     value={biVendor}
@@ -386,31 +367,18 @@ export function leafSlug(label: string): string {
 
 /**
  * Visual sub-section divider for progressive grouping inside a Settings
- * group. NOT a Leaf — does NOT participate in the GROUP_LEAF_LABELS drift
- * dictionary. Used when a single Settings group has too many leaves for a
- * flat sibling list and needs the lifecycle pattern (At a glance / Configure /
- * Verify / Manage).
- *
- * Visual contract:
- *   - Stronger top divider than Leaf's borderTop (signals a new section)
- *   - Uppercase small-caps label (less prominent than the group <h2>,
- *     more prominent than the Leaf <h*> bold label)
- *   - Optional helper paragraph below the label
- *   - Children render below; they're typically a sequence of <Leaf>s
- *
- * The drift-prevention test extracts labels from `data-leaf-label="true"`;
- * SubSection uses `data-subsection-label="true"` so it's identifiable but
- * not treated as a leaf for the dictionary check.
+ * group. NOT a Leaf — it does NOT participate in the GROUP_LEAF_LABELS
+ * drift dictionary: the drift-prevention test extracts labels from
+ * `data-leaf-label="true"`, while SubSection uses
+ * `data-subsection-label="true"` so it's identifiable but not counted.
  */
 export function SubSection(props: {
     label:    string;
     helper?:  string;
     /**
      * Optional group id (e.g. "ai", "bi"). When provided, the SubSection
-     * emits `id="settings-${group}-${slug(label)}"` so it can act as a
-     * scroll-to anchor for the matching rail entry. Without this, clicking
-     * a rail item that points at a SubSection (e.g. "Connector catalogue")
-     * would land on no anchor. 2026-05-20 cycle 20.1 re-index follow-up.
+     * emits `id="settings-${group}-${slug(label)}"` so a rail entry pointing
+     * at a SubSection has a scroll-to anchor to land on.
      */
     group?:   string;
     children: React.ReactNode;
@@ -431,16 +399,9 @@ export function SubSection(props: {
                 <h3
                     data-subsection-label="true"
                     style={{
-                        // Codex 2026-05-19 naming audit fix:
-                        // "Convert all-caps Settings headings to product
-                        // Title Case." SubSection headings were
-                        // text-transform:uppercase with letter-spacing,
-                        // producing CURRENT STATE / CONNECT AND EMBED /
-                        // GENERATION BEHAVIOR. Switched to proper
-                        // typographic case: callers already pass labels in
-                        // Title or sentence case (e.g. "Current state",
-                        // "Connect and embed"), so we just stop forcing
-                        // uppercase and bump the size for legibility.
+                        // Deliberately NO text-transform:uppercase — product
+                        // style is typographic case; callers already pass
+                        // Title/sentence-case labels.
                         margin:        0,
                         fontSize:      12.5,
                         fontWeight:    700,
@@ -463,25 +424,12 @@ export function SubSection(props: {
 
 /**
  * Compact, parent-child friendly settings leaf.
- *
- * 2026-05-27 — refactored per Codex Settings handoff
- * (SETTINGS_PROGRESSIVE_PARENT_CHILD_CLAUDE_HANDOFF_2026-05-27.md, Slice 1).
- *
- * The old shape always rendered `helper` as a visible paragraph below the
- * label. With 41+ Leaf call sites that's 41+ visible paragraphs of inline
- * explanatory prose — the largest real-estate leak in Settings.
- *
- * New shape (backwards-compatible):
- *   - `help` = structured tip — renders as a small `i` button beside the
- *     label that opens a `HelpTip` portal-bubble. Use for explanatory
- *     prose, examples, where-this-is-saved, admin-only background, etc.
- *   - `summary` = short single-line current-state hint (e.g., "Saved
- *     locally", "3 profiles configured"). Renders inline under the label.
- *     Use ONLY when the line is operationally useful at-a-glance.
+ *   - `help` = structured tip — small `i` button beside the label opening a
+ *     `HelpTip` portal-bubble. Use for explanatory prose.
+ *   - `summary` = short single-line current-state hint. Use ONLY when the
+ *     line is operationally useful at-a-glance.
  *   - `helper` = legacy plain-text paragraph. Still renders if no `help`
  *     is provided, so existing call sites keep working until migrated.
- *
- * Mantra (Codex): Stay uniform. Stay simple. Stay lean. Stay clean.
  *
  * Do NOT hide visible warnings, validation errors, missing-prerequisites,
  * destructive-action confirmations, or RLS gaps behind a tip.
@@ -539,14 +487,10 @@ export function Leaf(props: {
 }
 
 /**
- * Tiny "Copy link" button next to each leaf header. Settings IA fix #8.
- *
- * Generates a path-based deep link (`/settings/<group>/<slug>`) and copies
- * it to the clipboard. The slug-based scroll-on-mount in `SettingsShell`
- * will land the recipient on this exact leaf when they paste the link.
- *
- * Falls back silently when `navigator.clipboard` is unavailable (older
- * browsers / insecure context); the "Copied" confirmation is suppressed.
+ * "Copy link" button next to each leaf header. Copies a path-based deep link
+ * (`/settings/<group>/<slug>`); the slug-based scroll-on-mount in
+ * `SettingsShell` lands the recipient on this exact leaf. Falls back
+ * silently when `navigator.clipboard` is unavailable (insecure context).
  */
 function LeafDeepLinkButton(props: { group: string; slug: string; label: string }): React.ReactElement {
     const [copied, setCopied] = useState(false);
@@ -594,7 +538,7 @@ export function CurrentValue(props: { label: string; children: React.ReactNode }
     );
 }
 
-/* ─── Card-based BI vendor picker (2026-05-28) ──────────────────────────
+/* ─── Card-based BI vendor picker ───────────────────────────────────────
  * `biVendor` is the author's vendor INTENT (a distinct axis from the
  * surface MODE auto/native/vendor). Known vendor ids get a friendly label
  * + one-line description; unknown ids fall back to the raw id. "native" is

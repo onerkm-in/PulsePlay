@@ -1,23 +1,16 @@
-// playground/src/settings/settingsStore.tsx
-//
 // The Settings canonical state surface. Owns reads + writes for the
-// `pulseplay:*` localStorage keys that the Settings page surfaces, and
-// re-validates every persisted value against the live allowlist on
-// load (closes L11 — XSS-persisted orphan values can no longer become
-// silent selections).
+// `pulseplay:*` localStorage keys the Settings page surfaces, and
+// re-validates every persisted value against the live allowlist on load
+// (XSS-persisted orphan values can't become silent selections).
 //
-// Coexistence with existing code: the playground today writes some keys
-// directly (App.tsx, small canvas toolbar). The store mirrors those
-// keys via the existing `pulseplay:display-change` window event AND its
-// own setters dispatch that same event. Net effect: store and legacy
-// paths stay in sync during Phase 2-3 migration. Phase 5 retires the
-// legacy paths.
+// Legacy paths (App.tsx) still write some keys directly. The store mirrors
+// those via the `pulseplay:display-change` window event AND its own setters
+// dispatch the same event, so store and legacy paths stay in sync.
 //
 // The broader `pulseplay:visual-settings:*` namespace is bridged by
-// `pulseVisualSettingsStore.ts` so the full Settings page can be the
-// single authoring surface. This store only mirrors the active AI profile
-// into Pulse's `genieSettings.assistantProfile` so the provider picker and
-// Pulse runtime stop drifting.
+// `pulseVisualSettingsStore.ts`; this store only mirrors the active AI
+// profile into Pulse's `genieSettings.assistantProfile` so the provider
+// picker and Pulse runtime don't drift.
 
 import {
     createContext,
@@ -38,7 +31,7 @@ import {
     type BiSurfaceMode,
 } from "./biSurfaceMode";
 
-// ─── Storage keys (mirrors App.tsx + Pulse Cycle H) ───────────────────────
+// ─── Storage keys (keep in sync with App.tsx) ────────────────────────────
 
 const KEY = {
     biVendor: "pulseplay:bi-vendor",
@@ -49,27 +42,19 @@ const KEY = {
     layoutMode: "pulseplay:layout-mode",
     biTileMode: "pulseplay:bi-tile-mode",
     activeAiProfile: "pulseplay:active-ai-profile",
-    // 2026-05-22 — author-configurable default landing tab. When set,
-    // overrides localStorage stickiness so every new visitor sees the
-    // author's chosen home tab. See App.tsx readInitialActiveSurface
-    // for the priority order (URL > this > stored > "ai-insights").
+    // Author-configurable default landing tab. See App.tsx
+    // readInitialActiveSurface for the priority order.
     defaultLandingSurface: "pulseplay:default-landing-surface",
-    // 2026-05-25 — per-tab-visibility model. ONE canonical layout
-    // (PulseShell 3-tab strip). Per-tab visibility booleans replace the
-    // enabledComponents (aiOnly/biOnly/mix/both) + layoutMode (left/
-    // right/top/bottom) enums in the user-facing Settings UI. The legacy
-    // enums stay as reducer state for backward-compat with stored
-    // values but are no longer the primary author control.
+    // Per-tab-visibility model: ONE canonical layout (PulseShell 3-tab
+    // strip). Per-tab booleans are the primary author control; the legacy
+    // enabledComponents/layoutMode enums stay as reducer state for
+    // backward-compat with stored values.
     tabVisibility: "pulseplay:tab-visibility",
-    // 2026-05-25 (evening) — Multi-page P1 parallel storage. Coexists
-    // with `pulseplay:tab-visibility` during the migration window so
-    // older sessions/exports continue to work. Page[] is the future-
-    // canonical shape; this commit just adds the field + migration.
+    // Multi-page parallel storage. Coexists with `pulseplay:tab-visibility`
+    // during the migration window so older sessions/exports keep working.
     pages: "pulseplay:pages",
-    // 2026-05-25 (evening) — Phase C scaffolding. Persisted pane registry
-    // so floating panes survive reload at their last positions. Today
-    // contains only the default 1-inline-per-page entries; consumers
-    // (detach overlay, per-pane state) wire in follow-up commits.
+    // Persisted pane registry so floating panes survive reload at their
+    // last positions.
     paneRegistry: "pulseplay:pane-registry",
 } as const;
 
@@ -105,31 +90,17 @@ import { resolveDefaultSurface } from "../featureRegistry/resolver";
  * Single source of truth for the cold-boot default surface. Imported by
  * App.tsx readInitialUiMode(), settingsStore readUiMode(), and the wizard's
  * persona presets — instead of each site hardcoding the same string.
- *
- * 2026-05-28: re-aligned to "pulse" (Workbench / PulseShell) per user
- * direction — "workbench is the one that we want". Workbench is the
- * feature-complete 3-tab surface (AI Insights / Ask Pulse / Dashboard).
- * "v0" (UnifiedAssistantSurface — the single-pane Chat surface) becomes
- * the opt-in alternative, surfaced only when an author enables it. The
- * escape hatch still works both ways via DevTools
- * `localStorage.setItem("pulseplay:ui-mode", "v0" | "pulse")`.
- *
- * (Supersedes the 2026-05-27 "v0 default" call — see project memory
- * project_uimode_default_p0.md.)
+ * "pulse" (Workbench) is the intentional default; "v0" (Chat) is opt-in.
+ * Dev escape hatch: `localStorage.setItem("pulseplay:ui-mode", "v0"|"pulse")`.
  */
 export const DEFAULT_UI_MODE: UiMode = "pulse";
 
 /**
- * Per-tab visibility booleans (2026-05-25). Each flag controls whether
- * the corresponding tab button renders in the PulseShell tab strip AND
- * whether the tab body is reachable. ONE canonical layout (3-tab strip);
- * disabling tabs is how authors ship "X only" deployments. Auto-collapse:
+ * Per-tab visibility booleans. Each flag controls whether the tab button
+ * renders in the PulseShell tab strip AND whether the tab body is reachable.
+ * Disabling tabs is how authors ship "X only" deployments. Auto-collapse:
  * when only one tab is enabled, the tab strip is hidden and that tab
  * becomes the main page.
- *
- * - aiInsights: AI Insights tab (Pulse insights briefing surface)
- * - askPulse:   Ask Pulse tab (chat composer + reply surface)
- * - dashboard:  Dashboard tab (BI canvas — Power BI / Tableau / Qlik / Looker / generic-iframe)
  */
 export interface TabVisibility {
     aiInsights: boolean;
@@ -149,22 +120,11 @@ export function enabledTabCount(v: TabVisibility): number {
 }
 
 /**
- * Multi-page model — Phase B P1 (2026-05-25 evening).
- *
- * Page is a typed instance of one of the 3 surface kinds. Today the app
- * caps at 3 pages (one per type) so the user-facing model is unchanged
- * from the `TabVisibility` 3-boolean shape; P2 unlocks multi-page
- * (N pages per type), P3 unlocks per-page config (each page picks its
- * own AI profile / BI vendor / embed), P4+ unlocks sections-per-page.
- *
- * Storage: `pulseplay:pages` JSON. On read, if missing, derive from
- * the existing `pulseplay:tab-visibility` storage so existing users
- * migrate transparently on the first load.
- *
- * `tabVisibility` stays as the canonical render gate in this commit
- * — Page is parallel storage. A follow-up commit switches consumers
- * (visual.tsx tab strip, Settings checkboxes) to read pages directly,
- * then retires the tabVisibility field.
+ * Multi-page model. Page is a typed instance of one of the 3 surface kinds;
+ * today the app caps at 3 pages (one per type). Storage: `pulseplay:pages`
+ * JSON — on read, if missing, derive from `pulseplay:tab-visibility` so
+ * existing users migrate transparently. `tabVisibility` stays the canonical
+ * render gate — Page is parallel storage.
  */
 export type PageType = "ai-insights" | "ask-pulse" | "dashboard";
 
@@ -173,11 +133,10 @@ export interface Page {
     id: string;
     /** Page type drives which surface component mounts inside. */
     type: PageType;
-    /** Display name in tab strip + Settings list. Defaults to the
-     *  type-canonical title; user-overridable in P2+. */
+    /** Display name in tab strip + Settings list. */
     title: string;
     /** Per-page config (AI profile / BI vendor / embed config). Empty
-     *  in P1 — every page inherits the App-wide defaults. P3 populates. */
+     *  today — every page inherits the App-wide defaults. */
     config?: Record<string, unknown>;
 }
 
@@ -217,24 +176,13 @@ export function tabVisibilityFromPages(pages: ReadonlyArray<Page>): TabVisibilit
 }
 
 /**
- * Phase C scaffolding — Duplicative + same-tab multi-mount (2026-05-25 evening).
+ * A PaneInstance is an INDIVIDUAL mounted copy of a Page's content — a
+ * single Page can have N instances simultaneously (in-tab + floating
+ * copies), each keyed by a distinct paneId.
  *
- * A PaneInstance is an INDIVIDUAL mounted copy of a Page's content.
- * Today the app has exactly ONE pane instance per Page (the in-tab
- * render). Phase C unlocks DUPLICATIVE detach: when the user clicks
- * Pop-out, a NEW pane instance is created — the original stays in
- * its tab AND a floating instance appears, both keyed by distinct
- * paneId values. Same-tab multi-mount means a single Page can have
- * N pane instances simultaneously (e.g. one Ask Pulse in-tab plus
- * two floating Ask Pulse panes asking different questions side by
- * side).
- *
- * Per-pane state isolation is REQUIRED — each PaneInstance carries
- * its own conversation history, scroll position, composer draft, and
- * (for Power BI specifically per the existing tripwire) its own
- * fresh embed token. This commit just scaffolds the registry shape +
- * storage; the runtime mount/unmount + detach overlay + per-pane
- * state isolation land in follow-up commits.
+ * Per-pane state isolation is REQUIRED — each PaneInstance carries its own
+ * conversation history, scroll position, composer draft, and (for Power BI
+ * specifically per the existing tripwire) its own fresh embed token.
  */
 export type PanePlacement = "inline" | "floating" | "minimized";
 
@@ -256,15 +204,11 @@ export interface PaneInstance {
     /** Creation timestamp (ms epoch). Used for paneId disambiguation
      *  when the same page is mounted multiple times. */
     createdAt: number;
-    // ── Part C foundation (2026-06-05) — per-pane connector binding ──────────
-    // OPTIONAL by design: today every pane is unbound and inherits the single
-    // active-per-axis globals (activeVendor / activeConnector / embedConfig).
-    // When `multiConnectorPanes` is ON, a pane MAY carry its own binding so
-    // pane 1 can be Foundation Model while pane 2 is Power BI, live, at once.
-    // Absent ⇒ the pane projects the legacy globals (full backward-compat;
-    // the projection in paneConnectors.ts enforces this). These are stored on
-    // PaneInstance so a pane's binding survives the same persistence the rest
-    // of the registry already uses.
+    // Per-pane connector binding — OPTIONAL by design: an unbound pane
+    // inherits the single active-per-axis globals (activeVendor /
+    // activeConnector / embedConfig). When `multiConnectorPanes` is ON, a
+    // pane MAY carry its own binding. Absent ⇒ the pane projects the legacy
+    // globals (full backward-compat; paneConnectors.ts enforces this).
     /** Y-axis: which BI vendor this pane hosts (e.g. "powerbi", "native"). */
     vendor?: string;
     /** X-axis: which AI profile/connector this pane's assistant talks to. */
@@ -283,10 +227,7 @@ export const DEFAULT_PANE_REGISTRY: ReadonlyArray<PaneInstance> = DEFAULT_PAGES.
     createdAt: 0, // 0 sentinel = "default registry, not a runtime mount"
 }));
 
-/** Derive the legacy "one pane per page" registry from a Page[] —
- *  used during the migration window when consumers don't yet know
- *  about PaneInstance and just want the canonical inline pane per
- *  Page. */
+/** Derive the legacy "one pane per page" registry from a Page[]. */
 export function paneRegistryFromPages(pages: ReadonlyArray<Page>): PaneInstance[] {
     return pages.map(p => ({
         paneId: `pane-${p.id}-0`,
@@ -296,9 +237,8 @@ export function paneRegistryFromPages(pages: ReadonlyArray<Page>): PaneInstance[
     }));
 }
 
-/** Count of inline pane instances per pageId. Used to detect when a
- *  Page has been mounted multiple times in the same tab (Phase C
- *  unlocks; today always returns 0 or 1). */
+/** Count of inline pane instances per pageId (same-tab multi-mount
+ *  detection; today always 0 or 1). */
 export function inlinePaneCountByPage(registry: ReadonlyArray<PaneInstance>): Record<string, number> {
     const counts: Record<string, number> = {};
     for (const p of registry) {
@@ -309,14 +249,11 @@ export function inlinePaneCountByPage(registry: ReadonlyArray<PaneInstance>): Re
 /**
  * Pane composition mode (set by the AUTHOR in Settings → Preferences → Visible
  * panels). End users see only what the author wired:
- *   - aiOnly : AI pane only (no BI canvas) — chat / agent-only deployments
- *   - biOnly : BI pane only (no AI surface) — pure dashboard view
+ *   - aiOnly : AI pane only (no BI canvas)
+ *   - biOnly : BI pane only (no AI surface)
  *   - both   : explicit split-pane, AI + BI side by side
- *   - mix    : default unified surface mode. AI Insights / Ask Pulse own the
- *              main surface; BI remains available as a peer "BI Viz" action
- *              instead of a permanent second section. The Mix composition
- *              sub-panel lets the author cherry-pick individual AI surfaces
- *              and future BI composition once that phase lands.
+ *   - mix    : default unified surface mode — AI surfaces own the main
+ *              surface; BI is a peer action, not a permanent section.
  */
 export type EnabledComponents = "aiOnly" | "biOnly" | "both" | "mix";
 export type LayoutMode = "ai-left" | "ai-right" | "ai-top" | "ai-bottom";
@@ -342,34 +279,25 @@ export interface SettingsState {
     enabledComponents: EnabledComponents;
     layoutMode: LayoutMode;
     biTileMode: BiTileMode;
-    /** Phase 4 — currently-active AI profile name (one of
-     *  `allowlist.aiProfiles`). Persisted to `pulseplay:active-ai-profile`.
-     *  Pulse mode also maintains its own `genieSettings.assistantProfile`
-     *  via the PulseHostStub persistProperties contract; the settingsStore
-     *  reads that on load if `active-ai-profile` is unset so the user's
-     *  existing selection survives. Phase 5 unifies the two paths. */
+    /** Currently-active AI profile name (one of `allowlist.aiProfiles`).
+     *  Persisted to `pulseplay:active-ai-profile`. Pulse mode also maintains
+     *  its own `genieSettings.assistantProfile`; the store reads that on load
+     *  if `active-ai-profile` is unset so an existing selection survives. */
     activeAiProfile: string;
-    /** 2026-05-22 — author-configurable default landing tab. When null,
-     *  the app falls back to "ai-insights" (per Rajesh's 2026-05-22
-     *  direction). When set, App.tsx readInitialActiveSurface uses this
-     *  in preference to the stored localStorage value. */
+    /** Author-configurable default landing tab. When null, the app falls
+     *  back to "ai-insights". App.tsx readInitialActiveSurface prefers this
+     *  over the stored localStorage value. */
     defaultLandingSurface: DefaultLandingSurface | null;
-    /** 2026-05-25 — per-tab visibility flags. The single canonical control
-     *  for which of the 3 tabs (AI Insights / Ask Pulse / Dashboard)
-     *  render in the PulseShell tab strip. Supersedes the enabledComponents
-     *  + layoutMode enums in the user-facing UI; the legacy enums stay in
-     *  state for backward-compat with stored values during migration. */
+    /** Per-tab visibility flags — the single canonical control for which of
+     *  the 3 tabs render in the PulseShell tab strip. The legacy enums stay
+     *  in state for backward-compat with stored values. */
     tabVisibility: TabVisibility;
-    /** 2026-05-25 (evening) — Multi-page P1 parallel storage. Today a
-     *  derived projection of tabVisibility (1 page per enabled tab type);
-     *  P2 unlocks multi-page and pages becomes the canonical source.
-     *  Setters that mutate one mutate both — they stay in lockstep
-     *  during the migration window. */
+    /** Multi-page parallel storage — a derived projection of tabVisibility
+     *  (1 page per enabled tab type). Setters that mutate one mutate both —
+     *  they MUST stay in lockstep during the migration window. */
     pages: Page[];
-    /** 2026-05-25 (evening) — Phase C scaffolding. Persisted pane
-     *  registry. Today auto-derived from pages (1 inline pane per
-     *  page); follow-up commits wire detach (adds floating panes) +
-     *  same-tab multi-mount (adds extra inline panes for one page). */
+    /** Persisted pane registry — auto-derived from pages (1 inline pane per
+     *  page). */
     paneRegistry: PaneInstance[];
     /** Values found in localStorage that didn't validate against the
      *  live allowlist on the most-recent reconciliation pass. The
@@ -422,9 +350,7 @@ function validatePack(selection: PackSelection | null, allowlist: PulsePlayAllow
 // ─── Initial load + reconciliation ───────────────────────────────────────
 
 function readUiMode(): UiMode {
-    // ARCH-P1 slice 3 — delegate to the feature-registry resolver. The
-    // explicit override + DEFAULT_UI_MODE fallback contract from ARCH-P0
-    // is preserved (Step 1 + Step 5 of resolveDefaultSurface). Mirrors
+    // Delegates to the feature-registry resolver. Mirrors
     // App.tsx readInitialUiMode() — both readers MUST stay in lockstep
     // or the cold-boot surface flickers as one resolver hits before the
     // other.
@@ -439,10 +365,9 @@ function readUiMode(): UiMode {
         requiredFeatures: [],
         tabVisibility: readTabVisibility(),
     });
-    // Resolver can return "dashboard" (slice 3 candidate), but settingsStore
-    // uiMode field only holds "pulse" | "v0". Map dashboard → DEFAULT_UI_MODE
-    // for the legacy field; the dashboard tab is selected via tabVisibility
-    // + per-tab routing, not via the uiMode escape hatch.
+    // Resolver can return "dashboard", but the uiMode field only holds
+    // "pulse" | "v0". Map dashboard → DEFAULT_UI_MODE for the legacy field;
+    // the dashboard tab is selected via tabVisibility + per-tab routing.
     return resolved === "dashboard" ? DEFAULT_UI_MODE : resolved;
 }
 
@@ -493,9 +418,8 @@ function readActiveAiProfile(): string {
         const direct = window.localStorage.getItem(KEY.activeAiProfile);
         if (direct && direct.trim()) return direct.trim();
         // Fallback — Pulse mode persists its assistantProfile inside
-        // genieSettings via persistProperties. Read that so a returning
-        // Pulse user doesn't lose their selection when we layer the new
-        // settingsStore on top.
+        // genieSettings. Read that so a returning Pulse user doesn't lose
+        // their selection.
         const pulseRaw = window.localStorage.getItem("pulseplay:visual-settings:genieSettings");
         if (pulseRaw) {
             const parsed = JSON.parse(pulseRaw);
@@ -545,10 +469,10 @@ export function readTabVisibility(): TabVisibility {
 }
 
 function readPaneRegistry(pagesFallback: ReadonlyArray<Page>): PaneInstance[] {
-    // Phase C reader. Prefers persisted pulseplay:pane-registry; falls
-    // back to deriving from pages (1 inline pane per page) so pre-C
-    // sessions transparently work. Strict validation drops malformed
-    // entries and entries referencing unknown pageIds.
+    // Prefers persisted pulseplay:pane-registry; falls back to deriving from
+    // pages (1 inline pane per page) so older sessions transparently work.
+    // Strict validation drops malformed entries and entries referencing
+    // unknown pageIds.
     if (typeof window === "undefined") return paneRegistryFromPages(pagesFallback);
     try {
         const raw = window.localStorage.getItem(KEY.paneRegistry);
@@ -582,10 +506,9 @@ function readPaneRegistry(pagesFallback: ReadonlyArray<Page>): PaneInstance[] {
 }
 
 function readPages(tabVisibilityFallback: TabVisibility): Page[] {
-    // 2026-05-25 (evening) — Multi-page P1 reader. Prefers the new
-    // pulseplay:pages key when present; falls back to deriving from
-    // tabVisibility so pre-P1 sessions transparently migrate. Returns
-    // a defensive copy so callers can't accidentally mutate state.
+    // Prefers the pulseplay:pages key when present; falls back to deriving
+    // from tabVisibility so older sessions transparently migrate. Returns a
+    // defensive copy so callers can't accidentally mutate state.
     if (typeof window === "undefined") return pagesFromTabVisibility(tabVisibilityFallback);
     try {
         const raw = window.localStorage.getItem(KEY.pages);
@@ -638,11 +561,7 @@ function buildInitialState(): SettingsState {
         activeAiProfile: readActiveAiProfile(),
         defaultLandingSurface: readDefaultLandingSurface(),
         tabVisibility,
-        // Multi-page P1 — derived from tabVisibility for new sessions;
-        // honors persisted pulseplay:pages JSON when present.
         pages,
-        // Phase C scaffolding — derived from pages for new sessions;
-        // honors persisted pulseplay:pane-registry JSON when present.
         paneRegistry: readPaneRegistry(pages),
         orphans: [],
     };
@@ -735,14 +654,11 @@ function reducer(state: SettingsState, action: Action): SettingsState {
             };
         }
         case "allowlist/error":
-            // Fail-closed P1: do NOT blow away a previously-loaded
-            // allowlist on a refresh failure — keep the last-known-good
-            // value so the user keeps validated access until the
-            // governance endpoint comes back. The error banner surfaces
-            // the failure to the user. If this is the FIRST load and
-            // there's nothing known-good in hand, allowlist stays null
-            // and validators flip to fail-closed via
-            // `isAllowlistFailClosed(state)`.
+            // Fail-closed: do NOT blow away a previously-loaded allowlist on
+            // a refresh failure — keep the last-known-good value so the user
+            // keeps validated access until governance comes back. On FIRST
+            // load with nothing known-good, allowlist stays null and
+            // validators flip to fail-closed via `isAllowlistFailClosed`.
             return {
                 ...state,
                 allowlistLoading: false,
@@ -773,11 +689,9 @@ function reducer(state: SettingsState, action: Action): SettingsState {
             // Defensive: never let the user end up with 0 enabled tabs.
             // If they try, fall back to the prior state's value.
             if (enabledTabCount(action.value) === 0) return state;
-            // Multi-page P1: keep pages in lockstep with tabVisibility.
-            // The setter projects the new visibility into the pages list;
-            // existing pages of types still enabled keep their identity;
-            // pages of newly-enabled types are added; pages of disabled
-            // types are dropped.
+            // Keep pages in lockstep with tabVisibility: existing pages of
+            // still-enabled types keep their identity; newly-enabled types
+            // are added; disabled types are dropped.
             const next: TabVisibility = action.value;
             const keepByType: Partial<Record<PageType, Page>> = {};
             for (const p of state.pages) keepByType[p.type] = p;
@@ -790,9 +704,8 @@ function reducer(state: SettingsState, action: Action): SettingsState {
         case "set/pages": {
             // Defensive: never let the user end up with 0 pages.
             if (action.value.length === 0) return state;
-            // Multi-page P1: keep tabVisibility in lockstep with pages.
-            // Pages is now the source of truth; tabVisibility is the
-            // derived projection consumers still read.
+            // Keep tabVisibility in lockstep with pages (the derived
+            // projection consumers still read).
             return { ...state, pages: action.value, tabVisibility: tabVisibilityFromPages(action.value) };
         }
         case "sync/external":
@@ -900,23 +813,21 @@ export interface SettingsActions {
     setBiVendor: (value: string) => { ok: boolean; reason?: string };
     setBiSurfaceMode: (value: BiSurfaceMode) => void;
     setPackSelection: (value: PackSelection | null) => { ok: boolean; reason?: string };
-    // setUiMode REMOVED 2026-05-25 — uiMode is no longer user-editable.
-    // PulseShell escape hatch is dev-tools-only (localStorage). The reducer
-    // case "set/uiMode" remains so the existing display-change event
-    // listener can still sync mid-session if a dev-tools change fires.
+    // No setUiMode by design — uiMode is not user-editable; dev-tools
+    // localStorage is the only escape hatch. The reducer case "set/uiMode"
+    // remains so the display-change listener can sync mid-session.
     setEnabledComponents: (value: EnabledComponents) => void;
     setLayoutMode: (value: LayoutMode) => void;
     setBiTileMode: (value: BiTileMode) => void;
     setActiveAiProfile: (value: string) => { ok: boolean; reason?: string };
-    /** 2026-05-22 — set the author's preferred landing tab. Pass null to
-     *  clear the override (app falls back to "ai-insights"). */
+    /** Set the author's preferred landing tab. Pass null to clear the
+     *  override (app falls back to "ai-insights"). */
     setDefaultLandingSurface: (value: DefaultLandingSurface | null) => void;
-    /** 2026-05-25 — set per-tab visibility. Defensive: refuses to leave
-     *  the user with 0 enabled tabs (the setter no-ops in that case). */
+    /** Set per-tab visibility. Defensive: refuses to leave the user with 0
+     *  enabled tabs (no-ops in that case). */
     setTabVisibility: (value: TabVisibility) => void;
-    /** 2026-05-25 (evening) — Multi-page P1. Set the canonical pages
-     *  list. Defensive: refuses to leave the user with 0 pages. Today
-     *  the page list caps at 3 (one per type); P2 unlocks multiplicity. */
+    /** Set the canonical pages list. Defensive: refuses to leave the user
+     *  with 0 pages. Today the list caps at 3 (one per type). */
     setPages: (value: Page[]) => void;
     reloadAllowlist: () => Promise<void>;
 }
@@ -974,8 +885,8 @@ export function SettingsProvider(props: SettingsProviderProps): React.ReactEleme
         void reload();
     }, [reload]);
 
-    // Listen for legacy `pulseplay:display-change` events so the store
-    // stays in sync when App.tsx or Pulse Cycle H writes directly.
+    // Listen for `pulseplay:display-change` events so the store stays in
+    // sync when legacy paths write directly.
     useEffect(() => {
         if (typeof window === "undefined") return;
         const handler = (e: Event) => {
@@ -1043,11 +954,9 @@ export function SettingsProvider(props: SettingsProviderProps): React.ReactEleme
         [state],
     );
 
-    // setUiMode action REMOVED 2026-05-25. The reducer case "set/uiMode"
-    // remains for the display-change event listener (which dispatches the
-    // action directly when a dev-tools localStorage write fires). No
-    // component should call this action; if you need to flip uiMode at
-    // dev time, write the storage key directly.
+    // No setUiMode action by design — no component should set uiMode; flip
+    // it at dev time by writing the storage key directly (the display-change
+    // listener dispatches "set/uiMode" when that fires).
 
     const setEnabledComponents = useCallback<SettingsActions["setEnabledComponents"]>(
         (value) => {
@@ -1073,12 +982,9 @@ export function SettingsProvider(props: SettingsProviderProps): React.ReactEleme
     const setTabVisibility = useCallback<SettingsActions["setTabVisibility"]>((value) => {
         if (enabledTabCount(value) === 0) return; // refuse: zero-tab state is unrecoverable from the UI
         persistAndBroadcast(KEY.tabVisibility, JSON.stringify(value));
-        // Multi-page P1: also persist the lockstep pages projection so
-        // sessions opened after this commit pick up the new shape.
-        // Note: state.pages is read AFTER dispatch so use a projection
-        // here rather than reading stale closure state.
-        // The reducer's set/tabVisibility case handles the lockstep
-        // logic; for storage we just project from the booleans.
+        // Also persist the lockstep pages projection. Project from the
+        // booleans rather than reading state.pages — the closure value is
+        // stale before dispatch.
         const projectedPages = pagesFromTabVisibility(value);
         persistAndBroadcast(KEY.pages, JSON.stringify(projectedPages));
         dispatch({ type: "set/tabVisibility", value });
@@ -1088,18 +994,13 @@ export function SettingsProvider(props: SettingsProviderProps): React.ReactEleme
         if (value.length === 0) return; // refuse: zero-pages state is unrecoverable
         persistAndBroadcast(KEY.pages, JSON.stringify(value));
         // Lockstep — also write the derived tabVisibility so legacy
-        // consumers (visual.tsx tab strip) keep working until they
-        // switch to reading pages directly in a follow-up commit.
+        // consumers (visual.tsx tab strip) keep working.
         const projectedVisibility = tabVisibilityFromPages(value);
         persistAndBroadcast(KEY.tabVisibility, JSON.stringify(projectedVisibility));
         dispatch({ type: "set/pages", value });
     }, []);
 
     const setDefaultLandingSurface = useCallback<SettingsActions["setDefaultLandingSurface"]>((value) => {
-        // 2026-05-22 — author's preferred landing tab. null clears the
-        // override so the app falls back to "ai-insights" (per Rajesh's
-        // 2026-05-22 direction). When set, App.tsx readInitialActiveSurface
-        // uses this in preference to the stored localStorage value.
         if (value === null) {
             removeAndBroadcast(KEY.defaultLandingSurface);
         } else {
@@ -1123,31 +1024,18 @@ export function SettingsProvider(props: SettingsProviderProps): React.ReactEleme
             }
             if (trimmed) {
                 persistAndBroadcast(KEY.activeAiProfile, trimmed);
-                // Picking a profile via Settings → AI → Provider is the proxy-
-                // mediated path by definition (Settings only knows profile
-                // *names* — the proxy resolves host / spaceId / warehouseId
-                // server-side from proxy/config.json). Auto-populate the
+                // Settings only knows profile *names* — the proxy resolves
+                // host / spaceId / warehouseId server-side. Auto-populate the
                 // minimum genieSettings fields Pulse's `isConfigured` check
-                // expects so the AI Insights pane doesn't render its "Connect
-                // to Databricks" empty state for a Settings-only setup flow.
-                //
-                // - assistantProfile: the picked profile name
-                // - connectionMode:  "proxy" (was "auto" / unset by default)
-                // - apiBaseUrl:      same-origin in dev (Vite proxies /api/*);
-                //                    deployer should override in production
+                // expects so AI Insights doesn't render its "Connect to
+                // Databricks" empty state for a Settings-only setup flow.
                 writePulseAiVisualSettingsPatch({ assistantProfile: trimmed });
-                // connectionMode + apiBaseUrl are not in the typed
-                // PulseAiVisualSettings surface — they live in the wider
-                // raw genieSettings JSON. Use the loose-typed helper so
-                // they get persisted + broadcast on the same event.
-                // apiBaseUrl needs the `/api` prefix because Vite's dev
-                // server proxies `/api/*` → proxy (strips the `/api`). Pulse's
-                // GenieClient.getBaseUrl() appends `/assistant` to whatever we
-                // give it; without the `/api` prefix the request hits Vite
-                // directly at `/assistant/*` and 404s. Browser smoke test
-                // 2026-05-17 caught this — Pulse's auto-fire-on-mount POST
-                // /assistant/home returned 404 because URL was
-                // http://localhost:5173/assistant/home (no /api prefix).
+                // connectionMode + apiBaseUrl live in the raw genieSettings
+                // JSON (not the typed PulseAiVisualSettings surface) — use the
+                // loose-typed helper. apiBaseUrl needs the `/api` prefix:
+                // Vite proxies `/api/*` → proxy (strips `/api`) and Pulse's
+                // GenieClient appends `/assistant`; without `/api` the request
+                // hits Vite directly at `/assistant/*` and 404s.
                 writeRawGenieSettingsPatch({
                     connectionMode: "proxy",
                     apiBaseUrl: typeof window !== "undefined" && window.location?.origin

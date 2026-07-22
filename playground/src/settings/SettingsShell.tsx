@@ -1,5 +1,3 @@
-// playground/src/settings/SettingsShell.tsx
-//
 // Full-page Settings surface. Mounted by App.tsx when the URL matches
 // /settings*. All structural styles live in settings.css (class-based).
 // Layout per docs/SETTINGS_SPEC.md § 3.
@@ -31,13 +29,10 @@ import { SystemDeveloper } from "./groups/sub/SystemDeveloper";
 import { BiGovernance } from "./groups/sub/BiGovernance";
 import "./settings.css";
 
-// UX-ARCH-0B.2 Phase C — rail collapsed from 6 groups to 4 per user
-// 2026-05-23 direction. Internal route IDs unchanged (so deep links + tests
-// keep working) but the visible rail shows AI Setup / BI Setup / Advanced /
-// Display. `setup` and `system` are hidden from the rail (absorbed by
-// AI/BI Setup and Advanced respectively); their routes still resolve so
-// existing handoff bundles and bookmarks don't break. The Phase D/E/F page
-// rebuilds will physically merge content; this slice is nav-only.
+// Rail shows 4 groups; internal route IDs are unchanged so deep links +
+// tests keep working. `setup` and `system` are hidden from the rail
+// (absorbed by AI/BI Setup and Advanced respectively) but their routes
+// still resolve so existing handoff bundles and bookmarks don't break.
 const GROUP_LABELS: Record<SettingsGroupId, string> = {
     setup:       "Quick start",       // legacy route, hidden from rail
     bi:          "BI Setup",
@@ -65,10 +60,9 @@ const GROUP_ICONS: Record<SettingsGroupId, string> = {
     advanced:    "⚙",
 };
 
-// Phase C rail filter — order shown to users and which groups are HIDDEN.
-// `setup` and `system` are not in this list (still routable for back-compat,
-// just not in the rail). Order: AI Setup first (most users touch this most),
-// BI Setup second, Advanced third, Display fourth.
+// Rail order shown to users. `setup` and `system` are not in this list
+// (still routable for back-compat, just not in the rail). AI Setup first —
+// most users touch it most.
 const VISIBLE_RAIL_GROUPS: ReadonlyArray<SettingsGroupId> = [
     "ai",
     "bi",
@@ -76,11 +70,9 @@ const VISIBLE_RAIL_GROUPS: ReadonlyArray<SettingsGroupId> = [
     "preferences",
 ];
 
-// Phase C absorption map — when a search query matches a legacy group, the
-// rail surfaces the absorbing destination instead. `setup` content is being
-// split across AI Setup and BI Setup; for the nav-first phase it absorbs to
-// AI Setup since that's where the connector+pack quick-start lives. `system`
-// surfaces are diagnostic/dev (matches Advanced naturally).
+// When a search query matches a legacy group, the rail surfaces the
+// absorbing destination instead. `setup` absorbs to AI Setup (where the
+// connector+pack quick-start lives); `system` is diagnostic/dev (Advanced).
 const GROUP_ABSORPTION: Record<SettingsGroupId, SettingsGroupId> = {
     setup:       "ai",          // Phase D will split AI vs BI content explicitly
     bi:          "bi",
@@ -90,10 +82,6 @@ const GROUP_ABSORPTION: Record<SettingsGroupId, SettingsGroupId> = {
     advanced:    "advanced",
 };
 
-// Decorative rail glyph CSS spacing — rendered via the .pp-settings-rail__glyph
-// class so the visible label keeps a clean accessible name. Inline margin is
-// kept here rather than the CSS file to avoid pulling settings.css on every
-// rail render; tiny enough to inline.
 // Accent color for the readiness dot on each rail item.
 const READINESS_DOT: Record<"ready" | "needed" | "info", string> = {
     ready:  "#10b981",
@@ -113,20 +101,8 @@ export const GROUP_LEAF_LABELS: Record<SettingsGroupId, string[]> = {
     // group label + description.
     setup: [],
     bi: ["Provider", "Embed", "Authentication", "Canvas", "Status", "Governance"],
-    // 2026-05-20 cycle 20.1 follow-up — order MUST mirror the visual sequence
-    // in groups/AiGroup.tsx so clicking a rail item scrolls to the matching
-    // anchor in the main panel. Previous order interleaved Assistant-tier
-    // leaves with Shared-context leaves which made the rail feel random.
-    // Actual rendered order today:
-    //   §Connector catalogue (SubSection)
-    //   §Assistant
-    //     Model / Agent → Connection test → (Power BI Q&A when active is PBI)
-    //   §Shared context
-    //     Knowledge pack → Vector Search KB → UC Metric View → Browse library
-    //   §Response behavior
-    //     Response behavior
-    //   §Surface-specific behavior
-    //     Supervisor Fusion → Knowledge Base
+    // Order MUST mirror the visual sequence in groups/AiGroup.tsx so
+    // clicking a rail item scrolls to the matching anchor in the main panel.
     ai: [
         "Connector catalogue",
         "Model / Agent",
@@ -137,14 +113,9 @@ export const GROUP_LEAF_LABELS: Record<SettingsGroupId, string[]> = {
         "UC Metric View",
         "Browse library",
         "Response behavior",
-        // 2026-05-28 — preset pickers ported from setupStep5.tsx (the
-        // PulseShell PBI format pane) into PulsePlay-native Settings.
-        // Closes parity gap: "where is the SWOT/BCG preset dropdown."
         "Custom sections preset library",
         "Metric direction preset library",
-        // 2026-05-28 — Slice 2: markdown section authoring (## Section + prompt).
         "AI Insights sections",
-        // 2026-05-28 — Slice 3: SQL/config-item sections (warehouse-backed).
         "SQL sections",
         "Supervisor Fusion",
         "Knowledge Base",
@@ -152,25 +123,12 @@ export const GROUP_LEAF_LABELS: Record<SettingsGroupId, string[]> = {
     // PreferencesGroup.tsx renders: Tabs (Visible tabs + Default landing
     // tab) → Display policy (Canvas tiles).
     preferences: [
-        // 2026-05-25 (Commit 2 of per-tab-visibility ship) — collapsed
-        // 7 redundant pickers (Layout preset / Visible panels / AI position
-        // / Mix-composition AI surfaces / Research Agent traces / Managed
-        // agent / BI composition) into ONE per-tab-visibility control.
-        // The PulseShell 3-tab strip is the sole canonical layout; per-tab
-        // visibility decides which of AI Insights / Ask Pulse / Dashboard
-        // render. Removed leaves are not relocated; advanced toggles
-        // (Research Agent traces, etc.) move to Settings → AI in a
-        // follow-up commit.
-        // 2026-05-28 — author-only Workbench template picker (tabs +
-        // landing + scope + section preset bundled per named template).
         "Workbench template",
         "Visible tabs",
         "Default landing tab",
-        // 2026-05-28 — author gate for the Chat (v0) surface. Workbench is
-        // the default; this exposes the optional Workbench⇄Chat switcher.
+        // Author gate for the Chat (v0) surface; Workbench is the default.
         "Chat surface",
-        // 2026-05-29 — author gate to show/hide the chat "Show history" button
-        // (hidden by default). Lives in the Surface sub-section.
+        // Author gate for the chat "Show history" button (hidden by default).
         "Chat history button",
         "Canvas tiles",
         "Appearance",
@@ -231,13 +189,10 @@ export function SettingsShell(): React.ReactElement {
                 setTimeout(() => target.removeAttribute("data-leaf-just-scrolled"), 2000);
                 return;
             }
-            // 2026-05-20 cycle 20.1 — fallback for conditional leaves. Some
-            // rail entries (e.g. "Power BI Q&A") map to a Leaf that only
-            // renders for specific active profiles; when the Leaf isn't in
-            // the DOM, scroll-to-anchor would silently no-op, leaving the
-            // user on whatever section was previously visible. Fall back to
-            // the Connector catalogue SubSection so they at least land on a
-            // surface that lets them configure the connector.
+            // Fallback for conditional leaves (e.g. "Power BI Q&A" only
+            // renders for specific active profiles). When the Leaf isn't in
+            // the DOM, scroll-to-anchor would silently no-op — fall back to
+            // the Connector catalogue so the user lands somewhere useful.
             const catalogue = document.getElementById(`settings-${route.group}-connector-catalogue`);
             if (catalogue) {
                 catalogue.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -250,12 +205,10 @@ export function SettingsShell(): React.ReactElement {
 
     const filteredGroups = useMemo(() => {
         const needle = search.trim().toLowerCase();
-        // Phase C — rail shows 4 visible groups. When the user types in the
-        // search box, we DO scan all 6 internal groups (including legacy
-        // `setup` and `system`) so no settings disappear from discoverability
-        // — but we only RETURN matches that resolve through the visible 4.
-        // Legacy-group matches surface under their absorbing destination
-        // (setup → ai, system → advanced) per the GROUP_ABSORPTION map below.
+        // Search DOES scan all 6 internal groups (including legacy `setup`
+        // and `system`) so no settings disappear from discoverability — but
+        // only RETURNS matches that resolve through the visible 4; legacy
+        // matches surface under their GROUP_ABSORPTION destination.
         if (!needle) return VISIBLE_RAIL_GROUPS;
         const visibleSet = new Set<SettingsGroupId>(VISIBLE_RAIL_GROUPS);
         const matched = new Set<SettingsGroupId>();
@@ -308,11 +261,9 @@ function SettingsHeader(): React.ReactElement {
         <header className="pp-settings-header">
             <div className="pp-settings-header__brand">
                 <h1 className="pp-settings-header__title">
-                    {/* Decorative settings glyph — Codex naming audit:
-                      * keep visual but never duplicate or pollute the
-                      * accessible name. SVG cog replaces the U+2699 "⚙"
-                      * character so text-content snapshots don't pick
-                      * it up. */}
+                    {/* Decorative glyph — never pollute the accessible name.
+                      * SVG cog instead of the "⚙" character so text-content
+                      * snapshots don't pick it up. */}
                     <span className="pp-settings-header__title-icon" aria-hidden="true">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <circle cx="12" cy="12" r="3" />
@@ -367,11 +318,8 @@ function SettingsSearchBar(props: SettingsSearchBarProps): React.ReactElement {
     return (
         <div className="pp-settings-search">
             <div className="pp-settings-search__wrap">
-                {/* Audit 2026-05-19: was raw "🔍" emoji; replaced with the
-                  * same SVG-icon discipline the header cog uses (and that the
-                  * Codex 09:14 + 18:40 glyph sweeps applied to AI Insights /
-                  * Knowledge / Sustainability). aria-hidden so screen readers
-                  * still rely on the input's aria-label. */}
+                {/* SVG icon (not emoji), aria-hidden so screen readers rely
+                  * on the input's aria-label. */}
                 <span className="pp-settings-search__icon" aria-hidden="true">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <circle cx="11" cy="11" r="7" />
@@ -458,14 +406,10 @@ interface SettingsLeftRailProps {
 }
 
 function SettingsLeftRail(props: SettingsLeftRailProps & { activeLeaf?: string | null }): React.ReactElement {
-    // UX-ARCH-0B.2 follow-up 2026-05-23 — rail leaves are now collapsible
-    // per group. Default state is COLLAPSED so the rail stays compact even
-    // when a group is active (the previous default of "auto-expand on active"
-    // surfaced 11 leaves under AI Setup that nobody asked for). The user's
-    // current section is still in view via the main page; the rail leaves
-    // are just deep-link shortcuts. Track expanded state in memory; the
-    // currently-active leaf forces its group expanded so a deep-link still
-    // shows context.
+    // Rail leaves are collapsible per group; default is COLLAPSED so the
+    // rail stays compact (auto-expand on active surfaced 11 leaves under
+    // AI Setup). The currently-active leaf forces its group expanded so a
+    // deep-link still shows context.
     const [expandedGroups, setExpandedGroups] = useState<Set<SettingsGroupId>>(() => new Set());
     return (
         <nav className="pp-settings-rail" aria-label="Settings sections">
@@ -573,10 +517,8 @@ function leafSlugify(label: string): string {
         .replace(/^-+|-+$/g, "");
 }
 
-// Codex 2026-05-19 naming audit: status chips were exposing raw enum keys
-// like `powerbi`, `default`, `strict`, `ok` as primary visible copy. These
-// helpers map them to friendly product names so the strip reads like a
-// status summary, not a debug dump.
+// Map raw enum keys (`powerbi`, `strict`, `ok`) to friendly product names
+// so the status strip reads like a summary, not a debug dump.
 const VENDOR_DISPLAY: Record<string, string> = {
     "powerbi":          "Power BI",
     "databricks-aibi":  "Databricks AI/BI",
@@ -621,11 +563,8 @@ function ActiveGroup(props: { group: SettingsGroupId; leaf?: string | null }): R
     if (props.group === "system"      && props.leaf === "developer-tools")   return <SystemDeveloper />;
     if (props.group === "bi"          && props.leaf === "governance")        return <BiGovernance />;
 
-    // Phase C migration banner — legacy `setup` and `system` groups are
-    // being absorbed (Phase D folds Setup quick-start checklist into
-    // AI/BI Setup; Phase F folds System diagnostics + dev tools into
-    // Advanced). Show a one-row banner so users landing on legacy deep
-    // links know where the content is heading.
+    // Legacy `setup` and `system` groups are being absorbed; show a banner
+    // so users landing on legacy deep links know where the content is heading.
     switch (props.group) {
         case "setup":
             return (

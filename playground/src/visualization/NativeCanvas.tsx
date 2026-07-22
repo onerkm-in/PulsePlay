@@ -1,39 +1,23 @@
-// playground/src/visualization/NativeCanvas.tsx
+// Native canvas + ECharts renderer. Renders attested AI result envelopes
+// into one of five viz states (empty / text / table / kpi / chart), plus the
+// ungoverned-preview badge, the blocked state, and the `mountNativeCanvas`
+// helper the `.ts` adapter calls without importing React itself.
 //
-// G4 — Native canvas + ECharts MVP.
+// NOT owned here: adapter lifecycle (`NativeBIAdapter.ts`), chart-pick
+// policy (`chartAutoPick.ts`), result-shape decisions
+// (`resultToVizIntent.ts`), governance enforcement (adapter) — the canvas
+// just renders the mode + state passed via props. No data fetching, SQL,
+// or vendor SDKs.
 //
-// What this module owns
-// ─────────────────────
-//   • The React canvas that renders attested AI result envelopes into
-//     one of five viz states: empty / text / table / kpi / chart.
-//   • The "ungoverned-result-preview" badge overlay (dev/mock mode).
-//   • The "blocked" render state (production + missing/invalid governance).
-//   • A `mountNativeCanvas` helper the `.ts` adapter calls to mount this
-//     React component without importing React itself.
+// Layering: this is the ONLY Native renderer module that imports React +
+// ECharts. The `bi-adapters/native/*.ts` adapter files MUST stay free of
+// direct React/ECharts imports; they delegate to the typed mount helper.
 //
-// What this module does NOT own
-// ─────────────────────────────
-//   • Adapter lifecycle (mount/destroy plumbing) — `NativeBIAdapter.ts`.
-//   • Chart-pick policy — `playground/src/visualization/chartAutoPick.ts`.
-//   • Result-shape decisions — `playground/src/visualization/resultToVizIntent.ts`.
-//   • Governance enforcement — handled in the adapter; the canvas just
-//     renders whatever mode + state the adapter passes via props.
-//   • Data fetching, SQL, vendor SDKs — renderer-only.
-//
-// Layering
-// ────────
-// This file is the only Native renderer module that imports React +
-// ECharts. The `bi-adapters/native/*.ts` adapter files stay free of
-// direct React/ECharts imports; they delegate to the typed mount helper
-// exported here.
-//
-// Pulse PBI copy-port note
-// ────────────────────────
-// This file is NOT copy-port safe: it uses React 19, react-dom/client,
-// and ECharts. Pulse PBI runs in a Power BI custom visual sandbox with
-// different constraints (no native React 19 root, no fetch). Use the
-// PURE contracts in `playground/src/visualization/` from Pulse PBI; do
-// not import this file from the sibling project.
+// Pulse PBI copy-port note: this file is NOT copy-port safe (React 19,
+// react-dom/client, ECharts; the PBI custom-visual sandbox has no native
+// React 19 root, no fetch). Use the PURE contracts in
+// `playground/src/visualization/` from Pulse PBI; do NOT import this file
+// from the sibling project.
 
 import * as React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -69,11 +53,9 @@ import { validateChartRenderSpec, type ChartRenderSpec } from "./chartSpecValida
 import { compileVegaLiteToECharts } from "../lib/vegaLiteToECharts";
 import { sourceRefDisplayLabel } from "./sourceRef";
 
-// Register only the chart types + components G4 actually surfaces.
-// Adding a new chart kind means registering its module here AND
-// extending `buildEChartsOption` below. Keeping this list tight means
-// the bundle stays small for deployments that never render the more
-// exotic chart types.
+// Register only the chart types + components actually surfaced — keeps the
+// bundle small. Adding a new chart kind means registering its module here
+// AND extending `buildEChartsOption` below.
 echarts.use([
     BarChart,
     HeatmapChart,
@@ -231,12 +213,10 @@ export function NativeCanvas(props: NativeCanvasProps): React.ReactElement {
     const isPreview = mode === "ungoverned-result-preview";
     const renderedBody = renderEnvelopeBody(envelope);
 
-    // G6 fusion-lite: when the envelope carries BOTH chart-renderable
-    // rows AND a narrative answer, dock the body alongside a commentary
-    // card bound by `envelope.id`. The chart half stays exactly the
-    // same component used in non-fusion mode — fusion is purely a
-    // layout wrapper. Future cycles can split structured insights into
-    // multiple cards; G6 ships the single-card MVP.
+    // Fusion-lite: when the envelope carries BOTH chart-renderable rows AND
+    // a narrative answer, dock the body alongside a commentary card bound by
+    // `envelope.id`. The chart half is the same component used in non-fusion
+    // mode — fusion is purely a layout wrapper.
     const fusionCommentary = isAIResultEnvelope(envelope)
         ? buildFusionCommentary(envelope, renderedBody.intent, governanceState)
         : null;
@@ -268,11 +248,10 @@ interface RenderedEnvelopeBody {
 }
 
 function renderEnvelopeBody(envelope: unknown): RenderedEnvelopeBody {
-    // Adapter may pass a partially-shaped result through (e.g., the
-    // existing G3 tests use `{ rows: [] }` which is not a valid
-    // AIResultEnvelope but is a legitimate "accepted" message). Fall
-    // back to AcceptedFallback so the user gets the "AI result accepted"
-    // signal even when there is nothing renderable.
+    // Adapter may pass a partially-shaped result through (existing tests use
+    // `{ rows: [] }` — not a valid AIResultEnvelope but a legitimate
+    // "accepted" message). Fall back to AcceptedFallback so the user gets the
+    // "AI result accepted" signal even when there is nothing renderable.
     if (!isAIResultEnvelope(envelope)) {
         return { element: <AcceptedFallback />, intent: "fallback" };
     }
@@ -286,7 +265,7 @@ function renderEnvelopeBody(envelope: unknown): RenderedEnvelopeBody {
     }
 }
 
-// ─── Fusion-lite (G6) ─────────────────────────────────────────────────────
+// ─── Fusion-lite ──────────────────────────────────────────────────────────
 
 /** Decision: should this envelope render in fusion-lite layout?
  *  Yes when ALL three hold:
@@ -511,13 +490,6 @@ function governanceAttribute(state: NativeCanvasGovernanceState): string | null 
 // ─── Empty / Text / Blocked / Preview / Spec states ───────────────────────
 
 function EmptyState(): React.ReactElement {
-    // 2026-05-25 — copy revised after the per-tab-visibility ship made
-    // it clear the prior wording ("Ask Pulse a question to render the AI
-    // result here") read as orphan cross-tab context on the Dashboard
-    // tab. The Native canvas IS specifically the AI-result rendering
-    // surface (not a real BI vendor like Power BI/Tableau); the new
-    // copy spells out the cross-tab relationship explicitly + names
-    // the originating tab so the user knows exactly where to go.
     return (
         <div className="pp-native-bi__empty" style={emptyMessageStyle}>
             <strong style={titleStyle}>Pulse Canvas</strong>
@@ -626,8 +598,7 @@ function TextState({ answer }: { answer: string }): React.ReactElement {
 function TableState({ envelope }: { envelope: AIResultEnvelope }): React.ReactElement {
     const schema = envelope.schema ?? [];
     const rows = envelope.rows ?? [];
-    // Cap rendered rows at 100 to keep DOM cost bounded for MVP. Larger
-    // result sets should paginate or downsample in a later cycle.
+    // Cap rendered rows to keep DOM cost bounded.
     const CAP = 100;
     const visibleRows = rows.slice(0, CAP);
     return (
@@ -934,17 +905,10 @@ function clusteredBarOption(shape: DataShape): EChartsOption {
 
 // ─── Local styles (inline so the canvas works without a CSS bundle) ──────
 
-// 2026-05-26 — was alignSelf: "center" which dropped the "AI chart
-// canvas" empty-state copy in the vertical middle of the (tall) grid
-// parent, with ~500px of dead space above and below. Anchor to the top
-// of the grid so the empty-state message reads immediately under the
-// tab strip, matching the Ask Pulse + AI Insights top-anchor fixes.
-// 2026-06-04 — vertically centered (was top-anchored with marginTop:56). On a
-// tall / mobile viewport the top-anchor left the 2-line placeholder floating
-// over ~70% empty canvas, reading as a broken/unfinished screen. Centering
-// fills the space and looks intentional; the same style backs the blocked /
-// unsupported-spec states, which also read better centered. Verified from the
-// re-captured Dashboard screenshots.
+// Deliberately vertically centered — top-anchoring left the 2-line
+// placeholder floating over ~70% empty canvas on tall/mobile viewports,
+// reading as a broken screen. The same style backs the blocked /
+// unsupported-spec states.
 const emptyMessageStyle: React.CSSProperties = {
     maxWidth: 460,
     textAlign: "center",

@@ -1,21 +1,7 @@
-// playground/src/settings/groups/AiGroup.tsx
-//
-// Phase 4 — AI group fully wired.
-//
-//   - Provider picker filtered by allowlist.aiProfiles; selection persists
-//     via settingsStore.setActiveAiProfile (closes L4 cleanup at the
-//     primary UI path)
-//   - Model / Agent leaf: Genie spaceId readout for direct profiles;
-//     read-only Supervisor fan-out table for type=supervisor* profiles
-//     (with the 2000 ms stagger from ADR-0003 documented in helper text)
-//   - Connection test: single probe via TestConnectionPanel for Genie;
-//     per-space probes + aggregate summary for Supervisor (closes the
-//     "partial failure" requirement from SETTINGS_SPEC § 6.1.1)
-//   - Knowledge pack: PackPicker rendered inline with allowlist filter
-//     applied — author confirms selection; result writes to the same
-//     `pulseplay:pack-selection` localStorage key used elsewhere
-//   - AI Insights settings are edited here directly; the Pulse Console
-//     links here instead of hosting a duplicate setup form.
+// AI-side Settings group: connector catalogue, model/agent readout,
+// connection test (per-space probes for Supervisor), knowledge pack, and
+// response-behavior settings. AI Insights settings are edited here directly;
+// the Pulse Console links here instead of hosting a duplicate setup form.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSettings } from "../settingsStore";
@@ -103,7 +89,7 @@ export function AiGroup(): React.ReactElement {
         return () => { cancelled = true; };
     }, []);
 
-    // Load allowlist-filtered packs from the proxy (Phase 7 endpoint).
+    // Load allowlist-filtered packs from the proxy.
     useEffect(() => {
         let cancelled = false;
         (async () => {
@@ -144,20 +130,13 @@ export function AiGroup(): React.ReactElement {
 
     const isSupervisor =
         !!activeProfileMeta && (activeProfileMeta.type === "supervisor" || activeProfileMeta.type === "supervisor-local");
-    // Cycle 17 — surface a launch button to /powerbi/qna when the active
-    // assistant is a Power BI semantic-model profile. Route + token-mint
-    // landed in cycle 15.5; this just exposes the entry point.
     const isPowerBiSemanticModel =
         !!activeProfileMeta && activeProfileMeta.type === "powerbi-semantic-model";
     const vectorSearchDetail = databricksCapabilities.details.vectorSearch;
     const vectorSearchReady = databricksCapabilities.capabilities.vectorSearch === true && (vectorSearchDetail?.count || 0) > 0;
 
-    // UX-ARCH-0B.2 Phase D 2026-05-23 — progressive setup state for the
-    // AI Setup page header. Three gates: connector picked, pack picked,
-    // assistant test-connection passed. Each gate is glanceable as a small
-    // numbered pill so the user sees at-a-glance what's left without
-    // scrolling. Mirrors the legacy `/settings/setup` AI-side checklist
-    // but in-place inside the page that absorbs that checklist.
+    // Progressive setup gates for the AI Setup header, rendered as numbered
+    // pills.
     const aiSetupGates = [
         { n: 1, label: "Connector",       done: !!activeAiProfile,        hint: "Pick from the catalogue below" },
         { n: 2, label: "Knowledge pack",  done: !!packSelection?.pack,    hint: "Optional but recommended" },
@@ -165,17 +144,10 @@ export function AiGroup(): React.ReactElement {
     ];
     const completedGates = aiSetupGates.filter(g => g.done).length;
 
-    // 2026-05-27 — aiIntroText now lives in the HelpTip body directly
-    // (see AI Setup header below). Raw title-based info button retired
-    // per Codex audit P0.
-
-    // UX-ARCH-0B.2 Phase F 2026-05-23 — universal progressive-section
-    // pattern: numbered bookmark chips at top, numbered collapsible cards
-    // below. Default is "all sections expanded" so a returning author sees
-    // every control they configured without re-expanding each time; the
-    // collapse affordance is opt-in for de-cluttering. Jump-to-section
-    // (bookmark click) just scrolls — doesn't toggle — so users don't lose
-    // context they had open elsewhere.
+    // Progressive sections default to "all expanded" so a returning author
+    // sees every configured control without re-expanding. Bookmark jump only
+    // scrolls — it does NOT toggle — so users don't lose context they had
+    // open elsewhere.
     const ALL_AI_SECTION_IDS = ["connector", "assistant", "context", "response", "surface"] as const;
     const [expandedAiSections, setExpandedAiSections] = useState<Set<string>>(() => new Set(ALL_AI_SECTION_IDS));
     const aiBookmarks: ReadonlyArray<BookmarkSection> = useMemo(() => [
@@ -206,11 +178,9 @@ export function AiGroup(): React.ReactElement {
 
     return (
         <section aria-labelledby="settings-ai-title">
-            {/* UX-ARCH-0B.2 follow-up 2026-05-23 — h2 + intro paragraph now
-                visually hidden. The page already shows "Settings" + gear at
-                top and the rail marks the active group; a duplicate "AI Setup"
-                heading was wasted space. Intro text lives on the (i) button's
-                tooltip + the gate ribbon's own labels carry the same scope info. */}
+            {/* h2 kept for a11y but visually hidden — the rail already marks
+                the active group, so a visible heading would be duplicate
+                chrome. Intro text lives on the (i) HelpTip. */}
             <h2 id="settings-ai-title" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>AI Setup</h2>
             <header style={{ marginBottom: 16 }}>
                 <div
@@ -255,8 +225,6 @@ export function AiGroup(): React.ReactElement {
                             <span>{g.label}</span>
                         </span>
                     ))}
-                    {/* 2026-05-27 — raw title-based `i` replaced with shared
-                        HelpTip (Codex audit P0). */}
                     <div style={{ marginLeft: "auto" }}>
                         <HelpTip
                             label="About AI Setup"
@@ -268,9 +236,6 @@ export function AiGroup(): React.ReactElement {
                         />
                     </div>
                 </div>
-                {/* Phase F — bookmark navigation for the 5 progressive
-                    sections below. Mirrors the SetupGroup pattern users
-                    flagged as "slick design". */}
                 <div style={{ marginTop: 12 }}>
                     <BookmarkNav
                         sections={aiBookmarks}
@@ -280,18 +245,11 @@ export function AiGroup(): React.ReactElement {
                 </div>
             </header>
 
-            {/* ─── Cycle 20 / S1: Connector catalogue (brand grid) ──────
-              * Surfaces ALL 12 connector types from /api/assistant/connector-types
-              * regardless of whether they're configured. Each card has a
-              * three-state status (Active / Configured-degraded / Available
-              * not wired) and a copy-paste config snippet. Drop a new manifest
-              * into proxy/lib/connectorManifests.js → a new card appears here
-              * without any UI code change.
-              *
-              * Lives ABOVE the existing Assistant tier so users see the full
-              * menu of providers before picking one. The legacy Provider
-              * picker below stays as the "configured profiles only" shortcut
-              * for users who already know which profile they want.
+            {/* Connector catalogue — surfaces ALL connector types from
+              * /api/assistant/connector-types whether configured or not. Drop
+              * a new manifest into proxy/lib/connectorManifests.js and a new
+              * card appears here without any UI code change. Sits ABOVE the
+              * Assistant tier so users see the full menu before picking.
               */}
             <ProgressiveSection
                 anchorId="connector"
@@ -342,11 +300,9 @@ export function AiGroup(): React.ReactElement {
                 <GenieSpacesManager />
             </ProgressiveSection>
 
-            {/* ─── Tier 1: Assistant — who is answering ─────────────────
-              * 2026-05-19 Codex IA restructure: pick the assistant (provider,
-              * model/agent) and prove it can answer. Sits ahead of any
-              * context or response tuning because nothing else matters until
-              * a working assistant is wired.
+            {/* Assistant — who is answering. Sits ahead of context / response
+              * tuning because nothing else matters until a working assistant
+              * is wired.
               */}
             <ProgressiveSection
                 anchorId="assistant"
@@ -364,20 +320,10 @@ export function AiGroup(): React.ReactElement {
                 }}
             >
 
-            {/* ── Provider picker removed 2026-05-20 (cycle 20 follow-up) ──
-              * The Connector catalogue above renders all 12 connectors with
-              * clickable configured-profile buttons; selecting one fires the
-              * same setActiveAiProfile() that the legacy ProviderPicker did.
-              * Keeping both surfaces showed duplicate Provider UI; the
-              * catalogue is the single source.
-              *
-              * Orphan banner moved up so it still surfaces when a stale
-              * pulseplay:active-ai-profile localStorage key references a
-              * removed profile.
-              */}
+            {/* Orphan banner surfaces when a stale pulseplay:active-ai-profile
+              * localStorage key references a removed profile. */}
             {aiOrphan && <OrphanBanner reason={aiOrphan.reason} />}
 
-            {/* ── Model / Agent ─────────────────────────────────────── */}
             <Leaf
                 group="ai"
                 label="Model / Agent"
@@ -404,12 +350,8 @@ export function AiGroup(): React.ReactElement {
                 )}
             </Leaf>
 
-            {/* ── Connection test ──────────────────────────────────────
-              * Kept inside the Assistant tier — the connection IS part of
-              * "who is answering". Moved here from the legacy "Test and
-              * validate" tier so authors don't have to scroll past unrelated
-              * sections to verify the assistant is reachable.
-              */}
+            {/* Connection test lives inside the Assistant tier — the
+              * connection IS part of "who is answering". */}
             <Leaf
                 group="ai"
                 label="Connection test"
@@ -432,30 +374,18 @@ export function AiGroup(): React.ReactElement {
                 )}
             </Leaf>
 
-            {/* ── Power BI Q&A launch (cycle 17, conditional after cycle 20) ─
-              * Renders ONLY when the active profile is `powerbi-semantic-model`.
-              * The launch button opens the full-page Q&A surface at /powerbi/qna.
-              * The proxy mints the dataset-scoped embed token; PulsePlay makes
-              * zero LLM calls on this path.
-              *
-              * 2026-05-20 cycle 20 cleanup: the "wrong-profile" disabled state
-              * was removed because the Connector catalogue above now hosts the
-              * Power BI Q&A brand card with the same config snippet for users
-              * who aren't on a PBI semantic-model profile. Keeping both was
-              * pure duplication.
-              */}
+            {/* Power BI Q&A launch — renders ONLY for the
+              * `powerbi-semantic-model` profile. Opens /powerbi/qna; the proxy
+              * mints the dataset-scoped embed token, zero LLM calls on this
+              * path. */}
             {isPowerBiSemanticModel && (
                 <Leaf
                     group="ai"
                     label="Power BI Q&A"
                     helper="Open Microsoft's natural-language Q&A surface bound to this dataset. The token mint stays server-side; PulsePlay makes no LLM call on this path. Microsoft is retiring Q&A on 31 Dec 2026 — for durable PBI natural-language work, use the powerbi-semantic-model deterministic DAX path."
                 >
-                    {/* 2026-05-22 — EOL countdown chip per the research-
-                     *  first finding. Microsoft officially deprecated Power
-                     *  BI Q&A on 2025-12-01 with hard end-of-life
-                     *  2026-12-31. Full research with 24 URL signatures in
-                     *  docs/research/EXTERNAL_REFERENCES.md "Power BI Q&A
-                     *  readiness assessment + deprecation finding". */}
+                    {/* Q&A EOL countdown chip — deprecation research in
+                     *  docs/research/EXTERNAL_REFERENCES.md. */}
                     <div
                         role="status"
                         data-testid="powerbi-qna-eol-chip"
@@ -524,7 +454,6 @@ export function AiGroup(): React.ReactElement {
                 }}
             >
 
-            {/* ── Knowledge pack (Domain knowledge) ──────────────────── */}
             <Leaf
                 group="ai"
                 label="Knowledge pack"
@@ -708,8 +637,7 @@ function PulseAiInsightsSettingsPanel(props: {
 }): React.ReactElement {
     const { value, onChange } = props;
     const resolvedProfile = (value.assistantProfile || props.activeAiProfile || "").trim();
-    // Proxy base URL for the SQL Validate dry-run. PulsePlay-native canonical
-    // key; falls back to the value Pulse persisted in genieSettings.
+    // Proxy base URL for the SQL Validate dry-run.
     const sqlApiBaseUrl = useMemo(() => {
         try { return (window.localStorage.getItem("pulseplay:api-base-url") || "").trim() || "/api"; }
         catch { return "/api"; }
@@ -728,8 +656,7 @@ function PulseAiInsightsSettingsPanel(props: {
         });
     }, [resolvedProfile, props.packSelection?.pack, props.packSelection?.subVertical, value.insightsDomain]);
 
-    // FEATURE-P1 auto-prompt-from-context — deterministic drafts for the
-    // two prompt textareas, templated from the cached DiscoverySnapshot
+    // Deterministic prompt drafts templated from the cached DiscoverySnapshot
     // (no LLM call, works on every backend path incl. the no-LLM Power BI
     // connector). Returns null when there is no usable signal so the panel
     // can render an honest empty state.
@@ -748,11 +675,9 @@ function PulseAiInsightsSettingsPanel(props: {
         return buildPromptDrafts(snap, value.insightsDomain || undefined);
     }, [resolvedProfile, props.packSelection?.pack, props.packSelection?.subVertical, value.insightsDomain]);
 
-    // 2026-05-28 — read the cached discovery snapshot so the metric
-    // direction auto-detect chip can render. Cache-first; if it's been
-    // fetched recently by App or UnifiedAssistantSurface, this is
-    // synchronous via sessionStorage. No prefetch from Settings — we
-    // only show the chip when discovery already ran elsewhere.
+    // Cache-first read of the discovery snapshot for the metric-direction
+    // auto-detect chip. No prefetch from Settings — only show the chip when
+    // discovery already ran elsewhere (App / UnifiedAssistantSurface).
     const [snapshot, setSnapshot] = useState<DiscoverySnapshot | null>(null);
     const [autoDetectDismissed, setAutoDetectDismissed] = useState(false);
     useEffect(() => {
@@ -771,20 +696,12 @@ function PulseAiInsightsSettingsPanel(props: {
         return () => { cancelled = true; };
     }, [resolvedProfile, props.packSelection?.pack, props.packSelection?.subVertical]);
 
-    // 2026-05-28 — 3rd fallback signal: UC Metric View MEASURE NAMES
-    // (not view titles — view titles are often technical like
-    // `vw_metric_*_flat` and don't carry semantic content the heuristic
-    // can match). For each view we list, fetch its detail and extract
-    // columns where metric_view.type === "measure". The extracted names
-    // (e.g., "Sales", "Profit", "Discount") feed the same heuristic as
-    // the BI adapter / availableKpis sources.
-    //
-    // Cost: 1 list call + N detail calls (one per metric view). Limited
-    // to first 5 views to avoid runaway fetching on large catalogs.
-    // Uses the same workspace/databrickspractice defaults the
-    // UCMetricViewExplorer leaf uses; if those aren't right for the
-    // user's profile, the fetch fails silently and the chip stays
-    // hidden — no error noise, just the honest no-signal fallback.
+    // 3rd fallback signal: UC Metric View MEASURE NAMES — not view titles,
+    // which are often technical (`vw_metric_*_flat`) and carry no semantic
+    // content the heuristic can match. Cost: 1 list call + N detail calls,
+    // limited to the first 5 views to avoid runaway fetching on large
+    // catalogs. If the catalog/schema defaults don't fit the user's profile,
+    // the fetch fails silently and the chip stays hidden — no error noise.
     const [ucMetricMeasureNames, setUcMetricMeasureNames] = useState<string[]>([]);
     useEffect(() => {
         if (!resolvedProfile) {
@@ -956,13 +873,9 @@ function PulseAiInsightsSettingsPanel(props: {
                 onChange={insightsDomainGuidance => onChange({ insightsDomainGuidance })}
             />
 
-            {/* 2026-05-28 — port the CustomSectionPresetPicker from setupStep5
-              * (PulseShell PBI format pane) into PulsePlay-native Settings.
-              * Closes parity gap reported in live test: "where can I select
-              * the strategy like SWOT or BCG etc but I don't see that
-              * dropdown selection." Same component, same preset library
+            {/* Same preset library as the Pulse setupStep5 pane
               * (insightsPresetLibrary.ts — SWOT/BCG/RFM/Pareto + pack
-              * presets), same parameter editor. */}
+              * presets) and same parameter editor. */}
             <Leaf
                 group="ai"
                 label="Custom sections preset library"
@@ -976,12 +889,10 @@ function PulseAiInsightsSettingsPanel(props: {
                 />
             </Leaf>
 
-            {/* 2026-05-28 — Slice 2: author sections as markdown. Each
-              * `## <Section>` heading becomes a card on the AI Insights
-              * screen; the body is the per-section AI prompt. Writes the same
-              * canonical insightsCustomSections JSON the runtime consumes,
-              * preserving any SQL/config-item sections. The raw JSON view
-              * below is kept as an advanced escape hatch. */}
+            {/* Markdown section authoring writes the same canonical
+              * insightsCustomSections JSON the runtime consumes, preserving
+              * any SQL/config-item sections. The raw JSON view below stays
+              * as an advanced escape hatch. */}
             <Leaf
                 group="ai"
                 label="AI Insights sections"
@@ -993,13 +904,9 @@ function PulseAiInsightsSettingsPanel(props: {
                 />
             </Leaf>
 
-            {/* 2026-05-28 — Slice 3: SQL / config-item sections, surfaced in
-              * native Settings (previously only authorable in the old Pulse
-              * setupStep5 surface). Each runs a read-only SELECT against a
-              * profile's warehouse (Genie space OR direct/underlying data) and
-              * renders as a card — no LLM. The Validate button runs the SQL
-              * dry-run that was stubbed in setupStep5. Writes the same
-              * insightsCustomSections JSON, preserving AI sections. */}
+            {/* SQL / config-item sections run a read-only SELECT (no LLM)
+              * and write the same insightsCustomSections JSON, preserving
+              * AI sections. */}
             <Leaf
                 group="ai"
                 label="SQL sections"
@@ -1112,8 +1019,6 @@ function PulseAiInsightsSettingsPanel(props: {
                     checked={value.insightsShowProvenanceFooter}
                     onChange={insightsShowProvenanceFooter => onChange({ insightsShowProvenanceFooter })}
                 />
-                {/* 2026-05-28 — surfaced from PulseAiVisualSettings.
-                  * Was previously only togglable via DevTools localStorage. */}
                 <SettingsCheckbox
                     label="Staged reveal animation"
                     checked={value.insightsStagedRevealEnabled}
@@ -1152,12 +1057,11 @@ function PulseAiInsightsSettingsPanel(props: {
     );
 }
 
-// ─── FEATURE-P1 — Generate prompts from data context ────────────────────
+// ─── Generate prompts from data context ─────────────────────────────────
 //
-// One-click deterministic draft generation for the "Custom insights
-// prompt" and "Domain guidance" textareas. Drafts are templated from the
-// cached DiscoverySnapshot (real measure/dimension/KPI names only — see
-// promptDraftGenerator.ts honesty contract). Applying never happens
+// Deterministic draft generation for the two prompt textareas, templated
+// from the cached DiscoverySnapshot (real measure/dimension/KPI names only —
+// see promptDraftGenerator.ts honesty contract). Applying NEVER happens
 // silently over existing text: non-empty targets get explicit
 // Replace / Append choices, empty targets a plain Apply.
 
@@ -1498,22 +1402,15 @@ const settingsInputStyle: React.CSSProperties = {
     padding: "8px 10px",
     border: "1px solid var(--pp-border, rgba(0,0,0,0.18))",
     borderRadius: 5,
-    // Theme-aware surface — was a hardcoded near-white gradient, which in
-    // dark mode paired with the inherited light --pp-text (#e2eaf4) to make
-    // every settings select/input/textarea white-on-white (V4 systemic tail,
-    // 2026-06-04). --pp-surface-raised is #fff in light, #1c2128 in dark, so
-    // the field tracks the theme and the text stays legible in both.
+    // MUST stay theme-aware — a hardcoded near-white background here made
+    // every settings select/input/textarea white-on-white in dark mode
+    // (inherited light --pp-text). --pp-surface-raised is #fff in light,
+    // #1c2128 in dark, so text stays legible in both.
     background: "var(--pp-surface-raised, #fff)",
     boxShadow: "inset 0 1px 2px rgba(15, 23, 42, 0.07), 0 1px 2px rgba(15, 23, 42, 0.04)",
     color: "var(--pp-text, #0f172a)",
     fontSize: 12,
 };
-
-// ProviderPicker — removed 2026-05-20 cycle 20 cleanup. The Connector
-// catalogue's brand cards now host the same chip-style picker via their
-// configured-profile buttons, and a single Provider UI is less confusing
-// than two surfaces fighting for the same job. Git history preserves the
-// component if it's ever needed again.
 
 // ─── Supervisor fan-out table (read-only) ───────────────────────────────
 

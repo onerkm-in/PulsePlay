@@ -1,17 +1,5 @@
-// playground/src/App.tsx
-//
-// PulsePlay shell — left sidebar with the AI assistant, main canvas with
-// the active BI panel. Vendor picker top-left lets the user switch
-// between Power BI / Tableau / Qlik / Looker / generic iframe; the
-// embed config form right below it is vendor-specific (rendered by the
-// adapter's optional configurator component, or a simple URL field for
-// the generic-iframe fallback).
-//
-// The AI sidebar is the WHOLE point of PulsePlay — it stays mounted as
-// the user switches vendors, accumulating context (which page they
-// looked at, which filters they applied) across the session and using
-// the same proxy backend (Genie / Azure OpenAI / Bedrock / foundation
-// model) we proved out in sister Pulse project cycles 1-47.
+// PulsePlay shell — AI assistant surface + BI canvas host. The AI surface
+// stays mounted across vendor switches, accumulating BI event context.
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
@@ -44,8 +32,8 @@ import {
 } from "./surfaces/surfaceAvailability";
 import { readPulseAiVisualSettings } from "./settings/pulseVisualSettingsStore";
 import { computeSurfaceContext } from "./lib/computeSurfaceContext";
-// Phase A — TestConnectionPanel + PackPicker (component) now live only in
-// Settings → AI; type-only imports remain for state plumbing.
+// TestConnectionPanel + PackPicker components live in Settings → AI;
+// type-only imports remain for state plumbing.
 import type { PackInfo, PackSelection } from "./components/PackPicker";
 import type { ConnectorProbeResult } from "./types/probe";
 import type { PulsePlayAllowlist } from "./types/allowlist";
@@ -83,45 +71,32 @@ import { useDashboardAutoSeed } from "./multipane/dashboardAutoSeed";
 import { useLaunchpadRoute } from "./launchpad/launchpadRoute";
 import { WorkbenchShell } from "./workbench/WorkbenchShell";
 import { useWorkbenchRoute } from "./workbench/workbenchRoute";
-// PERF — lazy-load PulseShell so the 642 KB pulse chunk isn't on the
-// first-paint critical path. The brand strip + top bar render
-// instantly while pulse fetches in parallel. v0 mode (which doesn't
-// import pulse at all) is unaffected.
+// PERF — lazy-load PulseShell so the large pulse chunk isn't on the
+// first-paint critical path.
 const PulseShell = lazy(() =>
     import("./components/PulseShell").then(m => ({ default: m.PulseShell }))
 );
 
-/** UI mode toggle — "pulse" mounts the full ported Pulse experience in
- *  the left panel (Insights tab + Chat tab + all the
- *  iterated UX); "v0" mounts the Smart-Connect-flavoured v0 components
- *  we built in cycles B + C. Both modes keep the BI canvas on the right
- *  so the multi-BI host stays usable. Cycle F lets the panels be
- *  positioned freely (left/right/top/bottom/floating). */
+/** UI mode toggle — "pulse" mounts the ported Pulse experience; "v0" mounts
+ *  the assistant-only surface. Both keep the BI canvas usable. */
 type UiMode = "pulse" | "v0";
 const UI_MODE_STORAGE_KEY = "pulseplay:ui-mode";
 
-/** Cycle E.3 — analogous to Pulse's existing "Insights / Chat / Both"
- *  enabled-features toggle, but at the OUTER playground level: which
- *  panels render at all. "aiOnly" hides the BI canvas (handy for a
- *  chat-only deployment); "biOnly" hides the AI side (handy when
- *  embedding PulsePlay as a BI viewer in another shell); "both" is the
- *  explicit split-pane power-user view; "mix" is the default unified
- *  surface mode where BI is available as a peer surface action instead
- *  of occupying a permanent second section. Persists in localStorage. */
+/** Which panels render at all: "aiOnly" hides the BI canvas, "biOnly" hides
+ *  the AI side, "both" is the explicit split-pane view, "mix" (default) makes
+ *  BI a peer surface instead of a permanent second section. Persists in
+ *  localStorage. */
 type EnabledComponents = "aiOnly" | "biOnly" | "both" | "mix";
 const ENABLED_COMPONENTS_STORAGE_KEY = "pulseplay:enabled-components";
 const ENABLED_COMPONENTS_LEGACY_BOTH_MIGRATION_KEY = "pulseplay:enabled-components:legacy-both-migrated";
 
-/** Cycle F — author-picked layout. Where the AI panel sits relative to
- *  the BI canvas. Floating mode (drag-to-position) is a future iteration;
- *  the four split modes cover most needs. */
+/** Where the AI panel sits relative to the BI canvas. */
 type LayoutMode = "ai-left" | "ai-right" | "ai-top" | "ai-bottom";
 const LAYOUT_MODE_STORAGE_KEY = "pulseplay:layout-mode";
 
-/** Cycle K — how many BI tiles render inside the BI pane. This used to be
- *  an author-facing toolbar; it is now a backend display policy because tile
- *  count changes the viewer's cognitive load and can create confusing
- *  duplicate BI frames in controlled enterprise deployments. */
+/** How many BI tiles render inside the BI pane. A backend display policy
+ *  (not author-facing) because tile count changes the viewer's cognitive load
+ *  and can create confusing duplicate BI frames. */
 type BiTileMode = "1" | "2" | "4";
 const BI_VENDOR_STORAGE_KEY = "pulseplay:bi-vendor";
 type ViewportPane = "ai" | "bi";
@@ -180,11 +155,9 @@ function readPulseAssistantProfile(): string {
 }
 
 /**
- * Audit 2026-05-19 P2-13: read the configured PulsePlay-proxy base URL so
- * user-facing error copy ("Check the proxy is running on …") shows the
- * actual deployed origin, not a stale hardcoded `127.0.0.1:8787`. Reads
- * from the genieSettings JSON the settingsStore writes; falls back to the
- * local dev default when no override is set.
+ * Read the configured proxy base URL so user-facing error copy shows the
+ * actual deployed origin, not a stale hardcoded default. Reads from the
+ * genieSettings JSON the settingsStore writes.
  */
 function readConfiguredProxyBase(): string {
     if (typeof window === "undefined") return "http://127.0.0.1:8787";
@@ -200,17 +173,11 @@ function readConfiguredProxyBase(): string {
 }
 
 /**
- * Read the active AI connector / assistant profile from the canonical
- * settingsStore key (`pulseplay:active-ai-profile`). Falls back to the
- * Pulse legacy genieSettings.assistantProfile slot so users who only ever
- * configured via the Pulse Console (not Settings → AI → Provider) still
- * end up with a non-empty profile.
- *
- * Pre-existing bug fix: before this, App.tsx initialised `activeConnector`
- * to "" and only updated it via the wizard or in-app ConnectorPicker.
- * Settings → AI → Provider writes to `pulseplay:active-ai-profile` but
- * App.tsx never read it — so a Settings-only change was invisible to
- * <UnifiedAssistantSurface> and the AI request went out with an empty assistantProfile.
+ * Read the active AI connector from the canonical settingsStore key
+ * (`pulseplay:active-ai-profile`), falling back to the Pulse legacy
+ * genieSettings.assistantProfile slot so Pulse-Console-only configs still
+ * yield a non-empty profile. App.tsx MUST read this key or a Settings-only
+ * change is invisible and requests go out with an empty assistantProfile.
  */
 function readInitialActiveConnector(): string {
     if (typeof window === "undefined") return "";
@@ -218,14 +185,11 @@ function readInitialActiveConnector(): string {
         const primary = window.localStorage.getItem("pulseplay:active-ai-profile");
         if (primary && primary.trim()) return primary.trim();
     } catch { /* swallow */ }
-    // Fallback: Pulse legacy slot.
     return readPulseAssistantProfile();
 }
 
 function readInitialUiMode(): UiMode {
-    // ARCH-P1 slice 3 — delegate to the feature-registry resolver. The
-    // explicit override + DEFAULT_UI_MODE fallback contract from ARCH-P0
-    // is preserved (Step 1 + Step 5 of resolveDefaultSurface). Mirrors
+    // Delegates to the feature-registry resolver. Mirrors
     // settingsStore.readUiMode() — both readers MUST stay in lockstep
     // or the cold-boot surface flickers between renderers.
     if (typeof window === "undefined") return DEFAULT_UI_MODE;
@@ -309,11 +273,9 @@ function readSurfaceFromUrl(): SurfaceId | null {
     if (typeof window === "undefined") return null;
     try {
         const raw = new URL(window.location.href).searchParams.get(ACTIVE_SURFACE_URL_PARAM);
-        // 2026-05-27 — URL alias map. Internal SurfaceId is `bi-viz` (Pulse
-        // heritage name), but the user-facing tab label + showcase URLs use
-        // the friendlier `dashboard`. Accept either; canonicalise to the
-        // internal id before validating. Without this, `?surface=dashboard`
-        // silently fell through to the AI Insights default.
+        // URL alias: internal SurfaceId is `bi-viz`, user-facing URLs use
+        // `dashboard`. Accept either — without this, `?surface=dashboard`
+        // silently falls through to the AI Insights default.
         const value = raw === "dashboard" ? "bi-viz" : raw;
         return isSurfaceId(value) ? value : null;
     } catch { /* swallow */ }
@@ -346,11 +308,9 @@ function surfaceFromMixState(surface: MixSurface, pulseTab?: PulseSurfaceTab): S
 }
 
 /**
- * 2026-05-22 — read the author-configured default landing surface from
- * localStorage directly (no settingsStore dependency — this runs in
- * useState's lazy initializer before the SettingsProvider mounts).
- * Key must match settingsStore.KEY.defaultLandingSurface. Validates via
- * isSurfaceId so a corrupted localStorage entry can't crash the boot.
+ * Read the author-configured default landing surface from localStorage
+ * directly — this runs in useState's lazy initializer before the
+ * SettingsProvider mounts. Key must match settingsStore.KEY.defaultLandingSurface.
  */
 function readAuthorDefaultLandingSurface(): SurfaceId | null {
     if (typeof window === "undefined") return null;
@@ -362,14 +322,11 @@ function readAuthorDefaultLandingSurface(): SurfaceId | null {
 }
 
 function readInitialActiveSurface(): SurfaceId {
-    // Priority order (per Rajesh's 2026-05-22 direction "by author selection
-    // and by default the AI Insights should be the tab where it should open"):
+    // Priority order:
     //   1. URL ?surface= (explicit deep-link / share)
     //   2. URL ?focus=bi (legacy viewport-focus deep-link)
-    //   3. Author-configured default landing surface (NEW)
-    //   4. localStorage stored active-surface (session memory; only kicks in
-    //      when no author default is set)
-    //   5. "ai-insights" hardcoded fallback (home base)
+    //   3. Author-configured default landing surface
+    //   4. "ai-insights" hardcoded fallback (home base)
     const fromUrl = readSurfaceFromUrl();
     if (fromUrl) return fromUrl;
 
@@ -379,14 +336,10 @@ function readInitialActiveSurface(): SurfaceId {
     const authorDefault = readAuthorDefaultLandingSurface();
     if (authorDefault) return authorDefault;
 
-    // 2026-05-28 — AI Insights is the canonical home base. We intentionally do
-    // NOT restore the last-used surface (stored sticky) as the landing default:
-    // authors asked that the app always OPEN on AI Insights unless a deep-link
-    // (?surface= / ?focus=) or an explicit author default (defaultLandingSurface)
-    // says otherwise. The stored surface is still tracked for cross-tab sync +
-    // focus-restore (see the popstate / display-change handlers), just not used
-    // to pick the initial surface — sticky-Ask-Pulse was landing users away
-    // from the home tab on every reload.
+    // Intentionally do NOT restore the last-used surface as the landing
+    // default — the app must always open on AI Insights unless a deep-link or
+    // author default says otherwise. The stored surface is still tracked for
+    // cross-tab sync + focus-restore, just not used here.
     return "ai-insights";
 }
 
@@ -420,12 +373,6 @@ function buildFocusedPaneUrl(pane: ViewportPane): string {
     return "";
 }
 
-/** Cycle J — layoutMode now controls the PanelGroup direction + which
- *  panel sits first (see `renderSplitLayout` below). The flex-based
- *  layout helpers and hard sidebar caps are gone; the user drags the
- *  divider to size each pane, and the choice persists via PanelGroup's
- *  `autoSaveId`. */
-
 /** App entry — wraps PulsePlay with the SettingsProvider, then renders
  *  either the Settings page or the playground based on the route. */
 export function App(): React.ReactElement {
@@ -440,12 +387,8 @@ export function App(): React.ReactElement {
 }
 
 function ReactQueryDevtoolsHost(): React.ReactElement | null {
-    // 2026-05-26 — opt-in via `pulseplay:rq-devtools=1` localStorage flag.
-    // The default-on dev launcher button overlapped the Ask Pulse composer
-    // CTAs (bottom-right collided with Send; bottom-left collided with the
-    // textarea placeholder). Most dev work doesn't actually use the React
-    // Query panel — when you do, set the flag and reload. This keeps the
-    // user-facing chat surface clean without removing the capability.
+    // Opt-in via `pulseplay:rq-devtools=1` localStorage flag — the default-on
+    // dev launcher button overlapped the Ask Pulse composer CTAs.
     const [Devtools, setDevtools] = useState<ComponentType<{ initialIsOpen?: boolean; buttonPosition?: "top-left" | "top-right" | "bottom-left" | "bottom-right" | "relative" }> | null>(null);
 
     useEffect(() => {
@@ -498,9 +441,8 @@ function AppRouted(): React.ReactElement {
         return <PowerBiQnaShell />;
     }
     if (multiPaneRoute.isMultiPaneRoute) {
-        // Part C P1-PROOF — the surface gates its own content on the
-        // multiConnectorPanes flag (default OFF), so this route is inert for
-        // the single-pane app unless an author explicitly enables the flag.
+        // The surface gates its own content on the multiConnectorPanes flag
+        // (default OFF), so this route is inert unless an author enables it.
         return <MultiPaneDemoShell />;
     }
     if (launchpadRoute.isLaunchpadRoute) {
@@ -530,19 +472,13 @@ function AppRouted(): React.ReactElement {
     return <PlaygroundApp />;
 }
 
-/** The existing playground shell. Renders at "/" and any non-/settings
- *  pathname. Settings state is read via SettingsProvider when the
- *  playground needs it; for now the playground keeps its own copies of
- *  the legacy storage keys for backward compatibility with Pulse Cycle H
- *  and the inline forms. Phase 5 retires those duplicates. */
+/** The playground shell. Renders at "/" and any non-routed pathname. Keeps
+ *  its own copies of legacy storage keys for Pulse backward compatibility. */
 function PlaygroundApp(): React.ReactElement {
-    // settingsStore actions — needed by handleWizardComplete to actually
-    // persist the picked AI profile to `pulseplay:active-ai-profile` (which
-    // then mirrors to genieSettings.assistantProfile + auto-populates
-    // connectionMode + apiBaseUrl per settingsStore.setActiveAiProfile).
-    // Without this, the wizard wrote App.tsx local state only — Pulse-mode
-    // AI Insights kept showing "Connect to Databricks" because genieSettings
-    // stayed empty. Discovered by browser smoke test 2026-05-17.
+    // settingsStore actions — handleWizardComplete MUST persist the picked AI
+    // profile via settingsStore (mirrors to genieSettings.assistantProfile);
+    // local state alone leaves genieSettings empty and AI Insights stuck on
+    // "Connect to Databricks".
     const settings = useSettings();
     const vendors = useMemo(() => listVendors(), []);
     const { data: allowlistRes, error: allowlistError } = useAllowlist();
@@ -558,7 +494,7 @@ function PlaygroundApp(): React.ReactElement {
         const allowed = allowlistState.allowlist.biProviders || [];
         return vendors.filter(v => allowed.includes(v.vendor));
     }, [allowlistState.allowlist, vendors]);
-    // Allowlist fail-closed P1 — when the governance endpoint is unreachable
+    // Allowlist fail-closed — when the governance endpoint is unreachable
     // (allowlist is null AND error is set), surface the state to BIPanel so
     // it refuses to mount instead of silently embedding without governance.
     // The "configured: false" + null cases (dev-unconfigured, intentional
@@ -574,14 +510,10 @@ function PlaygroundApp(): React.ReactElement {
     // Both pickers are independent — any cell of the matrix is valid.
     const [activeVendor, setActiveVendor] = useState<string>(() => readInitialBiVendor());
     const [biSurfaceMode, setBiSurfaceMode] = useState<BiSurfaceMode>(() => readInitialBiSurfaceMode());
-    // PRE-EXISTING BUG FIX: `activeConnector` was initialized to "" and only
-    // updated by the wizard's onComplete or the in-app ConnectorPicker.
-    // Settings → AI → Provider writes to `pulseplay:active-ai-profile` via
-    // settingsStore, but App.tsx never read that key — so a Settings-only
-    // change was invisible to <UnifiedAssistantSurface>, which then submitted with empty
-    // assistantProfile and the proxy fell through. Hydrating from the
-    // canonical key on mount + subscribing to storage events closes the
-    // gap without forcing a full settingsStore migration of App.tsx state.
+    // Hydrate from the canonical `pulseplay:active-ai-profile` key on mount +
+    // subscribe to storage events — otherwise a Settings-only provider change
+    // is invisible here and <UnifiedAssistantSurface> submits with an empty
+    // assistantProfile.
     const [activeConnector, setActiveConnector] = useState<string>(() => readInitialActiveConnector());
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -589,11 +521,9 @@ function PlaygroundApp(): React.ReactElement {
             const fromStorage = readInitialActiveConnector();
             setActiveConnector(prev => (fromStorage === prev ? prev : fromStorage));
         };
-        // `storage` fires for cross-tab writes. The settingsStore's
-        // `persistAndBroadcast()` fires `pulseplay:display-change` for
-        // same-tab writes — same channel the Preferences group uses for
-        // live updates. We subscribe to both so Settings → AI → Provider
-        // immediately reaches App-level state.
+        // `storage` fires for cross-tab writes; settingsStore fires
+        // `pulseplay:display-change` for same-tab writes. Subscribe to both
+        // so Settings changes reach App-level state immediately.
         window.addEventListener("storage", sync);
         window.addEventListener("pulseplay:display-change", sync as EventListener);
         return () => {
@@ -601,11 +531,8 @@ function PlaygroundApp(): React.ReactElement {
             window.removeEventListener("pulseplay:display-change", sync as EventListener);
         };
     }, []);
-    // Phase B of BI Live Controls (Settings IA fix #6). The Power BI embed
-    // config now lives in a dedicated cross-tab store (`pulseplay:bi-embed-
-    // config`). Editing in Settings → BI → Embed live-updates this hook
-    // and the playground re-renders without a refresh. Phase A persisted
-    // separately; Phase B (this) is the App.tsx adoption.
+    // Power BI embed config lives in a cross-tab store; editing in
+    // Settings → BI → Embed live-updates this hook without a refresh.
     const { embedConfig, setEmbedConfig: persistEmbedConfig, clearEmbedConfig } = useEmbedConfig();
     // Stable wrapper preserving the existing setEmbedConfig({}) clear
     // semantics so the rest of App.tsx doesn't need to know about the
@@ -623,15 +550,13 @@ function PlaygroundApp(): React.ReactElement {
         else persistEmbedConfig(next);
     }, [embedConfig, persistEmbedConfig, clearEmbedConfig]);
     const [recentEvents, setRecentEvents] = useState<BIEvent[]>([]);
-    // UI mode persists across reloads. Pulse is default — that's the
-    // user-confirmed direction (port carries forward).
     const [uiMode, setUiMode] = useState<UiMode>(() => readInitialUiMode());
     const [enabledComponents, setEnabledComponents] = useState<EnabledComponents>(
         () => readInitialEnabledComponents(),
     );
     const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => readInitialLayoutMode());
     const [focusedPane, setFocusedPane] = useState<ViewportFocus>(() => readInitialViewportFocus());
-    // F5.1 — `activeSurface` is the REQUESTED surface (user/URL intent),
+    // `activeSurface` is the REQUESTED surface (user/URL intent),
     // not necessarily what's actually rendered. The deployment can disable
     // surfaces via `enabledComponents` (pane axis) and `enabledFeatures`
     // (Pulse feature axis). The resolver below maps requested + config
@@ -644,9 +569,8 @@ function PlaygroundApp(): React.ReactElement {
     const [enabledFeatures, setEnabledFeatures] = useState<EnabledFeaturesInput>(
         () => readPulseAiVisualSettings().enabledFeatures,
     );
-    // 2026-05-28 — author gate for the Chat (v0) surface chip. Workbench is
-    // the default surface; the Workbench⇄Chat top-bar chip only renders when
-    // an author has enabled Chat in Settings. Updated live via the same
+    // Author gate for the Chat (v0) surface chip — it only renders when an
+    // author has enabled Chat in Settings. Updated live via the
     // PULSE_VISUAL_SETTINGS_EVENT listener that tracks enabledFeatures.
     const [allowChatSurface, setAllowChatSurface] = useState<boolean>(
         () => readPulseAiVisualSettings().allowChatSurface,
@@ -667,11 +591,11 @@ function PlaygroundApp(): React.ReactElement {
     // visuals, composer text) instead of mounting a second empty assistant.
     const mainAiMirrorSourceRef = useRef<HTMLElement | null>(null);
     const mainBiMirrorSourceRef = useRef<HTMLElement | null>(null);
-    // 2026-05-25 — explicit signal for Mix-mode minimize. Mix mode's normal
-    // surface flip (Dashboard nav) and an intentional Minimize click look
-    // identical at the state level (mixSurface="bi") but only the latter
-    // should render the restore dock. handleViewportMinimize sets this;
-    // any SurfaceSwitcher-driven mixSurface change clears it.
+    // Explicit signal for Mix-mode minimize. Mix mode's normal surface flip
+    // (Dashboard nav) and an intentional Minimize click look identical at the
+    // state level (mixSurface="bi") but only the latter should render the
+    // restore dock. handleViewportMinimize sets this; any SurfaceSwitcher-
+    // driven mixSurface change clears it.
     const [mixMinimizedPane, setMixMinimizedPane] = useState<ViewportPane | null>(null);
 
 
@@ -700,15 +624,10 @@ function PlaygroundApp(): React.ReactElement {
         };
     }, [activeConnector]);
 
-    // ESCAPE-HATCH (2026-05-25): the wizard-driven uiMode write was deleted.
-    // All FirstRunWizard personas now return uiMode === "v0", which is also
-    // the default from readInitialUiMode() — so writing it via the wizard
-    // path was redundant. The only remaining writer of `pulseplay:ui-mode`
-    // is dev-tools manual localStorage.setItem, which is the explicit
-    // escape hatch during the PulseShell-to-UnifiedAssistantSurface feature-port
-    // migration (beast-mode plan Steps 4/5/6). The local React `setUiMode`
-    // state setter is kept so the display-change event listener at line
-    // ~877 below can sync mid-session if a dev-tools change fires.
+    // The only writer of `pulseplay:ui-mode` is dev-tools manual
+    // localStorage.setItem (explicit escape hatch). The local `setUiMode`
+    // setter is kept so the display-change listener below can sync
+    // mid-session if a dev-tools change fires.
 
     const handleBiSurfaceModeChange = useCallback((next: BiSurfaceMode) => {
         setBiSurfaceMode(next);
@@ -726,7 +645,7 @@ function PlaygroundApp(): React.ReactElement {
         if (options?.writeUrl !== false) writeActiveSurfaceToUrl(next);
     }, []);
 
-    // F5.1 — resolve REQUESTED surface against the current deployment
+    // Resolve REQUESTED surface against the current deployment
     // config. `surfaceResolution.effectiveSurfaceId` is what the shell
     // renders; `activeSurface` is the user's persisted intent. When config
     // re-opens a previously-disabled surface, the resolver returns the
@@ -750,7 +669,7 @@ function PlaygroundApp(): React.ReactElement {
                 window.localStorage.setItem(ENABLED_COMPONENTS_LEGACY_BOTH_MIGRATION_KEY, "true");
             }
         } catch { /* swallow */ }
-        // F5.1 — do NOT mutate activeSurface on enabledComponents changes.
+        // Do NOT mutate activeSurface on enabledComponents changes.
         // The resolver above maps the persisted requested surface through
         // the new pane configuration; intent stays intact so re-enabling
         // a previously-disabled pane restores the user's original surface
@@ -785,10 +704,9 @@ function PlaygroundApp(): React.ReactElement {
         setFocusedPane(null);
         writeViewportFocusToUrl(null);
         if (enabledComponents === "mix") {
-            // 2026-05-25 — flip surfaces AND record the explicit minimize
-            // signal so the dock renders. (Just flipping mixSurface looks
-            // identical to user-driven Dashboard navigation; the dock
-            // needs to distinguish.)
+            // Flip surfaces AND record the explicit minimize signal so the
+            // dock renders (flipping mixSurface alone looks identical to
+            // user-driven Dashboard navigation).
             setMixSurface(pane === "ai" ? "bi" : "ai");
             setMixMinimizedPane(pane);
             return;
@@ -804,9 +722,8 @@ function PlaygroundApp(): React.ReactElement {
         setFocusedPane(null);
         writeViewportFocusToUrl(null);
         setMixSurface(surface);
-        // 2026-05-25 — surface-switcher navigation always reflects user
-        // intent to view that surface, so any prior Mix-minimized signal
-        // is no longer relevant; clear it so the restore dock hides.
+        // Switcher navigation reflects user intent to view that surface, so
+        // clear any prior Mix-minimized signal so the restore dock hides.
         setMixMinimizedPane(null);
         if (pulseTab) setRequestedPulseTab(pulseTab);
         persistActiveSurface(surfaceFromMixState(surface, pulseTab));
@@ -846,29 +763,15 @@ function PlaygroundApp(): React.ReactElement {
         window.open(url, "_blank", "noopener,noreferrer");
     }, []);
 
-    /** Float the pane as an in-app draggable overlay panel. Keeps the user
-     *  in the same browser tab, same auth session, same origin — no separate
-     *  window means no cross-window message bridge needed and interactions
-     *  stay seamless.
-     *
-     *  Sizing:
-     *  - Desktop (≥ 640 px viewport): 520 px wide, 80 vh tall (cap 700 px),
-     *    positioned ~right edge with a 20 px margin so the panel doesn't kiss
-     *    the viewport edge.
-     *  - Mobile (< 640 px viewport): clamp panel WIDTH to the viewport width
-     *    minus a 16 px margin on each side. The 2026-05-19 visible E2E pass
-     *    found the dock control offscreen at 390 px because a 520 px panel
-     *    couldn't fit. Position is clamped inside the viewport so both Dock
-     *    and Close stay reachable.
-     *
-     *  "Dock ↙" in the panel header collapses back into the split layout.
-     */
+    /** Float the pane as an in-app draggable overlay panel — same tab, same
+     *  auth session, no cross-window message bridge needed.
+     *  Mobile (< 640 px): clamp panel width to the viewport minus margins —
+     *  a fixed 520 px panel put the Dock control offscreen at 390 px. */
     const handleViewportFloat = useCallback((pane: ViewportPane) => {
         const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
         const vh = typeof window !== "undefined" ? window.innerHeight : 800;
         const MARGIN = 16;
         const isMobile = vw < 640;
-        // Panel width: 520 on desktop, viewport-minus-margin on mobile.
         const panelW = isMobile
             ? Math.max(280, vw - MARGIN * 2)
             : 520;
@@ -893,7 +796,7 @@ function PlaygroundApp(): React.ReactElement {
         handleEnabledComponentsChange("both");
     }, [handleEnabledComponentsChange]);
 
-    // F5.1 — mix-mode pane state follows the EFFECTIVE surface, not the
+    // Mix-mode pane state follows the EFFECTIVE surface, not the
     // raw request. When chatOnly forces an ai-insights request to fall
     // back to ask-pulse, the pane must show chat — otherwise the user's
     // click would visibly do nothing while the resolver silently swapped
@@ -1023,11 +926,11 @@ function PlaygroundApp(): React.ReactElement {
         };
     }, [activeVendor, biSurfaceMode]);
 
-    // Settings also owns Pulse's legacy `genieSettings` namespace now. When a
+    // Settings also owns Pulse's legacy `genieSettings` namespace. When a
     // Settings control writes to that namespace, re-run PulseShell.update()
     // so the embedded Pulse UI picks up the new prompt/domain/runtime config.
     //
-    // F5.1 — also sync `enabledFeatures` so the surface resolver sees the
+    // Also sync `enabledFeatures` so the surface resolver sees the
     // new value the next time it runs. Without this, switching between
     // T4 (insightsOnly) and T5 (chatOnly) wouldn't update which AI surface
     // is effectively rendered, and `data-active-surface` would lie.
@@ -1043,7 +946,7 @@ function PlaygroundApp(): React.ReactElement {
         return () => window.removeEventListener(PULSE_VISUAL_SETTINGS_EVENT, handler as EventListener);
     }, []);
 
-    // 2026-05-28 — when the author has NOT enabled the Chat surface, end
+    // When the author has NOT enabled the Chat surface, end
     // users must always land in Workbench. Coerce uiMode back to "pulse"
     // if a stale localStorage override (or the dev escape hatch) left it on
     // "v0" while Chat is disabled — otherwise the user would be stuck in
@@ -1061,17 +964,11 @@ function PlaygroundApp(): React.ReactElement {
     const biVisible = enabledComponents === "biOnly" || enabledComponents === "both" || mixBiSurfaceActive;
     const mountedAiVisible = focusedPane ? focusedPane === "ai" || aiVisible : aiVisible;
     const mountedBiVisible = focusedPane ? focusedPane === "bi" || biVisible : biVisible;
-    // 2026-05-25 — minimizedPane drives the bottom dock that lets the user
-    // restore a hidden pane. Beast-mode e2e probe N2 found that in the
-    // default Mix mode, Minimize click flipped mixSurface without ever
-    // setting enabledComponents — so this derivation returned null and
-    // the dock never mounted. The fix has two parts:
-    //   1. (this derivation) Cover the Mix-mode case ONLY when the user
-    //      explicitly minimized — tracked via `mixMinimizedPane` below.
-    //      Otherwise normal Dashboard-navigation in Mix mode (which also
-    //      results in mixSurface="bi") would falsely show a dock.
-    //   2. handleViewportMinimize sets mixMinimizedPane; mixSurface
-    //      changes via SurfaceSwitcher (handleMixSurfaceSelect) clear it.
+    // minimizedPane drives the bottom dock that restores a hidden pane.
+    // Cover the Mix-mode case ONLY when the user explicitly minimized
+    // (tracked via `mixMinimizedPane`) — otherwise normal Dashboard
+    // navigation in Mix mode (which also sets mixSurface="bi") would
+    // falsely show a dock.
     const minimizedPane: ViewportFocus = focusedPane
         ? null
         : enabledComponents === "biOnly"
@@ -1097,9 +994,7 @@ function PlaygroundApp(): React.ReactElement {
     }, [availablePacks, packSelection, packsLoaded]);
 
     // Buffer the last ~20 BI events so the AI sidebar can include "what is
-    // the user actually looking at right now?" in its prompt context. Same
-    // pattern as sister Pulse project's contextBuilder, just sourced
-    // from BI vendor events instead of Power BI's DataView.
+    // the user actually looking at right now?" in its prompt context.
     const handleBIEvent = useCallback((event: BIEvent) => {
         setRecentEvents(prev => {
             const next = [...prev, event];
@@ -1113,28 +1008,19 @@ function PlaygroundApp(): React.ReactElement {
         setPrimaryBIAdapter(biAdaptersRef.current.get(0) || null);
     }, []);
 
-    // FW1 — route a completed UnifiedAssistantSurface entry into the active BI adapter as
-    // a `renderResult` command when the runtime BI vendor is native. The
-    // sidebar continues to show the answer text regardless; this handler
-    // adds the canvas paint alongside it. Guarded by:
+    // Route a completed UnifiedAssistantSurface entry into the active BI
+    // adapter as a `renderResult` command when the runtime BI vendor is
+    // native. Guarded by:
     //   * runtimeBiVendor === "native" — only the native adapter has
-    //     `renderResult` in its command vocabulary. Vendor adapters reject
-    //     it as UNSUPPORTED_COMMAND.
-    //   * primaryBIAdapter present — without an adapter to dispatch to,
-    //     there's nothing to do.
-    //   * envelope has answer OR rows — purely-empty envelopes are dropped
-    //     because the canvas would just paint an empty state on top of
-    //     whatever was there.
-    //
-    // `runtimeBiVendor` is computed further down the component body, so
-    // the handler reads it through a ref kept current by the effect below.
-    // This also lets the callback stay stable across vendor switches,
-    // which keeps UnifiedAssistantSurface's prop diffing tight.
-    //
-    // The cast to `BICommand` is a known type widening: `renderResult` is
-    // declared on `NativeBICommand`, NOT on the generic `BIAdapter.send`
-    // signature. The native adapter accepts it; vendor adapters would
-    // throw at runtime — that's why the runtimeBiVendor guard runs first.
+    //     `renderResult`; vendor adapters reject it as UNSUPPORTED_COMMAND.
+    //   * primaryBIAdapter present.
+    //   * envelope has answer OR rows — empty envelopes would just paint an
+    //     empty state over the canvas.
+    // `runtimeBiVendor` is computed further down, so the handler reads it
+    // through a ref (also keeps the callback stable across vendor switches).
+    // The `BICommand` cast is a known type widening: `renderResult` is on
+    // `NativeBICommand`, NOT the generic `BIAdapter.send` signature — vendor
+    // adapters would throw at runtime, hence the runtimeBiVendor guard first.
     const runtimeBiVendorRef = useRef<string>("");
     const handleEntryCompleted = useCallback((entry: AnswerEntry) => {
         if (runtimeBiVendorRef.current !== "native") return;
@@ -1191,11 +1077,9 @@ function PlaygroundApp(): React.ReactElement {
         }
     }, []);
 
-    // Smart Connect for Pulse mode — Pulse owns its own Setup wizard
-    // (no v0 ConnectorPicker / TestConnectionPanel in Pulse mode), so
-    // we auto-fire the probe whenever the persisted genieSettings.
-    // assistantProfile changes. Bumps pulseRenderToken signal that
-    // Pulse persisted settings; we also re-read on first mount.
+    // Smart Connect for Pulse mode — auto-fire the probe whenever the
+    // persisted genieSettings.assistantProfile changes; also re-read on
+    // first mount.
     useEffect(() => {
         if (uiMode !== "pulse") return;
         let cancelled = false;
@@ -1228,9 +1112,8 @@ function PlaygroundApp(): React.ReactElement {
     }, [uiMode, pulseRenderToken, probeResult, handleProbeComplete]);
 
     // Bridge — write the active pack selection to localStorage so Pulse's
-    // genie.ts can pick it up and forward to /assistant/conversations/start
-    // (the proxy's cycle-C pack-context injection then wraps the prompt
-    // with vertical vocabulary). Cleared on explicit null.
+    // genie.ts can pick it up and forward to /assistant/conversations/start.
+    // Cleared on explicit null.
     useEffect(() => {
         try {
             if (packSelection?.pack) {
@@ -1251,15 +1134,11 @@ function PlaygroundApp(): React.ReactElement {
         return () => window.removeEventListener(PERFORMANCE_LEVERS_EVENT, sync);
     }, []);
 
-    // PROBE-ONCE prewarm — whenever we know the active profile (and pack, if
-    // any), pre-fetch the DiscoverySnapshot into the discoveryClient's
-    // sessionStorage cache. Subsequent fetches anywhere in the app — UnifiedAssistantSurface,
-    // the Pulse genie pipeline, the Frame picker — hit the warm cache instead
-    // of paying for a cold round-trip. The client handles in-flight dedupe and
-    // 15-min TTL, so repeated fires are no-ops when nothing relevant changed.
-    // Best-effort; discovery failure is non-fatal (enrichment, not required).
-    // Author can opt out via Settings → Advanced → Performance (discovery
-    // prewarm toggle).
+    // PROBE-ONCE prewarm — pre-fetch the DiscoverySnapshot into the
+    // discoveryClient's sessionStorage cache so later fetches hit warm cache.
+    // The client handles in-flight dedupe + TTL, so repeated fires are no-ops.
+    // Best-effort; discovery failure is non-fatal. Author can opt out via
+    // Settings → Advanced → Performance.
     useEffect(() => {
         if (!perfLevers.discoveryPrewarmEnabled) return;
         const profile = pulseAssistantProfile || activeConnector;
@@ -1296,9 +1175,8 @@ function PlaygroundApp(): React.ReactElement {
         [biSurfaceMode, activeVendor, hasEmbedConfig, visibleVendors],
     );
     const runtimeBiVendor = biSurfaceResolution.runtimeVendor;
-    // FW1 — keep the entry-completed handler's runtimeBiVendor read fresh
-    // without re-creating the callback every render. The ref is read inside
-    // `handleEntryCompleted`, defined further up the body.
+    // Keep the entry-completed handler's runtimeBiVendor read fresh without
+    // re-creating the callback every render (ref read in handleEntryCompleted).
     useEffect(() => {
         runtimeBiVendorRef.current = runtimeBiVendor;
     }, [runtimeBiVendor]);
@@ -1312,12 +1190,11 @@ function PlaygroundApp(): React.ReactElement {
         if (biSurfaceResolution.usesNative || runtimeBiVendor === "native") return "Pulse Canvas";
         return visibleVendors.find(v => v.vendor === runtimeBiVendor)?.displayName || runtimeBiVendor;
     }, [biSurfaceResolution.usesNative, runtimeBiVendor, visibleVendors]);
-    // Part C P2 — Dashboard per-surface connector. When the multiConnectorPanes
-    // flag is ON and the Dashboard surface is bound to its own profile, that
-    // profile drives the Dashboard's AI assistant identity; otherwise it falls
-    // back to the shared connector (flag-off ⇒ getSurfaceProfile returns null,
-    // so this is byte-for-byte unchanged). surfaceConnVersion forces a live
-    // re-read when the binding or flag changes in-tab.
+    // Dashboard per-surface connector. When the multiConnectorPanes flag is ON
+    // and the Dashboard surface is bound to its own profile, that profile
+    // drives the Dashboard's assistant; otherwise falls back to the shared
+    // connector (flag-off ⇒ getSurfaceProfile returns null). surfaceConnVersion
+    // forces a live re-read when the binding or flag changes in-tab.
     const [surfaceConnVersion, setSurfaceConnVersion] = useState(0);
     useEffect(() => {
         const bump = () => setSurfaceConnVersion(v => v + 1);
@@ -1347,10 +1224,7 @@ function PlaygroundApp(): React.ReactElement {
             ? `${packSelection.pack} / ${packSelection.subVertical}`
             : packSelection.pack
         : "No pack selected";
-    // 2026-05-27 — split the binary "Governed" fall-through into an
-    // evidence-aware ladder per Codex audit P1 #20. The previous default
-    // claimed "Governed" whenever there was no error, even when allowlist
-    // was null+unconfigured (dev permissive) or unreachable. Now:
+    // Evidence-aware trust ladder — never claim "Governed" without evidence:
     //   - Locked            = allowlist null AND error set (fail-closed)
     //   - Governance warning = error present (governance unreachable)
     //   - Governed          = allowlist configured AND reachable
@@ -1366,10 +1240,9 @@ function PlaygroundApp(): React.ReactElement {
         embedConfig,
         activeAiProfile: pulseAssistantProfile || activeConnector,
     });
-    // 2026-06-03 — provenance-footer context. Same evidence-aware trust ladder the
-    // surfaces use (computeSurfaceContext), so the footer reads e.g. "AI configured
-    // · No BI fields" consistently. measure/dimension counts aren't tracked at the
-    // app level, so they default to 0 (→ "AI configured · No BI fields" when ready).
+    // Provenance-footer context — same trust ladder the surfaces use
+    // (computeSurfaceContext). measure/dimension counts aren't tracked at
+    // the app level, so they default to 0.
     const footerSurfaceContext = computeSurfaceContext({
         isConfigured: setupReadiness.ready,
         assistantProfile: dashboardAssistantLabel,
@@ -1415,10 +1288,7 @@ function PlaygroundApp(): React.ReactElement {
      *  same suggested question on a later re-run still fires. */
     const wizardAutoSubmitSeqRef = useRef(0);
     const [wizardAutoSubmit, setWizardAutoSubmit] = useState<AutoSubmitQuestionEvent | null>(null);
-    /** Persona persistence — remembered across sessions so a re-run of
-     *  the wizard pre-selects the user's previous role. Stored in
-     *  localStorage to mirror the wizard's existing storage pattern
-     *  (dismissal flag / draft / force key). */
+    /** Persona persistence — a wizard re-run pre-selects the user's previous role. */
     const [lastPersona, setLastPersona] = useState<PersonaKey | null>(() => {
         try {
             const raw = window.localStorage.getItem("pulseplay:last-persona");
@@ -1445,25 +1315,14 @@ function PlaygroundApp(): React.ReactElement {
             setActiveConnector(picks.connector);
             setEmbedConfig(picks.embedConfig);
             setPackSelection(picks.packSelection);
-            // uiMode write removed. All wizard personas now return
-            // DEFAULT_UI_MODE (the same default readInitialUiMode() resolves to),
-            // so writing through the wizard path is redundant. The wizard's
-            // picks.uiMode field is kept in the type contract for the
-            // forthcoming feature-feasibility resolver to consume — see
-            // docs/research/READ_ONLY_PRODUCT_TEST_RESULTS_AND_BRUTAL_ARCHITECT_FEEDBACK_FOR_CLAUDE_2026-05-27.md.
+            // Intentionally no uiMode write — all wizard personas return
+            // DEFAULT_UI_MODE; picks.uiMode stays in the type contract for a
+            // future feature-feasibility resolver.
             handleLayoutModeChange(picks.layoutMode as LayoutMode);
-            // ──── Persist AI profile to settingsStore (canonical key) ─────
-            // Without this the wizard only wrote App.tsx local state and
-            // Pulse-mode AI Insights stayed in the "Connect to Databricks"
-            // empty state because genieSettings was never populated. The
-            // settingsStore.setActiveAiProfile() call:
-            //   1. Writes `pulseplay:active-ai-profile`
-            //   2. Mirrors to genieSettings.assistantProfile
-            //   3. Auto-populates genieSettings.connectionMode = "proxy"
-            //      + genieSettings.apiBaseUrl = origin
-            //      (added 2026-05-17 in settingsStore for exactly this gap)
-            //   4. Fires `pulseplay:display-change` so subscribers re-render
-            // Browser smoke test 2026-05-17 caught this missing call.
+            // Persist the AI profile via settingsStore.setActiveAiProfile()
+            // (writes the canonical key, mirrors to genieSettings, fires
+            // `pulseplay:display-change`). Without it genieSettings stays
+            // empty and AI Insights is stuck on "Connect to Databricks".
             if (picks.connector) {
                 const result = settings.setActiveAiProfile(picks.connector);
                 if (!result.ok) {
@@ -1479,8 +1338,6 @@ function PlaygroundApp(): React.ReactElement {
             if (picks.packSelection) {
                 settings.setPackSelection(picks.packSelection);
             }
-            // Persona persistence: write through to localStorage so the
-            // next wizard run pre-selects this role.
             setLastPersona(picks.persona);
             try { window.localStorage.setItem("pulseplay:last-persona", picks.persona); } catch { /* swallow */ }
             // "Done & ask" path: arm UnifiedAssistantSurface to fire ask() once on the
@@ -1511,7 +1368,7 @@ function PlaygroundApp(): React.ReactElement {
             className="pp-app"
             data-testid="pp-viewport-shell"
             data-viewport-focus={focusedPane ?? "split"}
-            // F5.1 — data-active-surface is the EFFECTIVE surface (what
+            // data-active-surface is the EFFECTIVE surface (what
             // the shell actually renders). data-requested-surface is the
             // user's persisted intent — useful for telemetry that wants to
             // distinguish "user wanted X but config forced Y." Fallback
@@ -1526,9 +1383,8 @@ function PlaygroundApp(): React.ReactElement {
             data-layout-pinned={pinnedViewportPane ? "true" : "false"}
             style={{ position: "relative", width: "100%", height: "100vh", overflow: "hidden", display: "flex", flexDirection: "column" }}
         >
-            {/* PulsePlay top bar — full-width header strip. The right pill is
-              * the single configuration entry: it opens Settings > Setup,
-              * where BI + AI readiness are shown together. */}
+            {/* Top bar. The right pill is the single configuration entry —
+              * opens Settings, where BI + AI readiness show together. */}
             <header
                 className="pp-top-bar"
                 style={{
@@ -1542,31 +1398,23 @@ function PlaygroundApp(): React.ReactElement {
                 }}
             >
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    {/* Brand lockup — the logo image is wired to the swappable
-                      * drop-path public/brand/logo.svg (placeholder until the real
-                      * logo lands; the desktop EXE inherits it via dist). alt=""
+                    {/* Logo drop-path public/brand/logo.svg (placeholder). alt=""
                       * because the "PulsePlay" wordmark carries the accessible name. */}
                     <img src="/brand/logo.svg" alt="" className="pp-brand-logo" width={30} height={30} style={{ display: "block" }} />
                     <h1 style={{ margin: 0, fontSize: 22, lineHeight: 1.1 }}>PulsePlay</h1>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    {/* 2026-05-27 — Surface-mode chip (Workbench ⇄ Chat).
-                      * 2026-05-28 — author-gated: Workbench is the default
-                      * surface, and this chip only renders when an author
-                      * has enabled the Chat surface in Settings. End users
-                      * with Chat disabled never see a surface switcher. */}
-                    {/* 2026-05-30 — AI & BI enabler chip (ADR-0011). One
-                      * chained control that swaps the bound (BI surface × AI
-                      * brain) pair, replacing the two-knob picker for the
-                      * default path. Self-hides when there's nothing to
-                      * switch between. */}
+                    {/* Surface-mode chip (Workbench ⇄ Chat) — author-gated:
+                      * only renders when Chat is enabled in Settings. */}
+                    {/* BundleSwitcher (ADR-0011) — swaps the bound (BI surface ×
+                      * AI brain) pair; self-hides when nothing to switch. */}
                     <BundleSwitcher />
                     {allowChatSurface && <SurfaceModeChip currentMode={uiMode} />}
                     <SetupStatusPill readiness={setupReadiness} />
                 </div>
             </header>
 
-            {/* Part C P2 — per-surface connector bar. Renders ONLY when the
+            {/* Per-surface connector bar. Renders ONLY when the
               * multiConnectorPanes flag is on (else returns null), so the
               * single-connector header is unchanged by default. */}
             <SurfaceConnectorBar
@@ -1574,20 +1422,10 @@ function PlaygroundApp(): React.ReactElement {
                 sharedProfile={activeConnector}
             />
 
-            {/* 2026-05-25 — Top-right toolbar (Commit 5 of per-tab-visibility
-              * ship). Single global cluster of cross-cutting affordances
-              * (Maximize / Minimize / Pin / Pop-out / Open-in-new / Show-all)
-              * positioned below the green Ready pill. Replaces the per-pane
-              * toolbars in PaneChrome + Pulse's gn-pane-action-cluster as
-              * the canonical entry point. Per-pane button clusters are
-              * hidden via the global stylesheet rule below. */}
-            {/* 2026-06-03 — screen/pane controls (dock/maximize · undock/pop-out ·
-              * minimize · pin · open-in-page) live HERE, docked inline on Row 2's
-              * baseline (the toolbar is de-boxed — transparent, borderless — via
-              * styles.css, NOT a floating box). They were briefly folded into the
-              * ⋮ menu then stripped from it, which lost them entirely; restored as
-              * the visible second-header-section controls the design always intended.
-              * Still dispatches pulseplay:viewport-action; App handler unchanged. */}
+            {/* Top-right toolbar — single global cluster of cross-cutting
+              * affordances; canonical entry point for pane controls. Per-pane
+              * button clusters are hidden via the global stylesheet rule below.
+              * Dispatches pulseplay:viewport-action. */}
             {!wizardShown && (
                 <TopRightToolbar
                     activePane={effectiveSurfaceId === "bi-viz" ? "bi" : "ai"}
@@ -1602,12 +1440,9 @@ function PlaygroundApp(): React.ReactElement {
                     canShowAll={focusedPane !== null || enabledComponents === "aiOnly" || enabledComponents === "biOnly"}
                 />
             )}
-            {/* 2026-06-03 — single persistent provenance footer for ALL screens
-              * (AI Insights / Ask Pulse / Dashboard). Context — relocated out of the
-              * former per-pane pills/strips — lives HERE only, so it's identical on
-              * every surface; boilerplate app metadata on the right. Fixed to the
-              * viewport bottom (36px), themed via data-pp-theme, hidden on mobile
-              * where the bottom-nav owns the bottom edge. */}
+            {/* Single persistent provenance footer for ALL screens — context
+              * lives HERE only so it's identical on every surface. Hidden on
+              * mobile where the bottom-nav owns the bottom edge. */}
             {!wizardShown && (
                 <footer className="gn-app-footer" role="contentinfo">
                     <span className="gn-app-footer__context">
@@ -1619,13 +1454,9 @@ function PlaygroundApp(): React.ReactElement {
                     </span>
                 </footer>
             )}
-            {/* Hide the legacy per-pane button clusters so they don't
-              * render duplicates of what TopRightToolbar now owns. The
-              * Pulse-side cluster (.gn-pane-action-cluster) was REMOVED
-              * from visual.tsx outright in the follow-up commit; only
-              * PaneChrome's per-pane controls remain in the DOM (still
-              * referenced by the viewportControls integration tests).
-              * The next cleanup commit will retire those too. */}
+            {/* Hide the per-pane button clusters — TopRightToolbar owns these
+              * controls now. PaneChrome's controls stay in the DOM (still
+              * referenced by the viewportControls integration tests). */}
             <style>{`
                 [data-testid="pp-panel-controls-ai"],
                 [data-testid="pp-panel-controls-bi"] {
@@ -1650,13 +1481,9 @@ function PlaygroundApp(): React.ReactElement {
                     />
                 </WizardErrorBoundary>
             ) : (<PulsePlayScreen
-                /* Step 2b 2026-05-25: PulsePlayScreen now owns the
-                 * COMPOSITION of the three unified-screen slots via
-                 * named render-props. App.tsx still provides each slot's
-                 * content (because helpers like FloatingPanel /
-                 * SplitLayout / MinimizedPaneDock are defined in this
-                 * file and aren't exported). Steps 3/7/8 absorb the
-                 * slot contents into PulsePlayScreen one at a time. */
+                /* PulsePlayScreen owns the COMPOSITION of the unified-screen
+                 * slots via named render-props; App.tsx provides slot content
+                 * (FloatingPanel / SplitLayout / MinimizedPaneDock live here). */
                 floatingPaneSlot={floatedPane ? (
                 <FloatingPanel
                     pos={floatPos}
@@ -1678,25 +1505,18 @@ function PlaygroundApp(): React.ReactElement {
                 ) : null}
                 mainLayoutSlot={(
             <SplitLayout
-                // 2026-05-25 — DUPLICATIVE DETACH (mirroring): when a pane
-                // is popped out (floatedPane set), keep it visible in its
-                // main slot too instead of relocating. Per design doc D5
-                // + user direction, the floating pane should be a copy/
-                // mirror of the original. True per-pane state isolation
-                // (so typing in one doesn't echo to the other) is the
-                // Phase C runtime work — pane registry keyed by paneId,
-                // independent React roots per PaneInstance, etc. For now
-                // they share state but the main slot no longer goes
-                // empty when you Pop-out.
+                // DUPLICATIVE DETACH (mirroring): when a pane is popped out,
+                // keep it visible in its main slot too — the floating pane is
+                // a mirror of the original by design. They share state (typing
+                // in one echoes to the other) until per-pane state isolation
+                // lands.
                 aiVisible={mountedAiVisible}
                 biVisible={mountedBiVisible}
-                // 2026-05-28 — mix mode shows one pane at a time, but both
-                // panes are ENABLED. Keep the hidden pane mounted (toggle
-                // visibility, don't unmount) so switching AI ↔ Dashboard
-                // never reloads an already-loaded surface — visuals, chat
-                // history, scroll position all persist. Only a hard reload
-                // re-mounts. aiOnly/biOnly leave this false (the other pane
-                // is genuinely disabled and must not mount).
+                // Mix mode shows one pane at a time, but both panes are
+                // ENABLED. Keep the hidden pane mounted (toggle visibility,
+                // don't unmount) so switching AI ↔ Dashboard never reloads a
+                // loaded surface. aiOnly/biOnly leave this false (the other
+                // pane is genuinely disabled and must not mount).
                 keepHiddenPaneMounted={enabledComponents === "mix"}
                 layoutMode={layoutMode}
                 focusedPane={focusedPane}
@@ -1789,29 +1609,17 @@ function PlaygroundApp(): React.ReactElement {
                     <PaneChrome
                         pane="bi"
                         title="BI"
-                        // Subtitle intentionally empty. Previously hardcoded the
-                        // vendor display name from a static registry, which
-                        // duplicated information the embedded dashboard already
-                        // makes obvious (you see Power BI / Tableau / etc.
-                        // rendering in the pane). When no embed is configured,
-                        // the pane body's empty-state copy already tells the
-                        // user what to do, so the subtitle was double-noise
-                        // either way. Title "BI" stands alone — clean chrome,
-                        // more room for the icon cluster on narrow splits.
+                        // Subtitle intentionally empty — the embedded dashboard
+                        // already makes the vendor obvious, and the empty state
+                        // covers the unconfigured case.
                         subtitle=""
                         isFocused={focusedPane === "bi"}
                         isBackgrounded={focusedPane === "ai"}
                         isPinned={pinnedViewportPane === "bi"}
                         canShowBoth={!focusedPane && enabledComponents !== "both"}
-                        // Earlier this pane went `quiet` whenever there was no
-                        // embed config — the rationale being "nothing to operate
-                        // on". User feedback flipped that: viewport controls
-                        // (Maximize / Minimize / Open in tab / Float) are
-                        // pane-level affordances, not content affordances, and
-                        // should be available on BOTH panes regardless of
-                        // whether the content is populated. The empty BI state
-                        // still floats as a window if the author wants the
-                        // setup prompt visible alongside their main view.
+                        // Viewport controls are pane-level affordances, not
+                        // content affordances — keep them available on BOTH
+                        // panes even when the content is empty.
                         quiet={false}
                         onFocus={() => applyViewportFocus("bi")}
                         onRestore={handleViewportRestore}
@@ -1820,14 +1628,10 @@ function PlaygroundApp(): React.ReactElement {
                         onOpenPage={() => handleViewportOpenPage("bi")}
                         onFloat={() => handleViewportFloat("bi")}
                         onShowBoth={handleShowBothPanes}
-                        // Audit 2026-05-20 chrome-parity pass: render the
-                        // SurfaceSwitcher INLINE with PaneChrome's toolbar
-                        // row instead of on a separate row below the chrome.
-                        // Same visual rhythm as the AI pane (where Pulse
-                        // renders its switcher next to its own action
-                        // cluster). Suppressed when AI is floating because
-                        // the background BI canvas should be clean (nav
-                        // lives in the float).
+                        // Render the SurfaceSwitcher INLINE with PaneChrome's
+                        // toolbar row (visual parity with the AI pane).
+                        // Suppressed when AI is floating — the background BI
+                        // canvas should stay clean (nav lives in the float).
                         inlineSwitcher={
                             enabledComponents === "mix" && !floatedPane ? (
                                 <SurfaceSwitcher
@@ -1839,15 +1643,8 @@ function PlaygroundApp(): React.ReactElement {
                         }
                     >
                         <main ref={mainBiMirrorSourceRef} className="pp-app__canvas" style={{ ...panelInnerStyle(), display: "flex", flexDirection: "column" }}>
-                            {/* 2026-06-03 — Dashboard context pill REMOVED. Context lives in
-                                the single persistent footer only (consistent across all
-                                screens). The host-level <footer className="gn-app-footer">
-                                below carries it. */}
-                            {/* UX-ARCH-0B.2 Phase A — Power BI Developer Tools
-                                strip is now gated behind a localStorage flag
-                                instead of always-on for PBI authors. Settings
-                                → Advanced → Developer Tools will expose the
-                                toggle in Phase D. Default off keeps the BI
+                            {/* Power BI Developer Tools strip is gated behind a
+                                localStorage flag; default off keeps the BI
                                 canvas clean for end-viewers. */}
                             {(() => {
                                 try {
@@ -1873,12 +1670,9 @@ function PlaygroundApp(): React.ReactElement {
                                     onAdapterReady={handleBIAdapterReady}
                                 />
                             ) : (
-                                // Audit 2026-05-20: brought into visual parity with the
-                                // AI Insights and Ask Pulse empty states via the shared
-                                // <PaneEmptyState> shell. Same icon disc + heading +
-                                // description + bullet list + CTAs vocabulary. Two
-                                // branches kept so the copy + bullet list reflect whether
-                                // the AI surfaces are already visible alongside.
+                                // Shares the <PaneEmptyState> shell with the AI empty
+                                // states. Two branches so the copy reflects whether the
+                                // AI surfaces are already visible alongside.
                                 <div className="pp-app__empty pp-app__empty--unified">
                                     {(() => {
                                         const vendorsList = visibleVendors.map(v => v.displayName).join(" · ");
@@ -1901,9 +1695,6 @@ function PlaygroundApp(): React.ReactElement {
                                             testid: "pp-dashboard-empty-secondary-cta",
                                         };
                                          if (aiVisible) {
-                                             // AI pane already mounted alongside — the empty
-                                             // state guides the user to wire up the BI surface
-                                             // so all three peer surfaces fill out.
                                              const description = uiMode === "pulse"
                                                  ? "Dashboard is the shared data canvas. It can host an embedded BI report or show Pulse Canvas artifacts created from Ask Pulse."
                                                  : "Choose a BI vendor and embed config, or use Pulse Canvas for governed AI-generated charts, tables, and KPIs.";
@@ -1925,11 +1716,6 @@ function PlaygroundApp(): React.ReactElement {
                                                 />
                                             );
                                         }
-                                        // Dashboard tab selected on its own — same shell,
-                                        // copy reframes Dashboard as one of the three peer
-                                        // surfaces (AI Insights / Ask Pulse / Dashboard) so
-                                        // the user knows the AI surfaces are one click away
-                                        // in the switcher above. 2026-05-19 BI-only mode fix.
                                         return (
                                                  <PaneEmptyState
                                                      testid="pp-dashboard-empty"
@@ -1974,13 +1760,10 @@ function PlaygroundApp(): React.ReactElement {
                 minimizedDockSlot={minimizedPane ? (
                     <MinimizedPaneDock
                         pane={minimizedPane}
-                        // 2026-05-25 — restore is context-aware. In Mix mode
-                        // the user's preference is to keep mix; flipping
-                        // mixSurface back to the hidden pane (and clearing
-                        // the Mix-minimized signal) restores it without
-                        // forcing them into "both" mode. Other modes
-                        // (biOnly / aiOnly) drop the minimized state by
-                        // returning to "both" via handleShowBothPanes.
+                        // Restore is context-aware: in Mix mode, flip
+                        // mixSurface back (and clear the Mix-minimized signal)
+                        // without forcing "both" mode; other modes return to
+                        // "both" via handleShowBothPanes.
                         onRestore={() => {
                             if (enabledComponents === "mix") {
                                 setMixSurface(minimizedPane === "ai" ? "ai" : "bi");
@@ -2007,13 +1790,9 @@ function dashboardTrustTone(t: string): string {
     return "info"; // "Permissive dev" / dev-local default
 }
 
-/** 2026-06-03 — collapsed Context pill for the Dashboard/BI pane. Was a verbose
- *  inline `pp-surface-context` strip (Surface · Source · Assistant · Pack · Trust)
- *  that, at the narrow split-pane width, wrapped and crammed — and was visually
- *  inconsistent with the left pane, which had already collapsed its metadata into
- *  the `⚙ Context ▾` dropdown. This reuses the global `gn-context-setup` chrome so
- *  BOTH panes share identical context affordances (three-tabs-uniform rule), while
- *  the popover keeps the Dashboard-specific items. */
+/** Collapsed Context pill for the Dashboard/BI pane. Reuses the global
+ *  `gn-context-setup` chrome so BOTH panes share identical context affordances
+ *  (three-tabs-uniform rule). */
 function DashboardSurfaceContextStrip(props: {
     mode: string;
     vendor: string;
@@ -2078,9 +1857,8 @@ function DashboardSurfaceContextStrip(props: {
 function SetupStatusPill(props: { readiness: SetupReadiness }): React.ReactElement {
     const ready = props.readiness.ready;
     const dot = ready ? "#22c55e" : "#f59e0b";
-    // Theme-aware text so the pill stays AA-legible in dark mode (was a
-    // hardcoded #166534 dark-green → only 2.65:1 on the dark bg). The semantic
-    // tokens resolve to a darker green/amber in light and a lighter one in dark.
+    // Theme-aware text so the pill stays AA-legible in dark mode (a hardcoded
+    // dark-green was only 2.65:1 on the dark bg).
     const fg = ready ? "var(--pp-success, #166534)" : "var(--pp-warning, #7a5b00)";
     const bg = ready ? "rgba(34, 197, 94, 0.08)" : "rgba(250, 204, 21, 0.12)";
     const border = ready ? "rgba(34, 197, 94, 0.32)" : "rgba(245, 158, 11, 0.34)";
@@ -2090,9 +1868,8 @@ function SetupStatusPill(props: { readiness: SetupReadiness }): React.ReactEleme
             className="pp-setup-pill"
             aria-label={ready ? "Open setup readiness in Settings" : `Open setup in Settings. Missing ${props.readiness.pillDetail}`}
             title="Open Settings → Setup"
-            // Route to the page that actually owns the gap (the bare /settings/setup
-            // page is deprecated — it self-describes as "being folded into AI/BI
-            // Setup"). AI gap (or all-ready) → AI Setup; BI-only gap → BI Setup.
+            // Route to the page that owns the gap (the bare /settings/setup page
+            // is deprecated). AI gap (or all-ready) → AI Setup; BI-only gap → BI Setup.
             onClick={() => navigateToSettings(props.readiness.aiReady && !props.readiness.biReady ? "bi" : "ai")}
             style={{
                 display: "inline-flex",
@@ -2154,31 +1931,23 @@ function PaneChrome(props: {
     onOpenPage: () => void;
     onFloat: () => void;
     onShowBoth: () => void;
-    /** Fix #2 — when true, render only the title/subtitle row without the
-     *  controls toolbar. Used when the pane has nothing to operate on
-     *  (e.g. BI pane with no embedConfig). Keeps the title for context
-     *  but stops painting Maximize/Pin/Page on top of an empty pane. */
+    /** When true, render only the title/subtitle row without the controls
+     *  toolbar (pane has nothing to operate on). */
     quiet?: boolean;
     /** Pulse mode owns its own AI row (AI Insights / Chat + icons). Hiding
      *  the outer AI title row removes duplicate vertical chrome. */
     hideHeader?: boolean;
-    /** Audit 2026-05-20: optional slot rendered between the title and the
-     *  toolbar. The BI pane uses this to embed the SurfaceSwitcher so the
-     *  three-tab pill sits on the SAME row as the toolbar buttons — same
-     *  visual rhythm as the AI pane (which renders its switcher inline
-     *  inside the PulseShell). When supplied, the title block is hidden
-     *  to avoid a duplicate "BI" + "Dashboard" identity (the active tab
-     *  in the switcher already names the surface). */
+    /** Optional slot rendered between the title and the toolbar (the BI pane
+     *  embeds the SurfaceSwitcher here). When supplied, the title block is
+     *  hidden to avoid a duplicate surface identity. */
     inlineSwitcher?: React.ReactNode;
     children: React.ReactNode;
 }): React.ReactElement {
     const label = props.pane === "ai" ? "AI" : "BI";
     const state = props.isFocused ? "maximized" : props.isBackgrounded ? "minimized" : "normal";
 
-    // Pane chrome buttons use a quieter "ghost" treatment: lighter border, smaller
-    // type, tighter padding. Active/pinned states keep the accent so they remain
-    // legible. All aria-labels are preserved — see
-    // viewportControls.integration.test.tsx for the contract.
+    // All aria-labels are preserved — see viewportControls.integration.test.tsx
+    // for the contract.
     const buttonStyle: React.CSSProperties = {
         border: "1px solid rgba(0,0,0,0.10)",
         borderRadius: 4,
@@ -2198,11 +1967,8 @@ function PaneChrome(props: {
         color: "#1d4ed8",
         fontWeight: 600,
     };
-    // Icon-only buttons used by the inline action cluster. Same ghost base
-    // as text buttons but square-ish for visual rhythm with the Pulse
-    // gn-pane-action-cluster on the AI side. Tight padding so 6 icons +
-    // the title block fit in a narrow split pane without truncating the
-    // vendor subtitle.
+    // Icon-only buttons — tight padding so 6 icons + the title block fit in a
+    // narrow split pane without truncating the subtitle.
     const iconButtonStyle: React.CSSProperties = {
         ...buttonStyle,
         minWidth: 22,
@@ -2253,12 +2019,8 @@ function PaneChrome(props: {
                             : "var(--pp-surface, rgba(248,250,252,0.6))",
                     }}
                 >
-                    {/* When the caller supplies an inline switcher (the
-                      * SurfaceSwitcher pill for the BI pane), let it take
-                      * the title's slot. The active tab name in the switcher
-                      * already conveys what surface this is — duplicating
-                      * the "BI" title was just extra vertical noise (see
-                      * user feedback 2026-05-20 + Codex EL-SWITCHER-COPY). */}
+                    {/* An inline switcher takes the title's slot — the active
+                      * tab name already conveys what surface this is. */}
                     {props.inlineSwitcher ? (
                         <div style={{ minWidth: 0, flex: "1 1 auto", display: "flex", alignItems: "center", overflow: "hidden" }}>
                             {props.inlineSwitcher}
@@ -2289,13 +2051,8 @@ function PaneChrome(props: {
                                 position: "relative",
                             }}
                         >
-                        {/* Inline icon action cluster — visual parity with the
-                         *  Pulse `gn-pane-action-cluster` on the AI side. All
-                         *  the aria-labels match the previous text-menu items
-                         *  so the integration tests + a11y selectors keep
-                         *  working without rewrite. */}
-
-                        {/* Maximize / Restore — state-relevant focus toggle */}
+                        {/* aria-labels MUST stay stable — integration tests +
+                         *  a11y selectors depend on them. */}
                         {props.isFocused ? (
                             <button
                                 type="button"
@@ -2318,7 +2075,6 @@ function PaneChrome(props: {
                             </button>
                         )}
 
-                        {/* Minimize — collapse pane to dock */}
                         <button
                             type="button"
                             aria-label={`Minimize ${label} panel`}
@@ -2329,7 +2085,6 @@ function PaneChrome(props: {
                             <Icon name="minimize" />
                         </button>
 
-                        {/* Pin / Unpin — toggle the focused-pane startup layout */}
                         <button
                             type="button"
                             aria-label={props.isPinned ? "Unpin layout" : "Pin layout"}
@@ -2341,7 +2096,6 @@ function PaneChrome(props: {
                             <Icon name="pin" />
                         </button>
 
-                        {/* Open in separate page — full new browser tab */}
                         <button
                             type="button"
                             aria-label={`Open ${label} panel in separate page`}
@@ -2352,11 +2106,6 @@ function PaneChrome(props: {
                             <Icon name="external-link" />
                         </button>
 
-                        {/* Pop out window — detached browser window. Renamed
-                         *  from "Float" 2026-05-17 to free up the "Float" /
-                         *  "Compare as panel" naming for the future in-app
-                         *  floating-companion surface (gated on Option B
-                         *  three-piece architecture; see AGENT_SYNC.md). */}
                         <button
                             type="button"
                             aria-label={`Pop out ${label} panel as window`}
@@ -2367,14 +2116,8 @@ function PaneChrome(props: {
                             <Icon name="float-window" />
                         </button>
 
-                        {/* Show both panels — distinct intent from the focus
-                         *  toggle (return to split layout when one pane has
-                         *  been exclusively focused). aria-label "Show both
-                         *  panels" preserved verbatim per the integration-test
-                         *  contract. Now an icon (two side-by-side rects =
-                         *  "two panes") so the chrome is purely iconographic
-                         *  and the vendor subtitle stops getting truncated
-                         *  in narrow split panes. */}
+                        {/* aria-label "Show both panels" preserved verbatim per
+                         *  the integration-test contract. */}
                         {props.canShowBoth && (
                             <button
                                 type="button"
@@ -2452,14 +2195,10 @@ function MinimizedPaneDock(props: {
     );
 }
 
-// In-app floating panel — an alternative to window.open() for the
-// "float AI pane" action. Renders as a fixed-position draggable overlay
-// so the user can keep the AI panel visible while scrolling/interacting
-// with the BI surface below, without leaving the app or losing auth state.
-// Drag is handled by tracking clientX/Y delta from the mousedown anchor
-// to avoid jitter from event batching. CSS `resize: both` gives free
-// corner-resize without additional JS. The panel is not modal — the BI
-// canvas behind it remains interactive.
+// In-app floating panel — fixed-position draggable overlay. Drag tracks
+// clientX/Y delta from the mousedown anchor to avoid jitter from event
+// batching; CSS `resize: both` gives corner-resize without JS. Not modal —
+// the BI canvas behind it remains interactive.
 function FloatingPanel(props: {
     pos: { x: number; y: number };
     onPosChange: (pos: { x: number; y: number }) => void;
@@ -2486,11 +2225,9 @@ function FloatingPanel(props: {
         const onMove = (ev: MouseEvent) => {
             const a = dragAnchor.current;
             if (!a) return;
-            // 2026-05-19 fix: clamp drag bounds to viewport so the panel
-            // can't be dragged offscreen on narrow viewports. Header buttons
-            // (Dock, Close) must always remain reachable. We use the panel's
-            // own bounding rect to compute the live width — handles the
-            // resize:both case where the user has dragged the resize handle.
+            // Clamp drag bounds to viewport — header buttons (Dock, Close)
+            // must always remain reachable. Use the panel's live bounding rect
+            // for width to handle the resize:both case.
             const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
             const vh = typeof window !== "undefined" ? window.innerHeight : 800;
             const rect = (ev.target as Element)?.closest?.('[role="complementary"]')?.getBoundingClientRect();
@@ -2513,11 +2250,8 @@ function FloatingPanel(props: {
         document.addEventListener("mouseup", onUp);
     }, [props]);
 
-    // 2026-05-19 fix: derive width from the viewport so the panel never
-    // exceeds the screen. Codex's visible E2E pass at 390 px caught the
-    // Dock button measured at x=453 (offscreen) — root cause was width: 520
-    // hardcoded with no viewport awareness. Now: clamped at 520 max with
-    // 16 px margin per side; min 300 keeps the chrome usable.
+    // Derive width from the viewport so the panel never exceeds the screen —
+    // a hardcoded 520 px width put the Dock button offscreen at 390 px.
     const viewportW = typeof window !== "undefined" ? window.innerWidth : 1200;
     const computedWidth = Math.min(520, Math.max(300, viewportW - 32));
 
@@ -2543,11 +2277,8 @@ function FloatingPanel(props: {
                 resize: "both",
             }}
         >
-            {/* Drag handle strip — the only chrome added by the float container.
-              * Keep it minimal: title + dock button. The Pulse panel's own
-              * AI Insights / Ask Pulse toolbar handles everything else. */}
+            {/* Drag handle strip — keep minimal: title + dock button. */}
             <div className="pp-float-panel__handle" onMouseDown={onDragHandleMouseDown}>
-                {/* Drag affordance dots */}
                 <span aria-hidden="true" className="pp-float-panel__dots">⠿</span>
                 <span className="pp-float-panel__title">{props.title}</span>
                 <button
@@ -2560,7 +2291,6 @@ function FloatingPanel(props: {
                     Dock ↙
                 </button>
             </div>
-            {/* Panel content fills remaining height */}
             <div style={{ flex: "1 1 auto", minHeight: 0, overflow: "hidden" }}>
                 {props.children}
             </div>
@@ -2709,13 +2439,9 @@ function LivePaneMirror(props: {
     );
 }
 
-// Cycle J — single resizable layout. When both panels are visible we
-// wrap them in a `Group` from `react-resizable-panels` so the author
-// can drag the divider to taste; layoutMode controls which side AI is
-// on (left/right/top/bottom). When only one panel is visible we render
-// it full-canvas without the group, since there's nothing to split.
-// `useDefaultLayout` persists the split ratio per orientation in
-// localStorage so the author's choice survives reloads.
+// Resizable split layout. Both panels visible → `Group` with a draggable
+// divider; one panel → full-canvas without the group. `useDefaultLayout`
+// persists the split ratio per orientation in localStorage.
 function SplitLayout(props: {
     aiVisible: boolean;
     biVisible: boolean;
@@ -2724,10 +2450,10 @@ function SplitLayout(props: {
     aiContent: React.ReactNode;
     biContent: React.ReactNode;
     emptyContent: React.ReactNode;
-    /** 2026-05-28 — mix mode. When true and exactly one pane is visible,
-     *  render BOTH panes (toggle the hidden one's visibility instead of
-     *  unmounting it) so switching surfaces never reloads loaded content.
-     *  Left false for aiOnly/biOnly where the off pane is truly disabled. */
+    /** Mix mode. When true and exactly one pane is visible, render BOTH panes
+     *  (toggle visibility instead of unmounting) so switching surfaces never
+     *  reloads loaded content. Left false for aiOnly/biOnly where the off
+     *  pane is truly disabled. */
     keepHiddenPaneMounted?: boolean;
 }): React.ReactElement {
     const { aiVisible, biVisible, layoutMode, focusedPane, aiContent, biContent, emptyContent, keepHiddenPaneMounted } = props;
@@ -2830,10 +2556,8 @@ function SplitLayout(props: {
     );
 }
 
-/** Inner styling for a panel's content. Removes the old hard width/height
- *  caps from sidebarStyle since the surrounding Panel now governs size;
- *  we only need the inner element to fill its panel and scroll when
- *  content overflows. */
+/** Inner styling for a panel's content — fill the panel and scroll on
+ *  overflow (the surrounding Panel governs size). */
 function panelInnerStyle(): React.CSSProperties {
     return {
         width: "100%",
@@ -3079,9 +2803,7 @@ function safeJson(value: unknown): string {
     }
 }
 
-/** Suspense fallback for the lazy-loaded Pulse bundle. Restrained — no
- *  spinner-pageant, just a single line of text on the side. The actual
- *  Pulse mount itself paints its full UI as soon as the chunk arrives. */
+/** Suspense fallback for the lazy-loaded Pulse bundle. */
 function PulseLoadingState(): React.ReactElement {
     return (
         <div style={{
@@ -3140,20 +2862,16 @@ function extractPulseFilterField(filter: powerbi.IFilter): string | null {
     return trimmed || null;
 }
 
-/** Cycle K.1 — multi-tile BI grid. `tileMode` = "1" renders a single
- *  BIPanel filling the canvas (the v0 behaviour, no extra DOM). "2"
- *  renders two side-by-side; "4" renders a 2×2 grid. All tiles share
- *  the same `embedConfig` in K.1 — the value of multi-tile in v1 is
- *  side-by-side comparison of the same source under different
- *  interactions (filter A vs filter B). K.2 will introduce per-tile
- *  configs for genuinely different content per tile. */
+/** Multi-tile BI grid. "1" renders a single BIPanel; "2" two side-by-side;
+ *  "4" a 2×2 grid. All tiles share the same `embedConfig` — the value is
+ *  side-by-side comparison under different interactions. */
 function BITileGrid(props: {
     tileMode: BiTileMode;
     vendor: string;
     embedConfig: BIEmbedConfig;
     allowlist?: PulsePlayAllowlist | null;
-    /** Allowlist fail-closed P1 — forwarded to each BIPanel so panels
-     *  refuse to mount while the governance endpoint is unreachable. */
+    /** Forwarded to each BIPanel so panels refuse to mount while the
+     *  governance endpoint is unreachable (fail-closed). */
     allowlistFailClosed?: boolean;
     onEvent: (e: BIEvent) => void;
     onAdapterReady: (index: number, adapter: BIAdapter | null) => void;

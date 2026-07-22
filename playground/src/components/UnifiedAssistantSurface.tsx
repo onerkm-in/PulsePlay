@@ -1,18 +1,7 @@
-// playground/src/components/UnifiedAssistantSurface.tsx
-//
-// The unified PulsePlay assistant surface — the WHOLE point of PulsePlay.
-// Renamed from `AISidebar` 2026-05-25 as Step 1.5 of the unified-surface
-// beast-mode plan; the old name implied a side panel, but this is now
-// the single user-visible chat + briefing surface (locked per
-// feature_unified_workbench.md 2026-05-18). PulseShell remains in the
-// codebase as a dev-tools-only escape hatch during the feature-port
-// migration (Steps 4/5/6).
-//
-// Stays mounted as the user switches between BI vendors, accumulating
-// event context (which page, which filters, which selection) so its
-// prompts can reason about "the thing the user is currently looking at."
-//
-// Cycle C v0.5 — full submit -> poll -> render lifecycle.
+// The unified PulsePlay assistant surface — the single user-visible chat +
+// briefing surface. Stays mounted as the user switches between BI vendors,
+// accumulating event context (page / filters / selection) so its prompts can
+// reason about what the user is currently looking at.
 //
 // State machine per question:
 //
@@ -22,16 +11,11 @@
 //     -> completed    (status === "COMPLETED")
 //      | failed       (status === "FAILED" | timeout | abort | network error)
 //
-// Renders the structured Genie-shape response: narrative + collapsible
-// SQL + collapsible result table + validation diagnostics footer.
-//
 // Connector-agnostic on the wire: the polling URL pattern works for
 // orchestrator-wrapped backends (Genie, OpenAI-analytics, Foundation
 // Model). Supervisor returns COMPLETED synchronously so polling is
-// effectively a no-op for it. Bedrock-direct currently has no polling
-// endpoint — start response is treated as terminal. Any non-standard
-// polling path (e.g. supervisor-async, Bedrock-streamed) is a future
-// cycle.
+// effectively a no-op for it. Bedrock-direct has no polling endpoint —
+// start response is treated as terminal.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { BIEvent } from "../biPanel/BIAdapter";
@@ -53,9 +37,8 @@ import { SurfaceContextStrip } from "./SurfaceContextStrip";
 import { AssistantEmptyState } from "./AssistantEmptyState";
 import { COMPLEX_REQUEST_TIMEOUT_MS } from "../lib/timeoutPolicy";
 
-/** Thread C — default section taxonomy when chat-sectioned mode is on.
- *  Mirrors AI Insights' baseline so authors see the same vocabulary
- *  across both surfaces. */
+/** Default section taxonomy when chat-sectioned mode is on. Mirrors AI
+ *  Insights' baseline so authors see the same vocabulary across both surfaces. */
 const SECTIONED_DEFAULT_SECTIONS: readonly string[] = Object.freeze([
     "HEADLINE",
     "TRENDS",
@@ -63,10 +46,9 @@ const SECTIONED_DEFAULT_SECTIONS: readonly string[] = Object.freeze([
     "RECOMMENDED_ACTIONS",
 ]);
 
-/** Thread C — feature flag. Default off; the user (or admin) opts into
- *  sectioned chat by setting `pulseplay:chat-sectioned-enabled` = "1" in
- *  localStorage. Keeps Genie's classic single-message chat behaviour as
- *  the default while we iterate on the structured experience. */
+/** Feature flag, default off — opt into sectioned chat by setting
+ *  `pulseplay:chat-sectioned-enabled` = "1" in localStorage. Keeps the
+ *  classic single-message chat behaviour as the default. */
 export function isSectionedChatEnabled(): boolean {
     if (typeof window === "undefined") return false;
     try {
@@ -76,17 +58,9 @@ export function isSectionedChatEnabled(): boolean {
     }
 }
 
-// 2026-05-19 Codex post-UAT-1840 follow-up: wire the perf instrumentation
-// utility (added in b71270f) into the actual Ask Pulse pipeline so DevTools
-// Performance + the console table show real backend / polling / render
-// segment durations against Rajesh's 5-10 s budget. The utility itself does
-// nothing to latency — this wiring just exposes the numbers so the next
-// cycle has concrete bottlenecks to attack instead of guessing.
-
 /** Hard upper bound on how long we poll before giving up. Sourced from
- *  the central timeout policy (2026-05-27 — "complex query → 5 min").
- *  Ask Pulse is a multi-step Genie roundtrip (auth + warehouse + query
- *  + sectioned answer) so it falls under COMPLEX. */
+ *  the central timeout policy; Ask Pulse is a multi-step Genie roundtrip
+ *  (auth + warehouse + query + sectioned answer) so it falls under COMPLEX. */
 export const MAX_POLL_DURATION_MS = COMPLEX_REQUEST_TIMEOUT_MS;
 /** Cadence between polls. */
 export const POLL_INTERVAL_MS = 1_000;
@@ -111,35 +85,21 @@ export interface UnifiedAssistantSurfaceProps {
      *  not just from the pack KPIs. Optional — when null, discovery
      *  degrades to pack-only signals (today's behaviour). */
     biAdapter?: { getMetadata?(): Promise<unknown | null> } | null;
-    /** When set (non-null, non-empty), UnifiedAssistantSurface auto-submits this
-     *  question exactly once on the next render. Used by the first-run
-     *  wizard's "Done & ask" finish action so the user sees a live AI
-     *  response the moment the wizard closes. String values keep the
-     *  legacy "once per unique question" behavior; event values use
-     *  `id` so two separate wizard completions can submit the same
-     *  question intentionally. */
+    /** When set (non-null, non-empty), auto-submits this question exactly
+     *  once on the next render (first-run wizard "Done & ask"). String
+     *  values fire once per unique question; event values use `id` so two
+     *  separate wizard completions can submit the same question intentionally. */
     autoSubmitQuestion?: AutoSubmitQuestionEvent | string | null;
-    /** FW1 — fires when an entry transitions to a terminal `completed`
-     *  status. The host (App.tsx) builds an `AIResultEnvelope` via
-     *  `entryToAIResultEnvelope(...)` and, when the runtime BI vendor is
-     *  native, sends `{ kind: "renderResult", result: envelope }` to the
-     *  primary BI adapter so the canvas paints alongside the sidebar
-     *  answer text. The callback is intentionally narrow — only firing on
-     *  successful completion — because failed/aborted entries have no
-     *  attested result to render.
-     *
-     *  The handler should be cheap; it runs inside `finalize(...)`
-     *  before React commits the next render. Heavy lifting (adapter
-     *  send, telemetry, etc) should be fire-and-forget or post-effect. */
+    /** Fires only when an entry transitions to terminal `completed` —
+     *  failed/aborted entries have no attested result to render.
+     *  The handler MUST be cheap; it runs inside `finalize(...)` before
+     *  React commits the next render. Heavy lifting (adapter send,
+     *  telemetry) should be fire-and-forget or post-effect. */
     onEntryCompleted?: (entry: AnswerEntry) => void;
-    /** Step 2 of the unified-surface plan (2026-05-25): which surface
-     *  intent the user landed on — "briefing" (AI Insights tab) or
-     *  "chat" (Ask Pulse tab). Drives composer placeholder + empty-state
-     *  copy so the user knows whether they're in push-mode (auto-
-     *  generated briefing) or pull-mode (conversational chat). Step 5/6
-     *  will wire briefing intent to actually auto-fire a structured
-     *  briefing on mount. Today (Step 2): cosmetic-only differentiation.
-     *  Defaults to "chat" so existing callers don't break. */
+    /** Which surface intent the user landed on — "briefing" (AI Insights
+     *  tab) or "chat" (Ask Pulse tab). Drives composer placeholder +
+     *  empty-state copy only (cosmetic). Defaults to "chat" so existing
+     *  callers don't break. */
     entryIntent?: "briefing" | "chat";
 }
 
@@ -181,7 +141,7 @@ export interface AnswerEntry {
     validationDiagnostics?: Record<string, unknown>;
     error?: string;
     /** Optional token usage from the backend (OpenAI / Anthropic shape).
-     *  Surfaced by SustainabilityIndicator. Absent for pure Genie responses. */
+     *  Recorded via usageTracker. Absent for pure Genie responses. */
     usage?: ProxyMessageResponse["usage"];
     /** Latest upstream poll status reported by the proxy (e.g.
      *  `ASKING_AI`, `EXECUTING_QUERY`, `PENDING_WAREHOUSE`). Used to render
@@ -189,28 +149,25 @@ export interface AnswerEntry {
      *  the user sees that a 40-second wait is a cold-start warehouse,
      *  not the proxy hanging. Cleared on terminal status. */
     pollStatus?: string;
-    /** FW1 — proxy-built governance attestation forwarded as-is from the
-     *  upstream response. Validated shape-wise by the envelope mapper;
-     *  the UnifiedAssistantSurface treats it as opaque metadata. Absent for backends
-     *  that haven't been wired through `withGovernance(...)` yet. */
+    /** Proxy-built governance attestation forwarded as-is. Validated
+     *  shape-wise by the envelope mapper; treated as opaque here. Absent for
+     *  backends not wired through `withGovernance(...)`. */
     governance?: unknown;
-    /** Thread B — authoritative artifact status emitted by validateArtifact()
-     *  once the entry transitions to `completed`. Drives the <TrustBadge>
-     *  render in the message header. Never set by the LLM; never trusted
-     *  from upstream metadata. Absent on pending / submitting / polling
-     *  entries; absent on failed entries (no artifact to validate). */
+    /** Authoritative artifact status emitted by validateArtifact() once the
+     *  entry transitions to `completed`. Drives the <TrustBadge> render.
+     *  NEVER set by the LLM; never trusted from upstream metadata. Absent on
+     *  non-completed entries (no artifact to validate). */
     artifactStatus?: ArtifactStatus;
-    /** Thread B — Problem-Details detail string when artifactStatus is
-     *  `blocked`. Surfaced inside the badge tooltip so the viewer knows
-     *  why the validator refused. */
+    /** Problem-Details detail string when artifactStatus is `blocked`;
+     *  surfaced in the badge tooltip. */
     artifactStatusReason?: string;
-    /** Thread C — per-section state when the entry is streaming through
-     *  the sectioned SSE endpoint. Absent for flat-mode entries. */
+    /** Per-section state when the entry is streaming through the sectioned
+     *  SSE endpoint. Absent for flat-mode entries. */
     sectionStates?: Record<string, SectionState>;
-    /** Thread C — ordered section descriptors so the renderer can lay
-     *  them out top-to-bottom in the canonical order. */
+    /** Ordered section descriptors so the renderer can lay them out
+     *  top-to-bottom in the canonical order. */
     sectionDescriptors?: SectionDescriptor[];
-    /** Thread C — true while the SSE stream is open. Disables per-section
+    /** True while the SSE stream is open. Disables per-section
      *  regenerate buttons until the stream terminates. */
     isStreamingSections?: boolean;
 }
@@ -247,17 +204,14 @@ interface ProxyMessageResponse {
         output_tokens?: number;
         total_tokens?: number;
     };
-    /** FW1 — opaque governance attestation. The proxy attaches a typed
-     *  `GovernanceAttestation` via `withGovernance(...)` for renderable
-     *  backend paths; UnifiedAssistantSurface carries it through to the renderer
-     *  without validating shape here (the entryToEnvelope mapper +
-     *  native adapter render gate own shape validation + policy). */
+    /** Opaque governance attestation. Carried through without validating
+     *  shape here — the entryToEnvelope mapper + native adapter render gate
+     *  own shape validation + policy. */
     governance?: unknown;
 }
 
 /** Pull the narrative answer text out of a Genie-shape response, falling
- *  back through the various backend conventions. Same logic as cycle B's
- *  multi-shape reader, just isolated as a helper. */
+ *  back through the various backend conventions. */
 function extractAnswer(data: ProxyMessageResponse): string | undefined {
     if (typeof data.content === "string" && data.content) return data.content;
     if (typeof data.synthesis === "string" && data.synthesis) return data.synthesis;
@@ -284,11 +238,10 @@ function extractQueryResult(data: ProxyMessageResponse): QueryResult | undefined
     return { columns, rows };
 }
 
-/** Thread B — compute the authoritative artifact status for a completed
- *  AnswerEntry. Synthesises a CandidateArtifact from the entry's fields
- *  and runs validateArtifact, which is the SAME gate the Workbench
- *  surface uses. Status is never trusted from the LLM or upstream
- *  metadata — only from this validator pass.
+/** Compute the authoritative artifact status for a completed AnswerEntry.
+ *  Synthesises a CandidateArtifact and runs validateArtifact — the SAME gate
+ *  the Workbench surface uses. Status is NEVER trusted from the LLM or
+ *  upstream metadata — only from this validator pass.
  *
  *  Citation synthesis rules:
  *    • `sqlQuery` present → `{ kind: 'sql', statement }` citation
@@ -378,20 +331,16 @@ function projectEntryFromResponse(data: ProxyMessageResponse): Partial<AnswerEnt
         validationDiagnostics: data.validationDiagnostics,
         usage: data.usage,
         pollStatus: typeof data.status === "string" ? data.status : undefined,
-        // FW1 — forward the opaque governance field if the proxy populated
-        // one. UnifiedAssistantSurface carries it through; the envelope mapper validates
-        // shape and the native adapter's render gate applies policy.
+        // Opaque pass-through — envelope mapper validates shape, native
+        // adapter's render gate applies policy.
         governance: data.governance,
     };
 }
 
 /** Map a raw upstream poll status (Genie / Databricks Apps state machine)
  *  to a viewer-friendly loading message + an optional "typical wait" hint.
- *
- *  Live-smoke 2026-05-14: warehouse cold-start regularly takes 30-60 s.
- *  Generic "Thinking…" left users thinking the proxy was hung. Surfacing
- *  the upstream state with a sympathetic explanation closes the
- *  perceived-time gap without making us faster.
+ *  Warehouse cold-start regularly takes 30-60 s; a generic "Thinking…"
+ *  left users thinking the proxy was hung.
  *
  *  Returns null when the status is unknown so the caller renders the
  *  default loading line. */
@@ -452,17 +401,12 @@ function summariseSnapshotForRequest(snap: DiscoverySnapshot): Record<string, un
     };
 }
 
-/** Build a small context block from the recent BI events so the LLM
- *  knows what the user is looking at. Same idea as the sister project's contextBuilder,
- *  but sourced from BI vendor events. */
 /**
  * Build the [BI Context] preamble that prefixes the user question on every
- * ask. Phase B of frame-to-prompt wiring: when a reachable analysis frame is
- * selected in the FramePicker, append a "[Selected analysis frame]" block so
- * the AI brain knows the user committed to a specific analysis intent (e.g.
- * "BCG growth–share matrix on the current category mix") instead of an
- * open-ended question. The proxy doesn't need to know about this field —
- * it lives in the same `content` string the proxy already forwards verbatim.
+ * ask. When a reachable analysis frame is selected in the FramePicker,
+ * append a "[Selected analysis frame]" block so the AI brain knows the user
+ * committed to a specific analysis intent. The proxy doesn't need to know
+ * about this field — it lives in the `content` string forwarded verbatim.
  */
 function buildContextBlock(
     activeVendor: string,
@@ -513,11 +457,10 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
      *  flight, so the elapsed-time counter updates in the UI. */
     const [, setNowTick] = useState(0);
 
-    /** Thread D — pull metric direction rules from settings so the
-     *  markdown renderer can tone-tint table cells where the column
-     *  header matches a rule. Hook subscribes to PULSE_SETTINGS_EVENT
-     *  so changes propagate without a refresh. Returns `undefined` when
-     *  both fields are empty so renderMarkdown skips the tone path. */
+    /** Metric direction rules from settings for tone-tinting table cells.
+     *  Hook subscribes to PULSE_SETTINGS_EVENT so changes propagate without
+     *  a refresh. Returns `undefined` when both fields are empty so
+     *  renderMarkdown skips the tone path. */
     const pulseAiSettings = usePulseAiVisualSettings();
     const metricRulesForRender = useMemo(() => {
         const structured = pulseAiSettings.value.insightsMetricDirections?.trim() || undefined;
@@ -574,10 +517,8 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
         }
     }, [history]);
 
-    // Phase A discovery state: fetch a DiscoverySnapshot whenever the
-    // connector or pack changes. The snapshot is cached in sessionStorage
-    // by discoveryClient with a 15-min TTL, so navigating back to a
-    // previously-loaded combo is instant.
+    // Fetch a DiscoverySnapshot whenever the connector or pack changes.
+    // Cached in sessionStorage by discoveryClient with a 15-min TTL.
     const [snapshot, setSnapshot] = useState<DiscoverySnapshot | null>(null);
     const [discoveryLoading, setDiscoveryLoading] = useState(false);
     const [selectedFrame, setSelectedFrame] = useState<string | null>(null);
@@ -686,17 +627,15 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
                     ? { ...h, ...enrichedPatch, status, finishedAt }
                     : h
             );
-            // FW1 — capture the post-patch entry so the onEntryCompleted
-            // callback below can fire with the same object the sidebar
-            // just rendered. The updater runs synchronously inside React's
-            // commit so completedEntry is populated before the `if` block
-            // below executes.
+            // Capture the post-patch entry so the onEntryCompleted callback
+            // below can fire with the same object the sidebar just rendered.
+            // The updater runs synchronously inside React's commit so
+            // completedEntry is populated before the `if` block below.
             if (status === "completed") {
                 completedEntry = next.find(h => h.id === entryId) ?? null;
             }
             return next;
         });
-        // Fire the FW1 completion callback after setHistory dispatches.
         // Wrapped in try/catch so a misbehaved host can't break the AI
         // sidebar's state machine.
         if (status === "completed" && props.onEntryCompleted) {
@@ -790,11 +729,11 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [props.autoSubmitQuestion]);
 
-    /** Thread C — sectioned chat path. Opens an SSE stream to the proxy's
-     *  Phase D endpoint, registers section descriptors + initial pending
-     *  states on the entry, and updates section states as events arrive.
-     *  All in-flight sections share one renderId-keyed AnswerEntry.
-     *  Requires a valid activeConnector — sectioned mode is profile-driven. */
+    /** Sectioned chat path. Opens an SSE stream to the proxy, registers
+     *  section descriptors + initial pending states, and updates section
+     *  states as events arrive. All in-flight sections share one
+     *  renderId-keyed AnswerEntry. Requires a valid activeConnector —
+     *  sectioned mode is profile-driven. */
     const askSectioned = async (entryId: number, q: string, runId: string) => {
         if (!props.activeConnector) {
             finalize(entryId, { error: "Sectioned chat requires an active AI profile." }, "failed");
@@ -902,29 +841,21 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
         setHistory(prev => [...prev, entry]);
         setQuestion("");
 
-        // Perf instrumentation — start two open stages: `total` (the whole
-        // user-facing duration) and `submit` (the POST /start RTT). The
-        // `polling` stage opens later when (and only if) polling kicks in.
-        // Marks are emitted into the Performance API entry buffer so DevTools
-        // Performance tab shows vertical lines at each boundary.
+        // Perf stages: `total` (whole user-facing duration) + `submit`
+        // (POST /start RTT); `polling` opens later only if polling kicks in.
         const runId = `ask:${entryId}`;
         resetRun(runId);
         stageStart(runId, "total", q.length > 60 ? `${q.slice(0, 57)}…` : q);
         stageStart(runId, "submit", `profile=${props.activeConnector || "(default)"}`);
 
-        // Thread C — when sectioned chat is enabled, dispatch to the SSE
-        // path instead of the classic single-message flow. Default-off
-        // feature flag protects existing UX; users opt in via localStorage.
         if (isSectionedChatEnabled()) {
             void askSectioned(entryId, q, runId);
             return;
         }
 
-        // Resolve the selected analysis frame (if any) from the snapshot so we
-        // can include both a structured `frame` JSON field (additive — proxy
-        // ignores unknown fields permissively) AND a "[Selected analysis frame]"
-        // section in the content preamble (so prompt-strategy benefits even
-        // before the proxy is updated to consume the structured field).
+        // Resolve the selected analysis frame (if any) so we can send both a
+        // structured `frame` JSON field AND a "[Selected analysis frame]"
+        // section in the content preamble.
         const selectedFrameObj: ReachableFrame | null = (selectedFrame && snapshot)
             ? (snapshot.fused.reachableFrames.find(f => f.frameId === selectedFrame) || null)
             : null;
@@ -946,12 +877,8 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
                     // Pack/sub-vertical drives prompt enrichment on the proxy.
                     pack: props.packSelection?.pack,
                     subVertical: props.packSelection?.subVertical,
-                    // Frame-to-prompt wiring (Phase B). Additive field; the
-                    // proxy ignores unknown JSON keys, so a stale proxy
-                    // version silently drops this without failing the call.
-                    // When the proxy is updated to consume it, this becomes
-                    // the canonical machine-readable signal of the user's
-                    // selected analysis intent (vs free-text question).
+                    // Additive field — the proxy ignores unknown JSON keys, so
+                    // a stale proxy silently drops this without failing the call.
                     ...(selectedFrameObj ? {
                         frame: {
                             frameId: selectedFrameObj.frameId,
@@ -960,13 +887,9 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
                             params: selectedFrameObj.params,
                         },
                     } : {}),
-                    // Probe-once cross-backend reuse — when UnifiedAssistantSurface already
-                    // has the snapshot in hand, distil it into the same
+                    // Probe-once reuse — distil the snapshot into the same
                     // discoveryContext envelope the Pulse genie pipeline uses.
-                    // Proxy ignores unknown keys, so a stale proxy version
-                    // drops it silently; updated routes (Genie / FM / OpenAI /
-                    // Bedrock / Supervisor) inject it as system-prompt or
-                    // user-header augmentation.
+                    // Additive; a stale proxy drops it silently.
                     ...(snapshot ? { discoveryContext: summariseSnapshotForRequest(snapshot) } : {}),
                 }),
                 signal: ctrl.signal,
@@ -1033,17 +956,12 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
         ? `Pack context: ${props.packSelection.pack}${props.packSelection.subVertical ? ` / ${props.packSelection.subVertical}` : ""}`
         : "Pack context: none — generic prompts";
 
-    // 2026-05-27 — ARCH-P1 slice 1 ported the signposting chrome (context
-    // chips + empty state) so v0 doesn't look bare. Slice 2 (this code)
-    // wires the trust chip to real BI metadata so it promotes from
-    // "AI configured · No BI fields" → "Grounded to BI context" once the
-    // active BI adapter reports schema. Source comes from the discovery
-    // snapshot's `sources.biMetadata.visibleMeasures` /
-    // `visibleDimensions` — the adapter-reported "what's currently
-    // bound" view. snapshot loads asynchronously, so Trust may flip
-    // mid-discovery; that's honest (user sees AI become grounded as
-    // metadata lands), not a bug. v0 still has no `sendContextToAi`
-    // toggle — it always captures BI events for context — so we pass true.
+    // Trust chip promotes from "AI configured · No BI fields" →
+    // "Grounded to BI context" once the adapter reports schema (snapshot
+    // `sources.biMetadata.visibleMeasures` / `visibleDimensions`). snapshot
+    // loads asynchronously, so Trust may flip mid-discovery — that's honest,
+    // not a bug. This surface has no `sendContextToAi` toggle — it always
+    // captures BI events for context — so we pass true.
     const isAiConfigured = Boolean((props.activeConnector || "").trim());
     const measureCount = snapshot?.sources?.biMetadata?.visibleMeasures?.length ?? 0;
     const dimensionCount = snapshot?.sources?.biMetadata?.visibleDimensions?.length ?? 0;
@@ -1062,12 +980,9 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
         <section className="pp-ai-sidebar">
             <header className="pp-ai-sidebar__header">
                 <h2 className="pp-ai-sidebar__title">PulsePlay AI</h2>
-                {/* UX-ARCH-0B.2 follow-up 2026-05-23 — pack-context subtitle
-                    removed from the composer header. The pack is a setting;
-                    its value belongs in Settings → AI, not on every chat
-                    render. Kept the test-id'd element as a hidden SR-only
-                    span so a11y consumers + existing tests still find the
-                    current pack on demand. */}
+                {/* Pack value lives in Settings → AI; kept here only as a
+                    hidden SR-only span so a11y consumers + existing tests
+                    still find the current pack on demand. */}
                 <span
                     className="pp-ai-sidebar__pack-indicator"
                     data-testid="pp-ai-sidebar-pack-indicator"
@@ -1076,16 +991,12 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
                     {packIndicator}
                 </span>
             </header>
-            {/* 2026-06-03 — the VISIBLE SurfaceContextStrip was removed; context now
-                shows only in the persistent host footer (consistent across screens).
-                The computed trust/source survive here as SR-only spans so the trust-
-                ladder wiring stays announced for a11y AND covered by the existing
-                discovery-snapshot → trust tests. */}
+            {/* Visible context lives in the persistent host footer; trust/source
+                survive here as SR-only spans so the trust-ladder wiring stays
+                announced for a11y AND covered by the discovery-snapshot → trust
+                tests. */}
             <span data-testid="pp-surface-context-trust" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>{surfaceContext.trust}</span>
             <span data-testid="pp-surface-context-source" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>{surfaceContext.source}</span>
-            {/* Empty state: show the signposting block on cold boot so the
-                screen doesn't look bare. Once the user starts a conversation,
-                fall back to the lightweight intro line. */}
             {history.length === 0 ? (
                 <AssistantEmptyState isConfigured={isAiConfigured} />
             ) : null}
@@ -1101,12 +1012,6 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
                 ))}
             </div>
             <div className="pp-ai-sidebar__composer">
-                {/* UX-ARCH-0B.2 follow-up 2026-05-23 — FramePicker disclosure
-                    auto-hides when no reachable frames exist OR discovery is
-                    still loading. Previously the "Use a frame…" pill showed
-                    on every render even with nothing to pick. The composer
-                    now leads with just the textarea + buttons until frames
-                    are actually available. */}
                 {snapshot?.fused.reachableFrames && snapshot.fused.reachableFrames.length > 0 && (
                     <details className="pp-ai-sidebar__frame-disclosure">
                         <summary>
@@ -1150,15 +1055,10 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
                         >
                             Ask
                         </button>
-                        {/* 2026-05-26 — hide (not just disable) the composer
-                            Stop when nothing is in flight. The greyed-out
-                            button next to the blue Ask CTA on an idle
-                            screen looked like an inert affordance and made
-                            users wonder what it was for. The per-entry
-                            Stop inside the answer card stays — that's the
-                            contextual one. This composer Stop only appears
-                            as a backup when an entry is scrolled out of
-                            view but the user wants to abort. */}
+                        {/* Hide (don't just disable) the composer Stop when idle —
+                            a greyed-out button read as an inert affordance. The
+                            per-entry Stop is the contextual one; this composer
+                            Stop is a backup for entries scrolled out of view. */}
                         {hasInFlight && (
                             <button
                                 type="button"
@@ -1184,10 +1084,8 @@ export function UnifiedAssistantSurface(props: UnifiedAssistantSurfaceProps) {
                         )}
                     </div>
                 </div>
-                {/* UX-ARCH-0B.2 follow-up 2026-05-23 — sustainability chip
-                    removed from the composer. The single-source sustainability
-                    gauge lives once in App.tsx as a fixed bottom-right orb;
-                    duplicate mounts cluttered the input area without signal. */}
+                {/* The single-source sustainability gauge lives once in App.tsx
+                    (fixed bottom-right orb) — don't add a duplicate mount here. */}
             </div>
         </section>
     );
@@ -1198,8 +1096,8 @@ function AnswerEntryView(props: {
     entry: AnswerEntry;
     onStop: () => void;
     onRetry: () => void;
-    /** Thread D — metric direction rules from settings; threaded into
-     *  renderMarkdown so table cells matching a rule get a tone tint. */
+    /** Metric direction rules from settings; threaded into renderMarkdown
+     *  so table cells matching a rule get a tone tint. */
     metricRules?: { structured?: string; legacy?: string };
 }) {
     const { entry } = props;
@@ -1230,15 +1128,10 @@ function AnswerEntryView(props: {
             )}
 
             {entry.status === "submitting" && (
-                // Audit 2026-05-19 P2-11: aria-live so screen-reader users
-                // hear that work is in flight; without it the spinner state
-                // was invisible to assistive tech.
-                // 2026-05-26 visual upgrade: bare "Submitting…" italic
-                // text gave no indication anything was happening. For 1s+
-                // proxy round trips users would assume the app was frozen.
-                // Added an inline animated dot triplet that bounces in
-                // sequence so there's always visible motion while the
-                // submit POST is in flight.
+                // aria-live so screen-reader users hear that work is in
+                // flight; without it the spinner state was invisible to
+                // assistive tech. Animated dot triplet keeps visible motion
+                // during 1s+ proxy round trips (bare text read as frozen).
                 <div
                     className="pp-ai-sidebar__pending pp-ai-sidebar__pending--submitting"
                     role="status"
@@ -1259,10 +1152,9 @@ function AnswerEntryView(props: {
                         className="pp-ai-sidebar__pending"
                         data-testid={`pp-ai-poll-${entry.id}`}
                         data-poll-status={(entry.pollStatus || "").toUpperCase()}
-                        // Audit 2026-05-19 P2-11: aria-live so the rotating
-                        // "Warming warehouse → Asking the AI → Running the SQL"
-                        // copy gets announced as it changes. polite (not
-                        // assertive) — these are status updates, not alerts.
+                        // aria-live so the rotating status copy gets announced
+                        // as it changes. polite (not assertive) — these are
+                        // status updates, not alerts.
                         role="status"
                         aria-live="polite"
                     >
@@ -1279,14 +1171,9 @@ function AnswerEntryView(props: {
             })()}
 
             {entry.sectionDescriptors && entry.sectionStates && (
-                // Thread C — when the entry carries sectionDescriptors,
-                // render the structured multi-section view instead of
-                // the flat markdown bubble. Each section is a string
-                // body emitted by Genie, so we route it through
-                // renderMarkdown for consistent inline formatting +
-                // metric tone coloring. Section state pending /
-                // streaming / failed renders skeleton + spinner +
-                // inline error envelope respectively.
+                // Structured multi-section view instead of the flat markdown
+                // bubble. Section bodies route through renderMarkdown for
+                // consistent inline formatting + metric tone coloring.
                 <div className="pp-ai-sidebar__a" style={{ marginTop: 4 }}>
                     <strong>AI:</strong>
                     <SectionedAnswer
@@ -1305,13 +1192,9 @@ function AnswerEntryView(props: {
             {!entry.sectionDescriptors && entry.answer && (
                 <div className="pp-ai-sidebar__a">
                     <strong>AI:</strong>
-                    {/* Audit 2026-05-19 P2-2: was `whiteSpace: pre-wrap` + raw
-                      * text — every backend that emits Markdown (Genie /
-                      * Foundation Model / Supervisor / Bedrock) leaked `**`,
-                      * `|`, and `#` characters into the chat. The minimal
-                      * renderer in lib/renderMarkdown is safe-by-construction
-                      * (no innerHTML, link protocols vetted) and covers the
-                      * subset of Markdown those backends actually use. */}
+                    {/* Backends emit Markdown; raw text leaked `**`/`|`/`#`.
+                      * lib/renderMarkdown is safe-by-construction (no innerHTML,
+                      * link protocols vetted). */}
                     <div className="pp-ai-sidebar__narrative pp-md" style={{ marginTop: 4 }}>
                         {renderMarkdown(entry.answer, props.metricRules ? { metricRules: props.metricRules } : undefined)}
                     </div>

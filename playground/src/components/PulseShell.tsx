@@ -1,26 +1,8 @@
-// playground/src/components/PulseShell.tsx
-//
-// React wrapper that mounts Pulse's ported `Visual` class into a
-// PulsePlay panel. This is the runtime side of Cycle E — it ties:
-//
-//   - Pulse's Visual class (which expects an IVisualHost + DataView)
-//   - PulseHostStub (PulsePlay-shaped host implementation)
-//   - A synthetic VisualUpdateOptions (no DataView — PulsePlay reads
-//     BI state from the active adapter, not from a PBI DataView)
-//
-// On mount, this component:
-//   1. Creates a container div
-//   2. Constructs `new Visual({ element, host: PulseHostStub })`
-//   3. Calls visual.update({ viewport, dataViews: [] }) to render
-//   4. Re-calls update() when container resizes or settings re-render is requested
-//
-// On unmount: schedules visual.destroy() if defined; tears down the React root.
-//
-// What this does NOT yet do (queued for later cycles):
-//   - Wire BIAdapter events into Pulse's prompt context (Cycle F: contextBuilder
-//     gets a BIAdapter-events implementation alongside its DataView path)
-//   - Hydrate Pulse's settings from localStorage on mount (Cycle E.4)
-//   - Provide a real palette from a theme service (Cycle E.4)
+// React wrapper that mounts Pulse's ported `Visual` class into a PulsePlay
+// panel: PulseHostStub as the IVisualHost, plus a synthetic
+// VisualUpdateOptions (no PBI DataView — PulsePlay reads BI state from the
+// active adapter). Re-calls update() on resize / renderToken / BI context
+// change; schedules visual.destroy() on unmount.
 
 import { useEffect, useMemo, useRef } from "react";
 import { Visual } from "../pulse/visual";
@@ -48,24 +30,17 @@ export interface PulseShellProps {
     /** Optional callback when Pulse persists a settings change. Useful
      *  for surfacing "Settings saved" toasts in the surrounding shell. */
     onSettingsChange?: () => void;
-    /** Cycle L — recent canonical BI events emitted by the active vendor
-     *  adapter. PulseShell synthesises a `dataView.categorical` summary
-     *  from these so Pulse's `contextBuilder.buildContext()` populates
-     *  `props.context.measures` / `dimensions` / `availableFilters` /
-     *  `hasSelection` — making `sendContextToGenie` actually do work.
-     *  When this is undefined or empty, Pulse falls back to its current
-     *  empty-context behaviour. */
+    /** Recent canonical BI events from the active vendor adapter. PulseShell
+     *  synthesises a `dataView.categorical` summary from these so Pulse's
+     *  `contextBuilder.buildContext()` populates dimensions / availableFilters /
+     *  hasSelection. Undefined or empty → Pulse's empty-context behaviour. */
     biEvents?: BIEvent[];
     /** Vendor identifier used as the queryName prefix when synthesising
      *  filter targets (e.g. `powerbi`, `tableau`). Default `bi`. */
     biVendor?: string;
     /** App-owned surface navigation can request the internal Pulse tab
      *  after returning from BI Viz in unified mode.
-     *  2026-05-27 — widened to include "dashboard" to match the
-     *  PulseSurfaceTab union in App.tsx; visual.tsx already renders a
-     *  Dashboard tab (`gn-tab-dashboard`) so this is a real value the
-     *  shell can be asked to surface. Without this widening, lint + build
-     *  failed (Codex audit P0). */
+     *  Keep this union in sync with PulseSurfaceTab in App.tsx. */
     activeTabRequest?: "insights" | "chat" | "dashboard";
 }
 
@@ -74,10 +49,8 @@ export function PulseShell(props: PulseShellProps) {
     const visualRef = useRef<Visual | null>(null);
     const pendingDestroyRef = useRef<{ timer: number; visual: Visual } | null>(null);
 
-    // Cycle L — derive a synthetic `categorical` block from the most recent
-    // BI vendor events so Pulse's `contextBuilder.buildContext()` populates
-    // dimensions / availableFilters / hasSelection. Memo so the effect-
-    // dependency stays stable when events haven't changed.
+    // Synthetic `categorical` block from recent BI vendor events. Memo so the
+    // effect-dependency stays stable when events haven't changed.
     const biCategorical = useMemo(
         () => buildCategoricalFromBIEvents(props.biEvents || [], props.biVendor || "bi"),
         [props.biEvents, props.biVendor],
@@ -88,10 +61,9 @@ export function PulseShell(props: PulseShellProps) {
         const container = containerRef.current;
         if (!container) return;
 
-        // First-run seeding: writes PulsePlay-friendly defaults
-        // (currently `showSetupAccess: true` so authors actually reach
-        // Pulse's Setup tab without manual toggling). No-op when
-        // settings already exist in localStorage.
+        // First-run seeding of PulsePlay-friendly defaults (e.g.
+        // `showSetupAccess: true` so authors reach Pulse's Setup tab).
+        // No-op when settings already exist in localStorage.
         seedPulsePlayDefaults();
 
         const pendingDestroy = pendingDestroyRef.current;
@@ -110,19 +82,17 @@ export function PulseShell(props: PulseShellProps) {
         }
         visualRef.current = visual;
 
-        // Cycle E.4 + Cycle L — synthetic dataView carrying the persisted
-        // settings bag (metadata.objects) AND the BI-derived categorical
-        // block when present. Pulse's update() pipeline reads both.
+        // Synthetic dataView carries the persisted settings bag
+        // (metadata.objects) AND the BI-derived categorical block when
+        // present. Pulse's update() pipeline reads both.
         visual.update({
             viewport: viewportFromContainer(container, props.viewport),
             dataViews: [buildSyntheticDataView(biCategorical)],
         });
 
-        // Resize observer: PBI re-emits update() on viewport changes; we
-        // mirror that by calling update() ourselves when the container
-        // changes size. Re-read the persisted dataView each time so any
-        // settings changes (via persistProperties) get picked up on the
-        // next render-tick.
+        // Mirror PBI's update()-on-viewport-change by calling update() on
+        // container resize. Re-read the persisted dataView each time so
+        // settings changes (via persistProperties) get picked up.
         const ro = typeof ResizeObserver !== "undefined"
             ? new ResizeObserver(() => {
                 visual.update({
@@ -222,24 +192,16 @@ export function PulseShell(props: PulseShellProps) {
                 maxWidth: "100%",
                 height: "100%",
                 minWidth: 0,
-                // 2026-05-26 — was hardcoded 600. At mobile-landscape
-                // (e.g. 667×375), this forced the shell taller than the
-                // viewport so the composer got pushed off-screen.
-                // Switched to 0; the chat-panel flex chain already keeps
-                // content visible, and CSS @media rules in visual.less
-                // tighten the welcome-state padding when height ≤ 480.
+                // MUST stay 0 — a fixed minHeight forces the shell taller
+                // than mobile-landscape viewports (e.g. 667×375), pushing the
+                // composer off-screen. The chat-panel flex chain keeps content
+                // visible; visual.less @media rules handle height ≤ 480.
                 minHeight: 0,
-                // 2026-05-20 dual-scrollbar fix: Pulse's own panes (e.g.
-                // `.gn-insights-pane`, `.gn-chat-area`) already manage their
-                // internal scroll via `overflow-y: auto`. When we ALSO
-                // declared `overflowY: auto` here, the host wrapper showed a
-                // second scrollbar stacked on the right of the Pulse pane's
-                // own — a visible double-rail. PulsePlay hosts Pulse at
-                // top-level origin (not the constrained PBI Desktop sandbox)
-                // so we don't need an outer safety scroller; let Pulse's
-                // internal panes own scrolling. `overflowX: hidden` stays to
-                // contain any rogue horizontal layout from the iframe-shaped
-                // visual.tsx render.
+                // Do NOT declare `overflowY: auto` here — Pulse's own panes
+                // (`.gn-insights-pane`, `.gn-chat-area`) manage internal
+                // scroll, and an outer scroller caused a visible double
+                // scrollbar. Hidden overflow-x contains rogue horizontal
+                // layout from visual.tsx.
                 overflow: "hidden",
                 position: "relative",
             }}
@@ -247,15 +209,11 @@ export function PulseShell(props: PulseShellProps) {
     );
 }
 
-// Cycle L — synthetic dataView builder. Merges:
-//   - metadata.objects from localStorage (settings hydration)
-//   - categorical (categories) derived from recent BI events
-// so Pulse's update() pipeline gets a single dataView per call.
-//
+// Synthetic dataView builder: merges metadata.objects from localStorage
+// (settings hydration) with the categorical block derived from BI events.
 // Pulse's `contextBuilder.buildContext(dataView)` returns the empty summary
-// when `dataView.categorical` is absent (line 76 of contextBuilder.ts), so
-// adding the block here is sufficient to populate dimensions /
-// availableFilters / hasSelection in `props.context.*`.
+// when `dataView.categorical` is absent, so adding the block here is
+// sufficient to populate dimensions / availableFilters / hasSelection.
 function buildSyntheticDataView(categorical: SyntheticCategorical | null): powerbi.DataView {
     const dv: powerbi.DataView = {
         metadata: { objects: buildPersistedObjectsBag().objects },

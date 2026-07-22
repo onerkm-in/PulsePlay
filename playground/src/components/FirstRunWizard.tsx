@@ -1,33 +1,10 @@
-// playground/src/components/FirstRunWizard.tsx
+// 4-step first-run onboarding wizard — full-bleed modal
+// (Welcome/Persona → Choose tools → Connect → Explore).
 //
-// 4-step first-run onboarding wizard — full-bleed modal.
-//
-//   Step 1 — Welcome + Persona
-//     Pick your role (Analyst / Executive / Developer / Designer).
-//     Each persona seeds UI mode, layout, and connector hints for later steps.
-//     "Just give me defaults" fast-lane skips straight to Done.
-//
-//   Step 2 — Choose your tools
-//     BI vendor (Y-axis: what you're looking at) + AI connector (X-axis:
-//     what does the reasoning). Persona-recommended picks are softly outlined.
-//
-//   Step 3 — Connect
-//     Embed config specific to the chosen vendor (EmbedConfigForm) + an
-//     optional "Test connection" probe. "Continue without testing" is always
-//     available — no hard blocking.
-//
-//   Step 4 — Explore
-//     Optional knowledge pack + pre-typed suggested first question.
-//     "Done & ask" auto-submits the question so the user sees a live
-//     AI response the moment the wizard closes.
-//
-// Persistence:
-//   Draft state (step, persona, vendor, connector) saved to
-//   `pulseplay:wizard-draft` on every step advance. Re-opening the wizard
-//   resumes from the furthest reached step. Cleared on Done or Skip.
-//
-// Transitions: CSS-only slide+fade (280ms cubic-bezier). No animation library.
-// Keyboard: focus-trap inside modal; Esc dismisses; Tab / Shift-Tab cycles.
+// Persistence: draft (step, persona, vendor, connector) saved to
+// `pulseplay:wizard-draft` on every step advance; re-opening resumes from the
+// furthest reached step; cleared on Done or Skip.
+// Keyboard: focus-trap inside modal; Esc dismisses.
 // Accessibility: aria-live step announcements; radio-group semantics on cards.
 
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactElement, type ReactNode } from "react";
@@ -110,10 +87,7 @@ export const PERSONA_PRESETS: readonly PersonaPreset[] = [
     },
 ] as const;
 
-/**
- * Return the UI + layout preset for a persona. Used by App.tsx after the
- * wizard completes and by tests.
- */
+/** Return the UI + layout preset for a persona. */
 export function applyPersonaDefaults(
     persona: PersonaKey,
 ): Pick<PersonaPreset, "uiMode" | "layoutMode" | "preferredConnectorType"> {
@@ -178,12 +152,8 @@ export interface FirstRunWizardProps {
  * Returns true when the wizard should be shown. Pure — safe to call
  * before mounting. Reads localStorage directly.
  *
- * Force flag: if `pulseplay:wizard-force` is set (written by `forceWizard()`),
- * the wizard shows regardless of hasEmbedConfig / hasConnector state, but only
- * when there is at least one visible BI vendor. This is the "Re-run setup
- * wizard" path — the user already has config but wants to re-run the flow. The
- * force flag is a single-use signal: it is consumed here and must be cleared
- * by the wizard's Done / Skip paths via clearDraft().
+ * The force flag (`forceWizard()`) is single-use: consumed here, and MUST be
+ * cleared by the wizard's Done / Skip paths via clearDraft().
  */
 export function shouldShowWizard(args: {
     hasEmbedConfig:   boolean;
@@ -213,14 +183,9 @@ export function resetWizardDismissal(): void {
 }
 
 /**
- * Arm the wizard for a forced re-run from Settings → System.
- *
- * Sets `WIZARD_FORCE_KEY` so `shouldShowWizard` returns true even when the
- * user already has an embed config + connector configured.  Clears the
- * dismissal flag and any saved draft so the user starts from Step 1.
- *
- * The force flag is cleared when the wizard completes or is skipped
- * (both paths call `clearDraft()` which now removes it).
+ * Arm the wizard for a forced re-run from Settings → System. Sets
+ * `WIZARD_FORCE_KEY`, clears the dismissal flag + draft; the force flag is
+ * cleared again on wizard Done / Skip via `clearDraft()`.
  */
 export function forceWizard(): void {
     if (typeof window === "undefined") return;
@@ -290,18 +255,10 @@ interface WizardProbeResult {
 /**
  * Probe a connector via the PulsePlay proxy.
  *
- * Always POSTs to `/api/assistant/probe` — the Vite dev server proxies
- * `/api/*` → `127.0.0.1:7000`, so this works in dev, staging, and
- * production without change. The former `/foundation/health` direct fetch
- * was NOT proxied by Vite (only `/api/*` is), so it silently hit the
- * SPA origin instead of the proxy in dev environments (RISK-P1 4.4 fix).
- *
- * The proxy's `/api/assistant/probe` route already handles all 8 backend
- * paths (Genie, Foundation Model, Azure OpenAI, Bedrock, Supervisor, …)
- * based on the profile type — no client-side type-sniffing needed.
- *
- * Note: `connectorType` is retained in the signature for call-site
- * compatibility but is no longer used in the request.
+ * MUST POST to `/api/assistant/probe` — only `/api/*` is proxied by Vite;
+ * a non-/api path silently hits the SPA origin instead of the proxy in dev.
+ * The proxy dispatches on profile type, so no client-side type-sniffing.
+ * `connectorType` is retained for call-site compatibility but unused.
  */
 async function runProbe(connectorName: string, _connectorType?: string): Promise<WizardProbeResult> {
     const t0 = Date.now();
@@ -380,7 +337,6 @@ const STEP_META = [
 /* ─── Main component ─────────────────────────────────────────────────── */
 
 export function FirstRunWizard(props: FirstRunWizardProps): ReactElement {
-    // Restore furthest-reached step from draft on first mount.
     const draft = useMemo(() => loadDraft(), []);
 
     const [step,      setStep]      = useState<WizardStep>(() => {
@@ -437,12 +393,10 @@ export function FirstRunWizard(props: FirstRunWizardProps): ReactElement {
             }
         };
         dialog.addEventListener("keydown", handler as EventListener);
-        // Audit bug fix 2026-05-19: Don't focus the "× Skip setup and close"
-        // dismiss button on open — one stray Enter would close the onboarding.
-        // Prefer the first input the user is actually supposed to interact with
-        // on this step: a checked or first radio (Step 1), then any other
-        // tab-stop that is NOT a dismissal control. Fall back to the dialog
-        // container so focus is still trapped if nothing else is found.
+        // Don't focus the "× Skip setup and close" dismiss button on open —
+        // one stray Enter would close the onboarding. Prefer a checked/first
+        // radio, then any non-dismissal tab-stop; fall back to the dialog
+        // container so focus stays trapped if nothing else is found.
         const checkedRadio = dialog.querySelector<HTMLElement>('[role="radio"][aria-checked="true"]');
         const firstRadio   = dialog.querySelector<HTMLElement>('[role="radio"]');
         const els = focusables();
@@ -453,10 +407,9 @@ export function FirstRunWizard(props: FirstRunWizardProps): ReactElement {
     }, [step]);
 
     /* ── Body scroll lock while wizard is open ──
-     * Audit bug fix 2026-05-19: without this, the launchpad behind the
-     * wizard scrolls under mouse wheel — modal pattern requires a scroll
-     * lock. We restore the previous `body.style.overflow` on unmount so
-     * we don't stomp on a host-app value if one was set. */
+     * Without this the page behind the wizard scrolls under mouse wheel.
+     * Restore the previous `body.style.overflow` on unmount so we don't
+     * stomp on a host-app value if one was set. */
     useEffect(() => {
         if (typeof document === "undefined") return;
         const prev = document.body.style.overflow;
@@ -1059,20 +1012,9 @@ interface WizardErrorBoundaryState {
 
 /**
  * Catches render-time crashes inside the wizard subtree and renders a
- * minimal recovery UI instead of taking the whole app down with a white
- * screen.
- *
- * Why a class component: React still requires class components for
- * `componentDidCatch` + `getDerivedStateFromError`. A 30-line class is
- * cheaper than pulling in `react-error-boundary` as a dependency.
- *
- * The fallback offers two paths so the user is never trapped:
- *   • Retry   — remount the wizard (App.tsx bumps a key)
- *   • Skip    — dismiss the wizard, fall through to the rest of the app
- *
- * Errors are logged to the diagnostics buffer via a `console.error` call
- * (the playground's monkey-patched console.error already routes into
- * `pulseplay:bi-event` for the Support bundle export).
+ * minimal Retry / Skip recovery UI instead of a white screen.
+ * Class component because React requires one for `componentDidCatch` +
+ * `getDerivedStateFromError`.
  */
 export class WizardErrorBoundary extends Component<WizardErrorBoundaryProps, WizardErrorBoundaryState> {
     state: WizardErrorBoundaryState = { error: null };
@@ -1203,9 +1145,9 @@ function StepPane(props: {
     // `inert` removes hidden panes from the tab/focus order entirely.
     // Without it, Tab can reach buttons inside inactive StepPanes because
     // `aria-hidden` on the wrapper div does not propagate to descendant
-    // elements matched by querySelectorAll (RISK-P1 4.3 fix).
-    // We spread as a plain object so TypeScript doesn't reject the
-    // attribute — `inert` is valid HTML5 but not yet in every JSX type set.
+    // elements matched by querySelectorAll.
+    // Spread as a plain object so TypeScript doesn't reject the attribute —
+    // `inert` is valid HTML5 but not yet in every JSX type set.
     const inertAttr = props.visible ? {} : { inert: true } as Record<string, boolean>;
     return (
         <div
