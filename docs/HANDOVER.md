@@ -5,6 +5,29 @@
 
 ---
 
+## 2026-07-23 (evening) — Three connectors live + headed E2E validation + 4 defects fixed
+
+**All three intended connectors are now proven live simultaneously for the first time**, and a full headed QA pass validated every Databricks/PBI-dependent feature. Full report + screenshot evidence: `docs/evidence/headed-validation-2026-07-23/REPORT.md` (local evidence folder, gitignored by convention — REPORT.md there carries the full feature matrix, defect log, and evidence index).
+
+**Connector state (config.json cleaned to exactly these 3 profiles; secrets preserved byte-for-byte, backup in session scratchpad):**
+- `foundation` — FM endpoint `databricks-meta-llama-3-3-70b-instruct` on dbc-f88d29ce-4aa2; token refreshed by Rajesh mid-session; live 200 + real completions.
+- `genie` — NEW: space `01f1436554b719bea6abd14824c9103e` "DBDemos - AI-BI - Customer Support Review", warehouse `6510da50329f1e85`. **Genie is UNBLOCKED on this workspace** — the long-standing "free-tier serverless disabled" blocker (BLOCKERS.md, 2026-06-04 memory) does not apply here; real NL→SQL round-trips completed all session (~18s warm).
+- `powerbi-dwd` — user-refresh DAX path re-verified live (Total Sales 2,297,200.86; top-5 profit products identical to direct DAX).
+
+**Headed validation (Chrome DevTools MCP, screenshots reviewed):** 12 features tested, 10 PASS with backend reconciliation (UI values re-run against warehouse/dataset directly — e.g. Genie briefing's 6.8%/6.2%/+0.6pp SLA claim reproduced exactly via /sql/preview), 3 BLOCKED honestly (Action Insights prompt store, PBI report embed + QnA both needing SP secret + capacity), 2 N/A (supervisor removed with config cleanup; vendor stubs out of scope). Zero console errors throughout. FM ungrounded briefing correctly shows the "Illustrative — not grounded" banner. Truth-chip correctly reads "Pulse Canvas ⇄ <brain>" on native fallback (yesterday's fix observed live).
+
+**4 defects found + fixed + retested (each committed separately):**
+1. `630bc97` isPowerBiSemanticModelProfile rejected user-refresh profiles (passed before only via truthy YOUR_* placeholders — cleanup exposed it; /powerbi/health 503'd and dispatch would skip the profile).
+2. `05ec233` View SQL showed "No SQL available" on every deterministic-PBI section: proxy returns the DAX in `dax` but the synchronous blob path skipped hydration; genie.ts now lifts dax→sqlQuery.
+3. `99396b0` Connector catalogue disabled the working PBI card (frontend twin of #1); manifests now support requiredWhen/notRequiredWhen per authMode.
+4. `2f59be2` Allowlist chip showed green "Strict" while configured:false (false security signal); now "Unconfigured" + warn.
+
+**Open (documented in the report):** DEF-002 unrendered-markdown cosmetics, DEF-004 "Genie synthesized" copy on PBI path, transcript non-restore after profile round-trip (OBS-001). Also stale: BLOCKERS.md still claims Genie blocked — updated status recorded here + report; doc itself left for a dedicated pass.
+
+**Gates at close:** proxy 1306/1306, playground 1918/1918, tsc + vite build clean. Dev servers left RUNNING (proxy PORT=7000, vite 7001) for continued use.
+
+---
+
 ## 2026-07-23 (later) — Rebuild-spec gap audit + 8 fixes shipped + Phase 3 foundation
 
 A rebuild-spec document (partial — message-length-truncated after §5.4 backend path #10) was diffed against the repo via 12 parallel research agents (6 evidence-gathering against an earlier business-foundation spec, 6 line-by-line spec-diffs against the rebuild spec). Full Phase 1 audit (Sections A-D) posted in-conversation; not re-duplicated here. User authorized "beast mode — do it all" after one explicit security decision (flip `AI_ALLOW_DEMO_PERSONA` default). Eight small, independently-gated fixes shipped, each its own commit:
