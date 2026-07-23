@@ -102,6 +102,17 @@ export function BundleSwitcher(props: BundleSwitcherProps = {}): React.ReactElem
     const curVendorLabel = props.runtimeVendorLabel ?? vendorLabel(props.runtimeVendor ?? biVendor);
     const curProfileLabel = profileLabel(activeAiProfile);
 
+    // Honesty tag per BI surface: only Power BI has a real vendor SDK bridge;
+    // Tableau/Qlik/Looker render an iframe you must point at a URL (no event or
+    // command bridge yet). Don't present a stub as an equal of a live surface.
+    const surfaceTag = (vendor: string): { text: string; hint: string } | null => {
+        if (vendor === "powerbi") return { text: "live SDK", hint: "Real vendor SDK with event + command bridge." };
+        if (["tableau", "qlik", "looker", "generic-iframe", "databricks-genie"].includes(vendor)) {
+            return { text: "iframe preview", hint: "Renders an embed URL only — no vendor SDK bridge yet. You supply the URL in Settings → BI." };
+        }
+        return null;
+    };
+
     return (
         <div ref={rootRef} className="pp-bundle-switcher" style={{ position: "relative", display: "inline-flex" }}>
             <button
@@ -109,8 +120,8 @@ export function BundleSwitcher(props: BundleSwitcherProps = {}): React.ReactElem
                 className="pp-bundle-switcher__chip"
                 aria-haspopup="listbox"
                 aria-expanded={open}
-                aria-label={`AI & BI enabler: ${curVendorLabel}${curProfileLabel ? ` with ${curProfileLabel}` : " — no AI brain selected"}. Switch enabler.`}
-                title="Switch the AI & BI enabler (BI surface + AI brain)"
+                aria-label={`BI surface and AI brain: ${curVendorLabel}${curProfileLabel ? ` with ${curProfileLabel}` : " — no AI brain selected"}. Switch combination.`}
+                title="Switch which BI surface and AI brain you're working with"
                 onClick={() => setOpen(o => !o)}
                 style={{
                     display: "inline-flex",
@@ -130,10 +141,11 @@ export function BundleSwitcher(props: BundleSwitcherProps = {}): React.ReactElem
                 }}
             >
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{curVendorLabel}</span>
-                <span aria-hidden="true" style={{ opacity: 0.7, fontSize: 12 }}>⇄</span>
+                <span aria-hidden="true" style={{ opacity: 0.7, fontSize: 12 }}>×</span>
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{curProfileLabel}</span>
                 {!active && (
                     <span
+                        title="Your current BI surface + AI brain pair isn't one of the curated combinations below."
                         style={{
                             marginLeft: 2,
                             padding: "1px 6px",
@@ -160,21 +172,24 @@ export function BundleSwitcher(props: BundleSwitcherProps = {}): React.ReactElem
                 <div
                     aria-hidden="true"
                     onClick={() => setOpen(false)}
-                    style={{ position: "fixed", inset: 0, zIndex: 49 }}
+                    style={{ position: "fixed", inset: 0, zIndex: 59 }}
                 />
                 <div
                     role="listbox"
-                    aria-label="Enabler bundles"
+                    aria-label="BI surface and AI brain combinations"
                     className="pp-bundle-switcher__menu"
                     style={{
                         position: "absolute",
                         top: "calc(100% + 6px)",
                         left: 0,
-                        zIndex: 50,
-                        minWidth: 240,
-                        maxWidth: 360,
+                        // above the fixed window-controls toolbar (z 50), which
+                        // otherwise bleeds its maximize/minimize icons through the
+                        // menu and reads as a stray checkbox on the first row
+                        zIndex: 60,
+                        minWidth: 264,
+                        maxWidth: 380,
                         padding: 5,
-                        borderRadius: 12,
+                        borderRadius: 7,
                         border: "1px solid var(--pp-border, rgba(0,0,0,0.12))",
                         background: "var(--pp-surface-raised, #ffffff)",
                         boxShadow: "var(--pp-shadow-md, 0 10px 30px rgba(15,23,42,0.18))",
@@ -190,10 +205,38 @@ export function BundleSwitcher(props: BundleSwitcherProps = {}): React.ReactElem
                             color: "var(--pp-text-subtle, #94a3b8)",
                         }}
                     >
-                        Switch enabler
+                        BI surface × AI brain
+                    </div>
+                    {/* Always show what you're on NOW — especially when the current
+                        pair isn't one of the curated rows below (the "Custom" case
+                        that otherwise leaves nothing marked as selected). */}
+                    <div
+                        aria-hidden="true"
+                        style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            padding: "6px 8px 8px",
+                            marginBottom: 4,
+                            borderBottom: "1px solid var(--pp-border-subtle, rgba(0,0,0,0.07))",
+                            fontSize: 11.5,
+                        }}
+                    >
+                        <span style={{ width: 14, color: "var(--pp-accent, #5980a6)", fontWeight: 700 }}>✓</span>
+                        <span style={{ flex: 1, minWidth: 0 }}>
+                            <span style={{ display: "block", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                Now: {curVendorLabel} × {curProfileLabel || "no AI brain"}
+                            </span>
+                            {!active && (
+                                <span style={{ display: "block", fontSize: 10, color: "var(--pp-text-muted, #6b7280)" }}>
+                                    Custom pair — not one of the combinations below
+                                </span>
+                            )}
+                        </span>
                     </div>
                     {bundles.map(b => {
                         const isActive = active?.id === b.id;
+                        const tag = surfaceTag(b.biVendor);
                         return (
                             <button
                                 key={b.id}
@@ -201,13 +244,14 @@ export function BundleSwitcher(props: BundleSwitcherProps = {}): React.ReactElem
                                 role="option"
                                 aria-selected={isActive}
                                 onClick={() => applyBundle(b)}
+                                title={tag?.hint}
                                 style={{
                                     display: "flex",
                                     alignItems: "center",
                                     gap: 8,
                                     width: "100%",
                                     padding: "7px 8px",
-                                    borderRadius: 8,
+                                    borderRadius: 4,
                                     border: "none",
                                     background: isActive ? "var(--pp-accent-soft, rgba(75,156,245,0.12))" : "transparent",
                                     color: "var(--pp-text, #1f2937)",
@@ -223,11 +267,34 @@ export function BundleSwitcher(props: BundleSwitcherProps = {}): React.ReactElem
                                     if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = "transparent";
                                 }}
                             >
-                                <span aria-hidden="true" style={{ width: 14, color: "var(--pp-accent, #4b9cf5)", fontWeight: 700 }}>
+                                <span aria-hidden="true" style={{ width: 14, color: "var(--pp-accent, #5980a6)", fontWeight: 700 }}>
                                     {isActive ? "✓" : ""}
                                 </span>
                                 <span style={{ flex: 1, minWidth: 0 }}>
-                                    <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b.label}</span>
+                                    <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b.label}</span>
+                                        {tag && (
+                                            <span
+                                                style={{
+                                                    flex: "0 0 auto",
+                                                    padding: "1px 5px",
+                                                    borderRadius: 3,
+                                                    fontSize: 8.5,
+                                                    fontWeight: 700,
+                                                    letterSpacing: 0.3,
+                                                    textTransform: "uppercase",
+                                                    background: b.biVendor === "powerbi"
+                                                        ? "color-mix(in srgb, var(--pp-good, #1f9d6b) 14%, transparent)"
+                                                        : "var(--pp-surface, rgba(0,0,0,0.05))",
+                                                    color: b.biVendor === "powerbi"
+                                                        ? "var(--pp-good, #1f9d6b)"
+                                                        : "var(--pp-text-muted, #6b7280)",
+                                                }}
+                                            >
+                                                {tag.text}
+                                            </span>
+                                        )}
+                                    </span>
                                     <span style={{ display: "block", fontSize: 10, color: "var(--pp-text-muted, #6b7280)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                         {vendorLabel(b.biVendor)} surface · {profileLabel(b.aiProfile)} brain
                                     </span>
