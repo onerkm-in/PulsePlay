@@ -5,6 +5,25 @@
 
 ---
 
+## 2026-07-23 (latest+1) — Phase 5: Universal CanvasSection foundation (server-owned pins/snapshots)
+
+Executed Phase 5 (Universal CanvasSection foundation) under explicit user GO, after the user corrected the Phase 4 gate classification. Full gate report: `docs/PHASE5_CANVAS_GATE_REPORT.md`.
+
+**Shipped (each committed + tested):**
+1. `proxy/lib/canvasSection.js` — typed CanvasSection contract + validation + content-hash; server drops client-supplied owner/version/severity/etc; per-type capabilities; dedupe key.
+2. `proxy/lib/canvasStore.js` — `InMemoryCanvasStore`, the REAL runtime store (per-owner, ownership isolation, versioning, optimistic concurrency, idempotency, dedupe, pin/bookmark/unpin/note/highlight/reorder/group, immutable snapshots with current/changed/revoked freshness, `applyProducerRefresh` that preserves human state). 25 tests.
+3. `proxy/lib/canvasStoreDatabricks.js` — production adapter (parameterized SQL); NEVER runs DDL; `prepareDdl()` → `scripts/decision_assist/ddl/canvas_sections.sql`; live ops throw `EXTERNAL_RUNTIME_VALIDATION_BLOCKED` (org schema unreachable).
+4. `proxy/connectors/decision-canvas.js` — SECOND real drop-in connector; `/decision-canvas/*` (sections CRUD + save verbs + snapshots); server-derived `owner_actor_id` (issuer|tenant|subject); cross-owner → 404; private, no-store. 18 negative-security/integration tests.
+5. Frontend `playground/src/canvas/*` — contract mirror, client, uniform `SaveChannel` (Pin/Bookmark/Note/Highlight/Snapshot/Unpin), `MyCanvasRegion` (real pinned sections + reorder/unpin), `browserMigration.ts` (purges legacy `pulseplay:canvas-tiles` rows+SQL, never uploads, one-time marker). Save channel wired into every Action Insights card + the 3 surface-hub entries (all 4 section types). 14 tests.
+
+**Tripwires:** (1) registry now discovers TWO connectors (`decision-assist`, `decision-canvas`) — `connectorRegistry.test.js` asserts the exact list; update it when adding/removing a connector. (2) proxy restart needed for `/decision-canvas` routes. (3) the store is IN-MEMORY per proxy process — pins do NOT survive a proxy restart (the Databricks adapter is the durable path, externally blocked). (4) dev server (7001) went down mid-session once; restart with `npm run dev` from playground.
+
+**Tests:** proxy 1363/1363, playground 1932/1932, tsc clean. **Headed (`CANVAS_0*.png`):** pin from Action Inbox → server store has it → My Canvas renders it (reorder/unpin) → unpin → 0 pinned; dedupe (same id, `deduped:true`); stale version → 409; mobile single-column; 0 console errors. Audit log shows `canvas.section.create` + `canvas.section.update unpin v2`.
+
+**Verdict PARTIAL:** foundation complete + locally verified; enterprise Delta persistence, event-sourced Action Requests, relevance, and owner-manifest-gated items remain B (implemented, external-runtime-blocked) or C (needs owner manifest). No synthetic-data lane (per instruction). Cross-user headed test is env-blocked (no IdP locally → one dev actor); isolation proven at store+connector layers.
+
+---
+
 ## 2026-07-23 (latest) — Author-selectable interface mode (segregated | combined My Decision Canvas)
 
 Executed the achievable slice of `PulsePlay_Action_Insights_Final_Master_Execution_Prompt_v3_2.md` §10 per the user's ask: keep the existing interface as one option, add the new combined experience as another, author picks in Settings. Do NOT replace. Full gate report: `docs/EXPERIENCE_MODE_GATE_REPORT.md`.
