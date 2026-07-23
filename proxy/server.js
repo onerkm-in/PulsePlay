@@ -5609,6 +5609,11 @@ require('./lib/actionInsights').register(app, {
     resolveProfile, databricksRequest, auditLog, sendNoMatchingProfile,
 });
 
+// ── Author-selectable interface mode (segregated | combined) ─────────────────
+// Server-governed published mode + fail-safe fallback (v3.2 §10). No profile /
+// warehouse needed — this is app config, resolved without any BI connector.
+require('./lib/experienceConfig').register(app, { auditLog });
+
 // ── Azure OpenAI routes ───────────────────────────────────────────────────────
 // The visual sends questions to /openai/conversations/* when connectionMode is
 // "azure-openai". The proxy holds the Azure OpenAI endpoint + API key in its
@@ -9043,7 +9048,7 @@ if (_STATIC_DIR_RAW) {
     }));
     // SPA fallback: any GET that isn't a known API prefix → serve index.html.
     // Adding new top-level API routes? Add their first path segment to this list.
-    const API_PREFIX_RE = /^\/(api|assistant|foundation|powerbi|health|discovery|capabilities|feedback|debug|metrics|smoke|connectors|decision-assist|knowledge|policy|profiles|packs|supervisor|insights|sql-preview|test|__diag|\.well-known)(\/|$|\?)/;
+    const API_PREFIX_RE = /^\/(api|assistant|foundation|powerbi|health|discovery|capabilities|feedback|debug|metrics|smoke|connectors|decision-assist|experience|knowledge|policy|profiles|packs|supervisor|insights|sql-preview|test|__diag|\.well-known)(\/|$|\?)/;
     app.get(/.*/, (req, res, next) => {
         if (API_PREFIX_RE.test(req.path)) return next();
         if (req.headers.accept && !req.headers.accept.includes('text/html')) return next();
