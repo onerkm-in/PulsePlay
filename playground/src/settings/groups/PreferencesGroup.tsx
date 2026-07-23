@@ -279,15 +279,16 @@ function InterfaceModeControl(): React.ReactElement {
                 Published: <strong>{loading ? "…" : MODE_LABEL[publishedMode]}</strong>
                 {" · "}served: <strong>{MODE_LABEL[servedMode]}</strong>
                 {" · v"}{version}
-                {killSwitch && <span style={{ color: "#b54708" }}> · kill switch forcing segregated</span>}
-                {previewMode && <span style={{ color: "#2563eb" }}> · previewing {MODE_LABEL[previewMode]}</span>}
+                {killSwitch && <span style={{ color: "var(--pp-warning, #d97706)" }}> · kill switch forcing segregated</span>}
+                {previewMode && <span style={{ color: "var(--pp-accent, #5980a6)" }}> · previewing {MODE_LABEL[previewMode]}</span>}
             </div>
 
             {(["segregated", "combined"] as PulsePlayExperienceMode[]).map((mode) => (
                 <div key={mode} style={{
                     display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
-                    border: "1px solid rgba(128,128,128,0.28)", borderRadius: 9, padding: "9px 11px",
-                    background: publishedMode === mode ? "rgba(37,99,235,0.06)" : "transparent",
+                    border: "1px solid var(--pp-border, rgba(128,128,128,0.28))",
+                    borderRadius: "var(--pp-radius, 4px)", padding: "9px 11px",
+                    background: publishedMode === mode ? "var(--pp-accent-soft, rgba(89,128,166,0.10))" : "transparent",
                 }}>
                     <div>
                         <div style={{ fontSize: 13, fontWeight: 600 }}>{MODE_LABEL[mode]}</div>
@@ -322,12 +323,12 @@ function InterfaceModeControl(): React.ReactElement {
 }
 
 const ghostBtn: React.CSSProperties = {
-    padding: "6px 11px", borderRadius: 8, cursor: "pointer", fontSize: 12,
-    border: "1px solid rgba(128,128,128,0.35)", background: "transparent", color: "inherit",
+    padding: "6px 11px", borderRadius: "var(--pp-radius, 4px)", cursor: "pointer", fontSize: 12,
+    border: "1px solid var(--pp-border-strong, rgba(128,128,128,0.35))", background: "transparent", color: "inherit",
 };
 const primaryBtn: React.CSSProperties = {
-    padding: "6px 11px", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 600,
-    border: "none", background: "#2563eb", color: "#fff",
+    padding: "6px 11px", borderRadius: "var(--pp-radius, 4px)", cursor: "pointer", fontSize: 12, fontWeight: 600,
+    border: "none", background: "var(--pp-accent, #5980a6)", color: "var(--pp-bg, #fff)",
 };
 
 function normalizeBackendBiTileMode(value: unknown): "1" | "2" | "4" {

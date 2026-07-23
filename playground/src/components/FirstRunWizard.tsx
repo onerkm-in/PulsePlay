@@ -962,26 +962,26 @@ function Step4Explore(props: {
                             padding:      "10px 12px",
                             fontSize:     13.5,
                             lineHeight:   1.55,
-                            color:        "#0f172a",
-                            background:   "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
-                            border:       "1px solid rgba(15,23,42,0.16)",
-                            borderRadius: 8,
+                            color:        "var(--pp-text, #1d1f20)",
+                            background:   "var(--pp-surface, #e9e9ea)",
+                            border:       "1px solid var(--pp-border, rgba(15,23,42,0.16))",
+                            borderRadius: "var(--pp-radius, 4px)",
                             resize:       "vertical",
                             outline:      "none",
                             boxSizing:    "border-box",
                             fontFamily:   "inherit",
-                            boxShadow:    "0 1px 2px rgba(15,23,42,0.08), 0 7px 18px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,0.85)",
-                            transition:   "border-color 120ms ease, box-shadow 120ms ease, background 120ms ease",
+                            boxShadow:    "var(--pp-shadow-xs, 0 1px 2px rgba(15,23,42,0.06))",
+                            transition:   "border-color 120ms ease, box-shadow 120ms ease",
                         }}
                         onFocus={e => {
                             const target = e.target as HTMLTextAreaElement;
-                            target.style.borderColor = "#2563eb";
-                            target.style.boxShadow = "0 0 0 3px rgba(37,99,235,0.16), 0 2px 5px rgba(15,23,42,0.12), inset 0 1px 0 rgba(255,255,255,0.85)";
+                            target.style.borderColor = "var(--pp-accent, #5980a6)";
+                            target.style.boxShadow = "0 0 0 3px var(--pp-accent-soft, rgba(89,128,166,0.16))";
                         }}
                         onBlur={e  => {
                             const target = e.target as HTMLTextAreaElement;
-                            target.style.borderColor = "rgba(15,23,42,0.16)";
-                            target.style.boxShadow = "0 1px 2px rgba(15,23,42,0.08), 0 7px 18px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,0.85)";
+                            target.style.borderColor = "var(--pp-border, rgba(15,23,42,0.16))";
+                            target.style.boxShadow = "var(--pp-shadow-xs, 0 1px 2px rgba(15,23,42,0.06))";
                         }}
                     />
                 </AxisGroup>

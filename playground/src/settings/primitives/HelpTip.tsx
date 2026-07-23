@@ -21,6 +21,7 @@
 
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { SparklesIcon } from "../../lib/icons";
 
 export interface HelpTipProps {
     /** Plain text content (single paragraph). */
@@ -125,7 +126,9 @@ export function HelpTip({ text, children, title, body, label = "More info", widt
     const triggerRef = useRef<HTMLButtonElement | null>(null);
     const bubbleRef = useRef<HTMLDivElement | null>(null);
 
-    const glyph = variant === "warn" ? "!" : variant === "tip" ? "✨" : "i";
+    // Lucide sparkle for the "tip" variant (Industry rule 5/6: no emoji-as-UI);
+    // "!" / "i" stay as ASCII text glyphs.
+    const glyph = variant === "warn" ? "!" : variant === "tip" ? <SparklesIcon size={13} /> : "i";
 
     const close = useCallback(() => setOpen(false), []);
 

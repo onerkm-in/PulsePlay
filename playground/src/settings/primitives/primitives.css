@@ -446,7 +446,7 @@
     width: 36px;
     height: 20px;
     background: var(--pp-border-strong);
-    border-radius: 999px;
+    border-radius: var(--radius-md, 4px);
     transition: background var(--pp-t-base) var(--pp-ease);
     flex-shrink: 0;
 }

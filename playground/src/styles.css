@@ -12,26 +12,26 @@
        docs/INDUSTRY_DESIGN_REMEDIATION_PROMPT.md. */
 
     /* Backgrounds — light technical ground; surfaces are near-ground, not raised white */
-    --pp-bg:               #f2f2f3;
-    --pp-surface:          #e9e9ea;
+    --pp-bg:               var(--color-bg, #f2f2f3);
+    --pp-surface:          var(--color-surface, #e9e9ea);
     --pp-surface-raised:   #f5f5f6;
     --pp-surface-overlay:  rgba(242, 242, 243, 0.92);
 
     /* Text — ink + neutral ramp */
-    --pp-text:             #1d1f20;
+    --pp-text:             var(--color-text, #1d1f20);
     --pp-text-muted:       #5d5d60;
     --pp-text-subtle:      #7a7a7d;
-    --pp-fg:               #1d1f20;
+    --pp-fg:               var(--color-text, #1d1f20);
 
     /* Borders — hairline dividers derived from ink */
-    --pp-border:           color-mix(in srgb, #1d1f20 16%, transparent);
+    --pp-border:           var(--color-divider, color-mix(in srgb, #1d1f20 16%, transparent));
     --pp-border-subtle:    color-mix(in srgb, #1d1f20 9%, transparent);
     --pp-border-strong:    color-mix(in srgb, #1d1f20 26%, transparent);
 
     /* Accent — one steel voice */
-    --pp-accent:           #5980a6;
-    --pp-accent-hover:     #416180;
-    --pp-accent-dark:      #416180;
+    --pp-accent:           var(--color-accent, #5980a6);
+    --pp-accent-hover:     var(--color-accent-700, #416180);
+    --pp-accent-dark:      var(--color-accent-700, #416180);
     --pp-accent-soft:      color-mix(in srgb, #5980a6 10%, transparent);
     --pp-accent-subtle:    color-mix(in srgb, #5980a6 12%, transparent);
     --pp-accent-border:    color-mix(in srgb, #5980a6 34%, transparent);
@@ -54,11 +54,11 @@
        --pp-radius-pill squared to honour Industry rule 1 (no pills). Genuine
        circles use border-radius:50% or a literal, not this token. */
     --pp-radius-xs:        3px;
-    --pp-radius-sm:        4px;
-    --pp-radius:           4px;
-    --pp-radius-lg:        7px;
-    --pp-radius-xl:        7px;
-    --pp-radius-pill:      4px;
+    --pp-radius-sm:        var(--radius-md, 4px);
+    --pp-radius:           var(--radius-md, 4px);
+    --pp-radius-lg:        var(--radius-lg, 7px);
+    --pp-radius-xl:        var(--radius-lg, 7px);
+    --pp-radius-pill:      var(--radius-md, 4px);
 
     /* Spacing scale (4px base) */
     --pp-s1:   4px;
@@ -71,8 +71,8 @@
     --pp-s10:  40px;
 
     /* Typography — Barlow body, Barlow Condensed headings (loaded in industry.css) */
-    --pp-font:             "Barlow", "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-    --pp-font-heading:     "Barlow Condensed", "Segoe UI", system-ui, sans-serif;
+    --pp-font:             var(--font-body, "Barlow", "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, sans-serif);
+    --pp-font-heading:     var(--font-heading, "Barlow Condensed", "Segoe UI", system-ui, sans-serif);
     --pp-font-mono:        "Cascadia Code", "Fira Code", "Consolas", monospace;
     --pp-text-xs:          11px;
     --pp-text-sm:          12px;
@@ -90,7 +90,7 @@
     --pp-shadow-sm:        0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.05);
     --pp-shadow-md:        0 4px 12px rgba(15, 23, 42, 0.10), 0 2px 4px rgba(15, 23, 42, 0.06);
     --pp-shadow-lg:        0 8px 28px rgba(15, 23, 42, 0.13), 0 4px 8px rgba(15, 23, 42, 0.07);
-    --pp-shadow-xl:        0 16px 48px rgba(15, 23, 42, 0.16), 0 8px 16px rgba(15, 23, 42, 0.08);
+    --pp-shadow-xl:        0 12px 32px rgba(15, 23, 42, 0.16), 0 6px 14px rgba(15, 23, 42, 0.08);
     --pp-control-shadow:   0 1px 2px rgba(15, 23, 42, 0.06), 0 4px 10px rgba(15, 23, 42, 0.05);
     --pp-control-inset:    inset 0 1px 0 rgba(255, 255, 255, 0.90);
     --pp-control-focus:    0 0 0 3px rgba(37, 99, 235, 0.18), 0 1px 3px rgba(15, 23, 42, 0.08);

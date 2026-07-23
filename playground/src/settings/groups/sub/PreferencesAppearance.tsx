@@ -92,7 +92,8 @@ export function PreferencesAppearance(): React.ReactElement {
                                     className="pp-theme-swatch"
                                     aria-hidden="true"
                                     style={{
-                                        background: `linear-gradient(135deg, ${t.swatch} 0%, ${t.accent} 100%)`,
+                                        // Hard-stop split (no blend) — two solid halves, not a gradient sheen.
+                                        background: `linear-gradient(135deg, ${t.swatch} 50%, ${t.accent} 50%)`,
                                     }}
                                 />
                                 <span className="pp-theme-label">{t.label}</span>

@@ -124,7 +124,7 @@
 
 .workbench-artifact-status-badge {
     padding: 3px 10px;
-    border-radius: 999px;
+    border-radius: var(--radius-md, 4px);
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.02em;
@@ -378,7 +378,7 @@
     color: var(--pp-text);
     background: var(--pp-surface);
     border: 1px solid var(--pp-border);
-    border-radius: 999px;
+    border-radius: var(--radius-md, 4px);
     cursor: pointer;
     max-width: 360px;
     overflow: hidden;
