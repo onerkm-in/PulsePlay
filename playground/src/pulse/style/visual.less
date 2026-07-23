@@ -233,18 +233,21 @@
 /* ── Dark theme tokens (2026-06-02: aligned to the Gemini spec's modern slate —
  *  canvas #0F172A, cards #1E293B, slate border #334155, text #F9FAFB, bright
  *  blue accent #60A5FA — replacing the prior GitHub-navy palette). ── */
-@gn-dark-bg:             #0f172a;
-@gn-dark-surface:        #1e293b;
-@gn-dark-surface-raised: #243244;
-@gn-dark-border:         #334155;
-@gn-dark-border-subtle:  #2a3648;
-@gn-dark-text:           #f9fafb;
-@gn-dark-text-muted:     #9ca3af;
-@gn-dark-accent:         #60a5fa;
-@gn-dark-accent-subtle:  rgba(75, 156, 245, 0.13);
-@gn-dark-accent-hover:   rgba(75, 156, 245, 0.22);
-@gn-dark-accent-border:  rgba(75, 156, 245, 0.42);
-@gn-dark-user-bubble:    #1b6b4a;
+// Industry dark extension: ground from the neutral-900 ramp, dividers
+// re-derived from the light ink, steel accent lightened for AA on dark.
+// Semantic status colours below stay (they carry state, not decoration).
+@gn-dark-bg:             #1a1c1e;
+@gn-dark-surface:        #232628;
+@gn-dark-surface-raised: #2b2e30;
+@gn-dark-border:         #3f4245;
+@gn-dark-border-subtle:  #33363a;
+@gn-dark-text:           #e7e7ea;
+@gn-dark-text-muted:     #a9a9ac;
+@gn-dark-accent:         #7fa3c9;
+@gn-dark-accent-subtle:  rgba(127, 163, 201, 0.16);
+@gn-dark-accent-hover:   rgba(127, 163, 201, 0.24);
+@gn-dark-accent-border:  rgba(127, 163, 201, 0.42);
+@gn-dark-user-bubble:    #416180;
 @gn-dark-success:        #3fb950;
 @gn-dark-success-subtle: rgba(63, 185, 80, 0.13);
 @gn-dark-success-border: rgba(63, 185, 80, 0.36);
@@ -864,7 +867,7 @@
     .gn-line-chart circle { fill: @gn-dark-accent; }
     .gn-suggestions {
         border-top-color: @gn-dark-border-subtle;
-        background: linear-gradient(180deg, @gn-dark-surface 0%, @gn-dark-surface-raised 100%);
+        background: @gn-dark-surface;
     }
     .gn-suggestions-label { color: @gn-dark-text-muted; }
     .gn-pill {
@@ -1755,11 +1758,7 @@
 }
 .gn-shell--dark .gn-surface-switcher {
     border-color: rgba(255, 255, 255, 0.14);
-    background:
-        linear-gradient(180deg, rgba(17, 24, 39, 0.92), rgba(11, 18, 32, 0.92));
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.08),
-        0 10px 24px rgba(0, 0, 0, 0.28);
+    background: @gn-dark-surface-raised;
 }
 
 .gn-shell--dark .gn-header-tab {
@@ -1767,9 +1766,8 @@
 
     &:hover:not(:disabled) {
         color: #fff;
-        background: rgba(255, 255, 255, 0.08);
-        border-color: rgba(255, 255, 255, 0.14);
-        box-shadow: 0 5px 14px rgba(0, 0, 0, 0.28);
+        background: @gn-dark-accent-subtle;
+        border-color: @gn-dark-accent-border;
     }
 }
 
@@ -1779,13 +1777,10 @@
 
 .gn-shell--dark .gn-header-tab--active,
 .gn-shell--dark .gn-header-tab--active:hover:not(:disabled) {
-    background:
-        linear-gradient(180deg, var(--gn-accent, #4691e0), #246db7);
-    border-color: rgba(255, 255, 255, 0.18);
+    background: @gn-dark-accent;
+    border-color: @gn-dark-accent;
     color: #fff;
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.22),
-        0 8px 18px rgba(36, 109, 183, 0.34);
+    box-shadow: none;
 }
 
 /* ── Space selector (multi-space mode) ── */
@@ -8292,7 +8287,7 @@
             &:focus {
                 outline: none;
                 border-color: @gn-dark-accent;
-                box-shadow: 0 0 0 2px rgba(75, 156, 245, 0.18);
+                box-shadow: 0 0 0 2px @gn-dark-accent-subtle;
             }
         }
 
@@ -11080,7 +11075,7 @@
     }
 
     .gn-msg--user .gn-bubble {
-        background: linear-gradient(135deg, @gn-dark-user-bubble 0%, darken(@gn-dark-user-bubble, 8%) 100%);
+        background: @gn-dark-user-bubble;
         box-shadow: 0 2px 6px rgba(0,0,0,0.35);
     }
 
@@ -11090,7 +11085,7 @@
     }
 
     .gn-msg-avatar {
-        background: linear-gradient(135deg, @gn-dark-accent 0%, darken(@gn-dark-accent, 10%) 100%);
+        background: @gn-dark-accent;
         box-shadow: 0 1px 4px rgba(0,0,0,0.4);
     }
 
@@ -11107,7 +11102,7 @@
     }
 
     .gn-send {
-        background: linear-gradient(135deg, @gn-dark-accent 0%, darken(@gn-dark-accent, 10%) 100%);
+        background: @gn-dark-accent;
         box-shadow: 0 2px 8px rgba(0,0,0,0.4);
         &:hover:not(:disabled) {
             box-shadow: 0 4px 12px rgba(0,0,0,0.5);
@@ -11129,7 +11124,7 @@
     }
 
     .gn-bar-fill {
-        background: linear-gradient(90deg, @gn-dark-accent 0%, lighten(@gn-dark-accent, 6%) 100%);
+        background: @gn-dark-accent;
     }
 
     .gn-alert {
@@ -11701,9 +11696,7 @@
 .gn-progress-bar-fill {
     display: block;
     height: 100%;
-    // Hardcoded gradient fallback — LESS fade()/lighten() cannot evaluate
-    // CSS-var-backed colour tokens like @gn-accent. See LESS tripwire.
-    background: linear-gradient(90deg, var(--gn-accent, #1a6fd4), rgba(26, 111, 212, 0.55));
+    background: @gn-accent;
     transition: width 360ms ease-out;
     animation: gn-progress-shimmer 1500ms ease-in-out infinite;
     background-size: 200% 100%;
@@ -12563,7 +12556,7 @@
     padding: 12px 14px;
     margin-top: 12px;
     border: 1px solid #f59e0b;
-    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+    background: #fffbeb;
     color: #78350f;
     border-radius: @gn-radius-sm;
     box-shadow: @gn-shadow-sm;
@@ -12595,7 +12588,7 @@
 }
 body[theme="dark"] .gn-wizard-save-hint,
 .gn-shell.gn-theme-dark .gn-wizard-save-hint {
-    background: linear-gradient(135deg, rgba(120, 53, 15, 0.5) 0%, rgba(146, 64, 14, 0.5) 100%);
+    background: rgba(120, 53, 15, 0.5);
     color: #fef3c7;
     border-color: #d97706;
     > div kbd {
@@ -12622,7 +12615,7 @@ body[theme="dark"] .gn-wizard-save-hint,
     padding: 12px 14px;
     margin-bottom: 12px;
     border: 1px solid #f59e0b;
-    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+    background: #fffbeb;
     color: #78350f;
     border-radius: @gn-radius-sm;
     box-shadow: @gn-shadow-sm;
@@ -12663,7 +12656,7 @@ body[theme="dark"] .gn-wizard-save-hint,
 }
 body[theme="dark"] .gn-save-reminder-toast,
 .gn-shell.gn-theme-dark .gn-save-reminder-toast {
-    background: linear-gradient(135deg, rgba(120, 53, 15, 0.5) 0%, rgba(146, 64, 14, 0.5) 100%);
+    background: rgba(120, 53, 15, 0.5);
     color: #fef3c7;
     border-color: #d97706;
     .gn-save-reminder-text kbd {

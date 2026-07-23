@@ -385,16 +385,17 @@ export const APP_THEME_MANAGED_VARS: readonly string[] = [
  *  it fell back to the LIGHT muted (#5d6673 → only 3.26:1 on the dark bg). Pure
  *  — returns a plain object so it is trivial to test. */
 export function buildAppThemeVars(tokens: ThemeTokens, opts?: { dark?: boolean; customAccent?: boolean }): Record<string, string> {
-    // A3 — in dark mode the built-in presets carry LIGHT-tuned accents (e.g.
-    // default #2563eb) that are low-contrast on dark surfaces, and writing them
-    // inline here overrode the [data-pp-theme=dark] stylesheet's #4b9cf5. For a
-    // built-in preset in dark, emit the dark-canonical accent instead; a CUSTOM
-    // brand accent still wins (the user chose it explicitly).
+    // A3 — in dark mode the built-in presets carry LIGHT-tuned accents that are
+    // low-contrast on dark surfaces, and writing them inline here overrode the
+    // [data-pp-theme=dark] stylesheet's accent. For a built-in preset in dark,
+    // emit the dark-canonical accent instead (the Industry steel lightened for
+    // AA on dark — matches styles.css dark + @gn-dark-accent); a CUSTOM brand
+    // accent still wins (the user chose it explicitly).
     const useDarkAccent = !!opts?.dark && !opts?.customAccent;
-    const accent       = useDarkAccent ? "#4b9cf5"               : tokens.accent;
-    const accentSubtle = useDarkAccent ? "rgba(75,156,245,0.13)" : tokens.accentSubtle;
-    const accentBorder = useDarkAccent ? "rgba(75,156,245,0.42)" : tokens.accentBorder;
-    const userBubble   = useDarkAccent ? "#4b9cf5"               : tokens.userBubble;
+    const accent       = useDarkAccent ? "#7fa3c9"                : tokens.accent;
+    const accentSubtle = useDarkAccent ? "rgba(127,163,201,0.16)" : tokens.accentSubtle;
+    const accentBorder = useDarkAccent ? "rgba(127,163,201,0.42)" : tokens.accentBorder;
+    const userBubble   = useDarkAccent ? "#416180"                : tokens.userBubble;
     const accentVars: Record<string, string> = {
         "--gn-accent": accent,
         "--gn-accent-subtle": accentSubtle,
@@ -410,14 +411,14 @@ export function buildAppThemeVars(tokens: ThemeTokens, opts?: { dark?: boolean; 
         // [data-pp-theme=dark] palette). All meet AA on the dark surfaces.
         return {
             ...accentVars,
-            "--gn-text": "#e2eaf4",
-            "--gn-text-muted": "#8b949e",
+            "--gn-text": "#e7e7ea",
+            "--gn-text-muted": "#a9a9ac",
             "--gn-success": "#3fb950",
             "--gn-warning": "#d29922",
             "--gn-error": "#f85149",
-            "--pp-text": "#e2eaf4",
-            "--pp-fg": "#e2eaf4",
-            "--pp-text-muted": "#8b949e",
+            "--pp-text": "#e7e7ea",
+            "--pp-fg": "#e7e7ea",
+            "--pp-text-muted": "#a9a9ac",
             "--pp-success": "#3fb950",
             "--pp-warning": "#d29922",
             "--pp-error": "#f85149",
