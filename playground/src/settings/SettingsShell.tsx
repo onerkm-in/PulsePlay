@@ -362,7 +362,17 @@ function SettingsStatusStrip(): React.ReactElement {
     const packStatus = orphans.some(o => o.key === "pulseplay:pack-selection")
         ? "warn" : packSelection ? "ok" : "missing";
     const proxyStatus = allowlistError ? "warn" : allowlistLoading ? "loading" : "ok";
-    const securityStatus = allowlist?.enforcement === "strict" ? "ok" : "warn";
+    // An enforcement mode only means something when an allowlist is actually
+    // configured. configured:false + enforcement:"strict" is the proxy's
+    // default posture with nothing enforced (dev permissive), and showing a
+    // green "Strict" chip for it is a false security signal.
+    const allowlistConfigured = allowlist?.configured === true;
+    const securityStatus = allowlistConfigured && allowlist?.enforcement === "strict" ? "ok" : "warn";
+    const securityDetail = !allowlistConfigured
+        ? "Unconfigured"
+        : allowlist?.enforcement === "strict"
+            ? "Strict"
+            : allowlist?.enforcement === "permissive" ? "Permissive" : "Unknown";
 
     return (
         <div className="pp-settings-status">
@@ -371,7 +381,7 @@ function SettingsStatusStrip(): React.ReactElement {
             <Chip label="AI"       status={aiStatus}       detail={activeAiProfile ? formatProfileName(activeAiProfile) : "Not configured"} group="ai" />
             <Chip label="Pack"     status={packStatus}     detail={packSelection?.pack ? formatPackName(packSelection.pack) : "No knowledge source"} group="ai" leaf="knowledge-pack" />
             <Chip label="Proxy"    status={proxyStatus}    detail={allowlistError ? "Unreachable" : (allowlistLoading ? "Checking…" : "Connected")} group="system" leaf="proxy-status" />
-            <Chip label="Allowlist" status={securityStatus} detail={allowlist?.enforcement === "strict" ? "Strict" : allowlist?.enforcement === "permissive" ? "Permissive" : "Unknown"} group="system" leaf="security-posture" />
+            <Chip label="Allowlist" status={securityStatus} detail={securityDetail} group="system" leaf="security-posture" />
         </div>
     );
 }

@@ -114,6 +114,31 @@ describe("SettingsShell — render", () => {
         expect(text).not.toContain("Enforced");
         unmount(state);
     });
+
+    it("Allowlist chip reads Unconfigured (not Strict) when no allowlist is configured", async () => {
+        // configured:false + enforcement:"strict" is the proxy's default
+        // posture with nothing enforced; a green Strict chip would be a
+        // false security signal.
+        window.history.pushState({}, "", "/settings");
+        const container = document.createElement("div");
+        document.body.appendChild(container);
+        const root = createRoot(container);
+        act(() => {
+            root.render(
+                <SettingsProvider fetchAllowlist={async () => ({
+                    ...MVP_ALLOWLIST, configured: false, enforcement: "strict",
+                })}>
+                    <SettingsShell />
+                </SettingsProvider>,
+            );
+        });
+        await act(async () => { await Promise.resolve(); });
+        const text = container.textContent || "";
+        expect(text).toContain("Unconfigured");
+        act(() => { root.unmount(); });
+        container.remove();
+        window.history.pushState({}, "", "/");
+    });
 });
 
 describe("SettingsShell — search filter", () => {
