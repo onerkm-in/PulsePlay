@@ -1504,10 +1504,10 @@
     gap: 3px;
     max-width: 100%;
     min-width: 0;
-    padding: 3px;
-    border: 1px solid rgba(15, 23, 42, 0.10);
-    border-radius: @gn-radius-pill;
-    background: @gn-surface-raised;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
     flex: 0 1 auto;
 }
 
@@ -9411,9 +9411,12 @@
 }
 
 .gn-insights-section {
-    background: @gn-surface;
+    /* Industry blueprint object: transparent line drawing, square, hairline,
+       no elevation. Corner registration marks are drawn from the container
+       (.gn-insights-sections) so each card reads as a wireframe panel. */
+    background: transparent;
     border: 1px solid @gn-border-subtle;
-    border-radius: @gn-radius-sm;
+    border-radius: 0;
     /* 2026-05 density pass — was 12px 16px. Cuts ~8 px of vertical per card
      * (×5 sections ≈ 40 px) plus a small horizontal reduction so the card
      * doesn't feel airy at narrow widths. */
@@ -9421,12 +9424,29 @@
     opacity: 0;
     transform: translateY(6px);
     animation: gn-section-reveal 300ms @gn-ease forwards;
-    box-shadow: @gn-shadow-xs;
-    transition: box-shadow @gn-t-slow @gn-ease;
+    box-shadow: none;
     position: relative;          /* host the kebab popover's stacking context */
     min-width: 0;
     z-index: 1;
-    &:hover { box-shadow: @gn-shadow-sm; }
+    /* Corner registration marks (the blueprint "+" ticks) via hairline
+       pseudo-elements — no extra DOM per card. */
+    &::before, &::after {
+        content: "";
+        position: absolute;
+        width: 7px; height: 7px;
+        pointer-events: none;
+        color: color-mix(in srgb, @gn-text 45%, transparent);
+    }
+    &::before {
+        top: -1px; left: -1px;
+        border-top: 1px solid currentColor;
+        border-left: 1px solid currentColor;
+    }
+    &::after {
+        bottom: -1px; right: -1px;
+        border-bottom: 1px solid currentColor;
+        border-right: 1px solid currentColor;
+    }
     /* Cycle 21 — when this section's kebab popover is open, lift the
        whole card above its later-DOM siblings. The reveal animation
        sets transform: translateY(0), creating a stacking context per
@@ -9558,9 +9578,9 @@
     margin: 2px 0 4px;
     padding: 12px 14px 12px 16px;
     border: 1px solid @gn-border-subtle;
-    border-radius: @gn-radius-sm;
-    background: @gn-surface-raised;
-    box-shadow: @gn-shadow-xs;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
 
     &::before {
         content: "";
@@ -9569,8 +9589,8 @@
         bottom: 10px;
         left: 0;
         width: 3px;
-        border-radius: 3px;
-        background: var(--gn-accent, #1a6fd4);
+        border-radius: 0;
+        background: var(--gn-accent, #5980a6);
     }
 }
 
