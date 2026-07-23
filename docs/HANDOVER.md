@@ -5,6 +5,18 @@
 
 ---
 
+## 2026-07-23 (latest+7) — AI Insights enriched + Settings semantic + synthetic-data status check
+
+Three items: (1) enrich segregated AI Insights, (2) Settings palette consistency, (3) a factual Databricks synthetic-data check.
+
+**(1) AI Insights sections enriched** (`423be75`) — reverses the earlier flat-grey blueprint for `.gn-insights-section`/`.gn-headline-card` (the "not a flat colorless wireframe" rule applies to these shared narrative cards too). Now elevated cards (`@gn-surface-raised` + shadow, 8px) with a semantic left accent by section type: WHAT NEEDS ATTENTION/RISKS = bad, NEXT BEST ACTIONS/RECOMMENDED/OPPORTUNITIES = good, TRENDS = violet, steel otherwise.
+
+**(2) Settings semantic palette** (`0d6ea87`) — killed the residual blue the token flip couldn't reach (literal hexes, not tokens): 20 `#2563eb` + 24 `rgba(37,99,235,*)` → `var(--pp-accent)`/color-mix (steel); status greens/reds/ambers → `var(--pp-good/bad/warn)`. Settings status now uses the SAME controlled palette as the cockpit (ready=good, needs-setup=bad, watch=warn), honouring the earlier "keep functional status color" choice. Headed-clean, 0 blue.
+
+**(3) Synthetic data in Databricks** (workspace `dbc-f88d29ce-4aa2`, read-only inventory via the genie profile): the **dev synthetic dataset EXISTS and is live** — `main.supply_chain` is a full star schema (dim_product 120, dim_supplier 15, dim_location 6, dim_carrier 4, dim_date 36mo; fact_order_line 3564, fact_inventory_monthly 864, fact_forecast_monthly 576, fact_supply_chain_kpi_monthly 576, fact_supplier_scorecard_monthly 540). `main.action_insights`: decision_prompts **9** (the live prompts the UI shows — e.g. `SCM-OTIF-001 high $10,623 USD` = the cockpit's $10.6K KPI, confirming the KPIs are grounded), decision_audit **420**, decision_feedback 0, tbl_pp_canvas_sections 0 (dev stand-in from the Delta proof). Plus `main.dbdemos_aibi_customer_support` (24,872 rows/table — the DBDemos Genie data, source of the SLA/agent prompts). **Reconciliation:** the dev/demo synthetic data is done + live (created Databricks-side by the `ai_engine` package/job; `detect.py` only READS it — no in-repo generator). The **formal synthetic-data lane** (canonical org schema `uc_dev_snt_supplychain_01` + conformance GO) remains **not started / org-blocked**, as the gate reports document.
+
+tsc + settings 202/202 + pulse 264/264 + vite build clean; full suite green.
+
 ## 2026-07-23 (latest+6) — My Decision Canvas rebuilt as the v4 BI cockpit (course-correction)
 
 New authoritative design material (`docs/MY_DECISION_CANVAS_DESIGN_APPROACH.md` + the v4 reference in `Design/unified-extract/`) course-corrected the flagship: the unified **My Decision Canvas** must be a **colorful, data-dense enterprise BI cockpit**, explicitly NOT the flat grey wireframe the base Industry template gives. This partially reverses the "flatten everything to grey blueprint" direction — but only for this surface. Commit `756db0f`.
