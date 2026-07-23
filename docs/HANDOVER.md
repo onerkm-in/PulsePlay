@@ -5,6 +5,25 @@
 
 ---
 
+## 2026-07-23 (latest) — Author-selectable interface mode (segregated | combined My Decision Canvas)
+
+Executed the achievable slice of `PulsePlay_Action_Insights_Final_Master_Execution_Prompt_v3_2.md` §10 per the user's ask: keep the existing interface as one option, add the new combined experience as another, author picks in Settings. Do NOT replace. Full gate report: `docs/EXPERIENCE_MODE_GATE_REPORT.md`.
+
+**Shipped (each committed + tested):**
+1. `proxy/lib/experienceConfig.js` — server-governed `GET/PUT /experience/config`: versioned, audited, optimistic-concurrency (409 on stale), author-gated publish, fail-safe segregated, operational kill switch `PP_EXPERIENCE_KILLSWITCH=segregated`. Dev persistence is a gitignored `proxy/.pp-experience-config.json` (approved Delta config table is org-scoped). 9 tests. Mounted in server.js next to actionInsights; `experience` added to the SPA `API_PREFIX_RE`.
+2. `playground/src/experience/experienceMode.ts` — resolution: author preview (session-local) → published served mode → segregated fallback. End users cannot change the served mode. 6 tests.
+3. `playground/src/experience/DecisionCanvasShell.tsx` — combined "My Decision Canvas" FIRST SLICE: Context bar + real governed Action Inbox (reuses `ActionInsightsPanel` + Decision Assist backend, no forked logic) + surface hub; My Canvas / Saved Items / Suggested shown as honest deferred scaffolds.
+4. `App.tsx` `ExperienceRoutedApp` resolves the mode for the default route only; combined → Canvas, everything else (incl. any failure) → existing segregated shell. Other routes untouched.
+5. Settings → Display → **Interface type** author control (Preview/Publish per mode). New Leaf registered in `GROUP_LEAF_LABELS.preferences` (drift test enforces this — add there when adding Settings leaves).
+
+**Tripwire — proxy restart needed for new routes:** the live proxy must be restarted to pick up `/experience/*` (and any new lib route). Start with `PORT=7000` (and `AI_ALLOW_DEMO_PERSONA=true` for demo persona).
+
+**Tests:** proxy 1325/1325, playground 1924/1924, tsc clean. **Headed (screenshots `docs/evidence/headed-validation-2026-07-23/EXP_0*.png`):** default `/` = segregated (existing tabs, no Canvas); Settings Interface type renders; Publish combined → served combined, Canvas renders with live Action Inbox + surface hub + deferred scaffolds; kill switch → served segregated while published stays combined; 0 console errors. Left in clean segregated default (dev store deleted).
+
+**Verdict PARTIAL:** the author toggle (the ask) is complete + verified. The full v3.2 My Decision Canvas (server-owned Canvas/snapshot/preference persistence, event-sourced Action Requests + T+14 outcomes, CanvasSection pin/bookmark/snapshot, relevance/suggestions, real author-role gating, synthetic-data lane) stays BLOCKED on the org data estate `uc_dev_snt_supplychain_01` + owner manifests. Remaining phases listed in the gate report; each needs its own human GO.
+
+---
+
 ## 2026-07-23 (late) — Decision Assist: security-proven, drop-in connector, engine in-repo
 
 Executed `docs/PulsePlay_Action_Insights_Master_Execution_Prompt.md` (feature named **Decision Assist**), evolving the existing Action Insights in place rather than building a parallel feature. Discovery + evidence matrix: `docs/DECISION_ASSIST_DISCOVERY.md`.
