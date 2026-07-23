@@ -58,10 +58,26 @@ These need the org data estate + owner manifests that do not exist on this free 
 5. Since-You-Last-Visited + default-home behavior.
 6. Real author-role gating + owner manifests.
 
+## Corrected Phase 4 gate classification (2026-07-23)
+
+EXP_01/02 verifies the author-controlled interface-mode sub-gate only. It does NOT prove
+the complete Phase 4 gate, because canonical event-sourced Action Requests, database/
+request/audit reconciliation, and the Canvas services are not yet implemented.
+
+| Sub-gate | Classification |
+|---|---|
+| Experience-mode control (publish/preview/version/audit/kill switch/fail-safe) | **PASS — VERIFIED_RUNTIME** |
+| Segregated regression + fallback | **PASS — VERIFIED_RUNTIME** |
+| Combined Action Inbox vertical slice | **PARTIAL** (Action Inbox renders + governed; no event-sourced Action Requests, no DB/request/audit reconciliation yet) |
+| Phase 4 overall | **PARTIAL — not complete** |
+| Enterprise Databricks validation | **BLOCKED_BY_ENVIRONMENT** (org estate `uc_dev_snt_supplychain_01` absent on the free workspace) |
+
 ## Verdict
 
 **PARTIAL** — the author-selectable interface mode (the piece requested) is complete and
-verified end to end on this workspace: segregated stays default and untouched, combined is
+VERIFIED_RUNTIME on this workspace: segregated stays default and untouched, combined is
 published by the author and served to end users, kill switch + fail-safe force segregated,
-and end users cannot override. The full My Decision Canvas remains a phased build with hard
-blockers on the org data estate and owner manifests, listed above.
+and end users cannot override. The Combined Action Inbox is a PARTIAL vertical slice. The
+full My Decision Canvas remains a phased build with hard blockers on the org data estate
+and owner manifests, listed above. Phase 5 (Universal CanvasSection foundation) is taken up
+under explicit GO — see `docs/PHASE5_CANVAS_GATE_REPORT.md`.
