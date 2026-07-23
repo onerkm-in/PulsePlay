@@ -1,44 +1,73 @@
-/* Decision Prompt card — Industry blueprint object. Token-driven; no hard-coded
-   hex, no rounded corners, one accent voice. */
+/* Decision Prompt card — My Decision Canvas cockpit style. Elevated card on the
+   neutral page, controlled semantic palette for severity, steel as primary brand.
+   See docs/MY_DECISION_CANVAS_DESIGN_APPROACH.md. */
 
 .dpc {
+  position: relative;
   display: flex;
-  gap: var(--space-3);
-  padding: 0;
+  gap: 0;
   margin-bottom: var(--space-3);
-  background: transparent;
+  background: var(--color-neutral-100, #f5f5f8);
+  border: 1px solid var(--color-divider);
+  border-left: 4px solid var(--sev-color, var(--color-accent));
+  border-radius: var(--radius-lg, 7px);
+  overflow: hidden;
 }
 .dpc--terminal { opacity: 0.7; }
 
-.dpc .sev-rail { align-self: stretch; }
+/* Severity → the controlled semantic palette (Critical=bad, High=warn,
+   Medium=violet, Low=neutral). --sev-color drives the rail + solid chip. */
+.dpc.sev-bad    { --sev-color: var(--pp-bad); --sev-soft: var(--pp-bad-soft); }
+.dpc.sev-warn   { --sev-color: var(--pp-warn); --sev-soft: var(--pp-warn-soft); }
+.dpc.sev-violet { --sev-color: var(--pp-violet); --sev-soft: var(--pp-violet-soft); }
+.dpc.sev-neutral{ --sev-color: var(--color-neutral-500, #98989b); --sev-soft: var(--color-neutral-100, #f5f5f8); }
+
+.dpc__rail { display: none; }
 
 .dpc__body {
   flex: 1 1 auto; min-width: 0;
-  padding: var(--space-3) var(--space-4);
+  padding: 16px 18px;
   display: flex; flex-direction: column; gap: var(--space-2);
+}
+
+.dpc__chips { display: flex; align-items: center; gap: 6px; }
+.dpc__sevchip {
+  display: inline-flex; align-items: center;
+  background: var(--sev-color); color: #fff;
+  border-radius: var(--radius-sm, 3px);
+  padding: 3px 10px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.02em;
+  font-family: var(--font-heading); text-transform: uppercase;
+}
+.dpc__aichip {
+  display: inline-flex; align-items: center;
+  background: var(--pp-violet-soft); color: var(--pp-violet);
+  border-radius: var(--radius-sm, 3px);
+  padding: 3px 8px; font-size: 10px; font-weight: 700;
+  font-family: var(--font-heading);
 }
 
 .dpc__head { display: flex; justify-content: space-between; gap: var(--space-4); align-items: baseline; }
 .dpc__headline-col { min-width: 0; }
 .dpc__headline {
   font-family: var(--font-heading); font-weight: var(--font-heading-weight);
-  font-size: 19px; line-height: 1.2; margin: 3px 0 0;
+  font-size: 16.5px; line-height: 1.22; margin: 0;
 }
 .dpc__impact { text-align: right; flex: 0 0 auto; }
 .dpc__impact-value {
   font-family: var(--font-heading); font-weight: var(--font-heading-weight);
-  font-variant-numeric: tabular-nums; font-size: 20px; color: var(--color-accent-800);
+  font-variant-numeric: tabular-nums; font-size: 22px; color: var(--sev-color, var(--color-accent));
 }
-.dpc__impact-label { font-size: 10.5px; color: color-mix(in srgb, var(--color-text) 55%, transparent); max-width: 170px; }
-.dpc__bar { height: 3px; margin-top: 5px; background: color-mix(in srgb, var(--color-text) 12%, transparent); }
-.dpc__bar-fill { display: block; height: 3px; background: var(--color-accent); }
+.dpc__impact-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-neutral-500, #98989b); max-width: 170px; }
+.dpc__bar { height: 3px; margin-top: 5px; background: var(--color-neutral-200, #e7e7ea); border-radius: 2px; overflow: hidden; }
+.dpc__bar-fill { display: block; height: 3px; background: var(--sev-color, var(--color-accent)); }
 
-.dpc__issue { display: flex; align-items: flex-start; gap: var(--space-2); font-size: 12.5px; color: color-mix(in srgb, var(--color-text) 70%, transparent); }
-.dpc__whyfix { font-size: 12px; color: color-mix(in srgb, var(--color-text) 60%, transparent); }
-.dpc__whyfix strong { font-weight: 600; color: color-mix(in srgb, var(--color-text) 80%, transparent); }
-.dpc__question { font-size: 13.5px; font-weight: 500; margin-top: var(--space-1); }
+.dpc__issue { font-size: 13px; line-height: 1.5; color: var(--color-neutral-700, #5d5d60); }
+.dpc__whyfix { font-size: 12px; line-height: 1.5; color: var(--color-neutral-600, #7a7a7d); }
+.dpc__whyfix strong { font-weight: 700; color: var(--sev-color, var(--color-accent)); }
+.dpc__question { font-size: 13.5px; font-weight: 600; margin-top: var(--space-1); }
 
 .dpc__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin-top: var(--space-1); }
+.dpc__actions .btn { min-height: 40px; }
 .dpc__evidence-toggle { margin-left: auto; text-decoration: underline; }
 
 .dpc__terminal-status { font-size: 12px; font-weight: 600; color: var(--color-accent-700); margin-top: var(--space-1); }
@@ -49,8 +78,8 @@
   white-space: pre-wrap; overflow-x: auto;
   background: color-mix(in srgb, var(--color-text) 6%, transparent);
   color: color-mix(in srgb, var(--color-text) 75%, transparent);
-  border: 1px solid var(--color-divider);
+  border: 1px solid var(--color-divider); border-radius: var(--radius-md, 4px);
   font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
 }
 
-.dpc__meta { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-1); }
+.dpc__meta { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin-top: 2px; font-size: 10.5px; color: var(--color-neutral-500, #98989b); }

@@ -6,10 +6,12 @@
 // surfaces the server-authorized actions. All authorization is enforced
 // server-side; this card only renders what `allowed_actions` permits.
 //
-// Styled to the Industry design system (docs/INDUSTRY_DESIGN_REMEDIATION_PROMPT.md):
-// a blueprint frame with corner registration marks, a single steel accent voice
-// (severity = accent-ramp rail + tag + text label, never a colour stoplight), and
-// the shared token-driven CSS classes — no inline-style soup, no rounded pills.
+// Styled for the My Decision Canvas cockpit (docs/MY_DECISION_CANVAS_DESIGN_APPROACH.md):
+// an elevated white card on the neutral page, Barlow/Barlow Condensed type, and the
+// controlled semantic palette for severity (Critical = bad, High = warn, Medium =
+// violet — also the "AI" badge when the detection is AI-narrated). Steel stays the
+// primary brand accent (primary action, links). Non-color cues: every severity has a
+// text label; deterministic vs AI-narrated is shown explicitly.
 
 import { useState } from "react";
 import { SaveChannel } from "../canvas/SaveChannel";
@@ -43,6 +45,9 @@ export interface DecisionPrompt {
     region?: string | null;
     month_key?: number;
     allowed_actions: string[];
+    /** True when the detection was AI-narrated rather than deterministic DAX/SQL.
+     *  Drives the "AI" chip so a generated finding is never mistaken for measured. */
+    ai_narrated?: boolean;
 }
 
 export const ACTION_LABELS: Record<string, string> = {
@@ -58,12 +63,14 @@ export const ACTION_LABELS: Record<string, string> = {
     view_evidence: "View evidence",
 };
 
-// Severity is one accent voice: rail step + tag tone + text label (no stoplight).
-const SEV: Record<string, { rail: string; tag: string; label: string }> = {
-    critical: { rail: "sev-critical", tag: "tag-accent", label: "CRITICAL" },
-    high: { rail: "sev-high", tag: "tag-accent", label: "HIGH" },
-    medium: { rail: "sev-medium", tag: "tag-neutral", label: "MEDIUM" },
-    low: { rail: "sev-low", tag: "tag-neutral", label: "LOW" },
+// Severity maps to the controlled semantic palette + a text label (the non-color
+// cue). Consistent everywhere: Critical = bad, High = warn, Medium = violet, Low =
+// neutral. `sev` class drives the left rail + the solid severity chip.
+const SEV: Record<string, { sev: string; label: string }> = {
+    critical: { sev: "sev-bad", label: "CRITICAL" },
+    high: { sev: "sev-warn", label: "HIGH" },
+    medium: { sev: "sev-violet", label: "MEDIUM" },
+    low: { sev: "sev-neutral", label: "LOW" },
 };
 
 const PRIMARY_ORDER = ["approve", "trigger_supplier_review", "trigger_replenishment",
@@ -95,13 +102,6 @@ function actionQuestion(p: DecisionPrompt): string {
     return `Do you want me to ${p.recommended_action.toLowerCase()}?`;
 }
 
-function Corners() {
-    return (<>
-        <i className="corner tl" /><i className="corner tr" />
-        <i className="corner bl" /><i className="corner br" />
-    </>);
-}
-
 export function DecisionPromptCard({
     prompt, onAction, busy, maxImpact,
 }: {
@@ -119,13 +119,15 @@ export function DecisionPromptCard({
     const terminal = ["actioned", "rejected", "false-positive", "snoozed"].includes(prompt.status);
 
     return (
-        <div className={`dpc blueprint${terminal ? " dpc--terminal" : ""}`}>
-            <Corners />
-            <span className={`sev-rail ${sev.rail}`} aria-hidden />
+        <div className={`dpc ${sev.sev}${terminal ? " dpc--terminal" : ""}`}>
+            <span className="dpc__rail" aria-hidden />
             <div className="dpc__body">
+                <div className="dpc__chips">
+                    <span className="dpc__sevchip">{sev.label}</span>
+                    {prompt.ai_narrated && <span className="dpc__aichip">AI</span>}
+                </div>
                 <div className="dpc__head">
                     <div className="dpc__headline-col">
-                        <span className="kicker">Needs your decision</span>
                         <h3 className="dpc__headline">{prompt.headline}</h3>
                     </div>
                     <div className="dpc__impact">
@@ -135,10 +137,7 @@ export function DecisionPromptCard({
                     </div>
                 </div>
 
-                <div className="dpc__issue">
-                    <span className={`tag ${sev.tag}`}>{sev.label}</span>
-                    <span>{prompt.issue}</span>
-                </div>
+                <div className="dpc__issue">{prompt.issue}</div>
 
                 <div className="dpc__whyfix">
                     <strong>WHY</strong> {prompt.root_cause}

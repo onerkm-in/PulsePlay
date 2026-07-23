@@ -31,7 +31,17 @@ function readDemoPersona(): string {
     try { return window.localStorage.getItem(DEMO_PERSONA_KEY) || ""; } catch { return ""; }
 }
 
-export function ActionInsightsPanel({ proxyBase, assistantProfile }: { proxyBase: string; assistantProfile?: string }) {
+export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, hideHeader }: {
+    proxyBase: string;
+    assistantProfile?: string;
+    /** Reports the loaded prompt set to a parent (e.g. the cockpit shell derives
+     *  KPIs + the severity donut from the SAME fetch — no double-fetch, no
+     *  fabricated numbers). */
+    onData?: (prompts: DecisionPrompt[]) => void;
+    /** In the cockpit the persona/heading live in the shell chrome, so the panel
+     *  renders just the decision list. */
+    hideHeader?: boolean;
+}) {
     const [data, setData] = useState<ApiResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -56,6 +66,7 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile }: { proxyBase
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const body = (await res.json()) as ApiResponse;
             setData(body);
+            onData?.(body.prompts || []);
         } catch (e) {
             setError(String((e as Error).message || e));
             setData(null);
@@ -102,30 +113,32 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile }: { proxyBase
         ["new", "refreshed", "pending-approval"].includes(p.status)).length;
 
     return (
-        <div className="industry-surface" style={{ padding: "14px 16px", height: "100%", overflowY: "auto" }} data-testid="action-insights-panel">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
-                <div>
-                    <div className="kicker">
-                        NEEDS YOUR DECISION{openCount ? ` · ${openCount}` : ""}
+        <div className="industry-surface" style={{ padding: hideHeader ? 0 : "14px 16px", height: "100%", overflowY: "auto" }} data-testid="action-insights-panel">
+            {!hideHeader && (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
+                    <div>
+                        <div className="kicker">
+                            NEEDS YOUR DECISION{openCount ? ` · ${openCount}` : ""}
+                        </div>
+                        <div className="text-muted" style={{ fontSize: 11.5, marginTop: 2 }}>
+                            Viewing as <strong>{data?.persona || "…"}</strong>
+                            {data?.personaSource === "demo" ? " (demo)" : ""}
+                        </div>
                     </div>
-                    <div className="text-muted" style={{ fontSize: 11.5, marginTop: 2 }}>
-                        Viewing as <strong>{data?.persona || "…"}</strong>
-                        {data?.personaSource === "demo" ? " (demo)" : ""}
+                    {/* Demo persona switcher — hint only; server ignores it when an IdP role exists. */}
+                    <div className="seg" role="group" aria-label="Demo persona">
+                        {[PLANNER, MANAGER].map((p) => (
+                            <button
+                                key={p}
+                                type="button"
+                                className="seg-opt"
+                                aria-pressed={demoPersona === p ? "true" : "false"}
+                                onClick={() => setPersona(p)}
+                            >{p.replace("Supply Chain ", "")}</button>
+                        ))}
                     </div>
                 </div>
-                {/* Demo persona switcher — hint only; server ignores it when an IdP role exists. */}
-                <div className="seg" role="group" aria-label="Demo persona">
-                    {[PLANNER, MANAGER].map((p) => (
-                        <button
-                            key={p}
-                            type="button"
-                            className="seg-opt"
-                            aria-pressed={demoPersona === p ? "true" : "false"}
-                            onClick={() => setPersona(p)}
-                        >{p.replace("Supply Chain ", "")}</button>
-                    ))}
-                </div>
-            </div>
+            )}
 
             {error && (
                 <div role="status" className="blueprint" style={{

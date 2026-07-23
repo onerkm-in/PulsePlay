@@ -56,6 +56,24 @@
   --shadow-sm: 0 1px 2px color-mix(in srgb, #2b2b2d 14%, transparent);
   --shadow-md: 0 3px 10px color-mix(in srgb, #2b2b2d 16%, transparent);
   --shadow-lg: 0 12px 32px color-mix(in srgb, #2b2b2d 22%, transparent);
+
+  /* Controlled semantic palette (My Decision Canvas cockpit — see
+     docs/MY_DECISION_CANVAS_DESIGN_APPROACH.md). Steel stays the PRIMARY brand
+     accent; these four are reserved for status / severity / delta meaning only,
+     used consistently, never extended ad hoc. */
+  --pp-good: #1f9d6b;   --pp-good-soft: #e3f7ee;
+  --pp-warn: #e0902c;   --pp-warn-soft: #fdf1e0;
+  --pp-bad: #d1453d;    --pp-bad-soft: #fbe7e6;
+  --pp-violet: #7c5cd8; --pp-violet-soft: #efe9fb;
+}
+
+/* Dark extension for the semantic palette — brighten text/icon hues for AA on
+   the dark ground; soft tints become low-alpha fills. */
+:root[data-pp-theme="dark"], :root[data-theme="dark"] {
+  --pp-good: #46c78f;   --pp-good-soft: rgba(31,157,107,0.20);
+  --pp-warn: #f0a94b;   --pp-warn-soft: rgba(224,144,44,0.20);
+  --pp-bad: #e8695f;    --pp-bad-soft: rgba(209,69,61,0.20);
+  --pp-violet: #a58ae8; --pp-violet-soft: rgba(124,92,216,0.24);
 }
 
 /* Ground + typography — scoped to adopting surfaces only. */

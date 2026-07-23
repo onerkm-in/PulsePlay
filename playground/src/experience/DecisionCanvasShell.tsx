@@ -1,21 +1,29 @@
 // playground/src/experience/DecisionCanvasShell.tsx
 //
-// "My Decision Canvas" — the combined single-workspace experience (v3.2 §10). The
-// Action Inbox is real and governed (it reuses the same ActionInsightsPanel +
-// Decision Assist backend as segregated mode — no forked business logic); My Canvas
-// renders the user's real pinned sections; the surfaces remain reachable from one
-// workspace. Deferred Canvas regions are honest blueprint scaffolds, not fabricated
-// content.
+// "My Decision Canvas" — PulsePlay's flagship UNIFIED surface, built as an
+// enterprise BI cockpit (docs/MY_DECISION_CANVAS_DESIGN_APPROACH.md, reference
+// My Decision Canvas v4): a left sidebar shell, a top bar, and a content column
+// with a KPI strip, charts, the governed decision list, and the canvas sections.
 //
-// Styled to the Industry design system: a `.industry-surface` ground, blueprint
-// cards with corner registration marks, one steel accent voice, square corners, no
-// gradients/pills/dashed borders. Token-driven CSS in decisionCanvas.css.
+// Honesty contract: the KPI tiles, the severity donut, and the impact-by-severity
+// bars are ALL derived from the SAME real decision prompts the Action Inbox shows
+// (the governed Decision Assist backend) — no fabricated business numbers. Series
+// we don't actually have (historical trend, change feed, suggestions) render an
+// honest deferred/empty state instead of a fake chart.
+//
+// Visual system: Industry tokens (steel primary accent, Barlow) + the controlled
+// four-colour semantic palette for status/severity/delta. Cards are white +
+// radius-lg + soft shadow — a deliberate, documented divergence from the flat
+// blueprint default because this is a data-dense cockpit.
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import {
+    Clock, Sparkles, MessageCircle, BarChart3, LayoutGrid, Bell, ShieldCheck,
+    CircleDollarSign, ListChecks, CheckCircle2, Bookmark,
+} from "lucide-react";
 import { ActionInsightsPanel } from "../components/ActionInsightsPanel";
+import type { DecisionPrompt } from "../components/DecisionPromptCard";
 import { MyCanvasRegion } from "../canvas/MyCanvasRegion";
-import { SaveChannel } from "../canvas/SaveChannel";
-import type { EligibleSection } from "../canvas/canvasTypes";
 import "./decisionCanvas.css";
 
 function readProxyBase(): string {
@@ -39,6 +47,11 @@ function readActiveProfile(): string {
     return "";
 }
 
+function readDemoPersona(): string {
+    if (typeof window === "undefined") return "";
+    try { return window.localStorage.getItem("pulseplay:ai-demo-persona") || ""; } catch { return ""; }
+}
+
 function goToSurface(surface: string): void {
     try {
         const url = new URL(window.location.href);
@@ -48,57 +61,39 @@ function goToSurface(surface: string): void {
     } catch { /* swallow */ }
 }
 
-const SURFACE_LINKS: Array<{ id: string; label: string; hint: string; eligible: EligibleSection }> = [
-    {
-        id: "ai-insights", label: "AI Insights", hint: "Narrative summary of the current scope",
-        eligible: { type: "data_insight", title: "AI Insights — current scope",
-            source: { surface: "ai-insights", source_object_id: "ai-insights:current" },
-            provenance: { semantic_ref: "surface:ai-insights", classification: "internal" } },
-    },
-    {
-        id: "ask-pulse", label: "Ask Pulse", hint: "Grounded natural-language follow-ups",
-        eligible: { type: "grounded_answer", title: "Ask Pulse — grounded answer",
-            source: { surface: "ask-pulse", source_object_id: "ask-pulse:latest" },
-            provenance: { semantic_ref: "surface:ask-pulse", classification: "internal" } },
-    },
-    {
-        id: "bi-viz", label: "Dashboard", hint: "The embedded BI surface",
-        eligible: { type: "bi_view_state", title: "Dashboard — current view",
-            source: { surface: "bi-viz", source_object_id: "bi-viz:current" },
-            provenance: { semantic_ref: "surface:bi-viz", classification: "internal" } },
-    },
+const NAV: Array<{ id: string; label: string; Icon: typeof Clock; unified?: boolean }> = [
+    { id: "unified", label: "Unified Canvas", Icon: LayoutGrid, unified: true },
+    { id: "action-insights", label: "Decision Assist", Icon: Clock },
+    { id: "insights", label: "AI Insights", Icon: Sparkles },
+    { id: "chat", label: "Ask Pulse", Icon: MessageCircle },
+    { id: "bi-viz", label: "Dashboard", Icon: BarChart3 },
 ];
 
-function Corners() {
-    return (<>
-        <i className="corner tl" /><i className="corner tr" />
-        <i className="corner bl" /><i className="corner br" />
-    </>);
+const TERMINAL = new Set(["actioned", "rejected", "false-positive", "snoozed"]);
+const SEV_ORDER = ["critical", "high", "medium", "low"] as const;
+const SEV_COLOR: Record<string, string> = {
+    critical: "var(--pp-bad)", high: "var(--pp-warn)", medium: "var(--pp-violet)", low: "var(--color-neutral-400, #b7b7ba)",
+};
+
+function initialsOf(name: string): string {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return "—";
+    return (parts[0][0] + (parts[parts.length - 1][0] || "")).toUpperCase();
 }
 
-/** Honest "arriving later" scaffold — a blueprint card with a neutral kicker, not a
- *  dashed placeholder (Industry rule 10). */
-function DeferredRegion({ title, phase, note }: { title: string; phase: string; note: string }) {
-    return (
-        <section className="dc-card blueprint dc-deferred">
-            <Corners />
-            <div className="dc-region-head">
-                <span className="kicker">{title}</span>
-                <span className="tag tag-neutral">{phase}</span>
-            </div>
-            <p className="dc-deferred-note">{note}</p>
-        </section>
-    );
+function fmtUsd(n: number): string {
+    if (n >= 1_000_000) return "$" + (n / 1_000_000).toFixed(1) + "M";
+    if (n >= 1_000) return "$" + (n / 1_000).toFixed(1) + "K";
+    return "$" + Math.round(n).toLocaleString();
 }
 
-/** Collapse the workspace to one column on narrow viewports (§10 combined-mobile). */
 function useIsNarrow(): boolean {
     const [narrow, setNarrow] = useState(() =>
         typeof window !== "undefined" && typeof window.matchMedia === "function"
-            ? window.matchMedia("(max-width: 820px)").matches : false);
+            ? window.matchMedia("(max-width: 960px)").matches : false);
     useEffect(() => {
         if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
-        const mq = window.matchMedia("(max-width: 820px)");
+        const mq = window.matchMedia("(max-width: 960px)");
         const on = () => setNarrow(mq.matches);
         on();
         mq.addEventListener?.("change", on);
@@ -107,60 +102,238 @@ function useIsNarrow(): boolean {
     return narrow;
 }
 
+/** Real severity distribution → SVG donut arcs (bad/warn/violet/neutral). */
+function SeverityDonut({ counts }: { counts: Record<string, number> }) {
+    const total = SEV_ORDER.reduce((s, k) => s + (counts[k] || 0), 0);
+    const C = 2 * Math.PI * 15.5;
+    let offset = 0;
+    return (
+        <div className="dcc-donut-wrap">
+            <svg width="130" height="130" viewBox="0 0 36 36" aria-label="Open decisions by severity">
+                <circle cx="18" cy="18" r="15.5" fill="none" stroke="var(--color-neutral-200, #e7e7ea)" strokeWidth="4" />
+                {total > 0 && SEV_ORDER.map((k) => {
+                    const n = counts[k] || 0;
+                    if (!n) return null;
+                    const len = (n / total) * C;
+                    const el = (
+                        <circle key={k} cx="18" cy="18" r="15.5" fill="none" stroke={SEV_COLOR[k]} strokeWidth="4"
+                            strokeDasharray={`${len} ${C - len}`} strokeDashoffset={-offset}
+                            strokeLinecap="butt" transform="rotate(-90 18 18)" />
+                    );
+                    offset += len;
+                    return el;
+                })}
+                <text x="18" y="20" textAnchor="middle" fontFamily="var(--font-heading)" fontSize="7" fontWeight="600" fill="var(--color-text)">{total}</text>
+            </svg>
+            <div className="dcc-donut-legend">
+                <span style={{ color: "var(--pp-bad)" }}>● Critical</span>
+                <span style={{ color: "var(--pp-warn)" }}>● High</span>
+                <span style={{ color: "var(--pp-violet)" }}>● Medium</span>
+            </div>
+        </div>
+    );
+}
+
+function DeferredCard({ title, ai, note }: { title: string; ai?: boolean; note: string }) {
+    return (
+        <div className="dcc-card dcc-pad">
+            <div className="dcc-chart-head">
+                <h3 className="dcc-section-title">{title}</h3>
+                {ai && <span className="dcc-chip" style={{ background: "var(--pp-violet-soft)", color: "var(--pp-violet)", padding: "2px 7px", fontSize: 9.5 }}>AI</span>}
+            </div>
+            <p className="dcc-empty">{note}</p>
+        </div>
+    );
+}
+
 export function DecisionCanvasShell(): React.ReactElement {
     const proxyBase = readProxyBase();
     const activeProfile = readActiveProfile();
     const narrow = useIsNarrow();
+    const [prompts, setPrompts] = useState<DecisionPrompt[]>([]);
+    const persona = readDemoPersona();
+
+    const kpi = useMemo(() => {
+        const open = prompts.filter((p) => !TERMINAL.has(p.status));
+        const counts: Record<string, number> = {};
+        let impact = 0;
+        let approvals = 0;
+        for (const p of open) {
+            counts[p.severity] = (counts[p.severity] || 0) + 1;
+            if (p.business_impact_unit === "USD") impact += p.business_impact_value || 0;
+            if (p.approval_required) approvals += 1;
+        }
+        const resolved = prompts.filter((p) => TERMINAL.has(p.status)).length;
+        const impactBySev = SEV_ORDER.map((k) => ({
+            k,
+            sum: open.filter((p) => p.severity === k && p.business_impact_unit === "USD")
+                .reduce((s, p) => s + (p.business_impact_value || 0), 0),
+        })).filter((r) => r.sum > 0);
+        const maxSev = Math.max(1, ...impactBySev.map((r) => r.sum));
+        return { open: open.length, counts, impact, approvals, resolved, impactBySev, maxSev };
+    }, [prompts]);
 
     return (
-        <div className="industry-surface dc-shell">
-            <header className="nav dc-context-bar">
-                <span className="nav-brand">My Decision Canvas</span>
-                <span className="tag tag-accent">Combined</span>
-                <span className="dc-context-tagline text-muted">
-                    One workspace: see the issue, inspect evidence, act. Segregated screens stay available in Settings.
-                </span>
-            </header>
+        <div className={`dc-cockpit${narrow ? " dc-cockpit--narrow" : ""}`}>
+            {/* ── Sidebar ── */}
+            <aside className="dcc-side">
+                <div className="dcc-brand">
+                    <span className="dcc-brand-mark"><LayoutGrid size={18} strokeWidth={1.8} aria-hidden /></span>
+                    {!narrow && <span className="dcc-brand-name">PulsePlay</span>}
+                </div>
+                <nav className="dcc-nav">
+                    {NAV.map(({ id, label, Icon, unified }) => (
+                        <button
+                            key={id}
+                            type="button"
+                            className={`dcc-navlink${unified ? " is-active" : ""}`}
+                            onClick={() => { if (!unified) goToSurface(id); }}
+                            aria-current={unified ? "page" : undefined}
+                        >
+                            <Icon size={18} strokeWidth={1.8} aria-hidden />
+                            <span className="dcc-navlabel">{label}</span>
+                        </button>
+                    ))}
+                </nav>
+                <div className="dcc-side-foot">
+                    <div className="dcc-gov-card">
+                        <div className="dcc-gov-title">Governed &amp; Fresh</div>
+                        <div className="dcc-gov-meta">
+                            {activeProfile ? `Connector: ${activeProfile}` : "No connector selected"} · session-fresh
+                        </div>
+                    </div>
+                </div>
+            </aside>
 
-            <main className={`dc-main${narrow ? " dc-main--narrow" : ""}`}>
-                <div className="dc-col-primary">
-                    <section className="dc-card blueprint dc-inbox">
-                        <Corners />
-                        <div className="dc-region-head"><span className="kicker">Action Inbox</span></div>
-                        <ActionInsightsPanel proxyBase={proxyBase} assistantProfile={activeProfile} />
-                    </section>
-
-                    <MyCanvasRegion />
+            {/* ── Main ── */}
+            <div className="dcc-main">
+                <div className="dcc-topbar">
+                    <h1 className="dcc-title">My Decision Canvas</h1>
+                    <div className="dcc-topbar-right">
+                        <span className="dcc-chip dcc-chip--gov"><ShieldCheck size={13} strokeWidth={1.8} aria-hidden /> Governed</span>
+                        <button type="button" className="dcc-iconbtn" aria-label="Notifications"><Bell size={16} strokeWidth={1.8} aria-hidden /></button>
+                        <div className="dcc-persona">
+                            <span className="dcc-persona-avatar">{initialsOf(persona)}</span>
+                            {!narrow && (
+                                <span className="dcc-persona-name">
+                                    <b>{persona || "Verify persona"}</b>
+                                    <span>{persona ? "demo persona" : "no role bound"}</span>
+                                </span>
+                            )}
+                        </div>
+                    </div>
                 </div>
 
-                <aside className={`dc-col-side${narrow ? " dc-col-side--static" : ""}`}>
-                    <section className="dc-card blueprint dc-surface-hub">
-                        <Corners />
-                        <div className="dc-region-head"><span className="kicker">Open a surface</span></div>
-                        <div className="dc-surface-list">
-                            {SURFACE_LINKS.map((s) => (
-                                <div key={s.id} className="dc-surface-row blueprint">
-                                    <Corners />
-                                    <button type="button" className="dc-surface-btn" onClick={() => goToSurface(s.id)}>
-                                        <span className="dc-surface-label">{s.label}</span>
-                                        <span className="dc-surface-hint text-muted">{s.hint}</span>
-                                    </button>
-                                    <SaveChannel compact eligible={s.eligible} />
-                                </div>
-                            ))}
+                <div className="dcc-content">
+                    {/* KPI strip — real, derived from the open decisions */}
+                    <div className="dcc-kpis">
+                        <div className="dcc-kpi dcc-kpi--bad">
+                            <div className="dcc-kpi-top">
+                                <span className="dcc-kpi-icon"><CircleDollarSign size={18} strokeWidth={1.8} aria-hidden /></span>
+                            </div>
+                            <div>
+                                <div className="dcc-kpi-value">{kpi.impact > 0 ? fmtUsd(kpi.impact) : "—"}</div>
+                                <div className="dcc-kpi-label">Impact at risk (open)</div>
+                            </div>
                         </div>
-                    </section>
+                        <div className="dcc-kpi dcc-kpi--violet">
+                            <div className="dcc-kpi-top">
+                                <span className="dcc-kpi-icon"><ListChecks size={18} strokeWidth={1.8} aria-hidden /></span>
+                            </div>
+                            <div>
+                                <div className="dcc-kpi-value">{kpi.open}</div>
+                                <div className="dcc-kpi-label">Open decisions</div>
+                            </div>
+                        </div>
+                        <div className="dcc-kpi dcc-kpi--warn">
+                            <div className="dcc-kpi-top">
+                                <span className="dcc-kpi-icon"><Clock size={18} strokeWidth={1.8} aria-hidden /></span>
+                            </div>
+                            <div>
+                                <div className="dcc-kpi-value">{kpi.approvals}</div>
+                                <div className="dcc-kpi-label">Awaiting approval</div>
+                            </div>
+                        </div>
+                        <div className="dcc-kpi dcc-kpi--good">
+                            <div className="dcc-kpi-top">
+                                <span className="dcc-kpi-icon"><CheckCircle2 size={18} strokeWidth={1.8} aria-hidden /></span>
+                            </div>
+                            <div>
+                                <div className="dcc-kpi-value">{kpi.resolved}</div>
+                                <div className="dcc-kpi-label">Resolved this session</div>
+                            </div>
+                        </div>
+                    </div>
 
-                    <DeferredRegion
-                        title="Saved Items" phase="Arriving Phase 2"
-                        note="Bookmarks and snapshots not currently on the Canvas will list here once server-side saved-item persistence ships."
-                    />
-                    <DeferredRegion
-                        title="Suggested for You" phase="Arriving Phase 2"
-                        note="Up to three explainable, governed suggestions arrive with the relevance phase. Suggestions never change your permissions or a decision's severity."
-                    />
-                </aside>
-            </main>
+                    {/* Chart row — impact-by-severity bars + severity donut (both real) */}
+                    <div className="dcc-charts">
+                        <div className="dcc-card dcc-pad">
+                            <div className="dcc-chart-head">
+                                <h3 className="dcc-section-title">Open impact by severity</h3>
+                                <span className="dcc-list-ts">measured · deterministic</span>
+                            </div>
+                            {kpi.impactBySev.length ? (
+                                <div className="dcc-sevbars">
+                                    {kpi.impactBySev.map((r) => (
+                                        <div key={r.k} className="dcc-sevbar-row">
+                                            <div className="dcc-sevbar-head">
+                                                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                                                    <span className="dcc-dot" style={{ background: SEV_COLOR[r.k], borderRadius: 2 }} />
+                                                    {r.k[0].toUpperCase() + r.k.slice(1)}
+                                                </span>
+                                                <b>{fmtUsd(r.sum)}</b>
+                                            </div>
+                                            <div className="dcc-sevbar-track">
+                                                <div className="dcc-sevbar-fill" style={{ width: `${Math.max(4, (r.sum / kpi.maxSev) * 100)}%`, background: SEV_COLOR[r.k] }} />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="dcc-empty">No dollar-quantified open decisions right now. Impact appears here as the engine surfaces USD-valued findings.</p>
+                            )}
+                        </div>
+                        <div className="dcc-card dcc-pad">
+                            <h3 className="dcc-section-title" style={{ marginBottom: 8 }}>Open by severity</h3>
+                            <SeverityDonut counts={kpi.counts} />
+                        </div>
+                    </div>
+
+                    {/* Needs Your Decision — the real governed list */}
+                    <div className="dcc-card dcc-decisions">
+                        <div className="dcc-decisions-head">
+                            <h3 className="dcc-section-title" style={{ fontSize: 17 }}>Needs Your Decision</h3>
+                            <span className="dcc-chip" style={{ background: "var(--pp-bad-soft)", color: "var(--pp-bad)", padding: "3px 10px", fontSize: 11 }}>
+                                {kpi.open} open · Governed · Tier-first ranking
+                            </span>
+                        </div>
+                        <ActionInsightsPanel proxyBase={proxyBase} assistantProfile={activeProfile} onData={setPrompts} hideHeader />
+                    </div>
+
+                    {/* Since You Last Visited + My Canvas */}
+                    <div className="dcc-two">
+                        <DeferredCard
+                            title="Since You Last Visited"
+                            note="Change tracking (Updated / Stale / Resolved / New) arrives with the relevance phase — it will list items that moved since your last session."
+                        />
+                        <div className="dcc-card dcc-pad">
+                            <MyCanvasRegion />
+                        </div>
+                    </div>
+
+                    {/* Saved Items + Suggested */}
+                    <div className="dcc-two">
+                        <DeferredCard
+                            title="Saved Items"
+                            note="Bookmarks and snapshots not currently pinned to the Canvas will list here once server-side saved-item persistence ships."
+                        />
+                        <DeferredCard
+                            title="Suggested for You" ai
+                            note="Up to three explainable, governed suggestions arrive with the relevance phase. Suggestions never change your permissions or a decision's severity."
+                        />
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }
