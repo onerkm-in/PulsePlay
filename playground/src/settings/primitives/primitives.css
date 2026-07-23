@@ -33,10 +33,10 @@
     color: #fff;
     outline: none;
     transform: scale(1.1);
-    box-shadow: 0 2px 6px rgba(37,99,235,0.36);
+    box-shadow: 0 2px 6px color-mix(in srgb, var(--pp-accent, #5980a6) 36%, transparent);
 }
-.pp-helptip__trigger--warn  { background: rgba(217,119,6,0.12); color: #b45309; font-style: normal; font-family: inherit; }
-.pp-helptip__trigger--warn:hover { background: #d97706; color: #fff; box-shadow: 0 2px 6px rgba(217,119,6,0.4); }
+.pp-helptip__trigger--warn  { background: color-mix(in srgb, var(--pp-warn, #e0902c) 12%, transparent); color: #b45309; font-style: normal; font-family: inherit; }
+.pp-helptip__trigger--warn:hover { background: #d97706; color: #fff; box-shadow: 0 2px 6px color-mix(in srgb, var(--pp-warn, #e0902c) 40%, transparent); }
 .pp-helptip__trigger--tip   { background: rgba(124,58,237,0.10); color: #6d28d9; font-style: normal; font-family: inherit; font-size: 9px; }
 .pp-helptip__trigger--tip:hover { background: var(--pp-accent); color: #fff; }
 
@@ -228,7 +228,7 @@
     background: var(--pp-accent);
     color: #fff;
     border-color: var(--pp-accent);
-    box-shadow: 0 2px 8px rgba(37,99,235,0.32);
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--pp-accent, #5980a6) 32%, transparent);
     transform: translateY(-1px);
 }
 .pp-test__btn:active:not(:disabled) { transform: translateY(0); }
@@ -303,7 +303,7 @@
 .pp-field__control textarea:focus {
     outline: none;
     border-color: var(--pp-accent);
-    box-shadow: 0 0 0 3px rgba(37,99,235,0.14), inset 0 1px 2px rgba(15,23,42,0.04);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--pp-accent, #5980a6) 14%, transparent), inset 0 1px 2px rgba(15,23,42,0.04);
 }
 
 .pp-field__hint {
@@ -387,7 +387,7 @@
     justify-content: center;
     font-size: var(--pp-text-base);
     font-weight: 700;
-    box-shadow: 0 2px 6px rgba(37,99,235,0.36);
+    box-shadow: 0 2px 6px color-mix(in srgb, var(--pp-accent, #5980a6) 36%, transparent);
 }
 
 .pp-card__title-block { flex: 1 1 auto; min-width: 0; }
@@ -465,7 +465,7 @@
 
 .pp-toggle__input:checked ~ .pp-toggle__track {
     background: var(--pp-accent);
-    box-shadow: 0 1px 4px rgba(37,99,235,0.36);
+    box-shadow: 0 1px 4px color-mix(in srgb, var(--pp-accent, #5980a6) 36%, transparent);
 }
 .pp-toggle__input:checked ~ .pp-toggle__track .pp-toggle__thumb {
     transform: translateX(16px);
@@ -515,7 +515,7 @@
     background: var(--pp-accent-soft);
     color: var(--pp-accent);
     font-weight: 600;
-    box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--pp-accent, #5980a6) 12%, transparent);
 }
 
 .pp-theme-swatch {
