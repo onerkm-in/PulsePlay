@@ -902,10 +902,33 @@ function parsePulseChatStateSnapshot(raw: string | null, connectionContextKey: s
     };
 }
 
+// One storage slot PER connection context (profile/space/mode), not a single
+// shared slot. The old single-key design was last-writer-wins: chatting on
+// profile B overwrote profile A's transcript, so switching back to A lost the
+// conversation even though the read-side context check was correct.
+function pulseChatStateStorageKey(connectionContextKey: string): string {
+    let h = 5381;
+    for (let i = 0; i < connectionContextKey.length; i++) {
+        h = ((h << 5) + h + connectionContextKey.charCodeAt(i)) | 0;
+    }
+    return `${PULSE_CHAT_STATE_STORAGE_KEY}:${(h >>> 0).toString(36)}`;
+}
+
 function readPulseChatStateFromStorage(connectionContextKey: string): PersistedPulseChatState | null {
     if (typeof window === "undefined") return null;
     try {
-        return parsePulseChatStateSnapshot(window.sessionStorage.getItem(PULSE_CHAT_STATE_STORAGE_KEY), connectionContextKey);
+        const perContext = parsePulseChatStateSnapshot(
+            window.sessionStorage.getItem(pulseChatStateStorageKey(connectionContextKey)),
+            connectionContextKey,
+        );
+        if (perContext) return perContext;
+        // Migration: transcripts saved before the per-context split lived on
+        // the shared key. The parser's context check makes this read safe —
+        // a mismatched snapshot returns null.
+        return parsePulseChatStateSnapshot(
+            window.sessionStorage.getItem(PULSE_CHAT_STATE_STORAGE_KEY),
+            connectionContextKey,
+        );
     } catch {
         return null;
     }
@@ -918,12 +941,28 @@ function writePulseChatStateToStorage(
 ): void {
     if (typeof window === "undefined") return;
     try {
+        const key = pulseChatStateStorageKey(connectionContextKey);
         const snapshot = buildPulseChatStateSnapshot(connectionContextKey, conversationMap, messageMap);
         if (!snapshot) {
-            window.sessionStorage.removeItem(PULSE_CHAT_STATE_STORAGE_KEY);
+            window.sessionStorage.removeItem(key);
             return;
         }
-        window.sessionStorage.setItem(PULSE_CHAT_STATE_STORAGE_KEY, JSON.stringify(snapshot));
+        window.sessionStorage.setItem(key, JSON.stringify(snapshot));
+        // Drop the legacy shared-key snapshot (migrated above on read) and any
+        // expired per-context siblings so slots don't accumulate in long tabs.
+        window.sessionStorage.removeItem(PULSE_CHAT_STATE_STORAGE_KEY);
+        for (let i = window.sessionStorage.length - 1; i >= 0; i--) {
+            const k = window.sessionStorage.key(i);
+            if (!k || k === key || !k.startsWith(`${PULSE_CHAT_STATE_STORAGE_KEY}:`)) continue;
+            try {
+                const parsed = JSON.parse(window.sessionStorage.getItem(k) || "null") as { savedAt?: number } | null;
+                const stale = !parsed || typeof parsed.savedAt !== "number"
+                    || Date.now() - parsed.savedAt > PULSE_CHAT_STATE_TTL_MS;
+                if (stale) window.sessionStorage.removeItem(k);
+            } catch {
+                window.sessionStorage.removeItem(k);
+            }
+        }
     } catch {
         // Local persistence is a convenience layer. Quota/private-mode failures
         // must never break Ask Pulse itself.
@@ -6265,7 +6304,16 @@ function App(props: AppProps) {
                             {shouldShowGroundingAdvisory(insightsResult) && (
                                 <div className="gn-insights-incomplete" role="note" style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
                                     <span style={{ flex: 1 }}>
-                                        ⚠ <strong>Illustrative — not grounded in your data.</strong> This briefing was written by a language model with no query access, so the figures are model-produced, not measured. Connect a data-backed connector (a Genie space or Power BI dataset) for verified numbers.
+                                        {/* The deterministic Power BI connector runs no language
+                                            model, so the LLM wording would be factually wrong
+                                            there — its ungrounded state is "no data rows yet"
+                                            (cold paint before the probe-driven re-run), not
+                                            "model-produced figures". */}
+                                        {pbiProbeRef.current.get(insightsActiveProfile)?.connectorType === "powerbi-semantic-model" ? (
+                                            <>⚠ <strong>Not grounded yet.</strong> These sections did not return data rows from the dataset. This connector runs no language model — this is placeholder guidance, and measured sections replace it automatically once the data probe completes.</>
+                                        ) : (
+                                            <>⚠ <strong>Illustrative — not grounded in your data.</strong> This briefing was written by a language model with no query access, so the figures are model-produced, not measured. Connect a data-backed connector (a Genie space or Power BI dataset) for verified numbers.</>
+                                        )}
                                     </span>
                                 </div>
                             )}
@@ -11981,7 +12029,10 @@ const SectionSqlPanel: React.FC<SectionSqlPanelProps> = (props) => {
             </button>
             {props.reusedFromTitle && (
                 <div className="gn-sql-reused-note" role="note">
-                    Reused from <strong>{props.reusedFromTitle}</strong> — Genie synthesized this section&apos;s answer from a prior stage&apos;s query result instead of running fresh SQL.
+                    {/* Connector-neutral: this panel renders for Genie, Power BI
+                        deterministic, and orchestrator paths alike, so don't
+                        credit "Genie" for a reuse that another backend did. */}
+                    Reused from <strong>{props.reusedFromTitle}</strong> — this section&apos;s answer was synthesized from a prior stage&apos;s query result instead of running a fresh query.
                 </div>
             )}
             <SqlTabs queries={props.queries} onActiveSqlChange={setActiveSql} />

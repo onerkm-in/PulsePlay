@@ -186,8 +186,11 @@ const trend = {
         const direction = typeof first === 'number' && typeof last === 'number'
             ? (last > first ? '↑ rising' : last < first ? '↓ falling' : '→ flat')
             : '';
+        // Plain text, no markdown italics: the insights-card and chat
+        // renderers don't render `_.._`, so the underscores showed up
+        // literally in the UI.
         const headline = (min != null && max != null)
-            ? `\n\n_${rows.length} points. Min ${formatCell(min)} · Max ${formatCell(max)}${direction ? ' · ' + direction : ''}._`
+            ? `\n\n${rows.length} points. Min ${formatCell(min)} · Max ${formatCell(max)}${direction ? ' · ' + direction : ''}.`
             : '';
         const { header, sep, body } = mdTable(columns, rows);
         return {

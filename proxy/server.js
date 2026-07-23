@@ -6680,9 +6680,11 @@ async function startPowerBiConversation(req, res) {
 
     if (!match.matched) {
         const kpiList = (match.kpis || []).slice(0, 8).join(', ');
-        const suggestions = (match.suggestions || []).slice(0, 4).map(s => `- **${s.label}** — e.g. "${(s.examples || [])[0] || ''}"`).join('\n');
+        // Plain text bullets: the chat renderer does not inline-format list
+        // items, so `**label**` and `_reason_` markdown showed up literally.
+        const suggestions = (match.suggestions || []).slice(0, 4).map(s => `- ${s.label} — e.g. "${(s.examples || [])[0] || ''}"`).join('\n');
         const reason = match.reason || 'No template matched.';
-        const body = `I can answer questions like the ones below against this dataset (no LLM is used — only DAX templates). Available measures: ${kpiList || '(none probed)'}.\n\n${suggestions}\n\n_${reason}_`;
+        const body = `I can answer questions like the ones below against this dataset (no LLM is used — only DAX templates). Available measures: ${kpiList || '(none probed)'}.\n\n${suggestions}\n\n${reason}`;
         auditLog(req, {
             profileName: resolved.name,
             action: 'powerbi-question-unmatched',
