@@ -153,13 +153,16 @@ class DatabricksCanvasStore {
 function rowToSection(columns, row) {
     const idx = Object.fromEntries((columns || []).map((c, i) => [c, i]));
     const body = JSON.parse(row[idx.body_json] || '{}');
+    // Column fields are authoritative and MUST win over any stale copy the body_json
+    // happens to carry (e.g. a version snapshotted into the body before an update),
+    // so spread the body first and let the columns override.
     return {
+        ...body,
         section_id: row[idx.section_id],
         owner_actor_id: row[idx.owner_actor_id],
         version: Number(row[idx.version] || 0),
         created_at: row[idx.created_at],
         updated_at: row[idx.updated_at],
-        ...body,
     };
 }
 function cryptoId() { return require('crypto').randomUUID(); }

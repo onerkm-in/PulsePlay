@@ -37,7 +37,7 @@ const DEFAULT_MAX_ROWS = 10_000;
  * @param {number} [args.deadlineMs]   Total wall-clock budget (default 90s).
  * @returns {Promise<{ columns: string[], rows: any[][], truncated: boolean, executionTimeMs: number, statementId: string }>}
  */
-async function executeSqlStatement({ profile, sql, databricksRequest, maxRows, deadlineMs }) {
+async function executeSqlStatement({ profile, sql, databricksRequest, maxRows, deadlineMs, params }) {
     if (!profile?.warehouseId) {
         throw new Error('SQL execution requires a warehouseId in the profile.');
     }
@@ -60,6 +60,11 @@ async function executeSqlStatement({ profile, sql, databricksRequest, maxRows, d
         disposition: 'INLINE',
         row_limit: cap,
     };
+    // Optional named parameter markers (`:name`) → the Statement API `parameters`
+    // list. Values are bound server-side by Databricks (no string interpolation),
+    // which is the required safe path for the CanvasSection/event Delta adapters.
+    const apiParams = toStatementParameters(params);
+    if (apiParams) submitBody.parameters = apiParams;
 
     let resp = await databricksRequest(profile, 'POST', STATEMENT_PATH, submitBody);
     let statementId = resp.statement_id;
@@ -104,6 +109,21 @@ async function executeSqlStatement({ profile, sql, databricksRequest, maxRows, d
     };
 }
 
+/** Convert {name: value} to the Statement Execution API parameter list (typed). */
+function toStatementParameters(params) {
+    if (!params || typeof params !== 'object') return null;
+    const keys = Object.keys(params);
+    if (!keys.length) return null;
+    return keys.map((name) => {
+        const value = params[name];
+        if (value === null || value === undefined) return { name, value: null };
+        if (typeof value === 'boolean') return { name, value: String(value), type: 'BOOLEAN' };
+        if (Number.isInteger(value)) return { name, value: String(value), type: 'INT' };
+        if (typeof value === 'number') return { name, value: String(value), type: 'DOUBLE' };
+        return { name, value: String(value) }; // STRING default
+    });
+}
+
 /**
  * Validate that a SQL string is SELECT-only — no DML/DDL. Used by the
  * orchestrator to refuse statements the LLM might have generated against
@@ -136,5 +156,6 @@ function isSelectOnly(sql) {
 module.exports = {
     executeSqlStatement,
     isSelectOnly,
+    toStatementParameters,
     __test_internals: { DML_RE, STATEMENT_PATH, DEFAULT_TIMEOUT_S, DEFAULT_DEADLINE_MS, DEFAULT_MAX_ROWS },
 };
