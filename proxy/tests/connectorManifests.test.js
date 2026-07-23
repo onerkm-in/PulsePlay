@@ -330,6 +330,50 @@ describe('connectorRegistry — describeRuntimeState', () => {
         expect(out.genie.configuredProfiles[0].secretStatus).toBe('missing');
     });
 
+    test('user-refresh PBI profile is VALID without SP creds (conditional requiredness)', () => {
+        // Regression pin: unconditional aadClientId/aadClientSecret
+        // requirements disabled the catalogue card for a working
+        // authMode=user-refresh profile (which runs secret-less by design).
+        const out = describeRuntimeState({
+            profiles: [{
+                name: 'pbi-ur', type: 'powerbi-semantic-model', authMode: 'user-refresh',
+                aadTenantId: 't', userClientId: 'pub', userRefreshToken: 'rt-xyz',
+                powerbiGroupId: 'g', powerbiDatasetId: 'd',
+            }],
+        });
+        const cp = out['powerbi-dataset-dax'].configuredProfiles[0];
+        expect(cp.valid).toBe(true);
+        expect(cp.warnings).toEqual([]);
+        // Secret reporting should track the refresh token, not the absent SP secret.
+        expect(cp.secretStatus).toBe('present');
+    });
+
+    test('user-refresh PBI profile MISSING its refresh token is invalid', () => {
+        const out = describeRuntimeState({
+            profiles: [{
+                name: 'pbi-ur-broken', type: 'powerbi-semantic-model', authMode: 'user-refresh',
+                aadTenantId: 't', powerbiGroupId: 'g', powerbiDatasetId: 'd',
+            }],
+        });
+        const cp = out['powerbi-dataset-dax'].configuredProfiles[0];
+        expect(cp.valid).toBe(false);
+        expect(cp.warnings).toContain('Missing required field: userRefreshToken');
+        expect(cp.secretStatus).toBe('missing');
+    });
+
+    test('service-principal PBI profile still requires SP creds', () => {
+        const out = describeRuntimeState({
+            profiles: [{
+                name: 'pbi-sp-broken', type: 'powerbi-semantic-model',
+                aadTenantId: 't', powerbiGroupId: 'g', powerbiDatasetId: 'd',
+            }],
+        });
+        const cp = out['powerbi-dataset-dax'].configuredProfiles[0];
+        expect(cp.valid).toBe(false);
+        expect(cp.warnings).toContain('Missing required field: aadClientId');
+        expect(cp.warnings).toContain('Missing required field: aadClientSecret');
+    });
+
     test('SECRET VALUES NEVER appear anywhere in the runtime block', () => {
         const SECRET = 'super-secret-do-not-leak-12345';
         const out = describeRuntimeState({

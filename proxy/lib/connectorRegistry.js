@@ -123,16 +123,24 @@ function describeRuntimeState({ profiles }) {
             if (!ids.includes(m.id)) continue;
 
             const warnings = [];
-            // Check required fields are present.
+            // Check required fields are present. Requirement can be
+            // conditional on another field's value (requiredWhen /
+            // notRequiredWhen), e.g. Power BI SP creds are not required
+            // for authMode=user-refresh profiles.
             for (const [fieldName, def] of Object.entries(m.profileSchema || {})) {
-                if (def.required && !_hasField(profile, fieldName)) {
+                if (_isFieldRequired(def, profile) && !_hasField(profile, fieldName)) {
                     warnings.push(`Missing required field: ${fieldName}`);
                 }
             }
 
-            // Secret status — find the (first) secret field in the schema.
-            const secretField = Object.entries(m.profileSchema || {})
-                .find(([_, def]) => def.kind === 'secret');
+            // Secret status — prefer the first secret field that is
+            // actually required for this profile's auth mode, so a
+            // user-refresh profile reports on userRefreshToken rather
+            // than the (not-required) SP client secret.
+            const secretEntries = Object.entries(m.profileSchema || {})
+                .filter(([_, def]) => def.kind === 'secret');
+            const secretField = secretEntries.find(([_, def]) => _isFieldRequired(def, profile))
+                || secretEntries[0];
             let secretStatus = 'n/a';
             if (secretField) {
                 const [secretName] = secretField;
@@ -159,6 +167,22 @@ function describeRuntimeState({ profiles }) {
     }
 
     return out;
+}
+
+/** Evaluate a {field, in:[...]} condition against a profile (case/space
+ *  insensitive on the value). Absent/malformed conditions never match. */
+function _conditionMatches(cond, profile) {
+    if (!cond || typeof cond.field !== 'string' || !Array.isArray(cond.in)) return false;
+    const value = String(profile?.[cond.field] ?? '').trim().toLowerCase();
+    return cond.in.some((v) => String(v).trim().toLowerCase() === value);
+}
+
+/** Effective requiredness of a schema field for a concrete profile:
+ *  requiredWhen forces required, notRequiredWhen waives it, else def.required. */
+function _isFieldRequired(def, profile) {
+    if (_conditionMatches(def.requiredWhen, profile)) return true;
+    if (_conditionMatches(def.notRequiredWhen, profile)) return false;
+    return !!def.required;
 }
 
 function _hasField(profile, fieldName) {

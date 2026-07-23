@@ -69,8 +69,16 @@ const MANIFESTS = [
             displayName:     { kind: 'string', required: false, label: 'Display name', help: 'Friendly label shown in answer attributions.' },
             dataDomain:      { kind: 'string', required: false, label: 'Data domain', help: 'Short noun phrase (e.g. "Sales performance").' },
             aadTenantId:     { kind: 'guid',   required: true,  label: 'AAD tenant ID' },
-            aadClientId:     { kind: 'guid',   required: true,  label: 'Service principal client ID' },
-            aadClientSecret: { kind: 'secret', required: true,  label: 'Service principal client secret', secret: true },
+            // Two auth modes (lib/powerbiDatasetClient.js): service-principal
+            // (id + secret) or user-refresh (public client + captured refresh
+            // token, no secret). SP fields are only required in SP mode —
+            // unconditional required disabled the card for working
+            // user-refresh profiles.
+            authMode:        { kind: 'enum',   required: false, label: 'Auth mode', help: '"service-principal" (default) or "user-refresh" (device-code, secret-less)' },
+            aadClientId:     { kind: 'guid',   required: true,  label: 'Service principal client ID', notRequiredWhen: { field: 'authMode', in: ['user-refresh', 'user-token'] } },
+            aadClientSecret: { kind: 'secret', required: true,  label: 'Service principal client secret', secret: true, notRequiredWhen: { field: 'authMode', in: ['user-refresh', 'user-token'] } },
+            userClientId:    { kind: 'guid',   required: false, label: 'Public client ID (user-refresh)', help: 'Defaults to the Azure CLI public client.' },
+            userRefreshToken:{ kind: 'secret', required: false, secret: true, label: 'User refresh token (user-refresh)', requiredWhen: { field: 'authMode', in: ['user-refresh', 'user-token'] }, help: 'Captured once via scripts/get-pbi-user-refresh-token.mjs.' },
             powerbiGroupId:  { kind: 'guid',   required: true,  label: 'Power BI workspace (group) ID' },
             powerbiDatasetId:{ kind: 'guid',   required: true,  label: 'Power BI dataset ID' },
             powerBiRlsEnabled:        { kind: 'boolean', required: false, label: 'Enable RLS' },
@@ -127,8 +135,12 @@ const MANIFESTS = [
             displayName:     { kind: 'string', required: false, label: 'Display name' },
             dataDomain:      { kind: 'string', required: false, label: 'Data domain' },
             aadTenantId:     { kind: 'guid',   required: true,  label: 'AAD tenant ID' },
-            aadClientId:     { kind: 'guid',   required: true,  label: 'Service principal client ID' },
-            aadClientSecret: { kind: 'secret', required: true,  label: 'Service principal client secret', secret: true },
+            // Same two auth modes as the DAX card above.
+            authMode:        { kind: 'enum',   required: false, label: 'Auth mode', help: '"service-principal" (default) or "user-refresh" (device-code, secret-less)' },
+            aadClientId:     { kind: 'guid',   required: true,  label: 'Service principal client ID', notRequiredWhen: { field: 'authMode', in: ['user-refresh', 'user-token'] } },
+            aadClientSecret: { kind: 'secret', required: true,  label: 'Service principal client secret', secret: true, notRequiredWhen: { field: 'authMode', in: ['user-refresh', 'user-token'] } },
+            userClientId:    { kind: 'guid',   required: false, label: 'Public client ID (user-refresh)', help: 'Defaults to the Azure CLI public client.' },
+            userRefreshToken:{ kind: 'secret', required: false, secret: true, label: 'User refresh token (user-refresh)', requiredWhen: { field: 'authMode', in: ['user-refresh', 'user-token'] }, help: 'Captured once via scripts/get-pbi-user-refresh-token.mjs.' },
             powerbiGroupId:  { kind: 'guid',   required: true,  label: 'Power BI workspace (group) ID' },
             powerbiDatasetId:{ kind: 'guid',   required: true,  label: 'Power BI dataset ID' },
             powerBiRlsEnabled:        { kind: 'boolean', required: false, label: 'Enable RLS' },
