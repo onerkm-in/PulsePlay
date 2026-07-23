@@ -183,7 +183,7 @@
     align-items: center;
     gap: 6px;
     padding: 4px 11px;
-    border-radius: 999px;
+    border-radius: var(--pp-radius-sm);
     font-size: 11px;
     font-weight: 600;
     font-family: inherit;
@@ -356,7 +356,7 @@
     padding: 2px 6px;
     background: rgba(245, 158, 11, 0.15);
     color: #92400e;
-    border-radius: 999px;
+    border-radius: var(--pp-radius-sm);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.04em;
@@ -636,7 +636,7 @@
     font: inherit;
     font-size: 12px;
     font-weight: 500;
-    border-radius: 999px;
+    border-radius: var(--pp-radius-sm);
     cursor: pointer;
     transition: all 160ms var(--pp-ease);
 }
@@ -866,7 +866,7 @@
     gap: 6px;
     padding: 2px 4px 2px 2px;
     border: 1px solid var(--pp-border, rgba(15,23,42,0.10));
-    border-radius: 999px;
+    border-radius: var(--pp-radius-sm);
     background: var(--pp-surface, #fff);
 }
 
@@ -905,7 +905,7 @@
     align-items: center;
     gap: 4px;
     padding: 4px 10px;
-    border-radius: 999px;
+    border-radius: var(--pp-radius-sm);
     background: rgba(37, 99, 235, 0.08);
     color: var(--pp-accent);
     font-size: 11px;
@@ -1263,7 +1263,7 @@
     font-weight: 500;
     border: 1px solid var(--pp-border, rgba(0,0,0,0.1));
     background: var(--pp-surface, #fff);
-    border-radius: 999px;
+    border-radius: var(--pp-radius-sm);
     color: var(--pp-text, #1d1d1f);
     cursor: pointer;
     transition: all 120ms;

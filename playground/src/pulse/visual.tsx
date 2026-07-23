@@ -6747,7 +6747,7 @@ function App(props: AppProps) {
                                                 background: "white",
                                                 border: "1px solid rgba(37, 99, 235, 0.40)",
                                                 color: "#1d4ed8",
-                                                borderRadius: 999,
+                                                borderRadius: 4,
                                                 cursor: insightsBusy ? "not-allowed" : "pointer",
                                             }}
                                         >

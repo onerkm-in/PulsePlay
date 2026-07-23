@@ -62,7 +62,9 @@
 
 /* Geometry — also CSS-var-backed for theme control */
 @gn-radius:      var(--gn-radius,    12px);
-@gn-radius-pill: 999px;
+// Industry rule 1: no pills. The former 999px pill radius now resolves to the
+// small radius so every chip/badge/tab squares at once (genuine circles use 50%).
+@gn-radius-pill: var(--gn-radius-sm, 8px);
 @gn-radius-sm:   var(--gn-radius-sm, 8px);
 @gn-radius-xs:   6px;
 
@@ -1502,11 +1504,7 @@
     padding: 3px;
     border: 1px solid rgba(15, 23, 42, 0.10);
     border-radius: @gn-radius-pill;
-    background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.92));
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.88),
-        0 8px 22px rgba(15, 23, 42, 0.08);
+    background: @gn-surface-raised;
     flex: 0 1 auto;
 }
 
@@ -1598,7 +1596,7 @@
 .gn-space-tab:focus-visible {
     outline: 2px solid var(--gn-accent, #1a6fd4);
     outline-offset: 2px;
-    border-radius: 999px;
+    border-radius: @gn-radius-pill;
 }
 
 // 49.8 — Adjust pill peers with the tab group on the same row. Visually
@@ -2383,7 +2381,7 @@
     .gn-msg--assistant .gn-bubble {
         padding: 14px 16px 10px;
         text-align: left;
-        background: linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
+        background: @gn-surface-raised;
         border-color: rgba(36, 92, 184, 0.18);
     }
     .gn-narrative-p {
@@ -2440,7 +2438,7 @@
     gap: 2px;
     margin-left: 4px;
     padding: 1px 6px;
-    border-radius: 999px;
+    border-radius: @gn-radius-pill;
     font-size: 11px;
     font-weight: 600;
     line-height: 1.3;
@@ -2634,7 +2632,7 @@
     /* Token-based so dark mode re-skins the card (was hardcoded #ffffff →
      * white "blaze" in dark; this rule out-specifies the .gn-shell--dark
      * override, so the gradient itself must be theme-adaptive). */
-    background: linear-gradient(180deg, var(--gn-surface-raised, #ffffff) 0%, var(--gn-surface, #fafcff) 100%);
+    background: @gn-surface-raised;
     border-color: var(--gn-border, rgba(36, 92, 184, 0.14));
     border-radius: 6px 18px 18px 18px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
@@ -2702,7 +2700,7 @@
     color: #b91c1c;
     background: rgba(254, 226, 226, 0.55);
     border: 1px solid rgba(185, 28, 28, 0.35);
-    border-radius: 999px;
+    border-radius: @gn-radius-pill;
     cursor: pointer;
     transition: background-color 100ms ease, border-color 100ms ease;
 }
@@ -3882,7 +3880,7 @@
     margin-top: auto;
     padding: 8px 16px 10px;
     border-top: 1px solid @gn-border-subtle;
-    background: linear-gradient(180deg, @gn-surface 0%, rgba(248,250,252,0.6) 100%);
+    background: @gn-surface;
 }
 
 .gn-suggestions-label {
@@ -3930,13 +3928,13 @@
 
 /* Featured/sparkle pill — first suggestion or AI-generated */
 .gn-pill--featured {
-    background: linear-gradient(135deg, rgba(37,99,235,0.07) 0%, rgba(124,58,237,0.05) 100%);
+    background: @gn-accent-subtle;
     border-color: rgba(37,99,235,0.28);
     color: #1d4ed8;
     font-weight: 600;
 
     &:hover:not(:disabled) {
-        background: linear-gradient(135deg, rgba(37,99,235,0.12) 0%, rgba(124,58,237,0.09) 100%);
+        background: @gn-accent-hover;
         border-color: rgba(37,99,235,0.5);
         box-shadow: 0 3px 10px rgba(37,99,235,0.18);
     }
@@ -4501,7 +4499,7 @@
     gap: 4px;
     padding: 2px 8px;
     border: 1px solid rgba(37, 99, 235, 0.25);
-    border-radius: 999px;
+    border-radius: @gn-radius-pill;
     background: rgba(37, 99, 235, 0.06);
     color: var(--gn-accent, #2563eb);
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -4616,7 +4614,7 @@
     gap: 6px;
     padding: 6px 12px;
     border: 1px solid rgba(37, 99, 235, 0.32);
-    border-radius: 999px;
+    border-radius: @gn-radius-pill;
     background: var(--gn-surface-raised, #fff);
     color: var(--gn-text, #0f172a);
     font-size: 12.5px;
@@ -5370,7 +5368,7 @@
 .gn-cell-pill {
     display: inline-block;
     padding: 2px 8px;
-    border-radius: 999px;
+    border-radius: @gn-radius-pill;
     font-weight: 600;
     font-size: 12px;
     line-height: 1.4;
@@ -5681,7 +5679,7 @@
     min-height: 24px;
     padding: 3px 8px;
     border: 1px solid @gn-border-subtle;
-    border-radius: 999px;
+    border-radius: @gn-radius-pill;
     background: @gn-surface;
     color: @gn-text-muted;
     font-size: 11px;
@@ -6759,7 +6757,7 @@
     border: 1px solid @gn-border;
     border-left: 4px solid #b07cff;
     border-radius: @gn-radius-sm;
-    background: linear-gradient(rgba(176, 124, 255, 0.04), rgba(176, 124, 255, 0.04)), @gn-surface-raised;
+    background: @gn-surface-raised;
     padding: 10px 14px;
     margin: 8px 0 12px;
     font-size: 13px;
@@ -7049,7 +7047,7 @@
     padding: 10px 12px;
     border: 1px solid rgba(15, 23, 42, 0.1);
     border-radius: @gn-radius-sm;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(248, 250, 252, 0.88));
+    background: @gn-surface-raised;
 }
 
 .gn-setup-subgroup-head {
@@ -7380,7 +7378,7 @@
     display: inline-flex;
     align-items: center;
     border: 1px solid @gn-border-subtle;
-    border-radius: 999px;
+    border-radius: @gn-radius-pill;
     overflow: hidden;
     background: @gn-surface;
     flex-shrink: 0;
@@ -7588,7 +7586,7 @@
     background: @gn-surface;
     color: @gn-text-muted;
     padding: 4px 12px;
-    border-radius: 999px;
+    border-radius: @gn-radius-pill;
     font-size: 11px;
     font-weight: 500;
     cursor: pointer;
@@ -7719,7 +7717,7 @@
     position: sticky;
     top: 0;
     z-index: 4;
-    background: linear-gradient(rgba(176, 124, 255, 0.06), rgba(176, 124, 255, 0.06)), @gn-surface-raised;
+    background: @gn-surface-raised;
     padding: 10px 12px;
     border: 1px solid @gn-border;
     border-left: 4px solid #b07cff;
@@ -8961,7 +8959,7 @@
     display: inline-flex;
     align-items: center;
     padding: 1px 8px;
-    border-radius: 999px;
+    border-radius: @gn-radius-pill;
     font-size: 10.5px;
     font-weight: 650;
     line-height: 1.5;
@@ -9069,7 +9067,7 @@
     gap: 7px;
     padding: 3px 9px;
     border: 1px solid @gn-border-subtle;
-    border-radius: 999px;
+    border-radius: @gn-radius-pill;
     background: @gn-surface;
     color: @gn-text-muted;
     font-size: 11px;
@@ -9404,7 +9402,7 @@
 .gn-insights-section[data-section="NEXT STEPS"],
 .gn-insights-section[data-section="NEXT BEST ACTIONS"] {
     border-color: rgba(26, 111, 212, 0.32);
-    background: linear-gradient(180deg, rgba(26, 111, 212, 0.05), @gn-surface);
+    background: @gn-accent-subtle;
     box-shadow:
         0 1px 2px rgba(0, 0, 0, 0.04),
         0 8px 22px rgba(26, 111, 212, 0.08);
@@ -9414,7 +9412,7 @@
 .gn-shell--light .gn-insights-section[data-section="NEXT STEPS"],
 .gn-shell--light .gn-insights-section[data-section="NEXT BEST ACTIONS"] {
     border-color: rgba(26, 111, 212, 0.40);
-    background: linear-gradient(180deg, rgba(26, 111, 212, 0.04), #fff);
+    background: @gn-accent-subtle;
 }
 
 .gn-insights-section {
@@ -9832,7 +9830,7 @@
     align-items: center;
     gap: 4px;
     padding: 2px 6px;
-    border-radius: 999px;
+    border-radius: @gn-radius-pill;
     font-size: 11px;
     background: rgba(255, 255, 255, 0.10);
     border: 1px solid rgba(255, 255, 255, 0.08);
@@ -12004,7 +12002,7 @@
     background: transparent;
     color: @gn-text-muted;
     border: 1px solid @gn-border;
-    border-radius: 999px;
+    border-radius: @gn-radius-pill;
     padding: 3px 10px;
     font-size: 11px;
     font-weight: 600;

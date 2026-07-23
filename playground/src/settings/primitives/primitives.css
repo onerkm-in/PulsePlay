@@ -157,7 +157,7 @@
     align-items: center;
     gap: 6px;
     padding: 4px 10px;
-    border-radius: 999px;
+    border-radius: var(--pp-radius-sm);
     font-size: var(--pp-text-xs);
     font-weight: 600;
     font-family: inherit;

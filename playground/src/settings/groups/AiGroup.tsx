@@ -217,7 +217,7 @@ export function AiGroup(): React.ReactElement {
                                 background: g.done ? "rgba(34, 197, 94, 0.12)" : "transparent",
                                 color: g.done ? "#166534" : "var(--pp-text-muted, #6b7280)",
                                 border: `1px solid ${g.done ? "rgba(34, 197, 94, 0.30)" : "rgba(0,0,0,0.10)"}`,
-                                borderRadius: 999,
+                                borderRadius: 4,
                                 fontWeight: g.done ? 600 : 400,
                             }}
                         >

@@ -242,7 +242,7 @@ const answerBox: React.CSSProperties = { marginTop: 10, padding: 10, borderRadiu
 const errorBox: React.CSSProperties = { marginTop: 10, padding: 10, borderRadius: 8, background: "var(--pp-error-soft, rgba(220,38,38,0.08))", color: "var(--pp-error, #dc2626)", fontSize: 12, whiteSpace: "pre-wrap", maxHeight: 200, overflow: "auto" };
 
 function statusPill(status: PaneStatus): React.CSSProperties {
-    const base: React.CSSProperties = { fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 999 };
+    const base: React.CSSProperties = { fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 4 };
     switch (status) {
         case "done": return { ...base, background: "rgba(34,197,94,0.14)", color: "#16a34a" };
         case "error": return { ...base, background: "rgba(220,38,38,0.12)", color: "#dc2626" };

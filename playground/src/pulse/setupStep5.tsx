@@ -1526,13 +1526,13 @@ export function UniversalStagesEditor(props: {
                             <strong style={{ color: "var(--gn-accent, #1a6fd4)" }}>## {def.title}</strong>
                             <span
                                 className="gn-pill gn-pill--compact"
-                                style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999 }}
+                                style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4 }}
                                 title={override ? "An author-supplied instruction is overriding the built-in default." : "The built-in stage prompt is in use."}
                             >
                                 {override ? "Custom override" : "Built-in default"}
                             </span>
                             {!visible && (
-                                <span className="gn-pill gn-pill--compact" style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: "var(--gn-error-soft, rgba(178, 32, 32, 0.1))", color: "var(--gn-error, #b22020)" }}>
+                                <span className="gn-pill gn-pill--compact" style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, background: "var(--gn-error-soft, rgba(178, 32, 32, 0.1))", color: "var(--gn-error, #b22020)" }}>
                                     Hidden: skipped at runtime
                                 </span>
                             )}

@@ -678,7 +678,7 @@ export function SetupGroup(): React.ReactElement {
                                     <td style={{ padding: "8px 12px" }}>
                                         <span
                                             className={`pp-settings-chip pp-settings-chip--${t.tone}`}
-                                            style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, display: "inline-block" }}
+                                            style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, display: "inline-block" }}
                                         >{t.state}</span>
                                     </td>
                                     <td style={{ padding: "8px 12px", opacity: 0.7 }}>{t.owner}</td>
