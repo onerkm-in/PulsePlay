@@ -4,9 +4,16 @@
 // count is now read-only here because the canvas obeys the proxy-published
 // display policy for controlled enterprise deployments.
 
+import { useState } from "react";
 import { useSettings, enabledTabCount, type TabVisibility, type DefaultLandingSurface } from "../settingsStore";
 import { CurrentValue, Leaf, SubSection } from "./BiGroup";
 import { usePulseAiVisualSettings } from "../pulseVisualSettingsStore";
+import {
+    useExperienceMode,
+    setPreviewMode,
+    publishExperienceMode,
+    type PulsePlayExperienceMode,
+} from "../../experience/experienceMode";
 import {
     WORKBENCH_TEMPLATES,
     applyWorkbenchTemplate,
@@ -58,6 +65,20 @@ export function PreferencesGroup(): React.ReactElement {
                     PulsePlay shell — tab visibility, default landing, display policy.
                 </p>
             </header>
+
+            {/* ─── Interface type (author-only master control) ───────── */}
+            <SubSection
+                label="Interface type"
+                helper="Which shell PulsePlay serves. Segregated screens is the existing multi-surface navigation (the default and fail-safe). Combined Decision Canvas is the single-workspace experience. Author-only: end users get whatever you publish and cannot override it. Preview a mode privately before you publish it to everyone."
+            >
+            <Leaf
+                group="preferences"
+                label="Interface type"
+                helper="Segregated keeps the existing screens; Combined serves My Decision Canvas. Publishing changes only the presentation — no user or application data is deleted, and switching back is an immediate rollback."
+            >
+                <InterfaceModeControl />
+            </Leaf>
+            </SubSection>
 
             {/* ─── Workbench template (author-only master control) ───── */}
             <SubSection
@@ -221,6 +242,93 @@ export function PreferencesGroup(): React.ReactElement {
         </section>
     );
 }
+
+const MODE_LABEL: Record<PulsePlayExperienceMode, string> = {
+    segregated: "Segregated screens",
+    combined: "Combined Decision Canvas",
+};
+
+/** Author-only control for the published interface mode. Preview is local to
+ *  this browser session; Publish is server-governed + audited + versioned. */
+function InterfaceModeControl(): React.ReactElement {
+    const { servedMode, publishedMode, previewMode, version, killSwitch, loading, refresh } = useExperienceMode();
+    const [busy, setBusy] = useState(false);
+    const [msg, setMsg] = useState<string | null>(null);
+
+    const onPreview = (mode: PulsePlayExperienceMode | null) => {
+        setPreviewMode(mode);
+        setMsg(mode ? `Previewing ${MODE_LABEL[mode]} (only you see this).` : "Preview cleared.");
+    };
+    const onPublish = async (mode: PulsePlayExperienceMode) => {
+        setBusy(true); setMsg(null);
+        try {
+            await publishExperienceMode(mode, version);
+            setPreviewMode(null);
+            refresh();
+            setMsg(`Published ${MODE_LABEL[mode]} to all users.`);
+        } catch (e) {
+            setMsg((e as Error).message || "Publish failed.");
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ fontSize: 12, opacity: 0.75 }}>
+                Published: <strong>{loading ? "…" : MODE_LABEL[publishedMode]}</strong>
+                {" · "}served: <strong>{MODE_LABEL[servedMode]}</strong>
+                {" · v"}{version}
+                {killSwitch && <span style={{ color: "#b54708" }}> · kill switch forcing segregated</span>}
+                {previewMode && <span style={{ color: "#2563eb" }}> · previewing {MODE_LABEL[previewMode]}</span>}
+            </div>
+
+            {(["segregated", "combined"] as PulsePlayExperienceMode[]).map((mode) => (
+                <div key={mode} style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
+                    border: "1px solid rgba(128,128,128,0.28)", borderRadius: 9, padding: "9px 11px",
+                    background: publishedMode === mode ? "rgba(37,99,235,0.06)" : "transparent",
+                }}>
+                    <div>
+                        <div style={{ fontSize: 13, fontWeight: 600 }}>{MODE_LABEL[mode]}</div>
+                        <div style={{ fontSize: 11, opacity: 0.65 }}>
+                            {mode === "segregated"
+                                ? "Existing PulsePlay navigation and screens (default + fallback)."
+                                : "The new single-workspace Decision Canvas (first slice — Action Inbox live)."}
+                        </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 6, flex: "0 0 auto" }}>
+                        <button
+                            onClick={() => onPreview(previewMode === mode ? null : mode)}
+                            disabled={busy}
+                            style={ghostBtn}
+                        >{previewMode === mode ? "Exit preview" : "Preview"}</button>
+                        <button
+                            onClick={() => onPublish(mode)}
+                            disabled={busy || publishedMode === mode}
+                            style={{ ...primaryBtn, opacity: (busy || publishedMode === mode) ? 0.5 : 1 }}
+                        >{publishedMode === mode ? "Published" : "Publish"}</button>
+                    </div>
+                </div>
+            ))}
+
+            {msg && <p style={{ fontSize: 11.5, margin: "2px 0 0", opacity: 0.8 }}>{msg}</p>}
+            <p style={{ fontSize: 11, opacity: 0.6, margin: 0 }}>
+                Combined mode is a first vertical slice: the Action Inbox is live and governed; My Canvas,
+                Saved Items, and Suggestions arrive in later phases. Segregated screens remain fully intact.
+            </p>
+        </div>
+    );
+}
+
+const ghostBtn: React.CSSProperties = {
+    padding: "6px 11px", borderRadius: 8, cursor: "pointer", fontSize: 12,
+    border: "1px solid rgba(128,128,128,0.35)", background: "transparent", color: "inherit",
+};
+const primaryBtn: React.CSSProperties = {
+    padding: "6px 11px", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 600,
+    border: "none", background: "#2563eb", color: "#fff",
+};
 
 function normalizeBackendBiTileMode(value: unknown): "1" | "2" | "4" {
     const asString = String(value ?? "").trim();

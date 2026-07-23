@@ -27,6 +27,8 @@ import { BundleSwitcher } from "./components/BundleSwitcher";
 import { PaneEmptyState, DashboardIcon } from "./components/PaneEmptyState";
 import type { SurfaceId } from "./surfaceRegistry";
 import { isSurfaceId } from "./surfaceRegistry";
+import { useExperienceMode } from "./experience/experienceMode";
+import { DecisionCanvasShell } from "./experience/DecisionCanvasShell";
 import {
     resolveSurfaceAvailability,
     type EnabledFeaturesInput,
@@ -471,6 +473,20 @@ function AppRouted(): React.ReactElement {
     if (settingsRoute.isSettingsRoute) {
         return <SettingsShell />;
     }
+    return <ExperienceRoutedApp />;
+}
+
+/** Resolves the author-published interface mode for the default route. Combined
+ *  (served or author-previewed) renders My Decision Canvas; everything else —
+ *  including any fetch failure — falls back to the existing segregated shell.
+ *  End users cannot override the served mode; only an author preview (this
+ *  session) can differ from what is published. */
+function ExperienceRoutedApp(): React.ReactElement {
+    const { effectiveMode, loading } = useExperienceMode();
+    // While resolving, render the segregated shell (the fail-safe default) so
+    // the existing experience never flashes a blank frame waiting on config.
+    if (loading) return <PlaygroundApp />;
+    if (effectiveMode === "combined") return <DecisionCanvasShell />;
     return <PlaygroundApp />;
 }
 

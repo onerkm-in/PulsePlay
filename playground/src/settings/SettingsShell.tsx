@@ -123,6 +123,7 @@ export const GROUP_LEAF_LABELS: Record<SettingsGroupId, string[]> = {
     // PreferencesGroup.tsx renders Tabs (Visible tabs + Default landing
     // tab), then Display policy (Canvas tiles).
     preferences: [
+        "Interface type",
         "Workbench template",
         "Visible tabs",
         "Default landing tab",
