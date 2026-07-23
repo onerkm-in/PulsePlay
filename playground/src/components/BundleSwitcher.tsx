@@ -117,7 +117,7 @@ export function BundleSwitcher(props: BundleSwitcherProps = {}): React.ReactElem
                     alignItems: "center",
                     gap: 7,
                     padding: "4px 9px",
-                    borderRadius: 999,
+                    borderRadius: 4,
                     border: "1px solid var(--pp-accent-border, rgba(75,156,245,0.42))",
                     background: "var(--pp-accent-soft, rgba(75,156,245,0.10))",
                     color: "var(--pp-text, #1f2937)",
@@ -137,7 +137,7 @@ export function BundleSwitcher(props: BundleSwitcherProps = {}): React.ReactElem
                         style={{
                             marginLeft: 2,
                             padding: "1px 6px",
-                            borderRadius: 999,
+                            borderRadius: 4,
                             fontSize: 9.5,
                             fontWeight: 700,
                             letterSpacing: 0.3,

@@ -102,49 +102,46 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile }: { proxyBase
         ["new", "refreshed", "pending-approval"].includes(p.status)).length;
 
     return (
-        <div style={{ padding: "14px 16px", height: "100%", overflowY: "auto" }} data-testid="action-insights-panel">
+        <div className="industry-surface" style={{ padding: "14px 16px", height: "100%", overflowY: "auto" }} data-testid="action-insights-panel">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
                 <div>
-                    <div style={{ fontSize: 12, letterSpacing: 0.6, fontWeight: 700, color: "var(--pp-muted,#667085)" }}>
+                    <div className="kicker">
                         NEEDS YOUR DECISION{openCount ? ` · ${openCount}` : ""}
                     </div>
-                    <div style={{ fontSize: 11.5, color: "var(--pp-muted,#98a2b3)", marginTop: 2 }}>
+                    <div className="text-muted" style={{ fontSize: 11.5, marginTop: 2 }}>
                         Viewing as <strong>{data?.persona || "…"}</strong>
                         {data?.personaSource === "demo" ? " (demo)" : ""}
                     </div>
                 </div>
                 {/* Demo persona switcher — hint only; server ignores it when an IdP role exists. */}
-                <div style={{ display: "flex", gap: 6 }}>
+                <div className="seg" role="group" aria-label="Demo persona">
                     {[PLANNER, MANAGER].map((p) => (
                         <button
                             key={p}
+                            type="button"
+                            className="seg-opt"
+                            aria-pressed={demoPersona === p ? "true" : "false"}
                             onClick={() => setPersona(p)}
-                            style={{
-                                padding: "5px 10px", borderRadius: 7, fontSize: 11.5, cursor: "pointer",
-                                border: "1px solid rgba(128,128,128,0.35)",
-                                background: demoPersona === p ? "rgba(127,127,127,0.18)" : "transparent",
-                                color: "inherit", fontWeight: demoPersona === p ? 650 : 400,
-                            }}
                         >{p.replace("Supply Chain ", "")}</button>
                     ))}
                 </div>
             </div>
 
             {error && (
-                <div role="status" style={{
-                    padding: "8px 12px", borderRadius: 8, fontSize: 12, marginBottom: 10,
-                    background: "rgba(181,71,8,0.08)", color: "#b54708",
+                <div role="status" className="blueprint" style={{
+                    padding: "8px 12px", fontSize: 12, marginBottom: 10,
+                    background: "var(--color-accent-100)", color: "var(--color-accent-800)",
                 }}>{error}</div>
             )}
 
             {loading && !data && (
-                <div style={{ fontSize: 13, color: "var(--pp-muted,#98a2b3)", padding: "24px 0" }}>
+                <div className="text-muted" style={{ fontSize: 13, padding: "24px 0" }}>
                     Scanning KPIs for decisions…
                 </div>
             )}
 
             {!loading && prompts.length === 0 && !error && (
-                <div style={{ fontSize: 13.5, color: "var(--pp-muted,#667085)", padding: "28px 0", textAlign: "center" }}>
+                <div className="text-muted" style={{ fontSize: 13.5, padding: "28px 0", textAlign: "center" }}>
                     No decisions need attention right now.
                 </div>
             )}

@@ -1919,7 +1919,7 @@ function SetupStatusPill(props: { readiness: SetupReadiness }): React.ReactEleme
                 maxWidth: "min(48vw, 360px)",
                 padding: "5px 10px",
                 border: `1px solid ${border}`,
-                borderRadius: 999,
+                borderRadius: 4,
                 background: bg,
                 color: fg,
                 cursor: "pointer",

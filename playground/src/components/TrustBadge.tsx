@@ -41,7 +41,7 @@ const BADGE_STYLE: React.CSSProperties = {
     display: 'inline-flex',
     alignItems: 'center',
     padding: '3px 10px',
-    borderRadius: 999,
+    borderRadius: 4,
     fontSize: 11,
     fontWeight: 600,
     letterSpacing: '0.02em',
