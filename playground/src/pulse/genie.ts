@@ -767,6 +767,15 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
         // (The attachment-hydration path below caps its own assignment; the
         // early returns mean we must guard here too.)
         capQueryResultRows(res.queryResult);
+        // The deterministic powerbi-semantic-model connector reports its
+        // executed query in `dax` (no attachments). Lift it onto sqlQuery so
+        // the per-section View SQL drawer has evidence for that path too.
+        if (!res.sqlQuery && typeof res.dax === "string" && res.dax.trim()) {
+            res.sqlQuery = res.dax;
+            if (!Array.isArray(res.sqlQueries) || res.sqlQueries.length === 0) {
+                res.sqlQueries = [res.dax];
+            }
+        }
         const attachments = Array.isArray(res?.attachments) ? res.attachments : [];
         const collected = collectGenieSqlFromAttachments(attachments);
         // Already fully populated (proxy did it for us, including the
@@ -1498,6 +1507,11 @@ export class GenieClient implements SingleSpaceBackend, SupervisorBackend, Backe
             try {
                 const parsed = JSON.parse(messageId);
                 if (parsed.status === "COMPLETED" || parsed.status === "FAILED") {
+                    // Synchronous payloads (supervisor, powerbi-deterministic)
+                    // never went through the poll path's hydration, so their
+                    // dax/attachment fields were never lifted onto sqlQuery
+                    // and the View SQL drawer showed "no SQL available".
+                    this.hydrateGenieFields(parsed);
                     return parsed;
                 }
             } catch (e) {
