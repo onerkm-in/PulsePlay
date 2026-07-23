@@ -7,6 +7,8 @@
 // card only renders what `allowed_actions` permits and posts intent back.
 
 import { useState } from "react";
+import { SaveChannel } from "../canvas/SaveChannel";
+import type { EligibleSection } from "../canvas/canvasTypes";
 
 export interface DecisionPrompt {
     prompt_id: string;
@@ -59,6 +61,21 @@ const SEV: Record<string, { fg: string; bg: string; label: string }> = {
 
 const PRIMARY_ORDER = ["approve", "trigger_supplier_review", "trigger_replenishment",
     "trigger_forecast_review", "trigger_supplier_perf", "trigger_inventory_review"];
+
+/** Governed, non-sensitive descriptor for pinning a decision prompt. No rows/SQL —
+ *  just the prompt identity + evidence reference the server can re-resolve. */
+function eligibleFromPrompt(p: DecisionPrompt): EligibleSection {
+    return {
+        type: "decision_prompt",
+        title: p.headline,
+        source: { surface: "action-insights", prompt_id: p.prompt_id, rule_id: p.rule_id },
+        provenance: {
+            semantic_ref: `decision:${p.rule_id}`,
+            evidence_ref: p.evidence_signature,
+            classification: "internal",
+        },
+    };
+}
 
 function fmtImpact(value: number, unit: string): string {
     const n = Math.round(value);
@@ -201,8 +218,11 @@ export function DecisionPromptCard({
                     </div>
                 )}
 
-                <div style={{ marginTop: 8, fontSize: 10.5, color: "var(--pp-muted,#98a2b3)" }}>
-                    confidence {prompt.confidence} · Level {prompt.action_level} · {prompt.rule_id} · owner {prompt.owner} · {prompt.status}
+                <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <div style={{ fontSize: 10.5, color: "var(--pp-muted,#98a2b3)" }}>
+                        confidence {prompt.confidence} · Level {prompt.action_level} · {prompt.rule_id} · owner {prompt.owner} · {prompt.status}
+                    </div>
+                    <SaveChannel compact eligible={eligibleFromPrompt(prompt)} />
                 </div>
             </div>
         </div>

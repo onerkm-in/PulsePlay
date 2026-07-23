@@ -11,6 +11,9 @@
 // Segregated mode is unaffected and remains the default + fail-safe fallback.
 
 import { ActionInsightsPanel } from "../components/ActionInsightsPanel";
+import { MyCanvasRegion } from "../canvas/MyCanvasRegion";
+import { SaveChannel } from "../canvas/SaveChannel";
+import type { EligibleSection } from "../canvas/canvasTypes";
 
 function readProxyBase(): string {
     if (typeof window === "undefined") return "/api";
@@ -42,10 +45,25 @@ function goToSurface(surface: string): void {
     } catch { /* swallow */ }
 }
 
-const SURFACE_LINKS: Array<{ id: string; label: string; hint: string }> = [
-    { id: "ai-insights", label: "AI Insights", hint: "Narrative summary of the current scope" },
-    { id: "ask-pulse", label: "Ask Pulse", hint: "Grounded natural-language follow-ups" },
-    { id: "bi-viz", label: "Dashboard", hint: "The embedded BI surface" },
+const SURFACE_LINKS: Array<{ id: string; label: string; hint: string; eligible: EligibleSection }> = [
+    {
+        id: "ai-insights", label: "AI Insights", hint: "Narrative summary of the current scope",
+        eligible: { type: "data_insight", title: "AI Insights — current scope",
+            source: { surface: "ai-insights", source_object_id: "ai-insights:current" },
+            provenance: { semantic_ref: "surface:ai-insights", classification: "internal" } },
+    },
+    {
+        id: "ask-pulse", label: "Ask Pulse", hint: "Grounded natural-language follow-ups",
+        eligible: { type: "grounded_answer", title: "Ask Pulse — grounded answer",
+            source: { surface: "ask-pulse", source_object_id: "ask-pulse:latest" },
+            provenance: { semantic_ref: "surface:ask-pulse", classification: "internal" } },
+    },
+    {
+        id: "bi-viz", label: "Dashboard", hint: "The embedded BI surface",
+        eligible: { type: "bi_view_state", title: "Dashboard — current view",
+            source: { surface: "bi-viz", source_object_id: "bi-viz:current" },
+            provenance: { semantic_ref: "surface:bi-viz", classification: "internal" } },
+    },
 ];
 
 function DeferredRegion({ title, note }: { title: string; note: string }) {
@@ -101,10 +119,7 @@ export function DecisionCanvasShell(): React.ReactElement {
                         <ActionInsightsPanel proxyBase={proxyBase} assistantProfile={activeProfile} />
                     </section>
 
-                    <DeferredRegion
-                        title="My Canvas"
-                        note="Pinned sections in your saved order arrive with the CanvasSection persistence phase. Server-owned per-user Canvas storage depends on the approved decision-schema tables, which are not reachable on this workspace yet."
-                    />
+                    <MyCanvasRegion />
                 </div>
 
                 {/* Side column: surface hub + deferred regions */}
@@ -115,17 +130,20 @@ export function DecisionCanvasShell(): React.ReactElement {
                         </div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                             {SURFACE_LINKS.map((s) => (
-                                <button
-                                    key={s.id}
-                                    onClick={() => goToSurface(s.id)}
-                                    style={{
-                                        textAlign: "left", padding: "9px 11px", borderRadius: 9, cursor: "pointer",
-                                        border: "1px solid rgba(128,128,128,0.3)", background: "transparent", color: "inherit",
-                                    }}
-                                >
-                                    <div style={{ fontSize: 13, fontWeight: 600 }}>{s.label}</div>
-                                    <div style={{ fontSize: 11, color: "var(--pp-muted,#98a2b3)" }}>{s.hint}</div>
-                                </button>
+                                <div key={s.id} style={{
+                                    display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                                    border: "1px solid rgba(128,128,128,0.3)", borderRadius: 9, padding: "8px 10px",
+                                }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => goToSurface(s.id)}
+                                        style={{ textAlign: "left", border: "none", background: "transparent", color: "inherit", cursor: "pointer", padding: 0, flex: "1 1 auto", minWidth: 0 }}
+                                    >
+                                        <div style={{ fontSize: 13, fontWeight: 600 }}>{s.label}</div>
+                                        <div style={{ fontSize: 11, color: "var(--pp-muted,#98a2b3)" }}>{s.hint}</div>
+                                    </button>
+                                    <SaveChannel compact eligible={s.eligible} />
+                                </div>
                             ))}
                         </div>
                     </section>

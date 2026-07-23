@@ -29,6 +29,7 @@ import type { SurfaceId } from "./surfaceRegistry";
 import { isSurfaceId } from "./surfaceRegistry";
 import { useExperienceMode } from "./experience/experienceMode";
 import { DecisionCanvasShell } from "./experience/DecisionCanvasShell";
+import { migrateLegacyCanvasTiles, isCanvasMigrated } from "./canvas/browserMigration";
 import {
     resolveSurfaceAvailability,
     type EnabledFeaturesInput,
@@ -416,6 +417,13 @@ function ReactQueryDevtoolsHost(): React.ReactElement | null {
  *  global `Cmd/Ctrl+,` shortcut to open Settings (and `Esc` to close,
  *  handled inside the page shells). */
 function AppRouted(): React.ReactElement {
+    // One-time cleanup of the legacy localStorage canvas-tiles (rows + SQL). The
+    // raw content is never uploaded; only tile titles are salvageable, and server
+    // Canvas persistence replaces it. Runs once per browser.
+    useEffect(() => {
+        if (!isCanvasMigrated()) migrateLegacyCanvasTiles();
+    }, []);
+
     const settingsRoute = useSettingsRoute();
     const knowledgeRoute = useKnowledgeRoute();
     const launchpadRoute = useLaunchpadRoute();
