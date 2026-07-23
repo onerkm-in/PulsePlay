@@ -2129,39 +2129,57 @@ function App(props: AppProps) {
     // Used by the SectionHeader to gate the Show SQL button + render the
     // inline SQL panel. Stable per-render: callers pass a fresh result so
     // memoization-by-reference would invalidate every render anyway.
-    const buildStageSqlMap = (stageTraces?: { title?: string; sql?: string | null; sqls?: string[] | null; sqlReusedFromTitle?: string | null }[]) => {
+    const buildStageSqlMap = (stageTraces?: { title?: string; rawMarkdown?: string; sql?: string | null; sqls?: string[] | null; sqlReusedFromTitle?: string | null }[]) => {
         const map = new Map<string, { sqls: string[]; reusedFromTitle?: string | null }>();
         if (!stageTraces) return map;
         for (const st of stageTraces) {
-            if (!st.title) continue;
             // Cycle 47.8 — prefer the multi-query array when present;
             // fall back to the single-string `sql` for traces written
             // before cycle 47.8 (cached entries from older runs).
             const sqls = (Array.isArray(st.sqls) && st.sqls.length > 0)
                 ? st.sqls
                 : (st.sql ? [st.sql] : null);
-            if (sqls) {
-                map.set(st.title.toUpperCase(), {
-                    sqls,
-                    reusedFromTitle: st.sqlReusedFromTitle ?? null,
-                });
+            if (!sqls) continue;
+            const entry = { sqls, reusedFromTitle: st.sqlReusedFromTitle ?? null };
+            if (st.title) map.set(st.title.toUpperCase(), entry);
+            // Also key by the rendered markdown heading — same rationale as
+            // buildStageDataMap below: the deterministic Power BI path renders
+            // sections under its own headings, not the plan titles, and the
+            // per-section View SQL / pin lookups use the rendered heading.
+            const headingMatch = /^#{1,3}\s+(.+)$/m.exec(st.rawMarkdown || "");
+            const heading = headingMatch?.[1]?.trim();
+            if (heading && !map.has(heading.toUpperCase())) {
+                map.set(heading.toUpperCase(), entry);
             }
         }
         return map;
     };
     const buildStageDataMap = (stageTraces?: {
         title?: string;
+        rawMarkdown?: string;
         queryResult?: { columns: string[]; rows: unknown[][] } | null;
         queryResultReusedFromTitle?: string | null;
     }[]) => {
         const map = new Map<string, { queryResult: { columns: string[]; rows: unknown[][] }; reusedFromTitle?: string | null }>();
         if (!stageTraces) return map;
         for (const st of stageTraces) {
-            if (!st.title || !st.queryResult?.columns?.length) continue;
-            map.set(st.title.toUpperCase(), {
+            if (!st.queryResult?.columns?.length) continue;
+            const entry = {
                 queryResult: st.queryResult,
                 reusedFromTitle: st.queryResultReusedFromTitle ?? null,
-            });
+            };
+            if (st.title) map.set(st.title.toUpperCase(), entry);
+            // The rendered section heading can differ from the plan title:
+            // the deterministic Power BI path emits its own markdown heading
+            // (e.g. "## Total Sales by segment (3 groups)") under a plan
+            // title of "KPI SNAPSHOT". The section renderer looks up by the
+            // rendered heading, so key the entry under that too or the data
+            // never reaches the card actions (export / pin).
+            const headingMatch = /^#{1,3}\s+(.+)$/m.exec(st.rawMarkdown || "");
+            const heading = headingMatch?.[1]?.trim();
+            if (heading && !map.has(heading.toUpperCase())) {
+                map.set(heading.toUpperCase(), entry);
+            }
         }
         return map;
     };
@@ -11793,6 +11811,10 @@ function InsightsSectionFooter(props: {
     onCopy: () => void;
     onAskAbout?: () => void;
     onExportRawData?: () => void;
+    /** Pin this section's data table to the Dashboard canvas as a
+     *  self-contained tile (snapshot + bound query, refresh without any
+     *  LLM call). Only wired for sections that carry real result rows. */
+    onPinToCanvas?: () => void;
     onRetry?: () => void;
     canRetry: boolean;
     hasRawData?: boolean;
@@ -11802,6 +11824,7 @@ function InsightsSectionFooter(props: {
     sourceLabel?: string;
     generatedAt?: number;
 }): React.ReactElement | null {
+    const [justPinned, setJustPinned] = useState(false);
     // Cycle 37 — drop the !!props.sql check. The </> View SQL icon now
     // appears for EVERY section the moment canShowSql is on, regardless
     // of whether the stage actually produced SQL. This is more discoverable:
@@ -11862,6 +11885,30 @@ function InsightsSectionFooter(props: {
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                             <path d="M12 3 L14 10 L21 12 L14 14 L12 21 L10 14 L3 12 L10 10 Z" />
                         </svg>
+                    </button>
+                )}
+                {props.onPinToCanvas && (
+                    <button
+                        type="button"
+                        className="gn-insights-provenance-action gn-insights-provenance-action--icon"
+                        onClick={() => {
+                            props.onPinToCanvas?.();
+                            setJustPinned(true);
+                            window.setTimeout(() => setJustPinned(false), 1800);
+                        }}
+                        title={justPinned ? "Pinned to the Dashboard canvas" : `Pin the ${props.title || "section"} data to the Dashboard canvas`}
+                        aria-label={`Pin the ${props.title || "section"} data to the Dashboard canvas`}
+                    >
+                        {justPinned ? (
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <path d="M20 6 L9 17 L4 12" />
+                            </svg>
+                        ) : (
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <path d="M12 17 L12 22" />
+                                <path d="M5 17 L19 17 L17 10 L18 4 L6 4 L7 10 Z" />
+                            </svg>
+                        )}
                     </button>
                 )}
                 <button
@@ -12534,6 +12581,24 @@ function renderInsightsSections(content: string, options?: InsightsRenderOptions
                             onAskAbout={options?.onAskAboutSection ? () => options.onAskAboutSection?.(s.title, s.body) : undefined}
                             onExportRawData={rawDataEntry
                                 ? () => options?.onExportSectionRawData?.(s.title, rawDataEntry.queryResult, rawDataReusedFromTitle)
+                                : undefined}
+                            onPinToCanvas={rawDataEntry
+                                ? () => {
+                                    // Same binding rules as the chat-surface pin: snapshot
+                                    // for instant render + the SQL and connector profile so
+                                    // tile Refresh re-executes WITHOUT any LLM call.
+                                    let connectorProfileId: string | undefined;
+                                    try { connectorProfileId = window.localStorage.getItem("pulseplay:active-ai-profile") || undefined; } catch { /* ignore */ }
+                                    addCanvasTile({
+                                        title: s.title || "Pinned insight",
+                                        kind: "table",
+                                        columns: rawDataEntry.queryResult.columns,
+                                        rows: rawDataEntry.queryResult.rows,
+                                        sqlQuery: sectionSqls?.[0],
+                                        connectorProfileId,
+                                        sourceQuestion: s.title,
+                                    });
+                                }
                                 : undefined}
                             onRetry={options?.onRetrySection ? () => options.onRetrySection?.(s.title) : undefined}
                             // Cycle 42 — always show the ↻ retry icon. The
