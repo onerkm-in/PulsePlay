@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/industry-7c9fc2b6-c308-48e5-a986-8f53d49d51ce/styles.css">
+  <script src="_ds/industry-7c9fc2b6-c308-48e5-a986-8f53d49d51ce/_ds_bundle.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; background: var(--color-bg); color: var(--color-text); font-family: var(--font-body); }
+    a { color: var(--color-accent); }
+    a:hover { color: var(--color-accent-700); }
+  </style>
+</helmet>
+
+<div style="min-height: 100vh; display: flex; flex-direction: column;">
+
+  <!-- ══ Top nav ══ -->
+  <nav style="display: flex; align-items: center; gap: var(--space-4); padding: var(--space-3) var(--space-6); border-bottom: 1px solid var(--color-divider); background: var(--color-bg);">
+    <span style="font-family: var(--font-heading); font-weight: 600; font-size: 20px; letter-spacing: .01em; display: flex; align-items: center; gap: 9px;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      PulsePlay
+    </span>
+    <span class="tag tag-accent" style="border-radius: 3px;">BI + AI Ready</span>
+
+    <!-- Experience mode toggle: Unified / Segregated -->
+    <div style="margin-left: auto; display: flex; align-items: center; gap: var(--space-3);">
+      <span style="font-size: 11px; letter-spacing: .08em; text-transform: uppercase; font-family: var(--font-heading); color: var(--color-neutral-600);">Experience</span>
+      <div class="seg" role="tablist" aria-label="Experience mode">
+        <label class="seg-opt" style="cursor: pointer;">
+          <input type="radio" name="mode" checked="{{ isUnified }}" onChange="{{ pickUnified }}">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="3" width="18" height="18"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="12" y1="12" x2="12" y2="21"/></svg>
+          Unified
+        </label>
+        <label class="seg-opt" style="cursor: pointer;">
+          <input type="radio" name="mode" checked="{{ isSegregated }}" onChange="{{ pickSegregated }}">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="3" width="7" height="18"/><rect x="14" y="3" width="7" height="18"/></svg>
+          Segregated
+        </label>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ══ Segregated mode: screen navigation bar ══ -->
+  <sc-if value="{{ isSegregated }}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-6); border-bottom: 1px solid var(--color-divider); background: var(--color-surface);">
+      <span style="font-size: 10px; letter-spacing: .1em; text-transform: uppercase; font-family: var(--font-heading); color: var(--color-neutral-600); margin-right: var(--space-2);">Screens</span>
+      <sc-for list="{{ screens }}" as="s" hint-placeholder-count="4">
+        <button onClick="{{ s.pick }}" class="btn" style="border-radius: 0; font-size: 13px; padding: 5px 14px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid {{ s.borderColor }}; background: {{ s.bg }}; color: {{ s.fg }};">
+          {{ s.label }}
+        </button>
+      </sc-for>
+    </div>
+  </sc-if>
+
+  <!-- ══ UNIFIED SURFACE ══ -->
+  <sc-if value="{{ isUnified }}" hint-placeholder-val="{{ true }}">
+    <main style="flex: 1; display: grid; grid-template-columns: minmax(0, 5fr) minmax(300px, 2fr); gap: var(--space-4); padding: var(--space-4) var(--space-6); align-items: start;">
+
+      <!-- Primary column -->
+      <div style="display: flex; flex-direction: column; gap: var(--space-4); min-width: 0;">
+
+        <!-- Action Inbox -->
+        <section class="blueprint" style="background: transparent; padding: var(--space-4);">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-3);">
+            <div>
+              <div style="font-size: 10px; letter-spacing: .1em; text-transform: uppercase; font-family: var(--font-heading); color: var(--color-accent-700);">Action Inbox · 2 open</div>
+              <h2 style="font-size: 24px; margin: 2px 0 0;">Needs your decision</h2>
+            </div>
+            <div class="seg">
+              <label class="seg-opt" style="cursor: pointer; font-size: 12px;"><input type="radio" name="persona" checked>Planner</label>
+              <label class="seg-opt" style="cursor: pointer; font-size: 12px;"><input type="radio" name="persona">Manager</label>
+            </div>
+          </div>
+
+          <!-- Decision prompt 1 -->
+          <div class="blueprint" style="padding: var(--space-3) var(--space-4); margin-bottom: var(--space-3); border-left: 3px solid var(--color-accent-900);">
+            <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+            <div style="display: flex; justify-content: space-between; gap: var(--space-4); align-items: baseline;">
+              <div style="min-width: 0;">
+                <span class="tag tag-accent" style="font-size: 10px;">Critical</span>
+                <h3 style="font-size: 19px; margin: 6px 0 4px;">Supplier OTD slipped below 82% for Northeast DCs</h3>
+                <p style="font-size: 13px; margin: 0; color: var(--color-neutral-700); line-height: 1.55;">On-time delivery for 3 suppliers fell 11 pts over 4 weeks. <strong style="font-family: var(--font-heading); font-size: 11px; letter-spacing: .05em;">WHY</strong> Carrier capacity constraint on lane NE-04. <strong style="font-family: var(--font-heading); font-size: 11px; letter-spacing: .05em;">FIX</strong> Trigger supplier delivery review.</p>
+              </div>
+              <div style="text-align: right; flex: 0 0 auto;">
+                <div style="font-family: var(--font-heading); font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums;">$412,900</div>
+                <div style="font-size: 10.5px; color: var(--color-neutral-600);">revenue at risk / month</div>
+                <div style="height: 3px; background: var(--color-neutral-200); margin-top: 6px;"><div style="height: 3px; width: 88%; background: var(--color-accent);"></div></div>
+              </div>
+            </div>
+            <div style="display: flex; gap: var(--space-2); align-items: center; margin-top: var(--space-3); flex-wrap: wrap;">
+              <button class="btn btn-primary" style="font-size: 13px;">Trigger supplier review →</button>
+              <button class="btn btn-secondary" style="font-size: 13px;">Snooze</button>
+              <button class="btn btn-ghost" style="font-size: 13px;">Mark false positive</button>
+              <button class="btn btn-ghost" style="font-size: 12px; margin-left: auto;">View evidence</button>
+            </div>
+            <div style="font-size: 10.5px; color: var(--color-neutral-500); margin-top: var(--space-2);">confidence high · Level 2 · RULE-OTD-004 · owner S. Whitfield · pending-approval</div>
+          </div>
+
+          <!-- Decision prompt 2 -->
+          <div class="blueprint" style="padding: var(--space-3) var(--space-4); border-left: 3px solid var(--color-accent-500);">
+            <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+            <div style="display: flex; justify-content: space-between; gap: var(--space-4); align-items: baseline;">
+              <div style="min-width: 0;">
+                <span class="tag tag-neutral" style="font-size: 10px;">Medium</span>
+                <h3 style="font-size: 19px; margin: 6px 0 4px;">Forecast bias +9% on seasonal SKUs in Midwest</h3>
+                <p style="font-size: 13px; margin: 0; color: var(--color-neutral-700); line-height: 1.55;">Consistent over-forecast across 6 SKU families. <strong style="font-family: var(--font-heading); font-size: 11px; letter-spacing: .05em;">WHY</strong> Promo uplift model stale since May. <strong style="font-family: var(--font-heading); font-size: 11px; letter-spacing: .05em;">FIX</strong> Trigger forecast bias review.</p>
+              </div>
+              <div style="text-align: right; flex: 0 0 auto;">
+                <div style="font-family: var(--font-heading); font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums;">$86,400</div>
+                <div style="font-size: 10.5px; color: var(--color-neutral-600);">excess holding cost / qtr</div>
+                <div style="height: 3px; background: var(--color-neutral-200); margin-top: 6px;"><div style="height: 3px; width: 21%; background: var(--color-accent);"></div></div>
+              </div>
+            </div>
+            <div style="display: flex; gap: var(--space-2); align-items: center; margin-top: var(--space-3); flex-wrap: wrap;">
+              <button class="btn btn-primary" style="font-size: 13px;">Trigger forecast review →</button>
+              <button class="btn btn-secondary" style="font-size: 13px;">Snooze</button>
+              <button class="btn btn-ghost" style="font-size: 12px; margin-left: auto;">View evidence</button>
+            </div>
+            <div style="font-size: 10.5px; color: var(--color-neutral-500); margin-top: var(--space-2);">confidence medium · Level 1 · RULE-FCB-011 · owner D. Okafor · new</div>
+          </div>
+        </section>
+
+        <!-- AI Insights briefing -->
+        <section class="blueprint" style="padding: var(--space-4);">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--space-3);">
+            <div>
+              <div style="font-size: 10px; letter-spacing: .1em; text-transform: uppercase; font-family: var(--font-heading); color: var(--color-accent-700);">AI Insights · Current scope</div>
+              <h2 style="font-size: 24px; margin: 2px 0 0;">Headline briefing</h2>
+            </div>
+            <button class="btn btn-ghost" style="font-size: 12px;">Refresh</button>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3);">
+            <div class="blueprint" style="padding: var(--space-3);">
+              <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+              <div class="card-kicker">Headline</div>
+              <p style="font-size: 13px; margin: 6px 0 0; line-height: 1.6;">Northeast revenue is tracking 4.2% under plan, driven primarily by supplier delivery slippage on lane NE-04.</p>
+            </div>
+            <div class="blueprint" style="padding: var(--space-3);">
+              <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+              <div class="card-kicker">Trends</div>
+              <p style="font-size: 13px; margin: 6px 0 0; line-height: 1.6;">OTD down 11 pts / 4 wks. Forecast bias +9% on seasonal SKUs. Fill rate stable at 96.1%.</p>
+            </div>
+            <div class="blueprint" style="padding: var(--space-3);">
+              <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+              <div class="card-kicker">Risks</div>
+              <p style="font-size: 13px; margin: 6px 0 0; line-height: 1.6;">$412,900/month revenue at risk if supplier review is not actioned within 2 weeks.</p>
+            </div>
+            <div class="blueprint" style="padding: var(--space-3);">
+              <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+              <div class="card-kicker">Actions</div>
+              <p style="font-size: 13px; margin: 6px 0 0; line-height: 1.6;">2 decisions awaiting review in the Action Inbox — 1 critical, 1 medium.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Dashboard / BI Viz -->
+        <section class="blueprint" style="padding: var(--space-4); min-height: 300px; display: flex; flex-direction: column;">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--space-3);">
+            <div>
+              <div style="font-size: 10px; letter-spacing: .1em; text-transform: uppercase; font-family: var(--font-heading); color: var(--color-accent-700);">Dashboard · BI Viz</div>
+              <h2 style="font-size: 24px; margin: 2px 0 0;">Sales Performance</h2>
+            </div>
+            <span class="tag tag-accent">Governed</span>
+          </div>
+          <div style="flex: 1; border: 1px solid var(--color-divider); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: var(--space-2); min-height: 200px;">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="20" x2="6" y2="11"/><line x1="12" y1="20" x2="12" y2="5"/><line x1="18" y1="20" x2="18" y2="14"/></svg>
+            <span style="font-size: 13px; color: var(--color-neutral-600);">Embedded BI surface mounts here (adapter: Power BI / Tableau / Native)</span>
+          </div>
+        </section>
+
+        <!-- Ask Pulse composer strip -->
+        <section class="blueprint" style="padding: var(--space-3) var(--space-4);">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="font-size: 10px; letter-spacing: .1em; text-transform: uppercase; font-family: var(--font-heading); color: var(--color-accent-700); margin-bottom: var(--space-2);">Ask Pulse</div>
+          <div style="display: flex; gap: var(--space-2);">
+            <input class="input" placeholder="Ask anything about your data — grounded in the current scope…" style="flex: 1;">
+            <button class="btn btn-primary">Ask</button>
+          </div>
+        </section>
+      </div>
+
+      <!-- Side column -->
+      <aside style="display: flex; flex-direction: column; gap: var(--space-4);">
+        <!-- Surface hub -->
+        <section class="blueprint" style="padding: var(--space-3) var(--space-4);">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="font-size: 10px; letter-spacing: .1em; text-transform: uppercase; font-family: var(--font-heading); color: var(--color-accent-700); margin-bottom: var(--space-3);">Open full screen (segregated)</div>
+          <div style="display: flex; flex-direction: column; gap: var(--space-2);">
+            <sc-for list="{{ hubLinks }}" as="h" hint-placeholder-count="4">
+              <button onClick="{{ h.pick }}" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid var(--color-divider); background: transparent; padding: 9px 12px; cursor: pointer; text-align: left; font-family: var(--font-body); color: var(--color-text);" style-hover="background: var(--color-accent-100); border-color: var(--color-accent);">
+                <span>
+                  <span style="display: block; font-family: var(--font-heading); font-weight: 600; font-size: 14.5px;">{{ h.label }}</span>
+                  <span style="display: block; font-size: 11px; color: var(--color-neutral-600);">{{ h.hint }}</span>
+                </span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+              </button>
+            </sc-for>
+          </div>
+        </section>
+
+        <!-- Context strip -->
+        <section class="blueprint" style="padding: var(--space-3) var(--space-4);">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="font-size: 10px; letter-spacing: .1em; text-transform: uppercase; font-family: var(--font-heading); color: var(--color-accent-700); margin-bottom: var(--space-2);">Context</div>
+          <table class="table" style="font-size: 12.5px;">
+            <tbody>
+              <tr><td style="color: var(--color-neutral-600); width: 40%;">Assistant</td><td>Genie · sales-perf</td></tr>
+              <tr><td style="color: var(--color-neutral-600);">Source</td><td>Sales Performance</td></tr>
+              <tr><td style="color: var(--color-neutral-600);">Scope</td><td>FY26 · Northeast</td></tr>
+              <tr><td style="color: var(--color-neutral-600);">Trust</td><td>Governed ✓</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- Deferred region -->
+        <section class="blueprint" style="padding: var(--space-3) var(--space-4);">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <span class="tag tag-neutral" style="font-size: 10px;">Arriving Phase 2</span>
+          <div style="font-family: var(--font-heading); font-weight: 600; font-size: 14.5px; margin-top: 8px;">Suggested for you</div>
+          <p style="font-size: 12px; color: var(--color-neutral-600); margin: 4px 0 0; line-height: 1.5;">Up to three explainable, governed suggestions arrive with the relevance phase.</p>
+        </section>
+      </aside>
+    </main>
+  </sc-if>
+
+  <!-- ══ SEGREGATED SURFACES ══ -->
+  <sc-if value="{{ isSegregated }}" hint-placeholder-val="{{ false }}">
+    <main style="flex: 1; padding: var(--space-4) var(--space-6);">
+
+      <!-- AI Insights -->
+      <sc-if value="{{ showInsights }}" hint-placeholder-val="{{ true }}">
+        <section class="blueprint" style="padding: var(--space-6); max-width: 860px; margin: 0 auto;">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="font-size: 10px; letter-spacing: .1em; text-transform: uppercase; font-family: var(--font-heading); color: var(--color-accent-700);">AI Insights · Current scope</div>
+          <h2 style="font-size: 28px; margin: 4px 0 var(--space-4);">Headline briefing</h2>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3);">
+            <div class="blueprint" style="padding: var(--space-3);">
+              <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+              <div class="card-kicker">Headline</div>
+              <p style="font-size: 13.5px; margin: 6px 0 0; line-height: 1.6;">Northeast revenue is tracking 4.2% under plan, driven primarily by supplier delivery slippage on lane NE-04.</p>
+            </div>
+            <div class="blueprint" style="padding: var(--space-3);">
+              <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+              <div class="card-kicker">Trends</div>
+              <p style="font-size: 13.5px; margin: 6px 0 0; line-height: 1.6;">OTD down 11 pts / 4 wks. Forecast bias +9% on seasonal SKUs. Fill rate stable at 96.1%.</p>
+            </div>
+            <div class="blueprint" style="padding: var(--space-3);">
+              <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+              <div class="card-kicker">Risks</div>
+              <p style="font-size: 13.5px; margin: 6px 0 0; line-height: 1.6;">$412,900/month revenue at risk if supplier review is not actioned within 2 weeks.</p>
+            </div>
+            <div class="blueprint" style="padding: var(--space-3);">
+              <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+              <div class="card-kicker">Actions</div>
+              <p style="font-size: 13.5px; margin: 6px 0 0; line-height: 1.6;">2 decisions awaiting review in the Action Inbox — 1 critical, 1 medium.</p>
+            </div>
+          </div>
+        </section>
+      </sc-if>
+
+      <!-- Ask Pulse -->
+      <sc-if value="{{ showChat }}" hint-placeholder-val="{{ false }}">
+        <section class="blueprint" style="padding: var(--space-6); max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; min-height: 420px;">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="font-size: 10px; letter-spacing: .1em; text-transform: uppercase; font-family: var(--font-heading); color: var(--color-accent-700);">Ask Pulse</div>
+          <h2 style="font-size: 28px; margin: 4px 0 var(--space-2);">Grounded conversation</h2>
+          <p style="font-size: 13.5px; color: var(--color-neutral-700); line-height: 1.6; margin: 0 0 var(--space-4);">Ask anything about your data — answers are grounded in the active BI context and governed by the proxy.</p>
+          <div style="flex: 1; border: 1px solid var(--color-divider); padding: var(--space-4); display: flex; align-items: center; justify-content: center; margin-bottom: var(--space-3);">
+            <span style="font-size: 13px; color: var(--color-neutral-500);">No messages yet — start below.</span>
+          </div>
+          <div style="display: flex; gap: var(--space-2);">
+            <input class="input" placeholder="e.g. Why did Northeast OTD drop last month?" style="flex: 1;">
+            <button class="btn btn-primary">Ask</button>
+          </div>
+        </section>
+      </sc-if>
+
+      <!-- Dashboard -->
+      <sc-if value="{{ showDashboard }}" hint-placeholder-val="{{ false }}">
+        <section class="blueprint" style="padding: var(--space-4); min-height: 480px; display: flex; flex-direction: column;">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--space-3);">
+            <div>
+              <div style="font-size: 10px; letter-spacing: .1em; text-transform: uppercase; font-family: var(--font-heading); color: var(--color-accent-700);">Dashboard · BI Viz</div>
+              <h2 style="font-size: 24px; margin: 2px 0 0;">Sales Performance</h2>
+            </div>
+            <span class="tag tag-accent">Governed</span>
+          </div>
+          <div style="flex: 1; border: 1px solid var(--color-divider); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: var(--space-2);">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="20" x2="6" y2="11"/><line x1="12" y1="20" x2="12" y2="5"/><line x1="18" y1="20" x2="18" y2="14"/></svg>
+            <span style="font-size: 13px; color: var(--color-neutral-600);">Embedded BI surface mounts here (adapter: Power BI / Tableau / Native)</span>
+          </div>
+        </section>
+      </sc-if>
+
+      <!-- Decision Assist -->
+      <sc-if value="{{ showDecisions }}" hint-placeholder-val="{{ false }}">
+        <section class="blueprint" style="padding: var(--space-4); max-width: 860px; margin: 0 auto;">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="font-size: 10px; letter-spacing: .1em; text-transform: uppercase; font-family: var(--font-heading); color: var(--color-accent-700);">Decision Assist · 2 open</div>
+          <h2 style="font-size: 24px; margin: 2px 0 var(--space-4);">Needs your decision</h2>
+          <div class="blueprint" style="padding: var(--space-3) var(--space-4); margin-bottom: var(--space-3); border-left: 3px solid var(--color-accent-900);">
+            <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+            <span class="tag tag-accent" style="font-size: 10px;">Critical</span>
+            <h3 style="font-size: 19px; margin: 6px 0 4px;">Supplier OTD slipped below 82% for Northeast DCs</h3>
+            <p style="font-size: 13px; margin: 0 0 var(--space-3); color: var(--color-neutral-700); line-height: 1.55;">$412,900/month at risk. Do you want to trigger a supplier delivery review?</p>
+            <div style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
+              <button class="btn btn-primary" style="font-size: 13px;">Trigger supplier review →</button>
+              <button class="btn btn-secondary" style="font-size: 13px;">Snooze</button>
+              <button class="btn btn-ghost" style="font-size: 12px;">View evidence</button>
+            </div>
+          </div>
+          <div class="blueprint" style="padding: var(--space-3) var(--space-4); border-left: 3px solid var(--color-accent-500);">
+            <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+            <span class="tag tag-neutral" style="font-size: 10px;">Medium</span>
+            <h3 style="font-size: 19px; margin: 6px 0 4px;">Forecast bias +9% on seasonal SKUs in Midwest</h3>
+            <p style="font-size: 13px; margin: 0 0 var(--space-3); color: var(--color-neutral-700); line-height: 1.55;">$86,400/quarter excess holding cost. Trigger a forecast bias review?</p>
+            <div style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
+              <button class="btn btn-primary" style="font-size: 13px;">Trigger forecast review →</button>
+              <button class="btn btn-secondary" style="font-size: 13px;">Snooze</button>
+              <button class="btn btn-ghost" style="font-size: 12px;">View evidence</button>
+            </div>
+          </div>
+        </section>
+      </sc-if>
+    </main>
+  </sc-if>
+
+  <!-- ══ Provenance footer ══ -->
+  <footer style="display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding: var(--space-2) var(--space-6); border-top: 1px solid var(--color-divider); font-size: 11.5px; color: var(--color-neutral-600);">
+    <span>Source: Sales Performance · Proxy: databricks-genie · Governance enforced ✓</span>
+    <span>{{ modeLabel }} experience · FY26 scope</span>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;defaultMode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;unified&quot;,&quot;segregated&quot;],&quot;default&quot;:&quot;unified&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Experience&quot;}}">
+class Component extends DCLogic {
+  state = { mode: "unified", screen: "insights" };
+  renderVals() {
+    const { mode, screen } = this.state;
+    const setMode = (m) => this.setState({ mode: m });
+    const setScreen = (s) => this.setState({ mode: "segregated", screen: s });
+    const defs = [
+      ["insights", "AI Insights"],
+      ["chat", "Ask Pulse"],
+      ["dashboard", "Dashboard"],
+      ["decisions", "Decision Assist"],
+    ];
+    const screens = defs.map(([id, label]) => ({
+      id, label,
+      pick: () => setScreen(id),
+      bg: screen === id ? "var(--color-accent)" : "transparent",
+      fg: screen === id ? "var(--color-bg)" : "var(--color-text)",
+      borderColor: screen === id ? "var(--color-accent)" : "var(--color-divider)",
+    }));
+    const hubLinks = defs.map(([id, label]) => ({
+      id, label,
+      hint: { insights: "Narrative summary of the current scope",
+              chat: "Grounded natural-language follow-ups",
+              dashboard: "The embedded BI surface",
+              decisions: "Proactive decision prompts" }[id],
+      pick: () => setScreen(id),
+    }));
+    return {
+      isUnified: mode === "unified",
+      isSegregated: mode === "segregated",
+      pickUnified: () => setMode("unified"),
+      pickSegregated: () => setMode("segregated"),
+      modeLabel: mode === "unified" ? "Unified" : "Segregated",
+      screens, hubLinks,
+      showInsights: screen === "insights",
+      showChat: screen === "chat",
+      showDashboard: screen === "dashboard",
+      showDecisions: screen === "decisions",
+    };
+  }
+}
+</script>
+</body>
+</html>

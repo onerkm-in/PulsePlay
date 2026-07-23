@@ -1,0 +1,148 @@
+/* Industry design system — PulsePlay adoption (see docs/INDUSTRY_DESIGN_REMEDIATION_PROMPT.md).
+ *
+ * Tokens + component classes from the binding Industry standard. The `:root` tokens
+ * and the component classes (.card.blueprint, .btn, .tag, .seg, .input, .corner, .nav)
+ * are global and opt-in via className. The ground + typography are scoped under
+ * `.industry-surface` so only surfaces that adopt the system flip to it — the rest of
+ * the app is untouched until later remediation passes.
+ *
+ * Barlow loads from Google Fonts (allowed in index.html CSP); falls back to system-ui
+ * offline via the token font stacks. */
+@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;700&family=Barlow+Condensed:wght@400;600&display=swap');
+
+:root {
+  --color-bg: #f2f2f3;
+  --color-surface: #e9e9ea;
+  --color-text: #1d1f20;
+  --color-accent: #5980a6;
+  --color-accent-2: #728fab;
+  --color-divider: color-mix(in srgb, #1d1f20 16%, transparent);
+
+  --color-neutral-100: #f5f5f8;
+  --color-neutral-200: #e7e7ea;
+  --color-neutral-300: #d4d4d7;
+  --color-neutral-400: #b7b7ba;
+  --color-neutral-500: #98989b;
+  --color-neutral-600: #7a7a7d;
+  --color-neutral-700: #5d5d60;
+  --color-neutral-800: #424244;
+  --color-neutral-900: #2b2b2d;
+
+  --color-accent-100: #eef6ff;
+  --color-accent-200: #d6ebff;
+  --color-accent-300: #b5d9fd;
+  --color-accent-400: #94bce3;
+  --color-accent-500: #749dc4;
+  --color-accent-600: #597ea3;
+  --color-accent-700: #416180;
+  --color-accent-800: #2c455d;
+  --color-accent-900: #1d2d3d;
+
+  --font-heading: "Barlow Condensed", system-ui, sans-serif;
+  --font-heading-weight: 600;
+  --font-body: "Barlow", system-ui, sans-serif;
+
+  --space-1: 3.4px;
+  --space-2: 6.8px;
+  --space-3: 10.2px;
+  --space-4: 13.6px;
+  --space-6: 20.4px;
+  --space-8: 27.2px;
+
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 7px;
+
+  --shadow-sm: 0 1px 2px color-mix(in srgb, #2b2b2d 14%, transparent);
+  --shadow-md: 0 3px 10px color-mix(in srgb, #2b2b2d 16%, transparent);
+  --shadow-lg: 0 12px 32px color-mix(in srgb, #2b2b2d 22%, transparent);
+}
+
+/* Ground + typography — scoped to adopting surfaces only. */
+.industry-surface {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.55;
+}
+.industry-surface h1, .industry-surface h2, .industry-surface h3,
+.industry-surface h4, .industry-surface h5, .industry-surface h6 {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  line-height: 1.12; letter-spacing: -0.015em; margin: 0;
+}
+.industry-surface :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.industry-surface .text-muted { color: color-mix(in srgb, var(--color-text) 55%, transparent); }
+.industry-surface .kicker {
+  font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-accent);
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+}
+
+/* — blueprint frame — */
+.blueprint { position: relative; border: 1px solid var(--color-divider); border-radius: 0; background: transparent; }
+.blueprint > .corner { position: absolute; width: 11px; height: 11px; color: color-mix(in srgb, var(--color-text) 55%, transparent); }
+.blueprint > .corner::before, .blueprint > .corner::after { content: ""; position: absolute; background: currentColor; }
+.blueprint > .corner::before { left: 5px; top: 0; width: 1px; height: 100%; }
+.blueprint > .corner::after  { top: 5px; left: 0; width: 100%; height: 1px; }
+.blueprint > .corner.tl { top: -6px; left: -6px; }
+.blueprint > .corner.tr { top: -6px; right: -6px; }
+.blueprint > .corner.bl { bottom: -6px; left: -6px; }
+.blueprint > .corner.br { bottom: -6px; right: -6px; }
+
+/* — cards — transparent line drawings, square, hairline — */
+.card { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3); border-radius: 0; background: transparent; border: 1px solid var(--color-divider); }
+.card-kicker { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-accent); font-family: var(--font-heading); font-weight: var(--font-heading-weight); }
+.card-title { font-family: var(--font-heading); font-weight: var(--font-heading-weight); font-size: 17px; line-height: 1.2; }
+.card-body { margin: 0; font-size: 13px; opacity: 0.8; }
+.card-meta { display: flex; align-items: center; gap: 6px; font-size: 11px; color: color-mix(in srgb, var(--color-text) 50%, transparent); }
+
+/* — buttons — primary is the one solid object on the board — */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; text-decoration: none; font-family: var(--font-heading); font-weight: var(--font-heading-weight); font-size: 14px; line-height: 1.2; color: var(--color-text); background: transparent; border: 1px solid var(--color-divider); padding: var(--space-2) calc(var(--space-3) * 1.2); border-radius: var(--radius-md); }
+.btn svg { display: block; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-primary { background: var(--color-accent); color: var(--color-bg); border-color: var(--color-accent); }
+.btn-primary:hover:not(:disabled) { background: var(--color-accent-600); }
+.btn-primary:active:not(:disabled) { background: var(--color-accent-700); }
+.btn-secondary:hover:not(:disabled) { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.btn-secondary:active:not(:disabled) { background: color-mix(in srgb, var(--color-text) 14%, transparent); }
+.btn-ghost { color: var(--color-accent-700); border-color: transparent; padding-inline: var(--space-1); }
+.btn-ghost:hover:not(:disabled) { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
+.btn-sm { font-size: 12px; padding: 5px 10px; }
+
+/* — tags / severity labels — */
+.tag { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; letter-spacing: 0.02em; padding: 3px 10px; border-radius: 0; font-family: var(--font-heading); font-weight: var(--font-heading-weight); text-transform: uppercase; }
+.tag-accent { background: var(--color-accent-100); color: var(--color-accent-800); }
+.tag-neutral { background: var(--color-neutral-100); color: var(--color-neutral-800); }
+.tag-outline { border: 1px solid var(--color-accent); color: var(--color-accent-700); }
+
+/* — segmented control (persona / mode switchers) — */
+.seg { display: inline-flex; overflow: hidden; border: 1px solid var(--color-divider); border-radius: 0; }
+.seg-opt { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; font-size: 13px; cursor: pointer; background: transparent; color: var(--color-text); border: 0; font-family: var(--font-heading); font-weight: var(--font-heading-weight); }
+.seg-opt + .seg-opt { border-left: 1px solid var(--color-divider); }
+.seg-opt[aria-pressed="true"], .seg-opt.is-active { background: var(--color-accent); color: var(--color-bg); }
+.seg-opt:not(.is-active):hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+
+/* — inputs — flat surface, 4px radius — */
+.input { width: 100%; min-height: 36px; padding: 6px 10px; font: inherit; font-size: 14px; color: var(--color-text); caret-color: var(--color-accent); background: var(--color-surface); border: 1px solid var(--color-divider); border-radius: var(--radius-md); }
+.input:focus-visible { border-color: var(--color-accent); outline-offset: 0; }
+textarea.input { min-height: 60px; resize: vertical; }
+
+/* — nav / context bar — */
+.nav { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-3) var(--space-4); }
+.nav-brand { font-family: var(--font-heading); font-weight: var(--font-heading-weight); font-size: 18px; margin-right: auto; }
+
+/* — severity rail (Decision Prompt card) — mono: accent ramp + weight + label — */
+.sev-rail { width: 3px; flex: 0 0 auto; align-self: stretch; }
+.sev-critical { background: var(--color-accent-900); }
+.sev-high { background: var(--color-accent-700); }
+.sev-medium { background: var(--color-accent-500); }
+.sev-low { background: var(--color-neutral-400); }
+
+/* Dark theme — Industry extension: ground from the neutral ramp, accent unchanged. */
+:root[data-theme="dark"] .industry-surface,
+.industry-surface[data-theme="dark"] {
+  --color-bg: #1a1c1e;
+  --color-surface: #232628;
+  --color-text: #e7e7ea;
+  --color-divider: color-mix(in srgb, #e7e7ea 18%, transparent);
+}

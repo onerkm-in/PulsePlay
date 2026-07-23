@@ -1,14 +1,20 @@
 // playground/src/components/DecisionPromptCard.tsx
 //
-// Reusable "NEEDS YOUR DECISION" card for the Action Insights surface.
-// Presentational only: renders one governed Decision Prompt (the deterministic
-// 10-part structure produced by the Python detection engine) and surfaces the
-// server-authorized actions. All authorization is enforced server-side; this
-// card only renders what `allowed_actions` permits and posts intent back.
+// Reusable "NEEDS YOUR DECISION" card — the hero component of the Decision Assist
+// surface. Presentational only: it renders one governed Decision Prompt (the
+// deterministic 10-part structure produced by the Python detection engine) and
+// surfaces the server-authorized actions. All authorization is enforced
+// server-side; this card only renders what `allowed_actions` permits.
+//
+// Styled to the Industry design system (docs/INDUSTRY_DESIGN_REMEDIATION_PROMPT.md):
+// a blueprint frame with corner registration marks, a single steel accent voice
+// (severity = accent-ramp rail + tag + text label, never a colour stoplight), and
+// the shared token-driven CSS classes — no inline-style soup, no rounded pills.
 
 import { useState } from "react";
 import { SaveChannel } from "../canvas/SaveChannel";
 import type { EligibleSection } from "../canvas/canvasTypes";
+import "./decisionPromptCard.css";
 
 export interface DecisionPrompt {
     prompt_id: string;
@@ -52,18 +58,17 @@ export const ACTION_LABELS: Record<string, string> = {
     view_evidence: "View evidence",
 };
 
-const SEV: Record<string, { fg: string; bg: string; label: string }> = {
-    critical: { fg: "#b42318", bg: "rgba(180,35,24,0.10)", label: "CRITICAL" },
-    high: { fg: "#b54708", bg: "rgba(181,71,8,0.10)", label: "HIGH" },
-    medium: { fg: "#854d0e", bg: "rgba(133,77,14,0.10)", label: "MEDIUM" },
-    low: { fg: "#475467", bg: "rgba(71,84,103,0.10)", label: "LOW" },
+// Severity is one accent voice: rail step + tag tone + text label (no stoplight).
+const SEV: Record<string, { rail: string; tag: string; label: string }> = {
+    critical: { rail: "sev-critical", tag: "tag-accent", label: "CRITICAL" },
+    high: { rail: "sev-high", tag: "tag-accent", label: "HIGH" },
+    medium: { rail: "sev-medium", tag: "tag-neutral", label: "MEDIUM" },
+    low: { rail: "sev-low", tag: "tag-neutral", label: "LOW" },
 };
 
 const PRIMARY_ORDER = ["approve", "trigger_supplier_review", "trigger_replenishment",
     "trigger_forecast_review", "trigger_supplier_perf", "trigger_inventory_review"];
 
-/** Governed, non-sensitive descriptor for pinning a decision prompt. No rows/SQL —
- *  just the prompt identity + evidence reference the server can re-resolve. */
 function eligibleFromPrompt(p: DecisionPrompt): EligibleSection {
     return {
         type: "decision_prompt",
@@ -90,6 +95,13 @@ function actionQuestion(p: DecisionPrompt): string {
     return `Do you want me to ${p.recommended_action.toLowerCase()}?`;
 }
 
+function Corners() {
+    return (<>
+        <i className="corner tl" /><i className="corner tr" />
+        <i className="corner bl" /><i className="corner br" />
+    </>);
+}
+
 export function DecisionPromptCard({
     prompt, onAction, busy, maxImpact,
 }: {
@@ -107,122 +119,77 @@ export function DecisionPromptCard({
     const terminal = ["actioned", "rejected", "false-positive", "snoozed"].includes(prompt.status);
 
     return (
-        <div style={{
-            display: "flex", border: "1px solid rgba(128,128,128,0.25)", borderRadius: 12,
-            overflow: "hidden", background: "var(--pp-card-bg, rgba(127,127,127,0.04))",
-            marginBottom: 14, opacity: terminal ? 0.72 : 1,
-        }}>
-            <div style={{ width: 6, background: sev.fg, flex: "0 0 auto" }} aria-hidden />
-            <div style={{ padding: "14px 16px", flex: "1 1 auto", minWidth: 0 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline" }}>
-                    <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 10.5, letterSpacing: 0.8, fontWeight: 700, color: sev.fg }}>
-                            NEEDS YOUR DECISION
-                        </div>
-                        <div style={{ fontSize: 15.5, fontWeight: 650, marginTop: 4, lineHeight: 1.3 }}>
-                            {prompt.headline}
-                        </div>
+        <div className={`dpc blueprint${terminal ? " dpc--terminal" : ""}`}>
+            <Corners />
+            <span className={`sev-rail ${sev.rail}`} aria-hidden />
+            <div className="dpc__body">
+                <div className="dpc__head">
+                    <div className="dpc__headline-col">
+                        <span className="kicker">Needs your decision</span>
+                        <h3 className="dpc__headline">{prompt.headline}</h3>
                     </div>
-                    <div style={{ textAlign: "right", flex: "0 0 auto" }}>
-                        <div style={{
-                            fontVariantNumeric: "tabular-nums", fontSize: 18, fontWeight: 700, color: sev.fg,
-                        }}>
-                            {fmtImpact(prompt.business_impact_value, prompt.business_impact_unit)}
-                        </div>
-                        <div style={{ fontSize: 10.5, color: "var(--pp-muted,#667085)", maxWidth: 160 }}>
-                            {prompt.business_impact_label}
-                        </div>
-                        <div style={{ height: 4, background: "rgba(128,128,128,0.15)", borderRadius: 3, marginTop: 5 }}>
-                            <div style={{ height: 4, width: `${impactPct}%`, background: sev.fg, borderRadius: 3 }} />
-                        </div>
+                    <div className="dpc__impact">
+                        <div className="dpc__impact-value">{fmtImpact(prompt.business_impact_value, prompt.business_impact_unit)}</div>
+                        <div className="dpc__impact-label">{prompt.business_impact_label}</div>
+                        <div className="dpc__bar"><span className="dpc__bar-fill" style={{ width: `${impactPct}%` }} /></div>
                     </div>
                 </div>
 
-                <div style={{ marginTop: 8, fontSize: 12.5, color: "var(--pp-muted,#667085)" }}>
-                    <span style={{
-                        display: "inline-block", padding: "1px 7px", borderRadius: 6, marginRight: 8,
-                        background: sev.bg, color: sev.fg, fontSize: 10.5, fontWeight: 700,
-                    }}>{sev.label}</span>
-                    {prompt.issue}
+                <div className="dpc__issue">
+                    <span className={`tag ${sev.tag}`}>{sev.label}</span>
+                    <span>{prompt.issue}</span>
                 </div>
 
-                <div style={{ marginTop: 6, fontSize: 12, color: "var(--pp-muted,#8a94a6)" }}>
-                    <strong style={{ fontWeight: 600 }}>WHY</strong> {prompt.root_cause}
-                    {"  ·  "}<strong style={{ fontWeight: 600 }}>FIX</strong> {prompt.recommended_action}
+                <div className="dpc__whyfix">
+                    <strong>WHY</strong> {prompt.root_cause}
+                    {"  ·  "}<strong>FIX</strong> {prompt.recommended_action}
                 </div>
 
-                <div style={{ marginTop: 10, fontSize: 13, fontWeight: 550 }}>{actionQuestion(prompt)}</div>
+                <div className="dpc__question">{actionQuestion(prompt)}</div>
 
                 {!terminal && (
-                    <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+                    <div className="dpc__actions">
                         {primary && (
                             <button
-                                disabled={busy}
+                                type="button" disabled={busy}
                                 onClick={() => onAction(prompt.prompt_id, primary)}
-                                style={{
-                                    padding: "7px 14px", borderRadius: 8, border: "none", cursor: "pointer",
-                                    background: sev.fg, color: "#fff", fontWeight: 600, fontSize: 12.5,
-                                    opacity: busy ? 0.6 : 1,
-                                }}
+                                className="btn btn-primary btn-sm"
                             >{ACTION_LABELS[primary] || primary}{prompt.approval_required && primary !== "approve" ? " →" : ""}</button>
                         )}
                         {secondaries.map((c) => (
                             <button
-                                key={c}
-                                disabled={busy}
+                                type="button" key={c} disabled={busy}
                                 onClick={() => onAction(prompt.prompt_id, c)}
-                                style={{
-                                    padding: "7px 12px", borderRadius: 8, cursor: "pointer",
-                                    border: "1px solid rgba(128,128,128,0.35)", background: "transparent",
-                                    color: "inherit", fontSize: 12, opacity: busy ? 0.6 : 0.9,
-                                }}
+                                className="btn btn-secondary btn-sm"
                             >{ACTION_LABELS[c] || c}</button>
                         ))}
                         <button
+                            type="button"
                             onClick={() => setShowEvidence((v) => !v)}
-                            style={{
-                                marginLeft: "auto", padding: "6px 10px", borderRadius: 8, cursor: "pointer",
-                                border: "none", background: "transparent", color: "var(--pp-muted,#667085)",
-                                fontSize: 12, textDecoration: "underline",
-                            }}
+                            className="btn btn-ghost btn-sm dpc__evidence-toggle"
                         >{showEvidence ? "Hide evidence" : "View evidence"}</button>
+                        <SaveChannel compact eligible={eligibleFromPrompt(prompt)} />
                     </div>
                 )}
 
                 {terminal && (
-                    <div style={{ marginTop: 10, fontSize: 12, fontWeight: 600, color: sev.fg }}>
-                        Status: {prompt.status.replace("-", " ")}
-                    </div>
+                    <div className="dpc__terminal-status">Status: {prompt.status.replace("-", " ")}</div>
                 )}
 
                 {showEvidence && (
-                    <div style={{ marginTop: 10 }}>
-                        {prompt.evidence_sql && (
-                            <>
-                                <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: 0.6,
-                                    color: "var(--pp-muted,#667085)", marginBottom: 4 }}>DETECTION SQL</div>
-                                <pre style={{
-                                    padding: 10, borderRadius: 8, fontSize: 11, lineHeight: 1.5,
-                                    whiteSpace: "pre-wrap", background: "rgba(128,128,128,0.10)",
-                                    color: "var(--pp-muted,#344054)", overflowX: "auto", marginBottom: 8,
-                                }}>{prompt.evidence_sql}</pre>
-                            </>
-                        )}
-                        <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: 0.6,
-                            color: "var(--pp-muted,#667085)", marginBottom: 4 }}>EVIDENCE · AUDIT NOTE</div>
-                        <pre style={{
-                            padding: 10, borderRadius: 8, fontSize: 11, lineHeight: 1.5,
-                            whiteSpace: "pre-wrap", background: "rgba(128,128,128,0.08)",
-                            color: "var(--pp-muted,#475467)", overflowX: "auto",
-                        }}>{prompt.narrative}</pre>
+                    <div className="dpc__evidence">
+                        {prompt.evidence_sql && (<>
+                            <div className="kicker">Detection SQL · measured · deterministic</div>
+                            <pre className="dpc__pre">{prompt.evidence_sql}</pre>
+                        </>)}
+                        <div className="kicker">Evidence · audit note</div>
+                        <pre className="dpc__pre">{prompt.narrative}</pre>
                     </div>
                 )}
 
-                <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    <div style={{ fontSize: 10.5, color: "var(--pp-muted,#98a2b3)" }}>
-                        confidence {prompt.confidence} · Level {prompt.action_level} · {prompt.rule_id} · owner {prompt.owner} · {prompt.status}
-                    </div>
-                    <SaveChannel compact eligible={eligibleFromPrompt(prompt)} />
+                <div className="dpc__meta">
+                    <span className="card-meta">confidence {prompt.confidence} · Level {prompt.action_level} · {prompt.rule_id} · owner {prompt.owner} · {prompt.status}</span>
+                    {terminal && <SaveChannel compact eligible={eligibleFromPrompt(prompt)} />}
                 </div>
             </div>
         </div>

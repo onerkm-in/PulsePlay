@@ -1,0 +1,43 @@
+/* My Decision Canvas — Industry layout. Token-driven; square, transparent,
+   hairline blueprint objects on the light technical ground. */
+
+.dc-shell { min-height: 100vh; display: flex; flex-direction: column; }
+
+.dc-context-bar {
+  border-bottom: 1px solid var(--color-divider);
+  gap: var(--space-3);
+}
+.dc-context-tagline { font-size: 11.5px; margin-left: auto; text-align: right; max-width: 46ch; }
+
+.dc-main {
+  flex: 1 1 auto; display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
+  gap: var(--space-4); padding: var(--space-6); align-items: start;
+}
+.dc-main--narrow { grid-template-columns: 1fr; padding: var(--space-4); }
+
+.dc-col-primary { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+.dc-col-side { display: flex; flex-direction: column; gap: var(--space-4); position: sticky; top: var(--space-6); }
+.dc-col-side--static { position: static; }
+
+/* blueprint region cards */
+.dc-card { padding: var(--space-3) var(--space-4); background: transparent; }
+.dc-region-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-2); }
+.dc-inbox { padding: 0; }
+.dc-inbox .dc-region-head { padding: var(--space-3) var(--space-4) 0; margin-bottom: 0; }
+
+/* surface hub */
+.dc-surface-list { display: flex; flex-direction: column; gap: var(--space-3); }
+.dc-surface-row {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+}
+.dc-surface-btn {
+  text-align: left; border: 0; background: transparent; color: inherit; cursor: pointer;
+  padding: 0; flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px;
+}
+.dc-surface-label { font-family: var(--font-heading); font-weight: var(--font-heading-weight); font-size: 14px; }
+.dc-surface-hint { font-size: 11px; }
+
+/* deferred (honest, not dashed) */
+.dc-deferred-note { font-size: 12.5px; line-height: 1.5; margin: 0; color: color-mix(in srgb, var(--color-text) 55%, transparent); }

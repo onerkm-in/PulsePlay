@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/industry-7c9fc2b6-c308-48e5-a986-8f53d49d51ce/styles.css">
+  <script src="_ds/industry-7c9fc2b6-c308-48e5-a986-8f53d49d51ce/_ds_bundle.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; background: var(--color-bg); color: var(--color-text); font-family: var(--font-body); }
+
+    .shell { max-width: 980px; margin: 0 auto; padding: var(--space-8) var(--space-6) 80px; }
+
+    /* ── Header ── */
+    .audit-header { padding-bottom: var(--space-6); border-bottom: 2px solid var(--color-divider); margin-bottom: var(--space-8); }
+    .kicker { font-family: var(--font-heading); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--color-accent); margin-bottom: var(--space-2); }
+    .audit-title { font-family: var(--font-heading); font-size: 42px; font-weight: 600; line-height: 1.08; margin: 0 0 var(--space-3); }
+    .audit-sub { font-size: 14.5px; color: color-mix(in srgb, var(--color-text) 60%, transparent); line-height: 1.65; margin: 0 0 var(--space-4); max-width: 640px; }
+    .meta-row { display: flex; gap: var(--space-4); font-size: 12px; color: color-mix(in srgb, var(--color-text) 50%, transparent); flex-wrap: wrap; }
+    .meta-row span { display: flex; align-items: center; gap: 5px; }
+
+    /* ── Score grid ── */
+    .score-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-3); margin-bottom: var(--space-8); }
+    .score-cell { padding: var(--space-4) var(--space-3); border: 1px solid var(--color-divider); position: relative; background: transparent; }
+    .score-cell .c { position: absolute; width: 10px; height: 10px; }
+    .score-cell .c::before { content:""; position:absolute; left:4px; top:0; width:1px; height:100%; background: color-mix(in srgb, var(--color-text) 45%, transparent); }
+    .score-cell .c::after  { content:""; position:absolute; top:4px; left:0; width:100%; height:1px; background: color-mix(in srgb, var(--color-text) 45%, transparent); }
+    .score-cell .c.tl{top:-5px;left:-5px} .score-cell .c.tr{top:-5px;right:-5px} .score-cell .c.bl{bottom:-5px;left:-5px} .score-cell .c.br{bottom:-5px;right:-5px}
+    .score-lbl { font-family: var(--font-heading); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: color-mix(in srgb, var(--color-text) 50%, transparent); margin-bottom: var(--space-2); }
+    .score-val { font-family: var(--font-heading); font-size: 40px; font-weight: 600; line-height: 1; }
+    .score-val.red { color: #b91c1c; }
+    .score-val.amber { color: #b45309; }
+    .score-val.green { color: #15803d; }
+    .score-note { font-size: 11px; color: color-mix(in srgb, var(--color-text) 50%, transparent); margin-top: 4px; }
+
+    /* ── Section ── */
+    .section { margin-bottom: var(--space-8); }
+    .section-hd { font-family: var(--font-heading); font-size: 24px; font-weight: 600; border-bottom: 1px solid var(--color-divider); padding-bottom: var(--space-2); margin-bottom: var(--space-3); }
+    .section-intro { font-size: 13.5px; color: color-mix(in srgb, var(--color-text) 65%, transparent); line-height: 1.65; max-width: 680px; margin-bottom: var(--space-4); }
+
+    /* ── Token comparison table ── */
+    .token-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: var(--space-4); }
+    .token-table th { text-align: left; font-family: var(--font-heading); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: color-mix(in srgb, var(--color-text) 55%, transparent); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--color-divider); background: color-mix(in srgb, var(--color-text) 3%, transparent); }
+    .token-table td { padding: var(--space-2) var(--space-3); border-bottom: 1px solid color-mix(in srgb, var(--color-text) 7%, transparent); vertical-align: middle; }
+    .token-table tr:hover td { background: color-mix(in srgb, var(--color-text) 3%, transparent); }
+    .prop { font-weight: 600; font-size: 13px; }
+    .src-file { font-size: 10.5px; color: color-mix(in srgb, var(--color-text) 45%, transparent); font-family: "Cascadia Code", monospace; margin-top: 2px; }
+    .val-bad  { font-family: "Cascadia Code", monospace; font-size: 11.5px; color: #b91c1c; }
+    .val-good { font-family: "Cascadia Code", monospace; font-size: 11.5px; color: #15803d; }
+    .badge { display: inline-flex; align-items: center; justify-content: center; width: 72px; padding: 2px 0; font-family: var(--font-heading); font-size: 9.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+    .badge-crit   { background: #b91c1c; color: #fff; }
+    .badge-high   { background: #b45309; color: #fff; }
+    .badge-medium { background: var(--color-accent); color: #fff; }
+    .badge-low    { background: var(--color-neutral-400); color: var(--color-neutral-900); }
+
+    /* ── Finding cards ── */
+    .finding { border: 1px solid var(--color-divider); margin-bottom: var(--space-3); }
+    .finding-hd { display: grid; grid-template-columns: 78px 1fr 28px; align-items: start; gap: var(--space-3); padding: var(--space-3) var(--space-4); cursor: pointer; user-select: none; }
+    .finding-hd:hover { background: color-mix(in srgb, var(--color-text) 3%, transparent); }
+    .finding-name { font-family: var(--font-heading); font-size: 15.5px; font-weight: 600; line-height: 1.2; }
+    .finding-surface { font-size: 11px; color: color-mix(in srgb, var(--color-text) 45%, transparent); margin-top: 3px; font-family: "Cascadia Code", monospace; }
+    .finding-chevron { font-size: 16px; color: color-mix(in srgb, var(--color-text) 35%, transparent); margin-top: 2px; transition: transform 160ms ease; }
+    .finding-chevron.open { transform: rotate(180deg); }
+    .finding-body { display: none; border-top: 1px solid var(--color-divider); padding: var(--space-4); }
+    .finding-body.open { display: block; }
+    .finding-body p { font-size: 13px; line-height: 1.7; color: color-mix(in srgb, var(--color-text) 80%, transparent); margin: 0 0 var(--space-3); }
+    .diff { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); margin-bottom: var(--space-3); }
+    .diff-lbl { font-family: var(--font-heading); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: color-mix(in srgb, var(--color-text) 50%, transparent); margin-bottom: 6px; }
+    .diff-bad  { padding: var(--space-3); background: #fef2f2; border: 1px solid #fca5a5; }
+    .diff-good { padding: var(--space-3); background: #f0fdf4; border: 1px solid #86efac; }
+    .diff-code { font-family: "Cascadia Code", monospace; font-size: 12px; line-height: 1.75; margin: 0; white-space: pre-wrap; color: var(--color-text); }
+    .fix-box { padding: var(--space-3) var(--space-4); border-left: 2px solid var(--color-accent); background: color-mix(in srgb, var(--color-accent) 6%, transparent); font-size: 13px; line-height: 1.65; }
+    .fix-box strong { display: block; font-family: var(--font-heading); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--color-accent); margin-bottom: 4px; }
+
+    /* ── Surface matrix ── */
+    .matrix { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-bottom: var(--space-4); }
+    .matrix th { text-align: center; font-family: var(--font-heading); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: color-mix(in srgb, var(--color-text) 55%, transparent); padding: var(--space-2); border-bottom: 1px solid var(--color-divider); background: color-mix(in srgb, var(--color-text) 3%, transparent); }
+    .matrix th:first-child { text-align: left; }
+    .matrix td { padding: var(--space-2); border-bottom: 1px solid color-mix(in srgb, var(--color-text) 7%, transparent); text-align: center; }
+    .matrix td:first-child { text-align: left; font-weight: 600; font-size: 13px; }
+    .matrix tr:hover td { background: color-mix(in srgb, var(--color-text) 3%, transparent); }
+    .dot-no  { display: inline-block; width: 16px; height: 16px; background: #fca5a5; border: 1px solid #f87171; font-size: 10px; line-height: 16px; color: #7f1d1d; font-weight: 700; }
+    .dot-yes { display: inline-block; width: 16px; height: 16px; background: #86efac; border: 1px solid #4ade80; font-size: 10px; line-height: 16px; color: #14532d; font-weight: 700; }
+    .dot-par { display: inline-block; width: 16px; height: 16px; background: #fde68a; border: 1px solid #fbbf24; font-size: 10px; line-height: 16px; color: #78350f; font-weight: 700; }
+
+    /* ── Roadmap ── */
+    .roadmap { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3); }
+    .roadmap-col { border: 1px solid var(--color-divider); }
+    .roadmap-col-hd { padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--color-divider); font-family: var(--font-heading); font-size: 12px; font-weight: 600; letter-spacing: .04em; }
+    .roadmap-col-hd.p1 { color: #b91c1c; background: #fef2f2; }
+    .roadmap-col-hd.p2 { color: #b45309; background: #fffbeb; }
+    .roadmap-col-hd.p3 { color: var(--color-accent-700); background: var(--color-accent-100); }
+    .roadmap-item { padding: var(--space-2) var(--space-3); font-size: 12px; line-height: 1.55; border-bottom: 1px solid color-mix(in srgb, var(--color-text) 6%, transparent); }
+    .roadmap-item:last-child { border-bottom: none; }
+    .roadmap-item-file { font-family: "Cascadia Code", monospace; font-size: 10.5px; color: color-mix(in srgb, var(--color-text) 40%, transparent); display: block; margin-top: 2px; }
+
+    /* ── Visual demo box ── */
+    .demo-split { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); margin-bottom: var(--space-4); }
+    .demo-box { padding: var(--space-4); border: 1px solid var(--color-divider); }
+    .demo-box-lbl { font-family: var(--font-heading); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; margin-bottom: var(--space-3); color: color-mix(in srgb, var(--color-text) 50%, transparent); }
+
+    /* WRONG side demos (current PulsePlay style) */
+    .demo-wrong-card { background: #ffffff; border-radius: 12px; padding: 16px; box-shadow: 0 4px 12px rgba(15,23,42,.12); font-family: "Inter", system-ui, sans-serif; margin-bottom: 10px; }
+    .demo-wrong-card-title { font-size: 14px; font-weight: 700; color: #0f172a; margin: 0 0 6px; }
+    .demo-wrong-card-body { font-size: 12px; color: #64748b; margin: 0; }
+    .demo-wrong-btn { padding: 8px 18px; border-radius: 8px; background: #2563eb; color: #fff; font-family: "Inter", system-ui, sans-serif; font-size: 13px; font-weight: 600; border: none; cursor: default; margin-right: 8px; }
+    .demo-wrong-btn-sec { padding: 8px 18px; border-radius: 8px; background: transparent; color: #0f172a; font-family: "Inter", system-ui, sans-serif; font-size: 13px; font-weight: 500; border: 1.5px solid rgba(15,23,42,.18); cursor: default; }
+    .demo-wrong-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; background: rgba(37,99,235,.09); border: 1px solid rgba(37,99,235,.3); font-size: 11px; color: #1d4ed8; font-weight: 600; font-family: "Inter", system-ui, sans-serif; margin-right: 6px; margin-bottom: 6px; }
+    .demo-wrong-heading { font-size: 22px; font-weight: 700; letter-spacing: -.02em; background: linear-gradient(135deg, #0f172a 0%, #4f46e5 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-family: "Inter", system-ui, sans-serif; margin: 0 0 8px; }
+    .demo-wrong-input { width: 100%; padding: 8px 12px; border: 1.5px solid rgba(15,23,42,.18); border-radius: 10px; font-family: "Inter", system-ui, sans-serif; font-size: 13px; background: linear-gradient(180deg,#fff 0%,#fafbfd 100%); color: #0f172a; box-shadow: 0 1px 3px rgba(15,23,42,.08); }
+    .demo-wrong-icon-note { font-size: 11px; color: #64748b; font-family: "Inter", system-ui, sans-serif; margin-top: 8px; }
+
+    /* RIGHT side demos (Industry style) */
+    .demo-right-card { background: transparent; border: 1px solid var(--color-divider); padding: var(--space-3); font-family: var(--font-body); position: relative; margin-bottom: 10px; }
+    .demo-right-card-title { font-family: var(--font-heading); font-size: 17px; font-weight: 600; color: var(--color-text); margin: 0 0 4px; }
+    .demo-right-card-body { font-size: 13px; color: color-mix(in srgb, var(--color-text) 70%, transparent); margin: 0; }
+    .demo-right-heading { font-family: var(--font-heading); font-size: 32px; font-weight: 600; color: var(--color-text); margin: 0 0 8px; letter-spacing: -.01em; }
+    .demo-right-input { width: 100%; padding: 6px 10px; border: 1px solid var(--color-divider); border-radius: var(--radius-md); font-family: var(--font-body); font-size: 14px; background: var(--color-surface); color: var(--color-text); }
+
+    @media (max-width: 700px) {
+      .score-grid { grid-template-columns: 1fr 1fr; }
+      .diff { grid-template-columns: 1fr; }
+      .demo-split { grid-template-columns: 1fr; }
+      .roadmap { grid-template-columns: 1fr; }
+      .matrix th:not(:first-child):not(:last-child), .matrix td:not(:first-child):not(:last-child) { display: none; }
+    }
+  </style>
+</helmet>
+
+<div class="shell">
+
+  <!-- HEADER -->
+  <div class="audit-header">
+    <div class="kicker">Design Standards Review · July 2026</div>
+    <h1 class="audit-title">PulsePlay UI Audit<br>vs Industry Design System</h1>
+    <p class="audit-sub">A systematic comparison of every PulsePlay UI surface against the Industry design system's required tokens, components, and visual language. The findings are ordered by severity — Critical items break the design contract entirely; Low items are polish gaps.</p>
+    <div class="meta-row">
+      <span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Audit date: 23 Jul 2026
+      </span>
+      <span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Surfaces reviewed: App shell, Settings, Context strip, Empty states, Wizard, Switcher, Toolbar, Workbench, Launchpad
+      </span>
+      <span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        Design system: Industry (steel-blue wireframe)
+      </span>
+    </div>
+  </div>
+
+  <!-- SCORE -->
+  <div class="score-grid">
+    <div class="score-cell">
+      <i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i>
+      <div class="score-lbl">Overall compliance</div>
+      <div class="score-val red">8%</div>
+      <div class="score-note">DS bundle never loaded; foundations absent</div>
+    </div>
+    <div class="score-cell">
+      <i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i>
+      <div class="score-lbl">Critical findings</div>
+      <div class="score-val red">5</div>
+      <div class="score-note">Foundations, fonts, colour, blueprint, tokens</div>
+    </div>
+    <div class="score-cell">
+      <i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i>
+      <div class="score-lbl">High findings</div>
+      <div class="score-val amber">6</div>
+      <div class="score-note">Radius, cards, gradients, icons, shadows</div>
+    </div>
+    <div class="score-cell">
+      <i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i>
+      <div class="score-lbl">Med / Low findings</div>
+      <div class="score-val amber">6</div>
+      <div class="score-note">Emoji, spacing scale, dark mode, interactions</div>
+    </div>
+  </div>
+
+  <!-- EXECUTIVE SUMMARY -->
+  <div class="section">
+    <h2 class="section-hd">Executive Summary</h2>
+    <p class="section-intro">PulsePlay has built a well-structured internal design system (<code>--pp-*</code> tokens, <code>styles.css</code>, <code>settings.css</code>) that is thorough and internally consistent — but it is an entirely separate design language from Industry. The Industry DS bundle is never loaded in the app. Every foundational element — typeface, colour accent, border radius, card treatment, icon library, blueprint framing — diverges from Industry's specification. The result is a product that reads as a generic SaaS dashboard (rounded cards, Inter typeface, bright-blue accent, heavy shadows, pill chips) when it should read as a precision wireframe instrument (square-cornered blueprint cards, Barlow Condensed, steel-blue, registration marks, hairline borders).</p>
+    <p class="section-intro">The gap is not a polish issue — it is a foundational one. Closing it requires replacing <code>--pp-*</code> token values to match Industry's <code>--color-*</code>, swapping the typeface import, removing all rounded-corner rules, applying the <code>.blueprint</code> frame to every card and primary button, and switching to Lucide icons at stroke-width 1.5.</p>
+  </div>
+
+  <!-- VISUAL COMPARISON -->
+  <div class="section">
+    <h2 class="section-hd">Visual Language: Current vs Required</h2>
+    <p class="section-intro">The difference between the two visual languages is immediately apparent at the component level.</p>
+
+    <div class="demo-split">
+      <div class="demo-box">
+        <div class="demo-box-lbl">❌ Current PulsePlay</div>
+        <div class="demo-wrong-heading">PulsePlay</div>
+        <div class="demo-wrong-card">
+          <p class="demo-wrong-card-title">AI Insights</p>
+          <p class="demo-wrong-card-body">Conversational answers grounded in your BI context. Trends and risks flagged with evidence.</p>
+        </div>
+        <div style="margin-bottom:10px;">
+          <button class="demo-wrong-btn">Connect AI →</button>
+          <button class="demo-wrong-btn-sec">Browse packs</button>
+        </div>
+        <div>
+          <span class="demo-wrong-chip">● Ask Pulse</span>
+          <span class="demo-wrong-chip">● Dashboard</span>
+          <span class="demo-wrong-chip">● AI Insights</span>
+        </div>
+        <input class="demo-wrong-input" style="margin-top:10px;" placeholder="Ask anything about your data…" readonly>
+        <div class="demo-wrong-icon-note">Font: Inter · Accent: #2563eb · Radius: 8–12px · Shadows: heavy multi-layer</div>
+      </div>
+      <div class="demo-box">
+        <div class="demo-box-lbl">✓ Required by Industry DS</div>
+        <div class="demo-right-heading">PulsePlay</div>
+        <div class="demo-right-card blueprint" style="margin-bottom:10px;">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <p class="demo-right-card-title">AI Insights</p>
+          <p class="demo-right-card-body">Conversational answers grounded in your BI context. Trends and risks flagged with evidence.</p>
+        </div>
+        <div style="margin-bottom:10px;">
+          <button class="btn btn-primary">Connect AI →</button>
+          <button class="btn btn-secondary" style="margin-left:8px;">Browse packs</button>
+        </div>
+        <div style="margin-bottom:10px;">
+          <span class="tag tag-accent">Ask Pulse</span>
+          <span class="tag tag-accent" style="margin-left:6px;">Dashboard</span>
+          <span class="tag tag-accent" style="margin-left:6px;">AI Insights</span>
+        </div>
+        <input class="input" placeholder="Ask anything about your data…" readonly>
+        <div style="font-size:11px; color: color-mix(in srgb, var(--color-text) 50%, transparent); margin-top:8px;">Font: Barlow · Accent: #5980a6 · Radius: 0–4px · Shadows: hairline</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CRITICAL FINDINGS -->
+  <div class="section">
+    <h2 class="section-hd">Critical Findings</h2>
+    <p class="section-intro">These break the design system contract at the foundation level. Every other surface inherits these failures.</p>
+
+    <!-- F1 -->
+    <div class="finding">
+      <div class="finding-hd" onclick="toggleFinding(this)">
+        <span class="badge badge-crit">Critical</span>
+        <div>
+          <div class="finding-name">Industry DS bundle never loaded</div>
+          <div class="finding-surface">playground/index.html · playground/src/styles.css</div>
+        </div>
+        <div class="finding-chevron">▾</div>
+      </div>
+      <div class="finding-body">
+        <p>The Industry design system provides its tokens, component classes, and typeface imports through <code>styles.css</code> and <code>_ds_bundle.js</code>. Neither file is referenced anywhere in PulsePlay's <code>index.html</code>, <code>styles.css</code>, or any component. The app runs entirely on its own hand-rolled <code>--pp-*</code> token system. Every other finding below is a consequence of this root absence — if the bundle were loaded, most tokens would resolve correctly.</p>
+        <div class="diff">
+          <div class="diff-bad"><div class="diff-lbl">Current — styles.css :root</div><pre class="diff-code">/* No import of Industry bundle */
+--pp-accent: #2563eb;
+--pp-font: "Inter", "Segoe UI", system-ui;
+--pp-radius: 10px;</pre></div>
+          <div class="diff-good"><div class="diff-lbl">Required — every entry point</div><pre class="diff-code">&lt;link rel="stylesheet" href=
+  "_ds/industry-.../styles.css"&gt;
+&lt;script src=
+  "_ds/industry-.../_ds_bundle.js"&gt;
+&lt;/script&gt;</pre></div>
+        </div>
+        <div class="fix-box"><strong>Fix</strong>Add the Industry stylesheet and bundle to <code>index.html</code> before PulsePlay's own <code>styles.css</code>. Then remap the <code>--pp-*</code> tokens to alias the Industry <code>--color-*</code>, <code>--font-*</code>, <code>--space-*</code> variables so existing component CSS picks up the correct values with minimal churn.</div>
+      </div>
+    </div>
+
+    <!-- F2 -->
+    <div class="finding">
+      <div class="finding-hd" onclick="toggleFinding(this)">
+        <span class="badge badge-crit">Critical</span>
+        <div>
+          <div class="finding-name">Wrong typeface — Inter instead of Barlow</div>
+          <div class="finding-surface">playground/src/styles.css · workbench.css · settings.css</div>
+        </div>
+        <div class="finding-chevron">▾</div>
+      </div>
+      <div class="finding-body">
+        <p>Industry mandates <strong>Barlow Condensed</strong> for all headings and <strong>Barlow</strong> for body text. PulsePlay uses <strong>Inter</strong> (the most common "AI slop" font) across every surface. The workbench additionally falls back to <code>-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial</code> — not Barlow at any point. The typographic character of Industry (technical, condensed, structured) is entirely absent.</p>
+        <div class="diff">
+          <div class="diff-bad"><div class="diff-lbl">Current</div><pre class="diff-code">--pp-font: "Inter", "Segoe UI",
+  -apple-system,
+  BlinkMacSystemFont,
+  system-ui, sans-serif;
+
+/* Workbench */
+font-family: -apple-system,
+  BlinkMacSystemFont, "Segoe UI",
+  Roboto, Helvetica, Arial,
+  sans-serif;</pre></div>
+          <div class="diff-good"><div class="diff-lbl">Required</div><pre class="diff-code">/* Industry provides via styles.css */
+--font-heading: "Barlow Condensed",
+  system-ui, sans-serif;
+--font-body: "Barlow",
+  system-ui, sans-serif;
+
+/* Remap pp tokens */
+--pp-font: var(--font-body);
+/* All h1-h4: font-family: var(--font-heading) */</pre></div>
+        </div>
+        <div class="fix-box"><strong>Fix</strong>Industry's <code>styles.css</code> imports Barlow and Barlow Condensed from Google Fonts. Once the bundle is loaded, set <code>--pp-font: var(--font-body)</code> and ensure all heading elements use <code>font-family: var(--font-heading)</code>. Remove the Inter import.</div>
+      </div>
+    </div>
+
+    <!-- F3 -->
+    <div class="finding">
+      <div class="finding-hd" onclick="toggleFinding(this)">
+        <span class="badge badge-crit">Critical</span>
+        <div>
+          <div class="finding-name">Wrong colour accent — #2563eb vs steel-blue #5980a6</div>
+          <div class="finding-surface">playground/src/styles.css (all surfaces)</div>
+        </div>
+        <div class="finding-chevron">▾</div>
+      </div>
+      <div class="finding-body">
+        <p>The Industry accent is a muted steel-blue <code>#5980a6</code>. PulsePlay uses a bright saturated blue <code>#2563eb</code> that reads as a generic SaaS primary — visually loud, high-chroma, and completely different in character. The settings header icon compounds this with a purple gradient (<code>linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)</code>). Industry's system is intentionally mono: one accent, no second colour.</p>
+        <div class="diff">
+          <div class="diff-bad"><div class="diff-lbl">Current</div><pre class="diff-code">--pp-accent:       #2563eb;
+--pp-accent-hover: #1d4ed8;
+/* Settings icon */
+background: linear-gradient(135deg,
+  #2563eb 0%, #7c3aed 100%);</pre></div>
+          <div class="diff-good"><div class="diff-lbl">Required</div><pre class="diff-code">--color-accent: #5980a6;
+/* Ramp steps for states */
+hover:  var(--color-accent-600)
+active: var(--color-accent-700)
+/* No purple, no gradient accents */</pre></div>
+        </div>
+        <div class="fix-box"><strong>Fix</strong>Replace <code>--pp-accent</code> with <code>var(--color-accent)</code> and all accent state variants with the appropriate ramp step (<code>--color-accent-600</code> for hover, <code>--color-accent-700</code> for pressed). Remove all purple values. Remove the gradient from the settings header icon.</div>
+      </div>
+    </div>
+
+    <!-- F4 -->
+    <div class="finding">
+      <div class="finding-hd" onclick="toggleFinding(this)">
+        <span class="badge badge-crit">Critical</span>
+        <div>
+          <div class="finding-name">Blueprint treatment entirely absent</div>
+          <div class="finding-surface">All card surfaces, primary buttons, figures</div>
+        </div>
+        <div class="finding-chevron">▾</div>
+      </div>
+      <div class="finding-body">
+        <p>Industry's defining visual signature is the <strong>blueprint frame</strong>: every card, figure, and primary button wears the <code>.blueprint</code> class plus four <code>&lt;i class="corner tl/tr/bl/br"&gt;</code> registration marks. These hairline crosshairs at each corner give the design its "technical instrument" character. PulsePlay has zero instances of this pattern — no <code>.blueprint</code> class, no corner marks, no registration marks of any kind. Cards are plain rounded white boxes. The entire visual identity of Industry is missing.</p>
+        <div class="diff">
+          <div class="diff-bad"><div class="diff-lbl">Current — pp-assistant-empty card</div><pre class="diff-code">&lt;div class="pp-app__empty"&gt;
+  &lt;!-- plain div, no frame --&gt;
+  &lt;h2&gt;Ask Pulse&lt;/h2&gt;
+  ...
+&lt;/div&gt;</pre></div>
+          <div class="diff-good"><div class="diff-lbl">Required — Industry card</div><pre class="diff-code">&lt;div class="card blueprint"&gt;
+  &lt;i class="corner tl"&gt;&lt;/i&gt;
+  &lt;i class="corner tr"&gt;&lt;/i&gt;
+  &lt;i class="corner bl"&gt;&lt;/i&gt;
+  &lt;i class="corner br"&gt;&lt;/i&gt;
+  &lt;p class="card-kicker"&gt;Surface&lt;/p&gt;
+  &lt;h3 class="card-title"&gt;Ask Pulse&lt;/h3&gt;
+  ...
+&lt;/div&gt;</pre></div>
+        </div>
+        <div class="fix-box"><strong>Fix</strong>Apply <code>.card.blueprint</code> + four corner <code>&lt;i&gt;</code> elements to every card surface: empty states, launchpad asset cards, wizard persona cards, settings groups, workbench artifact cards. The <code>.blueprint</code> CSS is provided by Industry's <code>styles.css</code> — it only needs the markup.</div>
+      </div>
+    </div>
+
+    <!-- F5 -->
+    <div class="finding">
+      <div class="finding-hd" onclick="toggleFinding(this)">
+        <span class="badge badge-crit">Critical</span>
+        <div>
+          <div class="finding-name">Wrong background + surface colours</div>
+          <div class="finding-surface">playground/src/styles.css · settings.css</div>
+        </div>
+        <div class="finding-chevron">▾</div>
+      </div>
+      <div class="finding-body">
+        <p>Industry's ground is a warm off-white <code>#f2f2f3</code> (slightly warm, not cool). PulsePlay uses <code>#f4f6f9</code> — a cool blue-grey that doesn't match Industry's neutral ground. The surface colour is <code>#ffffff</code> in PulsePlay vs Industry's <code>#e9e9ea</code>. These are not subtle differences — they shift the entire tonal feel of the product from Industry's "light technical ground" to a cool cloud SaaS palette.</p>
+        <div class="diff">
+          <div class="diff-bad"><div class="diff-lbl">Current</div><pre class="diff-code">--pp-bg:      #f4f6f9;  /* cool blue-grey */
+--pp-surface: #ffffff;  /* pure white */
+--pp-text:    #0f172a;  /* very dark navy */</pre></div>
+          <div class="diff-good"><div class="diff-lbl">Required (Industry)</div><pre class="diff-code">--color-bg:      #f2f2f3; /* warm off-white */
+--color-surface: #e9e9ea; /* slightly deeper */
+--color-text:    #1d1f20; /* near-black */</pre></div>
+        </div>
+        <div class="fix-box"><strong>Fix</strong>Remap <code>--pp-bg</code> → <code>var(--color-bg)</code>, <code>--pp-surface</code> → <code>var(--color-surface)</code>, <code>--pp-text</code> → <code>var(--color-text)</code> once the Industry bundle is loaded.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HIGH FINDINGS -->
+  <div class="section">
+    <h2 class="section-hd">High Findings</h2>
+    <p class="section-intro">Component-level violations that contradict specific Industry rules on every rendered surface.</p>
+
+    <!-- F6 -->
+    <div class="finding">
+      <div class="finding-hd" onclick="toggleFinding(this)">
+        <span class="badge badge-high">High</span>
+        <div>
+          <div class="finding-name">Rounded corners everywhere — Industry requires square</div>
+          <div class="finding-surface">styles.css · settings.css · workbench.css (all components)</div>
+        </div>
+        <div class="finding-chevron">▾</div>
+      </div>
+      <div class="finding-body">
+        <p>Industry's design guide is explicit: <em>"Do not round cards, figures or buttons."</em> All components use <code>border-radius: 0</code> (with a max of 4px on <code>--radius-md</code> for inputs). PulsePlay uses aggressive rounding throughout: cards at 6–12px, buttons at 7–8px, inputs at 10px, chips at <code>999px</code> (pill), settings chips at <code>999px</code>, search bar at 10px, and the floating toolbar is pill-shaped. The pill shape (<code>border-radius: 999px</code>) appears on at least 14 distinct component types — it is the most repeated Industry violation in the codebase.</p>
+        <div class="diff">
+          <div class="diff-bad"><div class="diff-lbl">Current — radius values in use</div><pre class="diff-code">--pp-radius-xs:   4px
+--pp-radius-sm:   6px
+--pp-radius:      10px  /* inputs */
+--pp-radius-lg:   14px  /* cards */
+--pp-radius-xl:   20px
+--pp-radius-pill: 999px /* chips, tags */
+/* settings chips: border-radius: 999px */
+/* allowlist chip: border-radius: 999px */
+/* surface-mode chip: border-radius: 999px */
+/* setup pill: border-radius: 999px */
+/* combobox: border-radius: 7–8px */</pre></div>
+          <div class="diff-good"><div class="diff-lbl">Required (Industry)</div><pre class="diff-code">--radius-sm: 2px
+--radius-md: 4px  /* inputs, buttons */
+--radius-lg: 7px  /* dialogs only */
+/* Cards: border-radius: 0 (blueprint) */
+/* Tags: border-radius: 3px (0.75×radius-md) */
+/* No 999px pill shapes */</pre></div>
+        </div>
+        <div class="fix-box"><strong>Fix</strong>Do a global replace: all <code>border-radius: 999px</code> → <code>border-radius: var(--radius-md)</code>. Cards → 0. Inputs and buttons → <code>var(--radius-md)</code>. Convert pill-shaped chips/tags to Industry's <code>.tag</code> class (already square-cornered in the DS).</div>
+      </div>
+    </div>
+
+    <!-- F7 -->
+    <div class="finding">
+      <div class="finding-hd" onclick="toggleFinding(this)">
+        <span class="badge badge-high">High</span>
+        <div>
+          <div class="finding-name">Cards have filled surfaces — Industry cards are transparent</div>
+          <div class="finding-surface">styles.css · settings.css · FirstRunWizard.tsx</div>
+        </div>
+        <div class="finding-chevron">▾</div>
+      </div>
+      <div class="finding-body">
+        <p>Industry cards are <em>line drawings</em> — <code>background: transparent</code>, hairline border. PulsePlay cards are filled white boxes (<code>background: #ffffff</code>, <code>box-shadow: 0 4px 12px …</code>). The persona cards in the First-Run Wizard compound this with gradient fills (<code>linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)</code> for Analyst, <code>#f5f3ff → #ede9fe</code> for Executive). Industry forbids both the fill and any gradient beyond the accent.</p>
+        <div class="diff">
+          <div class="diff-bad"><div class="diff-lbl">Current — pp-app__empty</div><pre class="diff-code">background: var(--pp-surface-raised, #fff);
+border: 1px solid var(--pp-border, #e4e9ef);
+border-radius: 6px;
+box-shadow: rgba(0,0,0,.04) 0 1px 2px 0;</pre></div>
+          <div class="diff-good"><div class="diff-lbl">Required</div><pre class="diff-code">background: transparent;
+border: 1px solid var(--color-divider);
+border-radius: 0;
+/* elevation only via .elev-sm/md/lg */</pre></div>
+        </div>
+        <div class="fix-box"><strong>Fix</strong>Set all card backgrounds to <code>transparent</code>. Remove gradient fills from wizard persona cards — use a <code>.tag-accent</code> kicker label instead of a coloured card background to differentiate personas. Elevation = <code>.elev-sm</code> class only.</div>
+      </div>
+    </div>
+
+    <!-- F8 -->
+    <div class="finding">
+      <div class="finding-hd" onclick="toggleFinding(this)">
+        <span class="badge badge-high">High</span>
+        <div>
+          <div class="finding-name">Gradients used decoratively throughout — Industry forbids them</div>
+          <div class="finding-surface">styles.css · settings.css · FirstRunWizard.tsx</div>
+        </div>
+        <div class="finding-chevron">▾</div>
+      </div>
+      <div class="finding-body">
+        <p>Industry adds zero decorative colour beyond the steel accent. PulsePlay uses gradients in at least five places: (1) brand heading text (<code>linear-gradient(135deg, #0f172a 0%, #4f46e5 100%)</code> with <code>-webkit-background-clip: text</code>), (2) settings header icon (<code>linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)</code>), (3) form input/select backgrounds (paper texture gradient), (4) wizard persona card fills (blue, purple, cyan, pink gradients per persona), (5) settings back-button inset highlight. Industry's only permitted "field" is a full <code>--color-accent-900</code> block for section dividers in decks.</p>
+        <div class="fix-box"><strong>Fix</strong>Remove all decorative gradients. Brand heading: use <code>font-family: var(--font-heading)</code> in plain <code>var(--color-text)</code>. Settings icon: replace with a Lucide icon in accent colour. Form inputs: solid <code>var(--color-surface)</code> background. Persona cards: transparent blueprint cards with a <code>.tag-accent</code> kicker.</div>
+      </div>
+    </div>
+
+    <!-- F9 -->
+    <div class="finding">
+      <div class="finding-hd" onclick="toggleFinding(this)">
+        <span class="badge badge-high">High</span>
+        <div>
+          <div class="finding-name">Custom SVG icons at stroke-width 1.8–2 — Industry requires Lucide at 1.5</div>
+          <div class="finding-surface">TopRightToolbar.tsx · SurfaceSwitcher.tsx · AssistantEmptyState.tsx</div>
+        </div>
+        <div class="finding-chevron">▾</div>
+      </div>
+      <div class="finding-body">
+        <p>Industry specifies <strong>Lucide icons at stroke-width 1.5</strong> throughout. PulsePlay draws all its icons as bespoke inline SVGs with <code>strokeWidth={1.8}</code> to <code>strokeWidth={2}</code>. The shapes also differ from Lucide's (e.g. the sparkle path in SurfaceSwitcher is a custom 4-point star, not Lucide's <code>Sparkles</code>; the alert triangle doesn't match Lucide's <code>AlertTriangle</code>). Heavier strokes make the icons look less technical — the opposite of Industry's intended "thin-stroke" character.</p>
+        <div class="diff">
+          <div class="diff-bad"><div class="diff-lbl">Current — SurfaceSwitcher.tsx</div><pre class="diff-code">const common = {
+  strokeWidth: 2,    /* too heavy */
+  ...
+}
+/* Custom sparkle path: */
+&lt;path d="M12 3 L14 10 L21 12..." /&gt;</pre></div>
+          <div class="diff-good"><div class="diff-lbl">Required — Lucide via CDN or npm</div><pre class="diff-code">&lt;!-- CDN example --&gt;
+&lt;i data-lucide="sparkles"
+   style="width:14px;height:14px;
+   stroke-width:1.5"&gt;&lt;/i&gt;
+
+/* Or lucide-react */
+import { Sparkles } from "lucide-react";
+&lt;Sparkles size={14} strokeWidth={1.5} /&gt;</pre></div>
+        </div>
+        <div class="fix-box"><strong>Fix</strong>Add <code>lucide-react</code> (already a near-zero-weight tree-shakeable package). Replace every custom SVG in TopRightToolbar, SurfaceSwitcher, and all other components with the matching Lucide icon at <code>size={14} strokeWidth={1.5}</code>.</div>
+      </div>
+    </div>
+
+    <!-- F10 -->
+    <div class="finding">
+      <div class="finding-hd" onclick="toggleFinding(this)">
+        <span class="badge badge-high">High</span>
+        <div>
+          <div class="finding-name">Shadow scale too heavy — Industry uses hairline + subtle elevation</div>
+          <div class="finding-surface">styles.css (--pp-shadow-* tokens)</div>
+        </div>
+        <div class="finding-chevron">▾</div>
+      </div>
+      <div class="finding-body">
+        <p>PulsePlay defines 5 shadow levels up to <code>0 16px 48px rgba(15,23,42,.16)</code>. Industry defines 3 subtle levels maxing at <code>0 12px 32px color-mix(in srgb, #2b2b2d 22%, transparent)</code> — and the DS guide specifically warns against "soft filled rounded blocks" that rely on shadow for depth. The combination of filled cards + heavy shadows is doubly wrong.</p>
+        <div class="diff">
+          <div class="diff-bad"><div class="diff-lbl">Current</div><pre class="diff-code">--pp-shadow-xl: 0 16px 48px
+  rgba(15,23,42,.16),
+  0 8px 16px rgba(15,23,42,.08);
+/* 5 levels: xs sm md lg xl */</pre></div>
+          <div class="diff-good"><div class="diff-lbl">Required (Industry)</div><pre class="diff-code">--shadow-sm: 0 1px 2px …14%
+--shadow-md: 0 3px 10px …16%
+--shadow-lg: 0 12px 32px …22%
+/* Used sparingly via .elev-sm/md/lg */</pre></div>
+        </div>
+        <div class="fix-box"><strong>Fix</strong>Once blueprint cards have transparent backgrounds, most shadows become unnecessary. Keep three levels. Use <code>.elev-sm</code> for popovers/dropdowns only. Remove <code>--pp-shadow-xl</code> entirely.</div>
+      </div>
+    </div>
+
+    <!-- F11 -->
+    <div class="finding">
+      <div class="finding-hd" onclick="toggleFinding(this)">
+        <span class="badge badge-high">High</span>
+        <div>
+          <div class="finding-name">Navigation bar unstyled by Industry — missing .nav / .nav-brand</div>
+          <div class="finding-surface">styles.css (.pp-top-bar) · App.tsx</div>
+        </div>
+        <div class="finding-chevron">▾</div>
+      </div>
+      <div class="finding-body">
+        <p>Industry provides a <code>.nav</code> + <code>.nav-brand</code> header bar pattern. PulsePlay's top bar uses a custom <code>.pp-top-bar</code> class with no relation to Industry's navigation component — a white surface with <code>box-shadow</code>, the brand title rendered with a gradient clip-text effect, and pill-shaped status chips in the top right. Industry's nav is a clean, flat bar: condensed-heading brand mark, link items, and one accent CTA.</p>
+        <div class="fix-box"><strong>Fix</strong>Rebuild the top bar using Industry's <code>.nav</code> class. Brand name uses <code>.nav-brand</code> (Barlow Condensed, no gradient). Status indicators use <code>.tag</code> classes. Remove the gradient text effect from the h1.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MEDIUM / LOW FINDINGS -->
+  <div class="section">
+    <h2 class="section-hd">Medium &amp; Low Findings</h2>
+
+    <!-- F12 -->
+    <div class="finding">
+      <div class="finding-hd" onclick="toggleFinding(this)">
+        <span class="badge badge-medium">Medium</span>
+        <div>
+          <div class="finding-name">Emoji used as icons and decorative elements</div>
+          <div class="finding-surface">AssistantEmptyState.tsx · FirstRunWizard.tsx · settings.css</div>
+        </div>
+        <div class="finding-chevron">▾</div>
+      </div>
+      <div class="finding-body">
+        <p>Industry specifies no emoji unless the brand uses them. PulsePlay uses ✨ in AssistantEmptyState, 📊🎯🛠️🎨 as persona icons in the First-Run Wizard, and a colour-gradient emoji-styled icon in the settings header. These read as consumer app / chatbot UI, not a precision analytics instrument.</p>
+        <div class="fix-box"><strong>Fix</strong>Replace all emoji with Lucide icons: <code>Sparkles</code> for empty states, <code>BarChart2 / Target / Wrench / Palette</code> for wizard personas. Use the icon in accent colour within a blueprint-framed container rather than as freestanding emoji.</div>
+      </div>
+    </div>
+
+    <!-- F13 -->
+    <div class="finding">
+      <div class="finding-hd" onclick="toggleFinding(this)">
+        <span class="badge badge-medium">Medium</span>
+        <div>
+          <div class="finding-name">Spacing scale uses 4px base — Industry is 0.85× (3.4px) density</div>
+          <div class="finding-surface">styles.css (--pp-s* tokens)</div>
+        </div>
+        <div class="finding-chevron">▾</div>
+      </div>
+      <div class="finding-body">
+        <p>Industry's spacing scale is baked at 0.85× density: <code>--space-1: 3.4px, --space-2: 6.8px, --space-3: 10.2px, --space-4: 13.6px</code>. PulsePlay uses a standard 4px grid. The result is that PulsePlay surfaces feel slightly looser than Industry's intended analytical density.</p>
+        <div class="fix-box"><strong>Fix</strong>Remap <code>--pp-s1→--pp-s8</code> to <code>var(--space-1)→var(--space-8)</code> once the Industry bundle is loaded. Components that currently feel spacious will tighten appropriately.</div>
+      </div>
+    </div>
+
+    <!-- F14 -->
+    <div class="finding">
+      <div class="finding-hd" onclick="toggleFinding(this)">
+        <span class="badge badge-medium">Medium</span>
+        <div>
+          <div class="finding-name">Dark mode entire system — not in Industry DS</div>
+          <div class="finding-surface">styles.css (:root[data-pp-theme="dark"])</div>
+        </div>
+        <div class="finding-chevron">▾</div>
+      </div>
+      <div class="finding-body">
+        <p>Industry does not specify a dark mode — it is a light-ground system. PulsePlay has an extensive dark theme (<code>data-pp-theme="dark"</code>) with ~100 token overrides across <code>styles.css</code> and <code>settings.css</code>. If PulsePlay needs dark mode, the team needs to extend Industry's token set with a documented dark ramp — not invent a parallel system.</p>
+        <div class="fix-box"><strong>Fix</strong>Decide whether dark mode is a product requirement. If yes, design it as a named extension of Industry (dark ground ramp from the neutral-900 step), document it, and keep it in sync with the DS. If dark mode is optional/experimental, gate it clearly and don't let it drive token decisions in the light theme.</div>
+      </div>
+    </div>
+
+    <!-- F15 -->
+    <div class="finding">
+      <div class="finding-hd" onclick="toggleFinding(this)">
+        <span class="badge badge-medium">Medium</span>
+        <div>
+          <div class="finding-name">Focus ring uses wrong accent colour</div>
+          <div class="finding-surface">styles.css · settings.css (all interactive elements)</div>
+        </div>
+        <div class="finding-chevron">▾</div>
+      </div>
+      <div class="finding-body">
+        <p>Industry specifies <code>:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }</code> — steel-blue. PulsePlay's focus rings use <code>rgba(37, 99, 235, 0.18)</code> (bright blue) plus a <code>box-shadow</code> glow. When the accent is corrected, the focus rings will also correct automatically if they reference the token — but inline <code>rgba(37, 99, 235, …)</code> values won't.</p>
+        <div class="fix-box"><strong>Fix</strong>Replace all hardcoded <code>rgba(37, 99, 235, …)</code> focus-ring values with <code>var(--color-accent)</code>. Remove the <code>box-shadow</code> glow from focus states — Industry uses a clean 2px outline only.</div>
+      </div>
+    </div>
+
+    <!-- F16 -->
+    <div class="finding">
+      <div class="finding-hd" onclick="toggleFinding(this)">
+        <span class="badge badge-low">Low</span>
+        <div>
+          <div class="finding-name">Form inputs use paper-texture gradient background</div>
+          <div class="finding-surface">styles.css (.pp-vendor-picker__select, .pp-embed-config__input)</div>
+        </div>
+        <div class="finding-chevron">▾</div>
+      </div>
+      <div class="finding-body">
+        <p>Textareas use a ruled-paper repeating gradient (<code>repeating-linear-gradient(180deg, transparent 0, transparent 27px, rgba(15,23,42,0.03) 28px)</code>). Industry inputs are flat <code>var(--color-surface)</code> — no decorative texture.</p>
+        <div class="fix-box"><strong>Fix</strong>Set all form control backgrounds to <code>var(--color-surface)</code>. Remove the paper-texture gradient. Inputs should feel like technical form fields, not notepads.</div>
+      </div>
+    </div>
+
+    <!-- F17 -->
+    <div class="finding">
+      <div class="finding-hd" onclick="toggleFinding(this)">
+        <span class="badge badge-low">Low</span>
+        <div>
+          <div class="finding-name">Settings back-button has animated translateX transform hover</div>
+          <div class="finding-surface">settings.css (.pp-settings-header__back)</div>
+        </div>
+        <div class="finding-chevron">▾</div>
+      </div>
+      <div class="finding-body">
+        <p>The back button slides left on hover (<code>transform: translateX(-2px)</code>). Industry interaction states are purely colour-based (accent ramp tint on hover, deeper step on press) — no movement or animation beyond colour transition. This kind of micro-animation makes the UI feel playful rather than precise.</p>
+        <div class="fix-box"><strong>Fix</strong>Remove the <code>translateX</code> hover. Replace with a background tint from the accent ramp (<code>var(--color-accent-100)</code> on hover, <code>var(--color-accent-200)</code> on press).</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DECISION ASSIST DEEP-DIVE -->
+  <div class="section">
+    <h2 class="section-hd">Decision Assist — Worst-Offending Surface</h2>
+    <p class="section-intro">Three files — <code>DecisionCanvasShell.tsx</code>, <code>DecisionPromptCard.tsx</code>, and <code>ActionInsightsPanel.tsx</code> — were not captured in the surface matrix above but are the most severe compliance failures in the entire codebase. Unlike other surfaces that at least use <code>--pp-*</code> CSS tokens, these three use <strong>100% raw inline styles with hardcoded hex values</strong>. No CSS class, no design token, no Industry component is used anywhere in them.</p>
+
+    <!-- DA-1 -->
+    <div class="finding">
+      <div class="finding-hd" onclick="toggleFinding(this)">
+        <span class="badge badge-crit">Critical</span>
+        <div>
+          <div class="finding-name">All three Decision screens: pure inline styles, zero token usage</div>
+          <div class="finding-surface">DecisionCanvasShell.tsx · DecisionPromptCard.tsx · ActionInsightsPanel.tsx</div>
+        </div>
+        <div class="finding-chevron">▾</div>
+      </div>
+      <div class="finding-body">
+        <p>Every layout, colour, spacing, and typography decision in these files is expressed as a hardcoded JavaScript object literal — <code>style={{ borderRadius: 12, background: "rgba(127,127,127,0.04)", fontSize: 15.5 }}</code>. There is no reference to <code>--pp-*</code> tokens, <code>--color-*</code>, <code>--font-*</code>, or any CSS class from Industry or PulsePlay's own system. This makes the surface invisible to theme changes, impossible to systematically restyle, and immune to any DS remediation applied elsewhere.</p>
+        <div class="diff">
+          <div class="diff-bad"><div class="diff-lbl">Current — DecisionCanvasShell header</div><pre class="diff-code">&lt;header style={{
+  display: "flex",
+  padding: "12px 20px",
+  borderBottom:
+    "1px solid rgba(128,128,128,0.2)",
+}}&gt;
+  &lt;strong style={{ fontSize: 15.5 }}&gt;
+    My Decision Canvas
+  &lt;/strong&gt;
+  &lt;span style={{
+    borderRadius: 999,
+    background: "rgba(37,99,235,0.12)",
+    color: "#2563eb",
+  }}&gt;COMBINED&lt;/span&gt;</pre></div>
+          <div class="diff-good"><div class="diff-lbl">Required — Industry classes + tokens</div><pre class="diff-code">&lt;nav class="nav"&gt;
+  &lt;span class="nav-brand"&gt;
+    My Decision Canvas
+  &lt;/span&gt;
+  &lt;span class="tag tag-accent"&gt;
+    Combined
+  &lt;/span&gt;
+&lt;/nav&gt;</pre></div>
+        </div>
+        <div class="fix-box"><strong>Fix</strong>Extract all inline styles into <code>styles.css</code> using <code>--color-*</code>, <code>--font-*</code>, <code>--space-*</code> tokens. Apply Industry's <code>.nav</code>, <code>.card.blueprint</code>, <code>.tag</code>, <code>.btn</code>, <code>.table</code> classes to their corresponding elements. This is a full CSS extraction task — no logic changes needed.</div>
+      </div>
+    </div>
+
+    <!-- DA-2 -->
+    <div class="finding">
+      <div class="finding-hd" onclick="toggleFinding(this)">
+        <span class="badge badge-crit">Critical</span>
+        <div>
+          <div class="finding-name">DecisionPromptCard: 8 different hardcoded border-radius values</div>
+          <div class="finding-surface">DecisionPromptCard.tsx</div>
+        </div>
+        <div class="finding-chevron">▾</div>
+      </div>
+      <div class="finding-body">
+        <p>The card alone uses <code>borderRadius: 12</code> (outer card), <code>borderRadius: 8</code> (primary action button), <code>borderRadius: 8</code> (secondary buttons), <code>borderRadius: 8</code> (evidence preformatted blocks), <code>borderRadius: 6</code> (severity badge), <code>borderRadius: 3</code> (impact bar container), <code>borderRadius: 3</code> (impact bar fill), and <code>borderRadius: 8</code> (evidence view button). Industry's maximum is 4px (<code>--radius-md</code>), cards are 0. All impact bar and severity badge corners should be 0 or 2px.</p>
+        <div class="diff">
+          <div class="diff-bad"><div class="diff-lbl">Current — DecisionPromptCard outer</div><pre class="diff-code">style={{
+  border: "1px solid rgba(128,128,128,.25)",
+  borderRadius: 12,
+  background:
+    "var(--pp-card-bg,rgba(127,127,127,.04))",
+}}</pre></div>
+          <div class="diff-good"><div class="diff-lbl">Required</div><pre class="diff-code">class="card blueprint"
+/* + 4× &lt;i class="corner ..."&gt; */
+/* background: transparent (DS rule) */
+/* border: 1px solid var(--color-divider) */</pre></div>
+        </div>
+        <div class="fix-box"><strong>Fix</strong>Replace the outer div with <code>.card.blueprint</code> + corner marks. Replace severity badge with <code>.tag .tag-accent</code> or <code>.tag-neutral</code>. Severity colour = accent ramp step (<code>--color-accent-700</code> for critical/high using the Industry mono scheme — do not introduce red as a second accent; use it only for status text via <code>color-mix</code>). Impact bar: flat rect, 0 border-radius.</div>
+      </div>
+    </div>
+
+    <!-- DA-3 -->
+    <div class="finding">
+      <div class="finding-hd" onclick="toggleFinding(this)">
+        <span class="badge badge-crit">Critical</span>
+        <div>
+          <div class="finding-name">Hardcoded severity palette adds 4 new colours outside Industry system</div>
+          <div class="finding-surface">DecisionPromptCard.tsx (SEV constant)</div>
+        </div>
+        <div class="finding-chevron">▾</div>
+      </div>
+      <div class="finding-body">
+        <p>The <code>SEV</code> object defines four custom colours not in Industry's palette: <code>#b42318</code> (critical red), <code>#b54708</code> (high amber), <code>#854d0e</code> (medium brown), and <code>#475467</code> (low grey). These each also carry a paired soft background (<code>rgba(180,35,24,0.10)</code>, etc.). Industry is intentionally mono — one steel accent, no second hue. Status severity is expressed through type weight, labels, and accent ramp steps — not a four-colour stoplight system.</p>
+        <div class="diff">
+          <div class="diff-bad"><div class="diff-lbl">Current — SEV constant</div><pre class="diff-code">const SEV = {
+  critical: { fg: "#b42318",
+    bg: "rgba(180,35,24,.10)", },
+  high:     { fg: "#b54708",
+    bg: "rgba(181,71,8,.10)",  },
+  medium:   { fg: "#854d0e",
+    bg: "rgba(133,77,14,.10)", },
+  low:      { fg: "#475467",
+    bg: "rgba(71,84,103,.10)", },
+}</pre></div>
+          <div class="diff-good"><div class="diff-lbl">Required — Industry ramp steps</div><pre class="diff-code">/* Use accent ramp + neutral ramp */
+critical: { cls: "tag-accent",
+  textStep: "--color-accent-900" }
+high:     { cls: "tag-accent",
+  textStep: "--color-accent-700" }
+medium:   { cls: "tag-neutral",
+  textStep: "--color-neutral-700" }
+low:      { cls: "tag-neutral",
+  textStep: "--color-neutral-500" }
+/* Severity label weight, not colour */</pre></div>
+        </div>
+        <div class="fix-box"><strong>Fix</strong>Map severity to Industry's accent/neutral ramp steps. Use type weight and the <code>.tag</code> class variants for the severity badge. The coloured left-border accent strip on each card can use <code>--color-accent</code> at varying opacity (900 for critical → 300 for low) — that keeps severity readable within the mono palette without introducing red/amber/brown/grey.</div>
+      </div>
+    </div>
+
+    <!-- DA-4 -->
+    <div class="finding">
+      <div class="finding-hd" onclick="toggleFinding(this)">
+        <span class="badge badge-high">High</span>
+        <div>
+          <div class="finding-name">DecisionCanvasShell: DeferredRegion uses dashed border — not in Industry</div>
+          <div class="finding-surface">DecisionCanvasShell.tsx (DeferredRegion)</div>
+        </div>
+        <div class="finding-chevron">▾</div>
+      </div>
+      <div class="finding-body">
+        <p>The <code>DeferredRegion</code> component uses <code>border: "1px dashed rgba(128,128,128,0.35)"</code> to signal "coming soon" regions. Industry draws all frames as solid hairline borders — dashed lines are not in the component library. The scaffold placeholder state should instead use the <code>.blueprint</code> frame with a kicker label like "Phase 2" in <code>.tag-neutral</code>.</p>
+        <div class="fix-box"><strong>Fix</strong>Replace <code>DeferredRegion</code>'s dashed border with a standard <code>.card.blueprint</code> frame. Add a <code>.card-kicker</code> with "Arriving Phase 2" and a <code>.card-body</code> with the note text. This makes the placeholder read as a governed wireframe placeholder, not a broken dashed box.</div>
+      </div>
+    </div>
+
+    <!-- DA-5 -->
+    <div class="finding">
+      <div class="finding-hd" onclick="toggleFinding(this)">
+        <span class="badge badge-high">High</span>
+        <div>
+          <div class="finding-name">ActionInsightsPanel &amp; Canvas: buttons use inline styles, not .btn classes</div>
+          <div class="finding-surface">ActionInsightsPanel.tsx · DecisionCanvasShell.tsx</div>
+        </div>
+        <div class="finding-chevron">▾</div>
+      </div>
+      <div class="finding-body">
+        <p>Every button in these components (<code>Planner / Manager</code> persona switcher, surface link buttons, action buttons) is a raw <code>&lt;button&gt;</code> with hardcoded inline padding, borderRadius, and colour — none use <code>.btn .btn-primary</code> or <code>.btn .btn-secondary</code>. Industry primary buttons must also carry the <code>.blueprint</code> frame (corner marks). The segmented persona switcher should use <code>.seg .seg-opt</code>.</p>
+        <div class="fix-box"><strong>Fix</strong>Replace inline-styled buttons with <code>&lt;button class="btn btn-primary"&gt;</code> / <code>&lt;button class="btn btn-secondary"&gt;</code>. Add corner marks to primary buttons. Persona switcher → <code>.seg</code> segmented control. All border-radius values on buttons → 0 via Industry's component override (<code>.btn { border-radius: 0 }</code> is already in <code>styles.css</code>).</div>
+      </div>
+    </div>
+
+    <!-- Decision canvas matrix -->
+    <h3 style="font-family: var(--font-heading); font-size: 17px; font-weight: 600; margin: var(--space-6) 0 var(--space-3);">Decision Assist Surface Compliance</h3>
+    <table class="matrix">
+      <thead>
+        <tr>
+          <th>File</th>
+          <th>DS Bundle</th>
+          <th>Any CSS tokens</th>
+          <th>Square corners</th>
+          <th>Blueprint cards</th>
+          <th>Industry buttons</th>
+          <th>Industry tags</th>
+          <th>Lucide icons</th>
+          <th>Mono palette</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>DecisionCanvasShell.tsx</td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td></tr>
+        <tr><td>DecisionPromptCard.tsx</td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td></tr>
+        <tr><td>ActionInsightsPanel.tsx</td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td></tr>
+      </tbody>
+    </table>
+    <p style="font-size:12px; color: color-mix(in srgb, var(--color-text) 50%, transparent); margin-top: var(--space-2);">8/8 criteria violated on all three files — the only surface in PulsePlay with a 0% compliance score even against PulsePlay's own token system.</p>
+  </div>
+
+  <!-- SURFACE COMPLIANCE MATRIX -->
+  <div class="section">
+    <h2 class="section-hd">Surface Compliance Matrix</h2>
+    <p class="section-intro">Per surface: whether each Industry requirement is met. <span class="dot-yes" style="vertical-align:middle;">✓</span> = met, <span class="dot-no" style="vertical-align:middle;">✗</span> = violated, <span class="dot-par" style="vertical-align:middle;">~</span> = partial.</p>
+    <table class="matrix">
+      <thead>
+        <tr>
+          <th>Surface</th>
+          <th>DS Bundle</th>
+          <th>Barlow</th>
+          <th>Steel accent</th>
+          <th>Square corners</th>
+          <th>Blueprint cards</th>
+          <th>Lucide icons</th>
+          <th>No gradients</th>
+          <th>No emoji</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>App shell / nav</td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-yes">✓</span></td></tr>
+        <tr><td>Settings shell</td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-yes">✓</span></td></tr>
+        <tr><td>Surface context strip</td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-yes">✓</span></td><td><span class="dot-yes">✓</span></td></tr>
+        <tr><td>Empty states</td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-yes">✓</span></td><td><span class="dot-no">✗</span></td></tr>
+        <tr><td>First-run wizard</td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td></tr>
+        <tr><td>Surface switcher</td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-yes">✓</span></td><td><span class="dot-yes">✓</span></td></tr>
+        <tr><td>Top-right toolbar</td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-par">~</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-yes">✓</span></td><td><span class="dot-yes">✓</span></td></tr>
+        <tr><td>Workbench</td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-par">~</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-yes">✓</span></td><td><span class="dot-yes">✓</span></td></tr>
+        <tr><td>Launchpad</td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-yes">✓</span></td><td><span class="dot-yes">✓</span></td></tr>
+        <tr><td>Pulse shell (gn-*)</td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-par">~</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-no">✗</span></td><td><span class="dot-yes">✓</span></td><td><span class="dot-yes">✓</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- TOKEN DELTA TABLE -->
+  <div class="section">
+    <h2 class="section-hd">Token Delta — Current vs Required</h2>
+    <table class="token-table">
+      <thead>
+        <tr><th>Property</th><th>PulsePlay today</th><th>Industry required</th><th>Severity</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="prop">Font — body</span><div class="src-file">styles.css --pp-font</div></td><td class="val-bad">"Inter", "Segoe UI", system-ui</td><td class="val-good">var(--font-body) "Barlow"</td><td><span class="badge badge-crit">Critical</span></td></tr>
+        <tr><td><span class="prop">Font — headings</span><div class="src-file">No heading font defined</div></td><td class="val-bad">(inherits Inter)</td><td class="val-good">var(--font-heading) "Barlow Condensed"</td><td><span class="badge badge-crit">Critical</span></td></tr>
+        <tr><td><span class="prop">Accent colour</span><div class="src-file">styles.css --pp-accent</div></td><td class="val-bad">#2563eb</td><td class="val-good">var(--color-accent) #5980a6</td><td><span class="badge badge-crit">Critical</span></td></tr>
+        <tr><td><span class="prop">Background</span><div class="src-file">styles.css --pp-bg</div></td><td class="val-bad">#f4f6f9</td><td class="val-good">var(--color-bg) #f2f2f3</td><td><span class="badge badge-crit">Critical</span></td></tr>
+        <tr><td><span class="prop">Surface</span><div class="src-file">styles.css --pp-surface</div></td><td class="val-bad">#ffffff</td><td class="val-good">var(--color-surface) #e9e9ea</td><td><span class="badge badge-crit">Critical</span></td></tr>
+        <tr><td><span class="prop">Text</span><div class="src-file">styles.css --pp-text</div></td><td class="val-bad">#0f172a</td><td class="val-good">var(--color-text) #1d1f20</td><td><span class="badge badge-high">High</span></td></tr>
+        <tr><td><span class="prop">Border radius — cards</span><div class="src-file">styles.css --pp-radius-lg</div></td><td class="val-bad">14px</td><td class="val-good">0 (blueprint)</td><td><span class="badge badge-high">High</span></td></tr>
+        <tr><td><span class="prop">Border radius — buttons</span><div class="src-file">settings.css</div></td><td class="val-bad">7–8px</td><td class="val-good">var(--radius-md) 4px</td><td><span class="badge badge-high">High</span></td></tr>
+        <tr><td><span class="prop">Border radius — chips/tags</span><div class="src-file">styles.css --pp-radius-pill</div></td><td class="val-bad">999px</td><td class="val-good">~3px (.tag class)</td><td><span class="badge badge-high">High</span></td></tr>
+        <tr><td><span class="prop">Border radius — inputs</span><div class="src-file">styles.css --pp-radius</div></td><td class="val-bad">10px</td><td class="val-good">var(--radius-md) 4px</td><td><span class="badge badge-high">High</span></td></tr>
+        <tr><td><span class="prop">Card background</span><div class="src-file">styles.css .pp-app__empty</div></td><td class="val-bad">#ffffff (filled)</td><td class="val-good">transparent</td><td><span class="badge badge-high">High</span></td></tr>
+        <tr><td><span class="prop">Icon library</span><div class="src-file">TopRightToolbar, SurfaceSwitcher</div></td><td class="val-bad">Custom SVG, strokeWidth 1.8–2</td><td class="val-good">Lucide, strokeWidth 1.5</td><td><span class="badge badge-high">High</span></td></tr>
+        <tr><td><span class="prop">Shadow scale</span><div class="src-file">styles.css --pp-shadow-*</div></td><td class="val-bad">5 levels, max 0 16px 48px</td><td class="val-good">3 levels, max 0 12px 32px</td><td><span class="badge badge-high">High</span></td></tr>
+        <tr><td><span class="prop">Spacing base</span><div class="src-file">styles.css --pp-s*</div></td><td class="val-bad">4px grid</td><td class="val-good">3.4px (0.85× density)</td><td><span class="badge badge-medium">Medium</span></td></tr>
+        <tr><td><span class="prop">Focus ring</span><div class="src-file">styles.css / settings.css</div></td><td class="val-bad">rgba(37,99,235,.18) + glow</td><td class="val-good">2px solid var(--color-accent)</td><td><span class="badge badge-medium">Medium</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- REMEDIATION ROADMAP -->
+  <div class="section">
+    <h2 class="section-hd">Remediation Roadmap</h2>
+    <p class="section-intro">Sequenced by impact and dependency. P1 fixes are token-level and unblock everything else.</p>
+    <div class="roadmap">
+      <div class="roadmap-col">
+        <div class="roadmap-col-hd p1">P1 — Foundations (do first)</div>
+        <div class="roadmap-item">Load Industry bundle in index.html
+          <span class="roadmap-item-file">index.html (2 lines)</span>
+        </div>
+        <div class="roadmap-item">Remap --pp-* tokens → Industry vars
+          <span class="roadmap-item-file">styles.css :root</span>
+        </div>
+        <div class="roadmap-item">Import Barlow + Barlow Condensed; set heading font-family
+          <span class="roadmap-item-file">styles.css, settings.css</span>
+        </div>
+        <div class="roadmap-item">Replace --pp-accent with var(--color-accent)
+          <span class="roadmap-item-file">styles.css (global search)</span>
+        </div>
+        <div class="roadmap-item">Remove all hardcoded hex colours outside token definitions
+          <span class="roadmap-item-file">styles.css, settings.css, workbench.css</span>
+        </div>
+        <div class="roadmap-item">Add lucide-react; replace custom SVGs in Toolbar + Switcher
+          <span class="roadmap-item-file">TopRightToolbar.tsx, SurfaceSwitcher.tsx</span>
+        </div>
+      </div>
+      <div class="roadmap-col">
+        <div class="roadmap-col-hd p2">P2 — Components (after tokens)</div>
+        <div class="roadmap-item">Zero all border-radius on cards, buttons, inputs, tags
+          <span class="roadmap-item-file">styles.css, settings.css (global)</span>
+        </div>
+        <div class="roadmap-item">Apply .blueprint + corner marks to all card surfaces
+          <span class="roadmap-item-file">AssistantEmptyState, EmptyState, LaunchpadShell</span>
+        </div>
+        <div class="roadmap-item">Set all card backgrounds to transparent
+          <span class="roadmap-item-file">styles.css .pp-app__empty + all card variants</span>
+        </div>
+        <div class="roadmap-item">Replace wizard persona gradient cards with blueprint cards + tag kickers
+          <span class="roadmap-item-file">FirstRunWizard.tsx</span>
+        </div>
+        <div class="roadmap-item">Remove decorative gradients (brand h1, settings icon, persona cards)
+          <span class="roadmap-item-file">styles.css, settings.css, FirstRunWizard.tsx</span>
+        </div>
+        <div class="roadmap-item">Replace emoji with Lucide icons throughout
+          <span class="roadmap-item-file">AssistantEmptyState.tsx, FirstRunWizard.tsx</span>
+        </div>
+      </div>
+      <div class="roadmap-col">
+        <div class="roadmap-col-hd p3">P3 — Polish + alignment</div>
+        <div class="roadmap-item">Rebuild top bar using .nav + .nav-brand
+          <span class="roadmap-item-file">App.tsx / styles.css .pp-top-bar</span>
+        </div>
+        <div class="roadmap-item">Flatten form input backgrounds (remove paper gradient)
+          <span class="roadmap-item-file">styles.css .pp-embed-config__input</span>
+        </div>
+        <div class="roadmap-item">Fix focus rings to 2px solid var(--color-accent), no glow
+          <span class="roadmap-item-file">styles.css / settings.css (all :focus-visible)</span>
+        </div>
+        <div class="roadmap-item">Remove translateX animation on back button
+          <span class="roadmap-item-file">settings.css .pp-settings-header__back</span>
+        </div>
+        <div class="roadmap-item">Align spacing scale to Industry 0.85× density
+          <span class="roadmap-item-file">styles.css --pp-s* tokens</span>
+        </div>
+        <div class="roadmap-item">Decide dark-mode strategy; align with Industry extension if kept
+          <span class="roadmap-item-file">styles.css dark overrides block</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WHAT NOT TO BUILD -->
+  <div class="section">
+    <h2 class="section-hd">What Not To Build</h2>
+    <table class="token-table">
+      <thead><tr><th>Pattern in PulsePlay today</th><th>Why it conflicts with Industry</th></tr></thead>
+      <tbody>
+        <tr><td>Pill-shaped chips / tags (999px radius)</td><td>Industry tags are near-square — the pill reads as consumer chat UI, not analytical instrument</td></tr>
+        <tr><td>Gradient text on headings (clip-text)</td><td>Industry headings are flat Barlow Condensed in --color-text — no colour effects</td></tr>
+        <tr><td>Filled white cards with box-shadows</td><td>Industry cards are transparent wireframe line-drawings</td></tr>
+        <tr><td>Multi-colour accents (purple #7c3aed, cyan #0891b2)</td><td>Industry is mono — one steel-blue accent, no second hue</td></tr>
+        <tr><td>Emoji as UI icons</td><td>Industry uses Lucide thin-stroke icons exclusively</td></tr>
+        <tr><td>Heavy entrance animations / translateX hovers</td><td>Industry interaction states are colour-only (ramp tint on hover)</td></tr>
+        <tr><td>Paper-texture gradient in textarea</td><td>Industry form inputs are flat solid-surface — no decorative texture</td></tr>
+        <tr><td>5-level shadow scale with xl/2xl</td><td>Industry uses 3 levels, sparsely — most surfaces need none once cards are transparent</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+function toggleFinding(hd) {
+  const body = hd.nextElementSibling;
+  const chevron = hd.querySelector('.finding-chevron');
+  const isOpen = body.classList.contains('open');
+  body.classList.toggle('open', !isOpen);
+  chevron.classList.toggle('open', !isOpen);
+}
+</script>
+</x-dc>
+</body>
+</html>

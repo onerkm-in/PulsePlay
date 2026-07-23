@@ -1,0 +1,22 @@
+/* My Canvas region — Industry blueprint. */
+
+.mc-region { padding: 0; background: transparent; }
+.mc-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--color-divider);
+}
+.mc-list { padding: var(--space-3) var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); }
+
+.mc-error { font-size: 12px; color: var(--color-accent-800); }
+.mc-muted, .mc-empty { font-size: 12.5px; line-height: 1.5; color: color-mix(in srgb, var(--color-text) 55%, transparent); }
+
+.mc-row {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+  padding: var(--space-2) var(--space-3); background: transparent;
+}
+.mc-row--hl { background: var(--color-accent-100); }
+.mc-row-info { min-width: 0; }
+.mc-row-title { font-family: var(--font-heading); font-weight: var(--font-heading-weight); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mc-row-sub { font-size: 10.5px; }
+.mc-row-actions { display: flex; gap: 4px; flex: 0 0 auto; }
+.mc-icon { width: 28px; padding: 4px 0; }

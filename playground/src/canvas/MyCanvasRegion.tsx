@@ -1,12 +1,20 @@
 // playground/src/canvas/MyCanvasRegion.tsx
 //
 // Renders the current user's real pinned CanvasSections from the server-owned store
-// (not localStorage). Supports unpin and reorder. This replaces the deferred "My
-// Canvas" scaffold with live server-backed content once sections are pinned.
+// (not localStorage). Supports unpin and reorder. Styled to the Industry design
+// system: a blueprint region with token-driven rows + buttons.
 
 import { useCallback, useEffect, useState } from "react";
 import type { CanvasSection } from "./canvasTypes";
 import { listSections, mutateSection } from "./canvasClient";
+import "./myCanvas.css";
+
+function Corners() {
+    return (<>
+        <i className="corner tl" /><i className="corner tr" />
+        <i className="corner bl" /><i className="corner br" />
+    </>);
+}
 
 export function MyCanvasRegion(): React.ReactElement {
     const [sections, setSections] = useState<CanvasSection[]>([]);
@@ -40,42 +48,33 @@ export function MyCanvasRegion(): React.ReactElement {
     };
 
     return (
-        <section style={{ border: "1px solid rgba(128,128,128,0.25)", borderRadius: 12, overflow: "hidden" }}>
-            <div style={{
-                padding: "10px 16px", borderBottom: "1px solid rgba(128,128,128,0.2)",
-                display: "flex", justifyContent: "space-between", alignItems: "center",
-                fontSize: 12, letterSpacing: 0.6, fontWeight: 700, color: "var(--pp-muted,#667085)",
-            }}>
-                <span>MY CANVAS{sections.length ? ` · ${sections.length}` : ""}</span>
-                <button type="button" onClick={refresh} style={{
-                    fontSize: 11, border: "none", background: "transparent", color: "var(--pp-muted,#667085)",
-                    cursor: "pointer", textDecoration: "underline",
-                }}>Refresh</button>
+        <section className="mc-region blueprint">
+            <Corners />
+            <div className="mc-head">
+                <span className="kicker">My Canvas{sections.length ? ` · ${sections.length}` : ""}</span>
+                <button type="button" onClick={refresh} className="btn btn-ghost btn-sm">Refresh</button>
             </div>
-            <div style={{ padding: 14 }}>
-                {error && <div role="status" style={{ fontSize: 12, color: "#b54708", marginBottom: 8 }}>{error}</div>}
-                {loading && !sections.length && <div style={{ fontSize: 12.5, color: "var(--pp-muted,#98a2b3)" }}>Loading your Canvas…</div>}
+            <div className="mc-list">
+                {error && <div role="status" className="mc-error">{error}</div>}
+                {loading && !sections.length && <div className="mc-muted">Loading your Canvas…</div>}
                 {!loading && !sections.length && (
-                    <div style={{ fontSize: 12.5, color: "var(--pp-muted,#98a2b3)", lineHeight: 1.5 }}>
+                    <div className="mc-empty">
                         Nothing pinned yet. Use <strong>Save → Pin to Canvas</strong> on any decision, insight, answer, or dashboard view to place it here.
                     </div>
                 )}
                 {sections.map((s, i) => (
-                    <div key={s.section_id} style={{
-                        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
-                        border: "1px solid rgba(128,128,128,0.22)", borderRadius: 9, padding: "9px 11px", marginBottom: 8,
-                        background: s.state.emphasis === "highlighted" ? "rgba(37,99,235,0.06)" : "transparent",
-                    }}>
-                        <div style={{ minWidth: 0 }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title}</div>
-                            <div style={{ fontSize: 10.5, color: "var(--pp-muted,#98a2b3)" }}>
+                    <div key={s.section_id} className={`mc-row blueprint${s.state.emphasis === "highlighted" ? " mc-row--hl" : ""}`}>
+                        <Corners />
+                        <div className="mc-row-info">
+                            <div className="mc-row-title">{s.title}</div>
+                            <div className="mc-row-sub text-muted">
                                 {s.type.replace("_", " ")} · {s.source.surface || "—"}{s.state.note ? ` · note: ${s.state.note}` : ""}
                             </div>
                         </div>
-                        <div style={{ display: "flex", gap: 4, flex: "0 0 auto" }}>
-                            <button type="button" aria-label="Move up" disabled={i === 0} onClick={() => move(s, -1)} style={iconBtn}>↑</button>
-                            <button type="button" aria-label="Move down" disabled={i === sections.length - 1} onClick={() => move(s, 1)} style={iconBtn}>↓</button>
-                            <button type="button" onClick={() => unpin(s)} style={{ ...iconBtn, width: "auto", padding: "0 8px" }}>Unpin</button>
+                        <div className="mc-row-actions">
+                            <button type="button" aria-label="Move up" disabled={i === 0} onClick={() => move(s, -1)} className="btn btn-secondary btn-sm mc-icon">↑</button>
+                            <button type="button" aria-label="Move down" disabled={i === sections.length - 1} onClick={() => move(s, 1)} className="btn btn-secondary btn-sm mc-icon">↓</button>
+                            <button type="button" onClick={() => unpin(s)} className="btn btn-secondary btn-sm">Unpin</button>
                         </div>
                     </div>
                 ))}
@@ -83,8 +82,3 @@ export function MyCanvasRegion(): React.ReactElement {
         </section>
     );
 }
-
-const iconBtn: React.CSSProperties = {
-    width: 26, height: 26, borderRadius: 7, cursor: "pointer", fontSize: 12,
-    border: "1px solid rgba(128,128,128,0.35)", background: "transparent", color: "inherit",
-};

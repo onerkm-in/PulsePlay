@@ -1,15 +1,17 @@
 // playground/src/canvas/SaveChannel.tsx
 //
-// The one uniform Save affordance for every eligible section (v3.2 §11). Instead of
-// six permanent icons, a single Save control opens an overflow menu: Pin, Bookmark,
-// Note, Highlight, Snapshot, Unpin. Any surface (Action Insights, AI Insights, Ask
-// Pulse, eligible Dashboard) renders the same component with an EligibleSection
-// descriptor; behavior + persistence are identical across segregated and combined
-// modes because they hit the same /decision-canvas backend.
+// The one uniform Save affordance for every eligible section (v3.2 §11). A single
+// Save control opens an overflow menu: Pin, Bookmark, Note, Highlight, Snapshot,
+// Unpin. Any surface renders the same component with an EligibleSection descriptor;
+// behaviour + persistence are identical across segregated and combined modes because
+// they hit the same /decision-canvas backend.
+//
+// Styled to the Industry design system: token-driven buttons + a blueprint popup.
 
 import { useState, useCallback } from "react";
 import type { CanvasSection, EligibleSection, SaveState } from "./canvasTypes";
 import { saveSection, mutateSection, snapshotSection, snapshotSource } from "./canvasClient";
+import "./saveChannel.css";
 
 function isPinned(s: SaveState): boolean { return s === "pinned" || s === "pinned-and-bookmarked"; }
 
@@ -26,7 +28,6 @@ export function SaveChannel({ eligible, compact }: { eligible: EligibleSection; 
         try { window.dispatchEvent(new CustomEvent("pulseplay:canvas-changed")); } catch { /* swallow */ }
     };
 
-    // ensure a server section exists (create/focus), returning the current one
     const ensure = useCallback(async (saveOp?: "pin" | "bookmark"): Promise<CanvasSection> => {
         if (section) return section;
         const { section: s } = await saveSection(eligible, saveOp);
@@ -72,7 +73,7 @@ export function SaveChannel({ eligible, compact }: { eligible: EligibleSection; 
     const pinned = section ? isPinned(section.state.save_state) : false;
 
     return (
-        <div style={{ position: "relative", display: "inline-block" }}>
+        <div className="sc-root">
             <button
                 type="button"
                 onClick={() => setOpen((v) => !v)}
@@ -80,32 +81,25 @@ export function SaveChannel({ eligible, compact }: { eligible: EligibleSection; 
                 aria-haspopup="menu"
                 aria-expanded={open}
                 aria-label="Save section"
-                style={{
-                    padding: compact ? "4px 9px" : "6px 11px", borderRadius: 8, cursor: "pointer", fontSize: 12,
-                    border: "1px solid rgba(128,128,128,0.35)", background: pinned ? "rgba(37,99,235,0.1)" : "transparent",
-                    color: "inherit", fontWeight: 550,
-                }}
+                className={`btn btn-sm ${pinned ? "btn-secondary sc-trigger--saved" : "btn-secondary"}${compact ? " sc-trigger--compact" : ""}`}
             >{pinned ? "Saved ▾" : "Save ▾"}</button>
 
             {open && (
-                <div aria-label="Save options" style={{
-                    position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 20, minWidth: 180,
-                    background: "var(--pp-card-bg, #fff)", border: "1px solid rgba(128,128,128,0.3)",
-                    borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.14)", padding: 6,
-                }}>
+                <div aria-label="Save options" className="sc-menu blueprint">
+                    <i className="corner tl" /><i className="corner tr" />
+                    <i className="corner bl" /><i className="corner br" />
                     <MenuItem label={pinned ? "Unpin from Canvas" : "Pin to Canvas"} onClick={doPin} disabled={!eligible} />
                     <MenuItem label="Bookmark" onClick={doBookmark} />
                     <MenuItem label={noteOpen ? "Cancel note" : "Add note"} onClick={() => setNoteOpen((v) => !v)} />
                     {noteOpen && (
-                        <div style={{ padding: "4px 6px 8px" }}>
+                        <div className="sc-note">
                             <textarea
                                 value={noteDraft}
                                 onChange={(e) => setNoteDraft(e.target.value)}
                                 rows={2} placeholder="Your note…" aria-label="Section note"
-                                style={{ width: "100%", fontSize: 12, borderRadius: 6, border: "1px solid rgba(128,128,128,0.35)", padding: 6, resize: "vertical" }}
+                                className="input"
                             />
-                            <button type="button" onClick={submitNote} disabled={busy || !noteDraft.trim()}
-                                style={{ marginTop: 4, padding: "4px 10px", borderRadius: 6, border: "none", background: "#2563eb", color: "#fff", fontSize: 12, cursor: "pointer" }}>
+                            <button type="button" onClick={submitNote} disabled={busy || !noteDraft.trim()} className="btn btn-primary btn-sm sc-note-save">
                                 Save note
                             </button>
                         </div>
@@ -114,21 +108,15 @@ export function SaveChannel({ eligible, compact }: { eligible: EligibleSection; 
                     <MenuItem label="Capture snapshot" onClick={doSnapshot} />
                 </div>
             )}
-            {flash && <span role="status" style={{ marginLeft: 8, fontSize: 11, color: "#2563eb" }}>{flash}</span>}
+            {flash && <span role="status" className="sc-flash">{flash}</span>}
         </div>
     );
 }
 
 function MenuItem({ label, onClick, disabled }: { label: string; onClick: () => void; disabled?: boolean }) {
     return (
-        <button
-            type="button" onClick={onClick} disabled={disabled}
-            style={{
-                display: "block", width: "100%", textAlign: "left", padding: "7px 10px", borderRadius: 7,
-                border: "none", background: "transparent", color: "inherit", cursor: "pointer", fontSize: 12.5,
-            }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(128,128,128,0.12)"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
-        >{label}</button>
+        <button type="button" onClick={onClick} disabled={disabled} className="btn btn-ghost btn-sm sc-item">
+            {label}
+        </button>
     );
 }

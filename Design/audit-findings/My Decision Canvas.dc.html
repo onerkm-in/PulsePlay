@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/industry-7c9fc2b6-c308-48e5-a986-8f53d49d51ce/styles.css">
+  <script src="_ds/industry-7c9fc2b6-c308-48e5-a986-8f53d49d51ce/_ds_bundle.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; background: var(--color-bg); color: var(--color-text); font-family: var(--font-body); }
+    a { color: var(--color-accent); }
+    a:hover { color: var(--color-accent-700); }
+    @keyframes pp-shimmer { 0% { opacity: .45; } 50% { opacity: .9; } 100% { opacity: .45; } }
+    /* Dark theme — documented Industry extension: ground from the neutral-900 step,
+       dividers and surfaces re-derived; accent ramp unchanged. */
+    .pp-dark {
+      --color-bg: #1a1c1e;
+      --color-surface: #232628;
+      --color-text: #e8e9ea;
+      --color-divider: color-mix(in srgb, #e8e9ea 18%, transparent);
+      --color-neutral-100: #2b2d2f;
+      --color-neutral-200: #35383a;
+      --color-neutral-500: #8f9294;
+      --color-neutral-600: #a4a7a9;
+      --color-neutral-700: #c0c2c4;
+      background: var(--color-bg); color: var(--color-text);
+    }
+    .pp-dark .tag-accent { background: var(--color-accent-800); color: var(--color-accent-100); }
+    .pp-dark .tag-neutral { background: var(--color-neutral-200); color: var(--color-neutral-700); }
+    .pp-dark .input { background: var(--color-neutral-100); color: var(--color-text); }
+    .pp-dark .btn-secondary { color: var(--color-text); }
+    .pp-dark .btn-ghost { color: var(--color-accent-300); }
+  </style>
+</helmet>
+
+<div class="{{ rootClass }}" style="min-height: 100vh; display: flex; flex-direction: column; background: var(--color-bg); color: var(--color-text); padding-bottom: 36px;">
+
+  <!-- ══ 1 · CONTEXT BAR ══ -->
+  <header style="display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-6); border-bottom: 1px solid var(--color-divider); flex-wrap: wrap; min-height: 52px;" data-screen-label="Context bar">
+    <span style="font-family: var(--font-heading); font-weight: 600; font-size: 18px; display: flex; align-items: center; gap: 8px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      My Decision Canvas
+    </span>
+    <span style="width: 1px; height: 18px; background: var(--color-divider);"></span>
+    <span style="font-size: 12px; display: inline-flex; align-items: center; gap: 6px;" title="Verified persona (resolved server-side)">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      [Verified persona] · [Business scope]
+    </span>
+    <span class="tag tag-accent" style="display: inline-flex; align-items: center; gap: 5px;" title="Governance enforced; data freshness">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      Governed · data as of [timestamp]
+    </span>
+    <span style="margin-left: auto; font-size: 11px; color: var(--color-neutral-600); display: inline-flex; align-items: center; gap: 6px;" title="Active AI connector and BI vendor">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><rect x="2" y="2" width="20" height="8" rx="0"/><rect x="2" y="14" width="20" height="8" rx="0"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+      AI: [connector name] · BI: [vendor name]
+    </span>
+    <div class="seg" role="tablist" aria-label="Experience mode" style="flex: 0 0 auto;">
+      <label class="seg-opt" style="cursor: pointer; font-size: 12px; min-height: 34px;">
+        <input type="radio" name="pp-mode" checked="{{ isUnified }}" onChange="{{ pickUnified }}">Unified
+      </label>
+      <label class="seg-opt" style="cursor: pointer; font-size: 12px; min-height: 34px;">
+        <input type="radio" name="pp-mode" checked="{{ isSegregated }}" onChange="{{ pickSegregated }}">Segregated
+      </label>
+    </div>
+    <button onClick="{{ toggleTheme }}" class="btn btn-ghost" style="min-height: 44px; font-size: 12px; white-space: nowrap; flex: 0 0 auto;" aria-label="Toggle light or dark theme">{{ themeLabel }}</button>
+  </header>
+
+  <!-- ══ Segregated mode: screen navigation ══ -->
+  <sc-if value="{{ isSegregated }}" hint-placeholder-val="{{ false }}">
+    <div style="display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-6); border-bottom: 1px solid var(--color-divider); background: var(--color-surface); flex-wrap: wrap;">
+      <span style="font-size: 10px; letter-spacing: .1em; text-transform: uppercase; font-family: var(--font-heading); color: var(--color-neutral-600); margin-right: var(--space-2);">Screens</span>
+      <sc-for list="{{ segScreens }}" as="sc" hint-placeholder-count="4">
+        <button onClick="{{ sc.pick }}" style="min-height: 44px; padding: 5px 16px; font-family: var(--font-heading); font-weight: 600; font-size: 13px; letter-spacing: .03em; cursor: pointer; border: 1px solid {{ sc.borderColor }}; background: {{ sc.bg }}; color: {{ sc.fg }};" role="tab" aria-selected="{{ sc.selected }}">{{ sc.label }}</button>
+      </sc-for>
+    </div>
+
+    <main style="flex: 1; width: 100%; max-width: 880px; margin: 0 auto; padding: var(--space-4) var(--space-4) var(--space-8);">
+      <!-- Decision Assist screen: the Action Inbox section renders below via shared markup cue -->
+      <sc-if value="{{ segShowDecisions }}" hint-placeholder-val="{{ true }}">
+        <section class="blueprint" style="padding: var(--space-4);" data-screen-label="Segregated · Decision Assist">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="font-size: 10px; letter-spacing: .1em; text-transform: uppercase; font-family: var(--font-heading); color: var(--color-accent-700);">Decision Assist</div>
+          <h2 style="font-size: 24px; margin: 2px 0 var(--space-3);">Needs your decision</h2>
+          <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+            <sc-for list="{{ prompts }}" as="p" hint-placeholder-count="2">
+              <article class="blueprint" style="padding: var(--space-3) var(--space-4); border-left: 3px solid {{ p.railColor }};">
+                <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+                <span class="tag {{ p.sevTagClass }}" style="font-size: 10px;">{{ p.sevLabel }}</span>
+                <h3 style="font-size: 18px; margin: 6px 0 3px;">{{ p.headline }}</h3>
+                <p style="font-size: 13px; margin: 0 0 var(--space-2); color: var(--color-neutral-700); line-height: 1.5;">{{ p.question }}</p>
+                <div style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
+                  <button class="btn btn-primary" style="min-height: 44px; font-size: 13px;">{{ p.primaryAction }}</button>
+                  <button class="btn btn-ghost" style="min-height: 44px; font-size: 12.5px;">Snooze</button>
+                  <button onClick="{{ p.openDrawer }}" class="btn btn-secondary" style="min-height: 44px; font-size: 12.5px;">Details</button>
+                </div>
+              </article>
+            </sc-for>
+          </div>
+        </section>
+      </sc-if>
+
+      <!-- AI Insights screen -->
+      <sc-if value="{{ segShowInsights }}" hint-placeholder-val="{{ false }}">
+        <section class="blueprint" style="padding: var(--space-6);" data-screen-label="Segregated · AI Insights">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="font-size: 10px; letter-spacing: .1em; text-transform: uppercase; font-family: var(--font-heading); color: var(--color-accent-700);">AI Insights · AI-narrated</div>
+          <h2 style="font-size: 26px; margin: 4px 0 var(--space-4);">Headline briefing</h2>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-3);">
+            <sc-for list="{{ briefingCards }}" as="b" hint-placeholder-count="4">
+              <div class="blueprint" style="padding: var(--space-3);">
+                <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+                <div class="card-kicker">{{ b.kicker }}</div>
+                <p style="font-size: 13px; margin: 6px 0 0; line-height: 1.6;">{{ b.body }}</p>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+      </sc-if>
+
+      <!-- Ask Pulse screen -->
+      <sc-if value="{{ segShowChat }}" hint-placeholder-val="{{ false }}">
+        <section class="blueprint" style="padding: var(--space-6); display: flex; flex-direction: column; min-height: 420px;" data-screen-label="Segregated · Ask Pulse">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="font-size: 10px; letter-spacing: .1em; text-transform: uppercase; font-family: var(--font-heading); color: var(--color-accent-700);">Ask Pulse · grounded</div>
+          <h2 style="font-size: 26px; margin: 4px 0 var(--space-2);">Grounded conversation</h2>
+          <div style="flex: 1; border: 1px solid var(--color-divider); padding: var(--space-4); display: flex; align-items: center; justify-content: center; margin-bottom: var(--space-3);">
+            <span style="font-size: 13px; color: var(--color-neutral-500);">No messages yet — answers are grounded in [active BI context].</span>
+          </div>
+          <div style="display: flex; gap: var(--space-2);">
+            <input class="input" placeholder="Ask anything about your data…" style="flex: 1;" aria-label="Ask Pulse">
+            <button class="btn btn-primary" style="min-height: 44px;">Ask</button>
+          </div>
+        </section>
+      </sc-if>
+
+      <!-- Dashboard screen -->
+      <sc-if value="{{ segShowDashboard }}" hint-placeholder-val="{{ false }}">
+        <section class="blueprint" style="padding: var(--space-4); min-height: 480px; display: flex; flex-direction: column;" data-screen-label="Segregated · Dashboard">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--space-3);">
+            <div>
+              <div style="font-size: 10px; letter-spacing: .1em; text-transform: uppercase; font-family: var(--font-heading); color: var(--color-accent-700);">Dashboard · BI Viz</div>
+              <h2 style="font-size: 24px; margin: 2px 0 0;">[Dashboard display name]</h2>
+            </div>
+            <span class="tag tag-accent">Governed</span>
+          </div>
+          <div style="flex: 1; border: 1px solid var(--color-divider); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: var(--space-2);">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="20" x2="6" y2="11"/><line x1="12" y1="20" x2="12" y2="5"/><line x1="18" y1="20" x2="18" y2="14"/></svg>
+            <span style="font-size: 13px; color: var(--color-neutral-600);">Embedded BI surface mounts here ([vendor] adapter)</span>
+          </div>
+        </section>
+      </sc-if>
+    </main>
+  </sc-if>
+
+  <!-- ══ MAIN COLUMN (unified) ══ -->
+  <sc-if value="{{ isUnified }}" hint-placeholder-val="{{ true }}">
+  <main style="flex: 1; width: 100%; max-width: 880px; margin: 0 auto; padding: var(--space-4) var(--space-4) var(--space-8); display: flex; flex-direction: column; gap: var(--space-6);">
+
+    <!-- ══ 2 · ACTION INBOX ══ -->
+    <section aria-label="Action inbox" data-screen-label="Action Inbox">
+      <div style="display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-3);">
+        <h2 style="font-size: 24px; margin: 0;">Needs your decision</h2>
+        <span style="font-size: 11px; color: var(--color-neutral-600);">Deterministic detection · ranked by governed tier</span>
+      </div>
+
+      <!-- Loading state -->
+      <sc-if value="{{ inboxLoading }}" hint-placeholder-val="{{ false }}">
+        <div class="blueprint" style="padding: var(--space-4); animation: pp-shimmer 1.4s ease infinite;" role="status" aria-label="Loading decisions">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="height: 10px; width: 120px; background: var(--color-neutral-200); margin-bottom: 10px;"></div>
+          <div style="height: 18px; width: 70%; background: var(--color-neutral-200); margin-bottom: 8px;"></div>
+          <div style="height: 12px; width: 90%; background: var(--color-neutral-200);"></div>
+          <div style="font-size: 12px; color: var(--color-neutral-600); margin-top: var(--space-3);">Scanning KPIs for decisions…</div>
+        </div>
+      </sc-if>
+
+      <!-- Error state -->
+      <sc-if value="{{ inboxError }}" hint-placeholder-val="{{ false }}">
+        <div class="blueprint" style="padding: var(--space-3) var(--space-4); display: flex; align-items: center; gap: var(--space-3);" role="alert">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-700)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <div style="flex: 1;">
+            <div style="font-family: var(--font-heading); font-weight: 600; font-size: 14px;">Couldn't reach the decision store</div>
+            <div style="font-size: 12px; color: var(--color-neutral-600);">[error detail + support code]. Nothing was changed — your pending decisions are safe.</div>
+          </div>
+          <button class="btn btn-secondary" style="min-height: 44px;">Retry</button>
+        </div>
+      </sc-if>
+
+      <!-- Empty state — slim band, still reachable -->
+      <sc-if value="{{ inboxEmpty }}" hint-placeholder-val="{{ false }}">
+        <div class="blueprint" style="padding: var(--space-3) var(--space-4); display: flex; align-items: center; gap: var(--space-3);">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+          <span style="font-size: 13px; flex: 1;">No decisions need attention right now. Detection runs continuously.</span>
+          <button class="btn btn-ghost" style="min-height: 44px; font-size: 12px;">View resolved</button>
+        </div>
+      </sc-if>
+
+      <!-- Ready: ranked decision cards -->
+      <sc-if value="{{ inboxReady }}" hint-placeholder-val="{{ true }}">
+        <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+          <sc-for list="{{ prompts }}" as="p" hint-placeholder-count="2">
+            <article class="blueprint" style="padding: var(--space-3) var(--space-4); border-left: 3px solid {{ p.railColor }};" aria-label="Decision prompt">
+              <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+              <div style="display: flex; justify-content: space-between; gap: var(--space-4);">
+                <div style="min-width: 0; flex: 1;">
+                  <div style="font-size: 10px; letter-spacing: .1em; text-transform: uppercase; font-family: var(--font-heading); color: var(--color-accent-700); display: flex; align-items: center; gap: 8px;">
+                    Needs your decision
+                    <span class="tag {{ p.sevTagClass }}" style="font-size: 10px;">{{ p.sevLabel }}</span>
+                  </div>
+                  <h3 style="font-size: 19px; margin: 6px 0 3px;">{{ p.headline }}</h3>
+                  <p style="font-size: 13px; margin: 0 0 6px; color: var(--color-neutral-700); line-height: 1.5;">{{ p.issue }}</p>
+                  <p style="font-size: 12px; margin: 0; color: var(--color-neutral-600);"><strong style="font-family: var(--font-heading); font-size: 10.5px; letter-spacing: .06em;">WHY</strong> {{ p.why }} · <strong style="font-family: var(--font-heading); font-size: 10.5px; letter-spacing: .06em;">FIX</strong> {{ p.fix }}</p>
+                </div>
+                <div style="text-align: right; flex: 0 0 auto; width: 150px;">
+                  <div style="font-family: var(--font-heading); font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums;">{{ p.impact }}</div>
+                  <div style="font-size: 10.5px; color: var(--color-neutral-600);">{{ p.impactLabel }}</div>
+                  <div style="height: 3px; background: var(--color-neutral-200); margin-top: 6px;" role="img" aria-label="Relative impact within this stack"><div style="height: 3px; width: {{ p.impactPct }}; background: var(--color-accent);"></div></div>
+                  <div style="font-size: 9.5px; color: var(--color-neutral-500); margin-top: 3px;">measured · deterministic</div>
+                </div>
+              </div>
+              <p style="font-size: 13.5px; font-weight: 500; margin: var(--space-3) 0 0;">{{ p.question }}</p>
+              <div style="display: flex; gap: var(--space-2); align-items: center; margin-top: var(--space-2); flex-wrap: wrap;">
+                <button class="btn btn-primary" style="min-height: 44px; font-size: 13px;">{{ p.primaryAction }}</button>
+                <button class="btn btn-ghost" style="min-height: 44px; font-size: 12.5px;">Snooze</button>
+                <button class="btn btn-ghost" style="min-height: 44px; font-size: 12.5px;">Mark false positive</button>
+                <button onClick="{{ p.openDrawer }}" class="btn btn-secondary" style="min-height: 44px; font-size: 12.5px;">Details</button>
+                <!-- Save affordance -->
+                <div style="margin-left: auto; position: relative;">
+                  <button onClick="{{ p.toggleSave }}" class="btn btn-secondary" style="min-height: 44px; font-size: 12.5px;" aria-haspopup="menu" aria-expanded="{{ p.saveOpen }}">Save ▾</button>
+                  <sc-if value="{{ p.saveOpen }}" hint-placeholder-val="{{ false }}">
+                    <div class="blueprint elev-md" role="menu" style="position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; background: var(--color-bg); min-width: 180px; padding: var(--space-1) 0;">
+                      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+                      <sc-for list="{{ saveActions }}" as="sa" hint-placeholder-count="5">
+                        <button role="menuitem" style="display: block; width: 100%; text-align: left; border: none; background: transparent; padding: 10px 14px; font-family: var(--font-body); font-size: 13px; color: var(--color-text); cursor: pointer; min-height: 44px;" style-hover="background: var(--color-accent-100);">{{ sa }}</button>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                </div>
+              </div>
+              <div style="font-size: 10.5px; color: var(--color-neutral-500); margin-top: var(--space-2);">confidence {{ p.confidence }} · Level {{ p.level }} · {{ p.ruleId }} · owner {{ p.owner }} · {{ p.status }} · data as of [timestamp]</div>
+            </article>
+          </sc-for>
+        </div>
+      </sc-if>
+    </section>
+
+    <!-- ══ 3 · SINCE YOU LAST VISITED ══ -->
+    <section aria-label="Since you last visited" data-screen-label="Since you last visited">
+      <h2 style="font-size: 18px; margin: 0 0 var(--space-2);">Since you last visited</h2>
+      <div class="blueprint" style="padding: 0;">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <sc-for list="{{ changedItems }}" as="c" hint-placeholder-count="3">
+          <div style="display: flex; align-items: center; gap: var(--space-3); padding: 10px var(--space-4); border-bottom: 1px solid var(--color-divider); min-height: 44px;">
+            <span class="tag {{ c.tagClass }}" style="font-size: 10px; width: 74px; justify-content: center;">{{ c.state }}</span>
+            <span style="font-size: 13px; flex: 1;">{{ c.label }}</span>
+            <span style="font-size: 11px; color: var(--color-neutral-500);">{{ c.detail }}</span>
+            <button class="btn btn-ghost" style="min-height: 44px; font-size: 12px;">Open</button>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <!-- ══ 4 · MY CANVAS ══ -->
+    <section aria-label="My canvas" data-screen-label="My Canvas">
+      <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--space-2);">
+        <h2 style="font-size: 18px; margin: 0;">My Canvas</h2>
+        <span style="font-size: 11px; color: var(--color-neutral-600);">Pinned in your order · drag to reorder</span>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-3);">
+        <sc-for list="{{ pinned }}" as="pin" hint-placeholder-count="3">
+          <div class="blueprint" style="padding: var(--space-3); cursor: grab;">
+            <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px;">
+              <span class="card-kicker">{{ pin.kind }}</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-neutral-500)" stroke-width="1.5" aria-hidden="true"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg>
+            </div>
+            <div style="font-family: var(--font-heading); font-weight: 600; font-size: 15px; margin-top: 5px;">{{ pin.title }}</div>
+            <div style="font-size: 11.5px; color: var(--color-neutral-600); margin-top: 3px;">{{ pin.meta }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <!-- ══ 5 · SAVED ITEMS ══ -->
+    <section aria-label="Saved items" data-screen-label="Saved Items">
+      <h2 style="font-size: 18px; margin: 0 0 var(--space-2);">Saved items</h2>
+      <div class="blueprint" style="padding: 0;">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <sc-for list="{{ savedItems }}" as="si" hint-placeholder-count="2">
+          <div style="display: flex; align-items: center; gap: var(--space-3); padding: 10px var(--space-4); border-bottom: 1px solid var(--color-divider); min-height: 44px;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+            <span style="font-size: 13px; flex: 1;">{{ si.label }}</span>
+            <span style="font-size: 11px; color: var(--color-neutral-500);">{{ si.detail }}</span>
+            <button class="btn btn-ghost" style="min-height: 44px; font-size: 12px;">Pin to Canvas</button>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <!-- ══ 6 · SUGGESTED FOR YOU (collapsed by default) ══ -->
+    <section aria-label="Suggested for you" data-screen-label="Suggested for you">
+      <button onClick="{{ toggleSuggested }}" style="display: flex; align-items: center; gap: var(--space-2); width: 100%; border: none; background: transparent; padding: 0; cursor: pointer; font-family: var(--font-heading); font-weight: 600; font-size: 18px; color: var(--color-text); min-height: 44px; text-align: left;" aria-expanded="{{ suggestedOpen }}">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="transform: rotate({{ suggestedChevron }}); transition: transform 160ms ease;"><polyline points="9 18 15 12 9 6"/></svg>
+        Suggested for you
+        <span style="font-family: var(--font-body); font-weight: 400; font-size: 11px; color: var(--color-neutral-600);">max 3 · explainable · never changes permissions or severity</span>
+      </button>
+      <sc-if value="{{ suggestedOpen }}" hint-placeholder-val="{{ false }}">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-3); margin-top: var(--space-2);">
+          <sc-for list="{{ suggestions }}" as="sg" hint-placeholder-count="3">
+            <div class="blueprint" style="padding: var(--space-3);">
+              <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+              <span class="tag tag-neutral" style="font-size: 10px;">{{ sg.reason }}</span>
+              <div style="font-family: var(--font-heading); font-weight: 600; font-size: 14.5px; margin-top: 6px;">{{ sg.title }}</div>
+              <button class="btn btn-ghost" style="min-height: 44px; font-size: 12px; margin-top: 4px; padding-left: 0;">Open →</button>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+    </section>
+  </main>
+  </sc-if>
+
+  <!-- ══ 7 · CONTEXTUAL DETAIL DRAWER (the only detail layer) ══ -->
+  <sc-if value="{{ drawerOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position: fixed; inset: 0; bottom: 36px; z-index: 40; display: flex; justify-content: flex-end; background: color-mix(in srgb, var(--color-neutral-900) 42%, transparent);" onClick="{{ closeDrawerBackdrop }}">
+      <div class="elev-lg" role="dialog" aria-modal="true" aria-label="Detail drawer" style="width: min(560px, 100vw); height: 100%; background: var(--color-bg); border-left: 1px solid var(--color-divider); display: flex; flex-direction: column;" onClick="{{ stopClick }}">
+        <div style="display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--color-divider);">
+          <div style="min-width: 0; flex: 1;">
+            <div style="font-size: 10px; letter-spacing: .1em; text-transform: uppercase; font-family: var(--font-heading); color: var(--color-accent-700);">Detail · {{ drawerPromptLabel }}</div>
+            <div style="font-family: var(--font-heading); font-weight: 600; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ drawerHeadline }}</div>
+          </div>
+          <button onClick="{{ closeDrawer }}" class="btn btn-icon btn-secondary" style="min-width: 44px; min-height: 44px;" aria-label="Close detail drawer">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <!-- Tabs -->
+        <div role="tablist" aria-label="Detail views" style="display: flex; border-bottom: 1px solid var(--color-divider);">
+          <sc-for list="{{ drawerTabs }}" as="t" hint-placeholder-count="4">
+            <button role="tab" aria-selected="{{ t.selected }}" onClick="{{ t.pick }}" style="flex: 1; min-height: 44px; border: none; border-bottom: 2px solid {{ t.underline }}; background: transparent; font-family: var(--font-heading); font-weight: 600; font-size: 13px; letter-spacing: .03em; color: {{ t.color }}; cursor: pointer;">{{ t.label }}</button>
+          </sc-for>
+        </div>
+        <div style="flex: 1; overflow-y: auto; padding: var(--space-4);">
+          <sc-if value="{{ tabEvidence }}" hint-placeholder-val="{{ true }}">
+            <div class="card-kicker" style="margin-bottom: 6px;">Detection SQL · deterministic</div>
+            <pre style="font-family: 'Cascadia Code', monospace; font-size: 11.5px; line-height: 1.6; border: 1px solid var(--color-divider); padding: var(--space-3); margin: 0 0 var(--space-3); white-space: pre-wrap; background: var(--color-surface); color: var(--color-text);">[detection SQL placeholder — served verbatim from the prompt store]</pre>
+            <div class="card-kicker" style="margin-bottom: 6px;">Evidence · audit note</div>
+            <pre style="font-family: 'Cascadia Code', monospace; font-size: 11.5px; line-height: 1.6; border: 1px solid var(--color-divider); padding: var(--space-3); margin: 0; white-space: pre-wrap; background: var(--color-surface); color: var(--color-text);">[10-part deterministic narrative placeholder · evidence signature · request id]</pre>
+          </sc-if>
+          <sc-if value="{{ tabChat }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; flex-direction: column; height: 100%; min-height: 320px;">
+              <div style="flex: 1; border: 1px solid var(--color-divider); padding: var(--space-3); display: flex; align-items: center; justify-content: center; margin-bottom: var(--space-3);">
+                <span style="font-size: 12.5px; color: var(--color-neutral-600); text-align: center;">Grounded follow-up about this decision.<br>Answers are AI-narrated — figures link back to evidence.</span>
+              </div>
+              <div style="display: flex; gap: var(--space-2);">
+                <input class="input" placeholder="Ask about this decision…" style="flex: 1;" aria-label="Ask about this decision">
+                <button class="btn btn-primary" style="min-height: 44px;">Ask</button>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ tabDashboard }}" hint-placeholder-val="{{ false }}">
+            <div style="border: 1px solid var(--color-divider); min-height: 320px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: var(--space-2);">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="20" x2="6" y2="11"/><line x1="12" y1="20" x2="12" y2="5"/><line x1="18" y1="20" x2="18" y2="14"/></svg>
+              <span style="font-size: 12.5px; color: var(--color-neutral-600);">Scoped BI view for this decision ([vendor] embed)</span>
+              <button class="btn btn-ghost" style="min-height: 44px; font-size: 12px;">Pin this view to Canvas</button>
+            </div>
+          </sc-if>
+          <sc-if value="{{ tabApproval }}" hint-placeholder-val="{{ false }}">
+            <div class="card-kicker" style="margin-bottom: 6px;">Approval · human-in-the-loop</div>
+            <p style="font-size: 13px; line-height: 1.6; color: var(--color-neutral-700);">This action is Level [n] and requires approval. Authorization is enforced server-side — this panel only submits intent.</p>
+            <label style="display: block; font-size: 12px; color: var(--color-neutral-600); margin: var(--space-3) 0 5px;">Rationale (recorded in the audit trail)</label>
+            <textarea class="input" placeholder="[Optional rationale placeholder]" style="min-height: 90px;"></textarea>
+            <div style="display: flex; gap: var(--space-2); margin-top: var(--space-3);">
+              <button class="btn btn-primary" style="min-height: 44px;">Approve &amp; proceed</button>
+              <button class="btn btn-secondary" style="min-height: 44px;">Reject</button>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ══ Fixed 36px provenance footer (app shell) ══ -->
+  <footer style="position: fixed; left: 0; right: 0; bottom: 0; height: 36px; z-index: 35; display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding: 0 var(--space-4); border-top: 1px solid var(--color-divider); background: var(--color-bg); font-size: 11px; color: var(--color-neutral-600);">
+    <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Source: [source display label] · Proxy: [profile] · Governance enforced ✓ · request [id]</span>
+    <span style="flex: 0 0 auto;">[persona] · data as of [timestamp]</span>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Appearance&quot;},&quot;inboxState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;ready&quot;,&quot;loading&quot;,&quot;empty&quot;,&quot;error&quot;],&quot;default&quot;:&quot;ready&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;States&quot;}}">
+class Component extends DCLogic {
+  state = {
+    dark: null,
+    mode: "unified",
+    segScreen: "decisions",
+    suggestedOpen: false,
+    drawerOpen: false,
+    drawerTab: "evidence",
+    drawerPromptId: null,
+    saveMenuFor: null,
+  };
+
+  renderVals() {
+    const s = this.state;
+    const inboxState = this.props.inboxState ?? "ready";
+    const dark = s.dark ?? (this.props.theme === "dark");
+
+    const promptData = [
+      {
+        id: "p1", sev: "critical", sevLabel: "Critical", railColor: "var(--color-accent-900)", sevTagClass: "tag-accent",
+        headline: "[KPI name] breached [threshold] in [scope segment]",
+        issue: "[Issue summary placeholder — deterministic detection output, one line.]",
+        why: "[root cause placeholder]", fix: "[recommended action placeholder]",
+        impact: "$000,000", impactLabel: "[impact metric] / [period]", impactPct: "88%",
+        question: "Do you want to [recommended action placeholder]?",
+        primaryAction: "[Primary action] →",
+        confidence: "high", level: 2, ruleId: "RULE-[ID]", owner: "[owner]", status: "pending-approval",
+      },
+      {
+        id: "p2", sev: "medium", sevLabel: "Medium", railColor: "var(--color-accent-500)", sevTagClass: "tag-neutral",
+        headline: "[KPI name] drifting against [reference] in [scope segment]",
+        issue: "[Issue summary placeholder — second ranked decision.]",
+        why: "[root cause placeholder]", fix: "[recommended action placeholder]",
+        impact: "$00,000", impactLabel: "[impact metric] / [period]", impactPct: "22%",
+        question: "Do you want to [recommended action placeholder]?",
+        primaryAction: "[Primary action] →",
+        confidence: "medium", level: 1, ruleId: "RULE-[ID]", owner: "[owner]", status: "new",
+      },
+    ];
+
+    const prompts = promptData.map((p) => ({
+      ...p,
+      saveOpen: s.saveMenuFor === p.id,
+      toggleSave: (e) => { e.stopPropagation(); this.setState({ saveMenuFor: s.saveMenuFor === p.id ? null : p.id }); },
+      openDrawer: () => this.setState({ drawerOpen: true, drawerPromptId: p.id, drawerTab: "evidence", saveMenuFor: null }),
+    }));
+
+    const activePrompt = promptData.find((p) => p.id === s.drawerPromptId) || promptData[0];
+
+    const tabs = [
+      ["evidence", "Evidence"], ["chat", "Ask Pulse"], ["dashboard", "Dashboard"], ["approval", "Approval"],
+    ];
+    const drawerTabs = tabs.map(([id, label]) => ({
+      id, label,
+      selected: s.drawerTab === id,
+      underline: s.drawerTab === id ? "var(--color-accent)" : "transparent",
+      color: s.drawerTab === id ? "var(--color-accent-700)" : "var(--color-neutral-600)",
+      pick: () => this.setState({ drawerTab: id }),
+    }));
+
+    const segDefs = [
+      ["decisions", "Decision Assist"], ["insights", "AI Insights"],
+      ["chat", "Ask Pulse"], ["dashboard", "Dashboard"],
+    ];
+    const segScreens = segDefs.map(([id, label]) => ({
+      id, label,
+      selected: s.segScreen === id,
+      bg: s.segScreen === id ? "var(--color-accent)" : "transparent",
+      fg: s.segScreen === id ? "var(--color-bg)" : "var(--color-text)",
+      borderColor: s.segScreen === id ? "var(--color-accent)" : "var(--color-divider)",
+      pick: () => this.setState({ segScreen: id }),
+    }));
+
+    return {
+      rootClass: dark ? "pp-dark" : "",
+      isUnified: s.mode === "unified",
+      isSegregated: s.mode === "segregated",
+      pickUnified: () => this.setState({ mode: "unified" }),
+      pickSegregated: () => this.setState({ mode: "segregated" }),
+      segScreens,
+      segShowDecisions: s.segScreen === "decisions",
+      segShowInsights: s.segScreen === "insights",
+      segShowChat: s.segScreen === "chat",
+      segShowDashboard: s.segScreen === "dashboard",
+      briefingCards: [
+        { kicker: "Headline", body: "[AI-narrated summary placeholder — grounded in current scope, links to evidence.]" },
+        { kicker: "Trends", body: "[Trend narrative placeholder — direction, magnitude, period.]" },
+        { kicker: "Risks", body: "[Risk narrative placeholder — impact if unactioned.]" },
+        { kicker: "Actions", body: "[Open decisions summary placeholder — count by severity.]" },
+      ],
+      themeLabel: dark ? "Light theme" : "Dark theme",
+      toggleTheme: () => this.setState({ dark: !dark }),
+
+      inboxReady: inboxState === "ready",
+      inboxLoading: inboxState === "loading",
+      inboxEmpty: inboxState === "empty",
+      inboxError: inboxState === "error",
+
+      prompts,
+      saveActions: ["Pin to Canvas", "Bookmark", "Add note", "Highlight", "Snapshot"],
+
+      changedItems: [
+        { state: "Changed", tagClass: "tag-accent", label: "[Saved item name] — tracked value moved", detail: "[delta placeholder]" },
+        { state: "Stale", tagClass: "tag-neutral", label: "[Saved item name] — source not refreshed", detail: "last refresh [timestamp]" },
+        { state: "Resolved", tagClass: "tag-neutral", label: "[Decision headline] — actioned by [owner]", detail: "[timestamp]" },
+      ],
+
+      pinned: [
+        { kind: "Data insight", title: "[Pinned insight title]", meta: "from AI Insights · [timestamp]" },
+        { kind: "BI view", title: "[Pinned dashboard view]", meta: "from Dashboard · [vendor]" },
+        { kind: "Grounded answer", title: "[Pinned Ask Pulse answer]", meta: "from Ask Pulse · [timestamp]" },
+      ],
+
+      savedItems: [
+        { label: "[Bookmarked section title]", detail: "bookmark · [surface]" },
+        { label: "[Snapshot title]", detail: "snapshot · [timestamp]" },
+      ],
+
+      suggestedOpen: s.suggestedOpen,
+      suggestedChevron: s.suggestedOpen ? "90deg" : "0deg",
+      toggleSuggested: () => this.setState({ suggestedOpen: !s.suggestedOpen }),
+      suggestions: [
+        { reason: "Related to your pending approval", title: "[Suggested item title]" },
+        { reason: "You follow [KPI name]", title: "[Suggested item title]" },
+        { reason: "Same scope as [saved item]", title: "[Suggested item title]" },
+      ],
+
+      drawerOpen: s.drawerOpen,
+      drawerHeadline: activePrompt.headline,
+      drawerPromptLabel: activePrompt.ruleId,
+      drawerTabs,
+      tabEvidence: s.drawerTab === "evidence",
+      tabChat: s.drawerTab === "chat",
+      tabDashboard: s.drawerTab === "dashboard",
+      tabApproval: s.drawerTab === "approval",
+      closeDrawer: () => this.setState({ drawerOpen: false }),
+      closeDrawerBackdrop: () => this.setState({ drawerOpen: false }),
+      stopClick: (e) => e.stopPropagation(),
+    };
+  }
+}
+</script>
+</body>
+</html>

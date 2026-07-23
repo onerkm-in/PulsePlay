@@ -1,0 +1,20 @@
+/* Save channel — Industry blueprint popup + token buttons. */
+
+.sc-root { position: relative; display: inline-block; }
+
+.sc-trigger--compact { padding: 5px 9px; }
+.sc-trigger--saved { background: var(--color-accent-100); border-color: var(--color-accent); color: var(--color-accent-800); }
+
+.sc-menu {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; min-width: 190px;
+  background: var(--color-bg); box-shadow: var(--shadow-md);
+  padding: var(--space-2); display: flex; flex-direction: column; gap: 1px;
+}
+
+.sc-item { width: 100%; justify-content: flex-start; text-align: left; border-color: transparent; }
+.sc-item:hover:not(:disabled) { background: color-mix(in srgb, var(--color-text) 8%, transparent); }
+
+.sc-note { padding: var(--space-1) var(--space-1) var(--space-2); display: flex; flex-direction: column; gap: var(--space-1); }
+.sc-note-save { align-self: flex-start; }
+
+.sc-flash { margin-left: var(--space-2); font-size: 11px; color: var(--color-accent-700); }

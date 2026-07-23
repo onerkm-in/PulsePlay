@@ -1,0 +1,56 @@
+/* Decision Prompt card — Industry blueprint object. Token-driven; no hard-coded
+   hex, no rounded corners, one accent voice. */
+
+.dpc {
+  display: flex;
+  gap: var(--space-3);
+  padding: 0;
+  margin-bottom: var(--space-3);
+  background: transparent;
+}
+.dpc--terminal { opacity: 0.7; }
+
+.dpc .sev-rail { align-self: stretch; }
+
+.dpc__body {
+  flex: 1 1 auto; min-width: 0;
+  padding: var(--space-3) var(--space-4);
+  display: flex; flex-direction: column; gap: var(--space-2);
+}
+
+.dpc__head { display: flex; justify-content: space-between; gap: var(--space-4); align-items: baseline; }
+.dpc__headline-col { min-width: 0; }
+.dpc__headline {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 19px; line-height: 1.2; margin: 3px 0 0;
+}
+.dpc__impact { text-align: right; flex: 0 0 auto; }
+.dpc__impact-value {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-variant-numeric: tabular-nums; font-size: 20px; color: var(--color-accent-800);
+}
+.dpc__impact-label { font-size: 10.5px; color: color-mix(in srgb, var(--color-text) 55%, transparent); max-width: 170px; }
+.dpc__bar { height: 3px; margin-top: 5px; background: color-mix(in srgb, var(--color-text) 12%, transparent); }
+.dpc__bar-fill { display: block; height: 3px; background: var(--color-accent); }
+
+.dpc__issue { display: flex; align-items: flex-start; gap: var(--space-2); font-size: 12.5px; color: color-mix(in srgb, var(--color-text) 70%, transparent); }
+.dpc__whyfix { font-size: 12px; color: color-mix(in srgb, var(--color-text) 60%, transparent); }
+.dpc__whyfix strong { font-weight: 600; color: color-mix(in srgb, var(--color-text) 80%, transparent); }
+.dpc__question { font-size: 13.5px; font-weight: 500; margin-top: var(--space-1); }
+
+.dpc__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin-top: var(--space-1); }
+.dpc__evidence-toggle { margin-left: auto; text-decoration: underline; }
+
+.dpc__terminal-status { font-size: 12px; font-weight: 600; color: var(--color-accent-700); margin-top: var(--space-1); }
+
+.dpc__evidence { margin-top: var(--space-2); display: flex; flex-direction: column; gap: 4px; }
+.dpc__pre {
+  margin: 0 0 var(--space-2); padding: var(--space-2); font-size: 11px; line-height: 1.5;
+  white-space: pre-wrap; overflow-x: auto;
+  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+  color: color-mix(in srgb, var(--color-text) 75%, transparent);
+  border: 1px solid var(--color-divider);
+  font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+}
+
+.dpc__meta { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-1); }
