@@ -5,6 +5,16 @@
 
 ---
 
+## 2026-07-23 (latest+5) — Industry: the last two gaps closed (Lucide icons + dark shell)
+
+Beast-mode pass closing the two gaps named by the sync audit. Three commits, each tested.
+
+**Icons (rule 6).** Added `lucide-react` (1.26.0 — verified against the official lucide-icons repo before use) + `playground/src/lib/icons.tsx`, a pre-configured re-export that bakes in strokeWidth 1.5 so call sites can't drift. Swapped every RENDERED emoji icon on native surfaces: app footer/context gears, allowlist warn chip, the Settings rail glyph map (was geometric Unicode), FirstRunWizard persona cards (also killed their per-persona purple/cyan/pink hues + gradient fills — the audit's triple violation), search/sparkles/warn chips. Two deliberate exceptions: (1) `AppErrorBoundary` keeps its import-free isolation contract — hardcoded Lucide triangle path as inline SVG, no dep; (2) inline text-prefix glyphs (✓ ⚠ ✗ beside words) stay — they're the non-color status cues the standard asks for. **Pulse side keeps zero deps** (pbiviz sibling sync): extended `pulse/_adapter/Icon.tsx` with sparkles + lock paths and swapped the rendered emoji in `visual.tsx` (insights placeholder, Try-asking strip — which also dropped a hardcoded `#1d4ed8`, follow-up chips, customize-lock, context gear, reasoning magnifier). PBI format-pane display names in `pulse/settings.ts` untouched (sibling-facing text).
+
+**Dark shell (Industry dark extension).** `@gn-dark-*` in `visual.less` re-pointed from the slate/GitHub palette to the Industry dark ground (#1a1c1e bg / #232628 surface / re-derived dividers) with the steel accent lightened for AA (#7fa3c9; user bubble #416180). The `buildAppThemeVars` dark-canonical accent + dark text tokens updated to match (so the `--pp-*` bridge, `[data-pp-theme=dark]` styles.css block, and `.gn-shell--dark` all agree — no parallel dark token forks). Flattened the dark surface-switcher/header-tab/bubble/send/bar-fill gradients + wizard-save-hint ambers; skeleton/progress shimmers kept (functional loading motion). Fixed the fixed footer's hardcoded `#0f172a`. Tests asserting the old `#4b9cf5`/`#e2eaf4` updated.
+
+**Verified headed:** dark scan reports 0 pills / 0 gradients / 0 old-slate colors; steel active tab `rgb(127,163,201)`; light unchanged-clean. tsc clean, vite build clean, full playground suite green. Evidence `INDUSTRY_GLOBAL_08/09`.
+
 ## 2026-07-23 (latest+4) — Industry sync audit: per-surface scan + gap closure
 
 Answered "is the UI in sync with the standard?" with a computed-style compliance scanner run headed on every surface (visible elements: radius ≥ 100px, gradient backgrounds, legacy-blue accents, emoji glyphs), compared against the topup reference designs (`Design/topup-extract/` — PulsePlay Shell + My Decision Canvas v2–v4 + the Design Audit matrix). Commit `c0624c3`.
