@@ -53,7 +53,7 @@
     width: 30px;
     height: 30px;
     border-radius: 8px;
-    background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+    background: var(--pp-accent);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -319,7 +319,7 @@
 }
 
 .pp-settings-rail__item--active {
-    background: linear-gradient(135deg, rgba(37,99,235,0.10) 0%, rgba(124,58,237,0.06) 100%);
+    background: var(--pp-accent-soft);
     color: var(--pp-accent, #2563eb);
     font-weight: 600;
 }
@@ -473,13 +473,11 @@
 
 .pp-setup__title {
     margin: 0;
+    font-family: var(--pp-font-heading);
     font-size: 24px;
-    font-weight: 800;
-    letter-spacing: -0.025em;
-    background: linear-gradient(135deg, #0f172a 0%, #4f46e5 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--pp-text);
 }
 
 .pp-setup__subtitle {
@@ -546,7 +544,7 @@
     padding: 8px 18px;
     border: none;
     border-radius: var(--pp-radius-sm);
-    background: linear-gradient(135deg, var(--pp-accent) 0%, var(--pp-accent-hover) 100%);
+    background: var(--pp-accent);
     color: #fff;
     font: inherit;
     font-size: 13px;
@@ -605,7 +603,7 @@
 .pp-setup__footer {
     margin-top: 28px;
     padding: 18px 20px;
-    background: linear-gradient(135deg, rgba(37,99,235,0.04) 0%, rgba(124,58,237,0.03) 100%);
+    background: var(--pp-accent-soft);
     border: 1px solid var(--pp-border-subtle);
     border-radius: var(--pp-radius-lg);
     display: flex;

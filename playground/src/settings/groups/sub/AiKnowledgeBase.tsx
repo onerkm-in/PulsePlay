@@ -93,20 +93,11 @@ export function SubPageHeader({ title, blurb }: { title: string; blurb: string }
             <h2
                 style={{
                     margin: 0,
+                    fontFamily: "var(--pp-font-heading)",
                     fontSize: 22,
-                    fontWeight: 800,
-                    letterSpacing: "-0.025em",
-                    // Start the gradient at the theme text token (not a hardcoded
-                    // light-mode slate) so the title stays legible in dark mode —
-                    // #0f172a is ~invisible on the dark canvas. Mirrors the
-                    // canonical .pp-app__brand h1 gradient. (dark-mode legibility)
-                    // Use the `backgroundImage` longhand (not the `background`
-                    // shorthand) so React 19 doesn't warn about mixing it with
-                    // backgroundClip on theme-change rerenders.
-                    backgroundImage: "linear-gradient(135deg, var(--pp-text) 0%, #4f46e5 100%)",
-                    WebkitBackgroundClip: "text",
-                    WebkitTextFillColor: "transparent",
-                    backgroundClip: "text",
+                    fontWeight: 600,
+                    letterSpacing: "-0.01em",
+                    color: "var(--pp-text)",
                 }}
             >
                 {title}

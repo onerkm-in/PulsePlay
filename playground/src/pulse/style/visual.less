@@ -1269,7 +1269,7 @@
     width: 24px;
     height: 24px;
     border-radius: 7px;
-    background: linear-gradient(135deg, var(--gn-accent, #1a6fd4) 0%, #1258a8 100%);
+    background: @gn-accent;
     color: #fff;
     padding: 4px;
     box-shadow: 0 1px 3px rgba(26, 111, 212, 0.3);
@@ -1527,7 +1527,7 @@
     min-height: 32px;
     padding: 0 13px;
     border: 1px solid transparent;
-    border-radius: 999px;
+    border-radius: @gn-radius-sm;
     background: transparent;
     color: @gn-text-muted;
     font-family: @gn-font;
@@ -1551,7 +1551,7 @@
     justify-content: center;
     width: 18px;
     height: 18px;
-    border-radius: 999px;
+    border-radius: @gn-radius-xs;
     background: rgba(15, 23, 42, 0.06);
     color: currentColor;
     font-size: 11px;
@@ -1567,23 +1567,17 @@
 
 .gn-header-tab:hover:not(:disabled) {
     color: @gn-text;
-    background: rgba(255, 255, 255, 0.82);
-    border-color: rgba(15, 23, 42, 0.10);
-    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
-    transform: translateY(-1px);
+    background: @gn-accent-subtle;
+    border-color: @gn-accent-border;
 }
 
-// Active tab — solid filled accent pill inside a shared segmented rail.
+// Active tab — the one solid accent object in the segmented rail (Industry).
 .gn-header-tab--active,
 .gn-header-tab--active:hover:not(:disabled) {
-    background:
-        linear-gradient(180deg, #2b82e8, var(--gn-accent, #1a6fd4));
-    border-color: var(--gn-accent, #1a6fd4);
+    background: @gn-accent;
+    border-color: @gn-accent;
     color: #fff;
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.26),
-        0 8px 16px rgba(26, 111, 212, 0.28);
-    transform: none;
+    box-shadow: none;
 }
 
 .gn-header-tab--active .gn-header-tab-icon {
@@ -2236,7 +2230,7 @@
    reads as a "you said" chat bubble instead of a billboard. Smaller
    viewports still get the 75% relative cap. */
 .gn-msg--user .gn-bubble {
-    background: linear-gradient(135deg, var(--gn-user-bubble, #1a6fd4) 0%, #1260b8 100%);
+    background: @gn-user-bubble;
     color: @gn-user-text;
     border: none;
     border-radius: 18px 18px 4px 18px;
@@ -2290,7 +2284,7 @@
     width: 24px;
     height: 24px;
     border-radius: 7px;
-    background: linear-gradient(135deg, var(--gn-accent, #1a6fd4) 0%, #155cbc 100%);
+    background: @gn-accent;
     color: #fff;
     display: flex;
     align-items: center;
@@ -3798,7 +3792,7 @@
     bottom: 0;
     height: 100%;
     border-radius: 6px;
-    background: linear-gradient(90deg, var(--gn-accent, #1a6fd4) 0%, #4090e8 100%);
+    background: @gn-accent;
     z-index: 2;
     display: flex;
     align-items: center;
@@ -3956,7 +3950,7 @@
 
 .gn-pill--active {
     border-color: @gn-accent;
-    background: linear-gradient(135deg, @gn-accent 0%, #1d4ed8 100%);
+    background: @gn-accent;
     color: #fff;
     box-shadow: 0 3px 10px rgba(26,111,212,0.32);
 }
@@ -4360,7 +4354,7 @@
     height: 32px;
     border: none;
     border-radius: 9px;
-    background: linear-gradient(135deg, var(--gn-accent, #1a6fd4) 0%, #155cbc 100%);
+    background: @gn-accent;
     color: #fff;
     font-size: 16px;
     font-weight: 700;

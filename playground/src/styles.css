@@ -5,28 +5,36 @@
 
 /* ── Design Tokens ───────────────────────────────────────────────── */
 :root {
-    /* Backgrounds */
-    --pp-bg:               #f4f6f9;
-    --pp-surface:          #ffffff;
-    --pp-surface-raised:   #ffffff;
-    --pp-surface-overlay:  rgba(255, 255, 255, 0.92);
+    /* ── Industry design system (binding). The --pp-* tokens below are aliased
+       to the Industry palette/type/spacing so the whole app adopts the steel
+       wireframe look through the tokens it already consumes. Raw Industry
+       tokens + component classes live in industry.css. See
+       docs/INDUSTRY_DESIGN_REMEDIATION_PROMPT.md. */
 
-    /* Text */
-    --pp-text:             #0f172a;
-    --pp-text-muted:       #64748b;
-    --pp-text-subtle:      #94a3b8;
-    --pp-fg:               #0f172a;
+    /* Backgrounds — light technical ground; surfaces are near-ground, not raised white */
+    --pp-bg:               #f2f2f3;
+    --pp-surface:          #e9e9ea;
+    --pp-surface-raised:   #f5f5f6;
+    --pp-surface-overlay:  rgba(242, 242, 243, 0.92);
 
-    /* Borders */
-    --pp-border:           rgba(15, 23, 42, 0.10);
-    --pp-border-subtle:    rgba(15, 23, 42, 0.06);
-    --pp-border-strong:    rgba(15, 23, 42, 0.18);
+    /* Text — ink + neutral ramp */
+    --pp-text:             #1d1f20;
+    --pp-text-muted:       #5d5d60;
+    --pp-text-subtle:      #7a7a7d;
+    --pp-fg:               #1d1f20;
 
-    /* Accent */
-    --pp-accent:           #2563eb;
-    --pp-accent-hover:     #1d4ed8;
-    --pp-accent-soft:      rgba(37, 99, 235, 0.08);
-    --pp-accent-border:    rgba(37, 99, 235, 0.30);
+    /* Borders — hairline dividers derived from ink */
+    --pp-border:           color-mix(in srgb, #1d1f20 16%, transparent);
+    --pp-border-subtle:    color-mix(in srgb, #1d1f20 9%, transparent);
+    --pp-border-strong:    color-mix(in srgb, #1d1f20 26%, transparent);
+
+    /* Accent — one steel voice */
+    --pp-accent:           #5980a6;
+    --pp-accent-hover:     #416180;
+    --pp-accent-dark:      #416180;
+    --pp-accent-soft:      color-mix(in srgb, #5980a6 10%, transparent);
+    --pp-accent-subtle:    color-mix(in srgb, #5980a6 12%, transparent);
+    --pp-accent-border:    color-mix(in srgb, #5980a6 34%, transparent);
 
     /* Semantic */
     --pp-success:          #059669;
@@ -40,15 +48,17 @@
     --pp-error-border:     rgba(220, 38, 38, 0.25);
 
     /* Input */
-    --pp-input-bg:         #ffffff;
+    --pp-input-bg:         #e9e9ea;
 
-    /* Radius scale */
-    --pp-radius-xs:        4px;
-    --pp-radius-sm:        6px;
-    --pp-radius:           10px;
-    --pp-radius-lg:        14px;
-    --pp-radius-xl:        20px;
-    --pp-radius-pill:      999px;
+    /* Radius scale — square blueprint objects; buttons/inputs max 4px, cards 0.
+       --pp-radius-pill squared to honour Industry rule 1 (no pills). Genuine
+       circles use border-radius:50% or a literal, not this token. */
+    --pp-radius-xs:        3px;
+    --pp-radius-sm:        4px;
+    --pp-radius:           4px;
+    --pp-radius-lg:        7px;
+    --pp-radius-xl:        7px;
+    --pp-radius-pill:      4px;
 
     /* Spacing scale (4px base) */
     --pp-s1:   4px;
@@ -60,8 +70,9 @@
     --pp-s8:   32px;
     --pp-s10:  40px;
 
-    /* Typography */
-    --pp-font:             "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    /* Typography — Barlow body, Barlow Condensed headings (loaded in industry.css) */
+    --pp-font:             "Barlow", "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    --pp-font-heading:     "Barlow Condensed", "Segoe UI", system-ui, sans-serif;
     --pp-font-mono:        "Cascadia Code", "Fira Code", "Consolas", monospace;
     --pp-text-xs:          11px;
     --pp-text-sm:          12px;
@@ -104,24 +115,28 @@
  * `data-pp-theme="dark"` on <html>, set from the genieSettings darkMode
  * toggle (Settings → Display → Appearance) — see lib/themeSync.ts. */
 :root[data-pp-theme="dark"] {
-    --pp-bg:               #0d1117;
-    --pp-surface:          #161b22;
-    --pp-surface-raised:   #1c2128;
-    --pp-surface-overlay:  rgba(22, 27, 34, 0.92);
+    /* Industry dark extension — ground from the neutral-900 ramp, dividers
+       re-derived, steel accent lightened just enough for AA legibility on dark. */
+    --pp-bg:               #1a1c1e;
+    --pp-surface:          #232628;
+    --pp-surface-raised:   #2b2e30;
+    --pp-surface-overlay:  rgba(35, 38, 40, 0.92);
 
-    --pp-text:             #e2eaf4;
-    --pp-text-muted:       #8b949e;
-    --pp-text-subtle:      #6b7785;
-    --pp-fg:               #e2eaf4;
+    --pp-text:             #e7e7ea;
+    --pp-text-muted:       #a9a9ac;
+    --pp-text-subtle:      #86868a;
+    --pp-fg:               #e7e7ea;
 
-    --pp-border:           rgba(226, 234, 244, 0.12);
-    --pp-border-subtle:    rgba(226, 234, 244, 0.07);
-    --pp-border-strong:    rgba(226, 234, 244, 0.22);
+    --pp-border:           color-mix(in srgb, #e7e7ea 18%, transparent);
+    --pp-border-subtle:    color-mix(in srgb, #e7e7ea 10%, transparent);
+    --pp-border-strong:    color-mix(in srgb, #e7e7ea 28%, transparent);
 
-    --pp-accent:           #4b9cf5;
-    --pp-accent-hover:     #6fb0f7;
-    --pp-accent-soft:      rgba(75, 156, 245, 0.14);
-    --pp-accent-border:    rgba(75, 156, 245, 0.42);
+    --pp-accent:           #7fa3c9;
+    --pp-accent-hover:     #98b7d8;
+    --pp-accent-dark:      #98b7d8;
+    --pp-accent-soft:      color-mix(in srgb, #7fa3c9 16%, transparent);
+    --pp-accent-subtle:    color-mix(in srgb, #7fa3c9 18%, transparent);
+    --pp-accent-border:    color-mix(in srgb, #7fa3c9 42%, transparent);
 
     --pp-success:          #3fb950;
     --pp-success-soft:     rgba(63, 185, 80, 0.14);
@@ -200,7 +215,7 @@ html, body, #root {
     gap: 8px;
     align-self: flex-start;
     padding: 4px 10px 4px 8px;
-    border-radius: 999px;
+    border-radius: var(--pp-radius-sm);
     background: rgba(245, 158, 11, 0.10);
     border: 1px solid rgba(245, 158, 11, 0.35);
     color: #92400e;
@@ -218,7 +233,7 @@ html, body, #root {
 .pp-allowlist-chip__more {
     margin-left: 4px;
     padding: 2px 8px;
-    border-radius: 999px;
+    border-radius: var(--pp-radius-sm);
     background: rgba(255, 255, 255, 0.6);
     color: inherit;
     text-decoration: none;
@@ -256,7 +271,7 @@ html, body, #root {
     flex-wrap: wrap;
     padding: 8px 12px;
     border-bottom: 1px solid var(--pp-border-subtle, #e4e9ef);
-    background: linear-gradient(180deg, var(--pp-surface-raised, rgba(255, 255, 255, 0.94)), var(--pp-surface, rgba(248, 250, 252, 0.94)));
+    background: var(--pp-surface-raised);
     color: var(--pp-text-muted);
     font-size: 11px;
     line-height: 1.25;
@@ -270,7 +285,7 @@ html, body, #root {
     gap: 6px;
     padding: 4px 8px;
     border: 1px solid var(--pp-border-subtle, #e4e9ef);
-    border-radius: 999px;
+    border-radius: var(--pp-radius-sm);
     background: var(--pp-surface, #fff);
 }
 
@@ -1004,13 +1019,11 @@ html, body, #root {
 
 .pp-app__brand h1 {
     margin: 0;
+    font-family: var(--pp-font-heading);
     font-size: var(--pp-text-2xl);
-    font-weight: 700;
-    letter-spacing: -0.025em;
-    background: linear-gradient(135deg, var(--pp-text) 0%, #4f46e5 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--pp-text);
 }
 
 .pp-app__brand-tag {
@@ -1031,7 +1044,7 @@ html, body, #root {
     gap: 6px;
     padding: 4px 10px;
     border: 1px solid var(--pp-border, #d0d7de);
-    border-radius: 999px;
+    border-radius: var(--pp-radius-sm);
     background: var(--pp-surface, #fff);
     color: var(--pp-text);
     font-family: inherit;
@@ -1135,9 +1148,9 @@ html, body, #root {
     border-radius: var(--pp-radius-sm);
     font-size: var(--pp-text-base);
     font-family: var(--pp-font);
-    background: linear-gradient(180deg, #ffffff 0%, #fafbfd 100%);
+    background: var(--pp-input-bg);
     color: var(--pp-text);
-    box-shadow: var(--pp-control-shadow), var(--pp-control-inset);
+    box-shadow: none;
     transition:
         border-color var(--pp-t-base) var(--pp-ease),
         box-shadow var(--pp-t-base) var(--pp-ease),
@@ -1151,7 +1164,7 @@ html, body, #root {
 .pp-frame-picker__select:hover,
 .pp-embed-config__input:hover {
     border-color: var(--pp-accent-border);
-    background: linear-gradient(180deg, #ffffff 0%, #f0f5ff 100%);
+    background: var(--pp-input-bg);
 }
 
 .pp-vendor-picker__select:focus,
@@ -1174,9 +1187,7 @@ html, body, #root {
     min-height: 84px;
     resize: vertical;
     line-height: var(--pp-lh-relaxed);
-    background:
-        linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.98) 100%),
-        repeating-linear-gradient(180deg, transparent 0, transparent 27px, rgba(15,23,42,0.03) 28px);
+    background: var(--pp-input-bg);
 }
 
 /* Dark-mode form-control surfaces (V4 systemic tail, 2026-06-04).
@@ -1207,9 +1218,7 @@ html, body, #root {
 :root[data-pp-theme="dark"] .pp-embed-config__input--textarea,
 :root[data-pp-theme="dark"] .pp-ai-sidebar__input,
 :root[data-pp-theme="dark"] .pp-settings textarea {
-    background:
-        repeating-linear-gradient(180deg, transparent 0, transparent 27px, rgba(226,234,244,0.06) 28px),
-        var(--pp-surface-raised);
+    background: var(--pp-surface-raised);
     color: var(--pp-text);
 }
 
@@ -1251,25 +1260,20 @@ html, body, #root {
 .pp-embed-config__apply {
     margin-top: var(--pp-s2);
     padding: 7px 16px;
-    border: none;
-    background: linear-gradient(135deg, var(--pp-accent) 0%, var(--pp-accent-hover) 100%);
+    border: 1px solid var(--pp-accent);
+    background: var(--pp-accent);
     color: #ffffff;
     border-radius: var(--pp-radius-sm);
     font-size: var(--pp-text-base);
     font-weight: 600;
     cursor: pointer;
-    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.36), var(--pp-control-inset);
-    transition:
-        opacity var(--pp-t-fast),
-        transform var(--pp-t-fast) var(--pp-ease),
-        box-shadow var(--pp-t-base) var(--pp-ease);
+    transition: background var(--pp-t-base) var(--pp-ease), border-color var(--pp-t-base) var(--pp-ease);
 }
 
 .pp-embed-config__apply:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.42), var(--pp-control-inset);
+    background: var(--pp-accent-hover);
+    border-color: var(--pp-accent-hover);
 }
-.pp-embed-config__apply:active:not(:disabled) { transform: translateY(0); }
 .pp-embed-config__apply:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .pp-embed-config__error {
@@ -1374,8 +1378,8 @@ html, body, #root {
     align-items: center;
     gap: 8px;
     padding: 3px 8px;
-    border: 1px dashed var(--pp-border);
-    border-radius: 999px;
+    border: 1px solid var(--pp-border);
+    border-radius: var(--pp-radius-sm);
     color: var(--pp-text-muted);
     font-size: 11px;
     user-select: none;
@@ -1393,7 +1397,7 @@ html, body, #root {
     padding: 1px 7px;
     background: var(--pp-accent-soft, rgba(37, 99, 235, 0.12));
     color: var(--pp-accent, #2563eb);
-    border-radius: 999px;
+    border-radius: var(--pp-radius-sm);
     font-size: 10px;
     font-weight: 600;
 }
@@ -1414,18 +1418,17 @@ html, body, #root {
 }
 .pp-ai-sidebar__ask {
     padding: 7px 14px;
-    border: none;
-    background: linear-gradient(135deg, var(--pp-accent) 0%, var(--pp-accent-hover) 100%);
+    border: 1px solid var(--pp-accent);
+    background: var(--pp-accent);
     color: #fff;
     border-radius: var(--pp-radius-sm);
     font-size: var(--pp-text-sm);
     font-weight: 600;
     cursor: pointer;
     align-self: stretch;
-    box-shadow: 0 2px 5px rgba(37, 99, 235, 0.32);
-    transition: opacity var(--pp-t-fast), transform var(--pp-t-fast) var(--pp-ease);
+    transition: background var(--pp-t-base) var(--pp-ease), border-color var(--pp-t-base) var(--pp-ease);
 }
-.pp-ai-sidebar__ask:hover { opacity: 0.92; transform: translateY(-1px); }
+.pp-ai-sidebar__ask:hover { background: var(--pp-accent-hover); border-color: var(--pp-accent-hover); }
 
 /* ── Pane empty states (shared visual vocabulary) ────────────────
  * Audit 2026-05-20 — bring the Dashboard tab's empty state into parity
@@ -1501,17 +1504,16 @@ html, body, #root {
 }
 .pp-cta-primary {
     padding: 8px 14px;
-    border: none;
+    border: 1px solid var(--pp-accent);
     background: var(--pp-accent);
     color: #fff;
-    border-radius: 8px;
+    border-radius: var(--pp-radius-md, 4px);
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
-    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.28);
-    transition: opacity 120ms ease, transform 120ms ease;
+    transition: background 120ms ease, border-color 120ms ease;
 }
-.pp-cta-primary:hover { opacity: 0.92; transform: translateY(-1px); }
+.pp-cta-primary:hover { background: var(--pp-accent-hover); border-color: var(--pp-accent-hover); }
 .pp-cta-primary:focus-visible { outline: 2px solid var(--pp-accent); outline-offset: 2px; }
 .pp-cta-secondary {
     padding: 8px 14px;
@@ -1640,10 +1642,8 @@ html, body, #root {
 }
 .pp-pbi-dev button:hover:not(:disabled) {
     border-color: var(--pp-accent-border);
-    box-shadow: var(--pp-shadow-sm), var(--pp-control-inset);
-    transform: translateY(-1px);
+    background: var(--pp-accent-soft);
 }
-.pp-pbi-dev button:active:not(:disabled) { transform: translateY(0); }
 .pp-pbi-dev button:disabled { cursor: not-allowed; opacity: 0.48; }
 
 .pp-pbi-dev__filter label {
@@ -1740,11 +1740,8 @@ html, body, #root {
 .pp-launchpad__actions button:hover,
 .pp-launchpad__header button:hover {
     border-color: var(--pp-accent-border);
-    box-shadow: var(--pp-shadow-sm), var(--pp-control-inset);
-    transform: translateY(-1px);
+    background: var(--pp-accent-soft);
 }
-.pp-launchpad__actions button:active,
-.pp-launchpad__header button:active { transform: translateY(0); }
 
 .pp-launchpad__note {
     flex: 0 0 auto;
@@ -1826,9 +1823,7 @@ html, body, #root {
         transform var(--pp-t-base) var(--pp-ease);
 }
 .pp-launchpad__card:hover {
-    box-shadow: var(--pp-shadow-md);
     border-color: var(--pp-accent-border);
-    transform: translateY(-2px);
 }
 
 .pp-launchpad__card h3 { margin: 0; font-size: var(--pp-text-md); font-weight: 600; }
@@ -1876,7 +1871,7 @@ html, body, #root {
 
 .pp-sectioned-item--failed {
     border-color: var(--pp-error-border);
-    background: linear-gradient(180deg, #fff 0%, var(--pp-error-soft) 100%);
+    background: var(--pp-error-soft);
 }
 
 .pp-sectioned-head {
@@ -1886,7 +1881,7 @@ html, body, #root {
     min-height: 42px;
     padding: 10px 12px;
     border-bottom: 1px solid var(--pp-border-subtle);
-    background: linear-gradient(180deg, rgba(248, 250, 252, 0.92) 0%, rgba(255, 255, 255, 0.94) 100%);
+    background: var(--pp-surface-raised);
 }
 
 .pp-sectioned-title {
@@ -1932,8 +1927,8 @@ html, body, #root {
 .pp-skel-line {
     width: 100%;
     height: 10px;
-    border-radius: var(--pp-radius-pill);
-    background: linear-gradient(90deg, #e5e7eb 0%, #f8fafc 48%, #e5e7eb 100%);
+    border-radius: var(--pp-radius-sm);
+    background: var(--pp-border);
 }
 
 .pp-skel-line + .pp-skel-line { margin-top: 8px; }
@@ -1941,7 +1936,7 @@ html, body, #root {
 
 .pp-skel-line--pulse {
     animation: pp-sectioned-pulse 1.15s ease-in-out infinite;
-    background: linear-gradient(90deg, rgba(37, 99, 235, 0.16) 0%, rgba(14, 165, 233, 0.22) 50%, rgba(37, 99, 235, 0.16) 100%);
+    background: var(--pp-accent-soft);
 }
 
 @keyframes pp-sectioned-pulse {
@@ -2123,10 +2118,10 @@ html, body, #root {
 }
 
 .pp-surface-switcher__item--active {
-    background: linear-gradient(180deg, var(--pp-accent, #2563eb) 0%, var(--pp-accent-hover, #1d4ed8) 100%);
+    background: var(--pp-accent);
     color: #ffffff;
-    border-color: rgba(37, 99, 235, 0.75);
-    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.32);
+    border-color: var(--pp-accent);
+    box-shadow: none;
 }
 
 /* F5.1 — Surface unavailable in the current deployment configuration.
@@ -2446,7 +2441,7 @@ html, body, #root {
 }
 .pp-tile__snapshot {
     padding: 1px 7px;
-    border-radius: 999px;
+    border-radius: var(--pp-radius-sm);
     background: var(--pp-accent-soft, rgba(37,99,235,0.08));
     color: var(--pp-accent, #2563eb);
     font-weight: 600;

@@ -38,7 +38,7 @@
 .pp-helptip__trigger--warn  { background: rgba(217,119,6,0.12); color: #b45309; font-style: normal; font-family: inherit; }
 .pp-helptip__trigger--warn:hover { background: #d97706; color: #fff; box-shadow: 0 2px 6px rgba(217,119,6,0.4); }
 .pp-helptip__trigger--tip   { background: rgba(124,58,237,0.10); color: #6d28d9; font-style: normal; font-family: inherit; font-size: 9px; }
-.pp-helptip__trigger--tip:hover { background: #7c3aed; color: #fff; box-shadow: 0 2px 6px rgba(124,58,237,0.42); }
+.pp-helptip__trigger--tip:hover { background: var(--pp-accent); color: #fff; }
 
 /* ── HelpTip bubble — portal-rendered with fixed positioning
  * 2026-05-19 Codex final UAT fix (P1): tooltips at the edge of pane
@@ -353,7 +353,7 @@
     gap: var(--pp-s3);
     padding: var(--pp-s4) var(--pp-s5);
     border-bottom: 1px solid var(--pp-border-subtle);
-    background: linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(248,250,252,0.96) 100%);
+    background: var(--pp-surface-raised);
 }
 
 /* Dark-mode card header (V4 tail closure, 2026-06-04 iter-3). The base rule
@@ -364,7 +364,7 @@
    Mirror the light sheen with a raised->surface dark gradient; light mode is
    untouched (override only matches data-pp-theme=dark). */
 :root[data-pp-theme="dark"] .pp-card__head {
-    background: linear-gradient(180deg, var(--pp-surface-raised) 0%, var(--pp-surface) 100%);
+    background: var(--pp-surface-raised);
 }
 
 .pp-card__title-row {
@@ -380,7 +380,7 @@
     width: 28px;
     height: 28px;
     border-radius: 50%;
-    background: linear-gradient(135deg, var(--pp-accent) 0%, #7c3aed 100%);
+    background: var(--pp-accent);
     color: #fff;
     display: flex;
     align-items: center;
@@ -464,7 +464,7 @@
 }
 
 .pp-toggle__input:checked ~ .pp-toggle__track {
-    background: linear-gradient(135deg, var(--pp-accent) 0%, var(--pp-accent-hover) 100%);
+    background: var(--pp-accent);
     box-shadow: 0 1px 4px rgba(37,99,235,0.36);
 }
 .pp-toggle__input:checked ~ .pp-toggle__track .pp-toggle__thumb {

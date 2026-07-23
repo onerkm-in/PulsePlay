@@ -47,6 +47,7 @@ export interface ThemeTokens {
 
 export type ThemeName =
     | "default"
+    | "industry"
     | "corporate-blue"
     | "forest"
     | "slate-dark"
@@ -80,6 +81,30 @@ export const BUILT_IN_THEMES: Record<ThemeName, ThemeTokens> = {
         fontFamily:    '"Segoe UI", -apple-system, system-ui, sans-serif',
         radius:        "12px",
         radiusSm:      "8px"
+    },
+
+    /** Industry — the binding steel-wireframe design system. Steel accent on a
+     *  light technical ground, Barlow type, square blueprint geometry. Semantic
+     *  status colours stay legible (they carry real state, not decoration).
+     *  See docs/INDUSTRY_DESIGN_REMEDIATION_PROMPT.md. */
+    "industry": {
+        bg:            "#f2f2f3",
+        surface:       "#e9e9ea",
+        surfaceRaised: "#f5f5f6",
+        border:        "#d0d0d1",
+        borderSubtle:  "#dfdfe0",
+        text:          "#1d1f20",
+        textMuted:     "#5d5d60",
+        accent:        "#5980a6",
+        accentSubtle:  "rgba(89,128,166,0.10)",
+        accentBorder:  "rgba(89,128,166,0.34)",
+        userBubble:    "#5980a6",
+        success:       "#1a7f37",
+        warning:       "#8a5c00",
+        error:         "#c8202a",
+        fontFamily:    '"Barlow", "Segoe UI", system-ui, sans-serif',
+        radius:        "4px",
+        radiusSm:      "4px"
     },
 
     /** Corporate Blue — Microsoft/enterprise palette */
@@ -299,8 +324,11 @@ export interface AppearanceSettingsLike {
  *  which disables the brand inputs otherwise) so the presets stay distinct
  *  instead of all collapsing onto the stored brand accent. */
 export function resolveThemeTokens(s: AppearanceSettingsLike): ThemeTokens {
-    const name = (s.themeName || "default") as ThemeName;
-    const base: ThemeName = BUILT_IN_THEMES[name] ? name : "default";
+    // Industry is the app default (see docs/INDUSTRY_DESIGN_REMEDIATION_PROMPT.md);
+    // an absent or unknown themeName resolves to it so the --pp-* bridge agrees
+    // with the workbench shell.
+    const name = (s.themeName || "industry") as ThemeName;
+    const base: ThemeName = BUILT_IN_THEMES[name] ? name : "industry";
     if (base === "custom") {
         return mergeTheme("custom", {
             accent: s.brandAccentColor,

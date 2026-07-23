@@ -811,6 +811,7 @@ class AppearanceGroup extends FormattingSettingsGroup {
         displayName: "PulsePlay Theme",
         description: "Built-in themes tuned for different use cases. Default: clean light. Corporate Blue: Microsoft/enterprise palette. Forest: sustainability/ESG green. Slate Dark: dark mode for ops centres. High Contrast: WCAG AAA light (white/black). Accessibility AAA: strict black-canvas high-contrast (pure black, 2px white borders, yellow highlights) — independent of the Dark Mode toggle. Custom: start from Default and apply your brand overrides below.",
         items: [
+            { value: "industry",          displayName: "Industry  —  steel wireframe" },
             { value: "default",           displayName: "Default  —  clean light" },
             { value: "corporate-blue",    displayName: "Corporate Blue  —  enterprise" },
             { value: "forest",            displayName: "Forest  —  sustainability / ESG" },
@@ -819,7 +820,7 @@ class AppearanceGroup extends FormattingSettingsGroup {
             { value: "accessibility-aaa", displayName: "Accessibility AAA  —  black / high-vis" },
             { value: "custom",            displayName: "Custom  —  use brand overrides below" }
         ],
-        value: { value: "default", displayName: "Default  —  clean light" }
+        value: { value: "industry", displayName: "Industry  —  steel wireframe" }
     });
 
     darkMode = new formattingSettings.ToggleSwitch({
@@ -1621,7 +1622,7 @@ export function toGenieVisualSettings(model: VisualFormattingSettingsModel): Gen
         themeName:             String(
             (typeof g.appearance.themeName.value === "object" && g.appearance.themeName.value
                 ? (g.appearance.themeName.value as { value?: unknown }).value
-                : (g.appearance.themeName.value as unknown)) ?? "default"
+                : (g.appearance.themeName.value as unknown)) ?? "industry"
         ),
         brandAccentColor:      g.appearance.brandAccentColor.value,
         brandTextColor:        g.appearance.brandTextColor.value,
