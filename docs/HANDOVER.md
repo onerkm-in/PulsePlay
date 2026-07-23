@@ -5,6 +5,18 @@
 
 ---
 
+## 2026-07-23 (latest+8) — Reproducible in-repo synthetic supply-chain dataset (live-proven)
+
+Closed the gap flagged in latest+7: the demo data only lived in the Databricks workspace (built Databricks-side; `detect.py` only READS it) with no in-repo generator. Now there is one. Commit `2afe047`.
+
+**`scripts/decision_assist/synth/`** — a deterministic, seeded, pure (no network/clock) generator that reproduces the live `main.supply_chain.*` star schema EXACTLY: 4 categories (Electronics/Legacy Parts/Refrigeration/Seasonal) × 4 regions (APAC/EMEA/LATAM/NA) × 36 months (202301–202512), matching cardinality (120 products / 15 suppliers / 576 KPI rows / 540 supplier scorecards / 3564 order lines / …). `generate.py` injects a fixed breach pattern into the latest month so all 5 SCM rules fire at known severities; `ddl.py` is the exact `CREATE TABLE` DDL (column types captured via DESCRIBE); `load.py` batch-INSERTs + verifies counts and **hard-refuses to write `main.supply_chain` or any `uc_dev_snt*` schema** (dev stand-in only).
+
+**`scripts/decision_assist/prove_synth.py`** — end-to-end live proof: generate → load to `main.supply_chain_synth` → run the REAL `detect.py` engine (env-pointed at the synth schema) → assert all 5 rules fire. **LIVE PASS** (2026-07-23): 6301 rows loaded, engine emits exactly the 5 expected prompts matching the live demo — Legacy DoS 129.9d/4.57M units, OTIF $10,625, Seasonal FA 67.8% critical, Nakamura 72% critical, Electronics/NA fill 86.1% high. Reads creds from `proxy/config.json` (genie profile); needs `truststore` (added to `requirements.txt`) behind the TLS proxy.
+
+**11 unit tests** (`synth/tests/test_generate.py`) — determinism, cardinality, per-rule breach invariants, "baseline doesn't over-trigger", DDL/column coverage — pure, no network, all green.
+
+**Scope (honest):** this is the DEV/demo generator. The formal synthetic-data lane into the canonical **org** serving schema (`uc_dev_snt_supplychain_01` + conformance GO) stays owner-gated — the gate reports' "not started" line refers to THAT lane, which is still true. The dev stand-in schema `main.supply_chain_synth` now exists in the workspace (left in place as proof; regenerable via `python -m scripts.decision_assist.synth.load --drop`).
+
 ## 2026-07-23 (latest+7) — AI Insights enriched + Settings semantic + synthetic-data status check
 
 Three items: (1) enrich segregated AI Insights, (2) Settings palette consistency, (3) a factual Databricks synthetic-data check.
