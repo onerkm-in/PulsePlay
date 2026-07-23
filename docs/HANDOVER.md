@@ -5,6 +5,25 @@
 
 ---
 
+## 2026-07-24 (latest+10) — WCAG 2.2 AA contrast pass + deep-audit closure (rounds 2 & 3)
+
+Validated the Canva-exported reference PDF (`docs/Industry Blueprint Wireframe Theme.pdf`) against the binding Industry spec. Finding: Canva did NOT render the style faithfully (filled rounded cards, red/orange/green stoplight pills, overlap bugs) — so the PDF is a **content/layout** reference only; the spec + running code is the contract. Validated/fixed the real code in two rounds.
+
+**Round 2 (`2bf6871`)** — token aliasing (`--pp-*` now `var(--color-*)`, one source of truth), killed 3 residual `999px` pills (workbench status badge + follow-up chip, Settings toggle track), de-gradiented the wizard textarea + theme swatch, swapped the ✨ HelpTip glyph for Lucide `SparklesIcon`, token-ized the Settings Interface-mode control (dropped the last live `#2563eb`).
+
+**Round 3 (`558044d`)** — a **WCAG 2.2 AA contrast pass grounded in the W3C understanding docs** (SC 1.4.3 / 1.4.11 / 2.4.13 / 2.5.8), verified with a relative-luminance script (`scratchpad/*.mjs` — reproduce anytime). Light mode went **9 AA failures → 0**:
+- Kicker (10px bare accent 3.71:1) → accent-700; `--pp-text-subtle` #7a7a7d (3.82) → #6b6b6e (4.75).
+- **Semantic palette darkened** (light bases only): good #1f9d6b→#0f7d52, warn #e0902c→#8a5a15 (was 2.3:1!), bad #d1453d→#bd3a33, violet #7c5cd8→#6a49c4. Failed as text-on-soft AND white-on-fill severity chips; darkening fixes both, `-soft` tints unchanged so KPI tiles stay pastel. AA is non-negotiable even on the ratified cockpit surface.
+- **Primary buttons** hardcoded white on the mid accent (4.04:1 light, worse in dark). New theme-flipping `--pp-accent-strong` / `--pp-on-accent-strong` pair (accent-700+light text in light; lightened accent+dark ground text in dark) — repointed every app-wide CTA + Industry `.btn-primary` + Decision Canvas active nav.
+
+**Dark-theme coherence (real P1 bug fixed):** `themeSync.ts` sets `data-pp-theme`, but the Industry `--color-*` dark block keyed only on `data-theme` → **never activated**, leaving `--color-*` surfaces light-on-dark. Re-keyed on `data-pp-theme`. Verified live: `.industry-surface --color-bg` now flips `#f2f2f3 → #1a1c1e`.
+
+Also: killed remaining live off-palette accents (#2563eb/#1d4ed8/#7c3aed/#6d28d9/#0891b2) across FirstRunWizard, App pane headers, SetupGroup, MultiPaneDemoShell pills, HelpTip tip, the "Default light" preset; retuned `--pp-control-focus` + 2 glows onto a 2px steel ring; icon strokeWidth → 1.5 (TopRightToolbar, SurfaceSwitcher); removed hover-translate animations; workbench shell font → `var(--pp-font)`; pane-header icon buttons 22→24px (SC 2.5.8).
+
+**Deliberately NOT touched** (would be regressions): the ratified My Decision Canvas rounded/elevated cards + 4-colour model, workbench groundedness badges (separate contract), `pulse/*` compat surface, and the alternative named theme presets (Corporate Blue/Forest/… are user choices). **Deferred with note:** full glow→outline migration on inputs (already steel + WCAG-ok), and the ✓/✗/→ text-glyph → Lucide long tail.
+
+**Verify:** tsc clean; **1932/1932** vitest; contrast script 0 fails; live-verified tokens + rendered components resolve (`.pp-cta-primary`/`.btn-primary` → #416180 on #f2f2f3 = 5.78:1). **Caveat:** the Browser pane wouldn't composite (harness display state) so no pixel screenshot — verified via deterministic WCAG math + computed-style probes instead, which is stronger than a screenshot for colour claims but wouldn't catch a layout/overlap regression (low risk: only colours/radii/stroke/tokens changed).
+
 ## 2026-07-23 (latest+8) — Reproducible in-repo synthetic supply-chain dataset (live-proven)
 
 Closed the gap flagged in latest+7: the demo data only lived in the Databricks workspace (built Databricks-side; `detect.py` only READS it) with no in-repo generator. Now there is one. Commit `2afe047`.
