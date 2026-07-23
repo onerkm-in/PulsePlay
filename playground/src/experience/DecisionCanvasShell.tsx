@@ -10,6 +10,7 @@
 //
 // Segregated mode is unaffected and remains the default + fail-safe fallback.
 
+import { useEffect, useState } from "react";
 import { ActionInsightsPanel } from "../components/ActionInsightsPanel";
 import { MyCanvasRegion } from "../canvas/MyCanvasRegion";
 import { SaveChannel } from "../canvas/SaveChannel";
@@ -82,9 +83,26 @@ function DeferredRegion({ title, note }: { title: string; note: string }) {
     );
 }
 
+/** Collapse the workspace to one column on narrow viewports (§10 combined-mobile). */
+function useIsNarrow(): boolean {
+    const [narrow, setNarrow] = useState(() =>
+        typeof window !== "undefined" && typeof window.matchMedia === "function"
+            ? window.matchMedia("(max-width: 820px)").matches : false);
+    useEffect(() => {
+        if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+        const mq = window.matchMedia("(max-width: 820px)");
+        const on = () => setNarrow(mq.matches);
+        on();
+        mq.addEventListener?.("change", on);
+        return () => mq.removeEventListener?.("change", on);
+    }, []);
+    return narrow;
+}
+
 export function DecisionCanvasShell(): React.ReactElement {
     const proxyBase = readProxyBase();
     const activeProfile = readActiveProfile();
+    const narrow = useIsNarrow();
 
     return (
         <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: "var(--pp-app-bg, transparent)" }}>
@@ -106,8 +124,9 @@ export function DecisionCanvasShell(): React.ReactElement {
             </header>
 
             <main style={{
-                flex: "1 1 auto", display: "grid", gridTemplateColumns: "minmax(0, 2fr) minmax(260px, 1fr)",
-                gap: 16, padding: 20, alignItems: "start",
+                flex: "1 1 auto", display: "grid",
+                gridTemplateColumns: narrow ? "1fr" : "minmax(0, 2fr) minmax(260px, 1fr)",
+                gap: 16, padding: narrow ? 14 : 20, alignItems: "start",
             }}>
                 {/* Primary column: Action Inbox (real, governed) */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
@@ -123,7 +142,7 @@ export function DecisionCanvasShell(): React.ReactElement {
                 </div>
 
                 {/* Side column: surface hub + deferred regions */}
-                <aside style={{ display: "flex", flexDirection: "column", gap: 16, position: "sticky", top: 20 }}>
+                <aside style={{ display: "flex", flexDirection: "column", gap: 16, position: narrow ? "static" : "sticky", top: 20 }}>
                     <section style={{ border: "1px solid rgba(128,128,128,0.25)", borderRadius: 12, padding: "12px 14px" }}>
                         <div style={{ fontSize: 12, letterSpacing: 0.6, fontWeight: 700, color: "var(--pp-muted,#667085)", marginBottom: 8 }}>
                             OPEN A SURFACE
