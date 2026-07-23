@@ -45,8 +45,8 @@ async function listPrompts(profile, databricksRequest, { personaWhere = '' } = {
     const sql = `SELECT prompt_id, rule_id, kpi, severity, confidence, confidence_score,
         headline, issue, root_cause, root_cause_category, recommended_action, action_code,
         action_level, approval_required, business_impact_value, business_impact_unit,
-        business_impact_label, persona, owner, status, evidence_signature, category, region,
-        month_key, narrative
+        business_impact_label, persona, owner, status, evidence_signature, evidence_sql,
+        category, region, month_key, narrative
         FROM ${PROMPT_TABLE} ${personaWhere}
         ORDER BY CASE severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1
                  WHEN 'medium' THEN 2 ELSE 3 END, confidence_score DESC`;

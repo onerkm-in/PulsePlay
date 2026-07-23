@@ -30,6 +30,7 @@ export interface DecisionPrompt {
     status: string;
     narrative: string;
     evidence_signature: string;
+    evidence_sql?: string | null;
     category?: string | null;
     region?: string | null;
     month_key?: number;
@@ -178,11 +179,26 @@ export function DecisionPromptCard({
                 )}
 
                 {showEvidence && (
-                    <pre style={{
-                        marginTop: 10, padding: 10, borderRadius: 8, fontSize: 11, lineHeight: 1.5,
-                        whiteSpace: "pre-wrap", background: "rgba(128,128,128,0.08)",
-                        color: "var(--pp-muted,#475467)", overflowX: "auto",
-                    }}>{prompt.narrative}</pre>
+                    <div style={{ marginTop: 10 }}>
+                        {prompt.evidence_sql && (
+                            <>
+                                <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: 0.6,
+                                    color: "var(--pp-muted,#667085)", marginBottom: 4 }}>DETECTION SQL</div>
+                                <pre style={{
+                                    padding: 10, borderRadius: 8, fontSize: 11, lineHeight: 1.5,
+                                    whiteSpace: "pre-wrap", background: "rgba(128,128,128,0.10)",
+                                    color: "var(--pp-muted,#344054)", overflowX: "auto", marginBottom: 8,
+                                }}>{prompt.evidence_sql}</pre>
+                            </>
+                        )}
+                        <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: 0.6,
+                            color: "var(--pp-muted,#667085)", marginBottom: 4 }}>EVIDENCE · AUDIT NOTE</div>
+                        <pre style={{
+                            padding: 10, borderRadius: 8, fontSize: 11, lineHeight: 1.5,
+                            whiteSpace: "pre-wrap", background: "rgba(128,128,128,0.08)",
+                            color: "var(--pp-muted,#475467)", overflowX: "auto",
+                        }}>{prompt.narrative}</pre>
+                    </div>
                 )}
 
                 <div style={{ marginTop: 8, fontSize: 10.5, color: "var(--pp-muted,#98a2b3)" }}>
