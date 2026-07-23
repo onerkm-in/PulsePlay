@@ -32,6 +32,7 @@ const REQUIRED_DEP_KEYS = Object.freeze([
     'createProblem',             // RFC-9457 problem builder
     'sendProblem',               // problem responder
     'sendNoMatchingProfile',     // 4xx when no profile resolves
+    'resolveProfile',            // resolve a profile from (body, query, headers, req) + allowlist — the universal entry every route-serving connector needs
     'profileRegistry',           // profile lookups (get/list/findByHost)
     'profileByName',             // resolve a profile by explicit name
     'profileAllowedForRequest',  // allowlist gate

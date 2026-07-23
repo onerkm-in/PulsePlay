@@ -1,0 +1,95 @@
+/**
+ * personaGate.js — server-owned persona + capability authority for Decision Assist.
+ *
+ * The authority a request carries is derived here from verified identity claims,
+ * never from client-supplied values. A browser "Viewing as" selector is
+ * presentation only; it can influence the persona only behind an explicit demo
+ * opt-in (AI_ALLOW_DEMO_PERSONA=true) and only when no verified role is present.
+ *
+ * This module holds no I/O and no Databricks calls, so it is cheap to unit test
+ * and is reused by both the legacy /insights/action-insights routes and the
+ * drop-in /decision-assist connector.
+ */
+'use strict';
+
+const PLANNER = 'Supply Chain Planner';
+const MANAGER = 'Supply Chain Manager';
+
+// persona -> capability set (server-side source of truth)
+const CAPABILITIES = {
+    [PLANNER]: new Set([
+        'can_view_prompts', 'can_view_evidence', 'can_trigger_request',
+        'can_snooze', 'can_mark_false_positive',
+    ]),
+    [MANAGER]: new Set([
+        'can_view_prompts', 'can_view_evidence', 'can_trigger_request',
+        'can_snooze', 'can_mark_false_positive', 'can_approve_hitl', 'can_reject',
+    ]),
+};
+
+// action code -> { capability required, resulting status (null = no change), level }
+const ACTIONS = {
+    view_evidence:            { cap: 'can_view_evidence',       status: null,               level: 1 },
+    snooze:                   { cap: 'can_snooze',              status: 'snoozed',          level: 1 },
+    mark_false_positive:      { cap: 'can_mark_false_positive', status: 'false-positive',   level: 1 },
+    reject:                   { cap: 'can_reject',              status: 'rejected',         level: 1 },
+    approve:                  { cap: 'can_approve_hitl',        status: 'actioned',         level: 3 },
+    trigger_supplier_review:  { cap: 'can_trigger_request',     status: 'pending-approval', level: 3 },
+    trigger_replenishment:    { cap: 'can_trigger_request',     status: 'pending-approval', level: 3 },
+    trigger_forecast_review:  { cap: 'can_trigger_request',     status: 'pending-approval', level: 3 },
+    trigger_supplier_perf:    { cap: 'can_trigger_request',     status: 'pending-approval', level: 3 },
+    trigger_inventory_review: { cap: 'can_trigger_request',     status: 'pending-approval', level: 3 },
+};
+
+const MVP_ACTION_LEVEL_CEILING = 3;
+const ACTIONABLE_FROM_NEW = new Set(['new', 'refreshed']);
+
+/**
+ * Resolve persona from verified IdP roles first; fall back to a demo persona
+ * only when no role is present AND demo switching is enabled. The env flag is
+ * read at call time so a controlled demo toggle takes effect without a restart.
+ */
+function resolvePersona(req) {
+    const roles = (req.user && Array.isArray(req.user.roles)) ? req.user.roles : [];
+    for (const r of roles) {
+        const s = String(r).toLowerCase();
+        if (/manager|approver|s&op|director|lead/.test(s)) return { persona: MANAGER, source: 'idp-role' };
+        if (/planner|analyst|supply/.test(s)) return { persona: PLANNER, source: 'idp-role' };
+    }
+    if (process.env.AI_ALLOW_DEMO_PERSONA === 'true') {
+        const claimed = String((req.get && req.get('x-pp-persona')) || (req.query && req.query.persona) || '').trim();
+        if (claimed === MANAGER || claimed === PLANNER) return { persona: claimed, source: 'demo' };
+    }
+    return { persona: PLANNER, source: 'default' }; // least privilege
+}
+
+function caps(persona) { return CAPABILITIES[persona] || CAPABILITIES[PLANNER]; }
+
+/**
+ * The actions this persona may take on a prompt in its current status. Terminal
+ * statuses offer view only; a fresh prompt offers its own governed trigger plus
+ * snooze/false-positive/reject; a pending-approval prompt offers approve/reject.
+ */
+function allowedActionsFor(promptRow, persona) {
+    const cap = caps(persona);
+    const out = [];
+    if (cap.has('can_view_evidence')) out.push('view_evidence');
+    const status = promptRow.status;
+    if (ACTIONABLE_FROM_NEW.has(status)) {
+        const triggerCode = promptRow.action_code;
+        if (ACTIONS[triggerCode] && ACTIONS[triggerCode].cap === 'can_trigger_request'
+            && cap.has('can_trigger_request')) out.push(triggerCode);
+        if (cap.has('can_snooze')) out.push('snooze');
+        if (cap.has('can_mark_false_positive')) out.push('mark_false_positive');
+        if (cap.has('can_reject')) out.push('reject');
+    } else if (status === 'pending-approval') {
+        if (cap.has('can_approve_hitl')) out.push('approve');
+        if (cap.has('can_reject')) out.push('reject');
+    }
+    return out;
+}
+
+module.exports = {
+    PLANNER, MANAGER, CAPABILITIES, ACTIONS, MVP_ACTION_LEVEL_CEILING, ACTIONABLE_FROM_NEW,
+    resolvePersona, caps, allowedActionsFor,
+};

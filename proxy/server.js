@@ -8979,6 +8979,39 @@ app.get('/__diag/static', (req, res) => {
     res.json(out);
 });
 
+// ── Connector plugin registration (Phase B) ─────────────────────────────────
+// Drop-in/drop-out per-connector modules: add a connector by dropping a file
+// into proxy/connectors/, remove one by deleting it. Mounted here — after all
+// inline API routes but BEFORE the static/SPA fallback and the final error
+// handler — so connector routes cannot be shadowed by the catch-all and the
+// error handler stays last. Contract: docs/AGENT_SYNC.md `[DECISION]` 2026-05-20.
+try {
+    const { discoverConnectors, registerConnectors } = require('./connectors/connectorRegistry');
+    const { buildConnectorHost } = require('./connectors/connectorHost');
+    const { createConversationDispatch, createCallLlmProviders, createSectionedRunners } = require('./connectors/registries');
+    const _connectorWarn = (msg) => console.warn(`[connectors] ${msg}`);
+    const _connectors = discoverConnectors(path.join(__dirname, 'connectors'), { onWarn: _connectorWarn });
+    if (_connectors.length) {
+        const _connectorHost = buildConnectorHost({
+            app, cfg, auditLog, createProblem, sendProblem, sendNoMatchingProfile,
+            resolveProfile,
+            profileRegistry, profileByName, profileAllowedForRequest,
+            databricksRequest, spHashForProfile, validateFrame, prependFrameContext,
+            ensureWarehouseRunning, withGovernance, timeoutPolicy: TIMEOUT_POLICY,
+            conversationDispatch: createConversationDispatch(),
+            callLlmProviders: createCallLlmProviders(),
+            sectionedRunners: createSectionedRunners(),
+        });
+        const _registered = registerConnectors(_connectors, _connectorHost, { onWarn: _connectorWarn });
+        if (_registered.length) {
+            console.log(`[connectors] registered ${_registered.length}: ${_registered.join(', ')}`);
+        }
+    }
+} catch (err) {
+    // Never block server boot on connector scaffolding.
+    console.warn(`[connectors] scan skipped: ${(err && err.message) || err}`);
+}
+
 // ── Static-file serving (combined-app deployment) ────────────────────────────
 //
 // Optional. When STATIC_DIR is set (e.g. "playground/dist" or an absolute
@@ -9010,7 +9043,7 @@ if (_STATIC_DIR_RAW) {
     }));
     // SPA fallback: any GET that isn't a known API prefix → serve index.html.
     // Adding new top-level API routes? Add their first path segment to this list.
-    const API_PREFIX_RE = /^\/(api|assistant|foundation|powerbi|health|discovery|capabilities|feedback|debug|metrics|smoke|connectors|knowledge|policy|profiles|packs|supervisor|insights|sql-preview|test|__diag|\.well-known)(\/|$|\?)/;
+    const API_PREFIX_RE = /^\/(api|assistant|foundation|powerbi|health|discovery|capabilities|feedback|debug|metrics|smoke|connectors|decision-assist|knowledge|policy|profiles|packs|supervisor|insights|sql-preview|test|__diag|\.well-known)(\/|$|\?)/;
     app.get(/.*/, (req, res, next) => {
         if (API_PREFIX_RE.test(req.path)) return next();
         if (req.headers.accept && !req.headers.accept.includes('text/html')) return next();
@@ -9112,38 +9145,6 @@ if (require.main === module) {
     }
 }
 
-// ── Connector plugin scaffolding (Phase A) ──────────────────────────────────
-// Drop-in/drop-out per-connector modules: add a connector by dropping a file
-// into proxy/connectors/, remove one by deleting it. Phase A is SCAFFOLDING
-// ONLY — no connectors are migrated yet, so this scan finds zero connectors and
-// registers nothing (pure additive; existing routes are unaffected). The
-// registry skips `_`-prefixed examples (`_template.js`) + the infra files.
-// Contract + phased rollout: docs/AGENT_SYNC.md `[DECISION]` 2026-05-20.
-try {
-    const { discoverConnectors, registerConnectors } = require('./connectors/connectorRegistry');
-    const { buildConnectorHost } = require('./connectors/connectorHost');
-    const { createConversationDispatch, createCallLlmProviders, createSectionedRunners } = require('./connectors/registries');
-    const _connectorWarn = (msg) => console.warn(`[connectors] ${msg}`);
-    const _connectors = discoverConnectors(path.join(__dirname, 'connectors'), { onWarn: _connectorWarn });
-    if (_connectors.length) {
-        const _connectorHost = buildConnectorHost({
-            app, cfg, auditLog, createProblem, sendProblem, sendNoMatchingProfile,
-            profileRegistry, profileByName, profileAllowedForRequest,
-            databricksRequest, spHashForProfile, validateFrame, prependFrameContext,
-            ensureWarehouseRunning, withGovernance, timeoutPolicy: TIMEOUT_POLICY,
-            conversationDispatch: createConversationDispatch(),
-            callLlmProviders: createCallLlmProviders(),
-            sectionedRunners: createSectionedRunners(),
-        });
-        const _registered = registerConnectors(_connectors, _connectorHost, { onWarn: _connectorWarn });
-        if (_registered.length) {
-            console.log(`[connectors] registered ${_registered.length}: ${_registered.join(', ')}`);
-        }
-    }
-} catch (err) {
-    // Never block server boot on connector scaffolding.
-    console.warn(`[connectors] scan skipped: ${(err && err.message) || err}`);
-}
 
 module.exports = {
     app,

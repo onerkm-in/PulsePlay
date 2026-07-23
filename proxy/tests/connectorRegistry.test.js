@@ -150,11 +150,11 @@ describe('buildConnectorHost', () => {
     });
 });
 
-describe('Phase A invariant — real proxy/connectors/ registers nothing', () => {
-    test('the live connectors dir discovers ZERO connectors (only _template + infra)', () => {
+describe('Phase B — real proxy/connectors/ discovers the migrated connectors', () => {
+    test('the live connectors dir discovers decision-assist (first real drop-in) and nothing malformed', () => {
         const warns = [];
         const found = discoverConnectors(REAL_DIR, { onWarn: (m) => warns.push(m) });
-        expect(found).toEqual([]);
+        expect(found.map((c) => c.id).sort()).toEqual(['decision-assist']);
         expect(warns).toEqual([]); // nothing malformed; _template + infra are filtered silently
     });
 });
