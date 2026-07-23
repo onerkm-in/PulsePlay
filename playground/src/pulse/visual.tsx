@@ -5867,7 +5867,7 @@ function App(props: AppProps) {
                                                                         aria-label="Locked by author — always visible"
                                                                         title="Locked by author — always visible"
                                                                     >
-                                                                        🔒
+                                                                        <Icon name="lock" size={12} />
                                                                     </span>
                                                                 )}
                                                             </label>
@@ -6148,7 +6148,7 @@ function App(props: AppProps) {
                         //                   insightsBusy flips true and the
                         //                   running state takes over rendering
                         <div className="gn-insights-placeholder">
-                            <span className="gn-insights-icon" aria-hidden="true">✨</span>
+                            <span className="gn-insights-icon" aria-hidden="true"><Icon name="sparkles" size={26} /></span>
                             <h3>AI Insights</h3>
                             {isConfigured ? (
                                 <p role="status" aria-live="polite">Generating insights…</p>
@@ -6733,7 +6733,7 @@ function App(props: AppProps) {
                                         borderRadius: 6,
                                     }}
                                 >
-                                    <span style={{ fontSize: 11, fontWeight: 600, color: "#1d4ed8", marginRight: 4, alignSelf: "center" }}>✨ Try asking:</span>
+                                    <span style={{ fontSize: 11, fontWeight: 600, color: "var(--gn-accent, #5980a6)", marginRight: 4, alignSelf: "center", display: "inline-flex", alignItems: "center", gap: 3 }}><Icon name="sparkles" size={11} /> Try asking:</span>
                                     {insightsResult.suggestedFollowUps.map((q, i) => (
                                         <button
                                             key={`${i}-${q.slice(0, 12)}`}
@@ -7028,7 +7028,7 @@ function App(props: AppProps) {
                                             key={`fu-${i}`}
                                             className="gn-pill gn-pill--from-insights gn-pill--featured"
                                             disabled={!isConfigured || busy}
-                                            title={`${q}\n\n✨ Carried over from AI Insights — will continue the same AI conversation`}
+                                            title={`${q}\n\nCarried over from AI Insights — will continue the same AI conversation`}
                                             onClick={() => {
                                                 // BUG-017: continue the Insights stage-1 conversation
                                                 // rather than starting fresh. Pre-seed conversationMap
@@ -7048,7 +7048,7 @@ function App(props: AppProps) {
                                                 void runAssistant(q, "summary", insightsConv || undefined);
                                             }}
                                         >
-                                            <span aria-hidden="true">✨</span> {q.length > 60 ? q.slice(0, 57) + "…" : q}
+                                            <span aria-hidden="true" style={{ display: "inline-flex", verticalAlign: "-1px" }}><Icon name="sparkles" size={11} /></span> {q.length > 60 ? q.slice(0, 57) + "…" : q}
                                         </button>
                                     ))}
                                     {latestActions
@@ -9107,7 +9107,7 @@ function PulseContextSetup(props: {
                 aria-haspopup="dialog"
                 onClick={() => setOpen(o => !o)}
             >
-                <span className="gn-context-setup__gear" aria-hidden="true">⚙</span>
+                <span className="gn-context-setup__gear" aria-hidden="true"><Icon name="settings" size={12} /></span>
                 <span className="gn-context-setup__label">Context</span>
                 {trust && (
                     <span
@@ -10544,7 +10544,7 @@ function renderKpiSnapshot(raw: string): React.ReactNode {
     const reasoningNode = reasoning ? (
         <details className="gn-agent-reasoning">
             <summary>
-                <span className="gn-agent-reasoning-icon" aria-hidden="true">🔍</span>
+                <span className="gn-agent-reasoning-icon" aria-hidden="true"><Icon name="search" size={13} /></span>
                 <span className="gn-agent-reasoning-title">Show Genie's reasoning</span>
                 <span className="gn-agent-reasoning-meta">{(() => {
                     const lines = reasoning.split("\n").filter(l => l.trim().length > 0).length;

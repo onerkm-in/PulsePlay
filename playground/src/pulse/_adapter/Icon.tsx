@@ -18,7 +18,8 @@ export type IconName =
     | "copy" | "check" | "refresh" | "stop" | "code" | "settings"
     | "external-link" | "download" | "search" | "filter" | "x"
     | "file-html" | "printer" | "maximize" | "minimize" | "restore"
-    | "float-window" | "pin" | "show-both" | "more-vertical";
+    | "float-window" | "pin" | "show-both" | "more-vertical"
+    | "sparkles" | "lock";
 
 interface IconProps {
     name: IconName;
@@ -171,6 +172,21 @@ const PATHS: Record<IconName, React.ReactElement> = {
             <circle cx="8" cy="3.5" r="1.25" fill="currentColor" />
             <circle cx="8" cy="8"   r="1.25" fill="currentColor" />
             <circle cx="8" cy="12.5" r="1.25" fill="currentColor" />
+        </>
+    ),
+    // Four-point spark + companion dot — AI-generated marker (replaces the
+    // sparkles emoji per the Industry no-emoji-as-UI rule).
+    sparkles: (
+        <>
+            <path d="M8 2.5 9.3 6 12.8 7.3 9.3 8.6 8 12.1 6.7 8.6 3.2 7.3 6.7 6z" />
+            <path d="M12.6 11.4v2.8M11.2 12.8h2.8" />
+        </>
+    ),
+    // Padlock — author-locked state.
+    lock: (
+        <>
+            <rect x="3.5" y="7" width="9" height="6.5" rx="1" />
+            <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" />
         </>
     ),
 };
