@@ -31,7 +31,7 @@ function readDemoPersona(): string {
     try { return window.localStorage.getItem(DEMO_PERSONA_KEY) || ""; } catch { return ""; }
 }
 
-export function ActionInsightsPanel({ proxyBase }: { proxyBase: string }) {
+export function ActionInsightsPanel({ proxyBase, assistantProfile }: { proxyBase: string; assistantProfile?: string }) {
     const [data, setData] = useState<ApiResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -39,13 +39,19 @@ export function ActionInsightsPanel({ proxyBase }: { proxyBase: string }) {
     const [demoPersona, setDemoPersona] = useState<string>(() => readDemoPersona());
 
     const base = proxyBase || "";
+    // The prompt store lives on a Databricks SQL warehouse, so the proxy must
+    // resolve a profile that carries one. Without an explicit profile the
+    // server-side resolution can land on a non-warehouse profile (e.g. the
+    // Power BI connector) and the whole panel 400s.
+    const profileQuery = assistantProfile ? `?assistantProfile=${encodeURIComponent(assistantProfile)}` : "";
+    const profileHeaders: Record<string, string> = assistantProfile ? { "X-Assistant-Profile": assistantProfile } : {};
 
     const load = useCallback(async () => {
         setLoading(true);
         setError(null);
         try {
-            const res = await fetch(`${base}/insights/action-insights`, {
-                headers: demoPersona ? { "x-pp-persona": demoPersona } : {},
+            const res = await fetch(`${base}/insights/action-insights${profileQuery}`, {
+                headers: { ...profileHeaders, ...(demoPersona ? { "x-pp-persona": demoPersona } : {}) },
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const body = (await res.json()) as ApiResponse;
@@ -56,17 +62,18 @@ export function ActionInsightsPanel({ proxyBase }: { proxyBase: string }) {
         } finally {
             setLoading(false);
         }
-    }, [base, demoPersona]);
+    }, [base, demoPersona, assistantProfile]); // eslint-disable-line react-hooks/exhaustive-deps -- profileQuery/profileHeaders derive from assistantProfile
 
     useEffect(() => { void load(); }, [load]);
 
     const onAction = useCallback(async (promptId: string, action: string) => {
         setBusyId(promptId);
         try {
-            const res = await fetch(`${base}/insights/action-insights/${promptId}/action`, {
+            const res = await fetch(`${base}/insights/action-insights/${promptId}/action${profileQuery}`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
+                    ...profileHeaders,
                     ...(demoPersona ? { "x-pp-persona": demoPersona } : {}),
                 },
                 body: JSON.stringify({ action }),
@@ -82,7 +89,7 @@ export function ActionInsightsPanel({ proxyBase }: { proxyBase: string }) {
         } finally {
             setBusyId(null);
         }
-    }, [base, demoPersona, load]);
+    }, [base, demoPersona, load, assistantProfile]); // eslint-disable-line react-hooks/exhaustive-deps -- profileQuery/profileHeaders derive from assistantProfile
 
     const setPersona = (p: string) => {
         try { window.localStorage.setItem(DEMO_PERSONA_KEY, p); } catch { /* swallow */ }

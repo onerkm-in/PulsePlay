@@ -1589,7 +1589,7 @@ function PlaygroundApp(): React.ReactElement {
                                         />
                                     </div>
                                     <div style={{ flex: "1 1 auto", minHeight: 0 }}>
-                                        <ActionInsightsPanel proxyBase={readConfiguredProxyBase()} />
+                                        <ActionInsightsPanel proxyBase={readConfiguredProxyBase()} assistantProfile={activeConnector} />
                                     </div>
                                 </div>
                             ) : uiMode === "pulse" ? (
