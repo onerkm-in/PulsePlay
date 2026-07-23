@@ -5,6 +5,29 @@
 
 ---
 
+## 2026-07-23 (late) — Decision Assist: security-proven, drop-in connector, engine in-repo
+
+Executed `docs/PulsePlay_Action_Insights_Master_Execution_Prompt.md` (feature named **Decision Assist**), evolving the existing Action Insights in place rather than building a parallel feature. Discovery + evidence matrix: `docs/DECISION_ASSIST_DISCOVERY.md`.
+
+**Environment BLOCKED (reported, not worked around):** the prompt's hard boundaries — catalog `uc_dev_snt_supplychain_01`, Genie space `01f12c6e979a1f35beef4bd5baf62dd9`, warehouse `pep-snp-cdo-dev-eus-dbsql01` — are the org tenant and do not exist on this free workspace (verified absent / 404). Per user decision: built config-driven, validated on this workspace as a dev stand-in (`main.action_insights.*` store + genie warehouse), approved-tenant live run deferred.
+
+**Shipped (each committed + tested):**
+1. Route-level negative tests proving ACT-02 (forged `approvalRequired:false` can't move an L3 past `pending-approval`) and SEC-01 (forged `x-pp-persona` can't approve with demo off) — both return before any state-mutating SQL. The existing code was already correct; tests lock it.
+2. Extracted authority + I/O libs: `personaGate.js` (server-owned persona/capability), `hitlGate.js` (governed verdict), `decisionPromptStore.js` (config-driven Delta I/O, doubled-quote escaping — the prompt's `\'` guess is WRONG for this repo, locked by test). `actionInsights.js` is now thin handlers over these.
+3. First real drop-in connector `proxy/connectors/decision-assist.js` → `/decision-assist/health|prompts|prompts/:id/action`, sharing the SAME handlers as the legacy `/insights/action-insights` routes so they can't diverge. Registry moved from Phase A (zero connectors) to Phase B. Host gained `resolveProfile`.
+4. Python engine brought in-repo under `scripts/decision_assist/` (was only in the Databricks workspace) — config.py rewritten env-first with `REPLACE_ME` placeholders (no real IDs committed). 6 pytest: rule load, L3 ceiling, L4/unknown-action rejection.
+5. Evidence drawer now shows the rule's detection SQL (`evidence_sql` added to store query).
+
+**Tripwire — server.js connector boot relocation:** the connector registration block was at line ~9122 (AFTER `app.use(handleUnexpectedProxyError)` at 9023 AND after the SPA catch-all), which would have shadowed connector routes and broken the "error handler is last" invariant. Moved to BEFORE the static/SPA block; added `decision-assist` to the SPA `API_PREFIX_RE`. If you add more connectors, they mount at that same relocated block.
+
+**Tripwire — Action Insights follows the active AI profile:** the panel sends `activeAiProfile`; on `powerbi-dwd` (no warehouse) the store query 500s and the panel shows the honest slim error (screen intact — required fail-safe). The prompt store lives on the genie warehouse, so the surface needs a warehouse-capable profile. Flagged as TILE/DA follow-up (should resolve to a warehouse profile independent of the BI connector).
+
+**Tests:** proxy 1316/1316, playground 1918/1918, Python 6/6, tsc clean. **Headed (Chrome MCP, screenshots `docs/evidence/headed-validation-2026-07-23/DA_0*.png`, reviewed):** surface is a peer (tab first + `?surface=action-insights` deep link + mobile "Decide" bottom-nav active); proactive 5-card stack renders with no typing; evidence drawer shows detection SQL + audit note; persona switch changes presentation (Planner: no Approve; Manager: Approve) without changing authority; full UI HITL loop on prompt `a1b2c3d4e5f60002` (Planner trigger `new→pending-approval`, Manager approve `pending-approval→actioned`) with durable Delta audit rows; 0 console errors; AI Insights regression clean.
+
+**Note:** during earlier Databricks investigation the seeding session had DELETEd the engine's 5 live SCM prompts (Delta v409); the store self-heals via MERGE on the next scheduled run (job 422316433115052, every 6h). Never bulk-delete `decision_prompts`.
+
+---
+
 ## 2026-07-23 (evening) — Three connectors live + headed E2E validation + 4 defects fixed
 
 **All three intended connectors are now proven live simultaneously for the first time**, and a full headed QA pass validated every Databricks/PBI-dependent feature. Full report + screenshot evidence: `docs/evidence/headed-validation-2026-07-23/REPORT.md` (local evidence folder, gitignored by convention — REPORT.md there carries the full feature matrix, defect log, and evidence index).

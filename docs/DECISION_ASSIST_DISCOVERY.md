@@ -41,3 +41,24 @@ is a config change, not a code change.
 | SQL escaping convention | Verified | `sq()` doubles single-quotes (`'a''b'`), test locks it (actionInsights.test.js:90) | prompt's `\'` guess is wrong for this repo | preserve doubled-quotes |
 
 Disposition legend: Verified working / Verified mitigated / Partial / Missing / BLOCKED.
+
+## Results (2026-07-23) — evidence coverage
+
+Acceptance criteria proven on the dev stand-in (approved org tenant deferred):
+
+| Gate | Result | Evidence |
+|---|---|---|
+| Security: server-owned authority, forged persona/approval fail, L3→HITL, L4/L5 rejected | PASS | `actionInsightsRoutes.test.js` 6/6 + live 403/pending-approval on `/decision-assist/*`; engine rejects L4 at rule-load (`test_rules.py`) |
+| Data: approved-scope-only, parameterized+escaped SQL, stable dedup IDs, lifecycle persists | PARTIAL | doubled-quote escaping locked by test; content-hash prompt_id in engine; lifecycle persists to Delta (audit rows). Approved *coordinates* BLOCKED (org tenant absent) — validated on stand-in scope only |
+| Product: peer surface desktop+mobile, proactive no-LLM stack, evidence/impact/persona correct, fail-safe | PASS | `DA_01..04` screenshots: tab first + deep link + mobile "Decide"; 5-card stack no typing; drawer shows detection SQL; powerbi-dwd→slim 500 notice, screen intact |
+| Governance: L1/L2/L3 enforced, L2 logged-not-sent, L3 pending until approval, rejection+false-positive recorded | PASS | `hitlGate` verdict + `ACTIONS` map (all ≤L3, logged-only); durable audit shows trigger→pending-approval→actioned |
+| Quality: static+unit+integration+full suites pass, headed evidence, 0 console/API errors | PASS | proxy 1316/1316, playground 1918/1918, python 6/6, tsc clean; 0 console errors headed |
+| Documentation: reason/risk/validation, blockers explicit, handover updated | PASS | this doc + HANDOVER entry + AGENDA |
+
+Coverage: of the applicable acceptance criteria, the only one not fully green is the **approved-coordinate data gate**, which is BLOCKED by the org-tenant environment (not a code defect). Everything reachable on this workspace is verified. **Verdict: PARTIAL — feature complete and proven on the dev stand-in; approved-tenant live run is the one remaining gate, blocked on org workspace access.**
+
+## Open items / follow-ups
+
+- Approved-tenant live validation (uc_dev_snt_supplychain_01 + pep-snp Genie/warehouse) — needs org workspace access. Swap config env vars + the 6 SC-* rules.json pack; no code change.
+- Action Insights resolves to the active AI profile; on a non-warehouse BI connector (powerbi-dwd) the store 500s (fail-safe shows honest notice). Should resolve to a warehouse-capable profile independent of the BI vendor. (Follow-up, not blocking.)
+- The prompt's 6 SC-* rule IDs (OTIF/MARGIN/FILL/DISC/DOS/AGE) vs the shipped 5 SCM-* pack matching the live KPI fact — a rules.json swap once the approved superstore source is reachable.
