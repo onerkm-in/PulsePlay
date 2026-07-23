@@ -75,6 +75,7 @@ import { useDashboardAutoSeed } from "./multipane/dashboardAutoSeed";
 import { useLaunchpadRoute } from "./launchpad/launchpadRoute";
 import { WorkbenchShell } from "./workbench/WorkbenchShell";
 import { useWorkbenchRoute } from "./workbench/workbenchRoute";
+import { GearIcon, WarnIcon } from "./lib/icons";
 // Lazy-load PulseShell so the large pulse chunk stays off the first-paint
 // critical path.
 const PulseShell = lazy(() =>
@@ -1486,7 +1487,7 @@ function PlaygroundApp(): React.ReactElement {
             {!wizardShown && (
                 <footer className="gn-app-footer" role="contentinfo">
                     <span className="gn-app-footer__context">
-                        <span aria-hidden="true">⚙</span>{" "}
+                        <GearIcon size={12} style={{ verticalAlign: "-2px" }} />{" "}
                         Context: <span data-testid="pp-surface-context-trust">{footerSurfaceContext.trust}</span>
                     </span>
                     <span className="gn-app-footer__meta">
@@ -1590,7 +1591,7 @@ function PlaygroundApp(): React.ReactElement {
                                         : "Governance config could not be loaded; pickers may be incomplete until the proxy responds."
                                     }
                                 >
-                                    <span className="pp-allowlist-chip__icon" aria-hidden="true">⚠</span>
+                                    <span className="pp-allowlist-chip__icon" aria-hidden="true"><WarnIcon size={12} /></span>
                                     <span className="pp-allowlist-chip__label">
                                         {allowlistFailClosed
                                             ? "Proxy unreachable — config locked"
@@ -1866,7 +1867,7 @@ function DashboardSurfaceContextStrip(props: {
                     aria-haspopup="dialog"
                     onClick={() => setOpen(o => !o)}
                 >
-                    <span className="gn-context-setup__gear" aria-hidden="true">⚙</span>
+                    <span className="gn-context-setup__gear" aria-hidden="true"><GearIcon size={13} /></span>
                     <span className="gn-context-setup__label">Context</span>
                     <span className={`gn-surface-context__badge gn-surface-context__badge--${tone}`}>{props.trust}</span>
                     <span className="gn-context-setup__chevron" aria-hidden="true">▾</span>

@@ -33,6 +33,7 @@ import { suggestInsightsConfigViaProxy } from "../../lib/insightsSuggestClient";
 import { buildPromptDrafts, type PromptDrafts } from "../../lib/promptDraftGenerator";
 import { MetricDirectionAutoDetectChip } from "../../components/MetricDirectionAutoDetectChip";
 import { getDiscoverySnapshot, type DiscoverySnapshot } from "../../lib/discoveryClient";
+import { WarnIcon } from "../../lib/icons";
 
 interface ProfileMetadata {
     name: string;
@@ -404,7 +405,7 @@ export function AiGroup(): React.ReactElement {
                             borderRadius: 4,
                         }}
                     >
-                        <span aria-hidden="true">⚠</span>
+                        <span aria-hidden="true"><WarnIcon size={13} style={{ verticalAlign: "-2px" }} /></span>
                         Microsoft retires this feature on 31 Dec 2026.{" "}
                         <a
                             href="https://powerbi.microsoft.com/en-us/blog/deprecating-power-bi-qa/"

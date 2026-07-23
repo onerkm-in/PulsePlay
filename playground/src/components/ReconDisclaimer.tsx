@@ -18,6 +18,7 @@ import {
     isReconDisclaimerDismissed,
     dismissReconDisclaimer,
 } from "../lib/desktopRuntimeClient";
+import { WarnIcon } from "../lib/icons";
 
 const DISCLAIMER_TEXT =
     "Local recon mode. This is a packaged local runtime for inspecting and experimenting with PulsePlay on your own machine. Do not share screenshots that include the launch URL, profile names, or proxy logs. Do not use this build to serve other users.";
@@ -60,7 +61,7 @@ export function ReconDisclaimer({ variant }: Props): React.ReactElement | null {
                 lineHeight: 1.45,
             }}
         >
-            <span aria-hidden="true" style={{ fontSize: 16, lineHeight: 1 }}>⚠</span>
+            <span aria-hidden="true" style={{ lineHeight: 1 }}><WarnIcon size={16} /></span>
             <div style={{ flex: 1 }}>
                 <strong style={{ fontWeight: 600 }}>Local recon mode.</strong>{" "}
                 <span>{DISCLAIMER_TEXT.replace(/^Local recon mode\.\s*/, "")}</span>

@@ -20,6 +20,7 @@ import {
 } from "../../pulse/sectionMarkdown";
 import { validateSqlSection, type SqlSection } from "../../pulse/sqlSection";
 import { validateSqlViaPreview } from "../../lib/sqlPreviewClient";
+import { WarnIcon } from "../../lib/icons";
 
 export interface SqlSectionsEditorProps {
     /** Canonical insightsCustomSections JSON string. */
@@ -118,7 +119,7 @@ export function SqlSectionsEditor({ value, onChange, apiBaseUrl, assistantProfil
                         color: "var(--pp-warning-text, #92400e)",
                     }}
                 >
-                    <span aria-hidden="true">⚠</span>
+                    <span aria-hidden="true"><WarnIcon size={14} /></span>
                     <span>
                         <strong>Requires a connected AI profile with a warehouse.</strong>{" "}
                         SQL sections run a read-only SELECT against the profile's Databricks warehouse — connect one in

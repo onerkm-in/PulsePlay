@@ -28,6 +28,7 @@ import { PreferencesAppearance } from "./groups/sub/PreferencesAppearance";
 import { SystemDeveloper } from "./groups/sub/SystemDeveloper";
 import { BiGovernance } from "./groups/sub/BiGovernance";
 import "./settings.css";
+import { CompassIcon, DashboardIcon, GearIcon, ServerIcon, SlidersIcon, SparklesIcon, WarnIcon } from "../lib/icons";
 
 // Rail shows 4 groups; internal route IDs are unchanged so deep links +
 // tests keep working. `setup` and `system` are hidden from the rail
@@ -51,13 +52,13 @@ const GROUP_DESCRIPTIONS: Record<SettingsGroupId, string> = {
     advanced:    "Performance, developer tools, runtime guards, danger zone",
 };
 
-const GROUP_ICONS: Record<SettingsGroupId, string> = {
-    setup:       "✦",
-    bi:          "⬡",
-    ai:          "◈",
-    preferences: "◉",
-    system:      "⬢",
-    advanced:    "⚙",
+const GROUP_ICONS: Record<SettingsGroupId, React.ReactNode> = {
+    setup:       <CompassIcon size={14} />,
+    bi:          <DashboardIcon size={14} />,
+    ai:          <SparklesIcon size={14} />,
+    preferences: <SlidersIcon size={14} />,
+    system:      <ServerIcon size={14} />,
+    advanced:    <GearIcon size={14} />,
 };
 
 // Rail order shown to users. `setup` and `system` are not in this list
@@ -621,7 +622,7 @@ function LegacyGroupBanner(props: { kind: "setup" | "system" }): React.ReactElem
                 flexWrap: "wrap",
             }}
         >
-            <span aria-hidden="true">⚠</span>
+            <span aria-hidden="true"><WarnIcon size={14} /></span>
             <span style={{ flex: 1, minWidth: 240 }}>
                 This page is being folded into <strong>{dest.label}</strong>. Existing
                 deep links keep working; the rebuilt view is being rolled out

@@ -82,8 +82,14 @@ export class AppErrorBoundary extends Component<Props, State> {
                         boxShadow: "0 12px 40px rgba(0,0,0,0.35)",
                     }}
                 >
-                    <div style={{ fontSize: 28, lineHeight: 1, marginBottom: 12 }} aria-hidden="true">
-                        ⚠️
+                    {/* Self-contained warning triangle (Lucide path, strokeWidth 1.5) —
+                      * this boundary stays import-free by design, so no lib/icons here. */}
+                    <div style={{ lineHeight: 1, marginBottom: 12, color: "#5980a6" }} aria-hidden="true">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" />
+                            <path d="M12 9v4" />
+                            <path d="M12 17h.01" />
+                        </svg>
                     </div>
                     <h1 style={{ fontSize: 18, fontWeight: 700, margin: "0 0 8px" }}>
                         Something went wrong

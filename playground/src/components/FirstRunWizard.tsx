@@ -13,6 +13,7 @@ import type { PulsePlayAllowlist } from "../types/allowlist";
 import type { PackInfo, PackSelection } from "./PackPicker";
 import { EmbedConfigForm } from "./EmbedConfigForm";
 import { PackPicker } from "./PackPicker";
+import { BarChartIcon, SparklesIcon, TargetIcon, WrenchIcon } from "../lib/icons";
 import { DEFAULT_UI_MODE } from "../settings/settingsStore";
 
 /* Public constants */
@@ -32,9 +33,8 @@ export interface PersonaPreset {
     key:                    PersonaKey;
     label:                  string;
     tagline:                string;
-    icon:                   string;
-    color:                  string;
-    gradient:               string;
+    // Lucide icon element (Industry rule 6) — mono steel, no per-persona hue.
+    icon:                   ReactNode;
     uiMode:                 "pulse" | "v0";
     layoutMode:             "ai-left" | "ai-right" | "ai-top";
     preferredConnectorType?: string;
@@ -45,9 +45,7 @@ export const PERSONA_PRESETS: readonly PersonaPreset[] = [
         key:                    "analyst",
         label:                  "Analyst",
         tagline:                "Drill into metrics, spot anomalies, build narratives.",
-        icon:                   "📊",
-        color:                  "#2563eb",
-        gradient:               "linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)",
+        icon:                   <BarChartIcon size={20} />,
         uiMode:                 DEFAULT_UI_MODE,
         layoutMode:             "ai-left",
         preferredConnectorType: "genie",
@@ -56,9 +54,7 @@ export const PERSONA_PRESETS: readonly PersonaPreset[] = [
         key:                    "executive",
         label:                  "Executive",
         tagline:                "High-level view. Quick answers. No friction.",
-        icon:                   "🎯",
-        color:                  "#7c3aed",
-        gradient:               "linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)",
+        icon:                   <TargetIcon size={20} />,
         uiMode:                 DEFAULT_UI_MODE,
         layoutMode:             "ai-top",
         preferredConnectorType: "foundation-model",
@@ -67,9 +63,7 @@ export const PERSONA_PRESETS: readonly PersonaPreset[] = [
         key:                    "developer",
         label:                  "Developer",
         tagline:                "Wire up integrations, inspect payloads, debug flows.",
-        icon:                   "🛠️",
-        color:                  "#0891b2",
-        gradient:               "linear-gradient(135deg, #ecfeff 0%, #cffafe 100%)",
+        icon:                   <WrenchIcon size={20} />,
         uiMode:                 DEFAULT_UI_MODE,
         layoutMode:             "ai-right",
         preferredConnectorType: undefined,
@@ -78,9 +72,7 @@ export const PERSONA_PRESETS: readonly PersonaPreset[] = [
         key:                    "designer",
         label:                  "Designer",
         tagline:                "Curate layouts, polish UX, demo to stakeholders.",
-        icon:                   "✨",
-        color:                  "#db2777",
-        gradient:               "linear-gradient(135deg, #fdf2f8 0%, #fce7f3 100%)",
+        icon:                   <SparklesIcon size={20} />,
         uiMode:                 DEFAULT_UI_MODE,
         layoutMode:             "ai-left",
         preferredConnectorType: undefined,
@@ -1244,22 +1236,18 @@ function PersonaCard(props: {
             style={{
                 textAlign:         "left",
                 padding:           "14px 14px 12px",
-                background:        active ? preset.gradient : "#fafafa",
-                border:            active ? `2px solid ${preset.color}` : "2px solid transparent",
-                outline:           "1px solid rgba(0,0,0,0.08)",
-                outlineOffset:     active ? -1 : 0,
-                borderRadius:      10,
+                background:        active ? "var(--pp-accent-soft)" : "transparent",
+                border:            active ? "1px solid var(--pp-accent)" : "1px solid var(--pp-border)",
+                borderRadius:      0,
                 cursor:            "pointer",
-                color:             "#0f172a",
-                transition:        "border-color 160ms ease, background-color 160ms ease, transform 120ms ease, box-shadow 120ms ease",
-                transform:         active ? "scale(1.01)" : "scale(1)",
-                boxShadow:         active ? `0 0 0 3px ${preset.color}22` : "none",
+                color:             "var(--pp-text)",
+                transition:        "border-color 160ms ease, background-color 160ms ease",
                 display:           "flex",
                 flexDirection:     "column",
                 gap:               4,
             }}
         >
-            <span style={{ fontSize: 22 }}>{preset.icon}</span>
+            <span style={{ color: "var(--pp-accent)" }}>{preset.icon}</span>
             <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: -0.2 }}>{preset.label}</span>
             <span style={{ fontSize: 11.5, color: "#475569", lineHeight: 1.45, fontWeight: 400 }}>{preset.tagline}</span>
         </button>

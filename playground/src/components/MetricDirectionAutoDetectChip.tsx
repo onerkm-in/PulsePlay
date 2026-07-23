@@ -14,6 +14,7 @@ import {
     inferMetricRulesFromBindings,
     type InferredMetricRulesResult,
 } from "../lib/metricDirectionInference";
+import { SearchIcon } from "../lib/icons";
 
 export interface MetricDirectionAutoDetectChipProps {
     /** Bound measure names (typically `snapshot.biMetadata.visibleMeasures.map(m => m.name)`).
@@ -56,7 +57,7 @@ export function MetricDirectionAutoDetectChip({
             aria-label="Metric direction auto-detection suggestion"
             data-testid="pp-metric-autodetect-chip"
         >
-            <div className="pp-metric-autodetect-chip__icon" aria-hidden="true">🔍</div>
+            <div className="pp-metric-autodetect-chip__icon" aria-hidden="true"><SearchIcon size={16} /></div>
             <div className="pp-metric-autodetect-chip__body">
                 <div className="pp-metric-autodetect-chip__title">
                     Auto-detected from available metrics ({inferred.confidentCount} {inferred.confidentCount === 1 ? "metric" : "metrics"})

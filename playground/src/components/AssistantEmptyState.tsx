@@ -12,6 +12,7 @@
 // packs).
 
 import * as React from "react";
+import { SparklesIcon } from "../lib/icons";
 
 export interface AssistantEmptyStateProps {
     /** When true, render the "configured · ask anything" tone instead of
@@ -61,7 +62,7 @@ export function AssistantEmptyState({
 }: AssistantEmptyStateProps): React.ReactElement {
     return (
         <div className="pp-assistant-empty" data-testid="pp-assistant-empty">
-            <span className="pp-assistant-empty__icon" aria-hidden="true">✨</span>
+            <span className="pp-assistant-empty__icon" aria-hidden="true"><SparklesIcon size={26} /></span>
             <h3 className="pp-assistant-empty__title">{title}</h3>
             {isConfigured ? (
                 <p className="pp-assistant-empty__lede">

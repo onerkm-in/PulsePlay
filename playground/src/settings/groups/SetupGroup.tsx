@@ -11,6 +11,7 @@ import { resolveBiSurfaceVendor } from "../biSurfaceMode";
 import { listVendors } from "../../biPanel/registry";
 import { HelpTip } from "../primitives/HelpTip";
 import "../primitives/primitives.css";
+import { SearchIcon } from "../../lib/icons";
 
 interface LogMessage {
     timestamp: string;
@@ -547,7 +548,7 @@ export function SetupGroup(): React.ReactElement {
 
             {/* Top search — type-ahead filter over known PulsePlay settings */}
             <div className="pp-setup__search" role="search">
-                <span className="pp-setup__search-icon" aria-hidden="true">🔍</span>
+                <span className="pp-setup__search-icon" aria-hidden="true"><SearchIcon size={14} /></span>
                 <input
                     type="search"
                     className="pp-setup__search-input"
