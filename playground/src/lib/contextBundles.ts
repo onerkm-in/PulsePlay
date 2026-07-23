@@ -85,12 +85,13 @@ function makeBundle(biVendor: string, aiProfile: string, opts?: { pack?: string;
 // Curated default pairings (real ids in this repo). The allowlist filter below
 // drops any whose axes aren't permitted, so an org only ever sees the bundles
 // its creds enable. Dev/admin curates further via CONTEXT_BUNDLES_STORAGE_KEY.
+// 2026-07-24 curation: only the proven stack is offered — Power BI surface with
+// the Genie brain or the deterministic Semantic Q&A brain. The former Tableau/
+// Qlik/Looker pairs pointed at iframe stubs; re-add pairs here when a vendor
+// bridge is real.
 const CANDIDATE_PAIRS: ReadonlyArray<{ biVendor: string; aiProfile: string }> = [
     { biVendor: "powerbi", aiProfile: "default" },
     { biVendor: "powerbi", aiProfile: "powerbi-dwd" },
-    { biVendor: "tableau", aiProfile: "default" },
-    { biVendor: "qlik", aiProfile: "default" },
-    { biVendor: "looker", aiProfile: "default" },
 ];
 
 // Mirrors settingsStore `passesAllowlist`: empty/absent list = permissive

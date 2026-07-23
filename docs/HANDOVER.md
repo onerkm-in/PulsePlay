@@ -5,6 +5,22 @@
 
 ---
 
+## 2026-07-24 (latest+11) — Catalogue curation: only Power BI + Databricks Genie advertised
+
+Per user direction ("remove all other connector details for the time being; two connectors remain: Power BI and Databricks Genie"). This is a **visibility curation, not a deletion** — every adapter, connector, route, and manifest stays in the codebase and keeps working at runtime; only what pickers/catalogues ADVERTISE is trimmed. Each lever is one clearly-named constant; restoring a connector = adding its id back.
+
+**The four levers:**
+- `proxy/lib/connectorManifests.js` → `CATALOG_VISIBLE_IDS = ['powerbi-dataset-dax','powerbi-dataset-qna','genie']`; the `/assistant/connector-types` route filters on it. `MANIFESTS` still holds all 12 — `getManifest`/`matchProfile` (runtime dispatch) see everything, so the existing `foundation` profile in config.json still works even though Foundation Model is no longer advertised.
+- `playground/src/biPanel/registry.ts` → `CATALOG_VISIBLE_VENDORS = {powerbi, native}`; `listVendors()` filters, new `listRegisteredVendors()` exposes the full table (parity tests + runtime mounting unaffected).
+- `playground/src/lib/contextBundles.ts` → `CANDIDATE_PAIRS` trimmed to Power BI × Genie + Power BI × Semantic Q&A (the Tableau/Qlik/Looker pairs pointed at iframe stubs).
+- `playground/src/settings/groups/BiGroup.tsx` → `CANONICAL_VENDOR_IDS = [powerbi, native]` for the vendor cards, with an allowlist-intersection guard that never renders an empty picker.
+
+**Also:** FirstRunWizard executive persona hint foundation-model→genie; ConnectorBrandGrid Databricks blurb now Genie-only; the Supervisor Fusion Settings leaf hidden (route still resolves for deep links) + its search-index and GROUP_LEAF_LABELS entries removed.
+
+**Headed-verified:** AI catalogue shows exactly 3 cards (PBI DAX / PBI Q&A / Genie) — no Azure/Bedrock/FM/Supervisor/demo, no "Show all"; BI provider cards = Power BI + Native canvas only; bundle menu = the 2 Power BI pairs (both "live SDK"). Proxy restarted; `/assistant/connector-types` returns the 3. Tests updated to codify the curation (registry parity runs over `listRegisteredVendors()` + asserts the curated picker; vendorMatrix asserts hidden-not-offered/still-registered; proxy asserts the route's 3 ids while `MANIFESTS` keeps 12). proxy 1407, playground suite green.
+
+**Restore path:** add ids back to the four constants (+ revert the wizard hint / blurb / Supervisor Fusion leaf if wanted). Nothing else to rebuild.
+
 ## 2026-07-24 (latest+10) — WCAG 2.2 AA contrast pass + deep-audit closure (rounds 2 & 3)
 
 Validated the Canva-exported reference PDF (`docs/Industry Blueprint Wireframe Theme.pdf`) against the binding Industry spec. Finding: Canva did NOT render the style faithfully (filled rounded cards, red/orange/green stoplight pills, overlap bugs) — so the PDF is a **content/layout** reference only; the spec + running code is the contract. Validated/fixed the real code in two rounds.

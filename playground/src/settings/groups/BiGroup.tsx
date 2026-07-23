@@ -555,7 +555,10 @@ const VENDOR_META: Record<string, { label: string; desc: string }> = {
     native:           { label: "Native canvas",  desc: "Render governed query results as charts in PulsePlay — no vendor SDK." },
 };
 
-const CANONICAL_VENDOR_IDS = ["powerbi", "tableau", "qlik", "looker", "generic-iframe", "native"];
+// 2026-07-24 catalogue curation: only the proven surfaces are offered as cards.
+// The full VENDOR_META stays above so an allowlist naming a hidden vendor still
+// renders a labelled card; restore ids here when a vendor bridge is real.
+const CANONICAL_VENDOR_IDS = ["powerbi", "native"];
 
 function VendorModeCards(props: {
     allowed: ReadonlyArray<string>;
@@ -563,8 +566,13 @@ function VendorModeCards(props: {
     onChange: (vendor: string) => void;
 }): React.ReactElement {
     // Respect the allowlist when present; fall back to the canonical set when
-    // the allowlist is unavailable so the picker is never empty.
-    const ids = props.allowed.length > 0 ? props.allowed : CANONICAL_VENDOR_IDS;
+    // the allowlist is unavailable so the picker is never empty. The curation
+    // filter keeps hidden vendors out of the grid — but if the allowlist names
+    // ONLY hidden vendors, fall back to the curated set rather than render an
+    // empty picker.
+    const base = props.allowed.length > 0 ? props.allowed : CANONICAL_VENDOR_IDS;
+    const curated = base.filter(id => CANONICAL_VENDOR_IDS.includes(id));
+    const ids = curated.length > 0 ? curated : CANONICAL_VENDOR_IDS;
     return (
         <div className="pp-mode-grid" role="radiogroup" aria-label="BI vendor">
             {ids.map(id => {

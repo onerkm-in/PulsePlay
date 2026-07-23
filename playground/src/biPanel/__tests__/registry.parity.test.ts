@@ -17,14 +17,17 @@
 //      known vendor IDs.
 
 import { describe, test, expect, beforeAll, vi } from "vitest";
-import { listVendors, loadAdapter, type VendorInfo } from "../registry";
+import { listVendors, listRegisteredVendors, loadAdapter, type VendorInfo } from "../registry";
 import type { BIAdapter } from "../BIAdapter";
 
 // The Power BI adapter resolves a `service.Service` at mount time —
 // instantiating the adapter alone does NOT trigger powerbi-client side
 // effects, so loadAdapter() for "powerbi" is safe without a service stub.
 
-const REGISTERED: VendorInfo[] = listVendors();
+// Parity runs over the FULL registration table — hidden-from-picker vendors
+// must still load through the same contract (catalogue curation only trims
+// what pickers advertise, not what the runtime can mount).
+const REGISTERED: VendorInfo[] = listRegisteredVendors();
 
 describe("BI registry — plugin-architecture parity", () => {
     test("at least the 8 currently-known plugins are registered", () => {
@@ -39,6 +42,12 @@ describe("BI registry — plugin-architecture parity", () => {
             "qlik",
             "tableau",
         ]);
+    });
+
+    test("pickers advertise only the proven stack (2026-07-24 catalogue curation)", () => {
+        // Only Power BI (real SDK bridge) + the built-in native canvas are
+        // offered to users; iframe stubs stay registered but unadvertised.
+        expect(listVendors().map(v => v.vendor).sort()).toEqual(["native", "powerbi"]);
     });
 
     test("every entry has the VendorInfo shape (no Power-BI-special fields)", () => {

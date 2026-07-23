@@ -118,7 +118,7 @@ export const GROUP_LEAF_LABELS: Record<SettingsGroupId, string[]> = {
         "Metric direction preset library",
         "AI Insights sections",
         "SQL sections",
-        "Supervisor Fusion",
+        // "Supervisor Fusion" hidden with the 2026-07-24 catalogue curation
         "Knowledge Base",
     ],
     // PreferencesGroup.tsx renders Tabs (Visible tabs + Default landing

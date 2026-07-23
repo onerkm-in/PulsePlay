@@ -105,7 +105,6 @@ export function SetupGroup(): React.ReactElement {
         { label: "Vector Search KB", hint: "Databricks Vector Search index for grounding", section: "Settings → AI", href: "/settings/ai" },
         { label: "UC Metric View", hint: "Unity Catalog metric view bound to this assistant", section: "Settings → AI", href: "/settings/ai" },
         { label: "Knowledge Base toggles", hint: "Enable chart / stat / reporting analytics KB injections", section: "Settings → AI · Knowledge Base", href: "/settings/ai/knowledge-base" },
-        { label: "Supervisor Fusion editor", hint: "Synthesis prompt, profile, endpoint, agent name, auto-fusion", section: "Settings → AI · Supervisor Fusion", href: "/settings/ai/supervisor-fusion" },
         { label: "Power BI Q&A surface", hint: "Microsoft NLP runs in MS tenant; PulsePlay only mints embed token", section: "Power BI Q&A", href: "/powerbi/qna" },
         // ── Knowledge pack (in-Setup) ──────────────────────────────────
         { id: "pack", label: "Knowledge pack", hint: "CPG/FMCG, Retail/Digital, SaaS/Product, or none", section: "Knowledge Pack", step: 3 },

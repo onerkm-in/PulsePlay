@@ -581,7 +581,7 @@ export function AiGroup(): React.ReactElement {
                 anchorId="surface"
                 number="05"
                 title="Surface-specific behavior"
-                subtitle="Supervisor Fusion, Knowledge Base toggles"
+                subtitle="Knowledge Base toggles"
                 active={isAiSectionActive("surface")}
                 checked={!!activeAiProfile}
                 onToggle={() => toggleAiSection("surface")}
@@ -592,20 +592,10 @@ export function AiGroup(): React.ReactElement {
                     nextAction: "Tune surface-specific knobs when needed",
                 }}
             >
-                <Leaf
-                    group="ai"
-                    label="Supervisor Fusion"
-                    helper="Supervisor-only fan-out behavior — synthesis, auto-fusion, and per-space overrides. Only relevant when the active profile is a Supervisor."
-                >
-                    <DeepLinkButton
-                        label="Open Supervisor Fusion"
-                        onClick={() => {
-                            if (typeof window === "undefined") return;
-                            window.history.pushState({}, "", "/settings/ai/supervisor-fusion");
-                            try { window.dispatchEvent(new CustomEvent("pulseplay:settings-navigate")); } catch { /* swallow */ }
-                        }}
-                    />
-                </Leaf>
+                {/* 2026-07-24 catalogue curation: the Supervisor Fusion leaf is
+                    hidden while the supervisor connector is out of the catalogue
+                    (the /settings/ai/supervisor-fusion route still resolves for
+                    existing deep links). Restore the Leaf when supervisor returns. */}
 
                 <Leaf
                     group="ai"

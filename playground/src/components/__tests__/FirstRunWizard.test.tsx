@@ -119,11 +119,11 @@ describe("applyPersonaDefaults", () => {
         expect(d.preferredConnectorType).toBe("genie");
     });
 
-    it("Executive → DEFAULT_UI_MODE / ai-top / foundation-model hint", () => {
+    it("Executive → DEFAULT_UI_MODE / ai-top / genie hint (2026-07-24 curation: foundation-model hidden)", () => {
         const d = applyPersonaDefaults("executive");
         expect(d.uiMode).toBe(DEFAULT_UI_MODE);
         expect(d.layoutMode).toBe("ai-top");
-        expect(d.preferredConnectorType).toBe("foundation-model");
+        expect(d.preferredConnectorType).toBe("genie");
     });
 
     it("Developer → DEFAULT_UI_MODE / ai-right / no hint", () => {

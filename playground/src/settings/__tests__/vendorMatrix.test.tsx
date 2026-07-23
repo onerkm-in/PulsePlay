@@ -33,6 +33,7 @@ import { SetupGroup } from "../groups/SetupGroup";
 import { getSetupReadiness } from "../setupReadiness";
 import type { PulsePlayAllowlist } from "../../types/allowlist";
 import type { BIEmbedConfig } from "../../biPanel/BIAdapter";
+import { listVendors, listRegisteredVendors } from "../../biPanel/registry";
 
 // ─── Helpers ──────────────────────────────────────────────────────
 
@@ -492,43 +493,12 @@ describe("Vendor matrix: error handling", () => {
         expect(r.ready).toBe(false);
     });
 
-    it("Quick Setup writes adapter-mountable embed configs for Genie and Power BI", async () => {
+    it("Quick Setup writes an adapter-mountable embed config for Power BI", async () => {
+        // 2026-07-24 catalogue curation: Power BI is the only embed vendor
+        // offered in the picker (the databricks-genie iframe stub is hidden),
+        // so Quick Setup coverage runs on the Power BI path alone.
         const state = mount(async () => fullAllowlist());
         await act(async () => { await Promise.resolve(); });
-
-        const headers = state.container.querySelectorAll(".pp-setup-gate__header");
-
-        const vendorSelect = state.container.querySelector<HTMLSelectElement>("#pp-bi-vendor");
-        expect(vendorSelect).not.toBeNull();
-
-        await act(async () => {
-            vendorSelect!.value = "databricks-genie";
-            vendorSelect!.dispatchEvent(new Event("change", { bubbles: true }));
-            await Promise.resolve();
-        });
-        const embedText = state.container.querySelector<HTMLTextAreaElement>("#pp-embed-url");
-        const apply = Array.from(state.container.querySelectorAll<HTMLButtonElement>("button"))
-            .find(button => button.textContent?.includes("Apply & Validate"));
-        expect(embedText).not.toBeNull();
-        expect(apply).toBeDefined();
-        await act(async () => {
-            setTextareaValue(embedText!, '<iframe src="https://dbc-1234.cloud.databricks.com/embed/genie/abc"></iframe>');
-            await Promise.resolve();
-        });
-        await act(async () => {
-            apply!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-            await Promise.resolve();
-        });
-        expect(JSON.parse(window.localStorage.getItem("pulseplay:bi-embed-config") || "{}")).toEqual({
-            vendor: "databricks-genie",
-            iframe: '<iframe src="https://dbc-1234.cloud.databricks.com/embed/genie/abc"></iframe>',
-        });
-
-        // Expand Gate 1 again as it collapsed on save
-        await act(async () => {
-            headers[0].dispatchEvent(new MouseEvent("click", { bubbles: true }));
-            await Promise.resolve();
-        });
 
         const vendorSelect2 = state.container.querySelector<HTMLSelectElement>("#pp-bi-vendor");
         expect(vendorSelect2).not.toBeNull();
@@ -566,8 +536,8 @@ describe("Vendor matrix: error handling", () => {
 
 // ─── 8. Vendor list expectations ──────────────────────────────────
 
-describe("Vendor matrix: registry coverage for Databricks + Power BI", () => {
-    it("Power BI vendor is in the registry", async () => {
+describe("Vendor matrix: registry coverage under the 2026-07-24 catalogue curation", () => {
+    it("Power BI vendor is offered in the picker", async () => {
         const state = mount(async () => fullAllowlist());
         await act(async () => { await Promise.resolve(); });
         const select = state.container.querySelector<HTMLSelectElement>("#pp-bi-vendor");
@@ -576,55 +546,26 @@ describe("Vendor matrix: registry coverage for Databricks + Power BI", () => {
         unmount(state);
     });
 
-    it("Databricks AI/BI vendor is in the registry", async () => {
+    it("hidden vendors (Databricks embeds / Tableau / Qlik / Looker / generic-iframe) are NOT offered in the picker", async () => {
         const state = mount(async () => fullAllowlist());
         await act(async () => { await Promise.resolve(); });
         const select = state.container.querySelector<HTMLSelectElement>("#pp-bi-vendor");
         const options = Array.from(select?.options ?? []).map(o => o.value);
-        expect(options).toContain("databricks-aibi");
+        for (const hidden of ["databricks-aibi", "databricks-genie", "tableau", "qlik", "looker", "generic-iframe"]) {
+            expect(options).not.toContain(hidden);
+        }
         unmount(state);
     });
 
-    it("Databricks Genie vendor is in the registry", async () => {
-        const state = mount(async () => fullAllowlist());
-        await act(async () => { await Promise.resolve(); });
-        const select = state.container.querySelector<HTMLSelectElement>("#pp-bi-vendor");
-        const options = Array.from(select?.options ?? []).map(o => o.value);
-        expect(options).toContain("databricks-genie");
-        unmount(state);
+    it("hidden vendors stay REGISTERED so existing configs keep mounting", () => {
+        const ids = listRegisteredVendors().map(v => v.vendor);
+        for (const hidden of ["databricks-aibi", "databricks-genie", "tableau", "qlik", "looker", "generic-iframe"]) {
+            expect(ids).toContain(hidden);
+        }
     });
 
-    it("Generic iframe escape hatch is always available", async () => {
-        const state = mount(async () => fullAllowlist());
-        await act(async () => { await Promise.resolve(); });
-        const select = state.container.querySelector<HTMLSelectElement>("#pp-bi-vendor");
-        const options = Array.from(select?.options ?? []).map(o => o.value);
-        // generic-iframe is in the registry but may be filtered out by
-        // allowlist; either way it's part of the underlying vendor list.
-        const fullAllowAllList = async (): Promise<PulsePlayAllowlist> => ({
-            ...fullAllowlist(),
-            biProviders: [],
-        });
-        unmount(state);
-        const state2 = mount(fullAllowAllList);
-        await act(async () => { await Promise.resolve(); });
-        const select2 = state2.container.querySelector<HTMLSelectElement>("#pp-bi-vendor");
-        const options2 = Array.from(select2?.options ?? []).map(o => o.value);
-        expect(options2).toContain("generic-iframe");
-        unmount(state2);
-    });
-
-    it("Native result canvas is available when the allowlist is unconfigured", async () => {
-        const state = mount(async () => ({
-            ...fullAllowlist(),
-            configured: false,
-            biProviders: [],
-        }));
-        await act(async () => { await Promise.resolve(); });
-        const select = state.container.querySelector<HTMLSelectElement>("#pp-bi-vendor");
-        const options = Array.from(select?.options ?? []).map(o => o.value);
-        expect(options).toContain("native");
-        unmount(state);
+    it("native canvas remains in the curated picker list (runtime fallback surface)", () => {
+        expect(listVendors().map(v => v.vendor)).toContain("native");
     });
 
     it("native readiness does not require external embed config", () => {

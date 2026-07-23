@@ -23,6 +23,7 @@
 const request = require('supertest');
 const {
     MANIFESTS,
+    CATALOG_VISIBLE_IDS,
     validation,
 } = require('../lib/connectorManifests');
 const {
@@ -39,6 +40,15 @@ const {
 describe('connectorManifests — table integrity (S1)', () => {
     test('exports exactly 12 manifests', () => {
         expect(MANIFESTS).toHaveLength(12);
+    });
+
+    test('catalogue curation (2026-07-24): only the proven stack is advertised', () => {
+        // Runtime dispatch still sees all 12; the /assistant/connector-types
+        // route filters to this list. Power BI + Databricks Genie only.
+        expect(CATALOG_VISIBLE_IDS.slice().sort()).toEqual(
+            ['genie', 'powerbi-dataset-dax', 'powerbi-dataset-qna']);
+        const ids = new Set(MANIFESTS.map(m => m.id));
+        for (const id of CATALOG_VISIBLE_IDS) expect(ids.has(id)).toBe(true);
     });
 
     test('all 12 manifests validate cleanly at module load', () => {
@@ -404,11 +414,15 @@ describe('GET /assistant/connector-types — discovery endpoint', () => {
         app = require('../server').app;
     });
 
-    test('returns 200 with { manifests, runtime } shape', async () => {
+    test('returns 200 with { manifests, runtime } shape (catalogue-curated)', async () => {
         const res = await request(app).get('/assistant/connector-types');
         expect(res.status).toBe(200);
         expect(Array.isArray(res.body.manifests)).toBe(true);
-        expect(res.body.manifests).toHaveLength(12);
+        // 2026-07-24 catalogue curation: the route advertises only the proven
+        // stack (Power BI DAX + Q&A, Databricks Genie). MANIFESTS still holds
+        // all 12 for runtime dispatch — asserted in the table-integrity block.
+        expect(res.body.manifests.map(m => m.id).sort()).toEqual(
+            ['genie', 'powerbi-dataset-dax', 'powerbi-dataset-qna']);
         expect(typeof res.body.runtime).toBe('object');
     });
 

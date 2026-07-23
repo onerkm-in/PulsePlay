@@ -36,9 +36,9 @@ describe("contextBundles — labels", () => {
 describe("deriveBundles — allowlist gating", () => {
     it("is permissive when allowlist is null (dev/unconfigured)", () => {
         const bundles = deriveBundles(null);
-        // all curated candidates present
-        expect(bundles.length).toBeGreaterThanOrEqual(5);
-        expect(bundles.some(b => b.id === "powerbi::default")).toBe(true);
+        // all curated candidates present (2026-07-24 curation: the two proven
+        // Power BI pairings — Genie + deterministic Semantic Q&A)
+        expect(bundles.map(b => b.id).sort()).toEqual(["powerbi::default", "powerbi::powerbi-dwd"]);
     });
 
     it("filters to pairings whose BOTH axes are allowed", () => {

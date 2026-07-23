@@ -3227,7 +3227,10 @@ app.get('/assistant/knowledge/packs/:pack/sub-verticals/:subVertical', (req, res
 app.get('/assistant/connector-types', (req, res) => {
     try {
         const { listManifests, describeRuntimeState } = require('./lib/connectorRegistry');
-        const manifests = listManifests();
+        const { CATALOG_VISIBLE_IDS } = require('./lib/connectorManifests');
+        // Catalogue curation: advertise only the proven stack (Power BI +
+        // Databricks Genie). Runtime dispatch still sees every manifest.
+        const manifests = listManifests().filter(m => CATALOG_VISIBLE_IDS.includes(m.id));
         // Snapshot the live profileRegistry so the runtime block reflects
         // current config (no caching — the table is 12 entries × N profiles).
         const profiles = profileRegistry.entries().map(([name, p]) => ({ name, ...p }));

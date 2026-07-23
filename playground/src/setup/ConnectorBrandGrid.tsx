@@ -21,7 +21,7 @@ const CATEGORY_HELPER: Record<string, string> = {
     microsoft:  "Power BI semantic-model brains. Microsoft handles NLP for Q&A; PulsePlay runs deterministic DAX for the rest.",
     azure:      "Azure OpenAI deployments. Pick chat for free-form Ask Pulse, analytics for grounded SQL + narrative.",
     aws:        "AWS Bedrock-hosted models. Direct invocation or grounded answers through a Knowledge Base.",
-    databricks: "Databricks-native assistants. Genie spaces, Mosaic Foundation Models, Supervisor fan-out, ResponsesAgent.",
+    databricks: "Databricks-native assistants. Genie spaces — governed NL-to-SQL over your warehouse.",
     demo:       "Try PulsePlay without any cloud credentials.",
 };
 

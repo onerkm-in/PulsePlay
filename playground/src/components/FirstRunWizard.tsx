@@ -57,7 +57,9 @@ export const PERSONA_PRESETS: readonly PersonaPreset[] = [
         icon:                   <TargetIcon size={20} />,
         uiMode:                 DEFAULT_UI_MODE,
         layoutMode:             "ai-top",
-        preferredConnectorType: "foundation-model",
+        // 2026-07-24 catalogue curation: foundation-model is hidden for now,
+        // so steer executives at the proven Genie connector instead.
+        preferredConnectorType: "genie",
     },
     {
         key:                    "developer",

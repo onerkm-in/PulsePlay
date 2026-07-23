@@ -570,8 +570,17 @@ if (!_validation.ok) {
     throw new Error(`connectorManifests.js: ${bad.length} manifest(s) failed validation:\n${detail}`);
 }
 
+// Catalogue curation (2026-07-24): only the proven, live-verified stack is
+// advertised in the Settings connector catalogue — Power BI (deterministic DAX
+// + Q&A embed) and Databricks Genie. Every other manifest stays in MANIFESTS so
+// runtime dispatch (getManifest / matchProfile) and existing profiles keep
+// working; the /assistant/connector-types route filters on this list. To bring
+// a connector back into the catalogue, add its id here.
+const CATALOG_VISIBLE_IDS = ['powerbi-dataset-dax', 'powerbi-dataset-qna', 'genie'];
+
 module.exports = {
     MANIFESTS,
+    CATALOG_VISIBLE_IDS,
     // Re-exported so callers can ask "is this manifest table healthy?" without
     // re-running the validator.
     validation: _validation,

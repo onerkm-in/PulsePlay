@@ -77,7 +77,21 @@ const REGISTERED: ReadonlyArray<VendorInfo> = [
     },
 ];
 
+// Catalogue curation (2026-07-24): only the proven stack is offered in pickers —
+// Power BI (real SDK bridge) and the built-in native canvas (the runtime
+// fallback surface). The other adapters (Tableau/Qlik/Looker/Databricks embeds/
+// generic-iframe) are iframe stubs without a vendor bridge; their entries stay
+// in REGISTERED and loadAdapter so nothing breaks at runtime, but they aren't
+// advertised until they're real. To restore one, add its id here.
+const CATALOG_VISIBLE_VENDORS: ReadonlySet<string> = new Set(["powerbi", "native"]);
+
 export function listVendors(): VendorInfo[] {
+    return REGISTERED.filter(v => CATALOG_VISIBLE_VENDORS.has(v.vendor));
+}
+
+/** The full registration table, including vendors hidden from pickers. For
+ *  parity tests + internal tooling — not for user-facing lists. */
+export function listRegisteredVendors(): VendorInfo[] {
     return REGISTERED.slice();
 }
 
