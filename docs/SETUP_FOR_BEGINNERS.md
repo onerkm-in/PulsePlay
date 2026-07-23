@@ -54,8 +54,11 @@
 | Genie space ID (one per space) | `YOUR_GENIE_SPACE_ID` | Genie space / data owner |
 | SQL warehouse ID (must be able to start) | `YOUR_SQL_WAREHOUSE_ID` | Databricks admin |
 
-> ⚠️ Genie needs a runnable warehouse. On free-edition Databricks, serverless is often disabled —
-> ask the admin to enable serverless **or** bind the spaces to a classic SQL warehouse.
+> ⚠️ Genie needs a runnable warehouse. Some free-edition Databricks workspaces have serverless
+> disabled; others ship with a working "Serverless Starter Warehouse" (our current reference
+> workspace does, and Genie runs live on it — verified 2026-07-23). Probe the actual workspace
+> (`GET /warehouse/status`) before assuming; if it's disabled, ask the admin to enable serverless
+> **or** bind the spaces to a classic SQL warehouse.
 
 ## Block B — Power BI ✅ validated  *(skip if not using Power BI)*
 
@@ -289,8 +292,9 @@ Two modes: **chat** (conversation) and **analytics** (writes SQL → runs on Dat
 
 ## 3F. Supervisor (optional)
 
-A "team lead" that asks several Genie spaces at once and merges answers. Depends on Genie → blocked
-by the same free-tier warehouse issue until that's fixed.
+A "team lead" that asks several Genie spaces at once and merges answers. Needs **at least two
+working Genie spaces** — with a single space (the current reference workspace's state) there is
+nothing to fan out across, so skip this profile until a second space exists.
 
 ```json
 "supervisor": {

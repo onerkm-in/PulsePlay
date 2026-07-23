@@ -6,7 +6,7 @@ unblocks it (and **who** can do it), and whether PulsePlay's code is already
 ready for that moment. "Code ready" means: when the external condition is met,
 no further code change is needed — it just works.
 
-Updated 2026-06-06.
+Updated 2026-07-23.
 
 ## Code-clearable blockers — CLEARED this cycle
 
@@ -18,10 +18,11 @@ Updated 2026-06-06.
 
 ## External blockers — NOT code-clearable (operator / paid / org action)
 
-### 1. Genie + Supervisor — live answers
-- **Why blocked:** the reference Databricks workspace is **free-edition with Serverless Compute disabled**; it has exactly one PRO/serverless warehouse (STOPPED), so there's no classic fallback. Every Genie call returns `400 Cannot start warehouse 'Serverless Starter Warehouse' … Serverless Compute … disabled`.
-- **Exact unblock (operator):** in **Databricks workspace admin → Compute / SQL Warehouses**, either **enable Serverless Compute** for the workspace, **or** create a **classic SQL warehouse** and bind the Genie spaces to it.
-- **Code ready?** ✅ Yes. Live attempts reach Databricks correctly (the 400 is the workspace refusing, not our code). Supervisor fan-out depends on Genie, so it clears at the same time.
+### 1. ~~Genie + Supervisor — live answers~~ — **CLEARED 2026-07-23 (workspace change)**
+- **Was blocked because:** the previous reference workspace was free-edition with Serverless Compute disabled — every Genie call 400'd at warehouse start.
+- **Now:** the current reference workspace (`dbc-f88d29ce-4aa2.cloud.databricks.com`) has a working serverless warehouse (`6510da50329f1e85`, "Serverless Starter Warehouse") and one Genie space (`01f1436554b719bea6abd14824c9103e`, "DBDemos - AI-BI - Customer Support Review"). **Live-verified end-to-end 2026-07-23**: real NL→SQL round-trips through the proxy AND the headed UI (Ask Pulse + AI Insights), values reconciled against the warehouse via `/sql/preview`. See `docs/evidence/headed-validation-2026-07-23/REPORT.md` (local evidence).
+- **Residual:** Supervisor/supervisor-local fan-out needs ≥2 Genie spaces; this workspace has one, and the supervisor profile was removed from config.json in the 2026-07-23 cleanup. Re-add profiles when a second space exists — code unchanged, still ready.
+- **The old claim was environment-specific**, not a platform fact: free-edition workspaces CAN come with a usable serverless warehouse. Probe the actual workspace before assuming.
 
 ### 2. Power BI report **visual** render in the Dashboard
 - **Why blocked:** rendering a real Power BI **report visual** needs **paid Premium / Fabric capacity**. The free account can mint embed tokens and run the **deterministic-DAX Q&A path (capacity-free)**, but not render the report visual.
@@ -35,8 +36,8 @@ Updated 2026-06-06.
 
 ### 4. Foundation Model **answer correctness**
 - **Why "blocked":** this one isn't unblockable — FM is an **ungrounded language model** with no query access in this config, so its numbers are model-produced, not measured. This is a *property*, not a defect.
-- **Exact unblock:** ground it — point that pane at a **data-backed** connector (Genie space once #1 is cleared, or the deterministic Power BI DAX path) instead of raw FM.
-- **Code ready?** ✅ Yes, and it's **surfaced honestly**: the fail-closed "Illustrative — not grounded in your data" advisory shows whenever real result rows don't confirm a query ran.
+- **Exact unblock:** ground it — point that pane at a **data-backed** connector (the now-live Genie space, or the deterministic Power BI DAX path) instead of raw FM.
+- **Code ready?** ✅ Yes, and it's **surfaced honestly**: the fail-closed "Illustrative — not grounded in your data" advisory shows whenever real result rows don't confirm a query ran (re-verified headed 2026-07-23).
 
 ## Not blockers — just large or speculative (tracked, not gated)
 - `visual.tsx` split (12,830 LOC, 0 unit tests) — multi-day, test-first refactor. Tracked.
