@@ -5,6 +5,22 @@
 
 ---
 
+## 2026-07-23 (latest+2) — Event-sourcing · Relevance · Live-Delta proof (Phases A/B/C)
+
+Executed the three remaining phases sequentially under user GO. Gate report: `docs/PHASE_ABC_GATE_REPORT.md`. Each committed + tested + pushed.
+
+**Phase A — event-sourced Action Requests (§8):** `proxy/lib/actionRequestStore.js` — state derived from an append-only event log (NOT a status column). Full lifecycle, separation of duties (requester ≠ approver → 403), L3-requires-approval, L2 terminal, modify→new version, T+14 outcome, idempotency, optimistic concurrency + evidence-hash freshness, immutable audit event per transition. Routes on the decision-assist connector: `/decision-assist/action-requests` (+/:id, /actions, /decisions, /outcomes) + `prompts/:id/actions=prepare`. Databricks event adapter (`actionRequestStoreDatabricks.js`, DDL `ddl/decision_events.sql`, live-blocked). 23 tests.
+
+**Phase B — governed relevance (§14):** `proxy/lib/relevanceEngine.js` — relevance separate from persona; can only re-order within a governed business tier (a followed medium item can't outrank a critical one — tested). follow/dismiss-7d/suppress-30d/correct/reset with injectable clock; suggest() caps at 3 with a deterministic "why". Routes on decision-canvas: `/decision-canvas/relevance-profile` + `/suggestions` (+ actions); candidates from the owner's own pending Action Requests. 16 tests.
+
+**Phase C — live-Delta proof (§11):** extended `sqlExecutor` to forward named parameter markers to the Statement API (3 tests). `scripts/decision_assist/prove_canvas_delta.js` runs the ACTUAL DatabricksCanvasStore against a dev stand-in schema (`main.action_insights`) on the live genie warehouse — **PASS**: CREATE, MERGE dedupe, UPDATE with version predicate (v0→v1), parameterized markers, read-back. The proof caught + fixed a real adapter bug (`rowToSection` column-over-body: read-back showed stale v0 after update). Canonical org schema stays BLOCKED.
+
+**Tripwires:** (1) a jest module-registry quirk on this box can hand the same require path two module instances — the decision-canvas connector now exposes its OWN store singletons via `__test` so tests seed the same instances the routes read; do the same for any new singleton-backed connector test. (2) `prove_canvas_delta.js` sets `NODE_TLS_REJECT_UNAUTHORIZED=0` (dev proof only) and creates `main.action_insights.tbl_pp_canvas_sections` — a dev stand-in, NOT canonical; it cleans up its own rows but leaves the table. (3) the in-memory Action Request + relevance stores are per-process — state dies on proxy restart (Delta is the durable path, blocked).
+
+**Tests:** proxy **1405/1405**, playground 1932/1932, tsc clean. **Verdict PARTIAL** — all three phases implemented + verified as far as the environment allows; canonical org-schema live persistence + owner-manifest items remain BLOCKED (a config/manifest away, not a code gap).
+
+---
+
 ## 2026-07-23 (latest+1) — Phase 5: Universal CanvasSection foundation (server-owned pins/snapshots)
 
 Executed Phase 5 (Universal CanvasSection foundation) under explicit user GO, after the user corrected the Phase 4 gate classification. Full gate report: `docs/PHASE5_CANVAS_GATE_REPORT.md`.
