@@ -9,7 +9,7 @@ import { asBool, asStr, useGenieSettingsSlice } from "./genieSettingsBridge";
 import { SubPageHeader } from "./AiKnowledgeBase";
 
 const THEMES = [
-    { id: "default",          label: "Default light",     swatch: "#ffffff", accent: "#2563eb" },
+    { id: "default",          label: "Default light",     swatch: "#f2f2f3", accent: "#5980a6" },
     { id: "corporate-blue",   label: "Corporate Blue",    swatch: "#f0f5ff", accent: "#1e40af" },
     { id: "forest",           label: "Forest (ESG)",      swatch: "#f0fdf4", accent: "#059669" },
     { id: "slate-dark",       label: "Slate Dark",        swatch: "#1e293b", accent: "#60a5fa" },

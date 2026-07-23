@@ -1991,29 +1991,29 @@ function PaneChrome(props: {
     // All aria-labels are preserved; see viewportControls.integration.test.tsx
     // for the contract.
     const buttonStyle: React.CSSProperties = {
-        border: "1px solid rgba(0,0,0,0.10)",
-        borderRadius: 4,
-        background: "rgba(255,255,255,0.78)",
-        color: "#374151",
+        border: "1px solid var(--pp-border)",
+        borderRadius: "var(--pp-radius, 4px)",
+        background: "var(--pp-surface-overlay)",
+        color: "var(--pp-text-muted)",
         cursor: "pointer",
         fontSize: 11,
         lineHeight: 1,
-        minHeight: 22,
+        minHeight: 24, // WCAG 2.2 SC 2.5.8 minimum target size
         padding: "0 7px",
         whiteSpace: "nowrap",
     };
     const activeButtonStyle: React.CSSProperties = {
         ...buttonStyle,
-        border: "1px solid #2563eb",
-        background: "#eff6ff",
-        color: "#1d4ed8",
+        border: "1px solid var(--pp-accent)",
+        background: "var(--pp-accent-soft)",
+        color: "var(--pp-accent-hover)",
         fontWeight: 600,
     };
     // Icon-only buttons use tight padding so 6 icons + the title block fit in
     // a narrow split pane without truncating the subtitle.
     const iconButtonStyle: React.CSSProperties = {
         ...buttonStyle,
-        minWidth: 22,
+        minWidth: 24, // WCAG 2.2 SC 2.5.8 minimum target size
         padding: "0 3px",
         display: "inline-flex",
         alignItems: "center",
@@ -2021,9 +2021,9 @@ function PaneChrome(props: {
     };
     const activeIconButtonStyle: React.CSSProperties = {
         ...iconButtonStyle,
-        border: "1px solid #2563eb",
-        background: "#eff6ff",
-        color: "#1d4ed8",
+        border: "1px solid var(--pp-accent)",
+        background: "var(--pp-accent-soft)",
+        color: "var(--pp-accent-hover)",
     };
     const focusedHeaderRightReserve = "8px";
 

@@ -771,13 +771,13 @@ export function SetupGroup(): React.ReactElement {
                                                     type="button"
                                                     onClick={() => setBiSurfaceMode(mode)}
                                                     style={{
-                                                        border: `1.5px solid ${biSurfaceMode === mode ? "var(--pp-accent)" : "rgba(0,0,0,0.12)"}`,
-                                                        background: biSurfaceMode === mode ? "rgba(37,99,235,0.06)" : "transparent",
-                                                        color: biSurfaceMode === mode ? "var(--pp-accent)" : "inherit",
+                                                        border: `1.5px solid ${biSurfaceMode === mode ? "var(--pp-accent)" : "var(--pp-border)"}`,
+                                                        background: biSurfaceMode === mode ? "var(--pp-accent-soft)" : "transparent",
+                                                        color: biSurfaceMode === mode ? "var(--pp-accent-hover)" : "inherit",
                                                         fontSize: 11,
                                                         fontWeight: 700,
                                                         padding: "6px 14px",
-                                                        borderRadius: 6,
+                                                        borderRadius: "var(--pp-radius, 4px)",
                                                         cursor: "pointer",
                                                         textTransform: "capitalize"
                                                     }}

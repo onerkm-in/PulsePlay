@@ -184,7 +184,7 @@ export function TopRightToolbar(props: TopRightToolbarProps): React.ReactElement
 // Kept self-contained so the component has no external icon dep.
 function SvgIcon({ name }: { name: string }): React.ReactElement {
     const stroke = "currentColor";
-    const sw = 1.8;
+    const sw = 1.5; // Industry rule 6: icon stroke weight 1.5
     switch (name) {
         case "maximize":
             return (

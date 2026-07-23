@@ -76,7 +76,7 @@ export function SurfaceSwitcher({ active, onPick, availability, trailing }: Surf
 /** Inline SVG glyph — visually distinct per surface, never duplicates the
  *  label text. aria-hidden so screen readers rely on the label alone. */
 function SurfaceGlyph({ icon }: { icon: SurfaceIcon }): React.ReactElement {
-    const common = { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true };
+    const common = { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.5, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true };
     if (icon === "spark") {
         // Insights: a four-point sparkle suggests narrative + auto-generated.
         return (

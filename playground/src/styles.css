@@ -20,7 +20,8 @@
     /* Text — ink + neutral ramp */
     --pp-text:             var(--color-text, #1d1f20);
     --pp-text-muted:       #5d5d60;
-    --pp-text-subtle:      #7a7a7d;
+    /* #6b6b6e = 4.75:1 on the light ground (was #7a7a7d = 3.82:1, failed AA). */
+    --pp-text-subtle:      #6b6b6e;
     --pp-fg:               var(--color-text, #1d1f20);
 
     /* Borders — hairline dividers derived from ink */
@@ -35,6 +36,13 @@
     --pp-accent-soft:      color-mix(in srgb, #5980a6 10%, transparent);
     --pp-accent-subtle:    color-mix(in srgb, #5980a6 12%, transparent);
     --pp-accent-border:    color-mix(in srgb, #5980a6 34%, transparent);
+
+    /* Solid primary-fill pair. The mid accent (#5980a6) under light text is only
+       4.04:1 — fails WCAG AA. Solid buttons with light labels use accent-700 in
+       light; in dark the accent lightens and the label flips to the dark ground
+       (see the dark block). --pp-on-accent-strong = --pp-bg in both themes. */
+    --pp-accent-strong:    var(--color-accent-700, #416180);
+    --pp-on-accent-strong: var(--pp-bg);
 
     /* Semantic */
     --pp-success:          #059669;
@@ -93,7 +101,7 @@
     --pp-shadow-xl:        0 12px 32px rgba(15, 23, 42, 0.16), 0 6px 14px rgba(15, 23, 42, 0.08);
     --pp-control-shadow:   0 1px 2px rgba(15, 23, 42, 0.06), 0 4px 10px rgba(15, 23, 42, 0.05);
     --pp-control-inset:    inset 0 1px 0 rgba(255, 255, 255, 0.90);
-    --pp-control-focus:    0 0 0 3px rgba(37, 99, 235, 0.18), 0 1px 3px rgba(15, 23, 42, 0.08);
+    --pp-control-focus:    0 0 0 2px var(--pp-accent, #5980a6), 0 1px 3px rgba(15, 23, 42, 0.08);
 
     /* Motion */
     --pp-ease:             cubic-bezier(0.22, 1, 0.36, 1);
@@ -137,6 +145,10 @@
     --pp-accent-soft:      color-mix(in srgb, #7fa3c9 16%, transparent);
     --pp-accent-subtle:    color-mix(in srgb, #7fa3c9 18%, transparent);
     --pp-accent-border:    color-mix(in srgb, #7fa3c9 42%, transparent);
+
+    /* Dark: light accent fill + dark ground text = 6.5:1. */
+    --pp-accent-strong:    #7fa3c9;
+    --pp-on-accent-strong: var(--pp-bg);
 
     --pp-success:          #3fb950;
     --pp-success-soft:     rgba(63, 185, 80, 0.14);
@@ -534,9 +546,9 @@ html, body, #root {
 }
 
 .pp-assistant-empty__cta--primary {
-    border: 1px solid var(--pp-accent, #2563eb);
-    background: var(--pp-accent, #2563eb);
-    color: #fff;
+    border: 1px solid var(--pp-accent-strong);
+    background: var(--pp-accent-strong);
+    color: var(--pp-on-accent-strong);
 }
 
 .pp-assistant-empty__cta--primary:hover,
@@ -606,9 +618,9 @@ html, body, #root {
     flex: 0 0 auto;
     padding: 6px 12px;
     border-radius: 6px;
-    border: 1px solid var(--pp-accent, #2563eb);
-    background: var(--pp-accent, #2563eb);
-    color: #fff;
+    border: 1px solid var(--pp-accent-strong);
+    background: var(--pp-accent-strong);
+    color: var(--pp-on-accent-strong);
     font-size: 12px;
     font-weight: 600;
     font-family: inherit;
@@ -681,8 +693,8 @@ html, body, #root {
 
 .pp-preset-library-wrap .gn-setup-preset-library select:focus,
 .pp-preset-library-wrap .gn-setup-preset-library select:focus-visible {
-    border-color: var(--pp-accent, #2563eb);
-    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.18);
+    border-color: var(--pp-accent, #5980a6);
+    box-shadow: 0 0 0 2px var(--pp-accent, #5980a6);
     outline: none;
 }
 
@@ -854,7 +866,7 @@ html, body, #root {
 }
 
 .pp-combobox__trigger:focus-visible {
-    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.18);
+    box-shadow: 0 0 0 2px var(--pp-accent, #5980a6);
 }
 
 .pp-combobox__trigger:disabled {
@@ -1260,9 +1272,9 @@ html, body, #root {
 .pp-embed-config__apply {
     margin-top: var(--pp-s2);
     padding: 7px 16px;
-    border: 1px solid var(--pp-accent);
-    background: var(--pp-accent);
-    color: #ffffff;
+    border: 1px solid var(--pp-accent-strong);
+    background: var(--pp-accent-strong);
+    color: var(--pp-on-accent-strong);
     border-radius: var(--pp-radius-sm);
     font-size: var(--pp-text-base);
     font-weight: 600;
@@ -1418,9 +1430,9 @@ html, body, #root {
 }
 .pp-ai-sidebar__ask {
     padding: 7px 14px;
-    border: 1px solid var(--pp-accent);
-    background: var(--pp-accent);
-    color: #fff;
+    border: 1px solid var(--pp-accent-strong);
+    background: var(--pp-accent-strong);
+    color: var(--pp-on-accent-strong);
     border-radius: var(--pp-radius-sm);
     font-size: var(--pp-text-sm);
     font-weight: 600;
@@ -1504,9 +1516,9 @@ html, body, #root {
 }
 .pp-cta-primary {
     padding: 8px 14px;
-    border: 1px solid var(--pp-accent);
-    background: var(--pp-accent);
-    color: #fff;
+    border: 1px solid var(--pp-accent-strong);
+    background: var(--pp-accent-strong);
+    color: var(--pp-on-accent-strong);
     border-radius: var(--pp-radius-md, 4px);
     font-size: 13px;
     font-weight: 600;
@@ -1866,7 +1878,7 @@ html, body, #root {
 
 .pp-sectioned-item--streaming {
     border-color: var(--pp-accent-border);
-    box-shadow: 0 10px 28px rgba(37, 99, 235, 0.12);
+    box-shadow: 0 10px 28px color-mix(in srgb, var(--pp-accent, #5980a6) 22%, transparent);
 }
 
 .pp-sectioned-item--failed {
@@ -2118,9 +2130,9 @@ html, body, #root {
 }
 
 .pp-surface-switcher__item--active {
-    background: var(--pp-accent);
-    color: #ffffff;
-    border-color: var(--pp-accent);
+    background: var(--pp-accent-strong);
+    color: var(--pp-on-accent-strong);
+    border-color: var(--pp-accent-strong);
     box-shadow: none;
 }
 
@@ -2403,8 +2415,8 @@ html, body, #root {
     padding: 5px 12px;
     border: 0;
     border-radius: 6px;
-    background: var(--pp-accent, #2563eb);
-    color: #fff;
+    background: var(--pp-accent-strong);
+    color: var(--pp-on-accent-strong);
     font: inherit;
     font-size: 12px;
     font-weight: 600;

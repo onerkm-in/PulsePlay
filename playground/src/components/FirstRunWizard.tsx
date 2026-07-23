@@ -1111,10 +1111,10 @@ export class WizardErrorBoundary extends Component<WizardErrorBoundaryProps, Wiz
                             style={{
                                 fontSize:     12.5,
                                 padding:      "7px 18px",
-                                border:       "1px solid #2563eb",
-                                background:   "#2563eb",
-                                color:        "#fff",
-                                borderRadius: 7,
+                                border:       "1px solid var(--pp-accent-strong)",
+                                background:   "var(--pp-accent-strong)",
+                                color:        "var(--pp-on-accent-strong)",
+                                borderRadius: "var(--pp-radius, 4px)",
                                 cursor:       "pointer",
                                 fontWeight:   600,
                                 fontFamily:   "inherit",
@@ -1172,9 +1172,9 @@ function StepRailItem(props: {
     isLast: boolean;
 }): ReactElement {
     const colors = {
-        done:   { dot: "#22c55e", line: "#22c55e", label: "#64748b" },
-        active: { dot: "#2563eb", line: "rgba(0,0,0,0.10)", label: "#0f172a" },
-        future: { dot: "rgba(0,0,0,0.15)", line: "rgba(0,0,0,0.08)", label: "#94a3b8" },
+        done:   { dot: "var(--pp-good)", line: "var(--pp-good)", label: "var(--pp-text-muted)" },
+        active: { dot: "var(--pp-accent)", line: "var(--pp-border)", label: "var(--pp-text)" },
+        future: { dot: "var(--pp-border-strong)", line: "var(--pp-border-subtle)", label: "var(--pp-text-subtle)" },
     };
     const c = colors[props.status];
 
@@ -1273,11 +1273,11 @@ function OptionCard(props: {
             style={{
                 textAlign:    "left",
                 padding:      "9px 11px",
-                border:       props.active ? "1.5px solid #2563eb" : "1.5px solid rgba(0,0,0,0.09)",
-                background:   props.active ? "#eff6ff" : "#fff",
-                borderRadius: 7,
+                border:       props.active ? "1.5px solid var(--pp-accent)" : "1.5px solid var(--pp-border)",
+                background:   props.active ? "var(--pp-accent-soft)" : "var(--pp-surface)",
+                borderRadius: "var(--pp-radius, 4px)",
                 cursor:       "pointer",
-                color:        "#0f172a",
+                color:        "var(--pp-text)",
                 transition:   "border-color 140ms ease, background-color 140ms ease",
                 display:      "flex",
                 alignItems:   "center",
@@ -1287,7 +1287,7 @@ function OptionCard(props: {
             <div style={{ flex: "1 1 auto", minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: props.active ? 600 : 500, lineHeight: 1.3 }}>{props.title}</div>
                 {props.subtitle && (
-                    <div style={{ fontSize: 11, color: "#64748b", marginTop: 1 }}>{props.subtitle}</div>
+                    <div style={{ fontSize: 11, color: "var(--pp-text-muted)", marginTop: 1 }}>{props.subtitle}</div>
                 )}
             </div>
             {props.badge && (
@@ -1296,9 +1296,9 @@ function OptionCard(props: {
                         fontSize:     10,
                         fontWeight:   600,
                         padding:      "2px 6px",
-                        borderRadius: 4,
-                        background:   "rgba(37,99,235,0.10)",
-                        color:        "#2563eb",
+                        borderRadius: "var(--pp-radius, 4px)",
+                        background:   "var(--pp-accent-soft)",
+                        color:        "var(--pp-accent-hover)",
                         flexShrink:   0,
                         letterSpacing:0.3,
                     }}
@@ -1307,7 +1307,7 @@ function OptionCard(props: {
                 </span>
             )}
             {props.active && (
-                <span style={{ flexShrink: 0, color: "#2563eb", fontSize: 14, lineHeight: 1 }}>✓</span>
+                <span style={{ flexShrink: 0, color: "var(--pp-accent-hover)", fontSize: 14, lineHeight: 1 }}>✓</span>
             )}
         </button>
     );
@@ -1387,10 +1387,10 @@ const ghostButtonStyle: React.CSSProperties = {
 const primaryButtonStyle: React.CSSProperties = {
     fontSize:     12.5,
     padding:      "7px 18px",
-    border:       "1px solid #2563eb",
-    background:   "#2563eb",
-    color:        "#fff",
-    borderRadius: 7,
+    border:       "1px solid var(--pp-accent-strong)",
+    background:   "var(--pp-accent-strong)",
+    color:        "var(--pp-on-accent-strong)",
+    borderRadius: "var(--pp-radius, 4px)",
     cursor:       "pointer",
     fontWeight:   600,
     fontFamily:   "inherit",
@@ -1398,18 +1398,19 @@ const primaryButtonStyle: React.CSSProperties = {
 
 const disabledButtonStyle: React.CSSProperties = {
     ...primaryButtonStyle,
-    background:   "rgba(37,99,235,0.35)",
-    borderColor:  "rgba(37,99,235,0.35)",
+    background:   "color-mix(in srgb, var(--pp-accent-strong) 45%, transparent)",
+    borderColor:  "color-mix(in srgb, var(--pp-accent-strong) 45%, transparent)",
     cursor:       "not-allowed",
 };
 
+// Secondary CTA — steel outline (mono palette: no second hue like the old cyan).
 const accentButtonStyle: React.CSSProperties = {
     fontSize:     12.5,
     padding:      "7px 18px",
-    border:       "1px solid #0891b2",
-    background:   "#0891b2",
-    color:        "#fff",
-    borderRadius: 7,
+    border:       "1px solid var(--pp-accent)",
+    background:   "transparent",
+    color:        "var(--pp-accent-hover)",
+    borderRadius: "var(--pp-radius, 4px)",
     cursor:       "pointer",
     fontWeight:   600,
     fontFamily:   "inherit",
@@ -1420,7 +1421,7 @@ const inlineLinkStyle: React.CSSProperties = {
     padding:      0,
     border:       "none",
     background:   "transparent",
-    color:        "#2563eb",
+    color:        "var(--pp-accent-hover)",
     cursor:       "pointer",
     fontFamily:   "inherit",
     textDecoration:"underline",

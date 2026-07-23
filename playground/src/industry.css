@@ -61,10 +61,14 @@
      docs/MY_DECISION_CANVAS_DESIGN_APPROACH.md). Steel stays the PRIMARY brand
      accent; these four are reserved for status / severity / delta meaning only,
      used consistently, never extended ad hoc. */
-  --pp-good: #1f9d6b;   --pp-good-soft: #e3f7ee;
-  --pp-warn: #e0902c;   --pp-warn-soft: #fdf1e0;
-  --pp-bad: #d1453d;    --pp-bad-soft: #fbe7e6;
-  --pp-violet: #7c5cd8; --pp-violet-soft: #efe9fb;
+  /* Foreground values (text/icon/border on the -soft tints and white-on-fill
+     chips). Darkened from the original vivid set so all three usages clear
+     WCAG AA 4.5:1 on light — the vivid originals failed (warn was 2.3:1). The
+     -soft tints are unchanged, so KPI tiles stay pastel-colorful. */
+  --pp-good: #0f7d52;   --pp-good-soft: #e3f7ee;
+  --pp-warn: #8a5a15;   --pp-warn-soft: #fdf1e0;
+  --pp-bad: #bd3a33;    --pp-bad-soft: #fbe7e6;
+  --pp-violet: #6a49c4; --pp-violet-soft: #efe9fb;
 }
 
 /* Dark extension for the semantic palette — brighten text/icon hues for AA on
@@ -92,7 +96,7 @@
 .industry-surface :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 .industry-surface .text-muted { color: color-mix(in srgb, var(--color-text) 55%, transparent); }
 .industry-surface .kicker {
-  font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-accent);
+  font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-accent-700);
   font-family: var(--font-heading); font-weight: var(--font-heading-weight);
 }
 
@@ -109,7 +113,7 @@
 
 /* — cards — transparent line drawings, square, hairline — */
 .card { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3); border-radius: 0; background: transparent; border: 1px solid var(--color-divider); }
-.card-kicker { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-accent); font-family: var(--font-heading); font-weight: var(--font-heading-weight); }
+.card-kicker { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-accent-700); font-family: var(--font-heading); font-weight: var(--font-heading-weight); }
 .card-title { font-family: var(--font-heading); font-weight: var(--font-heading-weight); font-size: 17px; line-height: 1.2; }
 .card-body { margin: 0; font-size: 13px; opacity: 0.8; }
 .card-meta { display: flex; align-items: center; gap: 6px; font-size: 11px; color: color-mix(in srgb, var(--color-text) 50%, transparent); }
@@ -118,9 +122,13 @@
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; text-decoration: none; font-family: var(--font-heading); font-weight: var(--font-heading-weight); font-size: 14px; line-height: 1.2; color: var(--color-text); background: transparent; border: 1px solid var(--color-divider); padding: var(--space-2) calc(var(--space-3) * 1.2); border-radius: var(--radius-md); }
 .btn svg { display: block; }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.btn-primary { background: var(--color-accent); color: var(--color-bg); border-color: var(--color-accent); }
-.btn-primary:hover:not(:disabled) { background: var(--color-accent-600); }
-.btn-primary:active:not(:disabled) { background: var(--color-accent-700); }
+/* Primary fill uses the theme-flipping strong-accent pair (defined in styles.css):
+   accent-700 + light text in light, lightened accent + dark text in dark — both
+   clear WCAG AA 4.5:1. The mid accent (#5980a6) under light text was only 3.71:1,
+   and white on the dark-mode lightened accent was worse. */
+.btn-primary { background: var(--pp-accent-strong); color: var(--pp-on-accent-strong); border-color: var(--pp-accent-strong); }
+.btn-primary:hover:not(:disabled) { background: var(--pp-accent-hover); border-color: var(--pp-accent-hover); }
+.btn-primary:active:not(:disabled) { background: var(--pp-accent-dark); border-color: var(--pp-accent-dark); }
 .btn-secondary:hover:not(:disabled) { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
 .btn-secondary:active:not(:disabled) { background: color-mix(in srgb, var(--color-text) 14%, transparent); }
 .btn-ghost { color: var(--color-accent-700); border-color: transparent; padding-inline: var(--space-1); }
@@ -156,8 +164,13 @@ textarea.input { min-height: 60px; resize: vertical; }
 .sev-medium { background: var(--color-accent-500); }
 .sev-low { background: var(--color-neutral-400); }
 
-/* Dark theme — Industry extension: ground from the neutral ramp, accent unchanged. */
+/* Dark theme — Industry extension: ground from the neutral ramp, accent unchanged.
+   Keyed on data-pp-theme (the toggle themeSync.ts actually sets) so it activates
+   in dark; data-theme kept as a compatible alias. Previously this block keyed
+   ONLY on data-theme and never fired, leaving --color-* surfaces light-on-dark. */
+:root[data-pp-theme="dark"] .industry-surface,
 :root[data-theme="dark"] .industry-surface,
+.industry-surface[data-pp-theme="dark"],
 .industry-surface[data-theme="dark"] {
   --color-bg: #1a1c1e;
   --color-surface: #232628;

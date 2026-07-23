@@ -244,9 +244,9 @@ const errorBox: React.CSSProperties = { marginTop: 10, padding: 10, borderRadius
 function statusPill(status: PaneStatus): React.CSSProperties {
     const base: React.CSSProperties = { fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 4 };
     switch (status) {
-        case "done": return { ...base, background: "rgba(34,197,94,0.14)", color: "#16a34a" };
-        case "error": return { ...base, background: "rgba(220,38,38,0.12)", color: "#dc2626" };
-        case "loading": return { ...base, background: "rgba(37,99,235,0.12)", color: "#2563eb" };
+        case "done": return { ...base, background: "var(--pp-good-soft)", color: "var(--pp-good)" };
+        case "error": return { ...base, background: "var(--pp-error-soft)", color: "var(--pp-error)" };
+        case "loading": return { ...base, background: "var(--pp-accent-soft)", color: "var(--pp-accent-hover)" };
         default: return { ...base, background: "var(--pp-bg, #eef2f7)", color: "var(--pp-text-muted, #64748b)" };
     }
 }

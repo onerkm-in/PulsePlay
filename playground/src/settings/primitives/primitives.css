@@ -17,28 +17,30 @@
     border-radius: 50%;
     border: none;
     background: var(--pp-accent-soft);
-    color: var(--pp-accent);
+    color: var(--pp-accent-hover);
     font-family: "Georgia", "Times New Roman", serif;
     font-size: 11px;
     font-weight: 700;
     font-style: italic;
     line-height: 1;
     cursor: help;
-    transition: all 120ms var(--pp-ease, cubic-bezier(0.22,1,0.36,1));
+    transition: background 120ms var(--pp-ease, cubic-bezier(0.22,1,0.36,1)), color 120ms var(--pp-ease);
     flex-shrink: 0;
 }
-.pp-helptip__trigger:hover,
+.pp-helptip__trigger:hover {
+    background: var(--pp-accent-strong);
+    color: var(--pp-on-accent-strong);
+}
 .pp-helptip__trigger:focus-visible {
-    background: var(--pp-accent);
-    color: #fff;
-    outline: none;
-    transform: scale(1.1);
-    box-shadow: 0 2px 6px color-mix(in srgb, var(--pp-accent, #5980a6) 36%, transparent);
+    background: var(--pp-accent-strong);
+    color: var(--pp-on-accent-strong);
+    outline: 2px solid var(--pp-accent);
+    outline-offset: 2px;
 }
 .pp-helptip__trigger--warn  { background: color-mix(in srgb, var(--pp-warn, #e0902c) 12%, transparent); color: #b45309; font-style: normal; font-family: inherit; }
 .pp-helptip__trigger--warn:hover { background: #d97706; color: #fff; box-shadow: 0 2px 6px color-mix(in srgb, var(--pp-warn, #e0902c) 40%, transparent); }
-.pp-helptip__trigger--tip   { background: rgba(124,58,237,0.10); color: #6d28d9; font-style: normal; font-family: inherit; font-size: 9px; }
-.pp-helptip__trigger--tip:hover { background: var(--pp-accent); color: #fff; }
+.pp-helptip__trigger--tip   { background: var(--pp-accent-soft); color: var(--pp-accent-hover); font-style: normal; font-family: inherit; font-size: 9px; }
+.pp-helptip__trigger--tip:hover { background: var(--pp-accent-strong); color: var(--pp-on-accent-strong); }
 
 /* ── HelpTip bubble — portal-rendered with fixed positioning
  * 2026-05-19 Codex final UAT fix (P1): tooltips at the edge of pane
@@ -218,20 +220,18 @@
     font-weight: 600;
     border: 1px solid var(--pp-accent-border);
     background: var(--pp-accent-soft);
-    color: var(--pp-accent);
+    color: var(--pp-accent-hover);
     border-radius: var(--pp-radius-sm);
     cursor: pointer;
-    transition: all var(--pp-t-base, 160ms) var(--pp-ease, cubic-bezier(0.22,1,0.36,1));
+    transition: background var(--pp-t-base, 160ms) var(--pp-ease), color var(--pp-t-base) var(--pp-ease), border-color var(--pp-t-base) var(--pp-ease), box-shadow var(--pp-t-base) var(--pp-ease);
     line-height: 1.2;
 }
 .pp-test__btn:hover:not(:disabled) {
-    background: var(--pp-accent);
-    color: #fff;
-    border-color: var(--pp-accent);
+    background: var(--pp-accent-strong);
+    color: var(--pp-on-accent-strong);
+    border-color: var(--pp-accent-strong);
     box-shadow: 0 2px 8px color-mix(in srgb, var(--pp-accent, #5980a6) 32%, transparent);
-    transform: translateY(-1px);
 }
-.pp-test__btn:active:not(:disabled) { transform: translateY(0); }
 .pp-test__btn:disabled {
     opacity: 0.55;
     cursor: not-allowed;
@@ -507,7 +507,6 @@
 }
 .pp-theme-card:hover {
     border-color: var(--pp-accent-border);
-    transform: translateY(-1px);
     box-shadow: var(--pp-shadow-sm);
 }
 .pp-theme-card--active {
