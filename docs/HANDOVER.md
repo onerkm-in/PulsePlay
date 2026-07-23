@@ -5,6 +5,22 @@
 
 ---
 
+## 2026-07-23 (latest+3) — Industry design system: whole-app global flip
+
+Carried the binding Industry design system (`docs/INDUSTRY_DESIGN_REMEDIATION_PROMPT.md`) across the app, not just the flagship. Two commits, both tested + pushed.
+
+**The lever — two token vocabularies, both re-pointed to Industry.** PulsePlay's UI is driven by two CSS custom-property sets that a runtime bridge keeps in lockstep:
+- **Native `--pp-*`** (`playground/src/styles.css :root`) — aliased to the steel palette (`#5980a6` on `#f2f2f3`), Barlow / Barlow Condensed type, squared radii (incl. `--pp-radius-pill` → 4px), + an Industry dark extension. Killed the systemic gradients + hover-lift transforms that live in styles.css / settings.css / primitives.css (brand h1, surface-context, form controls, embed/cta/ask buttons, surface-switcher active, sectioned heads, skeletons, the `#2563eb→#7c3aed` Settings purple, the KB clip-title).
+- **Workbench `gn-*`** (`playground/src/pulse/style/visual.less`) — the `@gn-*` LESS vars resolve to `var(--gn-*, …)`, and `.gn-shell` gets its palette from an **inline style set by `themeConfig.ts → buildThemeStyle()`**, so `:root` edits alone never flip the shell. The real lever is the **theme**: added an `"industry"` entry to `BUILT_IN_THEMES` (steel + Barlow + 4px) and made it the app default (dropdown + `resolveThemeTokens` fallback both → `"industry"`). Flattened the header-tab active blue→steel gradient (now a solid steel square) + 6 other blue-stop gradients in visual.less.
+
+**The bridge gotcha (load-bearing).** `pulse/themeConfig.ts` `buildAppThemeVars()` maps the active theme's tokens INTO `--pp-accent` etc. (via `themeSync.ts`, reading `genieSettings.themeName` from localStorage). The shell (`visual.tsx`, reads `paneSettings.themeName`) and this bridge are TWO different themeName sources — they disagreed, so the shell went steel while `--pp-accent` stayed blue #2563eb. Fix: point `resolveThemeTokens`' default at `"industry"` so an absent/unknown themeName resolves the same in both paths.
+
+**Also:** ActionInsightsPanel → Industry (persona switcher → `.seg`, header → `.kicker`, `.industry-surface` ground, error → blueprint band; fixed a broken `--pp-muted` token that never existed). Squared the last visible pill literals (setup/Ready pill, BundleSwitcher chip, TrustBadge).
+
+**Verified headed** (desktop shell + flagship Action Insights + mobile): steel square active tab (no gradient), Barlow, technical ground, steel line icons, blueprint decision cards with corner marks + steel severity rails + solid-steel primary actions, segmented persona toggle, real 5 SCM engine prompts; **0 console errors**. tsc clean, playground **1932/1932**, vite build clean. Commits `482af3f` (global flip) + `3094683` (panel + pills). Evidence: `docs/evidence/headed-validation-2026-07-23/INDUSTRY_GLOBAL_*` (gitignored).
+
+**Honest scope / follow-up:** this is the P1 global flip + the most-visible P2 systemic offenders. Still open (each its own pass): emoji→Lucide icon swaps (TopRightToolbar/SurfaceSwitcher strokeWidth, empty-state icons), remaining deep `999px`/`@gn-radius-pill` literals inside the pulse shell, and **dark-shell Industry alignment** (`.gn-shell--dark` + `@gn-dark-*` still carry the GitHub-ish dark palette, not the Industry dark extension). **Sibling note:** `themeConfig.ts` / `settings.ts` / `visual.less` are the Pulse-ported surface that syncs to the PBI custom visual — the new `"industry"` theme + default propagate there on next sync (additive, intended).
+
 ## 2026-07-23 (latest+2) — Event-sourcing · Relevance · Live-Delta proof (Phases A/B/C)
 
 Executed the three remaining phases sequentially under user GO. Gate report: `docs/PHASE_ABC_GATE_REPORT.md`. Each committed + tested + pushed.
