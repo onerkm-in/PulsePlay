@@ -1,0 +1,5 @@
+# Action Insights detection engine (Python-heavy, stdlib-first).
+truststore>=0.9        # use OS trust store (works behind TLS-intercepting proxy)
+pytest>=8.0            # tests
+# SQL access uses the Statement Execution REST API via stdlib urllib — no driver dependency.
+# For the future FastAPI serving option (topology T1): fastapi, uvicorn (not needed for T2/MVP).
