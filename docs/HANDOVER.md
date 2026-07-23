@@ -5,6 +5,20 @@
 
 ---
 
+## 2026-07-23 (latest+6) — My Decision Canvas rebuilt as the v4 BI cockpit (course-correction)
+
+New authoritative design material (`docs/MY_DECISION_CANVAS_DESIGN_APPROACH.md` + the v4 reference in `Design/unified-extract/`) course-corrected the flagship: the unified **My Decision Canvas** must be a **colorful, data-dense enterprise BI cockpit**, explicitly NOT the flat grey wireframe the base Industry template gives. This partially reverses the "flatten everything to grey blueprint" direction — but only for this surface. Commit `756db0f`.
+
+**Controlled semantic palette** (the documented divergence): `--pp-good #1f9d6b / --pp-warn #e0902c / --pp-bad #d1453d / --pp-violet #7c5cd8` (+ `-soft` tints + dark variants) added to `industry.css`, layered on the Industry steel base and reserved for status/severity/delta ONLY (never extended ad hoc). Steel stays the primary brand accent. Severity map is fixed: Critical=bad, High=warn, Medium=violet (also the "AI" chip when AI-narrated), Low=neutral.
+
+**DecisionPromptCard** (shared by cockpit + segregated): elevated white card (radius-lg + soft shadow — deliberate divergence from the flat blueprint, justified for a data cockpit), semantic-colored severity chip + left rail + impact number, steel primary action, `ai_narrated?` → "AI" chip. `decisionPromptCard.css` rewritten.
+
+**DecisionCanvasShell** rebuilt from the flat blueprint into the cockpit: 216px left sidebar (Lucide nav + "Governed & Fresh" card), top bar (title, Governed chip, bell, persona avatar), KPI strip, chart row, decision list, Since/My Canvas/Saved/Suggested. Collapses to a top icon-nav on mobile (`.dc-cockpit--narrow`).
+
+**Honesty contract (load-bearing):** every KPI tile, the severity donut, and the impact-by-severity bars are derived from the SAME real decision prompts the Action Inbox shows — `ActionInsightsPanel` gained an `onData(prompts)` callback so the shell reads ONE fetch (no double-fetch, no fabricated numbers). Real values verified live: 6 open decisions, $10.6K USD impact (only USD-unit prompts summed; units-valued ones like Days-of-Supply are excluded from the $ figure by design), real severity mix. Series we don't actually have (historical trend, change feed, suggestions) render honest deferred states — never fake polylines.
+
+**Verified:** headed desktop + mobile + the shared segregated Action Insights cards, 0 console errors; tsc clean, 1932/1932, vite build clean. Evidence `INDUSTRY_COCKPIT_01..04`. **Open:** the earlier grey-flattening of the *segregated* AI Insights narrative sections (`3484fb9`) still stands — the "not flat grey" rule is scoped to the cockpit; enriching segregated is a follow-up if wanted. Settings blueprint pass (structure→blueprint, keep functional status color per the user's choice) also still pending.
+
 ## 2026-07-23 (latest+5) — Industry: the last two gaps closed (Lucide icons + dark shell)
 
 Beast-mode pass closing the two gaps named by the sync audit. Three commits, each tested.
