@@ -15,6 +15,8 @@
 
 const { getCanvasStore, CanvasConflictError, CanvasNotFoundError } = require('../lib/canvasStore');
 const { CanvasValidationError } = require('../lib/canvasSection');
+const { getRelevanceEngine } = require('../lib/relevanceEngine');
+const { getActionRequestStore } = require('../lib/actionRequestStore');
 
 /** Immutable server-owned identity. In prod this is issuer+tenant+subject from a
  *  verified token; with no IdP locally every caller is one dev actor. Email/display
@@ -191,6 +193,73 @@ function register(host) {
             sendErr(res, err);
         }
     });
+
+    // ── governed relevance profile + suggestions (§14) ──────────────────────────
+    const relevance = getRelevanceEngine();
+
+    app.get('/decision-canvas/relevance-profile', (req, res) => {
+        noStore(res);
+        res.json({ ok: true, profile: relevance.profile(ownerActorId(req)) });
+    });
+
+    // explicit preference edits only (follow/unfollow). Never persona/permission/severity.
+    app.patch('/decision-canvas/relevance-profile', (req, res) => {
+        noStore(res);
+        const owner = ownerActorId(req);
+        const op = req.body && req.body.op;
+        try {
+            if (op === 'follow') relevance.follow(owner, String(req.body.kpi || ''), req.body.scope);
+            else if (op === 'unfollow') relevance.unfollow(owner, String(req.body.kpi || ''), req.body.scope);
+            else if (op === 'reset') relevance.reset(owner);
+            else return res.status(400).json({ ok: false, error: 'op must be follow | unfollow | reset' });
+            res.json({ ok: true, profile: relevance.profile(owner) });
+        } catch (err) { sendErr(res, err); }
+    });
+
+    // at most 3 governed, explainable suggestions. Candidates are the caller's own
+    // pending approvals + any server-eligible extras; ACL/scope pre-filtered by owner.
+    app.get('/decision-canvas/suggestions', (req, res) => {
+        noStore(res);
+        const owner = ownerActorId(req);
+        const candidates = buildCandidatesFor(owner);
+        res.json({ ok: true, suggestions: relevance.suggest(owner, candidates) });
+    });
+
+    app.post('/decision-canvas/suggestions/:id/actions', (req, res) => {
+        noStore(res);
+        const owner = ownerActorId(req);
+        const action = req.body && req.body.action;
+        try {
+            let out;
+            switch (action) {
+                case 'dismiss': out = relevance.dismiss(owner, String(req.body.content_hash || req.params.id)); break;
+                case 'suppress': out = relevance.suppress(owner, req.body.rule_id, req.body.entity_scope, req.body.kpi); break;
+                case 'follow': out = relevance.follow(owner, String(req.body.kpi || ''), req.body.scope); break;
+                case 'correct': out = relevance.correct(owner, String(req.body.reason_key || '')); break;
+                default: return res.status(400).json({ ok: false, error: 'action must be dismiss | suppress | follow | correct' });
+            }
+            res.json({ ok: true, ...out, profile: relevance.profile(owner) });
+        } catch (err) { sendErr(res, err); }
+    });
+}
+
+/** Build suggestion candidates for an owner from their pending Action Requests.
+ *  Real + self-contained (no warehouse): each pending approval assigned to the owner
+ *  becomes a governed candidate tagged related_to_pending_approval. */
+function buildCandidatesFor(owner) {
+    let requests = [];
+    try {
+        requests = getActionRequestStore().listRequests(owner, { state: 'pending-approval' });
+    } catch { /* store may be empty */ }
+    return requests.map((r) => ({
+        content_hash: r.request_id,
+        tier: 'overdue-approval',
+        rule_id: r.prompt_id,
+        entity_scope: null,
+        kpi: 'decision',
+        related_to_pending_approval: true,
+        request_id: r.request_id,
+    }));
 }
 
 module.exports = {
@@ -198,5 +267,8 @@ module.exports = {
     displayName: 'My Decision Canvas (persistence)',
     matchProfile() { return false; },
     register,
-    __test: { ownerActorId },
+    // The connector's OWN store references, so tests seed the same instances the
+    // routes read (avoids a jest module-registry quirk that can hand the same
+    // require path two instances; in Node these are always one singleton).
+    __test: { ownerActorId, getActionRequestStore, getRelevanceEngine, getCanvasStore },
 };
