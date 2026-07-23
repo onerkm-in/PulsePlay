@@ -5,6 +5,14 @@
 
 ---
 
+## 2026-07-23 (latest+4) — Industry sync audit: per-surface scan + gap closure
+
+Answered "is the UI in sync with the standard?" with a computed-style compliance scanner run headed on every surface (visible elements: radius ≥ 100px, gradient backgrounds, legacy-blue accents, emoji glyphs), compared against the topup reference designs (`Design/topup-extract/` — PulsePlay Shell + My Decision Canvas v2–v4 + the Design Audit matrix). Commit `c0624c3`.
+
+**Found + fixed:** the pulse shell still carried pills the token flip couldn't reach — `@gn-radius-pill` was a literal `999px` LESS var (now resolves to the small-radius var, flipping all 23 chip/badge/tab users at once; genuine circles use `50%`), 13 more literal `999px` component pills, the surface-switcher rail white gradient, and 10 light-mode gradients incl. the blue→purple `.gn-pill--featured` second-hue violation. Settings: `pp-settings-chip`/badge/setup-pill family + 6 inline `borderRadius: 999` chips (AiGroup/BiGroup/SetupGroup/setupStep5/visual.tsx/MultiPaneDemoShell). Kept: scrollbar thumbs + the toggle track (functional shapes; the DS defines no switch).
+
+**Post-fix scan: insights / chat / dashboard / action-insights / settings / unified all report 0 pills, 0 gradients, 0 legacy-blue.** Unified canvas was already 100% clean (72 corner marks). tsc clean, 1932/1932, vite build clean. **Remaining honest gaps:** emoji→Lucide swap (⚙ ⚠ 🔍 ✓ glyphs; needs the `lucide-react` dep — not installed) and dark-shell Industry alignment (`.gn-shell--dark` palette). Both are their own passes.
+
 ## 2026-07-23 (latest+3) — Industry design system: whole-app global flip
 
 Carried the binding Industry design system (`docs/INDUSTRY_DESIGN_REMEDIATION_PROMPT.md`) across the app, not just the flagship. Two commits, both tested + pushed.
