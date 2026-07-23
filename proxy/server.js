@@ -6504,13 +6504,21 @@ app.get('/foundation/health', (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function isPowerBiSemanticModelProfile(profile) {
-    return profile
-        && profile.type === 'powerbi-semantic-model'
-        && (profile.aadTenantId || profile.powerBiTenantId)
-        && (profile.aadClientId || profile.powerBiClientId)
-        && (profile.aadClientSecret || profile.powerBiClientSecret)
-        && (profile.powerbiGroupId || profile.powerBiGroupId)
-        && (profile.powerbiDatasetId || profile.powerBiDatasetId);
+    if (!profile || profile.type !== 'powerbi-semantic-model') return false;
+    const hasTenant = !!(profile.aadTenantId || profile.powerBiTenantId);
+    const hasIds = !!((profile.powerbiGroupId || profile.powerBiGroupId)
+        && (profile.powerbiDatasetId || profile.powerBiDatasetId));
+    if (!hasTenant || !hasIds) return false;
+    // Two auth modes (see lib/powerbiDatasetClient.js): service-principal
+    // needs a client id + secret; user-refresh runs as a public client with
+    // no secret, needing only the captured refresh token. Requiring SP
+    // fields unconditionally wrongly rejected valid user-refresh profiles.
+    const mode = String(profile.authMode || '').trim().toLowerCase();
+    if (mode === 'user-refresh' || mode === 'user-token') {
+        return !!profile.userRefreshToken;
+    }
+    return !!((profile.aadClientId || profile.powerBiClientId)
+        && (profile.aadClientSecret || profile.powerBiClientSecret));
 }
 
 function resolvePowerBiSemanticModelProfile(body, headers, req) {
