@@ -9048,7 +9048,7 @@ if (_STATIC_DIR_RAW) {
     }));
     // SPA fallback: any GET that isn't a known API prefix → serve index.html.
     // Adding new top-level API routes? Add their first path segment to this list.
-    const API_PREFIX_RE = /^\/(api|assistant|foundation|powerbi|health|discovery|capabilities|feedback|debug|metrics|smoke|connectors|decision-assist|experience|knowledge|policy|profiles|packs|supervisor|insights|sql-preview|test|__diag|\.well-known)(\/|$|\?)/;
+    const API_PREFIX_RE = /^\/(api|assistant|foundation|powerbi|health|discovery|capabilities|feedback|debug|metrics|smoke|connectors|decision-assist|decision-canvas|experience|knowledge|policy|profiles|packs|supervisor|insights|sql-preview|test|__diag|\.well-known)(\/|$|\?)/;
     app.get(/.*/, (req, res, next) => {
         if (API_PREFIX_RE.test(req.path)) return next();
         if (req.headers.accept && !req.headers.accept.includes('text/html')) return next();
