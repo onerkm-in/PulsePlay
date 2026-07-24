@@ -22,7 +22,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const MODES = Object.freeze(['segregated', 'combined']);
+const MODES = Object.freeze(['segregated', 'cockpit', 'combined']);
 const FALLBACK_MODE = 'segregated';
 const STORE_FILE = process.env.PP_EXPERIENCE_STORE
     || path.join(__dirname, '..', '.pp-experience-config.json');

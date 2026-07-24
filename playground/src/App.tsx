@@ -484,17 +484,40 @@ function AppRouted(): React.ReactElement {
     return <ExperienceRoutedApp />;
 }
 
-/** Resolves the author-published interface mode for the default route. Combined
- *  (served or author-previewed) renders My Decision Canvas; everything else —
- *  including any fetch failure — falls back to the existing segregated shell.
- *  End users cannot override the served mode; only an author preview (this
- *  session) can differ from what is published. */
+/** Resolves the author-published interface mode for the default route. Both the
+ *  "cockpit" (single canvas, no cross-screen nav) and "combined" (cockpit + the
+ *  screen nav) modes render My Decision Canvas; "segregated" — and any fetch
+ *  failure — falls back to the existing multi-surface shell. End users cannot
+ *  override the served mode; only an author preview (this session) can differ
+ *  from what is published. */
+function readSurfaceParam(): string | null {
+    if (typeof window === "undefined") return null;
+    try { return new URL(window.location.href).searchParams.get(ACTIVE_SURFACE_URL_PARAM); } catch { return null; }
+}
+
 function ExperienceRoutedApp(): React.ReactElement {
     const { effectiveMode, loading } = useExperienceMode();
+    // Combined mode hosts BOTH the cockpit and the individual screens: the
+    // cockpit's nav sets ?surface, and when a real screen is selected we render
+    // the segregated shell for it. Track the param reactively so nav clicks
+    // (which dispatch popstate) re-route without a full reload.
+    const [surfaceParam, setSurfaceParam] = useState<string | null>(() => readSurfaceParam());
+    useEffect(() => {
+        const on = () => setSurfaceParam(readSurfaceParam());
+        window.addEventListener("popstate", on);
+        return () => window.removeEventListener("popstate", on);
+    }, []);
+
     // While resolving, render the segregated shell (the fail-safe default) so
     // the existing experience never flashes a blank frame waiting on config.
     if (loading) return <PlaygroundApp />;
-    if (effectiveMode === "combined") return <DecisionCanvasShell />;
+    if (effectiveMode === "cockpit") return <DecisionCanvasShell mode="cockpit" />;
+    if (effectiveMode === "combined") {
+        // A real screen selected → hand off to the segregated shell for it;
+        // otherwise land on the cockpit (the default).
+        if (surfaceParam && isSurfaceId(surfaceParam)) return <PlaygroundApp />;
+        return <DecisionCanvasShell mode="combined" />;
+    }
     return <PlaygroundApp />;
 }
 

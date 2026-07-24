@@ -1,8 +1,14 @@
 // playground/src/experience/experienceMode.ts
 //
-// Author-selectable interface mode (v3.2 §10). Two permanent presentation modes:
-//   - "segregated": the existing multi-surface PulsePlay shell (default + fallback)
-//   - "combined":   the My Decision Canvas single-workspace experience
+// Author-selectable interface mode (v3.2 §10). Three presentation modes the
+// author picks between in Settings → Interface:
+//   - "segregated": the existing multi-surface PulsePlay shell — top-tab button
+//                   navigation across the separate screens (default + fallback).
+//   - "cockpit":    the My Decision Canvas single interface, everything on one
+//                   plate, with NO cross-screen navigation.
+//   - "combined":   the cockpit PLUS the top-tab nav — lands on the cockpit but
+//                   can jump to any individual screen (Decisions / AI Insights /
+//                   Ask Pulse / Dashboard).
 //
 // The SERVED mode is server-authoritative (GET /experience/config → served_mode).
 // End users cannot change it. Only an author (via the author-gated Settings
@@ -14,7 +20,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 
-export type PulsePlayExperienceMode = "segregated" | "combined";
+export type PulsePlayExperienceMode = "segregated" | "cockpit" | "combined";
 
 export const EXPERIENCE_FALLBACK_MODE: PulsePlayExperienceMode = "segregated";
 
@@ -44,7 +50,7 @@ function experienceApiBase(): string {
 }
 
 function isMode(v: unknown): v is PulsePlayExperienceMode {
-    return v === "segregated" || v === "combined";
+    return v === "segregated" || v === "cockpit" || v === "combined";
 }
 
 export function readPreviewMode(): PulsePlayExperienceMode | null {

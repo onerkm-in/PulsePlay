@@ -73,6 +73,14 @@ describe('author-gated publish', () => {
         expect(res.body.version).toBe(1);
     });
 
+    test('publishing the third mode (cockpit) is accepted', () => {
+        const r = mount();
+        const res = makeRes();
+        r.put['/experience/config'](makeReq({ body: { mode: 'cockpit' } }), res);
+        expect(res.statusCode).toBe(200);
+        expect(res.body.served_mode).toBe('cockpit');
+    });
+
     test('a non-author (IdP roles present, none authoring) gets 403', () => {
         const r = mount();
         const res = makeRes();

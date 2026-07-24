@@ -30,6 +30,14 @@ describe("experience mode resolution", () => {
         expect(result.current.effectiveMode).toBe("combined");
     });
 
+    test("resolves the third mode (cockpit) from the server", async () => {
+        vi.stubGlobal("fetch", mockConfig("cockpit"));
+        const { result } = renderHook(() => useExperienceMode());
+        await waitFor(() => expect(result.current.loading).toBe(false));
+        expect(result.current.servedMode).toBe("cockpit");
+        expect(result.current.effectiveMode).toBe("cockpit");
+    });
+
     test("falls back to segregated when the server is unreachable", async () => {
         vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("network"); }) as unknown as typeof fetch);
         const { result } = renderHook(() => useExperienceMode());

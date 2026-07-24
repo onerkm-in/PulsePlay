@@ -160,12 +160,15 @@ function DeferredCard({ title, ai, note, Icon }: { title: string; ai?: boolean; 
     );
 }
 
-export function DecisionCanvasShell(): React.ReactElement {
+export function DecisionCanvasShell({ mode = "combined" }: { mode?: "cockpit" | "combined" }): React.ReactElement {
     const proxyBase = readProxyBase();
     const activeProfile = readActiveProfile();
     const narrow = useIsNarrow();
     const [prompts, setPrompts] = useState<DecisionPrompt[]>([]);
     const persona = readDemoPersona();
+    // Cockpit mode = a single interface, everything on one plate, with NO
+    // cross-screen navigation. Combined mode = the cockpit PLUS the screen nav.
+    const showNav = mode === "combined";
 
     const kpi = useMemo(() => {
         const open = prompts.filter((p) => !TERMINAL.has(p.status));
@@ -204,6 +207,7 @@ export function DecisionCanvasShell(): React.ReactElement {
                     <span className="dcc-brand-mark"><LayoutGrid size={18} strokeWidth={1.8} aria-hidden /></span>
                     {!narrow && <span className="dcc-brand-name">PulsePlay</span>}
                 </div>
+                {showNav && (
                 <nav className="dcc-nav">
                     {NAV.map(({ id, label, Icon, unified }) => (
                         <button
@@ -220,6 +224,7 @@ export function DecisionCanvasShell(): React.ReactElement {
                         </button>
                     ))}
                 </nav>
+                )}
                 <div className="dcc-side-foot">
                     <div className="dcc-gov-card">
                         <div className="dcc-gov-title">Governed &amp; Fresh</div>

@@ -245,7 +245,14 @@ export function PreferencesGroup(): React.ReactElement {
 
 const MODE_LABEL: Record<PulsePlayExperienceMode, string> = {
     segregated: "Segregated screens",
-    combined: "Combined Decision Canvas",
+    cockpit: "Cockpit (single canvas)",
+    combined: "Combined (cockpit + screens)",
+};
+
+const MODE_DESC: Record<PulsePlayExperienceMode, string> = {
+    segregated: "Top-tab navigation across the separate screens (Decisions, AI Insights, Ask Pulse, Dashboard). Default + fallback.",
+    cockpit: "The My Decision Canvas single interface — everything on one plate, no cross-screen navigation.",
+    combined: "The cockpit plus the top-tab nav — lands on the cockpit, can jump to any individual screen.",
 };
 
 /** Author-only control for the published interface mode. Preview is local to
@@ -283,7 +290,7 @@ function InterfaceModeControl(): React.ReactElement {
                 {previewMode && <span style={{ color: "var(--pp-accent, #5980a6)" }}> · previewing {MODE_LABEL[previewMode]}</span>}
             </div>
 
-            {(["segregated", "combined"] as PulsePlayExperienceMode[]).map((mode) => (
+            {(["segregated", "cockpit", "combined"] as PulsePlayExperienceMode[]).map((mode) => (
                 <div key={mode} style={{
                     display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
                     border: "1px solid var(--pp-border, rgba(128,128,128,0.28))",
@@ -293,9 +300,7 @@ function InterfaceModeControl(): React.ReactElement {
                     <div>
                         <div style={{ fontSize: 13, fontWeight: 600 }}>{MODE_LABEL[mode]}</div>
                         <div style={{ fontSize: 11, opacity: 0.65 }}>
-                            {mode === "segregated"
-                                ? "Existing PulsePlay navigation and screens (default + fallback)."
-                                : "The new single-workspace Decision Canvas (first slice — Action Inbox live)."}
+                            {MODE_DESC[mode]}
                         </div>
                     </div>
                     <div style={{ display: "flex", gap: 6, flex: "0 0 auto" }}>
