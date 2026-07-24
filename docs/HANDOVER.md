@@ -5,6 +5,20 @@
 
 ---
 
+## 2026-07-24 (latest+14) — Canvas: Add SQL tile + Pin decision to canvas (both SQL-backed, no LLM)
+
+Answered "can the canvas load pinned viz / insights / decisions using SQL, no LLM?" — yes, and shipped the two missing entry points. Both load AND refresh through `/sql/preview` only (Databricks warehouse), zero model calls. `7b69ed7` + `b6a7c52`, playground **1968/1968** (+15 tests), tsc clean.
+
+**1. Add SQL tile (`7b69ed7`):** a "+ Add SQL tile" popover on the Dashboard canvas — reachable from BOTH the populated bar (`CanvasGrid`) and the empty-canvas state (`NativeCanvas` EmptyState), so a blank Dashboard bootstraps with no AI spend. Paste a SELECT → pick table/chart → pin a self-contained refreshable tile. New shared libs: `canvasConnector.ts` (one source for the canvas proxy base + active warehouse profile, extracted from CanvasGrid's local copy) and `canvasTileActions.ts` (`createSqlBackedTile` = run SELECT → pin, reused by both features).
+
+**2. Pin decision to canvas (`b6a7c52`):** decision cards gain "Pin to canvas" (shown only when `evidence_sql` + a bound profile exist). Pins the decision's OWN evidence query as a refreshable table tile.
+
+**Real bug caught by iterative headed validation:** the engine's `evidence_sql` is a PARAMETERIZED template (`:mk` = month_key, `:pmk` = prior month, plus `:category`/`:region`); `/sql/preview` doesn't bind parameters, so the raw pin failed with `UNBOUND_SQL_PARAMETER`. Fix: `decisionEvidenceSql.ts` binds them from the prompt's own fields using the engine's EXACT arithmetic (`detect.py`: `pmk = mk-1 if mk%100>1 else (mk//100-1)*100+12`), quotes string params, and **fail-closes** on any param it can't derive (e.g. a `:thr` threshold) rather than send a broken query. Also: `month_key` arrives as a STRING over JSON — coerced with `Number()`. The pinned tile stores the BOUND SQL, so Refresh re-runs cleanly.
+
+**Headed-verified against live Genie:** Add-SQL pinned "SUM(agent_interactions) by agent_group" → AI-Assisted 56578 / Human Only 17376 (bar, 1 `/sql/preview`); pinning SCM-FA-001 bound `:mk=202512`/`:pmk=202511` and pinned 16 rows of evidence; both tiles' Refresh re-ran via a second `/sql/preview`, still **zero LLM routes** in the network log. (Browser pane still won't composite — DOM/network proof, no pixel screenshot.)
+
+**Honest gaps:** pinned decision evidence is a wide diagnostic table (16×18) — honest but not a focused KPI; a "pin as a single-metric view" refinement is possible later. DAX-bound tiles (Power BI path) still can't refresh via `/sql/preview` (pre-existing TILE-P2). Ask Pulse answers already pinned as SQL-backed tiles before this work — unchanged.
+
 ## 2026-07-24 (latest+13) — Cost directive: intent-gated loads + caching audit (Databricks-only components)
 
 **User directive:** no Databricks spend on page load — first OR subsequent visits serve cache; compute runs only on an explicit user trigger (the refresh icon et al). Headed investigation found FOUR silent on-load spenders; all gated (`132dcb9`), plus a proxy diagnostics fix (`5f59ccd`). playground **1953/1953**, proxy **1407/1407**.
