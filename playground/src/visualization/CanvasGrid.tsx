@@ -15,6 +15,8 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { EChartsRenderer } from "../components/workbench/EChartsRenderer";
 import { buildEChartsOption } from "../lib/buildEChartsOption";
 import { validateSqlViaPreview } from "../lib/sqlPreviewClient";
+import { readCanvasApiBaseUrl } from "../lib/canvasConnector";
+import { AddSqlTile } from "./AddSqlTile";
 import {
     listCanvasTiles,
     removeCanvasTile,
@@ -61,13 +63,6 @@ function arrange(items: IdLayout[], movingId: string | null): Map<string, Layout
     return map;
 }
 
-function readApiBaseUrl(): string {
-    try {
-        const g = JSON.parse(window.localStorage.getItem("pulseplay:visual-settings:genieSettings") || "{}");
-        if (g && typeof g.apiBaseUrl === "string" && g.apiBaseUrl.trim()) return g.apiBaseUrl;
-    } catch { /* ignore */ }
-    return `${window.location.origin}/api`;
-}
 function relTime(ms?: number): string {
     if (!ms) return "";
     const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
@@ -144,6 +139,7 @@ export function CanvasGrid(): React.ReactElement | null {
             <div className="pp-canvas__bar">
                 <span className="pp-canvas__title">My Canvas</span>
                 <span className="pp-canvas__count">{tiles.length} pinned {tiles.length === 1 ? "tile" : "tiles"} · drag to arrange (tiles reflow), resize from the corner</span>
+                <AddSqlTile variant="bar" />
                 <button
                     type="button"
                     className="pp-canvas__clear"
@@ -215,7 +211,7 @@ function CanvasTileCard({ tile, layout, colW, dragging, onGestureMove, onGesture
     const run = async (sql: string, persistSql: boolean): Promise<void> => {
         if (!sql.trim() || !hasConnector) return;
         setBusy(true); setError(null);
-        const res = await validateSqlViaPreview({ apiBaseUrl: readApiBaseUrl(), sql, assistantProfile: tile.connectorProfileId });
+        const res = await validateSqlViaPreview({ apiBaseUrl: readCanvasApiBaseUrl(), sql, assistantProfile: tile.connectorProfileId });
         setBusy(false);
         if (!res.ok) { setError(res.error || "Query failed."); return; }
         updateCanvasTile(tile.id, { columns: res.columns, rows: res.rows, lastRefreshedAt: Date.now(), ...(persistSql ? { sqlQuery: sql } : {}) });

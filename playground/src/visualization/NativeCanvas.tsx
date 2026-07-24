@@ -23,6 +23,7 @@ import * as React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { CanvasGrid } from "./CanvasGrid";
+import { AddSqlTile } from "./AddSqlTile";
 import { canvasTileCount, CANVAS_TILES_EVENT } from "../lib/canvasTiles";
 import { flushSync } from "react-dom";
 import * as echarts from "echarts/core";
@@ -500,6 +501,10 @@ function EmptyState(): React.ReactElement {
             <span data-native-bi-status="empty">
                 Ask Pulse can render governed charts, tables, KPIs, and narratives here. Embedded BI reports use the same Dashboard tab when connected.
             </span>
+            {/* No-LLM bootstrap: build the canvas from a SELECT without asking
+                the AI. Pinning Ask Pulse answers or decisions works too, but
+                this lets a blank Dashboard start from SQL alone. */}
+            <span style={{ marginTop: 4 }}><AddSqlTile variant="empty" /></span>
         </div>
     );
 }

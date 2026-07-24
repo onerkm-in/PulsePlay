@@ -2295,6 +2295,83 @@ html, body, #root {
     cursor: pointer;
 }
 .pp-canvas__clear:hover { border-color: var(--pp-error, #dc2626); color: var(--pp-error, #dc2626); }
+
+/* ── Add SQL tile (no-LLM canvas bootstrap) ─────────────────────────── */
+.pp-sqltile-anchor { position: relative; display: inline-flex; }
+.pp-sqltile-anchor--bar { margin-left: auto; }
+.pp-canvas__add {
+    padding: 4px 10px;
+    border: 1px solid var(--pp-border, rgba(15,23,42,0.10));
+    border-radius: 6px;
+    background: var(--pp-surface, #fff);
+    color: var(--pp-text, #0f172a);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+.pp-canvas__add:hover { border-color: var(--pp-accent, #416180); color: var(--pp-accent, #416180); }
+.pp-sqltile {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 30;
+    width: min(440px, 88vw);
+    padding: 12px;
+    border: 1px solid var(--pp-border, rgba(15,23,42,0.12));
+    border-radius: 8px;
+    background: var(--pp-surface-raised, #fff);
+    box-shadow: 0 8px 28px rgba(15,23,42,0.16);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    text-align: left;
+}
+.pp-sqltile-anchor--empty .pp-sqltile { left: 50%; right: auto; transform: translateX(-50%); }
+.pp-sqltile__row { display: flex; gap: 8px; }
+.pp-sqltile__title {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 6px 8px;
+    border: 1px solid var(--pp-border, rgba(15,23,42,0.10));
+    border-radius: 6px;
+    background: var(--pp-surface, #fff);
+    color: var(--pp-text, #0f172a);
+    font: inherit;
+    font-size: 12px;
+}
+.pp-sqltile__renderas {
+    flex: 0 0 auto;
+    padding: 6px 8px;
+    border: 1px solid var(--pp-border, rgba(15,23,42,0.10));
+    border-radius: 6px;
+    background: var(--pp-surface, #fff);
+    color: var(--pp-text, #0f172a);
+    font: inherit;
+    font-size: 12px;
+}
+.pp-sqltile__sql {
+    width: 100%;
+    box-sizing: border-box;
+    resize: vertical;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11.5px;
+    line-height: 1.45;
+    padding: 8px;
+    border: 1px solid var(--pp-border, rgba(15,23,42,0.10));
+    border-radius: 6px;
+    background: var(--pp-surface, #fff);
+    color: var(--pp-text, #0f172a);
+}
+.pp-sqltile__foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pp-sqltile__conn { font-size: 11px; color: var(--pp-text-muted, #64748b); }
+.pp-sqltile__actions { display: inline-flex; gap: 8px; }
+.pp-sqltile__error {
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    background: color-mix(in srgb, var(--pp-error, #dc2626) 12%, transparent);
+    color: var(--pp-error, #dc2626);
+}
 .pp-canvas__grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
