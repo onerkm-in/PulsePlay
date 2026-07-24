@@ -5,6 +5,24 @@
 
 ---
 
+## 2026-07-24 (latest+15) — Interface consolidation: 3 experience modes, cockpit polish, and 3 stale hidden interfaces removed
+
+Big UI-structure session. Trunk `design/nav-consistency` = `main`, pushed. All green: playground **1854/1854**, proxy **1408/1408**, tsc clean.
+
+**Cockpit polish (`7e3ef30`, `a61f40b`)** — the My Decision Canvas cockpit was flagged as under-designed. On the Industry design system, all data still derived from the real decision prompts: KPI tiles gained honest context chips (was a lone floating icon), the "impact by severity" empty box became a populated count-bar card, the lonely donut became a card-filling 3-segment donut with counted legend, and the deferred regions (Since/Saved/Suggested) got an intentional "coming soon" treatment. Reference: `Design/unified-extract/My Decision Canvas v4.dc.html` + `docs/MY_DECISION_CANVAS_DESIGN_APPROACH.md`. Honesty guardrail held: no fabricated trend line (we have no daily history).
+
+**Three interface modes (`00c8f49`, `c037752`)** — the author now picks **cockpit** / **segregated** / **combined** in Settings → Display → Interface type (was a 2-way segregated|combined). cockpit = the single canvas, no cross-screen nav; segregated = the tabbed screens; combined = cockpit + a nav that hands off to the individual screens (routed via `?surface=`). Fixed a live bug the structural audit caught: the cockpit NAV used Pulse-tab ids "insights"/"chat" but the router needs SurfaceIds, so the AI Insights + Ask Pulse links were DEAD in combined mode — now "ai-insights"/"ask-pulse", and "Decision Assist" relabelled "Decisions" to match the switcher.
+
+**Removed 3 stale hidden interfaces (user directive: single UI, no hidden surfaces)** — audited via agents (found exactly these 3 + confirmed no other hidden shells; old pickers already deleted):
+- `47f6d49` **`/multi-pane-demo`** (MultiPaneDemoShell + SurfaceConnectorBar) — a URL-only "P1 proof harness", flag-off, stale labels. Deleted.
+- `47f6d49` **`/workbench`** (WorkbenchShell + UnifiedWorkbench + the whole route cluster) — a preview-flag route. Deleted (kept the SHARED `components/workbench/*` like EChartsRenderer, and the separate "Workbench template" Settings presets).
+- `c037752` **multiConnectorPanes flag** — its only enabler was the deleted demo, so permanently off; removed + collapsed surfaceConnectors/paneConnectors to the single-connector path (behavior-preserving).
+- `a0faa99` **Chat surface (uiMode v0 / UnifiedAssistantSurface)** — the off-by-default author-gated parallel AI renderer. Collapsed App's render branch to always PulseShell; deleted UnifiedAssistantSurface + SurfaceModeChip + entryToEnvelope + tests; removed the "Chat surface" Settings toggle (allowChatSurface). KEPT (not Chat): enabledFeatures "Ask Pulse only" + showHistoryButton drive the LIVE Ask Pulse tab.
+
+**Structural audit findings (2 agents):** the 3 removals above; the combined-nav bug (fixed); the label reconciliation (fixed). **Open follow-ups (noted, not done):** (a) residual internal `uiMode "pulse"|"v0"` TYPE plumbing (settingsStore field, `featureRegistry/resolver`, FirstRunWizard presets) now always resolves "pulse" and v0 is unreachable — a type cleanup, not a live interface; (b) **LaunchpadShell** (`/launchpad`) is a live utility reachable only via the Settings→Setup search index (near-orphan — add a visible affordance); (c) "Decisions" surface has no Visible-tabs/landing control like its 3 peers; (d) PowerBiQnARoute deviates from the shared route-hook pattern.
+
+**Headed-verified** (all 3 modes render clean after the removals; combined nav links now all navigate). Console shows only the pre-existing dev-only StrictMode NativeCanvas unmount noise (gone in prod build).
+
 ## 2026-07-24 (latest+14) — Canvas: Add SQL tile + Pin decision to canvas (both SQL-backed, no LLM)
 
 Answered "can the canvas load pinned viz / insights / decisions using SQL, no LLM?" — yes, and shipped the two missing entry points. Both load AND refresh through `/sql/preview` only (Databricks warehouse), zero model calls. `7b69ed7` + `b6a7c52`, playground **1968/1968** (+15 tests), tsc clean.
