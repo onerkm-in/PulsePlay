@@ -90,16 +90,27 @@ function eligibleFromPrompt(p: DecisionPrompt): EligibleSection {
 }
 
 function fmtImpact(value: number, unit: string): string {
-    const n = Math.round(value);
-    if (unit === "USD") return "$" + n.toLocaleString();
-    return n.toLocaleString() + " " + unit;
+    // The API can deliver impact values as strings — coerce before math.
+    const n = Number(value);
+    if (!Number.isFinite(n)) return String(value) + (unit ? " " + unit : "");
+    if (unit === "USD") return "$" + Math.round(n).toLocaleString("en-US");
+    // % and pp hug the number ("6.5%", "1pp") and keep a decimal when small —
+    // rounding 6.5% up to "7 %" misstates the measured figure.
+    if (unit === "%" || unit === "pp") {
+        const v = Math.abs(n) < 10 ? String(parseFloat(n.toFixed(1))) : String(Math.round(n));
+        return v + unit;
+    }
+    return Math.round(n).toLocaleString("en-US") + " " + unit;
 }
 
 /** Pull the "ACTION QUESTION:" line out of the deterministic narrative. */
 function actionQuestion(p: DecisionPrompt): string {
     const m = p.narrative.split("\n").find((l) => l.startsWith("ACTION QUESTION:"));
     if (m) return m.replace("ACTION QUESTION:", "").trim();
-    return `Do you want me to ${p.recommended_action.toLowerCase()}?`;
+    // Strip the action's own terminal punctuation — otherwise a fix text
+    // ending in "." renders "…coverage.?".
+    const action = p.recommended_action.trim().replace(/[.!?\s]+$/, "");
+    return `Do you want me to ${action.toLowerCase()}?`;
 }
 
 export function DecisionPromptCard({
