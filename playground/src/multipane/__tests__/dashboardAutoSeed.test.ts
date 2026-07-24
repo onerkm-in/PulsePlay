@@ -88,6 +88,14 @@ describe("autoSeedDashboard", () => {
 });
 
 describe("maybeAutoSeedDashboard — guards", () => {
+    it("the flag defaults OFF — a first Dashboard visit spends nothing (2026-07-24 intent gate)", async () => {
+        // No setFeatureFlag call: fresh storage = canonical defaults.
+        const added = await maybeAutoSeedDashboard({ profile: "powerbi-dwd", connectorType: "powerbi-semantic-model", probe: PROBE, fetchImpl: makeFetch(true) });
+        expect(added).toBe(0);
+        expect(listCanvasTiles()).toHaveLength(0);
+        expect(wasDashboardSeeded("powerbi-dwd")).toBe(false);
+    });
+
     it("seeds when flag ON + PBI + empty + not-seeded", async () => {
         setFeatureFlag("dashboardAutoSeed", true);
         const added = await maybeAutoSeedDashboard({ profile: "powerbi-dwd", connectorType: "powerbi-semantic-model", probe: PROBE, fetchImpl: makeFetch(true), max: 3 });

@@ -94,13 +94,38 @@ export async function warmGenieWarehouse(profileName: string): Promise<
     }
 }
 
+/* ─── Intent-signal warm ────────────────────────────────────────────── */
+//
+// 2026-07-24 cost directive: nothing warms on page load or on a timer.
+// The one signal that predicts a query 10–30s ahead of it is the user
+// focusing an ask composer — warm there, throttled per profile so
+// repeated focus/blur cycles don't spam the Databricks warehouse API.
+
+const INTENT_WARM_THROTTLE_MS = 3 * 60 * 1000;
+const lastIntentWarmAt = new Map<string, number>();
+
+/** Fire-and-forget warm-up on a user intent signal (composer focus).
+ *  Throttled to once per profile per 3 minutes. */
+export function warmOnAskIntent(profileName: string): void {
+    const trimmed = (profileName || "").trim();
+    if (!trimmed) return;
+    const now = Date.now();
+    if (now - (lastIntentWarmAt.get(trimmed) || 0) < INTENT_WARM_THROTTLE_MS) return;
+    lastIntentWarmAt.set(trimmed, now);
+    void warmGenieWarehouse(trimmed);
+}
+
 /* ─── Keep-alive ping ───────────────────────────────────────────────── */
 //
-// The warmup above eliminates cold-start on the user's FIRST ask. The
-// keep-alive ping below keeps the warehouse warm across the rest of the
-// session so the SECOND-and-onward asks also skip cold-start when the
-// user pauses for >~10 min between questions (lunch, meetings, deep
-// reading the BI canvas).
+// UNWIRED BY DEFAULT since 2026-07-24 (cost directive): a session-long
+// 4-minute ping defeats the warehouse's auto-stop and bills serverless
+// compute for every open idle tab. The machinery is kept (tested, and an
+// author can wire it deliberately for a kiosk/demo box) but the app no
+// longer starts it — cold-start is paid at the next explicit ask instead.
+//
+// Original rationale: the warmup above eliminates cold-start on the
+// user's FIRST ask; the keep-alive kept the warehouse warm so
+// second-and-onward asks after a >10-min pause also skipped cold-start.
 //
 // Defaults are tuned for Databricks' typical auto-stop:
 //   • Warehouse auto-stops after 10 min idle (Databricks default).
@@ -216,6 +241,7 @@ export function __resetWarehouseWarmupForTests(): void {
         try { ctrl.abort(); } catch { /* swallow */ }
     }
     inFlight.clear();
+    lastIntentWarmAt.clear();
     stopWarehouseKeepalive();
 }
 

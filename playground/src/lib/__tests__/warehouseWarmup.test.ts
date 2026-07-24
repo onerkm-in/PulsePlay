@@ -9,6 +9,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
     warmGenieWarehouse,
+    warmOnAskIntent,
     startWarehouseKeepalive,
     stopWarehouseKeepalive,
     __resetWarehouseWarmupForTests,
@@ -276,5 +277,37 @@ describe("startWarehouseKeepalive", () => {
 
     it("default interval matches the documented constant (4 min)", () => {
         expect(WAREHOUSE_KEEPALIVE_INTERVAL_MS).toBe(4 * 60 * 1000);
+    });
+});
+
+describe("warmOnAskIntent — throttled intent-signal warm (2026-07-24)", () => {
+    function mockFetchOk(): ReturnType<typeof vi.fn> {
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true,
+            status: 200,
+            json: async () => ({ ok: true, state: "RUNNING" }),
+        });
+        globalThis.fetch = fetchMock as unknown as typeof fetch;
+        return fetchMock;
+    }
+
+    it("fires one warm per profile within the throttle window, distinct profiles independently", async () => {
+        const fetchMock = mockFetchOk();
+        warmOnAskIntent("genie");
+        warmOnAskIntent("genie");
+        warmOnAskIntent("genie");
+        await Promise.resolve();
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        warmOnAskIntent("genie-scm-poc");
+        await Promise.resolve();
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("ignores empty profile names", async () => {
+        const fetchMock = mockFetchOk();
+        warmOnAskIntent("");
+        warmOnAskIntent("   ");
+        await Promise.resolve();
+        expect(fetchMock).not.toHaveBeenCalled();
     });
 });

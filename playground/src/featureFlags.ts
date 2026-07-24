@@ -21,28 +21,31 @@ export interface FeatureFlags {
      *  demo surface (/multi-pane-demo). DEFAULT FALSE. */
     multiConnectorPanes: boolean;
     /** When the Dashboard's native canvas is empty and a chart-capable connector
-     *  is bound, auto-pin a few starter charts from the connected source so the
-     *  Dashboard is useful out-of-the-box (closes the "empty Dashboard" gap).
-     *  DEFAULT TRUE — disable to keep a blank canvas. Tightly guarded: only the
-     *  deterministic Power BI path, only when empty, once per profile. */
+     *  is bound, auto-pin a few starter charts from the connected source
+     *  (closes the "empty Dashboard" gap). DEFAULT FALSE since 2026-07-24
+     *  (user directive): opening the Dashboard must not spend backend calls —
+     *  the seed probe + starter queries run only when the author opts in.
+     *  Tightly guarded even when ON: only the deterministic Power BI path,
+     *  only when empty, once per profile. */
     dashboardAutoSeed: boolean;
 }
 
-/** The canonical defaults. `multiConnectorPanes` stays false (single-pane app
- *  unchanged); `dashboardAutoSeed` is ON so a connected Dashboard isn't blank. */
+/** The canonical defaults. Both flags OFF: `multiConnectorPanes` keeps the
+ *  single-pane app unchanged; `dashboardAutoSeed` keeps first Dashboard visits
+ *  free of backend spend (explicit opt-in re-enables the starter charts). */
 export const DEFAULT_FEATURE_FLAGS: Readonly<FeatureFlags> = Object.freeze({
     multiConnectorPanes: false,
-    dashboardAutoSeed: true,
+    dashboardAutoSeed: false,
 });
 
-/** Coerce an unknown parsed value into a valid FeatureFlags. `multiConnectorPanes`
- *  defaults false (=== true); `dashboardAutoSeed` defaults true (only an explicit
- *  `false` disables it). */
+/** Coerce an unknown parsed value into a valid FeatureFlags. Every flag
+ *  defaults false — only an explicit `true` enables it. (dashboardAutoSeed
+ *  was missing-means-ON until 2026-07-24; the intent gate flipped it.) */
 export function normalizeFeatureFlags(raw: unknown): FeatureFlags {
     const obj = (raw && typeof raw === "object") ? raw as Record<string, unknown> : {};
     return {
         multiConnectorPanes: obj.multiConnectorPanes === true,
-        dashboardAutoSeed: obj.dashboardAutoSeed !== false,
+        dashboardAutoSeed: obj.dashboardAutoSeed === true,
     };
 }
 

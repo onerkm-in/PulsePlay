@@ -252,6 +252,7 @@ import { buildEChartsOption, humanizeColumnName, formatValueByUnit } from '../li
 import { detectColumnUnit, formatCategoryLabel } from '../visualization/chartAutoPick';
 import { CHART_PALETTES, CHART_PALETTE_EVENT, getActivePaletteId, applyChartPalette } from '../lib/chartPalettes';
 import { addCanvasTile } from '../lib/canvasTiles';
+import { warmOnAskIntent } from '../lib/warehouseWarmup';
 import IViewport = powerbi.IViewport;
 import IVisual = powerbi.extensibility.visual.IVisual;
 import IVisualHost = powerbi.extensibility.visual.IVisualHost;
@@ -4974,10 +4975,32 @@ function App(props: AppProps) {
         logSession("INFO", "AI Insights stop requested by user (cache cleared)");
     }, [activeClient, activeSpaceKey, setSpaceInsightsResult, logSession, computeInsightsCacheKey]);
 
-    // ── AI Insights auto-fire ─────────────────────────────────────────────────
-    // PBI re-mounts the visual on page-switch and theme-apply, blowing away
-    // React state. Before triggering a fresh run, try the persistent cache so
-    // the user doesn't pay 5 stages of Genie latency for an unchanged scope.
+    // Explicit-intent run entry point (2026-07-24): the ONLY way a briefing
+    // run starts. Waits (capped ~1.8s) for the connector probe so a
+    // deterministic powerbi-semantic-model connector plans the clean DAX
+    // briefing on the FIRST run; Genie's probe resolves fast and the cap
+    // guarantees the run fires even if the probe never resolves.
+    const fireInsightsRun = useCallback(() => {
+        const profileForRun = insightsActiveProfile;
+        insightsFiredRef.current[activeSpaceKey] = true;
+        if (pbiProbeRef.current.has(profileForRun)) {
+            runInsights();
+        } else {
+            Promise.race([
+                ensurePbiProbe(profileForRun),
+                new Promise(res => setTimeout(res, 1800)),
+            ]).then(() => runInsights()).catch(() => runInsights());
+        }
+    }, [activeSpaceKey, insightsActiveProfile, ensurePbiProbe, runInsights]);
+    const fireInsightsRunRef = useRef(fireInsightsRun);
+    fireInsightsRunRef.current = fireInsightsRun;
+
+    // ── AI Insights cache hydration (NO auto-fire) ────────────────────────────
+    // 2026-07-24 user directive: a briefing run must NEVER start on page load —
+    // Genie runs are real warehouse + LLM spend. On mount/space-switch this
+    // effect only HYDRATES from the persistent cache; when there is no cached
+    // briefing it leaves the idle CTA visible and waits for the user to press
+    // Refresh / Generate. Runs start exclusively through fireInsightsRun.
     useEffect(() => {
         if (insightsFiredRef.current[activeSpaceKey] || !isConfigured || insightsBusy) return;
         if (!activeClient) return;
@@ -5037,34 +5060,21 @@ function App(props: AppProps) {
             setPendingStageTitles(cached.stageTitles);
             insightsFiredRef.current[activeSpaceKey] = true;
             const ageMin = Math.max(0, Math.round((Date.now() - cached.generatedAt) / 60000));
-            logSession("INFO", `AI Insights restored from cache (generated ${ageMin}m ago); starting background refresh.`);
-            // Stale-while-revalidate: show the cached result immediately (done
-            // above) then kick off a background refresh so the user always
-            // gets fresh data without waiting for the pipeline before seeing
-            // anything. The banner in the Insights header signals the refresh
-            // is in progress; when the pipeline completes, the fresh result
-            // replaces the stale one atomically (no progressive collapse).
-            staleDisplayRef.current[activeSpaceKey] = cachedResult;
-            runInsights(undefined, undefined, /* backgroundRefresh */ true);
+            // 2026-07-24: NO background refresh here. The old stale-while-
+            // revalidate refired a full multi-stage Genie run on EVERY page
+            // load even when the cache was minutes old, making the TTL
+            // meaningless for cost. The cached briefing + its timestamp are
+            // the truth until the user explicitly refreshes.
+            logSession("INFO", `AI Insights restored from cache (generated ${ageMin}m ago); refresh manually for fresh data.`);
             return;
         }
 
+        // Cache miss/expired: hold the idle CTA — do NOT spend a run. Mark
+        // fired so this effect settles; the CTA / Refresh icon call
+        // fireInsightsRun when the user asks.
         insightsFiredRef.current[activeSpaceKey] = true;
-        // AIINSIGHTS-P1 cold-run fix: wait (capped ~1.8s) for the connector
-        // probe so a deterministic powerbi-semantic-model connector plans the
-        // clean DAX briefing on the FIRST run — no cold prose run flashing
-        // "no measure" before the re-run. Genie's probe resolves fast; the cap
-        // guarantees the run fires even if the probe is slow or never resolves.
-        const profileForRun = insightsActiveProfile;
-        if (pbiProbeRef.current.has(profileForRun)) {
-            runInsights();
-        } else {
-            Promise.race([
-                ensurePbiProbe(profileForRun),
-                new Promise(res => setTimeout(res, 1800)),
-            ]).then(() => runInsights()).catch(() => runInsights());
-        }
-    }, [activeClient, activeSpaceKey, isConfigured, insightsBusy, runInsights, computeInsightsCacheKey, setSpaceInsightsResult, setSpaceStageStatuses, logSession, enabledFeatures, props.context, insightsActiveProfile, ensurePbiProbe]);
+        logSession("INFO", "AI Insights idle — no cached briefing for this scope; waiting for an explicit Refresh/Generate.");
+    }, [activeClient, activeSpaceKey, isConfigured, insightsBusy, computeInsightsCacheKey, setSpaceInsightsResult, setSpaceStageStatuses, logSession, enabledFeatures, props.context]);
 
     // ──────────────────────────────────────────────────────────────────────────
     // Wave 35 Phase 3 — Custom SQL section dispatcher.
@@ -5159,7 +5169,15 @@ function App(props: AppProps) {
         setSpaceInsightsResult(activeSpaceKey, null);
         setSpaceStageStatuses(activeSpaceKey, []);
         setPendingStageTitles([]);
-        logSession("INFO", "Apply/Refresh pulse — re-running AI Insights.");
+        if (refreshChanged) {
+            // The refreshInsights toggle is an explicit user Apply — the one
+            // settings pulse that IS run intent. A mere settings edit (key
+            // change) only clears the stale cache and returns to the idle CTA.
+            logSession("INFO", "Apply pulse — re-running AI Insights on user request.");
+            fireInsightsRunRef.current();
+        } else {
+            logSession("INFO", "Settings changed — stale briefing cache cleared; press Refresh to regenerate.");
+        }
     }, [
         activeSpaceKey,
         computeInsightsCacheKey,
@@ -5668,7 +5686,7 @@ function App(props: AppProps) {
                                         clearInsightsCache(computeInsightsCacheKey(activeSpaceKey));
                                         setInsightsActivePromptId(null);
                                         setInsightsCustomPrompt("");
-                                        runInsights();
+                                        fireInsightsRun();
                                     }}
                                 >
                                     <Icon name="refresh" />
@@ -6200,7 +6218,22 @@ function App(props: AppProps) {
                             <span className="gn-insights-icon" aria-hidden="true"><Icon name="sparkles" size={26} /></span>
                             <h3>AI Insights</h3>
                             {isConfigured ? (
-                                <p role="status" aria-live="polite">Generating insights…</p>
+                                // 2026-07-24 intent gate: nothing runs on page
+                                // load. The briefing generates only when the
+                                // user asks — here or via the Refresh icon.
+                                <>
+                                    <p role="status" aria-live="polite" style={{ margin: "0 0 14px" }}>
+                                        No briefing generated yet for this scope. Nothing runs
+                                        until you ask — generating spends live warehouse + AI calls.
+                                    </p>
+                                    <button
+                                        type="button"
+                                        className="gn-cta-primary"
+                                        onClick={() => fireInsightsRun()}
+                                    >
+                                        Generate briefing
+                                    </button>
+                                </>
                             ) : (
                                 <>
                                     <p style={{ margin: "0 0 14px" }}>
@@ -7264,6 +7297,10 @@ function App(props: AppProps) {
                                 className="gn-input"
                                 value={question}
                                 onChange={event => setQuestion(event.target.value)}
+                                // Intent-signal warehouse warm (2026-07-24): focusing the
+                                // composer predicts an ask 10–30s out — warm the profile's
+                                // SQL warehouse now (throttled) instead of on page load.
+                                onFocus={() => warmOnAskIntent(insightsActiveProfile)}
                                 onKeyDown={event => {
                                     if (slashOpen && slashFiltered.length > 0) {
                                         if (event.key === "ArrowDown") { event.preventDefault(); setSlashSelectedIdx((slashSelectedIdx + 1) % slashFiltered.length); return; }

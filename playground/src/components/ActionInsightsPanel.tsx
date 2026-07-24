@@ -1,20 +1,26 @@
 // playground/src/components/ActionInsightsPanel.tsx
 //
-// The Action Insights surface: a PROACTIVE decision-prompt stack. It renders
-// ranked "NEEDS YOUR DECISION" cards the moment it opens — the user types
-// nothing. Data comes from the governed prompt store via the proxy
+// The Action Insights surface: a ranked "NEEDS YOUR DECISION" prompt stack.
+// Data comes from the governed prompt store via the proxy
 // (GET /insights/action-insights); actions post back through the HITL-gated
 // POST endpoint. Persona + permissions are resolved server-side; the demo
 // switcher only sends a hint header (ignored server-side when a real IdP role
 // is present).
 //
+// 2026-07-24 intent gate: the prompt-store query runs on a Databricks SQL
+// warehouse — opening the surface must NOT wake the warehouse. On mount the
+// panel hydrates from a sessionStorage cache (with its age shown) and fetches
+// ONLY on explicit user intent: the Load/Refresh buttons, a persona switch,
+// or the refetch after an action POST.
+//
 // Fail-safe: any fetch error renders a slim, non-blocking notice — it never
 // throws into the shell, so existing PulsePlay surfaces are unaffected.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { DecisionPromptCard, type DecisionPrompt } from "./DecisionPromptCard";
 
 const DEMO_PERSONA_KEY = "pulseplay:ai-demo-persona";
+const CACHE_STORAGE_KEY = "pulseplay:action-insights-cache:v1";
 const PLANNER = "Supply Chain Planner";
 const MANAGER = "Supply Chain Manager";
 
@@ -26,9 +32,38 @@ interface ApiResponse {
     prompts: DecisionPrompt[];
 }
 
+interface CachedPrompts {
+    key: string;
+    fetchedAt: number;
+    body: ApiResponse;
+}
+
 function readDemoPersona(): string {
     if (typeof window === "undefined") return "";
     try { return window.localStorage.getItem(DEMO_PERSONA_KEY) || ""; } catch { return ""; }
+}
+
+function readPromptCache(key: string): CachedPrompts | null {
+    if (typeof window === "undefined") return null;
+    try {
+        const raw = window.sessionStorage.getItem(CACHE_STORAGE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw) as CachedPrompts;
+        return parsed && parsed.key === key && parsed.body && parsed.body.ok ? parsed : null;
+    } catch { return null; }
+}
+
+function writePromptCache(entry: CachedPrompts): void {
+    try { window.sessionStorage.setItem(CACHE_STORAGE_KEY, JSON.stringify(entry)); } catch { /* quota/private mode */ }
+}
+
+function ageLabel(fetchedAt: number): string {
+    const min = Math.max(0, Math.round((Date.now() - fetchedAt) / 60000));
+    if (min < 1) return "just now";
+    if (min === 1) return "1 min ago";
+    if (min < 60) return `${min} min ago`;
+    const h = Math.round(min / 60);
+    return h === 1 ? "1 hour ago" : `${h} hours ago`;
 }
 
 export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, hideHeader }: {
@@ -43,7 +78,8 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, hideH
     hideHeader?: boolean;
 }) {
     const [data, setData] = useState<ApiResponse | null>(null);
-    const [loading, setLoading] = useState(true);
+    const [fetchedAt, setFetchedAt] = useState<number | null>(null);
+    const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [busyId, setBusyId] = useState<string | null>(null);
     const [demoPersona, setDemoPersona] = useState<string>(() => readDemoPersona());
@@ -56,17 +92,26 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, hideH
     const profileQuery = assistantProfile ? `?assistantProfile=${encodeURIComponent(assistantProfile)}` : "";
     const profileHeaders: Record<string, string> = assistantProfile ? { "X-Assistant-Profile": assistantProfile } : {};
 
-    const load = useCallback(async () => {
+    // onData via ref — parents pass inline callbacks; a dep on the prop
+    // identity would refire the hydration effect every parent render.
+    const onDataRef = useRef(onData);
+    onDataRef.current = onData;
+
+    const load = useCallback(async (personaOverride?: string) => {
+        const persona = personaOverride ?? demoPersona;
         setLoading(true);
         setError(null);
         try {
             const res = await fetch(`${base}/insights/action-insights${profileQuery}`, {
-                headers: { ...profileHeaders, ...(demoPersona ? { "x-pp-persona": demoPersona } : {}) },
+                headers: { ...profileHeaders, ...(persona ? { "x-pp-persona": persona } : {}) },
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const body = (await res.json()) as ApiResponse;
+            const now = Date.now();
             setData(body);
-            onData?.(body.prompts || []);
+            setFetchedAt(now);
+            writePromptCache({ key: `${base}|${assistantProfile || ""}|${persona}`, fetchedAt: now, body });
+            onDataRef.current?.(body.prompts || []);
         } catch (e) {
             setError(String((e as Error).message || e));
             setData(null);
@@ -75,7 +120,20 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, hideH
         }
     }, [base, demoPersona, assistantProfile]); // eslint-disable-line react-hooks/exhaustive-deps -- profileQuery/profileHeaders derive from assistantProfile
 
-    useEffect(() => { void load(); }, [load]);
+    // Mount / scope-change hydration — CACHE ONLY, never a fetch. The
+    // warehouse is queried exclusively from the Load/Refresh buttons, a
+    // persona switch, or the post-action refetch.
+    useEffect(() => {
+        const hit = readPromptCache(`${base}|${assistantProfile || ""}|${demoPersona}`);
+        if (hit) {
+            setData(hit.body);
+            setFetchedAt(hit.fetchedAt);
+            onDataRef.current?.(hit.body.prompts || []);
+        } else {
+            setData(null);
+            setFetchedAt(null);
+        }
+    }, [base, assistantProfile, demoPersona]);
 
     const onAction = useCallback(async (promptId: string, action: string) => {
         setBusyId(promptId);
@@ -105,6 +163,9 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, hideH
     const setPersona = (p: string) => {
         try { window.localStorage.setItem(DEMO_PERSONA_KEY, p); } catch { /* swallow */ }
         setDemoPersona(p);
+        // A persona switch is explicit user intent — fetch fresh for the new
+        // persona (capabilities differ server-side, stale cache would mislead).
+        void load(p);
     };
 
     const prompts = data?.prompts || [];
@@ -121,8 +182,24 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, hideH
                             NEEDS YOUR DECISION{openCount ? ` · ${openCount}` : ""}
                         </div>
                         <div className="text-muted" style={{ fontSize: 11.5, marginTop: 2 }}>
-                            Viewing as <strong>{data?.persona || "…"}</strong>
-                            {data?.personaSource === "demo" ? " (demo)" : ""}
+                            {data ? (
+                                <>
+                                    Viewing as <strong>{data.persona}</strong>
+                                    {data.personaSource === "demo" ? " (demo)" : ""}
+                                    {fetchedAt ? <> · updated {ageLabel(fetchedAt)}</> : null}
+                                    {" · "}
+                                    <button
+                                        type="button"
+                                        className="text-muted"
+                                        style={{ background: "none", border: "none", padding: 0, font: "inherit", textDecoration: "underline", cursor: "pointer" }}
+                                        disabled={loading}
+                                        aria-label="Refresh decisions from the warehouse"
+                                        onClick={() => void load()}
+                                    >{loading ? "refreshing…" : "refresh"}</button>
+                                </>
+                            ) : (
+                                <>Loads on demand — nothing queries the warehouse until you ask.</>
+                            )}
                         </div>
                     </div>
                     {/* Demo persona switcher — hint only; server ignores it when an IdP role exists. */}
@@ -153,7 +230,26 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, hideH
                 </div>
             )}
 
-            {!loading && prompts.length === 0 && !error && (
+            {!loading && !data && !error && (
+                // Intent gate — first visit with no session cache. The stack
+                // loads only when the user asks.
+                <div style={{ padding: "28px 0", textAlign: "center" }}>
+                    <div className="text-muted" style={{ fontSize: 13.5, marginBottom: 12 }}>
+                        Decision prompts are fetched from the governed store on demand.
+                    </div>
+                    <button
+                        type="button"
+                        className="btn-primary"
+                        disabled={loading}
+                        onClick={() => void load()}
+                        data-testid="action-insights-load"
+                    >
+                        Load decisions
+                    </button>
+                </div>
+            )}
+
+            {!loading && data && prompts.length === 0 && !error && (
                 <div className="text-muted" style={{ fontSize: 13.5, padding: "28px 0", textAlign: "center" }}>
                     No decisions need attention right now.
                 </div>

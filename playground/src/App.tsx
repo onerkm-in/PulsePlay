@@ -19,7 +19,6 @@ import { Icon } from "./pulse/_adapter/Icon";
 import { UnifiedAssistantSurface, type AnswerEntry, type AutoSubmitQuestionEvent } from "./components/UnifiedAssistantSurface";
 import { entryToAIResultEnvelope } from "./visualization/entryToEnvelope";
 import { useEmbedConfig } from "./settings/embedConfigStore";
-import { warmGenieWarehouse, startWarehouseKeepalive, stopWarehouseKeepalive } from "./lib/warehouseWarmup";
 import { FirstRunWizard, WizardErrorBoundary, shouldShowWizard, type PersonaKey } from "./components/FirstRunWizard";
 import { SurfaceSwitcher } from "./components/SurfaceSwitcher";
 import { ActionInsightsPanel } from "./components/ActionInsightsPanel";
@@ -639,29 +638,13 @@ function PlaygroundApp(): React.ReactElement {
 
 
 
-    // Pre-warm the Databricks SQL warehouse for the active Genie profile so
-    // the user's first Pulse / AI ask doesn't pay 30-60s of cold-start.
-    // Fire-and-forget; the proxy returns 400 cleanly for profiles without
-    // a warehouseId (Foundation Model / Bedrock). Debounced 600ms to avoid
-    // thrashing during rapid connector swaps.
-    //
-    // After the initial pre-warm fires, install a keep-alive ping every
-    // ~4 min so the warehouse doesn't auto-stop mid-session (Databricks
-    // default auto-stop is 10 min idle). The keep-alive auto-pauses when
-    // the tab goes background (document.hidden) and fires an immediate
-    // re-warm on tab return. Cleanup tears both down on connector swap +
-    // App unmount.
-    useEffect(() => {
-        if (!activeConnector) return;
-        const debounce = setTimeout(() => {
-            void warmGenieWarehouse(activeConnector);
-            startWarehouseKeepalive(activeConnector);
-        }, 600);
-        return () => {
-            clearTimeout(debounce);
-            stopWarehouseKeepalive();
-        };
-    }, [activeConnector]);
+    // 2026-07-24 cost directive: NO warehouse warm-up on page load and NO
+    // session keep-alive — both spent Databricks compute with zero user
+    // intent (the keep-alive defeated the warehouse's 10-min auto-stop for
+    // every open tab). The warehouse now warms on a real intent signal
+    // instead: focusing an ask composer calls warmOnAskIntent (throttled),
+    // and any query path still cold-starts it server-side via
+    // ensureWarehouseRunning when needed.
 
     // The only writer of `pulseplay:ui-mode` is a manual dev-tools
     // localStorage.setItem (explicit escape hatch). The local `setUiMode`
@@ -1252,10 +1235,10 @@ function PlaygroundApp(): React.ReactElement {
     );
     const dashboardAssistantLabel = dashboardSurfaceProfile || pulseAssistantProfile || activeConnector || "No assistant";
     // Auto-seed the Dashboard's native canvas with a few starter charts when
-    // it's empty and a chart-capable connector is bound, so a connected
-    // Dashboard isn't a blank canvas. Flag-gated (dashboardAutoSeed, default
-    // on), PBI-only, once per profile. Fires when the Dashboard surface is
-    // the active one.
+    // it's empty and a chart-capable connector is bound. Flag-gated
+    // (dashboardAutoSeed — default OFF since 2026-07-24: opening the Dashboard
+    // must not spend backend calls; the author opts in), PBI-only, once per
+    // profile. Fires when the Dashboard surface is the active one.
     useDashboardAutoSeed({
         profile: dashboardSurfaceProfile || pulseAssistantProfile || activeConnector || "",
         active: activeSurface === "bi-viz",
