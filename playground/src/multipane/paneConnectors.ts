@@ -20,7 +20,6 @@
 
 import type { BIEmbedConfig } from "../biPanel/BIAdapter";
 import type { PaneInstance } from "../settings/settingsStore";
-import type { FeatureFlags } from "../featureFlags";
 
 /** A single pane's connector binding. Every field is optional: an unset field
  *  means "inherit the active global for this axis" (backward-compat). */
@@ -48,9 +47,6 @@ export interface ProjectInput {
     /** Per-pane connector overrides, keyed by paneId. A pane with no entry
      *  falls back to its PaneInstance fields, then to the legacy globals. */
     connectorStates: ReadonlyMap<string, PaneConnectorState>;
-    /** The feature flags. When `multiConnectorPanes` is false, the projection
-     *  returns `legacy` verbatim. */
-    flags: Pick<FeatureFlags, "multiConnectorPanes">;
     /** Today's app-level globals — the backward-compatible fallback. */
     legacy: ActiveConnectorProjection;
 }
@@ -72,16 +68,10 @@ export function resolvePaneConnector(
 }
 
 /** Project the per-pane model down to the three single-active-per-axis globals.
- *
- *  - flag OFF  → returns `legacy` verbatim (the app is byte-for-byte unchanged).
- *  - flag ON   → returns the ACTIVE pane (pane[0]) resolved binding, with the
- *                legacy globals as the per-field fallback. With no panes it
- *                still returns legacy.
- *
- *  This is the single function that guarantees "the globals are a projection of
- *  pane[0]" without changing single-pane behavior. Pure. */
+ *  Returns the ACTIVE pane (pane[0]) resolved binding, with the legacy globals
+ *  as the per-field fallback; with no panes / no overrides it returns legacy
+ *  verbatim (single-active-per-axis — the only behavior PulsePlay ships). Pure. */
 export function projectActivePaneConnector(input: ProjectInput): ActiveConnectorProjection {
-    if (!input.flags.multiConnectorPanes) return input.legacy;
     const active = input.panes[0];
     if (!active) return input.legacy;
     return resolvePaneConnector(active, input.connectorStates, input.legacy);

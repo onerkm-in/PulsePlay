@@ -17,9 +17,6 @@ export const FEATURE_FLAGS_KEY = "pulseplay:feature-flags";
 export const FEATURE_FLAGS_EVENT = "pulseplay:feature-flags-change";
 
 export interface FeatureFlags {
-    /** Part C — unlocks the per-pane connector state model + the multi-pane
-     *  demo surface (/multi-pane-demo). DEFAULT FALSE. */
-    multiConnectorPanes: boolean;
     /** When the Dashboard's native canvas is empty and a chart-capable connector
      *  is bound, auto-pin a few starter charts from the connected source
      *  (closes the "empty Dashboard" gap). DEFAULT FALSE since 2026-07-24
@@ -30,11 +27,9 @@ export interface FeatureFlags {
     dashboardAutoSeed: boolean;
 }
 
-/** The canonical defaults. Both flags OFF: `multiConnectorPanes` keeps the
- *  single-pane app unchanged; `dashboardAutoSeed` keeps first Dashboard visits
- *  free of backend spend (explicit opt-in re-enables the starter charts). */
+/** The canonical defaults. `dashboardAutoSeed` is OFF so first Dashboard visits
+ *  stay free of backend spend (explicit opt-in re-enables the starter charts). */
 export const DEFAULT_FEATURE_FLAGS: Readonly<FeatureFlags> = Object.freeze({
-    multiConnectorPanes: false,
     dashboardAutoSeed: false,
 });
 
@@ -44,7 +39,6 @@ export const DEFAULT_FEATURE_FLAGS: Readonly<FeatureFlags> = Object.freeze({
 export function normalizeFeatureFlags(raw: unknown): FeatureFlags {
     const obj = (raw && typeof raw === "object") ? raw as Record<string, unknown> : {};
     return {
-        multiConnectorPanes: obj.multiConnectorPanes === true,
         dashboardAutoSeed: obj.dashboardAutoSeed === true,
     };
 }

@@ -1,10 +1,10 @@
 // playground/src/multipane/__tests__/paneConnectors.test.ts
 //
-// Part C P1 — the projection that keeps the single-active-per-axis globals
-// backward-compatible. The load-bearing assertions:
-//   - flag OFF  → projection EQUALS today's globals (byte-for-byte behavior)
-//   - flag ON   → the active pane (pane[0]) binding wins, legacy is the fallback
-//   - multiple panes each hold INDEPENDENT connector state (the whole point)
+// The projection that collapses the per-pane model to the single-active-per-axis
+// globals. The active pane (pane[0]) binding wins; the legacy globals are the
+// per-field fallback; with no panes / no overrides it returns legacy verbatim.
+// (The multiConnectorPanes flag was removed with the multi-pane demo, so the
+// projection no longer branches on a flag.)
 
 import { describe, it, expect } from "vitest";
 import type { PaneInstance } from "../../settings/settingsStore";
@@ -28,38 +28,11 @@ function pane(paneId: string, extra: Partial<PaneInstance> = {}): PaneInstance {
     return { paneId, pageId: "p", placement: "inline", createdAt: 0, ...extra };
 }
 
-describe("projectActivePaneConnector — flag OFF is byte-for-byte legacy", () => {
-    it("returns the legacy globals VERBATIM (same reference) when the flag is off", () => {
-        const out = projectActivePaneConnector({
-            panes: [pane("pane-0", { vendor: "native", aiProfile: "foundation" })],
-            connectorStates: new Map(),
-            flags: { multiConnectorPanes: false },
-            legacy: LEGACY,
-        });
-        // Identity: nothing is recomputed — the existing app sees the exact globals.
-        expect(out).toBe(LEGACY);
-    });
-
-    it("ignores per-pane bindings entirely when off", () => {
-        const states = new Map<string, PaneConnectorState>([
-            ["pane-0", { vendor: "tableau", aiProfile: "bedrock" }],
-        ]);
-        const out = projectActivePaneConnector({
-            panes: [pane("pane-0")],
-            connectorStates: states,
-            flags: { multiConnectorPanes: false },
-            legacy: LEGACY,
-        });
-        expect(out).toEqual(LEGACY);
-    });
-});
-
-describe("projectActivePaneConnector — flag ON projects pane[0]", () => {
+describe("projectActivePaneConnector — projects pane[0]", () => {
     it("falls back to legacy per field when pane[0] is unbound", () => {
         const out = projectActivePaneConnector({
             panes: [pane("pane-0")],
             connectorStates: new Map(),
-            flags: { multiConnectorPanes: true },
             legacy: LEGACY,
         });
         expect(out).toEqual(LEGACY);
@@ -72,7 +45,6 @@ describe("projectActivePaneConnector — flag ON projects pane[0]", () => {
         const out = projectActivePaneConnector({
             panes: [pane("pane-0"), pane("pane-1")],
             connectorStates: states,
-            flags: { multiConnectorPanes: true },
             legacy: LEGACY,
         });
         expect(out.activeVendor).toBe("native");
@@ -85,18 +57,16 @@ describe("projectActivePaneConnector — flag ON projects pane[0]", () => {
         const out = projectActivePaneConnector({
             panes: [pane("pane-0", { vendor: "qlik", aiProfile: "supervisor" })],
             connectorStates: new Map(),
-            flags: { multiConnectorPanes: true },
             legacy: LEGACY,
         });
         expect(out.activeVendor).toBe("qlik");
         expect(out.activeConnector).toBe("supervisor");
     });
 
-    it("returns legacy when there are no panes at all", () => {
+    it("returns legacy verbatim when there are no panes at all", () => {
         const out = projectActivePaneConnector({
             panes: [],
             connectorStates: new Map(),
-            flags: { multiConnectorPanes: true },
             legacy: LEGACY,
         });
         expect(out).toBe(LEGACY);

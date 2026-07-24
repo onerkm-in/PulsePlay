@@ -1,8 +1,8 @@
 // playground/src/__tests__/featureFlags.test.ts
 //
-// Part C P0 — the multiConnectorPanes flag must DEFAULT OFF and be a clean
-// persisted bag (load / set / reset / normalize). The default-off guarantee is
-// what keeps the single-pane app unchanged.
+// The feature-flags bag must DEFAULT OFF and be a clean persisted store
+// (load / set / reset / normalize). `dashboardAutoSeed` is the sole flag since
+// `multiConnectorPanes` was removed with the multi-pane demo (2026-07-24).
 
 import { describe, it, expect, beforeEach } from "vitest";
 import {
@@ -20,38 +20,38 @@ beforeEach(() => {
 });
 
 describe("featureFlags — default OFF", () => {
-    it("multiConnectorPanes defaults to false with no stored value", () => {
-        expect(DEFAULT_FEATURE_FLAGS.multiConnectorPanes).toBe(false);
-        expect(loadFeatureFlags().multiConnectorPanes).toBe(false);
-        expect(isFeatureEnabled("multiConnectorPanes")).toBe(false);
+    it("dashboardAutoSeed defaults to false with no stored value", () => {
+        expect(DEFAULT_FEATURE_FLAGS.dashboardAutoSeed).toBe(false);
+        expect(loadFeatureFlags().dashboardAutoSeed).toBe(false);
+        expect(isFeatureEnabled("dashboardAutoSeed")).toBe(false);
     });
 
     it("returns defaults when storage holds malformed JSON (never throws)", () => {
         window.localStorage.setItem(FEATURE_FLAGS_KEY, "{not valid json");
-        expect(loadFeatureFlags().multiConnectorPanes).toBe(false);
+        expect(loadFeatureFlags().dashboardAutoSeed).toBe(false);
     });
 
     it("normalizeFeatureFlags coerces junk + missing fields to false", () => {
-        expect(normalizeFeatureFlags(null).multiConnectorPanes).toBe(false);
-        expect(normalizeFeatureFlags({}).multiConnectorPanes).toBe(false);
-        expect(normalizeFeatureFlags({ multiConnectorPanes: "yes" }).multiConnectorPanes).toBe(false);
-        expect(normalizeFeatureFlags({ multiConnectorPanes: 1 }).multiConnectorPanes).toBe(false);
-        expect(normalizeFeatureFlags({ multiConnectorPanes: true }).multiConnectorPanes).toBe(true);
+        expect(normalizeFeatureFlags(null).dashboardAutoSeed).toBe(false);
+        expect(normalizeFeatureFlags({}).dashboardAutoSeed).toBe(false);
+        expect(normalizeFeatureFlags({ dashboardAutoSeed: "yes" }).dashboardAutoSeed).toBe(false);
+        expect(normalizeFeatureFlags({ dashboardAutoSeed: 1 }).dashboardAutoSeed).toBe(false);
+        expect(normalizeFeatureFlags({ dashboardAutoSeed: true }).dashboardAutoSeed).toBe(true);
     });
 });
 
 describe("featureFlags — set / reset", () => {
     it("setFeatureFlag persists and reads back", () => {
-        setFeatureFlag("multiConnectorPanes", true);
-        expect(isFeatureEnabled("multiConnectorPanes")).toBe(true);
-        expect(loadFeatureFlags().multiConnectorPanes).toBe(true);
+        setFeatureFlag("dashboardAutoSeed", true);
+        expect(isFeatureEnabled("dashboardAutoSeed")).toBe(true);
+        expect(loadFeatureFlags().dashboardAutoSeed).toBe(true);
     });
 
     it("resetFeatureFlags clears back to the all-false default", () => {
-        setFeatureFlag("multiConnectorPanes", true);
-        expect(isFeatureEnabled("multiConnectorPanes")).toBe(true);
+        setFeatureFlag("dashboardAutoSeed", true);
+        expect(isFeatureEnabled("dashboardAutoSeed")).toBe(true);
         resetFeatureFlags();
-        expect(isFeatureEnabled("multiConnectorPanes")).toBe(false);
+        expect(isFeatureEnabled("dashboardAutoSeed")).toBe(false);
         expect(window.localStorage.getItem(FEATURE_FLAGS_KEY)).toBeNull();
     });
 
@@ -59,7 +59,7 @@ describe("featureFlags — set / reset", () => {
         let fired = false;
         const handler = () => { fired = true; };
         window.addEventListener("pulseplay:feature-flags-change", handler);
-        setFeatureFlag("multiConnectorPanes", true);
+        setFeatureFlag("dashboardAutoSeed", true);
         window.removeEventListener("pulseplay:feature-flags-change", handler);
         expect(fired).toBe(true);
     });

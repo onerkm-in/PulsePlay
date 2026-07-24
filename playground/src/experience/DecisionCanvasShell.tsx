@@ -61,11 +61,16 @@ function goToSurface(surface: string): void {
     } catch { /* swallow */ }
 }
 
+// The screen ids MUST be the canonical SurfaceId values (surfaceRegistry) —
+// goToSurface writes ?surface=<id> and the router only hands off to a screen
+// when isSurfaceId() accepts it. The Pulse-tab namespace ("insights"/"chat")
+// is NOT a SurfaceId, so using those left the AI Insights / Ask Pulse links
+// dead in combined mode. Labels match the segregated switcher exactly.
 const NAV: Array<{ id: string; label: string; Icon: typeof Clock; unified?: boolean }> = [
     { id: "unified", label: "Unified Canvas", Icon: LayoutGrid, unified: true },
-    { id: "action-insights", label: "Decision Assist", Icon: Clock },
-    { id: "insights", label: "AI Insights", Icon: Sparkles },
-    { id: "chat", label: "Ask Pulse", Icon: MessageCircle },
+    { id: "action-insights", label: "Decisions", Icon: Clock },
+    { id: "ai-insights", label: "AI Insights", Icon: Sparkles },
+    { id: "ask-pulse", label: "Ask Pulse", Icon: MessageCircle },
     { id: "bi-viz", label: "Dashboard", Icon: BarChart3 },
 ];
 
