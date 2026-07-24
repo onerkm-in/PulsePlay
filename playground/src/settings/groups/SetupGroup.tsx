@@ -146,7 +146,6 @@ export function SetupGroup(): React.ReactElement {
         { label: "Danger zone — sign out of Power BI", hint: "Clear MSAL tokens and PBI-cached identity", section: "Settings → Advanced", href: "/settings/advanced" },
         // ── Hidden routes (made discoverable here) ─────────────────────
         { label: "Launchpad", hint: "Pack / connector landing page", section: "Launchpad", href: "/launchpad" },
-        { label: "Workbench preview", hint: "Unified workbench (preview-flag gated)", section: "Workbench", href: "/workbench" },
         { label: "Knowledge base browser", hint: "Browse all knowledge packs + sub-verticals + evidence", section: "Knowledge", href: "/knowledge" },
     ] as const, []);
 

@@ -65,15 +65,10 @@ import { KnowledgeShell } from "./knowledge/KnowledgeShell";
 import { useKnowledgeRoute } from "./knowledge/knowledgeRoute";
 import { PowerBiQnaShell, usePowerBiQnaRoute } from "./powerbi/PowerBiQnARoute";
 import { LaunchpadShell } from "./launchpad/LaunchpadShell";
-import { MultiPaneDemoShell } from "./multipane/MultiPaneDemoShell";
-import { useMultiPaneRoute } from "./multipane/multiPaneRoute";
-import { SurfaceConnectorBar } from "./multipane/SurfaceConnectorBar";
 import { getSurfaceProfile, SURFACE_CONNECTORS_EVENT } from "./multipane/surfaceConnectors";
 import { FEATURE_FLAGS_EVENT } from "./featureFlags";
 import { useDashboardAutoSeed } from "./multipane/dashboardAutoSeed";
 import { useLaunchpadRoute } from "./launchpad/launchpadRoute";
-import { WorkbenchShell } from "./workbench/WorkbenchShell";
-import { useWorkbenchRoute } from "./workbench/workbenchRoute";
 import { GearIcon, WarnIcon } from "./lib/icons";
 // Lazy-load PulseShell so the large pulse chunk stays off the first-paint
 // critical path.
@@ -427,9 +422,7 @@ function AppRouted(): React.ReactElement {
     const settingsRoute = useSettingsRoute();
     const knowledgeRoute = useKnowledgeRoute();
     const launchpadRoute = useLaunchpadRoute();
-    const workbenchRoute = useWorkbenchRoute();
     const powerBiQnaRoute = usePowerBiQnaRoute();
-    const multiPaneRoute = useMultiPaneRoute();
 
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -443,19 +436,11 @@ function AppRouted(): React.ReactElement {
         return () => window.removeEventListener("keydown", handler);
     }, []);
 
-    if (workbenchRoute.isWorkbenchRoute) {
-        return <WorkbenchShell />;
-    }
     if (knowledgeRoute.isKnowledgeRoute) {
         return <KnowledgeShell />;
     }
     if (powerBiQnaRoute.isPowerBiQnaRoute) {
         return <PowerBiQnaShell />;
-    }
-    if (multiPaneRoute.isMultiPaneRoute) {
-        // The surface gates its own content on the multiConnectorPanes flag
-        // (default OFF), so this route is inert unless an author enables it.
-        return <MultiPaneDemoShell />;
     }
     if (launchpadRoute.isLaunchpadRoute) {
         return (
@@ -1460,14 +1445,6 @@ function PlaygroundApp(): React.ReactElement {
                     <SetupStatusPill readiness={setupReadiness} />
                 </div>
             </header>
-
-            {/* Per-surface connector bar. Renders only when the
-              * multiConnectorPanes flag is on (else returns null), so the
-              * single-connector header is unchanged by default. */}
-            <SurfaceConnectorBar
-                aiProfiles={allowlistState.allowlist?.aiProfiles ?? []}
-                sharedProfile={activeConnector}
-            />
 
             {/* Top-right toolbar: the single global cluster of cross-cutting
               * affordances and canonical entry point for pane controls. Per-pane
