@@ -184,33 +184,15 @@ export function PreferencesGroup(): React.ReactElement {
             </Leaf>
             </SubSection>
 
-            {/* ─── Surface (author-only) ──────────────────────────────── */}
+            {/* ─── Ask Pulse (author-only) ────────────────────────────── */}
             <SubSection
-                label="Surface"
-                helper="Which assistant surface end users get. Workbench (the 3-tab strip — AI Insights / Ask Pulse / Dashboard) is the default. Chat is an alternative single-pane conversational surface; it stays wired but is only offered to end users when you enable it here."
+                label="Ask Pulse"
+                helper="Author controls for the Ask Pulse tab."
             >
             <Leaf
                 group="preferences"
-                label="Chat surface"
-                helper="When ON, a Workbench⇄Chat switch appears in the top bar so end users can flip between the Workbench and the single-pane Chat surface. When OFF (default), end users only ever see Workbench and no surface switcher is shown. Author-only — this is not exposed to end users as a surface control."
-            >
-                <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                    <input
-                        type="checkbox"
-                        checked={pulseAi.value.allowChatSurface}
-                        onChange={e => pulseAi.update({ allowChatSurface: e.target.checked })}
-                        style={{ margin: 0 }}
-                    />
-                    <span style={{ fontSize: 13 }}>Allow end users to switch to the Chat surface</span>
-                </label>
-                <p style={{ fontSize: 11, opacity: 0.65, margin: "6px 0 0" }}>
-                    Default OFF. Workbench remains the cold-boot surface regardless of this setting; enabling it only adds the optional top-bar switcher.
-                </p>
-            </Leaf>
-            <Leaf
-                group="preferences"
-                label="Chat history button"
-                helper="Show the 'Show history' button on the Ask Pulse / Chat surface. Default OFF (hidden) to keep the surface clean."
+                label="Ask Pulse history button"
+                helper="Show the 'Show history' button on the Ask Pulse surface. Default OFF (hidden) to keep the surface clean."
             >
                 <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
                     <input

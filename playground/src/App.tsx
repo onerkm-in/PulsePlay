@@ -16,8 +16,6 @@ import { listVendors } from "./biPanel/registry";
 import type { BIAdapter, BICapabilities, BICommand, BIEvent, BIEmbedConfig } from "./biPanel/BIAdapter";
 import type powerbi from "./pulse/_adapter/powerbi-visuals-api";
 import { Icon } from "./pulse/_adapter/Icon";
-import { UnifiedAssistantSurface, type AnswerEntry, type AutoSubmitQuestionEvent } from "./components/UnifiedAssistantSurface";
-import { entryToAIResultEnvelope } from "./visualization/entryToEnvelope";
 import { useEmbedConfig } from "./settings/embedConfigStore";
 import { FirstRunWizard, WizardErrorBoundary, shouldShowWizard, type PersonaKey } from "./components/FirstRunWizard";
 import { SurfaceSwitcher } from "./components/SurfaceSwitcher";
@@ -48,9 +46,7 @@ import {
     PERFORMANCE_LEVERS_EVENT,
     type PerformanceLevers,
 } from "./settings/performanceLevers";
-import { SettingsProvider, useSettings, DEFAULT_UI_MODE, readTabVisibility } from "./settings/settingsStore";
-import { resolveDefaultSurface } from "./featureRegistry/resolver";
-import { SurfaceModeChip } from "./components/SurfaceModeChip";
+import { SettingsProvider, useSettings } from "./settings/settingsStore";
 import { PULSE_VISUAL_SETTINGS_EVENT } from "./settings/pulseVisualSettingsStore";
 import { SettingsShell } from "./settings/SettingsShell";
 import { useSettingsRoute, navigateToSettings } from "./settings/settingsRoute";
@@ -75,11 +71,6 @@ import { GearIcon, WarnIcon } from "./lib/icons";
 const PulseShell = lazy(() =>
     import("./components/PulseShell").then(m => ({ default: m.PulseShell }))
 );
-
-/** UI mode toggle: "pulse" mounts the ported Pulse experience, "v0" mounts
- *  the assistant-only surface. Both keep the BI canvas usable. */
-type UiMode = "pulse" | "v0";
-const UI_MODE_STORAGE_KEY = "pulseplay:ui-mode";
 
 /** Which panels render at all: "aiOnly" hides the BI canvas, "biOnly" hides
  *  the AI side, "both" is the explicit split-pane view, "mix" (default) makes
@@ -186,28 +177,6 @@ function readInitialActiveConnector(): string {
         if (primary && primary.trim()) return primary.trim();
     } catch { /* swallow */ }
     return readPulseAssistantProfile();
-}
-
-function readInitialUiMode(): UiMode {
-    // Delegates to the feature-registry resolver. Mirrors
-    // settingsStore.readUiMode(); both readers must stay in lockstep
-    // or the cold-boot surface flickers between renderers.
-    if (typeof window === "undefined") return DEFAULT_UI_MODE;
-    let explicit: "pulse" | "v0" | null = null;
-    try {
-        const stored = window.localStorage.getItem(UI_MODE_STORAGE_KEY);
-        if (stored === "v0" || stored === "pulse") explicit = stored;
-    } catch { /* swallow */ }
-    const resolved = resolveDefaultSurface({
-        explicitUiMode: explicit,
-        requiredFeatures: [],
-        tabVisibility: readTabVisibility(),
-    });
-    // The resolver can return "dashboard" (a registered surface), but App's
-    // uiMode field only holds "pulse" | "v0"; the dashboard surface is
-    // selected via tabVisibility + per-tab routing, not via this field.
-    // Map dashboard to DEFAULT_UI_MODE so the legacy field stays valid.
-    return resolved === "dashboard" ? DEFAULT_UI_MODE : resolved;
 }
 
 function readInitialEnabledComponents(): EnabledComponents {
@@ -596,7 +565,6 @@ function PlaygroundApp(): React.ReactElement {
         else persistEmbedConfig(next);
     }, [embedConfig, persistEmbedConfig, clearEmbedConfig]);
     const [recentEvents, setRecentEvents] = useState<BIEvent[]>([]);
-    const [uiMode, setUiMode] = useState<UiMode>(() => readInitialUiMode());
     const [enabledComponents, setEnabledComponents] = useState<EnabledComponents>(
         () => readInitialEnabledComponents(),
     );
@@ -614,12 +582,6 @@ function PlaygroundApp(): React.ReactElement {
     const [requestedPulseTab, setRequestedPulseTab] = useState<PulseSurfaceTab>(() => surfaceToPulseTab(readInitialActiveSurface()) ?? "insights");
     const [enabledFeatures, setEnabledFeatures] = useState<EnabledFeaturesInput>(
         () => readPulseAiVisualSettings().enabledFeatures,
-    );
-    // Author gate for the Chat (v0) surface chip: it only renders when an
-    // author has enabled Chat in Settings. Updated live via the
-    // PULSE_VISUAL_SETTINGS_EVENT listener that tracks enabledFeatures.
-    const [allowChatSurface, setAllowChatSurface] = useState<boolean>(
-        () => readPulseAiVisualSettings().allowChatSurface,
     );
     const [pinnedViewportPane, setPinnedViewportPane] = useState<ViewportFocus>(() => readInitialPinnedViewportPane());
     const biAdaptersRef = useRef<Map<number, BIAdapter>>(new Map());
@@ -900,9 +862,7 @@ function PlaygroundApp(): React.ReactElement {
         const handler = (e: Event) => {
             const detail = (e as CustomEvent<{ key?: string; value?: string }>).detail;
             if (!detail || typeof detail.value !== "string") return;
-            if (detail.key === UI_MODE_STORAGE_KEY && (detail.value === "pulse" || detail.value === "v0")) {
-                setUiMode(detail.value);
-            } else if (detail.key === ENABLED_COMPONENTS_STORAGE_KEY && (detail.value === "aiOnly" || detail.value === "biOnly" || detail.value === "both" || detail.value === "mix")) {
+            if (detail.key === ENABLED_COMPONENTS_STORAGE_KEY && (detail.value === "aiOnly" || detail.value === "biOnly" || detail.value === "both" || detail.value === "mix")) {
                 handleEnabledComponentsChange(detail.value);
             } else if (detail.key === LAYOUT_MODE_STORAGE_KEY && (detail.value === "ai-left" || detail.value === "ai-right" || detail.value === "ai-top" || detail.value === "ai-bottom")) {
                 setLayoutMode(detail.value);
@@ -970,21 +930,10 @@ function PlaygroundApp(): React.ReactElement {
             setPulseRenderToken(t => t + 1);
             const next = readPulseAiVisualSettings();
             setEnabledFeatures(next.enabledFeatures);
-            setAllowChatSurface(next.allowChatSurface);
         };
         window.addEventListener(PULSE_VISUAL_SETTINGS_EVENT, handler as EventListener);
         return () => window.removeEventListener(PULSE_VISUAL_SETTINGS_EVENT, handler as EventListener);
     }, []);
-
-    // When the author has not enabled the Chat surface, end
-    // users must always land in Workbench. Coerce uiMode back to "pulse"
-    // if a stale localStorage override (or the dev escape hatch) left it on
-    // "v0" while Chat is disabled; otherwise the user would be stuck in
-    // Chat with no chip to switch back. The author setting wins over the
-    // stored mode; the chip + v0 only come back when allowChatSurface is on.
-    useEffect(() => {
-        if (!allowChatSurface && uiMode !== "pulse") setUiMode("pulse");
-    }, [allowChatSurface, uiMode]);
 
     // "mix" is the unified default: AI Insights / Ask Pulse / BI Viz are
     // peer surfaces in one primary canvas. Authors who want a permanent
@@ -1038,43 +987,6 @@ function PlaygroundApp(): React.ReactElement {
         setPrimaryBIAdapter(biAdaptersRef.current.get(0) || null);
     }, []);
 
-    // Route a completed UnifiedAssistantSurface entry into the active BI
-    // adapter as a `renderResult` command when the runtime BI vendor is
-    // native. Guarded by:
-    //   * runtimeBiVendor === "native": only the native adapter has
-    //     `renderResult`; vendor adapters reject it as UNSUPPORTED_COMMAND.
-    //   * primaryBIAdapter present.
-    //   * envelope has answer or rows; empty envelopes would just paint an
-    //     empty state over the canvas.
-    // `runtimeBiVendor` is computed further down, so the handler reads it
-    // through a ref (also keeps the callback stable across vendor switches).
-    // The `BICommand` cast is a known type widening: `renderResult` is on
-    // `NativeBICommand`, not the generic `BIAdapter.send` signature, and
-    // vendor adapters would throw at runtime, hence the runtimeBiVendor guard.
-    const runtimeBiVendorRef = useRef<string>("");
-    const handleEntryCompleted = useCallback((entry: AnswerEntry) => {
-        if (runtimeBiVendorRef.current !== "native") return;
-        if (!primaryBIAdapter) return;
-        const envelope = entryToAIResultEnvelope({
-            messageId:   entry.messageId,
-            fallbackId:  String(entry.id),
-            question:    entry.question,
-            answer:      entry.answer,
-            sqlQuery:    entry.sqlQuery,
-            queryResult: entry.queryResult,
-            governance:  entry.governance,
-        });
-        if (!envelope.answer && !envelope.rows) return;
-        void primaryBIAdapter
-            .send({ kind: "renderResult", result: envelope } as unknown as BICommand)
-            .catch((err) => {
-                // Adapter rejects are observable but not fatal; the
-                // sidebar still shows the answer text. Log so a flaky
-                // adapter surfaces in DevTools.
-                console.warn("[App] native renderResult dispatch failed:", err);
-            });
-    }, [primaryBIAdapter]);
-
     const handlePulseApplyFilter = useCallback((
         filter: powerbi.IFilter | powerbi.IFilter[] | null,
         action: powerbi.FilterAction,
@@ -1111,7 +1023,6 @@ function PlaygroundApp(): React.ReactElement {
     // persisted genieSettings.assistantProfile changes; also re-read on
     // first mount.
     useEffect(() => {
-        if (uiMode !== "pulse") return;
         let cancelled = false;
         try {
             const raw = window.localStorage.getItem("pulseplay:visual-settings:genieSettings");
@@ -1139,7 +1050,7 @@ function PlaygroundApp(): React.ReactElement {
             });
         } catch { /* swallow */ }
         return () => { cancelled = true; };
-    }, [uiMode, pulseRenderToken, probeResult, handleProbeComplete]);
+    }, [pulseRenderToken, probeResult, handleProbeComplete]);
 
     // Write the active pack selection to localStorage so Pulse's genie.ts
     // can pick it up and forward to /assistant/conversations/start.
@@ -1205,11 +1116,6 @@ function PlaygroundApp(): React.ReactElement {
         [biSurfaceMode, activeVendor, hasEmbedConfig, visibleVendors],
     );
     const runtimeBiVendor = biSurfaceResolution.runtimeVendor;
-    // Keep the entry-completed handler's runtimeBiVendor read fresh without
-    // re-creating the callback every render (ref read in handleEntryCompleted).
-    useEffect(() => {
-        runtimeBiVendorRef.current = runtimeBiVendor;
-    }, [runtimeBiVendor]);
     const hasRenderableBiSurface = biSurfaceResolution.usesNative || hasEmbedConfig;
     const dashboardSurfaceMode = biSurfaceResolution.usesNative
         ? "Pulse Canvas"
@@ -1314,12 +1220,6 @@ function PlaygroundApp(): React.ReactElement {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [allowlistFailClosed, hasRenderableBiSurface, activeConnector, visibleVendors.length, wizardForceTick]);
 
-    /** Wizard "Done & ask" auto-submit. Captured here and passed to
-     *  UnifiedAssistantSurface via the `autoSubmitQuestion` prop. The event id
-     *  makes each wizard completion distinct, so intentionally asking the
-     *  same suggested question on a later re-run still fires. */
-    const wizardAutoSubmitSeqRef = useRef(0);
-    const [wizardAutoSubmit, setWizardAutoSubmit] = useState<AutoSubmitQuestionEvent | null>(null);
     /** Persona persistence: a wizard re-run pre-selects the user's previous role. */
     const [lastPersona, setLastPersona] = useState<PersonaKey | null>(() => {
         try {
@@ -1347,9 +1247,6 @@ function PlaygroundApp(): React.ReactElement {
             setActiveConnector(picks.connector);
             setEmbedConfig(picks.embedConfig);
             setPackSelection(picks.packSelection);
-            // Intentionally no uiMode write: all wizard personas return
-            // DEFAULT_UI_MODE; picks.uiMode stays in the type contract for a
-            // future feature-feasibility resolver.
             handleLayoutModeChange(picks.layoutMode as LayoutMode);
             // Persist the AI profile via settingsStore.setActiveAiProfile()
             // (writes the canonical key, mirrors to genieSettings, fires
@@ -1372,19 +1269,6 @@ function PlaygroundApp(): React.ReactElement {
             }
             setLastPersona(picks.persona);
             try { window.localStorage.setItem("pulseplay:last-persona", picks.persona); } catch { /* swallow */ }
-            // "Done & ask" path: arm UnifiedAssistantSurface to fire ask() once on the
-            // next render. Empty / falsy values clear the arm so a normal
-            // "Done" doesn't trigger a stale auto-submit.
-            if (picks.autoAsk && picks.suggestedQuestion && picks.suggestedQuestion.trim()) {
-                const question = picks.suggestedQuestion.trim();
-                wizardAutoSubmitSeqRef.current += 1;
-                setWizardAutoSubmit({
-                    id:       wizardAutoSubmitSeqRef.current,
-                    question,
-                });
-            } else {
-                setWizardAutoSubmit(null);
-            }
             setWizardForceTick(t => t + 1);
         },
         [setEmbedConfig, handleLayoutModeChange, settings],
@@ -1436,12 +1320,9 @@ function PlaygroundApp(): React.ReactElement {
                     <h1 style={{ margin: 0, fontSize: 22, lineHeight: 1.1 }}>PulsePlay</h1>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    {/* Surface-mode chip (Workbench/Chat) is author-gated:
-                      * it only renders when Chat is enabled in Settings. */}
                     {/* BundleSwitcher (ADR-0011) swaps the bound (BI surface,
                       * AI brain) pair; self-hides when nothing to switch. */}
                     <BundleSwitcher runtimeVendor={runtimeBiVendor} runtimeVendorLabel={dashboardVendorLabel} />
-                    {allowChatSurface && <SurfaceModeChip currentMode={uiMode} />}
                     <SetupStatusPill readiness={setupReadiness} />
                 </div>
             </header>
@@ -1560,8 +1441,8 @@ function PlaygroundApp(): React.ReactElement {
                         onOpenPage={() => handleViewportOpenPage("ai")}
                         onFloat={() => handleViewportFloat("ai")}
                         onShowBoth={handleShowBothPanes}
-                        quiet={uiMode === "pulse"}
-                        hideHeader={uiMode === "pulse"}
+                        quiet
+                        hideHeader
                     >
                         <aside ref={mainAiMirrorSourceRef} className="pp-app__sidebar" style={panelInnerStyle()}>
                             {allowlistState.error && (
@@ -1600,31 +1481,17 @@ function PlaygroundApp(): React.ReactElement {
                                         <ActionInsightsPanel proxyBase={readConfiguredProxyBase()} assistantProfile={activeConnector} />
                                     </div>
                                 </div>
-                            ) : uiMode === "pulse" ? (
-                                <>
-                                    <Suspense fallback={<PulseLoadingState />}>
-                                        <PulseShell
-                                            renderToken={pulseRenderToken}
-                                            activeTabRequest={requestedPulseTab}
-                                            onSettingsChange={() => setPulseRenderToken(t => t + 1)}
-                                            onApplyFilter={handlePulseApplyFilter}
-                                            biEvents={recentEvents}
-                                            biVendor={runtimeBiVendor}
-                                        />
-                                    </Suspense>
-                                </>
                             ) : (
-                                // v0 mode renders only the assistant surface; pickers and
-                                // config panels live in Settings, never inline here.
-                                <UnifiedAssistantSurface
-                                    activeVendor={runtimeBiVendor}
-                                    activeConnector={activeConnector}
-                                    recentEvents={recentEvents}
-                                    packSelection={packSelection}
-                                    biAdapter={primaryBIAdapter}
-                                    autoSubmitQuestion={wizardAutoSubmit}
-                                    onEntryCompleted={handleEntryCompleted}
-                                />
+                                <Suspense fallback={<PulseLoadingState />}>
+                                    <PulseShell
+                                        renderToken={pulseRenderToken}
+                                        activeTabRequest={requestedPulseTab}
+                                        onSettingsChange={() => setPulseRenderToken(t => t + 1)}
+                                        onApplyFilter={handlePulseApplyFilter}
+                                        biEvents={recentEvents}
+                                        biVendor={runtimeBiVendor}
+                                    />
+                                </Suspense>
                             )}
                         </aside>
                     </PaneChrome>
@@ -1719,9 +1586,7 @@ function PlaygroundApp(): React.ReactElement {
                                             testid: "pp-dashboard-empty-secondary-cta",
                                         };
                                          if (aiVisible) {
-                                             const description = uiMode === "pulse"
-                                                 ? "Dashboard is the shared data canvas. It can host an embedded BI report or show Pulse Canvas artifacts created from Ask Pulse."
-                                                 : "Choose a BI vendor and embed config, or use Pulse Canvas for governed AI-generated charts, tables, and KPIs.";
+                                             const description = "Dashboard is the shared data canvas. It can host an embedded BI report or show Pulse Canvas artifacts created from Ask Pulse.";
                                              return (
                                                  <PaneEmptyState
                                                      testid="pp-dashboard-empty"

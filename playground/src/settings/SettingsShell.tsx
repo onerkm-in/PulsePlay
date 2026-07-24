@@ -128,10 +128,8 @@ export const GROUP_LEAF_LABELS: Record<SettingsGroupId, string[]> = {
         "Workbench template",
         "Visible tabs",
         "Default landing tab",
-        // Author gate for the Chat (v0) surface; Workbench is the default.
-        "Chat surface",
-        // Author gate for the chat "Show history" button (hidden by default).
-        "Chat history button",
+        // Author gate for the Ask Pulse "Show history" button (hidden by default).
+        "Ask Pulse history button",
         "Canvas tiles",
         "Appearance",
     ],

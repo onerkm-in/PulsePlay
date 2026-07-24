@@ -78,14 +78,6 @@ export interface PulseAiVisualSettings {
     /** Phase E.1 — client-side progressive reveal of single-shot Genie
      *  answers. Default true; opt out for instant render. */
     insightsStagedRevealEnabled: boolean;
-    /** 2026-05-28 — author gate for the Chat (v0 / UnifiedAssistantSurface)
-     *  surface. Workbench (pulse) is the default surface; Chat is kept
-     *  wired but only OFFERED to end users when an author flips this on.
-     *  When true, the top-bar Workbench⇄Chat chip renders so users can
-     *  switch; when false (default) the chip is hidden and end users only
-     *  ever see Workbench. Author-only — set in Settings, never exposed
-     *  to end users as a surface control. */
-    allowChatSurface: boolean;
     /** 2026-05-29 — author gate for the chat "Show history" button. Default
      *  false (hidden) so the chat surface stays clean; flip ON in Settings →
      *  Preferences → Surface to expose the history toggle to end users. */
@@ -123,7 +115,6 @@ const DEFAULTS: PulseAiVisualSettings = {
     showConnectorCompatibilityWarnings: true,
     insightsShowResearchTraces: true,
     insightsStagedRevealEnabled: true,
-    allowChatSurface: false,
     showHistoryButton: false,
 };
 
@@ -198,7 +189,6 @@ export function readPulseAiVisualSettings(): PulseAiVisualSettings {
         showConnectorCompatibilityWarnings: asBool(raw.showConnectorCompatibilityWarnings, DEFAULTS.showConnectorCompatibilityWarnings),
         insightsShowResearchTraces: asBool(raw.insightsShowResearchTraces, DEFAULTS.insightsShowResearchTraces),
         insightsStagedRevealEnabled: asBool(raw.insightsStagedRevealEnabled, DEFAULTS.insightsStagedRevealEnabled),
-        allowChatSurface: asBool(raw.allowChatSurface, DEFAULTS.allowChatSurface),
         showHistoryButton: asBool(raw.showHistoryButton, DEFAULTS.showHistoryButton),
     };
 }
