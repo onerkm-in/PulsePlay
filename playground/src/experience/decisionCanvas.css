@@ -102,36 +102,48 @@
 .dcc-kpi--warn { background: var(--pp-warn-soft); }
 .dcc-kpi--bad { background: var(--pp-bad-soft); }
 .dcc-kpi--violet { background: var(--pp-violet-soft); }
-.dcc-kpi-top { display: flex; align-items: center; justify-content: space-between; }
-.dcc-kpi-icon { width: 38px; height: 38px; border-radius: var(--radius-md, 4px); display: flex; align-items: center; justify-content: center; }
+.dcc-kpi-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 2px; }
+.dcc-kpi-icon { width: 38px; height: 38px; border-radius: var(--radius-md, 4px); display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
 .dcc-kpi--good .dcc-kpi-icon { background: rgba(31,157,107,0.16); color: var(--pp-good); }
 .dcc-kpi--warn .dcc-kpi-icon { background: rgba(224,144,44,0.16); color: var(--pp-warn); }
 .dcc-kpi--bad .dcc-kpi-icon { background: rgba(209,69,61,0.16); color: var(--pp-bad); }
 .dcc-kpi--violet .dcc-kpi-icon { background: rgba(124,92,216,0.16); color: var(--pp-violet); }
-.dcc-kpi-delta { background: rgba(255,255,255,0.6); border-radius: var(--radius-sm, 3px); padding: 3px 8px; font-size: 10.5px; font-weight: 700; font-family: var(--font-heading); }
-.dcc-kpi--good .dcc-kpi-delta, .dcc-kpi--good .dcc-kpi-value { color: var(--pp-good); }
-.dcc-kpi--warn .dcc-kpi-delta, .dcc-kpi--warn .dcc-kpi-value { color: var(--pp-warn); }
-.dcc-kpi--bad .dcc-kpi-delta, .dcc-kpi--bad .dcc-kpi-value { color: var(--pp-bad); }
-.dcc-kpi--violet .dcc-kpi-delta, .dcc-kpi--violet .dcc-kpi-value { color: var(--pp-violet); }
-.dcc-kpi-value { font-family: var(--font-heading); font-weight: var(--font-heading-weight); font-variant-numeric: tabular-nums; font-size: 26px; }
-.dcc-kpi-label { font-size: 12px; color: color-mix(in srgb, var(--color-text) 65%, transparent); margin-top: 2px; }
+/* Context chip (right of the icon) — a real fact, not a fabricated delta. */
+.dcc-kpi-chip {
+  background: rgba(255,255,255,0.62); border-radius: var(--radius-sm, 3px);
+  padding: 3px 8px; font-size: 10.5px; font-weight: 700; font-family: var(--font-heading);
+  white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.dcc-kpi--good .dcc-kpi-chip, .dcc-kpi--good .dcc-kpi-value { color: var(--pp-good); }
+.dcc-kpi--warn .dcc-kpi-chip, .dcc-kpi--warn .dcc-kpi-value { color: var(--pp-warn); }
+.dcc-kpi--bad .dcc-kpi-chip, .dcc-kpi--bad .dcc-kpi-value { color: var(--pp-bad); }
+.dcc-kpi--violet .dcc-kpi-chip, .dcc-kpi--violet .dcc-kpi-value { color: var(--pp-violet); }
+.dcc-kpi-value { font-family: var(--font-heading); font-weight: var(--font-heading-weight); font-variant-numeric: tabular-nums; font-size: 30px; line-height: 1.05; }
+.dcc-kpi-label { font-size: 12px; color: color-mix(in srgb, var(--color-text) 66%, transparent); margin-top: 3px; }
 
 /* ── chart row ── */
-.dcc-charts { display: grid; grid-template-columns: 2fr 1fr; gap: 18px; margin-bottom: 18px; }
-.dcc-chart-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
-.dcc-legend { display: flex; gap: 14px; font-size: 11px; }
-.dcc-legend span { display: inline-flex; align-items: center; gap: 5px; }
-.dcc-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
-.dcc-donut-wrap { display: flex; flex-direction: column; align-items: center; }
-.dcc-donut-legend { display: flex; gap: 12px; margin-top: 10px; font-size: 10.5px; }
+.dcc-charts { display: grid; grid-template-columns: 2fr 1fr; gap: 18px; margin-bottom: 18px; align-items: stretch; }
+.dcc-charts > .dcc-card { display: flex; flex-direction: column; }
+.dcc-chart-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 14px; }
+.dcc-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; display: inline-block; }
+/* Donut fills its card: figure centred + grown, legend as a tidy stack below. */
+.dcc-donut-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; gap: 14px; }
+.dcc-donut-figure { width: 100%; max-width: 168px; }
+.dcc-donut-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 16px; font-size: 11.5px; }
+.dcc-donut-leg { display: inline-flex; align-items: center; gap: 6px; color: var(--color-neutral-700, #5d5d60); }
+.dcc-donut-leg b { font-variant-numeric: tabular-nums; color: var(--color-text); }
 
-/* impact-by-severity bars */
-.dcc-sevbars { display: flex; flex-direction: column; gap: 12px; }
-.dcc-sevbar-row { display: flex; flex-direction: column; gap: 4px; }
-.dcc-sevbar-head { display: flex; justify-content: space-between; font-size: 12px; }
-.dcc-sevbar-head b { font-variant-numeric: tabular-nums; font-weight: 700; }
-.dcc-sevbar-track { height: 8px; border-radius: 4px; background: var(--color-neutral-200, #e7e7ea); overflow: hidden; }
-.dcc-sevbar-fill { height: 100%; border-radius: 4px; }
+/* decisions-by-severity bars — vertically centred so they fill the taller card
+   beside the donut instead of hugging the top. */
+.dcc-sevbars { display: flex; flex-direction: column; gap: 16px; flex: 1; justify-content: center; }
+.dcc-sevbar-row { display: flex; flex-direction: column; gap: 5px; }
+.dcc-sevbar-head { display: flex; align-items: baseline; justify-content: space-between; font-size: 12.5px; }
+.dcc-sevbar-name { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; }
+.dcc-sevbar-val { display: inline-flex; align-items: baseline; gap: 10px; }
+.dcc-sevbar-usd { font-size: 11px; color: var(--color-neutral-600, #7a7a7d); font-variant-numeric: tabular-nums; }
+.dcc-sevbar-val b { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 14px; }
+.dcc-sevbar-track { height: 9px; border-radius: 5px; background: var(--color-neutral-200, #e7e7ea); overflow: hidden; }
+.dcc-sevbar-fill { height: 100%; border-radius: 5px; transition: width 220ms ease; }
 
 /* ── decision list host ── */
 .dcc-decisions { padding: 22px 24px; margin-bottom: 18px; }
@@ -147,15 +159,6 @@
 .dcc-statechip { border-radius: var(--radius-sm, 3px); padding: 3px 8px; font-size: 9.5px; font-weight: 700; font-family: var(--font-heading); flex: 0 0 auto; }
 .dcc-empty { font-size: 12.5px; color: var(--color-neutral-500, #98989b); line-height: 1.5; padding: 6px 0; }
 
-/* ── governance footer ── */
-.dcc-foot {
-  position: fixed; left: 0; right: 0; bottom: 0; height: 36px; z-index: 35;
-  display: flex; align-items: center; justify-content: space-between; gap: 20px;
-  padding: 0 18px; background: var(--color-surface, #fff);
-  box-shadow: 0 -1px 0 var(--color-divider);
-  font-size: 11px; color: var(--color-neutral-600, #7a7a7d);
-}
-.dc-cockpit .dcc-content { padding-bottom: 60px; }
 
 /* ── responsive: collapse the sidebar to a top nav ── */
 .dc-cockpit--narrow { flex-direction: column; }
@@ -169,4 +172,3 @@
 .dc-cockpit--narrow .dcc-side-foot { display: none; }
 .dc-cockpit--narrow .dcc-charts,
 .dc-cockpit--narrow .dcc-two { grid-template-columns: 1fr; }
-.dc-cockpit--narrow .dcc-foot { display: none; }

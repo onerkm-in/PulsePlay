@@ -102,33 +102,42 @@ function useIsNarrow(): boolean {
     return narrow;
 }
 
-/** Real severity distribution → SVG donut arcs (bad/warn/violet/neutral). */
+const SEV_LABEL: Record<string, string> = { critical: "Critical", high: "High", medium: "Medium", low: "Low" };
+
+/** Real severity distribution → SVG donut arcs. Scales to the card width, uses a
+ *  thinner ring with rounded gaps, a big centre total, and a legend that lists
+ *  only the severities actually present (with their counts). */
 function SeverityDonut({ counts }: { counts: Record<string, number> }) {
-    const total = SEV_ORDER.reduce((s, k) => s + (counts[k] || 0), 0);
+    const present = SEV_ORDER.filter((k) => (counts[k] || 0) > 0);
+    const total = present.reduce((s, k) => s + (counts[k] || 0), 0);
     const C = 2 * Math.PI * 15.5;
+    const gap = present.length > 1 ? 0.6 : 0; // tiny gap between arcs
     let offset = 0;
     return (
         <div className="dcc-donut-wrap">
-            <svg width="130" height="130" viewBox="0 0 36 36" aria-label="Open decisions by severity">
-                <circle cx="18" cy="18" r="15.5" fill="none" stroke="var(--color-neutral-200, #e7e7ea)" strokeWidth="4" />
-                {total > 0 && SEV_ORDER.map((k) => {
-                    const n = counts[k] || 0;
-                    if (!n) return null;
-                    const len = (n / total) * C;
-                    const el = (
-                        <circle key={k} cx="18" cy="18" r="15.5" fill="none" stroke={SEV_COLOR[k]} strokeWidth="4"
-                            strokeDasharray={`${len} ${C - len}`} strokeDashoffset={-offset}
-                            strokeLinecap="butt" transform="rotate(-90 18 18)" />
-                    );
-                    offset += len;
-                    return el;
-                })}
-                <text x="18" y="20" textAnchor="middle" fontFamily="var(--font-heading)" fontSize="7" fontWeight="600" fill="var(--color-text)">{total}</text>
-            </svg>
+            <div className="dcc-donut-figure">
+                <svg viewBox="0 0 36 36" role="img" aria-label={`Open decisions by severity: ${total} total`} style={{ width: "100%", height: "auto" }}>
+                    <circle cx="18" cy="18" r="15.5" fill="none" stroke="var(--color-neutral-200, #e7e7ea)" strokeWidth="3.4" />
+                    {present.map((k) => {
+                        const n = counts[k] || 0;
+                        const len = Math.max(0, (n / total) * C - gap);
+                        const el = (
+                            <circle key={k} cx="18" cy="18" r="15.5" fill="none" stroke={SEV_COLOR[k]} strokeWidth="3.4"
+                                strokeDasharray={`${len} ${C - len}`} strokeDashoffset={-offset}
+                                strokeLinecap="round" transform="rotate(-90 18 18)" />
+                        );
+                        offset += (n / total) * C;
+                        return el;
+                    })}
+                    <text x="18" y="17.5" textAnchor="middle" fontFamily="var(--font-heading)" fontSize="8" fontWeight="600" fill="var(--color-text)">{total}</text>
+                    <text x="18" y="23" textAnchor="middle" fontFamily="var(--font-body)" fontSize="3.1" fill="var(--color-neutral-600, #7a7a7d)">open</text>
+                </svg>
+            </div>
             <div className="dcc-donut-legend">
-                <span style={{ color: "var(--pp-bad)" }}>● Critical</span>
-                <span style={{ color: "var(--pp-warn)" }}>● High</span>
-                <span style={{ color: "var(--pp-violet)" }}>● Medium</span>
+                {present.map((k) => (
+                    <span key={k} className="dcc-donut-leg"><span className="dcc-dot" style={{ background: SEV_COLOR[k] }} />{SEV_LABEL[k]} <b>{counts[k]}</b></span>
+                ))}
+                {!present.length && <span className="dcc-empty" style={{ padding: 0 }}>No open decisions.</span>}
             </div>
         </div>
     );
@@ -158,19 +167,28 @@ export function DecisionCanvasShell(): React.ReactElement {
         const counts: Record<string, number> = {};
         let impact = 0;
         let approvals = 0;
+        let usdCount = 0;
         for (const p of open) {
             counts[p.severity] = (counts[p.severity] || 0) + 1;
-            if (p.business_impact_unit === "USD") impact += p.business_impact_value || 0;
+            if (p.business_impact_unit === "USD") { impact += p.business_impact_value || 0; usdCount += 1; }
             if (p.approval_required) approvals += 1;
         }
         const resolved = prompts.filter((p) => TERMINAL.has(p.status)).length;
-        const impactBySev = SEV_ORDER.map((k) => ({
-            k,
-            sum: open.filter((p) => p.severity === k && p.business_impact_unit === "USD")
-                .reduce((s, p) => s + (p.business_impact_value || 0), 0),
-        })).filter((r) => r.sum > 0);
-        const maxSev = Math.max(1, ...impactBySev.map((r) => r.sum));
-        return { open: open.length, counts, impact, approvals, resolved, impactBySev, maxSev };
+        // Per-severity breakdown across ALL severities that have an open decision
+        // (count-based — always populated when decisions exist, unlike the old
+        // USD-only filter that left the card empty). USD impact is annotated per
+        // row where the engine surfaced a dollar figure.
+        const bySev = SEV_ORDER
+            .map((k) => ({
+                k,
+                count: open.filter((p) => p.severity === k).length,
+                usd: open.filter((p) => p.severity === k && p.business_impact_unit === "USD")
+                    .reduce((s, p) => s + (p.business_impact_value || 0), 0),
+            }))
+            .filter((r) => r.count > 0);
+        const maxCount = Math.max(1, ...bySev.map((r) => r.count));
+        const critical = counts.critical || 0;
+        return { open: open.length, counts, impact, approvals, resolved, usdCount, bySev, maxCount, critical };
     }, [prompts]);
 
     return (
@@ -225,72 +243,77 @@ export function DecisionCanvasShell(): React.ReactElement {
                 </div>
 
                 <div className="dcc-content">
-                    {/* KPI strip — real, derived from the open decisions */}
+                    {/* KPI strip — real, derived from the open decisions. Each tile
+                        carries a context chip (right of the icon) so the top row
+                        reads as a proper KPI header, not a lone floating icon. The
+                        chips are honest facts about the same prompts, never a
+                        fabricated period-over-period delta (we have no history). */}
                     <div className="dcc-kpis">
                         <div className="dcc-kpi dcc-kpi--bad">
                             <div className="dcc-kpi-top">
                                 <span className="dcc-kpi-icon"><CircleDollarSign size={18} strokeWidth={1.8} aria-hidden /></span>
+                                <span className="dcc-kpi-chip">{kpi.usdCount} USD-valued</span>
                             </div>
-                            <div>
-                                <div className="dcc-kpi-value">{kpi.impact > 0 ? fmtUsd(kpi.impact) : "—"}</div>
-                                <div className="dcc-kpi-label">Impact at risk (open)</div>
-                            </div>
+                            <div className="dcc-kpi-value">{kpi.impact > 0 ? fmtUsd(kpi.impact) : "—"}</div>
+                            <div className="dcc-kpi-label">Impact at risk (open)</div>
                         </div>
                         <div className="dcc-kpi dcc-kpi--violet">
                             <div className="dcc-kpi-top">
                                 <span className="dcc-kpi-icon"><ListChecks size={18} strokeWidth={1.8} aria-hidden /></span>
+                                <span className="dcc-kpi-chip">{kpi.critical} critical</span>
                             </div>
-                            <div>
-                                <div className="dcc-kpi-value">{kpi.open}</div>
-                                <div className="dcc-kpi-label">Open decisions</div>
-                            </div>
+                            <div className="dcc-kpi-value">{kpi.open}</div>
+                            <div className="dcc-kpi-label">Open decisions</div>
                         </div>
                         <div className="dcc-kpi dcc-kpi--warn">
                             <div className="dcc-kpi-top">
                                 <span className="dcc-kpi-icon"><Clock size={18} strokeWidth={1.8} aria-hidden /></span>
+                                <span className="dcc-kpi-chip">HITL-gated</span>
                             </div>
-                            <div>
-                                <div className="dcc-kpi-value">{kpi.approvals}</div>
-                                <div className="dcc-kpi-label">Awaiting approval</div>
-                            </div>
+                            <div className="dcc-kpi-value">{kpi.approvals}</div>
+                            <div className="dcc-kpi-label">Awaiting approval</div>
                         </div>
                         <div className="dcc-kpi dcc-kpi--good">
                             <div className="dcc-kpi-top">
                                 <span className="dcc-kpi-icon"><CheckCircle2 size={18} strokeWidth={1.8} aria-hidden /></span>
+                                <span className="dcc-kpi-chip">this session</span>
                             </div>
-                            <div>
-                                <div className="dcc-kpi-value">{kpi.resolved}</div>
-                                <div className="dcc-kpi-label">Resolved this session</div>
-                            </div>
+                            <div className="dcc-kpi-value">{kpi.resolved}</div>
+                            <div className="dcc-kpi-label">Resolved this session</div>
                         </div>
                     </div>
 
-                    {/* Chart row — impact-by-severity bars + severity donut (both real) */}
+                    {/* Chart row — open decisions by severity (count bars, always
+                        populated, USD annotated) + severity donut (proportion).
+                        Both derived from the same real prompts. */}
                     <div className="dcc-charts">
                         <div className="dcc-card dcc-pad">
                             <div className="dcc-chart-head">
-                                <h3 className="dcc-section-title">Open impact by severity</h3>
+                                <h3 className="dcc-section-title">Open decisions by severity</h3>
                                 <span className="dcc-list-ts">measured · deterministic</span>
                             </div>
-                            {kpi.impactBySev.length ? (
+                            {kpi.bySev.length ? (
                                 <div className="dcc-sevbars">
-                                    {kpi.impactBySev.map((r) => (
+                                    {kpi.bySev.map((r) => (
                                         <div key={r.k} className="dcc-sevbar-row">
                                             <div className="dcc-sevbar-head">
-                                                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                                                <span className="dcc-sevbar-name">
                                                     <span className="dcc-dot" style={{ background: SEV_COLOR[r.k], borderRadius: 2 }} />
                                                     {r.k[0].toUpperCase() + r.k.slice(1)}
                                                 </span>
-                                                <b>{fmtUsd(r.sum)}</b>
+                                                <span className="dcc-sevbar-val">
+                                                    {r.usd > 0 && <span className="dcc-sevbar-usd">{fmtUsd(r.usd)}</span>}
+                                                    <b>{r.count}</b>
+                                                </span>
                                             </div>
                                             <div className="dcc-sevbar-track">
-                                                <div className="dcc-sevbar-fill" style={{ width: `${Math.max(4, (r.sum / kpi.maxSev) * 100)}%`, background: SEV_COLOR[r.k] }} />
+                                                <div className="dcc-sevbar-fill" style={{ width: `${Math.max(6, (r.count / kpi.maxCount) * 100)}%`, background: SEV_COLOR[r.k] }} />
                                             </div>
                                         </div>
                                     ))}
                                 </div>
                             ) : (
-                                <p className="dcc-empty">No dollar-quantified open decisions right now. Impact appears here as the engine surfaces USD-valued findings.</p>
+                                <p className="dcc-empty">No open decisions right now — the governed queue is clear.</p>
                             )}
                         </div>
                         <div className="dcc-card dcc-pad">
