@@ -135,7 +135,7 @@ const DEMO = "Demo";
 const CONNECTOR_LIVE_STATUS: Record<string, ConnectorLiveStatusMeta> = {
     "powerbi-dataset-dax": { status: "verified", label: VERIFIED, note: "Proven end-to-end: deterministic DAX, exact totals, no LLM." },
     "foundation-model": { status: "verified", label: VERIFIED, note: "Proven end-to-end against a Mosaic AI serving endpoint." },
-    "genie": { status: "unverified", label: UNVERIFIED, note: "Code path is complete, but needs Serverless Compute (or a classic SQL warehouse) enabled on YOUR Databricks workspace to run. Not yet proven live in PulsePlay's reference workspace (serverless disabled there)." },
+    "genie": { status: "verified", label: VERIFIED, note: "Proven end-to-end: real NL→SQL round-trips against a live Genie space (2026-07-23). Your workspace still needs Serverless Compute or a classic SQL warehouse." },
     "supervisor": { status: "unverified", label: UNVERIFIED, note: "Fan-out across Genie spaces; depends on Genie being reachable on your workspace." },
     "supervisor-local": { status: "unverified", label: UNVERIFIED, note: "Proxy-side fan-out across Genie spaces; not yet exercised end-to-end (Genie blocked in reference testing)." },
     "azure-openai-chat": { status: "unverified", label: UNVERIFIED, note: "Code path exists; not yet proven live in PulsePlay reference testing. Should work once you configure an Azure OpenAI deployment." },

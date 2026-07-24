@@ -39,6 +39,7 @@ export const CONTEXT_BUNDLES_STORAGE_KEY = "pulseplay:context-bundles";
 /** Humanize known ids; fall back to a title-cased raw id. */
 const VENDOR_LABELS: Record<string, string> = {
     powerbi: "Power BI",
+    native: "Pulse Canvas",
     tableau: "Tableau",
     qlik: "Qlik",
     looker: "Looker",
@@ -89,9 +90,19 @@ function makeBundle(biVendor: string, aiProfile: string, opts?: { pack?: string;
 // the Genie brain or the deterministic Semantic Q&A brain. The former Tableau/
 // Qlik/Looker pairs pointed at iframe stubs; re-add pairs here when a vendor
 // bridge is real.
+// The Genie pairs key on the REAL profile name from proxy/config.json
+// ("genie"), not the proxy's "default" alias — resolveActiveBundle matches on
+// the literal active profile id, so an alias pair can never light up the chip
+// and selecting it would point Settings at a profile the catalogue doesn't
+// list. Orgs with different profile names curate via authored bundles.
 const CANDIDATE_PAIRS: ReadonlyArray<{ biVendor: string; aiProfile: string }> = [
-    { biVendor: "powerbi", aiProfile: "default" },
+    { biVendor: "powerbi", aiProfile: "genie" },
     { biVendor: "powerbi", aiProfile: "powerbi-dwd" },
+    // Pulse Canvas (native workbench) with the same two proven brains. This is
+    // the pair FirstRunWizard actually configures for Genie, so without it the
+    // chip brands the flagship combination "CUSTOM".
+    { biVendor: "native", aiProfile: "genie" },
+    { biVendor: "native", aiProfile: "powerbi-dwd" },
 ];
 
 // Mirrors settingsStore `passesAllowlist`: empty/absent list = permissive

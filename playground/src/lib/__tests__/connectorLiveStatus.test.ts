@@ -5,9 +5,10 @@ import { describe, expect, it } from "vitest";
 import { getConnectorLiveStatus } from "../connectorManifests";
 
 describe("getConnectorLiveStatus", () => {
-    it("marks the two proven backends as verified", () => {
+    it("marks the three proven backends as verified", () => {
         expect(getConnectorLiveStatus("foundation-model").status).toBe("verified");
         expect(getConnectorLiveStatus("powerbi-dataset-dax").status).toBe("verified");
+        expect(getConnectorLiveStatus("genie").status).toBe("verified");
     });
 
     it("marks code-present-but-unproven backends as unverified (never overstates)", () => {
@@ -16,10 +17,10 @@ describe("getConnectorLiveStatus", () => {
         }
     });
 
-    it("does NOT make a universal 'blocked' claim for Genie — it's unverified with a workspace note", () => {
+    it("keeps the environment prerequisite in Genie's note, not as a blocked status", () => {
         const genie = getConnectorLiveStatus("genie");
-        expect(genie.status).toBe("unverified");
-        // The environment-specific blocker lives in the note, not the status.
+        expect(genie.status).toBe("verified");
+        // The environment-specific prerequisite lives in the note.
         expect(genie.note).toMatch(/Serverless Compute|warehouse/i);
     });
 
