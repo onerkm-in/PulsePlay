@@ -262,6 +262,7 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, hideH
                     onAction={onAction}
                     busy={busyId === p.prompt_id}
                     maxImpact={maxImpact}
+                    connectorProfileId={assistantProfile}
                 />
             ))}
         </div>

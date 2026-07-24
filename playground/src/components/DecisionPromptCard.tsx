@@ -16,6 +16,8 @@
 import { useState } from "react";
 import { SaveChannel } from "../canvas/SaveChannel";
 import type { EligibleSection } from "../canvas/canvasTypes";
+import { createSqlBackedTile } from "../lib/canvasTileActions";
+import { bindDecisionEvidenceSql } from "../lib/decisionEvidenceSql";
 import "./decisionPromptCard.css";
 
 export interface DecisionPrompt {
@@ -114,20 +116,58 @@ function actionQuestion(p: DecisionPrompt): string {
 }
 
 export function DecisionPromptCard({
-    prompt, onAction, busy, maxImpact,
+    prompt, onAction, busy, maxImpact, connectorProfileId,
 }: {
     prompt: DecisionPrompt;
     onAction: (promptId: string, action: string, rationale?: string) => void;
     busy: boolean;
     maxImpact: number;
+    /** Warehouse-capable profile the prompt's evidence SQL runs against when
+     *  pinned to the canvas. Pin is offered only when this AND evidence_sql
+     *  are present — the pinned tile refreshes deterministically (no LLM). */
+    connectorProfileId?: string;
 }) {
     const [showEvidence, setShowEvidence] = useState(false);
+    const [pinState, setPinState] = useState<"idle" | "pinning" | "pinned" | "error">("idle");
+    const [pinError, setPinError] = useState<string | null>(null);
     const sev = SEV[prompt.severity] || SEV.low;
     const allowed = prompt.allowed_actions || [];
     const primary = PRIMARY_ORDER.find((c) => allowed.includes(c));
     const secondaries = allowed.filter((c) => c !== primary && c !== "view_evidence");
     const impactPct = maxImpact > 0 ? Math.max(4, Math.round((prompt.business_impact_value / maxImpact) * 100)) : 0;
     const terminal = ["actioned", "rejected", "false-positive", "snoozed"].includes(prompt.status);
+
+    // Pin the decision's evidence to the canvas as a SQL-backed, refreshable
+    // tile — deterministic (the evidence SELECT re-runs on the warehouse, no
+    // LLM). Only reachable when the prompt carries evidence_sql AND a
+    // warehouse profile is bound.
+    const canPin = !!prompt.evidence_sql && !!connectorProfileId;
+    const pinToCanvas = async () => {
+        if (!prompt.evidence_sql || !connectorProfileId) return;
+        setPinState("pinning"); setPinError(null);
+        // The evidence SQL is a parameterized template (:mk / :pmk / …). Bind
+        // it from the prompt's own fields the same way the engine does, and
+        // refuse rather than run a partially-bound query.
+        const bound = bindDecisionEvidenceSql(prompt);
+        if (!bound.ok || !bound.sql) {
+            setPinState("error");
+            setPinError(bound.error || "Couldn't prepare the evidence query.");
+            return;
+        }
+        const res = await createSqlBackedTile({
+            title: prompt.headline || prompt.kpi || "Decision evidence",
+            sql: bound.sql,
+            profile: connectorProfileId,
+            renderAs: "table",
+            sourceQuestion: `Decision ${prompt.rule_id}`,
+        });
+        if (res.ok) {
+            setPinState("pinned");
+        } else {
+            setPinState("error");
+            setPinError(res.error || "Couldn't pin to canvas.");
+        }
+    };
 
     return (
         <div className={`dpc ${sev.sev}${terminal ? " dpc--terminal" : ""}`}>
@@ -178,8 +218,21 @@ export function DecisionPromptCard({
                             onClick={() => setShowEvidence((v) => !v)}
                             className="btn btn-ghost btn-sm dpc__evidence-toggle"
                         >{showEvidence ? "Hide evidence" : "View evidence"}</button>
+                        {canPin && (
+                            <button
+                                type="button"
+                                onClick={pinToCanvas}
+                                disabled={pinState === "pinning" || pinState === "pinned"}
+                                className="btn btn-ghost btn-sm dpc__pin"
+                                title="Pin this decision's evidence to the Dashboard canvas as a SQL-backed tile (no AI — refreshes deterministically)"
+                            >{pinState === "pinning" ? "Pinning…" : pinState === "pinned" ? "Pinned to canvas ✓" : "Pin to canvas"}</button>
+                        )}
                         <SaveChannel compact eligible={eligibleFromPrompt(prompt)} />
                     </div>
+                )}
+
+                {pinState === "error" && pinError && (
+                    <div className="dpc__pin-error" role="status">{pinError}</div>
                 )}
 
                 {terminal && (
