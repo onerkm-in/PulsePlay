@@ -83,6 +83,19 @@ describe("shouldShowGroundingAdvisory — fail-closed grounding check", () => {
         expect(shouldShowGroundingAdvisory(undefined)).toBe(false);
     });
 
+    it("SUPPRESSES on the cache-surviving groundedRowsSeen flag (rehydrated Genie briefing)", () => {
+        // A cached briefing keeps only the LAST stage's queryResult (often a
+        // row-less narrative) and no stageTraces — the persisted flag carries
+        // the row confirmation across the cache round-trip.
+        expect(
+            shouldShowGroundingAdvisory({ status: "COMPLETED", queryResult: null, groundedRowsSeen: true }),
+        ).toBe(false);
+        // Absent or false flag changes nothing — still fail-closed.
+        expect(
+            shouldShowGroundingAdvisory({ status: "COMPLETED", queryResult: null, groundedRowsSeen: false }),
+        ).toBe(true);
+    });
+
     it("a SQL string PLUS real rows suppresses (real grounded query) — SQL alone never decides", () => {
         expect(
             shouldShowGroundingAdvisory({

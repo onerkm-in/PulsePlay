@@ -42,6 +42,11 @@ export interface CachedInsightsEntry {
     status: string;
     sqlQuery?: string;
     queryResult?: { columns: string[]; rows: unknown[][] };
+    /** True when ANY stage of the run returned real query rows. Persisted so
+     *  the grounding advisory doesn't fail closed (over-warn) on rehydrated
+     *  briefings — stage traces are memory-only and `queryResult` above only
+     *  holds the last stage's result. */
+    groundedRowsSeen?: boolean;
     trace?: string[];
     viewMode?: string;
     stageTitles: string[];

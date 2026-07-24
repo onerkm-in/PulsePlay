@@ -42,6 +42,12 @@ export interface GroundingCheckInput {
     /** Per-stage traces for staged briefings (memory-only; absent for cached runs,
      *  which is why the top-level `queryResult` is also checked). */
     stageTraces?: ReadonlyArray<{ queryResult?: { rows?: unknown[] } | null } | null | undefined>;
+    /** Cache-surviving grounding proof: set at run completion when any stage
+     *  returned real query rows, and persisted with the briefing. Trusted for
+     *  the same reason rows are — it is derived from proxy-executed results,
+     *  never from LLM markdown. Without it a rehydrated Genie briefing (whose
+     *  cached `queryResult` is the row-less final narrative stage) over-warns. */
+    groundedRowsSeen?: boolean;
 }
 
 function rowsPresent(qr: { rows?: unknown[] } | null | undefined): boolean {
@@ -66,6 +72,7 @@ export function shouldShowGroundingAdvisory(r: GroundingCheckInput | null | unde
     if (r.status === "FAILED") return false;
 
     const groundingConfirmed =
+        r.groundedRowsSeen === true ||
         rowsPresent(r.queryResult) ||
         (Array.isArray(r.stageTraces) && r.stageTraces.some((t) => rowsPresent(t?.queryResult)));
 

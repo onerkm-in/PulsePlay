@@ -757,6 +757,14 @@ interface ChatMessageViewModel extends GenieMessage {
      * Genie-generated SQL (if any), and timing/status per stage. Memory-only
      * (NOT cached) — surfaced only when devMode is true. */
     stageTraces?: InsightsStageTrace[];
+    /** Grounding proof that SURVIVES the localStorage cache round-trip.
+     * Computed at run completion from live stage traces (real query rows —
+     * the trusted signal groundingAdvisory.ts trusts) and persisted, because
+     * stageTraces themselves are memory-only and the cache keeps only the
+     * LAST stage's queryResult (often a row-less narrative stage). Without
+     * this, a rehydrated Genie briefing wrongly shows the "Illustrative —
+     * not grounded" advisory. */
+    groundedRowsSeen?: boolean;
     /** IDEA-039 Step 2.2 — partial-failure annotation. When a stage fails
      * mid-run but earlier stages produced content, we keep `status` as
      * COMPLETED so the partial output renders, AND surface the failure via
@@ -4788,6 +4796,14 @@ function App(props: AppProps) {
                     // Background refresh: commit the fresh result atomically now
                     // that all stages are done. The stale cached content was shown
                     // throughout the run; this single swap replaces it cleanly.
+                    // Grounding proof for the cache round-trip: true when any
+                    // stage returned real rows (the trusted signal — see
+                    // groundingAdvisory.ts). Stage traces don't survive the
+                    // cache, so this flag carries the confirmation instead.
+                    const groundedRowsSeen = stageTraces.some(s => {
+                        const rows = (s.queryResult as { rows?: unknown[] } | null | undefined)?.rows;
+                        return Array.isArray(rows) && rows.length > 0;
+                    });
                     if (backgroundRefresh) {
                         setSpaceInsightsResult(spaceKey, {
                             id: createLocalId("insights"),
@@ -4799,6 +4815,7 @@ function App(props: AppProps) {
                             queryResult: (lastResponse as any).queryResult,
                             trace: (lastResponse as any).trace,
                             stageTraces: stageTraces.map(s => ({ ...s })),
+                            groundedRowsSeen,
                         });
                         delete staleDisplayRef.current[spaceKey];
                         setStaleRefreshingMap(prev => {
@@ -4817,6 +4834,7 @@ function App(props: AppProps) {
                             // has these fields. Cast through any to preserve intent.
                             sqlQuery: (lastResponse as any).sqlQuery,
                             queryResult: (lastResponse as any).queryResult,
+                            groundedRowsSeen,
                             trace: (lastResponse as any).trace,
                             viewMode: getDefaultViewMode(lastResponse, canShowSql, canShowTrace),
                             stageTitles: titles,
@@ -5009,6 +5027,7 @@ function App(props: AppProps) {
                 content: cached.content,
                 sqlQuery: cached.sqlQuery,
                 queryResult: cached.queryResult as ChatMessageViewModel["queryResult"],
+                groundedRowsSeen: cached.groundedRowsSeen,
                 trace: cached.trace,
                 viewMode: (cached.viewMode as OutputMode) || "narrative"
             };
