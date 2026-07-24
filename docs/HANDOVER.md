@@ -5,6 +5,21 @@
 
 ---
 
+## 2026-07-24 (latest+12) — Headed E2E validation (fresh-profile first-run → live Genie) + 4 surfacing-fix commits
+
+Full headed end-to-end on a FRESH browser profile against the live workspace: first-run → Settings AI Setup (catalogue shows the curated 3 cards; both genie profiles incl. new `genie-scm-poc` listed) → picked `genie` → live connection probe green (0.3s, real space metadata) → save → **AI Insights auto-briefing completed against live Genie** (real SLA/CSAT/cost KPIs) → Ask Pulse round-trip ("tickets per year" → narrative + chart + table, real 13,363/11,509) → Decisions surface (live prompts) → Dashboard empty state. 0 console errors end-state. Landed the in-flight formatting work + 4 fix commits (`c769c19`..`94db4ba`), **playground 1950/1950**, tsc clean.
+
+**Surfacing issues found headed → fixed:**
+- **KPI status chips rendered a doubled "⚠ 🟡"** — `renderStatusChip`'s `stripStatusGlyphs(clean) || clean` fallback reinstated the raw emoji when the cell was ONLY the emoji. Now falls back to a tone word ("Watch"/"Off track"). [`c769c19`]
+- **Genie DATE-typed periods rendered as raw ISO** ("2024-01-01T00:00:00.000Z") in chat tables AND chart category axes. New `formatCategoryLabel(colName, raw)` collapses to the column's granularity (year→"2024", quarter→"Q1 2024", month→"Jan 2024"); `formatChartDate` switched to UTC getters (Z-midnight was shifting a year west of UTC). Wired into `buildEChartsOption` categories/pie names + GenieTable cells. [`c769c19`]
+- **Decision cards**: impact "7 %"/"1 pp" → "6.5%"/"0.6pp" (string-typed API values coerced, small %/pp keep a decimal, unit hugs the number) and "…coverage.?" double punctuation stripped. Tripwire hit mid-fix: `business_impact_value` arrives as a STRING — `.toFixed` on it crashed the card into the error boundary; always coerce. [`7b59fe6`]
+- **False "Illustrative — not grounded" advisory on every reload of a real Genie briefing**: the insights cache keeps only the LAST stage's `queryResult` (row-less narrative) and stage traces are memory-only, so rehydrated briefings lost their grounding proof. New cache-persisted `groundedRowsSeen` flag (computed from live traces at write time — same trusted rows signal; fail-closed contract intact, +2 tests). Pre-fix cache entries over-warn once until refreshed. [`34cf73a`]
+- **Stale catalogue honesty**: Genie card still said "Unverified — needs Serverless… not proven live" (disproven 2026-07-23) → "Verified live" with the env prerequisite kept in the note. **BundleSwitcher branded the running flagship pair "CUSTOM"**: curated PBI×Genie was keyed to profile id `default` which doesn't exist in config.json (could never match; selecting it pointed Settings at a phantom profile) → pairs re-keyed to the real `genie` id + the two Pulse Canvas (native) pairs added. Chip now reads "Pulse Canvas × Genie". [`94db4ba`]
+
+**Also landed (was uncommitted in-flight from the previous session):** unit-on-value formatting (label "Gross Margin", value "53.8%"/"$248.7MM", finance B/MM/M), temporal-dimension handling (year/month/quarter columns are categories — never a ~2024-tall series, never "2,024" as a KPI), "Decisions" nav label (was "Action Insights", read as a near-duplicate of "AI Insights"). [`c769c19`]
+
+**Known-not-fixed (deliberate):** AI-emitted KPI snapshot values stay as the model emits them (e.g. "11.3" without a unit) — inferring units client-side would fabricate; prompt-side fix if wanted. Chat feedback 👍/👎 emoji left (pulse chat surface). **Harness caveat:** the Browser pane wouldn't composite again, so no pixel screenshots — all verification was DOM/computed-state probes + live API round-trips (strong for text/data claims; wouldn't catch pure-pixel layout regressions).
+
 ## 2026-07-24 (latest+11) — Catalogue curation: only Power BI + Databricks Genie advertised
 
 Per user direction ("remove all other connector details for the time being; two connectors remain: Power BI and Databricks Genie"). This is a **visibility curation, not a deletion** — every adapter, connector, route, and manifest stays in the codebase and keeps working at runtime; only what pickers/catalogues ADVERTISE is trimmed. Each lever is one clearly-named constant; restoring a connector = adding its id back.
