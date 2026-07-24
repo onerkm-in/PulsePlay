@@ -45,9 +45,12 @@ import {
 } from "./resultToVizIntent";
 import {
     chartAutoPick,
+    detectColumnUnit,
+    isTemporalDimensionColumn,
     type ChartKind,
     type DataShape,
 } from "./chartAutoPick";
+import { humanizeColumnName, formatValueByUnit } from "../lib/columnLabels";
 import { ChartRationalePill } from "./ChartRationalePill";
 import { validateChartRenderSpec, type ChartRenderSpec } from "./chartSpecValidation";
 import { compileVegaLiteToECharts } from "../lib/vegaLiteToECharts";
@@ -667,14 +670,22 @@ function KpiState({ envelope }: { envelope: AIResultEnvelope }): React.ReactElem
     const schema = envelope.schema ?? [];
     const rows = envelope.rows ?? [];
     // KPI intent guarantees rowCount === 1 and exactly one numeric column.
-    // Find the first numeric cell + its column label.
-    const numericIndex = schema.findIndex((_, i) => {
+    // Find the first MEASURE cell + its column label. A numeric time dimension
+    // (year/month/quarter) is a category, not a KPI — skip it so a "year"
+    // column never renders 2,024 as the metric.
+    const isNumericCell = (i: number) => {
         const cell = rows[0]?.[i];
         return typeof cell === "number"
             || (typeof cell === "string" && cell.trim() !== "" && !Number.isNaN(Number(cell.trim())));
-    });
+    };
+    let numericIndex = schema.findIndex((col, i) => isNumericCell(i) && !isTemporalDimensionColumn(col?.name ?? ""));
+    if (numericIndex < 0) numericIndex = schema.findIndex((_, i) => isNumericCell(i));
     const idx = numericIndex >= 0 ? numericIndex : 0;
-    const label = schema[idx]?.name ?? "Value";
+    const rawName = schema[idx]?.name ?? "Value";
+    // Humanized label ("gross_margin_pct" → "Gross Margin %") + unit-aware
+    // finance-abbreviated value ("53.8%", "$248.7MM") — user rule: applies
+    // to ALL KPI surfaces.
+    const label = humanizeColumnName(rawName);
     const rawCell = rows[0]?.[idx];
     const numericValue = typeof rawCell === "number"
         ? rawCell
@@ -682,7 +693,7 @@ function KpiState({ envelope }: { envelope: AIResultEnvelope }): React.ReactElem
             ? Number(rawCell)
             : NaN;
     const formatted = Number.isFinite(numericValue)
-        ? new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(numericValue)
+        ? formatValueByUnit(numericValue, detectColumnUnit(rawName), "axis", rawName)
         : String(rawCell ?? "—");
     return (
         <div

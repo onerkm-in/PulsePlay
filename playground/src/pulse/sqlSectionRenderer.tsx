@@ -25,6 +25,8 @@
 
 import * as React from "react";
 import type { SqlSection } from "./sqlSection";
+import { isTemporalDimensionColumn } from "../visualization/chartAutoPick";
+import { humanizeColumnName } from "../lib/columnLabels";
 
 export interface SqlSectionResult {
     columns: string[];
@@ -94,7 +96,10 @@ export function computeKpiDelta(
     const firstRow = rows[0] || [];
     const numericIdxs: number[] = [];
     for (let i = 0; i < columns.length; i++) {
-        if (typeof firstRow[i] === "number" && Number.isFinite(firstRow[i] as number)) {
+        // Skip numeric time dimensions (year/month/quarter) — they're categories,
+        // not KPI values, and would otherwise become "current" (e.g. 2024).
+        if (typeof firstRow[i] === "number" && Number.isFinite(firstRow[i] as number)
+            && !isTemporalDimensionColumn(columns[i] ?? "")) {
             numericIdxs.push(i);
         }
     }
@@ -132,10 +137,12 @@ function KpiVariant(props: SqlSectionRendererProps) {
         );
     }
     const firstRow = result.rows[0] || [];
-    // Find the first numeric scalar across the row (skip leading text dim).
+    // Find the first numeric scalar across the row (skip leading text dim AND
+    // numeric time dimensions like year — those are categories, not KPIs).
     let scalar: unknown = null;
     let scalarIdx = -1;
     for (let i = 0; i < firstRow.length; i++) {
+        if (isTemporalDimensionColumn(result.columns?.[i] ?? "")) continue;
         const v = firstRow[i];
         if (typeof v === "number" && Number.isFinite(v)) {
             scalar = v;
@@ -160,7 +167,7 @@ function KpiVariant(props: SqlSectionRendererProps) {
             : "gn-sql-kpi-delta--flat";
     return (
         <div className="gn-sql-kpi" data-result-render="kpi" data-trend-direction={direction || "none"} aria-label={`${section.title}: ${display}`}>
-            <span className="gn-sql-kpi-label">{section.title || (result.columns[scalarIdx] ?? "Value")}</span>
+            <span className="gn-sql-kpi-label">{section.title || humanizeColumnName(result.columns[scalarIdx] ?? "Value")}</span>
             <span className="gn-sql-kpi-value">{display}</span>
             {showDelta && delta !== null && (
                 <span className={`gn-sql-kpi-delta ${deltaClass}`}>
@@ -192,7 +199,7 @@ function TableVariant(props: SqlSectionRendererProps) {
                     <thead>
                         <tr>
                             {result.columns.map((c, i) => (
-                                <th key={`${c}-${i}`}>{c}</th>
+                                <th key={`${c}-${i}`}>{humanizeColumnName(c)}</th>
                             ))}
                         </tr>
                     </thead>

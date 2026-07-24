@@ -146,6 +146,7 @@ import {
     isClarifyingQuestion,
     ISO_DATE_RE,
     isNumericString,
+    isTemporalDimensionColumn,
     mapAreaToIntent,
     mergeHomePayload,
     normalizeText,
@@ -247,7 +248,8 @@ import { parseAllowedUsers } from "./setupAccessControl";
 import { getSurfaceProfile, SURFACE_CONNECTORS_EVENT } from "../multipane/surfaceConnectors";
 import { FEATURE_FLAGS_EVENT } from "../featureFlags";
 import { EChartsRenderer } from '../components/workbench/EChartsRenderer';
-import { buildEChartsOption } from '../lib/buildEChartsOption';
+import { buildEChartsOption, humanizeColumnName, formatValueByUnit } from '../lib/buildEChartsOption';
+import { detectColumnUnit, formatCategoryLabel } from '../visualization/chartAutoPick';
 import { CHART_PALETTES, CHART_PALETTE_EVENT, getActivePaletteId, applyChartPalette } from '../lib/chartPalettes';
 import { addCanvasTile } from '../lib/canvasTiles';
 import IViewport = powerbi.IViewport;
@@ -5331,6 +5333,34 @@ function App(props: AppProps) {
                     {tabVisibilityCount >= 2 && (
                         <div className="gn-surface-switcher" aria-label="Visual surfaces">
                             <div className="gn-header-tabs" role="tablist" aria-label="PulsePlay surfaces">
+                                {/* Decisions (action-insights) is an app-level surface, not a
+                                    Pulse tabpanel — like Dashboard it hands off to the host shell
+                                    via a surface pick. Rendered first to match the registry order
+                                    so the workbench strip carries the same tabs as the app-level
+                                    SurfaceSwitcher. Host-shell-gated so it never renders a dead
+                                    button in the PBI custom-visual sandbox. */}
+                                {isHostedInPulsePlayShell() && (
+                                <button
+                                    role="tab"
+                                    id="gn-tab-decisions"
+                                    aria-selected={false}
+                                    aria-controls="pp-decisions-surface"
+                                    tabIndex={-1}
+                                    className="gn-header-tab gn-header-tab--surface-action"
+                                    onClick={() => dispatchPulsePlaySurfacePick("action-insights")}
+                                    aria-label="Decisions"
+                                    title="Open Decisions surface"
+                                >
+                                    <span className="gn-header-tab-icon" aria-hidden="true">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M12 3 L22 20 H2 Z" />
+                                            <line x1="12" y1="10" x2="12" y2="14" />
+                                            <line x1="12" y1="17" x2="12" y2="17" />
+                                        </svg>
+                                    </span>
+                                    <span>Decisions</span>
+                                </button>
+                                )}
                                 {tabVisibility.aiInsights && (
                                 <button
                                     role="tab"
@@ -6000,7 +6030,7 @@ function App(props: AppProps) {
                             type="button"
                             className="gn-mobile-nav-item"
                             onClick={() => dispatchPulsePlaySurfacePick("action-insights")}
-                            aria-label="Open Action Insights surface"
+                            aria-label="Open Decisions surface"
                         >
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                                 <path d="M12 3 L22 20 H2 Z" />
@@ -9933,7 +9963,7 @@ function GenieTable(props: { columns: string[]; rows: any[][]; isNarrative?: boo
                                         Insights tables. Without this, Return Rate / Days-
                                         to-Ship pills silently revert to physical direction
                                         in chat-tab Genie responses. */}
-                                    {props.isNarrative ? inlineFormat(column, props.sectionTitle, props.metricRules) : column}
+                                    {props.isNarrative ? inlineFormat(column, props.sectionTitle, props.metricRules) : humanizeColumnName(column)}
                                 </th>
                             ))}
                         </tr>
@@ -9941,11 +9971,25 @@ function GenieTable(props: { columns: string[]; rows: any[][]; isNarrative?: boo
                     <tbody>
                         {rows.map((row, rowIndex) => (
                             <tr key={`row-${rowIndex}`}>
-                                {props.columns.map((column, columnIndex) => (
-                                    <td key={`${column}-${rowIndex}`} className={numericColumns.has(columnIndex) ? "gn-cell-numeric" : ""}>
-                                        {props.isNarrative ? inlineFormat(row[columnIndex] || "", props.sectionTitle, props.metricRules) : formatCell(row[columnIndex])}
-                                    </td>
-                                ))}
+                                {props.columns.map((column, columnIndex) => {
+                                    // Unit-aware cell values ("53.8%", "$248,703,706") —
+                                    // the unit lives on the VALUE, not the header. Temporal
+                                    // dimensions (year/month) stay plain: no "2,024".
+                                    const raw = row[columnIndex];
+                                    const numeric = typeof raw === "number" || (typeof raw === "string" && raw.trim() !== "" && !Number.isNaN(Number(raw)));
+                                    const cell = props.isNarrative
+                                        ? inlineFormat(raw || "", props.sectionTitle, props.metricRules)
+                                        : (numeric && !isTemporalDimensionColumn(column))
+                                            ? formatValueByUnit(Number(raw), detectColumnUnit(column), "tooltip", column)
+                                            : isTemporalDimensionColumn(column)
+                                                ? formatCategoryLabel(column, raw)
+                                                : formatCell(raw);
+                                    return (
+                                        <td key={`${column}-${rowIndex}`} className={numericColumns.has(columnIndex) ? "gn-cell-numeric" : ""}>
+                                            {cell}
+                                        </td>
+                                    );
+                                })}
                             </tr>
                         ))}
                     </tbody>
@@ -10144,14 +10188,28 @@ function renderEChartsBody(
 ): React.ReactNode {
     // KPI tile — single prominent metric, no ECharts needed.
     if (chartType === "kpi") {
-        const firstNumericIdx = columns.findIndex((_, i) => rows[0] && !isNaN(Number(rows[0][i])));
-        const labelIdx = firstNumericIdx > 0 ? 0 : -1;
-        const valueIdx = firstNumericIdx >= 0 ? firstNumericIdx : 0;
+        // The VALUE must be a real measure — a numeric column that is NOT a time
+        // dimension. Otherwise a "year" column shows 2024 as the KPI. Prefer a
+        // string column for the label; fall back to the measure's column name.
+        const isMeasureCol = (i: number) =>
+            rows[0] != null && !isNaN(Number(rows[0][i])) && !isTemporalDimensionColumn(columns[i] ?? "");
+        let valueIdx = columns.findIndex((_, i) => isMeasureCol(i));
+        if (valueIdx < 0) valueIdx = columns.findIndex((_, i) => rows[0] && !isNaN(Number(rows[0][i])));
+        if (valueIdx < 0) valueIdx = 0;
+        const labelIdx = columns.findIndex((_, i) =>
+            i !== valueIdx && rows[0] != null && rows[0][i] != null && isNaN(Number(rows[0][i])));
         const value = rows[0]?.[valueIdx];
-        const label = labelIdx >= 0 ? String(rows[0]?.[labelIdx] ?? columns[labelIdx]) : columns[valueIdx];
+        const valueCol = String(columns[valueIdx] ?? "");
+        // Label: prefer a text cell (e.g. a country name); otherwise the
+        // measure's humanized column name ("gross_margin_pct" → "Gross Margin %").
+        const label = labelIdx >= 0
+            ? String(rows[0]?.[labelIdx] ?? columns[labelIdx])
+            : humanizeColumnName(valueCol);
+        // Value: unit-aware + finance-abbreviated ("53.8%", "$248.7MM", "1.2B").
+        const display = formatValueByUnit(Number(value), detectColumnUnit(valueCol), "axis", valueCol);
         return (
             <div className="gn-kpi-chart-tile">
-                <div className="gn-kpi-chart-value">{formatNumber(Number(value))}</div>
+                <div className="gn-kpi-chart-value">{display}</div>
                 <div className="gn-kpi-chart-label">{label}</div>
             </div>
         );
@@ -10728,7 +10786,7 @@ function renderKpiSnapshotInner(raw: string): React.ReactNode {
                     <li key={i} className="gn-kpi-row">
                         {r.name ? (
                             <>
-                                <span className="gn-kpi-row-name">{r.name}</span>
+                                <span className="gn-kpi-row-name">{humanizeColumnName(r.name)}</span>
                                 <span className="gn-kpi-row-value">{r.value}</span>
                                 {r.trend && (
                                     <span className={`gn-trend gn-trend--${r.trend}`}>
@@ -10916,7 +10974,7 @@ function renderExecutiveBriefing(brief: ExecutiveBriefing): React.ReactNode {
                         return (
                             <div key={`${k.label}-${i}`} className={`gn-kpi-tile ${dirClass}`}>
                                 <div className="gn-kpi-tile-head">
-                                    <span className="gn-kpi-tile-label" title={k.label}>{k.label}</span>
+                                    <span className="gn-kpi-tile-label" title={k.label}>{humanizeColumnName(k.label)}</span>
                                 </div>
                                 <div className="gn-kpi-tile-value">{k.value}</div>
                                 {k.prior && (
@@ -13158,10 +13216,6 @@ function renderStatusChip(raw: string): React.ReactNode {
     const tone = getStatusTone(raw);
     const a11y = getStatusA11y(tone);
 
-    // Strip the colour emoji from the display text — the chip colour carries
-    // that signal already, and leaving it in makes the chip look noisy.
-    const display = stripStatusGlyphs(clean) || clean;
-
     // 2026-05-27 — Add a leading tone glyph so the chip unambiguously reads
     // as a status badge, not an interactive toggle. Without this, the
     // rounded-pill shape + solid colour fill at small sizes (especially on
@@ -13171,6 +13225,16 @@ function renderStatusChip(raw: string): React.ReactNode {
                    : tone === "warn" ? "⚠"
                    : tone === "bad"  ? "✗"
                    : "•";
+
+    // Strip the colour emoji from the display text — the chip colour carries
+    // that signal already, and leaving it in makes the chip look noisy. When
+    // the cell is ONLY the emoji, fall back to a tone word — never the raw
+    // emoji (it would render doubled next to the tone glyph).
+    const toneWord = tone === "good" ? "On track"
+                   : tone === "warn" ? "Watch"
+                   : tone === "bad"  ? "Off track"
+                   : "";
+    const display = stripStatusGlyphs(clean) || toneWord || clean;
 
     return (
         <span

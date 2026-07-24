@@ -94,6 +94,13 @@ const TOKEN_REGISTRY: Readonly<Record<string, string>> = Object.freeze({
     customer: "Customer",
     units: "Units",
     rate: "Rate",
+    // Currency codes (preserve casing so UNIT_SUFFIX_TOKENS matches; USD
+    // renders as the $ symbol per user rule 2026-07-24)
+    usd: "USD",
+    eur: "EUR",
+    gbp: "GBP",
+    inr: "INR",
+    jpy: "JPY",
     // Common ID/key tokens (rarely shown in charts but mapped for completeness)
     id: "ID",
     uuid: "UUID",
@@ -140,9 +147,13 @@ export function humanizeColumnName(raw: string): string {
     if (!input) return "";
 
     // Already friendly? If the input contains a space or is mixed-case
-    // without underscores, treat it as author-supplied and pass through.
+    // without underscores, treat it as author-supplied and pass through —
+    // EXCEPT for a trailing unit word: "Gross Margin Pct" should still
+    // render as "Gross Margin %" (user rule 2026-07-24: applies to ALL KPIs).
     if (/\s/.test(input) || (!/_/.test(input) && /[a-z][A-Z]|^[A-Z][a-z]/.test(input))) {
-        return input;
+        // Unit lives on the VALUE, not the label (user rule 2026-07-24):
+        // "Gross Margin Pct" → label "Gross Margin", value "53.8%".
+        return input.replace(/\s+(pct|percent|percentage|usd|pp)$/i, "");
     }
 
     // Tokenize on snake / camelCase / digits. Lowercase each piece for
@@ -153,12 +164,12 @@ export function humanizeColumnName(raw: string): string {
     // Map tokens through the registry (or Title Case fallback).
     const mapped = tokens.map(tok => TOKEN_REGISTRY[tok.toLowerCase()] ?? titleCase(tok));
 
-    // Move trailing unit token to a suffix (e.g. "Sales Change %" or
-    // "Margin Change (pp)"). Only one trailing unit gets pulled.
-    let unitSuffix = "";
+    // Drop a trailing unit token from the LABEL — the unit renders on the
+    // VALUE instead via formatValueByUnit ("53.8%", "$248.7MM"). User rule
+    // 2026-07-24: "Gross Margin 65%" not "Gross Margin % 65".
+    const unitSuffix = "";
     if (mapped.length >= 2 && UNIT_SUFFIX_TOKENS.has(mapped[mapped.length - 1])) {
-        const unit = mapped.pop()!;
-        unitSuffix = unit === "%" ? " %" : ` (${unit})`;
+        mapped.pop();
     }
 
     // Move a leading prior-period token to a parenthetical suffix
@@ -217,11 +228,14 @@ export function formatValueByUnit(
 
     switch (unit) {
         case "currency": {
+            // Finance abbreviation convention (user rule 2026-07-24):
+            // Billion → B, Million → MM, Thousand → M.
             const abs = Math.abs(value);
-            if (isAxis && abs >= 1_000_000) return signed(value, v => `$${(v / 1_000_000).toFixed(1)}M`);
-            if (isAxis && abs >= 100_000) return signed(value, v => `$${(v / 1_000).toFixed(1)}K`);
+            if (isAxis && abs >= 1_000_000_000) return signed(value, v => `$${(v / 1_000_000_000).toFixed(1)}B`);
+            if (isAxis && abs >= 1_000_000) return signed(value, v => `$${(v / 1_000_000).toFixed(1)}MM`);
+            if (isAxis && abs >= 100_000) return signed(value, v => `$${(v / 1_000).toFixed(1)}M`);
             // For tooltips / legend / small values, full grouped form.
-            return signed(value, v => `$${Math.round(v).toLocaleString()}`);
+            return signed(value, v => `$${Math.round(v).toLocaleString("en-US")}`);
         }
 
         case "percentage": {
@@ -240,10 +254,12 @@ export function formatValueByUnit(
         }
 
         case "count": {
+            // Same finance abbreviation: B / MM / M (thousand).
             const abs = Math.abs(value);
-            if (isAxis && abs >= 1_000_000) return signed(value, v => `${(v / 1_000_000).toFixed(1)}M`);
-            if (isAxis && abs >= 10_000) return signed(value, v => `${(v / 1_000).toFixed(1)}K`);
-            return signed(value, v => Math.round(v).toLocaleString());
+            if (isAxis && abs >= 1_000_000_000) return signed(value, v => `${(v / 1_000_000_000).toFixed(1)}B`);
+            if (isAxis && abs >= 1_000_000) return signed(value, v => `${(v / 1_000_000).toFixed(1)}MM`);
+            if (isAxis && abs >= 10_000) return signed(value, v => `${(v / 1_000).toFixed(1)}M`);
+            return signed(value, v => Math.round(v).toLocaleString("en-US"));
         }
 
         case "duration": {
@@ -253,7 +269,7 @@ export function formatValueByUnit(
             if (/hours|hrs/.test(lower)) return signed(value, v => `${v.toFixed(1)}h`);
             if (/minutes|mins/.test(lower)) return signed(value, v => `${v.toFixed(0)} min`);
             if (/seconds|secs/.test(lower)) return signed(value, v => `${v.toFixed(1)}s`);
-            return signed(value, v => v.toLocaleString());
+            return signed(value, v => v.toLocaleString("en-US"));
         }
 
         case "ratio": {
@@ -263,12 +279,13 @@ export function formatValueByUnit(
         case "generic":
         default: {
             const abs = Math.abs(value);
-            if (isAxis && abs >= 1_000_000) return signed(value, v => `${(v / 1_000_000).toFixed(1)}M`);
-            if (isAxis && abs >= 10_000) return signed(value, v => `${(v / 1_000).toFixed(1)}K`);
+            if (isAxis && abs >= 1_000_000_000) return signed(value, v => `${(v / 1_000_000_000).toFixed(1)}B`);
+            if (isAxis && abs >= 1_000_000) return signed(value, v => `${(v / 1_000_000).toFixed(1)}MM`);
+            if (isAxis && abs >= 10_000) return signed(value, v => `${(v / 1_000).toFixed(1)}M`);
             // Small fractions: keep 2 decimals; integers stay grouped.
-            if (Number.isInteger(value)) return value.toLocaleString();
+            if (Number.isInteger(value)) return value.toLocaleString("en-US");
             if (abs < 1) return value.toFixed(3);
-            return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+            return value.toLocaleString("en-US", { maximumFractionDigits: 2 });
         }
     }
 }

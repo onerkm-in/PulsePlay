@@ -82,7 +82,31 @@ function defaultFormatNumber(value: number): string {
 export function formatChartDate(raw: string): string {
     const d = new Date(raw);
     if (Number.isNaN(d.getTime())) return raw;
-    return `${SHORT_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+    // UTC getters — Genie emits date-only / Z-suffixed timestamps, and local
+    // getters would shift "2024-01-01T00:00:00Z" to Dec 2023 west of UTC.
+    return `${SHORT_MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+
+/**
+ * Format a category-axis / table cell for a dimension column, collapsing the
+ * ISO timestamps Genie emits for DATE-typed periods down to the granularity
+ * the column name declares: year → "2024", quarter → "Q1 2024", otherwise
+ * "Jan 2024". Non-date values pass through unchanged (a numeric 2024 must
+ * never become "2,024").
+ */
+export function formatCategoryLabel(colName: string, raw: unknown): string {
+    if (raw === null || raw === undefined) return "";
+    const s = String(raw);
+    if (typeof raw === "string" && ISO_DATE_RE.test(s)) {
+        const d = new Date(s);
+        if (!Number.isNaN(d.getTime())) {
+            const lower = String(colName || "").toLowerCase().replace(/[_-]+/g, " ");
+            if (/\b(quarter|qtr)\b/.test(lower)) return `Q${Math.floor(d.getUTCMonth() / 3) + 1} ${d.getUTCFullYear()}`;
+            if (/\b(year|yr|fy|fiscal)\b/.test(lower)) return String(d.getUTCFullYear());
+            return formatChartDate(s);
+        }
+    }
+    return s;
 }
 
 export function formatCellForTooltip(col: string, raw: unknown, options: AnalyzeDataShapeOptions = {}): string {
@@ -109,6 +133,23 @@ export function isRankOrIndexColumn(colName: string, values: ReadonlyArray<numbe
         if (allOneBased || allZeroBased) return true;
     }
     return false;
+}
+
+/**
+ * A numeric column whose NAME is a time DIMENSION (year, month, week, quarter).
+ * Its values (2024, 2025 …) are category labels, not measures — plotting "year"
+ * as a bar dwarfs the real series and is meaningless. Such columns drive the
+ * category axis instead of becoming a chart series. The negative lookahead
+ * keeps measures that merely mention a period (e.g. "yoy_growth_rate",
+ * "year_over_year_pct") classified as measures.
+ */
+export function isTemporalDimensionColumn(colName: string): boolean {
+    const lower = String(colName || "").toLowerCase().trim();
+    if (!lower) return false;
+    if (/\b(rate|pct|percent(age)?|margin|share|growth|yoy|mom|avg|average|per|delta|change|variance)\b/.test(lower)) {
+        return false;
+    }
+    return /\b(year|yr|month|week|quarter|qtr|fiscal[_\s]?year|fy|period)\b/.test(lower);
 }
 
 export type ForcedViewMode = "chart" | "table" | "narrative" | "sql";
@@ -159,7 +200,11 @@ export function analyzeDataShape(columns: ReadonlyArray<string>, rows: ReadonlyA
     const numericIndices: number[] = [];
     const labelIndices: number[] = [];
     firstRow.forEach((cell, i) => {
-        if (typeof cell === "number" || isNumericString(cell)) numericIndices.push(i);
+        const numeric = typeof cell === "number" || isNumericString(cell);
+        // A numeric value whose column is a time dimension (year/month/quarter)
+        // is a CATEGORY, not a measure — route it to the label axis so it never
+        // becomes a series that dwarfs the real numbers.
+        if (numeric && !isTemporalDimensionColumn(columns[i] ?? "")) numericIndices.push(i);
         else labelIndices.push(i);
     });
 
@@ -280,7 +325,10 @@ export const UNIT_LABELS: Readonly<Record<UnitType, string>> = Object.freeze({
 });
 
 export function detectColumnUnit(colName: string): UnitType {
-    const lower = String(colName || "").toLowerCase().trim();
+    // Normalize snake_case/kebab-case to spaces FIRST — \b word boundaries
+    // don't fire inside "_margin_" (underscore is a word character), which
+    // silently classified "gross_margin_pct" as generic (no % suffix).
+    const lower = String(colName || "").toLowerCase().replace(/[_\-]+/g, " ").trim();
     if (!lower) return "generic";
     // Order matters: percentage/rate/margin must beat currency-domain matches
     // because "Profit Margin" is a percentage (15%, 20%), not a dollar value.
@@ -330,6 +378,7 @@ export function analyzeColumnRanges(
         }
         if (!Number.isFinite(min) || !Number.isFinite(max)) return;
         if (isRankOrIndexColumn(colName, numericValues)) return;
+        if (isTemporalDimensionColumn(colName)) return;
         ranges.push(Object.freeze({
             colIdx: i,
             colName,

@@ -20,7 +20,7 @@
 //   Trendy:   sunburst
 
 import type { EChartsOption } from 'echarts';
-import { detectColumnUnit, type UnitType } from '../visualization/chartAutoPick';
+import { detectColumnUnit, formatCategoryLabel, isTemporalDimensionColumn, type UnitType } from '../visualization/chartAutoPick';
 import { humanizeColumnName, formatValueByUnit } from './columnLabels';
 
 // ── Palette ───────────────────────────────────────────────────────────────────
@@ -83,10 +83,14 @@ function detectColumnRoles(columns: string[], rows: unknown[][]): {
     if (!columns.length || !rows.length) return { labelCols: [], numericCols: [] };
     const labelCols: number[] = [];
     const numericCols: number[] = [];
-    columns.forEach((_, ci) => {
+    columns.forEach((colName, ci) => {
         const sample = rows.slice(0, 20).map(r => r[ci]).filter(v => v !== null && v !== undefined);
         const numericRatio = sample.filter(v => isNumeric(v)).length / (sample.length || 1);
-        if (numericRatio >= 0.7) numericCols.push(ci);
+        // A time dimension (year/month/quarter) is numeric-valued but is a
+        // CATEGORY, not a measure — otherwise "year" (2025, 2026…) gets plotted
+        // as a ~2000-tall series that dwarfs the real numbers and shows up as
+        // both the x-axis AND a bar.
+        if (numericRatio >= 0.7 && !isTemporalDimensionColumn(columns[ci])) numericCols.push(ci);
         else labelCols.push(ci);
     });
     return { labelCols, numericCols };
@@ -104,7 +108,9 @@ function extractCategorySeries(columns: string[], rows: unknown[][]): {
     const { labelCols, numericCols } = detectColumnRoles(columns, rows);
     if (!numericCols.length) return null;
     const labelCol = labelCols[0] ?? 0;
-    const categories = rows.map(r => String(r[labelCol] ?? ''));
+    // Collapse Genie's DATE-typed period values ("2024-01-01T00:00:00.000Z")
+    // to the column's granularity ("2024" / "Q1 2024" / "Jan 2024").
+    const categories = rows.map(r => formatCategoryLabel(columns[labelCol] ?? '', r[labelCol]));
     const series = numericCols.map(ci => ({
         name: humanizeColumnName(columns[ci]),
         rawName: columns[ci],
@@ -120,7 +126,7 @@ function extractNameValue(columns: string[], rows: unknown[][]): { name: string;
     if (!numericCols.length) return null;
     const nameCol = labelCols[0] ?? 0;
     const valueCol = numericCols[0];
-    return rows.map(r => ({ name: String(r[nameCol] ?? ''), value: toNum(r[valueCol]) }));
+    return rows.map(r => ({ name: formatCategoryLabel(columns[nameCol] ?? '', r[nameCol]), value: toNum(r[valueCol]) }));
 }
 
 /** X/Y scatter pairs — optionally with a 3rd numeric for bubble size. */

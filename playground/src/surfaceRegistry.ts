@@ -48,7 +48,11 @@ export const SURFACES: ReadonlyArray<SurfaceDescriptor> = Object.freeze([
         // ranked stack of "NEEDS YOUR DECISION" cards from the governed prompt
         // store. Placed first to reflect the proactive-first product direction.
         id: "action-insights",
-        label: "Action Insights",
+        // Label is "Decisions" (not "Action Insights") so it doesn't collide
+        // with the "AI Insights" surface — two tabs both ending in "Insights"
+        // read as near-duplicates. The internal id stays "action-insights"
+        // so URL params, telemetry, and CSS class names are unaffected.
+        label: "Decisions",
         shortLabel: "Decide",
         icon: "alert",
         description: "Proactive decision prompts: what's off, why, the impact, and the next action to approve.",

@@ -67,6 +67,7 @@ import {
     formatCellForTooltip as formatSharedCellForTooltip,
     formatChartDate,
     isRankOrIndexColumn,
+    isTemporalDimensionColumn,
     type ChartKind,
     type ChartSeriesPoint,
     type ClusteredSeriesPoint,
@@ -79,7 +80,7 @@ import DataView = powerbi.DataView;
 import PrimitiveValue = powerbi.PrimitiveValue;
 import IFilter = powerbi.IFilter;
 
-export { CHART_OPTIONS, detectViewIntent, formatChartDate, isRankOrIndexColumn };
+export { CHART_OPTIONS, detectViewIntent, formatChartDate, isRankOrIndexColumn, isTemporalDimensionColumn };
 export type { ChartKind, ChartSeriesPoint, ClusteredSeriesPoint, DataShape, ForcedViewMode, ViewIntent };
 
 /* ── Types & Interfaces ──────────────────────────────────────────── */
@@ -2453,7 +2454,10 @@ export function extractChartSeries(columns: string[], rows: any[][]): ChartSerie
     const numericIndices: number[] = [];
     const labelIndices: number[] = [];
     rows[0].forEach((cell, i) => {
-        if (typeof cell === "number" || isNumericString(cell)) {
+        // Numeric time dimensions (year/month/quarter) are CATEGORY labels,
+        // not measures — see chartAutoPick.isTemporalDimensionColumn.
+        if ((typeof cell === "number" || isNumericString(cell))
+            && !isTemporalDimensionColumn(columns[i] ?? "")) {
             numericIndices.push(i);
         } else {
             labelIndices.push(i);

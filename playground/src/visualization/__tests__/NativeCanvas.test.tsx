@@ -252,11 +252,12 @@ describe("NativeCanvas — envelope-driven viz states", () => {
         });
         const kpi = container.querySelector("[data-testid='pp-native-bi-kpi']");
         expect(kpi).not.toBeNull();
-        // Number is formatted with locale separators.
+        // 2026-07-24 KPI rules: currency values use the finance abbreviation
+        // (M = thousand, MM = million, B = billion), so 123,456.78 → "$123.5M".
         const value = container.querySelector("[data-testid='pp-native-bi-kpi-value']");
-        expect(value?.textContent).toMatch(/123,456/);
-        // Label is the column name.
-        expect(kpi?.textContent).toContain("revenue");
+        expect(value?.textContent).toBe("$123.5M");
+        // Label is the HUMANIZED column name ("revenue" → "Revenue").
+        expect(kpi?.textContent).toContain("Revenue");
         unmountAndDetach(handle, container);
     });
 
