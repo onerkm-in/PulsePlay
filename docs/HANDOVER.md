@@ -5,6 +5,24 @@
 
 ---
 
+## 2026-07-24 (latest+13) — Cost directive: intent-gated loads + caching audit (Databricks-only components)
+
+**User directive:** no Databricks spend on page load — first OR subsequent visits serve cache; compute runs only on an explicit user trigger (the refresh icon et al). Headed investigation found FOUR silent on-load spenders; all gated (`132dcb9`), plus a proxy diagnostics fix (`5f59ccd`). playground **1953/1953**, proxy **1407/1407**.
+
+**The four spenders → gates:**
+1. **AI Insights stale-while-revalidate** refired a full multi-stage Genie run on EVERY page load even with a minutes-old cache (TTL was meaningless for cost). Auto-fire effect is now **hydrate-only**; cache miss shows a "Generate briefing" CTA; runs start only via `fireInsightsRun` (CTA / Refresh icon / explicit Apply pulse). A plain settings edit clears stale cache → CTA (no auto-run).
+2. **Decisions panel** fetched the warehouse-backed prompt store on every mount. Now sessionStorage-cached (`pulseplay:action-insights-cache:v1`) with "updated Xm ago" + refresh link; fetches only on Load/Refresh/persona-switch/post-action.
+3. **Dashboard auto-seed** fired a probe + up to 5 starter DAX queries on first Dashboard visit. Feature flag default flipped ON→OFF (normalize is explicit-true now — this deliberately changes the `feature_dashboard_autoseed_persurface` defaults-ON tripwire).
+4. **Warehouse warm-up + 4-min keep-alive**: the keep-alive defeated the warehouse's 10-min auto-stop — an open idle tab billed serverless compute indefinitely. Both unwired; new throttled `warmOnAskIntent` fires on composer focus (predicts an ask ~10-30s out); query paths still cold-start via `ensureWarehouseRunning`.
+
+**Headed proof (live workspace):** fresh load = 8 metadata calls, ZERO warehouse/Genie/prompt-store traffic; Generate briefing runs on click (real Genie data); reload restores briefing + decisions from cache with 0 fetches and no re-run.
+
+**Also fixed:** `/health` reported config.json's `port` (8787) while bound to env PORT 7000 — now reports the bound port.
+
+**Cache inventory (audited):** frontend — insights localStorage v6 (TTL 30m / SQL sections 4h, key = profile+space+mode+role+filters+prompt+kbFlags+schemaHash+sqlHash, so genie↔genie-scm-poc isolate correctly), discovery sessionStorage 15m, chat transcript sessionStorage, NEW decisions sessionStorage; proxy — cfg 30s, PAT/OAuth token caches (LRU, 90%-lifetime refresh), PBI embed-token cache, warehouse 5-min RUNNING memoize.
+
+**Known remaining spenders (deferred, need a call):** Ask Pulse **KPI preload** burns one Genie conversation on first chat-tab entry (Option A design); on-load metadata dupes (profiles/allowlist/experience-config ×2, home-meta bursts) are redundant but cheap. Both in AGENDA. **Databricks-side caching options** documented in the AGENDA item: warehouse result cache (already helps repeated SELECTs), precompute-to-Delta pattern (the decision engine already does this — extendable to briefing snapshots via the prepared `canvasStoreDatabricks` DDL), materialized views for SQL sections.
+
 ## 2026-07-24 (latest+12) — Headed E2E validation (fresh-profile first-run → live Genie) + 4 surfacing-fix commits
 
 Full headed end-to-end on a FRESH browser profile against the live workspace: first-run → Settings AI Setup (catalogue shows the curated 3 cards; both genie profiles incl. new `genie-scm-poc` listed) → picked `genie` → live connection probe green (0.3s, real space metadata) → save → **AI Insights auto-briefing completed against live Genie** (real SLA/CSAT/cost KPIs) → Ask Pulse round-trip ("tickets per year" → narrative + chart + table, real 13,363/11,509) → Decisions surface (live prompts) → Dashboard empty state. 0 console errors end-state. Landed the in-flight formatting work + 4 fix commits (`c769c19`..`94db4ba`), **playground 1950/1950**, tsc clean.
