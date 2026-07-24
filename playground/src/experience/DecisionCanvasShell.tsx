@@ -19,7 +19,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
     Clock, Sparkles, MessageCircle, BarChart3, LayoutGrid, Bell, ShieldCheck,
-    CircleDollarSign, ListChecks, CheckCircle2, Bookmark,
+    CircleDollarSign, ListChecks, CheckCircle2, Bookmark, History,
 } from "lucide-react";
 import { ActionInsightsPanel } from "../components/ActionInsightsPanel";
 import type { DecisionPrompt } from "../components/DecisionPromptCard";
@@ -143,14 +143,19 @@ function SeverityDonut({ counts }: { counts: Record<string, number> }) {
     );
 }
 
-function DeferredCard({ title, ai, note }: { title: string; ai?: boolean; note: string }) {
+function DeferredCard({ title, ai, note, Icon }: { title: string; ai?: boolean; note: string; Icon: typeof Clock }) {
     return (
-        <div className="dcc-card dcc-pad">
+        <div className="dcc-card dcc-pad dcc-deferred">
             <div className="dcc-chart-head">
                 <h3 className="dcc-section-title">{title}</h3>
-                {ai && <span className="dcc-chip" style={{ background: "var(--pp-violet-soft)", color: "var(--pp-violet)", padding: "2px 7px", fontSize: 9.5 }}>AI</span>}
+                {ai
+                    ? <span className="dcc-chip" style={{ background: "var(--pp-violet-soft)", color: "var(--pp-violet)", padding: "2px 8px", fontSize: 10 }}>AI</span>
+                    : <span className="dcc-soon">Coming soon</span>}
             </div>
-            <p className="dcc-empty">{note}</p>
+            <div className="dcc-deferred-body">
+                <span className="dcc-deferred-icon"><Icon size={20} strokeWidth={1.6} aria-hidden /></span>
+                <p className="dcc-empty">{note}</p>
+            </div>
         </div>
     );
 }
@@ -207,6 +212,8 @@ export function DecisionCanvasShell(): React.ReactElement {
                             className={`dcc-navlink${unified ? " is-active" : ""}`}
                             onClick={() => { if (!unified) goToSurface(id); }}
                             aria-current={unified ? "page" : undefined}
+                            aria-label={label}
+                            title={label}
                         >
                             <Icon size={18} strokeWidth={1.8} aria-hidden />
                             <span className="dcc-navlabel">{label}</span>
@@ -337,6 +344,7 @@ export function DecisionCanvasShell(): React.ReactElement {
                     <div className="dcc-two">
                         <DeferredCard
                             title="Since You Last Visited"
+                            Icon={History}
                             note="Change tracking (Updated / Stale / Resolved / New) arrives with the relevance phase — it will list items that moved since your last session."
                         />
                         <div className="dcc-card dcc-pad">
@@ -348,10 +356,12 @@ export function DecisionCanvasShell(): React.ReactElement {
                     <div className="dcc-two">
                         <DeferredCard
                             title="Saved Items"
+                            Icon={Bookmark}
                             note="Bookmarks and snapshots not currently pinned to the Canvas will list here once server-side saved-item persistence ships."
                         />
                         <DeferredCard
                             title="Suggested for You" ai
+                            Icon={Sparkles}
                             note="Up to three explainable, governed suggestions arrive with the relevance phase. Suggestions never change your permissions or a decision's severity."
                         />
                     </div>
