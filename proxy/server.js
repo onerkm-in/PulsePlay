@@ -2426,7 +2426,11 @@ app.get('/health', (req, res) => {
     res.json({
         ok: true,
         profiles: profileNames,
-        port: c.port,
+        // The port actually LISTENING, not config.json's `port` field — env
+        // PORT wins at bind time (canonical dev run is PORT=7000 while the
+        // file still says 8787), and health reporting the file value sent
+        // more than one debugging session down the wrong path.
+        port: app.locals.boundPort ?? c.port,
         configSource: c.configSource || 'config.json',
         databricksApp: Boolean(process.env.DATABRICKS_APP_NAME),
         appName: process.env.DATABRICKS_APP_NAME || null,
@@ -9069,6 +9073,9 @@ if (require.main === module) {
     assertProductionAuthConfig();
     const port = Number(process.env.PORT || process.env.DATABRICKS_APP_PORT || config.port || 8787);
     const runAsDatabricksApp = Boolean(process.env.PORT || process.env.DATABRICKS_APP_PORT);
+    // Expose the port we actually bind so /health reports reality, not the
+    // config-file default (env PORT overrides the file at bind time).
+    app.locals.boundPort = port;
 
     // Wave 28 — graceful shutdown. Track the active server(s) so SIGTERM
     // can let in-flight requests finish before exiting. Without this, a

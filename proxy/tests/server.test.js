@@ -244,6 +244,19 @@ describe('GET /health', () => {
         expect(res.body.authMode).toBe('none');
     });
 
+    it('reports the BOUND port when set, not config.json\'s port field (2026-07-24)', async () => {
+        // The boot path stashes the actually-bound port (env PORT wins over
+        // the file) in app.locals; /health must prefer it. Canonical dev run
+        // is PORT=7000 while config.json still says 8787.
+        app.locals.boundPort = 7000;
+        try {
+            const res = await request(app).get('/health');
+            expect(res.body.port).toBe(7000);
+        } finally {
+            delete app.locals.boundPort;
+        }
+    });
+
     it('echoes PX1 client identity and request id without auth', async () => {
         const res = await request(app)
             .get('/health')
