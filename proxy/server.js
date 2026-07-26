@@ -7737,7 +7737,12 @@ function extractGenieText(data) {
         const query = att.query?.query || att.query?.text;
         if (query) parts.push(`SQL:\n${query}`);
     }
-    if (data?.content) parts.push(String(data.content).trim());
+    // A Genie message object's `content` is the ORIGINAL question we sent
+    // (the `# Section: ...` scaffold in the sectioned path), not the assistant
+    // answer — the answer lives in attachments. Only fall back to `content`
+    // when the response carried no attachment text/SQL at all, otherwise the
+    // prompt scaffold leaks into the rendered section body.
+    if (parts.length === 0 && data?.content) parts.push(String(data.content).trim());
     return parts.filter(Boolean).join('\n\n') || '(No text answer returned.)';
 }
 
