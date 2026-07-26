@@ -804,7 +804,7 @@ export function buildInsightsStagePrompts(
         "Rules: Never ask a clarifying question. Never offer alternatives. If data is ambiguous, pick the most prominent metric and state your assumption in the sentence.",
         "",
         "## KPI SNAPSHOT",
-        `A markdown pipe table with columns: KPI | Current | Prior | Δ % / Δ pp | Status. Cover each metric: ${meas}. Status column: 🟢 on-track / 🟡 watch / 🔴 at-risk. Use ▲/▼ in the Δ column.`,
+        `A markdown pipe table with columns: KPI | Current | Prior | Δ % / Δ pp | Status. Cover each metric: ${meas}. Status column: 🟢 on-track / 🟡 watch / 🔴 at-risk. Use ▲/▼ in the Δ column. PRECISION: compute Δ from the true unrounded values (never from the rounded display), and keep enough significant figures that a real period-over-period change stays visible — never round Current and Prior to the same number. Format currency COMPACTLY with a unit suffix and 2 decimals ($1.03B, $989.34M) — never a full digit string like 1,031,411,004.9.`,
         "",
         "Start directly with ## HEADLINE — no preamble, no questions, no extra sections."
     ].join("\n");
@@ -922,7 +922,7 @@ export function buildFastHybridInsightsStagePrompts(
             ovHeadline || `One declarative sentence, max 25 words, naming the most important ${domainLabel} number, change vs prior period, and on-track / watch / at-risk signal. Bold the headline number.`,
             "",
             "## KPI SNAPSHOT",
-            `Markdown pipe table: KPI | Current | Prior | Δ % / Δ pp | Status. Cover the bound measures (${meas}). Use ▲/▼ and 🟢/🟡/🔴 where useful.`,
+            `Markdown pipe table: KPI | Current | Prior | Δ % / Δ pp | Status. Cover the bound measures (${meas}). Use ▲/▼ and 🟢/🟡/🔴 where useful. PRECISION: compute Δ from the true unrounded values (never from the rounded display), and keep enough significant figures that a real period-over-period change stays visible — never round Current and Prior to the same number. Format currency COMPACTLY with a unit suffix and 2 decimals ($1.03B, $989.34M) — never a full digit string like 1,031,411,004.9.`,
         ].join("\n"));
     }
     if (showTrends) {
@@ -1072,7 +1072,7 @@ export function buildStagedHybridInsightsPlan(
         ].join("\n"));
         sectionBlocks.push([
             "## KPI SNAPSHOT",
-            `Markdown pipe table: KPI | Current | Prior | Δ % / Δ pp | Status. Cover the bound measures (${meas}). Use ▲/▼ and 🟢/🟡/🔴 where useful.`,
+            `Markdown pipe table: KPI | Current | Prior | Δ % / Δ pp | Status. Cover the bound measures (${meas}). Use ▲/▼ and 🟢/🟡/🔴 where useful. PRECISION: compute Δ from the true unrounded values (never from the rounded display), and keep enough significant figures that a real period-over-period change stays visible — never round Current and Prior to the same number. Format currency COMPACTLY with a unit suffix and 2 decimals ($1.03B, $989.34M) — never a full digit string like 1,031,411,004.9.`,
         ].join("\n"));
     }
     if (showTrends) {

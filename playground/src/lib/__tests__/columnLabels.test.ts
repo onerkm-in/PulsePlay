@@ -59,4 +59,18 @@ describe("formatValueByUnit — finance abbreviation (B / MM / M)", () => {
     it("tooltips keep full precision for currency", () => {
         expect(formatValueByUnit(248_703_706, "currency", "tooltip")).toBe("$248,703,706");
     });
+
+    it("small currency keeps 2 decimals so billions-scaled figures don't collapse", () => {
+        // A value already scaled to billions (e.g. a `net_sales_billion` column):
+        // whole-dollar rounding used to render 1.77 → "$2" and 1.90 → "$2",
+        // hiding the real change. Now they stay distinct.
+        expect(formatValueByUnit(1.77, "currency", "tooltip")).toBe("$1.77");
+        expect(formatValueByUnit(1.9, "currency", "tooltip")).toBe("$1.90");
+        expect(formatValueByUnit(1.03, "currency", "tooltip")).toBe("$1.03");
+        // Consistent 2 decimals under $1000 so a column doesn't mix "$1.80" with "$1".
+        expect(formatValueByUnit(1, "currency", "tooltip")).toBe("$1.00");
+        expect(formatValueByUnit(5, "currency", "tooltip")).toBe("$5.00");
+        // Large values are unaffected — still grouped whole dollars.
+        expect(formatValueByUnit(248_703_706, "currency", "tooltip")).toBe("$248,703,706");
+    });
 });

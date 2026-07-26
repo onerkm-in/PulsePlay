@@ -234,7 +234,15 @@ export function formatValueByUnit(
             if (isAxis && abs >= 1_000_000_000) return signed(value, v => `$${(v / 1_000_000_000).toFixed(1)}B`);
             if (isAxis && abs >= 1_000_000) return signed(value, v => `$${(v / 1_000_000).toFixed(1)}MM`);
             if (isAxis && abs >= 100_000) return signed(value, v => `$${(v / 1_000).toFixed(1)}M`);
-            // For tooltips / legend / small values, full grouped form.
+            // Small currency (e.g. a figure already scaled to billions like
+            // 1.77, or a sub-$1000 price): whole-dollar rounding would collapse
+            // 1.77 → "$2" and hide a real change (1.77 vs 1.90). Show 2 decimals
+            // under $1000 — consistently, so a column reads "$1.80 / $1.90 /
+            // $1.00", not "$1.80 / $1.90 / $1". Grouped whole dollars at/above $1000.
+            if (abs > 0 && abs < 1000) {
+                return signed(value, v => `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+            }
+            // For tooltips / legend / large values, full grouped form.
             return signed(value, v => `$${Math.round(v).toLocaleString("en-US")}`);
         }
 

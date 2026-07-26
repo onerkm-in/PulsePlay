@@ -300,9 +300,23 @@ function dominantRawName(series: ReadonlyArray<SeriesWithUnit>, unit: UnitType):
     return series.find(s => s.unit === unit)?.rawName;
 }
 
+/** True when the series carry more than one unit (e.g. a % metric plotted
+ *  alongside a count or currency). A single axis can't wear more than one
+ *  unit's suffix without mislabeling the others. */
+function hasMixedUnits(series: ReadonlyArray<SeriesWithUnit>): boolean {
+    return new Set(series.map(s => s.unit)).size > 1;
+}
+
 /** Axis-label formatter using the dominant unit across all series. Returns
  *  an ECharts axisLabel object (formatter callback). */
 function axisFormatterForSeries(series: ReadonlyArray<SeriesWithUnit>): { formatter: (value: number) => string } {
+    // Mixed-unit chart (e.g. Order Fill Rate % beside GHG tCO2e counts): a
+    // single suffix would mislabel the other series — a 2.5M count rendered
+    // on a percentage axis becomes the nonsensical "2,500,000.0%". Fall back
+    // to a unit-less humanized number ("2.5MM") so the axis stays honest.
+    if (hasMixedUnits(series)) {
+        return { formatter: (value: number) => formatValueByUnit(value, 'generic', 'axis') };
+    }
     const unit = dominantUnit(series);
     const hint = dominantRawName(series, unit);
     return { formatter: (value: number) => formatValueByUnit(value, unit, 'axis', hint) };
