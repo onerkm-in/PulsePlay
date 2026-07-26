@@ -75,16 +75,28 @@ export const EChartsRenderer: React.FC<EChartsRendererProps> = ({ option, height
 
     // Initialize once on mount.
     useEffect(() => {
-        if (!elRef.current) return;
-        const instance = echarts.init(elRef.current);
+        const host = elRef.current;
+        if (!host) return;
+        const instance = echarts.init(host);
         chartRef.current = instance;
         instance.setOption(option, { notMerge: true });
 
         const onResize = () => instance.resize();
         window.addEventListener('resize', onResize);
+        // Container-aware re-layout: a window-resize listener alone misses the
+        // cases the responsive brief cares about — a side/nav/settings panel
+        // opening, focus mode, or a viewport-relative (vh/clamp) height
+        // recomputing — where the host box changes but the window doesn't.
+        // Observe the host directly so ECharts re-fits to its actual box.
+        let ro: ResizeObserver | null = null;
+        if (typeof ResizeObserver !== 'undefined') {
+            ro = new ResizeObserver(() => instance.resize());
+            ro.observe(host);
+        }
 
         return () => {
             window.removeEventListener('resize', onResize);
+            ro?.disconnect();
             instance.dispose();
             chartRef.current = null;
         };

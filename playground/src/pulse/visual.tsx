@@ -10281,7 +10281,11 @@ function renderEChartsBody(
             </div>
         );
     }
-    return <EChartsRenderer option={option} height={320} />;
+    // Responsive, bounded height: scale with the viewport (~1/3) but never so
+    // tall that a chart alone fills a laptop screen, nor so short it clips
+    // labels. Combined with EChartsRenderer's ResizeObserver, the chart re-fits
+    // when the viewport, zoom, or a side/nav panel changes its box.
+    return <EChartsRenderer option={option} height="clamp(220px, 34vh, 400px)" />;
 }
 
 const CLUSTERED_COLORS = ["#4793f8", "#f97316", "#22c55e", "#ef4444", "#a855f7", "#eab308"];
