@@ -5,6 +5,22 @@
 
 ---
 
+## 2026-07-26 (latest+16) — Synthetic SCM data as-of 30-Jun-2026 (3-year window) + Genie space owned by PulsePlay + prompt-leak fix
+
+Fixes the KPI-snapshot complaint ("No prior period data is available for comparison; only current year values are shown") for the `genie-scm-poc` space. `a296ede` (synth + Genie config) + `3a8549c` (proxy leak fix). Proxy Genie suites green (211).
+
+**Why it broke:** `cpg_reskin.py`'s date window was ofr 2025-2027 / ops+perf 2024-2027 with rows spread uniformly across all years AND all 12 months — future data through Dec 2027, no clean as-of boundary, OFR missing a 2024 baseline. So the briefing couldn't line up a comparable prior period.
+
+**Data fix (`cpg_reskin.py`):** anchored to `AS_OF_YEAR/AS_OF_MONTH=2026,6` + `COMPLETE_YEARS_BACK=2` → **2024 full + 2025 full + 2026 Jan-Jun** (nothing after 2026-06). Rows allocated **proportionally** across the 30 (year,month) periods (`i*len(PERIODS)//dest_rows`) so each month gets an equal share and YTD-vs-prior-YTD is apples-to-apples even on the sparse 177-row performance fact (plain `i%30` clustered the remainder in the tail and made 2026-H1 dip). Added a deterministic **YoY trend + seasonality** in `kpi_inputs()`: volume = center × `_vol_factor(year,month)` (~6%/yr growth + ±8% seasonal) with a TIGHT noise band (perf net-sales 25M×trend×[0.92,1.08]) so the trend survives low row counts; rates drift (fill/OTIF +0.8/+1.0pp/yr, COGS ratio -1pp/yr → margin up); GHG ×0.95^yr, energy ×0.97^yr (decarbonization). Redeployed live 3× on `Serverless Starter Warehouse` (profile `AgenticIntelligence` in `~/.databrickscfg` — the `pulseplay` PAT is 403). Live metric views: OFR 97.4→98.2→99.0, OTIF 92.4→93.5→94.5, margin 54.2→54.9→55.6, net sales YTD 948→989→1031MM, GHG-H1 1.27M→1.20M→1.14M.
+
+**Genie space config (`genie_space_config.py`, NEW, idempotent):** PulsePlay now owns the space (`01f1871d478a181c83cb0562607c3d8e`) instructions via `POST/DELETE /api/2.0/data-rooms/{id}/instructions` (the internal name for Genie spaces; the public `/genie/spaces/{id}` GET only returns basic metadata). Wipes + rebuilds: **1 `TEXT_INSTRUCTION`** (as-of window; period-comparison rules — current year = 2026 YTD, compare to 2025 same months, full-year uses 2024 vs 2025; star schema + join keys; ~8-12% orphan / ~16% null caveats; the "answer KPIs through the metric views with `MEASURE()`" contract) + **14 `SQL_INSTRUCTION`** example Q→SQL pairs (all executed live before publishing). The `use_as_tool` flag on instructions is the "SQL functions" mechanism — left false (examples); parameterised tool-functions are a possible later add.
+
+**Proxy leak fix (`3a8549c`, `extractGenieText` in server.js):** it appended the Genie message object's `content`, which is the ORIGINAL question we sent — in the sectioned path the `# Section:/analytics formatting assistant/[User question]` scaffold — so that scaffold rendered verbatim at the bottom of every Genie section body. Now `content` is a fallback used only when the response has no attachment text/SQL. (The non-sectioned path already scrubbed this via `normalizeGenieResponse`; the sectioned `runSectionGenie` path did not.)
+
+**Validated end-to-end** Tables ↔ Views ↔ Metric Views ↔ Genie space ↔ PulsePlay proxy: Genie answers "this year vs same period last year" with `Month<=6 AND Year IN (2025,2026)` (net sales $989.3M→$1.031B, margin 55.14→55.60%); the PulsePlay `KPI SNAPSHOT` section for `genie-scm-poc` returns current-year KPIs **with the prior-year comparison** and no scaffold text. **Harness caveat:** chrome-devtools MCP isn't wired on this box (only Canva/Figma MCP present) so validation was live-API/proxy round-trips + SQL, not pixel screenshots — consistent with prior sessions' DOM/network-proof caveat.
+
+**Untracked leftover:** the older point-in-time reports under `docs/synthetic_poc/` (SYNTHETIC_BUILD_PLAN, VALIDATION_REPORT, DDL_INVENTORY, etc.) are still untracked and now describe the OLD 2025-2027 window — triage/refresh or delete as you prefer; only `GENIE_SETUP.md` was updated + committed.
+
 ## 2026-07-24 (latest+15) — Interface consolidation: 3 experience modes, cockpit polish, and 3 stale hidden interfaces removed
 
 Big UI-structure session. Trunk `design/nav-consistency` = `main`, pushed. All green: playground **1854/1854**, proxy **1408/1408**, tsc clean.
