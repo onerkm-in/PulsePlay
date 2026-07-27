@@ -7,10 +7,15 @@
   display: flex;
   gap: 0;
   margin-bottom: var(--space-3);
-  background: var(--color-neutral-100, #f5f5f8);
+  /* 2026-07-27 — was --color-neutral-100 (a LIGHT-ramp literal that never flips
+     in dark mode): the card stayed near-white while text tokens went light, so
+     headings/meta were unreadable in dark. --pp-surface-raised is theme-aware
+     and matches the v4 elevated-card treatment in both themes. */
+  background: var(--pp-surface-raised, #ffffff);
   border: 1px solid var(--color-divider);
   border-left: 4px solid var(--sev-color, var(--color-accent));
   border-radius: var(--radius-lg, 7px);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(43, 43, 45, 0.14));
   overflow: hidden;
 }
 .dpc--terminal { opacity: 0.7; }
@@ -20,7 +25,7 @@
 .dpc.sev-bad    { --sev-color: var(--pp-bad); --sev-soft: var(--pp-bad-soft); }
 .dpc.sev-warn   { --sev-color: var(--pp-warn); --sev-soft: var(--pp-warn-soft); }
 .dpc.sev-violet { --sev-color: var(--pp-violet); --sev-soft: var(--pp-violet-soft); }
-.dpc.sev-neutral{ --sev-color: var(--color-neutral-500, #98989b); --sev-soft: var(--color-neutral-100, #f5f5f8); }
+.dpc.sev-neutral{ --sev-color: var(--color-neutral-500, #98989b); --sev-soft: color-mix(in srgb, var(--pp-text, #1d1f20) 8%, transparent); }
 
 .dpc__rail { display: none; }
 
@@ -57,12 +62,12 @@
   font-family: var(--font-heading); font-weight: var(--font-heading-weight);
   font-variant-numeric: tabular-nums; font-size: 22px; color: var(--sev-color, var(--color-accent));
 }
-.dpc__impact-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-neutral-500, #98989b); max-width: 170px; }
-.dpc__bar { height: 3px; margin-top: 5px; background: var(--color-neutral-200, #e7e7ea); border-radius: 2px; overflow: hidden; }
+.dpc__impact-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--pp-text-subtle, #86868a); max-width: 170px; }
+.dpc__bar { height: 3px; margin-top: 5px; background: color-mix(in srgb, var(--pp-text, #1d1f20) 12%, transparent); border-radius: 2px; overflow: hidden; }
 .dpc__bar-fill { display: block; height: 3px; background: var(--sev-color, var(--color-accent)); }
 
-.dpc__issue { font-size: 13px; line-height: 1.5; color: var(--color-neutral-700, #5d5d60); }
-.dpc__whyfix { font-size: 12px; line-height: 1.5; color: var(--color-neutral-600, #7a7a7d); }
+.dpc__issue { font-size: 13px; line-height: 1.5; color: var(--pp-text-muted, #5d5d60); }
+.dpc__whyfix { font-size: 12px; line-height: 1.5; color: var(--pp-text-muted, #7a7a7d); }
 .dpc__whyfix strong { font-weight: 700; color: var(--sev-color, var(--color-accent)); }
 .dpc__question { font-size: 13.5px; font-weight: 600; margin-top: var(--space-1); }
 
@@ -70,7 +75,7 @@
 .dpc__actions .btn { min-height: 40px; }
 .dpc__evidence-toggle { margin-left: auto; text-decoration: underline; }
 
-.dpc__terminal-status { font-size: 12px; font-weight: 600; color: var(--color-accent-700); margin-top: var(--space-1); }
+.dpc__terminal-status { font-size: 12px; font-weight: 600; color: var(--pp-accent, var(--color-accent-700)); margin-top: var(--space-1); }
 
 .dpc__evidence { margin-top: var(--space-2); display: flex; flex-direction: column; gap: 4px; }
 .dpc__pre {
@@ -82,7 +87,7 @@
   font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
 }
 
-.dpc__meta { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin-top: 2px; font-size: 10.5px; color: var(--color-neutral-500, #98989b); }
+.dpc__meta { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin-top: 2px; font-size: 10.5px; color: var(--pp-text-subtle, #86868a); }
 
 .dpc__pin-error {
   margin-top: var(--space-1); padding: 6px 8px; font-size: 11.5px; border-radius: var(--radius-md, 4px);
