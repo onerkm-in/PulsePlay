@@ -1,64 +1,64 @@
-/* PulsePlay signature design language — app-chrome layer (2026-07-27).
-   NOT the generic modern-dashboard look: editorial condensed numerics, flag
-   section headers with a red notch, a gradient masthead with a red signature
-   stripe, top-cap cards. Colour language is PepsiCo-inspired (deep blue
-   #004B93 / mid #0071CE / red #E32934) — no logos or wordmarks. Token-driven
-   where possible so dark mode + theme switches keep working. Imported LAST in
-   main.tsx; the workbench (.gn-*) counterpart lives at the end of
-   src/pulse/style/visual.less. */
+/* PulsePlay chrome alignment — mockup-faithful layer (2026-07-27).
+   Source of truth: Design/unified-extract (PulsePlay Shell.dc.html chrome +
+   My Decision Canvas v4 content treatments + PulsePlay Design Audit rules).
+   The audit BANS: 999px pills, decorative gradients, gradient/clip text,
+   underline-nav inventions, translateX/entrance animation, multi-hue accents.
+   Colour comes from tokens (single accent = PepsiCo blue ramp per user choice);
+   geometry/treatments come from the mockups. Imported LAST in main.tsx. */
 
-/* App canvas — subtle diagonal brand wash, more directional than a flat fill. */
-body,
-.pp-app {
-    background-image:
-        linear-gradient(160deg, color-mix(in srgb, var(--pp-accent, #0071ce) 6%, transparent), transparent 38%),
-        radial-gradient(900px 480px at 108% 112%, color-mix(in srgb, var(--pp-accent, #0071ce) 5%, transparent), transparent 55%);
-    background-attachment: fixed;
-}
-
-/* Masthead — deep brand band with the red signature stripe underneath.
-   !important: the header carries inline `background: transparent`. */
+/* Masthead — Shell spec: flat ground, hairline divider, no gradient/stripe.
+   !important needed: the header carries inline background/border styles. */
 .pp-top-bar {
-    background: linear-gradient(120deg, #002850 0%, #004b93 55%, #0071ce 100%) !important;
-    border-bottom: none !important;
-    box-shadow: 0 2px 14px rgba(0, 40, 80, 0.35);
-    position: relative;
+    background: var(--pp-surface-raised, #f5f5f6) !important;
+    border-bottom: 1px solid var(--color-divider, rgba(29, 31, 32, 0.16)) !important;
+    box-shadow: var(--shadow-sm, 0 1px 2px rgba(43, 43, 45, 0.14));
 }
-.pp-top-bar::after {
-    content: "";
-    position: absolute;
-    left: 0; right: 0; bottom: 0;
-    height: 3px;
-    background: linear-gradient(90deg, #e32934 0%, #e32934 140px, color-mix(in srgb, #e32934 30%, transparent) 300px, transparent 480px);
-    pointer-events: none;
-}
-.pp-top-bar h1 { color: #ffffff !important; letter-spacing: 0.2px; }
-.pp-top-bar .pp-brand-logo { filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.35)); }
-/* Status chips on the dark masthead need a light treatment to stay legible. */
-.pp-top-bar [class*="pill"],
-.pp-top-bar [class*="chip"],
-.pp-top-bar [class*="status"] {
-    background: rgba(255, 255, 255, 0.14) !important;
-    border-color: rgba(255, 255, 255, 0.28) !important;
-    color: #ffffff !important;
-}
-.pp-top-bar [class*="pill"] * ,
-.pp-top-bar [class*="chip"] * {
-    color: #ffffff !important;
+.pp-top-bar h1 {
+    color: var(--pp-text, #1d1f20) !important;
+    font-family: var(--font-heading, "Barlow Condensed", system-ui, sans-serif);
+    font-weight: 600;
+    letter-spacing: -0.015em;
 }
 
-/* Sidebar surface — quiet elevation. */
-.pp-app__sidebar {
-    box-shadow: 2px 0 16px color-mix(in srgb, var(--pp-accent-strong, #004b93) 6%, transparent);
+/* Surface switcher (Decisions/Dashboard chrome) — unify with the workbench
+   .gn-header-tab language: FLAT container (no 999px pill, no blur, no border)
+   and a FILLED square-ish active tab, exactly as both mockups render active
+   nav (Shell .btn active = accent fill; v4 .navlink.active = accent fill). */
+.pp-surface-switcher {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    padding: 0;
+    gap: 4px;
+}
+.pp-surface-switcher__item {
+    border-radius: var(--radius-md, 4px);
+    font-family: var(--font-heading, "Barlow Condensed", system-ui, sans-serif);
+    font-weight: 600;
+    min-height: 32px;
+}
+.pp-surface-switcher__item:hover:not(.pp-surface-switcher__item--active) {
+    background: color-mix(in srgb, var(--pp-accent, #0071ce) 10%, transparent);
+    color: var(--pp-accent-dark, #004b93);
+}
+.pp-surface-switcher__item--active {
+    background: var(--pp-accent-strong, #004b93);
+    color: var(--pp-on-accent-strong, #ffffff);
+    border-radius: var(--radius-md, 4px);
+    box-shadow: var(--shadow-sm, 0 1px 2px rgba(43, 43, 45, 0.14));
 }
 
-/* Native canvas tiles (Dashboard) — top-cap instead of a generic border. */
+/* Dashboard canvas tiles — v4 card: white, radius-lg, shadow-sm; hover to
+   shadow-md by colour/elevation only (no translate — audit rule). */
 .pp-tile {
-    border-top: 3px solid var(--pp-accent, #0071ce);
-    box-shadow: var(--pp-shadow-sm);
-    transition: transform 150ms var(--pp-ease, ease), box-shadow 150ms var(--pp-ease, ease);
+    background: #ffffff;
+    border-radius: var(--radius-lg, 7px);
+    box-shadow: var(--shadow-sm, 0 1px 2px rgba(43, 43, 45, 0.14));
+    transition: box-shadow 160ms ease;
 }
 .pp-tile:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--pp-shadow-md);
+    box-shadow: var(--shadow-md, 0 3px 10px rgba(43, 43, 45, 0.16));
 }

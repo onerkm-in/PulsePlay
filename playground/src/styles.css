@@ -61,12 +61,12 @@
     /* Radius scale — square blueprint objects; buttons/inputs max 4px, cards 0.
        --pp-radius-pill squared to honour Industry rule 1 (no pills). Genuine
        circles use border-radius:50% or a literal, not this token. */
-    --pp-radius-xs:        4px;
-    --pp-radius-sm:        6px;
-    --pp-radius:           9px;
-    --pp-radius-lg:        13px;
-    --pp-radius-xl:        18px;
-    --pp-radius-pill:      999px;
+    --pp-radius-xs:        3px;
+    --pp-radius-sm:        var(--radius-md, 4px);
+    --pp-radius:           var(--radius-md, 4px);
+    --pp-radius-lg:        var(--radius-lg, 7px);
+    --pp-radius-xl:        var(--radius-lg, 7px);
+    --pp-radius-pill:      var(--radius-md, 4px);
 
     /* Spacing scale (4px base) */
     --pp-s1:   4px;
@@ -94,12 +94,12 @@
     --pp-lh-relaxed:       1.65;
 
     /* Shadow scale */
-    --pp-shadow-xs:        0 1px 2px rgba(0, 75, 147, 0.06);
-    --pp-shadow-sm:        0 2px 6px rgba(0, 75, 147, 0.07), 0 1px 2px rgba(15, 23, 42, 0.04);
-    --pp-shadow-md:        0 6px 18px rgba(0, 75, 147, 0.10), 0 2px 6px rgba(15, 23, 42, 0.05);
-    --pp-shadow-lg:        0 14px 40px rgba(0, 75, 147, 0.13), 0 4px 12px rgba(15, 23, 42, 0.06);
-    --pp-shadow-xl:        0 24px 60px rgba(0, 75, 147, 0.16), 0 8px 20px rgba(15, 23, 42, 0.07);
-    --pp-control-shadow:   0 1px 2px rgba(0, 75, 147, 0.06), 0 4px 12px rgba(0, 75, 147, 0.05);
+    --pp-shadow-xs:        0 1px 2px rgba(15, 23, 42, 0.06);
+    --pp-shadow-sm:        0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.05);
+    --pp-shadow-md:        0 4px 12px rgba(15, 23, 42, 0.10), 0 2px 4px rgba(15, 23, 42, 0.06);
+    --pp-shadow-lg:        0 8px 28px rgba(15, 23, 42, 0.13), 0 4px 8px rgba(15, 23, 42, 0.07);
+    --pp-shadow-xl:        0 12px 32px rgba(15, 23, 42, 0.16), 0 6px 14px rgba(15, 23, 42, 0.08);
+    --pp-control-shadow:   0 1px 2px rgba(15, 23, 42, 0.06), 0 4px 10px rgba(15, 23, 42, 0.05);
     --pp-control-inset:    inset 0 1px 0 rgba(255, 255, 255, 0.90);
     --pp-control-focus:    0 0 0 3px color-mix(in srgb, var(--pp-accent, #0071ce) 40%, transparent), 0 1px 3px rgba(15, 23, 42, 0.08);
 

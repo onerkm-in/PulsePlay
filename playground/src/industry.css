@@ -49,13 +49,13 @@
   --space-6: 20.4px;
   --space-8: 27.2px;
 
-  --radius-sm: 6px;
-  --radius-md: 9px;
-  --radius-lg: 13px;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 7px;
 
-  --shadow-sm: 0 2px 6px color-mix(in srgb, #004b93 10%, transparent), 0 1px 2px color-mix(in srgb, #2b2b2d 6%, transparent);
-  --shadow-md: 0 6px 18px color-mix(in srgb, #004b93 12%, transparent), 0 2px 6px color-mix(in srgb, #2b2b2d 6%, transparent);
-  --shadow-lg: 0 18px 44px color-mix(in srgb, #004b93 16%, transparent), 0 6px 16px color-mix(in srgb, #2b2b2d 8%, transparent);
+  --shadow-sm: 0 1px 2px color-mix(in srgb, #2b2b2d 14%, transparent);
+  --shadow-md: 0 3px 10px color-mix(in srgb, #2b2b2d 16%, transparent);
+  --shadow-lg: 0 12px 32px color-mix(in srgb, #2b2b2d 22%, transparent);
 
   /* Controlled semantic palette (My Decision Canvas cockpit — see
      docs/MY_DECISION_CANVAS_DESIGN_APPROACH.md). Steel stays the PRIMARY brand

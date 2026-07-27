@@ -104,9 +104,9 @@ export const BUILT_IN_THEMES: Record<ThemeName, ThemeTokens> = {
         success:       "#1a7f37",
         warning:       "#8a5c00",
         error:         "#e32934",
-        fontFamily:    '"Segoe UI", -apple-system, system-ui, sans-serif',
-        radius:        "12px",
-        radiusSm:      "8px"
+        fontFamily:    '"Barlow", "Segoe UI", system-ui, sans-serif',
+        radius:        "7px",
+        radiusSm:      "4px"
     },
 
     /** Industry — the binding steel-wireframe design system. Steel accent on a
