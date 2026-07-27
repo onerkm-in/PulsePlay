@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import {
     buildDeterministicPbiInsightsPlan,
     isPbiTimeDimensionName,
+    matchFeaturedMeasures,
 } from "../visualHelpers";
 
 // Cross-check against the REAL proxy matcher so we prove every generated
@@ -158,6 +159,33 @@ describe("buildDeterministicPbiInsightsPlan — headline measure ranking", () =>
             measures: ["Ordered Qty", "Delivered Qty"], dimensions: SCM_DIMS,
         });
         expect(plan.stages[0]).toMatch(/Ordered Qty/); // first in probe order, no KPI available
+    });
+});
+
+// Slice 2 — pack KPI labels drive the featured measures (domain-driven headline).
+describe("matchFeaturedMeasures — pack KPI labels → probe measure names", () => {
+    const PBI = ["Ordered Qty", "Order Fill Rate Pct", "OTIF Pct", "Net Sales USD", "Gross Margin Pct", "Forecast Accuracy Pct"];
+
+    it("matches unit/%-suffixed measures to the pack's % labels, in pack order", () => {
+        const out = matchFeaturedMeasures(["OTIF %", "Forecast Accuracy %", "Net Sales"], PBI);
+        expect(out).toEqual(["OTIF Pct", "Forecast Accuracy Pct", "Net Sales USD"]);
+    });
+
+    it("skips pack KPIs with no probe measure, dedupes, keeps pack order", () => {
+        const out = matchFeaturedMeasures(["Inventory Health", "OTIF %", "OTIF %"], PBI);
+        expect(out).toEqual(["OTIF Pct"]);
+    });
+
+    it("empty pack labels → empty (heuristic stays in charge)", () => {
+        expect(matchFeaturedMeasures([], PBI)).toEqual([]);
+    });
+
+    it("drives the headline when fed into the plan as featuredMeasures", () => {
+        const featured = matchFeaturedMeasures(["OTIF %"], PBI);
+        const plan = buildDeterministicPbiInsightsPlan({
+            measures: PBI, dimensions: ["sales_channel", "date_month"], featuredMeasures: featured,
+        });
+        expect(plan.stages[0]).toMatch(/OTIF Pct/);
     });
 });
 

@@ -1206,6 +1206,41 @@ export function isPbiTimeDimensionName(name: string): boolean {
     return PBI_TIME_DIM_HINTS.some(h => n.includes(h));
 }
 
+/** Normalize a measure/KPI name for cross-matching: lowercase, drop unit and
+ *  percent suffixes (Pct/USD/tCO2e/…) and punctuation. "OTIF %" and "OTIF Pct"
+ *  both become "otif"; "Net Sales USD" → "net sales". */
+function normalizeMeasureName(s: string): string {
+    return (s || "")
+        .toLowerCase()
+        .replace(/\b(pct|percent|usd|tco2e|co2e|ppm|kwh|mwh|gwh)\b/g, " ")
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+}
+
+/**
+ * Map domain pack KPI labels (e.g. ["OTIF %", "Forecast Accuracy %"]) onto the
+ * actual probed measure names (["OTIF Pct", "Forecast Accuracy Pct"]), in the
+ * pack's declared order, so the briefing headline follows DOMAIN priority
+ * rather than a generic name heuristic. A pack KPI matches a probe measure when
+ * their normalized names contain one another (unit/%-suffix stripped). Returns
+ * the matched probe measure names, deduped, order = pack order. Best-effort:
+ * unmatched KPIs are skipped; an empty result just leaves the heuristic in
+ * charge.
+ */
+export function matchFeaturedMeasures(packKpiLabels: string[], probeMeasures: string[]): string[] {
+    const measures = (probeMeasures || [])
+        .map(m => ({ raw: m, n: normalizeMeasureName(m) }))
+        .filter(x => x.raw && x.n);
+    const out: string[] = [];
+    for (const label of (packKpiLabels || [])) {
+        const core = normalizeMeasureName(label);
+        if (!core) continue;
+        const hit = measures.find(m => !out.includes(m.raw) && (m.n.includes(core) || core.includes(m.n)));
+        if (hit) out.push(hit.raw);
+    }
+    return out;
+}
+
 export interface DeterministicPbiInsightsInput {
     /** Probed measure names (e.g. ["Total Sales", "Total Profit"]). */
     measures: string[];

@@ -99,6 +99,7 @@ import {
     buildFastHybridInsightsStagePrompts,
     buildStagedHybridInsightsPlan,
     buildDeterministicPbiInsightsPlan,
+    matchFeaturedMeasures,
     buildInsightsPrompt,
     FAST_INSIGHTS_STAGE_TITLE,
     parseCustomSections,
@@ -160,6 +161,7 @@ import {
     titleCase,
     validateAssignedFields,
 } from "./visualHelpers";
+import { buildBusinessContextProfile } from "../authoring/businessContextProfile";
 import { buildThemeFromHost, buildThemeStyle, mergeTheme, ThemeName } from "./themeConfig";
 // UX-VIEWER-1.2B — Ask Pulse home metadata hook. Replaces STATIC_ACTIONS
 // on the empty state with data-shaped starter questions (curated from
@@ -3955,9 +3957,26 @@ function App(props: AppProps) {
         const pbiProbe = pbiProbeRef.current.get(insightsActiveProfile);
         let deterministicPbiPlan: { stages: string[]; titles: string[] } | null = null;
         if (pbiProbe && pbiProbe.connectorType === "powerbi-semantic-model" && pbiProbe.measures.length > 0) {
+            // Domain-driven headline: when a pack is selected, its KPIs (in
+            // declared order) set the featured measures so the briefing leads
+            // with the domain's priority KPI, matched to the probe's actual
+            // measure names. Best-effort — falls back to the name heuristic.
+            let featuredMeasures: string[] = [];
+            try {
+                const rawPack = window.localStorage.getItem("pulseplay:pack-selection");
+                if (rawPack) {
+                    const sel = JSON.parse(rawPack) as { pack?: string; subVertical?: string };
+                    if (sel?.pack) {
+                        const bcp = buildBusinessContextProfile(sel.pack, sel.subVertical);
+                        const kpiLabels = (bcp.kpis || []).map(k => k.label).filter(Boolean);
+                        featuredMeasures = matchFeaturedMeasures(kpiLabels, pbiProbe.measures);
+                    }
+                }
+            } catch { /* pack lookup is best-effort; heuristic ranking still applies */ }
             const plan = buildDeterministicPbiInsightsPlan({
                 measures: pbiProbe.measures,
                 dimensions: pbiProbe.dimensions,
+                featuredMeasures,
                 universalStages: {
                     headline: props.settings.insightsShowHeadline,
                     trends: props.settings.insightsShowTrends,
