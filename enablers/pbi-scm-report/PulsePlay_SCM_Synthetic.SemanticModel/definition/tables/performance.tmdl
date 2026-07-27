@@ -1,45 +1,32 @@
 table performance
 
-	column country
+	measure 'Net Sales USD' = SUM(performance[net_sales_usd])
+		formatString: #,0
+
+	measure 'COGS USD' = SUM(performance[cogs_usd])
+		formatString: #,0
+
+	measure 'Gross Margin Pct' = DIVIDE(100 * (SUM(performance[net_sales_usd]) - SUM(performance[cogs_usd])), SUM(performance[net_sales_usd]))
+		formatString: 0.00
+
+	measure 'Forecast Accuracy Pct' = 100 * (1 - DIVIDE(SUMX(performance, ABS(performance[actual_qty] - performance[forecast_qty])), SUM(performance[actual_qty])))
+		formatString: 0.00
+
+	measure 'Forecast Bias Pct' = DIVIDE(100 * (SUM(performance[actual_qty]) - SUM(performance[forecast_qty])), SUM(performance[actual_qty]))
+		formatString: 0.00
+
+	column country_id
 		dataType: string
 		summarizeBy: none
-		sourceColumn: country
-
-	column ou
-		dataType: string
-		summarizeBy: none
-		sourceColumn: ou
-
-	column year
-		dataType: int64
-		summarizeBy: none
-		sourceColumn: year
-
-	column quarter
-		dataType: int64
-		summarizeBy: none
-		sourceColumn: quarter
-
-	column month
-		dataType: int64
-		summarizeBy: none
-		sourceColumn: month
-
-	column month_name
-		dataType: string
-		summarizeBy: none
-		sourceColumn: month_name
-
-	column month_order
-		dataType: int64
-		summarizeBy: none
-		sourceColumn: month_order
+		sourceColumn: country_id
 
 	column date_month
 		dataType: dateTime
 		formatString: yyyy-mm-dd
 		summarizeBy: none
 		sourceColumn: date_month
+
+		annotation UnderlyingDateTimeDataType = Date
 
 	column forecast_qty
 		dataType: double
@@ -71,21 +58,6 @@ table performance
 		summarizeBy: sum
 		sourceColumn: lost_time_injuries
 
-	measure 'Net Sales USD' = SUM(performance[net_sales_usd])
-		formatString: #,0
-
-	measure 'COGS USD' = SUM(performance[cogs_usd])
-		formatString: #,0
-
-	measure 'Gross Margin Pct' = DIVIDE(100 * (SUM(performance[net_sales_usd]) - SUM(performance[cogs_usd])), SUM(performance[net_sales_usd]))
-		formatString: 0.00
-
-	measure 'Forecast Accuracy Pct' = 100 * (1 - DIVIDE(SUMX(performance, ABS(performance[actual_qty] - performance[forecast_qty])), SUM(performance[actual_qty])))
-		formatString: 0.00
-
-	measure 'Forecast Bias Pct' = DIVIDE(100 * (SUM(performance[actual_qty]) - SUM(performance[forecast_qty])), SUM(performance[actual_qty]))
-		formatString: 0.00
-
 	partition performance = m
 		mode: import
 		source =
@@ -93,6 +65,6 @@ table performance
 				    Source = Databricks.Catalogs("dbc-f88d29ce-4aa2.cloud.databricks.com", "/sql/1.0/warehouses/6510da50329f1e85", [Catalog=null, Database=null, EnableAutomaticProxyDiscovery=null]),
 				    workspace = Source{[Name="workspace",Kind="Database"]}[Data],
 				    schema = workspace{[Name="databrickspractice",Kind="Schema"]}[Data],
-				    view = schema{[Name="vw_pbi_scm_performance",Kind="View"]}[Data]
+				    view = schema{[Name="vw_pbi_fct_performance",Kind="View"]}[Data]
 				in
 				    view

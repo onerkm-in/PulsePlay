@@ -3,7 +3,20 @@ model Model
 	defaultPowerBIDataSourceVersion: powerBI_V3
 	discourageImplicitMeasures
 	sourceQueryCulture: en-US
+	dataAccessOptions
+		legacyRedirects
+		returnErrorValuesAsNull
 
-	annotation PBI_QueryOrder = ["ofr","operations","performance"]
+annotation PBI_QueryOrder = ["dim_date","dim_country","dim_plant","dim_sales_channel","ofr","operations","performance"]
 
-	annotation __PBI_TimeIntelligenceEnabled = 0
+annotation __PBI_TimeIntelligenceEnabled = 0
+
+annotation PBI_ProTooling = ["DevMode"]
+
+ref table dim_date
+ref table dim_country
+ref table dim_plant
+ref table dim_sales_channel
+ref table ofr
+ref table operations
+ref table performance

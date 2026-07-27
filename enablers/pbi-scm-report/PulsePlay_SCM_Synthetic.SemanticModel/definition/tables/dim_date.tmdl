@@ -1,0 +1,66 @@
+table dim_date
+
+	column date
+		dataType: dateTime
+		formatString: yyyy-mm-dd
+		summarizeBy: none
+		sourceColumn: date
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column year
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: year
+
+	column quarter
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: quarter
+
+	column quarter_name
+		dataType: string
+		summarizeBy: none
+		sourceColumn: quarter_name
+		sortByColumn: quarter
+
+	column month
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: month
+
+	column month_name
+		dataType: string
+		summarizeBy: none
+		sourceColumn: month_name
+		sortByColumn: month
+
+	column month_short
+		dataType: string
+		summarizeBy: none
+		sourceColumn: month_short
+		sortByColumn: month
+
+	column month_start
+		dataType: dateTime
+		formatString: yyyy-mm-dd
+		summarizeBy: none
+		sourceColumn: month_start
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column month_order
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: month_order
+
+	partition dim_date = m
+		mode: import
+		source =
+				let
+				    Source = Databricks.Catalogs("dbc-f88d29ce-4aa2.cloud.databricks.com", "/sql/1.0/warehouses/6510da50329f1e85", [Catalog=null, Database=null, EnableAutomaticProxyDiscovery=null]),
+				    workspace = Source{[Name="workspace",Kind="Database"]}[Data],
+				    schema = workspace{[Name="databrickspractice",Kind="Schema"]}[Data],
+				    view = schema{[Name="vw_pbi_dim_date",Kind="View"]}[Data]
+				in
+				    view

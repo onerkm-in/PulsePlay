@@ -1,0 +1,35 @@
+relationship a0000001-0000-0000-0000-000000000001
+	fromColumn: ofr.country_id
+	toColumn: dim_country.country_id
+
+relationship a0000001-0000-0000-0000-000000000002
+	fromColumn: ofr.plant_id
+	toColumn: dim_plant.plant_id
+
+relationship a0000001-0000-0000-0000-000000000003
+	fromColumn: ofr.sales_channel
+	toColumn: dim_sales_channel.sales_channel
+
+relationship a0000001-0000-0000-0000-000000000004
+	fromColumn: ofr.date_month
+	toColumn: dim_date.date
+
+relationship a0000001-0000-0000-0000-000000000005
+	fromColumn: operations.country_id
+	toColumn: dim_country.country_id
+
+relationship a0000001-0000-0000-0000-000000000006
+	fromColumn: operations.plant_id
+	toColumn: dim_plant.plant_id
+
+relationship a0000001-0000-0000-0000-000000000007
+	fromColumn: operations.date_month
+	toColumn: dim_date.date
+
+relationship a0000001-0000-0000-0000-000000000008
+	fromColumn: performance.country_id
+	toColumn: dim_country.country_id
+
+relationship a0000001-0000-0000-0000-000000000009
+	fromColumn: performance.date_month
+	toColumn: dim_date.date

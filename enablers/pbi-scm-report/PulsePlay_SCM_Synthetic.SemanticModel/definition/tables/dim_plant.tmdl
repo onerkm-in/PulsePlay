@@ -1,0 +1,37 @@
+table dim_plant
+
+	column plant_id
+		dataType: string
+		summarizeBy: none
+		sourceColumn: plant_id
+
+	column plant
+		dataType: string
+		summarizeBy: none
+		sourceColumn: plant
+
+	column region
+		dataType: string
+		summarizeBy: none
+		sourceColumn: region
+
+	column loc_type
+		dataType: string
+		summarizeBy: none
+		sourceColumn: loc_type
+
+	column country_id
+		dataType: string
+		summarizeBy: none
+		sourceColumn: country_id
+
+	partition dim_plant = m
+		mode: import
+		source =
+				let
+				    Source = Databricks.Catalogs("dbc-f88d29ce-4aa2.cloud.databricks.com", "/sql/1.0/warehouses/6510da50329f1e85", [Catalog=null, Database=null, EnableAutomaticProxyDiscovery=null]),
+				    workspace = Source{[Name="workspace",Kind="Database"]}[Data],
+				    schema = workspace{[Name="databrickspractice",Kind="Schema"]}[Data],
+				    view = schema{[Name="vw_pbi_dim_plant",Kind="View"]}[Data]
+				in
+				    view

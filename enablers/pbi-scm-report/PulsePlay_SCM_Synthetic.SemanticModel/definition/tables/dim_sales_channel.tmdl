@@ -1,0 +1,17 @@
+table dim_sales_channel
+
+	column sales_channel
+		dataType: string
+		summarizeBy: none
+		sourceColumn: sales_channel
+
+	partition dim_sales_channel = m
+		mode: import
+		source =
+				let
+				    Source = Databricks.Catalogs("dbc-f88d29ce-4aa2.cloud.databricks.com", "/sql/1.0/warehouses/6510da50329f1e85", [Catalog=null, Database=null, EnableAutomaticProxyDiscovery=null]),
+				    workspace = Source{[Name="workspace",Kind="Database"]}[Data],
+				    schema = workspace{[Name="databrickspractice",Kind="Schema"]}[Data],
+				    view = schema{[Name="vw_pbi_dim_sales_channel",Kind="View"]}[Data]
+				in
+				    view
