@@ -5,6 +5,24 @@
 
 ---
 
+## 2026-07-27 (latest+24) — Config A headed sweep COMPLETE (Ask Pulse + Decisions + Dashboard): reconciled; 6 findings logged, no code changes
+
+Resumed the paused Config A (Databricks-only, genie-scm-poc) headed check. All three remaining screens validated; findings logged instead of blind-fixed. No commits besides docs.
+
+**Ask Pulse ✅ RECONCILED.** "Net sales by year" → live Genie round-trip → 2024 $1,771,951,244 / 2025 $1,877,915,529 / 2026 $1,031,411,005 = metric-view baseline to the dollar. Signature design renders (navy masthead + red stripe, underline nav, brand-gradient user bubble, legible masthead chips). Note: React textarea needs the native-setter workaround to enable Send (harness, not product).
+
+**Decisions ✅.** 4 governed SCM prompts (SCM-FA/FILL/OTIF-001 + PRIORITY-MIX-003) with persona + HITL intact.
+
+**Dashboard ⚠ renders, tile lost.** Canvas shows the empty state — `pulseplay:canvas-tiles` no longer exists (only the `-migrated` flag). The "OFR & OTIF by year (reconcile)" tile pinned earlier in the session is GONE; loss point not identified (needs repro — suspect the per-surface store migration path). Pin-to-canvas flow itself was validated in an earlier cycle.
+
+**Findings (product/backlog, in priority order):**
+1. **Pinned-tile loss** (above) — repro + root-cause needed; user data loss if real.
+2. **Tab chrome inconsistency** — the Dashboard surface renders its active tab as a FILLED PILL while Ask Pulse/AI Insights use the new underline style: two different tab components. Violates feedback_three_tabs_uniform; the signature-design pass must restyle BOTH.
+3. **Deterministic renderers ignore the number standard** — Ask Pulse KPI strip/table show raw "$1,771,951,243.6"; domain guidance only governs AI-written text (user acknowledges instruction-based scope). Upgrade = apply B/MN/M/% in columnLabels/KPI-strip formatters.
+4. **Chart auto-pick: Donut ★ for a 3-year time series** — should prefer column/line for year series (matches the earlier "Line for categorical" auto-pick finding).
+5. **Decisions stored text predates conventions** — "up 0.6pp" is baked into the Delta store by the Python engine; % convention needs an engine-side rule (scripts/decision_assist), not prompt guidance.
+6. **Decisions stored action mismatch** — PRIORITY-MIX-003 narrative asks to review priority-classification rules but its action button reads "Raise SKU redistribution request" (stored action_code/narrative mismatch in the synth store).
+
 ## 2026-07-27 (latest+23) — Config A validated w/ 2 fixes; number-format via domain guidance; PepsiCo design v1-v4 (user: still generic — NEXT: match Design/ mockups)
 
 Beast-mode arc. Commits `9469b8a` (HEADLINE precision), `cb3b740` (pp→%), `6f44548` (PepsiCo theme+tokens), `4177257` (polish v1), `145c257` (signature v2). main ff'd. tsc clean throughout.
