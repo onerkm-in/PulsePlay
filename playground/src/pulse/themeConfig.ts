@@ -47,6 +47,7 @@ export interface ThemeTokens {
 
 export type ThemeName =
     | "default"
+    | "pepsico"
     | "industry"
     | "corporate-blue"
     | "forest"
@@ -78,6 +79,31 @@ export const BUILT_IN_THEMES: Record<ThemeName, ThemeTokens> = {
         success:       "#1a7f37",
         warning:       "#8a5c00",
         error:         "#c8202a",
+        fontFamily:    '"Segoe UI", -apple-system, system-ui, sans-serif',
+        radius:        "12px",
+        radiusSm:      "8px"
+    },
+
+    /** PepsiCo — the app default. Brand-inspired deep-blue primary (#0071CE mid /
+     *  #004B93 deep for solid fills → white label, AA ~8:1) with a red accent for
+     *  alerts, on a soft blue-grey canvas. Softer geometry (12/8px) + white cards
+     *  for a smoother, more premium feel than the flat steel. No PepsiCo logos or
+     *  wordmarks — colour language only, over synthetic CPG data. */
+    "pepsico": {
+        bg:            "#f4f6fb",
+        surface:       "#ffffff",
+        surfaceRaised: "#ffffff",
+        border:        "#dbe3f0",
+        borderSubtle:  "#eaeff7",
+        text:          "#0f2440",
+        textMuted:     "#54637a",
+        accent:        "#0071ce",
+        accentSubtle:  "rgba(0,113,206,0.09)",
+        accentBorder:  "rgba(0,113,206,0.34)",
+        userBubble:    "#004b93",
+        success:       "#1a7f37",
+        warning:       "#8a5c00",
+        error:         "#e32934",
         fontFamily:    '"Segoe UI", -apple-system, system-ui, sans-serif',
         radius:        "12px",
         radiusSm:      "8px"
@@ -324,11 +350,12 @@ export interface AppearanceSettingsLike {
  *  which disables the brand inputs otherwise) so the presets stay distinct
  *  instead of all collapsing onto the stored brand accent. */
 export function resolveThemeTokens(s: AppearanceSettingsLike): ThemeTokens {
-    // Industry is the app default (see docs/INDUSTRY_DESIGN_REMEDIATION_PROMPT.md);
-    // an absent or unknown themeName resolves to it so the --pp-* bridge agrees
-    // with the workbench shell.
-    const name = (s.themeName || "industry") as ThemeName;
-    const base: ThemeName = BUILT_IN_THEMES[name] ? name : "industry";
+    // PepsiCo-inspired blue is the app default (2026-07-27 — replaced the flat
+    // steel "industry" default); an absent or unknown themeName resolves to it so
+    // the --pp-* bridge agrees with the workbench shell. "industry" is still
+    // available as an explicit choice.
+    const name = (s.themeName || "pepsico") as ThemeName;
+    const base: ThemeName = BUILT_IN_THEMES[name] ? name : "pepsico";
     if (base === "custom") {
         return mergeTheme("custom", {
             accent: s.brandAccentColor,

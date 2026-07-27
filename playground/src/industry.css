@@ -14,8 +14,8 @@
   --color-bg: #f2f2f3;
   --color-surface: #e9e9ea;
   --color-text: #1d1f20;
-  --color-accent: #5980a6;
-  --color-accent-2: #728fab;
+  --color-accent: #0071ce;
+  --color-accent-2: #4c9ee8;
   --color-divider: color-mix(in srgb, #1d1f20 16%, transparent);
 
   --color-neutral-100: #f5f5f8;
@@ -28,15 +28,15 @@
   --color-neutral-800: #424244;
   --color-neutral-900: #2b2b2d;
 
-  --color-accent-100: #eef6ff;
-  --color-accent-200: #d6ebff;
-  --color-accent-300: #b5d9fd;
-  --color-accent-400: #94bce3;
-  --color-accent-500: #749dc4;
-  --color-accent-600: #597ea3;
-  --color-accent-700: #416180;
-  --color-accent-800: #2c455d;
-  --color-accent-900: #1d2d3d;
+  --color-accent-100: #eaf3fc;
+  --color-accent-200: #cfe4f9;
+  --color-accent-300: #a6cef2;
+  --color-accent-400: #6fb0e8;
+  --color-accent-500: #2f8fdb;
+  --color-accent-600: #0071ce;
+  --color-accent-700: #004b93;
+  --color-accent-800: #003a73;
+  --color-accent-900: #002850;
 
   --font-heading: "Barlow Condensed", system-ui, sans-serif;
   --font-heading-weight: 600;
@@ -49,13 +49,13 @@
   --space-6: 20.4px;
   --space-8: 27.2px;
 
-  --radius-sm: 2px;
-  --radius-md: 4px;
-  --radius-lg: 7px;
+  --radius-sm: 6px;
+  --radius-md: 9px;
+  --radius-lg: 13px;
 
-  --shadow-sm: 0 1px 2px color-mix(in srgb, #2b2b2d 14%, transparent);
-  --shadow-md: 0 3px 10px color-mix(in srgb, #2b2b2d 16%, transparent);
-  --shadow-lg: 0 12px 32px color-mix(in srgb, #2b2b2d 22%, transparent);
+  --shadow-sm: 0 2px 6px color-mix(in srgb, #004b93 10%, transparent), 0 1px 2px color-mix(in srgb, #2b2b2d 6%, transparent);
+  --shadow-md: 0 6px 18px color-mix(in srgb, #004b93 12%, transparent), 0 2px 6px color-mix(in srgb, #2b2b2d 6%, transparent);
+  --shadow-lg: 0 18px 44px color-mix(in srgb, #004b93 16%, transparent), 0 6px 16px color-mix(in srgb, #2b2b2d 8%, transparent);
 
   /* Controlled semantic palette (My Decision Canvas cockpit — see
      docs/MY_DECISION_CANVAS_DESIGN_APPROACH.md). Steel stays the PRIMARY brand

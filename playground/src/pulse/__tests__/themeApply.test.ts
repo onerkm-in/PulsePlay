@@ -30,9 +30,9 @@ describe("resolveThemeTokens", () => {
         expect(t.bg).toBe("#fafafa");
     });
 
-    it("falls back to the Industry app default for an unknown theme name", () => {
+    it("falls back to the PepsiCo app default for an unknown theme name", () => {
         const t = resolveThemeTokens({ themeName: "nope" });
-        expect(t.accent).toBe(BUILT_IN_THEMES["industry"].accent);
+        expect(t.accent).toBe(BUILT_IN_THEMES["pepsico"].accent);
     });
 });
 

@@ -183,6 +183,19 @@ export function readGenieSettings(): Record<string, unknown> {
     return readStoredObject(STORAGE_KEY_PREFIX + "genieSettings");
 }
 
+/** Project number-format standard, authored as domain guidance so the AI
+ *  applies it consistently across AI Insights + Ask Pulse. The default format
+ *  contract treats author guidance as higher precedence, so these win. Roman
+ *  scale (M = thousand, MN = million, B = billion) per the project convention. */
+export const DEFAULT_NUMBER_FORMAT_GUIDANCE = [
+    "Number format standard — apply to EVERY value in every section, consistently:",
+    "- Thousands → `x.xx M`. Millions → `x.xx MN`. Billions → `x.xx B`.",
+    "- CRITICAL: on this scale `M` means THOUSAND, NOT million. A MILLION is always `MN` (two letters). Examples: 50,000 → `50.00 M`; 1,138,707 → `1.14 MN` (NEVER `1.14 M`); 989,340,000 → `989.34 MN`; 1,031,000,000 → `1.03 B`.",
+    "- Percentages and ANY change to a percentage metric: `x.xx %` with the % symbol — never a `pp` suffix.",
+    "- Always show exactly 2 decimals. Prefix a change / delta with an explicit sign, e.g. `+0.81 %`, `-65.42 MN`.",
+    "- Currency keeps its symbol before the number: `$1.03 B`, `$989.34 MN`.",
+].join("\n");
+
 /** First-run defaults seeder. Keep this intentionally small: Settings is
  *  the canonical authoring surface, while Pulse's Console is operational
  *  only. We still write explicit defaults for legacy keys so older sessions
@@ -205,6 +218,16 @@ export function seedPulsePlayDefaults(): void {
             // sibling). Authors can re-enable via Settings → AI → Response
             // behavior → "Show provenance footer" (writes true, not stomped).
             insightsShowProvenanceFooter: false,
+            // PepsiCo-inspired blue is the PulsePlay default look (2026-07-27).
+            // Authors can switch via Settings → Appearance. Absent themeName also
+            // resolves to "pepsico" (resolveThemeTokens), so this just persists it.
+            themeName: "pepsico",
+            // Project number-format standard, expressed as DOMAIN GUIDANCE so it
+            // is injected into every AI surface (AI Insights + Ask Pulse) and
+            // takes precedence over the default format contract. insightsDomain-
+            // Guidance falls back to this when empty. Authors can extend it in
+            // Settings → AI → Domain guidance (their edits are never stomped).
+            domainGuidance: DEFAULT_NUMBER_FORMAT_GUIDANCE,
         };
         // Only set keys that are NOT already present, so we never stomp
         // a user's explicit choice. Granular merge lets existing-user
