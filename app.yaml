@@ -71,9 +71,34 @@ env:
   # NOTE (2026-07-27): supervisor-local removed — it needs ≥2 Genie spaces AND
   # pointed its synthesis at the non-existent 405B endpoint. Re-add only with a
   # live synthesis endpoint if a multi-space fan-out is wanted.
-  # NOTE: no Power BI brain here yet — powerbi-dwd (local) uses a user-refresh
-  # token; deploying it needs that token as a Databricks secret + a
-  # PROXY_PROFILE_POWERBIDWD_* block. Follow-up, see the PBI apples-to-apples memory.
+
+  # Power BI brain — deterministic DAX over the SCM star (apples-to-apples with
+  # the Genie SCM space). Service-principal auth (app 93bf5419…, created
+  # 2026-07-27 via scripts/create-pbi-service-principal.mjs; non-expiring, unlike
+  # user-refresh, so it survives an always-on deploy). Profile name "powerbidwd"
+  # normalizes to the frontend catalogue id "powerbi-dwd" (hyphen/underscore-
+  # insensitive), so the advertised Power BI bundle lights up. reportId is passed
+  # by the client to the embed route, so it's not needed on the profile.
+  # BEFORE DEPLOY: put the SP secret into the scope once:
+  #   databricks secrets put-secret pulseplay powerbi_sp_secret
+  - name: PROXY_PROFILE_POWERBIDWD_TYPE
+    value: "powerbi-semantic-model"
+  - name: PROXY_PROFILE_POWERBIDWD_AUTH_MODE
+    value: "service-principal"
+  - name: PROXY_PROFILE_POWERBIDWD_AAD_TENANT_ID
+    value: "2b983dc1-08a4-4b13-87d9-065f8db8f99b"
+  - name: PROXY_PROFILE_POWERBIDWD_AAD_CLIENT_ID
+    value: "93bf5419-2785-4976-80b4-cd35064c2a79"
+  - name: PROXY_PROFILE_POWERBIDWD_AAD_CLIENT_SECRET
+    valueFrom: powerbi-sp-secret
+  - name: PROXY_PROFILE_POWERBIDWD_POWERBI_GROUP_ID
+    value: "7bb52a2a-5028-4887-b8ec-7d13e386da93"
+  - name: PROXY_PROFILE_POWERBIDWD_POWERBI_DATASET_ID
+    value: "633b2b11-d390-43f6-9894-fc90855691b6"
+  - name: PROXY_PROFILE_POWERBIDWD_DISPLAY_NAME
+    value: "Power BI: Synthetic SCM"
+  - name: PROXY_PROFILE_POWERBIDWD_DATA_DOMAIN
+    value: "synthetic LATAM supply chain — OFR, OTIF, net sales, gross margin, GHG, safety, forecast accuracy; star over dim_date/dim_country/dim_plant/dim_sales_channel"
 
 resources:
   - name: databricks-pat
@@ -81,4 +106,10 @@ resources:
     secret:
       scope: pulseplay
       key: databricks_pat
+      permission: READ
+  - name: powerbi-sp-secret
+    description: Power BI service-principal client secret (app pulseplay-powerbi-sp / 93bf5419). Put once via `databricks secrets put-secret pulseplay powerbi_sp_secret`. Expires 2027-01-27 — rotate before then.
+    secret:
+      scope: pulseplay
+      key: powerbi_sp_secret
       permission: READ
