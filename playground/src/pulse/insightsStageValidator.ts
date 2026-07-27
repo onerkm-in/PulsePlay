@@ -209,7 +209,7 @@ function validateRecommendedActions(body: string): ValidationResult {
         };
     }
     // Each action must name an EXPECTED IMPACT, which the contract says is a
-    // metric ("lift margin by 1pp", "recover $50K", "defend 600-order
+    // metric ("lift margin by 1%", "recover $50K", "defend 600-order
     // base"). Per-item, not a floor: "1. Reallocate budget to improve
     // performance" (imperative verb, no metric) must fail even if the other
     // two actions cite numbers.
@@ -221,7 +221,7 @@ function validateRecommendedActions(body: string): ValidationResult {
             reason: `${itemsMissingMetric} of ${items.length} actions cite no numeric target or impact`,
             retryDirective:
                 "SEMANTIC FAILURE: one or more of your numbered actions does not cite a NUMERIC target or " +
-                "expected impact (e.g. `lift margin by 1pp`, `recover $50K`, `defend 600-order base`). The " +
+                "expected impact (e.g. `lift margin by 1%`, `recover $50K`, `defend 600-order base`). The " +
                 "contract requires EVERY action to name a target metric and an expected impact in concrete " +
                 "numbers from the bound data. Rewrite each action with a specific metric value.",
         };
@@ -264,7 +264,7 @@ function validateRisks(body: string): ValidationResult {
             reason: "no risks cite a numeric magnitude",
             retryDirective:
                 "SEMANTIC FAILURE: none of your risk bullets cite a numeric magnitude (e.g. `2.49% margin`, " +
-                "`14.9pp gap`, `top 5 customers = 18% of sales`). Risks without numbers are unverifiable. " +
+                "`14.9% gap`, `top 5 customers = 18% of sales`). Risks without numbers are unverifiable. " +
                 "Rewrite each risk to include the metric value that makes the risk concrete.",
         };
     }

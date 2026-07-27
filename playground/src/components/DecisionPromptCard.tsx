@@ -96,11 +96,12 @@ function fmtImpact(value: number, unit: string): string {
     const n = Number(value);
     if (!Number.isFinite(n)) return String(value) + (unit ? " " + unit : "");
     if (unit === "USD") return "$" + Math.round(n).toLocaleString("en-US");
-    // % and pp hug the number ("6.5%", "1pp") and keep a decimal when small —
-    // rounding 6.5% up to "7 %" misstates the measured figure.
+    // % and pp both render with the % symbol ("6.5%", "1%") and keep a decimal
+    // when small — rounding 6.5% up to "7 %" misstates the measured figure.
+    // Percentage-metric changes use "%", never a "pp" suffix (product preference).
     if (unit === "%" || unit === "pp") {
         const v = Math.abs(n) < 10 ? String(parseFloat(n.toFixed(1))) : String(Math.round(n));
-        return v + unit;
+        return v + "%";
     }
     return Math.round(n).toLocaleString("en-US") + " " + unit;
 }

@@ -805,7 +805,7 @@ export function buildInsightsStagePrompts(
         "Rules: Never ask a clarifying question. Never offer alternatives. If data is ambiguous, pick the most prominent metric and state your assumption in the sentence.",
         "",
         "## KPI SNAPSHOT",
-        `A markdown pipe table with columns: KPI | Current | Prior | Δ % / Δ pp | Status. Cover each metric: ${meas}. Status column: 🟢 on-track / 🟡 watch / 🔴 at-risk. Use ▲/▼ in the Δ column. PRECISION: compute Δ from the true unrounded values (never from the rounded display), and keep enough significant figures that a real period-over-period change stays visible — never round Current and Prior to the same number. Format currency COMPACTLY with a unit suffix and 2 decimals ($1.03B, $989.34M) — never a full digit string like 1,031,411,004.9.`,
+        `A markdown pipe table with columns: KPI | Current | Prior | Δ % | Status. Cover each metric: ${meas}. Status column: 🟢 on-track / 🟡 watch / 🔴 at-risk. Use ▲/▼ in the Δ column. PRECISION: compute Δ from the true unrounded values (never from the rounded display), and keep enough significant figures that a real period-over-period change stays visible — never round Current and Prior to the same number. Format currency COMPACTLY with a unit suffix and 2 decimals ($1.03B, $989.34M) — never a full digit string like 1,031,411,004.9.`,
         "",
         "Start directly with ## HEADLINE — no preamble, no questions, no extra sections."
     ].join("\n");
@@ -923,7 +923,7 @@ export function buildFastHybridInsightsStagePrompts(
             ovHeadline || `One declarative sentence, max 25 words, naming the most important ${domainLabel} number, change vs prior period, and on-track / watch / at-risk signal. Bold the headline number.`,
             "",
             "## KPI SNAPSHOT",
-            `Markdown pipe table: KPI | Current | Prior | Δ % / Δ pp | Status. Cover the bound measures (${meas}). Use ▲/▼ and 🟢/🟡/🔴 where useful. PRECISION: compute Δ from the true unrounded values (never from the rounded display), and keep enough significant figures that a real period-over-period change stays visible — never round Current and Prior to the same number. Format currency COMPACTLY with a unit suffix and 2 decimals ($1.03B, $989.34M) — never a full digit string like 1,031,411,004.9.`,
+            `Markdown pipe table: KPI | Current | Prior | Δ % | Status. Cover the bound measures (${meas}). Use ▲/▼ and 🟢/🟡/🔴 where useful. PRECISION: compute Δ from the true unrounded values (never from the rounded display), and keep enough significant figures that a real period-over-period change stays visible — never round Current and Prior to the same number. Format currency COMPACTLY with a unit suffix and 2 decimals ($1.03B, $989.34M) — never a full digit string like 1,031,411,004.9.`,
         ].join("\n"));
     }
     if (showTrends) {
@@ -1073,7 +1073,7 @@ export function buildStagedHybridInsightsPlan(
         ].join("\n"));
         sectionBlocks.push([
             "## KPI SNAPSHOT",
-            `Markdown pipe table: KPI | Current | Prior | Δ % / Δ pp | Status. Cover the bound measures (${meas}). Use ▲/▼ and 🟢/🟡/🔴 where useful. PRECISION: compute Δ from the true unrounded values (never from the rounded display), and keep enough significant figures that a real period-over-period change stays visible — never round Current and Prior to the same number. Format currency COMPACTLY with a unit suffix and 2 decimals ($1.03B, $989.34M) — never a full digit string like 1,031,411,004.9.`,
+            `Markdown pipe table: KPI | Current | Prior | Δ % | Status. Cover the bound measures (${meas}). Use ▲/▼ and 🟢/🟡/🔴 where useful. PRECISION: compute Δ from the true unrounded values (never from the rounded display), and keep enough significant figures that a real period-over-period change stays visible — never round Current and Prior to the same number. Format currency COMPACTLY with a unit suffix and 2 decimals ($1.03B, $989.34M) — never a full digit string like 1,031,411,004.9.`,
         ].join("\n"));
     }
     if (showTrends) {
@@ -1612,7 +1612,7 @@ export function buildHybridInsightsStagePrompts(
     // stage so currency / decimals / abbreviation behaviour is consistent
     // across stages (no more `£` showing up alongside `$`, no `2,300,000`
     // mixed with `2.30M`). Author can override via domainGuidance.
-    const formatContract = "Number format contract: prefer USD ($) unless the dataset is unambiguously in another currency; format large values as K/M/B (e.g. $2.30M); always 2 decimals for currency and percent; never mix currency symbols within a single response. Percentage-point deltas MUST use the `pp` suffix (e.g. `+0.13pp`, `-0.85pp`, `flat`) — NEVER emit a bare number like `0.13` for a pp delta. Zero / no-change deltas should be written as `flat` or `0pp`, not `0` or `0%`. CRITICAL — never combine a fully-formatted dollar number with a magnitude suffix: write `$733,215.26` OR `$733.22K`, never `$733,215.26M` (that reads as `733 million million`). If the value is six digits or more, either keep it fully formatted ($XXX,XXX.XX) or abbreviate it ($X.XXM / $XXX.XXK), but never both. " +
+    const formatContract = "Number format contract: prefer USD ($) unless the dataset is unambiguously in another currency; format large values as K/M/B (e.g. $2.30M); always 2 decimals for currency and percent; never mix currency symbols within a single response. Changes to a percentage metric MUST use the `%` symbol (e.g. `+0.13%`, `-0.85%`, `flat`) — never a `pp` suffix and never a bare number like `0.13`. Zero / no-change deltas should be written as `flat` or `0%`. CRITICAL — never combine a fully-formatted dollar number with a magnitude suffix: write `$733,215.26` OR `$733.22K`, never `$733,215.26M` (that reads as `733 million million`). If the value is six digits or more, either keep it fully formatted ($XXX,XXX.XX) or abbreviate it ($X.XXM / $XXX.XXK), but never both. " +
         FORMAT_MASK_GUARD;
 
     // L5 — naming-fidelity contract. Live-test surfaced a case where the model
@@ -1745,7 +1745,7 @@ export function buildHybridInsightsStagePrompts(
         "Rules: Never ask a clarifying question. Never offer alternatives. If data is ambiguous, pick the most prominent metric and state your assumption inline.",
         "",
         "## KPI SNAPSHOT",
-        `A markdown pipe table with columns: KPI | Current | Prior | Δ % / Δ pp | Status. Cover each bound metric: ${meas}. Status column: 🟢 on-track / 🟡 watch / 🔴 at-risk using thresholds appropriate for ${domainLabel}. Use ▲/▼ in the Δ column.`,
+        `A markdown pipe table with columns: KPI | Current | Prior | Δ % | Status. Cover each bound metric: ${meas}. Status column: 🟢 on-track / 🟡 watch / 🔴 at-risk using thresholds appropriate for ${domainLabel}. Use ▲/▼ in the Δ column.`,
         // IDEA-039 anomaly #4 — Prior column was rendering as `—` when Genie
         // couldn't compute a prior-period value (e.g. supervisor space, single-
         // year datasets). Force an explicit fallback so the table reads cleanly.
@@ -1876,7 +1876,7 @@ export function buildHybridInsightsStagePrompts(
         // canonical example sets the shape without bloating the prompt.
         "WORKED EXAMPLE — ✓ CORRECT format (use this shape, NOT the headers/numbers verbatim — those come from the bound data):",
         "## RISKS",
-        "- **Margin compression in Furniture**: 2.49% margin vs 17.40% in Technology — a 14.9pp gap dragging portfolio profit ($-2.1K Furniture loss).",
+        "- **Margin compression in Furniture**: 2.49% margin vs 17.40% in Technology — a 14.9% gap dragging portfolio profit ($-2.1K Furniture loss).",
         "- **Central region underperformance**: Central contributes 23% of orders but only 9% of profit; Furniture margin is most compressed there.",
         "- **Customer concentration risk**: top 5 customers = 18% of total sales ($131K of $733K) — losing one would create a 3-4% revenue gap.",
         "",
@@ -1942,8 +1942,8 @@ export function buildHybridInsightsStagePrompts(
         "",
         "WORKED EXAMPLE — ✓ CORRECT format:",
         "## RECOMMENDED ACTIONS",
-        "1. Reallocate marketing budget from Furniture (2.49% margin) to Technology (17.40% margin) to lift overall portfolio margin by ~1pp.",
-        "2. Audit Furniture pricing in Central region where margin is most compressed; aim to recover 2pp by Q4.",
+        "1. Reallocate marketing budget from Furniture (2.49% margin) to Technology (17.40% margin) to lift overall portfolio margin by ~1%.",
+        "2. Audit Furniture pricing in Central region where margin is most compressed; aim to recover 2% by Q4.",
         "3. Pilot a Consumer-segment retention offer in West (1,611 orders) to defend the leading order base before competitors target it.",
         "",
         "WORKED EXAMPLE — ✗ FORBIDDEN #1 (TRENDS narrative leakage — this is what NOT to write):",
@@ -1967,7 +1967,7 @@ export function buildHybridInsightsStagePrompts(
         "Self-check before you emit (mental — do not output):",
         "  - Does each item start with an IMPERATIVE VERB (Reallocate, Reduce, Pilot, Investigate, Audit, Cut, Shift, Renegotiate, Launch, Restructure, Replace, Test, Roll out, Prioritize, Defend, Expand, Consolidate, Renegotiate, Eliminate, …)?",
         "  - Does each item name a TARGET (a specific segment, region, category, sub-category, customer, product, or metric you'll move)?",
-        "  - Does each item state an EXPECTED IMPACT (the change you anticipate — \"lift margin by 1pp\", \"recover $50K\", \"defend 600-order base\")?",
+        "  - Does each item state an EXPECTED IMPACT (the change you anticipate — \"lift margin by 1%\", \"recover $50K\", \"defend 600-order base\")?",
         "  - Is each item ≤ 25 words?",
         "  - If ANY check fails, the item is wrong — rewrite it as an action before emitting.",
         "",
@@ -1986,7 +1986,7 @@ export function buildHybridInsightsStagePrompts(
         metricDirection,
         authorPrecedence,
         // Wave 43 — emphasis contract so action items bold their target
-        // numbers (e.g. "**1pp** margin lift") not the segment label.
+        // numbers (e.g. "**1%** margin lift") not the segment label.
         markdownEmphasisRules,
         "",
         "Produce EXACTLY one markdown section and nothing else.",
