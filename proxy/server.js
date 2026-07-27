@@ -4748,7 +4748,17 @@ app.post('/assistant/embed-token/:vendor', async (req, res) => {
         return sendNoMatchingProfile(req, res);
     }
 
-    const profile = resolved.profile;
+    // Accept the canonical aad* cred names as fallbacks for the Cycle-A
+    // powerBi* names. An SP created via scripts/create-pbi-service-principal.mjs
+    // writes aadClientId/aadClientSecret/aadTenantId; the DAX path already
+    // accepts both, so the embed path must too (else a working SP 503s here).
+    // Shallow copy — never mutate the shared registry profile.
+    const profile = {
+        ...resolved.profile,
+        powerBiClientId: resolved.profile.powerBiClientId || resolved.profile.aadClientId,
+        powerBiClientSecret: resolved.profile.powerBiClientSecret || resolved.profile.aadClientSecret,
+        powerBiTenantId: resolved.profile.powerBiTenantId || resolved.profile.aadTenantId,
+    };
     const groupId = String(req.body?.groupId || '').trim();
     const reportId = String(req.body?.reportId || '').trim();
     const datasetId = req.body?.datasetId ? String(req.body.datasetId).trim() : '';

@@ -33,6 +33,14 @@ process.env.PROXY_PROFILE_PBITEST_TOKEN = 'dapi_test_pbi_route';
 process.env.PROXY_PROFILE_PBITEST_POWER_BI_CLIENT_ID = 'aad-client-id-uuid';
 process.env.PROXY_PROFILE_PBITEST_POWER_BI_CLIENT_SECRET = 'AAD_CLIENT_SECRET_DO_NOT_LEAK';
 process.env.PROXY_PROFILE_PBITEST_POWER_BI_TENANT_ID = 'aad-tenant-id-uuid';
+// Profile with ONLY the canonical aad* cred names (as scripts/create-pbi-
+// service-principal.mjs writes) — proves the embed route accepts them as a
+// fallback for the Cycle-A powerBi* names.
+process.env.PROXY_PROFILE_PBIAAD_HOST = 'https://example3.azuredatabricks.net';
+process.env.PROXY_PROFILE_PBIAAD_TOKEN = 'dapi_test_pbi_aad';
+process.env.PROXY_PROFILE_PBIAAD_AAD_CLIENT_ID = 'aad-only-client-id';
+process.env.PROXY_PROFILE_PBIAAD_AAD_CLIENT_SECRET = 'AAD_ONLY_SECRET_DO_NOT_LEAK';
+process.env.PROXY_PROFILE_PBIAAD_AAD_TENANT_ID = 'aad-only-tenant-id';
 // Provide a profile WITHOUT the powerBi* fields to test the 503 path.
 process.env.PROXY_PROFILE_NOPBI_HOST = 'https://example2.azuredatabricks.net';
 process.env.PROXY_PROFILE_NOPBI_TOKEN = 'dapi_test_no_pbi';
@@ -268,6 +276,21 @@ describe('POST /assistant/embed-token/powerbi — 503 when not configured', () =
         expect(res.body.error).toMatch(/not configured/);
         expect(res.body.error).toMatch(/powerBiClientId/);
         expect(attempted).toBe(false);
+    });
+
+    test('mints a token from aad* creds alone (canonical names, no powerBi* fields)', async () => {
+        const { impl, calls } = makeFetchRecorder([aadOkResponse(), pbiOkResponse()]);
+        _setPowerBiFetchImplForTests(impl);
+
+        const res = await request(app)
+            .post('/assistant/embed-token/powerbi')
+            .send({ assistantProfile: 'pbiaad', groupId: 'wsp-uuid', reportId: 'rep-uuid' });
+
+        expect(res.status).toBe(200);
+        expect(res.body.embedToken).toBeTruthy();
+        // proves the aad* client id/secret were used for the AAD token call
+        expect(calls).toHaveLength(2);
+        expect(calls[0].init.body).toContain('aad-only-client-id');
     });
 });
 
