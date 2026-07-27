@@ -222,6 +222,128 @@ describe('matcher — trend template (time detection)', () => {
     });
 });
 
+// Star-schema SCM model: unit-suffixed measures + conformed dims that share a
+// base token with fact foreign keys. Mirrors the live PulsePlay_SCM_Synthetic
+// semantic model (dataset 633b2b11).
+describe('matcher — star schema + unit-suffixed measures (SCM)', () => {
+    const scm = {
+        declaredKpis: [
+            { name: 'Order Fill Rate Pct' },
+            { name: 'OTIF Pct' },
+            { name: 'Net Sales USD' },
+            { name: 'Gross Margin Pct' },
+            { name: 'GHG Emissions tCO2e' },
+            { name: 'Energy Intensity kWh per Unit' },
+            { name: 'Ordered Qty' },
+        ],
+        schema: {
+            tables: [
+                { name: 'ofr', columns: [
+                    { name: 'country_id', type: 'String' },
+                    { name: 'plant_id', type: 'String' },
+                    { name: 'sales_channel', type: 'String' },
+                    { name: 'date_month', type: 'DateTime' },
+                ] },
+                { name: 'performance', columns: [
+                    { name: 'country_id', type: 'String' },
+                    { name: 'date_month', type: 'DateTime' },
+                ] },
+                { name: 'operations', columns: [
+                    { name: 'country_id', type: 'String' },
+                    { name: 'plant_id', type: 'String' },
+                    { name: 'date_month', type: 'DateTime' },
+                ] },
+                { name: 'dim_country', columns: [
+                    { name: 'country_id', type: 'String' },
+                    { name: 'country', type: 'String' },
+                ] },
+                { name: 'dim_plant', columns: [
+                    { name: 'plant_id', type: 'String' },
+                    { name: 'plant', type: 'String' },
+                    { name: 'country_id', type: 'String' },
+                ] },
+                { name: 'dim_sales_channel', columns: [
+                    { name: 'sales_channel', type: 'String' },
+                ] },
+                { name: 'dim_date', columns: [
+                    { name: 'date', type: 'DateTime' },
+                    { name: 'year', type: 'Int64' },
+                    { name: 'month_name', type: 'String' },
+                ] },
+            ],
+        },
+    };
+
+    test('unit-suffixed measure matches the user phrasing without the suffix', () => {
+        expect(matchQuestion('net sales by country', scm).slots.measure).toBe('Net Sales USD');
+        expect(matchQuestion('order fill rate by year', scm).slots.measure).toBe('Order Fill Rate Pct');
+        expect(matchQuestion('gross margin by country', scm).slots.measure).toBe('Gross Margin Pct');
+        expect(matchQuestion('ghg emissions by plant', scm).slots.measure).toBe('GHG Emissions tCO2e');
+        expect(matchQuestion('otif by country', scm).slots.measure).toBe('OTIF Pct');
+    });
+
+    test('"per unit" ratio tail strips to the core measure name', () => {
+        expect(matchQuestion('energy intensity by plant', scm).slots.measure).toBe('Energy Intensity kWh per Unit');
+    });
+
+    test('groups by the conformed dimension, NOT a fact foreign key (cross-fact correctness)', () => {
+        const out = matchQuestion('net sales by country', scm);
+        expect(out.templateId).toBe('aggregate-by');
+        expect(out.slots.dimensionTable).toBe('dim_country');
+        expect(out.slots.dimensionColumn).toBe('country');
+    });
+
+    test('"by plant" targets dim_plant[plant], never plant_id', () => {
+        const out = matchQuestion('ghg emissions by plant', scm);
+        expect(out.slots.dimensionTable).toBe('dim_plant');
+        expect(out.slots.dimensionColumn).toBe('plant');
+    });
+
+    test('"by sales channel" targets the dim, not the fact column', () => {
+        const out = matchQuestion('order fill rate by sales channel', scm);
+        expect(out.slots.dimensionTable).toBe('dim_sales_channel');
+        expect(out.slots.dimensionColumn).toBe('sales_channel');
+    });
+
+    test('"by year" routes to trend on dim_date[year]', () => {
+        const out = matchQuestion('order fill rate by year', scm);
+        expect(out.templateId).toBe('trend');
+        expect(out.slots.dateTable).toBe('dim_date');
+        expect(out.slots.dateColumn).toBe('year');
+    });
+});
+
+describe('matcher — measureVariants helper', () => {
+    test('strips trailing unit suffixes', () => {
+        expect(__internals.measureVariants('Net Sales USD')).toContain('net sales');
+        expect(__internals.measureVariants('Order Fill Rate Pct')).toContain('order fill rate');
+        expect(__internals.measureVariants('GHG Emissions tCO2e')).toContain('ghg emissions');
+    });
+    test('strips a "per unit" ratio tail', () => {
+        expect(__internals.measureVariants('Energy Intensity kWh per Unit')).toContain('energy intensity');
+    });
+    test('does NOT strip meaningful words like "rate"', () => {
+        expect(__internals.measureVariants('Order Fill Rate Pct')).not.toContain('order fill');
+    });
+    test('keeps the full name as a variant (longest-match preserved)', () => {
+        expect(__internals.measureVariants('Net Sales USD')).toContain('net sales usd');
+    });
+});
+
+describe('matcher — foreign-key / dimension helpers', () => {
+    test('isDimensionTable recognises dim_/dm_ prefixes', () => {
+        expect(__internals.isDimensionTable('dim_country')).toBe(true);
+        expect(__internals.isDimensionTable('dm_plants')).toBe(true);
+        expect(__internals.isDimensionTable('ofr')).toBe(false);
+    });
+    test('isForeignKeyColumn recognises _id/_key suffixes', () => {
+        expect(__internals.isForeignKeyColumn('country_id')).toBe(true);
+        expect(__internals.isForeignKeyColumn('plant_key')).toBe(true);
+        expect(__internals.isForeignKeyColumn('country')).toBe(false);
+        expect(__internals.isForeignKeyColumn('sales_channel')).toBe(false);
+    });
+});
+
 describe('matcher — tokenise helper', () => {
     test('strips punctuation and lowercases', () => {
         expect(__internals.tokenise('What is REVENUE, by Region?')).toBe('what is revenue by region');

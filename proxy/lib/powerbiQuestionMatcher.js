@@ -51,6 +51,36 @@ const TIME_DIMENSION_NAME_HINTS = [
 ];
 const TOP_N_PHRASES = ['top', 'best', 'highest', 'leading'];
 
+// Measure names in real semantic models carry unit suffixes the user never
+// types: "Net Sales USD", "Order Fill Rate Pct", "GHG Emissions tCO2e",
+// "Quality Complaint PPM", "Energy Intensity kWh per Unit". Strip these
+// trailing tokens so "net sales" matches "Net Sales USD". Only pure unit
+// tokens live here — meaningful words like "rate" or "ratio" are NOT stripped.
+const MEASURE_UNIT_SUFFIX_TOKENS = new Set([
+    'usd', 'pct', 'percent', 'tco2e', 'co2e', 'ppm', 'kwh', 'mwh', 'gwh',
+]);
+// Interchangeable measure tokens (question phrasing vs model naming).
+const MEASURE_TOKEN_SYNONYMS = { qty: 'quantity' };
+
+// Star-schema disambiguation: a fact's foreign key ("country_id") normalises to
+// the same base token ("country") as its conformed dimension's descriptive
+// column ("dim_country"."country"). Grouping a measure by the FK on a DIFFERENT
+// fact table doesn't propagate through the shared dim, so the answer collapses
+// to a repeated grand total. Prefer the dimension column: bonus dim tables,
+// penalise FK-shaped columns. Tuning only affects tie-breaks — a sole candidate
+// still wins regardless of sign.
+const DIM_TABLE_BONUS = 8;
+const FK_COLUMN_PENALTY = 12;
+
+function isDimensionTable(name) {
+    return typeof name === 'string' && /^(dim|dm)[_\s]/i.test(name.trim());
+}
+function isForeignKeyColumn(name) {
+    if (typeof name !== 'string') return false;
+    const n = name.trim().toLowerCase();
+    return /(?:_id|_key|_fk)$/.test(n) || n === 'id' || n === 'key';
+}
+
 /**
  * Normalise free text to lowercase tokens with punctuation stripped but
  * spaces preserved.
@@ -111,21 +141,63 @@ function questionMentions(q, term) {
 }
 
 /**
+ * Expand a measure name into the forms a user might actually type. Always
+ * includes the full tokenised name; additionally strips trailing unit suffixes
+ * ("Net Sales USD" → "net sales") and a trailing "per <unit>" ratio tail
+ * ("Energy Intensity kWh per Unit" → "energy intensity"), plus a qty↔quantity
+ * synonym. Purely additive — the full name stays the longest variant, so
+ * longest-match tie-breaking is unchanged for suffix-free names.
+ */
+function measureVariants(raw) {
+    if (typeof raw !== 'string' || !raw.trim()) return [];
+    // Two starting forms: the raw tokenisation (keeps unit tokens like "tco2e"
+    // and "kwh" intact) and a camelCase-split base (splits "NetSalesUSD" →
+    // "net sales usd"). Strip both — camelCase-splitting mangles glued units
+    // (tCO2e → "t co2e"), so the raw form is what actually reaches the core.
+    const camelSpaced = raw.replace(/([a-z0-9])([A-Z])/g, '$1 $2');
+    const rawTok = tokenise(raw);
+    const base = tokenise(camelSpaced.replace(/[_\-.]+/g, ' '));
+    const variants = new Set([rawTok, base].filter(Boolean));
+    for (const start of [rawTok, base]) {
+        if (!start) continue;
+        let toks = start.split(' ').filter(Boolean);
+        // Drop a trailing "per <unit>" ratio tail, then keep stripping the head.
+        const perIdx = toks.indexOf('per');
+        if (perIdx > 0) {
+            toks = toks.slice(0, perIdx);
+            variants.add(toks.join(' '));
+        }
+        // Iteratively strip trailing pure-unit tokens (keep at least one word).
+        while (toks.length > 1 && MEASURE_UNIT_SUFFIX_TOKENS.has(toks[toks.length - 1])) {
+            toks = toks.slice(0, -1);
+            variants.add(toks.join(' '));
+        }
+        // Synonym expansion on the stripped core (qty ↔ quantity).
+        const syn = toks.map(t => MEASURE_TOKEN_SYNONYMS[t] || t);
+        if (syn.join(' ') !== toks.join(' ')) variants.add(syn.join(' '));
+    }
+    return Array.from(variants).filter(Boolean);
+}
+
+/**
  * Find a measure mention in the question. Returns the matching declaredKpi
- * name or null. Longest-match wins so "Total Revenue" beats "Revenue".
+ * name or null. Longest matched variant wins so "Total Revenue" beats
+ * "Revenue" and "Net Sales USD" (via "net sales") beats "Sales".
  */
 function findMeasure(question, declaredKpis) {
     if (!Array.isArray(declaredKpis) || declaredKpis.length === 0) return null;
     const q = tokenise(question);
     if (!q) return null;
     let best = null;
+    let bestLen = 0;
     for (const kpi of declaredKpis) {
         const name = kpi?.name;
         if (typeof name !== 'string' || !name) continue;
-        const needle = tokenise(name);
-        if (!needle) continue;
-        if (q.includes(needle)) {
-            if (!best || needle.length > tokenise(best).length) best = name;
+        for (const variant of measureVariants(name)) {
+            if (variant && q.includes(variant) && variant.length > bestLen) {
+                best = name;
+                bestLen = variant.length;
+            }
         }
     }
     return best;
@@ -169,8 +241,10 @@ function findDimension(question, schemaTables, opts = {}) {
             const isMatch = variants.some(v => questionMentions(q, v)) || explicitBy;
             if (isMatch) {
                 const bonus = explicitBy ? 10 : 0;
+                const dimBonus = isDimensionTable(tname) ? DIM_TABLE_BONUS : 0;
+                const fkPenalty = isForeignKeyColumn(cname) ? FK_COLUMN_PENALTY : 0;
                 const score = Math.max(...variants.map(v => v.length));
-                candidates.push({ table: tname, column: cname, isTime, score: score + bonus });
+                candidates.push({ table: tname, column: cname, isTime, score: score + bonus + dimBonus - fkPenalty });
             }
         }
     }
@@ -213,7 +287,9 @@ function findDimension(question, schemaTables, opts = {}) {
             });
             if (preferred?.name) {
                 const isTime = isTimeColumn(preferred.name, preferred.type);
-                candidates.push({ table: tname, column: preferred.name, isTime, score: 5 });
+                const dimBonus = isDimensionTable(tname) ? DIM_TABLE_BONUS : 0;
+                const fkPenalty = isForeignKeyColumn(preferred.name) ? FK_COLUMN_PENALTY : 0;
+                candidates.push({ table: tname, column: preferred.name, isTime, score: 5 + dimBonus - fkPenalty });
             }
         }
     }
@@ -399,10 +475,13 @@ module.exports = {
     __internals: {
         tokenise,
         nameVariants,
+        measureVariants,
         findMeasure,
         findDimension,
         findTopN,
         hasTimeKeyword,
         isTimeColumn,
+        isDimensionTable,
+        isForeignKeyColumn,
     },
 };
