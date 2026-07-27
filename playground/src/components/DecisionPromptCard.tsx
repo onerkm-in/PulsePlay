@@ -137,6 +137,11 @@ export function DecisionPromptCard({
     const secondaries = allowed.filter((c) => c !== primary && c !== "view_evidence");
     const impactPct = maxImpact > 0 ? Math.max(4, Math.round((prompt.business_impact_value / maxImpact) * 100)) : 0;
     const terminal = ["actioned", "rejected", "false-positive", "snoozed"].includes(prompt.status);
+    // `pending-approval` is NOT terminal (the owner can still approve), but it
+    // must still SAY so: a planner who triggers an L3 action sees every button
+    // disappear (they cannot self-approve) and, without this, no explanation at
+    // all — the click looked like it did nothing. Live repro 2026-07-27.
+    const awaitingApproval = prompt.status === "pending-approval";
 
     // Pin the decision's evidence to the canvas as a SQL-backed, refreshable
     // tile — deterministic (the evidence SELECT re-runs on the warehouse, no
@@ -238,6 +243,12 @@ export function DecisionPromptCard({
 
                 {terminal && (
                     <div className="dpc__terminal-status">Status: {prompt.status.replace("-", " ")}</div>
+                )}
+
+                {awaitingApproval && (
+                    <div className="dpc__terminal-status dpc__awaiting" role="status">
+                        Submitted — awaiting approval from {prompt.owner || "the owner"}.
+                    </div>
                 )}
 
                 {showEvidence && (

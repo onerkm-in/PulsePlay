@@ -94,3 +94,13 @@
   background: color-mix(in srgb, var(--pp-bad, #bd3a33) 12%, transparent);
   color: var(--pp-bad, #bd3a33);
 }
+
+/* Awaiting-approval notice — a pending-approval prompt keeps full contrast (it
+   is still actionable by the owner), unlike the dimmed terminal statuses. */
+.dpc__awaiting {
+  color: var(--pp-warn, #8a5a15);
+  background: var(--pp-warn-soft, #fdf1e0);
+  border-radius: var(--radius-md, 4px);
+  padding: 5px 9px;
+  display: inline-block;
+}

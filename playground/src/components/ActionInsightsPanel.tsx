@@ -208,17 +208,18 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, hideH
                         </div>
                     </div>
                     {/* Demo persona switcher — hint only; server ignores it when an IdP role exists.
-                      * Selection falls back to the persona the SERVER actually resolved: with no
-                      * stored demo persona (fresh session) neither button was pressed, so the
-                      * control showed no selection while the header said "Viewing as
-                      * Supply Chain Planner" — it silently misreported the effective persona. */}
+                      * Selection reflects the persona the SERVER actually resolved, not the one
+                      * requested: (a) on a fresh session neither button was pressed while the
+                      * header said "Viewing as Supply Chain Planner", and (b) when demo-persona
+                      * mode is off the server IGNORES the requested persona (SEC-01), so showing
+                      * the request would claim authority the caller does not have. */}
                     <div className="seg" role="group" aria-label="Demo persona">
                         {[PLANNER, MANAGER].map((p) => (
                             <button
                                 key={p}
                                 type="button"
                                 className="seg-opt"
-                                aria-pressed={(demoPersona || data?.persona || PLANNER) === p ? "true" : "false"}
+                                aria-pressed={(data?.persona || demoPersona || PLANNER) === p ? "true" : "false"}
                                 onClick={() => setPersona(p)}
                             >{p.replace("Supply Chain ", "")}</button>
                         ))}
