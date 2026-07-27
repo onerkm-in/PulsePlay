@@ -11,15 +11,19 @@ Databricks config. Author it → refresh → publish → tell me the IDs and I c
 > in PBIP file-format/indentation nuances. Fallback if you'd rather not iterate: the guided
 > click-by-click build in [../../docs/synthetic_poc/PBI_APPLES_TO_APPLES.md](../../docs/synthetic_poc/PBI_APPLES_TO_APPLES.md).
 
-## Contents
+## Contents (proper STAR SCHEMA)
 ```
 PulsePlay_SCM_Synthetic.pbip                 ← open THIS in Power BI Desktop
-PulsePlay_SCM_Synthetic.SemanticModel/       ← the model (TMDL): 3 tables + DAX + Databricks source
+PulsePlay_SCM_Synthetic.SemanticModel/       ← the model (TMDL)
   definition/model.tmdl
-  definition/tables/{ofr,operations,performance}.tmdl
-PulsePlay_SCM_Synthetic.Report/              ← a single blank "KPIs" page (add visuals to sanity-check)
+  definition/relationships.tmdl              ← 9 FK relationships (conformed dims)
+  definition/tables/
+    dim_date, dim_country, dim_plant, dim_sales_channel   ← dimensions
+    ofr, operations, performance                          ← facts (keys + measure inputs + DAX)
+PulsePlay_SCM_Synthetic.Report/              ← "KPIs" page: 5 cards + by-year charts + by-country bar
 ```
-- **Source:** Databricks `dbc-f88d29ce-4aa2.cloud.databricks.com`, warehouse `/sql/1.0/warehouses/6510da50329f1e85`, catalog `workspace`, schema `databrickspractice`, views `vw_pbi_scm_ofr|operations|performance` (Import mode).
+- **Star schema:** facts hold only dimension keys (`country_id`, `plant_id`, `sales_channel`, `date_month`) + measure inputs; dimensions hold the attributes. `dim_date` (day grain) + `dim_country` are conformed across all facts. Same star as the Genie side (`vw_pbi_dim_*` / `vw_pbi_fct_*`).
+- **Source:** Databricks `dbc-f88d29ce-4aa2.cloud.databricks.com`, warehouse `/sql/1.0/warehouses/6510da50329f1e85`, catalog `workspace`, schema `databrickspractice` — views `vw_pbi_dim_date|country|plant|sales_channel` + `vw_pbi_fct_ofr|operations|performance` (Import mode).
 - **Measures:** replicate the metric-view formulas exactly (SUM components, then `DIVIDE`).
 
 ## Open + refresh

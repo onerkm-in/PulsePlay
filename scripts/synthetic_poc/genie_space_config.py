@@ -53,7 +53,9 @@ PERIOD COMPARISON (read carefully)
   intensity decline; Net Sales and Units Produced grow ~6% per year.
 
 STAR SCHEMA
-- Dimensions: {P}tbl_pp_syn_dm_countries (country_id),
+- Dimensions: {P}tbl_pp_syn_dm_date (a DATE dimension, day grain 2024-01-01..
+  2026-06-30 — columns date, year, quarter, month, month_name, month_start),
+  {P}tbl_pp_syn_dm_countries (country_id),
   {P}tbl_pp_syn_dm_plants (plant_id, country_id, region, loc_type),
   {P}tbl_pp_syn_dm_sales_channel (sales_channel_text, country_channel).
 - Facts: {P}tbl_pp_syn_fct_ofr (order fill / OTIF — grain
@@ -63,7 +65,10 @@ STAR SCHEMA
   {P}tbl_pp_syn_fct_performance (net sales, COGS, forecast — grain
   country x year x month).
 - Joins: facts join dimensions on country_id and plant_id; ofr joins the
-  channel dimension on sales_channel_text.
+  channel dimension on sales_channel_text; facts join the date dimension on
+  fact.month_year = tbl_pp_syn_dm_date.month_start (or use the fact year/month
+  columns directly). The same star schema backs the Power BI model
+  (vw_pbi_dim_* / vw_pbi_fct_* views), so Genie and Power BI are like-for-like.
 - Data quality: ~8-12% of fact foreign-key values are intentional ORPHANS (no
   matching dimension row) and operations.plant_id is ~16% NULL. Use LEFT JOINs
   and do not assume 100% referential integrity.

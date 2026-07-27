@@ -1,5 +1,11 @@
 # Power BI ↔ Databricks apples-to-apples (synthetic SCM)
 
+> **Update:** the model is now a proper **star schema** — see `scripts/synthetic_poc/star_schema.py`
+> (date dim + conformed `vw_pbi_dim_*` dimensions + key-form `vw_pbi_fct_*` facts) and the built
+> project in `enablers/pbi-scm-report/` (dim tables + facts + relationships + visuals). The flat
+> `vw_pbi_scm_*` views below still exist and reconcile identically, but the star is the current design.
+
+
 Goal: point a Power BI semantic model at the **same synthetic SCM data** the Genie/metric-view
 path uses, so PulsePlay's Power BI config and its Databricks config compare like-for-like.
 
