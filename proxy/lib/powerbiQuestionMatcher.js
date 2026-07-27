@@ -227,6 +227,7 @@ function findDimension(question, schemaTables, opts = {}) {
             const needleC = tokenise(cname);
             if (!needleC) continue;
             if (opts.skipColumn && needleC === tokenise(opts.skipColumn)) continue;
+            if (isMeasureInputColumn(cname, c.type)) continue; // measure input, not a group-by dim
             const isTime = isTimeColumn(cname, c.type);
             const variants = nameVariants(cname);
             const explicitBy = variants.some(v =>
@@ -276,6 +277,7 @@ function findDimension(question, schemaTables, opts = {}) {
                 const variants = nameVariants(c.name);
                 if (opts.skipColumn && n === tokenise(opts.skipColumn)) return false;
                 if (skipMeasure && variants.some(v => skipMeasure.includes(v))) return false;
+                if (isMeasureInputColumn(c.name, c.type)) return false;
                 return (n.includes(singular) || variants.some(v => tableVariants.some(tv => v.includes(tv))))
                     && !isTimeColumn(c.name, c.type);
             }) || cols.find(c => {
@@ -283,6 +285,7 @@ function findDimension(question, schemaTables, opts = {}) {
                 const variants = nameVariants(c.name);
                 if (opts.skipColumn && tokenise(c.name) === tokenise(opts.skipColumn)) return false;
                 if (skipMeasure && variants.some(v => skipMeasure.includes(v))) return false;
+                if (isMeasureInputColumn(c.name, c.type)) return false;
                 return !isTimeColumn(c.name, c.type);
             });
             if (preferred?.name) {
@@ -323,6 +326,18 @@ function isTimeColumn(name, type) {
         if (t.includes('date') || t.includes('time')) return true;
     }
     return false;
+}
+
+// Power BI INFO.COLUMNS reports types like "Integer", "Double", "Decimal",
+// "Text", "Date". A numeric column that is NOT a time grain (year/month) is a
+// measure INPUT, never a grouping dimension — grouping a measure by another
+// measure-input column produces nonsense (e.g. "Top 5 <dim> by Ordered Qty"
+// mis-parsed as group-by ordered_qty → "Top 5 ordered_qty by ordered qty").
+// Missing/opaque type → not excluded (fall back to name-based ranking).
+const NUMERIC_COLUMN_TYPE_RE = /(int|long|double|decimal|float|number|currency|money)/i;
+function isMeasureInputColumn(name, type) {
+    if (isTimeColumn(name, type)) return false;
+    return typeof type === 'string' && NUMERIC_COLUMN_TYPE_RE.test(type);
 }
 
 function hasTimeKeyword(question) {
@@ -483,5 +498,6 @@ module.exports = {
         isTimeColumn,
         isDimensionTable,
         isForeignKeyColumn,
+        isMeasureInputColumn,
     },
 };

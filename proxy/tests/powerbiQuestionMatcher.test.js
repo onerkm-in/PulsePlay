@@ -311,6 +311,62 @@ describe('matcher — star schema + unit-suffixed measures (SCM)', () => {
         expect(out.slots.dateTable).toBe('dim_date');
         expect(out.slots.dateColumn).toBe('year');
     });
+
+    // The auto-briefing planner emits "Top 5 <dim> by <measure>". A measure-
+    // input numeric column ("ordered_qty") must never be picked as the group-by
+    // dimension via the trailing "by <measure>" phrase — that yields the
+    // nonsense card "Top 5 ordered_qty by ordered qty" (live repro 2026-07-27).
+    test('"Top 5 <dim> by <measure>" groups by the dim, never the measure-input column', () => {
+        const scmQty = {
+            declaredKpis: [{ name: 'Ordered Qty' }],
+            schema: { tables: [
+                { name: 'ofr', columns: [
+                    { name: 'sales_channel', type: 'Text' },
+                    { name: 'ordered_qty', type: 'Integer' },
+                    { name: 'delivered_qty', type: 'Integer' },
+                ] },
+                { name: 'dim_sales_channel', columns: [{ name: 'sales_channel', type: 'Text' }] },
+            ] },
+        };
+        const out = matchQuestion('Top 5 sales_channel by Ordered Qty', scmQty);
+        expect(out.templateId).toBe('top-n');
+        expect(out.slots.measure).toBe('Ordered Qty');
+        expect(out.slots.dimensionColumn).toBe('sales_channel');
+        expect(out.slots.dimensionColumn).not.toBe('ordered_qty');
+    });
+
+    test('a numeric measure-input column is never chosen as a dimension', () => {
+        const out = matchQuestion('ordered qty by ordered qty', {
+            declaredKpis: [{ name: 'Ordered Qty' }],
+            schema: { tables: [
+                { name: 'ofr', columns: [
+                    { name: 'ordered_qty', type: 'Integer' },
+                    { name: 'sales_channel', type: 'Text' },
+                ] },
+            ] },
+        });
+        // No valid dim other than the numeric input → falls back to total.
+        expect(out.templateId).toBe('total');
+    });
+});
+
+describe('matcher — isMeasureInputColumn helper', () => {
+    test('numeric non-time columns are measure inputs', () => {
+        expect(__internals.isMeasureInputColumn('ordered_qty', 'Integer')).toBe(true);
+        expect(__internals.isMeasureInputColumn('net_sales_usd', 'Double')).toBe(true);
+        expect(__internals.isMeasureInputColumn('cogs_usd', 'Decimal')).toBe(true);
+    });
+    test('numeric time grains are NOT measure inputs (kept as time dims)', () => {
+        expect(__internals.isMeasureInputColumn('year', 'Integer')).toBe(false);
+        expect(__internals.isMeasureInputColumn('month', 'Int64')).toBe(false);
+    });
+    test('text columns are never measure inputs', () => {
+        expect(__internals.isMeasureInputColumn('country_id', 'Text')).toBe(false);
+        expect(__internals.isMeasureInputColumn('sales_channel', 'Text')).toBe(false);
+    });
+    test('missing type → not excluded (name-based fallback)', () => {
+        expect(__internals.isMeasureInputColumn('ordered_qty', undefined)).toBe(false);
+    });
 });
 
 describe('matcher — measureVariants helper', () => {
