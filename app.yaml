@@ -22,21 +22,41 @@ env:
   - name: STATIC_DIR
     value: "playground/dist"
 
-  # Default Genie profile — Sample Superstore - Sales Performance space.
+  # Default Genie profile — the live synthetic LATAM supply-chain POC space
+  # (genie-scm-poc), the current demo dataset. Verified live 2026-07-27:
+  # space 01f1871d… is one of exactly two spaces this PAT can see. The old
+  # "Sample Superstore" space 01f13fe2… no longer exists (deploy would 404).
   - name: PROXY_PROFILE_DEFAULT_HOST
     value: "https://dbc-f88d29ce-4aa2.cloud.databricks.com"
   - name: PROXY_PROFILE_DEFAULT_TOKEN
     valueFrom: databricks-pat
   - name: PROXY_PROFILE_DEFAULT_SPACE_ID
-    value: "01f13fe275b515608abb4182d0a37373"
+    value: "01f1871d478a181c83cb0562607c3d8e"
   - name: PROXY_PROFILE_DEFAULT_WAREHOUSE_ID
     value: "6510da50329f1e85"
   - name: PROXY_PROFILE_DEFAULT_DISPLAY_NAME
-    value: "Default (Sample Superstore Genie)"
+    value: "Genie: Synthetic SCM (POC)"
   - name: PROXY_PROFILE_DEFAULT_DATA_DOMAIN
-    value: "Sales performance"
+    value: "synthetic LATAM supply chain — countries, plants, sales channels, OFR/operations/performance facts"
 
-  # Foundation Model profile — Llama 3.1 405B serving endpoint on same workspace.
+  # Second Genie profile — Customer Support Review (the other live space).
+  # Kept so the deployed app mirrors the local config.json (genie + genie-scm-poc).
+  - name: PROXY_PROFILE_SUPPORT_HOST
+    value: "https://dbc-f88d29ce-4aa2.cloud.databricks.com"
+  - name: PROXY_PROFILE_SUPPORT_TOKEN
+    valueFrom: databricks-pat
+  - name: PROXY_PROFILE_SUPPORT_SPACE_ID
+    value: "01f1436554b719bea6abd14824c9103e"
+  - name: PROXY_PROFILE_SUPPORT_WAREHOUSE_ID
+    value: "6510da50329f1e85"
+  - name: PROXY_PROFILE_SUPPORT_DISPLAY_NAME
+    value: "Genie: Customer Support Review"
+  - name: PROXY_PROFILE_SUPPORT_DATA_DOMAIN
+    value: "customer support tickets, agents, and reviews"
+
+  # Foundation Model profile — the endpoint that actually exists on this
+  # workspace (verified 2026-07-27; the free edition ships 3-3-70b, NOT the
+  # 405B this manifest previously named, which would have failed at runtime).
   - name: PROXY_PROFILE_FOUNDATION_TYPE
     value: "foundation-model"
   - name: PROXY_PROFILE_FOUNDATION_HOST
@@ -44,17 +64,16 @@ env:
   - name: PROXY_PROFILE_FOUNDATION_TOKEN
     valueFrom: databricks-pat
   - name: PROXY_PROFILE_FOUNDATION_FOUNDATION_MODEL_ENDPOINT
-    value: "databricks-meta-llama-3.1-405b-instruct"
+    value: "databricks-meta-llama-3-3-70b-instruct"
   - name: PROXY_PROFILE_FOUNDATION_DISPLAY_NAME
-    value: "Foundation (Llama 3.1 405B)"
+    value: "Foundation Model (Llama 3.3 70B)"
 
-  # Supervisor (local fan-out) — orchestrator profile, no creds of its own.
-  - name: PROXY_PROFILE_SUPERVISOR_TYPE
-    value: "supervisor-local"
-  - name: PROXY_PROFILE_SUPERVISOR_AGENT_NAME
-    value: "PulsePlay Supervisor"
-  - name: PROXY_PROFILE_SUPERVISOR_SYNTHESIS_ENDPOINT
-    value: "databricks-meta-llama-3.1-405b-instruct"
+  # NOTE (2026-07-27): supervisor-local removed — it needs ≥2 Genie spaces AND
+  # pointed its synthesis at the non-existent 405B endpoint. Re-add only with a
+  # live synthesis endpoint if a multi-space fan-out is wanted.
+  # NOTE: no Power BI brain here yet — powerbi-dwd (local) uses a user-refresh
+  # token; deploying it needs that token as a Databricks secret + a
+  # PROXY_PROFILE_POWERBIDWD_* block. Follow-up, see the PBI apples-to-apples memory.
 
 resources:
   - name: databricks-pat
