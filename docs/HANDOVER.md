@@ -5,6 +5,16 @@
 
 ---
 
+## 2026-07-27 (latest+23) — Config A validated w/ 2 fixes; number-format via domain guidance; PepsiCo design v1-v4 (user: still generic — NEXT: match Design/ mockups)
+
+Beast-mode arc. Commits `9469b8a` (HEADLINE precision), `cb3b740` (pp→%), `6f44548` (PepsiCo theme+tokens), `4177257` (polish v1), `145c257` (signature v2). main ff'd. tsc clean throughout.
+
+**Config A (Databricks-only) AI Insights: reconciled + fixed.** Genie briefing matches the metric-view baseline (locked in-session: OFR 97.45/98.24/99.04, NS 1771.95/1877.92/1031.41 MM, GHG 2.52M/2.40M/1.14M). Bug found+fixed: HEADLINE rounded net sales to 1-decimal BILLIONS → narrated "no change" while its own KPI table said +4.3%. PRECISION rule added to all 3 HEADLINE prompts. Ask Pulse/Decisions/Dashboard reconciliation NOT re-run this arc (paused for the design pivot; Decisions+Dashboard were green in the earlier Config-A/B passes).
+
+**Number-format standard = DOMAIN GUIDANCE (user request):** Thousands `x.xx M`, Millions `x.xx MN`, Billions `x.xx B`, percent `x.xx %` (never pp), 2 decimals, signed. Seeded as default `domainGuidance` in `PulseHostStub.DEFAULT_NUMBER_FORMAT_GUIDANCE` (never stomps author edits) — headed-verified ($1.03 B vs $989.34 MN, 1.14 MN GHG). TRIPWIRE: `M`=thousand fights model training (M=million); the CRITICAL example block fixed the one slip seen; a deterministic formatter is the bulletproof upgrade if slips recur.
+
+**Design: 4 iterations, honest status.** v1-v2 token-level PepsiCo (new `"pepsico"` default theme incl. dark `#5b9bd5`; softer radii/shadows). v3 eye-candy (gradients/hover-lift). v4 signature language (navy masthead + red stripe, red-notch flag headers, condensed gradient numerals, underline nav, top-cap cards — `pepsicoPolish.css` + `visual.less` EOF appendix). **User verdict after each pass: still looks Claude-generated.** Root cause: I was inventing from priors. **THE REPO HAS THE REAL REFERENCES: `Design/unified-extract/` — `PulsePlay Shell.dc.html`, `My Decision Canvas v[2-4].dc.html`, `PulsePlay Design Audit.dc.html`, `INDUSTRY_DESIGN_REMEDIATION_PROMPT.md` (+ `docs/Industry Blueprint Wireframe Theme.pdf`, unreadable here — no poppler).** NEXT SESSION: open those mockups headed, extract their exact tokens/geometry/type, and make all 4 surfaces match THEM. Ask the user which mockup is canonical (v4?).
+
 ## 2026-07-27 (latest+22) — Beast-mode domain-guidance slices 1-2: briefing leads with a governed KPI (B2 fixed); slices 3-4 deferred
 
 Domain-guidance unification, disciplined slices. Commits `7c91fc7` + `1d001e8`; `main` ff'd. Plan tests 18/18, tsc clean.
