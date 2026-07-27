@@ -1,0 +1,122 @@
+table operations
+
+	column country
+		dataType: string
+		summarizeBy: none
+		sourceColumn: country
+
+	column plant
+		dataType: string
+		summarizeBy: none
+		sourceColumn: plant
+
+	column region
+		dataType: string
+		summarizeBy: none
+		sourceColumn: region
+
+	column year
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: year
+
+	column quarter
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: quarter
+
+	column month
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: month
+
+	column month_name
+		dataType: string
+		summarizeBy: none
+		sourceColumn: month_name
+
+	column month_order
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: month_order
+
+	column date_month
+		dataType: dateTime
+		formatString: yyyy-mm-dd
+		summarizeBy: none
+		sourceColumn: date_month
+
+	column hours_worked
+		dataType: double
+		summarizeBy: sum
+		sourceColumn: hours_worked
+
+	column recordable_incidents
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: recordable_incidents
+
+	column lost_time_injuries
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: lost_time_injuries
+
+	column units_produced
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: units_produced
+
+	column units_planned
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: units_planned
+
+	column units_defect
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: units_defect
+
+	column ghg_tco2e
+		dataType: double
+		summarizeBy: sum
+		sourceColumn: ghg_tco2e
+
+	column energy_kwh
+		dataType: double
+		summarizeBy: sum
+		sourceColumn: energy_kwh
+
+	measure 'Units Produced' = SUM(operations[units_produced])
+		formatString: #,0
+
+	measure 'Hours Worked' = SUM(operations[hours_worked])
+		formatString: #,0
+
+	measure 'LTIR' = DIVIDE(200000 * SUM(operations[lost_time_injuries]), SUM(operations[hours_worked]))
+		formatString: 0.000
+
+	measure 'TRIR' = DIVIDE(200000 * SUM(operations[recordable_incidents]), SUM(operations[hours_worked]))
+		formatString: 0.000
+
+	measure 'Manufacturing Fill Rate Pct' = DIVIDE(100 * SUM(operations[units_produced]), SUM(operations[units_planned]))
+		formatString: 0.00
+
+	measure 'Quality Complaint PPM' = DIVIDE(1000000 * SUM(operations[units_defect]), SUM(operations[units_produced]))
+		formatString: #,0
+
+	measure 'GHG Emissions tCO2e' = SUM(operations[ghg_tco2e])
+		formatString: #,0
+
+	measure 'Energy Intensity kWh per Unit' = DIVIDE(SUM(operations[energy_kwh]), SUM(operations[units_produced]))
+		formatString: 0.000
+
+	partition operations = m
+		mode: import
+		source =
+				let
+				    Source = Databricks.Catalogs("dbc-f88d29ce-4aa2.cloud.databricks.com", "/sql/1.0/warehouses/6510da50329f1e85", [Catalog=null, Database=null, EnableAutomaticProxyDiscovery=null]),
+				    workspace = Source{[Name="workspace",Kind="Database"]}[Data],
+				    schema = workspace{[Name="databrickspractice",Kind="Schema"]}[Data],
+				    view = schema{[Name="vw_pbi_scm_operations",Kind="View"]}[Data]
+				in
+				    view

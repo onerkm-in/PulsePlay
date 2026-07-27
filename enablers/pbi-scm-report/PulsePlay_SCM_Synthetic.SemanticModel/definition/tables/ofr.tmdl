@@ -1,0 +1,103 @@
+table ofr
+
+	column country
+		dataType: string
+		summarizeBy: none
+		sourceColumn: country
+
+	column ou
+		dataType: string
+		summarizeBy: none
+		sourceColumn: ou
+
+	column plant
+		dataType: string
+		summarizeBy: none
+		sourceColumn: plant
+
+	column region
+		dataType: string
+		summarizeBy: none
+		sourceColumn: region
+
+	column sales_channel
+		dataType: string
+		summarizeBy: none
+		sourceColumn: sales_channel
+
+	column year
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: year
+
+	column quarter
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: quarter
+
+	column month
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: month
+
+	column month_name
+		dataType: string
+		summarizeBy: none
+		sourceColumn: month_name
+
+	column month_order
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: month_order
+
+	column date_month
+		dataType: dateTime
+		formatString: yyyy-mm-dd
+		summarizeBy: none
+		sourceColumn: date_month
+
+	column ordered_qty
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: ordered_qty
+
+	column delivered_qty
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: delivered_qty
+
+	column order_lines
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: order_lines
+
+	column otif_lines
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: otif_lines
+
+	measure 'Ordered Qty' = SUM(ofr[ordered_qty])
+		formatString: #,0
+
+	measure 'Delivered Qty' = SUM(ofr[delivered_qty])
+		formatString: #,0
+
+	measure 'Order Lines' = SUM(ofr[order_lines])
+		formatString: #,0
+
+	measure 'Order Fill Rate Pct' = DIVIDE(100 * SUM(ofr[delivered_qty]), SUM(ofr[ordered_qty]))
+		formatString: 0.00
+
+	measure 'OTIF Pct' = DIVIDE(100 * SUM(ofr[otif_lines]), SUM(ofr[order_lines]))
+		formatString: 0.00
+
+	partition ofr = m
+		mode: import
+		source =
+				let
+				    Source = Databricks.Catalogs("dbc-f88d29ce-4aa2.cloud.databricks.com", "/sql/1.0/warehouses/6510da50329f1e85", [Catalog=null, Database=null, EnableAutomaticProxyDiscovery=null]),
+				    workspace = Source{[Name="workspace",Kind="Database"]}[Data],
+				    schema = workspace{[Name="databrickspractice",Kind="Schema"]}[Data],
+				    view = schema{[Name="vw_pbi_scm_ofr",Kind="View"]}[Data]
+				in
+				    view

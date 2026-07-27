@@ -1,0 +1,18 @@
+{
+  "config": "{\"version\":\"5.55\",\"activeSectionIndex\":0,\"settings\":{\"useStylableVisualContainerHeader\":true}}",
+  "layoutOptimization": 0,
+  "sections": [
+    {
+      "name": "d1a5e0c25c114a019c010000000000a1",
+      "displayName": "KPIs",
+      "filters": "[]",
+      "ordinal": 0,
+      "visualContainers": [],
+      "config": "{}",
+      "displayOption": 1,
+      "width": 1280,
+      "height": 720
+    }
+  ],
+  "filters": "[]"
+}
