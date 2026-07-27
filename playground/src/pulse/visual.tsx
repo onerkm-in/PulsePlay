@@ -10941,6 +10941,102 @@ interface BriefingKpi {
     readonly value: string;
     readonly prior: string | null;
     readonly direction: "up" | "down" | "neutral";
+    /** Real measured series for this KPI, when the briefing actually carried one
+     *  (a trend table with >= 3 points). Absent for the common current-vs-prior
+     *  snapshot — the hover card then falls back to a 2-bar comparison rather
+     *  than inventing a shape. Never synthesised. */
+    readonly series?: readonly number[];
+}
+
+/** Parse a KPI display string ("99.04 %", "$1.03 B", "1.14 MN", "1,204,125.00")
+ *  to a number for RELATIVE sizing only (bar lengths / sparkline scale) — never
+ *  for display, which always keeps the model's own formatting. Understands the
+ *  project scale convention (M = thousand, MN = million, B = billion), so a
+ *  prior/current pair in mixed units still compares correctly. */
+function parseKpiDisplayNumber(raw: string | null | undefined): number | null {
+    if (!raw) return null;
+    const s = String(raw).replace(/\*\*/g, "").trim();
+    const m = s.match(/-?[\d,]*\.?\d+/);
+    if (!m) return null;
+    const n = parseFloat(m[0].replace(/,/g, ""));
+    if (!Number.isFinite(n)) return null;
+    const tail = s.slice(m.index! + m[0].length).trim().toUpperCase();
+    if (/^MN\b/.test(tail)) return n * 1e6;
+    if (/^B\b/.test(tail)) return n * 1e9;
+    if (/^M\b/.test(tail)) return n * 1e3;   // project convention: M = thousand
+    if (/^K\b/.test(tail)) return n * 1e3;
+    return n;
+}
+
+/** Hover detail for a KPI tile: full (untruncated) metric name, the measured
+ *  numbers, and a shape that matches the DATA WE HAVE — a sparkline when a real
+ *  series exists, otherwise a prior-vs-current comparison. Pure presentation of
+ *  already-fetched values: hovering never triggers a query. */
+function KpiHoverCard(props: { kpi: BriefingKpi }): React.ReactElement | null {
+    const { kpi } = props;
+    const cur = parseKpiDisplayNumber(kpi.value);
+    const pri = parseKpiDisplayNumber(kpi.prior);
+    const series = (kpi.series && kpi.series.length >= 3) ? kpi.series : null;
+    const tone = kpi.direction === "up" ? "var(--pp-good, #1f9d6b)"
+               : kpi.direction === "down" ? "var(--pp-bad, #d1453d)"
+               : "var(--pp-text-muted, #5d5d60)";
+
+    let shape: React.ReactNode = null;
+    if (series) {
+        const min = Math.min(...series);
+        const max = Math.max(...series);
+        const span = max - min || 1;
+        const pts = series.map((v, i) => {
+            const x = (i / (series.length - 1)) * 100;
+            const y = 26 - ((v - min) / span) * 22 - 2;
+            return `${x.toFixed(2)},${y.toFixed(2)}`;
+        }).join(" ");
+        shape = (
+            <svg className="gn-kpi-hover-spark" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true">
+                <polyline points={pts} fill="none" stroke={tone} strokeWidth="1.6"
+                    vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+        );
+    } else if (cur !== null && pri !== null) {
+        // No series in this briefing — compare the two real points instead of
+        // drawing a fake trend line between them.
+        const scale = Math.max(Math.abs(cur), Math.abs(pri)) || 1;
+        const bar = (v: number, color: string) => (
+            <span className="gn-kpi-hover-bar">
+                <span style={{ width: `${Math.max(2, (Math.abs(v) / scale) * 100)}%`, background: color }} />
+            </span>
+        );
+        shape = (
+            <div className="gn-kpi-hover-bars">
+                <span className="gn-kpi-hover-barlabel">prior</span>
+                {bar(pri, "var(--pp-text-subtle, #86868a)")}
+                <span className="gn-kpi-hover-barlabel">now</span>
+                {bar(cur, tone)}
+            </div>
+        );
+    }
+
+    if (!shape && !kpi.prior) return null;
+
+    return (
+        <div className="gn-kpi-hover" role="tooltip">
+            <div className="gn-kpi-hover-title">{kpi.label}</div>
+            {shape}
+            <div className="gn-kpi-hover-rows">
+                <span>Current</span><strong>{kpi.value}</strong>
+                {kpi.prior && (<><span>Prior</span><strong>{kpi.prior}</strong></>)}
+                {cur !== null && pri !== null && pri !== 0 && (
+                    <>
+                        <span>Change</span>
+                        <strong style={{ color: tone }}>
+                            {(((cur - pri) / Math.abs(pri)) * 100).toFixed(2)} %
+                        </strong>
+                    </>
+                )}
+            </div>
+            {series && <div className="gn-kpi-hover-note">{series.length} measured points</div>}
+        </div>
+    );
 }
 
 type BriefingSectionKind = "risk" | "opportunity" | "change";
@@ -11079,7 +11175,8 @@ function renderExecutiveBriefing(brief: ExecutiveBriefing): React.ReactNode {
                                           : "gn-kpi-tile-delta--neutral";
                         const cue = k.direction === "up" ? "↑" : k.direction === "down" ? "↓" : "→";
                         return (
-                            <div key={`${k.label}-${i}`} className={`gn-kpi-tile ${dirClass}`}>
+                            <div key={`${k.label}-${i}`} className={`gn-kpi-tile ${dirClass}`} tabIndex={0}>
+                                <KpiHoverCard kpi={k} />
                                 <div className="gn-kpi-tile-head">
                                     <span className="gn-kpi-tile-label" title={k.label}>{humanizeColumnName(k.label)}</span>
                                 </div>
@@ -12941,7 +13038,14 @@ function renderKpiTiles(body: string, sectionTitle?: string, options?: InsightsR
                 role="group"
                 title="Open KPI drill-down"
                 aria-label={`Open details for ${kpi || "this KPI"}`}
+                tabIndex={0}
             >
+                <KpiHoverCard kpi={{
+                    label: String(kpi || "KPI").replace(/\*\*/g, "").trim(),
+                    value: String(cur || "").replace(/\*\*/g, "").trim(),
+                    prior: isUnknownPrior ? null : (String(prior || "").replace(/\*\*/g, "").trim() || null),
+                    direction: dir === "up" ? "up" : dir === "down" ? "down" : "neutral",
+                }} />
                 <div className="gn-kpi-tile-head">
                     <span className="gn-kpi-tile-label">{inlineFormat(kpi, sectionTitle)}</span>
                     {status ? <span className="gn-kpi-tile-status">{renderStatusChip(status)}</span> : null}
