@@ -1,8 +1,10 @@
 table dim_date
+	lineageTag: c730c9a1-0223-4665-bffb-359d86eefbab
 
 	column date
 		dataType: dateTime
 		formatString: yyyy-mm-dd
+		lineageTag: c68eb84f-9a8e-45de-8115-bc7948c8eac7
 		summarizeBy: none
 		sourceColumn: date
 
@@ -10,33 +12,39 @@ table dim_date
 
 	column year
 		dataType: int64
+		lineageTag: 3bd7e04a-7900-47ce-8588-62a7c23e0571
 		summarizeBy: none
 		sourceColumn: year
 
 	column quarter
 		dataType: int64
+		lineageTag: 9621877d-2b76-420e-a67c-87d197bf2388
 		summarizeBy: none
 		sourceColumn: quarter
 
 	column quarter_name
 		dataType: string
+		lineageTag: 94227d47-7172-4fcf-a18c-dd15d3ac56c2
 		summarizeBy: none
 		sourceColumn: quarter_name
 		sortByColumn: quarter
 
 	column month
 		dataType: int64
+		lineageTag: d0421c6b-f5dc-4fb3-b29e-ec2a3dc14d5c
 		summarizeBy: none
 		sourceColumn: month
 
 	column month_name
 		dataType: string
+		lineageTag: b87c5821-8c9f-49f8-b2ed-768995dddd09
 		summarizeBy: none
 		sourceColumn: month_name
 		sortByColumn: month
 
 	column month_short
 		dataType: string
+		lineageTag: 1f479a86-498d-451e-993a-fe4a87b9c9e1
 		summarizeBy: none
 		sourceColumn: month_short
 		sortByColumn: month
@@ -44,6 +52,7 @@ table dim_date
 	column month_start
 		dataType: dateTime
 		formatString: yyyy-mm-dd
+		lineageTag: 80cfb636-e321-47ca-98c3-4bc8f2eb917e
 		summarizeBy: none
 		sourceColumn: month_start
 
@@ -51,6 +60,7 @@ table dim_date
 
 	column month_order
 		dataType: int64
+		lineageTag: f7091ebc-36f2-4984-a936-03665bfa9e2a
 		summarizeBy: none
 		sourceColumn: month_order
 
@@ -64,3 +74,4 @@ table dim_date
 				    view = schema{[Name="vw_pbi_dim_date",Kind="View"]}[Data]
 				in
 				    view
+

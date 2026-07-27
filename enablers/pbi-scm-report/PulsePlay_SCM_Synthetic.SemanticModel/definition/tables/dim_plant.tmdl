@@ -1,27 +1,33 @@
 table dim_plant
+	lineageTag: d6f72ab9-4c51-4571-a520-cc497924564c
 
 	column plant_id
 		dataType: string
+		lineageTag: c0fc65a8-0548-4248-b6e0-6e39fb4e5201
 		summarizeBy: none
 		sourceColumn: plant_id
 
 	column plant
 		dataType: string
+		lineageTag: 28613f92-d41b-4759-9cbe-55ead15c2712
 		summarizeBy: none
 		sourceColumn: plant
 
 	column region
 		dataType: string
+		lineageTag: 81dca46c-ecde-45f2-a807-716e7ed56624
 		summarizeBy: none
 		sourceColumn: region
 
 	column loc_type
 		dataType: string
+		lineageTag: 133c33f6-e4b1-459a-b821-4e79366b3788
 		summarizeBy: none
 		sourceColumn: loc_type
 
 	column country_id
 		dataType: string
+		lineageTag: c58bbd3f-2c5d-4b91-88e9-00824d8df22c
 		summarizeBy: none
 		sourceColumn: country_id
 
@@ -35,3 +41,4 @@ table dim_plant
 				    view = schema{[Name="vw_pbi_dim_plant",Kind="View"]}[Data]
 				in
 				    view
+

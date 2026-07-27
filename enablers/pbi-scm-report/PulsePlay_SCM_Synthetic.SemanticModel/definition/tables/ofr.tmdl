@@ -1,38 +1,36 @@
 table ofr
+	lineageTag: e6f2041a-520c-4b6d-a9dd-659aa8ef75eb
 
 	measure 'Ordered Qty' = SUM(ofr[ordered_qty])
 		formatString: #,0
+		lineageTag: e29b7c12-97ec-4528-a87a-04326cdf9c0f
 
 	measure 'Delivered Qty' = SUM(ofr[delivered_qty])
 		formatString: #,0
+		lineageTag: 4c12f9d7-0aae-4b03-a546-42ff56835614
 
 	measure 'Order Lines' = SUM(ofr[order_lines])
 		formatString: #,0
+		lineageTag: 8d3388a5-9878-4243-8c3f-3dcaaef3a872
 
 	measure 'Order Fill Rate Pct' = DIVIDE(100 * SUM(ofr[delivered_qty]), SUM(ofr[ordered_qty]))
 		formatString: 0.00
+		lineageTag: ff15a0cc-05a8-43cb-9d30-8e4247f331f9
 
 	measure 'OTIF Pct' = DIVIDE(100 * SUM(ofr[otif_lines]), SUM(ofr[order_lines]))
 		formatString: 0.00
-
-	column country_id
-		dataType: string
-		summarizeBy: none
-		sourceColumn: country_id
-
-	column plant_id
-		dataType: string
-		summarizeBy: none
-		sourceColumn: plant_id
+		lineageTag: 1df3bbb2-de1f-4ae0-92de-9051ea827102
 
 	column sales_channel
 		dataType: string
+		lineageTag: 1cacd4bd-0155-4baf-841a-1f2abd240542
 		summarizeBy: none
 		sourceColumn: sales_channel
 
 	column date_month
 		dataType: dateTime
 		formatString: yyyy-mm-dd
+		lineageTag: 98ec8c1e-4c53-47c5-94ce-a803e33ced46
 		summarizeBy: none
 		sourceColumn: date_month
 
@@ -40,23 +38,39 @@ table ofr
 
 	column ordered_qty
 		dataType: int64
+		lineageTag: 8f75b89a-1b93-48d8-91b4-3e15ee9003fe
 		summarizeBy: sum
 		sourceColumn: ordered_qty
 
 	column delivered_qty
 		dataType: int64
+		lineageTag: daa364fd-0744-4be7-955c-6cf23dd1b133
 		summarizeBy: sum
 		sourceColumn: delivered_qty
 
 	column order_lines
 		dataType: int64
+		lineageTag: f8778042-f34e-48e1-a1f5-dfa35112af64
 		summarizeBy: sum
 		sourceColumn: order_lines
 
 	column otif_lines
 		dataType: int64
+		lineageTag: f0bd32e5-35dc-42cc-934c-cb0a1b477293
 		summarizeBy: sum
 		sourceColumn: otif_lines
+
+	column country_id
+		dataType: string
+		lineageTag: 4f3c33f7-8547-4d14-b0be-e7e7d28c76f6
+		summarizeBy: none
+		sourceColumn: country_id
+
+	column plant_id
+		dataType: string
+		lineageTag: 04b4e140-a475-4cd2-8c15-c2fdc16dc851
+		summarizeBy: none
+		sourceColumn: plant_id
 
 	partition ofr = m
 		mode: import
@@ -68,3 +82,4 @@ table ofr
 				    view = schema{[Name="vw_pbi_fct_ofr",Kind="View"]}[Data]
 				in
 				    view
+

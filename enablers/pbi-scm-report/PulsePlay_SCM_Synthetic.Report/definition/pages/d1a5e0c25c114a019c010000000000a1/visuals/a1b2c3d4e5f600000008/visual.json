@@ -1,7 +1,14 @@
 {
   "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.11.0/schema.json",
   "name": "a1b2c3d4e5f600000008",
-  "position": { "x": 850, "y": 125, "z": 102, "height": 280, "width": 420, "tabOrder": 102 },
+  "position": {
+    "x": 850,
+    "y": 125,
+    "z": 102,
+    "height": 280,
+    "width": 420,
+    "tabOrder": 102
+  },
   "visual": {
     "visualType": "lineChart",
     "query": {
@@ -11,7 +18,11 @@
             {
               "field": {
                 "Column": {
-                  "Expression": { "SourceRef": { "Entity": "dim_date" } },
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "dim_date"
+                    }
+                  },
                   "Property": "year"
                 }
               },
@@ -26,7 +37,11 @@
             {
               "field": {
                 "Measure": {
-                  "Expression": { "SourceRef": { "Entity": "operations" } },
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "operations"
+                    }
+                  },
                   "Property": "GHG Emissions tCO2e"
                 }
               },

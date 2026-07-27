@@ -1,7 +1,14 @@
 {
   "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.11.0/schema.json",
   "name": "a1b2c3d4e5f600000006",
-  "position": { "x": 10, "y": 125, "z": 100, "height": 280, "width": 410, "tabOrder": 100 },
+  "position": {
+    "x": 10,
+    "y": 125,
+    "z": 100,
+    "height": 280,
+    "width": 410,
+    "tabOrder": 100
+  },
   "visual": {
     "visualType": "columnChart",
     "query": {
@@ -11,7 +18,11 @@
             {
               "field": {
                 "Column": {
-                  "Expression": { "SourceRef": { "Entity": "dim_date" } },
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "dim_date"
+                    }
+                  },
                   "Property": "year"
                 }
               },
@@ -26,7 +37,11 @@
             {
               "field": {
                 "Measure": {
-                  "Expression": { "SourceRef": { "Entity": "performance" } },
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "performance"
+                    }
+                  },
                   "Property": "Net Sales USD"
                 }
               },

@@ -1,17 +1,21 @@
 table dim_country
+	lineageTag: a4441cc2-9568-435b-b416-4b59ac460e6f
 
 	column country_id
 		dataType: string
+		lineageTag: a304c5a6-044b-47d5-98c3-412ec13c69e5
 		summarizeBy: none
 		sourceColumn: country_id
 
 	column country
 		dataType: string
+		lineageTag: 8481225d-c4b5-4e6f-89b9-86def4a6441a
 		summarizeBy: none
 		sourceColumn: country
 
 	column ou
 		dataType: string
+		lineageTag: cf67de65-754f-4559-8d02-0e3dd61dc2d8
 		summarizeBy: none
 		sourceColumn: ou
 
@@ -25,3 +29,4 @@ table dim_country
 				    view = schema{[Name="vw_pbi_dim_country",Kind="View"]}[Data]
 				in
 				    view
+

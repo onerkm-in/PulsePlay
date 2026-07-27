@@ -1,7 +1,14 @@
 {
   "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.11.0/schema.json",
   "name": "a1b2c3d4e5f600000003",
-  "position": { "x": 506, "y": 8, "z": 1002, "height": 105, "width": 240, "tabOrder": 3 },
+  "position": {
+    "x": 506,
+    "y": 8,
+    "z": 1002,
+    "height": 105,
+    "width": 240,
+    "tabOrder": 3
+  },
   "visual": {
     "visualType": "card",
     "query": {
@@ -11,7 +18,11 @@
             {
               "field": {
                 "Measure": {
-                  "Expression": { "SourceRef": { "Entity": "performance" } },
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "performance"
+                    }
+                  },
                   "Property": "Net Sales USD"
                 }
               },

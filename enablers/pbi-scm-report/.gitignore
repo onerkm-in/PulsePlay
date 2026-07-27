@@ -1,0 +1,4 @@
+# Power BI Desktop (PBIP) local machine state — never commit.
+# localSettings.json carries a DPAPI-encrypted per-user security binding;
+# cache.abf is a binary model cache. Both are machine-specific.
+.pbi/

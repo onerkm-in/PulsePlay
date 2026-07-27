@@ -1,7 +1,9 @@
 table dim_sales_channel
+	lineageTag: 1851afdb-bc92-4972-890d-b955251451d9
 
 	column sales_channel
 		dataType: string
+		lineageTag: d8a7450b-3b1e-4370-83b8-793e0231052d
 		summarizeBy: none
 		sourceColumn: sales_channel
 
@@ -15,3 +17,4 @@ table dim_sales_channel
 				    view = schema{[Name="vw_pbi_dim_sales_channel",Kind="View"]}[Data]
 				in
 				    view
+

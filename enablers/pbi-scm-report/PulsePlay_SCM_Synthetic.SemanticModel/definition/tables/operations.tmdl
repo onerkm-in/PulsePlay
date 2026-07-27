@@ -1,42 +1,42 @@
 table operations
+	lineageTag: a83e68bb-3ab6-4bc5-800a-920d498afe35
 
 	measure 'Units Produced' = SUM(operations[units_produced])
 		formatString: #,0
+		lineageTag: ecf13224-becc-4405-82a9-15ba9826338c
 
 	measure 'Hours Worked' = SUM(operations[hours_worked])
 		formatString: #,0
+		lineageTag: 7884563a-eea8-4a12-8fd8-fa9f86a00510
 
 	measure LTIR = DIVIDE(200000 * SUM(operations[lost_time_injuries]), SUM(operations[hours_worked]))
 		formatString: 0.000
+		lineageTag: 60dceaf4-07c6-4866-b55c-3f2d5e23ee7d
 
 	measure TRIR = DIVIDE(200000 * SUM(operations[recordable_incidents]), SUM(operations[hours_worked]))
 		formatString: 0.000
+		lineageTag: 9c5862c2-8ecd-4063-8392-a059f159cfad
 
 	measure 'Manufacturing Fill Rate Pct' = DIVIDE(100 * SUM(operations[units_produced]), SUM(operations[units_planned]))
 		formatString: 0.00
+		lineageTag: ada24f20-6d7e-43d4-8a1e-1812bab2126c
 
 	measure 'Quality Complaint PPM' = DIVIDE(1000000 * SUM(operations[units_defect]), SUM(operations[units_produced]))
 		formatString: #,0
+		lineageTag: b5f292da-bfde-4db1-be4a-618fa4ca0b3f
 
 	measure 'GHG Emissions tCO2e' = SUM(operations[ghg_tco2e])
 		formatString: #,0
+		lineageTag: ad3c747e-f802-47a0-955f-a94346f92237
 
 	measure 'Energy Intensity kWh per Unit' = DIVIDE(SUM(operations[energy_kwh]), SUM(operations[units_produced]))
 		formatString: 0.000
-
-	column country_id
-		dataType: string
-		summarizeBy: none
-		sourceColumn: country_id
-
-	column plant_id
-		dataType: string
-		summarizeBy: none
-		sourceColumn: plant_id
+		lineageTag: af4ddcec-5d5d-4ab0-920a-9fdfb47f111c
 
 	column date_month
 		dataType: dateTime
 		formatString: yyyy-mm-dd
+		lineageTag: dd6c069e-8284-4f06-97f0-0a3fb92cc7af
 		summarizeBy: none
 		sourceColumn: date_month
 
@@ -44,43 +44,63 @@ table operations
 
 	column hours_worked
 		dataType: double
+		lineageTag: 2efc61f3-4555-460b-bceb-8226372a1a66
 		summarizeBy: sum
 		sourceColumn: hours_worked
 
 	column recordable_incidents
 		dataType: int64
+		lineageTag: 2251a202-188a-4bc3-90b4-83cf5c264ae9
 		summarizeBy: sum
 		sourceColumn: recordable_incidents
 
 	column lost_time_injuries
 		dataType: int64
+		lineageTag: 9b7dc12d-6911-4a81-b491-cd49da12f678
 		summarizeBy: sum
 		sourceColumn: lost_time_injuries
 
 	column units_produced
 		dataType: int64
+		lineageTag: c3ca7219-18b2-416f-a366-ffad0c0a8378
 		summarizeBy: sum
 		sourceColumn: units_produced
 
 	column units_planned
 		dataType: int64
+		lineageTag: f4205ab5-c298-4036-9101-b9ebfd6a1678
 		summarizeBy: sum
 		sourceColumn: units_planned
 
 	column units_defect
 		dataType: int64
+		lineageTag: 192a24ae-9038-4f83-9e45-c98443f26163
 		summarizeBy: sum
 		sourceColumn: units_defect
 
 	column ghg_tco2e
 		dataType: double
+		lineageTag: 3567e329-50c5-4ab8-ba5b-1328f3229410
 		summarizeBy: sum
 		sourceColumn: ghg_tco2e
 
 	column energy_kwh
 		dataType: double
+		lineageTag: 308fc14c-da55-4a71-b1d8-2215c758dce4
 		summarizeBy: sum
 		sourceColumn: energy_kwh
+
+	column country_id
+		dataType: string
+		lineageTag: faa5093b-4d38-4936-a8cb-c2f1ac7aecdb
+		summarizeBy: none
+		sourceColumn: country_id
+
+	column plant_id
+		dataType: string
+		lineageTag: 132e3d99-ee42-43c6-9267-80f877c884ec
+		summarizeBy: none
+		sourceColumn: plant_id
 
 	partition operations = m
 		mode: import
@@ -92,3 +112,4 @@ table operations
 				    view = schema{[Name="vw_pbi_fct_operations",Kind="View"]}[Data]
 				in
 				    view
+

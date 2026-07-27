@@ -13,10 +13,11 @@ annotation __PBI_TimeIntelligenceEnabled = 0
 
 annotation PBI_ProTooling = ["DevMode"]
 
+ref table ofr
+ref table operations
+ref table performance
 ref table dim_date
 ref table dim_country
 ref table dim_plant
 ref table dim_sales_channel
-ref table ofr
-ref table operations
-ref table performance
+

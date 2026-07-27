@@ -1,28 +1,30 @@
 table performance
+	lineageTag: 5c8ad23c-3c83-48b4-9948-6075738c69a5
 
 	measure 'Net Sales USD' = SUM(performance[net_sales_usd])
 		formatString: #,0
+		lineageTag: cdab01ee-2856-44d3-aa7a-64b61aadd747
 
 	measure 'COGS USD' = SUM(performance[cogs_usd])
 		formatString: #,0
+		lineageTag: a45e74e4-4590-484d-bbdd-a4e1a43dbf0b
 
 	measure 'Gross Margin Pct' = DIVIDE(100 * (SUM(performance[net_sales_usd]) - SUM(performance[cogs_usd])), SUM(performance[net_sales_usd]))
 		formatString: 0.00
+		lineageTag: 9d464b8d-5129-4168-beec-adea4c6fb794
 
 	measure 'Forecast Accuracy Pct' = 100 * (1 - DIVIDE(SUMX(performance, ABS(performance[actual_qty] - performance[forecast_qty])), SUM(performance[actual_qty])))
 		formatString: 0.00
+		lineageTag: 1f99e11a-13b8-4844-94e6-5c5392bbd9f1
 
 	measure 'Forecast Bias Pct' = DIVIDE(100 * (SUM(performance[actual_qty]) - SUM(performance[forecast_qty])), SUM(performance[actual_qty]))
 		formatString: 0.00
-
-	column country_id
-		dataType: string
-		summarizeBy: none
-		sourceColumn: country_id
+		lineageTag: 4a0cb970-7812-474f-a257-34d077e53260
 
 	column date_month
 		dataType: dateTime
 		formatString: yyyy-mm-dd
+		lineageTag: 6ac3a797-e701-401f-bdbd-ca4d6e795963
 		summarizeBy: none
 		sourceColumn: date_month
 
@@ -30,33 +32,45 @@ table performance
 
 	column forecast_qty
 		dataType: double
+		lineageTag: 26bd8068-04cf-4c7e-8ffc-c681e181441a
 		summarizeBy: sum
 		sourceColumn: forecast_qty
 
 	column actual_qty
 		dataType: double
+		lineageTag: 08d6cedf-3c6b-4df3-a312-2b4b71d40ce4
 		summarizeBy: sum
 		sourceColumn: actual_qty
 
 	column net_sales_usd
 		dataType: double
+		lineageTag: 0da17386-ff94-44ed-a6dd-0009db9fb0f4
 		summarizeBy: sum
 		sourceColumn: net_sales_usd
 
 	column cogs_usd
 		dataType: double
+		lineageTag: c1665813-8f8b-4a7d-a756-9ea721363abf
 		summarizeBy: sum
 		sourceColumn: cogs_usd
 
 	column hours_worked
 		dataType: double
+		lineageTag: 4a09f20a-6bb1-4945-8923-df138ee2b162
 		summarizeBy: sum
 		sourceColumn: hours_worked
 
 	column lost_time_injuries
 		dataType: int64
+		lineageTag: aa6664de-6dee-481d-b07c-3e0c4b2ef22c
 		summarizeBy: sum
 		sourceColumn: lost_time_injuries
+
+	column country_id
+		dataType: string
+		lineageTag: 3581687c-0e1b-403e-a3e5-92a4cc447a06
+		summarizeBy: none
+		sourceColumn: country_id
 
 	partition performance = m
 		mode: import
@@ -68,3 +82,4 @@ table performance
 				    view = schema{[Name="vw_pbi_fct_performance",Kind="View"]}[Data]
 				in
 				    view
+
