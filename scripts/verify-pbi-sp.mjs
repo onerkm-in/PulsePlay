@@ -32,6 +32,8 @@ const tenant = p.aadTenantId || p.powerBiTenantId;
 const clientId = p.aadClientId || p.powerBiClientId;
 const clientSecret = p.aadClientSecret || p.powerBiClientSecret;
 const groupId = p.powerbiGroupId;
+const datasetId = p.powerbiDatasetId;
+const reportId = p.powerbiReportId;
 if (!tenant || !clientId || !clientSecret || clientId.startsWith('<')) {
     console.error('powerbi-dwd missing SP creds (aadTenantId/aadClientId/aadClientSecret).'); process.exit(1);
 }
@@ -82,6 +84,46 @@ if (!rpRes.ok) {
         console.log(`      - ${String(r.name).padEnd(28)} reportId: ${r.id}`);
         console.log(`        embedUrl: ${r.embedUrl}`);
     }
+}
+
+// [4] executeQueries — the deterministic DAX brain path (Ask Pulse / AI Insights).
+if (datasetId) {
+    console.log(`\n[4] POST executeQueries on dataset ${datasetId} (the DAX brain path)...`);
+    const daxRes = await fetch(`https://api.powerbi.com/v1.0/myorg/groups/${groupId}/datasets/${datasetId}/executeQueries`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${tok.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ queries: [{ query: 'EVALUATE ROW("OFR", [Order Fill Rate Pct])' }], serializerSettings: { includeNulls: true } }),
+    });
+    const daxText = await daxRes.text();
+    if (!daxRes.ok) {
+        console.error(`[4] FAIL — ${daxRes.status}: ${daxText.slice(0, 300)}`);
+        console.error(`    The SP needs BUILD permission on the dataset (workspace Member usually grants it; else grant Build in the dataset settings).`);
+        process.exit(1);
+    }
+    const row = JSON.parse(daxText)?.results?.[0]?.tables?.[0]?.rows?.[0];
+    console.log(`[4] OK — DAX ran under the SP. OFR grand total = ${JSON.stringify(row)} (expect ~98.12).`);
+} else {
+    console.log(`\n[4] SKIP — profile has no powerbiDatasetId.`);
+}
+
+// [5] GenerateToken — the report embed path (Config C: Power BI as the Dashboard).
+if (reportId) {
+    console.log(`\n[5] POST reports/${reportId}/GenerateToken (the report-embed path)...`);
+    const embRes = await fetch(`https://api.powerbi.com/v1.0/myorg/groups/${groupId}/reports/${reportId}/GenerateToken`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${tok.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accessLevel: 'View' }),
+    });
+    const embText = await embRes.text();
+    if (!embRes.ok) {
+        console.log(`[5] embed-token ${embRes.status} (non-fatal for the DAX brain): ${embText.slice(0, 200)}`);
+        console.log(`    Needed only for Config C (embedding the report). The brain path [4] can still be live.`);
+    } else {
+        const t = JSON.parse(embText);
+        console.log(`[5] OK — embed token minted (expires ${t.expiration}). Config C report-embed unblocked.`);
+    }
+} else {
+    console.log(`\n[5] SKIP — profile has no powerbiReportId.`);
 }
 
 console.log(`\n✅ SP path verified — tenant toggle + workspace access are live.`);
