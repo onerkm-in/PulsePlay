@@ -801,6 +801,7 @@ export function buildInsightsStagePrompts(
         "",
         "## HEADLINE",
         "One sentence (max 25 words) stating the single most important number from the current period, its change vs. prior period, and whether overall performance is on-track, at-risk, or off-track. Use bold for numbers.",
+        "PRECISION: derive the change from the true UNROUNDED values and NEVER round Current and Prior to the same figure — a real change (e.g. +4%) must never be described as 'no change', 'flat', or 'held steady'. State currency compactly with a unit suffix + 2 decimals ($1.03B, $989.34M), never a bare 1-decimal billion that hides the movement. The HEADLINE must agree with the KPI SNAPSHOT below.",
         "Rules: Never ask a clarifying question. Never offer alternatives. If data is ambiguous, pick the most prominent metric and state your assumption in the sentence.",
         "",
         "## KPI SNAPSHOT",
@@ -1740,7 +1741,7 @@ export function buildHybridInsightsStagePrompts(
         "Example HEADLINE (bad — do not emit): \"SITUATION: Total sales is $2.30M ... IMPLICATION: Performance is strong.\"",
         // L11 — explicit length cap. Word count caps land harder than "max"
         // hints in observed model behavior.
-        `One sentence (max 25 words) stating the single most important number from the current period for ${domainLabel}, its change vs the prior period, and whether overall performance is on-track, at-risk, or off-track. Use bold for the headline number. Use ▲/▼ to indicate direction. HARD CEILING: the HEADLINE block under \`## HEADLINE\` and before \`## KPI SNAPSHOT\` must be EXACTLY 1 sentence. Two sentences = rejected.`,
+        `One sentence (max 25 words) stating the single most important number from the current period for ${domainLabel}, its change vs the prior period, and whether overall performance is on-track, at-risk, or off-track. Use bold for the headline number. Use ▲/▼ to indicate direction. PRECISION: derive the change from the true UNROUNDED values and NEVER round Current and Prior to the same figure — a real change (e.g. +4%) must never read as 'no change', 'flat', or 'held steady'; state currency compactly with a unit suffix + 2 decimals ($1.03B, $989.34M), never a bare 1-decimal billion. The HEADLINE must agree with the KPI SNAPSHOT below. HARD CEILING: the HEADLINE block under \`## HEADLINE\` and before \`## KPI SNAPSHOT\` must be EXACTLY 1 sentence. Two sentences = rejected.`,
         "Rules: Never ask a clarifying question. Never offer alternatives. If data is ambiguous, pick the most prominent metric and state your assumption inline.",
         "",
         "## KPI SNAPSHOT",
@@ -2323,6 +2324,7 @@ const BRIEFING_FORMAT_INSTRUCTION = [
     "",
     "## HEADLINE",
     "One sentence (max 25 words). Lead with the single most important number for the current period, its change vs prior, and whether overall performance is on-track / at-risk / off-track.",
+    "PRECISION: derive the change from the true UNROUNDED values and NEVER round Current and Prior to the same figure — a real change (e.g. +4%) must never read as 'no change', 'flat', or 'held steady'; state currency compactly with a unit suffix + 2 decimals ($1.03B, $989.34M), never a bare 1-decimal billion that hides the movement.",
     "",
     "Rules: Never ask a clarifying question. Never offer alternatives. If data is ambiguous, pick the most material metric and state your assumption in HEADLINE. Start directly with `## HEADLINE` — no preamble, no trailing sections. Do NOT add `## KPI SNAPSHOT`, `## TRENDS`, `## WHAT CHANGED`, `## RISKS`, `## OPPORTUNITIES`, or `## RECOMMENDED ACTIONS` — the user will ask for those as follow-ups if they want them. Do NOT explain WHY metrics moved — the user will ask if they want causes.",
 ].join("\n");
