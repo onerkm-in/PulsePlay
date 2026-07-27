@@ -5,6 +5,20 @@
 
 ---
 
+## 2026-07-27 (latest+22) — Beast-mode domain-guidance slices 1-2: briefing leads with a governed KPI (B2 fixed); slices 3-4 deferred
+
+Domain-guidance unification, disciplined slices. Commits `7c91fc7` + `1d001e8`; `main` ff'd. Plan tests 18/18, tsc clean.
+
+**Slice 1 (`7c91fc7`, SHIPPED + headed-verified) — headline measure ranking.** Finding B2: the deterministic PBI briefing led with `measures[0]` = whatever the probe returned first ("Ordered Qty" for SCM — a volume input, not a headline). `buildDeterministicPbiInsightsPlan` now ranks the headline slot: pack/author `featuredMeasures` → KPI-shaped names (rate/ratio/margin/sales/otif/fill/accuracy/…) → other named → raw inputs (qty/lines/units/hours) last; stable within a tier. Applies to ANY pack (heuristic always fires). Headed: SCM briefing now leads with **Order Fill Rate Pct 98.12**, then OFR by channel / over time / Top-5 channels, then OTIF — an exec-appropriate supply-chain brief. +4 tests.
+
+**Slice 2 (`1d001e8`, SHIPPED + unit-proven) — pack KPIs drive the headline.** `matchFeaturedMeasures(packKpiLabels, probeMeasures)` normalized (unit/%-suffix-stripped) substring match ("OTIF %"→"OTIF Pct", "Net Sales"→"Net Sales USD"), deduped, pack order preserved. `visual.tsx` reads `pulseplay:pack-selection` → `buildBusinessContextProfile` → KPI labels → `matchFeaturedMeasures` → `featuredMeasures`. Best-effort (try/catch, heuristic fallback → no regression). +5 tests incl. an integration test proving `supply-chain` KPIs → OTIF headline.
+
+**Honest status — the drift gap (why slice 2 is currently inert for the live pack).** The app's active sub-vertical is `finance-fpa`, which lives in `cpgFmcgPresets.ts` but NOT in `businessContextProfile.PACK_REGISTRY` (which has `supply-chain`/`procurement`/… but not finance-fpa). So `buildBusinessContextProfile("cpg-fmcg","finance-fpa")` returns the FALLBACK profile → no matching KPIs → the slice-1 heuristic governs (OFR). Correct behavior, but slice 2 only bites for sub-verticals present in that one corpus. This is exactly the "≥3 parallel pack corpora / drift" gap from latest+20's research. Also: the app rewrites `pulseplay:pack-selection` from its own state on mount, so a localStorage injection of a different sub-vertical doesn't stick — change it via the Settings pack picker to exercise headed.
+
+**Deferred (with reasons, not skipped silently).** Slice 3 = reconcile the parallel pack corpora so featuredMeasures works for every sub-vertical — a product-data decision (canonical corpus; finance-fpa's KPI set), not an autonomous code change. Slice 4 = wire `buildBackendPayload` (Prompt IR) into the live serving routes — large + high-regression-risk on the core AI path; deserves a focused, reviewed effort. Both tracked in the domain-guidance memory.
+
+**Headed harness note:** the "reading 'state'" crash reproduces reliably on the FIRST reload after a Vite HMR update to visual.tsx / its imports; a second clean reload (or a Vite restart) clears it. Not a product bug — a dev HMR artifact.
+
 ## 2026-07-27 (latest+21) — Power BI service principal created → Config C (report-as-Dashboard) live; embed route + app.yaml wired
 
 Follow-on to latest+20. The user chose Option B (service principal) to make the Power BI brain deploy-stable and unblock the report embed. All done + headed-verified. Commits `0bf6a02` (embed route) + `8118035` (app.yaml); `main` fast-forwarded. Embed tests 24/24, playground tsc clean.
