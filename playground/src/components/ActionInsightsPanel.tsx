@@ -30,6 +30,11 @@ interface ApiResponse {
     personaSource: string;
     capabilities: string[];
     prompts: DecisionPrompt[];
+    /** Set when Decisions can't run for the active connector (e.g. a Power BI
+     *  profile with no Databricks warehouse) — rendered in place of the raw
+     *  "No decisions" empty state so the surface degrades gracefully. */
+    notice?: string;
+    unavailable?: boolean;
 }
 
 interface CachedPrompts {
@@ -251,7 +256,7 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, hideH
 
             {!loading && data && prompts.length === 0 && !error && (
                 <div className="text-muted" style={{ fontSize: 13.5, padding: "28px 0", textAlign: "center" }}>
-                    No decisions need attention right now.
+                    {data.notice || "No decisions need attention right now."}
                 </div>
             )}
 

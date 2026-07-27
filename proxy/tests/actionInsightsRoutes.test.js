@@ -82,6 +82,13 @@ function mountAndGetActionHandler() {
     return app._routes.post['/insights/action-insights/:id/action'];
 }
 
+function mountAndGetListHandler(profile) {
+    const mod = loadModuleFresh();
+    const app = makeApp();
+    mod.register(app, { ...deps, resolveProfile: () => ({ name: profile.name, profile }) });
+    return app._routes.get['/insights/action-insights'];
+}
+
 const VALID_ID = '0123456789abcdef';
 
 beforeEach(() => {
@@ -160,6 +167,34 @@ describe('SEC-01 — client-selected persona cannot grant authority', () => {
         expect(res.statusCode).toBe(200);
         expect(res.body.status).toBe('actioned');
         expect(mockSqlCalls.some((s) => /^UPDATE.*actioned/.test(s.trim()))).toBe(true);
+    });
+});
+
+describe('graceful degradation — Decisions require a Databricks warehouse', () => {
+    test('a Power BI profile (no warehouse) → 200 unavailable + notice, no SQL', async () => {
+        const handler = mountAndGetListHandler({ name: 'powerbi-dwd', type: 'powerbi-semantic-model' });
+        const res = makeRes();
+        await handler(makeReq({ query: {} }), res);
+        expect(res.statusCode).toBe(200);
+        expect(res.body.ok).toBe(false);
+        expect(res.body.unavailable).toBe(true);
+        expect(res.body.notice).toMatch(/Databricks/i);
+        expect(res.body.prompts).toEqual([]);
+        expect(mockSqlCalls.length).toBe(0); // never touched the store
+    });
+
+    test('a Databricks/Genie profile (host + warehouseId) → proceeds to the store', async () => {
+        const handler = mountAndGetListHandler({
+            name: 'genie-scm-poc',
+            host: 'https://dbc-x.cloud.databricks.com',
+            warehouseId: 'wh1',
+        });
+        const res = makeRes();
+        await handler(makeReq({ query: {} }), res);
+        expect(res.statusCode).toBe(200);
+        expect(res.body.ok).toBe(true);
+        expect(res.body.unavailable).toBeUndefined();
+        expect(mockSqlCalls.length).toBeGreaterThan(0); // list query ran
     });
 });
 

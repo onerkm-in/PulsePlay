@@ -39,6 +39,25 @@ function makeListHandler(deps) {
             auditLog(req, { action: 'action-insights.list', status: 403, detail: `persona=${persona}` });
             return res.status(403).json({ error: 'Not permitted to view Action Insights.' });
         }
+        // Decisions run on the governed Databricks decision store (a Delta table
+        // on a SQL warehouse). A connector without a Databricks warehouse — e.g.
+        // a Power BI semantic-model profile — cannot query it. Degrade
+        // gracefully with a clear notice instead of leaking a raw HTTP 500.
+        const dbxHost = String(resolved.profile.host || '');
+        const warehouseId = String(resolved.profile.warehouseId || resolved.profile.warehouse_id || '');
+        const isDatabricksBacked = /databricks/i.test(dbxHost) && !!warehouseId;
+        if (!isDatabricksBacked) {
+            auditLog(req, { action: 'action-insights.list', status: 200, detail: `unavailable profile=${resolved.name}` });
+            return res.json({
+                ok: false,
+                unavailable: true,
+                persona,
+                personaSource: source,
+                capabilities: [...cap],
+                prompts: [],
+                notice: `Decisions run on the governed Databricks decision store. The active connector "${resolved.name}" has no Databricks warehouse, so there are no decision prompts to show here. Switch to a Databricks/Genie connector to use Decisions.`,
+            });
+        }
         // Manager sees all; Planner sees own persona's prompts.
         const personaWhere = persona === MANAGER ? '' : `WHERE persona = ${store.sq(PLANNER)}`;
         try {
