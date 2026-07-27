@@ -93,6 +93,13 @@
   font-family: var(--font-heading); font-weight: var(--font-heading-weight);
   line-height: 1.12; letter-spacing: -0.015em; margin: 0;
 }
+/* v4 depth — the mockup DS heading scale (_ds/styles.css:113-119). */
+.industry-surface h1 { font-size: 42px; }
+.industry-surface h2 { font-size: 32px; }
+.industry-surface h3 { font-size: 25px; }
+.industry-surface h4 { font-size: 20px; }
+.industry-surface h5 { font-size: 16px; }
+.industry-surface h6 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; }
 .industry-surface :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 .industry-surface .text-muted { color: color-mix(in srgb, var(--color-text) 55%, transparent); }
 .industry-surface .kicker {

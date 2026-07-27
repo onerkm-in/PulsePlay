@@ -12988,3 +12988,23 @@ body[theme="dark"] .gn-save-reminder-toast,
     color: var(--pp-on-accent-strong, #fff);
     border-radius: var(--radius-md, 4px);
 }
+/* v4 depth (2026-07-27): content cards + kicker titles per My Decision Canvas
+   v4 (.card white/radius-lg/shadow-sm, hover shadow-md 160ms; kicker 10px
+   uppercase accent-700). Token-driven: surface-raised flips in dark mode. */
+.gn-insights-section {
+    background: var(--pp-surface-raised, #ffffff);
+    border-radius: var(--radius-lg, 7px);
+    box-shadow: var(--shadow-sm, 0 1px 2px rgba(43, 43, 45, 0.14));
+    transition: box-shadow 160ms ease;
+}
+.gn-insights-section:hover {
+    box-shadow: var(--shadow-md, 0 3px 10px rgba(43, 43, 45, 0.16));
+}
+.gn-insights-section-title {
+    font-family: "Barlow Condensed", "Segoe UI", system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--pp-accent-dark, #004b93);
+}
