@@ -6,7 +6,14 @@
 // uploaded and must not linger in browser storage. This purges the legacy key,
 // records a one-time migration marker, and re-runs on logout.
 
-const LEGACY_KEY = "pulseplay:canvas-tiles";
+// 2026-07-27 SAFETY: this module previously pointed at "pulseplay:canvas-tiles",
+// which is the LIVE Dashboard tile store (lib/canvasTiles.ts) — running the
+// "migration" DESTROYED users' pinned tiles (rows+SQL+layout, no target store
+// ever existed). The boot caller in App.tsx was removed. The key is renamed to
+// a genuinely-dead namespace so no re-wiring can ever purge live data again.
+// Re-enable against the live key ONLY after CanvasGrid/NativeCanvas are ported
+// to the server canvasClient store.
+const LEGACY_KEY = "pulseplay:canvas-tiles:legacy-v0";
 const MIGRATION_MARKER = "pulseplay:canvas-tiles-migrated";
 
 export interface CanvasMigrationResult {

@@ -2632,6 +2632,10 @@ function App(props: AppProps) {
         run: (index: number) => Promise<void>;
         titles: string[];
     } | null>(null);
+    // 2026-07-27 — last NON-EMPTY schema/filter snapshots for the cache key.
+    // See the sticky-context note inside computeInsightsCacheKey.
+    const lastSchemaHashRef = useRef<string>("");
+    const lastFiltersForKeyRef = useRef<typeof selectedFilters | null>(null);
     const computeInsightsCacheKey = useCallback((spaceKey: SpaceKey): string => {
         const space = activeSpaces.find(s => s.key === spaceKey);
         // Runtime Adjust box takes precedence; fall back to the settings-level
@@ -2672,14 +2676,33 @@ function App(props: AppProps) {
         // Wave 30 cycle 5 — schema fingerprint closes the silent-stale-cache
         // footgun where swapping a bound measure/dimension in the PBI Visualizations
         // pane (no Setup edit) silently served the OLD cached output for up to 30 min.
-        const schemaHash = computeSchemaHash(props.context.measures, props.context.dimensions);
+        //
+        // 2026-07-27 — STICKY when the BI context is empty. props.context derives
+        // from the in-memory BI event stream, which starts empty on every page
+        // load; the schema/filter segments flipped between "empty" and "populated"
+        // as the vendor pane mounted/emitted, so a cached briefing was written
+        // under one key and re-read under another (live repro: briefing gone after
+        // navigating away and back). An ABSENT context now reuses the last
+        // non-empty hashes ("unknown" ≠ "different"); a real bound-schema CHANGE
+        // still busts the cache (Wave-30 protection intact).
+        const hasBoundSchema =
+            Object.keys(props.context.measures || {}).length > 0 ||
+            Object.keys(props.context.dimensions || {}).length > 0;
+        const schemaHash = hasBoundSchema
+            ? computeSchemaHash(props.context.measures, props.context.dimensions)
+            : (lastSchemaHashRef.current || computeSchemaHash(props.context.measures, props.context.dimensions));
+        if (hasBoundSchema) lastSchemaHashRef.current = schemaHash;
+        const filtersForKey = hasBoundSchema
+            ? selectedFilters
+            : (lastFiltersForKeyRef.current ?? selectedFilters);
+        if (hasBoundSchema) lastFiltersForKeyRef.current = selectedFilters;
         return buildInsightsCacheKey({
             spaceKey,
             assistantProfile: space?.genieConfig.assistantProfile || "",
             spaceId: space?.genieConfig.spaceId || "",
             connectionMode: space?.genieConfig.connectionMode || "",
             roleMode,
-            selectedFilters,
+            selectedFilters: filtersForKey,
             customPromptId: insightsActivePromptId,
             customPromptText: effectivePromptText,
             kbFlags,
@@ -5183,7 +5206,12 @@ function App(props: AppProps) {
             return;
         }
         lastCacheKeyRef.current[activeSpaceKey] = newKey;
-        clearInsightsCache(seenForSpace); // clear under the OLD key
+        // 2026-07-27 — DO NOT clearInsightsCache(seenForSpace) here. This effect
+        // cannot distinguish "author edited a setting" from "BI context arrived/
+        // left" (the key embeds context-derived segments), and the physical
+        // delete made a recoverable key-flip into PERMANENT briefing loss. TTL +
+        // pruneInsightsCache already bound storage; the old entry now survives
+        // for the reverse flip. State still resets below so the UI re-gates.
         insightsFiredRef.current[activeSpaceKey] = false;
         setSpaceInsightsResult(activeSpaceKey, null);
         setSpaceStageStatuses(activeSpaceKey, []);

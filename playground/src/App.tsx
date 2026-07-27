@@ -26,7 +26,6 @@ import type { SurfaceId } from "./surfaceRegistry";
 import { isSurfaceId } from "./surfaceRegistry";
 import { useExperienceMode } from "./experience/experienceMode";
 import { DecisionCanvasShell } from "./experience/DecisionCanvasShell";
-import { migrateLegacyCanvasTiles, isCanvasMigrated } from "./canvas/browserMigration";
 import {
     resolveSurfaceAvailability,
     type EnabledFeaturesInput,
@@ -389,12 +388,13 @@ function ReactQueryDevtoolsHost(): React.ReactElement | null {
  *  global `Cmd/Ctrl+,` shortcut to open Settings (and `Esc` to close,
  *  handled inside the page shells). */
 function AppRouted(): React.ReactElement {
-    // One-time cleanup of the legacy localStorage canvas-tiles (rows + SQL). The
-    // raw content is never uploaded; only tile titles are salvageable, and server
-    // Canvas persistence replaces it. Runs once per browser.
-    useEffect(() => {
-        if (!isCanvasMigrated()) migrateLegacyCanvasTiles();
-    }, []);
+    // 2026-07-27 — boot-time canvas "migration" REMOVED. It purged
+    // `pulseplay:canvas-tiles`, which is NOT legacy: it is the LIVE store the
+    // Dashboard CanvasGrid/NativeCanvas still read and write (lib/canvasTiles.ts).
+    // Nothing was migrated anywhere — pinned tiles (rows + SQL + layout) were
+    // silently destroyed on next boot (live repro: the pinned reconcile tile
+    // vanished). Re-enable a purge ONLY after CanvasGrid is actually ported to
+    // the server canvasClient store. See browserMigration.ts.
 
     const settingsRoute = useSettingsRoute();
     const knowledgeRoute = useKnowledgeRoute();
@@ -1246,7 +1246,6 @@ function PlaygroundApp(): React.ReactElement {
             embedConfig:        BIEmbedConfig;
             packSelection:      PackSelection | null;
             persona:            PersonaKey;
-            uiMode:             "pulse" | "v0";
             layoutMode:         "ai-left" | "ai-right" | "ai-top";
             suggestedQuestion?: string;
             autoAsk?:           boolean;
