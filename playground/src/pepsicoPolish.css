@@ -1,33 +1,64 @@
-/* PepsiCo premium polish — app-chrome layer (2026-07-27).
-   Additive gradients + depth over the --pp-* app shell. Colour comes from the
-   theme tokens, so it follows any active palette; the values below assume the
-   PepsiCo default. Imported LAST in main.tsx so it wins over styles.css for the
-   .pp-* selectors it touches. Workbench (.gn-*) polish lives at the end of
-   src/pulse/style/visual.less (loaded later, so it wins there). */
+/* PulsePlay signature design language — app-chrome layer (2026-07-27).
+   NOT the generic modern-dashboard look: editorial condensed numerics, flag
+   section headers with a red notch, a gradient masthead with a red signature
+   stripe, top-cap cards. Colour language is PepsiCo-inspired (deep blue
+   #004B93 / mid #0071CE / red #E32934) — no logos or wordmarks. Token-driven
+   where possible so dark mode + theme switches keep working. Imported LAST in
+   main.tsx; the workbench (.gn-*) counterpart lives at the end of
+   src/pulse/style/visual.less. */
 
-/* App canvas — soft brand wash instead of a flat fill (adds depth without noise). */
+/* App canvas — subtle diagonal brand wash, more directional than a flat fill. */
 body,
 .pp-app {
     background-image:
-        radial-gradient(1100px 560px at 100% -12%, color-mix(in srgb, var(--pp-accent, #0071ce) 7%, transparent), transparent 60%),
-        radial-gradient(820px 460px at -8% 112%, color-mix(in srgb, var(--pp-accent, #0071ce) 5%, transparent), transparent 55%);
+        linear-gradient(160deg, color-mix(in srgb, var(--pp-accent, #0071ce) 6%, transparent), transparent 38%),
+        radial-gradient(900px 480px at 108% 112%, color-mix(in srgb, var(--pp-accent, #0071ce) 5%, transparent), transparent 55%);
     background-attachment: fixed;
 }
 
-/* Top bar — faint gradient + a hairline brand underline + soft lift. */
+/* Masthead — deep brand band with the red signature stripe underneath.
+   !important: the header carries inline `background: transparent`. */
 .pp-top-bar {
-    background-image: linear-gradient(
-        180deg,
-        color-mix(in srgb, var(--pp-accent, #0071ce) 7%, var(--pp-surface-raised, #fff)),
-        var(--pp-surface-raised, #fff)
-    );
-    border-bottom: 1px solid color-mix(in srgb, var(--pp-accent, #0071ce) 16%, transparent);
-    box-shadow:
-        0 1px 0 color-mix(in srgb, var(--pp-accent, #0071ce) 10%, transparent),
-        0 2px 10px color-mix(in srgb, var(--pp-accent-strong, #004b93) 6%, transparent);
+    background: linear-gradient(120deg, #002850 0%, #004b93 55%, #0071ce 100%) !important;
+    border-bottom: none !important;
+    box-shadow: 0 2px 14px rgba(0, 40, 80, 0.35);
+    position: relative;
+}
+.pp-top-bar::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #e32934 0%, #e32934 140px, color-mix(in srgb, #e32934 30%, transparent) 300px, transparent 480px);
+    pointer-events: none;
+}
+.pp-top-bar h1 { color: #ffffff !important; letter-spacing: 0.2px; }
+.pp-top-bar .pp-brand-logo { filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.35)); }
+/* Status chips on the dark masthead need a light treatment to stay legible. */
+.pp-top-bar [class*="pill"],
+.pp-top-bar [class*="chip"],
+.pp-top-bar [class*="status"] {
+    background: rgba(255, 255, 255, 0.14) !important;
+    border-color: rgba(255, 255, 255, 0.28) !important;
+    color: #ffffff !important;
+}
+.pp-top-bar [class*="pill"] * ,
+.pp-top-bar [class*="chip"] * {
+    color: #ffffff !important;
 }
 
-/* Sidebar surface — a touch of depth so the panel reads as elevated. */
+/* Sidebar surface — quiet elevation. */
 .pp-app__sidebar {
     box-shadow: 2px 0 16px color-mix(in srgb, var(--pp-accent-strong, #004b93) 6%, transparent);
+}
+
+/* Native canvas tiles (Dashboard) — top-cap instead of a generic border. */
+.pp-tile {
+    border-top: 3px solid var(--pp-accent, #0071ce);
+    box-shadow: var(--pp-shadow-sm);
+    transition: transform 150ms var(--pp-ease, ease), box-shadow 150ms var(--pp-ease, ease);
+}
+.pp-tile:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--pp-shadow-md);
 }

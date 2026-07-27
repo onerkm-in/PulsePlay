@@ -12968,23 +12968,90 @@ body[theme="dark"] .gn-save-reminder-toast,
     }
 }
 
-/* ── PepsiCo premium polish (2026-07-27) ─────────────────────────────────────
-   Additive gradients + hover-lift + depth over the base .gn-* workbench styles.
-   Appended at EOF so it wins by source order for equal specificity; colour is
-   token-driven (follows the active theme). App-chrome (.pp-*) polish lives in
-   src/pepsicoPolish.css. */
 
-/* Active nav pill — brand gradient + soft glow. */
-.gn-header-tab.gn-header-tab--active {
-    background-image: linear-gradient(135deg, var(--pp-accent, #0071ce), var(--pp-accent-strong, #004b93));
-    box-shadow:
-        0 4px 14px color-mix(in srgb, var(--pp-accent-strong, #004b93) 34%, transparent),
-        inset 0 1px 0 rgba(255, 255, 255, 0.28);
-    color: #fff;
-    border-color: transparent;
+/* ── PulsePlay signature design language (2026-07-27, workbench layer) ──────
+   Deliberately NOT the generic AI-dashboard look (rounded white cards + soft
+   shadows + pill nav). Signature moves, applied across Decisions / AI Insights
+   / Ask Pulse / Dashboard which all render inside this shell:
+     1. Editorial condensed numerals (Barlow Condensed) for every KPI value.
+     2. Flag section headers — red notch + condensed uppercase + hairline rule.
+     3. Top-cap cards (gradient bar on top) instead of the generic left rail.
+     4. Underline-style active nav instead of the pill-of-the-week.
+   Token-driven; appended at EOF so it wins by source order. */
+
+/* 1 ── Editorial numerics: condensed, tight, big. */
+.gn-kpi-tile-value {
+    font-family: "Barlow Condensed", "Segoe UI", system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 30px;
+    letter-spacing: 0.2px;
+    background: linear-gradient(180deg, var(--pp-accent-strong, #004b93), color-mix(in srgb, var(--pp-accent-strong, #004b93) 72%, #001a33));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
 }
 
-/* Primary pills / buttons — gradient fill + hover lift. */
+/* 2 ── Flag section headers: red notch + condensed uppercase + rule. */
+.gn-insights-section-head {
+    position: relative;
+    padding-left: 12px;
+    border-bottom: 1px solid color-mix(in srgb, var(--pp-accent, #0071ce) 22%, transparent);
+    padding-bottom: 6px;
+}
+.gn-insights-section-head::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 2px; bottom: 8px;
+    width: 4px;
+    background: linear-gradient(180deg, #e32934, #b31e28);
+    border-radius: 2px;
+}
+.gn-insights-section-title {
+    font-family: "Barlow Condensed", "Segoe UI", system-ui, sans-serif;
+    font-weight: 600;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+}
+
+/* 3 ── Top-cap cards: brand gradient cap instead of the generic left rail. */
+.gn-insights-section,
+.gn-kpi-tile {
+    border-top: 3px solid transparent;
+    border-image: linear-gradient(90deg, var(--pp-accent-strong, #004b93), var(--pp-accent, #0071ce) 60%, color-mix(in srgb, var(--pp-accent, #0071ce) 30%, transparent)) 1;
+    border-image-width: 3px 0 0 0;
+}
+.gn-kpi-tile {
+    transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1),
+                box-shadow 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.gn-kpi-tile:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 34px color-mix(in srgb, var(--pp-accent-strong, #004b93) 16%, transparent),
+                0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+/* 4 ── Nav: underline signature instead of a filled pill. */
+.gn-header-tab {
+    border-radius: 6px 6px 0 0;
+    position: relative;
+}
+.gn-header-tab.gn-header-tab--active {
+    background: color-mix(in srgb, var(--pp-accent, #0071ce) 9%, transparent);
+    color: var(--pp-accent-strong, #004b93);
+    border-color: transparent;
+    box-shadow: none;
+    font-weight: 600;
+}
+.gn-header-tab.gn-header-tab--active::after {
+    content: "";
+    position: absolute;
+    left: 8px; right: 8px; bottom: -1px;
+    height: 3px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--pp-accent-strong, #004b93), var(--pp-accent, #0071ce));
+}
+
+/* Primary pills keep the brand gradient + lift (shared by all surfaces). */
 .gn-pill.gn-pill--primary {
     background-image: linear-gradient(135deg, var(--pp-accent, #0071ce), var(--pp-accent-strong, #004b93));
     border-color: transparent;
@@ -12996,28 +13063,22 @@ body[theme="dark"] .gn-save-reminder-toast,
     box-shadow: 0 7px 18px color-mix(in srgb, var(--pp-accent-strong, #004b93) 32%, transparent);
 }
 
-/* KPI tiles — smooth hover lift + elevated shadow (keeps the coloured left rail). */
-.gn-kpi-tile {
-    transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1),
-                box-shadow 160ms cubic-bezier(0.22, 1, 0.36, 1);
+/* Ask Pulse chat: assistant bubbles get the top-cap; user bubble deep brand. */
+.gn-bubble {
+    border-top: 3px solid transparent;
+    border-image: linear-gradient(90deg, var(--pp-accent-strong, #004b93), color-mix(in srgb, var(--pp-accent, #0071ce) 40%, transparent)) 1;
+    border-image-width: 3px 0 0 0;
 }
-.gn-kpi-tile:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 14px 34px color-mix(in srgb, var(--pp-accent-strong, #004b93) 16%, transparent),
-                0 4px 12px rgba(15, 23, 42, 0.06);
-}
-
-/* Insight section cards — gentle depth on hover. */
-.gn-insights-section {
-    transition: box-shadow 200ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-.gn-insights-section:hover {
-    box-shadow: 0 8px 24px color-mix(in srgb, var(--pp-accent-strong, #004b93) 10%, transparent);
+.gn-bubble--user,
+.gn-bubble.gn-bubble--user {
+    background-image: linear-gradient(135deg, var(--pp-accent, #0071ce), var(--pp-accent-strong, #004b93));
+    border-image: none;
+    color: #fff;
 }
 
-/* Big KPI value — subtle brand gradient text for a premium feel. */
-.gn-kpi-tile-value {
-    background: linear-gradient(180deg, var(--pp-accent-strong, #004b93), color-mix(in srgb, var(--pp-accent-strong, #004b93) 78%, #123));
+/* Dark mode: keep the editorial numerals legible (light gradient text). */
+.gn-shell--dark .gn-kpi-tile-value {
+    background: linear-gradient(180deg, #cfe4f9, var(--pp-accent, #5b9bd5));
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
