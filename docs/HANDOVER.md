@@ -5,6 +5,18 @@
 
 ---
 
+## 2026-07-27 (latest+25) — Persistence fixes (briefing rehydration + tile purge) + mockup-faithful chrome with unified tabs
+
+Commits `c7842e3` (persistence) + `1fbdf68` (design). main ff'd. tsc clean; canvas+insightsCache tests 8/8.
+
+**Briefing rehydration FIXED + headed-verified.** Cache key embedded context-derived schema/filter hashes that flipped between empty/populated as the vendor pane mounted (the stored key literally carried djb2("m:|d:")+djb2("")); a destructive clearInsightsCache on key-change made the loss permanent. Fix: empty context reuses last non-empty hashes (sticky refs in computeInsightsCacheKey; real schema change still busts) + dropped the physical clear. Verified: generate → navigate away → back → briefing rehydrates.
+
+**Canvas tile purge FIXED.** canvas/browserMigration.ts boot-purged `pulseplay:canvas-tiles` — the LIVE CanvasGrid store, not legacy; no target store existed (tiles destroyed, unrecoverable). Removed the App.tsx boot effect + renamed LEGACY_KEY to `pulseplay:canvas-tiles:legacy-v0`. Re-enable only after CanvasGrid ports to the server canvas store. `purgeCanvasBrowserStorage` stays unwired.
+
+**Design now sourced from the repo mockups** (Design/unified-extract; audit BANS pills/gradients/clip-text/underline-nav — all of the prior 'signature' pass). Restored Industry geometry (radii 2/4/7, ink shadows), flat Shell masthead, ONE tab language: both .pp-surface-switcher and .gn-header-tab render filled square accent-strong active (tabs-uniform satisfied; 999px pill container gone). PepsiCo blue kept as the single accent ramp. KPI numerals = v4 spec (Barlow Condensed 600 26px, solid). Headed: Decisions + AI Insights identical chrome.
+
+**Known residuals:** LLM occasionally slips the Roman scale (wrote "$1,031.41 MN" for $1.03 B) — stays instruction-tuned per the subjective-stays-instruction-based rule; deeper v4 adoption (sidebar, kickers, h-scale, corner marks) still open; dark-mode headed pass pending.
+
 ## 2026-07-27 (latest+24) — Config A headed sweep COMPLETE (Ask Pulse + Decisions + Dashboard): reconciled; 6 findings logged, no code changes
 
 Resumed the paused Config A (Databricks-only, genie-scm-poc) headed check. All three remaining screens validated; findings logged instead of blind-fixed. No commits besides docs.
