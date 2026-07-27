@@ -207,14 +207,18 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, hideH
                             )}
                         </div>
                     </div>
-                    {/* Demo persona switcher — hint only; server ignores it when an IdP role exists. */}
+                    {/* Demo persona switcher — hint only; server ignores it when an IdP role exists.
+                      * Selection falls back to the persona the SERVER actually resolved: with no
+                      * stored demo persona (fresh session) neither button was pressed, so the
+                      * control showed no selection while the header said "Viewing as
+                      * Supply Chain Planner" — it silently misreported the effective persona. */}
                     <div className="seg" role="group" aria-label="Demo persona">
                         {[PLANNER, MANAGER].map((p) => (
                             <button
                                 key={p}
                                 type="button"
                                 className="seg-opt"
-                                aria-pressed={demoPersona === p ? "true" : "false"}
+                                aria-pressed={(demoPersona || data?.persona || PLANNER) === p ? "true" : "false"}
                                 onClick={() => setPersona(p)}
                             >{p.replace("Supply Chain ", "")}</button>
                         ))}
@@ -223,9 +227,14 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, hideH
             )}
 
             {error && (
+                // Errors must read as errors: the accent-100/800 pair painted a
+                // failure in the same blue as informational chrome, and neither
+                // token flips for dark mode. Use the bad/error semantic pair,
+                // which is theme-aware and AA-checked.
                 <div role="status" className="blueprint" style={{
                     padding: "8px 12px", fontSize: 12, marginBottom: 10,
-                    background: "var(--color-accent-100)", color: "var(--color-accent-800)",
+                    background: "var(--pp-bad-soft)", color: "var(--pp-bad)",
+                    borderColor: "color-mix(in srgb, var(--pp-bad) 40%, transparent)",
                 }}>{error}</div>
             )}
 
@@ -244,7 +253,10 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, hideH
                     </div>
                     <button
                         type="button"
-                        className="btn-primary"
+                        // `btn` carries the box (padding/radius/font/inline-flex);
+                        // `btn-primary` only sets colours. Without `btn` this
+                        // rendered with browser-default button metrics.
+                        className="btn btn-primary"
                         disabled={loading}
                         onClick={() => void load()}
                         data-testid="action-insights-load"

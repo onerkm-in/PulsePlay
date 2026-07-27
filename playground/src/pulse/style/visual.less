@@ -9415,8 +9415,12 @@
        wireframe): an elevated card with a soft shadow + a semantic left accent
        by section type. See docs/MY_DECISION_CANVAS_DESIGN_APPROACH.md. */
     background: @gn-surface-raised;
+    /* 2026-07-27 — was a 3px semantic LEFT rail. A colour bar on one edge only
+       is decorative, not informational (the section title already names the
+       section), and reads as generic AI-dashboard styling. The mockup card is a
+       uniform hairline on all four sides; semantic colour stays where it MEANS
+       something (severity rails on decision cards, KPI tiles). */
     border: 1px solid @gn-border-subtle;
-    border-left: 3px solid var(--gn-accent, #5980a6);
     border-radius: 8px;
     padding: 10px 16px;
     opacity: 0;
@@ -9430,10 +9434,7 @@
     &:hover { box-shadow: @gn-shadow-sm; }
     /* Section-type accent — the controlled semantic palette (risks = bad,
        opportunities/actions = good, trends = violet), steel for the rest. */
-    &[data-section="RISKS"], &[data-section="WHAT NEEDS ATTENTION"] { border-left-color: var(--pp-bad, #d1453d); }
-    &[data-section="OPPORTUNITIES"], &[data-section="RECOMMENDED ACTIONS"],
-    &[data-section="NEXT BEST ACTIONS"] { border-left-color: var(--pp-good, #1f9d6b); }
-    &[data-section="TRENDS"] { border-left-color: var(--pp-violet, #7c5cd8); }
+    /* Section-type accent removed with the left rail (see note above). */
     /* Cycle 21 — when this section's kebab popover is open, lift the
        whole card above its later-DOM siblings. The reveal animation
        sets transform: translateY(0), creating a stacking context per
@@ -13007,4 +13008,20 @@ body[theme="dark"] .gn-save-reminder-toast,
     letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--pp-accent-dark, #004b93);
+}
+/* 2026-07-27 — remove single-edge colour bars app-wide (user rule: a colour bar
+   on one side only is decorative stereotype styling; if a card needs colour it
+   gets it on all sides or not at all). The KPI tile's direction is already
+   carried by the ▲/▼ glyph + the coloured delta chip, and the executive-brief
+   blockquote is already the only quoted block in its card — neither needs a
+   rail. Severity rails on DECISION cards stay: there the colour is the only
+   carrier of criticality. */
+.gn-kpi-tile::before,
+.gn-insight-card::before,
+.gn-headline-card::before { display: none; }
+.gn-bubble blockquote,
+.gn-briefing-card blockquote,
+.gn-insights-section blockquote {
+    border-left: none;
+    padding-left: 0;
 }
