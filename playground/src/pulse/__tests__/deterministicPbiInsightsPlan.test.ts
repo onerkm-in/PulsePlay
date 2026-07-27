@@ -121,6 +121,46 @@ describe("buildDeterministicPbiInsightsPlan — grouper quality", () => {
     });
 });
 
+// AIINSIGHTS-B2 — the briefing must lead with a governed KPI, not a raw volume
+// input that merely feeds one. The SCM model's probe order puts "Ordered Qty"
+// first; the headline should still be a KPI-shaped measure.
+describe("buildDeterministicPbiInsightsPlan — headline measure ranking", () => {
+    const SCM = [
+        "Ordered Qty", "Delivered Qty", "Order Lines", "Order Fill Rate Pct",
+        "OTIF Pct", "Units Produced", "Hours Worked", "Net Sales USD",
+        "Gross Margin Pct",
+    ];
+    const SCM_DIMS = ["sales_channel", "country", "date_month"];
+
+    it("leads with a KPI-shaped measure, not the first raw input in probe order", () => {
+        const plan = buildDeterministicPbiInsightsPlan({ measures: SCM, dimensions: SCM_DIMS });
+        // HEADLINE is the first stage: "What is the <m1>?"
+        expect(plan.titles[0]).toBe("HEADLINE");
+        expect(plan.stages[0]).toMatch(/Order Fill Rate Pct/);
+        expect(plan.stages[0]).not.toMatch(/Ordered Qty/);
+    });
+
+    it("never leads with a raw *_qty / lines / hours input", () => {
+        const plan = buildDeterministicPbiInsightsPlan({ measures: SCM, dimensions: SCM_DIMS });
+        expect(plan.stages[0]).not.toMatch(/\b(Qty|Lines|Hours|Units)\b/);
+    });
+
+    it("author/pack featuredMeasures override the heuristic and win the headline", () => {
+        const plan = buildDeterministicPbiInsightsPlan({
+            measures: SCM, dimensions: SCM_DIMS,
+            featuredMeasures: ["Net Sales USD"],
+        });
+        expect(plan.stages[0]).toMatch(/Net Sales USD/);
+    });
+
+    it("degrades gracefully when every measure is a raw input (keeps probe order)", () => {
+        const plan = buildDeterministicPbiInsightsPlan({
+            measures: ["Ordered Qty", "Delivered Qty"], dimensions: SCM_DIMS,
+        });
+        expect(plan.stages[0]).toMatch(/Ordered Qty/); // first in probe order, no KPI available
+    });
+});
+
 describe("isPbiTimeDimensionName", () => {
     it("flags time/date-ish names, not entity names", () => {
         expect(isPbiTimeDimensionName("Month")).toBe(true);

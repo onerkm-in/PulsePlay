@@ -1211,6 +1211,10 @@ export interface DeterministicPbiInsightsInput {
     measures: string[];
     /** Probed dimension names (e.g. ["Region", "Category", "Month"]). */
     dimensions: string[];
+    /** Domain-featured measures (pack/author "headline KPIs") — when present,
+     *  these win the headline slot in their given order, overriding the generic
+     *  name-shape heuristic. Names are matched case-insensitively. */
+    featuredMeasures?: string[];
     /** Which universal sections are enabled (guides which DAX angles to cover). */
     universalStages?: { headline?: boolean; trends?: boolean; risks?: boolean; actions?: boolean };
     /** Author custom-section names — each becomes a measure-by-dimension breakdown. */
@@ -1258,8 +1262,32 @@ export function buildDeterministicPbiInsightsPlan(input: DeterministicPbiInsight
         .map((d, i) => ({ d, i }))
         .sort((a, b) => (isRawDateKey(a.d) ? 1 : 0) - (isRawDateKey(b.d) ? 1 : 0) || a.i - b.i)
         .map(x => x.d);
-    const m1 = measures[0];
-    const m2 = measures[1];
+    // Headline measure ranking. A briefing should LEAD with a governed KPI
+    // (order fill rate, net sales, gross margin), not a raw volume input that
+    // merely FEEDS a KPI (ordered qty, order lines, hours worked). Probe order
+    // is arbitrary (it put "Ordered Qty" first for the SCM model), so rank:
+    //   featured (pack/author) → KPI-shaped names → other named → raw inputs.
+    // Stable within a tier (keeps probe order). This is the deterministic
+    // stand-in for domain guidance until packs feed featuredMeasures directly.
+    const featured = (input.featuredMeasures || []).map(m => (m || "").trim().toLowerCase()).filter(Boolean);
+    const RAW_INPUT_RE = /\b(qty|quantity|lines?|counts?|units?|hours?|records?|volume)\b/i;
+    const KPI_SHAPED_RE = /\b(rate|ratio|pct|percent|margin|sales|revenue|profit|otif|fill|accuracy|score|index|cost|cogs|price|value|yield|utili[sz]ation)\b/i;
+    const headlineRank = (name: string): number => {
+        const n = (name || "").toLowerCase();
+        const fi = featured.indexOf(n);
+        if (fi >= 0) return fi - 1000;              // featured win outright, in their order
+        const raw = RAW_INPUT_RE.test(n);
+        const kpi = KPI_SHAPED_RE.test(n);
+        if (kpi && !raw) return 0;                  // governed KPI — best headline
+        if (!raw) return 1;                         // neutral named measure
+        return 2;                                   // raw volume/effort input — worst headline
+    };
+    const rankedMeasures = measures
+        .map((m, i) => ({ m, i }))
+        .sort((a, b) => headlineRank(a.m) - headlineRank(b.m) || a.i - b.i)
+        .map(x => x.m);
+    const m1 = rankedMeasures[0];
+    const m2 = rankedMeasures[1];
     const show = input.universalStages || {};
     const showHeadline = show.headline !== false;
     const showTrends = show.trends !== false;
