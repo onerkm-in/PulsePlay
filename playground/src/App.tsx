@@ -1925,7 +1925,10 @@ function PaneChrome(props: {
                     {/* An inline switcher takes the title's slot; the active
                       * tab name already conveys what surface this is. */}
                     {props.inlineSwitcher ? (
-                        <div style={{ minWidth: 0, flex: "1 1 auto", display: "flex", alignItems: "center", overflow: "hidden" }}>
+                        // paddingLeft matches the tab-strip inset the other three
+                        // surfaces get from their own chrome, so the Dashboard tabs
+                        // don't sit flush against the pane edge.
+                        <div style={{ minWidth: 0, flex: "1 1 auto", display: "flex", alignItems: "center", overflow: "hidden", paddingLeft: 16 }}>
                             {props.inlineSwitcher}
                         </div>
                     ) : (
