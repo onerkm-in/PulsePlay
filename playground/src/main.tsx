@@ -11,6 +11,7 @@ import { initThemeSync } from "./lib/themeSync";
 import { initChartPalette } from "./lib/chartPalettes";
 import "./styles.css";
 import "./industry.css";
+import "./pepsicoPolish.css";
 
 const rootEl = document.getElementById("root");
 if (!rootEl) throw new Error("PulsePlay: missing #root element in index.html");

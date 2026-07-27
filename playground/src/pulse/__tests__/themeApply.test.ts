@@ -52,10 +52,10 @@ describe("buildAppThemeVars", () => {
         const vars = buildAppThemeVars(BUILT_IN_THEMES["corporate-blue"], { dark: true });
         // A3 — a built-in preset's light-tuned accent (corporate-blue #0f5ea8) is
         // low-contrast on dark surfaces and overrode the dark stylesheet; in dark
-        // mode the dark-canonical accent (#7fa3c9) is emitted instead. (A custom
+        // mode the dark-canonical accent (#5b9bd5) is emitted instead. (A custom
         // brand accent still wins — covered in themeConfigAccent.test.ts.)
-        expect(vars["--gn-accent"]).toBe("#7fa3c9");
-        expect(vars["--pp-accent"]).toBe("#7fa3c9");
+        expect(vars["--gn-accent"]).toBe("#5b9bd5");
+        expect(vars["--pp-accent"]).toBe("#5b9bd5");
         // dark-canonical text so chrome outside .gn-shell--dark stays AA-legible
         expect(vars["--gn-text"]).toBe("#e7e7ea");
         expect(vars["--gn-text-muted"]).toBe("#a9a9ac");

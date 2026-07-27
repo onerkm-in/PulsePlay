@@ -12967,3 +12967,58 @@ body[theme="dark"] .gn-save-reminder-toast,
         box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
     }
 }
+
+/* ── PepsiCo premium polish (2026-07-27) ─────────────────────────────────────
+   Additive gradients + hover-lift + depth over the base .gn-* workbench styles.
+   Appended at EOF so it wins by source order for equal specificity; colour is
+   token-driven (follows the active theme). App-chrome (.pp-*) polish lives in
+   src/pepsicoPolish.css. */
+
+/* Active nav pill — brand gradient + soft glow. */
+.gn-header-tab.gn-header-tab--active {
+    background-image: linear-gradient(135deg, var(--pp-accent, #0071ce), var(--pp-accent-strong, #004b93));
+    box-shadow:
+        0 4px 14px color-mix(in srgb, var(--pp-accent-strong, #004b93) 34%, transparent),
+        inset 0 1px 0 rgba(255, 255, 255, 0.28);
+    color: #fff;
+    border-color: transparent;
+}
+
+/* Primary pills / buttons — gradient fill + hover lift. */
+.gn-pill.gn-pill--primary {
+    background-image: linear-gradient(135deg, var(--pp-accent, #0071ce), var(--pp-accent-strong, #004b93));
+    border-color: transparent;
+    transition: transform 120ms cubic-bezier(0.22, 1, 0.36, 1),
+                box-shadow 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.gn-pill.gn-pill--primary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 7px 18px color-mix(in srgb, var(--pp-accent-strong, #004b93) 32%, transparent);
+}
+
+/* KPI tiles — smooth hover lift + elevated shadow (keeps the coloured left rail). */
+.gn-kpi-tile {
+    transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1),
+                box-shadow 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.gn-kpi-tile:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 34px color-mix(in srgb, var(--pp-accent-strong, #004b93) 16%, transparent),
+                0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+/* Insight section cards — gentle depth on hover. */
+.gn-insights-section {
+    transition: box-shadow 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.gn-insights-section:hover {
+    box-shadow: 0 8px 24px color-mix(in srgb, var(--pp-accent-strong, #004b93) 10%, transparent);
+}
+
+/* Big KPI value — subtle brand gradient text for a premium feel. */
+.gn-kpi-tile-value {
+    background: linear-gradient(180deg, var(--pp-accent-strong, #004b93), color-mix(in srgb, var(--pp-accent-strong, #004b93) 78%, #123));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}

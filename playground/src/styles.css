@@ -139,15 +139,15 @@
     --pp-border-subtle:    color-mix(in srgb, #e7e7ea 10%, transparent);
     --pp-border-strong:    color-mix(in srgb, #e7e7ea 28%, transparent);
 
-    --pp-accent:           #7fa3c9;
-    --pp-accent-hover:     #98b7d8;
-    --pp-accent-dark:      #98b7d8;
-    --pp-accent-soft:      color-mix(in srgb, #7fa3c9 16%, transparent);
-    --pp-accent-subtle:    color-mix(in srgb, #7fa3c9 18%, transparent);
-    --pp-accent-border:    color-mix(in srgb, #7fa3c9 42%, transparent);
+    --pp-accent:           #5b9bd5;
+    --pp-accent-hover:     #7db4e6;
+    --pp-accent-dark:      #7db4e6;
+    --pp-accent-soft:      color-mix(in srgb, #5b9bd5 16%, transparent);
+    --pp-accent-subtle:    color-mix(in srgb, #5b9bd5 18%, transparent);
+    --pp-accent-border:    color-mix(in srgb, #5b9bd5 42%, transparent);
 
-    /* Dark: light accent fill + dark ground text = 6.5:1. */
-    --pp-accent-strong:    #7fa3c9;
+    /* Dark: light PepsiCo-blue fill + dark ground text ≈ 6:1 AA. */
+    --pp-accent-strong:    #5b9bd5;
     --pp-on-accent-strong: var(--pp-bg);
 
     --pp-success:          #3fb950;

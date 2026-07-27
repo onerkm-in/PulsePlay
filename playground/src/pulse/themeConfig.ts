@@ -419,10 +419,10 @@ export function buildAppThemeVars(tokens: ThemeTokens, opts?: { dark?: boolean; 
     // AA on dark — matches styles.css dark + @gn-dark-accent); a CUSTOM brand
     // accent still wins (the user chose it explicitly).
     const useDarkAccent = !!opts?.dark && !opts?.customAccent;
-    const accent       = useDarkAccent ? "#7fa3c9"                : tokens.accent;
-    const accentSubtle = useDarkAccent ? "rgba(127,163,201,0.16)" : tokens.accentSubtle;
-    const accentBorder = useDarkAccent ? "rgba(127,163,201,0.42)" : tokens.accentBorder;
-    const userBubble   = useDarkAccent ? "#416180"                : tokens.userBubble;
+    const accent       = useDarkAccent ? "#5b9bd5"                : tokens.accent;
+    const accentSubtle = useDarkAccent ? "rgba(91,155,213,0.16)"  : tokens.accentSubtle;
+    const accentBorder = useDarkAccent ? "rgba(91,155,213,0.42)"  : tokens.accentBorder;
+    const userBubble   = useDarkAccent ? "#2f6fb0"                : tokens.userBubble;
     const accentVars: Record<string, string> = {
         "--gn-accent": accent,
         "--gn-accent-subtle": accentSubtle,
