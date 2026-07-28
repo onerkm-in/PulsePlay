@@ -4,9 +4,14 @@
 // event without a page refresh; cross-tab edits propagate via the `storage`
 // event.
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSettings } from "../settingsStore";
 import { useEmbedConfig } from "../embedConfigStore";
+import {
+    describeEmbedCoherence,
+    getDeploymentEmbedTarget,
+    resetEmbedConfigToDeployment,
+} from "../../lib/deploymentDefaults";
 import { EmbedConfigForm } from "../../components/EmbedConfigForm";
 import { HelpTip } from "../primitives/HelpTip";
 import {
@@ -20,6 +25,16 @@ export function BiGroup(): React.ReactElement {
     const allowedProviders = allowlist?.biProviders || [];
     const { embedConfig, setEmbedConfig, clearEmbedConfig } = useEmbedConfig();
     const hasEmbedConfig = !!embedConfig && Object.keys(embedConfig).length > 0;
+    // Surface the silent failure: a browser pointed at a report from a
+    // different semantic model than the AI answers from renders perfectly and
+    // reconciles with nothing. Reported, not auto-corrected - repointing the
+    // Dashboard can be deliberate, so the decision stays with the author.
+    const [mismatch, setMismatch] = useState<{ storedReportId: string; expectedReportId: string } | null>(null);
+    useEffect(() => {
+        const target = getDeploymentEmbedTarget();
+        const c = describeEmbedCoherence(embedConfig as Record<string, unknown>, target);
+        setMismatch(c.coherent ? null : { storedReportId: c.storedReportId, expectedReportId: c.expectedReportId });
+    }, [embedConfig]);
     const surfaceResolution = resolveBiSurfaceVendor({
         mode: biSurfaceMode,
         requestedVendor: biVendor,
@@ -162,6 +177,35 @@ export function BiGroup(): React.ReactElement {
                     assistantProfile={activeAiProfile}
                     allowlist={allowlist}
                 />
+                {mismatch && (
+                    <div
+                        role="status"
+                        style={{
+                            marginTop: 10, padding: "8px 10px", fontSize: 12, lineHeight: 1.5,
+                            border: "1px solid var(--pp-border, rgba(0,0,0,0.18))",
+                            borderLeft: "3px solid var(--color-accent, #b8860b)",
+                            borderRadius: 4,
+                        }}
+                    >
+                        This browser is showing report <code>{mismatch.storedReportId.slice(0, 8)}...</code>,
+                        but this deployment answers questions from the semantic model behind
+                        report <code>{mismatch.expectedReportId.slice(0, 8)}...</code>. The Dashboard and
+                        the AI are looking at different data, so their numbers will not reconcile.
+                        <div style={{ marginTop: 8 }}>
+                            <button
+                                type="button"
+                                onClick={() => { if (resetEmbedConfigToDeployment()) setMismatch(null); }}
+                                style={{
+                                    fontSize: 12, padding: "4px 10px", cursor: "pointer",
+                                    border: "1px solid var(--pp-border, rgba(0,0,0,0.18))",
+                                    background: "transparent", borderRadius: 4,
+                                }}
+                            >
+                                Use this deployment's report
+                            </button>
+                        </div>
+                    </div>
+                )}
                 {hasEmbedConfig && (
                     <div style={{ marginTop: 10 }}>
                         <button

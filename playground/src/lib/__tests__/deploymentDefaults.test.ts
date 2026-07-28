@@ -3,6 +3,8 @@ import {
     pickDefaultProfile,
     pickEmbedTarget,
     syncDeploymentDefaults,
+    describeEmbedCoherence,
+    resetEmbedConfigToDeployment,
 } from "../deploymentDefaults";
 import { getEmbedConfig, setEmbedConfig, __resetEmbedConfigStore } from "../../settings/embedConfigStore";
 
@@ -56,6 +58,52 @@ describe("pickEmbedTarget", () => {
     });
 });
 
+describe("describeEmbedCoherence", () => {
+    const target = HOSTED_PROFILES[3];
+
+    it("flags a browser showing a different report than the deployment answers from", () => {
+        // the exact failure: the old Superstore report, same workspace, renders
+        // fine, reconciles with nothing
+        const c = describeEmbedCoherence({ id: "c6afe35e-5dba-453a-9720-871d48f0ad0a" }, target);
+        expect(c.coherent).toBe(false);
+        if (!c.coherent) {
+            expect(c.storedReportId).toBe("c6afe35e-5dba-453a-9720-871d48f0ad0a");
+            expect(c.expectedReportId).toBe("ead5b770-af86-438d-b650-7be705e89c37");
+        }
+    });
+
+    it("is coherent when they match, including the legacy reportId key", () => {
+        expect(describeEmbedCoherence({ id: target.powerbiReportId }, target).coherent).toBe(true);
+        expect(describeEmbedCoherence({ reportId: target.powerbiReportId }, target).coherent).toBe(true);
+    });
+
+    it("says nothing when there is nothing to compare", () => {
+        expect(describeEmbedCoherence({}, target).coherent).toBe(true);
+        expect(describeEmbedCoherence(null, target).coherent).toBe(true);
+        expect(describeEmbedCoherence({ id: "x" }, null).coherent).toBe(true);
+    });
+});
+
+describe("resetEmbedConfigToDeployment", () => {
+    beforeEach(() => { window.localStorage.clear(); __resetEmbedConfigStore(); });
+    afterEach(() => { vi.unstubAllGlobals(); });
+
+    it("is the one path that DOES overwrite - and only after a sync learned the target", async () => {
+        setEmbedConfig({ id: "c6afe35e-5dba-453a-9720-871d48f0ad0a" });
+        mockProfiles(HOSTED_PROFILES);
+        const r = await syncDeploymentDefaults();
+        expect(r.embedMismatch).toEqual({
+            storedReportId: "c6afe35e-5dba-453a-9720-871d48f0ad0a",
+            expectedReportId: "ead5b770-af86-438d-b650-7be705e89c37",
+        });
+        // still not corrected on its own
+        expect((getEmbedConfig() as Record<string, unknown>).id).toBe("c6afe35e-5dba-453a-9720-871d48f0ad0a");
+
+        expect(resetEmbedConfigToDeployment()).toBe(true);
+        expect((getEmbedConfig() as Record<string, unknown>).id).toBe("ead5b770-af86-438d-b650-7be705e89c37");
+    });
+});
+
 describe("syncDeploymentDefaults", () => {
     beforeEach(() => {
         window.localStorage.clear();
@@ -90,13 +138,13 @@ describe("syncDeploymentDefaults", () => {
 
     it("is a no-op when the proxy is unreachable or returns nothing useful", async () => {
         mockProfiles([], false);
-        expect(await syncDeploymentDefaults()).toEqual({ seededProfile: null, seededEmbed: false });
+        expect(await syncDeploymentDefaults()).toEqual({ seededProfile: null, seededEmbed: false, embedMismatch: null });
 
         vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("network down"); }) as unknown as typeof fetch);
-        expect(await syncDeploymentDefaults()).toEqual({ seededProfile: null, seededEmbed: false });
+        expect(await syncDeploymentDefaults()).toEqual({ seededProfile: null, seededEmbed: false, embedMismatch: null });
 
         mockProfiles({ not: "an array" });
-        expect(await syncDeploymentDefaults()).toEqual({ seededProfile: null, seededEmbed: false });
+        expect(await syncDeploymentDefaults()).toEqual({ seededProfile: null, seededEmbed: false, embedMismatch: null });
         expect(window.localStorage.getItem("pulseplay:active-ai-profile")).toBeNull();
     });
 });
