@@ -49,7 +49,6 @@ export interface DecisionPrompt {
     allowed_actions: string[];
     /** True when the detection was AI-narrated rather than deterministic DAX/SQL.
      *  Drives the "AI" chip so a generated finding is never mistaken for measured. */
-    ai_narrated?: boolean;
 }
 
 export const ACTION_LABELS: Record<string, string> = {
@@ -181,7 +180,6 @@ export function DecisionPromptCard({
             <div className="dpc__body">
                 <div className="dpc__chips">
                     <span className="dpc__sevchip">{sev.label}</span>
-                    {prompt.ai_narrated && <span className="dpc__aichip">AI</span>}
                 </div>
                 <div className="dpc__head">
                     <div className="dpc__headline-col">
