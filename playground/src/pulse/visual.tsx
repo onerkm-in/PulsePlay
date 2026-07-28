@@ -247,7 +247,6 @@ import type { AnyBackend } from "./backend/BackendAdapter";
 import { parseAllowedUsers } from "./setupAccessControl";
 // Part C P2 — per-surface connector overrides (read directly, flag-gated). Lets
 // AI Insights and Ask Pulse each talk to a DIFFERENT connector at once.
-import { getSurfaceProfile, SURFACE_CONNECTORS_EVENT } from "../multipane/surfaceConnectors";
 import { FEATURE_FLAGS_EVENT } from "../featureFlags";
 import { EChartsRenderer } from '../components/workbench/EChartsRenderer';
 import { buildEChartsOption, humanizeColumnName, formatValueByUnit } from '../lib/buildEChartsOption';
@@ -1405,39 +1404,13 @@ function App(props: AppProps) {
     const activeSpace = activeSpaces.find(space => space.key === activeSpaceKey) ?? activeSpaces[0];
     const activeClient = clientMap.get(activeSpace?.key ?? "space1") ?? null;
 
-    // ── Part C P2 — per-surface connector overrides ──────────────────────────
-    // When the multiConnectorPanes flag is ON, AI Insights and Ask Pulse can each
-    // bind to a DIFFERENT proxy profile (e.g. AI Insights → Power BI, Ask Pulse →
-    // Genie) AT THE SAME TIME. getSurfaceProfile() returns null when the flag is
-    // off, so everything below collapses to the single shared connector and the
-    // app is byte-for-byte unchanged. We bump a version on the change events so
-    // the inline getSurfaceProfile() reads below re-resolve live.
-    const [surfaceConnVersion, setSurfaceConnVersion] = useState(0);
-    useEffect(() => {
-        const bump = () => setSurfaceConnVersion(v => v + 1);
-        window.addEventListener(SURFACE_CONNECTORS_EVENT, bump as EventListener);
-        window.addEventListener(FEATURE_FLAGS_EVENT, bump as EventListener);
-        return () => {
-            window.removeEventListener(SURFACE_CONNECTORS_EVENT, bump as EventListener);
-            window.removeEventListener(FEATURE_FLAGS_EVENT, bump as EventListener);
-        };
-    }, []);
-    const askPulseProfileOverride = useMemo(
-        () => getSurfaceProfile("ask-pulse"),
-        // surfaceConnVersion is the live-refresh trigger; activeSpace re-derives
-        // the client when the active space changes.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [surfaceConnVersion, activeSpaceKey],
-    );
-    // Ask Pulse talks through a client whose baked-in assistantProfile is the
-    // surface override (the GenieClient sends the profile as a header, so a
-    // different profile needs a different client). Falls back to activeClient —
-    // the shared connector — whenever there is no override (flag off, or this
-    // surface left unbound).
-    const askPulseClient = useMemo(() => {
-        if (!askPulseProfileOverride || !activeSpace) return activeClient;
-        return createBackend({ ...activeSpace.genieConfig, assistantProfile: askPulseProfileOverride });
-    }, [askPulseProfileOverride, activeSpace, activeClient]);
+    // Per-surface connector overrides were REMOVED for the 2026-07-24 demo
+    // (multipane/surfaceConnectors.ts became an always-null seam) and the dead
+    // machinery around it — event listeners for an event nothing fired, memos
+    // re-reading a permanent null — was deleted 2026-07-28 (DEBT_REGISTER D6).
+    // Every surface talks through the single shared connector. If per-surface
+    // binding returns, rebuild it from the paneConnectors foundation, not here.
+    const askPulseClient = activeClient;
 
     // ── Option A — KPI preload on first Ask Pulse tab entry ──────────────────
     // When the user opens the chat tab for the first time (no messages, no
@@ -1484,7 +1457,10 @@ function App(props: AppProps) {
         props.settings.apiBaseUrl,
         activeSpace?.genieConfig.assistantProfile || props.settings.assistantProfile || "",
         activeSpace?.genieConfig.spaceId || "",
-        askPulseProfileOverride || "",
+        // Historical segment: the removed per-surface override (always ""). Kept
+        // as a literal so existing saved chat-state keys still match — dropping
+        // the element would change the key and orphan every user's chat history.
+        "",
     ].join("|");
     useEffect(() => {
         const restored = readPulseChatStateFromStorage(connectionContextKey);
@@ -3844,8 +3820,7 @@ function App(props: AppProps) {
     // Profiles whose deterministic re-run has already fired (fire-once guard).
     const detRerunRef = useRef<Set<string>>(new Set());
     const [, setPbiProbeVersion] = useState(0);
-    const insightsActiveProfile = getSurfaceProfile("ai-insights")
-        || activeSpace?.genieConfig.assistantProfile || props.settings.assistantProfile || "";
+    const insightsActiveProfile = activeSpace?.genieConfig.assistantProfile || props.settings.assistantProfile || "";
     // Fetch the connector probe ONCE per profile and cache the promise so the
     // AI Insights auto-fire can await it (capped) — that lets a deterministic
     // powerbi-semantic-model connector plan the clean DAX briefing on the FIRST

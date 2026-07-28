@@ -66,7 +66,7 @@ Legend — Risk: how dangerous the fix is. Decision: `—` = executable as descr
 | Item | Disposition |
 |---|---|
 | `ai_narrated` flag (type + render + css) | **RETIRED** — deleted (never set anywhere) |
-| `surfaceConnectors` always-null seam | **SAFE-DELETE-NEXT** — remove `getSurfaceProfile`/`SURFACE_CONNECTORS_EVENT` + dead listener machinery at `App.tsx:63,1140-1157` and `visual.tsx:250,1418-1421` + module + its test. ~40 lines, mechanical. |
+| `surfaceConnectors` always-null seam | **RETIRED** (same day) — module + test + listener machinery deleted from App.tsx and visual.tsx; chat-state storage key kept a literal "" segment so saved histories still match. |
 | Frame picker (inert Phase B) | **OWNER** — wire the ask-flow or remove the picker; presentation-only today (`FramePicker.tsx:6-10`) |
 | Decision Canvas "Coming soon" cards ×3 | **OWNER** — product placeholders; ship or drop |
 | Relevance engine (in-memory only) | **OWNER** — needs the interaction-event Delta table or removal |

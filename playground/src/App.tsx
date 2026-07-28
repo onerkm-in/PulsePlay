@@ -60,7 +60,6 @@ import { KnowledgeShell } from "./knowledge/KnowledgeShell";
 import { useKnowledgeRoute } from "./knowledge/knowledgeRoute";
 import { PowerBiQnaShell, usePowerBiQnaRoute } from "./powerbi/PowerBiQnARoute";
 import { LaunchpadShell } from "./launchpad/LaunchpadShell";
-import { getSurfaceProfile, SURFACE_CONNECTORS_EVENT } from "./multipane/surfaceConnectors";
 import { FEATURE_FLAGS_EVENT } from "./featureFlags";
 import { useDashboardAutoSeed } from "./multipane/dashboardAutoSeed";
 import { useLaunchpadRoute } from "./launchpad/launchpadRoute";
@@ -1134,35 +1133,17 @@ function PlaygroundApp(): React.ReactElement {
         if (biSurfaceResolution.usesNative || runtimeBiVendor === "native") return "Pulse Canvas";
         return visibleVendors.find(v => v.vendor === runtimeBiVendor)?.displayName || runtimeBiVendor;
     }, [biSurfaceResolution.usesNative, runtimeBiVendor, visibleVendors]);
-    // Dashboard per-surface connector. When the multiConnectorPanes flag is on
-    // and the Dashboard surface is bound to its own profile, that profile
-    // drives the Dashboard's assistant; otherwise it falls back to the shared
-    // connector (with the flag off, getSurfaceProfile returns null).
-    // surfaceConnVersion forces a live re-read when the binding or flag
-    // changes in-tab.
-    const [surfaceConnVersion, setSurfaceConnVersion] = useState(0);
-    useEffect(() => {
-        const bump = () => setSurfaceConnVersion(v => v + 1);
-        window.addEventListener(SURFACE_CONNECTORS_EVENT, bump as EventListener);
-        window.addEventListener(FEATURE_FLAGS_EVENT, bump as EventListener);
-        return () => {
-            window.removeEventListener(SURFACE_CONNECTORS_EVENT, bump as EventListener);
-            window.removeEventListener(FEATURE_FLAGS_EVENT, bump as EventListener);
-        };
-    }, []);
-    const dashboardSurfaceProfile = useMemo(
-        () => getSurfaceProfile("bi-viz"),
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [surfaceConnVersion],
-    );
-    const dashboardAssistantLabel = dashboardSurfaceProfile || pulseAssistantProfile || activeConnector || "No assistant";
+    // Per-surface Dashboard connector: seam removed 2026-07-28 (always-null
+    // since 2026-07-24; DEBT_REGISTER D6). The Dashboard inherits the shared
+    // connector.
+    const dashboardAssistantLabel = pulseAssistantProfile || activeConnector || "No assistant";
     // Auto-seed the Dashboard's native canvas with a few starter charts when
     // it's empty and a chart-capable connector is bound. Flag-gated
     // (dashboardAutoSeed — default OFF since 2026-07-24: opening the Dashboard
     // must not spend backend calls; the author opts in), PBI-only, once per
     // profile. Fires when the Dashboard surface is the active one.
     useDashboardAutoSeed({
-        profile: dashboardSurfaceProfile || pulseAssistantProfile || activeConnector || "",
+        profile: pulseAssistantProfile || activeConnector || "",
         active: activeSurface === "bi-viz",
     });
     const dashboardPackLabel = packSelection?.pack
