@@ -45,9 +45,11 @@ describe("BI registry — plugin-architecture parity", () => {
     });
 
     test("pickers advertise only the proven stack (2026-07-24 catalogue curation)", () => {
-        // Only Power BI (real SDK bridge) + the built-in native canvas are
-        // offered to users; iframe stubs stay registered but unadvertised.
-        expect(listVendors().map(v => v.vendor).sort()).toEqual(["native", "powerbi"]);
+        // Power BI (real SDK bridge), the built-in native canvas, and - since
+        // 2026-07-28 - Databricks AI/BI, which graduated when it gained the
+        // native Lakeview renderer (proxy-served spec + ECharts, iframe
+        // fallback). Remaining iframe stubs stay registered but unadvertised.
+        expect(listVendors().map(v => v.vendor).sort()).toEqual(["databricks-aibi", "native", "powerbi"]);
     });
 
     test("every entry has the VendorInfo shape (no Power-BI-special fields)", () => {

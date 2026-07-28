@@ -55,19 +55,31 @@ export interface LakeviewRenderHandle {
 
 const DEFAULT_TABLE_ROWS = 50;
 
-async function defaultLoadCharts(): Promise<LakeviewChartsLib> {
-    const [core, charts, components, renderers] = await Promise.all([
-        import("echarts/core"),
-        import("echarts/charts"),
-        import("echarts/components"),
-        import("echarts/renderers"),
-    ]);
-    core.use([
-        charts.BarChart, charts.LineChart, charts.PieChart, charts.ScatterChart,
-        components.GridComponent, components.TooltipComponent, components.LegendComponent,
-        renderers.CanvasRenderer,
-    ]);
-    return core as unknown as LakeviewChartsLib;
+// Static imports on purpose. The first attempt lazy-imported these four
+// subpaths at render time, and Vite's dev-server dep optimizer hit its known
+// race: a first-touch dynamic import of an unoptimized dep triggers
+// re-optimization, the original request never settles, and mount() hung
+// forever on "Loading databricks-aibi..." - observed headed, all API calls 200
+// and the promise still pending. Static imports move the cost to module load,
+// and the module itself is already lazy: the registry code-splits each vendor
+// adapter, so ECharts still only loads when this vendor is actually mounted.
+import * as echartsCore from "echarts/core";
+import { BarChart, LineChart, PieChart, ScatterChart } from "echarts/charts";
+import { GridComponent, TooltipComponent, LegendComponent } from "echarts/components";
+import { CanvasRenderer } from "echarts/renderers";
+
+let chartsRegistered = false;
+
+function defaultLoadCharts(): Promise<LakeviewChartsLib> {
+    if (!chartsRegistered) {
+        echartsCore.use([
+            BarChart, LineChart, PieChart, ScatterChart,
+            GridComponent, TooltipComponent, LegendComponent,
+            CanvasRenderer,
+        ]);
+        chartsRegistered = true;
+    }
+    return Promise.resolve(echartsCore as unknown as LakeviewChartsLib);
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(

@@ -4795,6 +4795,7 @@ app.post('/assistant/dashboards/databricks/:dashboardId/dataset', async (req, re
         const out = await lakeview.runDashboardDataset(resolved.profile, req.params.dashboardId, datasetName, {
             request: (profile, method, path) => databricksRequest(profile, method, path, undefined, req.requestId),
             execute: (profile, sql) => runSql(profile, sql),
+            maxRows: req.body?.maxRows,
         });
         auditLog(req, {
             profileName: resolved.name,

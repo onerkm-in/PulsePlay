@@ -124,13 +124,33 @@ describe('runDashboardDataset', () => {
         expect(second.cached).toBe(true);
     });
 
-    test('caps rows so one dataset cannot pin the proxy', () => {
+    test('defaults to a RENDER-sized page, not the hard cap', () => {
+        // A chart aggregates into a handful of categories; shipping 5000 raw
+        // rows to draw one is payload nobody draws. The reference dashboards
+        // Support Data dataset serialised to 4 MB and hung the dev proxy.
         const big = { manifest: { schema: { columns: [{ name: 'n' }] } },
             result: { data_array: Array.from({ length: lakeview.MAX_ROWS + 25 }, (_, i) => [i]) } };
         const out = lakeview.normalizeStatementResult(big);
-        expect(out.rows).toHaveLength(lakeview.MAX_ROWS);
+        expect(out.rows).toHaveLength(lakeview.DEFAULT_RENDER_ROWS);
         expect(out.truncated).toBe(true);
         expect(out.totalRows).toBe(lakeview.MAX_ROWS + 25);
+        expect(lakeview.DEFAULT_RENDER_ROWS).toBeLessThan(lakeview.MAX_ROWS);
+    });
+
+    test('an explicit request is honoured but never exceeds the hard cap', () => {
+        expect(lakeview.resolveMaxRows(50)).toBe(50);
+        expect(lakeview.resolveMaxRows(999999)).toBe(lakeview.MAX_ROWS);
+        expect(lakeview.resolveMaxRows(0)).toBe(lakeview.DEFAULT_RENDER_ROWS);
+        expect(lakeview.resolveMaxRows('abc')).toBe(lakeview.DEFAULT_RENDER_ROWS);
+        expect(lakeview.resolveMaxRows(undefined)).toBe(lakeview.DEFAULT_RENDER_ROWS);
+    });
+
+    test('the row cap is part of the cache key', async () => {
+        let runs = 0;
+        const opts = { request: requestOk(), execute: async () => { runs += 1; return statement; } };
+        await lakeview.runDashboardDataset(PROFILE, 'dash-1', '39a5402c', { ...opts, maxRows: 100 });
+        await lakeview.runDashboardDataset(PROFILE, 'dash-1', '39a5402c', { ...opts, maxRows: 2000 });
+        expect(runs).toBe(2); // a 100-row cache entry must not serve a 2000-row ask
     });
 
     test('tolerates an empty result without inventing columns', () => {

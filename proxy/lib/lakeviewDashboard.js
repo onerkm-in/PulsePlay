@@ -23,8 +23,23 @@
 
 const DEFAULT_SPEC_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_DATA_TTL_MS = 60 * 1000;
-/** Mirrors the Genie client's cap so one runaway dataset cannot pin the proxy. */
+/** Hard ceiling. Mirrors the Genie client's cap so one runaway dataset cannot
+ *  pin the proxy. */
 const MAX_ROWS = 5000;
+/**
+ * Default rows returned for RENDERING a dashboard widget.
+ *
+ * Much lower than the hard cap on purpose. A Lakeview chart aggregates into a
+ * handful of categories, so 5000 raw rows is payload nobody draws: the
+ * reference dashboard's "Support Data" dataset serialises to 4 MB, which
+ * completed against the proxy directly and then never finished through the Vite
+ * dev proxy - the browser sat on "Loading..." forever with every request
+ * reporting 200. Shipping less is both the fix and the correct behaviour.
+ *
+ * Callers that genuinely need more (an export, a table drill) pass maxRows
+ * explicitly, still bounded by MAX_ROWS.
+ */
+const DEFAULT_RENDER_ROWS = 1000;
 
 /** Tiny TTL cache. Deliberately not an LRU: the key space is bounded by the
  *  dashboards a deployment actually opens, and entries expire on their own. */
@@ -113,16 +128,26 @@ function listDatasets(spec) {
         .map(d => ({ name: d.name, displayName: d.displayName || d.name }));
 }
 
-/** Normalize a SQL Statement Execution result into { columns, rows }. */
-function normalizeStatementResult(statement) {
+/** Clamp a caller-supplied row request into [1, MAX_ROWS]. */
+function resolveMaxRows(requested) {
+    const n = Number(requested);
+    if (!Number.isFinite(n) || n <= 0) return DEFAULT_RENDER_ROWS;
+    return Math.min(Math.floor(n), MAX_ROWS);
+}
+
+/** Normalize a SQL Statement Execution result into { columns, rows }.
+ *  maxRows is resolved through resolveMaxRows, so an omitted value means the
+ *  render-sized page - one definition of "default", not two. */
+function normalizeStatementResult(statement, maxRows) {
+    const cap = resolveMaxRows(maxRows);
     const cols = statement?.manifest?.schema?.columns || [];
     const columns = cols.map(c => String(c?.name ?? ''));
     const data = statement?.result?.data_array || statement?.result?.data_typed_array || [];
-    const rows = Array.isArray(data) ? data.slice(0, MAX_ROWS) : [];
+    const rows = Array.isArray(data) ? data.slice(0, cap) : [];
     return {
         columns,
         rows,
-        truncated: Array.isArray(data) && data.length > MAX_ROWS,
+        truncated: Array.isArray(data) && data.length > cap,
         totalRows: Array.isArray(data) ? data.length : 0,
     };
 }
@@ -138,7 +163,9 @@ async function runDashboardDataset(profile, dashboardId, datasetName, {
     execute,
     ttlMs = DEFAULT_DATA_TTL_MS,
     specTtlMs = DEFAULT_SPEC_TTL_MS,
+    maxRows = DEFAULT_RENDER_ROWS,
 } = {}) {
+    const cap = resolveMaxRows(maxRows);
     const { spec, warehouseId } = await fetchDashboardSpec(profile, dashboardId, { request, ttlMs: specTtlMs });
     const sql = datasetSqlByName(spec, datasetName);
     if (!sql) {
@@ -149,12 +176,14 @@ async function runDashboardDataset(profile, dashboardId, datasetName, {
     }
 
     const host = String(profile?.host || '').replace(/\/+$/, '');
-    const cacheKey = `${host}|${dashboardId}|${datasetName}|${sql.length}:${sql.slice(0, 120)}`;
+    // The cap is part of the key: a cached 1000-row render must not be served
+    // to a caller that asked for the full set.
+    const cacheKey = `${host}|${dashboardId}|${datasetName}|${cap}|${sql.length}:${sql.slice(0, 120)}`;
     const cached = dataCache.get(cacheKey);
     if (cached) return { ...cached, cached: true };
 
     const statement = await execute({ ...profile, warehouseId: warehouseId || profile.warehouseId }, sql);
-    const result = normalizeStatementResult(statement);
+    const result = normalizeStatementResult(statement, cap);
     const value = { dashboardId, datasetName, ...result };
     dataCache.set(cacheKey, value, ttlMs);
     return { ...value, cached: false };
@@ -165,9 +194,11 @@ module.exports = {
     datasetSqlByName,
     listDatasets,
     normalizeStatementResult,
+    resolveMaxRows,
     runDashboardDataset,
     __resetLakeviewCaches,
     MAX_ROWS,
+    DEFAULT_RENDER_ROWS,
     DEFAULT_SPEC_TTL_MS,
     DEFAULT_DATA_TTL_MS,
 };
