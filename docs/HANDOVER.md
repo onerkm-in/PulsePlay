@@ -5,6 +5,22 @@
 
 ---
 
+## 2026-07-28 (latest+26) — Agentic path: authoring copilot + investigation playbooks + BOTH agent prerequisites closed
+
+Rules-first agentic groundwork, per the opportunity-map decision (agentify the edges, never the numbers). Commits `722534c`+`183cdd9` (authoring copilot), `1760deb` (playbooks), `46834c0` (server scope prefix), `acd6d46` (agent identity). main ff'd. Proxy 1480/1480 (82 suites); playground 648/648 area suites; tsc clean.
+
+**Authoring copilot (#1).** `lib/authoringCopilot.ts` composes the existing deterministic drafters (promptDraftGenerator + metricDirectionInference) over a DiscoverySnapshot into ONE reviewable bundle — insights prompt, domain guidance (writes `insightsDomainGuidance`), metric rules — each with because[] trace, signal-derived confidence, `overwrites` flag. New Settings→AI Leaf "Setup copilot" (`AuthoringCopilotPanel`): overwriting proposals unchecked by default, never fetches (reads AiGroup's cache-first snapshot), no-signal → honest empty state. CAVEAT: headed-verified the EMPTY state only — panel populates only after discovery ran in-app WITH pack args (returns 10 KPIs with, 0 without); Settings-triggered populate is the follow-up. No LLM in this layer by design.
+
+**Investigation playbooks (#2 core).** `proxy/lib/decisionPlaybooks.js` — deterministic plans keyed on `root_cause_category` (supply/demand/inventory/quality; new rules in a known category get plans for free). Bounded MAX_STEPS=4, reproducible, returns QUESTIONS only (test asserts no SQL/action codes), never invents scope, unknown category degrades to the trend question + says why. Verified vs live prompts (SCM-OTIF-001 → suppliers → lanes → 12-mo trend, scoped 'for EMEA / Refrigeration'). Executor (run plan via Genie → attach evidence) is the NEXT slice — was blocked on the two prerequisites, which are now closed.
+
+**Prereq A — server-owned scope prefix (`46834c0`).** `proxy/lib/runtimeScopePrefix.js` ports genie.ts buildRuntimeScopePrefix verbatim (parity asserted in tests; change the wording → change genie.ts same commit). Wired into BOTH Genie fall-through routes after the connector branches: client prefix passes verbatim (Wave 22 never-strip, never-doubled via exact-header detection); bare content + profile-declared governance fields (same names as client settings, in config.json) gets the identical server-built prefix; {{role}} from verified IdP claims only. Closes the #1 gap: pulse-pbi/desktop/curl/agents no longer reach Genie with zero column/table/row governance.
+
+**Prereq B — agent identity (`acd6d46`).** 'pulseplay-agent' joins the client contract; `resolveActorContext()` → actorType/agentRunId/parentRequestId stamped on EVERY audit line (denials included); new AGENT persona ('Automated Agent') = view-only subset of PLANNER, resolved BEFORE IdP roles (a manager-role service token still lands on AGENT — self-demotion only, spoofing harmless). hitlGate unchanged — capability model denies all state changes. Live-verified: agent list → view-only caps; agent trigger → 403; audit carries actorType:agent + agentRunId.
+
+**Also this cycle (Decisions HITL loop):** owner notification on pending-approval (`64bf5b5` — decisionNotifier, vendor-agnostic webhook/log, never-fatal, enriched payload; 2 live-found bugs fixed: deps.cfg never passed, loadPrompt authority-only columns) + pending-approval visibility + effective-persona control (`133fb48`) + KPI hover card (`cb82c90`) + single-edge rail removal & Decisions panel fixes (`28d19cf`).
+
+**Still open before an agent executor runs:** server-side spend budget (all four no-spend gates are client-side; rate limits 60/min/user are loose for a loop). Then: bounded tool executor on the unused `conversationDispatch` seam, playbook executor behind it.
+
 ## 2026-07-27 (latest+25) — Persistence fixes (briefing rehydration + tile purge) + mockup-faithful chrome with unified tabs
 
 Commits `c7842e3` (persistence) + `1fbdf68` (design). main ff'd. tsc clean; canvas+insightsCache tests 8/8.
