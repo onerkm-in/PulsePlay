@@ -264,3 +264,88 @@ describe("DatabricksAibiAdapter — SDK fallback semantics", () => {
         } as any)).rejects.toThrow(/EMBED_FAILED/);
     });
 });
+
+describe("DatabricksAibiAdapter — native-first mount order", () => {
+    let container: HTMLElement;
+    beforeEach(() => {
+        document.body.innerHTML = "";
+        container = document.createElement("div");
+        document.body.appendChild(container);
+    });
+    afterEach(() => vi.unstubAllGlobals());
+
+    const NATIVE_CONFIG = {
+        dashboardId: "dash-1",
+        assistantProfile: "genie-scm-poc",
+        // iframe fallback material, so a native failure has somewhere to go
+        workspaceUrl: "https://adb-1234.5.azuredatabricks.net",
+        orgId: "1234567890",
+    } as BIEmbedConfig;
+
+    function stubProxyOk() {
+        const calls: string[] = [];
+        vi.stubGlobal("fetch", vi.fn(async (url: RequestInfo | URL) => {
+            calls.push(String(url));
+            if (String(url).includes("/dataset")) {
+                return { ok: true, status: 200, json: async () => ({ ok: true, columns: ["a"], rows: [[1]] }) } as Response;
+            }
+            return {
+                ok: true, status: 200,
+                json: async () => ({
+                    ok: true,
+                    spec: { datasets: [], pages: [{ name: "p", layout: [{ widget: { name: "t", multilineTextboxSpec: { lines: ["## Native page"] } } }] }] },
+                }),
+            } as Response;
+        }) as unknown as typeof fetch);
+        return calls;
+    }
+
+    test("native path renders via the proxy and never mounts an iframe", async () => {
+        const calls = stubProxyOk();
+        const a = new DatabricksAibiAdapter();
+        const events: string[] = [];
+        a.on("loaded", e => events.push(String((e.payload as Record<string, unknown>).mode)));
+        await a.mount(container, NATIVE_CONFIG);
+
+        expect(calls.some(u => u.includes("/assistant/dashboards/databricks/dash-1"))).toBe(true);
+        expect(container.querySelector("iframe")).toBeNull();
+        expect(container.textContent).toContain("Native page");
+        expect(events).toContain("lakeview-native");
+        a.destroy();
+        expect(container.textContent).toBe("");
+    });
+
+    test("a native failure falls through to the iframe and reports why", async () => {
+        vi.stubGlobal("fetch", vi.fn(async () => ({
+            ok: false, status: 502, json: async () => ({ error: "spec unavailable" }),
+        })) as unknown as typeof fetch);
+        const a = new DatabricksAibiAdapter();
+        const errors: Array<Record<string, unknown>> = [];
+        a.on("error", e => errors.push(e.payload as Record<string, unknown>));
+        await a.mount(container, NATIVE_CONFIG);
+
+        expect(container.querySelector("iframe")).toBeTruthy();
+        expect(errors.some(e => e.mode === "lakeview-native" && e.fallback === "embed")).toBe(true);
+        a.destroy();
+    });
+
+    test("renderMode 'embed' skips native entirely", async () => {
+        const fetchSpy = vi.fn();
+        vi.stubGlobal("fetch", fetchSpy as unknown as typeof fetch);
+        const a = new DatabricksAibiAdapter();
+        await a.mount(container, { ...NATIVE_CONFIG, renderMode: "embed" } as BIEmbedConfig);
+        expect(fetchSpy).not.toHaveBeenCalled();
+        expect(container.querySelector("iframe")).toBeTruthy();
+        a.destroy();
+    });
+
+    test("renderMode 'native' surfaces the failure instead of quietly embedding", async () => {
+        vi.stubGlobal("fetch", vi.fn(async () => ({
+            ok: false, status: 502, json: async () => ({ error: "down", detail: "down" }),
+        })) as unknown as typeof fetch);
+        const a = new DatabricksAibiAdapter();
+        await expect(a.mount(container, { ...NATIVE_CONFIG, renderMode: "native" } as BIEmbedConfig))
+            .rejects.toThrow(/down/);
+        expect(container.querySelector("iframe")).toBeNull();
+    });
+});

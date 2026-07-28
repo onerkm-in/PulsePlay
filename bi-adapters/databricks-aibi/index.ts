@@ -44,6 +44,10 @@
 import { GenericIframeAdapter } from "../generic-iframe/index";
 import type { BIEmbedConfig } from "../../playground/src/biPanel/BIAdapter";
 import { BI_ERR } from "../../playground/src/biPanel/BIAdapter";
+import {
+    renderLakeviewDashboard,
+    type LakeviewRenderHandle,
+} from "../../playground/src/biPanel/lakeview/renderLakeviewDashboard";
 
 interface AibiConfig extends BIEmbedConfig {
     /** Pre-built published dashboard URL. If provided, takes precedence
@@ -68,6 +72,16 @@ interface AibiConfig extends BIEmbedConfig {
     workspaceId?: string;
     instanceUrl?: string;
     hideDatabricksLogo?: boolean;
+    /** Proxy profile whose server-side token fetches the spec and runs
+     *  datasets for the NATIVE render path. Presence of this + dashboardId
+     *  selects native rendering; the browser never holds a workspace token. */
+    assistantProfile?: string;
+    /** Force a path: "native" (spec + ECharts via the proxy), "embed"
+     *  (SDK/iframe only). Default: native when it has what it needs, with
+     *  embed as the fallback chain. */
+    renderMode?: "native" | "embed";
+    /** API base for the proxy routes, default "/api". */
+    apiBase?: string;
 }
 
 /**
@@ -96,11 +110,42 @@ export class DatabricksAibiAdapter extends GenericIframeAdapter {
     protected defaultSandbox = "allow-scripts allow-same-origin allow-forms allow-popups";
     private sdkContainer: HTMLDivElement | null = null;
     private sdkDashboard: { destroy?: () => void; dispose?: () => void } | null = null;
+    private nativeHandle: LakeviewRenderHandle | null = null;
 
-    /** Override mount to translate the structured Databricks AI/BI config
-     *  shape into the GenericIframeAdapter's `url`-keyed shape. */
+    /** Mount order: NATIVE (proxy-served spec + ECharts, full event bridge,
+     *  no workspace token in the browser) -> SDK -> iframe. A native failure
+     *  falls through rather than erroring, so a dashboard with an unreadable
+     *  spec still shows via embed. */
     async mount(containerEl: HTMLElement | null, embedConfig: BIEmbedConfig): Promise<void> {
         const cfg = embedConfig as AibiConfig;
+
+        const nativeEligible = cfg.renderMode !== "embed"
+            && !!cfg.dashboardId && !!cfg.assistantProfile && !!containerEl;
+        if (nativeEligible) {
+            try {
+                this.nativeHandle = await renderLakeviewDashboard(containerEl!, {
+                    dashboardId: cfg.dashboardId!,
+                    assistantProfile: cfg.assistantProfile!,
+                    apiBase: cfg.apiBase,
+                    onEvent: e => this.emit({ type: e.type, payload: e.payload }),
+                });
+                return;
+            } catch (err) {
+                this.nativeHandle = null;
+                this.emit({
+                    type: "error",
+                    payload: {
+                        code: BI_ERR.EMBED_FAILED,
+                        mode: "lakeview-native",
+                        fallback: "embed",
+                        reason: err instanceof Error ? err.message : String(err),
+                    },
+                });
+                if (cfg.renderMode === "native") throw err;
+                // otherwise fall through to the SDK / iframe chain below
+            }
+        }
+
         const token = cfg.accessToken || cfg.token;
         const instanceUrl = cfg.instanceUrl || cfg.workspaceUrl;
         if (token && instanceUrl && cfg.workspaceId && cfg.dashboardId && containerEl) {
@@ -140,6 +185,11 @@ export class DatabricksAibiAdapter extends GenericIframeAdapter {
     }
 
     destroy(): void {
+        if (this.nativeHandle) {
+            try { this.nativeHandle.destroy(); }
+            catch { /* renderer cleanup should not break host unmount */ }
+            this.nativeHandle = null;
+        }
         if (this.sdkDashboard) {
             try { this.sdkDashboard.destroy?.(); }
             catch { /* vendor cleanup should not break host unmount */ }

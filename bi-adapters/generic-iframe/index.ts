@@ -177,7 +177,10 @@ export class GenericIframeAdapter implements BIAdapter {
         return null;
     }
 
-    private emit(event: BIEvent): void {
+    /** Protected so vendor subclasses with a non-iframe render path (the
+     *  Databricks native renderer) can report loaded/error through the same
+     *  listener set BIPanel subscribes to. */
+    protected emit(event: BIEvent): void {
         this.listeners.get(event.type)?.forEach(h => {
             try { h(event); } catch { /* listener errors don't break the adapter */ }
         });
