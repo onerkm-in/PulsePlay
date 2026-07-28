@@ -228,7 +228,7 @@ export function DecisionPromptCard({
                                 onClick={pinToCanvas}
                                 disabled={pinState === "pinning" || pinState === "pinned"}
                                 className="btn btn-ghost btn-sm dpc__pin"
-                                title="Pin this decision's evidence to the Dashboard canvas as a SQL-backed tile (no AI — refreshes deterministically)"
+                                title="Pin this decision's evidence to the Dashboard canvas as a SQL-backed tile (no AI, refreshes deterministically)"
                             >{pinState === "pinning" ? "Pinning…" : pinState === "pinned" ? "Pinned to canvas ✓" : "Pin to canvas"}</button>
                         )}
                         <SaveChannel compact eligible={eligibleFromPrompt(prompt)} />
@@ -245,7 +245,7 @@ export function DecisionPromptCard({
 
                 {awaitingApproval && (
                     <div className="dpc__terminal-status dpc__awaiting" role="status">
-                        Submitted — awaiting approval from {prompt.owner || "the owner"}.
+                        Submitted - awaiting approval from {prompt.owner || "the owner"}.
                     </div>
                 )}
 

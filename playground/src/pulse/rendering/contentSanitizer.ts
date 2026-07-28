@@ -239,6 +239,47 @@ export function stripEmptyEmphasis(content: string): string {
 }
 
 /**
+ * Replace typographic characters the model emits with plain ASCII, so nothing
+ * on screen carries an em dash, a curly quote, or a single-glyph ellipsis.
+ *
+ * The order matters, and one pass exists purely to avoid inventing a minus
+ * sign: rewriting "Net Sales — 5.2%" to "Net Sales - 5.2%" would read as
+ * NEGATIVE 5.2%, turning a formatting change into a wrong number. A dash
+ * sitting directly before a numeric value therefore becomes a comma, never a
+ * hyphen. A line-leading dash is promoted to a real markdown bullet, which is
+ * what the model meant by it.
+ *
+ * Functional glyphs are deliberately untouched: the trend pyramids (▲ ▼ ↔) and
+ * the arrows used in action labels (→ ←) carry meaning, not typography.
+ *
+ * Idempotent — running it twice changes nothing the second time.
+ */
+const TYPO_PROBE_RE = /[—–‘’“”…]/;
+const CURLY_SINGLE_RE = /[‘’]/g;
+const CURLY_DOUBLE_RE = /[“”]/g;
+const ELLIPSIS_RE = /…/g;
+const LEADING_DASH_RE = /(^|\n)([ \t]*)[—–][ \t]+/g;
+// A tight dash between two digits is a RANGE ("2025–2026"), not a minus, and
+// must stay a hyphen. This has to run before the dash-before-number rule, which
+// would otherwise turn the range into "2025, 2026". Written with capture groups
+// rather than a lookbehind so the Pulse-PBI sibling's older engine is safe.
+const NUMERIC_RANGE_RE = /(\d)[—–](\d)/g;
+const DASH_BEFORE_NUMBER_RE = /[ \t]*[—–][ \t]*(?=[+-]?[$€£₹¥]?\d)/g;
+const REMAINING_DASH_RE = /[—–]/g;
+
+export function normalizeTypography(text: string): string {
+    if (!text || !TYPO_PROBE_RE.test(text)) return text;
+    return text
+        .replace(CURLY_SINGLE_RE, "'")
+        .replace(CURLY_DOUBLE_RE, '"')
+        .replace(ELLIPSIS_RE, "...")
+        .replace(LEADING_DASH_RE, "$1$2- ")
+        .replace(NUMERIC_RANGE_RE, "$1-$2")
+        .replace(DASH_BEFORE_NUMBER_RE, ", ")
+        .replace(REMAINING_DASH_RE, "-");
+}
+
+/**
  * Drop `**`/`__` runs that have no partner, so a lone marker never reaches the
  * DOM as literal asterisks.
  *

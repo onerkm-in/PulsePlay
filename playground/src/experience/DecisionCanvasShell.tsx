@@ -82,7 +82,7 @@ const SEV_COLOR: Record<string, string> = {
 
 function initialsOf(name: string): string {
     const parts = name.trim().split(/\s+/).filter(Boolean);
-    if (!parts.length) return "—";
+    if (!parts.length) return "n/a";
     return (parts[0][0] + (parts[parts.length - 1][0] || "")).toUpperCase();
 }
 
@@ -271,7 +271,7 @@ export function DecisionCanvasShell({ mode = "combined" }: { mode?: "cockpit" | 
                                 <span className="dcc-kpi-icon"><CircleDollarSign size={18} strokeWidth={1.8} aria-hidden /></span>
                                 <span className="dcc-kpi-chip">{kpi.usdCount} USD-valued</span>
                             </div>
-                            <div className="dcc-kpi-value">{kpi.impact > 0 ? fmtUsd(kpi.impact) : "—"}</div>
+                            <div className="dcc-kpi-value">{kpi.impact > 0 ? fmtUsd(kpi.impact) : "n/a"}</div>
                             <div className="dcc-kpi-label">Impact at risk (open)</div>
                         </div>
                         <div className="dcc-kpi dcc-kpi--violet">
@@ -330,7 +330,7 @@ export function DecisionCanvasShell({ mode = "combined" }: { mode?: "cockpit" | 
                                     ))}
                                 </div>
                             ) : (
-                                <p className="dcc-empty">No open decisions right now — the governed queue is clear.</p>
+                                <p className="dcc-empty">No open decisions right now. The governed queue is clear.</p>
                             )}
                         </div>
                         <div className="dcc-card dcc-pad">
@@ -355,7 +355,7 @@ export function DecisionCanvasShell({ mode = "combined" }: { mode?: "cockpit" | 
                         <DeferredCard
                             title="Since You Last Visited"
                             Icon={History}
-                            note="Change tracking (Updated / Stale / Resolved / New) arrives with the relevance phase — it will list items that moved since your last session."
+                            note="Change tracking (Updated / Stale / Resolved / New) arrives with the relevance phase. It will list items that moved since your last session."
                         />
                         <div className="dcc-card dcc-pad">
                             <MyCanvasRegion />

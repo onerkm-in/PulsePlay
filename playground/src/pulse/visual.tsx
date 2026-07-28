@@ -181,7 +181,7 @@ import { irMarkToChartKind } from "../visualization/chartIR";
 // Wave 44 — Power BI theme inheritance + per-element typography. Pure
 // helpers; the Visual class flushes the resulting plan onto `this.target`.
 import { planThemeWrites, applyThemeWrites } from "./themeInheritance";
-import { cleanInsightsContent, stripTrailingProse, normalizeStageHeading, enforceStageScope, stripEmptyEmphasis, stripTableLeadIn, dropUnpairedEmphasis } from "./rendering/contentSanitizer";
+import { cleanInsightsContent, stripTrailingProse, normalizeStageHeading, enforceStageScope, stripEmptyEmphasis, stripTableLeadIn, dropUnpairedEmphasis, normalizeTypography } from "./rendering/contentSanitizer";
 // Phase E.1 — client-side progressive reveal of Genie single-shot answers.
 // Pure schedule lives in ./state/stagedReveal; this file owns the React glue
 // (arrival-time ref, tick scheduling, render filter + spinner).
@@ -4522,7 +4522,7 @@ function App(props: AppProps) {
                 //   2. normalizeStageHeading: ensure the section starts
                 //      with `## TITLE` even if the model dropped the
                 //      heading.
-                const trimmedResponseRaw = (response.content ?? "").trim();
+                const trimmedResponseRaw = normalizeTypography((response.content ?? "").trim());
                 const scoped = expectedTitles.length
                     ? enforceStageScope(trimmedResponseRaw, expectedTitles)
                     : trimmedResponseRaw;
@@ -11813,7 +11813,11 @@ function decorateNeutralRulePills(slice: string, ruleNames: string[]): React.Rea
         // Group 3: candidate measurement value.
         // Value grammar is shared with INLINE_REGEX so the space-separated unit
         // form ("99.04 %", "1.14 MN") lands inside the pill here too.
-        `\\b(${escaped})\\b\\s*(:|=|→|–|—|\\bis\\b|\\bwas\\b|\\bat\\b|\\bof\\b)\\s*(${MEAS_NUM})`,
+        // "," and "-" joined the separator list because normalizeTypography
+        // rewrites the dashes: a dash before a number becomes ", " (so it can
+        // never read as a minus sign) and any other em/en dash becomes "-".
+        // Without them, "Net Sales - 12.4%" would lose its neutral pill.
+        `\\b(${escaped})\\b\\s*(:|=|→|,|-|–|—|\\bis\\b|\\bwas\\b|\\bat\\b|\\bof\\b)\\s*(${MEAS_NUM})`,
         "gi"
     );
     const out: React.ReactNode[] = [];

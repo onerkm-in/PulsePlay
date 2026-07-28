@@ -196,6 +196,7 @@ export const DEFAULT_NUMBER_FORMAT_GUIDANCE = [
     "- Currency keeps its symbol before the number: `$1.03 B`, `$989.34 MN`.",
     "- PROMOTE THE UNIT rather than comma-grouping: the number before the unit must have 1-3 digits and NEVER a thousands separator. If you are about to write `$1,031.41 MN`, the unit is wrong — promote it to `$1.03 B`. A comma before a unit suffix always means you failed to promote.",
     "- Use the SAME unit for the same quantity everywhere in one answer. Do not write `$1,031.41 MN` in one section and `$1.03 B` in another for the identical figure.",
+    "- Plain ASCII punctuation only: use a hyphen `-`, never an em dash or en dash; straight quotes, not curly; `...` rather than a single ellipsis character.",
 ].join("\n");
 
 /** First-run defaults seeder. Keep this intentionally small: Settings is

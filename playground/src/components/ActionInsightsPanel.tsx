@@ -203,7 +203,7 @@ export function ActionInsightsPanel({ proxyBase, assistantProfile, onData, hideH
                                     >{loading ? "refreshing…" : "refresh"}</button>
                                 </>
                             ) : (
-                                <>Loads on demand — nothing queries the warehouse until you ask.</>
+                                <>Loads on demand. Nothing queries the warehouse until you ask.</>
                             )}
                         </div>
                     </div>
