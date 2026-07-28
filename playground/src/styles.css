@@ -2656,3 +2656,33 @@ html, body, #root {
         border-bottom: 1px solid var(--pp-border, rgba(0,0,0,0.08));
     }
 }
+
+/* ── Authoring copilot review panel ──────────────────────────────────
+   Proposals with their reasoning attached. Design-system classes only
+   (.btn/.tag); no inline styles — those are called out in the design audit. */
+.acp { display: flex; flex-direction: column; gap: var(--pp-s3); }
+.acp__summary { font-size: var(--pp-text-sm); }
+.acp__empty { font-size: var(--pp-text-base); padding: var(--pp-s4) 0; }
+.acp__item {
+    border: 1px solid var(--pp-border-subtle);
+    border-radius: var(--pp-radius-lg);
+    padding: var(--pp-s3);
+    background: var(--pp-surface-raised);
+}
+.acp__head { display: flex; align-items: center; gap: var(--pp-s2); cursor: pointer; }
+.acp__label { font-weight: 600; }
+.acp__conf--high { color: var(--pp-good); background: var(--pp-good-soft); }
+.acp__conf--medium { color: var(--pp-warn); background: var(--pp-warn-soft); }
+.acp__conf--low { color: var(--pp-text-muted); background: color-mix(in srgb, var(--pp-text) 8%, transparent); }
+.acp__warn { color: var(--pp-bad); background: var(--pp-bad-soft); }
+.acp__because { margin: var(--pp-s2) 0 0 var(--pp-s5); padding: 0; font-size: var(--pp-text-sm); }
+.acp__preview {
+    margin: var(--pp-s2) 0 0; padding: var(--pp-s2);
+    max-height: 160px; overflow: auto;
+    font-family: var(--pp-font-mono); font-size: var(--pp-text-xs);
+    white-space: pre-wrap;
+    background: var(--pp-input-bg);
+    border: 1px solid var(--pp-border-subtle);
+    border-radius: var(--pp-radius-sm);
+}
+.acp__actions { display: flex; justify-content: flex-end; }

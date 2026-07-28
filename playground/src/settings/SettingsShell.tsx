@@ -115,6 +115,7 @@ export const GROUP_LEAF_LABELS: Record<SettingsGroupId, string[]> = {
         "Browse library",
         "Response behavior",
         "Custom sections preset library",
+        "Setup copilot",
         "Metric direction preset library",
         "AI Insights sections",
         "SQL sections",

@@ -32,6 +32,7 @@ import { CustomSectionPresetCombobox, MetricDirectionPresetCombobox } from "../c
 import { suggestInsightsConfigViaProxy } from "../../lib/insightsSuggestClient";
 import { buildPromptDrafts, type PromptDrafts } from "../../lib/promptDraftGenerator";
 import { MetricDirectionAutoDetectChip } from "../../components/MetricDirectionAutoDetectChip";
+import { AuthoringCopilotPanel } from "../../components/AuthoringCopilotPanel";
 import { getDiscoverySnapshot, type DiscoverySnapshot } from "../../lib/discoveryClient";
 import { WarnIcon } from "../../lib/icons";
 
@@ -954,6 +955,23 @@ function PulseAiInsightsSettingsPanel(props: {
                     />
                 </div>
             </div>
+
+            <Leaf
+                group="ai"
+                label="Setup copilot"
+                summary="Everything PulsePlay can derive from the connected data — prompt, guidance and metric rules — proposed in one place with the reasoning attached. Nothing is applied until you accept it."
+            >
+                <AuthoringCopilotPanel
+                    snapshot={snapshot}
+                    current={{
+                        insightsPrompt: value.insightsPrompt,
+                        insightsDomainGuidance: value.insightsDomainGuidance,
+                        metricDirectionRules: value.metricDirectionRules,
+                    }}
+                    domainHint={value.insightsDomain || undefined}
+                    onApply={patch => onChange(patch)}
+                />
+            </Leaf>
 
             <Leaf
                 group="ai"

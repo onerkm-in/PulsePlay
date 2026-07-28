@@ -61,9 +61,9 @@ describe("buildAuthoringProposals — never silently stomps", () => {
     it("flags overwrites when the author already wrote the field", () => {
         const b = buildAuthoringProposals({
             snapshot: snap(),
-            current: { domainGuidance: "My hand-written guidance." },
+            current: { insightsDomainGuidance: "My hand-written guidance." },
         });
-        const g = b.proposals.find(p => p.field === "domainGuidance");
+        const g = b.proposals.find(p => p.field === "insightsDomainGuidance");
         expect(g).toBeDefined();
         expect(g!.overwrites).toBe(true);
     });
@@ -75,12 +75,12 @@ describe("buildAuthoringProposals — never silently stomps", () => {
 
     it("skips a proposal identical to the current value (no noise)", () => {
         const first = buildAuthoringProposals({ snapshot: snap() });
-        const guidance = first.proposals.find(p => p.field === "domainGuidance")!;
+        const guidance = first.proposals.find(p => p.field === "insightsDomainGuidance")!;
         const second = buildAuthoringProposals({
             snapshot: snap(),
-            current: { domainGuidance: guidance.value },
+            current: { insightsDomainGuidance: guidance.value },
         });
-        expect(second.proposals.find(p => p.field === "domainGuidance")).toBeUndefined();
+        expect(second.proposals.find(p => p.field === "insightsDomainGuidance")).toBeUndefined();
         // signal existed, so this is "nothing to change", NOT an empty state
         expect(second.noSignal).toBe(false);
     });
@@ -118,6 +118,6 @@ describe("applyProposals", () => {
 
     it("ignores malformed entries rather than throwing", () => {
         // @ts-expect-error deliberately malformed
-        expect(applyProposals([null, { field: "domainGuidance" }])).toEqual({});
+        expect(applyProposals([null, { field: "insightsDomainGuidance" }])).toEqual({});
     });
 });

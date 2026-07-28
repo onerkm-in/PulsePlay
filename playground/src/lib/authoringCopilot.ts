@@ -27,7 +27,10 @@ import { extractMeasuresAndDimensions } from "./insightsSuggestClient";
 import type { DiscoverySnapshot } from "./discoveryClient";
 
 /** Settings fields this composer can propose values for. */
-export type AuthoringField = "insightsPrompt" | "domainGuidance" | "metricDirectionRules";
+// `insightsDomainGuidance` (not the shared `domainGuidance`) is what the
+// Insights drafter produces and what the AI settings slice exposes — naming the
+// field for the setting it actually writes avoids a silent mis-mapping.
+export type AuthoringField = "insightsPrompt" | "insightsDomainGuidance" | "metricDirectionRules";
 
 export type ProposalConfidence = "high" | "medium" | "low";
 
@@ -119,7 +122,7 @@ export function buildAuthoringProposals(input: AuthoringCopilotInput): Authoring
 
     if (drafts) {
         add("insightsPrompt", "Insights prompt", drafts.insightsPrompt, baseBecause, conf);
-        add("domainGuidance", "Domain guidance", drafts.guidance, baseBecause, conf);
+        add("insightsDomainGuidance", "Domain guidance", drafts.guidance, baseBecause, conf);
     }
 
     // Metric directions: only propose when the heuristic was actually confident
