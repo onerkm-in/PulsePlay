@@ -56,7 +56,7 @@ describe('PX1 pulse client context helpers', () => {
     });
 
     test('builds explicit compatibility metadata for every supported client', () => {
-        expect(SUPPORTED_PULSE_CLIENTS).toEqual(['pulseplay', 'pulse-pbi', 'pulseplay-desktop']);
+        expect(SUPPORTED_PULSE_CLIENTS).toEqual(['pulseplay', 'pulse-pbi', 'pulseplay-desktop', 'pulseplay-agent']);
 
         for (const clientApp of SUPPORTED_PULSE_CLIENTS) {
             const response = buildPulseClientCompatibilityResponse({

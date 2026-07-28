@@ -323,7 +323,7 @@ describe('GET /clients/compatibility', () => {
                 singleProxyContract: true,
             },
         });
-        expect(res.body.supportedClients).toEqual(['pulseplay', 'pulse-pbi', 'pulseplay-desktop']);
+        expect(res.body.supportedClients).toEqual(['pulseplay', 'pulse-pbi', 'pulseplay-desktop', 'pulseplay-agent']);
         expect(res.body.requestHeaders).toContain('X-Pulse-Client');
         expect(res.body.responseHeaders).toContain('X-Pulse-Client');
     });

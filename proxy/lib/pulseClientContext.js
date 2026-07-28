@@ -6,6 +6,10 @@ const SUPPORTED_PULSE_CLIENTS = Object.freeze([
     'pulseplay',
     'pulse-pbi',
     'pulseplay-desktop',
+    // 2026-07-28 — automated callers must be able to say what they are. Until
+    // this entry existed the normalizer collapsed any agent self-identification
+    // to 'unknown', so audit could not distinguish agent from human at all.
+    'pulseplay-agent',
 ]);
 
 const PULSE_CLIENT_ALIASES = Object.freeze({
@@ -22,6 +26,9 @@ const PULSE_CLIENT_ALIASES = Object.freeze({
     desktop: 'pulseplay-desktop',
     exe: 'pulseplay-desktop',
     'pulseplay-exe': 'pulseplay-desktop',
+    'pulseplay-agent': 'pulseplay-agent',
+    pulseplayagent: 'pulseplay-agent',
+    agent: 'pulseplay-agent',
 });
 
 function firstHeaderValue(value) {
@@ -52,6 +59,22 @@ function resolvePulseClientContext(headers = {}) {
     return {
         clientApp: normalizePulseClient(headers['x-pulse-client']),
         clientVersion: sanitizeHeaderToken(headers['x-pulse-client-version']) || null,
+    };
+}
+
+/**
+ * Actor attribution for audit. Declaring `x-pulse-client: pulseplay-agent` is
+ * SELF-DEMOTION ONLY — it marks the caller as automated (and personaGate maps
+ * it to the view-only AGENT persona); it never grants anything. An automated
+ * caller that omits it is a policy violation made visible by these very audit
+ * fields, not something this layer can prevent.
+ */
+function resolveActorContext(headers = {}) {
+    const clientApp = normalizePulseClient(headers['x-pulse-client']);
+    return {
+        actorType: clientApp === 'pulseplay-agent' ? 'agent' : 'human',
+        agentRunId: sanitizeRequestId(headers['x-agent-run-id']) || null,
+        parentRequestId: sanitizeRequestId(headers['x-parent-request-id']) || null,
     };
 }
 
@@ -145,6 +168,7 @@ module.exports = {
     sanitizeRequestId,
     normalizePulseClient,
     resolvePulseClientContext,
+    resolveActorContext,
     resolvePulseRequestId,
     buildPulseClientCompatibility,
     buildPulseClientCompatibilityResponse,

@@ -12,8 +12,15 @@
  */
 'use strict';
 
+const { resolveActorContext } = require('./pulseClientContext');
+
 const PLANNER = 'Supply Chain Planner';
 const MANAGER = 'Supply Chain Manager';
+// 2026-07-28 — automated callers get their OWN persona so authority and audit
+// can never conflate them with a human. View-only by design: an agent may read
+// prompts and evidence to enrich them, but every state change (trigger, snooze,
+// approve, reject, false-positive) stays a human act behind the HITL gate.
+const AGENT = 'Automated Agent';
 
 // persona -> capability set (server-side source of truth)
 const CAPABILITIES = {
@@ -24,6 +31,9 @@ const CAPABILITIES = {
     [MANAGER]: new Set([
         'can_view_prompts', 'can_view_evidence', 'can_trigger_request',
         'can_snooze', 'can_mark_false_positive', 'can_approve_hitl', 'can_reject',
+    ]),
+    [AGENT]: new Set([
+        'can_view_prompts', 'can_view_evidence',
     ]),
 };
 
@@ -50,6 +60,12 @@ const ACTIONABLE_FROM_NEW = new Set(['new', 'refreshed']);
  * read at call time so a controlled demo toggle takes effect without a restart.
  */
 function resolvePersona(req) {
+    // A declared agent is resolved FIRST, before IdP roles: an automated caller
+    // running under a service token that happens to carry manager-ish roles
+    // must never inherit MANAGER capabilities. Declaring the agent client is
+    // self-demotion only — spoofing it can only REDUCE authority.
+    const actor = resolveActorContext((req && req.headers) || {});
+    if (actor.actorType === 'agent') return { persona: AGENT, source: 'agent-client' };
     const roles = (req.user && Array.isArray(req.user.roles)) ? req.user.roles : [];
     for (const r of roles) {
         const s = String(r).toLowerCase();
@@ -90,6 +106,6 @@ function allowedActionsFor(promptRow, persona) {
 }
 
 module.exports = {
-    PLANNER, MANAGER, CAPABILITIES, ACTIONS, MVP_ACTION_LEVEL_CEILING, ACTIONABLE_FROM_NEW,
+    PLANNER, MANAGER, AGENT, CAPABILITIES, ACTIONS, MVP_ACTION_LEVEL_CEILING, ACTIONABLE_FROM_NEW,
     resolvePersona, caps, allowedActionsFor,
 };

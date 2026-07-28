@@ -80,6 +80,7 @@ const {
     resolvePulseClientContext,
     resolvePulseRequestId,
     buildPulseClientCompatibilityResponse,
+    resolveActorContext,
 } = require('./lib/pulseClientContext');
 const { buildGovernanceAttestation } = require('./lib/governance');
 const { extractSqlSections, extractSqlSectionsFromMarkdown } = require('./lib/sqlSectionExtractor');
@@ -2280,6 +2281,14 @@ function auditLog(req, { profileName, spaceId, action, status, detail, spIdentit
         status: status ?? null, detail: detail ?? null,
     };
     if (pulseClient.clientVersion) baseLine.clientVersion = pulseClient.clientVersion;
+    // 2026-07-28 — actor attribution. Every audit line now answers "was this a
+    // human or an automated caller?", with run/parent correlation for agent
+    // chains. Before this, the first question after any incident — who did
+    // this? — was unanswerable for automation.
+    const actor = resolveActorContext(req.headers || {});
+    baseLine.actorType = actor.actorType;
+    if (actor.agentRunId) baseLine.agentRunId = actor.agentRunId;
+    if (actor.parentRequestId) baseLine.parentRequestId = actor.parentRequestId;
     if (spIdentityHash) baseLine.spIdentityHash = spIdentityHash;
     // IdP-authenticated user (set by idpMiddleware when a valid JWT
     // is present). Captures sub + email + tid + scopes/roles so a
