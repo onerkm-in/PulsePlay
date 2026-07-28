@@ -51,6 +51,10 @@ export interface RenderLakeviewOptions {
 export interface LakeviewRenderHandle {
     coverage: CoverageReport;
     dashboard: NormalizedDashboard;
+    /** Resolves once every widget has been filled (or failed). The render
+     *  function returns as soon as the SHELL is painted, so callers that need
+     *  the finished dashboard - tests, screenshots - await this. */
+    whenFilled: Promise<void>;
     destroy(): void;
 }
 
@@ -180,54 +184,23 @@ export async function renderLakeviewDashboard(
     const dashboard = normalizeDashboard(specBody.spec as LakeviewDashboardSpec);
     const coverage = describeCoverage(dashboard);
 
-    // Fetch plan. CHART widgets fetch per widget so the proxy can push the
-    // widget's GROUP BY down to the warehouse - that returns dozens of rows
-    // whatever the table size, which is what makes this scale-independent.
-    // Counters and tables share one fetch per dataset, since they read the rows
-    // as they are.
-    const perWidget = new Map<string, { datasetName: string; widgetName: string }>();
-    const perDataset = new Set<string>();
-    for (const page of dashboard.pages) {
-        for (const w of page.widgets) {
-            if (!w.datasetName) continue;
-            // Counters aggregate too: an encoding like countdistinct(agent_name)
-            // names a value the raw dataset does not contain, so a counter must
-            // ask for its own computed result exactly as a chart does.
-            if (w.render === "chart" || w.render === "counter") {
-                perWidget.set(w.id, { datasetName: w.datasetName, widgetName: w.id });
-            } else if (w.render === "table") {
-                perDataset.add(w.datasetName);
-            }
-        }
-    }
-
-    /** Keyed by widget id for charts, by dataset name for the rest. */
-    const results = new Map<string, WidgetData | null>();
-    const fetchDataset = async (key: string, body: Record<string, unknown>) => {
-        try {
-            const res = await fetchJson(fetchImpl, `${apiBase}/assistant/dashboards/databricks/${encodeURIComponent(opts.dashboardId)}/dataset`, {
-                method: "POST",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify({ assistantProfile: opts.assistantProfile, ...body }),
-            });
-            results.set(key, { columns: res.columns as string[], rows: res.rows as unknown[][] });
-        } catch (err) {
-            results.set(key, null);
-            emit({ type: "error", payload: { scope: "dataset", key, message: String((err as Error).message || err) } });
-        }
-    };
-
-    await Promise.all([
-        ...[...perWidget.entries()].map(([id, b]) => fetchDataset(id, b)),
-        ...[...perDataset].map(name => fetchDataset(name, { datasetName: name })),
-    ]);
-
     const needsCharts = dashboard.pages.some(p => p.widgets.some(w => w.render === "chart"));
     const charts = needsCharts ? await (opts.loadCharts ?? defaultLoadCharts)() : null;
 
+    // ── 1. SHELL ─────────────────────────────────────────────────────────────
+    // Build every card up front, before any data is fetched. The first version
+    // awaited all widget queries and then drew - so one slow statement held the
+    // entire dashboard blank, and with push-down each chart runs its own
+    // statement, which made that far worse (~20 requests, all-or-nothing).
+    // Paint the layout immediately and let each card fill itself.
     containerEl.textContent = "";
     const root = el("div", "lv-root", containerEl);
     const instances: Array<{ resize(): void; dispose(): void }> = [];
+
+    /** Cards awaiting data, in document order - the order they fill in. */
+    const pending: Array<{ widget: NormalizedWidget; card: HTMLElement; body: HTMLElement; request: Record<string, unknown> }> = [];
+    /** Dataset results shared by widgets that read rows as they are. */
+    const sharedData = new Map<string, WidgetData | null>();
 
     for (const page of dashboard.pages) {
         if (dashboard.pages.length > 1 && page.title) el("h2", "lv-page-title", root, page.title);
@@ -246,58 +219,136 @@ export async function renderLakeviewDashboard(
                 renderTextWidget(body, widget.text ?? "");
                 continue;
             }
-
-            // Charts read their own (aggregated) result; everything else reads
-            // the shared dataset result.
-            const data = (widget.render === "chart" || widget.render === "counter")
-                ? results.get(widget.id) ?? null
-                : (widget.datasetName ? results.get(widget.datasetName) ?? null : null);
-            const option = widget.render === "chart" || widget.render === "counter"
-                ? widgetToEChartsOption(widget, data)
-                : null;
-
-            if (widget.render === "counter" && option) {
-                renderCounter(body, option);
-            } else if (widget.render === "chart" && option && charts) {
-                const chart = charts.init(body);
-                chart.setOption(option);
-                instances.push(chart);
-            } else if (widget.render === "table" && data) {
-                renderTable(body, widget, data, rowCap);
-            } else {
-                // Honest fallback: say why, never guess. Covers unsupported
-                // kinds, failed datasets, and unmappable encodings alike.
-                card.className = "lv-card lv-card--fallback";
-                el("div", "lv-fallback-kind", body, widget.kind);
-                el("div", "lv-fallback-reason", body,
-                    widget.reason
-                    || (data === null ? "dataset unavailable" : "encodings could not be mapped faithfully"));
+            if (widget.render === "unsupported" || !widget.datasetName) {
+                renderFallback(card, body, widget, undefined);
+                continue;
             }
+
+            // Charts and counters ask for their OWN aggregated result, so the
+            // proxy can derive that widget's GROUP BY from the spec. Tables read
+            // the dataset rows as they are.
+            const request = (widget.render === "chart" || widget.render === "counter")
+                ? { datasetName: widget.datasetName, widgetName: widget.id }
+                : { datasetName: widget.datasetName };
+            el("div", "lv-card-pending", body, "Loading...");
+            pending.push({ widget, card, body, request });
         }
     }
 
     const onResize = () => { for (const c of instances) c.resize(); };
     if (typeof window !== "undefined") window.addEventListener("resize", onResize);
 
+    // ── 2. SEQUENTIAL FILL ───────────────────────────────────────────────────
+    // One statement at a time, in document order. Parallel fetching hammered the
+    // warehouse with ~20 concurrent statements for a single page and finished no
+    // sooner, because they queue there anyway; sequential keeps the load
+    // predictable and lets the reader watch the dashboard populate top-down.
+    let cancelled = false;
+
+    const fillOne = async (item: typeof pending[number]) => {
+        const { widget, card, body, request } = item;
+        let data: WidgetData | null = null;
+        const shareKey = widget.render === "table" ? widget.datasetName : null;
+
+        if (shareKey && sharedData.has(shareKey)) {
+            data = sharedData.get(shareKey) ?? null;
+        } else {
+            try {
+                const res = await fetchJson(fetchImpl, `${apiBase}/assistant/dashboards/databricks/${encodeURIComponent(opts.dashboardId)}/dataset`, {
+                    method: "POST",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({ assistantProfile: opts.assistantProfile, ...request }),
+                });
+                // A chart or counter whose aggregation the server DECLINED gets
+                // raw rows - and if those rows were also truncated, grouping
+                // them client-side would chart a sample and present it as the
+                // total. Silently wrong bars are worse than a visible gap, so
+                // refuse the widget instead.
+                if (res.aggregated === false && res.truncated === true
+                    && (widget.render === "chart" || widget.render === "counter")) {
+                    body.textContent = "";
+                    renderFallback(card, body, widget, undefined, `showing this would mean charting ${res.rows ? (res.rows as unknown[]).length : 0} of ${res.totalRows} rows`);
+                    return;
+                }
+                data = { columns: res.columns as string[], rows: res.rows as unknown[][] };
+            } catch (err) {
+                data = null;
+                emit({ type: "error", payload: { scope: "dataset", widget: widget.id, message: String((err as Error).message || err) } });
+            }
+            if (shareKey) sharedData.set(shareKey, data);
+        }
+        if (cancelled) return;
+
+        body.textContent = "";
+        const option = (widget.render === "chart" || widget.render === "counter")
+            ? widgetToEChartsOption(widget, data)
+            : null;
+
+        if (widget.render === "counter" && option) {
+            renderCounter(body, option);
+        } else if (widget.render === "chart" && option && charts) {
+            const chart = charts.init(body);
+            chart.setOption(option);
+            instances.push(chart);
+        } else if (widget.render === "table" && data) {
+            renderTable(body, widget, data, rowCap);
+        } else {
+            renderFallback(card, body, widget, data);
+        }
+    };
+
+    const whenFilled = (async () => {
+        for (const item of pending) {
+            if (cancelled) return;
+            await fillOne(item);
+        }
+        if (!cancelled) {
+            emit({ type: "loaded", payload: { mode: "lakeview-native", phase: "filled", dashboardId: opts.dashboardId } });
+        }
+    })();
+
+    // The shell is up, so the host can show the dashboard now rather than after
+    // the last statement returns.
     emit({
         type: "loaded",
         payload: {
             mode: "lakeview-native",
+            phase: "shell",
             dashboardId: opts.dashboardId,
             widgets: coverage.total,
             native: coverage.native,
             fallback: coverage.fallback,
+            pending: pending.length,
         },
     });
 
     return {
         coverage,
         dashboard,
+        whenFilled,
         destroy() {
+            cancelled = true;
             if (typeof window !== "undefined") window.removeEventListener("resize", onResize);
             for (const c of instances) { try { c.dispose(); } catch { /* dispose is best-effort */ } }
             instances.length = 0;
             containerEl.textContent = "";
         },
     };
+}
+
+/** Honest fallback: say what could not be drawn and why, never guess. */
+function renderFallback(
+    card: HTMLElement,
+    body: HTMLElement,
+    widget: NormalizedWidget,
+    data: WidgetData | null | undefined,
+    reason?: string,
+): void {
+    card.className = "lv-card lv-card--fallback";
+    body.textContent = "";
+    el("div", "lv-fallback-kind", body, widget.kind);
+    el("div", "lv-fallback-reason", body,
+        reason
+        || widget.reason
+        || (data === null ? "dataset unavailable" : "encodings could not be mapped faithfully"));
 }

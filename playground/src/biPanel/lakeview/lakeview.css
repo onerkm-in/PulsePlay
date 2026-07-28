@@ -126,6 +126,16 @@
   color: var(--pp-text-subtle, #6b6b70);
 }
 
+/* Cards paint before their data arrives and fill in document order, so this is
+ * what a reader sees moving down the page. Deliberately understated: it is a
+ * brief transition, not a warning. */
+.lv-card-pending {
+  font-size: 11.5px;
+  color: var(--pp-text-subtle, #6b6b70);
+  opacity: 0.75;
+}
+.lv-card--chart .lv-card-pending { padding-top: 8px; }
+
 /* Fallback cards say what could not be drawn and why. Deliberately quiet -
  * they are honest, not alarming: the rest of the dashboard is fine. */
 .lv-card--fallback {
