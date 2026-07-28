@@ -64,10 +64,10 @@ export const DEFAULT_LANDING_SURFACE_STORAGE_KEY = KEY.defaultLandingSurface;
 /** Surfaces eligible as the author's default landing tab. A subset of
  *  SurfaceId: we exclude composite/derived surfaces, so only the three
  *  primary picker options are valid choices. */
-export type DefaultLandingSurface = "ai-insights" | "ask-pulse" | "bi-viz";
+export type DefaultLandingSurface = "action-insights" | "ai-insights" | "ask-pulse" | "bi-viz";
 
 export function isDefaultLandingSurface(v: unknown): v is DefaultLandingSurface {
-    return v === "ai-insights" || v === "ask-pulse" || v === "bi-viz";
+    return v === "action-insights" || v === "ai-insights" || v === "ask-pulse" || v === "bi-viz";
 }
 
 const ENABLED_COMPONENTS_LEGACY_BOTH_MIGRATION_KEY = "pulseplay:enabled-components:legacy-both-migrated";

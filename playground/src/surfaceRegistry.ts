@@ -101,6 +101,18 @@ export function isSurfaceId(value: unknown): value is SurfaceId {
     return typeof value === "string" && BY_ID.has(value as SurfaceId);
 }
 
+/** Where the app opens when nothing else says otherwise — no deep-link, no
+ *  author-configured default. "Decisions" rather than "AI Insights" so the
+ *  user lands on the proactive stack of decisions waiting on them instead of
+ *  a narrative they have to read first; this is the same proactive-first
+ *  direction that already puts the surface first in SURFACES above.
+ *
+ *  Single source of truth: App.readInitialActiveSurface consumes this rather
+ *  than repeating the literal. Availability is not a concern here — if the
+ *  deployment turns the AI pane off, surfaceAvailability resolves the
+ *  effective surface and the requested one is remembered for when it returns. */
+export const DEFAULT_LANDING_SURFACE: SurfaceId = "action-insights";
+
 /** Surfaces that live in the AI pane — useful when deciding whether
  *  a surface change should also flip the visible pane in mix mode. */
 export function surfacesForPane(pane: "ai" | "bi"): ReadonlyArray<SurfaceDescriptor> {

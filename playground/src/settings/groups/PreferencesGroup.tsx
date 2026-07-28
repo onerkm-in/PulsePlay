@@ -50,6 +50,10 @@ export function PreferencesGroup(): React.ReactElement {
 
     // Default landing tab options are filtered to the currently-enabled tabs.
     const landingOptions = [
+        // Decisions has no per-tab visibility flag (it is governed by whether
+        // the AI pane is on at all), so it is always offered here. It is also
+        // the shipped default — see DEFAULT_LANDING_SURFACE.
+        { value: "action-insights" as const, label: "Decisions", enabled: true },
         { value: "ai-insights" as const, label: "AI Insights", enabled: tabVisibility.aiInsights },
         { value: "ask-pulse" as const,   label: "Ask Pulse",   enabled: tabVisibility.askPulse },
         { value: "bi-viz" as const,      label: "Dashboard",   enabled: tabVisibility.dashboard },

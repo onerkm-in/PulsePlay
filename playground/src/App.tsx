@@ -23,7 +23,7 @@ import { ActionInsightsPanel } from "./components/ActionInsightsPanel";
 import { BundleSwitcher } from "./components/BundleSwitcher";
 import { PaneEmptyState, DashboardIcon } from "./components/PaneEmptyState";
 import type { SurfaceId } from "./surfaceRegistry";
-import { isSurfaceId } from "./surfaceRegistry";
+import { isSurfaceId, DEFAULT_LANDING_SURFACE } from "./surfaceRegistry";
 import { useExperienceMode } from "./experience/experienceMode";
 import { DecisionCanvasShell } from "./experience/DecisionCanvasShell";
 import {
@@ -291,7 +291,7 @@ function readAuthorDefaultLandingSurface(): SurfaceId | null {
     if (typeof window === "undefined") return null;
     try {
         const v = window.localStorage.getItem("pulseplay:default-landing-surface");
-        if (v === "ai-insights" || v === "ask-pulse" || v === "bi-viz") return v;
+        if (v === "action-insights" || v === "ai-insights" || v === "ask-pulse" || v === "bi-viz") return v;
     } catch { /* swallow */ }
     return null;
 }
@@ -301,7 +301,7 @@ function readInitialActiveSurface(): SurfaceId {
     //   1. URL ?surface= (explicit deep-link / share)
     //   2. URL ?focus=bi (legacy viewport-focus deep-link)
     //   3. Author-configured default landing surface
-    //   4. "ai-insights" hardcoded fallback (home base)
+    //   4. DEFAULT_LANDING_SURFACE (home base)
     const fromUrl = readSurfaceFromUrl();
     if (fromUrl) return fromUrl;
 
@@ -312,10 +312,10 @@ function readInitialActiveSurface(): SurfaceId {
     if (authorDefault) return authorDefault;
 
     // Intentionally do not restore the last-used surface as the landing
-    // default: the app must always open on AI Insights unless a deep-link or
-    // author default says otherwise. The stored surface is still tracked for
-    // cross-tab sync + focus-restore, just not used here.
-    return "ai-insights";
+    // default: the app must always open on the same home base unless a
+    // deep-link or author default says otherwise. The stored surface is still
+    // tracked for cross-tab sync + focus-restore, just not used here.
+    return DEFAULT_LANDING_SURFACE;
 }
 
 function writeViewportFocusToUrl(next: ViewportFocus) {

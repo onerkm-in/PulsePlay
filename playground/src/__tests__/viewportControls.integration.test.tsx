@@ -260,6 +260,14 @@ beforeEach(() => {
             "pulseplay:bi-embed-config",
             JSON.stringify({ url: "https://app.powerbi.com/reportEmbed?reportId=test-r1" }),
         );
+        // This suite is about viewport controls, not about which surface the
+        // product opens on, and most cases assert against AI-Insights chrome.
+        // Pin that precondition explicitly via the author default (priority 3)
+        // instead of inheriting DEFAULT_LANDING_SURFACE, which is now
+        // "action-insights". URL deep-links are priority 1-2, so the ?focus= /
+        // ?surface= cases below still override this. The new default has its
+        // own pin in the landing-surface describe block.
+        window.localStorage.setItem("pulseplay:default-landing-surface", "ai-insights");
     } catch { /* swallow */ }
     // Provide a passthrough fetch that returns empty payloads so any
     // background fetches from settings/allowlist/profiles don't hang.
@@ -281,6 +289,37 @@ afterEach(() => {
 });
 
 /* ─── Default unified layout ─────────────────────────────────────── */
+
+/* ─── Landing surface ────────────────────────────────────────────── */
+
+describe("App landing surface", () => {
+    it("opens on Decisions when no deep-link or author default says otherwise", () => {
+        // Undo the suite-wide author-default seed so the product default is
+        // what gets exercised here.
+        window.localStorage.removeItem("pulseplay:default-landing-surface");
+        const state = mountApp();
+        const shell = state.container.querySelector(viewportControlShellSelector);
+        expect(shell?.getAttribute("data-active-surface")).toBe("action-insights");
+        unmount(state);
+    });
+
+    it("still honours an author default that names a different surface", () => {
+        window.localStorage.setItem("pulseplay:default-landing-surface", "ask-pulse");
+        const state = mountApp();
+        const shell = state.container.querySelector(viewportControlShellSelector);
+        expect(shell?.getAttribute("data-active-surface")).toBe("ask-pulse");
+        unmount(state);
+    });
+
+    it("a ?surface= deep-link still outranks the default", () => {
+        window.localStorage.removeItem("pulseplay:default-landing-surface");
+        setLocation("?surface=ai-insights");
+        const state = mountApp();
+        const shell = state.container.querySelector(viewportControlShellSelector);
+        expect(shell?.getAttribute("data-active-surface")).toBe("ai-insights");
+        unmount(state);
+    });
+});
 
 describe("App viewport controls — default unified Mix surface", () => {
     it("renders the shell with data-viewport-focus=split when no URL focus is set", () => {

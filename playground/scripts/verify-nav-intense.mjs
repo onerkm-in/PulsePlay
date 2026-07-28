@@ -52,8 +52,13 @@ async function main() {
     const HEADED = process.env.HEADED === "1";
     const browser = await chromium.launch({ headless: !HEADED, slowMo: HEADED ? 600 : 0 });
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-    // Seed sticky active-surface = ASK-PULSE on purpose: the new default-landing
-    // logic must IGNORE it and still open on AI Insights.
+    // Seed sticky active-surface = ASK-PULSE on purpose: the default-landing
+    // logic must IGNORE it. The product default is now Decisions
+    // (DEFAULT_LANDING_SURFACE), so this script seeds an AUTHOR default of
+    // AI Insights — priority 3, which still outranks the sticky surface — and
+    // keeps asserting AI Insights for the reload/settings checks below. The
+    // bare product default has its own pin in
+    // src/__tests__/viewportControls.integration.test.tsx ("App landing surface").
     await ctx.addInitScript(() => {
         try {
             localStorage.setItem("pulseplay:ai-profile", "default");
@@ -61,7 +66,7 @@ async function main() {
             localStorage.setItem("pulseplay:api-base-url", "/api");
             localStorage.setItem("pulseplay:setup-wizard-dismissed", "true");
             localStorage.removeItem("pulseplay:ui-mode");
-            localStorage.removeItem("pulseplay:default-landing-surface"); // no author override
+            localStorage.setItem("pulseplay:default-landing-surface", "ai-insights"); // author override under test
             localStorage.setItem("pulseplay:active-surface", "ask-pulse"); // sticky → must be ignored
             localStorage.setItem(GENIE_KEY, JSON.stringify({
                 assistantProfile: "default", connectionMode: "proxy",
