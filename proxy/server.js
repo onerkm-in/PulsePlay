@@ -64,6 +64,7 @@ try {
 
 const CONFIG_PATH = path.join(__dirname, 'config.json');
 const allowlist = require('./lib/allowlist');
+const lakeview = require('./lib/lakeviewDashboard');
 const { applyServerScopePrefix } = require('./lib/runtimeScopePrefix');
 const TIMEOUT_POLICY = require('./lib/timeoutPolicy');
 const { listInstalledPacks, loadPackDetail, loadSubVerticalDetail } = require('./lib/packRegistry');
@@ -4712,6 +4713,116 @@ async function mintDatabricksAibiToken({ profile, dashboardId, externalViewerId,
         expiresAt: Date.now() + expiresInMs,
     };
 }
+
+// ── Databricks AI/BI (Lakeview) dashboards, rendered natively ───────────────
+//
+// GET  /assistant/dashboards/databricks/:id           -> the dashboard spec
+// POST /assistant/dashboards/databricks/:id/dataset   -> one dataset's rows
+//
+// The browser NEVER sends SQL. It sends a dataset NAME; the proxy resolves the
+// statement from the dashboard's own spec and runs that. There is deliberately
+// no code path here that executes a caller-supplied statement, so this cannot
+// become an arbitrary query endpoint by accident or by a later edit.
+//
+// The workspace token stays server-side, which is also what makes this cheaper
+// than an iframe embed: no per-viewer embed token, and results are cached, so a
+// 40-widget dashboard over 8 datasets costs 8 warehouse scans and no model call.
+app.get('/assistant/dashboards/databricks/:dashboardId', async (req, res) => {
+    const resolved = resolveProfile(req.query, req.query, req.headers, req);
+    if (!resolved) return sendNoMatchingProfile(req, res);
+    try {
+        const out = await lakeview.fetchDashboardSpec(resolved.profile, req.params.dashboardId, {
+            request: (profile, method, path) => databricksRequest(profile, method, path, undefined, req.requestId),
+        });
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'lakeview.dashboard',
+            status: 200,
+            detail: JSON.stringify({ dashboardId: out.dashboardId, cached: out.cached }),
+        });
+        return res.json({
+            ok: true,
+            dashboardId: out.dashboardId,
+            displayName: out.displayName,
+            updatedAt: out.updatedAt,
+            datasets: lakeview.listDatasets(out.spec),
+            spec: out.spec,
+            cached: out.cached,
+        });
+    } catch (err) {
+        const status = typeof err?.statusCode === 'number' ? err.statusCode : 502;
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'lakeview.dashboard',
+            status,
+            detail: String(err?.message || err).slice(0, 200),
+        });
+        return res.status(status).json({
+            error: 'Databricks dashboard spec unavailable',
+            detail: String(err?.message || err).slice(0, 300),
+        });
+    }
+});
+
+app.post('/assistant/dashboards/databricks/:dashboardId/dataset', async (req, res) => {
+    const resolved = resolveProfile(req.body, {}, req.headers, req);
+    if (!resolved) return sendNoMatchingProfile(req, res);
+
+    // Reject any attempt to smuggle a statement in. Nothing downstream reads
+    // these fields; failing loudly keeps a future edit from quietly honouring
+    // one.
+    for (const banned of ['sql', 'statement', 'query', 'queryText']) {
+        if (req.body?.[banned] !== undefined) {
+            auditLog(req, {
+                profileName: resolved.name,
+                action: 'lakeview.dataset',
+                status: 400,
+                detail: `rejected client-supplied ${banned}`,
+            });
+            return res.status(400).json({
+                error: 'Client-supplied SQL is not accepted',
+                detail: 'Send { datasetName }. The proxy resolves the statement from the dashboard spec.',
+            });
+        }
+    }
+
+    const datasetName = String(req.body?.datasetName || '').trim();
+    if (!datasetName) {
+        return res.status(400).json({ error: 'datasetName is required' });
+    }
+
+    try {
+        const out = await lakeview.runDashboardDataset(resolved.profile, req.params.dashboardId, datasetName, {
+            request: (profile, method, path) => databricksRequest(profile, method, path, undefined, req.requestId),
+            execute: (profile, sql) => runSql(profile, sql),
+        });
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'lakeview.dataset',
+            status: 200,
+            detail: JSON.stringify({
+                dashboardId: out.dashboardId,
+                datasetName: out.datasetName,
+                rows: out.rows.length,
+                cached: out.cached,
+            }),
+        });
+        return res.json({ ok: true, ...out });
+    } catch (err) {
+        const status = typeof err?.statusCode === 'number' ? err.statusCode : 502;
+        auditLog(req, {
+            profileName: resolved.name,
+            action: 'lakeview.dataset',
+            status,
+            detail: String(err?.message || err).slice(0, 200),
+        });
+        return res.status(status).json({
+            error: status === 404 ? 'Unknown dataset' : 'Dashboard dataset execution failed',
+            detail: String(err?.message || err).slice(0, 300),
+            knownDatasets: err?.knownDatasets,
+        });
+    }
+});
 
 app.post('/assistant/embed-token/:vendor', async (req, res) => {
     const vendor = String(req.params.vendor || '').toLowerCase();
