@@ -84,6 +84,28 @@ Legend — Risk: how dangerous the fix is. Decision: `—` = executable as descr
 | `pulseplay:canvas-tiles-migrated` marker residue | Dies with D2 |
 | Ask Pulse KPI-preload spends a Genie conversation (COST-P1, AGENDA) | OPEN — fold into the spend-budget work |
 
+## D10 — `proxy/server.js` composition-root overload
+
+| | |
+|---|---|
+| **Evidence** | Clean Code audit `CC-02`: `proxy/server.js` is 8,885 lines in the 2026-07-28 checkout with 119 Express route/middleware registrations. It also owns profile/env parsing, OAuth, warehouse lifecycle, auth/rate limiting, audit, Power BI token/RLS, history SQL, and connector conversation implementations. |
+| **Observed harm** | High-conflict composition root; connector work shares a file with cross-cutting security/error policy; isolated domain tests load broad server state. |
+| **Target state** | Keep `server.js` as explicit composition root. Extract one cohesive, already-tested route family at a time into an Express router with injected profile/auth/problem dependencies. First write a route-family inventory and byte-compat plan; likely pilot is Power BI embed/Q&A or history. |
+| **Risk** | High if attempted as a rewrite; medium-low per route family with focused contract tests plus full proxy Jest. |
+| **Decision** | — |
+| **Status** | OPEN — audit-confirmed; plan before moving code |
+
+## D11 — quality gates overclaim lint and do not measure coverage risk
+
+| | |
+|---|---|
+| **Evidence** | Clean Code audit `CC-03/04`: playground `npm run lint` is only `tsc --noEmit`; no playground/proxy ESLint config exists. Vitest coverage support is installed but neither Vitest nor Jest collects/enforces a committed coverage baseline. |
+| **Observed harm** | Strong type/test gates, but no automated React/correctness lint rules and no signal when critical failure branches lose execution. The old `QUALITY.md` wording called the TypeScript check a lint configuration; corrected in the audit session. |
+| **Target state** | Add correctness-first ESLint as a separately baselined change (non-blocking first; no formatting avalanche). Publish coverage for critical security/governance/profile/problem/adapter/spend modules, then add stable per-module floors. Trial mutation testing on one small deterministic module only. |
+| **Risk** | Medium process risk: a repo-wide lint or percentage mandate would create noise and gaming. Baseline narrowly and gate new regressions. |
+| **Decision** | — |
+| **Status** | OPEN — tooling baseline, not a mass cleanup |
+
 ## D8 — Number formatting: four vocabularies, one of them the model's
 
 | | |

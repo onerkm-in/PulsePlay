@@ -5,6 +5,22 @@ type: project
 originSessionId: current
 ---
 
+**Current state - 2026-07-28 (Clean Code knowledge base + conformance audit):**
+Branch `design/nav-consistency`; `1065398` is the source-cited knowledge-base
+commit, with audit/docs follow-up immediately after. Added
+`docs/CLEAN_CODE_KNOWLEDGE_BASE.md`, derived from the owner-supplied 2025
+second-edition 912-page PDF, and
+`docs/research/CLEAN_CODE_CONFORMANCE_AUDIT_2026-07-28.md`. Verdict:
+**PARTIALLY FOLLOWED** — strong BIAdapter/registry boundaries, problem
+envelopes, CI/tests and debt discipline; high structural risks are the ~6.8K
+line `pulse/visual.tsx` App (existing D5) and ~8.9K-line `proxy/server.js`
+composition/implementation root (existing REBUILD-P0, recorded D10). `npm run
+lint` is only TypeScript checking; no playground/proxy ESLint or committed
+coverage-risk baseline (D11). No production code changed. Pre-existing
+uncommitted Lakeview/server work and untracked artifacts were not staged or
+attributed. Authoritative detail: **[docs/HANDOVER.md](../HANDOVER.md)** top
+entry.
+
 **Current state - 2026-07-27 (responsive Ask Pulse visuals + SLM-Supervisor feasibility):** Branch `design/nav-consistency`, `0322e59` (responsive, shipped) + `c2185f2` (feasibility doc). **Responsive Ask Pulse:** `EChartsRenderer` gained a `ResizeObserver` (container-aware re-fit, jsdom-guarded) + the Ask Pulse chart height is `clamp(220px,34vh,400px)` (was fixed 320) — headed-verified 1366×768 / 1920×1080 (live re-fit) / 820-wide. Generated viz is already a governed structured spec (`buildEChartsOption`), not arbitrary code. **SLM-Supervisor feasibility (assessment only, no build):** `docs/research/SLM_SUPERVISOR_AND_RESPONSIVE_ASKPULSE_FEASIBILITY.md` — verdict PARTIALLY FEASIBLE; recommend rules-first router on the unused `connectors/registries.js` seam + managed small-model endpoint (reuse OpenAI-compatible `foundationModelClient` w/ base-URL override) + larger-model fallback; reject browser-embedded (WASM/WebGPU not implemented); reuse deterministic gates (personaGate/hitlGate/allowlist/governance/groundingVerifier); copy `experienceConfig.js` for the Supervisor Settings publish/kill-switch. No content router exists today (user picks connector by profile.type). Authoritative log: **[docs/HANDOVER.md](../HANDOVER.md)** top entry.
 
 **Current state - 2026-07-27 (MCP headed validation on genie-scm-poc + 3 formatting fixes):** Branch `design/nav-consistency`, `85bcb52` (per-card provenance footer hidden) + `d643e48` (formatting). tsc clean, 104 formatter/insights tests green. First full chrome-devtools MCP headed pass (server connected post-restart). **Crash "reading 'state' NOT reproduced** across all 4 surfaces (0 crashes/console errors) — likely stale-cache from before the 2026-07-26 data rebuild. **Configured-state gotcha:** AI Insights `isConfigured` needs `genieSettings.assistantProfile` (written by clicking the profile card in Settings), NOT just `pulseplay:active-ai-profile`. **3 number-formatting fixes, all headed-verified:** (1) chart Y-axis no longer stamps "%" on non-% series when units are mixed (`buildEChartsOption.axisFormatterForSeries` → unit-less "2.5MM"); (2) Genie table keeps 2 decimals for currency <$1000 (`columnLabels.ts`, "$1.80" not "$2"); (3) KPI SNAPSHOT prompt (`visualHelpers.ts` hybrid×2+legacy) requires Δ from unrounded values + compact currency → "NET SALES USD $1.03B ▲ +4.5% vs $989.34M" (was "1.0/0.0%/vs 1.0"). Provenance-footer runtime reads from genieSettings (seed in PulseHostStub), not the native store default. Authoritative log: **[docs/HANDOVER.md](../HANDOVER.md)** top entry.

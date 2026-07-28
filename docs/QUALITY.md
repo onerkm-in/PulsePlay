@@ -19,7 +19,8 @@ These tests assert the code emits the right SHAPE of output (correct prompt stru
 - TypeScript strict mode (playground + bi-adapters)
 - Vite build clean
 - Node version pin (18-22 supported)
-- Lint config in place (`npm run lint`)
+- TypeScript check in place (`npm run lint` currently aliases `tsc --noEmit`);
+  playground/proxy ESLint is not configured yet
 
 ### 3. Live qualitative review
 

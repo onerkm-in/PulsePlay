@@ -5,6 +5,36 @@
 
 ---
 
+## 2026-07-28 (latest+30) — Clean Code knowledge base + evidence-led conformance audit
+
+Commits: `1065398` (knowledge base) + audit/docs follow-up. No production code
+changed.
+
+Built `docs/CLEAN_CODE_KNOWLEDGE_BASE.md` from the owner-supplied Robert C.
+Martin *Clean Code*, second-edition 2025 early-release PDF (912 PDF pages).
+The repo contains derived standards and stable PDF-page citations only, not a
+copyrighted text copy. The standard adapts the book to React/TypeScript/Node,
+the two-axis architecture, the `pulse/*` compatibility boundary, AI-generated
+changes, paid-compute effects, and PulsePlay's problem-envelope contract. It
+explicitly rejects arbitrary method-length limits and cleanup rewrites.
+
+`docs/research/CLEAN_CODE_CONFORMANCE_AUDIT_2026-07-28.md` verdict:
+**PARTIALLY FOLLOWED, with strong boundaries/proof and concentrated structural
+risk.** High findings: the active `pulse/visual.tsx` App remains ~6.8K lines
+(already D5), and `proxy/server.js` remains an ~8.9K-line implementation plus
+composition root with 119 Express registrations (already substantially covered
+by AGENDA REBUILD-P0; recorded as D10, not a parallel rewrite). Medium findings:
+`AppRouted` is another state-policy hotspot; playground `lint` is only
+`tsc --noEmit`; neither main runtime records a coverage-risk baseline. Corrected
+`QUALITY.md`'s inaccurate "lint config" claim, added D11, and linked the
+incremental order in AGENDA/docs hub.
+
+**Tripwire:** the worktree already contained uncommitted Lakeview/server changes
+and many untracked artifacts. They were inspected only to establish scope,
+excluded from attribution, and never staged. Remediation is deliberately
+deferred: D5 mechanical extraction first, correctness-first lint/critical
+coverage baseline second, existing REBUILD-P0 one route family at a time.
+
 ## 2026-07-28 (latest+29) — Four manuals shipped; a doc fact-check found a LIVE production outage (hosted Power BI)
 
 Commits `97343c4` (use-case explainer), `d230a71` (proxy fix), `c88f21d` (three manuals). Hosted app redeployed at `c88f21d`. Playground 1894/1894, proxy **1484/1484 across 83 suites**, tsc clean.
