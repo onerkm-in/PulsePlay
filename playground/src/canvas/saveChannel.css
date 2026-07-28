@@ -1,4 +1,4 @@
-/* Save channel — Industry blueprint popup + token buttons. */
+/* Save channel — Industry-styled popup menu + token button for the trigger. */
 
 .sc-root { position: relative; display: inline-block; }
 
@@ -6,13 +6,29 @@
 .sc-trigger--saved { background: var(--color-accent-100); border-color: var(--color-accent); color: var(--color-accent-800); }
 
 .sc-menu {
-  position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; min-width: 190px;
-  background: var(--color-bg); box-shadow: var(--shadow-md);
-  padding: var(--space-2); display: flex; flex-direction: column; gap: 1px;
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; min-width: 200px;
+  padding: 4px; background: var(--color-bg);
+  border: 1px solid var(--color-divider); border-radius: var(--radius-md, 4px);
+  box-shadow: var(--shadow-md); display: flex; flex-direction: column;
 }
 
-.sc-item { width: 100%; justify-content: flex-start; text-align: left; border-color: transparent; }
-.sc-item:hover:not(:disabled) { background: color-mix(in srgb, var(--color-text) 8%, transparent); }
+/* Menu rows are deliberately NOT `.btn`. The design-system button rules centre
+   their label, apply the heading font, and paint ghost buttons accent-blue —
+   all wrong for a menu. They also load AFTER this file in the production
+   bundle, so the old `.sc-item` (same specificity as `.btn`) lost the cascade
+   in prod while winning in dev: menus rendered left-aligned locally and
+   centred once deployed. Own class + descendant selector keeps this
+   order-proof, whatever the bundler emits. */
+.sc-menu > .sc-item {
+  font: inherit; font-size: 12.5px; font-weight: 400; line-height: 1.35;
+  display: block; width: 100%; box-sizing: border-box; min-height: 0;
+  margin: 0; padding: 7px 10px; text-align: left; white-space: nowrap;
+  color: var(--color-text); background: transparent;
+  border: 0; border-radius: 3px; cursor: pointer;
+}
+.sc-menu > .sc-item:hover:not(:disabled) { background: color-mix(in srgb, var(--color-text) 8%, transparent); }
+.sc-menu > .sc-item:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
+.sc-menu > .sc-item:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .sc-note { padding: var(--space-1) var(--space-1) var(--space-2); display: flex; flex-direction: column; gap: var(--space-1); }
 .sc-note-save { align-self: flex-start; }

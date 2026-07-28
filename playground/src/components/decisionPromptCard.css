@@ -65,7 +65,9 @@
 .dpc__question { font-size: 13.5px; font-weight: 600; margin-top: var(--space-1); }
 
 .dpc__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin-top: var(--space-1); }
-.dpc__actions .btn { min-height: 40px; }
+/* Direct children only — as a descendant selector this also hit buttons inside
+   the Save popup that renders in this row, giving menu rows a 40px floor. */
+.dpc__actions > .btn { min-height: 40px; }
 .dpc__evidence-toggle { margin-left: auto; text-decoration: underline; }
 
 .dpc__terminal-status { font-size: 12px; font-weight: 600; color: var(--pp-accent, var(--color-accent-700)); margin-top: var(--space-1); }

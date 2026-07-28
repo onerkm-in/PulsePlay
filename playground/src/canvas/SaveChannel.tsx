@@ -8,7 +8,7 @@
 //
 // Styled to the Industry design system: token-driven buttons + a blueprint popup.
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import type { CanvasSection, EligibleSection, SaveState } from "./canvasTypes";
 import { saveSection, mutateSection, snapshotSection, snapshotSource } from "./canvasClient";
 import "./saveChannel.css";
@@ -22,6 +22,22 @@ export function SaveChannel({ eligible, compact }: { eligible: EligibleSection; 
     const [flash, setFlash] = useState<string | null>(null);
     const [noteDraft, setNoteDraft] = useState("");
     const [noteOpen, setNoteOpen] = useState(false);
+    const rootRef = useRef<HTMLDivElement>(null);
+
+    // An open menu used to stay open forever: no outside-click or Escape close,
+    // so it hung over the card while the user clicked elsewhere.
+    useEffect(() => {
+        if (!open) return;
+        const close = () => { setOpen(false); setNoteOpen(false); };
+        const onDown = (e: MouseEvent) => { if (!rootRef.current?.contains(e.target as Node)) close(); };
+        const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
+        document.addEventListener("mousedown", onDown);
+        document.addEventListener("keydown", onKey);
+        return () => {
+            document.removeEventListener("mousedown", onDown);
+            document.removeEventListener("keydown", onKey);
+        };
+    }, [open]);
 
     const notify = (m: string) => {
         setFlash(m); setTimeout(() => setFlash(null), 2200);
@@ -73,7 +89,7 @@ export function SaveChannel({ eligible, compact }: { eligible: EligibleSection; 
     const pinned = section ? isPinned(section.state.save_state) : false;
 
     return (
-        <div className="sc-root">
+        <div className="sc-root" ref={rootRef}>
             <button
                 type="button"
                 onClick={() => setOpen((v) => !v)}
@@ -85,9 +101,7 @@ export function SaveChannel({ eligible, compact }: { eligible: EligibleSection; 
             >{pinned ? "Saved ▾" : "Save ▾"}</button>
 
             {open && (
-                <div aria-label="Save options" className="sc-menu blueprint">
-                    <i className="corner tl" /><i className="corner tr" />
-                    <i className="corner bl" /><i className="corner br" />
+                <div aria-label="Save options" className="sc-menu">
                     <MenuItem label={pinned ? "Unpin from Canvas" : "Pin to Canvas"} onClick={doPin} disabled={!eligible} />
                     <MenuItem label="Bookmark" onClick={doBookmark} />
                     <MenuItem label={noteOpen ? "Cancel note" : "Add note"} onClick={() => setNoteOpen((v) => !v)} />
@@ -115,7 +129,7 @@ export function SaveChannel({ eligible, compact }: { eligible: EligibleSection; 
 
 function MenuItem({ label, onClick, disabled }: { label: string; onClick: () => void; disabled?: boolean }) {
     return (
-        <button type="button" onClick={onClick} disabled={disabled} className="btn btn-ghost btn-sm sc-item">
+        <button type="button" onClick={onClick} disabled={disabled} className="sc-item">
             {label}
         </button>
     );
