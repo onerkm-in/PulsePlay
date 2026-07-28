@@ -5,6 +5,18 @@
 
 ---
 
+## 2026-07-28 (latest+27) — Sustainability: DEBT_REGISTER + MAINTENANCE_PLAYBOOK checked in; first two debt retirements executed
+
+Response to the user's maintainability challenge ("~millions of lines, humanly impossible to decode"). Ground truth measured: **171,220 lines of source** (360+ files; 41k = tests, 24%), 76k lines of docs, 994 commits — large enough that the concern is fully valid. Commits `cd53d10` + `b60301e`; main ff'd.
+
+**Two new checked-in artifacts (the durable answer):**
+- **`docs/DEBT_REGISTER.md`** — every known duplication/dead-code/structural debt with evidence, risk, target state, and OWNER-decision flags: D1 three pack corpora (worst; finance-fpa drift already bit), D2 two canvas stores (destroyer neutralised, consolidation pending), D3 legacy wizard ~5,900 lines (HIGH risk — PBI-sibling check required before deletion), D4 dormant Prompt IR (KEEP — wire, don't delete), D5 visual.tsx split (MEASURED: 13,485 lines, 153 decls, the problem is ONE 6,819-line App component; 3-phase plan, Phase 1 = ~2,300 lines of already-top-level pure renderers out mechanically), D6 all-18 stub dispositions, D7 spend budget. **Burn-down rule: every substantial session retires one item or shrinks D5.**
+- **`docs/MAINTENANCE_PLAYBOOK.md`** — the bug/CR loop (reproduce → failing test → evidence-based root-cause → minimal fix → full suite → HANDOVER), the contract-test tripwire table (parity/drift/identity/HITL pins), paid-for rules, and the 30-min owner onboarding path. **ACTION REQUIRED: it has a blank "Architecture owner: ___" line — bus factor stays zero until a human name is committed.**
+
+**Retirements executed same-day (proving the rule):**
+1. `ai_narrated` flag — verified never set anywhere (engine/proxy/UI); type + render + CSS deleted.
+2. `surfaceConnectors` always-null seam — module + codifying test + dead machinery in BOTH big files deleted (event listeners for an event nothing fired, version-bump state, memos re-reading permanent null). One deliberate non-deletion: chat-state storage key keeps a literal "" segment so saved chat histories still match. tsc clean; 282 tests green.
+
 ## 2026-07-28 (latest+26) — Agentic path: authoring copilot + investigation playbooks + BOTH agent prerequisites closed
 
 Rules-first agentic groundwork, per the opportunity-map decision (agentify the edges, never the numbers). Commits `722534c`+`183cdd9` (authoring copilot), `1760deb` (playbooks), `46834c0` (server scope prefix), `acd6d46` (agent identity). main ff'd. Proxy 1480/1480 (82 suites); playground 648/648 area suites; tsc clean.
