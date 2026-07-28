@@ -64,6 +64,7 @@ try {
 
 const CONFIG_PATH = path.join(__dirname, 'config.json');
 const allowlist = require('./lib/allowlist');
+const { applyServerScopePrefix } = require('./lib/runtimeScopePrefix');
 const TIMEOUT_POLICY = require('./lib/timeoutPolicy');
 const { listInstalledPacks, loadPackDetail, loadSubVerticalDetail } = require('./lib/packRegistry');
 const databricksCapabilityRegistry = require('./lib/databricksCapabilityRegistry');
@@ -3490,6 +3491,22 @@ app.post('/assistant/conversations/start', async (req, res) => {
         return startSupervisorConversation(req, res);
     }
 
+    // Server-owned governance floor (2026-07-28). The runtime scope prefix
+    // (forbidden columns/tables, mandatory row filter, read-only, CTE preamble)
+    // was applied ONLY by the browser before calling us — any non-browser
+    // caller (pulse-pbi, desktop, curl, an automated agent) reached Genie with
+    // none of it. If the profile declares governance fields and the content
+    // doesn't already carry the client prefix, prepend the identical text here.
+    // A client-applied prefix is never stripped or doubled (Wave 22 contract).
+    {
+        const scoped = applyServerScopePrefix({
+            content: req.body?.content,
+            profile: resolved.profile,
+            userRole: req.user && Array.isArray(req.user.roles) ? req.user.roles[0] : undefined,
+        });
+        if (scoped.applied) req.body.content = scoped.content;
+    }
+
     // SS2 — proxy-backed shell smoke short-circuit.
     //
     // When the resolved profile is configured with `type: "smoke-fixture"`,
@@ -3656,6 +3673,22 @@ app.post('/assistant/conversations/:conversationId/messages', async (req, res) =
     // first turn — mirrors the powerbi-semantic-model branch above.
     if (isFoundationModelProfile(resolved.profile)) {
         return startFoundationConversation(req, res);
+    }
+
+    // Server-owned governance floor (2026-07-28). The runtime scope prefix
+    // (forbidden columns/tables, mandatory row filter, read-only, CTE preamble)
+    // was applied ONLY by the browser before calling us — any non-browser
+    // caller (pulse-pbi, desktop, curl, an automated agent) reached Genie with
+    // none of it. If the profile declares governance fields and the content
+    // doesn't already carry the client prefix, prepend the identical text here.
+    // A client-applied prefix is never stripped or doubled (Wave 22 contract).
+    {
+        const scoped = applyServerScopePrefix({
+            content: req.body?.content,
+            profile: resolved.profile,
+            userRole: req.user && Array.isArray(req.user.roles) ? req.user.roles[0] : undefined,
+        });
+        if (scoped.applied) req.body.content = scoped.content;
     }
 
     // Supervisor-local follow-up turns are stateless fan-outs (same as the
