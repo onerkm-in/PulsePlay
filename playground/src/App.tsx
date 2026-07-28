@@ -24,6 +24,7 @@ import { BundleSwitcher } from "./components/BundleSwitcher";
 import { PaneEmptyState, DashboardIcon } from "./components/PaneEmptyState";
 import type { SurfaceId } from "./surfaceRegistry";
 import { isSurfaceId, DEFAULT_LANDING_SURFACE } from "./surfaceRegistry";
+import { syncDeploymentDefaults } from "./lib/deploymentDefaults";
 import { useExperienceMode } from "./experience/experienceMode";
 import { DecisionCanvasShell } from "./experience/DecisionCanvasShell";
 import {
@@ -1087,6 +1088,19 @@ function PlaygroundApp(): React.ReactElement {
     // The client handles in-flight dedupe + TTL, so repeated fires are no-ops.
     // Best-effort; discovery failure is non-fatal. Authors can opt out in
     // Settings under Advanced, Performance.
+    // Adopt the deployment's own configuration for anything this browser has
+    // not chosen: which brain answers (X) and which Power BI report the
+    // Dashboard opens (Y). Without this a fresh user lands on "Setup needed"
+    // even when app.yaml has a working Genie space and report wired, because
+    // both axes lived only in localStorage. Never overrides an explicit choice,
+    // and `/assistant/profiles` is routing metadata - no warehouse, no model -
+    // so it does not breach no-spend-without-intent.
+    useEffect(() => {
+        void syncDeploymentDefaults().then(r => {
+            if (r.seededProfile) setActiveConnector(r.seededProfile);
+        }).catch(() => { /* non-fatal; surfaces report their own errors */ });
+    }, []);
+
     useEffect(() => {
         if (!perfLevers.discoveryPrewarmEnabled) return;
         const profile = pulseAssistantProfile || activeConnector;
