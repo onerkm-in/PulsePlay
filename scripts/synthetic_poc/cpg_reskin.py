@@ -73,12 +73,49 @@ def _vol_factor(year: int, month: int) -> float:
     return growth * season
 
 
+# Per-market economics: (volume scale, COGS-ratio bias).
+#
+# Uniform markets are the tell of synthetic data. Before this every LATAM market
+# carried ~$170 MN of net sales at ~55.8% gross margin -- a 0.90 pp spread across
+# all eleven -- so "top markets by sales" and "STRENGTHS ranked by margin" were
+# both ranking noise. The demo could not support the one question a supply-chain
+# audience always asks: which markets are actually different, and why.
+#
+# Scale roughly tracks real economy size, so Brazil dwarfing Uruguay reads as
+# plausible to anyone who knows the region. The COGS bias gives each market its
+# own cost structure -- import duties, local manufacture vs shipped-in, channel
+# mix -- and is INDEPENDENT of year, so the existing YoY margin trend still
+# shows while the LEVELS differ. Values are business-shaped, not derived from
+# any real company.
+MARKET_ECON = {
+    "BR": (2.60, +0.035),   # large, competitive, imports inputs -> thinner margin
+    "MX": (2.20, +0.020),
+    "CO": (1.20, +0.005),
+    "CL": (1.10, -0.030),   # local manufacture -> stronger margin
+    "PE": (0.95, +0.010),
+    "VE": (0.70, +0.055),   # costliest to serve
+    "CR": (0.50, -0.020),
+    "PY": (0.45, -0.005),
+    "BO": (0.40, +0.030),
+    "UY": (0.35, -0.040),   # small but premium mix
+    "SV": (0.30, -0.010),
+}
+# Orphan FK keys (ZZnn) and any unknown market stay small and margin-neutral, so
+# an integrity artifact can never lead a ranking.
+DEFAULT_ECON = (0.20, 0.0)
+
+
+def market_econ(country_id):
+    return MARKET_ECON.get(str(country_id), DEFAULT_ECON)
+
+
 # ---- KPI input columns per fact (realistic CPG magnitudes) -------------------
-def kpi_inputs(short: str, i: int, year: int = None, month: int = None) -> dict:
+def kpi_inputs(short: str, i: int, year: int = None, month: int = None, country_id=None) -> dict:
     yi = _year_idx(year) if year is not None else 0
     vf = _vol_factor(year, month) if year is not None else 1.0
+    scale, cogs_bias = market_econ(country_id)
     if short.endswith("fct_ofr"):
-        ordered = round_half_up((1000 + h("ord", i) % 99000) * vf)
+        ordered = round_half_up((1000 + h("ord", i) % 99000) * vf * scale)
         lines = 5 + h("lines", i) % 195
         # fill-rate & OTIF improve ~0.8pp / 1.0pp per year (service recovery story)
         dlv_ratio = 0.95 + 0.008 * yi + (h("dlv", i) % 50) / 1000.0
@@ -91,7 +128,7 @@ def kpi_inputs(short: str, i: int, year: int = None, month: int = None) -> dict:
         }
     if short.endswith("fct_operations"):
         # center x trend x modest noise so trends survive the ~28-rows/period grain
-        prod = round_half_up(1_000_000 * vf * (0.85 + (h("up", i) % 31) / 100.0))
+        prod = round_half_up(1_000_000 * vf * scale * (0.85 + (h("up", i) % 31) / 100.0))
         # GHG trends DOWN ~5%/yr (decarbonization), independent of volume growth
         ghg = 7500 * (0.95 ** yi) * (0.85 + (h("ghg", i) % 31) / 100.0)
         return {
@@ -105,10 +142,11 @@ def kpi_inputs(short: str, i: int, year: int = None, month: int = None) -> dict:
             "energy_kwh": ("double", round(2_500_000 * (0.97 ** yi) * (0.85 + (h("en", i) % 31) / 100.0), 1)),
         }
     # performance (177 rows -> tight noise band so the YoY/YTD trend shows)
-    fc = 750_000 * vf * (0.92 + (h("fc", i) % 17) / 100.0)
-    ns = 25_000_000 * vf * (0.92 + (h("ns", i) % 17) / 100.0)
-    # COGS ratio falls ~1pp/yr -> gross margin trends up
-    cogs_ratio = 0.44 - 0.010 * yi + (h("cg", i) % 40) / 1000.0
+    fc = 750_000 * vf * scale * (0.92 + (h("fc", i) % 17) / 100.0)
+    ns = 25_000_000 * vf * scale * (0.92 + (h("ns", i) % 17) / 100.0)
+    # COGS ratio falls ~1pp/yr -> gross margin trends up. The per-market bias is
+    # year-independent, so the trend survives while the levels differ.
+    cogs_ratio = 0.44 - 0.010 * yi + cogs_bias + (h("cg", i) % 40) / 1000.0
     return {
         "forecast_qty": ("double", round(fc + 0.0, 1)),
         "actual_qty": ("double", round(fc * (0.82 + (h("act", i) % 33) / 100.0), 1)),
@@ -287,7 +325,7 @@ def build_fact(package, short, dest_rows, dims, rels):
             "week": week, "quarter": (month - 1) // 3 + 1,
         }
         row = [fact_value(c.name, c.type, i, ctx, y0, y1) for c in phys]
-        kin = kpi_inputs(short, i, ctx["year"], ctx["month"])
+        kin = kpi_inputs(short, i, ctx["year"], ctx["month"], ctx["country_id"])
         row += [kin[k][1] for k in kpi_names]
         rows.append(tuple(row))
     return names, types, rows

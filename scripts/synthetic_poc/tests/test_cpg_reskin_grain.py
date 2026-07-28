@@ -108,6 +108,50 @@ def test_market_row_counts_are_balanced_across_halves(perf):
         assert len(set(counts.values())) == 1, f"{year} uneven: {dict(counts)}"
 
 
+def _margin_by_market(perf, year):
+    idx = perf["idx"]
+    sales, cogs = collections.defaultdict(float), collections.defaultdict(float)
+    for r in _half(perf, year):
+        sales[r[idx["country_id"]]] += float(r[idx["net_sales_usd"]] or 0)
+        cogs[r[idx["country_id"]]] += float(r[idx["cogs_usd"]] or 0)
+    return {k: (sales[k] - cogs[k]) / sales[k] * 100 for k in sales if sales[k]}
+
+
+def test_markets_have_distinguishable_margins(perf):
+    """Uniform margins made every margin ranking meaningless.
+
+    Before the per-market cost-structure bias, all eleven markets sat inside a
+    0.90 pp band (55.47-56.37), so "STRENGTHS ranked by margin" was ranking
+    noise. Real markets differ by import duties, local manufacture and channel
+    mix.
+    """
+    margins = {k: v for k, v in _margin_by_market(perf, 2026).items() if k in perf["real"]}
+    spread = max(margins.values()) - min(margins.values())
+    assert spread > 5.0, f"margins still flat ({spread:.2f} pp): {margins}"
+
+
+def test_markets_have_distinguishable_sizes(perf):
+    """Eleven LATAM markets of identical size read as synthetic at a glance."""
+    sales = {k: v for k, v in _sales_by_market(perf, 2026).items() if k in perf["real"]}
+    assert max(sales.values()) / min(sales.values()) > 3.0, f"sizes still flat: {sales}"
+
+
+def test_margin_trend_survives_the_per_market_bias(perf):
+    """The bias is year-independent, so the company margin must still improve."""
+    prior, current = _margin_by_market(perf, 2025), _margin_by_market(perf, 2026)
+    idx = perf["idx"]
+
+    def company(year):
+        s = sum(float(r[idx["net_sales_usd"]] or 0) for r in _half(perf, year))
+        c = sum(float(r[idx["cogs_usd"]] or 0) for r in _half(perf, year))
+        return (s - c) / s * 100
+
+    assert company(2026) > company(2025)
+    # and each market keeps its own level rather than converging
+    assert len({round(v) for v in current.values()}) > 3
+    assert len(prior) == len(current)
+
+
 def test_orphan_keys_exist_but_carry_no_volume(perf):
     """Orphan FKs are integrity-test artifacts, not peer markets.
 

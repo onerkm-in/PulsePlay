@@ -104,7 +104,7 @@ Legend — Risk: how dangerous the fix is. Decision: `—` = executable as descr
 | **Target state** | Per-market cost-structure bias in the value model (`cpg_reskin.fact_value` / `kpi_inputs`), so margins differ by a few points the way real markets do. |
 | **Risk** | Low (synthetic data), but it changes every demo number again — pair it with one regeneration. |
 | **Decision** | — |
-| **Status** | OPEN — measured, not guessed |
+| **Status** | **RETIRED 2026-07-28** (`MARKET_ECON` in cpg_reskin.py; tables regenerated). Live after: margin spread **9.49 pp** (VE 50.31% … UY 59.80%, was 0.90 pp) and size ratio **8.8x** (BR $469 MN … SV $53 MN, was ~1.1x), with YoY trends and the company margin trend intact. 3 new pins. |
 
 ## D7 — Server-side spend budget (planned, not yet built)
 
