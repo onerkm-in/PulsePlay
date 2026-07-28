@@ -234,9 +234,41 @@ def build_fact(package, short, dest_rows, dims, rels):
     names = [c.name for c in phys] + kpi_names
     types = [c.type for c in phys] + kpi_types
 
+    # Stratify over (country x period) instead of hashing the country per row.
+    #
+    # 2026-07-28: per-market YoY in the performance fact was a ROW-COUNT RATIO,
+    # not a trend. Periods were allocated proportionally (below) but the country
+    # was an unstratified hash, so with a 177-row budget over 13 markets x 30
+    # periods most cells were empty and the occupied ones held 1-6 rows at
+    # random. El Salvador reported +126.43% YoY against a company total of
+    # +4.25% purely because it drew 2 rows in H1-2025 and 4 in H1-2026; Mexico
+    # vanished from 2026 entirely, dropping $26.92 MN. Every per-market trend
+    # in the demo was noise.
+    #
+    # The grid walk below gives every (country, period) cell an equal share of
+    # rows. For the performance fact, whose declared grain IS country x year x
+    # month, the floor makes that exactly one row per cell. Finer grain columns
+    # (plant, channel, week) stay hashed — a full cross product over those
+    # would explode the OFR fact.
+    # Orphan FK keys (the synthetic ZZnn from fk_domain) stay OUT of the grid.
+    # Their job is to exist as child keys with no parent so joins and integrity
+    # checks have something to catch — not to carry volume. Putting them in the
+    # grid gave each one a full row-per-period and ~$170 MN of net sales, which
+    # promoted two integrity artifacts into peer markets in every ranking.
+    # They get one row per year instead: present across the timeline, invisible
+    # in any top-N.
+    countries = dom_country or country_keys
+    valid = [cid for cid in countries if cid in ctable] or countries
+    orphans = [cid for cid in countries if cid not in ctable]
+    grid = [(y, m, cid) for (y, m) in PERIODS for cid in valid]
+    orphan_grid = [(y, m, cid) for cid in orphans
+                   for (y, m) in ((yr, 6) for yr in sorted({p[0] for p in PERIODS}))]
+    # Floor: never starve the fact below its own grain, however small SCALE is.
+    dest_rows = max(dest_rows, len(grid))
+
     rows = []
-    for i in range(dest_rows):
-        cid = dom_country[h("fkc", i) % len(dom_country)]
+    plan = [grid[i % len(grid)] for i in range(dest_rows)] + orphan_grid
+    for i, (year, month, cid) in enumerate(plan):
         crow = ctable.get(cid, {"country_text": f"Region {cid}", "ou": "LATAM"})
         if dom_plant:
             pid = dom_plant[h("fkp", i) % len(dom_plant)]
@@ -244,11 +276,6 @@ def build_fact(package, short, dest_rows, dims, rels):
             pid = plant_keys[h("fkp", i) % len(plant_keys)]
         prow = ptable.get(pid, {"descr": f"Site {pid}", "location": f"{pid}", "region": "Central", "loc_type": "Plant"})
         ch = channels[h("fkch", i) % len(channels)]
-        # proportional allocation over periods: each (year, month) gets an equal
-        # share (+/-1 row), with any remainder spread evenly rather than clustered
-        # in the tail -- so volume KPIs scale cleanly with the trend and
-        # YTD-vs-prior-YTD is apples-to-apples even on the sparse (177-row) facts.
-        year, month = PERIODS[i * len(PERIODS) // dest_rows]
         # week-of-year kept coherent with the month (~4.3 weeks per month)
         week = (month - 1) * 4 + 1 + h("wk", i) % 4
         ctx = {
