@@ -115,7 +115,6 @@ export interface ExportBundle {
     settings: {
         biVendor: string;
         packSelection: SettingsState["packSelection"];
-        uiMode: string;
         enabledComponents: string;
         layoutMode: string;
         biTileMode: string;
@@ -203,7 +202,6 @@ export function buildExportBundle(args: BuildExportBundleArgs): ExportBundle {
         settings: {
             biVendor: settings.biVendor,
             packSelection: settings.packSelection,
-            uiMode: settings.uiMode,
             enabledComponents: settings.enabledComponents,
             layoutMode: settings.layoutMode,
             biTileMode: settings.biTileMode,

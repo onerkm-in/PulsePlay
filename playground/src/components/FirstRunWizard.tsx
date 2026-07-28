@@ -14,7 +14,6 @@ import type { PackInfo, PackSelection } from "./PackPicker";
 import { EmbedConfigForm } from "./EmbedConfigForm";
 import { PackPicker } from "./PackPicker";
 import { BarChartIcon, SparklesIcon, TargetIcon, WrenchIcon } from "../lib/icons";
-import { DEFAULT_UI_MODE } from "../settings/settingsStore";
 
 /* Public constants */
 
@@ -35,7 +34,6 @@ export interface PersonaPreset {
     tagline:                string;
     // Lucide icon element (Industry rule 6) — mono steel, no per-persona hue.
     icon:                   ReactNode;
-    uiMode:                 "pulse" | "v0";
     layoutMode:             "ai-left" | "ai-right" | "ai-top";
     preferredConnectorType?: string;
 }
@@ -46,7 +44,6 @@ export const PERSONA_PRESETS: readonly PersonaPreset[] = [
         label:                  "Analyst",
         tagline:                "Drill into metrics, spot anomalies, build narratives.",
         icon:                   <BarChartIcon size={20} />,
-        uiMode:                 DEFAULT_UI_MODE,
         layoutMode:             "ai-left",
         preferredConnectorType: "genie",
     },
@@ -55,7 +52,6 @@ export const PERSONA_PRESETS: readonly PersonaPreset[] = [
         label:                  "Executive",
         tagline:                "High-level view. Quick answers. No friction.",
         icon:                   <TargetIcon size={20} />,
-        uiMode:                 DEFAULT_UI_MODE,
         layoutMode:             "ai-top",
         // 2026-07-24 catalogue curation: foundation-model is hidden for now,
         // so steer executives at the proven Genie connector instead.
@@ -66,7 +62,6 @@ export const PERSONA_PRESETS: readonly PersonaPreset[] = [
         label:                  "Developer",
         tagline:                "Wire up integrations, inspect payloads, debug flows.",
         icon:                   <WrenchIcon size={20} />,
-        uiMode:                 DEFAULT_UI_MODE,
         layoutMode:             "ai-right",
         preferredConnectorType: undefined,
     },
@@ -75,7 +70,6 @@ export const PERSONA_PRESETS: readonly PersonaPreset[] = [
         label:                  "Designer",
         tagline:                "Curate layouts, polish UX, demo to stakeholders.",
         icon:                   <SparklesIcon size={20} />,
-        uiMode:                 DEFAULT_UI_MODE,
         layoutMode:             "ai-left",
         preferredConnectorType: undefined,
     },
@@ -84,10 +78,9 @@ export const PERSONA_PRESETS: readonly PersonaPreset[] = [
 /** Return the UI + layout preset for a persona. */
 export function applyPersonaDefaults(
     persona: PersonaKey,
-): Pick<PersonaPreset, "uiMode" | "layoutMode" | "preferredConnectorType"> {
+): Pick<PersonaPreset, "layoutMode" | "preferredConnectorType"> {
     const preset = PERSONA_PRESETS.find(p => p.key === persona) ?? PERSONA_PRESETS[0];
     return {
-        uiMode:                 preset.uiMode,
         layoutMode:             preset.layoutMode,
         preferredConnectorType: preset.preferredConnectorType,
     };
@@ -131,7 +124,6 @@ export interface FirstRunWizardProps {
         embedConfig:        BIEmbedConfig;
         packSelection:      PackSelection | null;
         persona:            PersonaKey;
-        uiMode:             "pulse" | "v0";
         layoutMode:         "ai-left" | "ai-right" | "ai-top";
         suggestedQuestion?: string;
         autoAsk?:           boolean;
@@ -475,7 +467,6 @@ export function FirstRunWizard(props: FirstRunWizardProps): ReactElement {
             embedConfig:   {},
             packSelection: null,
             persona:       preset.key,
-            uiMode:        preset.uiMode,
             layoutMode:    preset.layoutMode,
         });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -484,14 +475,13 @@ export function FirstRunWizard(props: FirstRunWizardProps): ReactElement {
     const finish = useCallback((autoAsk = false) => {
         clearDraft();
         try { window.localStorage.setItem(WIZARD_DISMISSED_KEY, "true"); } catch { /* swallow */ }
-        const { uiMode, layoutMode } = applyPersonaDefaults(persona);
+        const { layoutMode } = applyPersonaDefaults(persona);
         props.onComplete({
             vendor,
             connector,
             embedConfig,
             packSelection,
             persona,
-            uiMode,
             layoutMode,
             suggestedQuestion: suggestedQ || undefined,
             autoAsk,

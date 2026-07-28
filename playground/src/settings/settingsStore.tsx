@@ -37,7 +37,6 @@ const KEY = {
     biVendor: "pulseplay:bi-vendor",
     biSurfaceMode: BI_SURFACE_MODE_STORAGE_KEY,
     packSelection: "pulseplay:pack-selection",
-    uiMode: "pulseplay:ui-mode",
     enabledComponents: "pulseplay:enabled-components",
     layoutMode: "pulseplay:layout-mode",
     biTileMode: "pulseplay:bi-tile-mode",
@@ -74,26 +73,6 @@ export function isDefaultLandingSurface(v: unknown): v is DefaultLandingSurface 
 const ENABLED_COMPONENTS_LEGACY_BOTH_MIGRATION_KEY = "pulseplay:enabled-components:legacy-both-migrated";
 
 // State shape
-
-export type UiMode = "pulse" | "v0";
-
-// Resolver import lives at the top of the readUiMode body's call site
-// rather than at file head to keep the dependency direction explicit:
-// settingsStore exports DEFAULT_UI_MODE + readTabVisibility; the
-// featureRegistry imports from settingsStore; settingsStore re-imports
-// resolveDefaultSurface from featureRegistry. The cycle is one-shot at
-// boot (resolveDefaultSurface is pure), so node/vite resolve it cleanly.
-// eslint-disable-next-line @typescript-eslint/no-use-before-define
-import { resolveDefaultSurface } from "../featureRegistry/resolver";
-
-/**
- * Single source of truth for the cold-boot default surface. Imported by
- * App.tsx readInitialUiMode(), settingsStore readUiMode(), and the wizard's
- * persona presets, instead of each site hardcoding the same string.
- * "pulse" (Workbench) is the intentional default; "v0" (Chat) is opt-in.
- * Dev escape hatch: `localStorage.setItem("pulseplay:ui-mode", "v0"|"pulse")`.
- */
-export const DEFAULT_UI_MODE: UiMode = "pulse";
 
 /**
  * Per-tab visibility booleans. Each flag controls whether the tab button
@@ -276,7 +255,6 @@ export interface SettingsState {
     biVendor: string;
     biSurfaceMode: BiSurfaceMode;
     packSelection: PackSelection | null;
-    uiMode: UiMode;
     enabledComponents: EnabledComponents;
     layoutMode: LayoutMode;
     biTileMode: BiTileMode;
@@ -350,28 +328,6 @@ function validatePack(selection: PackSelection | null, allowlist: PulsePlayAllow
 
 // Initial load + reconciliation
 
-function readUiMode(): UiMode {
-    // Delegates to the feature-registry resolver. Mirrors
-    // App.tsx readInitialUiMode(); both readers must stay in lockstep
-    // or the cold-boot surface flickers as one resolver hits before the
-    // other.
-    if (typeof window === "undefined") return DEFAULT_UI_MODE;
-    let explicit: "pulse" | "v0" | null = null;
-    try {
-        const v = window.localStorage.getItem(KEY.uiMode);
-        if (v === "v0" || v === "pulse") explicit = v;
-    } catch { /* swallow */ }
-    const resolved = resolveDefaultSurface({
-        explicitUiMode: explicit,
-        requiredFeatures: [],
-        tabVisibility: readTabVisibility(),
-    });
-    // The resolver can return "dashboard", but the uiMode field only holds
-    // "pulse" | "v0". Map dashboard to DEFAULT_UI_MODE for the legacy field;
-    // the dashboard tab is selected via tabVisibility + per-tab routing.
-    return resolved === "dashboard" ? DEFAULT_UI_MODE : resolved;
-}
-
 function readEnabledComponents(): EnabledComponents {
     if (typeof window === "undefined") return "mix";
     try {
@@ -444,9 +400,8 @@ function readPackSelection(): PackSelection | null {
     return null;
 }
 
-/** Exported so App.tsx readInitialUiMode() can feed the same tab-visibility
- *  snapshot into the feature-registry resolver. Pure read from localStorage:
- *  no side effects, safe at boot. */
+/** Pure read of the per-tab visibility from localStorage — no side effects,
+ *  safe at boot. Exported for the boot path + tests. */
 export function readTabVisibility(): TabVisibility {
     if (typeof window === "undefined") return { ...DEFAULT_TAB_VISIBILITY };
     try {
@@ -555,7 +510,6 @@ function buildInitialState(): SettingsState {
         biVendor: readBiVendor(),
         biSurfaceMode: readInitialBiSurfaceMode(),
         packSelection: readPackSelection(),
-        uiMode: readUiMode(),
         enabledComponents: readEnabledComponents(),
         layoutMode: readLayoutMode(),
         biTileMode: readBiTileMode(),
@@ -627,7 +581,6 @@ type Action =
     | { type: "set/biVendor"; value: string }
     | { type: "set/biSurfaceMode"; value: BiSurfaceMode }
     | { type: "set/packSelection"; value: PackSelection | null }
-    | { type: "set/uiMode"; value: UiMode }
     | { type: "set/enabledComponents"; value: EnabledComponents }
     | { type: "set/layoutMode"; value: LayoutMode }
     | { type: "set/biTileMode"; value: BiTileMode }
@@ -671,8 +624,6 @@ function reducer(state: SettingsState, action: Action): SettingsState {
             return { ...state, biSurfaceMode: action.value };
         case "set/packSelection":
             return { ...state, packSelection: action.value };
-        case "set/uiMode":
-            return { ...state, uiMode: action.value };
         case "set/enabledComponents":
             return { ...state, enabledComponents: action.value };
         case "set/layoutMode":
@@ -718,9 +669,6 @@ function reducer(state: SettingsState, action: Action): SettingsState {
 
 function applyExternalSync(state: SettingsState, key: string, value: string): SettingsState {
     switch (key) {
-        case KEY.uiMode:
-            if (value === "pulse" || value === "v0") return { ...state, uiMode: value };
-            return state;
         case KEY.enabledComponents:
             if (value === "aiOnly" || value === "biOnly" || value === "both" || value === "mix") {
                 return { ...state, enabledComponents: value };
@@ -814,9 +762,6 @@ export interface SettingsActions {
     setBiVendor: (value: string) => { ok: boolean; reason?: string };
     setBiSurfaceMode: (value: BiSurfaceMode) => void;
     setPackSelection: (value: PackSelection | null) => { ok: boolean; reason?: string };
-    // No setUiMode by design: uiMode is not user-editable, and dev-tools
-    // localStorage is the only escape hatch. The reducer case "set/uiMode"
-    // remains so the display-change listener can sync mid-session.
     setEnabledComponents: (value: EnabledComponents) => void;
     setLayoutMode: (value: LayoutMode) => void;
     setBiTileMode: (value: BiTileMode) => void;
@@ -954,10 +899,6 @@ export function SettingsProvider(props: SettingsProviderProps): React.ReactEleme
         },
         [state],
     );
-
-    // No setUiMode action by design: no component should set uiMode. Flip
-    // it at dev time by writing the storage key directly (the display-change
-    // listener dispatches "set/uiMode" when that fires).
 
     const setEnabledComponents = useCallback<SettingsActions["setEnabledComponents"]>(
         (value) => {
