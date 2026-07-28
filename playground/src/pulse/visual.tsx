@@ -181,7 +181,7 @@ import { irMarkToChartKind } from "../visualization/chartIR";
 // Wave 44 — Power BI theme inheritance + per-element typography. Pure
 // helpers; the Visual class flushes the resulting plan onto `this.target`.
 import { planThemeWrites, applyThemeWrites } from "./themeInheritance";
-import { cleanInsightsContent, stripTrailingProse, normalizeStageHeading, enforceStageScope, stripEmptyEmphasis, stripTableLeadIn } from "./rendering/contentSanitizer";
+import { cleanInsightsContent, stripTrailingProse, normalizeStageHeading, enforceStageScope, stripEmptyEmphasis, stripTableLeadIn, dropUnpairedEmphasis } from "./rendering/contentSanitizer";
 // Phase E.1 — client-side progressive reveal of Genie single-shot answers.
 // Pure schedule lives in ./state/stagedReveal; this file owns the React glue
 // (arrival-time ref, tick scheduling, render filter + spinner).
@@ -11530,6 +11530,10 @@ function renderHeadlineCard(body: string, sectionTitle: string | undefined, metr
 }
 
 function parseBold(text: string): React.ReactNode {
+    // Guard every bold-parsing site: a marker whose partner was cut away by an
+    // upstream split would otherwise fall through to the raw-text push below
+    // and render as literal asterisks.
+    text = dropUnpairedEmphasis(text);
     const boldRegex = /\*\*(.+?)\*\*/g;
     const parts: React.ReactNode[] = [];
     let lastIndex = 0;
@@ -11554,7 +11558,18 @@ const TREND = "increased|increases|increase|decreased|decreases|decrease|growth|
 const POS_RE = /^(increased?|increases?|growth|rises?|risen|rose|up|higher|gained?|gains?|grew|improved|rebounded?)$/i;
 const FLAT_GLYPH = "[▪■●]";
 const FLAT_WORD = "flat|unchanged|no\\s+change";
-const MEAS_NUM = "[+-]?[$€£₹¥]?\\d[\\d,.]*(?:%|pp|[KMBT])?";
+// Units may be GLUED ("$2.30M") or SPACE-SEPARATED with a multi-letter
+// magnitude ("$989.34 MN", "55.60 %"). Both forms are ours: the built-in
+// section contract teaches the glued form, while the seeded domain guidance
+// mandates the spaced one — and guidance wins by author precedence. This
+// grammar only understood glued units, which is what orphaned bold markers:
+// on `**+$42.07 MN**` the number stopped at the space, so the leading \*{0,2}
+// ate the opening `**` while the trailing one had nothing left to eat, and the
+// closer rendered as literal asterisks. It also left " MN" outside the pill.
+// The negative lookahead keeps "5 Markets" / "up 5 Tonnes" from reading their
+// first letter as a magnitude suffix.
+const MEAS_UNIT = "%|pp|MN|MM|BN|K|M|B|T";
+const MEAS_NUM = `[+-]?[$€£₹¥]?\\d[\\d,.]*(?:\\s?(?:${MEAS_UNIT})(?![A-Za-z]))?`;
 
 /** Strip a leading +/- sign from a trend pill's number when a direction
  *  glyph (TrendPyramid) renders alongside. Codex 2026-05-19 final UAT:
@@ -11792,7 +11807,9 @@ function decorateNeutralRulePills(slice: string, ruleNames: string[]): React.Rea
     const NEUTRAL_RE = new RegExp(
         // Group 1: metric name (case-insensitive). Group 2: separator.
         // Group 3: candidate measurement value.
-        `\\b(${escaped})\\b\\s*(:|=|→|–|—|\\bis\\b|\\bwas\\b|\\bat\\b|\\bof\\b)\\s*([+-]?[$€£₹¥]?\\d[\\d,.]*(?:%|pp|[KMBT])?)`,
+        // Value grammar is shared with INLINE_REGEX so the space-separated unit
+        // form ("99.04 %", "1.14 MN") lands inside the pill here too.
+        `\\b(${escaped})\\b\\s*(:|=|→|–|—|\\bis\\b|\\bwas\\b|\\bat\\b|\\bof\\b)\\s*(${MEAS_NUM})`,
         "gi"
     );
     const out: React.ReactNode[] = [];

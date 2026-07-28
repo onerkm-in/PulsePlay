@@ -239,6 +239,35 @@ export function stripEmptyEmphasis(content: string): string {
 }
 
 /**
+ * Drop `**`/`__` runs that have no partner, so a lone marker never reaches the
+ * DOM as literal asterisks.
+ *
+ * This is a render-time guard, NOT a producer fix, and it deliberately sits
+ * apart from the sanitizer pipeline: the model's markers arrive BALANCED, so
+ * calling this next to stripEmptyEmphasis would be a no-op. The imbalance is
+ * manufactured downstream, when the trend-pill split cuts a `**bold**` span in
+ * half and the two markers land in different slices. Pairing is greedy and
+ * left-to-right to match parseBold, so the leftover is always the last run.
+ *
+ * Single `*` / `_` (italics) are left alone.
+ */
+export function dropUnpairedEmphasis(text: string): string {
+    if (!text || (text.indexOf("**") === -1 && text.indexOf("__") === -1)) return text;
+    let out = text;
+    for (const marker of ["**", "__"]) {
+        const at: number[] = [];
+        let i = 0;
+        while (i <= out.length - 2) {
+            if (out.startsWith(marker, i)) { at.push(i); i += 2; } else i += 1;
+        }
+        if (at.length % 2 === 0) continue;
+        const orphan = at[at.length - 1];
+        out = out.slice(0, orphan) + out.slice(orphan + 2);
+    }
+    return out;
+}
+
+/**
  * Deduplicate repeated `## HEADING` sections. When the LLM emits the same
  * top-level heading twice (e.g. supervisor agent re-asserts a HEADLINE
  * section while answering a later stage), the renderer would otherwise
