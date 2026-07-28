@@ -762,6 +762,26 @@ export const FAST_INSIGHTS_STAGE_TITLE = "AI Insights briefing";
 // `### ### ###.##` straight into the HEADLINE as if it were the value.
 // Injected into every insights stage (hybrid + legacy) so it applies
 // throughout, exactly as the author intends number formatting to.
+/** Placeholder that the runtime swaps for the deterministic metric frame once
+ *  the lead stage's rows are in. It lives in the shared contract so every batch
+ *  inherits it from one edit; when no frame could be built the whole line is
+ *  removed, leaving the prompt exactly as it was before this feature. */
+export const METRIC_FRAME_ANCHOR = "<<PULSEPLAY_METRIC_FRAME>>";
+
+/** Substitute the metric frame into a stage prompt. An empty block strips the
+ *  anchor rather than promising the model authoritative numbers and giving it
+ *  none. Also applied to retry prompts, which wrap the original text. */
+export function applyMetricFrame(prompt: string, block: string): string {
+    if (!prompt.includes(METRIC_FRAME_ANCHOR)) return prompt;
+    if (!block) {
+        return prompt
+            .split("\n")
+            .filter(line => line.trim() !== METRIC_FRAME_ANCHOR)
+            .join("\n");
+    }
+    return prompt.split(METRIC_FRAME_ANCHOR).join(block);
+}
+
 export const FORMAT_MASK_GUARD =
     "FORMAT-MASK RULE (load-bearing): any `#` placeholder notation in the formatting guidance (e.g. `#,###.##`, `### ###`, `##.##%`) describes HOW to format a real number — it is a pattern, never a value. NEVER print literal `#` characters as a number. If you do not have a concrete value to report (e.g. no data is bound), say so in words (\"no data bound for this metric\") — do NOT emit a mask like `### ### ###.##` in its place.";
 
@@ -923,7 +943,7 @@ export function buildFastHybridInsightsStagePrompts(
             ovHeadline || `One declarative sentence, max 25 words, naming the most important ${domainLabel} number, change vs prior period, and on-track / watch / at-risk signal. Bold the headline number.`,
             "",
             "## KPI SNAPSHOT",
-            `Markdown pipe table: KPI | Current | Prior | Δ % | Status. Cover the bound measures (${meas}). Use ▲/▼ and 🟢/🟡/🔴 where useful. PRECISION: compute Δ from the true unrounded values (never from the rounded display), and keep enough significant figures that a real period-over-period change stays visible — never round Current and Prior to the same number. Format currency COMPACTLY with a unit suffix and 2 decimals ($1.03B, $989.34M) — never a full digit string like 1,031,411,004.9. Report only what the numbers show: do NOT attribute causes ("driven by volume and price gains", "likely from cost control") — TRENDS and DRIVERS own causal explanation and have the data for it.`,
+            `Markdown pipe table: KPI | Current | Prior | Δ % | Status. Cover the bound measures (${meas}). Use ▲/▼ and 🟢/🟡/🔴 where useful. PRECISION: compute Δ from the true unrounded values (never from the rounded display), and keep enough significant figures that a real period-over-period change stays visible — never round Current and Prior to the same number. Format currency COMPACTLY with a unit suffix and 2 decimals ($1.03B, $989.34M) — never a full digit string like 1,031,411,004.9. Report only what the numbers show: do NOT attribute causes ("driven by volume and price gains", "likely from cost control") — TRENDS and DRIVERS own causal explanation and have the data for it. AUTHORITATIVE VALUES: when a PRE-COMPUTED METRIC FRAME appears above, copy Current, Prior and Change from it verbatim; if a bound measure is missing from the frame, omit that row rather than computing it yourself.`,
         ].join("\n"));
     }
     if (showTrends) {
@@ -1073,7 +1093,7 @@ export function buildStagedHybridInsightsPlan(
         ].join("\n"));
         sectionBlocks.push([
             "## KPI SNAPSHOT",
-            `Markdown pipe table: KPI | Current | Prior | Δ % | Status. Cover the bound measures (${meas}). Use ▲/▼ and 🟢/🟡/🔴 where useful. PRECISION: compute Δ from the true unrounded values (never from the rounded display), and keep enough significant figures that a real period-over-period change stays visible — never round Current and Prior to the same number. Format currency COMPACTLY with a unit suffix and 2 decimals ($1.03B, $989.34M) — never a full digit string like 1,031,411,004.9. Report only what the numbers show: do NOT attribute causes ("driven by volume and price gains", "likely from cost control") — TRENDS and DRIVERS own causal explanation and have the data for it.`,
+            `Markdown pipe table: KPI | Current | Prior | Δ % | Status. Cover the bound measures (${meas}). Use ▲/▼ and 🟢/🟡/🔴 where useful. PRECISION: compute Δ from the true unrounded values (never from the rounded display), and keep enough significant figures that a real period-over-period change stays visible — never round Current and Prior to the same number. Format currency COMPACTLY with a unit suffix and 2 decimals ($1.03B, $989.34M) — never a full digit string like 1,031,411,004.9. Report only what the numbers show: do NOT attribute causes ("driven by volume and price gains", "likely from cost control") — TRENDS and DRIVERS own causal explanation and have the data for it. AUTHORITATIVE VALUES: when a PRE-COMPUTED METRIC FRAME appears above, copy Current, Prior and Change from it verbatim; if a bound measure is missing from the frame, omit that row rather than computing it yourself.`,
         ].join("\n"));
     }
     if (showTrends) {
@@ -1139,6 +1159,7 @@ export function buildStagedHybridInsightsPlan(
         "Narrative bullets must not contain 🟢/🟡/🔴 status emojis or raw threshold parentheticals such as `(>3%, 🔴 >7%)`. Put status icons only in KPI table cells. If a threshold matters, write it in words, e.g. `above the 3% caution line`.",
         "Avoid awkward metric-rule fragments such as `caution threshold (>3 ▼ -7%)`, `red threshold`, or bare comparator formulas in prose.",
         FORMAT_MASK_GUARD,
+        METRIC_FRAME_ANCHOR,
     ].join("\n");
 
     const stages: string[] = batches.map((batchBlocks, batchIdx) => {

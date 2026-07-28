@@ -160,7 +160,9 @@ import {
     extractAndStripClarifiers,
     titleCase,
     validateAssignedFields,
+    applyMetricFrame,
 } from "./visualHelpers";
+import { buildMetricFrame, renderMetricFrameBlock } from "./metricFrame";
 import { buildBusinessContextProfile } from "../authoring/businessContextProfile";
 import { buildThemeFromHost, buildThemeStyle, mergeTheme, ThemeName } from "./themeConfig";
 // UX-VIEWER-1.2B — Ask Pulse home metadata hook. Replaces STATIC_ACTIONS
@@ -4176,6 +4178,26 @@ function App(props: AppProps) {
             sourceTitle: string;
         } | null = null;
 
+        // One deterministic metric frame per run. The lead stage's rows are the
+        // single source of truth for current / prior / delta; every later stage
+        // narrates the pre-computed strings instead of doing its own arithmetic,
+        // which is what let the brief and the KPI table disagree about the same
+        // figures. The two calls stay split for first paint; only the numbers
+        // travel between them.
+        let metricFrameBlock = "";
+        let frameSettled = false;
+        let resolveFrame: () => void = () => { /* replaced below */ };
+        const frameReady = new Promise<void>(resolve => { resolveFrame = resolve; });
+        const settleFrame = (block: string) => {
+            if (frameSettled) return;
+            frameSettled = true;
+            metricFrameBlock = block;
+            resolveFrame();
+        };
+        // Cap the wait so a stalled or table-less lead stage degrades to the
+        // previous behaviour rather than hanging the rest of the run.
+        const FRAME_WAIT_CAP_MS = 45_000;
+
         // IDEA-039 Phase 1 — pre-allocate one trace slot per stage. Slots are
         // filled as stages run; the array is attached to the insights
         // viewmodel after every state update so the trace pane sees a
@@ -4314,8 +4336,19 @@ function App(props: AppProps) {
             const isHybridStage = !hasOverride && (authoringMode === "preset" || authoringMode === "ai-assisted") && hasHybridConfig;
             const includeGuidance = index === 0 && !isHybridStage;
             const insightsGuidance = (props.settings.insightsDomainGuidance ?? "").trim() || props.settings.domainGuidance;
+            // Later stages narrate the lead stage's numbers rather than deriving
+            // their own, so they wait for the frame before sending. The lead
+            // stage never waits, so first paint is unaffected; the cap means a
+            // stalled lead degrades to the old independent-arithmetic behaviour
+            // instead of blocking the run.
+            if (index > 0 && !frameSettled) {
+                await Promise.race([
+                    frameReady,
+                    new Promise<void>(resolve => setTimeout(resolve, FRAME_WAIT_CAP_MS)),
+                ]);
+            }
             const req = buildGenieRequest(
-                promptOverride ?? prompts[index],
+                applyMetricFrame(promptOverride ?? prompts[index], metricFrameBlock),
                 "summary",
                 props.context,
                 selectedFilters,
@@ -4592,6 +4625,8 @@ function App(props: AppProps) {
                 stageTraces[index].queryResult = responseQueryResult;
                 stageTraces[index].queryResultReusedFromTitle = null;
                 lastDataSeenInRun = { queryResult: responseQueryResult, sourceTitle: ownTitle };
+                // The lead stage's rows define the run's authoritative numbers.
+                if (index === 0) settleFrame(renderMetricFrameBlock(buildMetricFrame(responseQueryResult)));
             } else if (lastDataSeenInRun) {
                 stageTraces[index].queryResult = lastDataSeenInRun.queryResult;
                 stageTraces[index].queryResultReusedFromTitle = lastDataSeenInRun.sourceTitle;
@@ -4599,6 +4634,9 @@ function App(props: AppProps) {
                 stageTraces[index].queryResult = null;
                 stageTraces[index].queryResultReusedFromTitle = null;
             }
+            // Release the later stages the moment we know the lead produced no
+            // usable table, rather than making them serve out the wait cap.
+            if (index === 0) settleFrame(metricFrameBlock);
             stageTraces[index].responseLength = (response.content ?? "").length;
             stageTraces[index].rawMarkdown = response.content ?? "";
             stageTraces[index].durationMs = Date.now() - stageStartMs;
