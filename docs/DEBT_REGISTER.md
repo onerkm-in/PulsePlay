@@ -16,8 +16,8 @@ Legend — Risk: how dangerous the fix is. Decision: `—` = executable as descr
 | **Observed harm** | `finance-fpa` exists in corpus 3 but not corpus 2 → the pack-driven headline feature is silently inert for the live pack (HANDOVER latest+23). Drift is structural, not hypothetical. |
 | **Target state** | ONE served corpus: proxy serves `GET /assistant/domain-context` from `pulsepacks/` (per `docs/AI_CONTEXT_CONFIGURATION_MODEL.md:113-118`); client corpora become fetch-and-cache consumers, then get deleted. |
 | **Risk** | Medium — client fallbacks needed for offline/PBI-sandbox mode. |
-| **Decision** | **OWNER**: confirm `pulsepacks/` as the single canonical source (recommended), and whether `finance-fpa` gets authored KPIs or is dropped. |
-| **Status** | OPEN |
+| **Decision** | **DECIDED 2026-07-28 (owner):** `pulsepacks/` is the single canonical source. Remaining sub-decision: author KPIs for `finance-fpa` or drop it. |
+| **Status** | DECIDED — ready to execute (serve `GET /assistant/domain-context` from pulsepacks/, convert client corpora to consumers, then delete them) |
 
 ## D2 — Two canvas stores (one already destroyed user data)
 
@@ -36,10 +36,10 @@ Legend — Risk: how dangerous the fix is. Decision: `—` = executable as descr
 |---|---|
 | **Copies** | `pulse/setupWizard.tsx` (5,096) + `setupStep5.tsx` + `setupStep5Guided.tsx` (769) + `setupDraft.ts` vs the canonical Settings shell (`settings/*`). ~100-field draft duplicated. |
 | **Observed harm** | Every settings-shape change must be found in both; the wizard's default validate is a 1.5s always-green stub (`setupWizard.tsx:583`). |
-| **Target state** | Delete the in-visual wizard; Settings is the only authoring surface (it already declares itself canonical — `PulseHostStub.ts` seeds `showSetupAccess:false`). |
-| **Risk** | **HIGH** — this code lives under `playground/src/pulse/*`, the Pulse-PBI compat surface. The PBI sibling may still consume it (`docs/PULSE_PORT_DETANGLING.md`, two-enabler propagation memory). Deleting here without checking the sibling breaks the enabler sync. |
-| **Decision** | **OWNER**: confirm the PBI sibling's setup path, then approve deletion. |
-| **Status** | OPEN |
+| **Target state** | ~~Delete the in-visual wizard~~ **REVISED after investigation (2026-07-28): deletion is BLOCKED — the wizard is the PBI sibling's ONLY authoring surface.** Evidence: `sync-from-pulseplay.mjs` copies `playground/src/pulse/**` wholesale into `enablers/pulse-pbi-gn/src/` every build; `visual.tsx:82` imports/renders SetupWizard; the sync STUBS `../settings` to `_ext/` sandbox stubs, so the Settings shell never ships in the `.pbiviz`; `showSetupAccess` defaults true in the shared heritage settings (only PulsePlay's adapter seeds it false). |
+| **Reclassified** | Not deletable duplication — a **sibling-owned surface** hosted in this tree. Residual debt = double-maintenance of the settings shape across wizard and Settings shell (both read the same `settings.ts` model, which bounds the drift). Options if the burden grows: (a) drop authoring from the PBI enabler (product call), (b) port a minimal settings surface into the pulse tree, then delete the wizard. |
+| **Decision** | Resolved for now: KEEP, mark ownership in a header comment. Revisit only if the PBI enabler's authoring needs change. |
+| **Status** | INVESTIGATED-KEEP (2026-07-28) — severity downgraded from HIGH-delete to documented dual-surface |
 
 ## D4 — Dormant Prompt IR (built, tested, wired to nothing)
 

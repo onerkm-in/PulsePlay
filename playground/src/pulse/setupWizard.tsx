@@ -1,3 +1,8 @@
+// OWNERSHIP (2026-07-28, DEBT_REGISTER D3): this wizard is the PBI sibling's
+// ONLY authoring surface — sync-from-pulseplay.mjs ships it into the .pbiviz,
+// where the Settings shell does NOT exist (cross-tree imports are stubbed).
+// PulsePlay itself gates it off (showSetupAccess seeded false). DO NOT DELETE
+// without first giving the enabler a replacement authoring surface.
 /**
  * setupWizard.tsx
  *
