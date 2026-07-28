@@ -923,7 +923,7 @@ export function buildFastHybridInsightsStagePrompts(
             ovHeadline || `One declarative sentence, max 25 words, naming the most important ${domainLabel} number, change vs prior period, and on-track / watch / at-risk signal. Bold the headline number.`,
             "",
             "## KPI SNAPSHOT",
-            `Markdown pipe table: KPI | Current | Prior | Δ % | Status. Cover the bound measures (${meas}). Use ▲/▼ and 🟢/🟡/🔴 where useful. PRECISION: compute Δ from the true unrounded values (never from the rounded display), and keep enough significant figures that a real period-over-period change stays visible — never round Current and Prior to the same number. Format currency COMPACTLY with a unit suffix and 2 decimals ($1.03B, $989.34M) — never a full digit string like 1,031,411,004.9.`,
+            `Markdown pipe table: KPI | Current | Prior | Δ % | Status. Cover the bound measures (${meas}). Use ▲/▼ and 🟢/🟡/🔴 where useful. PRECISION: compute Δ from the true unrounded values (never from the rounded display), and keep enough significant figures that a real period-over-period change stays visible — never round Current and Prior to the same number. Format currency COMPACTLY with a unit suffix and 2 decimals ($1.03B, $989.34M) — never a full digit string like 1,031,411,004.9. Report only what the numbers show: do NOT attribute causes ("driven by volume and price gains", "likely from cost control") — TRENDS and DRIVERS own causal explanation and have the data for it.`,
         ].join("\n"));
     }
     if (showTrends) {
@@ -1073,7 +1073,7 @@ export function buildStagedHybridInsightsPlan(
         ].join("\n"));
         sectionBlocks.push([
             "## KPI SNAPSHOT",
-            `Markdown pipe table: KPI | Current | Prior | Δ % | Status. Cover the bound measures (${meas}). Use ▲/▼ and 🟢/🟡/🔴 where useful. PRECISION: compute Δ from the true unrounded values (never from the rounded display), and keep enough significant figures that a real period-over-period change stays visible — never round Current and Prior to the same number. Format currency COMPACTLY with a unit suffix and 2 decimals ($1.03B, $989.34M) — never a full digit string like 1,031,411,004.9.`,
+            `Markdown pipe table: KPI | Current | Prior | Δ % | Status. Cover the bound measures (${meas}). Use ▲/▼ and 🟢/🟡/🔴 where useful. PRECISION: compute Δ from the true unrounded values (never from the rounded display), and keep enough significant figures that a real period-over-period change stays visible — never round Current and Prior to the same number. Format currency COMPACTLY with a unit suffix and 2 decimals ($1.03B, $989.34M) — never a full digit string like 1,031,411,004.9. Report only what the numbers show: do NOT attribute causes ("driven by volume and price gains", "likely from cost control") — TRENDS and DRIVERS own causal explanation and have the data for it.`,
         ].join("\n"));
     }
     if (showTrends) {
