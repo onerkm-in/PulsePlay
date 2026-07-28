@@ -154,6 +154,8 @@ module.exports = {
             databricksRequest: host.databricksRequest,
             auditLog: host.auditLog,
             sendNoMatchingProfile: host.sendNoMatchingProfile,
+            // See server.js: needed for owner notification on pending-approval.
+            cfg: host.cfg,
         };
         actionInsights.mount(host.app, deps, {
             health: '/decision-assist/health',

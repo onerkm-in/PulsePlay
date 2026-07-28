@@ -23,6 +23,7 @@
 
 const personaGate = require('./personaGate');
 const hitlGate = require('./hitlGate');
+const notifier = require('./decisionNotifier');
 const store = require('./decisionPromptStore');
 
 const { PLANNER, MANAGER, resolvePersona, caps, allowedActionsFor } = personaGate;
@@ -140,10 +141,38 @@ function makeActionHandler(deps) {
         }
         auditLog(req, { action: 'action-insights.action', status: 200,
             detail: `persona=${persona} action=${actionCode} ${promptRow.status}->${newStatus}` });
+
+        // Close the loop: tell the OWNER something is waiting on them. Until now
+        // an approval request was silent — the prompt moved to pending-approval
+        // and sat there until someone happened to open Decisions. Dispatched
+        // AFTER the state change is committed and deliberately non-fatal: a dead
+        // webhook must never fail an action the store already accepted.
+        let notified = null;
+        if (newStatus === 'pending-approval') {
+            try {
+                notified = await notifier.notifyPendingApproval({
+                    cfg: deps.cfg ? deps.cfg() : null,
+                    profile: resolved.profile,
+                    prompt: promptRow,
+                    requestedBy: userId,
+                    persona,
+                    actionCode,
+                });
+            } catch (err) {
+                notified = { delivered: false, channel: 'unknown', detail: String(err && err.message).slice(0, 120) };
+            }
+            auditLog(req, {
+                action: 'action-insights.notify',
+                status: notified.delivered ? 200 : 202,
+                detail: `channel=${notified.channel} delivered=${notified.delivered} ${notified.detail}`,
+            });
+        }
+
         return res.json({
             ok: true, prompt_id: promptId, action: actionCode,
             previous_status: promptRow.status, status: newStatus,
             logged_only: verdict.loggedOnly,
+            ...(notified ? { notification: { channel: notified.channel, delivered: notified.delivered } } : {}),
         });
     };
 }

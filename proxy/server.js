@@ -5623,7 +5623,11 @@ app.post('/insights/suggest-metric-rules', async (req, res) => {
 // databricksRequest, executeSqlStatement, and inherits the /insights middleware
 // stack (rate-limit, idp, shared-key, allowlist) already mounted above.
 require('./lib/actionInsights').register(app, {
-    resolveProfile, databricksRequest, auditLog, sendNoMatchingProfile,
+    // `cfg` lets the action handler resolve notification settings so a
+    // pending-approval can reach the owner (decisionNotifier). Without it the
+    // notifier silently fell back to the log channel even when a webhook was
+    // configured — found in live testing 2026-07-27.
+    resolveProfile, databricksRequest, auditLog, sendNoMatchingProfile, cfg,
 });
 
 // ── Author-selectable interface mode (segregated | combined) ─────────────────

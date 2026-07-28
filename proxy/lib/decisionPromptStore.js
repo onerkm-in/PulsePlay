@@ -60,15 +60,27 @@ async function listPrompts(profile, databricksRequest, { personaWhere = '' } = {
 }
 
 async function loadPrompt(profile, databricksRequest, promptId) {
+    // Authority columns first (status/approval drive the HITL verdict), then the
+    // descriptive ones the owner notification needs — without them a
+    // pending-approval alert said only "PRIORITY-MIX-003 / the owner" and
+    // carried no headline, severity, or impact (live repro 2026-07-27). Read in
+    // ONE query: a second round-trip would spend warehouse time per action.
     const { columns, rows } = await runSql(profile, databricksRequest,
-        `SELECT rule_id, status, evidence_signature, approval_required, action_code
+        `SELECT rule_id, status, evidence_signature, approval_required, action_code,
+                prompt_id, owner, severity, headline, business_impact_value, business_impact_unit
          FROM ${PROMPT_TABLE} WHERE prompt_id = ${sq(promptId)}`);
     if (!rows.length) return null;
     const i = Object.fromEntries(columns.map((c, k) => [c, k]));
+    const at = (name) => (i[name] === undefined ? null : rows[0][i[name]]);
     return {
         rule_id: rows[0][i.rule_id], status: rows[0][i.status],
         evidence_signature: rows[0][i.evidence_signature],
         approval_required: rows[0][i.approval_required], action_code: rows[0][i.action_code],
+        // descriptive (notification only — never used for authorization)
+        prompt_id: at('prompt_id'), owner: at('owner'), severity: at('severity'),
+        headline: at('headline'),
+        business_impact_value: at('business_impact_value'),
+        business_impact_unit: at('business_impact_unit'),
     };
 }
 
