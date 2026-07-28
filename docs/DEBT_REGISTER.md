@@ -84,6 +84,28 @@ Legend — Risk: how dangerous the fix is. Decision: `—` = executable as descr
 | `pulseplay:canvas-tiles-migrated` marker residue | Dies with D2 |
 | Ask Pulse KPI-preload spends a Genie conversation (COST-P1, AGENDA) | OPEN — fold into the spend-budget work |
 
+## D8 — Number formatting: four vocabularies, one of them the model's
+
+| | |
+|---|---|
+| **Copies** | `formatValueByUnit` emits B/MM/M (`columnLabels.ts:234`), `contextBuilder.formatNumber` emits M/K (`:342`), `fmtUsd` emits M/K (`DecisionCanvasShell.tsx:90`), and now `metricFrame.formatMagnitude` emits the project Roman scale M/MN/B. Separately the MODEL formats prose per domain guidance — `MN` exists nowhere in code as an emitted suffix. |
+| **Observed harm** | The same figure rendered `$1,031.41 MN` in one section and `$1.03 B` in another (2026-07-28). Fixed at the guidance layer for AI prose, but the four code formatters still disagree with each other and with the stated convention. |
+| **Target state** | ONE exported formatter (extend `metricFrame.formatMagnitude`, which already encodes the documented convention and is unit-tested), consumed by the other three call sites; keep the model's own formatting governed by guidance only. |
+| **Risk** | Low-medium — each call site has pinned display tests. |
+| **Decision** | — |
+| **Status** | OPEN (surfaced 2026-07-28 while fixing the MN-vs-B defect) |
+
+## D9 — Synthetic per-market value flatness
+
+| | |
+|---|---|
+| **Evidence** | After the grain fix (`b0e4102`) per-market gross margin still spans only **0.90 pp** (55.47–56.37, measured live). Every market draws from the same noise distribution in the value model, so margin cannot differentiate anything. |
+| **Observed harm** | "STRENGTHS ranked by margin" is uninformative — the ranking is noise even though the trends are now real. Weakens the demo narrative. |
+| **Target state** | Per-market cost-structure bias in the value model (`cpg_reskin.fact_value` / `kpi_inputs`), so margins differ by a few points the way real markets do. |
+| **Risk** | Low (synthetic data), but it changes every demo number again — pair it with one regeneration. |
+| **Decision** | — |
+| **Status** | OPEN — measured, not guessed |
+
 ## D7 — Server-side spend budget (planned, not yet built)
 
 The last gate before any agent executor: all four no-spend-without-intent gates are client-side.

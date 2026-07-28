@@ -5,6 +5,31 @@
 
 ---
 
+## 2026-07-28 (latest+28) — Insights output defects root-caused + fixed; synthetic data regenerated; batched stages were discarding paid-for sections
+
+Triggered by a pasted Executive Brief showing stray `**`, two sections disagreeing about the same numbers, `$1,031.41 MN` vs `$1.03 B`, and `SV sales growth 126.43 %`. Nine commits `a2b4db4` → `8866f91`; main ff'd; hosted app redeployed (`resolved_commit 8866f91`). Playground **1894/1894** (147 files), pytest **25/25**, tsc + vite build clean.
+
+**The most expensive bug was not in the report — batched stages silently discarded sections (`aeac0af`).** The shipped `balanced` cadence is batchSize 2, so stage 1 asks Genie for `KPI SNAPSHOT + TRENDS` and stage 2 for `RISKS + RECOMMENDED ACTIONS`. The call site scoped responses with `titles[index].split(" + ")[0]` — the FIRST title only — so the model returned both and the later section was deleted **after we paid to generate it**. `quick` cadence (batchSize 3) lost two of every three. `enforceStageScope` now takes `string | string[]` and keeps every requested section while still dropping genuine over-production. 8 pins.
+
+**Per-market YoY was a row-count ratio, not a trend (`b0e4102`)** — and the deployed tables are now REGENERATED. `build_fact` stratified PERIODS but hashed the country, so on a 177-row budget over 13 markets × 30 periods a market's "growth" was just how many rows it drew per half (SV: 2 → 4 = "+126%"). Ruled out query/window and LLM hallucination by reproducing the deployed table offline and matching 16 reported figures to the cent. Fix: walk a (country × period) grid + floor the budget at the grid size. **Orphan FK keys (ZZnn) stay OUT of the grid** — they are deliberate integrity artifacts, and my first version gave them a full row-per-period and ~$170 MN, promoting them to peer markets. Live after: SV +126.43% → **+4.10%**, CL now a genuine **−1.24%**, MX restored (was silently dropping $26.92 MN), spread −1.24…+10.64 vs +4.89 total.
+
+**Cross-section disagreement fixed WITHOUT merging the calls (`6ffd44d` + `8866f91`).** True values were +4.2524% and +0.4530, so KPI SNAPSHOT's `+4.29 %` was simply wrong and `0.46` was the artifact of subtracting two rounded displays. New `pulse/metricFrame.ts` computes current/prior/delta once from the lead stage's rows, formats once, and every later stage narrates it via `METRIC_FRAME_ANCHOR` substituted at the send seam. **Written against an OBSERVED payload** — the research agent flagged its own parser design as "a hypothesis, not an observation", so a live probe was run first: shape is tall (`Metric|Period|Value`) with values as scientific-notation STRINGS. Unobserved "wide" shape deliberately NOT implemented; anything unreadable yields an empty frame that strips the anchor = byte-identical to old behaviour. **First paint unaffected**: the lead never waits; later stages' wait replaces the 6 s stagger that used to dispatch them before the lead returned. Retry prompts re-wrap `prompts[index]` so they inherit the frame — pinned, since silent loss would be invisible.
+
+**Stray `**` was OURS, not the model's (`b7356c8`).** Markers arrived balanced; `MEAS_NUM` only understood GLUED units (`$2.30M`) while our own seeded guidance mandates SPACED units (`$989.34 MN`) and wins by author precedence — so the number stopped at the space, the leading `\*{0,2}` ate the opening marker and the trailing one had nothing to eat. Grammar now accepts spaced multi-letter magnitudes (fixing the orphan AND putting ` MN` inside the pill), plus a `dropUnpairedEmphasis` guard in `parseBold`. A sanitizer-pipeline fix would have been a NO-OP — markers are still balanced there.
+
+**Also shipped:** Decisions is the default landing surface (`4604484`, with the author override extended to accept it so it stays reversible, + 3 pins; 18 CI-gating tests updated); `normalizeTypography` strips em/en dashes, curly quotes and ellipses from all AI content at one seam plus UI copy plus guidance (`1910b08`); Save-menu design fix (`a2b4db4`) — menu rows were `.btn btn-ghost`, tying `.btn` on specificity so **cascade order decided**, rendering correctly in dev and centred/blue/54px in production.
+
+**Tripwires for next session:**
+- **`normalizeTypography` must never turn a dash before a number into a hyphen** — `Sales - 5.2%` reads as NEGATIVE. It becomes `", "`. And a tight dash between digits is a RANGE (`2025-2026`); the range rule must run first (my first version produced `2025, 2026`).
+- **`.dpc__actions > .btn`** is a direct-child selector on purpose — as a descendant it leaked a 40px floor into popup menus.
+- **CSS specificity ties are decided by bundle order, which differs between dev and prod.** Verify component styling against a served production build, not the dev server.
+- **Still open, measured not guessed:** per-market gross margin spans only **0.90 pp** (55.47–56.37). That flatness is the VALUE model, not the grain, and it makes "STRENGTHS ranked by margin" uninformative. Separate change.
+- `seedPulsePlayDefaults` only writes ABSENT keys, so existing sessions keep their stored `domainGuidance` and will NOT pick up the new unit-promotion / ASCII clauses; they must extend it in Settings → AI.
+
+Live end-to-end proof (not just unit tests): a KPI-SNAPSHOT prompt carrying the frame returned `$1.99 B / $1.90 B / $92.68 MN (+4.89 %) / 56.03 % / 54.86 % / +1.18 %` verbatim, with no comma-grouped mantissa, no em dash, and no invented `4.29`.
+
+---
+
 ## 2026-07-28 (latest+27) — Sustainability: DEBT_REGISTER + MAINTENANCE_PLAYBOOK checked in; first two debt retirements executed
 
 Response to the user's maintainability challenge ("~millions of lines, humanly impossible to decode"). Ground truth measured: **171,220 lines of source** (360+ files; 41k = tests, 24%), 76k lines of docs, 994 commits — large enough that the concern is fully valid. Commits `cd53d10` + `b60301e`; main ff'd.
