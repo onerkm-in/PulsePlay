@@ -121,13 +121,19 @@ export function widgetToEChartsOption(widget: NormalizedWidget, data: WidgetData
             };
         }
 
-        const xi = columnIndex(data, x?.fieldName);
+        // A bar can encode its category on COLOUR with no x at all (observed:
+        // "Support Tickets by Priority" is y = count(ticket_id), color =
+        // priority). Treat colour as the category axis in that case rather than
+        // declining a chart that is perfectly well specified.
+        const xEnc = x?.fieldName ? x : (color?.fieldName ? color : undefined);
+        const colorIsAxis = !x?.fieldName && !!color?.fieldName;
+        const xi = columnIndex(data, xEnc?.fieldName);
         const yi = columnIndex(data, y?.fieldName);
         if (xi < 0 || yi < 0) return null;
-        const ci = columnIndex(data, color?.fieldName);
+        const ci = colorIsAxis ? -1 : columnIndex(data, color?.fieldName);
         const map = colorMap(color);
         const series = splitSeries(data, xi, yi, ci);
-        const temporal = x?.scale?.type === "temporal";
+        const temporal = xEnc?.scale?.type === "temporal";
         const seriesType = widget.kind === "area" ? "line" : (widget.kind === "scatter" ? "scatter" : widget.kind);
 
         return {
@@ -135,7 +141,7 @@ export function widgetToEChartsOption(widget: NormalizedWidget, data: WidgetData
             legend: series.length > 1 ? { type: "scroll" } : undefined,
             xAxis: {
                 type: temporal ? "time" : "category",
-                name: label(x),
+                name: label(xEnc),
                 data: temporal ? undefined : [...new Set(data.rows.map(r => String(r[xi] ?? "")))],
             },
             yAxis: { type: "value", name: label(y) },

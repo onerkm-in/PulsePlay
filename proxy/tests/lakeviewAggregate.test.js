@@ -84,8 +84,6 @@ describe('buildAggregateSql — the happy paths from the real spec', () => {
 describe('buildAggregateSql — declines rather than guessing', () => {
     const decline = (widget, why) => test(why, () => expect(buildAggregateSql(DATASET_SQL, widget)).toBeNull());
 
-    decline({ spec: { widgetType: 'counter', encodings: { value: { fieldName: 'count(*)' } } } },
-        'counters are not charts');
     decline({ spec: { widgetType: 'table', encodings: { columns: [{ fieldName: 'a' }] } } },
         'tables want rows, not groups');
     decline({ spec: { widgetType: 'pivot', encodings: {} } },
@@ -197,5 +195,46 @@ describe('buildAggregateSql — channel roles come from the field, not the slot'
         });
         expect(sql).toContain('GROUP BY `source`');
         expect(sql).not.toContain('GROUP BY `source`, `source`');
+    });
+});
+
+describe('buildAggregateSql — counters are the grand-total case', () => {
+    // "Support Agents Online" encodes countdistinct(agent_name), a value the raw
+    // dataset does not contain, so without aggregation the widget could never
+    // resolve and fell back with "encodings could not be mapped faithfully".
+    const COUNTER = {
+        name: 'w-counter',
+        spec: {
+            widgetType: 'counter',
+            encodings: {
+                value: { fieldName: 'countdistinct(agent_name)' },
+                target: { fieldName: 'count(*)' },
+            },
+        },
+    };
+
+    test('aggregates with no GROUP BY and maps countdistinct', () => {
+        const sql = buildAggregateSql(DATASET_SQL, COUNTER);
+        expect(sql).toContain('COUNT(DISTINCT `agent_name`) AS `countdistinct(agent_name)`');
+        expect(sql).not.toContain('GROUP BY');
+        expect(sql).toMatch(/LIMIT 1$/);
+    });
+
+    test('a counter carrying a dimension is not a counter', () => {
+        expect(buildAggregateSql(DATASET_SQL, {
+            spec: { widgetType: 'counter', encodings: { value: { fieldName: 'count(*)' }, x: { fieldName: 'region' } } },
+        })).toBeNull();
+    });
+
+    test('COUNT(DISTINCT *) is refused', () => {
+        expect(buildAggregateSql(DATASET_SQL, {
+            spec: { widgetType: 'counter', encodings: { value: { fieldName: 'countdistinct(*)' } } },
+        })).toBeNull();
+    });
+
+    test('a chart still requires a dimension', () => {
+        expect(buildAggregateSql(DATASET_SQL, {
+            spec: { widgetType: 'bar', encodings: { y: { fieldName: 'countdistinct(agent_name)' } } },
+        })).toBeNull();
     });
 });

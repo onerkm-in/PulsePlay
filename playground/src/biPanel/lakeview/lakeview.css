@@ -1,0 +1,149 @@
+/* Databricks AI/BI dashboards rendered natively.
+ *
+ * Token-driven so a Lakeview dashboard adopts the host theme instead of
+ * importing Databricks' look - the whole point of rendering it ourselves
+ * rather than embedding an iframe.
+ *
+ * The explicit chart-body height is load-bearing, not cosmetic: ECharts reads
+ * its container's size at init(), and an auto-height flex child measures 0, so
+ * every canvas renders 0x0 and the dashboard looks empty while reporting
+ * success. */
+
+.lv-root {
+  padding: var(--space-3, 16px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4, 24px);
+  overflow: auto;
+  height: 100%;
+  box-sizing: border-box;
+  background: var(--color-bg, #f2f2f3);
+}
+
+.lv-page-title {
+  margin: 0;
+  font-family: var(--font-heading, inherit);
+  font-size: 15px;
+  font-weight: var(--font-heading-weight, 600);
+  letter-spacing: 0.01em;
+  color: var(--color-text, #1d1f20);
+}
+
+.lv-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--space-3, 16px);
+  align-items: start;
+}
+
+.lv-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;                 /* let grid children shrink instead of overflowing */
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-divider, rgba(0, 0, 0, 0.12));
+  border-radius: var(--radius-md, 4px);
+  padding: var(--space-2, 12px);
+  gap: 8px;
+}
+
+.lv-card-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-text, #1d1f20);
+}
+
+.lv-card-body { min-width: 0; }
+
+/* Charts need a real height before init() - see the header note. */
+.lv-card--chart .lv-card-body { height: 260px; width: 100%; }
+.lv-card--chart { grid-column: span 1; }
+
+/* Counters read as a single figure, so they stay compact. */
+.lv-card--counter .lv-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 0;
+}
+.lv-counter-value {
+  font-family: var(--font-heading, inherit);
+  font-variant-numeric: tabular-nums;
+  font-size: 26px;
+  line-height: 1.1;
+  color: var(--color-text, #1d1f20);
+}
+.lv-counter-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--pp-text-subtle, #6b6b70);
+}
+
+/* Text widgets: the dashboard author's own commentary. */
+.lv-card--text { background: transparent; border: 0; padding: 0; }
+.lv-text-heading {
+  margin: 0;
+  font-family: var(--font-heading, inherit);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--color-text, #1d1f20);
+}
+.lv-text-line {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--pp-text-muted, #5d5d60);
+}
+
+.lv-card--table { grid-column: span 2; }
+.lv-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  display: block;
+  overflow-x: auto;             /* wide tables scroll themselves, never the page */
+  max-height: 320px;
+}
+.lv-table th,
+.lv-table td {
+  text-align: left;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--color-divider, rgba(0, 0, 0, 0.08));
+  white-space: nowrap;
+}
+.lv-table th {
+  position: sticky;
+  top: 0;
+  background: var(--color-surface, #fff);
+  font-weight: 600;
+}
+.lv-table-more {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--pp-text-subtle, #6b6b70);
+}
+
+/* Fallback cards say what could not be drawn and why. Deliberately quiet -
+ * they are honest, not alarming: the rest of the dashboard is fine. */
+.lv-card--fallback {
+  border-style: dashed;
+  background: transparent;
+}
+.lv-fallback-kind {
+  font-size: 11px;
+  font-family: var(--font-mono, "Cascadia Code", Consolas, monospace);
+  color: var(--pp-text-subtle, #6b6b70);
+}
+.lv-fallback-reason {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--pp-text-muted, #5d5d60);
+}
+
+@media (max-width: 720px) {
+  .lv-grid { grid-template-columns: 1fr; }
+  .lv-card--table { grid-column: span 1; }
+}

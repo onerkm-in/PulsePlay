@@ -108,9 +108,11 @@ describe("renderLakeviewDashboard", () => {
         const chartCalls = datasetCalls.filter(c => c.widgetName);
         const sharedCalls = datasetCalls.filter(c => !c.widgetName);
 
-        // one request per chart widget, each naming its widget so the server can
-        // derive that widget's aggregation from the spec
-        expect(chartCalls.length).toBe(3); // bar + pie + line in the fixture
+        // one request per widget that aggregates, each naming its widget so the
+        // server derives that widget's aggregation from the spec. Counters
+        // aggregate too - a countdistinct() encoding names a value the raw
+        // dataset does not carry.
+        expect(chartCalls.length).toBe(4); // bar + pie + line + counter
         expect(new Set(chartCalls.map(c => c.widgetName)).size).toBe(chartCalls.length);
 
         // counters and tables read rows as they are, so they share one fetch per

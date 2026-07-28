@@ -43,7 +43,10 @@ const TEMPORAL_UNITS = {
     yearly: 'YEAR',
 };
 
-const AGG_FNS = new Set(['count', 'sum', 'avg', 'min', 'max']);
+// `countdistinct` is Lakeview's spelling for COUNT(DISTINCT x) and appears in
+// real specs ("countdistinct(agent_name)"), so it is mapped rather than
+// declined.
+const AGG_FNS = new Set(['count', 'countdistinct', 'sum', 'avg', 'min', 'max']);
 
 /** Column names we are willing to quote. Databricks allows spaces; a backtick
  *  would break quoting, so it is rejected outright rather than escaped. */
@@ -103,6 +106,10 @@ function dimensionSql(parsed) {
 /** SQL for a measure channel, or null. */
 function measureSql(parsed) {
     if (parsed.kind !== 'agg') return null;
+    if (parsed.fn === 'countdistinct') {
+        const col = quoteIdent(parsed.arg);
+        return col ? `COUNT(DISTINCT ${col})` : null;   // COUNT(DISTINCT *) is not valid
+    }
     const fn = parsed.fn.toUpperCase();
     if (parsed.arg === '*') return `${fn}(*)`;
     const col = quoteIdent(parsed.arg);
@@ -133,9 +140,14 @@ function buildAggregateSql(datasetSql, widget, { groupLimit = 5000 } = {}) {
     if (!sql) return null;
 
     const kind = widget?.spec?.widgetType;
-    // Only charts. counters read a single value, tables want rows, and the
-    // rest are not ours to reinterpret.
-    if (!kind || !['bar', 'line', 'area', 'pie', 'scatter', 'combo'].includes(kind)) return null;
+    const isChart = ['bar', 'line', 'area', 'pie', 'scatter', 'combo'].includes(kind);
+    // A COUNTER is the grand-total case: measures, no grouping. That is exactly
+    // what a chart may not be, and exactly what a counter is - and it matters,
+    // because a counter encoding like countdistinct(agent_name) names a value
+    // the raw dataset does not contain, so without this the widget could never
+    // resolve. Tables want rows; everything else is not ours to reinterpret.
+    const isCounter = kind === 'counter';
+    if (!isChart && !isCounter) return null;
 
     const encodings = widget?.spec?.encodings;
     if (!encodings || typeof encodings !== 'object') return null;
@@ -168,19 +180,23 @@ function buildAggregateSql(datasetSql, widget, { groupLimit = 5000 } = {}) {
         }
     }
 
-    // A chart needs something to group BY and something to aggregate. Zero
-    // measures means the dataset already carries computed values, and grouping
-    // those would need SUM-of-SUM reasoning this will not guess at; zero
-    // dimensions is a grand total, not a chart.
+    // Zero measures means the dataset already carries computed values, and
+    // grouping those would need SUM-of-SUM reasoning this will not guess at.
     if (measures.length === 0) return null;
-    if (dims.length === 0) return null;
+    // A chart with no dimension is a grand total, not a chart. A counter is
+    // precisely that grand total, so it is allowed - and must not group.
+    if (dims.length === 0 && !isCounter) return null;
+    if (isCounter && dims.length > 0) return null;   // a grouped counter is not a counter
 
     const selectList = [
         ...dims.map(d => `${d.expr} AS ${d.alias}`),
         ...measures.map(m => `${m.expr} AS ${m.alias}`),
     ].join(', ');
-    const groupBy = dims.map(d => d.expr).join(', ');
 
+    if (isCounter) {
+        return `SELECT ${selectList} FROM (${sql}) AS pp_src LIMIT 1`;
+    }
+    const groupBy = dims.map(d => d.expr).join(', ');
     return `SELECT ${selectList} FROM (${sql}) AS pp_src GROUP BY ${groupBy} LIMIT ${Number(groupLimit) || 5000}`;
 }
 

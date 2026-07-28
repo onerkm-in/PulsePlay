@@ -24,6 +24,7 @@ import {
     type LakeviewDashboardSpec,
 } from "./dashboardSpec";
 import { widgetToEChartsOption, tableColumns, type WidgetData } from "./lakeviewToECharts";
+import "./lakeview.css";
 
 export interface LakeviewChartsLib {
     init(el: HTMLElement): {
@@ -189,8 +190,14 @@ export async function renderLakeviewDashboard(
     for (const page of dashboard.pages) {
         for (const w of page.widgets) {
             if (!w.datasetName) continue;
-            if (w.render === "chart") perWidget.set(w.id, { datasetName: w.datasetName, widgetName: w.id });
-            else if (w.render === "counter" || w.render === "table") perDataset.add(w.datasetName);
+            // Counters aggregate too: an encoding like countdistinct(agent_name)
+            // names a value the raw dataset does not contain, so a counter must
+            // ask for its own computed result exactly as a chart does.
+            if (w.render === "chart" || w.render === "counter") {
+                perWidget.set(w.id, { datasetName: w.datasetName, widgetName: w.id });
+            } else if (w.render === "table") {
+                perDataset.add(w.datasetName);
+            }
         }
     }
 
@@ -242,7 +249,7 @@ export async function renderLakeviewDashboard(
 
             // Charts read their own (aggregated) result; everything else reads
             // the shared dataset result.
-            const data = widget.render === "chart"
+            const data = (widget.render === "chart" || widget.render === "counter")
                 ? results.get(widget.id) ?? null
                 : (widget.datasetName ? results.get(widget.datasetName) ?? null : null);
             const option = widget.render === "chart" || widget.render === "counter"

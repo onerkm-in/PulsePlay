@@ -102,6 +102,22 @@ export default defineConfig({
             allow: [".", ".."],
         },
     },
+    // `vite preview` serves the PRODUCTION bundle, and validating a prod build
+    // locally needs the same /api proxy the dev server has. Without it every
+    // API call 404s against the static server, so a prod-only bug (CSS cascade
+    // order, dep bundling) can only be reproduced after a deploy. Mirrors
+    // server.proxy deliberately — they must not drift.
+    preview: {
+        port: 7003,
+        host: "127.0.0.1",
+        proxy: {
+            "/api": {
+                target: "http://127.0.0.1:7000",
+                changeOrigin: true,
+                rewrite: (path) => path.replace(/^\/api/, ""),
+            },
+        },
+    },
     build: {
         outDir: "dist",
         sourcemap: true,
