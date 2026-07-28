@@ -4507,9 +4507,13 @@ function App(props: AppProps) {
             // skipping the prepend just because the question contains
             // a `?`).
             {
-                const expectedTitle = titles[index] === FAST_INSIGHTS_STAGE_TITLE
-                    ? ""
-                    : (titles[index] ?? "").split(" + ")[0].trim();
+                // A batch title is "A + B" when the stage asked for several
+                // sections; scope to ALL of them, not just the first, or every
+                // section after the first is discarded after we paid for it.
+                const expectedTitles = titles[index] === FAST_INSIGHTS_STAGE_TITLE
+                    ? []
+                    : (titles[index] ?? "").split(" + ").map(t => t.trim()).filter(Boolean);
+                const expectedTitle = expectedTitles[0] ?? "";
                 // Two-step normalization:
                 //   1. enforceStageScope: when the agent over-produced
                 //      multiple sections in one stage response (e.g. the
@@ -4519,8 +4523,8 @@ function App(props: AppProps) {
                 //      with `## TITLE` even if the model dropped the
                 //      heading.
                 const trimmedResponseRaw = (response.content ?? "").trim();
-                const scoped = expectedTitle
-                    ? enforceStageScope(trimmedResponseRaw, expectedTitle)
+                const scoped = expectedTitles.length
+                    ? enforceStageScope(trimmedResponseRaw, expectedTitles)
                     : trimmedResponseRaw;
                 const normalised = expectedTitle
                     ? normalizeStageHeading(scoped, expectedTitle)

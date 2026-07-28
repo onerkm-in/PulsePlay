@@ -340,9 +340,19 @@ export function cleanInsightsContent(content: string): string {
  * the input when no `## ${expectedTitle}` heading is present (in which
  * case `normalizeStageHeading` will inject one upstream).
  */
-export function enforceStageScope(content: string, expectedTitle: string): string {
-    if (!content || !expectedTitle) return content;
-    const normalizedExpected = expectedTitle.trim().toUpperCase().replace(/\s+/g, " ");
+export function enforceStageScope(content: string, expectedTitle: string | string[]): string {
+    // A batch may legitimately request SEVERAL sections in one call. Keeping
+    // only the first silently deleted every later section the model produced —
+    // on the shipped "balanced" cadence (batchSize 2) that meant TRENDS and
+    // RECOMMENDED ACTIONS were generated, paid for, and thrown away. Every
+    // REQUESTED section is kept; only genuinely unrequested over-production
+    // (the supervisor agent dumping a five-section essay under HEADLINE) is
+    // dropped.
+    const wanted = (Array.isArray(expectedTitle) ? expectedTitle : [expectedTitle])
+        .map(t => (t ?? "").trim().toUpperCase().replace(/\s+/g, " "))
+        .filter(Boolean);
+    if (!content || wanted.length === 0) return content;
+
     const sectionRegex = /^##\s+(.+)$/gm;
     const matches: { title: string; offset: number }[] = [];
     let m: RegExpExecArray | null;
@@ -350,15 +360,19 @@ export function enforceStageScope(content: string, expectedTitle: string): strin
         matches.push({ title: m[1].trim().toUpperCase().replace(/\s+/g, " "), offset: m.index });
     }
     if (matches.length <= 1) return content;
-    const target = matches.find(x => x.title === normalizedExpected);
-    if (!target) return content; // nothing matches — let normalizeStageHeading handle it
-    const targetIdx = matches.indexOf(target);
-    const from = target.offset;
-    const to = targetIdx + 1 < matches.length ? matches[targetIdx + 1].offset : content.length;
+
+    const wantedSet = new Set(wanted);
+    const kept: string[] = [];
+    matches.forEach((match, i) => {
+        if (!wantedSet.has(match.title)) return;
+        const to = i + 1 < matches.length ? matches[i + 1].offset : content.length;
+        kept.push(content.slice(match.offset, to).trim());
+    });
+    if (kept.length === 0) return content; // nothing matches — normalizeStageHeading handles it
+
     // Preserve any pre-heading prose (uncommon but possible — usually empty)
-    const preHead = content.slice(0, from).trim();
-    const section = content.slice(from, to).trim();
-    return (preHead ? preHead + "\n\n" : "") + section;
+    const preHead = content.slice(0, matches[0].offset).trim();
+    return (preHead ? preHead + "\n\n" : "") + kept.join("\n\n");
 }
 
 /**
