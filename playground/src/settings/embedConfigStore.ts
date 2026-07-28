@@ -96,6 +96,44 @@ export function __resetEmbedConfigStore(): void {
     _memoryInitialized = false;
 }
 
+/** Shape of the deployment-declared embed target, as surfaced by the proxy's
+ *  profile metadata (`powerbiGroupId` / `powerbiReportId`). Both are routing
+ *  ids that appear in any embed URL; the token granting access is still minted
+ *  server-side. */
+export interface DeploymentEmbedTarget {
+    powerbiGroupId?: string;
+    powerbiReportId?: string;
+    powerbiDatasetId?: string;
+}
+
+/**
+ * Seed the embed target from what the DEPLOYMENT declares, but only when this
+ * browser has no configuration of its own.
+ *
+ * Why this exists: the embed target used to live exclusively in localStorage,
+ * so it was set per browser, by hand, once. A browser configured months earlier
+ * kept opening whatever report it was last pointed at even after the whole
+ * stack was repointed - which is how a stale Superstore report survived a move
+ * to the SCM star and quietly disagreed with every number the AI produced.
+ *
+ * Deliberately non-destructive: an existing config is never overwritten, so an
+ * author who chose a different report keeps it. Returns true if it seeded.
+ */
+export function seedEmbedConfigFromDeployment(target: DeploymentEmbedTarget | null | undefined): boolean {
+    if (!target?.powerbiReportId) return false;
+    const current = getEmbedConfig();
+    if (current && Object.keys(current).length > 0) return false;
+    // Field names follow PowerBIEmbedConfig: `id` is the REPORT id, not
+    // `reportId` (bi-adapters/powerbi/index.ts). Only the target is seeded -
+    // embedUrl and accessToken still come from the server-side token mint, so
+    // no credential is ever written to storage here.
+    const seeded: Record<string, unknown> = { id: target.powerbiReportId };
+    if (target.powerbiGroupId) seeded.groupId = target.powerbiGroupId;
+    if (target.powerbiDatasetId) seeded.datasetId = target.powerbiDatasetId;
+    setEmbedConfig(seeded as BIEmbedConfig);
+    return true;
+}
+
 /** React hook — returns the current embed config + a stable setter +
  *  a clear helper. Subscribes to same-tab events AND cross-tab
  *  storage events so authoring in one Settings tab updates the

@@ -95,6 +95,14 @@ env:
     value: "7bb52a2a-5028-4887-b8ec-7d13e386da93"
   - name: PROXY_PROFILE_POWERBIDWD_POWERBI_DATASET_ID
     value: "633b2b11-d390-43f6-9894-fc90855691b6"
+  # Which report the Dashboard opens by default. Workspace dwd_pbi_demo also
+  # holds the older DwD_PBI_Demo (Superstore) report, a different use case that
+  # does NOT reconcile with the SCM star the AI answers from. Declaring the
+  # report here means a fresh browser lands on the right one instead of every
+  # user configuring it by hand in Settings -> BI.
+  #   PulsePlay_SCM_Synthetic report, dataset 633b2b11 (same as above)
+  - name: PROXY_PROFILE_POWERBIDWD_POWERBI_REPORT_ID
+    value: "ead5b770-af86-438d-b650-7be705e89c37"
   - name: PROXY_PROFILE_POWERBIDWD_DISPLAY_NAME
     value: "Power BI: Synthetic SCM"
   - name: PROXY_PROFILE_POWERBIDWD_DATA_DOMAIN

@@ -341,6 +341,14 @@ const ENV_PROFILE_FIELDS = {
     POWERBI_DATASET_ID: 'powerbiDatasetId',
     POWERBIDATASETID: 'powerbiDatasetId',
     POWER_BI_DATASET_ID: 'powerbiDatasetId',
+    // Report id lets a DEPLOYMENT say which report the Dashboard should open.
+    // Without it the embed target lives only in each user's localStorage, so a
+    // browser configured months ago keeps showing whatever report it was last
+    // pointed at - which is how a stale Superstore report survived a repoint of
+    // the whole stack to the SCM star.
+    POWERBI_REPORT_ID: 'powerbiReportId',
+    POWERBIREPORTID: 'powerbiReportId',
+    POWER_BI_REPORT_ID: 'powerbiReportId',
     STATIC_PROBE_PATH: 'staticProbePath',
     STATICPROBEPATH: 'staticProbePath'
 };
@@ -3313,6 +3321,13 @@ app.get('/assistant/profiles', (req, res) => {
             type: profile.type || undefined,
             spaces: isSupervisor && Array.isArray(profile.spaces) ? profile.spaces.slice() : undefined,
             agentName: isSupervisor && profile.agentName ? String(profile.agentName) : undefined,
+            // Power BI embed target, when the deployment declares one. These are
+            // routing metadata, not secrets - both ids appear in plain sight in
+            // every embed URL, and the token that actually grants access is
+            // still minted server-side. Surfacing them lets a fresh browser
+            // open the right report without a human configuring each one.
+            powerbiGroupId: profile.powerbiGroupId ? String(profile.powerbiGroupId) : undefined,
+            powerbiReportId: profile.powerbiReportId ? String(profile.powerbiReportId) : undefined,
         };
     });
     res.json(profiles);
