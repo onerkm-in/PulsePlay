@@ -5,6 +5,22 @@
 
 ---
 
+## 2026-07-28 (latest+29) — Four manuals shipped; a doc fact-check found a LIVE production outage (hosted Power BI)
+
+Commits `97343c4` (use-case explainer), `d230a71` (proxy fix), `c88f21d` (three manuals). Hosted app redeployed at `c88f21d`. Playground 1894/1894, proxy **1484/1484 across 83 suites**, tsc clean.
+
+**The headline is not the docs — it is what writing them found. `PROXY_PROFILE_POWERBIDWD_*` was unreachable on the hosted app, so every Power BI request there returned "No matching profile configured".** Env names cannot carry a hyphen, so the profile registers as `powerbidwd` while the frontend hard-codes `powerbi-dwd` (`contextBundles.ts:100`, `:105`). `envConfig()`'s normalizing merge builds its table only from profiles that ALREADY exist (`server.js:396`) — on a Databricks App that is just `default`, because `config.json` is gitignored and never reaches the deployed git source — and `profileRegistry.get` then did an exact lookup. **It worked locally only because the local `config.json` happens to contain a `powerbi-dwd` key**, which seeds the merge. Invisible in dev, broken in prod. `profileRegistry.get` now falls back to a separator-insensitive scan; 4 pins drive it with a hosted-shaped env (no config.json). **This also corrects an earlier claim in latest+28's session that the normalization risk was "closed in code" — the normalizer exists, it just never reached the lookup path.**
+
+**The four documents** (`docs/USE_CASE_END_TO_END.md`, `MANUAL_USER.md`, `MANUAL_AUTHOR.md`, `MANUAL_DEVELOPER.md`). Each manual was drafted against the repo and then fact-checked by an adversarial second pass; all three came back NEEDS_FIXES and every correction is applied. Claims that would have misled a reader: landing order documented from a stale code comment (`ai-insights` last-resort, actually `action-insights`); "Visible tabs" described as four toggles (it is three — Decisions has no visibility flag); the legacy `system` group described as absorbed into Advanced (only search hits redirect, content still renders at its own route); snooze described as temporary (it is permanent — `status` is not in the engine's refresh list); saved items described as surviving a browser change (server store is in-process memory, lost on restart, and with no SSO every user resolves to the same identity); trigger actions described as sending nothing externally (a configured notification webhook is a real outbound POST); workbench templates described as writing two things (four, and two presets overwrite hand-authored Insights sections); Power BI Q&A counted among the ten paths (it is not one); plus a `quick` cadence that does not exist (it is `fast`).
+
+**Also fixed in the source, not the doc:** `DEFAULT_NUMBER_FORMAT_GUIDANCE` instructed the model "plain ASCII punctuation only" while itself being written with em dashes and arrow glyphs. Guidance that breaks its own rule teaches the opposite; the shipped string is now ASCII.
+
+**Tripwires:**
+- **A config-driven behaviour that only works because your dev box has a file the deployed host does not is invisible until production.** When touching profile resolution, test with env vars only and no `config.json`.
+- Doc prose is ASCII by rule, but `MANUAL_DEVELOPER.md` deliberately keeps non-ASCII INSIDE code excerpts — `TYPO_PROBE_RE`, `MEAS_NUM` and `INLINE_REGEX` literally match em dashes, curly quotes and trend glyphs. An "ASCII-cleaned" copy of those regexes silently stops matching.
+
+---
+
 ## 2026-07-28 (latest+28) — Insights output defects root-caused + fixed; synthetic data regenerated; batched stages were discarding paid-for sections
 
 Triggered by a pasted Executive Brief showing stray `**`, two sections disagreeing about the same numbers, `$1,031.41 MN` vs `$1.03 B`, and `SV sales growth 126.43 %`. Nine commits `a2b4db4` → `8866f91`; main ff'd; hosted app redeployed (`resolved_commit 8866f91`). Playground **1894/1894** (147 files), pytest **25/25**, tsc + vite build clean.
