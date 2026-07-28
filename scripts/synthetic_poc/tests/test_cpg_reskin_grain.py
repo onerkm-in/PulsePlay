@@ -108,6 +108,31 @@ def test_market_row_counts_are_balanced_across_halves(perf):
         assert len(set(counts.values())) == 1, f"{year} uneven: {dict(counts)}"
 
 
+def test_cache_tables_are_built_inside_the_data_build(perf):
+    """The read cache must be rebuilt by the same action that rebuilds the data.
+
+    Power BI drifted this week precisely because refreshing it was a separate
+    step a human had to remember. A cache rebuilt by hand would reproduce that
+    failure with a different name, so rebuild_views() calls build_cache_tables()
+    and this pins that wiring.
+    """
+    import inspect
+    from synthetic_poc import cpg_reskin as R
+
+    assert hasattr(R, "build_cache_tables")
+    src = inspect.getsource(R.rebuild_views)
+    assert "build_cache_tables(c)" in src, "rebuild_views must rebuild the read cache"
+
+    # and the rollups must aggregate the fact, not duplicate its definition
+    cache_src = inspect.getsource(R.build_cache_tables)
+    assert "tbl_pp_syn_agg_market_period" in cache_src
+    assert "tbl_pp_syn_agg_company_period" in cache_src
+    assert "FROM {P}tbl_pp_syn_fct_performance f" in cache_src
+    # the company rollup derives FROM the market rollup, so the two can never
+    # disagree with each other
+    assert "FROM {P}tbl_pp_syn_agg_market_period" in cache_src
+
+
 def _margin_by_market(perf, year):
     idx = perf["idx"]
     sales, cogs = collections.defaultdict(float), collections.defaultdict(float)

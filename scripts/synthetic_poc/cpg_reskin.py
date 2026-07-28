@@ -392,9 +392,69 @@ def rebuild_views(c: DatabricksClient):
       FROM {P}tbl_pp_syn_fct_performance f
       LEFT JOIN {P}tbl_pp_syn_dm_countries cy ON f.country_id=cy.country_id""", CAT, SCH)
     print("  enriched views rebuilt")
+    build_cache_tables(c)
     from . import supply_chain_measures as SCM
     SCM.build_metric_views(c)
     print("  KPI metric views rebuilt")
+
+
+def build_cache_tables(c: DatabricksClient):
+    """Materialize the pre-aggregated Delta tables the read surfaces sit on.
+
+    Every surface asks the same few shapes of question: company totals by
+    period, and market totals by period. Answering those from the fact table
+    means every widget, every pinned tile and every metric-frame lookup rescans
+    the facts. These rollups collapse that to a few hundred rows, so a dashboard
+    view costs one small scan and no model call at all.
+
+    Built HERE, inside the data build, on purpose. Power BI drifted this week
+    precisely because refreshing it was a separate step a human had to remember;
+    a cache rebuilt by hand would reproduce that failure with a different name.
+    Regenerating the data and rebuilding the cache is one action.
+
+    Delta tables rather than views: a view would re-run the aggregation on every
+    read, which is the cost we are trying to remove. They are cheap to rebuild
+    (the facts are small) so correctness beats incremental cleverness here.
+    """
+    P = f"{CAT}.{SCH}."
+    c.execute(f"""CREATE OR REPLACE TABLE {P}tbl_pp_syn_agg_market_period
+      COMMENT 'Pre-aggregated read cache: country x year x month. Rebuilt with the facts.'
+      AS SELECT
+           f.country_id,
+           cy.country_text,
+           cy.ou,
+           f.year,
+           f.month,
+           SUM(f.net_sales_usd)                        AS net_sales_usd,
+           SUM(f.cogs_usd)                             AS cogs_usd,
+           SUM(f.net_sales_usd) - SUM(f.cogs_usd)      AS gross_profit_usd,
+           CASE WHEN SUM(f.net_sales_usd) = 0 THEN NULL
+                ELSE (SUM(f.net_sales_usd) - SUM(f.cogs_usd)) / SUM(f.net_sales_usd) * 100
+           END                                          AS gross_margin_pct,
+           SUM(f.forecast_qty)                          AS forecast_qty,
+           SUM(f.actual_qty)                            AS actual_qty,
+           COUNT(*)                                     AS fact_rows
+         FROM {P}tbl_pp_syn_fct_performance f
+         LEFT JOIN {P}tbl_pp_syn_dm_countries cy ON f.country_id = cy.country_id
+         GROUP BY f.country_id, cy.country_text, cy.ou, f.year, f.month""", CAT, SCH)
+
+    c.execute(f"""CREATE OR REPLACE TABLE {P}tbl_pp_syn_agg_company_period
+      COMMENT 'Pre-aggregated read cache: company total by year x month. Rebuilt with the facts.'
+      AS SELECT
+           year,
+           month,
+           SUM(net_sales_usd)                      AS net_sales_usd,
+           SUM(cogs_usd)                           AS cogs_usd,
+           SUM(net_sales_usd) - SUM(cogs_usd)      AS gross_profit_usd,
+           CASE WHEN SUM(net_sales_usd) = 0 THEN NULL
+                ELSE (SUM(net_sales_usd) - SUM(cogs_usd)) / SUM(net_sales_usd) * 100
+           END                                      AS gross_margin_pct
+         FROM {P}tbl_pp_syn_agg_market_period
+         GROUP BY year, month""", CAT, SCH)
+
+    n1 = c.scalar(f"SELECT COUNT(*) FROM {P}tbl_pp_syn_agg_market_period")
+    n2 = c.scalar(f"SELECT COUNT(*) FROM {P}tbl_pp_syn_agg_company_period")
+    print(f"  read cache rebuilt: agg_market_period {n1} rows / agg_company_period {n2} rows")
 
 
 if __name__ == "__main__":
