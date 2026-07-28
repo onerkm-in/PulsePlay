@@ -546,14 +546,26 @@ describe("Vendor matrix: registry coverage under the 2026-07-24 catalogue curati
         unmount(state);
     });
 
-    it("hidden vendors (Databricks embeds / Tableau / Qlik / Looker / generic-iframe) are NOT offered in the picker", async () => {
+    it("iframe-stub vendors are NOT offered in the picker", async () => {
+        // databricks-aibi left this list on 2026-07-28: it graduated when it
+        // gained the native Lakeview renderer (proxy-served spec + ECharts +
+        // pushed-down aggregation), so the "iframe stub" reason no longer
+        // applies to it. The rest still render a URL and nothing more.
         const state = mount(async () => fullAllowlist());
         await act(async () => { await Promise.resolve(); });
         const select = state.container.querySelector<HTMLSelectElement>("#pp-bi-vendor");
         const options = Array.from(select?.options ?? []).map(o => o.value);
-        for (const hidden of ["databricks-aibi", "databricks-genie", "tableau", "qlik", "looker", "generic-iframe"]) {
+        for (const hidden of ["databricks-genie", "tableau", "qlik", "looker", "generic-iframe"]) {
             expect(options).not.toContain(hidden);
         }
+        unmount(state);
+    });
+
+    it("databricks-aibi IS offered, now that it renders natively", async () => {
+        const state = mount(async () => fullAllowlist());
+        await act(async () => { await Promise.resolve(); });
+        const select = state.container.querySelector<HTMLSelectElement>("#pp-bi-vendor");
+        expect(Array.from(select?.options ?? []).map(o => o.value)).toContain("databricks-aibi");
         unmount(state);
     });
 

@@ -97,19 +97,42 @@ describe("renderLakeviewDashboard", () => {
         expect(container.textContent).toBe("");
     });
 
-    it("fetches each dataset once and NEVER sends SQL", async () => {
+    it("asks per chart widget (so the proxy can push the GROUP BY down) and once per shared dataset", async () => {
         const { lib } = fakeCharts();
         const { impl, datasetCalls } = mockFetch();
         await renderLakeviewDashboard(container, {
             dashboardId: "dash-1", assistantProfile: "p",
             fetchImpl: impl, loadCharts: async () => lib,
         });
-        const names = datasetCalls.map(c => c.datasetName);
-        expect(new Set(names).size).toBe(names.length); // no duplicates
+
+        const chartCalls = datasetCalls.filter(c => c.widgetName);
+        const sharedCalls = datasetCalls.filter(c => !c.widgetName);
+
+        // one request per chart widget, each naming its widget so the server can
+        // derive that widget's aggregation from the spec
+        expect(chartCalls.length).toBe(3); // bar + pie + line in the fixture
+        expect(new Set(chartCalls.map(c => c.widgetName)).size).toBe(chartCalls.length);
+
+        // counters and tables read rows as they are, so they share one fetch per
+        // dataset - no duplicates among those
+        const sharedNames = sharedCalls.map(c => c.datasetName);
+        expect(new Set(sharedNames).size).toBe(sharedNames.length);
+    });
+
+    it("NEVER sends SQL, on any request shape", async () => {
+        const { lib } = fakeCharts();
+        const { impl, datasetCalls } = mockFetch();
+        await renderLakeviewDashboard(container, {
+            dashboardId: "dash-1", assistantProfile: "p",
+            fetchImpl: impl, loadCharts: async () => lib,
+        });
+        expect(datasetCalls.length).toBeGreaterThan(0);
         for (const call of datasetCalls) {
+            expect(call.datasetName).toBeTruthy();
             expect(call.sql).toBeUndefined();
             expect(call.statement).toBeUndefined();
             expect(call.query).toBeUndefined();
+            expect(call.queryText).toBeUndefined();
         }
     });
 

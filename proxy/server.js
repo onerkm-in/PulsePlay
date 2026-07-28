@@ -4796,6 +4796,9 @@ app.post('/assistant/dashboards/databricks/:dashboardId/dataset', async (req, re
             request: (profile, method, path) => databricksRequest(profile, method, path, undefined, req.requestId),
             execute: (profile, sql) => runSql(profile, sql),
             maxRows: req.body?.maxRows,
+            // A widget NAME, resolved against the spec we fetched. The caller
+            // never supplies fields or SQL - see lakeviewAggregate.
+            widgetName: typeof req.body?.widgetName === 'string' ? req.body.widgetName : null,
         });
         auditLog(req, {
             profileName: resolved.name,

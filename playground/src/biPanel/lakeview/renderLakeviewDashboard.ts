@@ -179,32 +179,43 @@ export async function renderLakeviewDashboard(
     const dashboard = normalizeDashboard(specBody.spec as LakeviewDashboardSpec);
     const coverage = describeCoverage(dashboard);
 
-    // One fetch per dataset actually used by a renderable widget.
-    const wanted = new Set<string>();
+    // Fetch plan. CHART widgets fetch per widget so the proxy can push the
+    // widget's GROUP BY down to the warehouse - that returns dozens of rows
+    // whatever the table size, which is what makes this scale-independent.
+    // Counters and tables share one fetch per dataset, since they read the rows
+    // as they are.
+    const perWidget = new Map<string, { datasetName: string; widgetName: string }>();
+    const perDataset = new Set<string>();
     for (const page of dashboard.pages) {
         for (const w of page.widgets) {
-            if (w.datasetName && (w.render === "chart" || w.render === "counter" || w.render === "table")) {
-                wanted.add(w.datasetName);
-            }
+            if (!w.datasetName) continue;
+            if (w.render === "chart") perWidget.set(w.id, { datasetName: w.datasetName, widgetName: w.id });
+            else if (w.render === "counter" || w.render === "table") perDataset.add(w.datasetName);
         }
     }
-    const datasets = new Map<string, WidgetData | null>();
-    await Promise.all([...wanted].map(async name => {
+
+    /** Keyed by widget id for charts, by dataset name for the rest. */
+    const results = new Map<string, WidgetData | null>();
+    const fetchDataset = async (key: string, body: Record<string, unknown>) => {
         try {
-            const body = await fetchJson(fetchImpl, `${apiBase}/assistant/dashboards/databricks/${encodeURIComponent(opts.dashboardId)}/dataset`, {
+            const res = await fetchJson(fetchImpl, `${apiBase}/assistant/dashboards/databricks/${encodeURIComponent(opts.dashboardId)}/dataset`, {
                 method: "POST",
                 headers: { "content-type": "application/json" },
-                body: JSON.stringify({ assistantProfile: opts.assistantProfile, datasetName: name }),
+                body: JSON.stringify({ assistantProfile: opts.assistantProfile, ...body }),
             });
-            datasets.set(name, { columns: body.columns as string[], rows: body.rows as unknown[][] });
+            results.set(key, { columns: res.columns as string[], rows: res.rows as unknown[][] });
         } catch (err) {
-            datasets.set(name, null);
-            emit({ type: "error", payload: { scope: "dataset", datasetName: name, message: String((err as Error).message || err) } });
+            results.set(key, null);
+            emit({ type: "error", payload: { scope: "dataset", key, message: String((err as Error).message || err) } });
         }
-    }));
+    };
 
-    const needsCharts = [...wanted].length > 0
-        && dashboard.pages.some(p => p.widgets.some(w => w.render === "chart" || w.render === "counter"));
+    await Promise.all([
+        ...[...perWidget.entries()].map(([id, b]) => fetchDataset(id, b)),
+        ...[...perDataset].map(name => fetchDataset(name, { datasetName: name })),
+    ]);
+
+    const needsCharts = dashboard.pages.some(p => p.widgets.some(w => w.render === "chart"));
     const charts = needsCharts ? await (opts.loadCharts ?? defaultLoadCharts)() : null;
 
     containerEl.textContent = "";
@@ -229,7 +240,11 @@ export async function renderLakeviewDashboard(
                 continue;
             }
 
-            const data = widget.datasetName ? datasets.get(widget.datasetName) ?? null : null;
+            // Charts read their own (aggregated) result; everything else reads
+            // the shared dataset result.
+            const data = widget.render === "chart"
+                ? results.get(widget.id) ?? null
+                : (widget.datasetName ? results.get(widget.datasetName) ?? null : null);
             const option = widget.render === "chart" || widget.render === "counter"
                 ? widgetToEChartsOption(widget, data)
                 : null;

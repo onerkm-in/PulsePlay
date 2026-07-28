@@ -21,6 +21,8 @@
 // zero model calls. Point the dataset SQL at the pre-aggregated Delta rollups
 // (tbl_pp_syn_agg_*) and each scan is a few hundred rows.
 
+const aggregate = require('./lakeviewAggregate');
+
 const DEFAULT_SPEC_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_DATA_TTL_MS = 60 * 1000;
 /** Hard ceiling. Mirrors the Genie client's cap so one runaway dataset cannot
@@ -164,6 +166,7 @@ async function runDashboardDataset(profile, dashboardId, datasetName, {
     ttlMs = DEFAULT_DATA_TTL_MS,
     specTtlMs = DEFAULT_SPEC_TTL_MS,
     maxRows = DEFAULT_RENDER_ROWS,
+    widgetName = null,
 } = {}) {
     const cap = resolveMaxRows(maxRows);
     const { spec, warehouseId } = await fetchDashboardSpec(profile, dashboardId, { request, ttlMs: specTtlMs });
@@ -175,16 +178,41 @@ async function runDashboardDataset(profile, dashboardId, datasetName, {
         throw err;
     }
 
+    // Push-down aggregation, when the named widget's encodings map confidently.
+    // The widget is looked up in the spec WE fetched - the caller supplies a
+    // name, never a field or a statement - so no browser input reaches SQL.
+    const widget = widgetName ? aggregate.findWidgetByName(spec, widgetName) : null;
+    const aggregatedSql = widget ? aggregate.buildAggregateSql(sql, widget) : null;
+
     const host = String(profile?.host || '').replace(/\/+$/, '');
-    // The cap is part of the key: a cached 1000-row render must not be served
-    // to a caller that asked for the full set.
-    const cacheKey = `${host}|${dashboardId}|${datasetName}|${cap}|${sql.length}:${sql.slice(0, 120)}`;
+    const target = aggregatedSql || sql;
+    // The cap and the effective statement are both part of the key: a cached
+    // 1000-row render must not serve a 2000-row ask, and an aggregated result
+    // must not be served as the raw one.
+    const cacheKey = `${host}|${dashboardId}|${datasetName}|${cap}|${target.length}:${target.slice(0, 120)}`;
     const cached = dataCache.get(cacheKey);
     if (cached) return { ...cached, cached: true };
 
-    const statement = await execute({ ...profile, warehouseId: warehouseId || profile.warehouseId }, sql);
+    const runProfile = { ...profile, warehouseId: warehouseId || profile.warehouseId };
+    let statement;
+    let aggregated = !!aggregatedSql;
+    if (aggregatedSql) {
+        try {
+            statement = await execute(runProfile, aggregatedSql);
+        } catch (err) {
+            // The author's SQL may already aggregate, in which case the derived
+            // GROUP BY references a column that does not exist. Rather than
+            // reason about SUM-of-SUM, fall back to the statement that was
+            // always correct. One extra round trip, only on the failing path.
+            aggregated = false;
+            statement = await execute(runProfile, sql);
+        }
+    } else {
+        statement = await execute(runProfile, sql);
+    }
+
     const result = normalizeStatementResult(statement, cap);
-    const value = { dashboardId, datasetName, ...result };
+    const value = { dashboardId, datasetName, aggregated, ...result };
     dataCache.set(cacheKey, value, ttlMs);
     return { ...value, cached: false };
 }
