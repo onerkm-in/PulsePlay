@@ -542,12 +542,30 @@ if (process.env.NODE_ENV !== 'test') {
 // never returned by the registry — keeps doc entries from leaking into
 // /assistant/profiles or being misinterpreted as a real profile.
 const profileRegistry = {
-    /** Resolve a single profile by its key. Returns null if missing. */
+    /** Resolve a single profile by its key. Returns null if missing.
+     *
+     *  Falls back to a separator-insensitive match. Env-var profile names
+     *  cannot carry a hyphen, so `PROXY_PROFILE_POWERBIDWD_*` registers as
+     *  `powerbidwd` while the frontend catalogue asks for `powerbi-dwd`. The
+     *  merge step in envConfig() normalizes only against profiles that ALREADY
+     *  exist, which on a config.json-less host (every Databricks App deploy -
+     *  config.json is gitignored and never reaches the deployed git source) is
+     *  just `default`. Without this fallback the hosted Power BI profile is
+     *  unreachable and every request 400s with "No matching profile
+     *  configured", even though app.yaml documents the two names as
+     *  equivalent. */
     get(name) {
         if (!name) return null;
         if (String(name).startsWith('_')) return null;
         const c = cfg();
-        return c.profiles?.[name] ?? null;
+        const direct = c.profiles?.[name];
+        if (direct) return direct;
+        const norm = s => String(s).toLowerCase().replace(/[-_]/g, '');
+        const target = norm(name);
+        for (const [k, v] of Object.entries(c.profiles ?? {})) {
+            if (!k.startsWith('_') && norm(k) === target) return v;
+        }
+        return null;
     },
     /** All real profile entries (excludes _doc_* doc keys). */
     entries() {
@@ -9227,6 +9245,10 @@ module.exports = {
     conversationMap,
     normalizeGenieResponse,
     loadEnvProfiles,
+    // Exported so the separator-insensitive lookup can be pinned directly: the
+    // hosted Power BI profile registers as `powerbidwd` from env while the
+    // frontend asks for `powerbi-dwd`.
+    profileRegistry,
     isTransientNetError,
     // Per-user rate-limit decision — exported so the bucketing behaviour can be
     // unit-tested directly (the middleware bypasses on NODE_ENV=test).
