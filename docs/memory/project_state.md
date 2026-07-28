@@ -18,8 +18,10 @@ composition/implementation root (existing REBUILD-P0, recorded D10). `npm run
 lint` is only TypeScript checking; no playground/proxy ESLint or committed
 coverage-risk baseline (D11). No production code changed. Pre-existing
 uncommitted Lakeview/server work and untracked artifacts were not staged or
-attributed. Authoritative detail: **[docs/HANDOVER.md](../HANDOVER.md)** top
-entry.
+attributed. Validation on the shared worktree: playground TypeScript clean,
+1938/1938 Vitest + production build clean; proxy 1528/1528 Jest across 85
+suites (with the existing process-listener warning). Authoritative detail:
+**[docs/HANDOVER.md](../HANDOVER.md)** top entry.
 
 **Current state - 2026-07-27 (responsive Ask Pulse visuals + SLM-Supervisor feasibility):** Branch `design/nav-consistency`, `0322e59` (responsive, shipped) + `c2185f2` (feasibility doc). **Responsive Ask Pulse:** `EChartsRenderer` gained a `ResizeObserver` (container-aware re-fit, jsdom-guarded) + the Ask Pulse chart height is `clamp(220px,34vh,400px)` (was fixed 320) — headed-verified 1366×768 / 1920×1080 (live re-fit) / 820-wide. Generated viz is already a governed structured spec (`buildEChartsOption`), not arbitrary code. **SLM-Supervisor feasibility (assessment only, no build):** `docs/research/SLM_SUPERVISOR_AND_RESPONSIVE_ASKPULSE_FEASIBILITY.md` — verdict PARTIALLY FEASIBLE; recommend rules-first router on the unused `connectors/registries.js` seam + managed small-model endpoint (reuse OpenAI-compatible `foundationModelClient` w/ base-URL override) + larger-model fallback; reject browser-embedded (WASM/WebGPU not implemented); reuse deterministic gates (personaGate/hitlGate/allowlist/governance/groundingVerifier); copy `experienceConfig.js` for the Supervisor Settings publish/kill-switch. No content router exists today (user picks connector by profile.type). Authoritative log: **[docs/HANDOVER.md](../HANDOVER.md)** top entry.
 

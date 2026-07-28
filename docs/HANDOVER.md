@@ -10,6 +10,11 @@
 Commits: `1065398` (knowledge base) + audit/docs follow-up. No production code
 changed.
 
+Validation against the shared worktree: playground TypeScript clean,
+**1,938/1,938** Vitest tests, production build clean; proxy **1,528/1,528**
+Jest tests across 85 suites. Proxy Jest passes but emits the existing
+`MaxListenersExceededWarning` for process rejection/exception listeners.
+
 Built `docs/CLEAN_CODE_KNOWLEDGE_BASE.md` from the owner-supplied Robert C.
 Martin *Clean Code*, second-edition 2025 early-release PDF (912 PDF pages).
 The repo contains derived standards and stable PDF-page citations only, not a
