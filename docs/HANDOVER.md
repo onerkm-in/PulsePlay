@@ -28,6 +28,8 @@ Triggered by a pasted Executive Brief showing stray `**`, two sections disagreei
 
 Live end-to-end proof (not just unit tests): a KPI-SNAPSHOT prompt carrying the frame returned `$1.99 B / $1.90 B / $92.68 MN (+4.89 %) / 56.03 % / 54.86 % / +1.18 %` verbatim, with no comma-grouped mantissa, no em dash, and no invented `4.29`.
 
+**Follow-on, same day — D9 RETIRED (`ba14df7`): markets now differ.** The grain fix made trends real but left every market at ~$170 MN and ~55.8% margin (0.90 pp spread, 1.1x size ratio), because the only per-market variation was row noise drawn from the SAME distribution — `kpi_inputs` never knew which country it was generating. New `MARKET_ECON` gives each market a (volume scale, COGS bias): scale roughly tracks real economy size, the bias models duties / local manufacture / channel mix, and it is **year-independent** so the existing margin and volume trends survive while levels differ. Applied to the OFR and operations facts too, so the star stays coherent. Orphan `ZZnn` keys get `DEFAULT_ECON` (small, margin-neutral) and cannot lead a ranking. Regenerated + verified live: margin spread **0.90 → 9.49 pp**, size ratio **1.1x → 8.8x**, YoY still −1.24%…+10.64%, company margin still improving 53.65% → 54.61%. pytest 28/28. **No app code changed, so no redeploy was needed.** Genie confirms the story is now answerable: "weakest gross margin is Venezuela at 50.3%, strongest is Uruguay at 59.8%". Demo narrative: Brazil leads volume, Uruguay margin, Venezuela is the problem, Chile is the one market declining.
+
 ---
 
 ## 2026-07-28 (latest+27) — Sustainability: DEBT_REGISTER + MAINTENANCE_PLAYBOOK checked in; first two debt retirements executed
