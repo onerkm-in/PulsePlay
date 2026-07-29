@@ -5,6 +5,22 @@
 
 ---
 
+## 2026-07-29 (latest+40) — CPG/FMCG domain end to end; scoped feed; first-load timer; republished
+
+Commits `28980fe` · `5d75c705`. **Deployed: `pulseplay` runs `5d75c70`, RUNNING.** Playground 2002/2002, proxy 1528/1528, synth 11/11.
+
+**The decision star was INDUSTRIAL, not CPG** (user caught it: "it shows some electronics"). Electronics / Legacy Parts / Refrigeration / Seasonal + component vendors ("Nakamura Components") contradicted the demo's stated LATAM consumer-packaged-goods story. Re-skinned to Carbonated Drinks / Salty Snacks / Juices & Water / Cereals & Bars, sub-categories (Cola, Potato Chips, Nectars, Oat Bars) and CPG vendors (Sakura Flavours, Andes Fruit Concentrates, Sierra Corn Mills, Cascade Potato Farms). Applied in BOTH places: the in-repo generator (deterministic; its 11 tests updated) and the LIVE star via name-only UPDATEs driven off information_schema — no schema/cardinality/measure change, so all five SCM rules fire identically with CPG wording. Prompts regenerated (`--persist`: 4 inserted, 1 refreshed); stale industrial prompts **retired by status, never deleted** (append-audit).
+
+**Verified, and worth remembering: the GENIE side was already correct CPG** — Modern Trade / Traditional Trade / Cash & Carry / Vending channels, Plant / Distribution Center / Co-Manufacturer sites. No Genie/metric-view change was needed; only the decision engine's own star was off-domain.
+
+**Cross-domain leak fixed:** the shared prompt store also holds customer-support SLA rules, which surfaced on a supply-chain cockpit. Deployments now declare `decisionRulePrefix` (`SCM-`), validated identifier, filtered at the query — set in config.json AND app.yaml.
+
+**First-load feedback (user ask):** cold warehouse ~10-20s with only a static skeleton read as a disconnect. Now spinner + elapsed m:ss timer + copy that escalates honestly at 4s and 20s. Fake-timer test; verified live (0:01 → 0:07 with the message switching).
+
+**Tripwire:** re-skinning source data does NOT rewrite existing prompts — their text is materialised at detection time. Regenerate, then retire the old rows by status.
+
+---
+
 ## 2026-07-29 (latest+39) — app dropped and republished, Databricks-only, at HEAD
 
 Commit `311f7c8`. **The `pulseplay` app was DELETED and RECREATED clean** (snapshot of the old object kept in the session scratchpad), resources rebound (`databricks-pat`), git repo relinked, deploy of `311f7c8` SUCCEEDED, app RUNNING, same URL (302 to platform login).
