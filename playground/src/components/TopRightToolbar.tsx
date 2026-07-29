@@ -67,6 +67,38 @@ export function TopRightToolbar(props: TopRightToolbarProps): React.ReactElement
         return () => window.removeEventListener("pulseplay:pulse-tab-changed", handler as EventListener);
     }, []);
 
+    // Vertical registration. The cluster is position:fixed with a top tuned
+    // for the Workbench's Row-2 baseline (76px) — but on app-level surfaces
+    // the tab strip row sits higher, so the icons straddled the row's bottom
+    // divider and read as misaligned (user screenshot, 2026-07-29). When a
+    // surface switcher row is on screen, centre the cluster on THAT row;
+    // otherwise keep the Workbench baseline.
+    const [topPx, setTopPx] = useState<number | null>(null);
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const CLUSTER_H = 28; // button height incl. padding
+        const align = () => {
+            const strip = document.querySelector(".pp-surface-switcher");
+            if (strip) {
+                const r = strip.getBoundingClientRect();
+                if (r.height > 0 && r.top >= 0 && r.top < 160) {
+                    setTopPx(Math.round(r.top + (r.height - CLUSTER_H) / 2));
+                    return;
+                }
+            }
+            setTopPx(null); // fall back to the stylesheet's Workbench baseline
+        };
+        align();
+        window.addEventListener("resize", align);
+        // Surface flips re-lay the header; re-measure after the commit.
+        const onNav = () => setTimeout(align, 50);
+        window.addEventListener("popstate", onNav);
+        return () => {
+            window.removeEventListener("resize", align);
+            window.removeEventListener("popstate", onNav);
+        };
+    }, [activePane]);
+
     // Resolved label: BI pane always uses the prop (Dashboard); AI pane
     // prefers the live Pulse signal when present, falling back to the prop.
     const activeTabName: string = activePane === "bi"
@@ -90,6 +122,7 @@ export function TopRightToolbar(props: TopRightToolbarProps): React.ReactElement
             role="toolbar"
             aria-label="PulsePlay window controls"
             data-testid="pp-top-right-toolbar"
+            style={topPx != null ? { top: topPx } : undefined}
         >
             {/* Maximize / Restore */}
             {isFocused ? (

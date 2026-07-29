@@ -338,9 +338,13 @@ export function safeContextText(value: string): string {
     return redactPII(value);
 }
 
+// Project notation (2026-07-29): Roman scale — M = thousand, MM = million,
+// B = billion, never K. This text reaches the model as context, so it must
+// speak the same convention the guidance states.
 function formatNumber(n: number): string {
-    if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
-    if (Math.abs(n) >= 1_000)     return `${(n / 1_000).toFixed(1)}K`;
+    if (Math.abs(n) >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(2)} B`;
+    if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(2)} MM`;
+    if (Math.abs(n) >= 1_000)     return `${(n / 1_000).toFixed(2)} M`;
     return n.toFixed(2);
 }
 

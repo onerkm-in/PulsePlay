@@ -186,18 +186,18 @@ export function readGenieSettings(): Record<string, unknown> {
 /** Project number-format standard, authored as domain guidance so the AI
  *  applies it consistently across AI Insights + Ask Pulse. The default format
  *  contract treats author guidance as higher precedence, so these win. Roman
- *  scale (M = thousand, MN = million, B = billion) per the project convention. */
+ *  scale (M = thousand, MM = million, B = billion) per the project convention. */
 export const DEFAULT_NUMBER_FORMAT_GUIDANCE = [
     // Written in plain ASCII on purpose. The last clause tells the model not to
     // emit em dashes; guidance that breaks its own rule teaches the opposite.
     "Number format standard - apply to EVERY value in every section, consistently:",
-    "- Thousands -> `x.xx M`. Millions -> `x.xx MN`. Billions -> `x.xx B`.",
-    "- CRITICAL: on this scale `M` means THOUSAND, NOT million. A MILLION is always `MN` (two letters). Examples: 50,000 -> `50.00 M`; 1,138,707 -> `1.14 MN` (NEVER `1.14 M`); 989,340,000 -> `989.34 MN`; 1,031,000,000 -> `1.03 B`.",
+    "- Thousands -> `x.xx M`. Millions -> `x.xx MM`. Billions -> `x.xx B`. NEVER use `K` for thousands.",
+    "- CRITICAL: on this scale `M` means THOUSAND, NOT million, and `K` is FORBIDDEN. A MILLION is always `MM` (two letters). Examples: 50,000 -> `50.00 M` (NEVER `50.00 K`); 1,138,707 -> `1.14 MM` (NEVER `1.14 M`); 989,340,000 -> `989.34 MM`; 1,031,000,000 -> `1.03 B`.",
     "- Percentages and ANY change to a percentage metric: `x.xx %` with the % symbol - never a `pp` suffix.",
-    "- Always show exactly 2 decimals. Prefix a change / delta with an explicit sign, e.g. `+0.81 %`, `-65.42 MN`.",
-    "- Currency keeps its symbol before the number: `$1.03 B`, `$989.34 MN`.",
-    "- PROMOTE THE UNIT rather than comma-grouping: the number before the unit must have 1-3 digits and NEVER a thousands separator. If you are about to write `$1,031.41 MN`, the unit is wrong - promote it to `$1.03 B`. A comma before a unit suffix always means you failed to promote.",
-    "- Use the SAME unit for the same quantity everywhere in one answer. Do not write `$1,031.41 MN` in one section and `$1.03 B` in another for the identical figure.",
+    "- Always show exactly 2 decimals. Prefix a change / delta with an explicit sign, e.g. `+0.81 %`, `-65.42 MM`.",
+    "- Currency keeps its symbol before the number: `$1.03 B`, `$989.34 MM`.",
+    "- PROMOTE THE UNIT rather than comma-grouping: the number before the unit must have 1-3 digits and NEVER a thousands separator. If you are about to write `$1,031.41 MM`, the unit is wrong - promote it to `$1.03 B`. A comma before a unit suffix always means you failed to promote.",
+    "- Use the SAME unit for the same quantity everywhere in one answer. Do not write `$1,031.41 MM` in one section and `$1.03 B` in another for the identical figure.",
     "- Plain ASCII punctuation only: use a hyphen `-`, never an em dash or en dash; straight quotes, not curly; `...` rather than a single ellipsis character.",
 ].join("\n");
 

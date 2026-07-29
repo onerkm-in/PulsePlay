@@ -45,6 +45,10 @@ export interface RenderLakeviewOptions {
     loadCharts?: () => Promise<LakeviewChartsLib>;
     /** Rows shown per table widget. Full result stays available to export. */
     tableRowCap?: number;
+    /** Workspace URL — enables the toolbar's "Edit in Databricks" deep link.
+     *  Authoring (move blocks, edit SQL) happens in the Databricks editor;
+     *  this surface renders. */
+    workspaceUrl?: string;
     onEvent?: (event: { type: "loaded" | "error"; payload: Record<string, unknown> }) => void;
 }
 
@@ -121,12 +125,12 @@ function renderCounter(body: HTMLElement, option: Record<string, unknown>): void
 }
 
 /** Counter display follows the project convention: promote the unit, never
- *  comma-group the mantissa (M = thousand, MN = million, B = billion). */
+ *  comma-group the mantissa (M = thousand, MM = million, B = billion). */
 export function formatCounterValue(value: number): string {
     const sign = value < 0 ? "-" : "";
     const v = Math.abs(value);
     if (v >= 1e9) return `${sign}${(v / 1e9).toFixed(2)} B`;
-    if (v >= 1e6) return `${sign}${(v / 1e6).toFixed(2)} MN`;
+    if (v >= 1e6) return `${sign}${(v / 1e6).toFixed(2)} MM`;
     if (v >= 1e3) return `${sign}${(v / 1e3).toFixed(2)} M`;
     return `${sign}${Number.isInteger(v) ? String(v) : v.toFixed(2)}`;
 }
@@ -196,6 +200,31 @@ export async function renderLakeviewDashboard(
     containerEl.textContent = "";
     const root = el("div", "lv-root", containerEl);
     const instances: Array<{ resize(): void; dispose(): void }> = [];
+
+    // ── toolbar: what this is + how to change it ────────────────────────────
+    // This surface RENDERS a Databricks-authored dashboard; authoring belongs
+    // to the Databricks editor (facilitate, don't replicate). Without these
+    // two affordances the render read as a dead end: no way to refresh, no
+    // path to edit the SQL or move blocks.
+    const toolbar = el("div", "lv-toolbar", root);
+    const tbTitle = el("div", "lv-toolbar-title", toolbar);
+    tbTitle.textContent = (specBody.displayName as string) || "Databricks dashboard";
+    const tbActions = el("div", "lv-toolbar-actions", toolbar);
+    const refreshBtn = el("button", "lv-toolbar-btn", tbActions, "Refresh");
+    refreshBtn.setAttribute("type", "button");
+    refreshBtn.setAttribute("title", "Re-run this dashboard's queries against the warehouse");
+    refreshBtn.addEventListener("click", () => {
+        // Full re-render: fresh spec + fresh statements. Explicit user intent,
+        // same cost as first paint.
+        void renderLakeviewDashboard(containerEl, opts);
+    });
+    if (opts.workspaceUrl) {
+        const editLink = el("a", "lv-toolbar-btn lv-toolbar-btn--link", tbActions, "Edit in Databricks ↗") as HTMLAnchorElement;
+        editLink.href = `${opts.workspaceUrl.replace(/\/+$/, "")}/dashboardsv3/${encodeURIComponent(opts.dashboardId)}`;
+        editLink.target = "_blank";
+        editLink.rel = "noreferrer noopener";
+        editLink.title = "Open this dashboard in the Databricks editor — move blocks, edit SQL, add widgets. Changes show here on Refresh.";
+    }
 
     /** Cards awaiting data, in document order - the order they fill in. */
     const pending: Array<{ widget: NormalizedWidget; card: HTMLElement; body: HTMLElement; request: Record<string, unknown> }> = [];

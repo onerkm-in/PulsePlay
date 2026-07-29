@@ -127,6 +127,9 @@ export class DatabricksAibiAdapter extends GenericIframeAdapter {
                     dashboardId: cfg.dashboardId!,
                     assistantProfile: cfg.assistantProfile!,
                     apiBase: cfg.apiBase,
+                    // Enables the toolbar's "Edit in Databricks" deep link —
+                    // authoring lives in the Databricks editor, not here.
+                    workspaceUrl: cfg.workspaceUrl,
                     onEvent: e => this.emit({ type: e.type, payload: e.payload }),
                 });
                 return;

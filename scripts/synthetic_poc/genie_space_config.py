@@ -96,6 +96,18 @@ HOW TO ANSWER KPI QUESTIONS
     dimensions: Year, Quarter, Month, Country
 - For structure / count questions (record counts, distinct plants, plants per
   country) query the base tables directly.
+
+NUMBER NOTATION (project convention — follow STRICTLY in every narrative)
+- Magnitude suffixes are Roman scale: `M` = THOUSAND, `MM` = MILLION,
+  `B` = BILLION. NEVER use `K` for thousands, and never use `M` for million.
+- Examples: 50,000 -> `50.00 M`; 854,420 -> `854.42 M` (NEVER `854.42 K`);
+  1,138,707 -> `1.14 MM`; 1,031,000,000 -> `1.03 B`.
+- Exactly 2 decimals on scaled values; the mantissa never carries a thousands
+  separator — a comma before a suffix means the unit should have been promoted.
+- Use the SAME unit for the same figure everywhere in one answer.
+- Direction of goodness: for GHG emissions, emissions intensity, LTIR, TRIR,
+  COGS and forecast bias, a DECREASE is an IMPROVEMENT — never describe a
+  decline in these as the exception to otherwise-positive results.
 """
 
 # --- example question -> SQL pairs (curated queries the space learns from) -----

@@ -93,9 +93,12 @@ function initialsOf(name: string): string {
     return (parts[0][0] + (parts[parts.length - 1][0] || "")).toUpperCase();
 }
 
+// Project notation (user-directed 2026-07-29): Roman scale — M = thousand,
+// MM = million, B = billion. Never K. Same convention the model guidance states.
 function fmtUsd(n: number): string {
-    if (n >= 1_000_000) return "$" + (n / 1_000_000).toFixed(1) + "M";
-    if (n >= 1_000) return "$" + (n / 1_000).toFixed(1) + "K";
+    if (n >= 1_000_000_000) return "$" + (n / 1_000_000_000).toFixed(2) + " B";
+    if (n >= 1_000_000) return "$" + (n / 1_000_000).toFixed(2) + " MM";
+    if (n >= 1_000) return "$" + (n / 1_000).toFixed(2) + " M";
     return "$" + Math.round(n).toLocaleString();
 }
 

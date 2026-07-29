@@ -196,10 +196,10 @@ describe("renderLakeviewDashboard", () => {
 describe("formatCounterValue follows the project number convention", () => {
     it("promotes the unit, never comma-groups", () => {
         expect(formatCounterValue(1_988_032_198)).toBe("1.99 B");
-        expect(formatCounterValue(989_340_570)).toBe("989.34 MN");
+        expect(formatCounterValue(989_340_570)).toBe("989.34 MM");
         expect(formatCounterValue(50_000)).toBe("50.00 M");
         expect(formatCounterValue(237)).toBe("237");
-        expect(formatCounterValue(-65_420_000)).toBe("-65.42 MN");
+        expect(formatCounterValue(-65_420_000)).toBe("-65.42 MM");
     });
 });
 

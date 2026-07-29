@@ -156,7 +156,7 @@ export function buildMetricFrame(qr: QueryResultLike | null | undefined): Metric
 }
 
 /** Project number convention (also stated to the model as domain guidance):
- *  Roman scale M = thousand, MN = million, B = billion; exactly 2 decimals;
+ *  Roman scale M = thousand, MM = million, B = billion (2026-07-29: MM, not MN, per project direction); exactly 2 decimals;
  *  the mantissa never carries a thousands separator — a comma means the unit
  *  should have been promoted. */
 export function formatMagnitude(value: number, currency: boolean): string {
@@ -165,7 +165,7 @@ export function formatMagnitude(value: number, currency: boolean): string {
     const v = Math.abs(value);
     const sym = currency ? "$" : "";
     if (v >= 1e9) return `${sign}${sym}${(v / 1e9).toFixed(2)} B`;
-    if (v >= 1e6) return `${sign}${sym}${(v / 1e6).toFixed(2)} MN`;
+    if (v >= 1e6) return `${sign}${sym}${(v / 1e6).toFixed(2)} MM`;
     if (v >= 1e3) return `${sign}${sym}${(v / 1e3).toFixed(2)} M`;
     return `${sign}${sym}${v.toFixed(2)}`;
 }
