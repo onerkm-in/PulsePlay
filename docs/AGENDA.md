@@ -8,7 +8,15 @@
 
 Ordered by impact × cost. Each item is independently shippable.
 
-- [ ] **CHART-MISSING-SERIES (found in headed validation 2026-07-29 evening)** —
+- [~] **CHART-MISSING-SERIES — half closed**: OTIF FIXED (name-heuristic didn't
+  know the acronym is a %, so 93.4 plotted sub-pixel on the millions axis; KPI
+  acronyms otif/ofr/mape/accuracy/utilization/availability/adherence now
+  classify as percentage — verified live, pink bars beside OFR). STILL OPEN:
+  "Net Sales B" — Genie returned billions-UNITS values (~1.9), currency class,
+  invisible against the GHG millions on the shared magnitude axis. Needs
+  magnitude-scale grouping or unit-suffix normalization ("_b"/"_mm" columns);
+  interim: the tooltip shows the true value. Original:
+  **CHART-MISSING-SERIES (found in headed validation 2026-07-29 evening)** —
   the 5-measure mixed-unit repro ("OFR, OTIF, net sales, gross margin, GHG by
   year") renders dual axes CORRECTLY (left magnitudes 500.0M-3.0MM, right
   0-100%) but plots only 3 of 5 series: OTIF and Net Sales appear in the

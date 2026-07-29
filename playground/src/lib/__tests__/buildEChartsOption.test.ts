@@ -78,3 +78,16 @@ describe("mixed-unit charts (2026-07-29 regression)", () => {
         expect(salesLine).not.toMatch(/%/);
     });
 });
+
+describe("OTIF is a percentage (2026-07-29 'where is otif?')", () => {
+    it("plots otif on the percent axis with a % tooltip, not sub-pixel on magnitudes", () => {
+        const opt = buildEChartsOption(
+            "clustered-bar",
+            ["year", "otif", "ghg_tco2e"],
+            [["2025", 93.4, 2563504], ["2026", 94.5, 854419]],
+        ) as Record<string, never>;
+        const series = opt.series as Array<{ name: string; yAxisIndex?: number }>;
+        const otif = series.find(s => /otif/i.test(s.name));
+        expect(otif?.yAxisIndex).toBe(1); // the percent axis
+    });
+});

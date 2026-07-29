@@ -336,6 +336,13 @@ export function detectColumnUnit(colName: string): UnitType {
     // inside 'crate'.
 
     // 1. Percentage / rate / margin / share (most specific)
+    // Domain acronyms that ARE percentages but carry no % token in the name:
+    // OTIF classified "generic" landed on the magnitude axis of a mixed
+    // chart, where 93.4 against a millions scale is a sub-pixel bar (user
+    // screenshot 2026-07-29 — "where is otif?"). Declared metadata (unit= in
+    // UC comments, VIZ-DECLARED) is the real fix; this keeps known KPI
+    // acronyms honest until the declaration path reaches the chart builder.
+    if (/\botif\b|\bofr\b|\bmape\b|\baccuracy\b|\butili[sz]ation\b|\bavailability\b|\badherence\b/.test(lower)) return "percentage";
     if (/%|\brate\b|\bmargin\b|\bshare\b|\bpct\b|\bpercent(age)?\b|\bproportion\b|\bratio_pct\b/.test(lower)) return "percentage";
     // 2. Duration / time-period (specific suffix words)
     if (/\b(?:days|hours|minutes|seconds|duration|elapsed|latency|cycle_time|lead_time)\b/.test(lower)) return "duration";
