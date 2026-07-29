@@ -233,14 +233,23 @@ export async function renderLakeviewDashboard(
 
     for (const page of dashboard.pages) {
         if (dashboard.pages.length > 1 && page.title) el("h2", "lv-page-title", root, page.title);
+        // Counters flow in their own compact band ABOVE the chart grid. In one
+        // mixed grid a 3-row chart sitting beside 1-row counters stretched the
+        // whole CSS grid row to chart height, leaving a void under every
+        // counter in that row (user screenshot, 2026-07-29). Two bands remove
+        // mixed-height rows for ANY dashboard, and mirror how Lakeview itself
+        // presents a KPI strip over charts.
+        const counterBand = el("div", "lv-grid lv-grid--counters", root);
         const grid = el("div", "lv-grid", root);
+        let counterCount = 0;
 
         for (const widget of page.widgets) {
             // Filters are dashboard-interactivity we do not wire yet; hiding
             // them beats rendering dead controls that look broken.
             if (widget.render === "filter") continue;
 
-            const card = el("div", `lv-card lv-card--${widget.render}`, grid);
+            const host = widget.render === "counter" ? (counterCount++, counterBand) : grid;
+            const card = el("div", `lv-card lv-card--${widget.render}`, host);
             if (widget.title) el("div", "lv-card-title", card, widget.title);
             const body = el("div", "lv-card-body", card);
 

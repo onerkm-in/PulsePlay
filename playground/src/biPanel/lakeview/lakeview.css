@@ -179,3 +179,12 @@
   cursor: pointer; text-decoration: none; display: inline-flex; align-items: center;
 }
 .lv-toolbar-btn:hover { border-color: var(--color-accent, #0071ce); color: var(--color-accent-800, #2c455d); }
+
+/* Counter band — compact KPI strip above the chart grid. Separating the bands
+   removes mixed-height grid rows (a tall chart beside 1-row counters left a
+   void under every counter in that row). */
+.lv-grid--counters {
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  margin-bottom: var(--space-3, 16px);
+}
+.lv-grid--counters:empty { display: none; margin: 0; }
