@@ -5,6 +5,16 @@
 
 ---
 
+## 2026-07-29 (latest+36) — M/MM/B convention locked end to end; toolbar registration; dashboard authoring path
+
+Commit `0c7d293`. Playground **1,998/1,998**. DEC-UNITS resolved by user direction: Roman scale via GUIDANCE, never code normalization — `M`=thousand (K forbidden), `MM`=million (was MN), `B`=billion. Everything that emits or teaches numbers now agrees: `formatMagnitude`, the Lakeview counter formatter, cockpit `fmtUsd` (its "$10.6K" broke the convention on the home screen), `contextBuilder`'s model-facing numbers, the host-stub prompt lines, and — the piece that actually produced the "854.42 K" — the **Genie space instructions**, updated in `genie_space_config.py` and pushed live (now also carrying direction-of-goodness: GHG/LTIR/COGS declines are improvements). Pill grammar tolerates MN + MM so legacy strings render.
+
+Toolbar: the fixed `top:76px` window-control cluster was tuned for the Workbench Row-2 baseline and straddled the app-level tab row's divider (user screenshot). It now centres itself on the visible switcher row, Workbench fallback otherwise.
+
+Lakeview render grew its missing affordances: dashboard title, **Refresh**, **Edit in Databricks ↗** (authoring stays in the Databricks editor — facilitate, don't replicate; the drag-and-arrange world is the native pinned canvas, unchanged). Vendor axis untouched: `powerbi` renders the PBI report where SP creds exist; PBI visuals INSIDE the Lakeview grid is not a thing — one vendor owns one pane's grid.
+
+---
+
 ## 2026-07-29 (latest+35) — beast-mode pass: expert-reviewed UIs, SCM dashboard created, out-of-box works from a wiped browser
 
 Commits `88bf4d7` (self-hosted fonts) · `a00a8bf` (interactive summary) · `81fa806` (out-of-box seeding) · `0f03a27` (expert-review batch). Playground **1,998/1,998** (156 files), proxy **1,528/1,528**, tsc + build clean. All five UIs exercised LIVE end to end: Manager approve flowed to `actioned`, one staged briefing generated (grounded SCM numbers), one Genie ask answered (Peru, OTIF +1.1pp, table + chart), the new SCM dashboard filled natively.

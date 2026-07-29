@@ -8,7 +8,13 @@
 
 Ordered by impact × cost. Each item is independently shippable.
 
-- [ ] **DEC-UNITS — number-notation decision (USER OWNS THIS)** — the Executive
+- [x] **DEC-UNITS — RESOLVED by user direction (`0c7d293`)** — Roman scale
+  stays, enforced via GUIDANCE not code normalization: thousand = `M` (never
+  K), million = `MM` (was MN), billion = `B`. Formatters emit MM; cockpit
+  fmtUsd + contextBuilder moved off K; host-stub prompt lines updated; the
+  Genie SPACE instructions now carry the notation block + direction-of-goodness
+  rules (pushed live via genie_space_config.py). Original finding, for the
+  record: **DEC-UNITS — number-notation decision (USER OWNED)** — the Executive
   Brief (model text) says "854.42 K tCO2e" while the KPI Snapshot (our
   deterministic formatter) says "854.42 M" for the SAME number: the model
   ignores the project's Roman-scale convention (M=thousand, MN=million, B)
