@@ -118,9 +118,34 @@ function renderTextWidget(body: HTMLElement, markdown: string): void {
     }
 }
 
-function renderCounter(body: HTMLElement, option: Record<string, unknown>): void {
+/** Evaluate the spec's DECLARED counter colour rules (style.rules on the
+ *  value encoding). First matching rule wins — Lakeview's own semantics. The
+ *  renderer honours declarations; it never invents thresholds of its own. */
+export function counterColorFromRules(
+    rules: Array<{ condition?: { operator?: string; operand?: { value?: string | number } }; color?: string }> | undefined,
+    value: number,
+): string | null {
+    if (!Array.isArray(rules) || !Number.isFinite(value)) return null;
+    for (const r of rules) {
+        const op = r?.condition?.operator;
+        const cmp = Number(r?.condition?.operand?.value);
+        if (!op || !Number.isFinite(cmp) || !r.color) continue;
+        const hit = op === ">=" ? value >= cmp
+            : op === ">" ? value > cmp
+            : op === "<=" ? value <= cmp
+            : op === "<" ? value < cmp
+            : op === "=" || op === "==" ? value === cmp
+            : false;
+        if (hit) return r.color;
+    }
+    return null;
+}
+
+function renderCounter(body: HTMLElement, option: Record<string, unknown>, rules?: Array<{ condition?: { operator?: string; operand?: { value?: string | number } }; color?: string }>): void {
     const meta = option.__pulseplayCounter as { label: string; value: number };
-    el("div", "lv-counter-value", body, formatCounterValue(meta.value));
+    const valueEl = el("div", "lv-counter-value", body, formatCounterValue(meta.value));
+    const declared = counterColorFromRules(rules, meta.value);
+    if (declared) valueEl.style.color = declared;
     el("div", "lv-counter-label", body, meta.label);
 }
 
@@ -323,7 +348,7 @@ export async function renderLakeviewDashboard(
             : null;
 
         if (widget.render === "counter" && option) {
-            renderCounter(body, option);
+            renderCounter(body, option, widget.encodings.value?.style?.rules);
         } else if (widget.render === "chart" && option && charts) {
             const chart = charts.init(body);
             chart.setOption(option);

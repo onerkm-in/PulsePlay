@@ -36,6 +36,10 @@ export interface LakeviewEncoding {
     fieldName?: string;
     displayName?: string;
     scale?: { type?: "categorical" | "quantitative" | "temporal"; mappings?: Array<{ value?: string; color?: string }> };
+    /** Counter conditional colour rules, declared in the dashboard spec
+     *  (style.rules on the value encoding — the same mechanism Lakeview's own
+     *  UI uses). First matching rule wins. */
+    style?: { rules?: Array<{ condition?: { operator?: string; operand?: { value?: string | number } }; color?: string }> };
 }
 
 export interface LakeviewWidget {

@@ -8,7 +8,13 @@
 
 Ordered by impact × cost. Each item is independently shippable.
 
-- [ ] **VIZ-DECLARED — rendering driven by DECLARED semantics, not column-name
+- [~] **VIZ-DECLARED — first two slices SHIPPED**: (1) UC comments declare
+  unit/direction on the decision fact; (2) Lakeview counters honour spec-
+  declared style.rules — the SCM board is colour-coded by data fact (OTIF
+  green ≥94, Line Fill red <95, backorders/penalty amber) with thresholds
+  DECLARED in the dashboard spec, zero client hardcoding. Remaining: chart
+  builder consumes declared units; agent-hint fallback. Original:
+  **VIZ-DECLARED — rendering driven by DECLARED semantics, not column-name
   heuristics (user direction 2026-07-29)** — the mixed-unit chart bugs (percent
   suffix on Net Sales; billions flattening % series) came from the client
   re-inferring semantics the platform already declares: UC metric views carry
@@ -18,7 +24,11 @@ Ordered by impact × cost. Each item is independently shippable.
   fallback where nothing is declared; column-name heuristics last. This is the
   plug-and-play posture: new use case = new declarations, not new code.
 
-- [ ] **UC-COMMENTS-AUDIT — inconclusive, redo** — the information_schema query
+- [x] **UC-COMMENTS-AUDIT — CLOSED: no stale comments existed** (they were
+  domain-neutral); ENRICHED instead: fact_supply_chain_kpi_monthly now carries
+  `unit=` and `direction=` declarations on all 14 KPI columns + a CPG table
+  comment — the first data-side brick of VIZ-DECLARED. Original entry:
+  **UC-COMMENTS-AUDIT — inconclusive, redo** — the information_schema query
   for stale/missing table+column comments on main.supply_chain.* errored
   mid-session (state ERR, cause not chased). After the CPG re-skin the
   comments may still carry industrial vocabulary. Audit and update via COMMENT

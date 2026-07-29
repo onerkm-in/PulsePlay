@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import fixture from "./lakeviewSpec.fixture.json";
-import { renderLakeviewDashboard, formatCounterValue, type LakeviewChartsLib } from "../renderLakeviewDashboard";
+import { renderLakeviewDashboard, formatCounterValue, type LakeviewChartsLib , counterColorFromRules } from "../renderLakeviewDashboard";
 
 /**
  * jsdom render test over the REAL trimmed fixture. The charts lib is injected
@@ -349,5 +349,23 @@ describe("never charts a truncated sample", () => {
         });
         await handle.whenFilled;
         expect(instances.length).toBeGreaterThan(0);
+    });
+});
+
+describe("declared counter colour rules (spec style.rules)", () => {
+    // Colour comes from the DASHBOARD SPEC, not client code — the renderer
+    // only evaluates what the author declared. First match wins.
+    const rules = [
+        { condition: { operator: ">=", operand: { type: "data-value", value: "94" } }, color: "#1f9d6b" },
+        { condition: { operator: "<", operand: { type: "data-value", value: "94" } }, color: "#d1453d" },
+    ];
+    it("applies the first matching declared rule", () => {
+        expect(counterColorFromRules(rules, 94.25)).toBe("#1f9d6b");
+        expect(counterColorFromRules(rules, 86.9)).toBe("#d1453d");
+    });
+    it("declares nothing → paints nothing", () => {
+        expect(counterColorFromRules(undefined, 94)).toBeNull();
+        expect(counterColorFromRules([], 94)).toBeNull();
+        expect(counterColorFromRules([{ color: "#000" }], 94)).toBeNull(); // no condition
     });
 });
